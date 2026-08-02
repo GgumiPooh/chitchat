@@ -9,13 +9,11 @@ export {
 } from "./google";
 export { clearOAuthCookies, readOAuthCookies, setOAuthCookies } from "./oauth-cookies";
 export {
-  SESSION_DURATION,
   clearSessionCookie,
   createSession,
   getCurrentUser,
   getSessionContext,
   invalidateCurrentSession,
-  requireUser,
   requireUserOrRedirect,
   setSessionCookie,
   type SessionContext,

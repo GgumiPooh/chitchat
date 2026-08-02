@@ -1,26 +1,20 @@
 import "server-only";
 
-import { SESSION_COOKIE_NAME, SESSION_EXPIRE_ROUTE } from "@/shared/config";
+import {
+  SESSION_COOKIE_NAME,
+  SESSION_COOKIE_OPTIONS,
+  SESSION_DURATION,
+  SESSION_EXPIRE_ROUTE,
+} from "@/shared/config";
 import { getDb, sessions, users, type Session, type User } from "@/shared/db";
-import { A_DAY, A_SECOND, type Nullable } from "@/shared/lib";
+import { A_DAY, type Nullable } from "@/shared/lib";
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
-// INFO: REQUIREMENTS.md § 5.2. Long-lived by design — the pair opens this app in bursts, not daily.
-export const SESSION_DURATION = 180 * A_DAY;
-
 // INFO: Sliding renewal (REQUIREMENTS.md § 5.2.) — one write per day per device instead of one per request.
 const SESSION_RENEWAL_INTERVAL = A_DAY;
-
-const SESSION_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax",
-  path: "/",
-  maxAge: SESSION_DURATION / A_SECOND,
-} as const;
 
 export type SessionContext = {
   session: Session;
@@ -107,17 +101,6 @@ export const getSessionContext = cache(async (): Promise<Nullable<SessionContext
 
 export async function getCurrentUser(): Promise<Nullable<User>> {
   return (await getSessionContext())?.user ?? null;
-}
-
-/** Throws a 401 `Response` when unauthenticated — API routes let it propagate (REQUIREMENTS.md § 14.). */
-export async function requireUser(): Promise<User> {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    throw new Response(null, { status: 401 });
-  }
-
-  return user;
 }
 
 /**

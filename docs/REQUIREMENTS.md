@@ -89,7 +89,7 @@ Implementation is **in progress**. Steps 1 and 2 of § 17. have landed (project 
   - [x] §3 Nullish unions use `Nullable<T>` / `Optional<T>` / `Maybe<T>`
   - [x] §4 Responsive policy — single mobile UI, mandatory pointer affordances, app shell width _(replaces the reference's i18n section)_
   - [x] §5 Semantic tokens only + dark-theme readiness rules
-  - [x] §6 Server-only modules must `import "server-only"`
+  - [x] §6 Server code — `import "server-only"`, `ensureEnv` over bare `process.env`, `getDb()` for the pooled connection, `requireUserOrRedirect()` for the session in Server Components (a Route Handler returns its own 401; the App Router does not honour a thrown `Response`)
   - [x] §7 No comments that restate the code; comment only what the code cannot express
   - [x] §8 No bare duration literals → `A_SECOND` / `A_MINUTE` / `AN_HOUR` / `A_DAY`, with explicit conversion for seconds-based APIs
 - [x] `CLAUDE.md` → symlink to `AGENTS.md`
@@ -227,7 +227,7 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
   - [x] Verify `state` and the PKCE verifier
   - [x] Require `email_verified === true`
   - [x] Normalize the email (lowercase) and require an **exact match** against `ALLOWED_EMAILS`; reject otherwise
-  - [x] Create the `users` row on first login; match it thereafter
+  - [x] Create the `users` row on first login; match it thereafter — the lookup key is `google_sub`, not the email, because Google lets an account change address and matching on email would collide with the existing row's unique `google_sub`
 - [x] `POST /api/auth/logout` — delete the current session row and expire the cookie
 
 ### 5.2. Session
@@ -236,11 +236,12 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
 - [x] Cookie: `httpOnly; Secure; SameSite=Lax; Path=/; Max-Age=180 days`
 - [x] **Never use localStorage for auth state** — iOS ITP can evict script-written storage after 7 days of non-use, which a server-set cookie is not subject to
 - [x] Sliding renewal — update `last_seen_at` and extend expiry, at most once a day per device
+- [x] The proxy re-issues the cookie with a fresh `Max-Age` on every page request. Without it the row's new expiry is invisible to the browser, which drops the cookie 180 days after login however active the user was
 - [x] Cache the session lookup per request (React `cache()`) to avoid duplicate queries
 - [x] `proxy.ts` checks **only whether the cookie exists** and redirects; the real DB validation happens in Server Components / Route Handlers
   - Next.js 16 renamed Middleware to **Proxy**: the file is `proxy.ts` at the repo root (beside `app/`), exporting `proxy` (or a default). Behaviour is unchanged
 - [x] Unauthenticated → redirect to `/login`; authenticated user hitting `/login` → redirect to `/chat`
-- [x] A cookie that exists but no longer validates is unwound through `GET /api/auth/session/expire`, which clears it and lands on `/login`. A Server Component cannot write cookies, so redirecting it straight to `/login` would bounce off the proxy forever
+- [x] A cookie that exists but no longer validates is unwound through `GET /api/auth/session/expire`, which clears it and lands on `/login`. A Server Component cannot write cookies, so redirecting it straight to `/login` would bounce off the proxy forever. The route re-checks the session first and refuses to clear a valid one — a cross-site `<img src>` reaches it with the cookie attached
 
 ### 5.3. Scope
 
@@ -538,7 +539,7 @@ Include only what genuinely pays off for exactly two users. General-purpose cale
 
 ## 14. Security and Index Blocking
 
-- [x] `app/robots.ts` — `Disallow: /` for every user agent
+- [x] `app/robots.ts` — `Disallow: /` for every user agent. `robots.txt`, `/icons/*`, and the manifest MUST stay out of the proxy matcher, or a crawler gets a redirect to `/login` instead
 - [x] Root layout metadata — `robots: { index: false, follow: false, nocache: true }`
 - [x] `next.config.ts` headers — `X-Robots-Tag: noindex, nofollow, noarchive` on every path
 - [x] **Do not generate a sitemap**

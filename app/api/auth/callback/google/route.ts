@@ -55,7 +55,10 @@ export async function GET(request: NextRequest) {
     await setSessionCookie(token);
 
     return NextResponse.redirect(new URL(HOME_ROUTE, request.url));
-  } catch {
+  } catch (error) {
+    // INFO: The user only ever sees the generic Korean copy (REQUIREMENTS.md § 14.), so without this a failed login is undiagnosable.
+    console.error("Google OAuth callback failed", error);
+
     return toLoginRedirect(request, "failed");
   }
 }

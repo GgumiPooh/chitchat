@@ -1,3 +1,5 @@
+import { A_DAY, A_SECOND } from "@/shared/lib";
+
 export const APP_NAME = "J&H";
 
 export const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
@@ -12,3 +14,15 @@ export const SESSION_EXPIRE_ROUTE = "/api/auth/session/expire";
 
 /** Name of the httpOnly cookie holding the opaque session token. */
 export const SESSION_COOKIE_NAME = "jandh_session";
+
+// INFO: REQUIREMENTS.md § 5.2. Long-lived by design — the pair opens this app in bursts, not daily.
+export const SESSION_DURATION = 180 * A_DAY;
+
+// WARN: The proxy re-issues the cookie on every page request; without that the browser drops it 180 days after login however active the user was.
+export const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  path: "/",
+  maxAge: SESSION_DURATION / A_SECOND,
+} as const;

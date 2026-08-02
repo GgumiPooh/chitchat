@@ -14,17 +14,32 @@ export async function upsertGoogleUser(identity: {
   name?: string;
 }): Promise<User> {
   const db = getDb();
-  const [existing] = await db.select().from(users).where(eq(users.email, identity.email)).limit(1);
 
-  if (existing) {
-    if (existing.googleSub === identity.sub) {
-      return existing;
+  // WARN: `google_sub` is the identity, not the email — Google lets an account change address, and matching on email would collide with the existing row's unique `google_sub`.
+  const [bySub] = await db.select().from(users).where(eq(users.googleSub, identity.sub)).limit(1);
+
+  if (bySub) {
+    if (bySub.email === identity.email) {
+      return bySub;
     }
 
+    const [reemailed] = await db
+      .update(users)
+      .set({ email: identity.email })
+      .where(eq(users.id, bySub.id))
+      .returning();
+
+    return reemailed;
+  }
+
+  // INFO: An allow-listed address whose `google_sub` we have never seen — a re-created Google account, or a row seeded before its first login.
+  const [byEmail] = await db.select().from(users).where(eq(users.email, identity.email)).limit(1);
+
+  if (byEmail) {
     const [relinked] = await db
       .update(users)
       .set({ googleSub: identity.sub })
-      .where(eq(users.id, existing.id))
+      .where(eq(users.id, byEmail.id))
       .returning();
 
     return relinked;

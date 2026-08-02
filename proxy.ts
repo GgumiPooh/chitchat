@@ -1,4 +1,9 @@
-import { HOME_ROUTE, LOGIN_ROUTE, SESSION_COOKIE_NAME } from "@/shared/config";
+import {
+  HOME_ROUTE,
+  LOGIN_ROUTE,
+  SESSION_COOKIE_NAME,
+  SESSION_COOKIE_OPTIONS,
+} from "@/shared/config";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
@@ -7,20 +12,30 @@ import { NextResponse, type NextRequest } from "next/server";
  * Server Components and Route Handlers.
  */
 export function proxy(request: NextRequest) {
-  const hasSessionCookie = request.cookies.has(SESSION_COOKIE_NAME);
+  const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const isLoginRoute = request.nextUrl.pathname === LOGIN_ROUTE;
 
-  if (!hasSessionCookie && !isLoginRoute) {
-    return NextResponse.redirect(new URL(LOGIN_ROUTE, request.url));
+  if (!sessionToken) {
+    return isLoginRoute
+      ? NextResponse.next()
+      : NextResponse.redirect(new URL(LOGIN_ROUTE, request.url));
   }
-  if (hasSessionCookie && isLoginRoute) {
+  if (isLoginRoute) {
     return NextResponse.redirect(new URL(HOME_ROUTE, request.url));
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+
+  // INFO: The client half of the sliding renewal in `getSessionContext` — the row's new expiry is invisible to the browser without it.
+  response.cookies.set(SESSION_COOKIE_NAME, sessionToken, SESSION_COOKIE_OPTIONS);
+
+  return response;
 }
 
 export const config = {
   // WARN: `/api/auth/*` must stay out — the callback sets the cookie, so gating it would deadlock login.
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest).*)"],
+  // WARN: `robots.txt` must stay out too, or crawlers get a redirect to `/login` instead of `Disallow: /` (REQUIREMENTS.md § 14.).
+  matcher: [
+    "/((?!api|_next/static|_next/image|icons|favicon.ico|icon.svg|robots.txt|manifest.webmanifest).*)",
+  ],
 };

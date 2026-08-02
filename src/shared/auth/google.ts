@@ -1,6 +1,6 @@
 import "server-only";
 
-import { APP_URL, ensureEnv } from "@/shared/config";
+import { ensureEnv } from "@/shared/config";
 import { Google } from "arctic";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
@@ -18,10 +18,11 @@ function getGoogleClientId(): string {
 }
 
 export function getGoogleClient(): Google {
+  // WARN: Not the `APP_URL` constant — its localhost default would silently ship a `redirect_uri` that only fails on Google's own screen.
   return new Google(
     getGoogleClientId(),
     ensureEnv("GOOGLE_CLIENT_SECRET"),
-    `${APP_URL}${GOOGLE_CALLBACK_PATH}`,
+    `${ensureEnv("APP_URL")}${GOOGLE_CALLBACK_PATH}`,
   );
 }
 

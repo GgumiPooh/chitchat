@@ -91,6 +91,20 @@ The `.dark` block in `theme.css` is intentionally unpopulated. Never hardcode a 
 
 Any module that touches the database, session secrets, or R2 credentials MUST `import "server-only"` at the top.
 
+## 6.2. Required environment variables
+
+Read a required environment variable with `ensureEnv("NAME")` from `@/shared/config`, never `process.env.NAME` directly. It treats a blank value as missing, so a half-filled `.env` fails at the first call instead of surfacing much later as an opaque error from a third party. Optional variables with a real default (`APP_URL`) stay as plain `process.env` reads with `??`.
+
+## 6.3. Database access
+
+Obtain the connection with `getDb()` from `@/shared/db` — it is the pooled client and it is lazy, so a missing `DATABASE_URL` cannot fail the build. `LISTEN`/`NOTIFY` (`REQUIREMENTS.md § 8.4.`) and migrations need `DATABASE_URL_DIRECT` and MUST NOT use it.
+
+## 6.4. Session in Server Components
+
+A Server Component that requires a signed-in user calls `requireUserOrRedirect()` from `@/shared/auth`. Never redirect an unauthenticated Server Component straight to `/login` — the proxy only checks that the cookie exists, so a cookie whose session no longer validates would bounce between the two forever (`REQUIREMENTS.md § 5.2.`).
+
+A Route Handler instead branches on `getCurrentUser()` and returns its own 401. Do not `throw` a `Response` to signal it: the App Router has no Remix-style thrown-response convention, so it surfaces as a 500.
+
 # 7. Comments
 
 ## 7.1. No comments that restate the code

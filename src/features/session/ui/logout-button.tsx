@@ -16,9 +16,12 @@ export function LogoutButton({ className }: LogoutButtonProps) {
   const logOut = async () => {
     setIsPending(true);
 
-    const response = await fetch("/api/auth/logout", { method: "POST" });
+    // INFO: A rejected fetch is the offline PWA case, which is the target environment — an unhandled one would strand the button disabled.
+    const isLoggedOut = await fetch("/api/auth/logout", { method: "POST" })
+      .then((response) => response.ok)
+      .catch(() => false);
 
-    if (!response.ok) {
+    if (!isLoggedOut) {
       setIsPending(false);
       toast.error("로그아웃하지 못했어요. 다시 시도해 주세요");
 
