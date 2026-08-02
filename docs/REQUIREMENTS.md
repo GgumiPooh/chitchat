@@ -47,7 +47,7 @@ Implementation is **in progress**. Step 1 of § 17. (project setup, FSD scaffold
 ### 1.1. Initialization
 
 - [x] Create a Next.js 16.2.12 project with `pnpm` (App Router, TypeScript, Turbopack)
-- [ ] `git init` → connect to a **Private** GitHub repository
+- [x] `git init` → connect to a **Private** GitHub repository (`GgumiPooh/jandh`)
 - [x] Write `.gitignore` and `.env.example` (`.env` must never be committed)
 
 ### 1.2. Inherit Verbatim From the Reference Project
