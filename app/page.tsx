@@ -1,12 +1,10 @@
-import { Container } from "@/shared/ui";
+import { requireUserOrRedirect } from "@/shared/auth";
+import { HOME_ROUTE } from "@/shared/config";
+import { redirect } from "next/navigation";
 
-// TODO: Replace with the session check that redirects to `/chat` or `/login` once auth lands (REQUIREMENTS.md § 5.2.).
-export default function Page() {
-  return (
-    <main className="min-h-dvh bg-canvas">
-      <Container className="py-2xl">
-        <h1 className="text-display-lg text-ink">J&amp;H</h1>
-      </Container>
-    </main>
-  );
+// INFO: Only reachable with a session cookie present — the proxy sends everyone else to `/login`.
+export default async function Page() {
+  await requireUserOrRedirect();
+
+  redirect(HOME_ROUTE);
 }

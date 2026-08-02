@@ -19,7 +19,7 @@ A private web app used by exactly two people. An iOS PWA with four tabs: Chat, C
 | `AGENTS.md` (repo root; `CLAUDE.md` is a symlink to it) | **How we write it** — coding conventions, component contracts, prohibitions                                            |
 
 Precedence on conflict: visual specs → `DESIGN.md`; code-authoring rules → `AGENTS.md`; everything else → this file.
-Implementation is **in progress**. Step 1 of § 17. (project setup, FSD scaffolding, design tokens, base components) has landed; step 2 (auth) is next.
+Implementation is **in progress**. Steps 1 and 2 of § 17. have landed (project setup and base components; Google OAuth, sessions, and the `users` / `sessions` tables). Step 2 is code-complete but still needs the Google Cloud client and the real-device iOS PWA check (§ 5.4.); step 3 (the remaining schema) is next. `/chat` is a placeholder screen that only proves the session resolves — the real one arrives in step 5.
 
 ---
 
@@ -48,6 +48,7 @@ Implementation is **in progress**. Step 1 of § 17. (project setup, FSD scaffold
 
 - [x] Create a Next.js 16.2.12 project with `pnpm` (App Router, TypeScript, Turbopack)
 - [x] `git init` → connect to a **Private** GitHub repository (`GgumiPooh/jandh`)
+- [x] `docker-compose.yml` at the repo root runs local Postgres for development (`pnpm db:up`); production stays on Neon
 - [x] Write `.gitignore` and `.env.example` (`.env` must never be committed)
 
 ### 1.2. Inherit Verbatim From the Reference Project
@@ -55,7 +56,7 @@ Implementation is **in progress**. Step 1 of § 17. (project setup, FSD scaffold
 - [x] `tsconfig.json` (`@/*` → `./src/*`, `verbatimModuleSyntax`, `strict`)
 - [x] `eslint.config.mjs` — perfectionist JSX-prop ordering, `consistent-type-imports`, `curly`, ban on trailing `export { }`, ban on imports that bypass an FSD slice's public API (`no-restricted-imports`)
 - [x] `.prettierrc` — `printWidth: 100`, organize-imports plugin, tailwindcss plugin, `tailwindFunctions: ["cn", "cva"]`
-- [x] `steiger.config.ts` — FSD recommended config, with `insignificant-slice` downgraded to `warn` for `widgets/**`
+- [x] `steiger.config.ts` — FSD recommended config, with `insignificant-slice` downgraded to `warn` for `widgets/**` and `entities/**` (entity consumers are mostly Route Handlers under `app/`, which steiger does not scan)
 - [x] `postcss.config.mjs` (`@tailwindcss/postcss`)
 - [x] `components.json` (shadcn: `new-york` style, aliases `@/shared/ui` and `@/shared/lib`, lucide icon library)
 - [x] The SVGR turbopack rule in `next.config.ts` (`*.svg` → React component)
@@ -113,14 +114,15 @@ Implementation is **in progress**. Step 1 of § 17. (project setup, FSD scaffold
     pages/     login, chat, calendar, gallery, settings
     widgets/   tab-bar, chat-room, message-composer, emoticon-picker,
                gallery-grid, calendar-month, settings-form
-    features/  auth, send-message, upload-media, mark-read,
+    features/  session, send-message, upload-media, mark-read,
                emoticon-prefs, update-profile, manage-event
     entities/  user, message, media, event, emoticon
     shared/    db, auth, storage, api, config, lib, theme, ui
   ```
+  The session feature slice is `session`, not `auth` — a `features/auth` slice collides with the `shared/auth` segment name (`fsd/ambiguous-slice-names`)
 - [x] A root-level `pages/` directory MUST exist and stay empty (it holds only a README). Without it Next.js treats the FSD `src/pages/` layer as the Pages Router and breaks the build
-- [ ] Server-only code (Drizzle schema, session logic, R2 client) lives in `shared/` segments and imports `server-only`
-- [ ] Data-fetching functions live in each entity's `api` segment
+- [x] Server-only code (Drizzle schema, session logic, R2 client) lives in `shared/` segments and imports `server-only`
+- [x] Data-fetching functions live in each entity's `api` segment
 - [x] Every slice is imported only through its `index.ts` public API (enforced by eslint)
 - [x] `pnpm lint:steiger` passes
 
@@ -220,29 +222,30 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
 
 - [ ] Create a Google Cloud project and OAuth client (consent screen in "Testing" mode)
 - [ ] Register redirect URIs: `http://localhost:3000/api/auth/callback/google` and `https://jandh.jeheecheon.com/api/auth/callback/google`
-- [ ] `GET /api/auth/login/google` — generate `state` + PKCE with `arctic`, store them in cookies, redirect to Google
-- [ ] `GET /api/auth/callback/google` — exchange the code, then verify the `id_token` signature with `jose`
-  - [ ] Verify `state` and the PKCE verifier
-  - [ ] Require `email_verified === true`
-  - [ ] Normalize the email (lowercase) and require an **exact match** against `ALLOWED_EMAILS`; reject otherwise
-  - [ ] Create the `users` row on first login; match it thereafter
-- [ ] `POST /api/auth/logout` — delete the current session row and expire the cookie
+- [x] `GET /api/auth/login/google` — generate `state` + PKCE with `arctic`, store them in cookies, redirect to Google
+- [x] `GET /api/auth/callback/google` — exchange the code, then verify the `id_token` signature with `jose`
+  - [x] Verify `state` and the PKCE verifier
+  - [x] Require `email_verified === true`
+  - [x] Normalize the email (lowercase) and require an **exact match** against `ALLOWED_EMAILS`; reject otherwise
+  - [x] Create the `users` row on first login; match it thereafter
+- [x] `POST /api/auth/logout` — delete the current session row and expire the cookie
 
 ### 5.2. Session
 
-- [ ] Generate a 32-byte random token → store **its hash** in `sessions.token_hash`; only the raw token goes into the cookie
-- [ ] Cookie: `httpOnly; Secure; SameSite=Lax; Path=/; Max-Age=180 days`
-- [ ] **Never use localStorage for auth state** — iOS ITP can evict script-written storage after 7 days of non-use, which a server-set cookie is not subject to
-- [ ] Sliding renewal — update `last_seen_at` and extend expiry
-- [ ] Cache the session lookup per request (React `cache()`) to avoid duplicate queries
-- [ ] `proxy.ts` checks **only whether the cookie exists** and redirects; the real DB validation happens in Server Components / Route Handlers
+- [x] Generate a 32-byte random token → store **its hash** in `sessions.token_hash`; only the raw token goes into the cookie
+- [x] Cookie: `httpOnly; Secure; SameSite=Lax; Path=/; Max-Age=180 days`
+- [x] **Never use localStorage for auth state** — iOS ITP can evict script-written storage after 7 days of non-use, which a server-set cookie is not subject to
+- [x] Sliding renewal — update `last_seen_at` and extend expiry, at most once a day per device
+- [x] Cache the session lookup per request (React `cache()`) to avoid duplicate queries
+- [x] `proxy.ts` checks **only whether the cookie exists** and redirects; the real DB validation happens in Server Components / Route Handlers
   - Next.js 16 renamed Middleware to **Proxy**: the file is `proxy.ts` at the repo root (beside `app/`), exporting `proxy` (or a default). Behaviour is unchanged
-- [ ] Unauthenticated → redirect to `/login`; authenticated user hitting `/login` → redirect to `/chat`
+- [x] Unauthenticated → redirect to `/login`; authenticated user hitting `/login` → redirect to `/chat`
+- [x] A cookie that exists but no longer validates is unwound through `GET /api/auth/session/expire`, which clears it and lands on `/login`. A Server Component cannot write cookies, so redirecting it straight to `/login` would bounce off the proxy forever
 
 ### 5.3. Scope
 
-- [ ] **Google OAuth only.** Do not build a provider abstraction layer — routes are the fixed `/api/auth/login/google` and `/api/auth/callback/google`, with no `[provider]` dynamic segment
-- [ ] Password login is **not implemented** (smaller attack surface)
+- [x] **Google OAuth only.** Do not build a provider abstraction layer — routes are the fixed `/api/auth/login/google` and `/api/auth/callback/google`, with no `[provider]` dynamic segment
+- [x] Password login is **not implemented** (smaller attack surface)
 
 ### 5.4. iOS PWA Verification (highest priority)
 
@@ -253,9 +256,9 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
 
 ## 6. Database Schema (Drizzle)
 
-- [ ] `users` — `id`, `email` (unique), `nickname`, `avatar_media_id`, `created_at`
-- [ ] Store `google_sub` (unique) directly on `users` — there is no `accounts` table, because there is exactly one provider
-- [ ] `sessions` — `id`, `user_id`, `token_hash` (unique), `device_label`, `created_at`, `last_seen_at`, `expires_at`
+- [x] `users` — `id`, `email` (unique), `nickname`, `avatar_media_id`, `created_at`
+- [x] Store `google_sub` (unique) directly on `users` — there is no `accounts` table, because there is exactly one provider
+- [x] `sessions` — `id`, `user_id`, `token_hash` (unique), `device_label`, `created_at`, `last_seen_at`, `expires_at`
 - [ ] `conversations` — the single conversation (`id`, `created_at`)
 - [ ] `conversation_members` — `conversation_id`, `user_id`, `last_read_at`
 - [ ] `messages` — `id` (bigserial; the ordering and cursor key), `conversation_id`, `sender_id`, `type` (`text` | `image` | `emoticon` | `system`), `text`, `media_id`, `emoticon_item_id`, `event_id` (the event a `system` message refers to), `client_msg_id` (uuid, unique), `created_at`, `deleted_at`
@@ -272,7 +275,7 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
 - [ ] Indexes: `messages(conversation_id, id DESC)`, `media(created_at DESC)`, `events(starts_at)`, `sessions(token_hash)`
 - [ ] `pg_trgm` extension + a GIN trigram index on `messages.text` (§8.6)
 - [ ] Emit `pg_notify('new_message', payload)` — either from a trigger or from the application right after INSERT
-- [ ] Two connection strings — `DATABASE_URL` (pooled, for normal queries) and `DATABASE_URL_DIRECT` (unpooled, required for `LISTEN` and for migrations)
+- [x] Two connection strings — `DATABASE_URL` (pooled, for normal queries) and `DATABASE_URL_DIRECT` (unpooled, required for `LISTEN` and for migrations)
 - [ ] `drizzle-kit` migration pipeline + initial seed (one conversation, two members)
 
 ---

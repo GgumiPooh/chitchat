@@ -9,4 +9,11 @@ export default defineConfig([
       "fsd/insignificant-slice": "warn",
     },
   },
+  {
+    // WARN: Entity consumers are mostly Route Handlers under `app/`, which steiger does not scan, so its reference count is always short.
+    files: ["./src/entities/**"],
+    rules: {
+      "fsd/insignificant-slice": "warn",
+    },
+  },
 ]);
