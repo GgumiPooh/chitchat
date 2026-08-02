@@ -1,0 +1,169 @@
+/* INFO: DESIGN.md § 4. is the single source of truth for every value here. */
+@theme {
+  --font-sans:
+    var(--font-pretendard), Pretendard, -apple-system, BlinkMacSystemFont, system-ui,
+    "Apple SD Gothic Neo", sans-serif;
+
+  /* WARN: Removes Tailwind's default palette, so `bg-white` and friends do not exist. DESIGN.md § 4. */
+  --color-*: initial;
+
+  /* INFO: Surfaces — DESIGN.md § 4.1.1. */
+  --color-backdrop: #e4ded4;
+  --color-canvas: #fbf9f6;
+  --color-chat-canvas: #efeae2;
+  --color-surface-soft: #f4f0e9;
+  --color-surface-strong: #eae4da;
+  --color-surface-pressed: #dfd8cb;
+
+  /* INFO: Lines and text — DESIGN.md § 4.1.2. */
+  --color-hairline: #e6e0d6;
+  --color-hairline-soft: #f0ebe3;
+  --color-hairline-strong: #cdc5b7;
+  --color-ink: #1f1b17;
+  --color-body: #453e36;
+  --color-meta: #7b7266;
+  --color-meta-soft: #a79d8e;
+  --color-scrim: #2a231c;
+
+  /* INFO: Accent — DESIGN.md § 4.1.3. */
+  --color-primary: #b65c4e;
+  --color-primary-hover: #a45144;
+  --color-primary-pressed: #8f453a;
+  --color-primary-disabled: #e8cfc9;
+  --color-primary-tint: #f7e7e2;
+  --color-on-primary: #ffffff;
+
+  /* INFO: Chat — DESIGN.md § 4.1.4. */
+  --color-bubble-mine: #f6dcd2;
+  --color-bubble-mine-pressed: #efcec1;
+  --color-bubble-theirs: #ffffff;
+  --color-bubble-theirs-pressed: #f4f1ec;
+  --color-bubble-ink: #1f1b17;
+  --color-chat-meta: #8d8375;
+  --color-chat-pill: #ded6c9;
+  --color-chat-pill-ink: #6b6153;
+  --color-unread: #b65c4e;
+  --color-search-hit: #f9e9c8;
+
+  /* INFO: Semantic — DESIGN.md § 4.1.5. */
+  --color-semantic-success: #3f7d52;
+  --color-semantic-warning: #b67a2e;
+  --color-semantic-error: #c0453c;
+  --color-semantic-error-hover: #a93a32;
+  --color-semantic-error-pressed: #92312a;
+  --color-on-semantic-error: #ffffff;
+
+  /* WARN: Type scale — DESIGN.md § 4.2.2. Never negative tracking; Hangul jamo collide. */
+  --text-display-lg: 26px;
+  --text-display-lg--line-height: 1.35;
+  --text-display-lg--letter-spacing: 0;
+  --text-display-lg--font-weight: 700;
+
+  --text-display-md: 20px;
+  --text-display-md--line-height: 1.4;
+  --text-display-md--letter-spacing: 0;
+  --text-display-md--font-weight: 700;
+
+  --text-display-sm: 18px;
+  --text-display-sm--line-height: 1.45;
+  --text-display-sm--letter-spacing: 0;
+  --text-display-sm--font-weight: 600;
+
+  --text-title-md: 16px;
+  --text-title-md--line-height: 1.45;
+  --text-title-md--letter-spacing: 0;
+  --text-title-md--font-weight: 600;
+
+  --text-title-sm: 14px;
+  --text-title-sm--line-height: 1.45;
+  --text-title-sm--letter-spacing: 0;
+  --text-title-sm--font-weight: 600;
+
+  --text-body-lg: 17px;
+  --text-body-lg--line-height: 1.65;
+  --text-body-lg--letter-spacing: 0;
+  --text-body-lg--font-weight: 400;
+
+  --text-body-md: 15px;
+  --text-body-md--line-height: 1.6;
+  --text-body-md--letter-spacing: 0;
+  --text-body-md--font-weight: 400;
+
+  --text-body-sm: 13px;
+  --text-body-sm--line-height: 1.55;
+  --text-body-sm--letter-spacing: 0;
+  --text-body-sm--font-weight: 400;
+
+  --text-chat-body: 15px;
+  --text-chat-body--line-height: 1.45;
+  --text-chat-body--letter-spacing: 0;
+  --text-chat-body--font-weight: 400;
+
+  --text-chat-name: 12px;
+  --text-chat-name--line-height: 1.3;
+  --text-chat-name--letter-spacing: 0;
+  --text-chat-name--font-weight: 500;
+
+  --text-chat-time: 11px;
+  --text-chat-time--line-height: 1.2;
+  --text-chat-time--letter-spacing: 0;
+  --text-chat-time--font-weight: 400;
+
+  --text-chat-badge: 11px;
+  --text-chat-badge--line-height: 1;
+  --text-chat-badge--letter-spacing: 0;
+  --text-chat-badge--font-weight: 600;
+
+  --text-caption: 12px;
+  --text-caption--line-height: 1.4;
+  --text-caption--letter-spacing: 0;
+  --text-caption--font-weight: 500;
+
+  --text-micro: 11px;
+  --text-micro--line-height: 1.3;
+  --text-micro--letter-spacing: 0.2px;
+  --text-micro--font-weight: 600;
+
+  --text-button-md: 15px;
+  --text-button-md--line-height: 1.25;
+  --text-button-md--letter-spacing: 0;
+  --text-button-md--font-weight: 600;
+
+  --text-button-sm: 13px;
+  --text-button-sm--line-height: 1.25;
+  --text-button-sm--letter-spacing: 0;
+  --text-button-sm--font-weight: 500;
+
+  --text-tab-label: 10px;
+  --text-tab-label--line-height: 1.2;
+  --text-tab-label--letter-spacing: 0;
+  --text-tab-label--font-weight: 500;
+
+  /* INFO: Radius — DESIGN.md § 4.4. */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-bubble: 18px;
+
+  /* INFO: Spacing — DESIGN.md § 4.3. Base unit 4px, no `section` tier. */
+  --spacing-2xs: 4px;
+  --spacing-xs: 8px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+
+  /* INFO: Elevation — DESIGN.md § 4.5. Shadow derives from `ink`; neutral black reads dirty on warm paper. */
+  --shadow-raised: 0 1px 2px rgb(31 27 23 / 0.04), 0 2px 8px rgb(31 27 23 / 0.05);
+  --shadow-floating: 0 4px 12px rgb(31 27 23 / 0.06), 0 16px 32px rgb(31 27 23 / 0.12);
+
+  /* INFO: App shell — DESIGN.md § 3.3. Narrower than a tablet so the tab bar cannot read as a desktop nav. */
+  --container-app: 576px;
+}
+
+/* TODO: Populate when the dark theme ships — DESIGN.md § 5.4. Hand-tune; never invert arithmetically. */
+.dark {
+}

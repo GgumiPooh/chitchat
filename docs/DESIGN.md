@@ -1,0 +1,602 @@
+---
+version: alpha
+name: jandh
+---
+
+# 1. J&H Design System.
+
+Design specification for a private two-person messaging, calendar, and photo app delivered as an iOS PWA.
+
+## 1.1. Purpose.
+
+Define design tokens, primitive UI components, theming behaviour, and authoring rules for J&H. Feature-level compositions (message list, calendar grid, gallery grid, settings rows) live with their owning slice, not in this document — but the chat surface is specified here (§ 6.) because it carries the product's entire visual identity.
+
+Reference UX: KakaoTalk (chat mechanics only — see § 2.2. for what is deliberately not taken).
+
+## 1.2. PRD Scope.
+
+Constraints from `REQUIREMENTS.md` that this system must satisfy.
+
+| Requirement   | Spec                                                                                                                                                                                                                                                                   |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Users         | Exactly two, both known to each other. No onboarding, no discovery, no social proof, no empty-account states.                                                                                                                                                          |
+| Language      | Korean only. No `:lang()` overrides — Korean metrics ARE the base scale (§ 4.2.). This document is English for LLM legibility, but **every Korean string in it (`오늘`, `새 메시지 3`, …) is literal UI copy to ship as-is** — never translate it into English in code |
+| Layout        | One mobile layout at every viewport. No responsive branching (§ 3.1.).                                                                                                                                                                                                 |
+| Pointer       | Touch-primary, but mouse `:hover` / `:active` / `:focus-visible` are mandatory (§ 3.2.).                                                                                                                                                                               |
+| Themes        | Light only at v1. Dark ships later — every token MUST be authored so dark is a value swap (§ 5.).                                                                                                                                                                      |
+| Chat fidelity | KakaoTalk-equivalent interaction and layout mechanics; original palette (§ 2.).                                                                                                                                                                                        |
+
+## 1.3. Glossary.
+
+| Term          | Definition                                                                                                       |
+| ------------- | ---------------------------------------------------------------------------------------------------------------- |
+| App shell     | The 576px-max, horizontally centered column that contains every screen including the fixed tab bar (§ 3.3.)      |
+| Bubble        | A single chat message container. `mine` (right-aligned) or `theirs` (left-aligned)                               |
+| Group         | Consecutive messages from one sender within the same minute, rendered with shared avatar/name and collapsed gaps |
+| Notch corner  | The single reduced-radius corner that replaces a drawn speech tail (§ 6.2.)                                      |
+| Pretendard    | Open-source Korean variable typeface; metric-compatible with Inter                                               |
+| Hangul / jamo | Korean syllabic blocks / their component letters. Full-square glyphs — denser on the line than Latin             |
+| Paper         | The warm off-white canvas family (§ 4.1.). Not `#ffffff`                                                         |
+
+# 2. Design Lineage.
+
+## 2.1. Adopted Patterns.
+
+| Pattern                                                       | Source           | Reason                                                                                                                                                             |
+| ------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Right-mine / left-theirs bubble alignment                     | KakaoTalk        | Both users' entire messaging intuition is built on it; deviating costs comprehension for zero gain                                                                 |
+| Unread count rendered adjacent to the bubble, not inside it   | KakaoTalk        | The `1` is metadata about delivery, not message content                                                                                                            |
+| Timestamp collapse — shown once per minute-group, on the last | KakaoTalk        | A timestamp per line turns the column into a log file                                                                                                              |
+| Date divider as a centered pill                               | KakaoTalk        | Reads as a section break without a full-width rule                                                                                                                 |
+| Bubble-less rendering for images and stickers                 | KakaoTalk        | A container around an image is redundant chrome                                                                                                                    |
+| Warm off-white paper canvas, never pure white                 | Airbnb / Notion  | `#ffffff` under a photo-heavy grid reads clinical; warm paper reads personal — the single highest-leverage choice against a "generic template" feel                |
+| Hairline-as-default-elevation, shadows reserved for overlays  | Notion           | Shadow on every card is the most common signal of unconsidered design                                                                                              |
+| Single restrained accent, no second hue                       | Airbnb           | Discipline over decoration                                                                                                                                         |
+| Notch-corner instead of a drawn speech tail                   | Project-original | A drawn tail requires an SVG or CSS triangle per bubble and breaks under grouping; a reduced corner radius carries the same directional read at zero cost (§ 6.2.) |
+
+## 2.2. Rejected Patterns.
+
+| Pattern                                          | Source      | Reason                                                                                                                                   |
+| ------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Kakao yellow `#fee500` + sky-blue `#b2c7da` chat | KakaoTalk   | Copying the brand palette outright makes the product read as a KakaoTalk clone, not as our app. We take the mechanics, not the identity. |
+| Saturated pink / red-heart couple-app palette    | Couple apps | High-chroma pink is the defining marker of the low-effort couple-app genre. Warm neutrals + one muted accent read as considered.         |
+| Gradients, glassmorphism, glow                   | —           | Aging trend markers; they date a personal app faster than anything else                                                                  |
+| Decorative script or rounded display typefaces   | Couple apps | Hangul in rounded/handwritten faces loses legibility at chat sizes                                                                       |
+| Emoji as UI iconography                          | —           | Inconsistent metrics and platform-dependent rendering; lucide only (§ 4.6.)                                                              |
+| Full-bleed bottom sheet                          | —           | Inset floating card matches the reference implementation and reads lighter (§ 7.5.)                                                      |
+| Responsive breakpoint branching                  | —           | Out of scope by PRD (§ 3.1.)                                                                                                             |
+
+# 3. Layout.
+
+## 3.1. Single Mobile Layout.
+
+One layout at every viewport. Screens MUST NOT branch on width — no `pc:` / `md:` / `lg:` layout variants, no `ResponsiveDialog`-style component swapping. Desktop users see the mobile UI in the centered app shell.
+
+Consequence: the Tailwind breakpoint scale is unused for layout. Breakpoint prefixes are permitted only for non-layout affordances that genuinely differ by input device, and § 3.2. covers those with pointer media queries instead.
+
+## 3.2. Pointer Affordances.
+
+Touch-first geometry, full pointer states.
+
+| Rule                                                                                              | Reason                                                                                              |
+| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Every interactive element defines `:hover`, `:active`, `:focus-visible`, and `:disabled` (§ 7.1.) | Desktop with only a rest state reads as a broken web page                                           |
+| Tailwind `hover:` is used directly — it already resolves under `@media (hover: hover)`            | No hover state sticks after a tap on iOS                                                            |
+| Minimum tap target 44×44 on every control                                                         | WCAG 2.5.5; this is a touch-primary product, so unlike a desktop-first system there is no 36px tier |
+| Visual size may be smaller than the tap target — pad the hit area, do not inflate the glyph       | A 44px-wide icon glyph looks clumsy; a 20px glyph in a 44px target does not                         |
+| `:focus-visible`, never `:focus`                                                                  | No focus ring on mouse click                                                                        |
+| Long-press actions MUST have a pointer equivalent (right-click or a hover-revealed control)       | Long-press does not exist with a mouse                                                              |
+
+## 3.3. App Shell.
+
+| Property          | Value                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| Max width         | `576px` — token `--container-app`                                                             |
+| Alignment         | Horizontally centered, full height                                                            |
+| Shell background  | `canvas` (or `chat-canvas` on the chat screen)                                                |
+| Outside the shell | `backdrop` — one step deeper than `canvas`, so the shell reads as a held device on desktop    |
+| Fixed children    | The tab bar and the composer are `fixed`; both MUST re-apply the same max width and centering |
+| Safe areas        | `env(safe-area-inset-bottom)` on the tab bar, `env(safe-area-inset-top)` on the header        |
+| Viewport height   | `100dvh` (never `100vh` — iOS URL-bar collapse)                                               |
+
+576px, not a tablet 768px: at 768 a 72%-width bubble spans 550px, which forces long lines and breaks the chat rhythm; the four tab-bar items also drift apart to the point of reading as a desktop nav. Screens MUST obtain this width from `Container`, never by hardcoding `max-w-*`.
+
+# 4. Tokens.
+
+Color tokens live in the `@theme` block of `src/app/styles/theme.css`. Each `--color-{token}` generates `bg-{token}`, `text-{token}`, `border-{token}`, `ring-{token}`. `--color-*: initial` is declared first, removing Tailwind's default palette from the build — raw utilities like `bg-white` do not exist and MUST NOT be reintroduced.
+
+## 4.1. Light Palette.
+
+The system is built on warm neutrals. Every neutral carries a yellow/red bias; there are no cool greys.
+
+### 4.1.1. Surfaces.
+
+| Token             | Hex     | Use                                                                             |
+| ----------------- | ------- | ------------------------------------------------------------------------------- |
+| `backdrop`        | #E4DED4 | Area outside the app shell (desktop only) — § 3.3.                              |
+| `canvas`          | #FBF9F6 | Page floor for calendar / gallery / settings                                    |
+| `chat-canvas`     | #EFEAE2 | Page floor for the chat screen only — one step deeper so bubbles read as raised |
+| `surface-soft`    | #F4F0E9 | Default raised surface; resting fill for chip-style controls                    |
+| `surface-strong`  | #EAE4DA | `:hover` escalation; terminal static fill (skeletons, disabled inputs)          |
+| `surface-pressed` | #DFD8CB | `:active` escalation. Ladder ceiling                                            |
+
+### 4.1.2. Lines and Text.
+
+| Token             | Hex     | Use                                          |
+| ----------------- | ------- | -------------------------------------------- |
+| `hairline`        | #E6E0D6 | Default 1px border                           |
+| `hairline-soft`   | #F0EBE3 | Long-scroll dividers, list separators        |
+| `hairline-strong` | #CDC5B7 | Input outlines, drag handle                  |
+| `ink`             | #1F1B17 | Headings, bubble text, primary text          |
+| `body`            | #453E36 | Body copy                                    |
+| `meta`            | #7B7266 | Timestamps, secondary labels, inactive tab   |
+| `meta-soft`       | #A79D8E | Disabled text, lowest-emphasis labels        |
+| `scrim`           | #2A231C | Overlay base; opacity at usage site (§ 4.5.) |
+
+`ink` is `#1F1B17`, not `#1a1a1a`: Hangul stroke density makes a neutral near-black read one shade lighter than Latin, and a cool near-black clashes against warm paper.
+
+### 4.1.3. Accent.
+
+One accent. A muted terracotta rose — warm enough to belong to a personal app, desaturated enough not to read as a couple-app cliché (§ 2.2.).
+
+| Token              | Hex     | Use                                                      |
+| ------------------ | ------- | -------------------------------------------------------- |
+| `primary`          | #B65C4E | Primary CTA, active tab, links, focus ring, unread count |
+| `primary-hover`    | #A45144 | `:hover`                                                 |
+| `primary-pressed`  | #8F453A | `:active`                                                |
+| `primary-disabled` | #E8CFC9 | Disabled CTA                                             |
+| `primary-tint`     | #F7E7E2 | Selected-day fill, highlight flash, low-emphasis accent  |
+| `on-primary`       | #FFFFFF | Text/icon on `primary`                                   |
+
+### 4.1.4. Chat.
+
+The signature surface. Bubble fills are the only place two adjacent fills are both near-value; the hairline on `bubble-theirs` is what separates it from `chat-canvas`.
+
+| Token                   | Hex     | Use                                                                               |
+| ----------------------- | ------- | --------------------------------------------------------------------------------- |
+| `bubble-mine`           | #F6DCD2 | My message fill — a tint of `primary`, not Kakao yellow                           |
+| `bubble-mine-pressed`   | #EFCEC1 | `:active` / long-press feedback on my bubble                                      |
+| `bubble-theirs`         | #FFFFFF | Their message fill — the one pure white in the system                             |
+| `bubble-theirs-pressed` | #F4F1EC | `:active` / long-press feedback on their bubble                                   |
+| `bubble-ink`            | #1F1B17 | Text inside any bubble. Both fills are light — never inverts                      |
+| `chat-meta`             | #8D8375 | Timestamp and sender name on `chat-canvas`                                        |
+| `chat-pill`             | #DED6C9 | Date divider pill fill                                                            |
+| `chat-pill-ink`         | #6B6153 | Date divider pill text                                                            |
+| `unread`                | #B65C4E | The `1` marker. Same value as `primary`, separate token so it can diverge on dark |
+| `search-hit`            | #F9E9C8 | Matched substring background in search results (§ 6.8.)                           |
+
+`bubble-mine` is a tint of the accent rather than a second hue: it keeps the palette at one chromatic family, and it makes "my voice" and "the app's voice" the same colour, which is the point of a two-person app.
+
+### 4.1.5. Semantic.
+
+| Token                    | Hex     | Use                         |
+| ------------------------ | ------- | --------------------------- |
+| `semantic-success`       | #3F7D52 | Confirmations               |
+| `semantic-warning`       | #B67A2E | Warnings                    |
+| `semantic-error`         | #C0453C | Errors, destructive actions |
+| `semantic-error-hover`   | #A93A32 | `:hover` on destructive     |
+| `semantic-error-pressed` | #92312A | `:active` on destructive    |
+| `on-semantic-error`      | #FFFFFF | Text on destructive fill    |
+
+`semantic-error` sits close to `primary` in hue. This is intentional — a second, cooler red would fracture the palette. They are separated by chroma and by strict role confinement (§ 8.2.), never by placement side by side.
+
+### 4.1.6. Surface Ladder.
+
+Four tiers, closed. Each tier has one role.
+
+| Tier              | Role                                                                          |
+| ----------------- | ----------------------------------------------------------------------------- |
+| `canvas`          | Page floor. Resting fill for components sitting directly on the page          |
+| `surface-soft`    | Default raised surface. Resting fill for chip-style controls                  |
+| `surface-strong`  | `:hover` escalation. Static terminal fill where no further escalation happens |
+| `surface-pressed` | `:active` escalation. Ceiling                                                 |
+
+| Rule                                                                      | Reason                                                        |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Interactive rest fills start at `canvas` or `surface-soft` — never higher | Starting at `surface-strong` leaves no headroom for `:hover`  |
+| `surface-pressed` is `:active` only; never a resting fill                 | The ladder has to terminate                                   |
+| No fifth tier                                                             | Each new tier recreates the same endpoint problem one step up |
+| `chat-canvas` is not part of the ladder                                   | It is a page floor for one screen, not an escalation step     |
+
+## 4.2. Typography.
+
+### 4.2.1. Font Family.
+
+```
+'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+system-ui, 'Apple SD Gothic Neo', sans-serif
+```
+
+| Decision                | Reason                                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| Single family, no serif | Korean serif (myungjo) carries an old-print register; serif/sans contrast does not read on Hangul blocks |
+| Pretendard              | Inter-metric-compatible; the modern Korean product canon (Toss, 당근); SIL OFL                           |
+| No mono                 | Nothing in this app is tabular. A mono timestamp in a chat column reads as a log file                    |
+| `font-display: swap`    | FOUT is acceptable; FOIT blocks the first paint of a chat screen                                         |
+
+### 4.2.2. Hierarchy.
+
+Korean is the only language, so these values ARE the Korean-tuned scale — there is no `:lang()` override layer. Each `--text-{token}` bundles size, line-height, letter-spacing, and weight into one utility.
+
+| Token        | Size | Weight | Line-height | Tracking | Use                                          |
+| ------------ | ---- | ------ | ----------- | -------- | -------------------------------------------- |
+| `display-lg` | 26   | 700    | 1.35        | 0        | Screen title (rare — settings, search)       |
+| `display-md` | 20   | 700    | 1.40        | 0        | Section heading, month label                 |
+| `display-sm` | 18   | 600    | 1.45        | 0        | Sheet title, card title                      |
+| `title-md`   | 16   | 600    | 1.45        | 0        | Header title, settings row label             |
+| `title-sm`   | 14   | 600    | 1.45        | 0        | Sub-labels, list-section headers             |
+| `body-lg`    | 17   | 400    | 1.65        | 0        | Long-form (event description)                |
+| `body-md`    | 15   | 400    | 1.60        | 0        | Default body                                 |
+| `body-sm`    | 13   | 400    | 1.55        | 0        | Secondary copy, helper text                  |
+| `chat-body`  | 15   | 400    | 1.45        | 0        | Bubble text — tighter leading than `body-md` |
+| `chat-name`  | 12   | 500    | 1.30        | 0        | Sender nickname above a group                |
+| `chat-time`  | 11   | 400    | 1.20        | 0        | Timestamp beside a bubble                    |
+| `chat-badge` | 11   | 600    | 1.00        | 0        | Unread `1` marker                            |
+| `caption`    | 12   | 500    | 1.40        | 0        | Captions, counters, date pill                |
+| `micro`      | 11   | 600    | 1.30        | 0.2      | Badge text                                   |
+| `button-md`  | 15   | 600    | 1.25        | 0        | Default button label                         |
+| `button-sm`  | 13   | 500    | 1.25        | 0        | Chip / pill label                            |
+| `tab-label`  | 10   | 500    | 1.20        | 0        | Bottom tab bar label                         |
+
+### 4.2.3. Rules.
+
+| Rule                                   | Reason                                                                                                                             |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Never negative letter-spacing          | Hangul jamo collide visually at negative tracking. `micro` is the only positive-tracking token, and it carries Latin/numerals only |
+| Weight ladder is 400 / 500 / 600 / 700 | 300 is too thin for Hangul at chat sizes; 800+ renders as filled squares                                                           |
+| `chat-body` leading is 1.45, not 1.60  | Bubbles are short-line containers; body leading inflates their height and destroys the density chat depends on                     |
+| No text below 10px                     | `tab-label` is the floor                                                                                                           |
+
+## 4.3. Spacing.
+
+Base unit 4px. `2xs=4 xs=8 sm=12 md=16 lg=24 xl=32 2xl=48`.
+
+There is no `section=64` tier: this is a mobile app with no marketing sections. Screen gutter is `md` (16px).
+
+## 4.4. Radius.
+
+| Token    | px   | Use                                          |
+| -------- | ---- | -------------------------------------------- |
+| `xs`     | 4    | Badge, notch corner (§ 6.2.)                 |
+| `sm`     | 8    | Small controls, gallery thumbnails           |
+| `md`     | 12   | Buttons, inputs, image messages, cards       |
+| `lg`     | 16   | Modals, containers                           |
+| `xl`     | 20   | Bottom sheet                                 |
+| `bubble` | 18   | Chat bubbles only                            |
+| `full`   | 9999 | Avatars, pills, composer field, icon buttons |
+
+`bubble` is its own token, not `lg`: 18px against a 15px/1.45 text block is the ratio that reads as a bubble rather than a card, and it must not drift when container radius is retuned.
+
+## 4.5. Elevation.
+
+Hairline is the default elevation. Shadows are confined to surfaces that float above the page.
+
+| Token             | Value                                                             | Use                                  |
+| ----------------- | ----------------------------------------------------------------- | ------------------------------------ |
+| —                 | `border border-hairline`                                          | Default. Cards, bubbles, list rows   |
+| `shadow-raised`   | `0 1px 2px rgb(31 27 23 / .04), 0 2px 8px rgb(31 27 23 / .05)`    | Floating action button, tab-bar lift |
+| `shadow-floating` | `0 4px 12px rgb(31 27 23 / .06), 0 16px 32px rgb(31 27 23 / .12)` | Bottom sheet, modal                  |
+
+Scrim: `bg-scrim/45`. Shadow colour is derived from `ink`, not black — a neutral-black shadow on warm paper reads grey and dirty.
+
+Bubbles carry **no shadow**. `bubble-theirs` is separated from `chat-canvas` by a 1px `hairline`; `bubble-mine` is separated by its own fill. Adding shadow to a dense column of bubbles is the single fastest way to make a chat UI look amateur.
+
+## 4.6. Iconography.
+
+| Property       | Value                                                                          |
+| -------------- | ------------------------------------------------------------------------------ |
+| Library        | `lucide-react` only. Custom marks are `.svg` files imported through SVGR       |
+| Stroke width   | `1.75` everywhere (lucide default is 2 — slightly heavy against Pretendard)    |
+| Size           | `20` in tab bar and composer, `18` inline, `16` in dense rows                  |
+| Colour         | `meta` at rest, `ink` when emphasized, `primary` only when active-state (§ 8.) |
+| Emoji as icons | Forbidden (§ 2.2.)                                                             |
+
+# 5. Theming.
+
+## 5.1. State Model.
+
+v1 ships light only. `ThemeProvider` wraps `next-themes` with `forcedTheme="light"`; the settings toggle is not rendered. Enabling dark later is: populate the `.dark` block, delete `forcedTheme`, render the toggle.
+
+## 5.2. CSS Mechanism.
+
+`@custom-variant dark (&:where(.dark, .dark *))` in `globals.css`. Dark values rebind the **same** custom property names inside `.dark` — there is no `bg-canvas-dark` utility, `bg-canvas` swaps automatically. The `.dark` block exists in `theme.css` today with no declarations.
+
+## 5.3. Dark Readiness Rules.
+
+These are binding now, even though no dark value exists yet.
+
+| Rule                                                                                       | Reason                                                                     |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| Never hardcode a hex or a raw Tailwind colour utility — always a semantic token            | Every such site becomes a manual `dark:` override later                    |
+| Never assume a token is light or dark (e.g. `text-ink` over `bg-canvas`, not `text-black`) | Pairs stay valid across themes only if expressed as token pairs            |
+| `bubble-ink` is a single token shared by both bubble fills                                 | On dark, both fills darken together; a per-fill text colour would fork     |
+| Shadows are authored as `rgb(ink / α)`-derived values                                      | Dark drops shadows entirely (they read as smudge); one token set to `none` |
+| No light tint may be reused directly on a dark canvas                                      | Tints are re-derived, not inverted                                         |
+
+## 5.4. Deferred.
+
+Dark hex values, the settings toggle, and the pre-paint `.dark` class injection from cookie are out of v1 scope. When implemented, dark MUST be hand-tuned, not arithmetically inverted, and `canvas-dark` MUST retain the warm bias (never `#000000`).
+
+# 6. Chat Surface.
+
+The chat screen is the product. It is specified here rather than in the feature slice because its geometry defines the app's identity.
+
+## 6.1. Column.
+
+| Property        | Value                                                                                                                                                                                              |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Background      | `chat-canvas`                                                                                                                                                                                      |
+| Rendering       | **Virtualized** — offscreen messages are not in the DOM (`REQUIREMENTS.md § 8.3.`)                                                                                                                 |
+| Scroll          | Owned by the virtualizer. **`flex-direction: column-reverse` is forbidden here** — it fights the virtualizer's scroll anchoring. Bottom-stickiness and prepend stability are the virtualizer's job |
+| Horizontal pad  | `md` (16px)                                                                                                                                                                                        |
+| Gap in-group    | `2xs` (4px)                                                                                                                                                                                        |
+| Gap cross-group | `sm` (12px)                                                                                                                                                                                        |
+| Gap around date | `md` (16px) above and below the divider pill                                                                                                                                                       |
+
+Virtualization constrains the visual spec in two places, and both are binding:
+
+| Constraint                                                                                         | Reason                                                                                        |
+| -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Message spacing is authored as **padding inside the row**, never as `gap` on the list container    | The virtualizer positions rows absolutely; a container `gap` does not exist for it to measure |
+| Image and emoticon rows MUST reserve their box from stored `width`/`height` before the asset loads | A row that changes height after paint forces a re-measure and visibly jolts the scroll        |
+
+## 6.2. Bubble.
+
+| Property      | Value                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------- |
+| Max width     | `72%` of the shell                                                                             |
+| Padding       | `8px 12px` (`py-xs px-sm`)                                                                     |
+| Radius        | `bubble` (18px) on three corners                                                               |
+| Notch corner  | `xs` (4px) on the corner nearest the sender — top-right for `mine`, top-left for `theirs`      |
+| Notch scope   | Applied to the **first bubble of a group only**; subsequent bubbles are fully `bubble`-rounded |
+| Typography    | `chat-body`, colour `bubble-ink`                                                               |
+| Fill          | `bubble-mine` / `bubble-theirs`                                                                |
+| Border        | `bubble-theirs` only: 1px `hairline`. `bubble-mine` has none                                   |
+| Shadow        | None (§ 4.5.)                                                                                  |
+| Text wrapping | `whitespace-pre-wrap`, `break-words`, `overflow-wrap: anywhere`                                |
+
+The notch corner replaces a drawn tail (§ 2.1.). It carries direction, survives grouping without extra geometry, and cannot misalign against the bubble edge the way an absolutely-positioned triangle does.
+
+## 6.3. Grouping.
+
+A group is consecutive messages from one sender within the same clock minute.
+
+| Element     | Rule                                                                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Avatar      | `theirs` only, 36×36 `rounded-full`, rendered on the first bubble of the group; subsequent bubbles indent by the avatar width + `xs`   |
+| Sender name | `theirs` only, `chat-name` in `chat-meta`, above the first bubble                                                                      |
+| Timestamp   | `chat-time` in `chat-meta`, on the **last** bubble of the group, on the outer side (left of `mine`, right of `theirs`), bottom-aligned |
+| Unread `1`  | `mine` only, `chat-badge` in `unread`, directly above the timestamp                                                                    |
+
+`mine` groups render no avatar and no name — in a two-person conversation, right-alignment is unambiguous identity.
+
+## 6.4. Date Divider.
+
+Centered `chat-pill` pill, `caption` in `chat-pill-ink`, padding `4px 12px`, `rounded-full`. Copy: `오늘`, `어제`, then `2026년 8월 3일 월요일`.
+
+## 6.5. Non-Text Messages.
+
+| Type       | Rule                                                                                                                                                                                                                                                                                                                                                 |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Image      | No bubble. `rounded-md`, max 220px on the long edge, `object-cover`, 1px `hairline` inset ring. Timestamp and unread marker keep their § 6.3. positions                                                                                                                                                                                              |
+| Emoticon   | No bubble, no border, no background. Max 140×140                                                                                                                                                                                                                                                                                                     |
+| System     | Calendar-change notice (`REQUIREMENTS.md § 11.5.`). Centered `chat-pill` pill, `caption` in `chat-pill-ink`, padding `4px 12px`, `rounded-full` — the § 6.4. date-divider treatment, so system notices read as timeline furniture rather than as someone speaking. No avatar, no timestamp, no unread marker. Tappable, `:hover` `bg-surface-strong` |
+| Failed     | `semantic-error` retry affordance to the outer side of the bubble; bubble itself renders at 60% opacity                                                                                                                                                                                                                                              |
+| Optimistic | Bubble at 60% opacity until the server echo arrives; no spinner                                                                                                                                                                                                                                                                                      |
+
+## 6.6. Composer.
+
+| Property       | Value                                                                                                           |
+| -------------- | --------------------------------------------------------------------------------------------------------------- |
+| Container      | `canvas` fill, 1px `hairline` top border, `fixed` bottom, shell-width and centered (§ 3.3.)                     |
+| Padding        | `xs` (8px) plus `env(safe-area-inset-bottom)`                                                                   |
+| Field          | `surface-soft` fill, `rounded-full`, padding `8px 14px`, `body-md`, auto-grow to 5 lines then scroll internally |
+| Field focus    | `ring-2 ring-primary ring-inset`, fill escalates to `canvas`                                                    |
+| Left control   | `+` (attach) — 20px glyph in a 44×44 target                                                                     |
+| Right controls | Emoticon toggle (20px / 44×44). Send button replaces it only when the field is non-empty                        |
+| Send button    | `primary` fill, `on-primary` glyph, 36×36 visual in a 44×44 target, `rounded-full`                              |
+| Keyboard       | Position tracked via `visualViewport`, not `100vh` math                                                         |
+
+## 6.7. Scroll-to-Bottom Pill.
+
+Shown whenever the viewport is away from the newest message — after scrolling up through history, and after a search jump (§ 6.8.). One component serves both.
+
+| Property          | Value                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| Geometry          | `rounded-full`, `canvas` fill, 1px `hairline`, `shadow-raised`, padding `8px 14px`, min-height 40 |
+| Position          | Bottom-center of the message column, `md` (16px) above the composer                               |
+| Rest content      | 16px chevron-down glyph in `meta`, alone                                                          |
+| With new messages | `primary` fill, `on-primary` chevron and `button-sm` count label — `새 메시지 3`                  |
+| Threshold         | Appears past ~200px from the bottom; hides on arrival                                             |
+| Transition        | Fade + `translate-y-1` over 150ms, both directions                                                |
+| `:hover`          | `bg-surface-soft` (rest) / `bg-primary-hover` (new-message)                                       |
+| `:active`         | `scale-[0.96]`                                                                                    |
+| Tap target        | 44 high including padding                                                                         |
+
+The count variant recolours to `primary` rather than adding a separate badge element: a badge on a floating pill stacks two elevated shapes in the busiest corner of the screen.
+
+## 6.8. Search.
+
+| Element         | Rule                                                                                                                             |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Result row      | `canvas` fill on `surface-soft` list, sender name (`title-sm`), matched line (`body-sm`, 2-line clamp), date (`caption`, `meta`) |
+| Match highlight | `search-hit` background, `ink` text, `rounded-xs`, computed client-side by string split                                          |
+| Jump target     | On arrival the bubble flashes `primary-tint` behind its fill for 1.5s, then fades over 300ms                                     |
+| Return control  | The § 6.7. scroll-to-bottom pill — same component, no search-specific variant                                                    |
+| Empty state     | § 7.6.                                                                                                                           |
+
+# 7. Components.
+
+Components are compositions of Tailwind utilities. No component stylesheets, no inline hex or px (§ 8.).
+
+## 7.1. Buttons.
+
+| Variant              | Rest fill        | Text                | Radius | Padding | Visual height | Border                |
+| -------------------- | ---------------- | ------------------- | ------ | ------- | ------------- | --------------------- |
+| `button-primary`     | `primary`        | `on-primary`        | `md`   | 12×16   | 48            | none                  |
+| `button-secondary`   | `canvas`         | `ink`               | `md`   | 12×16   | 48            | 1px `hairline-strong` |
+| `button-ghost`       | transparent      | `ink`               | `md`   | 12×16   | 48            | none                  |
+| `button-destructive` | `semantic-error` | `on-semantic-error` | `md`   | 12×16   | 48            | none                  |
+| `chip`               | `surface-soft`   | `body`              | `full` | 8×14    | 36            | none                  |
+| `chip-selected`      | `primary-tint`   | `primary`           | `full` | 8×14    | 36            | none                  |
+| `icon-button`        | transparent      | `meta`              | `full` | —       | 44×44 target  | none                  |
+
+State matrix. `:focus-visible` is `ring-2 ring-primary ring-offset-2 ring-offset-canvas` for every variant unless noted.
+
+| Variant              | `:hover`                                             | `:active`                   | `:disabled`                                 |
+| -------------------- | ---------------------------------------------------- | --------------------------- | ------------------------------------------- |
+| `button-primary`     | `bg-primary-hover`                                   | `bg-primary-pressed`        | `bg-primary-disabled`, `cursor-not-allowed` |
+| `button-secondary`   | `bg-surface-soft`                                    | `bg-surface-strong`         | `opacity-50`, `cursor-not-allowed`          |
+| `button-ghost`       | `bg-surface-soft`                                    | `bg-surface-strong`         | `opacity-50`, `cursor-not-allowed`          |
+| `button-destructive` | `bg-semantic-error-hover`                            | `bg-semantic-error-pressed` | `opacity-50`, `cursor-not-allowed`          |
+| `chip`               | `bg-surface-strong`                                  | `bg-surface-pressed`        | `opacity-50`, `cursor-not-allowed`          |
+| `chip-selected`      | unchanged — selection is a state, not a hover target | `bg-primary-tint/80`        | n/a                                         |
+| `icon-button`        | `bg-surface-soft`, `text-ink`                        | `bg-surface-strong`         | `opacity-40`, `cursor-not-allowed`          |
+
+`icon-button` uses `ring-2 ring-primary` with no offset — the circle bounding box is the visual edge.
+
+48px button height (not 44) because the shell is narrow and buttons are full-width: at 44 they read cramped against 16px gutters.
+
+## 7.2. Inputs.
+
+| Property         | Value                                                                                                 |
+| ---------------- | ----------------------------------------------------------------------------------------------------- |
+| Rest             | `canvas` fill, 1px `hairline-strong`, `rounded-md`, padding 12×14, `body-md`, min-height 48           |
+| Placeholder      | `meta-soft`                                                                                           |
+| `:hover`         | `border-ink/20`                                                                                       |
+| `:focus-visible` | `border-primary`, `ring-2 ring-primary/20`                                                            |
+| `aria-invalid`   | `border-semantic-error`, `ring-2 ring-semantic-error/20`; message below in `body-sm` `semantic-error` |
+| `:disabled`      | `surface-strong` fill, `meta-soft` text, `cursor-not-allowed`                                         |
+
+Error state is triggered by `aria-invalid="true"`, never by a class alone.
+
+## 7.3. Tab Bar.
+
+| Property  | Value                                                                                                       |
+| --------- | ----------------------------------------------------------------------------------------------------------- |
+| Container | `fixed` bottom, shell-width and centered (§ 3.3.), `canvas` fill, 1px `hairline` top border                 |
+| Height    | 56 + `env(safe-area-inset-bottom)`                                                                          |
+| Item      | 4 equal columns, each a full-height 44+ tap target, vertical icon-over-label                                |
+| Icon      | 20px, `1.75` stroke                                                                                         |
+| Label     | `tab-label`, 2px below the icon                                                                             |
+| Rest      | icon and label `meta`                                                                                       |
+| Active    | icon and label `primary`; icon switches to the filled lucide variant where one exists                       |
+| `:hover`  | icon and label `ink` (inactive items only)                                                                  |
+| `:active` | `scale-[0.96]` on the icon-label stack                                                                      |
+| Badge     | `unread` fill, `on-primary` `micro`, min 18×18, `rounded-full`, anchored to the icon's top-right; `99+` cap |
+
+No active-indicator bar, pill, or background fill behind the active item — colour alone carries state, matching the restraint of the rest of the system.
+
+## 7.4. Modal.
+
+`canvas` surface, `rounded-lg`, `shadow-floating`, scrim `bg-scrim/45`. Props-driven (`isOpen` / `header` / `onClose`), never composed at the call site.
+
+| Size | Width                     | Use                          |
+| ---- | ------------------------- | ---------------------------- |
+| `sm` | `min(360px, 100% - 32px)` | Confirmations, short choices |
+| `md` | `min(440px, 100% - 32px)` | Forms with helper copy       |
+
+No size beyond `md`: the shell is 576px, so anything larger is a screen, not a modal. Header is `display-sm` `ink`, optional description `body-sm` `meta`.
+
+## 7.5. Bottom Sheet.
+
+The default overlay for anything originating from a bottom-anchored or list interaction. Bottom-anchored **floating card**, inset `sm` (12px) from the screen edges, `rounded-xl`, `canvas` fill, 1px `hairline`, `shadow-floating`, `overflow-hidden`.
+
+| Rule                                                                    | Reason                                              |
+| ----------------------------------------------------------------------- | --------------------------------------------------- |
+| Drag handle at top: 48×6, `rounded-full`, `hairline-strong`             | The dismissal affordance                            |
+| No close `X` alongside the handle                                       | Two redundant dismiss controls on the same edge     |
+| Centered `title-md` `ink` header; optional `body-sm` `meta` description | Matches the reference implementation                |
+| Body scrolls internally past `70dvh`; max height `90dvh - 12px`         | Sheet must never push past the viewport             |
+| Focus ring inside the sheet is `ring-2 ring-primary ring-inset`         | `overflow-hidden` would crop an outward offset ring |
+| Never swapped for a `Modal` at any width                                | § 3.1.                                              |
+
+`ActionSheet` is a bottom sheet whose body is a list of full-width `surface-soft` rows, `rounded-md`, `button-md` centered label with optional leading icon, following the chip ladder for states. Destructive rows use `semantic-error` text.
+
+## 7.6. Empty State.
+
+`surface-soft` card, `rounded-md`, 1px `hairline-soft`, padding `2xl`, centered. 24px `meta-soft` lucide glyph, `body-md` `meta` line, optional `button-secondary`. No illustrations — a two-person app has no room for mascot art, and stock illustration is the clearest tell of a template build.
+
+## 7.7. Avatar.
+
+`rounded-full`, `surface-strong` fallback fill with the nickname's first character in `title-sm` `meta`. Sizes: 36 (chat), 44 (settings row), 72 (profile edit). 1px `hairline` inset ring at every size so light photos do not bleed into `canvas`.
+
+## 7.8. Skeleton.
+
+`surface-strong` blocks at the final content's radius, pulsing to `surface-soft` over 1.5s. Used for the initial message page, gallery grid, and calendar month. Never for optimistic messages — those render at 60% opacity (§ 6.5.).
+
+## 7.9. Calendar.
+
+The calendar screen opens with a D-day header, then the month grid.
+
+| Element        | Rule                                                                                                                                                                                                 |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-day header   | Full-width band on `surface-soft`, `rounded-lg`, padding `lg`, `md` bottom margin. Day count in `display-lg` `primary` with the unit in `title-md` `meta`; label line in `body-sm` `meta` beneath    |
+| Next milestone | `caption` `meta` line inside the same band — e.g. `500일까지 12일`. Hidden if none within a year                                                                                                     |
+| Upcoming card  | `canvas` fill, 1px `hairline`, `rounded-md`, padding `md`. Up to two entries: `title-sm` `ink` title, `caption` `meta` relative date. Hidden entirely when empty — never renders an empty-state here |
+
+The D-day band is the only place `display-lg` appears in the app. It is the screen's single focal point, so nothing else on the calendar competes at that size.
+
+| Element          | Rule                                                                                                                                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Month label      | `display-md` `ink`, centered, chevron `icon-button` either side                                                                                                          |
+| Weekday header   | `caption` `meta`; Sunday `semantic-error`, Saturday `primary`                                                                                                            |
+| Day cell         | Square, `body-md`; current month `ink`, adjacent months `meta-soft`                                                                                                      |
+| Today            | `chat-badge`-weight numeral in `primary`, no fill                                                                                                                        |
+| Selected         | `primary` fill, `on-primary` numeral, `rounded-full`                                                                                                                     |
+| Event marker     | Up to 3 dots (4px, `rounded-full`) below the numeral, in the event's colour                                                                                              |
+| Marker by scope  | `shared` events use a filled dot; `mine` events use a 1px ring dot of the same colour. Shape, not colour, carries scope — colour is already spent on the event's own hue |
+| Milestone marker | Derived anniversaries (100일, 주년) render a 4px `primary` diamond, distinct from every event dot                                                                        |
+| Event colours    | Drawn from the tint family only; never raw hues                                                                                                                          |
+
+## 7.10. Gallery.
+
+3-column grid, `2xs` (4px) gutters, square `object-cover` cells, `rounded-sm`. Month section header is `title-sm` `meta`, sticky under the app header with a `canvas` backdrop. Viewer is full-bleed on `scrim` at 92% opacity with no chrome except a close `icon-button` and a `caption` date.
+
+## 7.11. Settings Row.
+
+Full-width, min-height 56, `canvas` fill, 1px `hairline-soft` bottom border, padding `md`. Leading 18px `meta` icon, `title-md` `ink` label, trailing value in `body-sm` `meta` plus a 16px chevron. `:hover` `surface-soft`, `:active` `surface-strong`. Destructive rows (로그아웃, 세션 폐기) use `semantic-error` label with no icon colour change.
+
+# 8. Rules.
+
+## 8.1. Do.
+
+- Reference colours only through Tailwind token utilities (`bg-canvas`, `text-ink`) or `var(--color-*)`.
+- Start every interactive component's resting fill at `canvas` or `surface-soft` (§ 4.1.6.).
+- Define all four states (`:hover`, `:active`, `:disabled`, `:focus-visible`) on every interactive variant (§ 3.2.).
+- Give every control a ≥44×44 tap target; pad the hit area rather than enlarging the glyph (§ 3.2.).
+- Use `Container` for width; obtain the shell width from `--container-app` (§ 3.3.).
+- Use 1px `hairline` as the default elevation; reserve shadows for floating surfaces (§ 4.5.).
+- Use `100dvh` and `env(safe-area-inset-*)` for any full-height or edge-anchored surface (§ 3.3.).
+- Trigger input error styling through `aria-invalid="true"` (§ 7.2.).
+- Use `lucide-react` at `1.75` stroke for all iconography (§ 4.6.).
+- Keep hex literals out of TSX entirely; the only permitted literals are inside CSS filter functions, and each MUST carry a comment marking the waiver.
+
+## 8.2. Don't.
+
+- No raw Tailwind palette utilities (`bg-white`, `text-gray-500`, `border-zinc-200`) — they are removed from the build by `--color-*: initial` and MUST NOT be reintroduced (§ 4.).
+- No pure `#ffffff` as a page background; `canvas` is warm paper. The only white in the system is `bubble-theirs` (§ 4.1.1.).
+- No second accent hue. `semantic-error` is not an accent — it is confined to error and destructive roles (§ 4.1.5.).
+- No `primary` on non-interactive decoration, and no `primary` fill behind the active tab item (§ 7.3.).
+- No shadow on bubbles, list rows, or any resting surface (§ 4.5.).
+- No gradients, glass blur, or glow (§ 2.2.).
+- No Kakao yellow, Kakao sky-blue, or saturated pink anywhere (§ 2.2.).
+- No emoji used as interface iconography (§ 4.6.).
+- No serif, no rounded display faces, no negative letter-spacing (§ 4.2.).
+- No viewport-width layout branching, and never swap `BottomSheet` for `Modal` by width (§ 3.1.).
+- No composed overlays at the call site — `Dialog` and `Drawer` primitives are used only inside `@/shared/ui` (`AGENTS.md § 2.4.`).
+- No `100vh` (§ 3.3.).
+- No fifth surface tier, and no `surface-strong` / `surface-pressed` as a resting fill (§ 4.1.6.).
+- No stock illustrations or mascot art in empty states (§ 7.6.).
+- No `:focus` rings on mouse click — `:focus-visible` only (§ 3.2.).
+- No hardcoded `max-w-*` in screen code (§ 3.3.).
+
+# 9. Known Gaps.
+
+| Gap                    | Recommendation                                                                                                                      |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Dark palette           | Deferred (§ 5.4.). Hand-tune; keep the warm bias; drop shadows to `none`                                                            |
+| Event colour set       | Needs a closed 6–7 tint pair set in the `primary`-compatible warm family before calendar build                                      |
+| Emoticon picker chrome | Panel height, pack tab-bar geometry, and grid density unspecified until real assets exist                                           |
+| Motion                 | Only the search flash (§ 6.8.) and tab `scale-[0.96]` are specified; a shared duration/easing scale is needed before animation work |
+| Image viewer gestures  | Pinch-zoom bounds and swipe thresholds unspecified                                                                                  |
