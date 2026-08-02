@@ -7,6 +7,8 @@
 @layer base {
   body {
     @apply bg-backdrop font-sans text-ink antialiased;
+    /* INFO: Korean wraps mid-word by default; keep-all breaks at spaces only (DESIGN.md § 4.2.3.). */
+    @apply wrap-break-word break-keep;
   }
 
   button:not(:disabled):hover,

@@ -162,6 +162,9 @@
 
   /* INFO: App shell — DESIGN.md § 3.3. Narrower than a tablet so the tab bar cannot read as a desktop nav. */
   --container-app: 576px;
+
+  /* WARN: Never express this as `max-w-md` — `--spacing-md` shadows Tailwind's container scale and collapses the column to 16px. */
+  --container-app-narrow: 448px;
 }
 
 /* TODO: Populate when the dark theme ships — DESIGN.md § 5.4. Hand-tune; never invert arithmetically. */

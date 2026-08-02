@@ -89,15 +89,16 @@ Touch-first geometry, full pointer states.
 
 ## 3.3. App Shell.
 
-| Property          | Value                                                                                         |
-| ----------------- | --------------------------------------------------------------------------------------------- |
-| Max width         | `576px` — token `--container-app`                                                             |
-| Alignment         | Horizontally centered, full height                                                            |
-| Shell background  | `canvas` (or `chat-canvas` on the chat screen)                                                |
-| Outside the shell | `backdrop` — one step deeper than `canvas`, so the shell reads as a held device on desktop    |
-| Fixed children    | The tab bar and the composer are `fixed`; both MUST re-apply the same max width and centering |
-| Safe areas        | `env(safe-area-inset-bottom)` on the tab bar, `env(safe-area-inset-top)` on the header        |
-| Viewport height   | `100dvh` (never `100vh` — iOS URL-bar collapse)                                               |
+| Property          | Value                                                                                                     |
+| ----------------- | --------------------------------------------------------------------------------------------------------- |
+| Max width         | `576px` — token `--container-app`                                                                         |
+| Narrow max width  | `448px` — token `--container-app-narrow`, `Container size="sm"`. Single-column entry screens (login) only |
+| Alignment         | Horizontally centered, full height                                                                        |
+| Shell background  | `canvas` (or `chat-canvas` on the chat screen)                                                            |
+| Outside the shell | `backdrop` — one step deeper than `canvas`, so the shell reads as a held device on desktop                |
+| Fixed children    | The tab bar and the composer are `fixed`; both MUST re-apply the same max width and centering             |
+| Safe areas        | `env(safe-area-inset-bottom)` on the tab bar, `env(safe-area-inset-top)` on the header                    |
+| Viewport height   | `100dvh` (never `100vh` — iOS URL-bar collapse)                                                           |
 
 576px, not a tablet 768px: at 768 a 72%-width bubble spans 550px, which forces long lines and breaks the chat rhythm; the four tab-bar items also drift apart to the point of reading as a desktop nav. Screens MUST obtain this width from `Container`, never by hardcoding `max-w-*`.
 
@@ -240,12 +241,13 @@ Korean is the only language, so these values ARE the Korean-tuned scale — ther
 
 ### 4.2.3. Rules.
 
-| Rule                                   | Reason                                                                                                                             |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Never negative letter-spacing          | Hangul jamo collide visually at negative tracking. `micro` is the only positive-tracking token, and it carries Latin/numerals only |
-| Weight ladder is 400 / 500 / 600 / 700 | 300 is too thin for Hangul at chat sizes; 800+ renders as filled squares                                                           |
-| `chat-body` leading is 1.45, not 1.60  | Bubbles are short-line containers; body leading inflates their height and destroys the density chat depends on                     |
-| No text below 10px                     | `tab-label` is the floor                                                                                                           |
+| Rule                                   | Reason                                                                                                                                                                                                  |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Never negative letter-spacing          | Hangul jamo collide visually at negative tracking. `micro` is the only positive-tracking token, and it carries Latin/numerals only                                                                      |
+| Weight ladder is 400 / 500 / 600 / 700 | 300 is too thin for Hangul at chat sizes; 800+ renders as filled squares                                                                                                                                |
+| `chat-body` leading is 1.45, not 1.60  | Bubbles are short-line containers; body leading inflates their height and destroys the density chat depends on                                                                                          |
+| No text below 10px                     | `tab-label` is the floor                                                                                                                                                                                |
+| `word-break: keep-all` app-wide        | Korean defaults to breaking between syllables, so a narrow column wraps mid-word; `keep-all` wraps at spaces. `overflow-wrap: break-word` rides along so a long URL still breaks instead of overflowing |
 
 ## 4.3. Spacing.
 

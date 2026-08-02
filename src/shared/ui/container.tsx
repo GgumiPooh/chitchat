@@ -13,7 +13,7 @@ export function Container({ className, size = "md", children }: ContainerProps) 
       className={cn(
         "mx-auto w-full px-md",
         size === "md" && "max-w-(--container-app)",
-        size === "sm" && "max-w-md",
+        size === "sm" && "max-w-(--container-app-narrow)",
         className,
       )}
     >
