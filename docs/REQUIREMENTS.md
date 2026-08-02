@@ -261,9 +261,17 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
 - [x] `sessions` — `id`, `user_id`, `token_hash` (unique), `device_label`, `created_at`, `last_seen_at`, `expires_at`
 - [ ] `conversations` — the single conversation (`id`, `created_at`)
 - [ ] `conversation_members` — `conversation_id`, `user_id`, `last_read_at`
-- [ ] `messages` — `id` (bigserial; the ordering and cursor key), `conversation_id`, `sender_id`, `type` (`text` | `image` | `emoticon` | `system`), `text`, `media_id`, `emoticon_item_id`, `event_id` (the event a `system` message refers to), `client_msg_id` (uuid, unique), `created_at`, `deleted_at`
+- [ ] `messages` — `id` (bigserial; the ordering and cursor key), `conversation_id`, `sender_id`, `type` (`text` | `image` | `emoticon` | `system`), `text`, `emoticon_item_id`, `event_id` (the event a `system` message refers to), `client_msg_id` (uuid, unique), `created_at`, `deleted_at`
   - [ ] `system` is for calendar-change notices (§11.5); its `sender_id` is the user who made the change
   - [ ] **Append-only** — marking messages read must never UPDATE this table
+  - [ ] A CHECK constraint pins which columns each `type` may fill — without it a `type = 'text'` row can silently acquire `message_media` children
+  - [ ] **Never store an R2 URL in this table.** Presigned URLs expire in minutes (§9); only ids are stored and the URL is minted per request
+- [ ] `message_media` — `message_id` (FK → `messages.id`, `ON DELETE CASCADE`), `media_id` (FK → `media.id`), `sort_order` (smallint), primary key (`message_id`, `sort_order`)
+  - [ ] **One bubble is one `messages` row regardless of image count** — sending 3 photos at once produces 1 message row and 3 `message_media` rows. This is why there is no `messages.media_id` column
+  - [ ] The alternative — one row per image tied together by a `group_id` — is **rejected**: the §8.2 cursor page (`LIMIT 30`) would cut a group in half, and the boundary-repair logic would spread into §8.2, §8.3, and §8.6.1
+  - [ ] A `uuid[]` array column is also rejected — Postgres cannot put a foreign key on array elements, and §18 #1 (media deletion) is still open
+  - [ ] `sort_order` preserves the order the sender picked; without it the grid rearranges itself between queries
+  - [ ] Read path: fetch the `message_media` rows for a whole page of messages in one query, ordered by `sort_order`
 - [ ] `media` — `id` (uuid), `owner_id`, `r2_key`, `mime`, `size`, `width`, `height`, `blurhash`, `taken_at`, `created_at`
 - [ ] `events` — calendar entries: `id`, `title`, `description`, `starts_at`, `ends_at`, `all_day`, `color`, `recurrence` (`none` | `yearly`), `scope` (`shared` | `mine`), `created_by`, `created_at`, `updated_at`
   - [ ] Recurrence supports **yearly only** (anniversaries). Do not introduce a general recurrence rule engine such as RRULE (§11). On read, project `recurrence = 'yearly'` rows onto the requested year
@@ -310,6 +318,9 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
 - [ ] Unread marker — a `1` beside my message, in the `unread` token (DESIGN §4.1.4)
 - [ ] Composer — auto-growing textarea, `+` (attach image) on the left, emoticon toggle / send button on the right
 - [ ] Image messages render without a bubble; tapping opens a fullscreen viewer (pinch zoom, horizontal swipe)
+  - [ ] Multiple images sent together render as **one bubble** (§6, `message_media`) — the client branches on the array length alone: 1 image keeps its own `media.width` / `height` aspect ratio, 2+ use a fixed square-cell grid
+  - [ ] The grid makes §8.3 box reservation **more** accurate, not less: the height follows from the cell layout and is independent of the individual images' dimensions
+  - [ ] Tapping any image opens the viewer at that index, swiping through the rest of the same bubble
 - [ ] Emoticon messages render as the image alone, without a bubble
 - [ ] Long-press (touch) or right-click / hover-revealed control (mouse) → `ActionSheet` (copy / delete)
 - [ ] **Scroll-to-bottom floating button** (as in KakaoTalk)
@@ -635,3 +646,4 @@ The following are **deliberately left open**. When work reaches the relevant fea
 | 7   | Dark palette hex values                                                                                                           | When the dark theme ships (§16) | Hand-tune; never arithmetically invert. DESIGN.md §5.4                                                                                                                         |
 | 8   | **Whether to adopt push notifications (new-message only)**                                                                        | After the calendar              | Research complete, §16.1. Adopting it reverses the "no service worker" decision in §7. **Time-based notifications are confirmed out of scope because they require a cron job** |
 | 9   | Whether a `scope = 'mine'` event shows its **title** to the other user, or only "busy"                                            | Calendar (§11.5)                | Currently specified as showing the title                                                                                                                                       |
+| 10  | Maximum images per message, and the grid layout beyond that count                                                                 | Chat images (§8.1) / R2 (§9)    | KakaoTalk caps a single send at 30. Determines the `+N` overflow treatment on the grid and the upload concurrency limit. DESIGN.md §9                                          |
