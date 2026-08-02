@@ -19,7 +19,7 @@ A private web app used by exactly two people. An iOS PWA with four tabs: Chat, C
 | `AGENTS.md` (repo root; `CLAUDE.md` is a symlink to it) | **How we write it** — coding conventions, component contracts, prohibitions                                            |
 
 Precedence on conflict: visual specs → `DESIGN.md`; code-authoring rules → `AGENTS.md`; everything else → this file.
-Implementation is **in progress**. Steps 1 and 2 of § 17. have landed (project setup and base components; Google OAuth, sessions, and the `users` / `sessions` tables). Step 2 is code-complete but still needs the Google Cloud client and the real-device iOS PWA check (§ 5.4.); step 3 (the remaining schema) is next. `/chat` is a placeholder screen that only proves the session resolves — the real one arrives in step 5.
+Implementation is **in progress**. Steps 1–3 of § 17. have landed (project setup and base components; Google OAuth and sessions; the full schema, migrations, and seed). Step 2 is code-complete but still needs the Google Cloud client and the real-device iOS PWA check (§ 5.4.); step 4 (layout, tab bar, PWA manifest) is next. `/chat` is a placeholder screen that only proves the session resolves — the real one arrives in step 5.
 
 ---
 
@@ -260,32 +260,48 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
 - [x] `users` — `id`, `email` (unique), `nickname`, `avatar_media_id`, `created_at`
 - [x] Store `google_sub` (unique) directly on `users` — there is no `accounts` table, because there is exactly one provider
 - [x] `sessions` — `id`, `user_id`, `token_hash` (unique), `device_label`, `created_at`, `last_seen_at`, `expires_at`
-- [ ] `conversations` — the single conversation (`id`, `created_at`)
-- [ ] `conversation_members` — `conversation_id`, `user_id`, `last_read_at`
-- [ ] `messages` — `id` (bigserial; the ordering and cursor key), `conversation_id`, `sender_id`, `type` (`text` | `image` | `emoticon` | `system`), `text`, `emoticon_item_id`, `event_id` (the event a `system` message refers to), `client_msg_id` (uuid, unique), `created_at`, `deleted_at`
-  - [ ] `system` is for calendar-change notices (§11.5); its `sender_id` is the user who made the change
-  - [ ] **Append-only** — marking messages read must never UPDATE this table
-  - [ ] A CHECK constraint pins which columns each `type` may fill — without it a `type = 'text'` row can silently acquire `message_media` children
-  - [ ] **Never store an R2 URL in this table.** Presigned URLs expire in minutes (§9); only ids are stored and the URL is minted per request
-- [ ] `message_media` — `message_id` (FK → `messages.id`, `ON DELETE CASCADE`), `media_id` (FK → `media.id`), `sort_order` (smallint), primary key (`message_id`, `sort_order`)
-  - [ ] **One bubble is one `messages` row regardless of image count** — sending 3 photos at once produces 1 message row and 3 `message_media` rows. This is why there is no `messages.media_id` column
-  - [ ] The alternative — one row per image tied together by a `group_id` — is **rejected**: the §8.2 cursor page (`LIMIT 30`) would cut a group in half, and the boundary-repair logic would spread into §8.2, §8.3, and §8.6.1
-  - [ ] A `uuid[]` array column is also rejected — Postgres cannot put a foreign key on array elements, and §18 #1 (media deletion) is still open
-  - [ ] `sort_order` preserves the order the sender picked; without it the grid rearranges itself between queries
+- [x] `conversations` — the single conversation (`id`, `created_at`)
+  - [x] Its id is the fixed `CONVERSATION_ID` constant in `shared/config`, not a lookup — one conversation means nothing has to be queried to address it
+  - [x] A CHECK pins `id` to that constant. `id` still defaults to `gen_random_uuid()`, so without it any insert that omits the id opens a second conversation and messages and members split across the two with no error
+- [x] `conversation_members` — `conversation_id`, `user_id`, `last_read_at`, primary key (`conversation_id`, `user_id`)
+  - [x] `last_read_at` has **no default**, so every insert has to name a value. §8.8 reads unread as `created_at > last_read_at`, and a `defaultNow()` would silently mark everything sent before that person's first login as already read — their first chat screen would open with no unread divider and a zero badge
+  - [x] Both insert sites (`ensureConversationMembership`, `scripts/seed.ts`) pass the epoch: a new member has read nothing
+- [x] `messages` — `id` (bigserial; the ordering and cursor key), `conversation_id`, `sender_id`, `type` (`text` | `image` | `emoticon` | `system`), `text`, `emoticon_item_id`, `event_id` (the event a `system` message refers to), `system_action`, `event_title`, `event_starts_at`, `client_msg_id` (uuid, unique), `created_at`, `deleted_at`
+  - [x] `system` is for calendar-change notices (§11.5); its `sender_id` is the user who made the change
+  - [x] `system_action` (`event_created` | `event_rescheduled` | `event_deleted`) plus the `event_title` / `event_starts_at` **snapshot** are what §11.5 composes its sentence from. The snapshot exists because a delete notice outlives its `events` row, so a join cannot supply the title or date. Only the _user_ name is resolved at render time — that is what §11.5 forbids baking in
+  - [x] `event_id` is `ON DELETE SET NULL`, so the tap-to-navigate target simply disappears once the event is gone
+  - [x] **Append-only** — marking messages read must never UPDATE this table
+  - [x] A CHECK constraint pins which columns of **this table** each `type` may fill — a `text` row cannot carry an `emoticon_item_id` or an event, a `system` row cannot carry text
+  - [x] The CHECK cannot reach `message_media`, so the "a `type = 'text'` row must not acquire `message_media` children" half is a **`BEFORE INSERT OR UPDATE` trigger** on `message_media` that rejects any parent whose `type` is not `image`
+  - [x] The reverse — an `image` message with zero `message_media` rows — is **not** enforced in the database. It would need a `DEFERRABLE` constraint trigger checked at COMMIT, and the send path (§8.5) writes both in one transaction anyway
+  - [x] **Never store an R2 URL in this table.** Presigned URLs expire in minutes (§9); only ids are stored and the URL is minted per request
+- [x] `message_media` — `message_id` (FK → `messages.id`, `ON DELETE CASCADE`), `media_id` (FK → `media.id`), `sort_order` (smallint), primary key (`message_id`, `sort_order`)
+  - [x] **One bubble is one `messages` row regardless of image count** — sending 3 photos at once produces 1 message row and 3 `message_media` rows. This is why there is no `messages.media_id` column
+  - [x] The alternative — one row per image tied together by a `group_id` — is **rejected**: the §8.2 cursor page (`LIMIT 30`) would cut a group in half, and the boundary-repair logic would spread into §8.2, §8.3, and §8.6.1
+  - [x] A `uuid[]` array column is also rejected — Postgres cannot put a foreign key on array elements, and §18 #1 (media deletion) is still open
+  - [x] `sort_order` preserves the order the sender picked; without it the grid rearranges itself between queries
+  - [x] `media_id` does **not** cascade — what a gallery deletion does to the message is §18 #1, and a cascade would decide it silently
+  - [x] `media_id` carries its own index. The primary key is `(message_id, sort_order)`, which does not support it, so §10's "jump to where this image was sent" and every FK re-check on a `media` delete would otherwise seq-scan
   - [ ] Read path: fetch the `message_media` rows for a whole page of messages in one query, ordered by `sort_order`
-- [ ] `media` — `id` (uuid), `owner_id`, `r2_key`, `mime`, `size`, `width`, `height`, `blurhash`, `taken_at`, `created_at`
-- [ ] `events` — calendar entries: `id`, `title`, `description`, `starts_at`, `ends_at`, `all_day`, `color`, `recurrence` (`none` | `yearly`), `scope` (`shared` | `mine`), `created_by`, `created_at`, `updated_at`
-  - [ ] Recurrence supports **yearly only** (anniversaries). Do not introduce a general recurrence rule engine such as RRULE (§11). On read, project `recurrence = 'yearly'` rows onto the requested year
-  - [ ] The relationship start date, 100-day marks, and yearly anniversaries are **not rows in this table** — they are derived from `RELATIONSHIP_START_DATE` (§11.2)
-- [ ] `emoticon_packs` — `id`, `name`, `thumbnail_key`, `created_at`
-- [ ] `emoticon_items` — `id`, `pack_id`, `r2_key`, `width`, `height`, `sort_order`
-  - [ ] `width` / `height` are required — the virtualized message list must reserve the box before the asset loads (§8.3)
-- [ ] `user_emoticon_prefs` — `user_id`, `pack_id`, `enabled`, `sort_order`, unique(`user_id`, `pack_id`)
-- [ ] Indexes: `messages(conversation_id, id DESC)`, `media(created_at DESC)`, `events(starts_at)`, `sessions(token_hash)`
-- [ ] `pg_trgm` extension + a GIN trigram index on `messages.text` (§8.6)
-- [ ] Emit `pg_notify('new_message', payload)` — either from a trigger or from the application right after INSERT
+- [x] `media` — `id` (uuid), `owner_id`, `r2_key` (unique), `mime`, `size`, `width`, `height`, `blurhash`, `taken_at`, `created_at`
+- [x] `events` — calendar entries: `id`, `title`, `description`, `starts_at`, `ends_at`, `all_day`, `color`, `recurrence` (`none` | `yearly`), `scope` (`shared` | `mine`), `created_by`, `created_at`, `updated_at`
+  - [x] `ends_at` is NOT NULL — the create form defaults it rather than admitting an open-ended event, which would need its own branch in every month-grid and range calculation
+  - [x] `color` is nullable text until §18 #4 fixes the palette; null renders the default marker
+  - [x] Recurrence supports **yearly only** (anniversaries). Do not introduce a general recurrence rule engine such as RRULE (§11). On read, project `recurrence = 'yearly'` rows onto the requested year
+  - [x] The relationship start date, 100-day marks, and yearly anniversaries are **not rows in this table** — they are derived from `RELATIONSHIP_START_DATE` (§11.2)
+- [x] `emoticon_packs` — `id`, `name`, `thumbnail_key`, `created_at`
+- [x] `emoticon_items` — `id`, `pack_id`, `r2_key`, `width`, `height`, `sort_order`
+  - [x] `width` / `height` are required — the virtualized message list must reserve the box before the asset loads (§8.3)
+- [x] `user_emoticon_prefs` — `user_id`, `pack_id`, `enabled`, `sort_order`, primary key (`user_id`, `pack_id`)
+- [x] Indexes: `messages(conversation_id, id DESC)`, `media(created_at DESC, id DESC)`, `message_media(media_id)`, `events(starts_at)`, `sessions(token_hash)`
+  - [x] The `media` index needs the `id` tiebreaker: `created_at` defaults to `now()`, which is the **transaction** timestamp, so the 3 rows of a multi-image send compare equal. §10's keyset page would then skip images (`created_at < cursor`) or repeat them (`<=`) whenever a boundary lands inside that group. Paginate on the pair, never on `created_at` alone
+- [x] `pg_trgm` extension + a GIN trigram index on `messages.text` (§8.6)
+- [x] Emit `pg_notify('new_message', payload)` — an `AFTER INSERT` trigger on `messages`, so no write path can forget it
+  - [x] The payload is only `{ id, conversationId }`. `NOTIFY` caps at 8000 bytes, and §8.4 replays from `Last-Event-ID` by id anyway, so the stream refetches the row rather than trusting the payload
 - [x] Two connection strings — `DATABASE_URL` (pooled, for normal queries) and `DATABASE_URL_DIRECT` (unpooled, required for `LISTEN` and for migrations)
-- [ ] `drizzle-kit` migration pipeline + initial seed (one conversation, two members)
+- [x] `drizzle-kit` migration pipeline + initial seed (`pnpm db:seed` — the one conversation, plus every existing user as a member)
+  - [x] Membership cannot be fully seeded: a `users` row only exists after that person's first login. The OAuth callback therefore calls `ensureConversationMembership`, and the seed script backfills whoever has already logged in
+  - [x] The extension, trigram index, and both triggers live in hand-written migrations (`--custom`) — drizzle-kit does not emit DDL it cannot infer from the schema
 
 ---
 
@@ -364,6 +380,7 @@ Offscreen message nodes **must not stay in the DOM**. After a few years of histo
 - [ ] `GET /api/chat/stream` — `text/event-stream`
   - [ ] Acquire a connection from the **direct (unpooled)** connection string and hold it while issuing `LISTEN new_message`; never release it back to the pool before the stream ends. A transaction-mode pooler hands the underlying connection to another client between transactions, which silently drops the `LISTEN`
   - [ ] Use the request's `Last-Event-ID` header as a cursor — replay everything accumulated while disconnected, then switch to live streaming
+  - [ ] **`id > cursor` alone loses messages.** `bigserial` ids are handed out at INSERT but only become visible at COMMIT, so they can commit out of order: if the transaction holding id 10 is still open when id 11 commits and streams, a client that advances its cursor to 11 and reconnects never asks for 10 again. Replay from a small margin below the cursor (`cursor - N`) and let the §8.4 id-deduplication drop the overlap
   - [ ] Populate the `id:` field on every event (it becomes the reconnect cursor)
   - [ ] Send periodic heartbeat comments (`:ping`) to prevent proxy timeouts
   - [ ] Release the connection in a `finally` block when the stream ends
@@ -496,7 +513,8 @@ Include only what genuinely pays off for exactly two users. General-purpose cale
   - [ ] Distinguish them in the month grid by marker shape (filled dot for `shared`, ring dot for `mine`)
 - [ ] **Post a system message to the Chat tab when an event changes**
   - [ ] Adds `messages.type = 'system'` — e.g. `지희님이 8월 10일 '영화 보기' 일정을 추가했어요`
-  - [ ] **Do not bake the name into the stored text.** Store only `sender_id` and the action kind, and **compose the sentence at render time from `users.nickname`**, so renaming updates past system messages too (§8.7)
+  - [ ] **Do not bake the name into the stored text.** Store `sender_id`, the action kind (`messages.system_action`), and an event snapshot (`event_title` / `event_starts_at`), then **compose the sentence at render time from `users.nickname`**, so renaming updates past system messages too (§8.7)
+  - [ ] The event snapshot is deliberate, not a violation of the rule above: a delete notice must still say which event it was, and its `events` row is gone. What must never be copied is the _user_ name, which a rename would leave stale
   - [ ] Post on create, time change, and delete. Do not post when only the title or description changed
   - [ ] This rides the existing SSE pipeline, so it costs **no additional infrastructure** — both users see the change immediately even with no notifications configured
   - [ ] Render as a centered pill with no bubble (same treatment as the date divider — DESIGN §6.4, §6.5)

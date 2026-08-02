@@ -1,3 +1,4 @@
+import { ensureConversationMembership } from "@/entities/conversation";
 import { upsertGoogleUser } from "@/entities/user";
 import {
   clearOAuthCookies,
@@ -50,6 +51,9 @@ export async function GET(request: NextRequest) {
     }
 
     const user = await upsertGoogleUser(identity);
+
+    await ensureConversationMembership(user.id);
+
     const token = await createSession(user.id, toDeviceLabel(request.headers.get("user-agent")));
 
     await setSessionCookie(token);

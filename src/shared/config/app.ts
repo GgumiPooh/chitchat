@@ -4,6 +4,12 @@ export const APP_NAME = "J&H";
 
 export const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 
+/**
+ * The one and only conversation (REQUIREMENTS.md § 6.). Fixed rather than looked
+ * up, so no query is needed to address it.
+ */
+export const CONVERSATION_ID = "00000000-0000-4000-8000-000000000001";
+
 /** Route a signed-in user lands on. REQUIREMENTS.md § 5.2. */
 export const HOME_ROUTE = "/chat";
 

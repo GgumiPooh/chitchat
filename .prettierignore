@@ -1,0 +1,6 @@
+.next
+node_modules
+pnpm-lock.yaml
+
+# drizzle-kit rewrites these on every generate, so formatting them only produces diff noise.
+drizzle/meta
