@@ -1,126 +1,119 @@
 # J&H — Implementation Requirements
 
-A private web app used by exactly two people. An iOS PWA with four tabs: Chat, Calendar, Gallery, Settings.
+A private web app for exactly two people. An iOS PWA with four tabs: Chat, Calendar, Gallery, Settings.
 
-- **App name**: J&H · **Project folder**: `jandh` · **Domain**: `jandh.jeheecheon.com`
-- **Users**: 2 (fixed, never grows) · **Repository**: GitHub Private
+- **App name**: J&H · **Folder**: `jandh` · **Domain**: `jandh.jeheecheon.com` · **Users**: 2 (fixed, never grows) · **Repo**: GitHub Private
 - **Reference project**: `~/Projects/everytldr/everytldr.com/frontend`
 
-> **Language note**: This document is English because LLM comprehension is better in English. **All user-facing copy in the product is Korean.** Korean string literals here (`오늘`, `새 메시지 3`, …) are the literal UI text to ship — never translate them into English in code.
+> **Language**: this document is English for LLM comprehension. **All user-facing copy is Korean.** Korean literals here (`오늘`, `새 메시지 3`, …) are the exact UI text — never translate them in code.
 
-## Document Map
+| Document                                    | Role                                                                        |
+| ------------------------------------------- | --------------------------------------------------------------------------- |
+| `docs/REQUIREMENTS.md` (this file)          | **What we build** — features, architecture, schema, API shapes, build order |
+| `docs/DESIGN.md`                            | **How it looks** — tokens (sole source of hex values), visual specs         |
+| `AGENTS.md` (root; `CLAUDE.md` symlinks it) | **How we write it** — conventions, component contracts, prohibitions        |
 
-| Document                                                | Role                                                                                                                   |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `docs/REQUIREMENTS.md` (this file)                      | **What we build** — feature requirements, architecture decisions, schema, API shapes, implementation order             |
-| `docs/DESIGN.md`                                        | **How it looks** — design tokens (single source of truth for hex values), component visual specs, chat screen geometry |
-| `AGENTS.md` (repo root; `CLAUDE.md` is a symlink to it) | **How we write it** — coding conventions, component contracts, prohibitions                                            |
-
-Precedence on conflict: visual specs → `DESIGN.md`; code-authoring rules → `AGENTS.md`; everything else → this file.
+Precedence on conflict: visuals → `DESIGN.md`; code-authoring rules → `AGENTS.md`; everything else → this file.
 
 ## Reading This Document
 
-Sections marked **✅** are **implemented**; they are kept only as the invariants new code must not break, not as work to do. Sections with `[ ]` checkboxes are **the work that remains** and are the authoritative spec for it. Tick a checkbox in the same change that lands it (`AGENTS.md § 0.3.`).
+- **✅ = implemented.** Those sections are compressed to the **invariants new code must not break**. They are not work to do, and they are not optional: code comments cite these section numbers instead of restating the argument, so a rule here is often its only written copy.
+- **`[ ]` = remaining work**, and the authoritative spec for it. Tick the box in the change that lands it (`AGENTS.md § 0.3.`).
+- **Never renumber a section** — `src/` comments reference these numbers.
 
-**Current state** — steps 1–4 of § 17. are done. Step 5 (chat) is partly done: text and system bubbles, cursor pagination, virtualization, optimistic send, copy/delete, and **live delivery over SSE (§ 8.4.)** — `GET /api/chat/stream`, `GET /api/users`, the client subscription, the background-close, and the resume catch-up all landed together with § 8.7.'s render-time name resolution. **Notifications landed as § 16.1.**: the SSE subscription now lives in the `(main)` shell rather than in the chat screen, so every tab chimes and moves the live tab-bar badge, and Web Push covers the app being closed. The read cursor (`POST /api/chat/read`) and the unread count (`GET /api/chat/unread`) landed with it. Open in chat: the `1` read marker (§ 8.8.), search and jump (§ 8.6.), image and emoticon bubbles (steps 6 and 8). Calendar and Gallery render an empty state until their own step.
+**Current state** — § 17. steps 1–4 done. Step 5 (chat) partly done: text and system bubbles, cursor pagination, virtualization, optimistic send, copy/delete, SSE delivery (§ 8.4.), render-time names (§ 8.7.), push (§ 16.1.), read cursor (§ 8.8.). **Open in chat**: the `1` marker and unread divider (§ 8.8.), search and jump (§ 8.6.), image and emoticon bubbles (steps 6 and 8). Calendar and Gallery are empty states until their step.
 
 ---
 
 ## 0. Settled Technical Decisions ✅
 
-| Item          | Decision                                                       | Rationale                                                                                                                       |
-| ------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Framework     | Next.js 16.2.12 (App Router) + React 19.2.4                    | All server functionality lives in the single Next app                                                                           |
-| Hosting       | Vercel (serverless)                                            | Free, `git push` deploys, automatic HTTPS                                                                                       |
-| Database      | Neon Postgres + Drizzle ORM                                    | Free tier, serverless-friendly                                                                                                  |
-| Auth          | Google OAuth (allow-listed emails) → our own session           | We never store a password, so no brute-force surface to defend                                                                  |
-| Session       | Postgres `sessions` table + opaque token in an httpOnly cookie | Per-device revocation, profile changes apply immediately, avoids iOS ITP storage eviction                                       |
-| Realtime      | SSE + Postgres `LISTEN`/`NOTIFY`                               | WebSockets conflict with the single-Next-app constraint; SSE gets cookie auth and reconnection from the standard                |
-| Notifications | Web Push (VAPID) + a push-only service worker                  | Covers the app being closed, which SSE cannot. Dispatched at INSERT time, so it needs no cron and no resident process — § 16.1. |
-| Images        | Cloudflare R2 (private bucket + presigned URLs)                | Free egress; a UUID in a URL is obscurity, not access control                                                                   |
-| Architecture  | Feature-Sliced Design, enforced by steiger                     | Inherited from the `everytldr` conventions                                                                                      |
-| Styling       | Tailwind v4 + semantic tokens (`theme.css`)                    | Dark theme becomes a value swap, not a refactor                                                                                 |
-| Indexing      | Fully blocked (robots + meta + header, three layers)           | Private app                                                                                                                     |
+| Item          | Decision                                              | Rationale                                                           |
+| ------------- | ----------------------------------------------------- | ------------------------------------------------------------------- |
+| Framework     | Next.js 16.2.12 (App Router) + React 19.2.4           | All server functionality lives in the single Next app               |
+| Hosting       | Vercel (serverless)                                   | Free, `git push` deploys, automatic HTTPS                           |
+| Database      | Neon Postgres + Drizzle ORM                           | Free tier, serverless-friendly                                      |
+| Auth          | Google OAuth (allow-listed emails) → our own session  | No password stored, so no brute-force surface                       |
+| Session       | `sessions` table + opaque token in an httpOnly cookie | Per-device revocation, instant profile changes, survives iOS ITP    |
+| Realtime      | SSE + Postgres `LISTEN`/`NOTIFY`                      | WebSockets conflict with one-Next-app; SSE gets cookie auth + retry |
+| Notifications | Web Push (VAPID) + a push-only service worker         | Covers the app being closed, which SSE cannot (§ 16.1.)             |
+| Images        | Cloudflare R2 (private bucket + presigned URLs)       | Free egress; a UUID in a URL is obscurity, not access control       |
+| Architecture  | Feature-Sliced Design, enforced by steiger            | Inherited from `everytldr`                                          |
+| Styling       | Tailwind v4 + semantic tokens (`theme.css`)           | Dark theme becomes a value swap, not a refactor                     |
+| Indexing      | Fully blocked (robots + meta + header)                | Private app                                                         |
 
 ---
 
 ## 1. Project Setup ✅
 
-Next.js 16.2.12 + `pnpm` + Turbopack, private repo `GgumiPooh/jandh`, local Postgres via `docker-compose` (`pnpm db:up`) with Neon in production. Config inherited verbatim from the reference project: `tsconfig` (`@/*` → `./src/*`, `verbatimModuleSyntax`, `strict`), `eslint.config.mjs`, `.prettierrc` (`printWidth: 100`), `steiger.config.ts`, `postcss.config.mjs`, `components.json` (shadcn `new-york`, `@/shared/ui`, `@/shared/lib`, lucide), the SVGR turbopack rule, and Pretendard Variable as a local font. `pnpm lint` runs eslint then steiger; `pnpm dev` runs the app and steiger `--watch`.
+Next 16.2.12 + `pnpm` + Turbopack; local Postgres via `docker-compose` (`pnpm db:up`), Neon in production. Config inherited verbatim from the reference project: `tsconfig` (`@/*` → `./src/*`, `verbatimModuleSyntax`, `strict`), `eslint.config.mjs`, `.prettierrc` (`printWidth: 100`), `steiger.config.ts`, `postcss.config.mjs`, `components.json` (shadcn `new-york`, `@/shared/ui`, `@/shared/lib`, lucide), the SVGR turbopack rule, Pretendard Variable as a local font. `pnpm lint` = eslint + steiger; `pnpm dev` runs the app and steiger `--watch`.
 
-**Deliberately excluded** — do not reintroduce: all i18n (`next-intl`, `[locale]` routing, `messages/`, the `:lang(ko)` block, `Translation`), `orval` (Next _is_ the backend), `msw`, every ads / analytics / RSS / structured-data / sitemap file, and the `rewrites` backend proxy.
-
-**Available dependencies**: `drizzle-orm`, `postgres`, `arctic`, `jose`, `@aws-sdk/client-s3` + `s3-request-presigner`, `web-push`, `zod`; `radix-ui`, `cva`, `clsx`, `tailwind-merge`, `tw-animate-css`, `lucide-react`, `sonner`, `vaul`, `next-themes`, `@tanstack/react-query`, `react-error-boundary`, `react-intersection-observer`, `react-virtuoso`, `lodash-es`, `react-use`.
+- **Deliberately excluded — do not reintroduce**: all i18n (`next-intl`, `[locale]` routing, `messages/`, `Translation`), `orval` (Next _is_ the backend), `msw`, every ads / analytics / RSS / structured-data / sitemap file, the `rewrites` backend proxy
+- **Check `package.json` before adding a dependency** — R2, push, virtualization, query, and validation are already installed. § 13.'s drag-and-drop reordering is the one remaining need with no library present
 
 ---
 
 ## 2. FSD Structure ✅
 
 ```
-app/                     Next routes — kept thin, delegate to src/pages
-  (auth)/login/
-  (main)/{chat,calendar,gallery,settings}/
-  api/{auth,chat,media}/
+app/                     Next routes — thin, delegate to src/pages
+  (auth)/login/  (main)/{chat,calendar,gallery,settings}/  api/{auth,chat,media}/
   robots.ts  manifest.ts  icon.svg  favicon.ico
-pages/                   EMPTY SENTINEL — see below. No route files here
+pages/                   EMPTY SENTINEL — README only, no route files
 proxy.ts                 Next 16's renamed Middleware (§ 5.2.)
 src/
   app/       providers / styles(globals.css, theme.css) / fonts
   pages/     login, chat, calendar, gallery, settings
-  widgets/   tab-bar, install-guide, chat-room,
-             gallery-grid, calendar-month, settings-form
+  widgets/   tab-bar, install-guide, chat-room, gallery-grid, calendar-month, settings-form
   features/  session, send-message, chat-stream, push-notifications,
              upload-media, emoticon-prefs, update-profile, manage-event
   entities/  user, conversation, message, push-subscription, media, event, emoticon
   shared/    db, auth, push, sound, storage, api, config, lib, theme, ui
 ```
 
-Rules that constrain where new code goes:
-
 - The session slice is `session`, not `auth` — `features/auth` collides with the `shared/auth` segment name (`fsd/ambiguous-slice-names`)
-- The composer and the emoticon picker are **`features/send-message/ui/…`, not widgets**. `widgets/chat-room` owns the chat surface and renders them inside itself, which a sibling widget cannot be (`fsd/forbidden-imports` bans same-layer imports)
-- A client module imports from `@/entities/message` with `import type` **only** — its api segment is `server-only`, and a value import through the barrel drags that into the browser bundle. This is why the chat row components and the grouping model live in `widgets/chat-room`
-- Root-level `pages/` MUST exist and stay empty (README only). Without it Next treats `src/pages/` as the Pages Router and the build breaks
-- Server-only code lives in `shared/` segments and imports `server-only`; entity data fetching lives in each entity's `api` segment; every slice is imported through its `index.ts` (eslint-enforced)
+- The composer and emoticon picker are **`features/send-message/ui/…`, not widgets**: `widgets/chat-room` renders them, and a widget cannot import a sibling widget (`fsd/forbidden-imports`)
+- Client modules import `@/entities/message` with **`import type` only** — its api segment is `server-only` and a value import drags that into the browser bundle. Hence chat row components and the grouping model live in `widgets/chat-room`
+- Root `pages/` MUST exist and stay empty, or Next treats `src/pages/` as the Pages Router and the build breaks
+- Server-only code lives in `shared/` segments and imports `server-only`; entity fetching lives in each entity's `api` segment; every slice is imported through its `index.ts` (eslint-enforced)
 
 ---
 
 ## 3. Shared Utilities (`src/shared/lib`) ✅
 
-`nullish.ts` (`Maybe` / `Nullable` / `Optional`), `safely.ts`, `assert.ts`, `class-name.ts` (`cn`), `time.ts` (`A_SECOND` / `A_MINUTE` / `AN_HOUR` / `A_DAY` + Korean-locale date formatters), `dom.ts`, `use-hydrated.ts`, `use-is-coarse-pointer.ts`, `use-is-virtual-keyboard-open.ts` — all re-exported from the barrel.
+Read `src/shared/lib/index.ts` for the inventory (nullish types, `safely*`, `assert`, `cn`, duration constants + Korean date formatters, DOM helpers, `useHydrated` / `useIsCoarsePointer` / `useIsVirtualKeyboardOpen`). Reach for it before writing a utility.
 
-- **`cn` is built with `extendTailwindMerge`, and every custom token scale has to be declared there.** An undeclared one is not merged badly, it is not merged at all: `cn("px-md", "px-0")` emits both classes and stylesheet order decides, silently ignoring the call-site override. Adding a new `--text-*` / `--spacing-*` scale to `theme.css` means adding it here too
+- **`cn` uses `extendTailwindMerge`; every custom token scale must be declared there.** An undeclared scale is not merged at all: `cn("px-md", "px-0")` emits both and stylesheet order wins, silently ignoring the call-site override. A new `--text-*` / `--spacing-*` scale in `theme.css` means a matching entry here
 
 ---
 
 ## 4. Design System and Theming ✅
 
-`globals.css` imports tailwind + `tw-animate-css` + `theme.css` and defines `@custom-variant dark`. `theme.css` declares `--color-*: initial` first, which **removes Tailwind's default palette from the build** and structurally prevents raw color utilities; semantic tokens, the chat-only tokens, `--text-*`, `--radius-*`, `--spacing-*`, `--shadow-*` follow. **`DESIGN.md § 4.` is the single source of truth for hex values and each token's role — never duplicate a value into this file.** The `.dark { }` block exists as an empty shell, and `shared/theme/provider.tsx` is pinned light via `forcedTheme="light"` (dark ships by deleting that one line). Icons: `lucide-react` first; custom marks are `.svg` through SVGR, re-exported from `shared/ui/index.ts`.
+`globals.css` imports tailwind + `tw-animate-css` + `theme.css` and defines `@custom-variant dark`. `theme.css` declares `--color-*: initial` first, which **removes Tailwind's default palette from the build**, structurally preventing raw color utilities; semantic + chat tokens, `--text-*`, `--radius-*`, `--spacing-*`, `--shadow-*` follow. **`DESIGN.md § 4.` is the sole source of hex values — never copy one here.** `.dark { }` is an empty shell; `shared/theme/provider.tsx` is pinned with `forcedTheme="light"` (dark ships by deleting that line). Icons: `lucide-react` first; custom marks are `.svg` via SVGR, re-exported from `shared/ui/index.ts`.
 
 ### 4.1. Responsive Policy — One Mobile UI ✅
 
-**Build exactly one UI: the mobile one.** Never branch layout or swap components on viewport width; desktop shows the same UI centered in a narrow column. The reference's `ResponsiveDialog` / `ResponsiveSelector` / `ResponsiveActionMenu` are **not** ported. Pointer support is nevertheless mandatory on every interactive element: real `click` handlers plus `hover:`, `active:`, and `focus-visible:` states. `useIsCoarsePointer` is for interaction details only, never layout.
+**Ship exactly one UI: the mobile one.** Never branch layout or swap components on viewport width; desktop shows the same UI centered. The reference's `ResponsiveDialog` / `ResponsiveSelector` / `ResponsiveActionMenu` are **not** ported. Pointer support is still mandatory everywhere: real `click` handlers plus `hover:` / `active:` / `focus-visible:`. `useIsCoarsePointer` is for interaction details only, never layout.
 
 ### 4.2. Page Width and Centering ✅
 
-App shell max width is **`576px`**, held in the `--container-app` token, so the four-item tab bar cannot stretch across a desktop screen. `Container` sizes: `md` (default) = app width, `sm` = `448px`, horizontal padding `px-md`. Outside the shell the page uses `backdrop`, a tone darker than `canvas`, so the shell reads as a held device. `--tab-bar-height` and `--app-header-height` live in `theme.css` outside `@theme`. Full-height screens honour `env(safe-area-inset-*)` and never restate a viewport height — the `(main)` layout owns the column height and screens are `flex-1` inside it.
+App shell max width **`576px`** (`--container-app`), so the four-item tab bar cannot stretch across a desktop screen. `Container`: `md` (default) = app width, `sm` = `448px`, padding `px-md`. Outside the shell the page uses `backdrop`. `--tab-bar-height` and `--app-header-height` live in `theme.css` outside `@theme`. Screens never restate a viewport height — the `(main)` layout owns the column height, screens are `flex-1` inside it, and full-height screens honour `env(safe-area-inset-*)`.
 
 ### 4.3. Visual Viewport and the Keyboard
 
-Landed. The full rules live in `AGENTS.md § 4.4.` and `DESIGN.md § 3.4.`–`§ 3.5.`; what a new screen must respect:
+Landed; full rules in `AGENTS.md § 4.4.` and `DESIGN.md § 3.4.`–`§ 3.5.` What a new screen must respect:
 
-- The shell is the app's **one** `fixed` element, sized to the **visual viewport** (`VisualViewportSync` → `--viewport-height` / `--viewport-top`). Do not add a second `fixed` element — it would drift against the keyboard on WebKit
-- The document must never scroll (`html, body` are `h-full overflow-hidden overscroll-none`); a document taller than the visual viewport is what lets WebKit pan the header off-screen. Screens scroll inside `#app-scroll` (`APP_SCROLL_ID`) or their own container, and `ScrollMemory` / `ScrollReset` address that container, never `window`
-- The header and bars **float over** the content — `sticky` header, absolute `BottomOverlay`, whose measured height becomes the scroller's `--bottom-inset` bottom padding. They share the single `glass` utility in `globals.css` so they cannot drift apart, and every floating strip is `pointer-events-none` at its root, re-enabling it only on the visible surface
-- **Nothing may depend on `interactiveWidget: "resizes-content"`** (Chromium/Firefox only, ignored by all of iOS), and `env(safe-area-inset-bottom)` is not a keyboard inset — it reports the home indicator and does not move when the keyboard opens
-- [ ] Real-device pass (§ 5.3.) — the keyboard-open geometry is reasoned through but unverified on an iPhone
+- The shell is the app's **one** `fixed` element, sized to the **visual viewport** (`VisualViewportSync` → `--viewport-height` / `--viewport-top`). A second `fixed` element drifts against the keyboard on WebKit
+- The document must never scroll (`html, body` are `h-full overflow-hidden overscroll-none`) — a document taller than the visual viewport lets WebKit pan the header off-screen. Screens scroll inside `#app-scroll` (`APP_SCROLL_ID`) or their own container, and `ScrollMemory` / `ScrollReset` address that container, never `window`
+- Header and bars **float over** content: `sticky` header, absolute `BottomOverlay` whose measured height becomes the scroller's `--bottom-inset` padding. Both use the single `glass` utility so they cannot drift apart; every floating strip is `pointer-events-none` at its root, re-enabled only on the visible surface
+- **Nothing may depend on `interactiveWidget: "resizes-content"`** (Chromium/Firefox only, ignored by iOS), and `env(safe-area-inset-bottom)` is **not** a keyboard inset — it reports the home indicator and never moves for the keyboard
+- [ ] Real-device pass (§ 5.3.) — keyboard-open geometry is reasoned through but unverified on an iPhone
 
 ### 4.4. Base Components (`src/shared/ui`) ✅
 
-Shipped: `Button`, `IconButton`, `Input`, `Textarea`, `Drawer` (vaul), `Dialog` (radix), `BottomSheet`, `Modal`, `ActionSheet`, `Badge`, `Chip`, `Skeleton`, `Container`, `ScrollableRow`, `ScrollReset`, `ScrollMemory`, `AppHeader`, `EmptyState`, `Toaster` / `toast`, `RelativeTime`, `Avatar` — all re-exported from the barrel.
+Read `src/shared/ui/index.ts` for what already exists (buttons, inputs, the overlays below, `Container`, `AppHeader`, `EmptyState`, `Avatar`, `RelativeTime`, scroll helpers, `toast`). Check it before building any primitive.
 
 - New primitives come from shadcn first, then have **every** visual decision rewritten against `DESIGN.md` and are refactored to the `AGENTS.md § 1.` props contract
-- `Drawer` and `Dialog` are composition primitives and are **never used directly in screen code**. Every overlay in `shared/ui` is finished and props-driven (`isOpen`, `header`, `onClose`, `children`; `ActionSheet` takes `items: { label, icon, variant, onSelect }[]`), composing the primitives internally
+- `Drawer` and `Dialog` are composition primitives, **never used directly in screen code**. Overlays in `shared/ui` are props-driven (`isOpen`, `header`, `onClose`, `children`; `ActionSheet` takes `items: { label, icon, variant, onSelect }[]`) and compose the primitives internally
 
 ---
 
@@ -128,169 +121,167 @@ Shipped: `Button`, `IconButton`, `Input`, `Textarea`, `Drawer` (vaul), `Dialog` 
 
 ### 5.1. Google OAuth ✅
 
-`GET /api/auth/login/google` (arctic `state` + PKCE in cookies), `GET /api/auth/callback/google` (code exchange, `id_token` verified with `jose`, `state` and verifier checked, `email_verified === true` required, email lowercased and matched **exactly** against `ALLOWED_EMAILS`), `POST /api/auth/logout`. Google Cloud consent screen stays in "Testing"; redirect URIs are `http://localhost:3000/…` and `https://jandh.jeheecheon.com/…`.
+`GET /api/auth/login/google` (arctic `state` + PKCE in cookies), `GET /api/auth/callback/google` (code exchange, `id_token` verified with `jose`, `state` and verifier checked, `email_verified === true` required, email lowercased and matched **exactly** against `ALLOWED_EMAILS`), `POST /api/auth/logout`. The Google consent screen stays in "Testing"; redirect URIs are `http://localhost:3000/…` and `https://jandh.jeheecheon.com/…`.
 
-- The `users` lookup key is **`google_sub`, not the email** — Google lets an account change address, and matching on email would collide with the existing row's unique `google_sub`
-- **Google OAuth only.** No provider abstraction, no `[provider]` dynamic segment, no password login
+- The `users` lookup key is **`google_sub`, not the email** — Google lets an account change address, and matching on email collides with the existing row's unique `google_sub`
+- **Google OAuth only.** No provider abstraction, no `[provider]` segment, no password login
 
 ### 5.2. Session ✅
 
-A 32-byte random token is stored **hashed** in `sessions.token_hash`; only the raw token goes in the cookie (`httpOnly; Secure; SameSite=Lax; Path=/; Max-Age=180 days`). Sliding renewal updates `last_seen_at` and extends expiry at most once a day per device, and the proxy re-issues the cookie with a fresh `Max-Age` on every page request — without that the row's new expiry is invisible to the browser, which drops the cookie 180 days after login however active the user was. The lookup is memoized per request with React `cache()`.
+A 32-byte token is stored **hashed** in `sessions.token_hash`; only the raw token goes in the cookie (`httpOnly; Secure; SameSite=Lax; Path=/; Max-Age=180 days`). Sliding renewal updates `last_seen_at` and extends expiry at most once a day per device. The lookup is memoized per request with React `cache()`.
 
+- The proxy re-issues the cookie with a fresh `Max-Age` on every page request — otherwise the row's new expiry is invisible to the browser, which drops the cookie 180 days after login however active the user was
 - **Never use localStorage for auth state** — iOS ITP can evict script-written storage after 7 days of non-use; a server-set cookie is exempt
-- `proxy.ts` (Next 16 renamed Middleware to Proxy: file at the repo root, exporting `proxy`) checks **only whether the cookie exists**. Real DB validation happens in Server Components / Route Handlers. Unauthenticated → `/login`; authenticated on `/login` → `/chat`
-- A cookie that exists but no longer validates is unwound through `GET /api/auth/session/expire`, which clears it and lands on `/login`. A Server Component cannot write cookies, so redirecting it straight to `/login` bounces off the proxy forever. That route re-checks the session and refuses to clear a valid one — a cross-site `<img src>` reaches it with the cookie attached
+- `proxy.ts` (Next 16 renamed Middleware to Proxy: repo root, exports `proxy`) checks **only whether the cookie exists**; real DB validation happens in Server Components / Route Handlers. Unauthenticated → `/login`; authenticated on `/login` → `/chat`
+- A cookie that exists but no longer validates is unwound through `GET /api/auth/session/expire`, which clears it and lands on `/login` — a Server Component cannot write cookies, so redirecting it straight to `/login` bounces off the proxy forever. That route re-checks the session and refuses to clear a valid one, since a cross-site `<img src>` reaches it with the cookie attached
 
 ### 5.3. iOS PWA Verification (highest priority)
 
 - [ ] Verify **on a real device** that the Google login redirect from a home-screen standalone PWA returns to the app correctly
-- [ ] Verify the session cookie survives across days of non-use (re-check after several days)
+- [ ] Verify the session cookie survives days of non-use (re-check after several days)
 
 ### 5.4. Development Login ✅
 
-`POST /api/auth/login/dev` takes an `email` form field, matches it against `ALLOWED_EMAILS` exactly as § 5.1. does, and issues the same § 5.2. session — no Google round trip, so a dev machine needs neither the consent screen nor a second browser profile. `/login` renders the email form under the Google button whenever it is enabled.
+`POST /api/auth/login/dev` takes an `email` form field, matches `ALLOWED_EMAILS` as § 5.1. does, and issues the same § 5.2. session. `/login` renders the form under the Google button when enabled.
 
-- Gated on `IS_DEV_LOGIN_ENABLED` (`NODE_ENV === "development"`), which Next inlines at build time — a production build cannot re-enable it through the environment, and the route answers **404** there
-- The row is upserted with a synthetic `dev:{email}` subject id. Signing in through Google afterwards relinks that same row to the real `google_sub` (§ 5.1.), so the two paths never fork into two users
-- The redirect is **303**, not the 307 `redirectTo` defaults to — a 307 replays the POST against the target page
-- Every auth Route Handler redirects through `redirectTo` from `@/shared/api`, which sends a **relative** `Location` the browser resolves against the address it asked for. `new URL(path, request.url)` cannot: `next dev` builds `request.url` from the bound `localhost:3000` and takes only the scheme from `X-Forwarded-Proto`, so behind an HTTPS tunnel it emits `https://localhost:3000`, which speaks no TLS. `proxy.ts` is unaffected — Next already relativises middleware redirects
+- Gated on `IS_DEV_LOGIN_ENABLED` (`NODE_ENV === "development"`), which Next inlines at build time — production cannot re-enable it through the environment and the route answers **404** there
+- The row is upserted with a synthetic `dev:{email}` subject id; a later Google sign-in relinks that row to the real `google_sub`, so the paths never fork into two users
+- The redirect is **303**, not `redirectTo`'s default 307 — a 307 replays the POST against the target page
+- Auth Route Handlers redirect through `redirectTo` from `@/shared/api`, which emits a **relative** `Location`. `new URL(path, request.url)` cannot: `next dev` builds `request.url` from the bound `localhost:3000` and takes only the scheme from `X-Forwarded-Proto`, so behind an HTTPS tunnel it emits `https://localhost:3000`, which speaks no TLS. `proxy.ts` is exempt — Next already relativises middleware redirects
 
 ---
 
 ## 6. Database Schema (Drizzle) ✅
 
-The schema, migrations, triggers, and seed have landed. What follows is the contract new code is written against.
+Schema, migrations, triggers, and seed have landed. This is the contract new code is written against.
 
-**Tables**
+**Columns are not listed here — read `src/shared/db/schema/*.ts`** (`users`, `sessions`, `conversations`, `messages`, `message_media`, `media`, `events`, `emoticons`, `push-subscriptions`), one file per table. Never copy a column list into this document; the invariants below are what the schema cannot state on its own.
 
-- `users` — `id`, `email` (unique), `google_sub` (unique), `nickname`, `avatar_media_id`, `last_read_at`, `created_at`. There is no `accounts` table (one provider) and **no `conversation_members` table**
-- `sessions` — `id`, `user_id`, `token_hash` (unique), `device_label`, `created_at`, `last_seen_at`, `expires_at`
-- `conversations` — the single conversation (`id`, `created_at`)
-- `messages` — `id` (bigserial; the ordering and cursor key), `conversation_id`, `sender_id`, `type` (`text` | `image` | `emoticon` | `system`), `text`, `emoticon_item_id`, `event_id`, `system_action` (`event_created` | `event_rescheduled` | `event_deleted`), `event_title`, `event_starts_at`, `client_msg_id` (uuid, unique), `created_at`, `deleted_at`
-- `message_media` — `message_id` (FK → `messages.id`, `ON DELETE CASCADE`), `media_id` (FK → `media.id`), `sort_order` (smallint), PK (`message_id`, `sort_order`)
-- `media` — `id` (uuid), `owner_id`, `r2_key` (unique), `mime`, `size`, `width`, `height`, `blurhash`, `taken_at`, `created_at`
-- `events` — `id`, `title`, `description`, `starts_at`, `ends_at`, `all_day`, `color`, `recurrence` (`none` | `yearly`), `scope` (`shared` | `mine`), `created_by`, `created_at`, `updated_at`
-- `emoticon_packs` — `id`, `name`, `thumbnail_key`, `created_at`
-- `emoticon_items` — `id`, `pack_id`, `r2_key`, `width`, `height` (**required** — the virtualizer must reserve the box before the asset loads, § 8.3.), `sort_order`
-- `user_emoticon_prefs` — `user_id`, `pack_id`, `enabled`, `sort_order`, PK (`user_id`, `pack_id`)
+**Invariants new code must not break**
 
-**Invariants that new code must not break**
-
-- **Two participants, permanently.** `ALLOWED_EMAILS` gates the only row-creating path, so membership and identity are the same set — that is why the members join is gone. A third participant would need `conversation_members` back **and** a rewrite of § 8.8. (unread becomes a count of readers, not a boolean, which reaches into the `1` marker and the unread divider in `DESIGN.md § 7.`). A `users` row that is not a participant (a test or retired account) breaks `GET /api/users` (§ 8.4.) the same way — keep such rows out of this database
-- `users.last_read_at` has **no default**, so every insert names a value. § 8.8. reads unread as `created_at > last_read_at`, and a `defaultNow()` would silently mark everything sent before that person's first login as read. The one insert site (`upsertGoogleUser`) passes the epoch
-- `conversations.id` is pinned by a CHECK to the fixed `CONVERSATION_ID` constant in `shared/config`, so nothing is queried to address it and no insert can open a second conversation. `ensureConversation` runs at login as well as in the seed, so a deployment that skipped the seed does not fail every message insert on its FK
+- There is **no `accounts` table** (one provider, § 5.1.) and **no `conversation_members` table**
+- **Two participants, permanently.** `ALLOWED_EMAILS` gates the only row-creating path, so membership and identity are the same set — hence no members join. A third participant needs `conversation_members` back **and** a rewrite of § 8.8. (unread becomes a count of readers, not a boolean, reaching into the `1` marker and unread divider in `DESIGN.md § 7.`). A non-participant `users` row (a test or retired account) breaks `GET /api/users` the same way — keep such rows out of this database
+- `users.last_read_at` has **no default**, so every insert names one; a `defaultNow()` would silently mark everything sent before that person's first login as read (§ 8.8. reads unread as `created_at > last_read_at`). The one insert site, `upsertGoogleUser`, passes the epoch
+- `conversations.id` is pinned by a CHECK to the `CONVERSATION_ID` constant in `shared/config`, so nothing is queried to address it and no insert can open a second conversation. `ensureConversation` runs at login as well as in the seed, so a deployment that skipped the seed does not fail every message insert on its FK
 - `messages` is **append-only** — marking messages read must never UPDATE it
-- A CHECK pins which columns each `messages.type` may fill (a `text` row carries no `emoticon_item_id` or event; a `system` row carries no text). The CHECK cannot reach `message_media`, so "a non-`image` message must not acquire media children" is a `BEFORE INSERT OR UPDATE` **trigger** on `message_media`. The reverse (an `image` message with zero media rows) is deliberately **not** enforced — it would need a `DEFERRABLE` constraint trigger, and the § 8.5. send path writes both in one transaction
-- **Never store an R2 URL in any table.** Presigned URLs expire in minutes (§ 9.); store ids and mint the URL per request
-- **One bubble is one `messages` row regardless of image count** — 3 photos at once is 1 message row + 3 `message_media` rows, which is why there is no `messages.media_id`. `sort_order` preserves the sender's order. `media_id` does not cascade (§ 18. #1 decides what a gallery delete does) and carries its own index, since the PK does not support lookups by media
-- `messages.event_id` is `ON DELETE SET NULL`; the `event_title` / `event_starts_at` snapshot is what § 11.5. composes its sentence from, because a delete notice outlives its `events` row. Only the **user name** is resolved at render time (§ 8.7.)
-- `events.ends_at` is NOT NULL — the create form defaults it rather than admitting an open-ended event, which would need its own branch in every month-grid calculation. `color` is nullable until § 18. #4. **Recurrence is yearly-only** (anniversaries); do not introduce RRULE or any general recurrence engine — project `yearly` rows onto the requested year on read. The relationship start date, 100-day marks, and yearly anniversaries are **not rows** here (§ 11.2.)
-- Indexes: `messages(conversation_id, id DESC)`, `media(created_at DESC, id DESC)`, `message_media(media_id)`, `events(starts_at)`, `sessions(token_hash)`, plus `pg_trgm` + a GIN trigram index on `messages.text` (§ 8.6.). The `media` index needs the `id` tiebreaker because `created_at` is the **transaction** timestamp, so a multi-image send's rows compare equal and a keyset page would skip or repeat them — **paginate on the pair, never on `created_at` alone**
-- Triggers: `AFTER INSERT` on `messages` fires `pg_notify('new_message', { id, conversationId })`; `AFTER INSERT` **and** `AFTER UPDATE` on `users` fire `pg_notify('user_changed', '')`. Payloads are minimal on purpose — `NOTIFY` caps at 8000 bytes and § 8.4. refetches rather than trusting a payload. Two user triggers, not one, because a `WHEN` clause cannot reference `OLD` on an INSERT, so `WHEN (OLD.* IS DISTINCT FROM NEW.*)` rides the UPDATE trigger alone. That guard plus § 8.8.'s `WHERE last_read_at < $new` is what keeps the channel quiet under the app's highest-frequency write — **both halves are load-bearing**; dropping either puts a `GET /api/users` on every throttle tick
-- `push_subscriptions` is keyed on the **installation**, not the person — `endpoint` is unique table-wide and the upsert moves `user_id` onto whoever is signed in (§ 16.1.). `ON DELETE cascade` from `users`, plus its own `user_id` index, since the send-path fan-out looks up by recipient
-- Two connection strings: `DATABASE_URL` (pooled, normal queries) and `DATABASE_URL_UNPOOLED` (**required** for `LISTEN` and for migrations)
+- A CHECK pins which columns each `messages.type` may fill (a `text` row carries no `emoticon_item_id` or event; a `system` row carries no text). The CHECK cannot reach `message_media`, so "a non-`image` message must not acquire media children" is a `BEFORE INSERT OR UPDATE` **trigger** there. The reverse (an `image` message with zero media rows) is deliberately **not** enforced — it would need a `DEFERRABLE` constraint trigger, and § 8.5. writes both in one transaction
+- **Never store an R2 URL in any table** — presigned URLs expire in minutes (§ 9.); store ids and mint per request
+- **One bubble is one `messages` row regardless of image count**: 3 photos = 1 message row + 3 `message_media` rows, which is why there is no `messages.media_id`. `sort_order` preserves the sender's order. `media_id` does not cascade (§ 18. #1 decides what a gallery delete does) and carries its own index, since the PK cannot serve lookups by media
+- `messages.event_id` is `ON DELETE SET NULL`; § 11.5. composes its sentence from the `event_title` / `event_starts_at` snapshot, because a delete notice outlives its `events` row. Only the **user name** is resolved at render time (§ 8.7.)
+- `events.ends_at` is NOT NULL — the create form defaults it rather than admitting an open-ended event, which would need its own branch in every month-grid calculation. `color` is nullable until § 18. #4. **Recurrence is yearly-only** (anniversaries): never introduce RRULE or a general recurrence engine — project `yearly` rows onto the requested year on read. The relationship start date, 100-day marks, and yearly anniversaries are **not rows** (§ 11.2.)
+- Indexes: `messages(conversation_id, id DESC)`, `media(created_at DESC, id DESC)`, `message_media(media_id)`, `events(starts_at)`, `sessions(token_hash)`, plus `pg_trgm` + a GIN trigram index on `messages.text` (§ 8.6.). The `media` index needs the `id` tiebreaker because `created_at` is the **transaction** timestamp, so a multi-image send's rows compare equal and a keyset page skips or repeats them — **paginate on the pair, never on `created_at` alone**
+- Triggers: `AFTER INSERT` on `messages` fires `pg_notify('new_message', { id, conversationId })`; `AFTER INSERT` **and** `AFTER UPDATE` on `users` fire `pg_notify('user_changed', '')`. Payloads are minimal because `NOTIFY` caps at 8000 bytes and § 8.4. refetches rather than trusting a payload. Two user triggers because a `WHEN` clause cannot reference `OLD` on an INSERT, so `WHEN (OLD.* IS DISTINCT FROM NEW.*)` rides the UPDATE trigger alone. That guard plus § 8.8.'s `WHERE last_read_at < $new` keeps the channel quiet under the app's highest-frequency write — **both halves are load-bearing**; dropping either puts a `GET /api/users` on every throttle tick
+- `emoticon_items.width` / `height` are **required**, because the virtualizer reserves the box before the asset loads (§ 8.3.)
+- Two connection strings: `DATABASE_URL` (pooled, normal queries) and `DATABASE_URL_UNPOOLED` (**required** for `LISTEN` and migrations)
 - Participants are never seeded — a `users` row exists only after that person's first login. The extension, trigram index, and triggers live in hand-written (`--custom`) migrations, since drizzle-kit cannot infer them
-- **`pnpm db:migrate` is manual and decoupled from the deploy: ship the code first, migrate second.** In the other order a first login against the previous build inserts without the new column, hits `23502`, and the OAuth catch flattens it into the generic `?error=failed` copy — nothing in the UI says which column
+- **`pnpm db:migrate` is manual and decoupled from the deploy: ship code first, migrate second.** Reversed, a first login against the previous build inserts without the new column, hits `23502`, and the OAuth catch flattens it into the generic `?error=failed` copy — nothing in the UI names the column
 
 ---
 
 ## 7. Layout, Tab Bar, PWA ✅
 
-The `(main)` layout is the app shell (max `576px`, centered) holding a per-screen top header, the content, and the bottom tab bar. Four tabs — `채팅` / `캘린더` / `갤러리` / `설정` — with icon + label, colour-only active state, hover/active styling, and `env(safe-area-inset-bottom)` honoured.
+The `(main)` layout is the app shell (max `576px`, centered) holding a per-screen header, the content, and the tab bar. Four tabs — `채팅` / `캘린더` / `갤러리` / `설정` — icon + label, colour-only active state, hover/active styling, `env(safe-area-inset-bottom)` honoured.
 
 - The layout is the **only** place a screen's session is resolved (`requireUserOrRedirect`, `AGENTS.md § 6.4.`); a page re-reads it only when it needs the row, and `cache()` makes that free
 - The header is per-screen, not layout-owned, because it carries screen-specific actions — screens render `AppHeader` themselves
-- `ScrollMemory` preserves each route's position across tab switches, keeping it in **module scope** rather than `sessionStorage` — a tab switch is a client navigation, a reload is meant to start at the top. Its timing quirks are load-bearing and documented at the source. **Chat is exempt**: its scroll belongs to the virtualizer (`restoreStateFrom`, § 8.3.)
-- `app/manifest.ts`: name `J&H`, `display: "standalone"`, `theme_color`, `background_color`, icons 180/192/512 + maskable, generated by `pnpm icons` from a **path-only** wordmark (an SVG `<text>` icon renders in whatever font the machine has) and committed under `public/icons`. That path is excluded from the proxy matcher — a redirect to `/login` while fetching an icon breaks the install prompt. iOS reads `apple-touch-icon` from the markup, so the root layout's `metadata.icons.apple` is what "Add to Home Screen" actually uses
-- `widgets/install-guide` is a dismissible "Add to Home Screen" banner above the tab bar, shown only in an iOS **browser tab** (iPadOS 13+ reports a Macintosh UA, so the check needs `maxTouchPoints`). Its dismissal flag is in `localStorage` — § 5.2. bans that for auth state only — and every access goes through `safelyRun` / `safelyGet`, since blocked storage throws and the banner renders in the `(main)` layout, which would fail hydration on all four tabs
-- **Offline support is out of scope.** `public/sw.js` exists and is **push-only** (§ 16.1.): it handles `push` and `notificationclick` and nothing else. It MUST NOT register a `fetch` handler or cache anything — that is what turns a worker into the source of "why am I looking at last week's build". It is excluded from the proxy matcher, because the browser fetches a worker without following redirects and a gated `/sw.js` fails registration outright
-- [x] The Chat tab's unread badge is live (§ 8.8.). The count is seeded by the layout's server render, incremented by the shell's SSE stream, and replaced by `GET /api/chat/unread` on every resume
+- `ScrollMemory` preserves each route's position across tab switches in **module scope**, not `sessionStorage`: a tab switch is a client navigation, a reload is meant to start at the top. Its timing quirks are load-bearing and documented at the source. **Chat is exempt** — its scroll belongs to the virtualizer (§ 8.3.)
+- `app/manifest.ts`: name `J&H`, `display: "standalone"`, `theme_color`, `background_color`, icons 180/192/512 + maskable, generated by `pnpm icons` from a **path-only** wordmark (an SVG `<text>` icon renders in whatever font the machine has) and committed under `public/icons`. iOS reads `apple-touch-icon` from the markup, so the root layout's `metadata.icons.apple` is what "Add to Home Screen" uses
+- `widgets/install-guide` is a dismissible "Add to Home Screen" banner above the tab bar, shown only in an iOS **browser tab** (iPadOS 13+ reports a Macintosh UA, so the check needs `maxTouchPoints`). Its dismissal flag is in `localStorage` — § 5.2. bans that for auth state only — and every access goes through `safelyRun` / `safelyGet`, since blocked storage throws and this renders in the `(main)` layout, failing hydration on all four tabs
+- **Offline support is out of scope.** `public/sw.js` is **push-only** (§ 16.1.): `push` and `notificationclick`, nothing else. It MUST NOT register a `fetch` handler or cache anything — that is what makes a worker serve last week's build
+- `/icons/*`, `robots.txt`, the manifest, and `/sw.js` MUST stay out of the proxy matcher: a redirect to `/login` breaks the install prompt, and the browser fetches a worker without following redirects, so a gated `/sw.js` fails registration outright
+- The Chat tab's unread badge is live (§ 8.8.): seeded by the layout's server render, incremented by the shell's SSE stream, replaced by `GET /api/chat/unread` on resume
 
 ---
 
 ## 8. Chat Tab (KakaoTalk-style)
 
-> **Only layout and interaction rules are taken from KakaoTalk.** Its colors and shapes (Kakao yellow, the sky-blue background, drawn bubble tails) are **not** — see `DESIGN.md § 2.2.` and `§ 6.`, which is the single source of truth for every visual spec below.
+> **Only layout and interaction rules come from KakaoTalk**, never its colors or shapes (Kakao yellow, sky-blue background, drawn tails). `DESIGN.md § 2.2.` and `§ 6.` are the sole source of every visual spec below.
 
 ### 8.1. UI
 
-Landed: notch-corner bubbles (mine right, theirs left), avatar + nickname on the first message of their group, one timestamp per same-minute group on its last message, date divider pills (`오늘`, `어제`, `2026년 8월 3일 월요일`), the auto-growing composer with `+` and emoticon toggle (both **disabled** until steps 6 and 8; the send button replaces the toggle once the field is non-empty), long-press / right-click → `ActionSheet` (copy / delete), and the scroll-to-bottom button appearing ~200px from the newest message with an incoming count (`새 메시지 3`).
+Landed: notch-corner bubbles (mine right, theirs left), avatar + nickname on the first message of a group, one timestamp per same-minute group on its last message, date divider pills (`오늘`, `어제`, `2026년 8월 3일 월요일`), the auto-growing composer with `+` and emoticon toggle (both **disabled** until steps 6 and 8; the send button replaces the toggle once the field is non-empty), long-press / right-click → `ActionSheet` (copy / delete), and the scroll-to-bottom button appearing ~200px from the newest message with an incoming count (`새 메시지 3`).
 
-- A hardware keyboard sends on Enter and breaks the line on Shift+Enter; on a coarse pointer Enter stays a newline — the iOS keyboard has no send key (`useIsCoarsePointer`)
+- A hardware keyboard sends on Enter and breaks the line on Shift+Enter; on a coarse pointer Enter stays a newline, since the iOS keyboard has no send key (`useIsCoarsePointer`)
 - Tapping send keeps the keyboard open: the button cancels `pointerdown` so the tap never blurs the field, and `submit` refocuses inside the click gesture
 - `DELETE /api/messages/{id}` soft-deletes, scoped to the sender, and answers **404** for someone else's message and for one that never existed alike, so the endpoint cannot probe ids (§ 14.)
-- The tab bar and install banner stay hidden while the keyboard is up — the shell shrinks to what the keyboard leaves and neither is worth 56px of it. `useIsVirtualKeyboardOpen` detects that from a drop below the tallest height seen at the current width **and** an editable `activeElement`: height alone misreads a collapsing address bar, focus alone survives Android's back button
+- The tab bar and install banner hide while the keyboard is up — the shell shrinks to what the keyboard leaves and neither is worth 56px of it. `useIsVirtualKeyboardOpen` requires both a drop below the tallest height seen at the current width **and** an editable `activeElement`: height alone misreads a collapsing address bar, focus alone survives Android's back button
 
 Remaining:
 
 - [ ] Unread marker — a `1` beside my message, in the `unread` token (DESIGN § 4.1.4.)
 - [ ] Image messages render **without a bubble**; tapping opens a fullscreen viewer (pinch zoom, horizontal swipe)
   - [ ] Multiple images sent together are **one bubble** (§ 6.) — branch on array length alone: 1 image keeps its own `media.width` / `height` aspect ratio, 2+ use a fixed square-cell grid
-  - [ ] The grid makes § 8.3. box reservation **more** accurate, not less: the height follows from the cell layout, independent of the individual images' dimensions
+  - [ ] The grid makes § 8.3. box reservation **more** accurate, not less: the height follows from the cell layout, independent of the images' own dimensions
   - [ ] Tapping any image opens the viewer at that index, swiping through the rest of the same bubble
 - [ ] Emoticon messages render as the image alone, without a bubble
 - [ ] Tapping the scroll-to-bottom button scrolls smoothly to the bottom **and marks messages read**
-- [ ] The same button also returns the user to the newest messages after a search jump (§ 8.6.1.)
+- [ ] The same button returns the user to the newest messages after a search jump (§ 8.6.1.)
 
-### 8.2. Message Loading
+### 8.2. Message Loading ✅
 
-Landed: cursor-based infinite scroll, `GET /api/messages?before={id}&limit=30` (`WHERE id < :before ORDER BY id DESC`), plus the `after={id}` and `around={id}` endpoints, whose callers are § 8.4. and § 8.6.1.
+Cursor-based infinite scroll: `GET /api/messages?before={id}&limit=30` (`WHERE id < :before ORDER BY id DESC`), plus `after={id}` and `around={id}`, whose callers are § 8.4. and § 8.6.1.
 
 - **No OFFSET pagination, ever** — incoming messages shift page boundaries, producing duplicates and gaps
-- [x] `newestKnownId` is tracked alongside the live `oldestLoadedId` and only ever moves forward, so a delete cannot walk it back and make § 8.4.'s catch-up refetch what was already seen
+- `newestKnownId` is tracked alongside `oldestLoadedId` and only ever moves forward, so a delete cannot walk it back and make § 8.4.'s catch-up refetch what was already seen
 
 ### 8.3. Virtual Scrolling (Windowing)
 
-Offscreen message nodes **must not stay in the DOM**. After a few years of history, thousands of infinite-scrolled nodes will destroy scroll performance in iOS Safari. `react-virtuoso` is in place: `startReached` for upward loading, `firstItemIndex` decrement for jump-free prepends, `followOutput="smooth"` for bottom-stickiness, `atBottomStateChange` for the scroll-to-bottom button, `scrollToIndex({ align: "center" })` for search jumps, automatic variable-height measurement, and tuned overscan.
+Offscreen message nodes **must not stay in the DOM** — after years of history, thousands of infinite-scrolled nodes destroy scroll performance in iOS Safari. `react-virtuoso` is in place: `startReached` for upward loading, `firstItemIndex` decrement for jump-free prepends, `followOutput="smooth"`, `atBottomStateChange` for the scroll-to-bottom button, `scrollToIndex({ align: "center" })` for search jumps, automatic variable-height measurement, tuned overscan.
 
-- **Do not use `flex-direction: column-reverse`** — the virtualizer owns scroll anchoring and the two cannot coexist
-- **Two traps, both of which render an empty list with no error**: `initialTopMostItemIndex` MUST be a constant (a live `rows.length - 1` re-runs initial positioning on every prepend); and the scroller is `height: 100%` inline, so its parent needs a **definite** height — a `flex-1` column is not one, the list must sit in an `absolute inset-0` box inside it
-- That constant is latched at the first render that **has rows**, not the first render. An empty room renders the § 6. empty state and mounts no list at all, so a value fixed with `useState(() => rows.length - 1)` is `0` — and when § 8.4.'s catch-up later fills the room, the list mounts at the _oldest_ arriving message with the newest below the fold
-- [ ] **Reserve the box for image messages before the asset loads** — render an aspect-ratio box from `media.width` / `height` first. Without it every image load triggers a re-measure cascade and the scroll jolts
-- [ ] Date dividers are list items (done), but the **sticky top indicator is a separate overlay** computed from the visible range — not built yet
+- **Never use `flex-direction: column-reverse`** — the virtualizer owns scroll anchoring and the two cannot coexist
+- **Two traps, each rendering an empty list with no error**: `initialTopMostItemIndex` MUST be a constant (a live `rows.length - 1` re-runs initial positioning on every prepend); and the scroller is inline `height: 100%`, so its parent needs a **definite** height — a `flex-1` column is not one, the list must sit in an `absolute inset-0` box inside it
+- That constant latches at the first render that **has rows**, not the first render: an empty room renders the empty state and mounts no list, so `useState(() => rows.length - 1)` is `0` — and when § 8.4.'s catch-up fills the room, the list mounts at the _oldest_ arriving message with the newest below the fold
+- [ ] **Reserve the box for image messages before the asset loads** — an aspect-ratio box from `media.width` / `height`. Without it every image load triggers a re-measure cascade and the scroll jolts
+- [ ] Date dividers are list items (done), but the **sticky top indicator is a separate overlay** computed from the visible range — not built
 - [ ] Restore scroll position when returning to the tab (`restoreStateFrom`)
-- [ ] The browser's native `Ctrl+F` cannot find offscreen messages — in-app search (§ 8.6.) is the deliberate replacement
+- [ ] Native `Ctrl+F` cannot find offscreen messages — in-app search (§ 8.6.) is the deliberate replacement
 
 ### 8.4. Realtime (SSE) ✅
 
-Landed in full. `GET /api/chat/stream` holds one unpooled connection on both channels, replays from `Last-Event-ID`, and heartbeats; the client subscribes with a single `EventSource`, closes it on background, and catches up on every return. What follows is the contract new code must not break.
+`GET /api/chat/stream` holds one unpooled connection on both channels, replays from `Last-Event-ID`, heartbeats; the client holds a single `EventSource`, closes it on background, catches up on every return. Contract:
 
-- `GET /api/chat/stream` — `text/event-stream`, `runtime = "nodejs"`, `maxDuration = 300`
-  - The connection comes from the **direct (unpooled)** string via `listenToChannels` (`shared/db`) and is released in a `finally` block. A transaction-mode pooler hands the connection to another client between transactions, silently dropping the `LISTEN`
-  - **One endpoint, one `EventSource`, two channels.** `LISTEN user_changed` rides the connection the stream already holds — it is not a second stream. The two are told apart by the SSE `event:` field, `event: message` and `event: user`
-  - `LISTEN` is registered **before** the replay query runs. In the other order a message committing between the two is missed by both — the query cannot see it yet and nothing is listening for it
-  - **`id > cursor` alone loses messages.** `bigserial` ids are handed out at INSERT but become visible at COMMIT, so they can commit out of order: if the transaction holding id 10 is still open when id 11 commits and streams, a client that advances to 11 never asks for 10 again. Replay therefore starts at `cursor - SSE_REPLAY_MARGIN` and lets id-deduplication drop the overlap
-  - `id:` is populated on **`message` events only** — it is the reconnect cursor. **Never put an `id:` on a `user` event**: the cursor is a `messages` bigserial and a user has no counterpart, so a uuid there would hand the next reconnect a garbage replay bound. Omitting the field leaves the client's last-event-ID buffer untouched, which is exactly right — `user` events are not replayable and a reconnect refetches the whole set
-  - Notifications are resolved **one at a time behind a promise chain**. Each costs a `getMessage` query, and letting them interleave emits rows out of id order
-  - `event: ping` at `SSE_HEARTBEAT_INTERVAL` keeps proxies from timing the connection out. It is a **named event, not a `:ping` comment**: a comment keeps the proxies awake but `EventSource` never surfaces it, and the client's resume path needs to observe the heartbeat to tell a live socket from a frozen one. It carries no `id:`, for the same reason `user` carries none
-  - Replay is capped at `SSE_REPLAY_LIMIT`, and what falls past that cap is **not** the replay's problem to solve — the client's on-connect catch-up below pages from its own cursor, so a truncated replay costs a few extra requests rather than a hole. The same is true of a notification lost while `postgres.js` silently reconnects its `LISTEN` socket: `maxDuration` ends the invocation every five minutes, and the reconnect that follows runs the catch-up again
-- `GET /api/users` — the whole participant set, **no cursor**. Serves three callers: first render, a `user` SSE event, and the resume catch-up
-  - `listUsers` projects an explicit column set and `toParticipant` resolves the name before the response is built, so **`email` and `google_sub` never leave the server**. Never `SELECT *`: this payload reaches the browser verbatim and `google_sub` is the identity key § 5.1. matches on. `email` is read only because § 8.7.'s empty-nickname fallback is its local part, and applying that fallback server-side is what lets the address stay behind
-  - A "changed since" cursor is **rejected**: unlike `messages` this is a small mutable set, not an append-only log — a rename produces no new row so an id cursor never fires, and an `updated_at` cursor would still miss a deletion. Two rows are cheaper to refetch whole
-- **The subscription belongs to the `(main)` shell, not to the chat screen.** `ChatStreamProvider` owns the one `EventSource`, the participant set, and the unread count; screens attach with `useChatStreamListener`. Scoped to the chat screen the stream would drop on every tab switch, and the other three tabs would neither chime nor move the badge — a message would surface only once the user walked back into the conversation. **This does not weaken the autosuspend argument below**: what closes the stream is the app backgrounding, which is unchanged. The stream now spans "the app is open" rather than "the chat tab is open", and Neon still suspends whenever nobody is looking
-  - The provider is also the single place a new message becomes perceptible: the chime (`shared/sound`), the in-app notice on a non-chat tab (`DESIGN.md § 7.14.`), the tab-bar badge, and `navigator.setAppBadge`. A message that is mine is none of those — the stream echoes my own send back (§ 8.5.)
-- The client subscribes with `EventSource` and relies on its automatic reconnection **for transport drops it actually notices**. A fatal error — a 401, or any body that is not `text/event-stream` — leaves `readyState === CLOSED` permanently, so `onerror` reopens by hand after `SSE_RETRY_DELAY` and the open path treats a `CLOSED` source as no source. Guarding on "a source object exists" instead would kill live delivery for the life of the page after one expired session. Handlers are read through a ref, so a new handler identity cannot tear the connection down and rebuild it on every render
-- The stream is closed when the tab backgrounds, so Neon compute can autosuspend
-- **Resume is the normal sync path, not an error path.** Because the stream is closed on purpose, every return to the app has missed events — and an iOS home-screen PWA restores the frozen page rather than navigating, so the Server Component render does not re-run and cannot cover this
-  - The catch-up hangs off **`onopen` _and_ the resume events**, and it is plain `fetch` either way — it must never be gated on the socket. `onopen` covers every connect (a fresh `EventSource` sends no `Last-Event-ID` and so replays nothing, leaving two gaps only this closes: the one between the Server Component render and the moment the socket actually opens — bundle download plus hydration, seconds on mobile — and the one a reconnect leaves behind on a page that never received a live event to buffer an id from). Hanging it off `onopen` **alone** was the iOS PWA bug: the screen then stays stale for as long as the reconnect takes, and forever if it never lands
-  - **Resume observes `visibilitychange`, `pageshow`, and `focus`, and background observes `visibilitychange` and `pagehide`.** iOS is inconsistent about which of these a standalone-PWA app-switch produces; one resume commonly fires several, so the catch-up is coalesced inside `SSE_SYNC_COALESCE_WINDOW`
-  - **A restored iOS page keeps a dead socket at `readyState === OPEN`.** The system tears the connection down while the PWA is frozen but the object is never told, so it emits no `error` — the manual retry never arms and the open path's `CLOSED` guard sees nothing wrong. The zombie is detected by **silence**: the client timestamps every message, `user`, and `ping` event, and a resume that finds nothing newer than `SSE_STALE_AFTER` closes the source before reopening. Do not replace this with a "was the page hidden" flag — the freeze can arrive without a hide event, which is the case that flag would miss
+**`GET /api/chat/stream`** — `text/event-stream`, `runtime = "nodejs"`, `maxDuration = 300`
+
+- The connection comes from the **direct (unpooled)** string via `listenToChannels` (`shared/db`) and is released in a `finally`. A transaction-mode pooler hands the connection to another client between transactions, silently dropping the `LISTEN`
+- **One endpoint, one `EventSource`, two channels.** `LISTEN user_changed` rides the connection the stream already holds; the two are told apart by the SSE `event:` field (`message`, `user`)
+- `LISTEN` is registered **before** the replay query. Reversed, a message committing between the two is missed by both
+- **`id > cursor` alone loses messages**: `bigserial` ids are handed out at INSERT but become visible at COMMIT, so they can commit out of order. Replay starts at `cursor - SSE_REPLAY_MARGIN` and lets id-deduplication drop the overlap
+- `id:` goes on **`message` events only** — it is the reconnect cursor, a `messages` bigserial with no counterpart on `user` or `ping`. Omitting it leaves the client's last-event-ID buffer untouched, which is correct since those events are not replayable
+- Notifications resolve **one at a time behind a promise chain** — each costs a `getMessage` query, and interleaving emits rows out of id order
+- `event: ping` at `SSE_HEARTBEAT_INTERVAL` keeps proxies from timing out. It is a **named event, not a `:ping` comment**: a comment keeps proxies awake but `EventSource` never surfaces it, and the client's resume path must observe the heartbeat to tell a live socket from a frozen one
+- Replay is capped at `SSE_REPLAY_LIMIT`; what falls past the cap is the client catch-up's problem, not replay's, so a truncated replay costs extra requests rather than a hole. Same for a notification lost while `postgres.js` silently reconnects its `LISTEN` socket — `maxDuration` ends the invocation every five minutes and the reconnect runs the catch-up again
+
+**`GET /api/users`** — the whole participant set, **no cursor**. Callers: first render, a `user` event, the resume catch-up
+
+- `listUsers` projects an explicit column set and `toParticipant` resolves the name before the response is built, so **`email` and `google_sub` never leave the server**. Never `SELECT *` here: the payload reaches the browser verbatim and `google_sub` is the identity key § 5.1. matches on. `email` is read only for § 8.7.'s empty-nickname fallback
+- A "changed since" cursor is **rejected**: this is a small mutable set, not an append-only log — a rename produces no new row so an id cursor never fires, and an `updated_at` cursor still misses a deletion. Two rows are cheaper to refetch whole
+
+**Client**
+
+- **The subscription belongs to the `(main)` shell, not the chat screen.** `ChatStreamProvider` owns the one `EventSource`, the participant set, and the unread count; screens attach with `useChatStreamListener`. Scoped to the chat screen the stream would drop on every tab switch and the other tabs would neither chime nor badge. This does not weaken the autosuspend argument — what closes the stream is the app backgrounding, unchanged
+- The provider is the single place a new message becomes perceptible: the chime (`shared/sound`), the in-app notice on a non-chat tab (`DESIGN.md § 7.14.`), the tab-bar badge, `navigator.setAppBadge`. A message that is mine is none of those — the stream echoes my own send back (§ 8.5.)
+- `EventSource` auto-reconnects only for drops it notices. A fatal error (a 401, or a body that is not `text/event-stream`) leaves `readyState === CLOSED` permanently, so `onerror` reopens by hand after `SSE_RETRY_DELAY` and the open path treats a `CLOSED` source as no source. Guarding on "a source object exists" instead kills live delivery for the life of the page after one expired session. Handlers are read through a ref, so a new handler identity cannot rebuild the connection every render
+- The stream closes when the tab backgrounds, so Neon compute can autosuspend
+- **Resume is the normal sync path, not an error path.** The stream is closed on purpose, so every return has missed events — and an iOS home-screen PWA restores the frozen page rather than navigating, so the Server Component render does not re-run
+  - The catch-up hangs off **`onopen` _and_ the resume events**, and is plain `fetch` either way — never gated on the socket. `onopen` covers every connect (a fresh `EventSource` sends no `Last-Event-ID`, leaving two gaps only this closes: between the server render and the socket opening, and the one a reconnect leaves on a page that never buffered an event id). Hanging it off `onopen` **alone** was the iOS PWA bug — the screen stays stale as long as the reconnect takes, forever if it never lands
+  - **Resume observes `visibilitychange`, `pageshow`, `focus`; background observes `visibilitychange` and `pagehide`.** iOS is inconsistent about which a standalone-PWA app-switch produces and one resume commonly fires several, so the catch-up is coalesced inside `SSE_SYNC_COALESCE_WINDOW`
+  - **A restored iOS page keeps a dead socket at `readyState === OPEN`** — the system tears the connection down while frozen and never tells the object, so it emits no `error`. The zombie is detected by **silence**: every `message` / `user` / `ping` is timestamped, and a resume finding nothing newer than `SSE_STALE_AFTER` closes the source before reopening. Do not replace this with a "was the page hidden" flag — the freeze can arrive without a hide event
   - It is `fetch(/api/messages?after=…)` paged until a short page, plus `fetch(/api/users)`
-  - The cursor it pages from is a **local** copy of `newestKnownId`, advanced only by what the loop itself fetched. Read from the ref each round, a live event landing mid-loop would carry it past a page the fetch has not covered yet — and nothing asks for that range again
-  - `after=0` is a **valid** cursor, not an absent one: a client whose window is still empty catches up from the start of the conversation. Falling back to the cursorless newest page instead strands everything behind it, unreachably — `hasOlder` is `false` on a short first page, so upward paging refuses to fetch it
-- **Received messages are deduplicated by id**, and merged by sorting rather than appending — SSE replay and the catch-up fetch overlap by design, and an out-of-order commit can arrive behind a message the replay already delivered
+  - It pages from a **local** copy of `newestKnownId`, advanced only by what the loop itself fetched. Read from the ref each round, a live event landing mid-loop would carry it past a page the fetch has not covered — and nothing asks for that range again
+  - `after=0` is a **valid** cursor, not an absent one: a client whose window is still empty catches up from the start. Falling back to the cursorless newest page strands everything behind it unreachably, since `hasOlder` is `false` on a short first page
+- **Received messages are deduplicated by id** and merged by sorting, never appending — replay and catch-up overlap by design, and an out-of-order commit can arrive behind a message replay already delivered
 - Multi-device needs no extra mechanism: `user_changed` is a conversation-wide broadcast, so "my other device" and "the other person's phone" are both just another subscriber, and a client receiving the echo of its own change refetches idempotently
 
-### 8.5. Sending
+### 8.5. Sending ✅
 
-Landed: the client generates `client_msg_id` (uuid) and renders optimistically; `POST /api/messages` uses `ON CONFLICT (client_msg_id) DO NOTHING` so a retry cannot duplicate a row; a retry affordance shows on failure.
+The client generates `client_msg_id` (uuid) and renders optimistically; `POST /api/messages` uses `ON CONFLICT (client_msg_id) DO NOTHING` so a retry cannot duplicate a row; a retry affordance shows on failure.
 
-- The re-read after a conflict is scoped to `sender_id` and `deleted_at IS NULL` and answers **409** when it misses. `client_msg_id` is unique table-wide rather than per sender, so matching on it alone would return the _other_ user's row and the client would swap its optimistic bubble for a stranger's message
-- The message echoed back over SSE is matched to the optimistic entry by `client_msg_id` and replaces it. The echo routinely beats the response to the POST that created the row, so the pending bubble is retired on whichever arrives first
+- The re-read after a conflict is scoped to `sender_id` and `deleted_at IS NULL` and answers **409** when it misses. `client_msg_id` is unique table-wide rather than per sender, so matching on it alone would return the _other_ user's row and swap the optimistic bubble for a stranger's message
+- The SSE echo is matched to the optimistic entry by `client_msg_id` and replaces it. The echo routinely beats the POST response, so the pending bubble retires on whichever arrives first
 
 ### 8.6. Message Search
 
-**Why substring matching**: Postgres full-text search has no Korean morphological dictionary, and `'simple'` only splits on whitespace — Korean attaches particles (조사) to nouns, so `저녁` fails to match the stored `저녁을`. Korean-aware parsers (`mecab-ko`, `pg_bigm`) cannot be installed on Neon. **`pg_trgm` + `ILIKE`** is language-neutral and matches substrings, so the particle problem cannot occur.
+**Why substring matching**: Postgres FTS has no Korean morphological dictionary and `'simple'` only splits on whitespace — Korean attaches particles (조사) to nouns, so `저녁` fails to match the stored `저녁을`. Korean-aware parsers (`mecab-ko`, `pg_bigm`) cannot be installed on Neon. **`pg_trgm` + `ILIKE`** is language-neutral and matches substrings, so the particle problem cannot occur.
 
 - [ ] `GET /api/messages/search?q=&before=` — `type = 'text' AND deleted_at IS NULL AND text ILIKE '%' || $q || '%'`
 - [ ] **Order by recency, not relevance** (`ORDER BY id DESC`) — chat search is "where was that thing we talked about", so BM25-style ranking gets in the way. This is also why no search engine is warranted
@@ -312,25 +303,24 @@ Landed: the client generates `client_msg_id` (uuid) and renders optimistically; 
 
 ### 8.7. Display Names and Profiles
 
-Landed, apart from the avatar image itself, which needs the § 9. media route (step 6).
+Landed apart from the avatar image, which needs the § 9. media route (step 6).
 
-- The name shown in chat is **the nickname each user set for themselves in Settings** (`users.nickname`, § 12.). The Google account name is only the first-login default. There is **no** feature for naming the other person (KakaoTalk's per-contact rename)
-- **Never copy the name or avatar onto the message row.** The sender is resolved against the participant set at render time, so a rename **retroactively changes every past message** — including § 11.5. system sentences. That is the intended behaviour
-- A nickname or avatar change reaches every other **open** screen over the `user_changed` channel (§ 8.4.) — the other person's devices and this person's second device alike. A _fresh load_ is already correct because § 5.'s opaque token is resolved against `users` on every request and carries no stale copy, unlike a JWT with baked-in claims; it just cannot push to an open screen, which is why § 8.4. exists. Answering the event is a single `GET /api/users` — had the name been denormalized, it would have been a backfill
-- Fallback when the nickname is empty is the email local part, applied in `toParticipant` (§ 8.4.); fallback when no avatar is set is an initial-letter avatar (DESIGN § 7.7.)
+- The name shown in chat is **the nickname each user set for themselves in Settings** (`users.nickname`, § 12.); the Google account name is only the first-login default. There is **no** feature for naming the other person (KakaoTalk's per-contact rename)
+- **Never copy the name or avatar onto the message row.** The sender resolves against the participant set at render time, so a rename **retroactively changes every past message**, including § 11.5. system sentences. That is intended
+- A nickname or avatar change reaches every other **open** screen over `user_changed` (§ 8.4.). A _fresh load_ is already correct, because § 5.'s opaque token is resolved against `users` on every request and carries no stale copy unlike a JWT; it just cannot push to an open screen. Answering the event is one `GET /api/users` — denormalized, it would have been a backfill
+- Empty-nickname fallback is the email local part, applied in `toParticipant` (§ 8.4.); no-avatar fallback is an initial-letter avatar (DESIGN § 7.7.)
 - [ ] Point the chat avatar at `GET /api/media/{avatarMediaId}` once the R2 pipeline lands (step 6)
 
 ### 8.8. Read / Unread
 
-Landed: the cursor lives in `users.last_read_at` (no per-message `read_at`, no members table), `countUnreadMessages` joins `users` on the requesting id so the badge stays one round trip, and the cursor is now actually written.
+Landed: the cursor lives in `users.last_read_at` (no per-message `read_at`, no members table), `countUnreadMessages` joins `users` on the requesting id so the badge stays one round trip, and `POST /api/chat/read` writes the cursor while the chat screen is mounted (`ChatRoom` declares this with `setIsReading`).
 
-- [x] While the chat screen is mounted, update the cursor via `POST /api/chat/read`. `ChatRoom` declares this with `setIsReading`, and the provider posts on entry, on each message received while reading, and — unthrottled — on the way out
-  - [x] Throttled on the **leading** edge at `READ_CURSOR_THROTTLE`, because every UPDATE that lands fires `user_changed` at the other device. The unthrottled posts bound the reading session and none of them is optional: **entering** (a throttled entry parks the cursor behind a message already on screen), **leaving**, and **backgrounding** — the app going away is not a `ChatRoom` unmount, and it is the likeliest way to end a session. All three exist because a cursor parked a throttle window behind turns the last message read into a push notification
-  - [x] The UPDATE **must** carry `WHERE last_read_at < $new`. The same person can have the tab open on two devices, and a late stale request would otherwise move the cursor backwards — the unread divider jumps back into read history and the other side's `1` markers reappear after clearing. The guard is also what makes a no-op UPDATE silent
-  - [x] The client sends **no timestamp**. The server stamps `now()`, so a device with a skewed clock cannot push the cursor into the future and hide messages it never showed
-- [x] `GET /api/chat/unread` — the count for the tab-bar badge and for the § 16.1. push payload. The shell's running total is optimistic and blind to what landed while the stream was closed, so a resume **replaces** it with this rather than adding to it
-- [x] The broadcast that clears the sender's `1` markers needs no new plumbing: the write touches `users`, so the § 6. trigger fires `user_changed` and § 8.4. delivers it
-- [ ] A message is unread when `message.created_at > otherUser.last_read_at`. This is a **boolean**, correct only for two participants (§ 6.). The cursor is written; the `1` marker beside a bubble and the unread divider are still to draw (`DESIGN.md § 7.`)
+- Throttled on the **leading** edge at `READ_CURSOR_THROTTLE`, because every UPDATE that lands fires `user_changed` at the other device. Three posts are **unthrottled and none is optional**: **entering** (a throttled entry parks the cursor behind a message already on screen), **leaving**, and **backgrounding** (the app going away is not a `ChatRoom` unmount, and is the likeliest way to end a session). A cursor parked a throttle window behind turns the last message read into a push notification
+- The UPDATE **must** carry `WHERE last_read_at < $new`. The same person can have two devices open, and a late stale request would move the cursor backwards — the unread divider jumps back into read history and the other side's `1` markers reappear after clearing. The guard is also what makes a no-op UPDATE silent
+- The client sends **no timestamp**; the server stamps `now()`, so a skewed device clock cannot push the cursor into the future and hide messages it never showed
+- `GET /api/chat/unread` — the count for the tab-bar badge and the § 16.1. push payload. The shell's running total is optimistic and blind to what landed while the stream was closed, so a resume **replaces** it rather than adding to it
+- Clearing the sender's `1` markers needs no new plumbing: the write touches `users`, so the § 6. trigger fires `user_changed` and § 8.4. delivers it
+- [ ] A message is unread when `message.created_at > otherUser.last_read_at` — a **boolean**, correct only for two participants (§ 6.). The cursor is written; the `1` marker beside a bubble and the unread divider are still to draw (`DESIGN.md § 7.`)
 
 ---
 
@@ -399,7 +389,7 @@ Include only what pays off for exactly two users. Invitations, RSVP, permissions
   - [ ] `mine` events are still **visible** to the other user — this is a distinction, not a privacy control. The point is to communicate "I'm busy that day"
   - [ ] Distinguish them in the month grid by marker shape (filled dot for `shared`, ring dot for `mine`)
 - [ ] **Post a `type = 'system'` message to Chat when an event changes** — e.g. `지희님이 8월 10일 '영화 보기' 일정을 추가했어요`
-  - [ ] **Do not bake the name into the stored text.** Store `sender_id`, `system_action`, and the `event_title` / `event_starts_at` snapshot, then **compose the sentence at render time from `users.nickname`** so a rename updates past system messages too (§ 8.7.). The event snapshot is deliberate and not a violation: a delete notice must still say which event it was, and its `events` row is gone. Only the _user_ name must never be copied
+  - [ ] **Do not bake the name into the stored text.** Store `sender_id`, `system_action`, and the `event_title` / `event_starts_at` snapshot, then **compose the sentence at render time from `users.nickname`** so a rename updates past system messages too (§ 8.7.). The event snapshot is deliberate, not a violation: a delete notice must still say which event it was, and its `events` row is gone. Only the _user_ name must never be copied
   - [ ] Post on create, time change, and delete. **Do not post** when only the title or description changed
   - [ ] This rides the existing SSE pipeline, so it costs no additional infrastructure
   - [ ] Render as a centered pill with no bubble (same treatment as the date divider — DESIGN § 6.4., § 6.5.); tapping navigates to the event
@@ -407,9 +397,9 @@ Include only what pays off for exactly two users. Invitations, RSVP, permissions
 - [ ] **A dot on the Calendar tab-bar icon when there is an event today** (a single dot, not a count)
 - [ ] **Empty state** for a day with no events (DESIGN § 7.6.)
 
-### 11.6. Notifications
+### 11.6. Notifications ✅
 
-Adopted and landed — see § 16.1. Calendar changes reach the user as § 11.5. chat system messages, which ride the same pipeline; **there is no calendar-specific notification and no scheduler.**
+Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messages on the same pipeline; **there is no calendar-specific notification and no scheduler.**
 
 ---
 
@@ -419,7 +409,7 @@ Adopted and landed — see § 16.1. Calendar changes reach the user as § 11.5. 
   - [ ] The nickname set here is exactly what appears as the sender name in chat and inside system sentences (§ 8.7.), initialized from the Google account name at first login and owned by the user thereafter
   - [ ] Saving needs no explicit broadcast — the UPDATE lands on `users`, so the § 6. trigger fires `user_changed` and every open screen refetches (§ 8.4.)
 - [ ] Entry point to the emoticon settings screen
-- [x] **알림** — the push toggle (§ 16.1.). It is **per device**, not per account, so it reflects this browser's subscription rather than a stored preference. Three inert states carry their own copy: permission denied (only the browser's site settings can undo it), unsupported (iOS Safari tab — install to the home screen first), and in flight
+- [x] **알림** — the push toggle (§ 16.1.), **per device** rather than per account, so it reflects this browser's subscription rather than a stored preference. Three inert states carry their own copy: permission denied (only the browser's site settings can undo it), unsupported (iOS Safari tab — install to the home screen first), and in flight
 - [ ] List of logged-in devices, with per-session revocation
 - [ ] Log out
 - [ ] The theme setting stays **hidden until the dark theme ships**
@@ -441,7 +431,7 @@ Adopted and landed — see § 16.1. Calendar changes reach the user as § 11.5. 
 
 ## 14. Security and Index Blocking
 
-Landed: `app/robots.ts` (`Disallow: /` for every agent), root layout `robots: { index: false, follow: false, nocache: true }`, `X-Robots-Tag: noindex, nofollow, noarchive` on every path, and `Strict-Transport-Security` / `X-Content-Type-Options` / `Referrer-Policy: no-referrer` / `X-Frame-Options: DENY`. **Do not generate a sitemap.** `robots.txt`, `/icons/*`, and the manifest MUST stay out of the proxy matcher, or a crawler gets a redirect to `/login`.
+Landed: `app/robots.ts` (`Disallow: /` for every agent), root layout `robots: { index: false, follow: false, nocache: true }`, `X-Robots-Tag: noindex, nofollow, noarchive` on every path, and `Strict-Transport-Security` / `X-Content-Type-Options` / `Referrer-Policy: no-referrer` / `X-Frame-Options: DENY`. **Do not generate a sitemap.** Proxy-matcher exclusions are listed in § 7.
 
 - [ ] Every API route validates the session (401 when unauthenticated)
 - [ ] Upload MIME/extension allow-list and a size cap
@@ -454,8 +444,8 @@ Landed: `app/robots.ts` (`Disallow: /` for every agent), root layout `robots: { 
 
 - [ ] Connect the Vercel project to the private GitHub repository
 - [ ] Custom domain `jandh.jeheecheon.com` + DNS CNAME + automatic HTTPS
-- [ ] Environment variables — `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `RELATIONSHIP_START_DATE` (ISO `YYYY-MM-DD`), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `APP_URL`
-- [x] `maxDuration` for the SSE stream function — `300`, set on the route segment (§ 8.4.)
+- [ ] Environment variables — `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `RELATIONSHIP_START_DATE` (ISO `YYYY-MM-DD`), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `APP_URL`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+- [x] `maxDuration` for the SSE stream function — `300`, on the route segment (§ 8.4.)
 - [ ] Include `lint:steiger` in `pnpm build` so architecture violations fail the deploy
 - [ ] Separate dev and production databases using Neon branches
 
@@ -469,28 +459,22 @@ Landed: `app/robots.ts` (`Disallow: /` for every agent), root layout `robots: { 
 
 ### 16.1. Push Notifications ✅
 
-Adopted (§ 18. #8) and landed in full. It reverses the "no service worker" decision in § 7. What follows is the contract new code must not break.
+Landed (§ 18. #8); it reverses the "no service worker" decision in § 7. Contract:
 
-**Two channels, never both.** The app being open is SSE's job (§ 8.4.) — the shell chimes, raises the in-app notice, and moves the badge. The app being backgrounded or closed is Web Push's job. They are made mutually exclusive **in the worker**: `sw.js` calls `clients.matchAll` and returns without showing anything if any window reports `visibilityState === "visible"`. Do **not** widen that test to "a window exists" — a suppressed notification is only permitted while a visible one is on screen, and every push must otherwise produce a banner (`userVisibleOnly`).
-
-**Sent at INSERT time, from the request that inserted.** `POST /api/messages` dispatches inside `after()`, so the fan-out's round trips never sit between the sender and their 201. This is the whole reason push costs Neon's autosuspend **nothing**: the compute is already awake because the message was just written. Nothing polls, nothing is scheduled, and no process is resident.
-
-**Only event-driven notifications are in scope.** Serverless has no process that wakes at a given time, so anything needing a scheduler is excluded: "new message arrived" is the **only** trigger. Per-event reminders and a morning digest are **excluded**.
-
-Why minute-granularity cron stays excluded — the reason is operational, not cost (Cloudflare Cron Triggers are free): **it defeats Neon's autosuspend**, since polling every 5 minutes keeps the compute awake 24/7, which is exactly what § 8.4.'s background close exists to allow. The query count (288/day) is negligible; the **wake pattern** is the problem. It also grows deployment targets from one to two plus a shared secret, fails silently if the cron stops, and needs its own duplicate-send state. Calendar awareness is therefore handled by the § 11.5. chat system messages, which ride this pipeline for free.
-
-**iOS.** Web Push works from 16.4 but **only for a home-screen PWA**, never a Safari tab. No user-agent sniffing is needed to detect that: iOS exposes `PushManager` only in the installed case, so the support check falls through to `unsupported` on its own. Deleting the app from the home screen destroys the subscription without telling the server, which is why `PushSync` re-saves on every launch.
-
-- `push_subscriptions` — one row per **browser installation**, not per user. `endpoint` is unique table-wide and the upsert moves `user_id`: two accounts sharing one browser must not leave the row pushing to the previous account
+- **Two channels, never both.** App open is SSE's job (§ 8.4.) — the shell chimes, raises the in-app notice, moves the badge. Backgrounded or closed is Web Push's job. They are made mutually exclusive **in the worker**: `sw.js` calls `clients.matchAll` and shows nothing if any window reports `visibilityState === "visible"`. Do **not** widen that test to "a window exists" — a suppressed notification is only permitted while a visible one is on screen, and every push must otherwise produce a banner (`userVisibleOnly`)
+- **Sent at INSERT time, from the request that inserted.** `POST /api/messages` dispatches inside `after()`, so the fan-out never sits between the sender and their 201. This is why push costs Neon's autosuspend **nothing**: the compute is already awake because the message was just written. Nothing polls, nothing is scheduled, no process is resident
+- **Only event-driven notifications are in scope**, because serverless has no process that wakes at a given time: "new message arrived" is the **only** trigger. Per-event reminders and a morning digest are **excluded**, as is minute-granularity cron — the objection is operational, not cost: polling keeps the Neon compute awake 24/7, defeating exactly what § 8.4.'s background close exists to allow. It would also grow deployment targets from one to two plus a shared secret, fail silently if the cron stopped, and need its own duplicate-send state. Calendar awareness rides the § 11.5. system messages instead
+- **iOS.** Web Push works from 16.4 but **only for a home-screen PWA**, never a Safari tab. No UA sniffing is needed — iOS exposes `PushManager` only in the installed case, so the support check falls through to `unsupported` on its own. Deleting the app from the home screen destroys the subscription without telling the server, which is why `PushSync` re-saves on every launch
+- `push_subscriptions` is keyed on the **installation**: `endpoint` is unique table-wide and the upsert moves `user_id`, so two accounts sharing one browser cannot leave the row pushing to the previous account. `ON DELETE cascade` from `users`, plus a `user_id` index for the send-path fan-out
 - Env: `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. The public key is `NEXT_PUBLIC_` because the browser needs it to subscribe; `ensureEnv` cannot reach it in the client bundle, so a missing key surfaces as the disabled Settings toggle rather than a throw (`AGENTS.md § 6.2.`)
 - A `404` or `410` from the push service is **final** — delete the row rather than retrying. `sendPush` never throws; a dead device must not fail the send that triggered it
 - The permission prompt MUST fire inside a user gesture, so `subscribeToPush` awaits nothing before `Notification.requestPermission()`
-- The banner carries the sender's name resolved at send time. This does **not** violate § 8.7.'s ban on copying a name onto a row: a notification is a point-in-time artifact and the worker holds no session to re-resolve one
-- One conversation (§ 6.), so every banner collapses onto one `tag` with `renotify` — the newest message replaces the previous banner instead of stacking beside it. The tag lives in `sw.js` alone: a worker is served raw from `public/` and cannot import `@/shared/config`, so a constant mirrored there would be a second source of truth nothing checks
-- `navigator.setAppBadge` carries the recipient's own unread count (§ 8.8.), set from both the worker and the shell (`shared/badge`). Absent outside installed PWAs; every call is optional. The shell **must** rewrite it on resume rather than leaving it to a count change — the worker moves the badge while the page is frozen, and a resume into a count that is already `0` renders no effect
-- The chime's `AudioContext` is unlocked from **every** pointer gesture, not just the first. iOS interrupts the context on backgrounding and never resumes it, so a one-shot unlock leaves the app permanently silent after the first app-switch
+- The banner carries the sender's name resolved at send time. This does **not** violate § 8.7.: a notification is a point-in-time artifact and the worker holds no session to re-resolve one
+- One conversation (§ 6.), so every banner collapses onto one `tag` with `renotify` — the newest message replaces the previous banner instead of stacking. The tag lives in `sw.js` alone: a worker is served raw from `public/` and cannot import `@/shared/config`, so a mirrored constant would be a second source of truth nothing checks
+- `navigator.setAppBadge` carries the recipient's unread count (§ 8.8.), set from both the worker and the shell (`shared/badge`). Absent outside installed PWAs, so every call is optional. The shell **must** rewrite it on resume rather than leaving it to a count change — the worker moves the badge while the page is frozen, and a resume into a count that is already `0` renders no effect
+- The chime's `AudioContext` is unlocked from **every** pointer gesture, not just the first: iOS interrupts the context on backgrounding and never resumes it, so a one-shot unlock leaves the app permanently silent after the first app-switch
 - A subscription the server failed to store reports the toggle as **off**. It delivers nothing, and turning it back on re-saves the same subscription
-- [ ] A device list in Settings (`user_agent` and `last_success_at` are stored for it, and nothing reads them yet) — step 10 of § 17.
+- [ ] A device list in Settings (`user_agent` and `last_success_at` are stored for it and nothing reads them yet) — step 10 of § 17.
 
 ---
 
@@ -500,7 +484,7 @@ Why minute-granularity cron stays excluded — the reason is operational, not co
 2. ✅ Auth + session (§ 5.) — highest-risk area, so it went first. **The real-device iOS PWA check (§ 5.3.) is still open**
 3. ✅ Database schema + migrations (§ 6.)
 4. ✅ Layout + tab bar + PWA manifest (§ 7.)
-5. **Chat tab (§ 8.) — in progress.** Static UI → message CRUD → infinite scroll → SSE ✅; read receipts (§ 8.8.) and search and jump (§ 8.6.) remain
+5. **Chat tab (§ 8.) — in progress.** Static UI → message CRUD → infinite scroll → SSE ✅, read cursor ✅; the `1` marker and unread divider (§ 8.8.) and search and jump (§ 8.6.) remain
 6. R2 media pipeline + sending images in chat (§ 9.)
 7. Gallery tab (§ 10.)
 8. Emoticons (§ 13.)
@@ -514,15 +498,15 @@ Why minute-granularity cron stays excluded — the reason is operational, not co
 
 Deliberately left open. When work reaches the feature, **confirm with the user**, then update this document.
 
-| #     | Item                                                                                                                          | Needed by             | Notes                                                                                                   |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------- |
-| 1     | What happens to the chat message when an image is deleted from the gallery — delete it, or keep a "deleted photo" placeholder | Gallery (§ 10.)       | Affects the schema (whether `media.deleted_at` is needed)                                               |
-| 2     | How emoticon assets are sourced and how packs are composed                                                                    | Emoticons (§ 13.)     | The picker grid cannot be designed until the aspect ratios are known                                    |
-| 3     | Emoticon picker dimensions — panel height, pack tab bar, grid density                                                         | Emoticons (§ 13.)     | DESIGN § 9.                                                                                             |
-| 4     | Calendar event color set (6–7 warm tints that do not clash with the accent)                                                   | Calendar (§ 11.)      | DESIGN § 9.                                                                                             |
-| 5     | Motion duration / easing token scale                                                                                          | When animation starts | Only the 1.5s search flash and the tab `scale-[0.96]` are specified. DESIGN § 9.                        |
-| 6     | Image viewer gesture parameters — pinch zoom bounds, swipe threshold                                                          | Gallery / viewer      | Must be tuned on a real device. DESIGN § 9.                                                             |
-| 7     | Dark palette hex values                                                                                                       | Dark theme (§ 16.)    | Hand-tune; never arithmetically invert. DESIGN § 5.4.                                                   |
-| ~~8~~ | ~~**Whether to adopt push notifications (new-message only)**~~                                                                | —                     | **Decided: adopted.** Landed as § 16.1. **Time-based notifications remain out of scope**                |
-| 9     | Whether a `scope = 'mine'` event shows its **title** to the other user, or only "busy"                                        | Calendar (§ 11.5.)    | Currently specified as showing the title                                                                |
-| 10    | Maximum images per message, and the grid layout beyond that count                                                             | Chat images (§ 8.1.)  | KakaoTalk caps a send at 30. Determines the `+N` overflow treatment and upload concurrency. DESIGN § 9. |
+| #     | Item                                                                                                          | Needed by             | Notes                                                                                               |
+| ----- | ------------------------------------------------------------------------------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------- |
+| 1     | What happens to a chat message when its image is deleted from the gallery — delete it, or leave a placeholder | Gallery (§ 10.)       | Affects the schema (whether `media.deleted_at` is needed)                                           |
+| 2     | How emoticon assets are sourced and how packs are composed                                                    | Emoticons (§ 13.)     | The picker grid cannot be designed until the aspect ratios are known                                |
+| 3     | Emoticon picker dimensions — panel height, pack tab bar, grid density                                         | Emoticons (§ 13.)     | DESIGN § 9.                                                                                         |
+| 4     | Calendar event color set (6–7 warm tints that do not clash with the accent)                                   | Calendar (§ 11.)      | DESIGN § 9.                                                                                         |
+| 5     | Motion duration / easing token scale                                                                          | When animation starts | Only the 1.5s search flash and the tab `scale-[0.96]` are specified. DESIGN § 9.                    |
+| 6     | Image viewer gesture parameters — pinch zoom bounds, swipe threshold                                          | Gallery / viewer      | Must be tuned on a real device. DESIGN § 9.                                                         |
+| 7     | Dark palette hex values                                                                                       | Dark theme (§ 16.)    | Hand-tune; never arithmetically invert. DESIGN § 5.4.                                               |
+| ~~8~~ | ~~**Whether to adopt push notifications (new-message only)**~~                                                | —                     | **Decided: adopted.** Landed as § 16.1. **Time-based notifications remain out of scope**            |
+| 9     | Whether a `scope = 'mine'` event shows its **title** to the other user, or only "busy"                        | Calendar (§ 11.5.)    | Currently specified as showing the title                                                            |
+| 10    | Maximum images per message, and the grid layout beyond that count                                             | Chat images (§ 8.1.)  | KakaoTalk caps a send at 30. Determines `+N` overflow treatment and upload concurrency. DESIGN § 9. |
