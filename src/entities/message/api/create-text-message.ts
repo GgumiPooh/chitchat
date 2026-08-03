@@ -1,6 +1,5 @@
 import "server-only";
 
-import { CONVERSATION_ID } from "@/shared/config";
 import { getDb, messages } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
 import { and, eq, isNull } from "drizzle-orm";
@@ -29,7 +28,7 @@ export async function createTextMessage({
   const db = getDb();
   const [inserted] = await db
     .insert(messages)
-    .values({ conversationId: CONVERSATION_ID, senderId, type: "text", text, clientMsgId })
+    .values({ senderId, type: "text", text, clientMsgId })
     .onConflictDoNothing({ target: messages.clientMsgId })
     .returning();
 

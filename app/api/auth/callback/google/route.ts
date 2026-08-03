@@ -1,4 +1,3 @@
-import { ensureConversation } from "@/entities/conversation";
 import { upsertGoogleUser } from "@/entities/user";
 import { redirectTo } from "@/shared/api";
 import {
@@ -46,8 +45,6 @@ export async function GET(request: NextRequest) {
     if (!isAllowedEmail(identity.email)) {
       return toLoginRedirect("not_allowed");
     }
-
-    await ensureConversation();
 
     const user = await upsertGoogleUser(identity);
 

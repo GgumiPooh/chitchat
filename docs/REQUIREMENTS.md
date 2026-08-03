@@ -66,7 +66,7 @@ src/
   widgets/   tab-bar, install-guide, chat-room, gallery-grid, calendar-month, settings-form
   features/  session, send-message, chat-stream, push-notifications,
              upload-media, emoticon-prefs, update-profile, manage-event
-  entities/  user, conversation, message, push-subscription, media, event, emoticon
+  entities/  user, message, push-subscription, media, event, emoticon
   shared/    db, auth, push, sound, storage, api, config, lib, theme, ui
 ```
 
@@ -153,28 +153,29 @@ A 32-byte token is stored **hashed** in `sessions.token_hash`; only the raw toke
 
 ## 6. Database Schema (Drizzle) ✅
 
-Schema, migrations, triggers, and seed have landed. This is the contract new code is written against.
+Schema, migrations, and triggers have landed. This is the contract new code is written against.
 
-**Columns are not listed here — read `src/shared/db/schema/*.ts`** (`users`, `sessions`, `conversations`, `messages`, `message_media`, `media`, `events`, `emoticons`, `push-subscriptions`), one file per table. Never copy a column list into this document; the invariants below are what the schema cannot state on its own.
+**Columns are not listed here — read `src/shared/db/schema/*.ts`** (`users`, `sessions`, `messages`, `message_media`, `media`, `events`, `emoticons`, `push-subscriptions`), one file per table. Never copy a column list into this document; the invariants below are what the schema cannot state on its own.
 
 **Invariants new code must not break**
 
-- There is **no `accounts` table** (one provider, § 5.1.) and **no `conversation_members` table**
+- There is **no `accounts` table** (one provider, § 5.1.), **no `conversation_members` table**, and **no `conversations` table**
 - **Two participants, permanently.** `ALLOWED_EMAILS` gates the only row-creating path, so membership and identity are the same set — hence no members join. A third participant needs `conversation_members` back **and** a rewrite of § 8.8. (unread becomes a count of readers, not a boolean, reaching into the `1` marker and unread divider in `DESIGN.md § 7.`). A non-participant `users` row (a test or retired account) breaks `GET /api/users` the same way — keep such rows out of this database
 - `users.last_read_at` has **no default**, so every insert names one; a `defaultNow()` would silently mark everything sent before that person's first login as read (§ 8.8. reads unread as `created_at > last_read_at`). The one insert site, `upsertGoogleUser`, passes the epoch
-- `conversations.id` is pinned by a CHECK to the `CONVERSATION_ID` constant in `shared/config`, so nothing is queried to address it and no insert can open a second conversation. `ensureConversation` runs at login as well as in the seed, so a deployment that skipped the seed does not fail every message insert on its FK
+- **The one conversation is implicit — there is no row and no id for it.** Every `messages` query is already conversation-wide, so a singleton table would only have been a constant, a CHECK pinning it, an `ensureConversation` on the login path, and an FK column repeating that constant on every row. A second conversation needs all of it back **and** the `conversation_members` rewrite above — not one of the two alone
 - `messages` is **append-only** — marking messages read must never UPDATE it
 - A CHECK pins which columns each `messages.type` may fill (a `text` row carries no `emoticon_item_id` or event; a `system` row carries no text). The CHECK cannot reach `message_media`, so "a non-`image` message must not acquire media children" is a `BEFORE INSERT OR UPDATE` **trigger** there. The reverse (an `image` message with zero media rows) is deliberately **not** enforced — it would need a `DEFERRABLE` constraint trigger, and § 8.5. writes both in one transaction
 - **Never store an R2 URL in any table** — presigned URLs expire in minutes (§ 9.); store ids and mint per request
 - **One bubble is one `messages` row regardless of image count**: 3 photos = 1 message row + 3 `message_media` rows, which is why there is no `messages.media_id`. `sort_order` preserves the sender's order. `media_id` does not cascade (§ 18. #1 decides what a gallery delete does) and carries its own index, since the PK cannot serve lookups by media
 - `messages.event_id` is `ON DELETE SET NULL`; § 11.5. composes its sentence from the `event_title` / `event_starts_at` snapshot, because a delete notice outlives its `events` row. Only the **user name** is resolved at render time (§ 8.7.)
 - `events.ends_at` is NOT NULL — the create form defaults it rather than admitting an open-ended event, which would need its own branch in every month-grid calculation. `color` is nullable until § 18. #4. **Recurrence is yearly-only** (anniversaries): never introduce RRULE or a general recurrence engine — project `yearly` rows onto the requested year on read. The relationship start date, 100-day marks, and yearly anniversaries are **not rows** (§ 11.2.)
-- Indexes: `messages(conversation_id, id DESC)`, `media(created_at DESC, id DESC)`, `message_media(media_id)`, `events(starts_at)`, `sessions(token_hash)`, plus `pg_trgm` + a GIN trigram index on `messages.text` (§ 8.6.). The `media` index needs the `id` tiebreaker because `created_at` is the **transaction** timestamp, so a multi-image send's rows compare equal and a keyset page skips or repeats them — **paginate on the pair, never on `created_at` alone**
-- Triggers: `AFTER INSERT` on `messages` fires `pg_notify('new_message', { id, conversationId })`; `AFTER INSERT` **and** `AFTER UPDATE` on `users` fire `pg_notify('user_changed', '')`. Payloads are minimal because `NOTIFY` caps at 8000 bytes and § 8.4. refetches rather than trusting a payload. Two user triggers because a `WHEN` clause cannot reference `OLD` on an INSERT, so `WHEN (OLD.* IS DISTINCT FROM NEW.*)` rides the UPDATE trigger alone. That guard plus § 8.8.'s `WHERE last_read_at < $new` keeps the channel quiet under the app's highest-frequency write — **both halves are load-bearing**; dropping either puts a `GET /api/users` on every throttle tick
+- Indexes: `media(created_at DESC, id DESC)`, `message_media(media_id)`, `events(starts_at)`, `sessions(token_hash)`, plus `pg_trgm` + a GIN trigram index on `messages.text` (§ 8.6.). `messages` needs no paging index of its own — its primary key **is** the § 8.2. cursor. The `media` index needs the `id` tiebreaker because `created_at` is the **transaction** timestamp, so a multi-image send's rows compare equal and a keyset page skips or repeats them — **paginate on the pair, never on `created_at` alone**
+- Triggers: `AFTER INSERT` on `messages` fires `pg_notify('new_message', { id })`; `AFTER INSERT` **and** `AFTER UPDATE` on `users` fire `pg_notify('user_changed', '')`. Payloads are minimal because `NOTIFY` caps at 8000 bytes and § 8.4. refetches rather than trusting a payload. Two user triggers because a `WHEN` clause cannot reference `OLD` on an INSERT, so `WHEN (OLD.* IS DISTINCT FROM NEW.*)` rides the UPDATE trigger alone. That guard plus § 8.8.'s `WHERE last_read_at < $new` keeps the channel quiet under the app's highest-frequency write — **both halves are load-bearing**; dropping either puts a `GET /api/users` on every throttle tick
 - `emoticon_items.width` / `height` are **required**, because the virtualizer reserves the box before the asset loads (§ 8.3.)
 - Two connection strings: `DATABASE_URL` (pooled, normal queries) and `DATABASE_URL_UNPOOLED` (**required** for `LISTEN` and migrations)
-- Participants are never seeded — a `users` row exists only after that person's first login. The extension, trigram index, and triggers live in hand-written (`--custom`) migrations, since drizzle-kit cannot infer them
+- **There is nothing to seed.** A `users` row exists only after that person's first login, and no other table has a bootstrap row — `scripts/seed.ts` existed for the conversation singleton alone and went with it. The extension, trigram index, and triggers live in hand-written (`--custom`) migrations, since drizzle-kit cannot infer them
 - **`pnpm db:migrate` is manual and decoupled from the deploy: ship code first, migrate second.** Reversed, a first login against the previous build inserts without the new column, hits `23502`, and the OAuth catch flattens it into the generic `?error=failed` copy — nothing in the UI names the column
+- **That order covers additive migrations only.** Dropping a `NOT NULL` column has no safe order on its own: code-first leaves the new build inserting without it (`23502`), migrate-first leaves the previous build inserting a column that is gone (`42703`). The safe shape is a split — relax the column, migrate, ship the code that stops writing it, migrate again to drop it. `0007_drop_conversations` deliberately skips the split: with two users and a hand-run migrate, the window costs a retried send, never data
 
 ---
 

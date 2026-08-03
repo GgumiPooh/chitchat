@@ -6,7 +6,6 @@ export {
   type NotificationHandler,
 } from "./listen";
 export {
-  conversations,
   emoticonItems,
   emoticonPacks,
   eventRecurrenceEnum,
@@ -21,7 +20,6 @@ export {
   systemActionEnum,
   userEmoticonPrefs,
   users,
-  type Conversation,
   type EmoticonItem,
   type EmoticonPack,
   type Event,

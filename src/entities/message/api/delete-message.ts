@@ -1,6 +1,5 @@
 import "server-only";
 
-import { CONVERSATION_ID } from "@/shared/config";
 import { getDb, messages } from "@/shared/db";
 import { and, eq, isNull } from "drizzle-orm";
 
@@ -12,14 +11,7 @@ export async function deleteMessage(id: number, senderId: string): Promise<boole
   const deleted = await getDb()
     .update(messages)
     .set({ deletedAt: new Date() })
-    .where(
-      and(
-        eq(messages.id, id),
-        eq(messages.conversationId, CONVERSATION_ID),
-        eq(messages.senderId, senderId),
-        isNull(messages.deletedAt),
-      ),
-    )
+    .where(and(eq(messages.id, id), eq(messages.senderId, senderId), isNull(messages.deletedAt)))
     .returning({ id: messages.id });
 
   return deleted.length > 0;

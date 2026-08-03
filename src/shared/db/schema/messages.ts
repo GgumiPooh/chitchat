@@ -12,7 +12,6 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
-import { conversations } from "./conversations";
 import { emoticonItems } from "./emoticons";
 import { events } from "./events";
 import { media } from "./media";
@@ -28,14 +27,12 @@ export const systemActionEnum = pgEnum("system_action", [
 ]);
 
 // INFO: REQUIREMENTS.md § 6. Append-only — marking messages read moves `users.last_read_at`, never a row here.
+// INFO: REQUIREMENTS.md § 6. No `conversation_id`: there is one conversation, so the primary key on `id` is already the § 8.2. paging index.
 export const messages = pgTable(
   "messages",
   {
     // INFO: REQUIREMENTS.md § 8.2. The ordering key and the pagination cursor; OFFSET paging is rejected outright.
     id: bigserial("id", { mode: "number" }).primaryKey(),
-    conversationId: uuid("conversation_id")
-      .notNull()
-      .references(() => conversations.id, { onDelete: "cascade" }),
     // INFO: REQUIREMENTS.md § 8.7. The name and avatar are joined at render time, never copied onto the row.
     senderId: uuid("sender_id")
       .notNull()
@@ -54,8 +51,7 @@ export const messages = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
-  (table) => [
-    index("messages_conversation_id_id_idx").on(table.conversationId, table.id.desc()),
+  () => [
     // INFO: REQUIREMENTS.md § 6. Without this a `type = 'text'` row can silently acquire an emoticon or an event.
     check(
       "messages_type_payload_check",

@@ -1,6 +1,5 @@
 import "server-only";
 
-import { CONVERSATION_ID } from "@/shared/config";
 import { getDb, messages, users } from "@/shared/db";
 import { and, count, eq, gt, isNull, ne } from "drizzle-orm";
 
@@ -16,7 +15,6 @@ export async function countUnreadMessages(userId: string) {
     .innerJoin(users, eq(users.id, userId))
     .where(
       and(
-        eq(messages.conversationId, CONVERSATION_ID),
         ne(messages.senderId, userId),
         isNull(messages.deletedAt),
         gt(messages.createdAt, users.lastReadAt),

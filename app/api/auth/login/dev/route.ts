@@ -1,4 +1,3 @@
-import { ensureConversation } from "@/entities/conversation";
 import { upsertGoogleUser } from "@/entities/user";
 import { redirectTo } from "@/shared/api";
 import { createSession, isAllowedEmail, setSessionCookie, toDeviceLabel } from "@/shared/auth";
@@ -27,8 +26,6 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await ensureConversation();
-
     // WARN: A synthetic `google_sub` — signing in through Google afterwards relinks the same row back to the real subject id (`upsertGoogleUser`), so the two paths cannot fork into two users.
     const user = await upsertGoogleUser({ sub: `dev:${email}`, email });
 

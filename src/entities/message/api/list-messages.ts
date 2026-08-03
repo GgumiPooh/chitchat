@@ -1,8 +1,8 @@
 import "server-only";
 
-import { CONVERSATION_ID, MESSAGE_PAGE_SIZE } from "@/shared/config";
+import { MESSAGE_PAGE_SIZE } from "@/shared/config";
 import { getDb, messages, type Message } from "@/shared/db";
-import { and, asc, desc, eq, gt, isNull, lt, lte } from "drizzle-orm";
+import { and, asc, desc, gt, isNull, lt, lte } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 
@@ -16,7 +16,7 @@ export type ListMessagesParams = {
   limit?: number;
 };
 
-const IS_VISIBLE = and(eq(messages.conversationId, CONVERSATION_ID), isNull(messages.deletedAt));
+const IS_VISIBLE = isNull(messages.deletedAt);
 
 /**
  * One cursor page, always oldest-first. Never OFFSET — an arriving message shifts

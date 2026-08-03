@@ -1,11 +1,6 @@
 import { getMessage, listMessages, type ChatMessage } from "@/entities/message";
 import { getCurrentUser } from "@/shared/auth";
-import {
-  CONVERSATION_ID,
-  SSE_HEARTBEAT_INTERVAL,
-  SSE_REPLAY_LIMIT,
-  SSE_REPLAY_MARGIN,
-} from "@/shared/config";
+import { SSE_HEARTBEAT_INTERVAL, SSE_REPLAY_LIMIT, SSE_REPLAY_MARGIN } from "@/shared/config";
 import { listenToChannels, NEW_MESSAGE_CHANNEL, USER_CHANGED_CHANNEL } from "@/shared/db";
 import { safelyGet, safelyRun, type Nullable, type Optional } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -30,7 +25,6 @@ const SSE_HEADERS = {
 // INFO: REQUIREMENTS.md § 6. `NOTIFY` caps at 8000 bytes, so the payload is an id and the row is read back here.
 const newMessageSchema = z.object({
   id: z.number().int().positive(),
-  conversationId: z.uuid(),
 });
 
 /**
@@ -99,7 +93,7 @@ export async function GET(request: Request) {
 
         const notification = newMessageSchema.safeParse(safelyGet(() => JSON.parse(payload)));
 
-        if (!notification.success || notification.data.conversationId !== CONVERSATION_ID) {
+        if (!notification.success) {
           return;
         }
 

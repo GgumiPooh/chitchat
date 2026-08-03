@@ -1,4 +1,3 @@
-export { conversations, type Conversation } from "./conversations";
 export {
   emoticonItems,
   emoticonPacks,
