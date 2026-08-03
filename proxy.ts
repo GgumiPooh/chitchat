@@ -35,7 +35,8 @@ export function proxy(request: NextRequest) {
 export const config = {
   // WARN: `/api/auth/*` must stay out — the callback sets the cookie, so gating it would deadlock login.
   // WARN: `robots.txt` must stay out too, or crawlers get a redirect to `/login` instead of `Disallow: /` (REQUIREMENTS.md § 14.).
+  // WARN: So must `sw.js` — the browser fetches the worker without following redirects, so gating it fails registration outright and silently takes push with it (§ 16.1.).
   matcher: [
-    "/((?!api|_next/static|_next/image|icons|favicon.ico|icon.svg|robots.txt|manifest.webmanifest).*)",
+    "/((?!api|_next/static|_next/image|icons|favicon.ico|icon.svg|robots.txt|sw.js|manifest.webmanifest).*)",
   ],
 };

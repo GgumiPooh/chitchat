@@ -43,6 +43,13 @@
       "when": 1785732329670,
       "tag": "0005_read_cursor_on_users",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785777320945,
+      "tag": "0006_fearless_silverclaw",
+      "breakpoints": true
     }
   ]
 }

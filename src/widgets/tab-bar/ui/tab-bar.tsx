@@ -1,5 +1,6 @@
 "use client";
 
+import { useChatStream } from "@/features/chat-stream";
 import { CHAT_ROUTE } from "@/shared/config";
 import { cn, useIsVirtualKeyboardOpen } from "@/shared/lib";
 import { Badge } from "@/shared/ui";
@@ -9,11 +10,12 @@ import { TABS } from "../model/tabs";
 
 export type TabBarProps = {
   className?: string;
-  unreadCount?: number;
 };
 
 // INFO: DESIGN.md § 7.3. The glyphs stay outlined in both states — lucide ships no filled variant for these four.
-export function TabBar({ className, unreadCount = 0 }: TabBarProps) {
+export function TabBar({ className }: TabBarProps) {
+  // INFO: REQUIREMENTS.md § 8.8. Live off the shell's stream rather than resolved once per page load — the badge has to move while the user is standing on another tab.
+  const { unreadCount } = useChatStream();
   const pathname = usePathname();
   // INFO: DESIGN.md § 7.3. The shell shrinks to the visual viewport, so a bar left up would eat what little the keyboard leaves.
   const isKeyboardOpen = useIsVirtualKeyboardOpen();

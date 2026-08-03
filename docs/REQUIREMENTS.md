@@ -22,24 +22,25 @@ Precedence on conflict: visual specs → `DESIGN.md`; code-authoring rules → `
 
 Sections marked **✅** are **implemented**; they are kept only as the invariants new code must not break, not as work to do. Sections with `[ ]` checkboxes are **the work that remains** and are the authoritative spec for it. Tick a checkbox in the same change that lands it (`AGENTS.md § 0.3.`).
 
-**Current state** — steps 1–4 of § 17. are done. Step 5 (chat) is partly done: text and system bubbles, cursor pagination, virtualization, optimistic send, copy/delete, and **live delivery over SSE (§ 8.4.)** — `GET /api/chat/stream`, `GET /api/users`, the client subscription, the background-close, and the resume catch-up all landed together with § 8.7.'s render-time name resolution. Open in chat: read receipts (§ 8.8. — `POST /api/chat/read` and the `1` marker), search and jump (§ 8.6.), image and emoticon bubbles (steps 6 and 8). Calendar and Gallery render an empty state until their own step.
+**Current state** — steps 1–4 of § 17. are done. Step 5 (chat) is partly done: text and system bubbles, cursor pagination, virtualization, optimistic send, copy/delete, and **live delivery over SSE (§ 8.4.)** — `GET /api/chat/stream`, `GET /api/users`, the client subscription, the background-close, and the resume catch-up all landed together with § 8.7.'s render-time name resolution. **Notifications landed as § 16.1.**: the SSE subscription now lives in the `(main)` shell rather than in the chat screen, so every tab chimes and moves the live tab-bar badge, and Web Push covers the app being closed. The read cursor (`POST /api/chat/read`) and the unread count (`GET /api/chat/unread`) landed with it. Open in chat: the `1` read marker (§ 8.8.), search and jump (§ 8.6.), image and emoticon bubbles (steps 6 and 8). Calendar and Gallery render an empty state until their own step.
 
 ---
 
 ## 0. Settled Technical Decisions ✅
 
-| Item         | Decision                                                       | Rationale                                                                                                        |
-| ------------ | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Framework    | Next.js 16.2.12 (App Router) + React 19.2.4                    | All server functionality lives in the single Next app                                                            |
-| Hosting      | Vercel (serverless)                                            | Free, `git push` deploys, automatic HTTPS                                                                        |
-| Database     | Neon Postgres + Drizzle ORM                                    | Free tier, serverless-friendly                                                                                   |
-| Auth         | Google OAuth (allow-listed emails) → our own session           | We never store a password, so no brute-force surface to defend                                                   |
-| Session      | Postgres `sessions` table + opaque token in an httpOnly cookie | Per-device revocation, profile changes apply immediately, avoids iOS ITP storage eviction                        |
-| Realtime     | SSE + Postgres `LISTEN`/`NOTIFY`                               | WebSockets conflict with the single-Next-app constraint; SSE gets cookie auth and reconnection from the standard |
-| Images       | Cloudflare R2 (private bucket + presigned URLs)                | Free egress; a UUID in a URL is obscurity, not access control                                                    |
-| Architecture | Feature-Sliced Design, enforced by steiger                     | Inherited from the `everytldr` conventions                                                                       |
-| Styling      | Tailwind v4 + semantic tokens (`theme.css`)                    | Dark theme becomes a value swap, not a refactor                                                                  |
-| Indexing     | Fully blocked (robots + meta + header, three layers)           | Private app                                                                                                      |
+| Item          | Decision                                                       | Rationale                                                                                                                       |
+| ------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Framework     | Next.js 16.2.12 (App Router) + React 19.2.4                    | All server functionality lives in the single Next app                                                                           |
+| Hosting       | Vercel (serverless)                                            | Free, `git push` deploys, automatic HTTPS                                                                                       |
+| Database      | Neon Postgres + Drizzle ORM                                    | Free tier, serverless-friendly                                                                                                  |
+| Auth          | Google OAuth (allow-listed emails) → our own session           | We never store a password, so no brute-force surface to defend                                                                  |
+| Session       | Postgres `sessions` table + opaque token in an httpOnly cookie | Per-device revocation, profile changes apply immediately, avoids iOS ITP storage eviction                                       |
+| Realtime      | SSE + Postgres `LISTEN`/`NOTIFY`                               | WebSockets conflict with the single-Next-app constraint; SSE gets cookie auth and reconnection from the standard                |
+| Notifications | Web Push (VAPID) + a push-only service worker                  | Covers the app being closed, which SSE cannot. Dispatched at INSERT time, so it needs no cron and no resident process — § 16.1. |
+| Images        | Cloudflare R2 (private bucket + presigned URLs)                | Free egress; a UUID in a URL is obscurity, not access control                                                                   |
+| Architecture  | Feature-Sliced Design, enforced by steiger                     | Inherited from the `everytldr` conventions                                                                                      |
+| Styling       | Tailwind v4 + semantic tokens (`theme.css`)                    | Dark theme becomes a value swap, not a refactor                                                                                 |
+| Indexing      | Fully blocked (robots + meta + header, three layers)           | Private app                                                                                                                     |
 
 ---
 
@@ -49,7 +50,7 @@ Next.js 16.2.12 + `pnpm` + Turbopack, private repo `GgumiPooh/jandh`, local Post
 
 **Deliberately excluded** — do not reintroduce: all i18n (`next-intl`, `[locale]` routing, `messages/`, the `:lang(ko)` block, `Translation`), `orval` (Next _is_ the backend), `msw`, every ads / analytics / RSS / structured-data / sitemap file, and the `rewrites` backend proxy.
 
-**Available dependencies**: `drizzle-orm`, `postgres`, `arctic`, `jose`, `@aws-sdk/client-s3` + `s3-request-presigner`, `zod`; `radix-ui`, `cva`, `clsx`, `tailwind-merge`, `tw-animate-css`, `lucide-react`, `sonner`, `vaul`, `next-themes`, `@tanstack/react-query`, `react-error-boundary`, `react-intersection-observer`, `react-virtuoso`, `lodash-es`, `react-use`.
+**Available dependencies**: `drizzle-orm`, `postgres`, `arctic`, `jose`, `@aws-sdk/client-s3` + `s3-request-presigner`, `web-push`, `zod`; `radix-ui`, `cva`, `clsx`, `tailwind-merge`, `tw-animate-css`, `lucide-react`, `sonner`, `vaul`, `next-themes`, `@tanstack/react-query`, `react-error-boundary`, `react-intersection-observer`, `react-virtuoso`, `lodash-es`, `react-use`.
 
 ---
 
@@ -68,10 +69,10 @@ src/
   pages/     login, chat, calendar, gallery, settings
   widgets/   tab-bar, install-guide, chat-room,
              gallery-grid, calendar-month, settings-form
-  features/  session, send-message, upload-media, mark-read,
-             emoticon-prefs, update-profile, manage-event
-  entities/  user, conversation, message, media, event, emoticon
-  shared/    db, auth, storage, api, config, lib, theme, ui
+  features/  session, send-message, chat-stream, push-notifications,
+             upload-media, emoticon-prefs, update-profile, manage-event
+  entities/  user, conversation, message, push-subscription, media, event, emoticon
+  shared/    db, auth, push, sound, storage, api, config, lib, theme, ui
 ```
 
 Rules that constrain where new code goes:
@@ -186,6 +187,7 @@ The schema, migrations, triggers, and seed have landed. What follows is the cont
 - `events.ends_at` is NOT NULL — the create form defaults it rather than admitting an open-ended event, which would need its own branch in every month-grid calculation. `color` is nullable until § 18. #4. **Recurrence is yearly-only** (anniversaries); do not introduce RRULE or any general recurrence engine — project `yearly` rows onto the requested year on read. The relationship start date, 100-day marks, and yearly anniversaries are **not rows** here (§ 11.2.)
 - Indexes: `messages(conversation_id, id DESC)`, `media(created_at DESC, id DESC)`, `message_media(media_id)`, `events(starts_at)`, `sessions(token_hash)`, plus `pg_trgm` + a GIN trigram index on `messages.text` (§ 8.6.). The `media` index needs the `id` tiebreaker because `created_at` is the **transaction** timestamp, so a multi-image send's rows compare equal and a keyset page would skip or repeat them — **paginate on the pair, never on `created_at` alone**
 - Triggers: `AFTER INSERT` on `messages` fires `pg_notify('new_message', { id, conversationId })`; `AFTER INSERT` **and** `AFTER UPDATE` on `users` fire `pg_notify('user_changed', '')`. Payloads are minimal on purpose — `NOTIFY` caps at 8000 bytes and § 8.4. refetches rather than trusting a payload. Two user triggers, not one, because a `WHEN` clause cannot reference `OLD` on an INSERT, so `WHEN (OLD.* IS DISTINCT FROM NEW.*)` rides the UPDATE trigger alone. That guard plus § 8.8.'s `WHERE last_read_at < $new` is what keeps the channel quiet under the app's highest-frequency write — **both halves are load-bearing**; dropping either puts a `GET /api/users` on every throttle tick
+- `push_subscriptions` is keyed on the **installation**, not the person — `endpoint` is unique table-wide and the upsert moves `user_id` onto whoever is signed in (§ 16.1.). `ON DELETE cascade` from `users`, plus its own `user_id` index, since the send-path fan-out looks up by recipient
 - Two connection strings: `DATABASE_URL` (pooled, normal queries) and `DATABASE_URL_UNPOOLED` (**required** for `LISTEN` and for migrations)
 - Participants are never seeded — a `users` row exists only after that person's first login. The extension, trigram index, and triggers live in hand-written (`--custom`) migrations, since drizzle-kit cannot infer them
 - **`pnpm db:migrate` is manual and decoupled from the deploy: ship the code first, migrate second.** In the other order a first login against the previous build inserts without the new column, hits `23502`, and the OAuth catch flattens it into the generic `?error=failed` copy — nothing in the UI says which column
@@ -201,8 +203,8 @@ The `(main)` layout is the app shell (max `576px`, centered) holding a per-scree
 - `ScrollMemory` preserves each route's position across tab switches, keeping it in **module scope** rather than `sessionStorage` — a tab switch is a client navigation, a reload is meant to start at the top. Its timing quirks are load-bearing and documented at the source. **Chat is exempt**: its scroll belongs to the virtualizer (`restoreStateFrom`, § 8.3.)
 - `app/manifest.ts`: name `J&H`, `display: "standalone"`, `theme_color`, `background_color`, icons 180/192/512 + maskable, generated by `pnpm icons` from a **path-only** wordmark (an SVG `<text>` icon renders in whatever font the machine has) and committed under `public/icons`. That path is excluded from the proxy matcher — a redirect to `/login` while fetching an icon breaks the install prompt. iOS reads `apple-touch-icon` from the markup, so the root layout's `metadata.icons.apple` is what "Add to Home Screen" actually uses
 - `widgets/install-guide` is a dismissible "Add to Home Screen" banner above the tab bar, shown only in an iOS **browser tab** (iPadOS 13+ reports a Macintosh UA, so the check needs `maxTouchPoints`). Its dismissal flag is in `localStorage` — § 5.2. bans that for auth state only — and every access goes through `safelyRun` / `safelyGet`, since blocked storage throws and the banner renders in the `(main)` layout, which would fail hydration on all four tabs
-- **Offline support is out of scope — no service worker.** If push is adopted, a **push-only** service worker becomes necessary (§ 16.1., § 18. #8); even then, do not add caching
-- [ ] The Chat tab's unread badge resolves once per full page load, and a PWA resume is not one. Making it live is § 8.8., which needs SSE
+- **Offline support is out of scope.** `public/sw.js` exists and is **push-only** (§ 16.1.): it handles `push` and `notificationclick` and nothing else. It MUST NOT register a `fetch` handler or cache anything — that is what turns a worker into the source of "why am I looking at last week's build". It is excluded from the proxy matcher, because the browser fetches a worker without following redirects and a gated `/sw.js` fails registration outright
+- [x] The Chat tab's unread badge is live (§ 8.8.). The count is seeded by the layout's server render, incremented by the shell's SSE stream, and replaced by `GET /api/chat/unread` on every resume
 
 ---
 
@@ -265,6 +267,8 @@ Landed in full. `GET /api/chat/stream` holds one unpooled connection on both cha
 - `GET /api/users` — the whole participant set, **no cursor**. Serves three callers: first render, a `user` SSE event, and the resume catch-up
   - `listUsers` projects an explicit column set and `toParticipant` resolves the name before the response is built, so **`email` and `google_sub` never leave the server**. Never `SELECT *`: this payload reaches the browser verbatim and `google_sub` is the identity key § 5.1. matches on. `email` is read only because § 8.7.'s empty-nickname fallback is its local part, and applying that fallback server-side is what lets the address stay behind
   - A "changed since" cursor is **rejected**: unlike `messages` this is a small mutable set, not an append-only log — a rename produces no new row so an id cursor never fires, and an `updated_at` cursor would still miss a deletion. Two rows are cheaper to refetch whole
+- **The subscription belongs to the `(main)` shell, not to the chat screen.** `ChatStreamProvider` owns the one `EventSource`, the participant set, and the unread count; screens attach with `useChatStreamListener`. Scoped to the chat screen the stream would drop on every tab switch, and the other three tabs would neither chime nor move the badge — a message would surface only once the user walked back into the conversation. **This does not weaken the autosuspend argument below**: what closes the stream is the app backgrounding, which is unchanged. The stream now spans "the app is open" rather than "the chat tab is open", and Neon still suspends whenever nobody is looking
+  - The provider is also the single place a new message becomes perceptible: the chime (`shared/sound`), the in-app notice on a non-chat tab (`DESIGN.md § 7.14.`), the tab-bar badge, and `navigator.setAppBadge`. A message that is mine is none of those — the stream echoes my own send back (§ 8.5.)
 - The client subscribes with `EventSource` and relies on its automatic reconnection **for transport drops it actually notices**. A fatal error — a 401, or any body that is not `text/event-stream` — leaves `readyState === CLOSED` permanently, so `onerror` reopens by hand after `SSE_RETRY_DELAY` and the open path treats a `CLOSED` source as no source. Guarding on "a source object exists" instead would kill live delivery for the life of the page after one expired session. Handlers are read through a ref, so a new handler identity cannot tear the connection down and rebuild it on every render
 - The stream is closed when the tab backgrounds, so Neon compute can autosuspend
 - **Resume is the normal sync path, not an error path.** Because the stream is closed on purpose, every return to the app has missed events — and an iOS home-screen PWA restores the frozen page rather than navigating, so the Server Component render does not re-run and cannot cover this
@@ -318,13 +322,15 @@ Landed, apart from the avatar image itself, which needs the § 9. media route (s
 
 ### 8.8. Read / Unread
 
-Landed: the cursor lives in `users.last_read_at` (no per-message `read_at`, no members table), and `countUnreadMessages` joins `users` on the requesting id so the badge stays one round trip.
+Landed: the cursor lives in `users.last_read_at` (no per-message `read_at`, no members table), `countUnreadMessages` joins `users` on the requesting id so the badge stays one round trip, and the cursor is now actually written.
 
-- [ ] A message is unread when `message.created_at > otherUser.last_read_at`. This is a **boolean**, correct only for two participants (§ 6.)
-- [ ] While the chat tab is visible, update the cursor via `POST /api/chat/read` (throttled)
-  - [ ] The UPDATE **must** carry `WHERE last_read_at < $new`. The same person can have the tab open on two devices, and a late stale request would otherwise move the cursor backwards — the unread divider jumps back into read history and the other side's `1` markers reappear after clearing
-- [ ] The broadcast that clears the sender's `1` markers needs no new plumbing: the write touches `users`, so the § 6. trigger fires `user_changed` and § 8.4. delivers it
-- [ ] An unread-count endpoint for the tab bar badge
+- [x] While the chat screen is mounted, update the cursor via `POST /api/chat/read`. `ChatRoom` declares this with `setIsReading`, and the provider posts on entry, on each message received while reading, and — unthrottled — on the way out
+  - [x] Throttled on the **leading** edge at `READ_CURSOR_THROTTLE`, because every UPDATE that lands fires `user_changed` at the other device. The unthrottled posts bound the reading session and none of them is optional: **entering** (a throttled entry parks the cursor behind a message already on screen), **leaving**, and **backgrounding** — the app going away is not a `ChatRoom` unmount, and it is the likeliest way to end a session. All three exist because a cursor parked a throttle window behind turns the last message read into a push notification
+  - [x] The UPDATE **must** carry `WHERE last_read_at < $new`. The same person can have the tab open on two devices, and a late stale request would otherwise move the cursor backwards — the unread divider jumps back into read history and the other side's `1` markers reappear after clearing. The guard is also what makes a no-op UPDATE silent
+  - [x] The client sends **no timestamp**. The server stamps `now()`, so a device with a skewed clock cannot push the cursor into the future and hide messages it never showed
+- [x] `GET /api/chat/unread` — the count for the tab-bar badge and for the § 16.1. push payload. The shell's running total is optimistic and blind to what landed while the stream was closed, so a resume **replaces** it with this rather than adding to it
+- [x] The broadcast that clears the sender's `1` markers needs no new plumbing: the write touches `users`, so the § 6. trigger fires `user_changed` and § 8.4. delivers it
+- [ ] A message is unread when `message.created_at > otherUser.last_read_at`. This is a **boolean**, correct only for two participants (§ 6.). The cursor is written; the `1` marker beside a bubble and the unread divider are still to draw (`DESIGN.md § 7.`)
 
 ---
 
@@ -403,7 +409,7 @@ Include only what pays off for exactly two users. Invitations, RSVP, permissions
 
 ### 11.6. Notifications
 
-- [ ] **Undecided (§ 18. #8)** — feasibility is documented in § 16.1. Do not start work before the user decides
+Adopted and landed — see § 16.1. Calendar changes reach the user as § 11.5. chat system messages, which ride the same pipeline; **there is no calendar-specific notification and no scheduler.**
 
 ---
 
@@ -413,6 +419,7 @@ Include only what pays off for exactly two users. Invitations, RSVP, permissions
   - [ ] The nickname set here is exactly what appears as the sender name in chat and inside system sentences (§ 8.7.), initialized from the Google account name at first login and owned by the user thereafter
   - [ ] Saving needs no explicit broadcast — the UPDATE lands on `users`, so the § 6. trigger fires `user_changed` and every open screen refetches (§ 8.4.)
 - [ ] Entry point to the emoticon settings screen
+- [x] **알림** — the push toggle (§ 16.1.). It is **per device**, not per account, so it reflects this browser's subscription rather than a stored preference. Three inert states carry their own copy: permission denied (only the browser's site settings can undo it), unsupported (iOS Safari tab — install to the home screen first), and in flight
 - [ ] List of logged-in devices, with per-session revocation
 - [ ] Log out
 - [ ] The theme setting stays **hidden until the dark theme ships**
@@ -460,19 +467,30 @@ Landed: `app/robots.ts` (`Disallow: /` for every agent), root layout `robots: { 
 - [ ] Offline caching (the caching role of a service worker — separate from push)
 - [ ] Data backup / export
 
-### 16.1. Push Notifications — Research Findings
+### 16.1. Push Notifications ✅
 
-**Conclusion: feasible.** Adoption is § 18. #8; it reverses the "no service worker" decision in § 7.
+Adopted (§ 18. #8) and landed in full. It reverses the "no service worker" decision in § 7. What follows is the contract new code must not break.
 
-**Constraint 1 — a service worker is mandatory.** iOS supports Web Push from 16.4, but **only for home-screen PWAs**, never a Safari tab. Displaying a notification needs the service worker's `showNotification`. Keep it **push-only** — caching is the main source of hard-to-debug behaviour and must stay separate. The permission prompt must fire **inside a user gesture**. Deleting the app from the home screen destroys the subscription, so re-subscription handling is needed.
+**Two channels, never both.** The app being open is SSE's job (§ 8.4.) — the shell chimes, raises the in-app notice, and moves the badge. The app being backgrounded or closed is Web Push's job. They are made mutually exclusive **in the worker**: `sw.js` calls `clients.matchAll` and returns without showing anything if any window reports `visibilityState === "visible"`. Do **not** widen that test to "a window exists" — a suppressed notification is only permitted while a visible one is on screen, and every push must otherwise produce a banner (`userVisibleOnly`).
 
-**Constraint 2 — only event-driven notifications are in scope.** Serverless has no process that wakes at a given time, so anything needing a scheduler is excluded: "new message arrived" (sent at INSERT time) is the **only candidate**; per-event reminders and a morning digest are **excluded**.
+**Sent at INSERT time, from the request that inserted.** `POST /api/messages` dispatches inside `after()`, so the fan-out's round trips never sit between the sender and their 201. This is the whole reason push costs Neon's autosuspend **nothing**: the compute is already awake because the message was just written. Nothing polls, nothing is scheduled, and no process is resident.
 
-Why minute-granularity cron is excluded — the reason is operational, not cost (Cloudflare Cron Triggers are free): **it defeats Neon's autosuspend**, since polling every 5 minutes keeps the compute awake 24/7 and § 8.4. closes the SSE stream on background _specifically_ to allow autosuspend. The query count (288/day) is negligible; the **wake pattern** is the problem. It also grows deployment targets from one to two plus a shared secret, fails silently if the cron stops, and needs its own duplicate-send state.
+**Only event-driven notifications are in scope.** Serverless has no process that wakes at a given time, so anything needing a scheduler is excluded: "new message arrived" is the **only** trigger. Per-event reminders and a morning digest are **excluded**.
 
-Calendar awareness is therefore handled by the § 11.5. chat system messages, which work over SSE with no cron — and with new-message push enabled, those system messages are themselves delivered as push.
+Why minute-granularity cron stays excluded — the reason is operational, not cost (Cloudflare Cron Triggers are free): **it defeats Neon's autosuspend**, since polling every 5 minutes keeps the compute awake 24/7, which is exactly what § 8.4.'s background close exists to allow. The query count (288/day) is negligible; the **wake pattern** is the problem. It also grows deployment targets from one to two plus a shared secret, fails silently if the cron stops, and needs its own duplicate-send state. Calendar awareness is therefore handled by the § 11.5. chat system messages, which ride this pipeline for free.
 
-**What adoption would additionally require**: a `push_subscriptions` table (`id`, `user_id`, `endpoint` unique, `p256dh`, `auth`, `user_agent`, `created_at`, `last_success_at`), a VAPID key pair (`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`), the `web-push` library, automatic cleanup on 410 Gone, a Settings toggle, and optionally `navigator.setAppBadge`.
+**iOS.** Web Push works from 16.4 but **only for a home-screen PWA**, never a Safari tab. No user-agent sniffing is needed to detect that: iOS exposes `PushManager` only in the installed case, so the support check falls through to `unsupported` on its own. Deleting the app from the home screen destroys the subscription without telling the server, which is why `PushSync` re-saves on every launch.
+
+- `push_subscriptions` — one row per **browser installation**, not per user. `endpoint` is unique table-wide and the upsert moves `user_id`: two accounts sharing one browser must not leave the row pushing to the previous account
+- Env: `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. The public key is `NEXT_PUBLIC_` because the browser needs it to subscribe; `ensureEnv` cannot reach it in the client bundle, so a missing key surfaces as the disabled Settings toggle rather than a throw (`AGENTS.md § 6.2.`)
+- A `404` or `410` from the push service is **final** — delete the row rather than retrying. `sendPush` never throws; a dead device must not fail the send that triggered it
+- The permission prompt MUST fire inside a user gesture, so `subscribeToPush` awaits nothing before `Notification.requestPermission()`
+- The banner carries the sender's name resolved at send time. This does **not** violate § 8.7.'s ban on copying a name onto a row: a notification is a point-in-time artifact and the worker holds no session to re-resolve one
+- One conversation (§ 6.), so every banner collapses onto one `tag` with `renotify` — the newest message replaces the previous banner instead of stacking beside it. The tag lives in `sw.js` alone: a worker is served raw from `public/` and cannot import `@/shared/config`, so a constant mirrored there would be a second source of truth nothing checks
+- `navigator.setAppBadge` carries the recipient's own unread count (§ 8.8.), set from both the worker and the shell (`shared/badge`). Absent outside installed PWAs; every call is optional. The shell **must** rewrite it on resume rather than leaving it to a count change — the worker moves the badge while the page is frozen, and a resume into a count that is already `0` renders no effect
+- The chime's `AudioContext` is unlocked from **every** pointer gesture, not just the first. iOS interrupts the context on backgrounding and never resumes it, so a one-shot unlock leaves the app permanently silent after the first app-switch
+- A subscription the server failed to store reports the toggle as **off**. It delivers nothing, and turning it back on re-saves the same subscription
+- [ ] A device list in Settings (`user_agent` and `last_success_at` are stored for it, and nothing reads them yet) — step 10 of § 17.
 
 ---
 
@@ -496,15 +514,15 @@ Calendar awareness is therefore handled by the § 11.5. chat system messages, wh
 
 Deliberately left open. When work reaches the feature, **confirm with the user**, then update this document.
 
-| #   | Item                                                                                                                          | Needed by             | Notes                                                                                                                           |
-| --- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | What happens to the chat message when an image is deleted from the gallery — delete it, or keep a "deleted photo" placeholder | Gallery (§ 10.)       | Affects the schema (whether `media.deleted_at` is needed)                                                                       |
-| 2   | How emoticon assets are sourced and how packs are composed                                                                    | Emoticons (§ 13.)     | The picker grid cannot be designed until the aspect ratios are known                                                            |
-| 3   | Emoticon picker dimensions — panel height, pack tab bar, grid density                                                         | Emoticons (§ 13.)     | DESIGN § 9.                                                                                                                     |
-| 4   | Calendar event color set (6–7 warm tints that do not clash with the accent)                                                   | Calendar (§ 11.)      | DESIGN § 9.                                                                                                                     |
-| 5   | Motion duration / easing token scale                                                                                          | When animation starts | Only the 1.5s search flash and the tab `scale-[0.96]` are specified. DESIGN § 9.                                                |
-| 6   | Image viewer gesture parameters — pinch zoom bounds, swipe threshold                                                          | Gallery / viewer      | Must be tuned on a real device. DESIGN § 9.                                                                                     |
-| 7   | Dark palette hex values                                                                                                       | Dark theme (§ 16.)    | Hand-tune; never arithmetically invert. DESIGN § 5.4.                                                                           |
-| 8   | **Whether to adopt push notifications (new-message only)**                                                                    | After the calendar    | Research complete (§ 16.1.). Reverses the "no service worker" decision. **Time-based notifications are confirmed out of scope** |
-| 9   | Whether a `scope = 'mine'` event shows its **title** to the other user, or only "busy"                                        | Calendar (§ 11.5.)    | Currently specified as showing the title                                                                                        |
-| 10  | Maximum images per message, and the grid layout beyond that count                                                             | Chat images (§ 8.1.)  | KakaoTalk caps a send at 30. Determines the `+N` overflow treatment and upload concurrency. DESIGN § 9.                         |
+| #     | Item                                                                                                                          | Needed by             | Notes                                                                                                   |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------- |
+| 1     | What happens to the chat message when an image is deleted from the gallery — delete it, or keep a "deleted photo" placeholder | Gallery (§ 10.)       | Affects the schema (whether `media.deleted_at` is needed)                                               |
+| 2     | How emoticon assets are sourced and how packs are composed                                                                    | Emoticons (§ 13.)     | The picker grid cannot be designed until the aspect ratios are known                                    |
+| 3     | Emoticon picker dimensions — panel height, pack tab bar, grid density                                                         | Emoticons (§ 13.)     | DESIGN § 9.                                                                                             |
+| 4     | Calendar event color set (6–7 warm tints that do not clash with the accent)                                                   | Calendar (§ 11.)      | DESIGN § 9.                                                                                             |
+| 5     | Motion duration / easing token scale                                                                                          | When animation starts | Only the 1.5s search flash and the tab `scale-[0.96]` are specified. DESIGN § 9.                        |
+| 6     | Image viewer gesture parameters — pinch zoom bounds, swipe threshold                                                          | Gallery / viewer      | Must be tuned on a real device. DESIGN § 9.                                                             |
+| 7     | Dark palette hex values                                                                                                       | Dark theme (§ 16.)    | Hand-tune; never arithmetically invert. DESIGN § 5.4.                                                   |
+| ~~8~~ | ~~**Whether to adopt push notifications (new-message only)**~~                                                                | —                     | **Decided: adopted.** Landed as § 16.1. **Time-based notifications remain out of scope**                |
+| 9     | Whether a `scope = 'mine'` event shows its **title** to the other user, or only "busy"                                        | Calendar (§ 11.5.)    | Currently specified as showing the title                                                                |
+| 10    | Maximum images per message, and the grid layout beyond that count                                                             | Chat images (§ 8.1.)  | KakaoTalk caps a send at 30. Determines the `+N` overflow treatment and upload concurrency. DESIGN § 9. |

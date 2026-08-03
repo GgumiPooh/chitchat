@@ -10,7 +10,7 @@ import {
 import { safelyGet, type Nullable, type Optional } from "@/shared/lib";
 import { useEffect, useRef } from "react";
 
-export type UseChatStreamParams = {
+export type ChatEventSourceHandlers = {
   onMessage: (message: ChatMessage) => void;
   onUserChanged: () => void;
   onResume: () => void;
@@ -21,7 +21,11 @@ export type UseChatStreamParams = {
  * both channels, closed while the tab is in the background so Neon's compute can
  * autosuspend, and caught up on every return.
  */
-export function useChatStream({ onMessage, onUserChanged, onResume }: UseChatStreamParams) {
+export function useChatEventSource({
+  onMessage,
+  onUserChanged,
+  onResume,
+}: ChatEventSourceHandlers) {
   // WARN: Read through a ref so a new handler identity cannot tear the connection down and reconnect it on every render.
   const handlers = useRef({ onMessage, onUserChanged, onResume });
 

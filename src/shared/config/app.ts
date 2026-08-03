@@ -62,6 +62,26 @@ export const SSE_REPLAY_LIMIT = 200;
 // INFO: REQUIREMENTS.md § 8.4. `EventSource` stops retrying after a fatal error (a 401, a body that is not `text/event-stream`), so the client reopens by hand this long after one.
 export const SSE_RETRY_DELAY = 5 * A_SECOND;
 
+/** REQUIREMENTS.md § 8.8. The read cursor, and the count the tab-bar badge reads. */
+export const CHAT_READ_PATH = "/api/chat/read";
+
+export const CHAT_UNREAD_PATH = "/api/chat/unread";
+
+// INFO: REQUIREMENTS.md § 8.8. The cursor moves while the chat is on screen, so the write is throttled rather than run per message — every UPDATE fires `user_changed` at the other device.
+export const READ_CURSOR_THROTTLE = 5 * A_SECOND;
+
+/** REQUIREMENTS.md § 16.1. Web Push — the subscription endpoint and the push-only service worker. */
+export const PUSH_SUBSCRIPTION_PATH = "/api/push/subscription";
+
+// WARN: Must stay at the origin root. A worker served from a subdirectory controls only that subdirectory, and the push subscription is bound to the scope it was created under.
+export const SERVICE_WORKER_PATH = "/sw.js";
+
+// WARN: AGENTS.md § 6.2. `ensureEnv` cannot read this one — the client bundle has no `process.env`, so the key is inlined at build time and a missing one surfaces as a disabled toggle in Settings instead of a throw.
+export const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
+
+// INFO: Notification bodies are truncated by the OS anyway; cutting here keeps the encrypted payload well inside the 4KB the push services accept.
+export const PUSH_BODY_MAX_LENGTH = 120;
+
 /** Route a signed-in user lands on. REQUIREMENTS.md § 5.2. */
 export const HOME_ROUTE = CHAT_ROUTE;
 

@@ -1,4 +1,5 @@
 import { resolveDisplayName } from "@/entities/user";
+import { PushNotificationRow } from "@/features/push-notifications";
 import { LogoutButton } from "@/features/session";
 import type { User } from "@/shared/db";
 import { cn } from "@/shared/lib";
@@ -20,6 +21,10 @@ export function SettingsPage({ className, user }: SettingsPageProps) {
       <div className="flex flex-col items-center gap-md p-md pt-[calc(var(--app-header-inset)+var(--spacing-md))]">
         <Avatar name={displayName} size="profile" />
         <p className="text-title-md text-ink">{displayName}</p>
+      </div>
+      {/* INFO: DESIGN.md § 7.11. Rows run edge to edge, so they sit outside the padded block above. */}
+      <PushNotificationRow />
+      <div className="flex justify-center p-md">
         <LogoutButton className="w-auto" />
       </div>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChatMessage } from "@/entities/message";
-import type { Participant } from "@/entities/user";
+import { useChatStream, useChatStreamListener } from "@/features/chat-stream";
 import { MessageComposer, useSendMessage } from "@/features/send-message";
 import { buildFadeMask, cn, type Nullable } from "@/shared/lib";
 import { ActionSheet, EmptyState, Skeleton, toast, type ActionSheetItem } from "@/shared/ui";
@@ -11,10 +11,8 @@ import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { buildChatRows } from "../model/build-chat-rows";
 import type { ChatRow } from "../model/types";
-import { useChatStream } from "../model/use-chat-stream";
 import { useComposerClearance } from "../model/use-composer-clearance";
 import { useMessageHistory } from "../model/use-message-history";
-import { useParticipants } from "../model/use-participants";
 import { usePrependAnchor } from "../model/use-prepend-anchor";
 import { DateDivider } from "./date-divider";
 import { MessageRow } from "./message-row";
@@ -24,7 +22,6 @@ import { SystemNotice } from "./system-notice";
 export type ChatRoomProps = {
   className?: string;
   currentUserId: string;
-  initialParticipants: Participant[];
   initialMessages: ChatMessage[];
 };
 
@@ -46,12 +43,7 @@ const BOTTOM_FADE_LENGTH = "2rem";
  * Offscreen bubbles stay out of the DOM (REQUIREMENTS.md § 8.3.), which is what
  * keeps years of history scrollable on iOS Safari.
  */
-export function ChatRoom({
-  className,
-  currentUserId,
-  initialParticipants,
-  initialMessages,
-}: ChatRoomProps) {
+export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoomProps) {
   const listRef = useRef<VirtuosoHandle>(null);
   const containerRef = useRef<Nullable<HTMLDivElement>>(null);
   const composerRef = useRef<Nullable<HTMLDivElement>>(null);
@@ -65,7 +57,7 @@ export function ChatRoom({
   const { messages, isLoadingOlder, loadOlder, appendMessage, removeMessage, catchUp } =
     useMessageHistory(initialMessages);
   const { pending, send, retry, resolve } = useSendMessage({ onSent: appendMessage });
-  const { participants, refreshParticipants } = useParticipants(initialParticipants);
+  const { participants, setIsReading } = useChatStream();
   const participantById = useMemo(
     () => new Map(participants.map((participant) => [participant.id, participant])),
     [participants],
@@ -102,11 +94,15 @@ export function ChatRoom({
   );
 
   useComposerClearance({ containerRef, composerRef, scrollerRef, isAtBottomRef });
-  useChatStream({
-    onMessage: receiveMessage,
-    onUserChanged: refreshParticipants,
-    onResume: catchUp,
-  });
+  // INFO: REQUIREMENTS.md § 8.4. The connection belongs to the shell; this screen only asks to hear from it.
+  useChatStreamListener({ onMessage: receiveMessage, onResume: catchUp });
+
+  // INFO: REQUIREMENTS.md § 8.8. The conversation is on screen for as long as this is mounted, which is what suppresses the badge and moves the read cursor.
+  useEffect(() => {
+    setIsReading(true);
+
+    return () => setIsReading(false);
+  }, [setIsReading]);
 
   // WARN: Deliberately the scroller's own maximum rather than `scrollToIndex`. The list's trailing spacer already _is_ the clearance, so the bottom of the scroll range is the newest message sitting on the composer — and Virtuoso resolves an aligned index against its own measurements, which land short by the row's height under `firstItemIndex`.
   const scrollToBottom = useCallback(() => {

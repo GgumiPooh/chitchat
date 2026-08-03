@@ -26,5 +26,6 @@ export {
   type MessageType,
   type SystemAction,
 } from "./messages";
+export { pushSubscriptions, type StoredPushSubscription } from "./push-subscriptions";
 export { sessions, type Session } from "./sessions";
 export { users, type User } from "./users";

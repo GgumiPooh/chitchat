@@ -1,5 +1,4 @@
 import { listMessages } from "@/entities/message";
-import { listUsers } from "@/entities/user";
 import { cn } from "@/shared/lib";
 import { AppHeader, IconButton } from "@/shared/ui";
 import { ChatRoom } from "@/widgets/chat-room";
@@ -12,8 +11,8 @@ export type ChatPageProps = {
 
 // TODO: Read receipts and search are REQUIREMENTS.md § 8.8. and § 8.6.
 export async function ChatPage({ className, currentUserId }: ChatPageProps) {
-  // INFO: The newest page comes from the server render, so opening the tab costs no client round trip before the first paint.
-  const [initialParticipants, initialMessages] = await Promise.all([listUsers(), listMessages()]);
+  // INFO: The newest page comes from the server render, so opening the tab costs no client round trip before the first paint. Participants are the shell's (§ 8.4.), since every tab needs them for the in-app banner.
+  const initialMessages = await listMessages();
 
   return (
     // WARN: DESIGN.md § 3.5. Cancels the scroller's `--bottom-inset` padding rather than honouring it — chat is the one screen whose messages run all the way under the floating bars, and the composer reserves that room inside the list instead (§ 6.6.).
@@ -28,11 +27,7 @@ export async function ChatPage({ className, currentUserId }: ChatPageProps) {
       <AppHeader
         trailing={<IconButton Icon={Search} variant="floating" aria-label="메시지 검색" />}
       />
-      <ChatRoom
-        currentUserId={currentUserId}
-        initialParticipants={initialParticipants}
-        initialMessages={initialMessages}
-      />
+      <ChatRoom currentUserId={currentUserId} initialMessages={initialMessages} />
     </div>
   );
 }

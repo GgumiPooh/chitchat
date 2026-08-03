@@ -9,6 +9,12 @@ const SECURITY_HEADERS = [
   { key: "X-Frame-Options", value: "DENY" },
 ];
 
+const SERVICE_WORKER_HEADERS = [
+  { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+  { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+  { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self'" },
+];
+
 export default {
   experimental: {
     viewTransition: true,
@@ -43,6 +49,10 @@ export default {
     },
   },
   async headers() {
-    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+    return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
+      // WARN: REQUIREMENTS.md § 16.1. A cached worker is a worker that never updates — the browser keeps serving the old script and the push handler silently stays on the previous build.
+      { source: "/sw.js", headers: SERVICE_WORKER_HEADERS },
+    ];
   },
 } satisfies NextConfig;
