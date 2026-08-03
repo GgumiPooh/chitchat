@@ -167,6 +167,16 @@
   --container-app-narrow: 448px;
 }
 
+/* WARN: Outside `@theme` on purpose — these are geometry the layout reads back with `calc()`, not a Tailwind utility namespace. */
+:root {
+  /* INFO: DESIGN.md § 7.3. The `(main)` layout reserves this much bottom padding for the fixed tab bar. */
+  --tab-bar-height: 56px;
+  /* INFO: DESIGN.md § 7.12. Matches the tab bar so a screen can offset a sticky element by the header. */
+  --app-header-height: 56px;
+  /* INFO: DESIGN.md § 7.13. `InstallGuide` measures itself into this while the banner is up; 0 elsewhere so the layout's `calc()` needs no branch. */
+  --install-guide-height: 0px;
+}
+
 /* TODO: Populate when the dark theme ships — DESIGN.md § 5.4. Hand-tune; never invert arithmetically. */
 .dark {
 }

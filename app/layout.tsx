@@ -9,6 +9,14 @@ export const metadata: Metadata = {
   title: APP_NAME,
   // INFO: REQUIREMENTS.md § 14. Index blocking, layer 2 of 3.
   robots: { index: false, follow: false, nocache: true },
+  // WARN: iOS reads `apple-touch-icon` from the markup, not the manifest — without it "Add to Home Screen" grabs a screenshot of the page.
+  icons: {
+    icon: [
+      { url: "/icons/icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: { url: "/icons/icon-180.png", sizes: "180x180", type: "image/png" },
+  },
 };
 
 export const viewport: Viewport = {

@@ -1,25 +1,19 @@
-import { resolveDisplayName } from "@/entities/user";
-import { LogoutButton } from "@/features/session";
-import type { User } from "@/shared/db";
 import { cn } from "@/shared/lib";
-import { Avatar, Container } from "@/shared/ui";
+import { AppHeader, EmptyState } from "@/shared/ui";
+import { MessageCircle } from "lucide-react";
 
 export type ChatPageProps = {
   className?: string;
-  user: User;
 };
 
-// TODO: Replace with the real message list in step 5 of REQUIREMENTS.md § 17.; this only proves the session resolves.
-export function ChatPage({ className, user }: ChatPageProps) {
-  const displayName = resolveDisplayName(user);
-
+// TODO: Replace the body with the virtualized message list — step 5 of REQUIREMENTS.md § 17.
+export function ChatPage({ className }: ChatPageProps) {
   return (
-    <main className={cn("min-h-dvh bg-chat-canvas", className)}>
-      <Container className="flex min-h-dvh flex-col items-center justify-center gap-md">
-        <Avatar name={displayName} size="profile" />
-        <p className="text-title-md text-ink">{displayName}</p>
-        <LogoutButton className="w-auto" />
-      </Container>
-    </main>
+    <div className={cn("flex flex-1 flex-col bg-chat-canvas", className)}>
+      <AppHeader title="채팅" />
+      <div className="flex flex-1 items-center justify-center p-md">
+        <EmptyState Icon={MessageCircle} description="아직 주고받은 메시지가 없어요" />
+      </div>
+    </div>
   );
 }

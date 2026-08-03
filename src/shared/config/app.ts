@@ -10,8 +10,17 @@ export const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
  */
 export const CONVERSATION_ID = "00000000-0000-4000-8000-000000000001";
 
+/** The four tab routes, in tab-bar order. REQUIREMENTS.md § 7. */
+export const CHAT_ROUTE = "/chat";
+
+export const CALENDAR_ROUTE = "/calendar";
+
+export const GALLERY_ROUTE = "/gallery";
+
+export const SETTINGS_ROUTE = "/settings";
+
 /** Route a signed-in user lands on. REQUIREMENTS.md § 5.2. */
-export const HOME_ROUTE = "/chat";
+export const HOME_ROUTE = CHAT_ROUTE;
 
 export const LOGIN_ROUTE = "/login";
 

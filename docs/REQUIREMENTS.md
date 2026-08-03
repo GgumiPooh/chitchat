@@ -19,7 +19,7 @@ A private web app used by exactly two people. An iOS PWA with four tabs: Chat, C
 | `AGENTS.md` (repo root; `CLAUDE.md` is a symlink to it) | **How we write it** — coding conventions, component contracts, prohibitions                                            |
 
 Precedence on conflict: visual specs → `DESIGN.md`; code-authoring rules → `AGENTS.md`; everything else → this file.
-Implementation is **in progress**. Steps 1–3 of § 17. have landed (project setup and base components; Google OAuth and sessions; the full schema, migrations, and seed). Step 2 is code-complete but still needs the Google Cloud client and the real-device iOS PWA check (§ 5.4.); step 4 (layout, tab bar, PWA manifest) is next. `/chat` is a placeholder screen that only proves the session resolves — the real one arrives in step 5.
+Implementation is **in progress**. Steps 1–4 of § 17. have landed (project setup and base components; Google OAuth and sessions; the full schema, migrations, and seed; the app shell, tab bar, and PWA manifest). Step 2 still needs the real-device iOS PWA check (§ 5.4.); step 5 (the chat tab) is next. All four tab screens exist, but only Settings has real content — Chat, Calendar, and Gallery render an empty state until their own step.
 
 ---
 
@@ -112,8 +112,8 @@ Implementation is **in progress**. Steps 1–3 of § 17. have landed (project se
   src/
     app/       providers / styles(globals.css, theme.css) / fonts
     pages/     login, chat, calendar, gallery, settings
-    widgets/   tab-bar, chat-room, message-composer, emoticon-picker,
-               gallery-grid, calendar-month, settings-form
+    widgets/   tab-bar, install-guide, chat-room, message-composer,
+               emoticon-picker, gallery-grid, calendar-month, settings-form
     features/  session, send-message, upload-media, mark-read,
                emoticon-prefs, update-profile, manage-event
     entities/  user, message, media, event, emoticon
@@ -133,7 +133,8 @@ Implementation is **in progress**. Steps 1–3 of § 17. have landed (project se
 - [x] `nullish.ts` — `Maybe<T>`, `Nullable<T>`, `Optional<T>` (port verbatim from the reference)
 - [x] `safely.ts` — `safelyGet`, `safelyGetAsync`, `safelyRun`, `safelyRunAsync` (port verbatim)
 - [x] `assert.ts` — `assert`, `AssertionError`, `ensure` (port verbatim)
-- [x] `class-name.ts` — `cn`, built with `extendTailwindMerge` so custom `text-*` tokens merge correctly
+- [x] `class-name.ts` — `cn`, built with `extendTailwindMerge` so custom `text-*` and `--spacing-*` tokens merge correctly
+  - [x] **Every custom token scale has to be declared there.** An undeclared one is not "merged badly", it is not merged at all: `cn("px-md", "px-0")` emits both classes and stylesheet order decides, which silently ignores the override at the call site
 - [x] `time.ts` — `A_SECOND` / `A_MINUTE` / `AN_HOUR` / `A_DAY` plus date formatters (i18n removed; locale hardcoded to Korean)
 - [x] `dom.ts` — `isBrowser`, `isEditableElement`
 - [x] `use-hydrated.ts`, `use-is-coarse-pointer.ts`
@@ -172,9 +173,13 @@ Implementation is **in progress**. Steps 1–3 of § 17. have landed (project se
 - [x] App shell max width: **`576px` (`max-w-xl`)** — narrower than a tablet's portrait width. The purpose is to stop the four-item bottom tab bar from stretching across a desktop screen
   - [x] Define it as a token (`--container-app`) so it can be tuned in one place
 - [x] `Container` sizes — `md` (default) = app max width; `sm` = `448px` (`max-w-md`); horizontal padding `px-md`
-- [ ] **The bottom tab bar must also be constrained to the same max width and centered.** It is `fixed`, so this needs explicit handling — without it, the bar spans the full desktop viewport
+- [x] **The bottom tab bar must also be constrained to the same max width and centered.** It is `fixed`, so this needs explicit handling — without it, the bar spans the full desktop viewport
+  - [x] `TabBar` and `InstallGuide` are `fixed` on the outer element and re-apply `max-w-(--container-app) mx-auto` on the inner one. They cannot use `Container`, whose padding belongs to page content
 - [x] The area outside the app shell uses a tone darker than `canvas` (`backdrop`) so the shell reads as a held device
-- [ ] Full-height screens such as Chat use `100dvh` (never `100vh`) and honour `env(safe-area-inset-*)`
+- [x] Full-height screens such as Chat use `100dvh` (never `100vh`) and honour `env(safe-area-inset-*)`
+  - [x] The `(main)` layout owns the `min-h-dvh` column; screens are `flex-1` inside it and never restate a viewport height
+  - [x] `--tab-bar-height`, `--app-header-height`, and `--install-guide-height` live in `theme.css` outside `@theme` — the layout reserves bottom padding with `calc(var(--tab-bar-height) + var(--install-guide-height) + env(safe-area-inset-bottom))`, so each value has exactly one home
+    - [x] `--install-guide-height` is `0px` at rest and is set by `InstallGuide` from its own measured height. Without it the `fixed` banner covers the last row of a scrolled-to-bottom screen (Settings' 로그아웃) in an un-installed iOS tab — the app's primary target
 
 ### 4.3. Base Components (`src/shared/ui`)
 
@@ -207,6 +212,9 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
   - [x] Redefine `size` to values that fit inside the app shell (the reference's `w-120` / `w-140` / `w-160` are desktop widths and cannot be reused)
 - [x] `ActionSheet` — for message long-press actions. Also props-driven: `items: { label, icon, variant, onSelect }[]`
 - [x] `Badge`, `Chip`, `Skeleton`, `Container`, `ScrollableRow`, `ScrollReset`
+- [x] `AppHeader` — the per-screen top header of § 7. (DESIGN.md § 7.12.)
+- [x] `EmptyState` (DESIGN.md § 7.6.)
+- [x] `ScrollMemory` — restores the document scroll position per route across tab switches (§ 7.)
 - [x] `Toaster` / `toast` (sonner)
 - [x] `RelativeTime`
 - [x] `Avatar` (new — for profile images)
@@ -220,8 +228,8 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
 
 ### 5.1. Google OAuth
 
-- [ ] Create a Google Cloud project and OAuth client (consent screen in "Testing" mode)
-- [ ] Register redirect URIs: `http://localhost:3000/api/auth/callback/google` and `https://jandh.jeheecheon.com/api/auth/callback/google`
+- [x] Create a Google Cloud project and OAuth client (consent screen in "Testing" mode)
+- [x] Register redirect URIs: `http://localhost:3000/api/auth/callback/google` and `https://jandh.jeheecheon.com/api/auth/callback/google`
 - [x] `GET /api/auth/login/google` — generate `state` + PKCE with `arctic`, store them in cookies, redirect to Google
 - [x] `GET /api/auth/callback/google` — exchange the code, then verify the `id_token` signature with `jose`
   - [x] Verify `state` and the PKCE verifier
@@ -307,18 +315,33 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
 
 ## 7. Layout, Tab Bar, PWA
 
-- [ ] `(main)` layout — inside the app shell (max `576px`, centered): a per-screen top header, the content, and the bottom tab bar
-- [ ] Four bottom tabs: **Chat / Calendar / Gallery / Settings**
-  - [ ] Active-tab highlight, icon + label
-  - [ ] Unread badge on the Chat tab
-  - [ ] Honour `env(safe-area-inset-bottom)` (home-indicator area)
-  - [ ] Even though it is `fixed`, keep the app max width and centering (§4.2)
-  - [ ] Provide mouse hover / active styling
-- [ ] Preserve scroll position across tab switches
-- [ ] `app/manifest.ts` — name `J&H`, `display: "standalone"`, `theme_color`, `background_color`, icon set (180 / 192 / 512, plus maskable)
-- [ ] `viewport` — `viewport-fit=cover`, `user-scalable=no`, `interactiveWidget` configured
-- [ ] "Add to Home Screen" guidance for iOS, shown only when not yet installed
-- [ ] Offline support is **out of scope** — no service worker. If push notifications are adopted, a **push-only service worker** becomes necessary (§16.1, §18 #8); even then, do not add caching
+- [x] `(main)` layout — inside the app shell (max `576px`, centered): a per-screen top header, the content, and the bottom tab bar
+  - [x] The layout is the **only** place the session is resolved for a screen (`requireUserOrRedirect`, AGENTS.md § 6.4.). A page re-reads it only when it needs the row itself, and `cache()` makes that free
+  - [x] The header is per-screen rather than layout-owned, because it carries screen-specific actions (search, month navigation) — screens render `AppHeader` themselves
+- [x] Four bottom tabs: **Chat / Calendar / Gallery / Settings** — `채팅` / `캘린더` / `갤러리` / `설정`
+  - [x] Active-tab highlight, icon + label
+    - [x] Colour alone carries the active state. DESIGN.md § 7.3. allows switching to a filled lucide variant "where one exists" — none exists for these four glyphs, so none is used
+  - [x] Unread badge on the Chat tab
+    - [ ] It resolves once per full page load. Making it live is § 8.8., which needs the SSE pipeline
+  - [x] Honour `env(safe-area-inset-bottom)` (home-indicator area)
+  - [x] Even though it is `fixed`, keep the app max width and centering (§4.2)
+  - [x] Provide mouse hover / active styling
+- [x] Preserve scroll position across tab switches
+  - [x] `ScrollMemory` keeps the position per route in module scope, not `sessionStorage` — a tab switch is a client navigation, so the map outlives it, while a reload is meant to start at the top
+  - [x] It restores a frame late on purpose: the App Router scrolls to top on navigation, and an immediate restore is overwritten
+  - [x] It never records the position on effect cleanup, and ignores `scroll` events until the restore has run. Both would read the App Router's scroll-to-top — the cleanup deterministically (it is passive-phase, so it runs after Next's commit-phase `scrollTo`), the listener as a race — and save `0` over the real position
+  - [x] Chat is exempt — its scroll belongs to the virtualizer, which restores through `restoreStateFrom` (§ 8.3.)
+- [x] `app/manifest.ts` — name `J&H`, `display: "standalone"`, `theme_color`, `background_color`, icon set (180 / 192 / 512, plus maskable)
+  - [x] The icons are generated by `pnpm icons` (`scripts/generate-icons.ts`, sharp) from a path-only `J&H` wordmark on `primary`, and committed under `public/icons`. Paths, not `<text>` — an SVG `<text>` icon renders in whatever font the machine happens to have
+  - [x] They live under `/icons`, which the proxy matcher already excludes; a redirect to `/login` while fetching an icon would break the install prompt
+  - [x] iOS reads `apple-touch-icon` from the markup, not the manifest, so the root layout's `metadata.icons.apple` is what "Add to Home Screen" actually uses
+- [x] `viewport` — `viewport-fit=cover`, `user-scalable=no`, `interactiveWidget` configured
+- [x] "Add to Home Screen" guidance for iOS, shown only when not yet installed
+  - [x] `widgets/install-guide` — a dismissible banner above the tab bar, shown only in an iOS browser tab (`display-mode: standalone` and `navigator.standalone` both say not installed)
+  - [x] iPadOS 13+ reports a Macintosh user agent, so the check needs `maxTouchPoints` to tell an iPad from a desktop Mac
+  - [x] The dismissal flag is in `localStorage`. § 5.2. bans that for auth state only, where ITP eviction would sign the user out; losing a dismissal flag costs nothing
+    - [x] Both the read and the write go through `safelyRun` / `safelyGet` (§ 3.). Blocked storage makes every `localStorage` access throw, and the banner renders inside the `(main)` layout, so an unguarded read fails hydration on all four tabs rather than just hiding the banner
+- [x] Offline support is **out of scope** — no service worker. If push notifications are adopted, a **push-only service worker** becomes necessary (§16.1, §18 #8); even then, do not add caching
 
 ---
 

@@ -89,16 +89,17 @@ Touch-first geometry, full pointer states.
 
 ## 3.3. App Shell.
 
-| Property          | Value                                                                                                     |
-| ----------------- | --------------------------------------------------------------------------------------------------------- |
-| Max width         | `576px` — token `--container-app`                                                                         |
-| Narrow max width  | `448px` — token `--container-app-narrow`, `Container size="sm"`. Single-column entry screens (login) only |
-| Alignment         | Horizontally centered, full height                                                                        |
-| Shell background  | `canvas` (or `chat-canvas` on the chat screen)                                                            |
-| Outside the shell | `backdrop` — one step deeper than `canvas`, so the shell reads as a held device on desktop                |
-| Fixed children    | The tab bar and the composer are `fixed`; both MUST re-apply the same max width and centering             |
-| Safe areas        | `env(safe-area-inset-bottom)` on the tab bar, `env(safe-area-inset-top)` on the header                    |
-| Viewport height   | `100dvh` (never `100vh` — iOS URL-bar collapse)                                                           |
+| Property          | Value                                                                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Max width         | `576px` — token `--container-app`                                                                                                                                 |
+| Bar heights       | `--tab-bar-height` and `--app-header-height`, both `56px`. Declared outside `@theme` because the layout reads them back through `calc()` rather than as a utility |
+| Narrow max width  | `448px` — token `--container-app-narrow`, `Container size="sm"`. Single-column entry screens (login) only                                                         |
+| Alignment         | Horizontally centered, full height                                                                                                                                |
+| Shell background  | `canvas` (or `chat-canvas` on the chat screen)                                                                                                                    |
+| Outside the shell | `backdrop` — one step deeper than `canvas`, so the shell reads as a held device on desktop                                                                        |
+| Fixed children    | The tab bar and the composer are `fixed`; both MUST re-apply the same max width and centering                                                                     |
+| Safe areas        | `env(safe-area-inset-bottom)` on the tab bar, `env(safe-area-inset-top)` on the header                                                                            |
+| Viewport height   | `100dvh` (never `100vh` — iOS URL-bar collapse)                                                                                                                   |
 
 576px, not a tablet 768px: at 768 a 72%-width bubble spans 550px, which forces long lines and breaks the chat rhythm; the four tab-bar items also drift apart to the point of reading as a desktop nav. Screens MUST obtain this width from `Container`, never by hardcoding `max-w-*`.
 
@@ -489,6 +490,10 @@ Error state is triggered by `aria-invalid="true"`, never by a class alone.
 
 No active-indicator bar, pill, or background fill behind the active item — colour alone carries state, matching the restraint of the rest of the system.
 
+The "filled lucide variant" above is conditional and currently never applies: lucide ships no filled counterpart for `MessageCircle`, `CalendarDays`, `Images`, or `Settings`, and faking one with `fill-current` turns the outlined glyphs into solid blobs. If a filled set is ever adopted it MUST cover all four — a single filled tab reads as a rendering bug.
+
+Labels: `채팅` / `캘린더` / `갤러리` / `설정`.
+
 ## 7.4. Modal.
 
 `canvas` surface, `rounded-lg`, `shadow-floating`, scrim `bg-scrim/45`. Props-driven (`isOpen` / `header` / `onClose`), never composed at the call site.
@@ -558,6 +563,38 @@ The D-day band is the only place `display-lg` appears in the app. It is the scre
 ## 7.11. Settings Row.
 
 Full-width, min-height 56, `canvas` fill, 1px `hairline-soft` bottom border, padding `md`. Leading 18px `meta` icon, `title-md` `ink` label, trailing value in `body-sm` `meta` plus a 16px chevron. `:hover` `surface-soft`, `:active` `surface-strong`. Destructive rows (로그아웃, 세션 폐기) use `semantic-error` label with no icon colour change.
+
+## 7.12. App Header.
+
+Every screen renders its own header rather than inheriting one from the layout, because the trailing slot is screen-specific (chat search, month navigation).
+
+| Property  | Value                                                                                                |
+| --------- | ---------------------------------------------------------------------------------------------------- |
+| Container | `sticky` top, `canvas` fill, 1px `hairline` bottom border, `env(safe-area-inset-top)` as top padding |
+| Height    | `--app-header-height` (56), below the safe-area padding                                              |
+| Title     | `title-md` `ink`, left-aligned on the 16px screen gutter (§ 4.3.), truncates on overflow             |
+| Padding   | `2xs` (4) on the row, `sm` (12) on the title                                                         |
+| Slots     | Leading and trailing, rendered only when present — an empty slot MUST NOT reserve width              |
+| Elevation | Hairline only — no shadow, even once content scrolls under it (§ 4.5.)                               |
+
+`sticky`, not `fixed`: the header sits inside the shell column, so it inherits the width and centering instead of re-applying them the way the tab bar has to (§ 3.3.).
+
+The padding split exists because an `icon-button` already pads its 20px glyph by 12 inside a 44 target (§ 7.1.): `2xs` on the row puts that glyph on the 16px gutter, and `sm` on the title puts a bare title there too. Reserving a fixed 44 for an absent leading slot instead — to stop the title shifting between screens — pushes the title to 52 and is the wrong trade: no screen in this app has a back button, so the shift never happens, while the misalignment shows on every screen.
+
+## 7.13. Install Banner.
+
+iOS "add to home screen" guidance (`REQUIREMENTS.md § 7.`). Shown only in an iOS browser tab, dismissible, and never shown again once dismissed or once the app is installed.
+
+| Property  | Value                                                                                             |
+| --------- | ------------------------------------------------------------------------------------------------- |
+| Position  | `fixed`, directly above the tab bar, shell-width and centered (§ 3.3.), `xs` bottom gap           |
+| Container | `surface-soft` fill, 1px `hairline`, `rounded-md`, `shadow-raised`                                |
+| Content   | 18px `meta` share glyph, `body-sm` `body` copy, trailing `icon-button` dismiss                    |
+| Clearance | Measures its own height into `--install-guide-height`, which the shell adds to its bottom padding |
+
+The clearance is measured rather than a constant: the banner is `fixed`, so it takes no flow space and would otherwise sit on top of the last row of a scrolled-to-bottom screen, and its Korean copy wraps to two lines on a narrow viewport, so no single number is right. The token is `0px` at rest, so the shell's `calc()` needs no branch for the far more common installed case.
+
+It is a banner rather than a `BottomSheet`: the guidance is optional and repeatable, and a modal interruption on arrival is the wrong weight for it.
 
 # 8. Rules.
 

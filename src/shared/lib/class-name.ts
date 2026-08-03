@@ -2,9 +2,11 @@ import { clsx, type ClassValue } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
 
 // WARN: Omitting a `--text-*` token makes tailwind-merge read it as a colour and stop deduplicating sizes.
+// WARN: Omitting a `--spacing-*` token makes tailwind-merge keep both classes, so `cn("px-md", "px-0")` emits both and stylesheet order silently wins.
 const twMerge = extendTailwindMerge({
   extend: {
     theme: {
+      spacing: ["2xs", "xs", "sm", "md", "lg", "xl", "2xl"],
       text: [
         "display-lg",
         "display-md",
