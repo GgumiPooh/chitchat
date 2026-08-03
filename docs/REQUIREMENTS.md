@@ -145,6 +145,14 @@ A 32-byte random token is stored **hashed** in `sessions.token_hash`; only the r
 - [ ] Verify **on a real device** that the Google login redirect from a home-screen standalone PWA returns to the app correctly
 - [ ] Verify the session cookie survives across days of non-use (re-check after several days)
 
+### 5.4. Development Login ✅
+
+`POST /api/auth/login/dev` takes an `email` form field, matches it against `ALLOWED_EMAILS` exactly as § 5.1. does, and issues the same § 5.2. session — no Google round trip, so a dev machine needs neither the consent screen nor a second browser profile. `/login` renders the email form under the Google button whenever it is enabled.
+
+- Gated on `IS_DEV_LOGIN_ENABLED` (`NODE_ENV === "development"`), which Next inlines at build time — a production build cannot re-enable it through the environment, and the route answers **404** there
+- The row is upserted with a synthetic `dev:{email}` subject id. Signing in through Google afterwards relinks that same row to the real `google_sub` (§ 5.1.), so the two paths never fork into two users
+- The redirect is **303**, not `NextResponse.redirect`'s default 307 — a 307 replays the POST against the target page
+
 ---
 
 ## 6. Database Schema (Drizzle) ✅

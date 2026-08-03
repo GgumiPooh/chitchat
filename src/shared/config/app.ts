@@ -70,6 +70,12 @@ export const LOGIN_ROUTE = "/login";
 /** Clears a cookie whose session no longer validates, then lands on `LOGIN_ROUTE`. REQUIREMENTS.md § 5.2. */
 export const SESSION_EXPIRE_ROUTE = "/api/auth/session/expire";
 
+/** REQUIREMENTS.md § 5.4. Email-only login, so a dev machine needs no Google consent screen. */
+export const DEV_LOGIN_ROUTE = "/api/auth/login/dev";
+
+// WARN: `NODE_ENV` is compiled in, not read at runtime — a production build cannot flip this on however the environment is set.
+export const IS_DEV_LOGIN_ENABLED = process.env.NODE_ENV === "development";
+
 /** Name of the httpOnly cookie holding the opaque session token. */
 export const SESSION_COOKIE_NAME = "jandh_session";
 

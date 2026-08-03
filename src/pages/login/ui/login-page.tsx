@@ -1,5 +1,5 @@
-import { GoogleLoginButton } from "@/features/session";
-import { APP_NAME } from "@/shared/config";
+import { DevLoginForm, GoogleLoginButton } from "@/features/session";
+import { APP_NAME, IS_DEV_LOGIN_ENABLED } from "@/shared/config";
 import { cn, type Maybe } from "@/shared/lib";
 import { Container } from "@/shared/ui";
 
@@ -37,6 +37,7 @@ export function LoginPage({ className, error }: LoginPageProps) {
           <p className="text-center text-caption text-meta-soft">
             초대된 계정만 로그인할 수 있어요
           </p>
+          {IS_DEV_LOGIN_ENABLED && <DevLoginForm className="pt-md" />}
         </div>
       </Container>
     </main>
