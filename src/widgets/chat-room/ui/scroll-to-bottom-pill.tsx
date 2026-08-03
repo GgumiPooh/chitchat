@@ -23,7 +23,8 @@ export function ScrollToBottomPill({
   return (
     <button
       className={cn(
-        "group inline-flex min-h-11 cursor-pointer items-center justify-center py-0.5 transition-all duration-150 outline-none",
+        // WARN: `w-fit` is load-bearing. The caller centers this with `inset-x-0 mx-auto`, and an absolutely positioned box with both offsets set stretches to the full width, so the hit area would swallow taps and scrolls meant for the bubbles behind it.
+        "group inline-flex min-h-11 w-fit cursor-pointer items-center justify-center py-0.5 transition-all duration-150 outline-none",
         isVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1 opacity-0",
         className,
       )}
