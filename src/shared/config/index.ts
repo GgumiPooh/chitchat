@@ -22,5 +22,7 @@ export {
   SSE_REPLAY_LIMIT,
   SSE_REPLAY_MARGIN,
   SSE_RETRY_DELAY,
+  SSE_STALE_AFTER,
+  SSE_SYNC_COALESCE_WINDOW,
 } from "./app";
 export { ensureEnv } from "./env";

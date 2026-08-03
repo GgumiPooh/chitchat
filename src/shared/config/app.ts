@@ -44,8 +44,14 @@ export const MAX_MESSAGE_LENGTH = 2_000;
 /** REQUIREMENTS.md § 8.4. The one `EventSource` the chat client holds open. */
 export const CHAT_STREAM_PATH = "/api/chat/stream";
 
-// INFO: A comment line often enough that no proxy between Vercel and the browser reads an idle conversation as a dead connection.
+// INFO: A ping often enough that no proxy between Vercel and the browser reads an idle conversation as a dead connection.
 export const SSE_HEARTBEAT_INTERVAL = 25 * A_SECOND;
+
+// WARN: REQUIREMENTS.md § 8.4. iOS restores a frozen PWA with its `EventSource` still reporting `OPEN` over a socket the system already tore down, and a silence this long is the only way the client can tell that apart from an idle conversation.
+export const SSE_STALE_AFTER = 2 * SSE_HEARTBEAT_INTERVAL;
+
+// INFO: REQUIREMENTS.md § 8.4. `pageshow`, `focus`, and `visibilitychange` all fire on one iOS resume; this collapses them into a single catch-up.
+export const SSE_SYNC_COALESCE_WINDOW = A_SECOND;
 
 // WARN: REQUIREMENTS.md § 8.4. A `bigserial` id is handed out at INSERT but becomes visible at COMMIT, so replay starts this far below the reconnect cursor and lets id-deduplication drop the overlap. `id > cursor` alone loses the message that committed late.
 export const SSE_REPLAY_MARGIN = 20;

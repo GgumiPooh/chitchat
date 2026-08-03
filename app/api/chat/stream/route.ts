@@ -57,7 +57,11 @@ export async function GET(request: Request) {
       let release: Optional<() => Promise<void>>;
       // INFO: Serialized behind one promise chain — each notification costs a query, and letting them interleave would emit the rows out of id order.
       let pipeline: Promise<void> = Promise.resolve();
-      const heartbeat = setInterval(() => write(":ping\n\n"), SSE_HEARTBEAT_INTERVAL);
+      // WARN: A named event, not a `:ping` comment — a comment keeps proxies awake but is invisible to `EventSource`, and the client needs to see the heartbeat to tell a live socket from an iOS-frozen one (§ 8.4.). No `id:`, for the same reason `user` carries none.
+      const heartbeat = setInterval(
+        () => write("event: ping\ndata: {}\n\n"),
+        SSE_HEARTBEAT_INTERVAL,
+      );
 
       try {
         // WARN: Registered before the replay query runs. In the other order a message committing between the two would be missed by both — the query does not see it yet and nothing is listening for it.
