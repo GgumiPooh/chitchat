@@ -1,5 +1,6 @@
 import { ensureConversation } from "@/entities/conversation";
 import { upsertGoogleUser } from "@/entities/user";
+import { redirectTo } from "@/shared/api";
 import {
   clearOAuthCookies,
   createSession,
@@ -11,17 +12,13 @@ import {
   verifyGoogleIdToken,
 } from "@/shared/auth";
 import { HOME_ROUTE, LOGIN_ROUTE } from "@/shared/config";
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 
 // INFO: REQUIREMENTS.md § 14. The login screen turns these into Korean copy; nothing internal is exposed.
 type CallbackError = "denied" | "failed" | "not_allowed" | "unverified";
 
-function toLoginRedirect(request: NextRequest, error: CallbackError) {
-  const url = new URL(LOGIN_ROUTE, request.url);
-
-  url.searchParams.set("error", error);
-
-  return NextResponse.redirect(url);
+function toLoginRedirect(error: CallbackError) {
+  return redirectTo(`${LOGIN_ROUTE}?error=${error}`);
 }
 
 export async function GET(request: NextRequest) {
@@ -33,10 +30,10 @@ export async function GET(request: NextRequest) {
   await clearOAuthCookies();
 
   if (searchParams.get("error")) {
-    return toLoginRedirect(request, "denied");
+    return toLoginRedirect("denied");
   }
   if (!code || !state || !storedState || !codeVerifier || state !== storedState) {
-    return toLoginRedirect(request, "failed");
+    return toLoginRedirect("failed");
   }
 
   try {
@@ -44,10 +41,10 @@ export async function GET(request: NextRequest) {
     const identity = await verifyGoogleIdToken(tokens.idToken());
 
     if (!identity.emailVerified) {
-      return toLoginRedirect(request, "unverified");
+      return toLoginRedirect("unverified");
     }
     if (!isAllowedEmail(identity.email)) {
-      return toLoginRedirect(request, "not_allowed");
+      return toLoginRedirect("not_allowed");
     }
 
     await ensureConversation();
@@ -58,11 +55,11 @@ export async function GET(request: NextRequest) {
 
     await setSessionCookie(token);
 
-    return NextResponse.redirect(new URL(HOME_ROUTE, request.url));
+    return redirectTo(HOME_ROUTE);
   } catch (error) {
     // INFO: The user only ever sees the generic Korean copy (REQUIREMENTS.md § 14.), so without this a failed login is undiagnosable.
     console.error("Google OAuth callback failed", error);
 
-    return toLoginRedirect(request, "failed");
+    return toLoginRedirect("failed");
   }
 }

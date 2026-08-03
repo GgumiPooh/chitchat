@@ -1,5 +1,6 @@
 import { ensureConversation } from "@/entities/conversation";
 import { upsertGoogleUser } from "@/entities/user";
+import { redirectTo } from "@/shared/api";
 import { createSession, isAllowedEmail, setSessionCookie, toDeviceLabel } from "@/shared/auth";
 import { HOME_ROUTE, IS_DEV_LOGIN_ENABLED, LOGIN_ROUTE } from "@/shared/config";
 import { NextResponse, type NextRequest } from "next/server";
@@ -7,15 +8,9 @@ import { NextResponse, type NextRequest } from "next/server";
 // INFO: REQUIREMENTS.md § 5.4. The login screen turns these into the same Korean copy the OAuth callback uses.
 type DevLoginError = "failed" | "not_allowed";
 
-// WARN: 303, not the `NextResponse.redirect` default of 307 — a 307 would replay this POST against the target page.
-function toRedirect(request: NextRequest, path: string, error?: DevLoginError) {
-  const url = new URL(path, request.url);
-
-  if (error) {
-    url.searchParams.set("error", error);
-  }
-
-  return NextResponse.redirect(url, 303);
+// WARN: 303, not the 307 `redirectTo` defaults to — a 307 would replay this POST against the target page.
+function toLoginRedirect(error: DevLoginError) {
+  return redirectTo(`${LOGIN_ROUTE}?error=${error}`, 303);
 }
 
 export async function POST(request: NextRequest) {
@@ -28,7 +23,7 @@ export async function POST(request: NextRequest) {
     .toLowerCase();
 
   if (!isAllowedEmail(email)) {
-    return toRedirect(request, LOGIN_ROUTE, "not_allowed");
+    return toLoginRedirect("not_allowed");
   }
 
   try {
@@ -41,10 +36,10 @@ export async function POST(request: NextRequest) {
       await createSession(user.id, toDeviceLabel(request.headers.get("user-agent"))),
     );
 
-    return toRedirect(request, HOME_ROUTE);
+    return redirectTo(HOME_ROUTE, 303);
   } catch (error) {
     console.error("Dev login failed", error);
 
-    return toRedirect(request, LOGIN_ROUTE, "failed");
+    return toLoginRedirect("failed");
   }
 }

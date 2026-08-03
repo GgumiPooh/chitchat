@@ -13,7 +13,7 @@ export default {
   experimental: {
     viewTransition: true,
   },
-  allowedDevOrigins: ["localhost", "192.168.*.*"],
+  allowedDevOrigins: ["localhost", "192.168.*.*", "jandh-dev.jeheecheon.com"],
   turbopack: {
     rules: {
       "*.svg": {

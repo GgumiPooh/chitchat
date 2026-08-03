@@ -151,7 +151,8 @@ A 32-byte random token is stored **hashed** in `sessions.token_hash`; only the r
 
 - Gated on `IS_DEV_LOGIN_ENABLED` (`NODE_ENV === "development"`), which Next inlines at build time — a production build cannot re-enable it through the environment, and the route answers **404** there
 - The row is upserted with a synthetic `dev:{email}` subject id. Signing in through Google afterwards relinks that same row to the real `google_sub` (§ 5.1.), so the two paths never fork into two users
-- The redirect is **303**, not `NextResponse.redirect`'s default 307 — a 307 replays the POST against the target page
+- The redirect is **303**, not the 307 `redirectTo` defaults to — a 307 replays the POST against the target page
+- Every auth Route Handler redirects through `redirectTo` from `@/shared/api`, which sends a **relative** `Location` the browser resolves against the address it asked for. `new URL(path, request.url)` cannot: `next dev` builds `request.url` from the bound `localhost:3000` and takes only the scheme from `X-Forwarded-Proto`, so behind an HTTPS tunnel it emits `https://localhost:3000`, which speaks no TLS. `proxy.ts` is unaffected — Next already relativises middleware redirects
 
 ---
 
