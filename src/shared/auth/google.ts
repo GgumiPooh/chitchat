@@ -4,7 +4,7 @@ import { ensureEnv } from "@/shared/config";
 import { Google } from "arctic";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
-// INFO: REQUIREMENTS.md § 5.3. Fixed path, no `[provider]` segment — there will only ever be Google.
+// INFO: REQUIREMENTS.md § 5.1. Fixed path, no `[provider]` segment — there will only ever be Google.
 export const GOOGLE_CALLBACK_PATH = "/api/auth/callback/google";
 
 export const GOOGLE_SCOPES = ["openid", "email", "profile"];
