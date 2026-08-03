@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_SCROLL_ID } from "@/shared/config";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
@@ -7,15 +8,18 @@ import { useEffect } from "react";
 const scrollPositions = new Map<string, number>();
 
 /**
- * Restores the document scroll position per route (`REQUIREMENTS.md § 7.`).
- * The chat screen scrolls inside the virtualizer rather than the document, so it
- * restores through Virtuoso's `restoreStateFrom` instead (`REQUIREMENTS.md § 8.3.`).
+ * Restores the scroll position of the shell's scroll container per route
+ * (`REQUIREMENTS.md § 7.`). It is not the document: the document cannot scroll
+ * (DESIGN.md § 3.4.). The chat screen scrolls inside the virtualizer instead and
+ * restores through Virtuoso's `restoreStateFrom` (`REQUIREMENTS.md § 8.3.`).
  */
 export function ScrollMemory() {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!pathname) {
+    const scroller = document.getElementById(APP_SCROLL_ID);
+
+    if (!pathname || !scroller) {
       return;
     }
 
@@ -23,23 +27,23 @@ export function ScrollMemory() {
 
     // WARN: The App Router scrolls to top on navigation, so restoring has to wait a frame or it is immediately overwritten.
     const frame = requestAnimationFrame(() => {
-      window.scrollTo(0, scrollPositions.get(pathname) ?? 0);
+      scroller.scrollTop = scrollPositions.get(pathname) ?? 0;
       isRestored = true;
     });
 
     // WARN: That scroll-to-top dispatches a `scroll` event of its own, so recording before the restore would overwrite the saved position with 0.
     const remember = () => {
       if (isRestored) {
-        scrollPositions.set(pathname, window.scrollY);
+        scrollPositions.set(pathname, scroller.scrollTop);
       }
     };
 
-    window.addEventListener("scroll", remember, { passive: true });
+    scroller.addEventListener("scroll", remember, { passive: true });
 
-    // WARN: Never record on cleanup — it runs in the passive phase, after the App Router has already scrolled the document to top.
+    // WARN: Never record on cleanup — it runs in the passive phase, after the App Router has already scrolled the container to top.
     return () => {
       cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", remember);
+      scroller.removeEventListener("scroll", remember);
     };
   }, [pathname]);
 

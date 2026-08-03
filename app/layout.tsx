@@ -25,7 +25,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  // INFO: Keeps the composer pinned to the keyboard instead of letting iOS scroll the whole page.
+  // INFO: DESIGN.md § 3.4. Kept as the Chromium-side belt to `VisualViewportSync`'s braces — WebKit ignores it, so it is never the only thing holding the shell together.
   interactiveWidget: "resizes-content",
   themeColor: "#fbf9f6",
 };

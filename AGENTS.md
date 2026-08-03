@@ -73,7 +73,11 @@ Desktop users see the mobile UI but MUST get proper pointer behaviour: mouse `cl
 
 ## 4.3. App shell width
 
-All screen content, including the fixed bottom tab bar, is constrained to the app shell max width and horizontally centered. Use `Container` from `@/shared/ui`; do not hardcode `max-w-*` values in screens.
+All screen content, including the bottom tab bar, is constrained to the app shell max width and horizontally centered. Use `Container` from `@/shared/ui`; do not hardcode `max-w-*` values in screens.
+
+## 4.4. Nothing else is `fixed`
+
+The `(main)` shell is the one `fixed` element in the app, and it is sized to the visual viewport (`DESIGN.md § 3.4.`). The floating header and tab bar are positioned inside it — `sticky` for the header, an absolute `BottomOverlay` for the bars (`DESIGN.md § 3.5.`). Do not reintroduce a `fixed` bar: it would have to re-apply the shell width and would drift against the keyboard on WebKit. The document itself never scrolls; screens scroll inside `#app-scroll` (`APP_SCROLL_ID`) or inside their own container.
 
 # 5. Styling
 

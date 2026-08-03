@@ -179,15 +179,36 @@ The schema side of § 8.4. and § 8.8. has landed ahead of the stream itself: `c
 - [x] App shell max width: **`576px` (`max-w-xl`)** — narrower than a tablet's portrait width. The purpose is to stop the four-item bottom tab bar from stretching across a desktop screen
   - [x] Define it as a token (`--container-app`) so it can be tuned in one place
 - [x] `Container` sizes — `md` (default) = app max width; `sm` = `448px` (`max-w-md`); horizontal padding `px-md`
-- [x] **The bottom tab bar must also be constrained to the same max width and centered.** It is `fixed`, so this needs explicit handling — without it, the bar spans the full desktop viewport
-  - [x] `TabBar` and `InstallGuide` are `fixed` on the outer element and re-apply `max-w-(--container-app) mx-auto` on the inner one. They cannot use `Container`, whose padding belongs to page content
+- [x] **The bottom tab bar must also be constrained to the same max width and centered.**
+  - [x] It gets this for free: `TabBar` and `InstallGuide` are absolute children of the shell column (§ 4.3.), so neither re-applies the max width nor uses `Container`, whose padding belongs to page content
 - [x] The area outside the app shell uses a tone darker than `canvas` (`backdrop`) so the shell reads as a held device
-- [x] Full-height screens such as Chat use `100dvh` (never `100vh`) and honour `env(safe-area-inset-*)`
-  - [x] The `(main)` layout owns the `min-h-dvh` column; screens are `flex-1` inside it and never restate a viewport height
-  - [x] `--tab-bar-height`, `--app-header-height`, and `--install-guide-height` live in `theme.css` outside `@theme` — the layout reserves bottom padding with `calc(var(--tab-bar-height) + var(--install-guide-height) + env(safe-area-inset-bottom))`, so each value has exactly one home
-    - [x] `--install-guide-height` is `0px` at rest and is set by `InstallGuide` from its own measured height. Without it the `fixed` banner covers the last row of a scrolled-to-bottom screen (Settings' 로그아웃) in an un-installed iOS tab — the app's primary target
+- [x] Full-height screens such as Chat honour `env(safe-area-inset-*)` and never restate a viewport height
+  - [x] The `(main)` layout owns the column height (§ 4.3.); screens are `flex-1` inside it
+  - [x] `--tab-bar-height` and `--app-header-height` live in `theme.css` outside `@theme`, so each value has exactly one home
 
-### 4.3. Base Components (`src/shared/ui`)
+### 4.3. Visual Viewport and the Keyboard
+
+- [x] The header and the tab bar **float over the content** rather than sitting in flow — rounded, inset from the shell's edges, with content passing underneath (DESIGN.md § 3.5.)
+  - [x] `BottomOverlay` measures the floating bars into `--bottom-inset`; the shell's scroller takes it as bottom padding so the last row still clears them
+  - [x] The header carries no surface of its own. It is a transparent strip, and only the controls in it are visible (DESIGN.md § 7.12.)
+  - [x] Chat's header is the search button alone — the tab bar already names the screen, so the `채팅` title is gone
+  - [x] The floating surfaces are a plain imitation of the platform material: translucent `canvas`, a blur, a hairline, a shadow. No specular edge, no dynamic tint
+  - [x] That material is the single `glass` utility in `globals.css`; both bars, the install banner, and `icon-button-floating` all use it, so they cannot drift apart
+  - [x] Every floating strip is `pointer-events-none` at its own root and re-enables it only on the visible surface, so bubbles scrolling under the header and the composer stay tappable (DESIGN.md § 3.5.)
+  - [ ] Search itself is still § 8.6. — the button is UI only
+- [x] The shell is sized to the **visual viewport**, not the layout viewport — `VisualViewportSync` mirrors `visualViewport.height` / `offsetTop` onto `--viewport-height` / `--viewport-top`, and `(main)` is one `fixed` box of that height, offset by that top (DESIGN.md § 3.4.)
+  - [x] Header pinned to the top of the visual viewport, composer and tab bar to its bottom, with the keyboard open
+  - [x] Only `height` and `offsetTop` are synced. Zooming is off (`maximumScale: 1`), so the left/right offsets never leave `0`
+  - [x] `--viewport-top` is the shell's `top`. A `fixed` box is laid out against the layout viewport, so while WebKit holds a pan the shell would otherwise sit off the top of what the user can see
+- [x] The document must not scroll — `html, body` are `h-full overflow-hidden overscroll-none`. A document taller than the visual viewport is what lets WebKit pan the page to reveal the focused field, and that pan carries the header off the top of the viewport
+  - [x] Every screen scrolls inside the shell's `#app-scroll` container (`APP_SCROLL_ID`), or inside its own — chat's virtualizer, login's column
+  - [x] `ScrollMemory` and `ScrollReset` address that container, never `window`
+  - [x] `VisualViewportSync` also resets `window.scrollY` to `0`: WebKit pans before the shell has resized, and the pan would otherwise stick
+- [x] `interactiveWidget: "resizes-content"` stays in the viewport metadata, but nothing may depend on it — it is Chromium 108+ / Firefox 132+ only, and WebKit (so all of iOS) ignores it
+- [x] `env(safe-area-inset-bottom)` is not a keyboard inset — it reports the home indicator and does not change when the keyboard opens. `env(keyboard-inset-height)` does, but it needs the Chromium-only VirtualKeyboard API, which is why the height comes from script
+- [ ] Real-device pass (§ 5.4.) — the keyboard-open geometry has been reasoned through but not verified on an iPhone
+
+### 4.4. Base Components (`src/shared/ui`)
 
 Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` and refactor to the AGENTS.md §1 contract.
 
@@ -341,10 +362,10 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
   - [x] Unread badge on the Chat tab
     - [ ] It resolves once per full page load, and a PWA resume is not one (§ 8.4.). Making it live is § 8.8., which needs the SSE pipeline
   - [x] Honour `env(safe-area-inset-bottom)` (home-indicator area)
-  - [x] Even though it is `fixed`, keep the app max width and centering (§4.2)
+  - [x] Keep the app max width and centering (§ 4.2.) — in flow inside the shell column, it inherits both (§ 4.3.)
   - [x] Provide mouse hover / active styling
 - [x] Preserve scroll position across tab switches
-  - [x] `ScrollMemory` keeps the position per route in module scope, not `sessionStorage` — a tab switch is a client navigation, so the map outlives it, while a reload is meant to start at the top
+  - [x] `ScrollMemory` keeps the position of the shell's scroll container per route in module scope, not `sessionStorage` — a tab switch is a client navigation, so the map outlives it, while a reload is meant to start at the top
   - [x] It restores a frame late on purpose: the App Router scrolls to top on navigation, and an immediate restore is overwritten
   - [x] It never records the position on effect cleanup, and ignores `scroll` events until the restore has run. Both would read the App Router's scroll-to-top — the cleanup deterministically (it is passive-phase, so it runs after Next's commit-phase `scrollTo`), the listener as a race — and save `0` over the real position
   - [x] Chat is exempt — its scroll belongs to the virtualizer, which restores through `restoreStateFrom` (§ 8.3.)
@@ -388,8 +409,10 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
   - [x] While scrolled away, incoming messages show a **count** on the button (`새 메시지 3`)
   - [ ] Tapping scrolls smoothly to the bottom and marks messages read
   - [ ] The same component also returns the user to the newest messages after a search jump (§8.6.1)
-- [ ] iOS keyboard handling — track the composer position with the `visualViewport` API
-  - [x] Not needed so far: the composer is static at the end of a `100dvh` flex column and `interactiveWidget: "resizes-content"` shrinks that column with the keyboard. Build it only if the real-device pass (§ 5.4.) shows the field sliding under the keyboard
+- [x] iOS keyboard handling — the shell tracks the visual viewport (§ 4.3.), which carries the header, the composer, and the tab bar with the keyboard
+  - [x] The tab bar and the install banner are still hidden while the keyboard is up: the shell shrinks to what the keyboard leaves, and neither is worth 56px of it
+  - [x] `useIsVirtualKeyboardOpen` (`shared/lib`) detects that from the drop below the tallest viewport height seen at the current width **and** an editable `activeElement`. Height alone misreads a collapsing address bar; focus alone survives Android's back button
+- [x] Tapping send keeps the keyboard open — the button cancels `pointerdown` so the tap never blurs the field, and `submit` refocuses it inside the click gesture
 
 ### 8.2. Message Loading
 

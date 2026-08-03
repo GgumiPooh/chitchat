@@ -16,7 +16,8 @@ export function SettingsPage({ className, user }: SettingsPageProps) {
   return (
     <div className={cn("flex flex-1 flex-col", className)}>
       <AppHeader title="설정" />
-      <div className="flex flex-col items-center gap-md p-md pt-xl">
+      {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
+      <div className="flex flex-col items-center gap-md p-md pt-[calc(var(--app-header-inset)+var(--spacing-md))]">
         <Avatar name={displayName} size="profile" />
         <p className="text-title-md text-ink">{displayName}</p>
         <LogoutButton className="w-auto" />

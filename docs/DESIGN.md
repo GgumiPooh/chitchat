@@ -30,7 +30,7 @@ Constraints from `REQUIREMENTS.md` that this system must satisfy.
 
 | Term          | Definition                                                                                                       |
 | ------------- | ---------------------------------------------------------------------------------------------------------------- |
-| App shell     | The 576px-max, horizontally centered column that contains every screen including the fixed tab bar (§ 3.3.)      |
+| App shell     | The 576px-max, horizontally centered column that contains every screen and the tab bar (§ 3.3.)                  |
 | Bubble        | A single chat message container. `mine` (right-aligned) or `theirs` (left-aligned)                               |
 | Group         | Consecutive messages from one sender within the same minute, rendered with shared avatar/name and collapsed gaps |
 | Notch corner  | The single reduced-radius corner that replaces a drawn speech tail (§ 6.2.)                                      |
@@ -78,30 +78,68 @@ Consequence: the Tailwind breakpoint scale is unused for layout. Breakpoint pref
 
 Touch-first geometry, full pointer states.
 
-| Rule                                                                                              | Reason                                                                                              |
-| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Every interactive element defines `:hover`, `:active`, `:focus-visible`, and `:disabled` (§ 7.1.) | Desktop with only a rest state reads as a broken web page                                           |
-| Tailwind `hover:` is used directly — it already resolves under `@media (hover: hover)`            | No hover state sticks after a tap on iOS                                                            |
-| Minimum tap target 44×44 on every control                                                         | WCAG 2.5.5; this is a touch-primary product, so unlike a desktop-first system there is no 36px tier |
-| Visual size may be smaller than the tap target — pad the hit area, do not inflate the glyph       | A 44px-wide icon glyph looks clumsy; a 20px glyph in a 44px target does not                         |
-| `:focus-visible`, never `:focus`                                                                  | No focus ring on mouse click                                                                        |
-| Long-press actions MUST have a pointer equivalent (right-click or a hover-revealed control)       | Long-press does not exist with a mouse                                                              |
+| Rule                                                                                              | Reason                                                                                                |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Every interactive element defines `:hover`, `:active`, `:focus-visible`, and `:disabled` (§ 7.1.) | Desktop with only a rest state reads as a broken web page. One exception: the composer field (§ 6.6.) |
+| Tailwind `hover:` is used directly — it already resolves under `@media (hover: hover)`            | No hover state sticks after a tap on iOS                                                              |
+| Minimum tap target 44×44 on every control                                                         | WCAG 2.5.5; this is a touch-primary product, so unlike a desktop-first system there is no 36px tier   |
+| Visual size may be smaller than the tap target — pad the hit area, do not inflate the glyph       | A 44px-wide icon glyph looks clumsy; a 20px glyph in a 44px target does not                           |
+| `:focus-visible`, never `:focus`                                                                  | No focus ring on mouse click                                                                          |
+| Long-press actions MUST have a pointer equivalent (right-click or a hover-revealed control)       | Long-press does not exist with a mouse                                                                |
 
 ## 3.3. App Shell.
 
-| Property          | Value                                                                                                                                                             |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Max width         | `576px` — token `--container-app`                                                                                                                                 |
-| Bar heights       | `--tab-bar-height` and `--app-header-height`, both `56px`. Declared outside `@theme` because the layout reads them back through `calc()` rather than as a utility |
-| Narrow max width  | `448px` — token `--container-app-narrow`, `Container size="sm"`. Single-column entry screens (login) only                                                         |
-| Alignment         | Horizontally centered, full height                                                                                                                                |
-| Shell background  | `canvas` (or `chat-canvas` on the chat screen)                                                                                                                    |
-| Outside the shell | `backdrop` — one step deeper than `canvas`, so the shell reads as a held device on desktop                                                                        |
-| Fixed children    | The tab bar is `fixed` and MUST re-apply the same max width and centering. The composer is not — it is static inside the shell column (§ 6.6.)                    |
-| Safe areas        | `env(safe-area-inset-bottom)` on the tab bar, `env(safe-area-inset-top)` on the header                                                                            |
-| Viewport height   | `100dvh` (never `100vh` — iOS URL-bar collapse)                                                                                                                   |
+| Property          | Value                                                                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Max width         | `576px` — token `--container-app`                                                                                                                                  |
+| Bar heights       | `--tab-bar-height` and `--app-header-height`, both `56px`. Declared outside `@theme` because a screen may read them back through `calc()` rather than as a utility |
+| Narrow max width  | `448px` — token `--container-app-narrow`, `Container size="sm"`. Single-column entry screens (login) only                                                          |
+| Alignment         | Horizontally centered, full height                                                                                                                                 |
+| Shell background  | `canvas` (or `chat-canvas` on the chat screen)                                                                                                                     |
+| Outside the shell | `backdrop` — one step deeper than `canvas`, so the shell reads as a held device on desktop                                                                         |
+| Fixed children    | None. The shell itself is the one `fixed` element (§ 3.4.); the header and the bars float inside it (§ 3.5.)                                                       |
+| Safe areas        | `env(safe-area-inset-bottom)` on the tab bar, `env(safe-area-inset-top)` on the header                                                                             |
+| Viewport height   | `--viewport-height` (§ 3.4.), falling back to `100dvh` before hydration. Never `100vh`                                                                             |
 
 576px, not a tablet 768px: at 768 a 72%-width bubble spans 550px, which forces long lines and breaks the chat rhythm; the four tab-bar items also drift apart to the point of reading as a desktop nav. Screens MUST obtain this width from `Container`, never by hardcoding `max-w-*`.
+
+## 3.4. Visual Viewport.
+
+The shell is sized to the **visual viewport**, not the layout viewport. `VisualViewportSync` mirrors `visualViewport.height` and `visualViewport.offsetTop` onto the root element as `--viewport-height` and `--viewport-top`; the `(main)` layout is a single `fixed inset-0` box of that height. The header sits at its top, the composer and tab bar at its bottom, so all three stay pinned to what the user can actually see while the keyboard is up.
+
+| Rule                | Value                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Shell               | `fixed`, `top: var(--viewport-top, 0px)`, `height: var(--viewport-height, 100dvh)` — the only element the keyboard moves |
+| Document scroll     | Forbidden. `html, body` are `h-full overflow-hidden overscroll-none`                                                     |
+| Screen scroll       | Every screen scrolls inside the shell's `#app-scroll` container, or inside its own (chat's virtualizer, login's column)  |
+| `interactiveWidget` | `resizes-content`, kept as a Chromium-side fallback only. WebKit ignores it, so nothing may depend on it                 |
+| Synced offsets      | `height` and `offsetTop` only. Zooming is off (`maximumScale: 1`), so the left/right offsets never leave `0`             |
+
+Why the document must not scroll: a document taller than the visual viewport is exactly what lets WebKit pan the page to reveal the focused field, and that pan carries the header off the top of the visual viewport. Sizing the shell to the visual viewport leaves nothing to pan.
+
+Why not `interactive-widget=resizes-content` alone: it is Chromium 108+ and Firefox 132+ only. WebKit does not implement it, so on iOS — the platform this app is installed on — it is inert. It stays in the viewport metadata because it costs nothing and keeps Chromium correct even if the script never runs.
+
+`env(safe-area-inset-bottom)` is **not** a keyboard inset. It reports the home indicator and does not change when the keyboard opens. The Chromium-only `env(keyboard-inset-height)` does, but it requires the VirtualKeyboard API and does not exist in WebKit, which is why the height comes from script.
+
+## 3.5. Floating Bars.
+
+The header and the tab bar do not sit in the column's flow — they float over it, and content passes underneath.
+
+| Rule        | Value                                                                                                                         |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Tab bar     | A pill inset from the shell's bottom edge by `--bar-float-gap` (12) plus `env(safe-area-inset-bottom)`, and by `md` each side |
+| Header      | A transparent strip pinned to the top of the shell. It has no surface — only the controls inside it are visible (§ 7.12.)     |
+| Surface     | The `glass` utility (`canvas/75` + `backdrop-blur-lg`), 1px `hairline`, `shadow-floating`. Never spelled out at a call site   |
+| Clearance   | `BottomOverlay` measures the bars into `--bottom-inset`, which the shell's scroller takes as bottom padding                   |
+| Hit testing | The overlay is `pointer-events-none`; each visible surface re-enables it, so content underneath stays tappable                |
+
+The clearance is measured rather than summed from `--tab-bar-height`: the bars come and go with the keyboard, and the install banner's copy wraps to two lines on a narrow viewport, so no constant is right. It is `0px` while nothing is up, so the scroller's padding needs no branch.
+
+The clearance is the scroller's own padding, so a screen whose background is not `canvas` — chat's `chat-canvas` — MUST extend it under the bars with `pb-(--bottom-inset)` and a matching negative bottom margin. A child's background stops at its parent's content box, so without it the strip behind the bars falls back to the shell's `canvas` and the blur has nothing to blur.
+
+Padding, not a hard stop: mid-scroll the content genuinely passes under the bars — that is the effect — and the padding only guarantees that the _last_ row can still be scrolled clear of them.
+
+The surface is a translucent `canvas` over a blur, not a solid fill. This is an imitation of the platform's floating material, deliberately a plain one: no specular edge, no dynamic tint, no refraction. It is defined once as the `glass` utility in `globals.css` — every floating surface (both bars, the install banner, `icon-button-floating`) uses it, so they cannot drift apart.
 
 # 4. Tokens.
 
@@ -258,15 +296,15 @@ There is no `section=64` tier: this is a mobile app with no marketing sections. 
 
 ## 4.4. Radius.
 
-| Token    | px   | Use                                          |
-| -------- | ---- | -------------------------------------------- |
-| `xs`     | 4    | Badge, notch corner (§ 6.2.)                 |
-| `sm`     | 8    | Small controls, gallery thumbnails           |
-| `md`     | 12   | Buttons, inputs, image messages, cards       |
-| `lg`     | 16   | Modals, containers                           |
-| `xl`     | 20   | Bottom sheet                                 |
-| `bubble` | 18   | Chat bubbles only                            |
-| `full`   | 9999 | Avatars, pills, composer field, icon buttons |
+| Token    | px   | Use                                    |
+| -------- | ---- | -------------------------------------- |
+| `xs`     | 4    | Badge, notch corner (§ 6.2.)           |
+| `sm`     | 8    | Small controls, gallery thumbnails     |
+| `md`     | 12   | Buttons, inputs, image messages, cards |
+| `lg`     | 16   | Modals, containers                     |
+| `xl`     | 20   | Bottom sheet                           |
+| `bubble` | 18   | Chat bubbles only                      |
+| `full`   | 9999 | Avatars, pills, icon buttons           |
 
 `bubble` is its own token, not `lg`: 18px against a 15px/1.45 text block is the ratio that reads as a bubble rather than a card, and it must not drift when container radius is retuned.
 
@@ -389,16 +427,20 @@ Centered `chat-pill` pill, `caption` in `chat-pill-ink`, padding `4px 12px`, `ro
 
 ## 6.6. Composer.
 
-| Property       | Value                                                                                                              |
-| -------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Container      | `canvas` fill, 1px `hairline` top border, **static** at the end of the screen's `dvh` column — above the tab bar   |
-| Padding        | `xs` (8px). The tab bar below it already owns `env(safe-area-inset-bottom)`                                        |
-| Field          | `surface-soft` fill, `rounded-full`, padding `8px 14px`, `body-md`, auto-grow to 5 lines then scroll internally    |
-| Field focus    | `ring-2 ring-primary ring-inset`, fill escalates to `canvas`                                                       |
-| Left control   | `+` (attach) — 20px glyph in a 44×44 target                                                                        |
-| Right controls | Emoticon toggle (20px / 44×44). Send button replaces it only when the field is non-empty                           |
-| Send button    | `primary` fill, `on-primary` glyph, 36×36 visual in a 44×44 target, `rounded-full`                                 |
-| Keyboard       | `interactiveWidget: "resizes-content"` shrinks the `dvh` column, which carries the composer up. Never `100vh` math |
+| Property       | Value                                                                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Container      | The tab bar's pill (§ 7.3.): `glass`, 1px `hairline`, `shadow-floating`, radius `--tab-bar-height / 2`, `2xs` inner padding. Anchored to `--bottom-inset`, so it floats directly above the bar stack (§ 3.5.) |
+| Padding        | `md` each side, `xs` below, matching the tab bar's inset. The tab bar below it already owns `env(safe-area-inset-bottom)`                                                                                     |
+| Row            | One row, bottom-aligned: attach, field, right control. The field grows upward and the controls stay level with its last line                                                                                  |
+| Field          | No shape of its own — the pill is the surface. No fill, no border, square (radius 0), padding `8px 4px`, `body-md`, placeholder `메시지 입력`, auto-grow to 5 lines then scroll internally                    |
+| Field focus    | No ring. The caret is the focus signal — the one § 3.2. exception, see below                                                                                                                                  |
+| Left control   | `+` (attach) — 20px glyph in a 44×44 target                                                                                                                                                                   |
+| Right controls | Emoticon toggle (20px / 44×44). Send button replaces it only when the field is non-empty                                                                                                                      |
+| Send button    | `primary` fill, `on-primary` glyph, 36×36 visual in a 44×44 target, `rounded-full`                                                                                                                            |
+| Keyboard       | The shell is sized to the visual viewport (§ 3.4.), which carries the composer up. Never `100vh` math                                                                                                         |
+| Sending        | The send button cancels `pointerdown` and refocuses the field, so sending never closes the keyboard                                                                                                           |
+
+The field is drawn as nothing at all — no fill, no border, no radius, no focus ring — because the pill already _is_ the field: it is the composer's only surface, it is the full width of the tap area, and a second rounded shape nested inside it reads as a box drawn inside a box. This is the single exception to § 3.2.'s `:focus-visible` rule, and it is allowed only here: a focused text field renders a blinking caret, which is a stronger and more conventional focus signal than a ring, and the field is the composer's default focus target anyway. No other control may drop its focus ring on this argument.
 
 The composer is static rather than `fixed` because the virtualized list above it (§ 6.1.) has to be a bounded flex child, and a `fixed` composer would leave that box unbounded. Being inside the shell column, it also inherits the max width and centering instead of re-applying them.
 
@@ -436,29 +478,33 @@ Components are compositions of Tailwind utilities. No component stylesheets, no 
 
 ## 7.1. Buttons.
 
-| Variant              | Rest fill        | Text                | Radius | Padding | Visual height | Border                |
-| -------------------- | ---------------- | ------------------- | ------ | ------- | ------------- | --------------------- |
-| `button-primary`     | `primary`        | `on-primary`        | `md`   | 12×16   | 48            | none                  |
-| `button-secondary`   | `canvas`         | `ink`               | `md`   | 12×16   | 48            | 1px `hairline-strong` |
-| `button-ghost`       | transparent      | `ink`               | `md`   | 12×16   | 48            | none                  |
-| `button-destructive` | `semantic-error` | `on-semantic-error` | `md`   | 12×16   | 48            | none                  |
-| `chip`               | `surface-soft`   | `body`              | `full` | 8×14    | 36            | none                  |
-| `chip-selected`      | `primary-tint`   | `primary`           | `full` | 8×14    | 36            | none                  |
-| `icon-button`        | transparent      | `meta`              | `full` | —       | 44×44 target  | none                  |
+| Variant                | Rest fill        | Text                | Radius | Padding | Visual height | Border                |
+| ---------------------- | ---------------- | ------------------- | ------ | ------- | ------------- | --------------------- |
+| `button-primary`       | `primary`        | `on-primary`        | `md`   | 12×16   | 48            | none                  |
+| `button-secondary`     | `canvas`         | `ink`               | `md`   | 12×16   | 48            | 1px `hairline-strong` |
+| `button-ghost`         | transparent      | `ink`               | `md`   | 12×16   | 48            | none                  |
+| `button-destructive`   | `semantic-error` | `on-semantic-error` | `md`   | 12×16   | 48            | none                  |
+| `chip`                 | `surface-soft`   | `body`              | `full` | 8×14    | 36            | none                  |
+| `chip-selected`        | `primary-tint`   | `primary`           | `full` | 8×14    | 36            | none                  |
+| `icon-button`          | transparent      | `meta`              | `full` | —       | 44×44 target  | none                  |
+| `icon-button-floating` | `glass` (§ 3.5.) | `ink`               | `full` | —       | 44×44 target  | 1px `hairline`        |
 
 State matrix. `:focus-visible` is `ring-2 ring-primary ring-offset-2 ring-offset-canvas` for every variant unless noted.
 
-| Variant              | `:hover`                                             | `:active`                   | `:disabled`                                 |
-| -------------------- | ---------------------------------------------------- | --------------------------- | ------------------------------------------- |
-| `button-primary`     | `bg-primary-hover`                                   | `bg-primary-pressed`        | `bg-primary-disabled`, `cursor-not-allowed` |
-| `button-secondary`   | `bg-surface-soft`                                    | `bg-surface-strong`         | `opacity-50`, `cursor-not-allowed`          |
-| `button-ghost`       | `bg-surface-soft`                                    | `bg-surface-strong`         | `opacity-50`, `cursor-not-allowed`          |
-| `button-destructive` | `bg-semantic-error-hover`                            | `bg-semantic-error-pressed` | `opacity-50`, `cursor-not-allowed`          |
-| `chip`               | `bg-surface-strong`                                  | `bg-surface-pressed`        | `opacity-50`, `cursor-not-allowed`          |
-| `chip-selected`      | unchanged — selection is a state, not a hover target | `bg-primary-tint/80`        | n/a                                         |
-| `icon-button`        | `bg-surface-soft`, `text-ink`                        | `bg-surface-strong`         | `opacity-40`, `cursor-not-allowed`          |
+| Variant                | `:hover`                                             | `:active`                   | `:disabled`                                 |
+| ---------------------- | ---------------------------------------------------- | --------------------------- | ------------------------------------------- |
+| `button-primary`       | `bg-primary-hover`                                   | `bg-primary-pressed`        | `bg-primary-disabled`, `cursor-not-allowed` |
+| `button-secondary`     | `bg-surface-soft`                                    | `bg-surface-strong`         | `opacity-50`, `cursor-not-allowed`          |
+| `button-ghost`         | `bg-surface-soft`                                    | `bg-surface-strong`         | `opacity-50`, `cursor-not-allowed`          |
+| `button-destructive`   | `bg-semantic-error-hover`                            | `bg-semantic-error-pressed` | `opacity-50`, `cursor-not-allowed`          |
+| `chip`                 | `bg-surface-strong`                                  | `bg-surface-pressed`        | `opacity-50`, `cursor-not-allowed`          |
+| `chip-selected`        | unchanged — selection is a state, not a hover target | `bg-primary-tint/80`        | n/a                                         |
+| `icon-button`          | `bg-surface-soft`, `text-ink`                        | `bg-surface-strong`         | `opacity-40`, `cursor-not-allowed`          |
+| `icon-button-floating` | `bg-canvas` (opacity closes)                         | `bg-surface-soft`           | `opacity-40`, `cursor-not-allowed`          |
 
 `icon-button` uses `ring-2 ring-primary` with no offset — the circle bounding box is the visual edge.
+
+`icon-button-floating` is the only variant that sits over scrolling content (§ 3.5.), so it is the only one carrying a surface, a hairline, and `shadow-floating`. It is a translucent `canvas` with a blur behind it rather than a solid fill: solid reads as a detached chip, and the blur is what makes it read as floating above the content instead of punched out of it. This is a suggestion of the platform's material, not a reproduction of it — no specular edge, no dynamic tint.
 
 48px button height (not 44) because the shell is narrow and buttons are full-width: at 44 they read cramped against 16px gutters.
 
@@ -479,20 +525,24 @@ Error state is triggered by `aria-invalid="true"`, never by a class alone.
 
 | Property  | Value                                                                                                       |
 | --------- | ----------------------------------------------------------------------------------------------------------- |
-| Container | `fixed` bottom, shell-width and centered (§ 3.3.), `canvas` fill, 1px `hairline` top border                 |
-| Height    | 56 + `env(safe-area-inset-bottom)`                                                                          |
+| Container | A floating pill over the content (§ 3.5.), `glass`, 1px `hairline`, `rounded-full`                          |
+| Height    | `--tab-bar-height` (56) for the pill, plus `2xs` inner padding around the items                             |
 | Item      | 4 equal columns, each a full-height 44+ tap target, vertical icon-over-label                                |
 | Icon      | 20px, `1.75` stroke                                                                                         |
 | Label     | `tab-label`, 2px below the icon                                                                             |
 | Rest      | icon and label `meta`                                                                                       |
-| Active    | icon and label `primary`; icon switches to the filled lucide variant where one exists                       |
-| `:hover`  | icon and label `ink` (inactive items only)                                                                  |
+| Active    | icon and label `primary` on a `primary-tint` `rounded-full` fill spanning the item                          |
+| `:hover`  | icon and label `ink` on a `surface-soft` fill (inactive items only)                                         |
 | `:active` | `scale-[0.96]` on the icon-label stack                                                                      |
 | Badge     | `unread` fill, `on-primary` `micro`, min 18×18, `rounded-full`, anchored to the icon's top-right; `99+` cap |
 
-No active-indicator bar, pill, or background fill behind the active item — colour alone carries state, matching the restraint of the rest of the system.
+The bar is hidden while the on-screen keyboard is up: the shell shrinks to the visual viewport (§ 3.4.), so a bar left in flow would sit between the composer and the keys and eat 56px of an already short column. The install banner (§ 7.13.) goes with it, for the same reason.
 
-The "filled lucide variant" above is conditional and currently never applies: lucide ships no filled counterpart for `MessageCircle`, `CalendarDays`, `Images`, or `Settings`, and faking one with `fill-current` turns the outlined glyphs into solid blobs. If a filled set is ever adopted it MUST cover all four — a single filled tab reads as a rendering bug.
+The bar floats inside the shell (§ 3.5.), so it is neither `fixed` nor width-re-applying: the shell is already a `fixed` box of the visual viewport's height, and the bar is an absolute child of its column.
+
+The active item is the one filled surface in the system's navigation: on a pill this narrow there is no room for an indicator bar underneath, and colour alone is too weak a signal against a translucent, blurred backdrop that changes with whatever scrolls behind it.
+
+The glyphs stay outlined in both states: lucide ships no filled counterpart for `MessageCircle`, `CalendarDays`, `Images`, or `Settings`, and faking one with `fill-current` turns them into solid blobs. If a filled set is ever adopted it MUST cover all four — a single filled tab reads as a rendering bug.
 
 Labels: `채팅` / `캘린더` / `갤러리` / `설정`.
 
@@ -570,31 +620,37 @@ Full-width, min-height 56, `canvas` fill, 1px `hairline-soft` bottom border, pad
 
 Every screen renders its own header rather than inheriting one from the layout, because the trailing slot is screen-specific (chat search, month navigation).
 
-| Property  | Value                                                                                                |
-| --------- | ---------------------------------------------------------------------------------------------------- |
-| Container | `sticky` top, `canvas` fill, 1px `hairline` bottom border, `env(safe-area-inset-top)` as top padding |
-| Height    | `--app-header-height` (56), below the safe-area padding                                              |
-| Title     | `title-md` `ink`, left-aligned on the 16px screen gutter (§ 4.3.), truncates on overflow             |
-| Padding   | `2xs` (4) on the row, `sm` (12) on the title                                                         |
-| Slots     | Leading and trailing, rendered only when present — an empty slot MUST NOT reserve width              |
-| Elevation | Hairline only — no shadow, even once content scrolls under it (§ 4.5.)                               |
+| Property    | Value                                                                                                               |
+| ----------- | ------------------------------------------------------------------------------------------------------------------- |
+| Container   | Transparent — **no fill, no border, no shadow**. `sticky` top with `env(safe-area-inset-top)` as top padding        |
+| Height      | `--app-header-height` (56), below the safe-area padding. `--app-header-inset` is the two together                   |
+| Flow        | Cancels its own height with a negative bottom margin, so content starts at the top of the shell and passes under it |
+| Title       | Optional. `title-md` `ink`, left-aligned on the 16px screen gutter (§ 4.3.), truncates on overflow                  |
+| Padding     | `sm` (12) on the row, `2xs` (4) on the title                                                                        |
+| Slots       | Leading and trailing, rendered only when present — an empty slot MUST NOT reserve width                             |
+| Controls    | `icon-button-floating` (§ 7.1.) — the header itself is invisible, so each control carries its own surface           |
+| Hit testing | The strip is `pointer-events-none`; its children re-enable it, so content underneath stays tappable                 |
 
-`sticky`, not `fixed`: the header sits inside the shell column, so it inherits the width and centering instead of re-applying them the way the tab bar has to (§ 3.3.).
+`sticky`, not `fixed`: the header sits inside the shell's scroller, so it stays pinned to the top of the visual viewport without a positioning context of its own (§ 3.4.).
 
-The padding split exists because an `icon-button` already pads its 20px glyph by 12 inside a 44 target (§ 7.1.): `2xs` on the row puts that glyph on the 16px gutter, and `sm` on the title puts a bare title there too. Reserving a fixed 44 for an absent leading slot instead — to stop the title shifting between screens — pushes the title to 52 and is the wrong trade: no screen in this app has a back button, so the shift never happens, while the misalignment shows on every screen.
+The header has no surface because it is not a region — it is a place to put controls. A filled bar would draw a line across the top of a screen whose content is meant to run to the edge, and would need a scroll-aware fill to look right once content passes beneath it. Transparent needs neither.
+
+A screen whose content starts at the top offsets it by `--app-header-inset` itself. Chat does not: its messages are meant to run under the controls.
+
+The padding split follows from an `icon-button` already padding its 20px glyph by 12 inside a 44 target (§ 7.1.): `sm` on the row puts a bare title on the 16px gutter, and the button's own padding puts its glyph there too.
 
 ## 7.13. Install Banner.
 
 iOS "add to home screen" guidance (`REQUIREMENTS.md § 7.`). Shown only in an iOS browser tab, dismissible, and never shown again once dismissed or once the app is installed.
 
-| Property  | Value                                                                                             |
-| --------- | ------------------------------------------------------------------------------------------------- |
-| Position  | `fixed`, directly above the tab bar, shell-width and centered (§ 3.3.), `xs` bottom gap           |
-| Container | `surface-soft` fill, 1px `hairline`, `rounded-md`, `shadow-raised`                                |
-| Content   | 18px `meta` share glyph, `body-sm` `body` copy, trailing `icon-button` dismiss                    |
-| Clearance | Measures its own height into `--install-guide-height`, which the shell adds to its bottom padding |
+| Property  | Value                                                                                                          |
+| --------- | -------------------------------------------------------------------------------------------------------------- |
+| Position  | Inside `BottomOverlay`, directly above the floating tab bar (§ 3.5.), `md` side gutters and an `xs` bottom gap |
+| Container | The floating surface of § 3.5. — `glass`, 1px `hairline`, `rounded-lg`, `shadow-floating`                      |
+| Content   | 18px `meta` share glyph, `body-sm` `body` copy, trailing `icon-button` dismiss                                 |
+| Clearance | Measured into `--bottom-inset` with the tab bar, so its two-line wrap widens the scroller's padding by itself  |
 
-The clearance is measured rather than a constant: the banner is `fixed`, so it takes no flow space and would otherwise sit on top of the last row of a scrolled-to-bottom screen, and its Korean copy wraps to two lines on a narrow viewport, so no single number is right. The token is `0px` at rest, so the shell's `calc()` needs no branch for the far more common installed case.
+It is hidden while the keyboard is up, like the tab bar (§ 7.3.).
 
 It is a banner rather than a `BottomSheet`: the guidance is optional and repeatable, and a modal interruption on arrival is the wrong weight for it.
 
@@ -604,7 +660,7 @@ It is a banner rather than a `BottomSheet`: the guidance is optional and repeata
 
 - Reference colours only through Tailwind token utilities (`bg-canvas`, `text-ink`) or `var(--color-*)`.
 - Start every interactive component's resting fill at `canvas` or `surface-soft` (§ 4.1.6.).
-- Define all four states (`:hover`, `:active`, `:disabled`, `:focus-visible`) on every interactive variant (§ 3.2.).
+- Define all four states (`:hover`, `:active`, `:disabled`, `:focus-visible`) on every interactive variant (§ 3.2.) — the composer field is the only element exempt from the focus ring (§ 6.6.).
 - Give every control a ≥44×44 tap target; pad the hit area rather than enlarging the glyph (§ 3.2.).
 - Use `Container` for width; obtain the shell width from `--container-app` (§ 3.3.).
 - Use 1px `hairline` as the default elevation; reserve shadows for floating surfaces (§ 4.5.).

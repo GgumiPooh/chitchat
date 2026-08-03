@@ -3,6 +3,7 @@ export { ActionSheet, type ActionSheetItem, type ActionSheetProps } from "./acti
 export { AppHeader, type AppHeaderProps } from "./app-header";
 export { Avatar, type AvatarProps } from "./avatar";
 export { Badge, type BadgeProps } from "./badge";
+export { BottomOverlay, type BottomOverlayProps } from "./bottom-overlay";
 export { BottomSheet, type BottomSheetProps } from "./bottom-sheet";
 export { Button, type ButtonProps } from "./button";
 export { Chip, type ChipProps } from "./chip";
@@ -18,3 +19,4 @@ export { ScrollableRow, type ScrollableRowProps } from "./scrollable-row";
 export { Skeleton, type SkeletonProps } from "./skeleton";
 export { Toaster, toast, type ToasterProps } from "./sonner";
 export { Textarea, type TextareaProps } from "./textarea";
+export { VisualViewportSync } from "./visual-viewport-sync";

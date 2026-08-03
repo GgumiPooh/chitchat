@@ -1,7 +1,7 @@
 "use client";
 
 import { CHAT_ROUTE } from "@/shared/config";
-import { cn } from "@/shared/lib";
+import { cn, useIsVirtualKeyboardOpen } from "@/shared/lib";
 import { Badge } from "@/shared/ui";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -12,18 +12,24 @@ export type TabBarProps = {
   unreadCount?: number;
 };
 
-// INFO: DESIGN.md § 7.3. Colour alone carries the active state — lucide ships no filled variant for these four glyphs.
+// INFO: DESIGN.md § 7.3. The glyphs stay outlined in both states — lucide ships no filled variant for these four.
 export function TabBar({ className, unreadCount = 0 }: TabBarProps) {
   const pathname = usePathname();
+  // INFO: DESIGN.md § 7.3. The shell shrinks to the visual viewport, so a bar left up would eat what little the keyboard leaves.
+  const isKeyboardOpen = useIsVirtualKeyboardOpen();
+
+  if (isKeyboardOpen) {
+    return null;
+  }
 
   return (
     <nav
-      // WARN: `fixed` escapes the shell column, so DESIGN.md § 3.3. requires the inner element to re-apply the max width and centering.
-      className={cn("fixed inset-x-0 bottom-0 z-40", className)}
+      // INFO: DESIGN.md § 7.3. A floating pill, inset from the shell's bottom edge by `--bar-float-gap` on top of the home-indicator area.
+      className={cn("px-md pb-[calc(env(safe-area-inset-bottom)+var(--bar-float-gap))]", className)}
       aria-label="주요 화면"
     >
-      <div className="mx-auto w-full max-w-(--container-app) border-t border-hairline bg-canvas pb-[env(safe-area-inset-bottom)]">
-        <ul className="flex h-(--tab-bar-height) items-stretch">
+      <div className="pointer-events-auto flex h-(--tab-bar-height) items-stretch rounded-full border border-hairline glass p-2xs shadow-floating">
+        <ul className="flex flex-1 items-stretch">
           {TABS.map(({ href, label, Icon }) => {
             const isActive = pathname === href || (pathname?.startsWith(`${href}/`) ?? false);
             const stateClassName = isActive ? "text-primary" : "text-meta group-hover:text-ink";
@@ -31,7 +37,11 @@ export function TabBar({ className, unreadCount = 0 }: TabBarProps) {
             return (
               <li key={href} className="flex-1">
                 <Link
-                  className="group flex size-full min-h-11 flex-col items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                  // INFO: DESIGN.md § 7.3. The active tab is the one place a filled surface appears, since the pill has no room for an indicator bar.
+                  className={cn(
+                    "group flex size-full min-h-11 flex-col items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+                    isActive ? "bg-primary-tint" : "hover:bg-surface-soft",
+                  )}
                   href={href}
                   aria-current={isActive ? "page" : undefined}
                 >

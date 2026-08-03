@@ -4,26 +4,35 @@ import type { ReactNode } from "react";
 export type AppHeaderProps = {
   className?: string;
   titleClassName?: string;
-  title: string;
+  title?: string;
   leading?: ReactNode;
   trailing?: ReactNode;
 };
 
-// INFO: DESIGN.md § 7.12. Sticky rather than fixed, so it participates in the shell column and needs no width re-application.
+/**
+ * The floating top strip (DESIGN.md § 7.12.). It has no surface of its own: it
+ * is a transparent row pinned to the top of the visual viewport, and only the
+ * controls inside it are visible. Content scrolls underneath.
+ */
 export function AppHeader({ className, titleClassName, title, leading, trailing }: AppHeaderProps) {
   return (
     <header
+      // INFO: DESIGN.md § 7.12. The negative margin cancels its own height, so it takes no room in the column and the screen below starts at the top of the shell.
+      // WARN: `pointer-events-none` belongs on the root, not the row inside it — on the row the header's own box still swallows every tap on the content passing beneath it. Each control re-enables it for itself.
       className={cn(
-        "sticky top-0 z-30 border-b border-hairline bg-canvas pt-[env(safe-area-inset-top)]",
+        "pointer-events-none sticky top-0 z-30 -mb-(--app-header-inset) pt-[env(safe-area-inset-top)]",
         className,
       )}
     >
-      {/* INFO: DESIGN.md § 7.12. `2xs` on the row plus `sm` on the title puts both the title and an icon button's glyph on the 16px screen gutter. */}
-      <div className="flex h-(--app-header-height) items-center px-2xs">
+      <div className="flex h-(--app-header-height) items-center gap-2xs px-sm [&>*]:pointer-events-auto">
         {leading}
-        <h1 className={cn("flex-1 truncate px-sm text-title-md text-ink", titleClassName)}>
-          {title}
-        </h1>
+        {title ? (
+          <h1 className={cn("flex-1 truncate px-2xs text-title-md text-ink", titleClassName)}>
+            {title}
+          </h1>
+        ) : (
+          <div className="flex-1" />
+        )}
         {trailing}
       </div>
     </header>

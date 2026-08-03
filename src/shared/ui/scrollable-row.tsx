@@ -1,6 +1,6 @@
 "use client";
 
-import { cn, useIsCoarsePointer, type Nullable, type Optional } from "@/shared/lib";
+import { buildFadeMask, cn, useIsCoarsePointer, type Nullable } from "@/shared/lib";
 import { isEqual } from "lodash-es";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState, type PropsWithChildren } from "react";
@@ -17,8 +17,6 @@ export type ScrollableRowProps = PropsWithChildren<{
   scrollStep?: "item" | "viewport";
   fade?: boolean;
 }>;
-
-const FADE_WIDTH = "2rem";
 
 export function ScrollableRow({
   className,
@@ -73,7 +71,17 @@ export function ScrollableRow({
       <div
         ref={scrollerRef}
         className={cn("scrollbar-hidden overflow-x-auto", scrollerClassName)}
-        style={fade ? { maskImage: buildFadeMask(canScrollPrev, canScrollNext) } : undefined}
+        style={
+          fade
+            ? {
+                maskImage: buildFadeMask({
+                  direction: "to right",
+                  fadeStart: canScrollPrev,
+                  fadeEnd: canScrollNext,
+                }),
+              }
+            : undefined
+        }
       >
         {children}
       </div>
@@ -110,18 +118,6 @@ export function ScrollableRow({
       });
     };
   }
-}
-
-// INFO: DESIGN.md § 8.1. waiver — `black` here is mask luminance, not a design colour.
-function buildFadeMask(fadePrev: boolean, fadeNext: boolean): Optional<string> {
-  if (!fadePrev && !fadeNext) {
-    return undefined;
-  }
-
-  const start = fadePrev ? `transparent 0, black ${FADE_WIDTH}` : "black 0";
-  const end = fadeNext ? `black calc(100% - ${FADE_WIDTH}), transparent 100%` : "black 100%";
-
-  return `linear-gradient(to right, ${start}, ${end})`;
 }
 
 function findItemPitch(scroller: HTMLDivElement): Nullable<number> {

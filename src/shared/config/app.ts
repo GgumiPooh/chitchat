@@ -10,6 +10,20 @@ export const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
  */
 export const CONVERSATION_ID = "00000000-0000-4000-8000-000000000001";
 
+/**
+ * The `(main)` layout's scroll container. The document itself cannot scroll
+ * (DESIGN.md § 3.4.), so anything that reads or restores a scroll position has
+ * to address this element instead of `window`.
+ */
+export const APP_SCROLL_ID = "app-scroll";
+
+/**
+ * The `(main)` layout's floating-bar stack (DESIGN.md § 3.5.). A screen that
+ * anchors a bar of its own to `--bottom-inset` observes this element, because
+ * the stack resizing moves that bar without ever resizing it.
+ */
+export const BOTTOM_OVERLAY_ID = "bottom-overlay";
+
 /** The four tab routes, in tab-bar order. REQUIREMENTS.md § 7. */
 export const CHAT_ROUTE = "/chat";
 

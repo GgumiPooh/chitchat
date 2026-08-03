@@ -5,6 +5,12 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
+  /* WARN: DESIGN.md § 3.4. The document must not scroll — a scrollable document is what lets WebKit pan the page to reveal the focused field, which carries the header out of the visual viewport. Screens scroll inside the shell instead. */
+  html,
+  body {
+    @apply h-full overflow-hidden overscroll-none;
+  }
+
   body {
     @apply bg-backdrop font-sans text-ink antialiased;
     /* INFO: Korean wraps mid-word by default; keep-all breaks at spaces only (DESIGN.md § 4.2.3.). */
@@ -15,6 +21,12 @@
   [role="button"]:not(:disabled):hover {
     @apply cursor-pointer;
   }
+}
+
+/* INFO: DESIGN.md § 3.5. One definition for every surface that floats over scrolling content, so the bars and the floating icon buttons cannot drift apart. */
+/* WARN: Composed from Tailwind's own backdrop utilities, never from a raw `backdrop-filter` declaration — a hand-written one is dropped from the build and the surface silently ships as a thin tint with no blur at all. */
+@utility glass {
+  @apply bg-canvas/75 backdrop-blur-lg;
 }
 
 @utility scrollbar-hidden {
