@@ -22,7 +22,7 @@ Precedence on conflict: visual specs → `DESIGN.md`; code-authoring rules → `
 
 Sections marked **✅** are **implemented**; they are kept only as the invariants new code must not break, not as work to do. Sections with `[ ]` checkboxes are **the work that remains** and are the authoritative spec for it. Tick a checkbox in the same change that lands it (`AGENTS.md § 0.3.`).
 
-**Current state** — steps 1–4 of § 17. are done. Step 5 (chat) is partly done: text and system bubbles, cursor pagination, virtualization, optimistic send, copy/delete. Open in chat: SSE (§ 8.4.), search and jump (§ 8.6.), read receipts (§ 8.8.), image and emoticon bubbles (steps 6 and 8). Calendar and Gallery render an empty state until their own step. The § 8.4./§ 8.8. **schema** has landed (`last_read_at` on `users`, `user_changed` trigger); what remains there is application code — `GET /api/chat/stream`, `GET /api/users`, `POST /api/chat/read`, and the client resume path.
+**Current state** — steps 1–4 of § 17. are done. Step 5 (chat) is partly done: text and system bubbles, cursor pagination, virtualization, optimistic send, copy/delete, and **live delivery over SSE (§ 8.4.)** — `GET /api/chat/stream`, `GET /api/users`, the client subscription, the background-close, and the resume catch-up all landed together with § 8.7.'s render-time name resolution. Open in chat: read receipts (§ 8.8. — `POST /api/chat/read` and the `1` marker), search and jump (§ 8.6.), image and emoticon bubbles (steps 6 and 8). Calendar and Gallery render an empty state until their own step.
 
 ---
 
@@ -226,49 +226,52 @@ Remaining:
 Landed: cursor-based infinite scroll, `GET /api/messages?before={id}&limit=30` (`WHERE id < :before ORDER BY id DESC`), plus the `after={id}` and `around={id}` endpoints, whose callers are § 8.4. and § 8.6.1.
 
 - **No OFFSET pagination, ever** — incoming messages shift page boundaries, producing duplicates and gaps
-- [ ] Track `newestKnownId` alongside the live `oldestLoadedId` — it is the gap-recovery cursor and has no consumer until § 8.4. exists
+- [x] `newestKnownId` is tracked alongside the live `oldestLoadedId` and only ever moves forward, so a delete cannot walk it back and make § 8.4.'s catch-up refetch what was already seen
 
 ### 8.3. Virtual Scrolling (Windowing)
 
 Offscreen message nodes **must not stay in the DOM**. After a few years of history, thousands of infinite-scrolled nodes will destroy scroll performance in iOS Safari. `react-virtuoso` is in place: `startReached` for upward loading, `firstItemIndex` decrement for jump-free prepends, `followOutput="smooth"` for bottom-stickiness, `atBottomStateChange` for the scroll-to-bottom button, `scrollToIndex({ align: "center" })` for search jumps, automatic variable-height measurement, and tuned overscan.
 
 - **Do not use `flex-direction: column-reverse`** — the virtualizer owns scroll anchoring and the two cannot coexist
-- **Two traps, both of which render an empty list with no error**: `initialTopMostItemIndex` MUST be a constant (a live `rows.length - 1` re-runs initial positioning on every prepend — capture it once with `useState(() => …)`); and the scroller is `height: 100%` inline, so its parent needs a **definite** height — a `flex-1` column is not one, the list must sit in an `absolute inset-0` box inside it
+- **Two traps, both of which render an empty list with no error**: `initialTopMostItemIndex` MUST be a constant (a live `rows.length - 1` re-runs initial positioning on every prepend); and the scroller is `height: 100%` inline, so its parent needs a **definite** height — a `flex-1` column is not one, the list must sit in an `absolute inset-0` box inside it
+- That constant is latched at the first render that **has rows**, not the first render. An empty room renders the § 6. empty state and mounts no list at all, so a value fixed with `useState(() => rows.length - 1)` is `0` — and when § 8.4.'s catch-up later fills the room, the list mounts at the _oldest_ arriving message with the newest below the fold
 - [ ] **Reserve the box for image messages before the asset loads** — render an aspect-ratio box from `media.width` / `height` first. Without it every image load triggers a re-measure cascade and the scroll jolts
 - [ ] Date dividers are list items (done), but the **sticky top indicator is a separate overlay** computed from the visible range — not built yet
 - [ ] Restore scroll position when returning to the tab (`restoreStateFrom`)
 - [ ] The browser's native `Ctrl+F` cannot find offscreen messages — in-app search (§ 8.6.) is the deliberate replacement
 
-### 8.4. Realtime (SSE)
+### 8.4. Realtime (SSE) ✅
 
-- [ ] `GET /api/chat/stream` — `text/event-stream`
-  - [ ] Acquire a connection from the **direct (unpooled)** connection string and hold it while issuing `LISTEN new_message` **and `LISTEN user_changed`**; never release it to the pool before the stream ends. A transaction-mode pooler hands the connection to another client between transactions, silently dropping the `LISTEN`
-  - [ ] **One endpoint, one `EventSource`, two channels.** The second `LISTEN` rides the connection the stream already holds — it is not a second stream
-  - [ ] Distinguish them with the SSE `event:` field — `event: message` and `event: user`
-  - [ ] Use the request's `Last-Event-ID` header as a cursor: replay what accumulated while disconnected, then switch to live
-  - [ ] **`id > cursor` alone loses messages.** `bigserial` ids are handed out at INSERT but become visible at COMMIT, so they can commit out of order: if the transaction holding id 10 is still open when id 11 commits and streams, a client that advances to 11 never asks for 10 again. Replay from a margin below the cursor (`cursor - N`) and let id-deduplication drop the overlap
-  - [ ] Populate `id:` on **`message` events only** (it becomes the reconnect cursor)
-  - [ ] **Never put an `id:` on a `user` event.** The cursor is a `messages` bigserial and a user has no counterpart; a uuid there hands the next reconnect a garbage replay bound. Omitting the field leaves the client's last-event-ID buffer untouched, which is exactly right — `user` events are not replayable and a reconnect refetches the whole set
-  - [ ] Send periodic heartbeat comments (`:ping`) to prevent proxy timeouts
-  - [ ] Release the connection in a `finally` block when the stream ends
-- [ ] `GET /api/users` — the whole participant set, **no cursor**. Serves three callers: first render, a `user` SSE event, and the resume catch-up
-  - [x] `listUsers` projects an explicit column set — `id`, `email`, `nickname`, `avatar_media_id`, `last_read_at`. **Never `SELECT *`**: this payload reaches the browser verbatim and `google_sub` is the identity key § 5.1. matches on. `email` is included only because § 8.7.'s empty-nickname fallback is its local part
-  - [ ] A "changed since" cursor is **rejected**: unlike `messages` this is a small mutable set, not an append-only log — a rename produces no new row so an id cursor never fires, and an `updated_at` cursor would still miss a deletion. Two rows are cheaper to refetch whole
-- [ ] Client subscribes with `EventSource` and relies on its automatic reconnection
-- [ ] Close the stream when the tab backgrounds, so Neon compute can autosuspend
-- [ ] **Resume is the normal sync path, not an error path.** Because the stream is closed on purpose, every return to the app has missed events — and an iOS home-screen PWA restores the frozen page rather than navigating, so the Server Component render does not re-run and cannot cover this. On `visibilitychange` → visible, all three of:
-  - [ ] Reconnect if `readyState === CLOSED`
-  - [ ] `fetch(/api/messages?after=newestKnownId)`
-  - [ ] `fetch(/api/users)`
-- [ ] **Deduplicate received messages by id** — SSE replay and the catch-up fetch will overlap
-- [ ] Multi-device needs no extra mechanism: `user_changed` is a conversation-wide broadcast, so "my other device" and "the other person's phone" are both just another subscriber, and a client receiving the echo of its own change refetches idempotently
+Landed in full. `GET /api/chat/stream` holds one unpooled connection on both channels, replays from `Last-Event-ID`, and heartbeats; the client subscribes with a single `EventSource`, closes it on background, and catches up on every return. What follows is the contract new code must not break.
+
+- `GET /api/chat/stream` — `text/event-stream`, `runtime = "nodejs"`, `maxDuration = 300`
+  - The connection comes from the **direct (unpooled)** string via `listenToChannels` (`shared/db`) and is released in a `finally` block. A transaction-mode pooler hands the connection to another client between transactions, silently dropping the `LISTEN`
+  - **One endpoint, one `EventSource`, two channels.** `LISTEN user_changed` rides the connection the stream already holds — it is not a second stream. The two are told apart by the SSE `event:` field, `event: message` and `event: user`
+  - `LISTEN` is registered **before** the replay query runs. In the other order a message committing between the two is missed by both — the query cannot see it yet and nothing is listening for it
+  - **`id > cursor` alone loses messages.** `bigserial` ids are handed out at INSERT but become visible at COMMIT, so they can commit out of order: if the transaction holding id 10 is still open when id 11 commits and streams, a client that advances to 11 never asks for 10 again. Replay therefore starts at `cursor - SSE_REPLAY_MARGIN` and lets id-deduplication drop the overlap
+  - `id:` is populated on **`message` events only** — it is the reconnect cursor. **Never put an `id:` on a `user` event**: the cursor is a `messages` bigserial and a user has no counterpart, so a uuid there would hand the next reconnect a garbage replay bound. Omitting the field leaves the client's last-event-ID buffer untouched, which is exactly right — `user` events are not replayable and a reconnect refetches the whole set
+  - Notifications are resolved **one at a time behind a promise chain**. Each costs a `getMessage` query, and letting them interleave emits rows out of id order
+  - `:ping` comments at `SSE_HEARTBEAT_INTERVAL` keep proxies from timing the connection out
+  - Replay is capped at `SSE_REPLAY_LIMIT`, and what falls past that cap is **not** the replay's problem to solve — the client's on-connect catch-up below pages from its own cursor, so a truncated replay costs a few extra requests rather than a hole. The same is true of a notification lost while `postgres.js` silently reconnects its `LISTEN` socket: `maxDuration` ends the invocation every five minutes, and the reconnect that follows runs the catch-up again
+- `GET /api/users` — the whole participant set, **no cursor**. Serves three callers: first render, a `user` SSE event, and the resume catch-up
+  - `listUsers` projects an explicit column set and `toParticipant` resolves the name before the response is built, so **`email` and `google_sub` never leave the server**. Never `SELECT *`: this payload reaches the browser verbatim and `google_sub` is the identity key § 5.1. matches on. `email` is read only because § 8.7.'s empty-nickname fallback is its local part, and applying that fallback server-side is what lets the address stay behind
+  - A "changed since" cursor is **rejected**: unlike `messages` this is a small mutable set, not an append-only log — a rename produces no new row so an id cursor never fires, and an `updated_at` cursor would still miss a deletion. Two rows are cheaper to refetch whole
+- The client subscribes with `EventSource` and relies on its automatic reconnection **for transport drops only**. A fatal error — a 401, or any body that is not `text/event-stream` — leaves `readyState === CLOSED` permanently, so `onerror` reopens by hand after `SSE_RETRY_DELAY` and the open path treats a `CLOSED` source as no source. Guarding on "a source object exists" instead would kill live delivery for the life of the page after one expired session. Handlers are read through a ref, so a new handler identity cannot tear the connection down and rebuild it on every render
+- The stream is closed when the tab backgrounds, so Neon compute can autosuspend
+- **Resume is the normal sync path, not an error path.** Because the stream is closed on purpose, every return to the app has missed events — and an iOS home-screen PWA restores the frozen page rather than navigating, so the Server Component render does not re-run and cannot cover this
+  - The catch-up therefore hangs off **`onopen`, not `visibilitychange`** — every connect is a resume. A fresh `EventSource` sends no `Last-Event-ID` and so replays nothing, which leaves two gaps that only this closes: the one between the Server Component render and the moment the socket actually opens (bundle download plus hydration, seconds on mobile), and the one a reconnect leaves behind on a page that never received a live event to buffer an id from
+  - It is `fetch(/api/messages?after=…)` paged until a short page, plus `fetch(/api/users)`
+  - The cursor it pages from is a **local** copy of `newestKnownId`, advanced only by what the loop itself fetched. Read from the ref each round, a live event landing mid-loop would carry it past a page the fetch has not covered yet — and nothing asks for that range again
+  - `after=0` is a **valid** cursor, not an absent one: a client whose window is still empty catches up from the start of the conversation. Falling back to the cursorless newest page instead strands everything behind it, unreachably — `hasOlder` is `false` on a short first page, so upward paging refuses to fetch it
+- **Received messages are deduplicated by id**, and merged by sorting rather than appending — SSE replay and the catch-up fetch overlap by design, and an out-of-order commit can arrive behind a message the replay already delivered
+- Multi-device needs no extra mechanism: `user_changed` is a conversation-wide broadcast, so "my other device" and "the other person's phone" are both just another subscriber, and a client receiving the echo of its own change refetches idempotently
 
 ### 8.5. Sending
 
 Landed: the client generates `client_msg_id` (uuid) and renders optimistically; `POST /api/messages` uses `ON CONFLICT (client_msg_id) DO NOTHING` so a retry cannot duplicate a row; a retry affordance shows on failure.
 
 - The re-read after a conflict is scoped to `sender_id` and `deleted_at IS NULL` and answers **409** when it misses. `client_msg_id` is unique table-wide rather than per sender, so matching on it alone would return the _other_ user's row and the client would swap its optimistic bubble for a stranger's message
-- [ ] Match the message echoed back over SSE to the optimistic entry by `client_msg_id` and replace it
+- The message echoed back over SSE is matched to the optimistic entry by `client_msg_id` and replaces it. The echo routinely beats the response to the POST that created the row, so the pending bubble is retired on whichever arrives first
 
 ### 8.6. Message Search
 
@@ -294,10 +297,13 @@ Landed: the client generates `client_msg_id` (uuid) and renders optimistically; 
 
 ### 8.7. Display Names and Profiles
 
-- [ ] The name shown in chat is **the nickname each user set for themselves in Settings** (`users.nickname`, § 12.). The Google account name is only the first-login default. There is **no** feature for naming the other person (KakaoTalk's per-contact rename)
-- [ ] **Never copy the name or avatar onto the message row.** Join on `sender_id` and resolve at render time, so a rename **retroactively changes every past message** — including § 11.5. system sentences. That is the intended behaviour
-- [ ] A nickname or avatar change reaches every other **open** screen over the `user_changed` channel (§ 8.4.) — the other person's devices and this person's second device alike. A _fresh load_ is already correct because § 5.'s opaque token is resolved against `users` on every request and carries no stale copy, unlike a JWT with baked-in claims; it just cannot push to an open screen, which is why § 8.4. exists. Answering the event is a single `GET /api/users` — had the name been denormalized, it would have been a backfill
-- [ ] Fallback when the nickname is empty — the email local part. Fallback when no avatar is set — an initial-letter avatar (DESIGN § 7.7.)
+Landed, apart from the avatar image itself, which needs the § 9. media route (step 6).
+
+- The name shown in chat is **the nickname each user set for themselves in Settings** (`users.nickname`, § 12.). The Google account name is only the first-login default. There is **no** feature for naming the other person (KakaoTalk's per-contact rename)
+- **Never copy the name or avatar onto the message row.** The sender is resolved against the participant set at render time, so a rename **retroactively changes every past message** — including § 11.5. system sentences. That is the intended behaviour
+- A nickname or avatar change reaches every other **open** screen over the `user_changed` channel (§ 8.4.) — the other person's devices and this person's second device alike. A _fresh load_ is already correct because § 5.'s opaque token is resolved against `users` on every request and carries no stale copy, unlike a JWT with baked-in claims; it just cannot push to an open screen, which is why § 8.4. exists. Answering the event is a single `GET /api/users` — had the name been denormalized, it would have been a backfill
+- Fallback when the nickname is empty is the email local part, applied in `toParticipant` (§ 8.4.); fallback when no avatar is set is an initial-letter avatar (DESIGN § 7.7.)
+- [ ] Point the chat avatar at `GET /api/media/{avatarMediaId}` once the R2 pipeline lands (step 6)
 
 ### 8.8. Read / Unread
 
@@ -431,7 +437,7 @@ Landed: `app/robots.ts` (`Disallow: /` for every agent), root layout `robots: { 
 - [ ] Connect the Vercel project to the private GitHub repository
 - [ ] Custom domain `jandh.jeheecheon.com` + DNS CNAME + automatic HTTPS
 - [ ] Environment variables — `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `RELATIONSHIP_START_DATE` (ISO `YYYY-MM-DD`), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `APP_URL`
-- [ ] Configure `maxDuration` for the SSE stream function
+- [x] `maxDuration` for the SSE stream function — `300`, set on the route segment (§ 8.4.)
 - [ ] Include `lint:steiger` in `pnpm build` so architecture violations fail the deploy
 - [ ] Separate dev and production databases using Neon branches
 
@@ -465,7 +471,7 @@ Calendar awareness is therefore handled by the § 11.5. chat system messages, wh
 2. ✅ Auth + session (§ 5.) — highest-risk area, so it went first. **The real-device iOS PWA check (§ 5.3.) is still open**
 3. ✅ Database schema + migrations (§ 6.)
 4. ✅ Layout + tab bar + PWA manifest (§ 7.)
-5. **Chat tab (§ 8.) — in progress.** Static UI → message CRUD → infinite scroll ✅; SSE → read receipts → search and jump remain
+5. **Chat tab (§ 8.) — in progress.** Static UI → message CRUD → infinite scroll → SSE ✅; read receipts (§ 8.8.) and search and jump (§ 8.6.) remain
 6. R2 media pipeline + sending images in chat (§ 9.)
 7. Gallery tab (§ 10.)
 8. Emoticons (§ 13.)

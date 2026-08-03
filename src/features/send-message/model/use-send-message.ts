@@ -30,13 +30,24 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
     setPending(pendingRef.current);
   }, []);
 
+  /**
+   * Retires the optimistic bubble whose row now exists. REQUIREMENTS.md § 8.5.
+   * matches on `client_msg_id` because the SSE echo of my own message routinely
+   * beats the response to the POST that created it.
+   */
+  const resolve = useCallback(
+    (clientMsgId: string) =>
+      commit((previous) => previous.filter((entry) => entry.clientMsgId !== clientMsgId)),
+    [commit],
+  );
+
   const deliver = useCallback(
     async ({ clientMsgId, text }: PendingMessage) => {
       try {
         const sent = await postMessage({ clientMsgId, text });
 
         onSent(sent);
-        commit((previous) => previous.filter((entry) => entry.clientMsgId !== clientMsgId));
+        resolve(clientMsgId);
       } catch {
         commit((previous) =>
           previous.map((entry) =>
@@ -45,7 +56,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
         );
       }
     },
-    [commit, onSent],
+    [commit, onSent, resolve],
   );
 
   const send = useCallback(
@@ -88,5 +99,5 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
     [commit, deliver],
   );
 
-  return { pending, send, retry };
+  return { pending, send, retry, resolve };
 }

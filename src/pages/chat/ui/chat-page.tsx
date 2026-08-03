@@ -1,8 +1,8 @@
 import { listMessages } from "@/entities/message";
-import { listUsers, resolveDisplayName } from "@/entities/user";
+import { listUsers } from "@/entities/user";
 import { cn } from "@/shared/lib";
 import { AppHeader, IconButton } from "@/shared/ui";
-import { ChatRoom, type ChatParticipant } from "@/widgets/chat-room";
+import { ChatRoom } from "@/widgets/chat-room";
 import { Search } from "lucide-react";
 
 export type ChatPageProps = {
@@ -10,15 +10,10 @@ export type ChatPageProps = {
   currentUserId: string;
 };
 
-// TODO: Live delivery, read receipts, and search are REQUIREMENTS.md § 8.4., § 8.6., and § 8.8.
+// TODO: Read receipts and search are REQUIREMENTS.md § 8.8. and § 8.6.
 export async function ChatPage({ className, currentUserId }: ChatPageProps) {
   // INFO: The newest page comes from the server render, so opening the tab costs no client round trip before the first paint.
-  const [members, initialMessages] = await Promise.all([listUsers(), listMessages()]);
-  const participants: ChatParticipant[] = members.map((member) => ({
-    name: resolveDisplayName(member),
-    // TODO: Point the avatar at `GET /api/media/{id}` once the R2 pipeline lands — step 6 of REQUIREMENTS.md § 17.
-    id: member.id,
-  }));
+  const [initialParticipants, initialMessages] = await Promise.all([listUsers(), listMessages()]);
 
   return (
     // WARN: DESIGN.md § 3.5. Cancels the scroller's `--bottom-inset` padding rather than honouring it — chat is the one screen whose messages run all the way under the floating bars, and the composer reserves that room inside the list instead (§ 6.6.).
@@ -35,7 +30,7 @@ export async function ChatPage({ className, currentUserId }: ChatPageProps) {
       />
       <ChatRoom
         currentUserId={currentUserId}
-        participants={participants}
+        initialParticipants={initialParticipants}
         initialMessages={initialMessages}
       />
     </div>

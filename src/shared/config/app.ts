@@ -41,6 +41,21 @@ export const MAX_MESSAGE_PAGE_SIZE = 50;
 
 export const MAX_MESSAGE_LENGTH = 2_000;
 
+/** REQUIREMENTS.md § 8.4. The one `EventSource` the chat client holds open. */
+export const CHAT_STREAM_PATH = "/api/chat/stream";
+
+// INFO: A comment line often enough that no proxy between Vercel and the browser reads an idle conversation as a dead connection.
+export const SSE_HEARTBEAT_INTERVAL = 25 * A_SECOND;
+
+// WARN: REQUIREMENTS.md § 8.4. A `bigserial` id is handed out at INSERT but becomes visible at COMMIT, so replay starts this far below the reconnect cursor and lets id-deduplication drop the overlap. `id > cursor` alone loses the message that committed late.
+export const SSE_REPLAY_MARGIN = 20;
+
+// INFO: Caps one reconnect's replay. Anything beyond it is covered by the catch-up the client runs on every connect (§ 8.4.), which pages from its own cursor rather than from what the replay delivered.
+export const SSE_REPLAY_LIMIT = 200;
+
+// INFO: REQUIREMENTS.md § 8.4. `EventSource` stops retrying after a fatal error (a 401, a body that is not `text/event-stream`), so the client reopens by hand this long after one.
+export const SSE_RETRY_DELAY = 5 * A_SECOND;
+
 /** Route a signed-in user lands on. REQUIREMENTS.md § 5.2. */
 export const HOME_ROUTE = CHAT_ROUTE;
 

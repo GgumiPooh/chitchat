@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChatMessage } from "@/entities/message";
+import type { Participant } from "@/entities/user";
 import { MessageComposer, useSendMessage } from "@/features/send-message";
 import { buildFadeMask, cn, type Nullable } from "@/shared/lib";
 import { ActionSheet, EmptyState, Skeleton, toast, type ActionSheetItem } from "@/shared/ui";
@@ -9,9 +10,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { buildChatRows } from "../model/build-chat-rows";
-import type { ChatParticipant, ChatRow } from "../model/types";
+import type { ChatRow } from "../model/types";
+import { useChatStream } from "../model/use-chat-stream";
 import { useComposerClearance } from "../model/use-composer-clearance";
 import { useMessageHistory } from "../model/use-message-history";
+import { useParticipants } from "../model/use-participants";
 import { usePrependAnchor } from "../model/use-prepend-anchor";
 import { DateDivider } from "./date-divider";
 import { MessageRow } from "./message-row";
@@ -21,7 +24,7 @@ import { SystemNotice } from "./system-notice";
 export type ChatRoomProps = {
   className?: string;
   currentUserId: string;
-  participants: ChatParticipant[];
+  initialParticipants: Participant[];
   initialMessages: ChatMessage[];
 };
 
@@ -46,7 +49,7 @@ const BOTTOM_FADE_LENGTH = "2rem";
 export function ChatRoom({
   className,
   currentUserId,
-  participants,
+  initialParticipants,
   initialMessages,
 }: ChatRoomProps) {
   const listRef = useRef<VirtuosoHandle>(null);
@@ -59,9 +62,10 @@ export function ChatRoom({
   const [actionTarget, setActionTarget] = useState<Nullable<ChatMessage>>(null);
   // INFO: The newest id the user had in view when they last left the bottom — everything past it is what the § 6.7. pill counts.
   const [seenId, setSeenId] = useState(initialMessages.at(-1)?.id ?? 0);
-  const { messages, isLoadingOlder, loadOlder, appendMessage, removeMessage } =
+  const { messages, isLoadingOlder, loadOlder, appendMessage, removeMessage, catchUp } =
     useMessageHistory(initialMessages);
-  const { pending, send, retry } = useSendMessage({ onSent: appendMessage });
+  const { pending, send, retry, resolve } = useSendMessage({ onSent: appendMessage });
+  const { participants, refreshParticipants } = useParticipants(initialParticipants);
   const participantById = useMemo(
     () => new Map(participants.map((participant) => [participant.id, participant])),
     [participants],
@@ -71,8 +75,15 @@ export function ChatRoom({
     [messages, pending, currentUserId],
   );
   const firstItemIndex = usePrependAnchor(rows);
-  // WARN: Captured once. Virtuoso re-runs its initial positioning whenever this value changes, and a live `rows.length - 1` re-runs it on every prepend, which empties the list.
-  const [initialTopMostItemIndex] = useState(() => Math.max(rows.length - 1, 0));
+  // WARN: Captured at the first render that has rows, not the first render. An empty room renders the empty state instead of the list, so a value fixed before then is `0` and parks the mount at the oldest arriving message rather than the newest.
+  const [initialIndex, setInitialIndex] = useState<Nullable<number>>(null);
+
+  if (initialIndex === null && rows.length > 0) {
+    setInitialIndex(rows.length - 1);
+  }
+
+  // WARN: Never a live `rows.length - 1` — Virtuoso re-runs its initial positioning whenever this changes, and on every prepend that empties the list (REQUIREMENTS.md § 8.3.).
+  const initialTopMostItemIndex = initialIndex ?? 0;
   // INFO: My own send is not a new message to me — counting it flashes `새 메시지 1` on the pill for my own bubble.
   const unseenCount = isAtBottom
     ? 0
@@ -81,7 +92,21 @@ export function ChatRoom({
   const pendingCount = pending.length;
   const lastPendingCount = useRef(pendingCount);
 
+  // INFO: REQUIREMENTS.md § 8.5. The stream echoes my own message back too, so the optimistic bubble is retired on `client_msg_id` rather than waiting for the POST response it may well beat.
+  const receiveMessage = useCallback(
+    (message: ChatMessage) => {
+      appendMessage(message);
+      resolve(message.clientMsgId);
+    },
+    [appendMessage, resolve],
+  );
+
   useComposerClearance({ containerRef, composerRef, scrollerRef, isAtBottomRef });
+  useChatStream({
+    onMessage: receiveMessage,
+    onUserChanged: refreshParticipants,
+    onResume: catchUp,
+  });
 
   // WARN: Deliberately the scroller's own maximum rather than `scrollToIndex`. The list's trailing spacer already _is_ the clearance, so the bottom of the scroll range is the newest message sitting on the composer — and Virtuoso resolves an aligned index against its own measurements, which land short by the row's height under `firstItemIndex`.
   const scrollToBottom = useCallback(() => {

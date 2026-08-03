@@ -1,11 +1,11 @@
 import type { ChatMessage } from "@/entities/message";
+import type { Participant } from "@/entities/user";
 import { cn, formatMonthDay, type Optional } from "@/shared/lib";
-import type { ChatParticipant } from "../model/types";
 
 export type SystemNoticeProps = {
   className?: string;
   message: ChatMessage;
-  sender: Optional<ChatParticipant>;
+  sender: Optional<Participant>;
 };
 
 // INFO: DESIGN.md § 6.5. Date-divider treatment, so a calendar notice reads as timeline furniture rather than as someone speaking.
@@ -21,7 +21,7 @@ export function SystemNotice({ className, message, sender }: SystemNoticeProps) 
 }
 
 /** REQUIREMENTS.md § 11.5. Composed here so a nickname change rewrites past notices too. */
-function composeNotice(message: ChatMessage, sender: Optional<ChatParticipant>): string {
+function composeNotice(message: ChatMessage, sender: Optional<Participant>): string {
   const name = sender?.name ?? "";
   const date = message.eventStartsAt ? formatMonthDay(message.eventStartsAt) : "";
   const title = message.eventTitle ?? "";

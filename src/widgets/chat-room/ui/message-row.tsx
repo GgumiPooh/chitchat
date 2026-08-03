@@ -1,9 +1,9 @@
 "use client";
 
+import type { Participant } from "@/entities/user";
 import { cn, formatTime, type Optional } from "@/shared/lib";
 import { Avatar, IconButton } from "@/shared/ui";
 import { RotateCcw } from "lucide-react";
-import type { ChatParticipant } from "../model/types";
 import { useLongPress } from "../model/use-long-press";
 
 export type MessageRowProps = {
@@ -11,7 +11,7 @@ export type MessageRowProps = {
   bubbleClassName?: string;
   text: string;
   createdAt: string;
-  sender: Optional<ChatParticipant>;
+  sender: Optional<Participant>;
   isMine: boolean;
   isFirstOfGroup: boolean;
   isLastOfGroup: boolean;
@@ -47,7 +47,8 @@ export function MessageRow({
     >
       {!isMine &&
         (isFirstOfGroup ? (
-          <Avatar src={sender?.avatarSrc} name={sender?.name ?? ""} />
+          // TODO: Point `src` at `GET /api/media/{sender.avatarMediaId}` once the R2 pipeline lands — step 6 of REQUIREMENTS.md § 17.
+          <Avatar name={sender?.name ?? ""} />
         ) : (
           // INFO: DESIGN.md § 6.3. Keeps the rest of the group indented to the avatar column.
           <span className="size-9 shrink-0" />

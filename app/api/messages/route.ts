@@ -6,9 +6,12 @@ import { z } from "zod";
 
 const cursorSchema = z.coerce.number().int().positive().optional();
 
+// INFO: REQUIREMENTS.md § 8.4. Zero is a real `after` cursor — a client whose window is still empty catches up from the start of the conversation rather than from the newest page, which would strand everything behind it.
+const afterCursorSchema = z.coerce.number().int().nonnegative().optional();
+
 const querySchema = z.object({
   before: cursorSchema,
-  after: cursorSchema,
+  after: afterCursorSchema,
   around: cursorSchema,
   limit: z.coerce.number().int().positive().optional(),
 });

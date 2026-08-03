@@ -1,5 +1,11 @@
 export { getDb } from "./client";
 export {
+  NEW_MESSAGE_CHANNEL,
+  USER_CHANGED_CHANNEL,
+  listenToChannels,
+  type NotificationHandler,
+} from "./listen";
+export {
   conversations,
   emoticonItems,
   emoticonPacks,

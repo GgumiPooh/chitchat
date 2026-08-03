@@ -1,0 +1,36 @@
+import "server-only";
+
+import { ensureEnv } from "@/shared/config";
+import postgres from "postgres";
+
+/** The `pg_notify` channels the REQUIREMENTS.md § 6. triggers fire on. */
+export const NEW_MESSAGE_CHANNEL = "new_message";
+
+export const USER_CHANGED_CHANNEL = "user_changed";
+
+export type NotificationHandler = (channel: string, payload: string) => void;
+
+/**
+ * Holds a connection open on `LISTEN` for each named channel and resolves to the
+ * function that releases it. The caller MUST call that function in a `finally`
+ * block — the connection is outside any pool and nothing else will reclaim it.
+ */
+export async function listenToChannels(
+  channels: string[],
+  onNotification: NotificationHandler,
+): Promise<() => Promise<void>> {
+  // WARN: REQUIREMENTS.md § 6. The unpooled string, and a client of its own. A transaction-mode pooler hands the connection to another caller between transactions, which drops the `LISTEN` without erroring — the stream just goes quiet.
+  const sql = postgres(ensureEnv("DATABASE_URL_UNPOOLED"), { max: 1, prepare: false });
+
+  try {
+    await Promise.all(
+      channels.map((channel) => sql.listen(channel, (payload) => onNotification(channel, payload))),
+    );
+  } catch (error) {
+    await sql.end();
+
+    throw error;
+  }
+
+  return () => sql.end();
+}
