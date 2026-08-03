@@ -310,7 +310,7 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
 - [x] `pg_trgm` extension + a GIN trigram index on `messages.text` (§8.6)
 - [x] Emit `pg_notify('new_message', payload)` — an `AFTER INSERT` trigger on `messages`, so no write path can forget it
   - [x] The payload is only `{ id, conversationId }`. `NOTIFY` caps at 8000 bytes, and §8.4 replays from `Last-Event-ID` by id anyway, so the stream refetches the row rather than trusting the payload
-- [x] Two connection strings — `DATABASE_URL` (pooled, for normal queries) and `DATABASE_URL_DIRECT` (unpooled, required for `LISTEN` and for migrations)
+- [x] Two connection strings — `DATABASE_URL` (pooled, for normal queries) and `DATABASE_URL_UNPOOLED` (unpooled, required for `LISTEN` and for migrations)
 - [x] `drizzle-kit` migration pipeline + initial seed (`pnpm db:seed` — the one conversation, plus every existing user as a member)
   - [x] Membership cannot be fully seeded: a `users` row only exists after that person's first login. The OAuth callback therefore calls `ensureConversationMembership`, and the seed script backfills whoever has already logged in
   - [x] The extension, trigram index, and both triggers live in hand-written migrations (`--custom`) — drizzle-kit does not emit DDL it cannot infer from the schema
@@ -610,7 +610,7 @@ Include only what genuinely pays off for exactly two users. General-purpose cale
 - [ ] Connect the Vercel project to the private GitHub repository
 - [ ] Custom domain `jandh.jeheecheon.com` + DNS CNAME + automatic HTTPS
 - [ ] Environment variables
-  - `DATABASE_URL`, `DATABASE_URL_DIRECT`
+  - `DATABASE_URL`, `DATABASE_URL_UNPOOLED`
   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
   - `ALLOWED_EMAILS`
   - `RELATIONSHIP_START_DATE` (ISO `YYYY-MM-DD`, §11.1)

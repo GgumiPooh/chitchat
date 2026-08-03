@@ -97,7 +97,7 @@ Read a required environment variable with `ensureEnv("NAME")` from `@/shared/con
 
 ## 6.3. Database access
 
-Obtain the connection with `getDb()` from `@/shared/db` — it is the pooled client and it is lazy, so a missing `DATABASE_URL` cannot fail the build. `LISTEN`/`NOTIFY` (`REQUIREMENTS.md § 8.4.`) and migrations need `DATABASE_URL_DIRECT` and MUST NOT use it.
+Obtain the connection with `getDb()` from `@/shared/db` — it is the pooled client and it is lazy, so a missing `DATABASE_URL` cannot fail the build. `LISTEN`/`NOTIFY` (`REQUIREMENTS.md § 8.4.`) and migrations need `DATABASE_URL_UNPOOLED` and MUST NOT use it.
 
 ## 6.4. Session in Server Components
 

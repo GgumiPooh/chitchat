@@ -6,10 +6,10 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 async function seed() {
-  const url = process.env.DATABASE_URL_DIRECT?.trim();
+  const url = process.env.DATABASE_URL_UNPOOLED?.trim();
 
   if (!url) {
-    throw new Error("DATABASE_URL_DIRECT is not set");
+    throw new Error("DATABASE_URL_UNPOOLED is not set");
   }
 
   // WARN: The unpooled string (REQUIREMENTS.md § 6.) — this runs alongside migrations, not against the request-time pool.

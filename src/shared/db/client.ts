@@ -12,7 +12,7 @@ const globalForDb = globalThis as typeof globalThis & { jandhDb?: Database };
 
 /**
  * The pooled connection (REQUIREMENTS.md § 6.). `LISTEN`/`NOTIFY` and migrations
- * must not use it — they need `DATABASE_URL_DIRECT`.
+ * must not use it — they need `DATABASE_URL_UNPOOLED`.
  */
 export function getDb(): Database {
   if (!globalForDb.jandhDb) {
