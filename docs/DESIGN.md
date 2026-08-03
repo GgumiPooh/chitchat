@@ -97,7 +97,7 @@ Touch-first geometry, full pointer states.
 | Alignment         | Horizontally centered, full height                                                                                                                                |
 | Shell background  | `canvas` (or `chat-canvas` on the chat screen)                                                                                                                    |
 | Outside the shell | `backdrop` — one step deeper than `canvas`, so the shell reads as a held device on desktop                                                                        |
-| Fixed children    | The tab bar and the composer are `fixed`; both MUST re-apply the same max width and centering                                                                     |
+| Fixed children    | The tab bar is `fixed` and MUST re-apply the same max width and centering. The composer is not — it is static inside the shell column (§ 6.6.)                    |
 | Safe areas        | `env(safe-area-inset-bottom)` on the tab bar, `env(safe-area-inset-top)` on the header                                                                            |
 | Viewport height   | `100dvh` (never `100vh` — iOS URL-bar collapse)                                                                                                                   |
 
@@ -389,16 +389,18 @@ Centered `chat-pill` pill, `caption` in `chat-pill-ink`, padding `4px 12px`, `ro
 
 ## 6.6. Composer.
 
-| Property       | Value                                                                                                           |
-| -------------- | --------------------------------------------------------------------------------------------------------------- |
-| Container      | `canvas` fill, 1px `hairline` top border, `fixed` bottom, shell-width and centered (§ 3.3.)                     |
-| Padding        | `xs` (8px) plus `env(safe-area-inset-bottom)`                                                                   |
-| Field          | `surface-soft` fill, `rounded-full`, padding `8px 14px`, `body-md`, auto-grow to 5 lines then scroll internally |
-| Field focus    | `ring-2 ring-primary ring-inset`, fill escalates to `canvas`                                                    |
-| Left control   | `+` (attach) — 20px glyph in a 44×44 target                                                                     |
-| Right controls | Emoticon toggle (20px / 44×44). Send button replaces it only when the field is non-empty                        |
-| Send button    | `primary` fill, `on-primary` glyph, 36×36 visual in a 44×44 target, `rounded-full`                              |
-| Keyboard       | Position tracked via `visualViewport`, not `100vh` math                                                         |
+| Property       | Value                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Container      | `canvas` fill, 1px `hairline` top border, **static** at the end of the screen's `dvh` column — above the tab bar   |
+| Padding        | `xs` (8px). The tab bar below it already owns `env(safe-area-inset-bottom)`                                        |
+| Field          | `surface-soft` fill, `rounded-full`, padding `8px 14px`, `body-md`, auto-grow to 5 lines then scroll internally    |
+| Field focus    | `ring-2 ring-primary ring-inset`, fill escalates to `canvas`                                                       |
+| Left control   | `+` (attach) — 20px glyph in a 44×44 target                                                                        |
+| Right controls | Emoticon toggle (20px / 44×44). Send button replaces it only when the field is non-empty                           |
+| Send button    | `primary` fill, `on-primary` glyph, 36×36 visual in a 44×44 target, `rounded-full`                                 |
+| Keyboard       | `interactiveWidget: "resizes-content"` shrinks the `dvh` column, which carries the composer up. Never `100vh` math |
+
+The composer is static rather than `fixed` because the virtualized list above it (§ 6.1.) has to be a bounded flex child, and a `fixed` composer would leave that box unbounded. Being inside the shell column, it also inherits the max width and centering instead of re-applying them.
 
 ## 6.7. Scroll-to-Bottom Pill.
 

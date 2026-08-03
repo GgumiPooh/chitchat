@@ -19,7 +19,9 @@ A private web app used by exactly two people. An iOS PWA with four tabs: Chat, C
 | `AGENTS.md` (repo root; `CLAUDE.md` is a symlink to it) | **How we write it** — coding conventions, component contracts, prohibitions                                            |
 
 Precedence on conflict: visual specs → `DESIGN.md`; code-authoring rules → `AGENTS.md`; everything else → this file.
-Implementation is **in progress**. Steps 1–4 of § 17. have landed (project setup and base components; Google OAuth and sessions; the full schema, migrations, and seed; the app shell, tab bar, and PWA manifest). Step 2 still needs the real-device iOS PWA check (§ 5.4.); step 5 (the chat tab) is next. All four tab screens exist, but only Settings has real content — Chat, Calendar, and Gallery render an empty state until their own step.
+Implementation is **in progress**. Steps 1–4 of § 17. have landed (project setup and base components; Google OAuth and sessions; the full schema, migrations, and seed; the app shell, tab bar, and PWA manifest). Step 2 still needs the real-device iOS PWA check (§ 5.4.).
+
+Step 5 (the chat tab) is **partly landed**: the text and system-message surface, cursor pagination, virtualization, optimistic send, and copy/delete (§ 8.1.–§ 8.3., § 8.5.). Still open in it — SSE (§ 8.4.), search and jump (§ 8.6.), read receipts (§ 8.8.), and the image and emoticon bubbles, which belong to steps 6 and 8. Calendar and Gallery still render an empty state until their own step.
 
 ---
 
@@ -56,7 +58,7 @@ Implementation is **in progress**. Steps 1–4 of § 17. have landed (project se
 - [x] `tsconfig.json` (`@/*` → `./src/*`, `verbatimModuleSyntax`, `strict`)
 - [x] `eslint.config.mjs` — perfectionist JSX-prop ordering, `consistent-type-imports`, `curly`, ban on trailing `export { }`, ban on imports that bypass an FSD slice's public API (`no-restricted-imports`)
 - [x] `.prettierrc` — `printWidth: 100`, organize-imports plugin, tailwindcss plugin, `tailwindFunctions: ["cn", "cva"]`
-- [x] `steiger.config.ts` — FSD recommended config, with `insignificant-slice` downgraded to `warn` for `widgets/**` and `entities/**` (entity consumers are mostly Route Handlers under `app/`, which steiger does not scan)
+- [x] `steiger.config.ts` — FSD recommended config, with `insignificant-slice` downgraded to `warn` for `widgets/**`, `features/**`, and `entities/**` (entity consumers are mostly Route Handlers under `app/`, which steiger does not scan; a feature of a two-person app legitimately has a single consumer)
 - [x] `postcss.config.mjs` (`@tailwindcss/postcss`)
 - [x] `components.json` (shadcn: `new-york` style, aliases `@/shared/ui` and `@/shared/lib`, lucide icon library)
 - [x] The SVGR turbopack rule in `next.config.ts` (`*.svg` → React component)
@@ -112,14 +114,16 @@ Implementation is **in progress**. Steps 1–4 of § 17. have landed (project se
   src/
     app/       providers / styles(globals.css, theme.css) / fonts
     pages/     login, chat, calendar, gallery, settings
-    widgets/   tab-bar, install-guide, chat-room, message-composer,
-               emoticon-picker, gallery-grid, calendar-month, settings-form
+    widgets/   tab-bar, install-guide, chat-room,
+               gallery-grid, calendar-month, settings-form
     features/  session, send-message, upload-media, mark-read,
                emoticon-prefs, update-profile, manage-event
     entities/  user, message, media, event, emoticon
     shared/    db, auth, storage, api, config, lib, theme, ui
   ```
   The session feature slice is `session`, not `auth` — a `features/auth` slice collides with the `shared/auth` segment name (`fsd/ambiguous-slice-names`)
+- [x] The composer is **`features/send-message/ui/message-composer`, not a widget**, and the emoticon picker will follow it there. `widgets/chat-room` owns the whole chat surface and renders the composer inside itself, which a sibling widget cannot be (`fsd/forbidden-imports` bans same-layer imports)
+- [x] A client module may import from `@/entities/message` with `import type` only. Its api segment is `server-only`, and a value import through the barrel would drag that into the browser bundle — which is why the row components and the grouping model live in `widgets/chat-room`, not in the entity
 - [x] A root-level `pages/` directory MUST exist and stay empty (it holds only a README). Without it Next.js treats the FSD `src/pages/` layer as the Pages Router and breaks the build
 - [x] Server-only code (Drizzle schema, session logic, R2 client) lives in `shared/` segments and imports `server-only`
 - [x] Data-fetching functions live in each entity's `api` segment
@@ -351,38 +355,43 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
 
 > **Only layout and interaction rules are taken from KakaoTalk.** Its colors and shapes (Kakao yellow, the sky-blue chat background, drawn bubble tails) are **not** taken — see `docs/DESIGN.md` §2.2 and §6 for the reasoning and the replacements. DESIGN.md §6 is the single source of truth for every visual spec referenced below.
 
-- [ ] Bubbles — mine right-aligned, theirs left-aligned, with a **notch corner** (a reduced radius on the corner nearest the sender) instead of a drawn tail (DESIGN §6.2)
-- [ ] Their messages show avatar + nickname, on the first message of a group only
-- [ ] Timestamp shown once per same-minute group, on the last message of that group
-- [ ] Date divider pill (`오늘`, `어제`, `2026년 8월 3일 월요일`)
+- [x] Bubbles — mine right-aligned, theirs left-aligned, with a **notch corner** (a reduced radius on the corner nearest the sender) instead of a drawn tail (DESIGN §6.2)
+- [x] Their messages show avatar + nickname, on the first message of a group only
+- [x] Timestamp shown once per same-minute group, on the last message of that group
+- [x] Date divider pill (`오늘`, `어제`, `2026년 8월 3일 월요일`)
 - [ ] Unread marker — a `1` beside my message, in the `unread` token (DESIGN §4.1.4)
-- [ ] Composer — auto-growing textarea, `+` (attach image) on the left, emoticon toggle / send button on the right
+- [x] Composer — auto-growing textarea, `+` (attach image) on the left, emoticon toggle / send button on the right
+  - [x] `+` and the emoticon toggle render **disabled** until steps 6 and 8 land; the send button replaces the toggle the moment the field is non-empty
+  - [x] A hardware keyboard sends on Enter and breaks the line on Shift+Enter. On a coarse pointer Enter stays a newline — the iOS keyboard has no send key (`useIsCoarsePointer`, AGENTS.md § 4.2.)
 - [ ] Image messages render without a bubble; tapping opens a fullscreen viewer (pinch zoom, horizontal swipe)
   - [ ] Multiple images sent together render as **one bubble** (§6, `message_media`) — the client branches on the array length alone: 1 image keeps its own `media.width` / `height` aspect ratio, 2+ use a fixed square-cell grid
   - [ ] The grid makes §8.3 box reservation **more** accurate, not less: the height follows from the cell layout and is independent of the individual images' dimensions
   - [ ] Tapping any image opens the viewer at that index, swiping through the rest of the same bubble
 - [ ] Emoticon messages render as the image alone, without a bubble
-- [ ] Long-press (touch) or right-click / hover-revealed control (mouse) → `ActionSheet` (copy / delete)
-- [ ] **Scroll-to-bottom floating button** (as in KakaoTalk)
-  - [ ] Appears once scrolled roughly 200px away from the newest message; fades out on arrival
-  - [ ] While scrolled away, incoming messages show a **count** on the button (`새 메시지 3`)
+- [x] Long-press (touch) or right-click / hover-revealed control (mouse) → `ActionSheet` (copy / delete)
+  - [x] `DELETE /api/messages/{id}` soft-deletes, scoped to the sender. It answers 404 for someone else's message and for one that never existed alike, so the endpoint cannot be used to probe ids (§ 14.)
+- [x] **Scroll-to-bottom floating button** (as in KakaoTalk)
+  - [x] Appears once scrolled roughly 200px away from the newest message; fades out on arrival
+  - [x] While scrolled away, incoming messages show a **count** on the button (`새 메시지 3`)
   - [ ] Tapping scrolls smoothly to the bottom and marks messages read
   - [ ] The same component also returns the user to the newest messages after a search jump (§8.6.1)
 - [ ] iOS keyboard handling — track the composer position with the `visualViewport` API
+  - [x] Not needed so far: the composer is static at the end of a `100dvh` flex column and `interactiveWidget: "resizes-content"` shrinks that column with the keyboard. Build it only if the real-device pass (§ 5.4.) shows the field sliding under the keyboard
 
 ### 8.2. Message Loading
 
-- [ ] Cursor-based infinite scroll — `GET /api/messages?before={id}&limit=30`, i.e. `WHERE id < :before ORDER BY id DESC`
-- [ ] **No OFFSET pagination** — incoming messages shift page boundaries, producing duplicates and gaps
+- [x] Cursor-based infinite scroll — `GET /api/messages?before={id}&limit=30`, i.e. `WHERE id < :before ORDER BY id DESC`
+- [x] **No OFFSET pagination** — incoming messages shift page boundaries, producing duplicates and gaps
 - [ ] The client keeps two cursors: `oldestLoadedId` (scrolling into the past) and `newestKnownId` (gap recovery)
-- [ ] Gap recovery: `GET /api/messages?after={id}`
-- [ ] Jump: `GET /api/messages?around={id}` (§8.6.1)
+  - [x] `oldestLoadedId` is live. `newestKnownId` has no consumer until the § 8.4. stream exists, so it is not tracked yet
+- [x] Gap recovery: `GET /api/messages?after={id}` — the endpoint ships now; its caller is § 8.4.
+- [x] Jump: `GET /api/messages?around={id}` (§8.6.1) — the endpoint ships now; its caller is § 8.6.1.
 
 ### 8.3. Virtual Scrolling (Windowing)
 
 Offscreen message nodes **must not stay in the DOM**. After a few years of history, thousands of nodes accumulated by infinite scroll will destroy scroll performance in iOS Safari.
 
-- [ ] **Use `react-virtuoso`** — it provides every API this chat needs out of the box
+- [x] **Use `react-virtuoso`** — it provides every API this chat needs out of the box
   | Requirement                                       | Virtuoso API                         |
   | ------------------------------------------------- | ------------------------------------ |
   | Infinite scroll upward                            | `startReached`                       |
@@ -391,12 +400,15 @@ Offscreen message nodes **must not stay in the DOM**. After a few years of histo
   | Condition for showing the scroll-to-bottom button | `atBottomStateChange`                |
   | Jump to a search result                           | `scrollToIndex({ align: "center" })` |
   | Automatic variable-height measurement             | built in                             |
-- [ ] **Do not use `flex-direction: column-reverse`** — the virtualizer owns scroll anchoring and the two cannot coexist. Bottom-stickiness is `followOutput`'s job; prepend stability is `firstItemIndex`'s job
+- [x] **Do not use `flex-direction: column-reverse`** — the virtualizer owns scroll anchoring and the two cannot coexist. Bottom-stickiness is `followOutput`'s job; prepend stability is `firstItemIndex`'s job
 - [ ] **Reserve the box for image messages before the asset loads** — render an aspect-ratio box from `media.width` / `height` first. Without this, every image load triggers a re-measure cascade and the scroll position jolts (the dimension columns already exist in the schema, §6)
-- [ ] Date dividers are list items, but the **sticky top indicator is a separate overlay** computed from the visible range
+- [ ] Date dividers are list items (done), but the **sticky top indicator is a separate overlay** computed from the visible range — the overlay is not built yet
 - [ ] Restore scroll position when returning to the tab (`restoreStateFrom`)
 - [ ] The browser's native `Ctrl+F` cannot find offscreen messages — in-app search (§8.6) is the deliberate replacement
-- [ ] Tune the overscan so fast scrolling does not expose blank regions
+- [x] Tune the overscan so fast scrolling does not expose blank regions
+- [x] **Two Virtuoso traps, both of which render an empty list with no error**
+  - [x] `initialTopMostItemIndex` MUST be a constant. Virtuoso re-runs its initial positioning whenever the value changes, so a live `rows.length - 1` re-runs it on every prepend and the list goes blank — capture it once with `useState(() => …)`
+  - [x] The scroller is `height: 100%` inline, so its parent needs a **definite** height. A `flex-1` column is not one; the list must sit in an `absolute inset-0` box inside the flexed column
 
 ### 8.4. Realtime (SSE)
 
@@ -414,10 +426,11 @@ Offscreen message nodes **must not stay in the DOM**. After a few years of histo
 
 ### 8.5. Sending
 
-- [ ] The client generates `client_msg_id` (uuid) and renders optimistically at once
-- [ ] `POST /api/messages` → `ON CONFLICT (client_msg_id) DO NOTHING` prevents duplicate rows on retry
+- [x] The client generates `client_msg_id` (uuid) and renders optimistically at once
+- [x] `POST /api/messages` → `ON CONFLICT (client_msg_id) DO NOTHING` prevents duplicate rows on retry
+  - [x] The re-read after a conflict is scoped to `sender_id` and to `deleted_at IS NULL`, and answers **409** when it misses. `client_msg_id` is unique across the whole table rather than per sender, so matching on it alone would return the _other_ user's row and the client would swap its optimistic bubble for a stranger's message
 - [ ] Match the message echoed back over SSE to the optimistic entry by `client_msg_id` and replace it
-- [ ] Show a retry affordance when sending fails
+- [x] Show a retry affordance when sending fails
 
 ### 8.6. Message Search (KakaoTalk-style)
 

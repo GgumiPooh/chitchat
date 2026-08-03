@@ -1,6 +1,9 @@
 import { ChatPage } from "@/pages/chat";
+import { requireUserOrRedirect } from "@/shared/auth";
 
-// INFO: The session is resolved once in the `(main)` layout, which redirects before any screen renders.
-export default function Page() {
-  return <ChatPage />;
+export default async function Page() {
+  // INFO: `requireUserOrRedirect` is request-cached, so this reuses the `(main)` layout's session lookup.
+  const { id } = await requireUserOrRedirect();
+
+  return <ChatPage currentUserId={id} />;
 }
