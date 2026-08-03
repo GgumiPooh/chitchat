@@ -1,2 +1,1 @@
-export { ensureConversationMembership } from "./api/ensure-membership";
-export { listConversationMembers } from "./api/list-members";
+export { ensureConversation } from "./api/ensure-conversation";

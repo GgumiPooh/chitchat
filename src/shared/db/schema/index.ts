@@ -1,9 +1,4 @@
-export {
-  conversationMembers,
-  conversations,
-  type Conversation,
-  type ConversationMember,
-} from "./conversations";
+export { conversations, type Conversation } from "./conversations";
 export {
   emoticonItems,
   emoticonPacks,

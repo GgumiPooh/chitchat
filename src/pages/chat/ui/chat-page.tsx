@@ -1,6 +1,5 @@
-import { listConversationMembers } from "@/entities/conversation";
 import { listMessages } from "@/entities/message";
-import { resolveDisplayName } from "@/entities/user";
+import { listUsers, resolveDisplayName } from "@/entities/user";
 import { cn } from "@/shared/lib";
 import { AppHeader } from "@/shared/ui";
 import { ChatRoom, type ChatParticipant } from "@/widgets/chat-room";
@@ -13,7 +12,7 @@ export type ChatPageProps = {
 // TODO: Live delivery, read receipts, and search are REQUIREMENTS.md § 8.4., § 8.6., and § 8.8.
 export async function ChatPage({ className, currentUserId }: ChatPageProps) {
   // INFO: The newest page comes from the server render, so opening the tab costs no client round trip before the first paint.
-  const [members, initialMessages] = await Promise.all([listConversationMembers(), listMessages()]);
+  const [members, initialMessages] = await Promise.all([listUsers(), listMessages()]);
   const participants: ChatParticipant[] = members.map((member) => ({
     name: resolveDisplayName(member),
     // TODO: Point the avatar at `GET /api/media/{id}` once the R2 pipeline lands — step 6 of REQUIREMENTS.md § 17.

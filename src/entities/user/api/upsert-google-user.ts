@@ -32,7 +32,7 @@ export async function upsertGoogleUser(identity: {
     return reemailed;
   }
 
-  // INFO: An allow-listed address whose `google_sub` we have never seen — a re-created Google account, or a row seeded before its first login.
+  // INFO: An allow-listed address whose `google_sub` we have never seen — the account behind it was deleted and re-created, which mints a new subject id for the same address.
   const [byEmail] = await db.select().from(users).where(eq(users.email, identity.email)).limit(1);
 
   if (byEmail) {
@@ -50,6 +50,8 @@ export async function upsertGoogleUser(identity: {
     .values({
       email: identity.email,
       googleSub: identity.sub,
+      // INFO: REQUIREMENTS.md § 8.8. The epoch, so everything sent before this person's first login counts as unread rather than silently read.
+      lastReadAt: new Date(0),
       nickname: identity.name?.trim() || identity.email.split("@")[0],
     })
     .returning();

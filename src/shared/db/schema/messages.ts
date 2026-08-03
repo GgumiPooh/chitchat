@@ -27,7 +27,7 @@ export const systemActionEnum = pgEnum("system_action", [
   "event_deleted",
 ]);
 
-// INFO: REQUIREMENTS.md § 6. Append-only — marking messages read updates `conversation_members`, never a row here.
+// INFO: REQUIREMENTS.md § 6. Append-only — marking messages read moves `users.last_read_at`, never a row here.
 export const messages = pgTable(
   "messages",
   {

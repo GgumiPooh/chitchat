@@ -1,6 +1,5 @@
 export { getDb } from "./client";
 export {
-  conversationMembers,
   conversations,
   emoticonItems,
   emoticonPacks,
@@ -16,7 +15,6 @@ export {
   userEmoticonPrefs,
   users,
   type Conversation,
-  type ConversationMember,
   type EmoticonItem,
   type EmoticonPack,
   type Event,

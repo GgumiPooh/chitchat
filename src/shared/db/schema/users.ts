@@ -12,6 +12,8 @@ export const users = pgTable("users", {
   avatarMediaId: uuid("avatar_media_id").references((): AnyPgColumn => media.id, {
     onDelete: "set null",
   }),
+  // WARN: No `defaultNow()` — REQUIREMENTS.md § 8.8. reads unread as `created_at > last_read_at`, so joining at `now()` would mark every message sent before this person's first login as already read.
+  lastReadAt: timestamp("last_read_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -1,7 +1,8 @@
 import { CONVERSATION_ID } from "@/shared/config";
 // INFO: The `@/shared/db` barrel re-exports `getDb`, whose module imports `server-only` and throws outside Next — this script runs under plain tsx.
 // eslint-disable-next-line no-restricted-imports
-import { conversationMembers, conversations, users } from "@/shared/db/schema";
+import { conversations, users } from "@/shared/db/schema";
+import { count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
@@ -19,24 +20,10 @@ async function seed() {
   try {
     await db.insert(conversations).values({ id: CONVERSATION_ID }).onConflictDoNothing();
 
-    // INFO: A user row only exists after that person's first login, so membership is backfilled here and joined on login by the OAuth callback.
-    const members = await db.select({ id: users.id }).from(users);
+    // INFO: REQUIREMENTS.md § 6. A user row only exists after that person's first login, so participants are created by the OAuth callback, not here.
+    const [{ count: participants }] = await db.select({ count: count() }).from(users);
 
-    if (members.length > 0) {
-      await db
-        .insert(conversationMembers)
-        // INFO: REQUIREMENTS.md § 8.8. The epoch, so a backfilled member starts with the whole history unread.
-        .values(
-          members.map(({ id }) => ({
-            conversationId: CONVERSATION_ID,
-            userId: id,
-            lastReadAt: new Date(0),
-          })),
-        )
-        .onConflictDoNothing();
-    }
-
-    console.log(`Seeded conversation ${CONVERSATION_ID} with ${members.length} member(s).`);
+    console.log(`Seeded conversation ${CONVERSATION_ID}; ${participants} user(s) exist.`);
   } finally {
     await client.end();
   }

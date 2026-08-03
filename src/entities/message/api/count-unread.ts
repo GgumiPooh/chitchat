@@ -1,7 +1,7 @@
 import "server-only";
 
 import { CONVERSATION_ID } from "@/shared/config";
-import { conversationMembers, getDb, messages } from "@/shared/db";
+import { getDb, messages, users } from "@/shared/db";
 import { and, count, eq, gt, isNull, ne } from "drizzle-orm";
 
 /**
@@ -12,19 +12,14 @@ export async function countUnreadMessages(userId: string) {
   const [row] = await getDb()
     .select({ unread: count() })
     .from(messages)
-    .innerJoin(
-      conversationMembers,
-      and(
-        eq(conversationMembers.conversationId, messages.conversationId),
-        eq(conversationMembers.userId, userId),
-      ),
-    )
+    // INFO: The join condition pins `users` to the one row, so this reads the cursor without a second round trip.
+    .innerJoin(users, eq(users.id, userId))
     .where(
       and(
         eq(messages.conversationId, CONVERSATION_ID),
         ne(messages.senderId, userId),
         isNull(messages.deletedAt),
-        gt(messages.createdAt, conversationMembers.lastReadAt),
+        gt(messages.createdAt, users.lastReadAt),
       ),
     );
 

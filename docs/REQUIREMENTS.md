@@ -23,6 +23,8 @@ Implementation is **in progress**. Steps 1–4 of § 17. have landed (project se
 
 Step 5 (the chat tab) is **partly landed**: the text and system-message surface, cursor pagination, virtualization, optimistic send, and copy/delete (§ 8.1.–§ 8.3., § 8.5.). Still open in it — SSE (§ 8.4.), search and jump (§ 8.6.), read receipts (§ 8.8.), and the image and emoticon bubbles, which belong to steps 6 and 8. Calendar and Gallery still render an empty state until their own step.
 
+The schema side of § 8.4. and § 8.8. has landed ahead of the stream itself: `conversation_members` is gone, `last_read_at` sits on `users`, and the `user_changed` trigger is live (§ 6.). What remains is application code — `GET /api/chat/stream`, `GET /api/users`, `POST /api/chat/read`, and the client resume path.
+
 ---
 
 ## 0. Settled Technical Decisions
@@ -118,7 +120,7 @@ Step 5 (the chat tab) is **partly landed**: the text and system-message surface,
                gallery-grid, calendar-month, settings-form
     features/  session, send-message, upload-media, mark-read,
                emoticon-prefs, update-profile, manage-event
-    entities/  user, message, media, event, emoticon
+    entities/  user, conversation, message, media, event, emoticon
     shared/    db, auth, storage, api, config, lib, theme, ui
   ```
   The session feature slice is `session`, not `auth` — a `features/auth` slice collides with the `shared/auth` segment name (`fsd/ambiguous-slice-names`)
@@ -269,15 +271,21 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
 
 ## 6. Database Schema (Drizzle)
 
-- [x] `users` — `id`, `email` (unique), `nickname`, `avatar_media_id`, `created_at`
+- [x] `users` — `id`, `email` (unique), `nickname`, `avatar_media_id`, `last_read_at`, `created_at`
 - [x] Store `google_sub` (unique) directly on `users` — there is no `accounts` table, because there is exactly one provider
+- [x] **`users` holds exactly the two participants, so there is no `conversation_members` table.** `ALLOWED_EMAILS` (§5.1) gates the only path that creates a row, so membership and identity are the same set and the join was a hop that resolved to "everyone"
+  - [x] This is a **two-person** commitment, not an oversight. A third participant would need `conversation_members` back **and** a rewrite of §8.8 — unread becomes a count of readers rather than a boolean, which reaches into the `1` marker and the unread divider in `DESIGN.md §7.`
+  - [x] A `users` row that is _not_ a participant (a test or retired account) would break `GET /api/users` (§8.4) the same way. Keep such rows out of this database
+- [x] `last_read_at` lives on `users` and has **no default**, so every insert has to name a value. §8.8 reads unread as `created_at > last_read_at`, and a `defaultNow()` would silently mark everything sent before that person's first login as already read — their first chat screen would open with no unread divider and a zero badge
+  - [x] The one insert site (`upsertGoogleUser`) passes the epoch: a new participant has read nothing
+  - [x] The migration adds the column nullable, backfills from `conversation_members` (epoch where absent), then sets NOT NULL. A single `ADD COLUMN ... NOT NULL` would have demanded the default this rule forbids
+  - [x] `pnpm db:migrate` is manual and decoupled from the deploy, so **ship the code first, migrate second**. Run in the other order and a first login against the still-live previous build inserts without `last_read_at`, hits `23502`, and the OAuth callback's catch flattens it into the generic `?error=failed` copy — nothing in the UI says which column
 - [x] `sessions` — `id`, `user_id`, `token_hash` (unique), `device_label`, `created_at`, `last_seen_at`, `expires_at`
 - [x] `conversations` — the single conversation (`id`, `created_at`)
   - [x] Its id is the fixed `CONVERSATION_ID` constant in `shared/config`, not a lookup — one conversation means nothing has to be queried to address it
-  - [x] A CHECK pins `id` to that constant. `id` still defaults to `gen_random_uuid()`, so without it any insert that omits the id opens a second conversation and messages and members split across the two with no error
-- [x] `conversation_members` — `conversation_id`, `user_id`, `last_read_at`, primary key (`conversation_id`, `user_id`)
-  - [x] `last_read_at` has **no default**, so every insert has to name a value. §8.8 reads unread as `created_at > last_read_at`, and a `defaultNow()` would silently mark everything sent before that person's first login as already read — their first chat screen would open with no unread divider and a zero badge
-  - [x] Both insert sites (`ensureConversationMembership`, `scripts/seed.ts`) pass the epoch: a new member has read nothing
+  - [x] A CHECK pins `id` to that constant. `id` still defaults to `gen_random_uuid()`, so without it any insert that omits the id opens a second conversation and messages split across the two with no error
+  - [x] With members gone the table exists only as the FK anchor and scope key for `messages.conversation_id`, which the `(conversation_id, id DESC)` index and the §8.4 payload both already assume
+  - [x] `ensureConversation` runs at login as well as in `scripts/seed.ts`, so a deployment that skipped the seed does not fail every message insert on its foreign key
 - [x] `messages` — `id` (bigserial; the ordering and cursor key), `conversation_id`, `sender_id`, `type` (`text` | `image` | `emoticon` | `system`), `text`, `emoticon_item_id`, `event_id` (the event a `system` message refers to), `system_action`, `event_title`, `event_starts_at`, `client_msg_id` (uuid, unique), `created_at`, `deleted_at`
   - [x] `system` is for calendar-change notices (§11.5); its `sender_id` is the user who made the change
   - [x] `system_action` (`event_created` | `event_rescheduled` | `event_deleted`) plus the `event_title` / `event_starts_at` **snapshot** are what §11.5 composes its sentence from. The snapshot exists because a delete notice outlives its `events` row, so a join cannot supply the title or date. Only the _user_ name is resolved at render time — that is what §11.5 forbids baking in
@@ -310,9 +318,14 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
 - [x] `pg_trgm` extension + a GIN trigram index on `messages.text` (§8.6)
 - [x] Emit `pg_notify('new_message', payload)` — an `AFTER INSERT` trigger on `messages`, so no write path can forget it
   - [x] The payload is only `{ id, conversationId }`. `NOTIFY` caps at 8000 bytes, and §8.4 replays from `Last-Event-ID` by id anyway, so the stream refetches the row rather than trusting the payload
+- [x] Emit `pg_notify('user_changed', '')` — `AFTER INSERT` and `AFTER UPDATE` triggers on `users`, the second SSE channel (§8.4)
+  - [x] Moving `last_read_at` onto `users` made a read-cursor bump and a nickname or avatar change **the same event**, so one channel serves both §8.7 and §8.8 instead of two
+  - [x] The payload is **empty**. §8.4 answers this channel by refetching the whole user set over `GET /api/users`, so there is nothing an id would save — the §6 "refetch, do not trust the payload" rule taken to its conclusion
+  - [x] Two triggers, not one: a `WHEN` clause cannot reference `OLD` on an INSERT, so the UPDATE trigger carries `WHEN (OLD.* IS DISTINCT FROM NEW.*)` separately
+  - [x] That guard only suppresses updates that changed nothing; a genuine cursor bump **does** fire, and the read cursor is this app's highest-frequency write. What keeps the channel quiet is §8.8's `WHERE last_read_at < $new` — it turns a throttled repeat into a no-op row, which the guard then drops. Both halves are load-bearing; dropping either one puts a `GET /api/users` on every throttle tick
 - [x] Two connection strings — `DATABASE_URL` (pooled, for normal queries) and `DATABASE_URL_UNPOOLED` (unpooled, required for `LISTEN` and for migrations)
-- [x] `drizzle-kit` migration pipeline + initial seed (`pnpm db:seed` — the one conversation, plus every existing user as a member)
-  - [x] Membership cannot be fully seeded: a `users` row only exists after that person's first login. The OAuth callback therefore calls `ensureConversationMembership`, and the seed script backfills whoever has already logged in
+- [x] `drizzle-kit` migration pipeline + initial seed (`pnpm db:seed` — the one conversation)
+  - [x] Participants are not seeded: a `users` row only exists after that person's first login, so the OAuth callback creates it. The seed only guarantees the conversation row
   - [x] The extension, trigram index, and both triggers live in hand-written migrations (`--custom`) — drizzle-kit does not emit DDL it cannot infer from the schema
 
 ---
@@ -326,7 +339,7 @@ Install via shadcn, then rewrite every visual decision against `docs/DESIGN.md` 
   - [x] Active-tab highlight, icon + label
     - [x] Colour alone carries the active state. DESIGN.md § 7.3. allows switching to a filled lucide variant "where one exists" — none exists for these four glyphs, so none is used
   - [x] Unread badge on the Chat tab
-    - [ ] It resolves once per full page load. Making it live is § 8.8., which needs the SSE pipeline
+    - [ ] It resolves once per full page load, and a PWA resume is not one (§ 8.4.). Making it live is § 8.8., which needs the SSE pipeline
   - [x] Honour `env(safe-area-inset-bottom)` (home-indicator area)
   - [x] Even though it is `fixed`, keep the app max width and centering (§4.2)
   - [x] Provide mouse hover / active styling
@@ -413,16 +426,28 @@ Offscreen message nodes **must not stay in the DOM**. After a few years of histo
 ### 8.4. Realtime (SSE)
 
 - [ ] `GET /api/chat/stream` — `text/event-stream`
-  - [ ] Acquire a connection from the **direct (unpooled)** connection string and hold it while issuing `LISTEN new_message`; never release it back to the pool before the stream ends. A transaction-mode pooler hands the underlying connection to another client between transactions, which silently drops the `LISTEN`
+  - [ ] Acquire a connection from the **direct (unpooled)** connection string and hold it while issuing `LISTEN new_message` **and `LISTEN user_changed`**; never release it back to the pool before the stream ends. A transaction-mode pooler hands the underlying connection to another client between transactions, which silently drops the `LISTEN`
+  - [ ] **One endpoint, one `EventSource`, two channels.** The second `LISTEN` rides the connection the stream already holds — it is not a second stream
+  - [ ] Distinguish the two with the SSE `event:` field — `event: message` and `event: user`
   - [ ] Use the request's `Last-Event-ID` header as a cursor — replay everything accumulated while disconnected, then switch to live streaming
   - [ ] **`id > cursor` alone loses messages.** `bigserial` ids are handed out at INSERT but only become visible at COMMIT, so they can commit out of order: if the transaction holding id 10 is still open when id 11 commits and streams, a client that advances its cursor to 11 and reconnects never asks for 10 again. Replay from a small margin below the cursor (`cursor - N`) and let the §8.4 id-deduplication drop the overlap
-  - [ ] Populate the `id:` field on every event (it becomes the reconnect cursor)
+  - [ ] Populate the `id:` field on **`message` events only** (it becomes the reconnect cursor)
+  - [ ] **Never put an `id:` on a `user` event.** The cursor is a `messages` bigserial and a user has no counterpart; writing a uuid there would hand the next reconnect a garbage replay bound. The SSE spec leaves the client's last-event-ID buffer untouched when a field is absent, which is exactly the wanted behaviour — `user` events are not replayable, and a reconnect refetches the whole set anyway
   - [ ] Send periodic heartbeat comments (`:ping`) to prevent proxy timeouts
   - [ ] Release the connection in a `finally` block when the stream ends
+- [ ] `GET /api/users` — the whole participant set, **no cursor**
+  - [ ] Serves three callers: first render, a `user` SSE event, and the resume catch-up below
+  - [x] `listUsers` projects an explicit column set — `id`, `email`, `nickname`, `avatar_media_id`, `last_read_at`. **Never `SELECT *`**: this payload reaches the browser verbatim, and `google_sub` is the identity key §5.1 matches on. `email` is in the list only because §8.7's empty-nickname fallback is its local part
+  - [ ] A "changed since" cursor is the wrong shape here and is **rejected**. Unlike `messages` this is a small mutable set, not an append-only log: a rename produces no new row, so an id cursor never fires, and an `updated_at` cursor would still miss a deletion. Two rows are cheaper to refetch whole than to diff
 - [ ] Client subscribes with `EventSource` and relies on its automatic reconnection
-- [ ] On `visibilitychange` → visible: explicitly catch up with `fetch(?after=newestKnownId)`, and reconnect if `readyState === CLOSED`
-- [ ] **Deduplicate received messages by id** — SSE replay and the catch-up fetch will overlap
 - [ ] Close the stream when the tab goes to the background (so Neon compute can autosuspend)
+- [ ] **Resume is the normal sync path, not an error path.** Because the line above closes the stream on purpose, every return to the app has missed events. An iOS home-screen PWA restores the frozen page rather than navigating, so the Server Component render (`chat-page.tsx`) does not re-run and cannot cover this
+- [ ] On `visibilitychange` → visible, all three of:
+  - [ ] Reconnect if `readyState === CLOSED`
+  - [ ] `fetch(/api/messages?after=newestKnownId)` — cursor based
+  - [ ] `fetch(/api/users)` — whole set
+- [ ] **Deduplicate received messages by id** — SSE replay and the catch-up fetch will overlap
+- [ ] Multi-device needs no extra mechanism: `user_changed` is a conversation-wide broadcast, so "my other device" and "the other person's phone" are both just another subscriber. A client receiving the echo of its own change refetches idempotently
 
 ### 8.5. Sending
 
@@ -465,16 +490,21 @@ Offscreen message nodes **must not stay in the DOM**. After a few years of histo
 - [ ] **Never copy the name or avatar onto the message row.** Join on `sender_id` and resolve at render time
   - [ ] Changing a nickname therefore **retroactively changes the displayed name on all past messages.** This is the intended behaviour
   - [ ] The same applies to system messages (§11.5) — baking the name into the stored text would leave stale names in old records after a rename
-- [ ] A nickname change is reflected immediately on the other user's open screens (session-based, no re-login needed, §5)
+- [ ] A nickname or avatar change reaches every other **open** screen over the `user_changed` channel (§8.4) — both the other person's devices and this person's own second device
+  - [ ] The §5 session design is what makes a _fresh load_ correct: an opaque token resolved against `users` on every request carries no stale copy of the name, unlike a JWT with baked-in claims. It does **not** push anything to an already-open screen, which is why §8.4 exists
+  - [ ] Because §8.7 forbids denormalizing the name onto the message row, answering a `user_changed` event is a single `GET /api/users` — every past bubble and every §11.5 system sentence re-renders from it. Had the name been copied onto `messages`, this would have been a backfill
 - [ ] Fallback when the nickname is empty or unset — use the email local part
 - [ ] Fallback when no avatar is set — initial-letter avatar from the nickname (DESIGN §7.7)
 
 ### 8.8. Read / Unread
 
-- [ ] Cursor approach via `conversation_members.last_read_at` (no per-message `read_at` column)
-- [ ] A message is unread when `message.created_at > otherMember.last_read_at`
+- [x] Cursor approach via `users.last_read_at` (no per-message `read_at` column, and no `conversation_members` table — §6)
+- [ ] A message is unread when `message.created_at > otherUser.last_read_at`
+  - [ ] This is a **boolean**, which is only correct for two participants. See §6 for what a third one would cost
+- [x] `countUnreadMessages` reads the cursor by joining `users` on the requesting id — the badge query stays a single round trip
 - [ ] While the chat tab is visible, update `last_read_at` via `POST /api/chat/read` (throttled)
-- [ ] Broadcast the update over SSE so the sender's `1` markers all clear at once
+  - [ ] The UPDATE **must** carry `WHERE last_read_at < $new`. The same person can have the tab open on two devices, and a stale request arriving late would otherwise move the cursor backwards — the unread divider jumps back into already-read history and the other side's `1` markers reappear after clearing
+- [ ] The broadcast that clears the sender's `1` markers needs no new plumbing: the write touches `users`, so the §6 trigger fires `user_changed` and §8.4 delivers it
 - [ ] An unread-count endpoint for the tab bar badge
 
 ---
@@ -570,6 +600,7 @@ Include only what genuinely pays off for exactly two users. General-purpose cale
 - [ ] Profile — change nickname, upload/change profile image (via R2)
   - [ ] The nickname set here is exactly what appears as the sender name in chat and inside system-message sentences (§8.7)
   - [ ] Initialized from the Google account name at first login, then owned by the user
+  - [ ] Saving needs no explicit broadcast — the UPDATE lands on `users`, so the §6 trigger fires `user_changed` and every open screen refetches (§8.4)
 - [ ] Entry point to the emoticon settings screen
 - [ ] List of logged-in devices, with per-session revocation
 - [ ] Log out
