@@ -1,6 +1,6 @@
 "use client";
 
-import { cn, safelyGet, safelyRun, useHydrated, useIsVirtualKeyboardOpen } from "@/shared/lib";
+import { cn, safelyGet, safelyRun, useHydrated } from "@/shared/lib";
 import { IconButton } from "@/shared/ui";
 import { Share, X } from "lucide-react";
 import { useState } from "react";
@@ -16,15 +16,13 @@ export type InstallGuideProps = {
 export function InstallGuide({ className }: InstallGuideProps) {
   // WARN: The decision needs `window`, so it has to wait for hydration — deriving it during render instead of in an effect keeps the banner out of the server HTML without a cascading re-render.
   const isHydrated = useHydrated();
-  // INFO: The shell shrinks to the visual viewport, so every row it holds competes with the composer for what the keyboard leaves (DESIGN.md § 3.4.).
-  const isKeyboardOpen = useIsVirtualKeyboardOpen();
   const [isDismissed, setIsDismissed] = useState(false);
 
   // INFO: localStorage is fine for a dismissal flag — REQUIREMENTS.md § 5.2. bans it for auth state only, where ITP eviction would sign the user out.
   // WARN: Blocked storage makes every `localStorage` access throw, and this renders inside the `(main)` layout — an unguarded read takes down all four tabs.
+  // INFO: DESIGN.md § 7.13. It goes with the tab bar while the keyboard is up, and `BottomOverlay` collapses the pair together rather than each unmounting itself.
   const isVisible =
     isHydrated &&
-    !isKeyboardOpen &&
     !isDismissed &&
     safelyGet(() => localStorage.getItem(DISMISSED_KEY)) !== "true" &&
     isIosBrowserTab();
