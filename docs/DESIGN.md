@@ -645,7 +645,9 @@ The D-day band is the only place `display-lg` appears in the app. It is the scre
 
 ## 7.10. Gallery.
 
-3-column grid, `2xs` (4px) gutters, square `object-cover` cells, `rounded-sm`. Month section header is `title-sm` `meta`, sticky under the app header with a `canvas` backdrop — its offset is `--app-header-inset`, not zero, because the header floats over the content (§ 7.12.). Viewer is full-bleed on `scrim` at 90% opacity with no chrome except a close `icon-button`, the position counter, and the save control; slides carry vertical padding only, since a side gutter reads as a frame around a photo the viewer exists to show whole.
+3-column grid, `2xs` (4px) gutters, square `object-cover` cells, `rounded-sm`. Month section header is `title-sm` `meta` and **scrolls with the grid**. Viewer is full-bleed on `scrim` at 90% opacity with no chrome except a close `icon-button`, the position counter, and the save control; slides carry vertical padding only, since a side gutter reads as a frame around a photo the viewer exists to show whole.
+
+The month header was `sticky` under the app header and is deliberately not any more. The app header is transparent (§ 7.12.), so a pinned opaque band left tiles rendering above it and read as a strip cutting through the grid rather than as a label. Covering the header zone in `canvas` would have fixed that by making the gallery the one screen whose header is not transparent; letting the label scroll costs a way to tell which month is on screen mid-scroll, and that was the cheaper loss.
 
 | Element         | Rule                                                                                                                                                                              |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
