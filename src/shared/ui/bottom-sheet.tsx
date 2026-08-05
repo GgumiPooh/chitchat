@@ -11,6 +11,8 @@ export type BottomSheetProps = PropsWithChildren<{
     className?: string;
     title: string;
     description?: string;
+    // INFO: The title stays required even when hidden — Radix names the dialog from it and warns when it is missing.
+    isHidden?: boolean;
   };
   onClose: () => void;
 }>;
@@ -26,15 +28,20 @@ export function BottomSheet({ className, isOpen, header, children, onClose }: Bo
         )}
       >
         <div className="mx-auto block h-1.5 w-12 shrink-0 rounded-full bg-hairline-strong" />
-        <div className="scrollbar-hidden space-y-xs overflow-y-auto overscroll-contain">
-          <div className={cn("space-y-2xs", header.className)}>
-            <DrawerTitle className="text-center">{header.title}</DrawerTitle>
-            {header.description && (
-              <DrawerDescription className="text-center whitespace-pre-line">
-                {header.description}
-              </DrawerDescription>
-            )}
-          </div>
+        <div className="scrollbar-hidden overflow-y-auto overscroll-contain">
+          {header.isHidden ? (
+            <DrawerTitle className="sr-only">{header.title}</DrawerTitle>
+          ) : (
+            // WARN: The gap to the body lives here, not as `space-y` on the parent — a hidden header is still a flow sibling and would leave the gap behind.
+            <div className={cn("mb-xs space-y-2xs", header.className)}>
+              <DrawerTitle className="text-center">{header.title}</DrawerTitle>
+              {header.description && (
+                <DrawerDescription className="text-center whitespace-pre-line">
+                  {header.description}
+                </DrawerDescription>
+              )}
+            </div>
+          )}
           {children}
         </div>
       </DrawerContent>

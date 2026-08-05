@@ -43,7 +43,7 @@ export function MediaPickerSheet({
       <ActionSheet
         className={className}
         isOpen={isOpen}
-        header={{ title: "첨부" }}
+        header={{ title: "첨부", isHidden: true }}
         items={[
           { label: "사진/영상", Icon: Images, onSelect: () => albumRef.current?.click() },
           // WARN: `capture` is honoured only where the OS has a camera app to hand the input to. A desktop browser silently ignores it and opens the same dialog as the row above, so the row is dropped rather than left to lie about what it does.

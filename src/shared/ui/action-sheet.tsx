@@ -2,7 +2,7 @@
 
 import { cn } from "@/shared/lib";
 import type { ComponentProps, FC } from "react";
-import { BottomSheet } from "./bottom-sheet";
+import { BottomSheet, type BottomSheetProps } from "./bottom-sheet";
 
 export type ActionSheetItem = {
   label: string;
@@ -15,11 +15,7 @@ export type ActionSheetProps = {
   className?: string;
   isOpen: boolean;
   items: ActionSheetItem[];
-  header: {
-    className?: string;
-    title: string;
-    description?: string;
-  };
+  header: BottomSheetProps["header"];
   onClose: () => void;
 };
 

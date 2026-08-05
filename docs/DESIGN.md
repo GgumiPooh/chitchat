@@ -569,14 +569,15 @@ No size beyond `md`: the shell is 576px, so anything larger is a screen, not a m
 
 The default overlay for anything originating from a bottom-anchored or list interaction. Bottom-anchored **floating card**, inset `sm` (12px) from the screen edges, `rounded-xl`, `canvas` fill, 1px `hairline`, `shadow-floating`, `overflow-hidden`.
 
-| Rule                                                                    | Reason                                              |
-| ----------------------------------------------------------------------- | --------------------------------------------------- |
-| Drag handle at top: 48×6, `rounded-full`, `hairline-strong`             | The dismissal affordance                            |
-| No close `X` alongside the handle                                       | Two redundant dismiss controls on the same edge     |
-| Centered `title-md` `ink` header; optional `body-sm` `meta` description | Matches the reference implementation                |
-| Body scrolls internally past `70dvh`; max height `90dvh - 12px`         | Sheet must never push past the viewport             |
-| Focus ring inside the sheet is `ring-2 ring-primary ring-inset`         | `overflow-hidden` would crop an outward offset ring |
-| Never swapped for a `Modal` at any width                                | § 3.1.                                              |
+| Rule                                                                    | Reason                                               |
+| ----------------------------------------------------------------------- | ---------------------------------------------------- |
+| Drag handle at top: 48×6, `rounded-full`, `hairline-strong`             | The dismissal affordance                             |
+| No close `X` alongside the handle                                       | Two redundant dismiss controls on the same edge      |
+| Centered `title-md` `ink` header; optional `body-sm` `meta` description | Matches the reference implementation                 |
+| A sheet whose rows already say what it is may hide the header           | A title over `사진/영상`/`카메라` only restates them |
+| Body scrolls internally past `70dvh`; max height `90dvh - 12px`         | Sheet must never push past the viewport              |
+| Focus ring inside the sheet is `ring-2 ring-primary ring-inset`         | `overflow-hidden` would crop an outward offset ring  |
+| Never swapped for a `Modal` at any width                                | § 3.1.                                               |
 
 `ActionSheet` is a bottom sheet whose body is a list of full-width `surface-soft` rows, `rounded-md`, `button-md` centered label with optional leading icon, following the chip ladder for states. Destructive rows use `semantic-error` text.
 
