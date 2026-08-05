@@ -55,10 +55,8 @@ export function GalleryGrid({
     <div className={cn("flex flex-col gap-md", className)}>
       {sections.map((section) => (
         <section key={section.monthKey}>
-          {/* INFO: DESIGN.md § 7.10. The header pins under the floating app header, which is why the offset is `--app-header-inset` rather than zero. */}
-          <h2 className="sticky top-(--app-header-inset) z-10 bg-canvas py-xs text-title-sm text-meta">
-            {section.label}
-          </h2>
+          {/* WARN: DESIGN.md § 7.10. Deliberately not `sticky`. Pinned under the floating header it became an opaque strip cutting across the grid — the header is transparent (§ 7.12.), so tiles went on showing above the band and it read as a rendering fault rather than a section label. */}
+          <h2 className="pb-xs text-title-sm text-meta">{section.label}</h2>
           <div className="grid grid-cols-3 gap-2xs">
             {cells.slice(section.startIndex, section.startIndex + section.count).map((cell, i) => (
               <GalleryTile

@@ -1,5 +1,5 @@
 export { getBucket, getR2 } from "./client";
-export { buildStorageKey, toThumbKey, type StorageScope } from "./keys";
+export { buildStorageKey, toScopePrefix, toThumbKey, type StorageScope } from "./keys";
 export {
   deleteObjects,
   deleteObjectsAfterCacheWindow,

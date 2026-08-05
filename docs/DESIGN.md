@@ -504,7 +504,7 @@ The count variant recolours to `primary` rather than adding a separate badge ele
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Result row      | `canvas` fill on `surface-soft` list, sender name (`title-sm`), matched line (`body-sm`, 2-line clamp), date (`caption`, `meta`) |
 | Match highlight | `search-hit` background, `ink` text, `rounded-xs`, computed client-side by string split                                          |
-| Jump target     | On arrival the bubble flashes `primary-tint` behind its fill for 1.5s, then fades over 300ms                                     |
+| Jump target     | On arrival the **row** flashes `primary-tint` for 1.5s, then fades over 300ms — see § 6.10.                                      |
 | Return control  | The § 6.7. scroll-to-bottom pill — same component, no search-specific variant                                                    |
 | Empty state     | § 7.6.                                                                                                                           |
 
@@ -526,6 +526,30 @@ A text message carrying a link renders a card above its text, **inside** the bub
 The card keeps `canvas` on both sides of the conversation rather than tinting with the bubble: it is quoted material, and the one thing in a `bubble-mine` bubble that did not come from the sender.
 
 Links in the text itself are underlined (`underline-offset-2`) and take `primary` on `:hover`, `primary-pressed` on `:active`. The URL stays in the bubble as the sender typed it — the card is an addition to the message, never a rewrite of it.
+
+## 6.10. Reply Quote.
+
+The message a reply points at, in one line (`REQUIREMENTS.md § 8.10.`).
+
+| Property     | Value                                                                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shape        | `rounded-sm`, 2px `primary` left bar, padding `4px 8px`, `xs` gap between thumbnail and text                                                      |
+| Lines        | Sender name (`chat-name` in `chat-meta`) over the summary (`body-sm` in `meta`). **Both `truncate`, always one line each**                        |
+| Summary copy | The text itself; `사진` / `동영상` for attachments, `이모티콘` for an emoticon, `삭제된 메시지예요` for a parent that has been deleted            |
+| Thumbnail    | The bubble's **first** attachment only, 32×32 `rounded-xs` with a 1px `hairline` inset ring. Box fixed, never derived from the image (§ 6.1.)     |
+| In a bubble  | Inside the text bubble at its top, `2xs` above the text, fill `chat-canvas` — recessed against both bubble fills, which `surface-soft` is not     |
+| Standalone   | Media and emoticon messages have no bubble (§ 6.5.), so the quote is a `bubble-theirs` card above them, capped at the 220px attachment width      |
+| Tap          | Jumps to the original. `:hover` `bg-surface-strong`, `:active` `bg-surface-pressed`. A deleted parent is not tappable — there is nothing to reach |
+| Staged       | Above the composer stack, in flow, in the § 6.6. pill treatment (`glass`, `hairline`, `shadow-floating`) with a 36px `X` to cancel                |
+
+The staged quote pushes the history up, where the staged emoticon of § 6.6. floats over it. The emoticon is one object standing where its own bubble will land; this is a bar, like the media tray, and a bar that floated would hide the messages the user is quoting from.
+
+| Reply affordance | Rule                                                                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Touch            | Hold the bubble → the § 7.5. action sheet, `답장` first                                                                                    |
+| Pointer          | A 32px `CornerUpLeft` button on the bubble's **outer** side, `opacity-0` until the row is hovered or the button is focused                 |
+| Position         | Out of the row's flow (`absolute`, vertically centered). In flow its appearance on hover would shove the bubble sideways under the cursor  |
+| Highlight        | A jump target flashes `primary-tint` on the **row**, not the bubble fill — media and emoticon messages have no fill and must highlight too |
 
 # 7. Components.
 
@@ -638,6 +662,10 @@ The default overlay for anything originating from a bottom-anchored or list inte
 
 `rounded-full`, `surface-strong` fallback fill with the nickname's first character in `title-sm` `meta`. Sizes: 36 (chat), 44 (settings row), 72 (profile edit). 1px `hairline` inset ring at every size so light photos do not bleed into `canvas`.
 
+The photo is stored **square** (`REQUIREMENTS.md § 12.`), because the circle crops anything else and the § 7.10. viewer would then show a framing the circle never did.
+
+Where it is enlargeable, the avatar is a button: `opacity-80` on hover, `opacity-70` on active, `focus-visible` ring on the circle itself rather than on the image inside it. Tapping opens the § 7.10. viewer on that one photo, with the save control hidden — a profile photo is the person, not an attachment they shared. It is **not** enlargeable inside another interactive element (the § 7.9. day sheet's authorship avatar), where a nested button would swallow the tap.
+
 ## 7.8. Skeleton.
 
 `surface-strong` blocks at the final content's radius, pulsing to `surface-soft` over 1.5s. Used for the initial message page, gallery grid, and calendar month. Never for optimistic messages — those render at 60% opacity (§ 6.5.).
@@ -670,7 +698,9 @@ The D-day band is the only place `display-lg` appears in the app. It is the scre
 
 ## 7.10. Gallery.
 
-3-column grid, `2xs` (4px) gutters, square `object-cover` cells, `rounded-sm`. Month section header is `title-sm` `meta`, sticky under the app header with a `canvas` backdrop — its offset is `--app-header-inset`, not zero, because the header floats over the content (§ 7.12.). Viewer is full-bleed on `scrim` at 90% opacity with no chrome except a close `icon-button`, the position counter, and the save control.
+3-column grid, `2xs` (4px) gutters, square `object-cover` cells, `rounded-sm`. Month section header is `title-sm` `meta` and **scrolls with the grid**. Viewer is full-bleed on `scrim` at 90% opacity with no chrome except a close `icon-button`, the position counter, and the save control; slides carry vertical padding only, since a side gutter reads as a frame around a photo the viewer exists to show whole.
+
+The month header was `sticky` under the app header and is deliberately not any more. The app header is transparent (§ 7.12.), so a pinned opaque band left tiles rendering above it and read as a strip cutting through the grid rather than as a label. Covering the header zone in `canvas` would have fixed that by making the gallery the one screen whose header is not transparent; letting the label scroll costs a way to tell which month is on screen mid-scroll, and that was the cheaper loss.
 
 | Element         | Rule                                                                                                                                                                              |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

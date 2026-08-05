@@ -1,5 +1,7 @@
 import { registerMedia } from "@/entities/media";
 import { getCurrentUser } from "@/shared/auth";
+import { MEDIA_UPLOAD_SCOPES } from "@/shared/config";
+import { toScopePrefix } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -31,8 +33,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  // WARN: The prefix is the ownership check. `buildStorageKey` puts the uploader's id in the key, so a caller naming someone else's key is claiming an object it never uploaded.
-  if (!body.data.r2Key.startsWith(`chat/${user.id}/`)) {
+  // WARN: The prefix is the ownership check. `buildStorageKey` puts the uploader's id in the key, so a caller naming someone else's key is claiming an object it never uploaded. The scope is matched too, or an emoticon object could be claimed as a `media` row and land in the gallery (§ 13.3.).
+  const scope = MEDIA_UPLOAD_SCOPES.find((candidate) =>
+    body.data.r2Key.startsWith(toScopePrefix(candidate, user.id)),
+  );
+
+  if (!scope) {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+
+  // WARN: REQUIREMENTS.md § 12. `addToGallery` is the caller's own claim, so it has to be refused rather than ignored for a scope the gallery does not own. An avatar filed into the grid is deleted outright by § 10.'s removal — nothing carries it in a message — and `users.avatar_media_id` is `ON DELETE SET NULL`, so the wearer's photo would silently disappear.
+  if (scope !== "chat" && body.data.addToGallery) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 

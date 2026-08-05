@@ -1,15 +1,29 @@
 "use client";
 
-import { cn, type Maybe } from "@/shared/lib";
+import { toMediaUrl } from "@/shared/config";
+import { cn, type Maybe, type Nullable } from "@/shared/lib";
 import { Avatar as AvatarPrimitive } from "radix-ui";
+import { useMemo, useState } from "react";
+import type { MediaCell } from "./media-cell";
+import { MediaViewer } from "./media-viewer";
 
 export type AvatarProps = {
   className?: string;
   fallbackClassName?: string;
   src?: Maybe<string>;
+  /** REQUIREMENTS.md § 12. The `media` row behind the photo. Resolves `src` and is what the full-screen view reads. */
+  mediaId?: Nullable<string>;
   /** Resolved display name. Its first character is the fallback, per DESIGN.md § 7.7. */
   name: string;
   size?: "chat" | "row" | "profile";
+  /**
+   * Makes the avatar a button that opens the photo full screen.
+   *
+   * WARN: Off by default, and it must stay off inside another interactive element
+   * — the calendar day sheet renders one inside the row button that opens an event
+   * (§ 11.4.), where a nested `button` is invalid markup and swallows that tap.
+   */
+  canEnlarge?: boolean;
 };
 
 const SIZE_CLASS_NAME = {
@@ -19,16 +33,31 @@ const SIZE_CLASS_NAME = {
 };
 
 // INFO: DESIGN.md § 7.7. The inset hairline ring exists at every size so light photos cannot bleed into `canvas`.
-export function Avatar({ className, fallbackClassName, src, name, size = "chat" }: AvatarProps) {
-  return (
+export function Avatar({
+  className,
+  fallbackClassName,
+  src,
+  mediaId,
+  name,
+  size = "chat",
+  canEnlarge = false,
+}: AvatarProps) {
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const resolvedSrc = src ?? (mediaId ? toMediaUrl(mediaId) : undefined);
+  const cells = useMemo(() => (mediaId ? [toAvatarCell(mediaId)] : []), [mediaId]);
+  const isEnlargeable = canEnlarge && cells.length > 0;
+
+  const face = (
     <AvatarPrimitive.Root
       className={cn(
         "relative flex shrink-0 overflow-hidden rounded-full ring-1 ring-hairline select-none ring-inset",
-        SIZE_CLASS_NAME[size],
-        className,
+        // WARN: The button below takes over sizing when it wraps this, or a caller's `size-*` would size the wrapper while the circle kept its own — the calendar day sheet passes exactly that (§ 11.4.).
+        isEnlargeable ? "size-full" : cn(SIZE_CLASS_NAME[size], className),
       )}
     >
-      {src && <AvatarPrimitive.Image className="aspect-square size-full" src={src} alt={name} />}
+      {resolvedSrc && (
+        <AvatarPrimitive.Image className="aspect-square size-full" src={resolvedSrc} alt={name} />
+      )}
       <AvatarPrimitive.Fallback
         className={cn(
           "flex size-full items-center justify-center bg-surface-strong text-title-sm text-meta",
@@ -39,4 +68,48 @@ export function Avatar({ className, fallbackClassName, src, name, size = "chat" 
       </AvatarPrimitive.Fallback>
     </AvatarPrimitive.Root>
   );
+
+  if (!isEnlargeable) {
+    return face;
+  }
+
+  return (
+    <>
+      <button
+        className={cn(
+          "shrink-0 cursor-pointer rounded-full transition-opacity outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary active:opacity-70",
+          SIZE_CLASS_NAME[size],
+          className,
+        )}
+        type="button"
+        aria-label={`${name} 프로필 사진 크게 보기`}
+        onClick={() => setIsViewerOpen(true)}
+      >
+        {face}
+      </button>
+      {isViewerOpen && (
+        <MediaViewer cells={cells} initialIndex={0} onClose={() => setIsViewerOpen(false)} />
+      )}
+    </>
+  );
+}
+
+/**
+ * WARN: `1 / 1` is a fact about the stored object, not a convenience. The profile
+ * editor crops every avatar square before it uploads (REQUIREMENTS.md § 12.), which
+ * is what lets the viewer reserve a box without a round trip for the real
+ * dimensions — an avatar written any other way would show letterboxed here.
+ */
+function toAvatarCell(mediaId: string): MediaCell {
+  return {
+    id: mediaId,
+    previewUrl: toMediaUrl(mediaId),
+    originalUrl: toMediaUrl(mediaId, "original"),
+    // INFO: No save control. A profile photo is the person, not an attachment they shared, and § 7.10.'s viewer hides the affordance when there is nothing to point it at.
+    downloadUrl: null,
+    width: 1,
+    height: 1,
+    durationMs: null,
+    isVideo: false,
+  };
 }

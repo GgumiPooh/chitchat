@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/shared/auth";
 import {
   ALLOWED_IMAGE_MIMES,
   ALLOWED_VIDEO_MIMES,
+  MEDIA_UPLOAD_SCOPES,
   THUMBNAIL_MIME,
   maxSizeForMime,
 } from "@/shared/config";
@@ -12,6 +13,8 @@ import { z } from "zod";
 const bodySchema = z.object({
   mime: z.enum([...ALLOWED_IMAGE_MIMES, ...ALLOWED_VIDEO_MIMES]),
   size: z.number().int().positive(),
+  // INFO: REQUIREMENTS.md § 12. Only the profile editor asks for anything else; every other caller predates the scope and keeps the default.
+  scope: z.enum(MEDIA_UPLOAD_SCOPES).default("chat"),
 });
 
 /**
@@ -35,14 +38,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const { mime, size } = body.data;
+  const { mime, size, scope } = body.data;
 
   // INFO: REQUIREMENTS.md § 14. A courtesy rejection on the client's own claim. R2 enforces neither the type nor the size of a presigned PUT, so `registerMedia` re-checks both against what actually landed.
   if (size > maxSizeForMime(mime)) {
     return NextResponse.json({ error: "too_large" }, { status: 413 });
   }
 
-  const r2Key = buildStorageKey("chat", user.id);
+  const r2Key = buildStorageKey(scope, user.id);
   const [uploadUrl, thumbnailUploadUrl] = await Promise.all([
     presignUpload(r2Key, mime),
     presignUpload(toThumbKey(r2Key), THUMBNAIL_MIME),

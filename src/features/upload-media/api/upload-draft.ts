@@ -1,5 +1,5 @@
 import type { GalleryMedia, MediaDraft } from "@/entities/media";
-import { MEDIA_PATH, MEDIA_UPLOAD_URL_PATH } from "@/shared/config";
+import { MEDIA_PATH, MEDIA_UPLOAD_URL_PATH, type MediaUploadScope } from "@/shared/config";
 
 type UploadTicket = {
   r2Key: string;
@@ -13,6 +13,8 @@ export type UploadProgress = (loadedBytes: number) => void;
 export type UploadDraftOptions = {
   // INFO: REQUIREMENTS.md § 10. What puts a photo in the gallery without a message behind it. A chat attachment leaves this alone and earns its place there through `message_media`.
   addToGallery?: boolean;
+  // INFO: REQUIREMENTS.md § 12. The key prefix the object lands under, which is also what its registration is authorized against.
+  scope?: MediaUploadScope;
   onProgress?: UploadProgress;
 };
 
@@ -27,9 +29,9 @@ const NO_PROGRESS: UploadProgress = () => {};
  */
 export async function uploadDraft(
   draft: MediaDraft,
-  { addToGallery = false, onProgress = NO_PROGRESS }: UploadDraftOptions = {},
+  { addToGallery = false, scope = "chat", onProgress = NO_PROGRESS }: UploadDraftOptions = {},
 ): Promise<GalleryMedia> {
-  const ticket = await requestTicket(draft);
+  const ticket = await requestTicket(draft, scope);
 
   await putWithProgress(ticket.uploadUrl, draft.file, draft.mime, onProgress);
   // INFO: No progress for the thumbnail — it is a few tens of KB against an original measured in MB, so it would only make the bar jump.
@@ -38,11 +40,11 @@ export async function uploadDraft(
   return registerUpload(draft, ticket.r2Key, addToGallery);
 }
 
-async function requestTicket(draft: MediaDraft): Promise<UploadTicket> {
+async function requestTicket(draft: MediaDraft, scope: MediaUploadScope): Promise<UploadTicket> {
   const response = await fetch(MEDIA_UPLOAD_URL_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mime: draft.mime, size: draft.file.size }),
+    body: JSON.stringify({ mime: draft.mime, size: draft.file.size, scope }),
   });
 
   if (!response.ok) {
