@@ -110,10 +110,13 @@ The shell is sized to the **visual viewport**, not the layout viewport. `VisualV
 | Rule                | Value                                                                                                                    |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Shell               | `fixed`, `top: var(--viewport-top, 0px)`, `height: var(--viewport-height, 100dvh)` — the only element the keyboard moves |
+| Shell motion        | `height` eases over 200ms `ease-out`; `top` never eases                                                                  |
 | Document scroll     | Forbidden. `html, body` are `h-full overflow-hidden overscroll-none`                                                     |
 | Screen scroll       | Every screen scrolls inside the shell's `#app-scroll` container, or inside its own (chat's virtualizer, login's column)  |
 | `interactiveWidget` | `resizes-content`, kept as a Chromium-side fallback only. WebKit ignores it, so nothing may depend on it                 |
 | Synced offsets      | `height` and `offsetTop` only. Zooming is off (`maximumScale: 1`), so the left/right offsets never leave `0`             |
+
+Why the height eases and `top` does not: WebKit reports `visualViewport.height` in a couple of coarse steps while the keyboard slides, so a raw height lands the composer in its new place in one jump — the keyboard glides, the input bar teleports. A 200ms ease turns that step into motion, and it matches the bars' collapse (§ 3.5.) so the two read as one. `top`, by contrast, is correcting a pan the user can already see; easing it would draw out the wrong position instead of hiding it, so it lands the same frame.
 
 Why the document must not scroll: a document taller than the visual viewport is exactly what lets WebKit pan the page to reveal the focused field, and that pan carries the header off the top of the visual viewport. Sizing the shell to the visual viewport leaves nothing to pan.
 
@@ -131,6 +134,7 @@ The header and the tab bar do not sit in the column's flow — they float over i
 | Header      | A transparent strip pinned to the top of the shell. It has no surface — only the controls inside it are visible (§ 7.12.)     |
 | Surface     | The `glass` utility (`canvas/75` + `backdrop-blur-lg`), 1px `hairline`, `shadow-floating`. Never spelled out at a call site   |
 | Clearance   | `BottomOverlay` measures the bars into `--bottom-inset`, which the shell's scroller takes as bottom padding                   |
+| Keyboard    | The overlay collapses its own height to `0` (§ 7.3.); no bar inside it branches on the keyboard itself                        |
 | Hit testing | The overlay is `pointer-events-none`; each visible surface re-enables it, so content underneath stays tappable                |
 
 The clearance is measured rather than summed from `--tab-bar-height`: the bars come and go with the keyboard, and the install banner's copy wraps to two lines on a narrow viewport, so no constant is right. It is `0px` while nothing is up, so the scroller's padding needs no branch.
@@ -500,9 +504,52 @@ The count variant recolours to `primary` rather than adding a separate badge ele
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Result row      | `canvas` fill on `surface-soft` list, sender name (`title-sm`), matched line (`body-sm`, 2-line clamp), date (`caption`, `meta`) |
 | Match highlight | `search-hit` background, `ink` text, `rounded-xs`, computed client-side by string split                                          |
-| Jump target     | On arrival the bubble flashes `primary-tint` behind its fill for 1.5s, then fades over 300ms                                     |
+| Jump target     | On arrival the **row** flashes `primary-tint` for 1.5s, then fades over 300ms — see § 6.10.                                      |
 | Return control  | The § 6.7. scroll-to-bottom pill — same component, no search-specific variant                                                    |
 | Empty state     | § 7.6.                                                                                                                           |
+
+## 6.9. Link Preview Card.
+
+A text message carrying a link renders a card above its text, **inside** the bubble (`REQUIREMENTS.md § 8.9.`). Inside, because the card is part of what was said — a separate floating card beside the bubble would read as a second message, and it would have to re-derive the bubble's alignment and max width to sit under it.
+
+| Property   | Value                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| Geometry   | Full bubble width inside its padding, `rounded-md`, 1px `hairline`, `canvas` fill, `2xs` above the text             |
+| Thumbnail  | 16:9, `object-cover`, `surface-strong` while it loads. Omitted entirely when the page published no image            |
+| Video mark | A 40px `scrim/60` disc with an `on-primary` play glyph, centered on the thumbnail. `og:type: video` only            |
+| Title      | `title-sm` in `ink`, 2-line clamp                                                                                   |
+| Body       | `body-sm` in `body`, 2-line clamp. Omitted when the page published no description                                   |
+| Site line  | `caption` in `meta`, 1-line clamp — the site name, or the channel for a video                                       |
+| `:hover`   | `bg-surface-soft`; `:active` `bg-surface-pressed`                                                                   |
+| Absent     | Nothing is rendered while the scrape is in flight, and nothing at all for a page that describes itself with nothing |
+
+The card keeps `canvas` on both sides of the conversation rather than tinting with the bubble: it is quoted material, and the one thing in a `bubble-mine` bubble that did not come from the sender.
+
+Links in the text itself are underlined (`underline-offset-2`) and take `primary` on `:hover`, `primary-pressed` on `:active`. The URL stays in the bubble as the sender typed it — the card is an addition to the message, never a rewrite of it.
+
+## 6.10. Reply Quote.
+
+The message a reply points at, in one line (`REQUIREMENTS.md § 8.10.`).
+
+| Property     | Value                                                                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shape        | `rounded-sm`, 2px `primary` left bar, padding `4px 8px`, `xs` gap between thumbnail and text                                                      |
+| Lines        | Sender name (`chat-name` in `chat-meta`) over the summary (`body-sm` in `meta`). **Both `truncate`, always one line each**                        |
+| Summary copy | The text itself; `사진` / `동영상` for attachments, `이모티콘` for an emoticon, `삭제된 메시지예요` for a parent that has been deleted            |
+| Thumbnail    | The bubble's **first** attachment only, 32×32 `rounded-xs` with a 1px `hairline` inset ring. Box fixed, never derived from the image (§ 6.1.)     |
+| In a bubble  | Inside the text bubble at its top, `2xs` above the text, fill `chat-canvas` — recessed against both bubble fills, which `surface-soft` is not     |
+| Standalone   | Media and emoticon messages have no bubble (§ 6.5.), so the quote is a `bubble-theirs` card above them, capped at the 220px attachment width      |
+| Tap          | Jumps to the original. `:hover` `bg-surface-strong`, `:active` `bg-surface-pressed`. A deleted parent is not tappable — there is nothing to reach |
+| Staged       | Above the composer stack, in flow, in the § 6.6. pill treatment (`glass`, `hairline`, `shadow-floating`) with a 36px `X` to cancel                |
+
+The staged quote pushes the history up, where the staged emoticon of § 6.6. floats over it. The emoticon is one object standing where its own bubble will land; this is a bar, like the media tray, and a bar that floated would hide the messages the user is quoting from.
+
+| Reply affordance | Rule                                                                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Touch            | Hold the bubble → the § 7.5. action sheet, `답장` first                                                                                    |
+| Pointer          | A 32px `CornerUpLeft` button on the bubble's **outer** side, `opacity-0` until the row is hovered or the button is focused                 |
+| Position         | Out of the row's flow (`absolute`, vertically centered). In flow its appearance on hover would shove the bubble sideways under the cursor  |
+| Highlight        | A jump target flashes `primary-tint` on the **row**, not the bubble fill — media and emoticon messages have no fill and must highlight too |
 
 # 7. Components.
 
@@ -568,7 +615,9 @@ Error state is triggered by `aria-invalid="true"`, never by a class alone.
 | `:active` | `scale-[0.96]` on the icon-label stack                                                                      |
 | Badge     | `unread` fill, `on-primary` `micro`, min 18×18, `rounded-full`, anchored to the icon's top-right; `99+` cap |
 
-The bar is hidden while the on-screen keyboard is up: the shell shrinks to the visual viewport (§ 3.4.), so a bar left in flow would sit between the composer and the keys and eat 56px of an already short column. The install banner (§ 7.13.) goes with it, for the same reason.
+The bar leaves while the on-screen keyboard is up: the shell shrinks to the visual viewport (§ 3.4.), so a bar left in flow would sit between the composer and the keys and eat 56px of an already short column. The install banner (§ 7.13.) goes with it, for the same reason.
+
+It leaves by collapsing `BottomOverlay`'s height to `0` over 200ms `ease-out`, not by unmounting, and comes back on a 200ms delay — the shell's own height ease (§ 3.4.) has to land first, or the bar rises against a bottom edge that is still halfway up the screen and appears in mid-air: `--bottom-inset` is measured off that box, so the collapse carries the clearance — and with it the composer — down on one timeline. Unmounting stepped the inset the instant the keyboard was detected while the shell was still easing to its new height, and the composer visibly moved twice. Both bars are therefore keyboard-agnostic; the decision lives in `BottomOverlay` alone. The collapsing box is not clipped: the bars slide down past the shell's bottom edge, which is where the keyboard already is.
 
 The bar floats inside the shell (§ 3.5.), so it is neither `fixed` nor width-re-applying: the shell is already a `fixed` box of the visual viewport's height, and the bar is an absolute child of its column.
 
@@ -706,7 +755,7 @@ iOS "add to home screen" guidance (`REQUIREMENTS.md § 7.`). Shown only in an iO
 | Content   | 18px `meta` share glyph, `body-sm` `body` copy, trailing `icon-button` dismiss                                 |
 | Clearance | Measured into `--bottom-inset` with the tab bar, so its two-line wrap widens the scroller's padding by itself  |
 
-It is hidden while the keyboard is up, like the tab bar (§ 7.3.).
+It leaves while the keyboard is up, like the tab bar and on the same collapse (§ 7.3.).
 
 It is a banner rather than a `BottomSheet`: the guidance is optional and repeatable, and a modal interruption on arrival is the wrong weight for it.
 

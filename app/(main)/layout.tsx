@@ -29,7 +29,8 @@ export default async function MainLayout({ children }: PropsWithChildren) {
       initialParticipants={participants}
       initialUnreadCount={unreadCount}
     >
-      <div className="fixed inset-x-0 top-[var(--viewport-top,0px)] bottom-0 flex h-[var(--viewport-height,100dvh)] justify-center bg-backdrop">
+      {/* WARN: DESIGN.md § 3.4. The height eases and `top` never does — WebKit reports the height in a couple of coarse steps while the keyboard slides, so a raw height snaps the composer into place, whereas `top` is correcting a pan that is already wrong on screen and has to land the same frame. */}
+      <div className="fixed inset-x-0 top-[var(--viewport-top,0px)] bottom-0 flex h-[var(--viewport-height,100dvh)] justify-center bg-backdrop transition-[height] duration-200 ease-out">
         <Container
           className="relative flex min-h-0 flex-1 flex-col bg-canvas px-0"
           id={APP_SHELL_ID}

@@ -28,10 +28,10 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
   const box = toBox(emoticon);
 
   return (
-    // INFO: Aligned to the send side, so the staged emoticon sits where its own bubble will land (DESIGN.md § 6.2.).
+    // INFO: REQUIREMENTS.md § 13.6. Centered rather than aligned to the send side — this is what is about to be sent, not a rehearsal of where its bubble lands.
     <div
       className={cn(
-        "pointer-events-auto flex animate-in justify-end duration-200 fade-in slide-in-from-bottom-2",
+        "pointer-events-auto flex animate-in justify-center duration-200 fade-in slide-in-from-bottom-2",
         className,
       )}
     >
