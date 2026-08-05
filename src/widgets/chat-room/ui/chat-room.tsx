@@ -271,21 +271,24 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           </div>
         )}
         {/* INFO: REQUIREMENTS.md § 13.6. Inside the composer's own absolute wrapper, so the panel sits above the bar and the messages still scroll underneath both. */}
-        {/* INFO: `0fr`→`1fr` rather than a height, because only the grid track has to know how tall the panel is; `--chat-bottom-gap` follows the wrapper frame by frame, which is what carries the history up with it. */}
+        {/* INFO: § 13.6. `justify-end` anchors the panel to the bottom of the strip, so it is revealed rising from behind the composer rather than unrolling downward from a top edge that is itself moving up. */}
+        {/* WARN: A real `height` and never a `0fr`→`1fr` grid track. Mid-transition Chrome sizes such a track's container taller than the track it resolved, and the strip below the bottom-anchored panel is a gap that opens and shuts — which is what read as the panel stretching apart from its middle. */}
         <div
           className={cn(
-            "grid transition-[grid-template-rows] duration-200 ease-out",
-            isEmoticonPanelOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+            "flex flex-col justify-end overflow-hidden transition-[height] duration-200 ease-out",
+            isEmoticonPanelOpen
+              ? // WARN: The underscores are the spaces `calc()` requires around `+`. Written closed up the declaration is invalid, and the strip resolves to `0px` — the panel opens to nothing and no cell can be tapped.
+                "h-[calc(var(--emoticon-panel-height)_+_var(--spacing-xs)_+_var(--spacing-2xs))]"
+              : "h-0",
           )}
           // WARN: The panel stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until this takes them back out.
           inert={!isEmoticonPanelOpen}
         >
-          <div className="overflow-hidden">
-            {hasOpenedEmoticonPanel && (
-              // INFO: § 13.6. `mt-xs` matches the composer's own top padding, so the panel clears the history by what the bar alone clears it by.
-              <EmoticonPicker className="mx-md mt-xs mb-2xs" onSelect={stageEmoticon} />
-            )}
-          </div>
+          {hasOpenedEmoticonPanel && (
+            // INFO: § 13.6. `mt-xs` matches the composer's own top padding, so the panel clears the history by what the bar alone clears it by. The height above is this panel plus both margins.
+            // WARN: `shrink-0` or the collapsing strip compresses the panel instead of clipping it, and § 13.6.'s own `flex-1` scroller is what gives — the panel then reads as stretching open rather than rising.
+            <EmoticonPicker className="mx-md mt-xs mb-2xs shrink-0" onSelect={stageEmoticon} />
+          )}
         </div>
         <MessageComposer
           hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}

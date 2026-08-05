@@ -181,6 +181,9 @@
   --bar-float-gap: 12px;
   /* WARN: DESIGN.md § 6.6. `useComposerClearance` overwrites this on the chat container one frame after mount; without the default here the list's trailing spacer is invalid until then and the first bottom-anchored paint parks the newest message behind the composer. */
   --chat-bottom-gap: 0px;
+  /* INFO: REQUIREMENTS.md § 13.6. The emoticon panel's own height, shared so the chat room can animate the strip open against the same value the panel is drawn at. */
+  /* WARN: The cap is `px` and never `rem`. A reader's enlarged default font size scales `rem` but not `--viewport-height`, so a `rem` cap wins the `min()` on exactly the devices that can least afford it and the panel overruns the shell. */
+  --emoticon-panel-height: min(352px, calc(var(--viewport-height, 100dvh) * 0.5));
 }
 
 /* TODO: Populate when the dark theme ships — DESIGN.md § 5.4. Hand-tune; never invert arithmetically. */
