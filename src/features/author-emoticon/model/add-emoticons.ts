@@ -9,6 +9,12 @@ export type BulkAddResult = {
   failedCount: number;
 };
 
+export type BulkAddHandlers = {
+  onAdded: (emoticon: Emoticon) => void;
+  /** INFO: Fires for a failure too, so the screen's remaining count reaches zero on a pile that did not all land. */
+  onSettled?: () => void;
+};
+
 /**
  * REQUIREMENTS.md § 13.4. A pile of images, one item each — the path that exists so
  * a whole authored set does not have to be added one form at a time. Neither the
@@ -22,7 +28,7 @@ export type BulkAddResult = {
 export async function addEmoticonsFromFiles(
   packId: string,
   files: File[],
-  onAdded: (emoticon: Emoticon) => void,
+  { onAdded, onSettled }: BulkAddHandlers,
 ): Promise<BulkAddResult> {
   const added: Emoticon[] = [];
   let failedCount = 0;
@@ -30,13 +36,14 @@ export async function addEmoticonsFromFiles(
   for (const file of files) {
     const emoticon = await addOne(packId, file);
 
-    if (!emoticon) {
+    if (emoticon) {
+      added.push(emoticon);
+      onAdded(emoticon);
+    } else {
       failedCount += 1;
-      continue;
     }
 
-    added.push(emoticon);
-    onAdded(emoticon);
+    onSettled?.();
   }
 
   return { added, failedCount };

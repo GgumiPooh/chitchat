@@ -3,6 +3,7 @@ import "server-only";
 import { emoticonItems, emoticonPacks, getDb, userEmoticonPrefs } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
 import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon, EmoticonPackSummary, EmoticonPackWithItems } from "../model/types";
 
@@ -16,11 +17,15 @@ import type { Emoticon, EmoticonPackSummary, EmoticonPackWithItems } from "../mo
  * opinion recorded sort after those with one, then by creation.
  */
 export async function listEmoticonPacks(userId: string): Promise<EmoticonPackSummary[]> {
+  // INFO: A second alias of the same table — the join below counts the pack's items, this one reads the single item the pack points at (§ 13.2.).
+  const thumbnailItems = alias(emoticonItems, "thumbnail_items");
+
   const rows = await getDb()
     .select({
       id: emoticonPacks.id,
       name: emoticonPacks.name,
       thumbnailItemId: emoticonPacks.thumbnailItemId,
+      thumbnailUpdatedAt: thumbnailItems.updatedAt,
       createdAt: emoticonPacks.createdAt,
       itemCount: count(emoticonItems.id),
       enabled: userEmoticonPrefs.enabled,
@@ -32,10 +37,12 @@ export async function listEmoticonPacks(userId: string): Promise<EmoticonPackSum
       and(eq(userEmoticonPrefs.packId, emoticonPacks.id), eq(userEmoticonPrefs.userId, userId)),
     )
     .leftJoin(emoticonItems, eq(emoticonItems.packId, emoticonPacks.id))
+    .leftJoin(thumbnailItems, eq(thumbnailItems.id, emoticonPacks.thumbnailItemId))
     .groupBy(
       emoticonPacks.id,
       emoticonPacks.name,
       emoticonPacks.thumbnailItemId,
+      thumbnailItems.updatedAt,
       emoticonPacks.createdAt,
       userEmoticonPrefs.enabled,
       userEmoticonPrefs.sortOrder,
@@ -50,6 +57,7 @@ export async function listEmoticonPacks(userId: string): Promise<EmoticonPackSum
     id: row.id,
     name: row.name,
     thumbnailItemId: row.thumbnailItemId,
+    thumbnailVersion: row.thumbnailUpdatedAt?.getTime() ?? null,
     itemCount: row.itemCount,
     // INFO: REQUIREMENTS.md § 13.1. No row means enabled, so creating a pack fans out no rows per user.
     isEnabled: row.enabled ?? true,

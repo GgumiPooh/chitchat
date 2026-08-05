@@ -10,7 +10,7 @@ import {
 } from "@/features/author-emoticon";
 import { MediaPickerSheet } from "@/features/upload-media";
 import { EMOTICON_SETTINGS_ROUTE } from "@/shared/config";
-import { cn, type Nullable } from "@/shared/lib";
+import { cn, type Maybe, type Nullable } from "@/shared/lib";
 import { ActionSheet, AppHeader, EmptyState, IconButton, toast } from "@/shared/ui";
 import { ChevronLeft, Images, Pencil, Plus, Smile, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -77,7 +77,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
             />
             {addingCount > 0 && (
               <p className="text-center text-body-sm text-meta">
-                {addingCount}개를 올리는 중이에요
+                {addingCount}개를 더 올리는 중이에요
               </p>
             )}
           </div>
@@ -158,9 +158,11 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   async function addMany(files: File[]) {
     setAddingCount(files.length);
 
-    const { failedCount } = await addEmoticonsFromFiles(pack.id, files, (emoticon) =>
-      setItems((current) => [...current, emoticon]),
-    );
+    // WARN: The count is what is *left*, not what was picked — it is rendered beside a grid that is already filling in, so a fixed total would contradict the rows next to it.
+    const { failedCount } = await addEmoticonsFromFiles(pack.id, files, {
+      onAdded: (emoticon) => setItems((current) => [...current, emoticon]),
+      onSettled: () => setAddingCount((current) => Math.max(current - 1, 0)),
+    });
 
     setAddingCount(0);
 
@@ -169,10 +171,10 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
     }
   }
 
-  function openEditor(item: Nullable<Emoticon> | undefined) {
+  function openEditor(item: Maybe<Emoticon>) {
     setSelectedId(null);
     setEditing(item ?? null);
-    setIsFormOpen(item !== undefined && item !== null);
+    setIsFormOpen(item != null);
   }
 
   function closeForm() {

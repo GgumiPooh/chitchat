@@ -20,6 +20,7 @@ export async function createEmoticonPack(
     id: row.id,
     name: row.name,
     thumbnailItemId: row.thumbnailItemId,
+    thumbnailVersion: null,
     itemCount: 0,
     isEnabled: true,
   };

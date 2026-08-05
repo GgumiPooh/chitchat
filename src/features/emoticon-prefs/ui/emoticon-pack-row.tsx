@@ -60,8 +60,12 @@ export function EmoticonPackRow({
           // eslint-disable-next-line @next/next/no-img-element -- REQUIREMENTS.md § 13.3. serves a 302 to a presigned R2 URL, which `next/image` cannot take as a loader source.
           <img
             className="size-full object-contain"
-            src={toEmoticonAssetUrl(pack.thumbnailItemId)}
             alt=""
+            src={toEmoticonAssetUrl(
+              pack.thumbnailItemId,
+              "image",
+              pack.thumbnailVersion ?? undefined,
+            )}
           />
         ) : (
           <Smile className="size-5 text-meta-soft" strokeWidth={1.75} />

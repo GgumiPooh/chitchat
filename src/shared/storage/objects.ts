@@ -1,6 +1,6 @@
 import "server-only";
 
-import { MEDIA_URL_EXPIRY, UPLOAD_URL_EXPIRY } from "@/shared/config";
+import { MEDIA_CACHE_MAX_AGE, MEDIA_URL_EXPIRY, UPLOAD_URL_EXPIRY } from "@/shared/config";
 import { A_SECOND, safelyGetAsync, safelyRunAsync, type Optional } from "@/shared/lib";
 import {
   DeleteObjectsCommand,
@@ -106,4 +106,27 @@ export async function deleteObjects(keys: string[]): Promise<void> {
       }),
     );
   });
+}
+
+/**
+ * Deletes objects that a *replacement* detached, once the read path has stopped
+ * pointing at them (REQUIREMENTS.md § 13.4.).
+ *
+ * WARN: Not the same cleanup as `deleteObjects`. An asset route answers a 302 that
+ * the browser caches for `MEDIA_CACHE_MAX_AGE` (§ 9.), so a participant who loaded
+ * the pre-edit asset replays that redirect at a key deleting it immediately would
+ * have removed — a broken image rather than a stale one. Deleting a row's object is
+ * unaffected, because the row it was rendered from is gone too.
+ *
+ * WARN: In-process, so a restart inside the window leaks the objects. That is the
+ * accepted cost: they are a handful of edited emoticon images, they are unreachable
+ * (§ 13.3.), and the alternative is a durable queue for a two-person app.
+ */
+export function deleteObjectsAfterCacheWindow(keys: string[]): void {
+  if (keys.length === 0) {
+    return;
+  }
+
+  // INFO: Unreferenced, so the timer never keeps the process alive on its own.
+  setTimeout(() => void deleteObjects(keys), MEDIA_CACHE_MAX_AGE).unref?.();
 }

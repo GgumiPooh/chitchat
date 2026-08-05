@@ -1,6 +1,6 @@
 import { deleteEmoticonItem, updateEmoticonItem } from "@/entities/emoticon";
 import { getCurrentUser } from "@/shared/auth";
-import { deleteObjects } from "@/shared/storage";
+import { deleteObjects, deleteObjectsAfterCacheWindow } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -65,8 +65,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ error: "unprocessable" }, { status: 422 });
   }
 
-  // INFO: REQUIREMENTS.md § 9. The objects the edit detached; `deleteObjects` never throws.
-  await deleteObjects(result.orphanedKeys);
+  // WARN: Deferred, not immediate. The other participant still holds the pre-edit version and a cached redirect to the object behind it (§ 13.4.), so deleting it now would break their image rather than stale it.
+  deleteObjectsAfterCacheWindow(result.orphanedKeys);
 
   return NextResponse.json({ emoticon: result.emoticon });
 }

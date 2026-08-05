@@ -19,6 +19,8 @@ export type EmoticonPackSummary = {
   name: string;
   // INFO: REQUIREMENTS.md § 13.2. Null until an item is chosen as the tab icon, and again if that item is deleted — the picker falls back to the first item.
   thumbnailItemId: Nullable<string>;
+  // INFO: REQUIREMENTS.md § 13.2. The thumbnail item's own `Emoticon.version`, carried so a row that holds no items can still build a versioned asset URL — without it the management row's cached redirect outlives the edit that replaced the object, and points at one that is gone (§ 13.4.).
+  thumbnailVersion: Nullable<number>;
   itemCount: number;
   // INFO: REQUIREMENTS.md § 13.1. This user's own view of the pack. An absent `user_emoticon_prefs` row reads as enabled.
   isEnabled: boolean;

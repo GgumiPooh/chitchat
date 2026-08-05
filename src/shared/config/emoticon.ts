@@ -21,12 +21,7 @@ export type EmoticonSlot = (typeof EMOTICON_SLOTS)[number];
  * transparency with an opaque box and a `heic` would be unreadable to whichever
  * participant is not on iOS.
  */
-export const ALLOWED_EMOTICON_IMAGE_MIMES = [
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "image/apng",
-] as const;
+export const ALLOWED_EMOTICON_IMAGE_MIMES = ["image/png", "image/webp", "image/gif"] as const;
 
 // INFO: REQUIREMENTS.md § 13.4. Uploaded as it arrives — a canvas re-encode decodes one frame and would silently turn an animation into a picture, so a file that may animate never enters the editor.
 export const ANIMATABLE_EMOTICON_MIMES = ["image/webp", "image/gif", "image/apng"] as const;
@@ -66,7 +61,16 @@ const SLOT_RULES: Record<EmoticonSlot, { mimes: readonly string[]; maxSize: numb
   audio: { mimes: ALLOWED_EMOTICON_AUDIO_MIMES, maxSize: MAX_EMOTICON_AUDIO_SIZE },
 };
 
-/** REQUIREMENTS.md § 13.4. Whether a picked file may be animated, and therefore must be uploaded byte-for-byte instead of re-encoded. */
+/**
+ * REQUIREMENTS.md § 13.4. Whether a picked file may be animated, and therefore must
+ * be uploaded byte-for-byte instead of re-encoded.
+ *
+ * WARN: `image/apng` never comes off a `File` — the OS extension map answers
+ * `image/png` for `.png` however it was encoded. It is the type `readEmoticonMime`
+ * assigns after sniffing the `acTL` chunk, and nothing else may produce it: an APNG
+ * is stored as the `image/png` R2 was sent, which is why it is absent from
+ * `ALLOWED_EMOTICON_IMAGE_MIMES`.
+ */
 export function isAnimatableEmoticonMime(mime: string): boolean {
   return ANIMATABLE_EMOTICON_MIMES.includes(mime as (typeof ANIMATABLE_EMOTICON_MIMES)[number]);
 }
