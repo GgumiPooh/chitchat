@@ -29,6 +29,10 @@ export type EmoticonPickerProps = {
  * INFO: DESIGN.md § 9. leaves the panel's exact geometry open. It is capped at a
  * fixed height and otherwise takes half of `--viewport-height` (§ 3.4.) — never
  * `vh`, which resolves against the layout viewport and would overrun the shell.
+ *
+ * WARN: The cap is `px` and never `rem`. A reader's enlarged default font size
+ * scales `rem` but not `--viewport-height`, so a `rem` cap wins the `min()` on
+ * exactly the devices that can least afford it and the panel overruns the shell.
  */
 export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
   // WARN: Read straight from storage rather than seeded into `useState` — the panel can mount during hydration, where the first snapshot is still the fallback and a seeded state would never pick the stored tab up.
@@ -61,7 +65,7 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
   return (
     <div
       className={cn(
-        "pointer-events-auto flex h-[min(22rem,calc(var(--viewport-height,100dvh)*0.5))] flex-col rounded-lg border border-hairline bg-canvas",
+        "pointer-events-auto flex h-[min(352px,calc(var(--viewport-height,100dvh)*0.5))] flex-col rounded-lg border border-hairline bg-canvas",
         className,
       )}
     >
