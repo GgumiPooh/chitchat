@@ -36,18 +36,19 @@ export const emoticonItems = pgTable(
       .references(() => emoticonPacks.id, { onDelete: "cascade" }),
     // INFO: REQUIREMENTS.md § 13.3. The R2 key itself, not a `media` row — an emoticon is neither gallery content nor a thumbnailed pair.
     r2Key: text("r2_key").notNull().unique(),
+    // INFO: REQUIREMENTS.md § 13.2. One image slot for both kinds — an animated GIF or WebP is stored here exactly as a PNG is, and the renderer never branches on which it got.
     mime: text("mime").notNull(),
-    // INFO: REQUIREMENTS.md § 13.2. Optional companions. Either may be absent, and audio does not imply animation.
-    animatedKey: text("animated_key").unique(),
-    animatedMime: text("animated_mime"),
+    // INFO: REQUIREMENTS.md § 13.2. The one optional companion. Audio does not imply animation and is played on tap only.
     audioKey: text("audio_key").unique(),
     audioMime: text("audio_mime"),
-    // WARN: REQUIREMENTS.md § 13.2. The *still* image's size. The animation shares this box rather than measuring its own, so a mismatched animation is letterboxed instead of re-measuring the row (§ 8.3.).
+    // WARN: REQUIREMENTS.md § 13.2. The image's own size, read in the browser — an animated file is measured from its first frame, which is the box every frame shares (§ 8.3.).
     width: integer("width").notNull(),
     height: integer("height").notNull(),
     // INFO: REQUIREMENTS.md § 13.1. Authoring order, shared by both users — item order is deliberately not per-user.
     sortOrder: smallint("sort_order").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // WARN: REQUIREMENTS.md § 13.4. What the asset URL is versioned by. Editing an item swaps its R2 keys under an unchanged item id, and the asset redirect is cached (§ 9.), so without this the old image survives the edit.
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("emoticon_items_pack_id_sort_order_idx").on(table.packId, table.sortOrder)],
 );

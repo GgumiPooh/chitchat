@@ -101,11 +101,7 @@ export async function deleteEmoticonPack(packId: string): Promise<DeleteEmoticon
   }
 
   const items = await getDb()
-    .select({
-      r2Key: emoticonItems.r2Key,
-      animatedKey: emoticonItems.animatedKey,
-      audioKey: emoticonItems.audioKey,
-    })
+    .select({ r2Key: emoticonItems.r2Key, audioKey: emoticonItems.audioKey })
     .from(emoticonItems)
     .where(eq(emoticonItems.packId, packId));
 
@@ -120,7 +116,7 @@ export async function deleteEmoticonPack(packId: string): Promise<DeleteEmoticon
   return {
     status: "deleted",
     orphanedKeys: items.flatMap((item) =>
-      [item.r2Key, item.animatedKey, item.audioKey].filter((key): key is string => key !== null),
+      [item.r2Key, item.audioKey].filter((key): key is string => key !== null),
     ),
   };
 }

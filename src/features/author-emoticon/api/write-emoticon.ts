@@ -3,11 +3,18 @@ import { EMOTICON_ITEMS_PATH, EMOTICON_PACKS_PATH } from "@/shared/config";
 import type { Maybe, Nullable } from "@/shared/lib";
 
 export type CreateEmoticonBody = {
-  stillKey: string;
+  imageKey: string;
   width: number;
   height: number;
-  animatedKey?: Maybe<string>;
   audioKey?: Maybe<string>;
+};
+
+/** REQUIREMENTS.md § 13.4. An absent `audioKey` keeps the item's current sound; `null` removes it. */
+export type UpdateEmoticonBody = {
+  imageKey?: string;
+  width?: number;
+  height?: number;
+  audioKey?: Nullable<string>;
 };
 
 export async function createEmoticonPack(name: string): Promise<EmoticonPackSummary> {
@@ -20,6 +27,16 @@ export async function createEmoticon(packId: string, body: CreateEmoticonBody): 
   const { emoticon } = await send<{ emoticon: Emoticon }>(
     `${EMOTICON_PACKS_PATH}/${packId}/items`,
     "POST",
+    body,
+  );
+
+  return emoticon;
+}
+
+export async function updateEmoticon(itemId: string, body: UpdateEmoticonBody): Promise<Emoticon> {
+  const { emoticon } = await send<{ emoticon: Emoticon }>(
+    `${EMOTICON_ITEMS_PATH}/${itemId}`,
+    "PATCH",
     body,
   );
 

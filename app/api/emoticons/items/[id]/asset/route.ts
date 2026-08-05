@@ -8,7 +8,8 @@ import { z } from "zod";
 
 const paramsSchema = z.object({ id: z.uuid() });
 
-const querySchema = z.object({ slot: z.enum(EMOTICON_SLOTS).default("still") });
+// INFO: `v` is `Emoticon.version` and is read by nobody here — it is what keeps an edited item's cached redirect (§ 13.4.) from answering for the object it replaced.
+const querySchema = z.object({ slot: z.enum(EMOTICON_SLOTS).default("image") });
 
 /**
  * REQUIREMENTS.md § 13.3. Redirects to a presigned GET after validating the

@@ -55,7 +55,7 @@ export function EmoticonItemCell({
       {/* eslint-disable-next-line @next/next/no-img-element -- REQUIREMENTS.md § 13.3. serves a 302 to a presigned R2 URL, which `next/image` cannot take as a loader source. */}
       <img
         className="size-full object-contain"
-        src={toEmoticonAssetUrl(item.id)}
+        src={toEmoticonAssetUrl(item.id, "image", item.version)}
         alt=""
         draggable={false}
         loading="lazy"

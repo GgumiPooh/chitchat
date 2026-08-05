@@ -1,7 +1,7 @@
 "use client";
 
 import type { MediaDraft } from "@/entities/media";
-import { toEmoticonStillDraft } from "@/features/upload-media/@x/author-emoticon";
+import { toEmoticonImageDraft } from "@/features/upload-media/@x/author-emoticon";
 import {
   allowedMimesForEmoticonSlot,
   maxSizeForEmoticonSlot,
@@ -11,20 +11,21 @@ import { formatSize, type Maybe, type Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/** A companion asset the user has picked but not yet uploaded (REQUIREMENTS.md § 13.2.). */
+/** An audio companion the user has picked but not yet uploaded (REQUIREMENTS.md § 13.2.). */
 export type CompanionDraft = {
   file: File;
   previewUrl: string;
 };
 
 /**
- * The three slots of one emoticon, staged in the browser. Nothing reaches R2 until
+ * The two slots of one emoticon, staged in the browser. Nothing reaches R2 until
  * the form is submitted (§ 13.4.), so abandoning it leaves no objects behind.
  */
 export function useEmoticonDraft() {
-  const [still, setStill] = useState<Nullable<MediaDraft>>(null);
-  const [animated, setAnimated] = useState<Nullable<CompanionDraft>>(null);
+  const [image, setImage] = useState<Nullable<MediaDraft>>(null);
   const [audio, setAudio] = useState<Nullable<CompanionDraft>>(null);
+  // INFO: REQUIREMENTS.md § 13.4. Only the edit flow can tell these apart: no draft means "keep whatever the item has", this means "take the sound away".
+  const [isAudioCleared, setIsAudioCleared] = useState(false);
   const [isReading, setIsReading] = useState(false);
   const urlsRef = useRef(new Set<string>());
 
@@ -51,15 +52,21 @@ export function useEmoticonDraft() {
     }
   }, []);
 
-  const pickStill = useCallback(
+  const pickImage = useCallback(
     async (file: File) => {
       setIsReading(true);
 
       try {
-        const draft = await toEmoticonStillDraft(file);
+        const draft = await toEmoticonImageDraft(file);
+
+        if (!validateSlot("image", draft.file)) {
+          release(draft.previewUrl);
+
+          return;
+        }
 
         track(draft.previewUrl);
-        setStill((previous) => {
+        setImage((previous) => {
           release(previous?.previewUrl);
 
           return draft;
@@ -73,11 +80,11 @@ export function useEmoticonDraft() {
     [release, track],
   );
 
-  /** INFO: Replaces the still after `MediaEditor` re-encodes it; the editor already produced the new preview. */
-  const replaceStill = useCallback(
+  /** INFO: Replaces the image after `MediaEditor` re-encodes it; the editor already produced the new preview. */
+  const replaceImage = useCallback(
     (draft: MediaDraft) => {
       track(draft.previewUrl);
-      setStill((previous) => {
+      setImage((previous) => {
         release(previous?.previewUrl);
 
         return draft;
@@ -86,16 +93,16 @@ export function useEmoticonDraft() {
     [release, track],
   );
 
-  const pickCompanion = useCallback(
-    (slot: Exclude<EmoticonSlot, "still">, file: File) => {
-      if (!validateCompanion(slot, file)) {
+  const pickAudio = useCallback(
+    (file: File) => {
+      if (!validateSlot("audio", file)) {
         return;
       }
 
       const draft = { file, previewUrl: track(URL.createObjectURL(file)) };
-      const setter = slot === "animated" ? setAnimated : setAudio;
 
-      setter((previous) => {
+      setIsAudioCleared(false);
+      setAudio((previous) => {
         release(previous?.previewUrl);
 
         return draft;
@@ -104,42 +111,38 @@ export function useEmoticonDraft() {
     [release, track],
   );
 
-  const clearCompanion = useCallback(
-    (slot: Exclude<EmoticonSlot, "still">) => {
-      const setter = slot === "animated" ? setAnimated : setAudio;
+  const clearAudio = useCallback(() => {
+    setIsAudioCleared(true);
+    setAudio((previous) => {
+      release(previous?.previewUrl);
 
-      setter((previous) => {
-        release(previous?.previewUrl);
-
-        return null;
-      });
-    },
-    [release],
-  );
+      return null;
+    });
+  }, [release]);
 
   const reset = useCallback(() => {
     urlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     urlsRef.current.clear();
-    setStill(null);
-    setAnimated(null);
+    setImage(null);
     setAudio(null);
+    setIsAudioCleared(false);
   }, []);
 
   return {
-    still,
-    animated,
+    image,
     audio,
+    isAudioCleared,
     isReading,
-    pickStill,
-    replaceStill,
-    pickCompanion,
-    clearCompanion,
+    pickImage,
+    replaceImage,
+    pickAudio,
+    clearAudio,
     reset,
   };
 }
 
 /** INFO: REQUIREMENTS.md § 14. A courtesy check; registration re-reads what R2 actually stored (§ 13.3.). */
-function validateCompanion(slot: Exclude<EmoticonSlot, "still">, file: File): boolean {
+function validateSlot(slot: EmoticonSlot, file: File): boolean {
   if (!allowedMimesForEmoticonSlot(slot).includes(file.type)) {
     toast.error("지원하지 않는 형식이에요");
 

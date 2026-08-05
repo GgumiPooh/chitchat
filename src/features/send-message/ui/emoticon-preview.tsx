@@ -47,7 +47,7 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
             width={box.width}
             height={box.height}
             draggable={false}
-            src={toEmoticonAssetUrl(emoticon.id, emoticon.hasAnimation ? "animated" : "still")}
+            src={toEmoticonAssetUrl(emoticon.id, "image", emoticon.version)}
           />
         </button>
         <IconButton
@@ -58,7 +58,11 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
           onClick={onRemove}
         />
         {emoticon.hasAudio && (
-          <audio ref={audioRef} src={toEmoticonAssetUrl(emoticon.id, "audio")} preload="none" />
+          <audio
+            ref={audioRef}
+            src={toEmoticonAssetUrl(emoticon.id, "audio", emoticon.version)}
+            preload="none"
+          />
         )}
       </div>
     </div>

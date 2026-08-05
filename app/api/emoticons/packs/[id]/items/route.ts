@@ -8,11 +8,10 @@ const paramsSchema = z.object({ id: z.uuid() });
 const orderSchema = z.object({ itemIds: z.array(z.uuid()).min(1) });
 
 const bodySchema = z.object({
-  stillKey: z.string().min(1),
-  // INFO: REQUIREMENTS.md § 13.2. The still's own size, read off the decoded image in the browser. The animation shares this box rather than measuring its own.
+  imageKey: z.string().min(1),
+  // INFO: REQUIREMENTS.md § 13.2. The image's own size, read off the decoded image in the browser — an animated one is measured from its first frame.
   width: z.number().int().positive(),
   height: z.number().int().positive(),
-  animatedKey: z.string().min(1).nullish(),
   audioKey: z.string().min(1).nullish(),
 });
 

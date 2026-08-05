@@ -6,11 +6,12 @@ import type { Nullable } from "@/shared/lib";
  */
 export type Emoticon = {
   packId: string;
-  // INFO: REQUIREMENTS.md § 8.3. What the row reserves its box from, before the asset loads. Always the still's size (§ 13.2.).
+  // INFO: REQUIREMENTS.md § 8.3. What the row reserves its box from, before the asset loads. The image's own size (§ 13.2.), animated or not.
   width: number;
   height: number;
-  hasAnimation: boolean;
   hasAudio: boolean;
+  // INFO: REQUIREMENTS.md § 13.4. `updated_at` in milliseconds, appended to the asset URL — an edited item keeps its id, so nothing else would tell the cached redirect apart from the new one.
+  version: number;
   id: string;
 };
 

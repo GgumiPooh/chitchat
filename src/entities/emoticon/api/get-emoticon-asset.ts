@@ -19,15 +19,7 @@ export async function getEmoticonItem(id: string): Promise<Nullable<EmoticonItem
  * check — unlike `canReadMedia`, whose scopes reach objects nobody has posted.
  */
 export function toSlotKey(row: EmoticonItem, slot: EmoticonSlot): Nullable<string> {
-  if (slot === "animated") {
-    return row.animatedKey;
-  }
-
-  if (slot === "audio") {
-    return row.audioKey;
-  }
-
-  return row.r2Key;
+  return slot === "audio" ? row.audioKey : row.r2Key;
 }
 
 /**
@@ -40,21 +32,11 @@ export async function listUnregisteredEmoticonKeys(keys: string[]): Promise<stri
   }
 
   const rows = await getDb()
-    .select({
-      r2Key: emoticonItems.r2Key,
-      animatedKey: emoticonItems.animatedKey,
-      audioKey: emoticonItems.audioKey,
-    })
+    .select({ r2Key: emoticonItems.r2Key, audioKey: emoticonItems.audioKey })
     .from(emoticonItems)
-    .where(
-      or(
-        inArray(emoticonItems.r2Key, keys),
-        inArray(emoticonItems.animatedKey, keys),
-        inArray(emoticonItems.audioKey, keys),
-      ),
-    );
+    .where(or(inArray(emoticonItems.r2Key, keys), inArray(emoticonItems.audioKey, keys)));
 
-  const registered = new Set(rows.flatMap((row) => [row.r2Key, row.animatedKey, row.audioKey]));
+  const registered = new Set(rows.flatMap((row) => [row.r2Key, row.audioKey]));
 
   return keys.filter((key) => !registered.has(key));
 }
@@ -82,11 +64,10 @@ export async function deleteEmoticonItem(id: string): Promise<DeleteEmoticonResu
     return { status: "in_use" };
   }
 
-  const [row] = await getDb().delete(emoticonItems).where(eq(emoticonItems.id, id)).returning({
-    r2Key: emoticonItems.r2Key,
-    animatedKey: emoticonItems.animatedKey,
-    audioKey: emoticonItems.audioKey,
-  });
+  const [row] = await getDb()
+    .delete(emoticonItems)
+    .where(eq(emoticonItems.id, id))
+    .returning({ r2Key: emoticonItems.r2Key, audioKey: emoticonItems.audioKey });
 
   if (!row) {
     return { status: "not_found" };
@@ -94,8 +75,6 @@ export async function deleteEmoticonItem(id: string): Promise<DeleteEmoticonResu
 
   return {
     status: "deleted",
-    orphanedKeys: [row.r2Key, row.animatedKey, row.audioKey].filter(
-      (key): key is string => key !== null,
-    ),
+    orphanedKeys: [row.r2Key, row.audioKey].filter((key): key is string => key !== null),
   };
 }

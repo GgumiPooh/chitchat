@@ -1,16 +1,18 @@
 "use client";
 
-import type { EmoticonPackWithItems } from "@/entities/emoticon";
+import type { Emoticon, EmoticonPackWithItems } from "@/entities/emoticon";
 import {
   EmoticonFormSheet,
   EmoticonItemGrid,
+  addEmoticonsFromFiles,
   deleteEmoticon,
   updateEmoticonPack,
 } from "@/features/author-emoticon";
+import { MediaPickerSheet } from "@/features/upload-media";
 import { EMOTICON_SETTINGS_ROUTE } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
 import { ActionSheet, AppHeader, EmptyState, IconButton, toast } from "@/shared/ui";
-import { ChevronLeft, Plus, Smile, Trash2 } from "lucide-react";
+import { ChevronLeft, Images, Pencil, Plus, Smile, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -20,8 +22,8 @@ export type EmoticonPackPageProps = {
 };
 
 /**
- * REQUIREMENTS.md § 13.4. The pack's own screen: add items, choose which one is
- * the tab icon, delete.
+ * REQUIREMENTS.md § 13.4. The pack's own screen: add items — one at a time or a
+ * whole pile at once — edit one, choose which is the tab icon, delete.
  *
  * INFO: § 13.1. Every control here is available to both participants — a pack
  * belongs to the conversation, so there is no `created_by` branch anywhere.
@@ -29,7 +31,12 @@ export type EmoticonPackPageProps = {
 export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   const [items, setItems] = useState(pack.items);
   const [thumbnailItemId, setThumbnailItemId] = useState(pack.thumbnailItemId);
-  const [isAdding, setIsAdding] = useState(false);
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [pendingFile, setPendingFile] = useState<Nullable<File>>(null);
+  const [editing, setEditing] = useState<Nullable<Emoticon>>(null);
+  const [addingCount, setAddingCount] = useState(0);
   const [selectedId, setSelectedId] = useState<Nullable<string>>(null);
   const router = useRouter();
   const selected = items.find((item) => item.id === selectedId);
@@ -51,34 +58,65 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
             variant="floating"
             Icon={Plus}
             aria-label="이모티콘 추가"
-            onClick={() => setIsAdding(true)}
+            onClick={() => setIsAddMenuOpen(true)}
           />
         }
       />
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
       <div className="flex-1 p-md pt-[calc(var(--app-header-inset)+var(--spacing-md))]">
-        {items.length === 0 ? (
+        {items.length === 0 && addingCount === 0 ? (
           <EmptyState Icon={Smile} description="아직 이모티콘이 없어요" />
         ) : (
-          <EmoticonItemGrid
-            packId={pack.id}
-            items={items}
-            thumbnailItemId={thumbnailItemId}
-            onSelect={setSelectedId}
-            onReorder={setItems}
-          />
+          <div className="space-y-sm">
+            <EmoticonItemGrid
+              packId={pack.id}
+              items={items}
+              thumbnailItemId={thumbnailItemId}
+              onSelect={setSelectedId}
+              onReorder={setItems}
+            />
+            {addingCount > 0 && (
+              <p className="text-center text-body-sm text-meta">
+                {addingCount}개를 올리는 중이에요
+              </p>
+            )}
+          </div>
         )}
       </div>
+      {/* INFO: § 13.4. Two ways in: the authoring sheet, where one item gets a crop and a sound, or a pile of images that skips both. */}
+      <ActionSheet
+        isOpen={isAddMenuOpen}
+        header={{ title: "이모티콘 추가" }}
+        items={[
+          { label: "하나씩 추가", Icon: Plus, onSelect: () => setIsFormOpen(true) },
+          { label: "여러 장 한 번에 추가", Icon: Images, onSelect: () => setIsPickerOpen(true) },
+        ]}
+        onClose={() => setIsAddMenuOpen(false)}
+      />
+      <MediaPickerSheet
+        accept="image/*"
+        isOpen={isPickerOpen}
+        isMultiple
+        onClose={() => setIsPickerOpen(false)}
+        onSelect={handlePick}
+      />
       <EmoticonFormSheet
         packId={pack.id}
-        isOpen={isAdding}
-        onClose={() => setIsAdding(false)}
-        onCreated={(emoticon) => setItems((current) => [...current, emoticon])}
+        isOpen={isFormOpen}
+        emoticon={editing}
+        initialFile={pendingFile}
+        onClose={closeForm}
+        onSaved={handleSaved}
       />
       <ActionSheet
         isOpen={selected !== undefined}
         header={{ title: "이모티콘" }}
         items={[
+          {
+            label: "수정",
+            Icon: Pencil,
+            onSelect: () => openEditor(selected),
+          },
           {
             label: "대표 이미지로 지정",
             Icon: Smile,
@@ -95,6 +133,61 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
       />
     </div>
   );
+
+  // INFO: A single file from the bulk picker still opens the authoring sheet — one image is one item either way, and there it can be cropped and given a sound.
+  function handlePick(files: File[]) {
+    const [first, ...rest] = files;
+
+    setIsPickerOpen(false);
+
+    if (!first) {
+      return;
+    }
+
+    if (rest.length === 0) {
+      setPendingFile(first);
+      setIsFormOpen(true);
+
+      return;
+    }
+
+    void addMany(files);
+  }
+
+  // INFO: § 13.4. The grid fills in as each item lands rather than after the last one, so a pile of twenty is visibly progressing.
+  async function addMany(files: File[]) {
+    setAddingCount(files.length);
+
+    const { failedCount } = await addEmoticonsFromFiles(pack.id, files, (emoticon) =>
+      setItems((current) => [...current, emoticon]),
+    );
+
+    setAddingCount(0);
+
+    if (failedCount > 0) {
+      toast.error(`${failedCount}개를 추가하지 못했어요`);
+    }
+  }
+
+  function openEditor(item: Nullable<Emoticon> | undefined) {
+    setSelectedId(null);
+    setEditing(item ?? null);
+    setIsFormOpen(item !== undefined && item !== null);
+  }
+
+  function closeForm() {
+    setIsFormOpen(false);
+    setPendingFile(null);
+    setEditing(null);
+  }
+
+  function handleSaved(emoticon: Emoticon) {
+    setItems((current) =>
+      current.some((item) => item.id === emoticon.id)
+        ? current.map((item) => (item.id === emoticon.id ? emoticon : item))
+        : [...current, emoticon],
+    );
+  }
 
   async function setThumbnail(itemId: Nullable<string>) {
     if (!itemId) {

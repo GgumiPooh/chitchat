@@ -83,7 +83,7 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
                 {/* eslint-disable-next-line @next/next/no-img-element -- REQUIREMENTS.md § 13.3. serves a 302 to a presigned R2 URL, which `next/image` cannot take as a loader source. */}
                 <img
                   className="size-full object-contain"
-                  src={toEmoticonAssetUrl(item.id)}
+                  src={toEmoticonAssetUrl(item.id, "image", item.version)}
                   alt=""
                   loading="lazy"
                 />
@@ -101,25 +101,29 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
         >
           <Clock className="size-5 text-meta" strokeWidth={1.75} />
         </TabButton>
-        {packs.map((pack) => (
-          <TabButton
-            key={pack.id}
-            isActive={activeTab === pack.id}
-            label={pack.name}
-            onClick={() => setRequestedTab(pack.id)}
-          >
-            {toTabItemId(pack) ? (
-              // eslint-disable-next-line @next/next/no-img-element -- See above; the asset route answers a 302 to R2.
-              <img
-                className="size-full object-contain"
-                src={toEmoticonAssetUrl(toTabItemId(pack) as string)}
-                alt=""
-              />
-            ) : (
-              <Smile className="size-5 text-meta" strokeWidth={1.75} />
-            )}
-          </TabButton>
-        ))}
+        {packs.map((pack) => {
+          const tabItem = toTabItem(pack);
+
+          return (
+            <TabButton
+              key={pack.id}
+              isActive={activeTab === pack.id}
+              label={pack.name}
+              onClick={() => setRequestedTab(pack.id)}
+            >
+              {tabItem ? (
+                // eslint-disable-next-line @next/next/no-img-element -- See above; the asset route answers a 302 to R2.
+                <img
+                  className="size-full object-contain"
+                  src={toEmoticonAssetUrl(tabItem.id, "image", tabItem.version)}
+                  alt=""
+                />
+              ) : (
+                <Smile className="size-5 text-meta" strokeWidth={1.75} />
+              )}
+            </TabButton>
+          );
+        })}
       </div>
     </div>
   );
@@ -157,8 +161,9 @@ function TabButton({ className, isActive, label, children, onClick }: TabButtonP
 }
 
 /** INFO: REQUIREMENTS.md § 13.2. Null `thumbnail_item_id` falls back to the pack's first item. */
-function toTabItemId(pack: EmoticonPackWithItems): Nullable<string> {
-  return pack.thumbnailItemId ?? pack.items[0]?.id ?? null;
+// INFO: The item itself rather than its id — the tab's asset URL needs its version too (§ 13.4.).
+function toTabItem(pack: EmoticonPackWithItems): Nullable<Emoticon> {
+  return pack.items.find((item) => item.id === pack.thumbnailItemId) ?? pack.items[0] ?? null;
 }
 
 function findPack(packs: EmoticonPackWithItems[], id: string) {

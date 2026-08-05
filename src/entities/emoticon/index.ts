@@ -10,8 +10,14 @@ export {
   listEmoticonPacks,
   listEnabledEmoticonPacks,
 } from "./api/get-emoticon-packs";
-export { registerEmoticon, type RegisterEmoticonParams } from "./api/register-emoticon";
-export { setEmoticonItemOrder } from "./api/write-emoticon-items";
+export {
+  registerEmoticon,
+  updateEmoticonItem,
+  type RegisterEmoticonParams,
+  type UpdateEmoticonParams,
+  type UpdateEmoticonResult,
+} from "./api/write-emoticon-item";
+export { setEmoticonItemOrder } from "./api/write-emoticon-order";
 export {
   createEmoticonPack,
   deleteEmoticonPack,
