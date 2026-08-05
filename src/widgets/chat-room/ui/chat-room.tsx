@@ -79,6 +79,8 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const [actionTarget, setActionTarget] = useState<Nullable<ChatMessage>>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
+  // INFO: The panel outlives its first open so the collapse has something to animate; until then it is not rendered at all, and a user who never opens it never fetches the packs.
+  const [hasOpenedEmoticonPanel, setHasOpenedEmoticonPanel] = useState(false);
   // INFO: REQUIREMENTS.md § 13.6. Staged rather than sent on selection, so it can be sent with a line of text the way an attachment can.
   const [stagedEmoticon, setStagedEmoticon] = useState<Nullable<Emoticon>>(null);
   const [editing, setEditing] = useState<Nullable<MediaDraft>>(null);
@@ -114,6 +116,10 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
 
   if (initialIndex === null && rows.length > 0) {
     setInitialIndex(rows.length - 1);
+  }
+
+  if (isEmoticonPanelOpen && !hasOpenedEmoticonPanel) {
+    setHasOpenedEmoticonPanel(true);
   }
 
   // WARN: Never a live `rows.length - 1` — Virtuoso re-runs its initial positioning whenever this changes, and on every prepend that empties the list (REQUIREMENTS.md § 8.3.).
@@ -247,17 +253,33 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           onEdit={setEditing}
           onRemove={selection.remove}
         />
+        {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
         {stagedEmoticon && (
-          <EmoticonPreview
-            className="mx-md mb-2xs"
-            emoticon={stagedEmoticon}
-            onRemove={() => setStagedEmoticon(null)}
-          />
+          <div className="absolute inset-x-0 bottom-full">
+            <EmoticonPreview
+              className="mx-md mb-2xs"
+              emoticon={stagedEmoticon}
+              onRemove={() => setStagedEmoticon(null)}
+            />
+          </div>
         )}
-        {/* INFO: REQUIREMENTS.md § 13.6. Inside the composer's own absolute wrapper, so the picker sits above the bar and the messages still scroll underneath both. */}
-        {isEmoticonPanelOpen && (
-          <EmoticonPicker className="mx-md mb-2xs" onSelect={stageEmoticon} />
-        )}
+        {/* INFO: REQUIREMENTS.md § 13.6. Inside the composer's own absolute wrapper, so the panel sits above the bar and the messages still scroll underneath both. */}
+        {/* INFO: `0fr`→`1fr` rather than a height, because only the grid track has to know how tall the panel is; `--chat-bottom-gap` follows the wrapper frame by frame, which is what carries the history up with it. */}
+        <div
+          className={cn(
+            "grid transition-[grid-template-rows] duration-200 ease-out",
+            isEmoticonPanelOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+          )}
+          // WARN: The panel stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until this takes them back out.
+          inert={!isEmoticonPanelOpen}
+        >
+          <div className="overflow-hidden">
+            {hasOpenedEmoticonPanel && (
+              // INFO: § 13.6. `mt-xs` matches the composer's own top padding, so the panel clears the history by what the bar alone clears it by.
+              <EmoticonPicker className="mx-md mt-xs mb-2xs" onSelect={stageEmoticon} />
+            )}
+          </div>
+        </div>
         <MessageComposer
           hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
           isEmoticonPickerOpen={isEmoticonPanelOpen}

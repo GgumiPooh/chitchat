@@ -6,7 +6,9 @@ import { cn, type Nullable } from "@/shared/lib";
 import { EmptyState, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Smile } from "lucide-react";
+import { useState } from "react";
 import { useStorageState } from "synced-storage/react";
+import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
 
 // INFO: DESIGN.md § 9. Assets are user-authored, so their aspect ratios are arbitrary — the cell is a fixed square and the still is `object-contain` inside it.
@@ -24,9 +26,9 @@ export type EmoticonPickerProps = {
  * tabs are the enabled packs in this user's order (§ 13.1.), and selecting an
  * emoticon sends it immediately.
  *
- * INFO: DESIGN.md § 9. leaves the panel's exact geometry open. The height is fixed
- * rather than proportional so opening the picker cannot resize the message column
- * differently on every device.
+ * INFO: DESIGN.md § 9. leaves the panel's exact geometry open. It takes half the
+ * shell so a pack is a few rows rather than one, and it is measured against the
+ * shell's own height (§ 3.4.) rather than `vh`, which ignores the keyboard.
  */
 export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
   // WARN: Read straight from storage rather than seeded into `useState` — the panel can mount during hydration, where the first snapshot is still the fallback and a seeded state would never pick the stored tab up.
@@ -34,6 +36,8 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
     strategy: "localStorage",
   });
   const requestedTab = typeof storedTab === "string" ? storedTab : RECENTS_TAB;
+  const [slideFrom, setSlideFrom] = useState<SwipeDirection>(1);
+  const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
   const { recentIds, remember } = useRecentEmoticons();
   const { data: packs = [], isPending } = useQuery({
     queryKey: ["emoticon-packs", "enabled"],
@@ -51,45 +55,62 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
     .map((id) => byId.get(id))
     .filter((item): item is Emoticon => item !== undefined);
   const shown = activeTab === RECENTS_TAB ? recents : (findPack(packs, activeTab)?.items ?? []);
+  const tabIds = [RECENTS_TAB, ...packs.map((pack) => pack.id)];
+  const activeIndex = tabIds.indexOf(activeTab);
 
   return (
     <div
       className={cn(
-        "pointer-events-auto flex h-64 flex-col rounded-lg border border-hairline bg-canvas",
+        "pointer-events-auto flex h-[calc(var(--viewport-height,100dvh)*0.5)] flex-col rounded-lg border border-hairline bg-canvas",
         className,
       )}
     >
-      <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain p-xs">
-        {isPending ? null : shown.length === 0 ? (
-          <EmptyState
-            className="border-0 bg-transparent"
-            Icon={Smile}
-            description={
-              activeTab === RECENTS_TAB
-                ? "최근 사용한 이모티콘이 여기에 보여요"
-                : "이 그룹에는 이모티콘이 없어요"
-            }
-          />
-        ) : (
-          <div className="grid grid-cols-4 gap-2xs">
-            {shown.map((item) => (
-              <button
-                key={item.id}
-                className="aspect-square rounded-sm p-2xs transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
-                type="button"
-                aria-label="이모티콘"
-                onClick={() => handleSelect(item)}
-              >
-                <PreloadImage
-                  className="size-full"
-                  imgClassName="size-full object-contain"
-                  placeholderClassName="rounded-sm"
-                  src={toEmoticonAssetUrl(item.id, "image", item.version)}
-                  alt=""
-                  loading="lazy"
-                />
-              </button>
-            ))}
+      {/* WARN: `overflow-x-hidden` is what keeps the § 13.6. slide inside the panel — a vertical-only scroller still resolves its horizontal axis to `auto`. */}
+      <div
+        className="scrollbar-hidden min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-xs"
+        {...swipeHandlers}
+      >
+        {isPending ? null : (
+          // WARN: Keyed by the tab so each pack mounts fresh — an enter animation on an updated subtree never replays.
+          <div
+            key={activeTab}
+            className={cn(
+              "animate-in duration-200",
+              slideFrom === 1 ? "slide-in-from-right-6" : "slide-in-from-left-6",
+            )}
+          >
+            {shown.length === 0 ? (
+              <EmptyState
+                className="border-0 bg-transparent"
+                Icon={Smile}
+                description={
+                  activeTab === RECENTS_TAB
+                    ? "최근 사용한 이모티콘이 여기에 보여요"
+                    : "이 그룹에는 이모티콘이 없어요"
+                }
+              />
+            ) : (
+              <div className="grid grid-cols-4 gap-2xs">
+                {shown.map((item) => (
+                  <button
+                    key={item.id}
+                    className="aspect-square rounded-sm p-2xs transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
+                    type="button"
+                    aria-label="이모티콘"
+                    onClick={() => handleSelect(item)}
+                  >
+                    <PreloadImage
+                      className="size-full"
+                      imgClassName="size-full object-contain"
+                      placeholderClassName="rounded-sm"
+                      src={toEmoticonAssetUrl(item.id, "image", item.version)}
+                      alt=""
+                      loading="lazy"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -98,7 +119,7 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
         <TabButton
           isActive={activeTab === RECENTS_TAB}
           label="최근 사용"
-          onClick={() => setRequestedTab(RECENTS_TAB)}
+          onClick={() => selectTab(RECENTS_TAB)}
         >
           <Clock className="size-5 text-meta" strokeWidth={1.75} />
         </TabButton>
@@ -110,7 +131,7 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
               key={pack.id}
               isActive={activeTab === pack.id}
               label={pack.name}
-              onClick={() => setRequestedTab(pack.id)}
+              onClick={() => selectTab(pack.id)}
             >
               {tabItem ? (
                 <PreloadImage
@@ -133,6 +154,30 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
   function handleSelect(item: Emoticon) {
     remember(item.id);
     onSelect(item);
+  }
+
+  function selectTab(id: string) {
+    // WARN: Not merely a wasted render — `setRequestedTab` writes `localStorage` and broadcasts to every hook instance and tab, on every tap of the pack that is already open.
+    if (id === activeTab) {
+      return;
+    }
+
+    setSlideFrom(tabIds.indexOf(id) < activeIndex ? -1 : 1);
+    setRequestedTab(id);
+  }
+
+  // INFO: REQUIREMENTS.md § 13.6. The ends do not wrap — 최근 사용 and the last pack are where the gesture stops, so a swipe never rotates past what the tabs show.
+  function goToAdjacentTab(direction: SwipeDirection) {
+    // WARN: The remembered tab survives the pending state (see `activeTab`) while `tabIds` does not, so until the packs land it is in no list and every neighbour of it is the wrong one.
+    if (activeIndex < 0) {
+      return;
+    }
+
+    const next = tabIds[activeIndex + direction];
+
+    if (next) {
+      selectTab(next);
+    }
   }
 }
 
