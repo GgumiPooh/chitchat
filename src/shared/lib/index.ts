@@ -1,4 +1,5 @@
 export { AssertionError, assert, ensure } from "./assert";
+export { A_KILOBYTE, A_MEGABYTE, formatSize } from "./bytes";
 export { cn } from "./class-name";
 export { isBrowser, isEditableElement } from "./dom";
 export { buildFadeMask, type FadeMaskOptions } from "./fade-mask";

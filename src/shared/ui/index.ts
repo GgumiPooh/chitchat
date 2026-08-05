@@ -17,6 +17,7 @@ export { ScrollMemory } from "./scroll-memory";
 export { ScrollReset } from "./scroll-reset";
 export { ScrollableRow, type ScrollableRowProps } from "./scrollable-row";
 export { SettingsRow, type SettingsRowProps } from "./settings-row";
+export { ShellOverlay, type ShellOverlayProps } from "./shell-overlay";
 export { Skeleton, type SkeletonProps } from "./skeleton";
 export { Toaster, toast, type ToasterProps } from "./sonner";
 export { Switch, type SwitchProps } from "./switch";

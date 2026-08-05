@@ -1,13 +1,22 @@
-import { countUnreadMessages, createTextMessage, listMessages } from "@/entities/message";
+import { ownsAllMedia } from "@/entities/media";
+import {
+  countUnreadMessages,
+  createMediaMessage,
+  createTextMessage,
+  listMessages,
+  type ChatMessage,
+} from "@/entities/message";
 import { pushToUser, type PushPayload } from "@/entities/push-subscription";
 import { listUsers, resolveDisplayName } from "@/entities/user";
 import { getCurrentUser } from "@/shared/auth";
 import {
   CHAT_ROUTE,
+  MAX_MEDIA_PER_MESSAGE,
   MAX_MESSAGE_LENGTH,
   MAX_MESSAGE_PAGE_SIZE,
   MESSAGE_PAGE_SIZE,
   PUSH_BODY_MAX_LENGTH,
+  isVideoMime,
 } from "@/shared/config";
 import type { User } from "@/shared/db";
 import { safelyRunAsync } from "@/shared/lib";
@@ -26,10 +35,17 @@ const querySchema = z.object({
   limit: z.coerce.number().int().positive().optional(),
 });
 
-const bodySchema = z.object({
-  clientMsgId: z.uuid(),
-  text: z.string().trim().min(1).max(MAX_MESSAGE_LENGTH),
-});
+// INFO: REQUIREMENTS.md § 6. A row is text or attachments, never both — the CHECK constraint says the same thing at the database.
+const bodySchema = z.union([
+  z.object({
+    clientMsgId: z.uuid(),
+    text: z.string().trim().min(1).max(MAX_MESSAGE_LENGTH),
+  }),
+  z.object({
+    clientMsgId: z.uuid(),
+    mediaIds: z.array(z.uuid()).min(1).max(MAX_MEDIA_PER_MESSAGE),
+  }),
+]);
 
 // INFO: AGENTS.md § 6.4. A Route Handler returns its own 401 — the App Router does not honour a thrown `Response`.
 export async function GET(request: Request) {
@@ -72,7 +88,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const message = await createTextMessage({ senderId: user.id, ...body.data });
+  const payload = body.data;
+
+  // INFO: The ids are only shaped by the schema above. `createMediaMessage` attaches them behind a foreign key, so an unregistered one would leave the route as a 500 rather than the 400 every other bad body gets.
+  if ("mediaIds" in payload && !(await ownsAllMedia(payload.mediaIds, user.id))) {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+
+  const message =
+    "text" in payload
+      ? await createTextMessage({ senderId: user.id, ...payload })
+      : await createMediaMessage({ senderId: user.id, ...payload });
 
   // INFO: The client id is already taken by a row this sender cannot claim, so echoing anything back would replace their optimistic bubble with a stranger's message.
   if (!message) {
@@ -80,9 +106,18 @@ export async function POST(request: Request) {
   }
 
   // WARN: REQUIREMENTS.md § 16.1. `after`, so the fan-out's round trips to the push services never sit between the sender and their 201. It still runs inside this invocation, on a database that is already awake — which is why push costs Neon's autosuspend nothing, unlike the cron § 16.1. rejected.
-  after(() => safelyRunAsync(() => notifyRecipients(user, message.text ?? "")));
+  after(() => safelyRunAsync(() => notifyRecipients(user, toPushBody(message))));
 
   return NextResponse.json({ message }, { status: 201 });
+}
+
+// INFO: A notification has no room for a thumbnail, so an attachment is announced by kind. `사진` covers a mixed send too — naming both would read as a manifest.
+function toPushBody(message: ChatMessage): string {
+  if (message.type !== "media") {
+    return (message.text ?? "").slice(0, PUSH_BODY_MAX_LENGTH);
+  }
+
+  return message.media.every((item) => isVideoMime(item.mime)) ? "동영상" : "사진";
 }
 
 /**

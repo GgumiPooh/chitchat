@@ -1,7 +1,7 @@
 "use client";
 
 import { MAX_MESSAGE_LENGTH } from "@/shared/config";
-import { cn, useIsCoarsePointer, type Nullable } from "@/shared/lib";
+import { cn, useIsCoarsePointer, useUnsentWork, type Nullable } from "@/shared/lib";
 import { IconButton, Textarea } from "@/shared/ui";
 import { ArrowUp, Plus, Smile } from "lucide-react";
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
@@ -9,23 +9,34 @@ import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 export type MessageComposerProps = {
   className?: string;
   fieldClassName?: string;
+  /** Attachments are staged above the composer, so send stays available on an empty field. */
+  hasAttachments?: boolean;
+  onAttach: () => void;
   onSend: (text: string) => void;
 };
 
 // INFO: DESIGN.md § 6.6. A floating bar over the message column, not a flow child — the messages are meant to pass under it, which is also what gives the glass something to blur.
-export function MessageComposer({ className, fieldClassName, onSend }: MessageComposerProps) {
+export function MessageComposer({
+  className,
+  fieldClassName,
+  hasAttachments = false,
+  onAttach,
+  onSend,
+}: MessageComposerProps) {
   const fieldRef = useRef<Nullable<HTMLTextAreaElement>>(null);
   const [text, setText] = useState("");
   const isCoarsePointer = useIsCoarsePointer();
-  const canSend = text.trim().length > 0;
+  const canSend = text.trim().length > 0 || hasAttachments;
+
+  // INFO: REQUIREMENTS.md § 15.1. Declared here rather than lifted to the screen — the draft never leaves this component, and a forced refresh must not discard it.
+  useUnsentWork(text.trim().length > 0);
 
   return (
     // WARN: DESIGN.md § 3.5. Transparent to the pointer so the messages underneath stay tappable; only the pill itself takes taps.
     <div className={cn("pointer-events-none px-md pt-xs pb-xs", className)}>
       {/* INFO: DESIGN.md § 6.6. The tab bar's floating surface (§ 7.3.). One row, bottom-aligned — the field grows upward and the controls stay on the last line. */}
       <div className="pointer-events-auto flex items-end gap-2xs rounded-[calc(var(--tab-bar-height)/2)] border border-hairline glass p-2xs shadow-floating">
-        {/* TODO: Attaching images is step 6 of REQUIREMENTS.md § 17. */}
-        <IconButton Icon={Plus} disabled aria-label="사진 보내기" />
+        <IconButton Icon={Plus} aria-label="첨부" onClick={onAttach} />
         <Textarea
           ref={fieldRef}
           className={cn(

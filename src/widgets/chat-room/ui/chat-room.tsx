@@ -1,20 +1,29 @@
 "use client";
 
+import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage } from "@/entities/message";
 import { useChatStream, useChatStreamListener } from "@/features/chat-stream";
 import { MessageComposer, useSendMessage } from "@/features/send-message";
-import { buildFadeMask, cn, type Nullable } from "@/shared/lib";
+import {
+  MediaEditor,
+  MediaPickerSheet,
+  MediaTray,
+  useMediaSelection,
+} from "@/features/upload-media";
+import { buildFadeMask, cn, useUnsentWork, type Nullable } from "@/shared/lib";
 import { ActionSheet, EmptyState, Skeleton, toast, type ActionSheetItem } from "@/shared/ui";
 import { Copy, MessageCircle, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { buildChatRows } from "../model/build-chat-rows";
+import { toCellsFromDrafts, toCellsFromMedia, type MediaCell } from "../model/to-media-cells";
 import type { ChatRow } from "../model/types";
 import { useComposerClearance } from "../model/use-composer-clearance";
 import { useMessageHistory } from "../model/use-message-history";
 import { usePrependAnchor } from "../model/use-prepend-anchor";
 import { DateDivider } from "./date-divider";
+import { MediaViewer } from "./media-viewer";
 import { MessageRow } from "./message-row";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
 import { SystemNotice } from "./system-notice";
@@ -52,11 +61,17 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const isAtBottomRef = useRef(true);
   const [isAtTop, setIsAtTop] = useState(true);
   const [actionTarget, setActionTarget] = useState<Nullable<ChatMessage>>(null);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [editing, setEditing] = useState<Nullable<MediaDraft>>(null);
+  const [viewer, setViewer] = useState<Nullable<{ cells: MediaCell[]; index: number }>>(null);
   // INFO: The newest id the user had in view when they last left the bottom — everything past it is what the § 6.7. pill counts.
   const [seenId, setSeenId] = useState(initialMessages.at(-1)?.id ?? 0);
   const { messages, isLoadingOlder, loadOlder, appendMessage, removeMessage, catchUp } =
     useMessageHistory(initialMessages);
-  const { pending, send, retry, resolve } = useSendMessage({ onSent: appendMessage });
+  const { pending, send, sendMedia, retry, cancel, resolve } = useSendMessage({
+    onSent: appendMessage,
+  });
+  const selection = useMediaSelection();
   const { participants, setIsReading } = useChatStream();
   const participantById = useMemo(
     () => new Map(participants.map((participant) => [participant.id, participant])),
@@ -83,6 +98,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
         .length;
   const pendingCount = pending.length;
   const lastPendingCount = useRef(pendingCount);
+  const isSending = pending.some((entry) => entry.status === "sending");
 
   // INFO: REQUIREMENTS.md § 8.5. The stream echoes my own message back too, so the optimistic bubble is retired on `client_msg_id` rather than waiting for the POST response it may well beat.
   const receiveMessage = useCallback(
@@ -92,6 +108,10 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     },
     [appendMessage, resolve],
   );
+
+  // INFO: REQUIREMENTS.md § 15.1. Staged attachments and sends still in flight both die with the document, so a refresh forced by a new deployment waits them out.
+  // WARN: `sending` only. A failed bubble never finishes on its own, so counting it pins the app to a stale bundle until the user happens to retry or cancel.
+  useUnsentWork(isSending || selection.drafts.length > 0);
 
   useComposerClearance({ containerRef, composerRef, scrollerRef, isAtBottomRef });
   // INFO: REQUIREMENTS.md § 8.4. The connection belongs to the shell; this screen only asks to hear from it.
@@ -165,7 +185,18 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
         ref={composerRef}
         className="pointer-events-none absolute inset-x-0 bottom-(--bottom-inset)"
       >
-        <MessageComposer onSend={send} />
+        <MediaTray
+          className="mx-md mb-2xs"
+          drafts={selection.drafts}
+          isReading={selection.isReading}
+          onEdit={setEditing}
+          onRemove={selection.remove}
+        />
+        <MessageComposer
+          hasAttachments={selection.drafts.length > 0}
+          onAttach={() => setIsPickerOpen(true)}
+          onSend={submit}
+        />
       </div>
       <ActionSheet
         isOpen={actionTarget !== null}
@@ -173,8 +204,45 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
         header={{ title: "메시지" }}
         onClose={() => setActionTarget(null)}
       />
+      <MediaPickerSheet
+        isOpen={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        onSelect={(files) => void selection.add(files)}
+      />
+      {editing && (
+        // WARN: Keyed by draft — `MediaEditor` mints its source object URL once per mount, so editing a second photo must be a second mount.
+        <MediaEditor
+          key={editing.id}
+          draft={editing}
+          onCancel={() => setEditing(null)}
+          onDone={handleEdited}
+        />
+      )}
+      {viewer && (
+        <MediaViewer
+          cells={viewer.cells}
+          initialIndex={viewer.index}
+          onClose={() => setViewer(null)}
+        />
+      )}
     </div>
   );
+
+  // INFO: Attachments go first, then the text, so a caption reads under the photos it belongs to rather than above them.
+  function submit(text: string) {
+    if (selection.drafts.length > 0) {
+      sendMedia(selection.takeAll());
+    }
+
+    if (text.trim()) {
+      send(text);
+    }
+  }
+
+  function handleEdited(draft: MediaDraft) {
+    selection.replace(draft);
+    setEditing(null);
+  }
 
   function captureScroller(element: Nullable<HTMLElement | Window>) {
     scrollerRef.current = element instanceof HTMLElement ? element : null;
@@ -199,10 +267,14 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
         return (
           <SystemNotice message={row.message} sender={participantById.get(row.message.senderId)} />
         );
-      case "pending":
+      case "pending": {
+        const cells = toCellsFromDrafts(row.pending.media);
+
         return (
           <MessageRow
             text={row.pending.text}
+            media={cells}
+            progress={row.pending.progress}
             createdAt={row.pending.createdAt}
             sender={participantById.get(currentUserId)}
             isMine
@@ -210,12 +282,17 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
             isLastOfGroup={row.isLastOfGroup}
             status={row.pending.status}
             onRetry={() => retry(row.pending.clientMsgId)}
+            onCancel={() => cancel(row.pending.clientMsgId)}
           />
         );
-      case "message":
+      }
+      case "message": {
+        const cells = toCellsFromMedia(row.message.media);
+
         return (
           <MessageRow
-            text={row.message.text ?? ""}
+            text={row.message.text}
+            media={cells}
             createdAt={row.message.createdAt}
             sender={participantById.get(row.message.senderId)}
             isMine={row.isMine}
@@ -223,8 +300,10 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
             isLastOfGroup={row.isLastOfGroup}
             status="sent"
             onLongPress={() => setActionTarget(row.message)}
+            onOpenMedia={(index) => setViewer({ cells, index })}
           />
         );
+      }
     }
   }
 

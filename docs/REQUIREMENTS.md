@@ -21,7 +21,7 @@ Precedence on conflict: visuals → `DESIGN.md`; code-authoring rules → `AGENT
 - **`[ ]` = remaining work**, and the authoritative spec for it. Tick the box in the change that lands it (`AGENTS.md § 0.3.`).
 - **Never renumber a section** — `src/` comments reference these numbers.
 
-**Current state** — § 17. steps 1–4 done. Step 5 (chat) partly done: text and system bubbles, cursor pagination, virtualization, optimistic send, copy/delete, SSE delivery (§ 8.4.), render-time names (§ 8.7.), push (§ 16.1.), read cursor (§ 8.8.). **Open in chat**: the `1` marker and unread divider (§ 8.8.), search and jump (§ 8.6.), image and emoticon bubbles (steps 6 and 8). Calendar and Gallery are empty states until their step.
+**Current state** — § 17. steps 1–4 done. Step 6 (R2 media pipeline, § 9.) done, and with it photo and video messages: picker, editor, direct upload with progress, retry and cancel, media bubbles, and the fullscreen viewer. Step 5 (chat) otherwise partly done: text and system bubbles, cursor pagination, virtualization, optimistic send, copy/delete, SSE delivery (§ 8.4.), render-time names (§ 8.7.), push (§ 16.1.), read cursor (§ 8.8.). **Open in chat**: the `1` marker and unread divider (§ 8.8.), search and jump (§ 8.6.), emoticon bubbles (step 8). Calendar and Gallery are empty states until their step.
 
 ---
 
@@ -48,7 +48,7 @@ Precedence on conflict: visuals → `DESIGN.md`; code-authoring rules → `AGENT
 Next 16.2.12 + `pnpm` + Turbopack; local Postgres via `docker-compose` (`pnpm db:up`), Neon in production. Config inherited verbatim from the reference project: `tsconfig` (`@/*` → `./src/*`, `verbatimModuleSyntax`, `strict`), `eslint.config.mjs`, `.prettierrc` (`printWidth: 100`), `steiger.config.ts`, `postcss.config.mjs`, `components.json` (shadcn `new-york`, `@/shared/ui`, `@/shared/lib`, lucide), the SVGR turbopack rule, Pretendard Variable as a local font. `pnpm lint` = eslint + steiger; `pnpm dev` runs the app and steiger `--watch`.
 
 - **Deliberately excluded — do not reintroduce**: all i18n (`next-intl`, `[locale]` routing, `messages/`, `Translation`), `orval` (Next _is_ the backend), `msw`, every ads / analytics / RSS / structured-data / sitemap file, the `rewrites` backend proxy
-- **Check `package.json` before adding a dependency** — R2, push, virtualization, query, and validation are already installed. § 13.'s drag-and-drop reordering is the one remaining need with no library present
+- **Check `package.json` before adding a dependency** — R2, push, virtualization, query, validation, and image cropping (`react-easy-crop`, § 9.) are already installed. § 13.'s drag-and-drop reordering is the one remaining need with no library present
 
 ---
 
@@ -137,8 +137,9 @@ A 32-byte token is stored **hashed** in `sessions.token_hash`; only the raw toke
 
 ### 5.3. iOS PWA Verification (highest priority)
 
-- [ ] Verify **on a real device** that the Google login redirect from a home-screen standalone PWA returns to the app correctly
+- [x] Verify **on a real device** that the Google login redirect from a home-screen standalone PWA returns to the app correctly
 - [ ] Verify the session cookie survives days of non-use (re-check after several days)
+- [x] Verify **what iOS actually hands a file input for a video**. It transcodes HEIC to JPEG for uploads and may do the same for HEVC → H.264; if it does, § 9.'s "store whatever arrives" costs nothing on the desktop either, and the viewer's download fallback never fires
 
 ### 5.4. Development Login ✅
 
@@ -164,9 +165,10 @@ Schema, migrations, and triggers have landed. This is the contract new code is w
 - `users.last_read_at` has **no default**, so every insert names one; a `defaultNow()` would silently mark everything sent before that person's first login as read (§ 8.8. reads unread as `created_at > last_read_at`). The one insert site, `upsertGoogleUser`, passes the epoch
 - **The one conversation is implicit — there is no row and no id for it.** Every `messages` query is already conversation-wide, so a singleton table would only have been a constant, a CHECK pinning it, an `ensureConversation` on the login path, and an FK column repeating that constant on every row. A second conversation needs all of it back **and** the `conversation_members` rewrite above — not one of the two alone
 - `messages` is **append-only** — marking messages read must never UPDATE it
-- A CHECK pins which columns each `messages.type` may fill (a `text` row carries no `emoticon_item_id` or event; a `system` row carries no text). The CHECK cannot reach `message_media`, so "a non-`image` message must not acquire media children" is a `BEFORE INSERT OR UPDATE` **trigger** there. The reverse (an `image` message with zero media rows) is deliberately **not** enforced — it would need a `DEFERRABLE` constraint trigger, and § 8.5. writes both in one transaction
+- A CHECK pins which columns each `messages.type` may fill (a `text` row carries no `emoticon_item_id` or event; a `system` row carries no text). The CHECK cannot reach `message_media`, so "a non-`media` message must not acquire media children" is a `BEFORE INSERT OR UPDATE` **trigger** there. The reverse (a `media` message with zero media rows) is deliberately **not** enforced — it would need a `DEFERRABLE` constraint trigger, and § 8.5. writes both in one transaction
 - **Never store an R2 URL in any table** — presigned URLs expire in minutes (§ 9.); store ids and mint per request
-- **One bubble is one `messages` row regardless of image count**: 3 photos = 1 message row + 3 `message_media` rows, which is why there is no `messages.media_id`. `sort_order` preserves the sender's order. `media_id` does not cascade (§ 18. #1 decides what a gallery delete does) and carries its own index, since the PK cannot serve lookups by media
+- The `media` enum value was `image` until `0008_media_message_type`. It is `media` because one bubble may carry photos **and** videos, discriminated by `media.mime` — renamed with `ALTER TYPE … RENAME VALUE`, never a drop-and-recreate, which would fail on existing rows and break the trigger function whose `DECLARE` names the type
+- **One bubble is one `messages` row regardless of attachment count**: 3 photos = 1 message row + 3 `message_media` rows, which is why there is no `messages.media_id`. `sort_order` preserves the sender's order. `media_id` does not cascade (§ 18. #1 decides what a gallery delete does) and carries its own index, since the PK cannot serve lookups by media
 - `messages.event_id` is `ON DELETE SET NULL`; § 11.5. composes its sentence from the `event_title` / `event_starts_at` snapshot, because a delete notice outlives its `events` row. Only the **user name** is resolved at render time (§ 8.7.)
 - `events.ends_at` is NOT NULL — the create form defaults it rather than admitting an open-ended event, which would need its own branch in every month-grid calculation. `color` is nullable until § 18. #4. **Recurrence is yearly-only** (anniversaries): never introduce RRULE or a general recurrence engine — project `yearly` rows onto the requested year on read. The relationship start date, 100-day marks, and yearly anniversaries are **not rows** (§ 11.2.)
 - Indexes: `media(created_at DESC, id DESC)`, `message_media(media_id)`, `events(starts_at)`, `sessions(token_hash)`, plus `pg_trgm` + a GIN trigram index on `messages.text` (§ 8.6.). `messages` needs no paging index of its own — its primary key **is** the § 8.2. cursor. The `media` index needs the `id` tiebreaker because `created_at` is the **transaction** timestamp, so a multi-image send's rows compare equal and a keyset page skips or repeats them — **paginate on the pair, never on `created_at` alone**
@@ -209,12 +211,19 @@ Landed: notch-corner bubbles (mine right, theirs left), avatar + nickname on the
 
 Remaining:
 
+Landed for media (photos **and** videos — the message type is `media`, and `media.mime` is the discriminator, so one bubble may carry both):
+
+- [x] Media messages render **without a bubble**; tapping opens a fullscreen viewer
+  - [x] Attachments sent together are **one bubble** (§ 6.) — branch on array length alone: 1 keeps its own `media.width` / `height` aspect ratio, 2+ use a fixed square-cell grid whose height follows from the cell layout rather than from the images
+  - [x] Tapping any tile opens the viewer at that index and swipes through the rest of the same bubble. The swipe is **native scroll snapping**, not a gesture handler — it needs none of the parameters § 18. #6 leaves open
+  - [x] A video tile shows its poster, a play glyph, and its running time from `media.duration_ms`
+  - [x] The composer's `+` opens a `BottomSheet` (`사진/영상` → album, `카메라` → capture). `capture` and `multiple` cannot be combined, which is why those are two rows and two inputs. The `카메라` row is shown only on a coarse pointer — a desktop browser ignores `capture` and opens the same file dialog as the row above it
+  - [x] Picked attachments stage in a tray above the composer, each with its own remove control and, for photos, an editor (crop + filter, `react-easy-crop`). Decoding is serial, so a large pick takes seconds — the tray opens on a placeholder tile rather than staying empty until the last file lands
+  - [x] `heic`/`heif` stay on the allow-list because iOS hands the original over when it declines to transcode, and its thumbnail is produced by decoding it in an `<img>` — so an engine without HEIC support rejects the pick outright instead of storing something it could never render
+  - [x] Sending shows real upload progress per bubble; a failure offers **재전송 / 취소**, and a retry re-uploads only the attachments that had not landed. Progress is committed only when the whole-percent figure changes — `upload.onprogress` fires per network chunk, and every commit re-renders the virtualized list
 - [ ] Unread marker — a `1` beside my message, in the `unread` token (DESIGN § 4.1.4.)
-- [ ] Image messages render **without a bubble**; tapping opens a fullscreen viewer (pinch zoom, horizontal swipe)
-  - [ ] Multiple images sent together are **one bubble** (§ 6.) — branch on array length alone: 1 image keeps its own `media.width` / `height` aspect ratio, 2+ use a fixed square-cell grid
-  - [ ] The grid makes § 8.3. box reservation **more** accurate, not less: the height follows from the cell layout, independent of the images' own dimensions
-  - [ ] Tapping any image opens the viewer at that index, swiping through the rest of the same bubble
 - [ ] Emoticon messages render as the image alone, without a bubble
+- [ ] Pinch zoom in the viewer — § 18. #6, still open and meant to be tuned on a real device
 - [ ] Tapping the scroll-to-bottom button scrolls smoothly to the bottom **and marks messages read**
 - [ ] The same button returns the user to the newest messages after a search jump (§ 8.6.1.)
 
@@ -232,7 +241,7 @@ Offscreen message nodes **must not stay in the DOM** — after years of history,
 - **Never use `flex-direction: column-reverse`** — the virtualizer owns scroll anchoring and the two cannot coexist
 - **Two traps, each rendering an empty list with no error**: `initialTopMostItemIndex` MUST be a constant (a live `rows.length - 1` re-runs initial positioning on every prepend); and the scroller is inline `height: 100%`, so its parent needs a **definite** height — a `flex-1` column is not one, the list must sit in an `absolute inset-0` box inside it
 - That constant latches at the first render that **has rows**, not the first render: an empty room renders the empty state and mounts no list, so `useState(() => rows.length - 1)` is `0` — and when § 8.4.'s catch-up fills the room, the list mounts at the _oldest_ arriving message with the newest below the fold
-- [ ] **Reserve the box for image messages before the asset loads** — an aspect-ratio box from `media.width` / `height`. Without it every image load triggers a re-measure cascade and the scroll jolts
+- [x] **The box for a media message is reserved before the asset loads** — an aspect-ratio box from `media.width` / `height` for a single attachment, and the cell layout itself for a grid. Without it every image that arrives triggers a re-measure cascade and the scroll jolts
 - [ ] Date dividers are list items (done), but the **sticky top indicator is a separate overlay** computed from the visible range — not built
 - [ ] Restore scroll position when returning to the tab (`restoreStateFrom`)
 - [ ] Native `Ctrl+F` cannot find offscreen messages — in-app search (§ 8.6.) is the deliberate replacement
@@ -279,6 +288,7 @@ The client generates `client_msg_id` (uuid) and renders optimistically; `POST /a
 
 - The re-read after a conflict is scoped to `sender_id` and `deleted_at IS NULL` and answers **409** when it misses. `client_msg_id` is unique table-wide rather than per sender, so matching on it alone would return the _other_ user's row and swap the optimistic bubble for a stranger's message
 - The SSE echo is matched to the optimistic entry by `client_msg_id` and replaces it. The echo routinely beats the POST response, so the pending bubble retires on whichever arrives first
+- **Every send goes through one delivery queue**, not one chain per call. `messages.id` is assigned by the POST, so a caption sent alongside attachments would otherwise be POSTed while the uploads were still running and land _above_ the photos on every other client and every reload — the reverse of the order it was optimistically rendered in
 
 ### 8.6. Message Search
 
@@ -299,12 +309,12 @@ The client generates `client_msg_id` (uuid) and renders optimistically; `POST /a
 - [ ] On arrival, **flash a highlight** behind the target bubble (fades after ~1.5s)
 - [ ] Previous / next navigation between results, as in KakaoTalk; returning to the newest messages reuses the § 8.1. button
 - [ ] Highlight the matched substring **client-side by splitting the string** — do not use `ts_headline`
-- [ ] Image and emoticon messages are excluded from search
+- [ ] Media and emoticon messages are excluded from search
 - [ ] Empty states for "no query yet" and "no results"
 
 ### 8.7. Display Names and Profiles
 
-Landed apart from the avatar image, which needs the § 9. media route (step 6).
+Landed apart from the avatar image, which needs the profile editor of § 12. (step 10) — the § 9. media route it reads through now exists.
 
 - The name shown in chat is **the nickname each user set for themselves in Settings** (`users.nickname`, § 12.); the Google account name is only the first-login default. There is **no** feature for naming the other person (KakaoTalk's per-contact rename)
 - **Never copy the name or avatar onto the message row.** The sender resolves against the participant set at render time, so a rename **retroactively changes every past message**, including § 11.5. system sentences. That is intended
@@ -325,20 +335,24 @@ Landed: the cursor lives in `users.last_read_at` (no per-message `read_at`, no m
 
 ---
 
-## 9. Image Storage (R2)
+## 9. Media Storage (R2)
 
-- [ ] Create the R2 bucket as **private**, public access fully disabled
-- [ ] `POST /api/media/upload-url` — validate the session, then issue a presigned **PUT** URL so the client uploads **directly to R2**, avoiding Vercel's 4.5MB body limit that full-resolution iPhone photos exceed. After the upload, register metadata with `POST /api/media`
-- [ ] `GET /api/media/{id}?variant=thumb|original` — validate the session, generate a presigned **GET** URL (5–10 minutes), `302` to it
-  - [ ] `variant` defaults to `thumb`; the gallery grid and chat thumbnails use `thumb`, only the fullscreen viewer uses `original`
-  - [ ] Because the route is same-origin, `<img>` requests carry the session cookie automatically
-  - [ ] Set `Cache-Control: private, max-age` shorter than the signature's expiry
-- [ ] **Never rely on a UUID in the URL as access control** — every read validates the session
-- [ ] Thumbnails: the client resizes at upload time and uploads both objects (`{key}` and `{key}_thumb`)
-- [ ] Use `media.blurhash` as the pre-load placeholder for grid and bubble images, with box reservation (§ 8.3.)
-- [ ] R2 credentials live only in server env and must never reach the client bundle
-- [ ] Deleting an image also deletes the R2 objects
-- [ ] Read path for chat: fetch the `message_media` rows for a whole page of messages in **one** query, ordered by `sort_order`
+Landed apart from the blurhash placeholder and the delete path. Contract:
+
+- [x] `POST /api/media/upload-url` issues a **pair** of presigned PUTs — the object and its `{key}_thumb` sibling — and `POST /api/media` registers the result. The upload goes **client → R2 directly**, which is what gets a full-resolution iPhone photo past Vercel's 4.5MB request body limit, and what makes `XMLHttpRequest`'s `upload.onprogress` a real byte count rather than a fiction
+- [x] **The key is built server-side from the uploader's id** (`chat/{userId}/{uuid}`) and never read off the request. A signature the browser could aim is a signature that overwrites any object in the bucket. `POST /api/media` re-checks the prefix before it will claim an object
+- [x] **`POST /api/media` is the only place § 14.'s type and size limits actually hold — for the thumbnail as much as for the original.** Verified against the live bucket: **R2 enforces neither the signed `Content-Type` nor any size on a presigned PUT** — a mismatched `Content-Type` is accepted and stored. So the server `HeadObject`s both keys, reads back what R2 really holds, and refuses to write a `media` row for anything outside the allow-list. Nothing in the app addresses R2 by key, only by `media.id`, so an unregistered object is unreachable
+- [x] Caps: **50MB per photo, 500MB per video** (`shared/config/media.ts`). The video ceiling is an upload-reliability limit, not a storage one — a presigned PUT is one request with no resume, so raising it means adopting multipart upload, not a bigger number
+- [x] `GET /api/media/{id}?variant=thumb|original` validates the session and `302`s to a presigned GET. `variant` defaults to `thumb`; only the fullscreen viewer asks for `original`. Same-origin, so a bare `<img src>` carries the session cookie with no fetch wrapper. `Cache-Control: private, max-age` is **shorter than the signature's expiry**, or the browser replays a cached redirect to a URL R2 has stopped honouring
+- [x] **Never rely on a UUID in the URL as access control** — every read revalidates the session **and then checks the object itself**: readable when the caller owns it, or when it hangs off a message that has not been deleted. A session alone was enough while chat was the only scope, but `buildStorageKey` already declares `avatar` and `emoticon`, and an unposted object of either would have been reachable by id. An unreadable id answers 404 rather than 403, so the response cannot confirm it exists
+- [x] **Saving the original is a `Content-Disposition` on the presigned GET**, requested with `?download=1`. An `<a download>` is not enough: the route answers a 302 and the spec makes the browser drop the attribute once the navigation resolves cross-origin, which in a standalone PWA replaces the app with a bare asset view and no way back
+- [x] Thumbnails are rendered in the browser at pick time (long edge 720, JPEG) and uploaded beside the original. For a video the same slot holds the **poster frame**, extracted by seeking a decoded `<video>` onto a canvas — which on iOS requires `muted` + `playsInline` + an actual `play()`, since WebKit will not decode a frame for a video that has never played. The seek is guarded on both sides: a container whose `duration` is not known at `loadedmetadata` is `NaN`, and assigning that to `currentTime` throws inside the event handler, while seeking to the position the video already holds fires no `seeked` at all — either way the promise would never settle, and decoding is serial, so one such file silently swallows the rest of the pick. A timeout backs both guards
+- [x] R2 credentials live only in server env. `shared/storage` is `server-only`; `toMediaUrl` deliberately lives in `shared/config` instead of `entities/media`, because a client value-import from that barrel drags `server-only` into the browser bundle
+- [x] Read path for chat: the `message_media` rows for a whole page arrive in **one** query, ordered by `sort_order`, and only when the page actually holds an attachment
+- [ ] Use `media.blurhash` as the pre-load placeholder for grid and bubble images. Box reservation (§ 8.3.) is done and works without it, so this is polish
+- [ ] Deleting media also deletes the R2 objects (`deleteObjects` exists and is unused; the interaction with chat is § 18. #1)
+- [ ] An upload that is registered and then re-PUT before its URL expires would swap the bytes under a validated row. Harmless with two trusted users, and the fix — invalidating the ticket at registration — is only worth it if this ever stops being a two-person app
+- [ ] **R2 bucket configuration is a deploy step, not code** (§ 15.): the bucket must be private with public access fully disabled, and its CORS policy must allow `PUT` from the app origin, or every upload fails preflight
 
 ---
 
@@ -410,6 +424,7 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
   - [ ] The nickname set here is exactly what appears as the sender name in chat and inside system sentences (§ 8.7.), initialized from the Google account name at first login and owned by the user thereafter
   - [ ] Saving needs no explicit broadcast — the UPDATE lands on `users`, so the § 6. trigger fires `user_changed` and every open screen refetches (§ 8.4.)
 - [ ] Entry point to the emoticon settings screen
+- **No camera-permission toggle.** Taking a photo goes through `<input type="file" capture>`, which hands the shot to iOS's own camera app — the web page never touches the camera, so no site permission is created. A toggle would have no state to read and nothing to switch off
 - [x] **알림** — the push toggle (§ 16.1.), **per device** rather than per account, so it reflects this browser's subscription rather than a stored preference. Three inert states carry their own copy: permission denied (only the browser's site settings can undo it), unsupported (iOS Safari tab — install to the home screen first), and in flight
 - [ ] List of logged-in devices, with per-session revocation
 - [ ] Log out
@@ -435,7 +450,8 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
 Landed: `app/robots.ts` (`Disallow: /` for every agent), root layout `robots: { index: false, follow: false, nocache: true }`, `X-Robots-Tag: noindex, nofollow, noarchive` on every path, and `Strict-Transport-Security` / `X-Content-Type-Options` / `Referrer-Policy: no-referrer` / `X-Frame-Options: DENY`. **Do not generate a sitemap.** Proxy-matcher exclusions are listed in § 7.
 
 - [ ] Every API route validates the session (401 when unauthenticated)
-- [ ] Upload MIME/extension allow-list and a size cap
+- [x] Upload MIME/extension allow-list and a size cap — enforced at registration against **both** objects of the § 9. pair. The `_thumb` sibling is checked as strictly as the original (`image/jpeg`, `MAX_THUMBNAIL_SIZE`): it is what every chat cell, grid tile and video poster loads, so leaving it unchecked is the same hole by another name
+- [x] `POST /api/messages` verifies that every `mediaId` is a registered object **owned by the sender** before attaching it. `message_media.media_id` is a foreign key, so an unregistered id would surface as a 500 rather than a 400, and nothing else stopped one user hanging the other's objects off their own bubble
 - [ ] Rate-limit the login callback endpoint
 - [ ] Error responses must not leak internal details
 
@@ -449,6 +465,7 @@ Landed: `app/robots.ts` (`Disallow: /` for every agent), root layout `robots: { 
 - [x] `maxDuration` for the SSE stream function — `300`, on the route segment (§ 8.4.)
 - [ ] Include `lint:steiger` in `pnpm build` so architecture violations fail the deploy
 - [ ] Separate dev and production databases using Neon branches
+- [ ] **R2 bucket setup**: private with public access disabled, plus a CORS policy allowing `PUT` from the app origin — without it every § 9. upload fails preflight and no code change can fix it
 
 ### 15.1. Refreshing a client across a deploy
 
@@ -501,7 +518,7 @@ Landed (§ 18. #8); it reverses the "no service worker" decision in § 7. Contra
 3. ✅ Database schema + migrations (§ 6.)
 4. ✅ Layout + tab bar + PWA manifest (§ 7.)
 5. **Chat tab (§ 8.) — in progress.** Static UI → message CRUD → infinite scroll → SSE ✅, read cursor ✅; the `1` marker and unread divider (§ 8.8.) and search and jump (§ 8.6.) remain
-6. R2 media pipeline + sending images in chat (§ 9.)
+6. ✅ R2 media pipeline + sending photos and videos in chat (§ 9.)
 7. Gallery tab (§ 10.)
 8. Emoticons (§ 13.)
 9. Calendar tab (§ 11.)
@@ -514,15 +531,15 @@ Landed (§ 18. #8); it reverses the "no service worker" decision in § 7. Contra
 
 Deliberately left open. When work reaches the feature, **confirm with the user**, then update this document.
 
-| #     | Item                                                                                                          | Needed by             | Notes                                                                                               |
-| ----- | ------------------------------------------------------------------------------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------- |
-| 1     | What happens to a chat message when its image is deleted from the gallery — delete it, or leave a placeholder | Gallery (§ 10.)       | Affects the schema (whether `media.deleted_at` is needed)                                           |
-| 2     | How emoticon assets are sourced and how packs are composed                                                    | Emoticons (§ 13.)     | The picker grid cannot be designed until the aspect ratios are known                                |
-| 3     | Emoticon picker dimensions — panel height, pack tab bar, grid density                                         | Emoticons (§ 13.)     | DESIGN § 9.                                                                                         |
-| 4     | Calendar event color set (6–7 warm tints that do not clash with the accent)                                   | Calendar (§ 11.)      | DESIGN § 9.                                                                                         |
-| 5     | Motion duration / easing token scale                                                                          | When animation starts | Only the 1.5s search flash and the tab `scale-[0.96]` are specified. DESIGN § 9.                    |
-| 6     | Image viewer gesture parameters — pinch zoom bounds, swipe threshold                                          | Gallery / viewer      | Must be tuned on a real device. DESIGN § 9.                                                         |
-| 7     | Dark palette hex values                                                                                       | Dark theme (§ 16.)    | Hand-tune; never arithmetically invert. DESIGN § 5.4.                                               |
-| ~~8~~ | ~~**Whether to adopt push notifications (new-message only)**~~                                                | —                     | **Decided: adopted.** Landed as § 16.1. **Time-based notifications remain out of scope**            |
-| 9     | Whether a `scope = 'mine'` event shows its **title** to the other user, or only "busy"                        | Calendar (§ 11.5.)    | Currently specified as showing the title                                                            |
-| 10    | Maximum images per message, and the grid layout beyond that count                                             | Chat images (§ 8.1.)  | KakaoTalk caps a send at 30. Determines `+N` overflow treatment and upload concurrency. DESIGN § 9. |
+| #      | Item                                                                                                          | Needed by             | Notes                                                                                                                                                                                                               |
+| ------ | ------------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1      | What happens to a chat message when its image is deleted from the gallery — delete it, or leave a placeholder | Gallery (§ 10.)       | Affects the schema (whether `media.deleted_at` is needed)                                                                                                                                                           |
+| 2      | How emoticon assets are sourced and how packs are composed                                                    | Emoticons (§ 13.)     | The picker grid cannot be designed until the aspect ratios are known                                                                                                                                                |
+| 3      | Emoticon picker dimensions — panel height, pack tab bar, grid density                                         | Emoticons (§ 13.)     | DESIGN § 9.                                                                                                                                                                                                         |
+| 4      | Calendar event color set (6–7 warm tints that do not clash with the accent)                                   | Calendar (§ 11.)      | DESIGN § 9.                                                                                                                                                                                                         |
+| 5      | Motion duration / easing token scale                                                                          | When animation starts | Only the 1.5s search flash and the tab `scale-[0.96]` are specified. DESIGN § 9.                                                                                                                                    |
+| 6      | Viewer **pinch-zoom** bounds                                                                                  | Gallery / viewer      | Must be tuned on a real device. The swipe half is settled — native scroll snapping, no threshold. DESIGN § 9.                                                                                                       |
+| 7      | Dark palette hex values                                                                                       | Dark theme (§ 16.)    | Hand-tune; never arithmetically invert. DESIGN § 5.4.                                                                                                                                                               |
+| ~~8~~  | ~~**Whether to adopt push notifications (new-message only)**~~                                                | —                     | **Decided: adopted.** Landed as § 16.1. **Time-based notifications remain out of scope**                                                                                                                            |
+| 9      | Whether a `scope = 'mine'` event shows its **title** to the other user, or only "busy"                        | Calendar (§ 11.5.)    | Currently specified as showing the title                                                                                                                                                                            |
+| ~~10~~ | ~~**Maximum images per message, and the grid layout beyond that count**~~                                     | —                     | **Decided: selection is unlimited; a send splits into consecutive bubbles of 9.** So there is no `+N` overflow cell and no attachment is ever hidden behind one. Caps are per file — 50MB photo, 500MB video (§ 9.) |

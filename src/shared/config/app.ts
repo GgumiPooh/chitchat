@@ -18,6 +18,15 @@ export const APP_SCROLL_ID = "app-scroll";
  */
 export const BOTTOM_OVERLAY_ID = "bottom-overlay";
 
+/**
+ * The `(main)` layout's shell box — the positioning context both floating bars
+ * and every full-screen overlay resolve against. A screen that has to cover the
+ * header and the tab bar portals into this rather than going `fixed`
+ * (AGENTS.md § 4.4.), because its own container is inside the scroller the bars
+ * float over.
+ */
+export const APP_SHELL_ID = "app-shell";
+
 /** The four tab routes, in tab-bar order. REQUIREMENTS.md § 7. */
 export const CHAT_ROUTE = "/chat";
 

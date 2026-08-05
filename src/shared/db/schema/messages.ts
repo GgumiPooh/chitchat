@@ -17,7 +17,8 @@ import { events } from "./events";
 import { media } from "./media";
 import { users } from "./users";
 
-export const messageTypeEnum = pgEnum("message_type", ["text", "image", "emoticon", "system"]);
+// INFO: `media`, not `image` — REQUIREMENTS.md § 8.1. lets one bubble carry photos and videos together, so the discriminator is `media.mime`, not the message type.
+export const messageTypeEnum = pgEnum("message_type", ["text", "media", "emoticon", "system"]);
 
 // INFO: REQUIREMENTS.md § 11.5. Posted on create, reschedule, and delete — never on a title-only or description-only edit.
 export const systemActionEnum = pgEnum("system_action", [
@@ -57,7 +58,7 @@ export const messages = pgTable(
       "messages_type_payload_check",
       sql`CASE "type"
         WHEN 'text' THEN "text" IS NOT NULL AND "emoticon_item_id" IS NULL AND "event_id" IS NULL AND "system_action" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL
-        WHEN 'image' THEN "text" IS NULL AND "emoticon_item_id" IS NULL AND "event_id" IS NULL AND "system_action" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL
+        WHEN 'media' THEN "text" IS NULL AND "emoticon_item_id" IS NULL AND "event_id" IS NULL AND "system_action" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL
         WHEN 'emoticon' THEN "text" IS NULL AND "emoticon_item_id" IS NOT NULL AND "event_id" IS NULL AND "system_action" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL
         WHEN 'system' THEN "text" IS NULL AND "emoticon_item_id" IS NULL AND "system_action" IS NOT NULL AND "event_title" IS NOT NULL AND "event_starts_at" IS NOT NULL
       END`,

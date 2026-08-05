@@ -139,6 +139,12 @@ The clearance is the scroller's own padding, so a screen whose background is not
 
 Padding, not a hard stop: mid-scroll the content genuinely passes under the bars — that is the effect — and the padding only guarantees that the _last_ row can still be scrolled clear of them.
 
+### 3.5.1. Full-screen overlays.
+
+A screen-owned overlay that must cover the bars — the media viewer (§ 7.10.), the photo editor — renders through `ShellOverlay` into `#app-shell`, the shell column itself. It stays `absolute inset-0`, so `AGENTS.md § 4.4.` still holds; what the portal changes is which box `inset-0` resolves against.
+
+A larger `z-index` is not an alternative. The bars are siblings of the scroller, not of the screen inside it, so an overlay left in the screen's subtree cannot outrank them from there — and being inside the scroller it would also stop at the clearance padding, leaving the tab bar sitting on top of it.
+
 The surface is a translucent `canvas` over a blur, not a solid fill. This is an imitation of the platform's floating material, deliberately a plain one: no specular edge, no dynamic tint, no refraction. It is defined once as the `glass` utility in `globals.css` — every floating surface (both bars, the install banner, `icon-button-floating`) uses it, so they cannot drift apart.
 
 # 4. Tokens.
@@ -379,7 +385,7 @@ Virtualization constrains the visual spec in two places, and both are binding:
 | Constraint                                                                                         | Reason                                                                                        |
 | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | Message spacing is authored as **padding inside the row**, never as `gap` on the list container    | The virtualizer positions rows absolutely; a container `gap` does not exist for it to measure |
-| Image and emoticon rows MUST reserve their box from stored `width`/`height` before the asset loads | A row that changes height after paint forces a re-measure and visibly jolts the scroll        |
+| Media and emoticon rows MUST reserve their box from stored `width`/`height` before the asset loads | A row that changes height after paint forces a re-measure and visibly jolts the scroll        |
 
 ## 6.2. Bubble.
 
@@ -417,13 +423,13 @@ Centered `chat-pill` pill, `caption` in `chat-pill-ink`, padding `4px 12px`, `ro
 
 ## 6.5. Non-Text Messages.
 
-| Type       | Rule                                                                                                                                                                                                                                                                                                                                                 |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Image      | No bubble. `rounded-md`, max 220px on the long edge, `object-cover`, 1px `hairline` inset ring. Timestamp and unread marker keep their § 6.3. positions                                                                                                                                                                                              |
-| Emoticon   | No bubble, no border, no background. Max 140×140                                                                                                                                                                                                                                                                                                     |
-| System     | Calendar-change notice (`REQUIREMENTS.md § 11.5.`). Centered `chat-pill` pill, `caption` in `chat-pill-ink`, padding `4px 12px`, `rounded-full` — the § 6.4. date-divider treatment, so system notices read as timeline furniture rather than as someone speaking. No avatar, no timestamp, no unread marker. Tappable, `:hover` `bg-surface-strong` |
-| Failed     | `semantic-error` retry affordance to the outer side of the bubble; bubble itself renders at 60% opacity                                                                                                                                                                                                                                              |
-| Optimistic | Bubble at 60% opacity until the server echo arrives; no spinner                                                                                                                                                                                                                                                                                      |
+| Type       | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Media      | No bubble. `rounded-md`, 220px wide, `object-cover`, 1px `hairline` inset ring. One attachment keeps its own aspect ratio; two or more take a square-cell grid (2 and 4 in two columns, everything else in three) at the same width, so bubbles of one and of nine align in the column. A video tile carries a play glyph and its running time. While uploading, the bubble dims to 60% (below) and a `primary` progress bar fills its bottom edge. Timestamp and unread marker keep their § 6.3. positions |
+| Emoticon   | No bubble, no border, no background. Max 140×140                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| System     | Calendar-change notice (`REQUIREMENTS.md § 11.5.`). Centered `chat-pill` pill, `caption` in `chat-pill-ink`, padding `4px 12px`, `rounded-full` — the § 6.4. date-divider treatment, so system notices read as timeline furniture rather than as someone speaking. No avatar, no timestamp, no unread marker. Tappable, `:hover` `bg-surface-strong`                                                                                                                                                        |
+| Failed     | `semantic-error` retry affordance to the outer side of the bubble, with a `meta` cancel beneath it; bubble itself renders at 60% opacity                                                                                                                                                                                                                                                                                                                                                                    |
+| Optimistic | Bubble at 60% opacity until the server echo arrives; no spinner                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ## 6.6. Composer.
 
@@ -718,10 +724,10 @@ The thumb reads as raised through a 1px `hairline-strong` border, not a shadow �
 
 # 9. Known Gaps.
 
-| Gap                    | Recommendation                                                                                                                      |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Dark palette           | Deferred (§ 5.4.). Hand-tune; keep the warm bias; drop shadows to `none`                                                            |
-| Event colour set       | Needs a closed 6–7 tint pair set in the `primary`-compatible warm family before calendar build                                      |
-| Emoticon picker chrome | Panel height, pack tab-bar geometry, and grid density unspecified until real assets exist                                           |
-| Motion                 | Only the search flash (§ 6.8.) and tab `scale-[0.96]` are specified; a shared duration/easing scale is needed before animation work |
-| Image viewer gestures  | Pinch-zoom bounds and swipe thresholds unspecified                                                                                  |
+| Gap                     | Recommendation                                                                                                                      |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Dark palette            | Deferred (§ 5.4.). Hand-tune; keep the warm bias; drop shadows to `none`                                                            |
+| Event colour set        | Needs a closed 6–7 tint pair set in the `primary`-compatible warm family before calendar build                                      |
+| Emoticon picker chrome  | Panel height, pack tab-bar geometry, and grid density unspecified until real assets exist                                           |
+| Motion                  | Only the search flash (§ 6.8.) and tab `scale-[0.96]` are specified; a shared duration/easing scale is needed before animation work |
+| Image viewer pinch-zoom | Bounds unspecified. Swiping between attachments is settled — native scroll snapping, which needs no threshold                       |

@@ -1,3 +1,4 @@
+export { uploadDraft, type UploadProgress } from "./api/upload-draft";
 export {
   useSendMessage,
   type PendingMessage,

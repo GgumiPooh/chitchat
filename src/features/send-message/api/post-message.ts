@@ -1,9 +1,8 @@
 import type { ChatMessage } from "@/entities/message";
 
-export type PostMessageParams = {
-  clientMsgId: string;
-  text: string;
-};
+// INFO: REQUIREMENTS.md § 6. Text or attachments, never both — the route's schema and the table's CHECK constraint say the same thing.
+export type PostMessageParams =
+  { clientMsgId: string; text: string } | { clientMsgId: string; mediaIds: string[] };
 
 export async function postMessage(params: PostMessageParams): Promise<ChatMessage> {
   const response = await fetch("/api/messages", {

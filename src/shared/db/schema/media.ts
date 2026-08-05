@@ -16,6 +16,8 @@ export const media = pgTable(
     // INFO: REQUIREMENTS.md § 8.3. Required, so the virtualized list can reserve the box before the asset loads.
     width: integer("width").notNull(),
     height: integer("height").notNull(),
+    // INFO: DESIGN.md § 6.5. Null for a still image; a video cell draws its running time from this, read off the element that produced the poster frame.
+    durationMs: integer("duration_ms"),
     blurhash: text("blurhash"),
     takenAt: timestamp("taken_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

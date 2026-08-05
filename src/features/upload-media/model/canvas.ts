@@ -1,0 +1,74 @@
+import { ensure } from "@/shared/lib";
+
+// INFO: REQUIREMENTS.md § 9. The thumbnail every chat cell and gallery tile loads. 720 covers a 220px bubble (DESIGN.md § 6.5.) and a 3-column grid cell at 3× density.
+export const THUMBNAIL_MAX_EDGE = 720;
+
+// WARN: iOS Safari refuses to allocate a canvas past roughly 16.7M pixels and silently hands back a blank one, and a modern iPhone photo is larger than that. Deliberately under 4096 — a square crop at that edge is 16.78M and lands the wrong side of the ceiling. Only edited images are re-encoded, so an untouched original never meets it.
+export const EDITED_MAX_EDGE = 4_000;
+
+const THUMBNAIL_QUALITY = 0.82;
+
+const EDITED_QUALITY = 0.92;
+
+export const OUTPUT_MIME = "image/jpeg";
+
+export function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("image decode failed"));
+    image.src = src;
+  });
+}
+
+export function toBlob(canvas: HTMLCanvasElement, isThumbnail = false): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("canvas encode failed"))),
+      OUTPUT_MIME,
+      isThumbnail ? THUMBNAIL_QUALITY : EDITED_QUALITY,
+    );
+  });
+}
+
+/** The size that fits inside `maxEdge` on its long side, never scaling up. */
+export function fitWithin(width: number, height: number, maxEdge: number) {
+  const scale = Math.min(1, maxEdge / Math.max(width, height));
+
+  return { width: Math.round(width * scale), height: Math.round(height * scale) };
+}
+
+export function createCanvas(width: number, height: number): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+
+  canvas.width = width;
+  canvas.height = height;
+
+  return canvas;
+}
+
+/**
+ * WARN: Safari only gained `CanvasRenderingContext2D.filter` in 17. Without the
+ * detection an older WebKit drops the property silently and the export comes back
+ * unfiltered while the preview showed the filter — cropping still works, so the
+ * degradation is worth taking over refusing to export.
+ */
+export function supportsCanvasFilter(context: CanvasRenderingContext2D): boolean {
+  return "filter" in context;
+}
+
+/** The `_thumb` sibling of REQUIREMENTS.md § 9., rendered from whatever already holds the pixels. */
+export function renderThumbnail(
+  source: CanvasImageSource,
+  width: number,
+  height: number,
+): Promise<Blob> {
+  const size = fitWithin(width, height, THUMBNAIL_MAX_EDGE);
+  const canvas = createCanvas(size.width, size.height);
+  const context = ensure(canvas.getContext("2d"), "2d context unavailable");
+
+  context.drawImage(source, 0, 0, size.width, size.height);
+
+  return toBlob(canvas, true);
+}

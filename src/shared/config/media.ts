@@ -1,0 +1,93 @@
+import { A_MEGABYTE, A_MINUTE } from "@/shared/lib";
+
+/** REQUIREMENTS.md § 9. Presigned PUT, then registration; the id route mints presigned GETs. */
+export const MEDIA_UPLOAD_URL_PATH = "/api/media/upload-url";
+
+export const MEDIA_PATH = "/api/media";
+
+// INFO: REQUIREMENTS.md § 14. iPhone ProRAW tops out around 50MB and a panorama around 15MB, so nothing from the camera roll is refused.
+export const MAX_IMAGE_SIZE = 50 * A_MEGABYTE;
+
+// WARN: A presigned PUT is a single request with no resume, so this is an upload-reliability ceiling, not a storage one — raising it needs multipart upload, not a bigger number. 500MB is roughly one minute of 4K60 or seven of 1080p30.
+export const MAX_VIDEO_SIZE = 500 * A_MEGABYTE;
+
+// INFO: REQUIREMENTS.md § 18. #10. Selection is unlimited; a send longer than this is split across consecutive messages so the grid never needs a `+N` overflow cell.
+export const MAX_MEDIA_PER_MESSAGE = 9;
+
+// INFO: Long enough for a 500MB upload on a slow connection to start, short enough that a leaked URL is worthless.
+export const UPLOAD_URL_EXPIRY = 10 * A_MINUTE;
+
+// WARN: REQUIREMENTS.md § 9. The `Cache-Control` on the 302 MUST stay below this, or the browser reuses a redirect whose signature has expired.
+export const MEDIA_URL_EXPIRY = 10 * A_MINUTE;
+
+export const MEDIA_CACHE_MAX_AGE = 5 * A_MINUTE;
+
+// INFO: The thumbnail is always JPEG — `canvas.toBlob` is the one encoder every iOS version implements, and both a resized photo and a video's poster frame go through it.
+export const THUMBNAIL_MIME = "image/jpeg";
+
+// WARN: REQUIREMENTS.md § 14. holds for the `_thumb` sibling too — R2 enforces nothing on a presigned PUT, so without this a client could park anything of any size at the key every chat cell and grid tile loads. A 720px JPEG at quality 0.82 is a small fraction of this.
+export const MAX_THUMBNAIL_SIZE = 4 * A_MEGABYTE;
+
+// INFO: REQUIREMENTS.md § 9. `heic`/`heif` are listed because iOS hands the original over when it declines to transcode, and iOS is where they arrive from — the thumbnail is rendered by decoding them in an `<img>`, so an engine without HEIC support rejects the pick outright rather than storing something it could never show.
+export const ALLOWED_IMAGE_MIMES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+  "image/heic",
+  "image/heif",
+] as const;
+
+// INFO: `quicktime` is the `.mov` an iPhone produces. We store whatever arrives (§ 9.) and the viewer falls back to a download when playback is refused.
+export const ALLOWED_VIDEO_MIMES = ["video/mp4", "video/quicktime", "video/webm"] as const;
+
+export type AllowedImageMime = (typeof ALLOWED_IMAGE_MIMES)[number];
+
+export type AllowedVideoMime = (typeof ALLOWED_VIDEO_MIMES)[number];
+
+export type AllowedMediaMime = AllowedImageMime | AllowedVideoMime;
+
+export function isVideoMime(mime: string): mime is AllowedVideoMime {
+  return (ALLOWED_VIDEO_MIMES as readonly string[]).includes(mime);
+}
+
+export function isImageMime(mime: string): mime is AllowedImageMime {
+  return (ALLOWED_IMAGE_MIMES as readonly string[]).includes(mime);
+}
+
+export function isAllowedMediaMime(mime: string): mime is AllowedMediaMime {
+  return isImageMime(mime) || isVideoMime(mime);
+}
+
+/** The cap the given type is measured against. REQUIREMENTS.md § 14. */
+export function maxSizeForMime(mime: string): number {
+  return isVideoMime(mime) ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+}
+
+/** REQUIREMENTS.md § 9. `thumb` for grid and chat cells, `original` for the viewer. */
+export type MediaVariant = "thumb" | "original";
+
+/**
+ * The same-origin URL an `<img>` or `<video>` points at. It is a route, not an R2
+ * URL: the request carries the session cookie, the handler validates it, and only
+ * then does it redirect to a presigned URL (REQUIREMENTS.md § 9.).
+ *
+ * WARN: Lives here rather than in `entities/media` because chat rows call it in
+ * the browser, and that entity's barrel also exports its `server-only` api segment.
+ */
+export function toMediaUrl(id: string, variant: MediaVariant = "thumb"): string {
+  return `${MEDIA_PATH}/${id}?variant=${variant}`;
+}
+
+/**
+ * The URL behind "원본 저장".
+ *
+ * WARN: An `<a download>` is not enough. The route answers a 302 to R2, and the
+ * spec makes a browser drop `download` once the navigation resolves cross-origin —
+ * in a standalone PWA that replaces the app with a bare asset view and no way back.
+ * This flag is what puts `Content-Disposition: attachment` on the presigned GET.
+ */
+export function toMediaDownloadUrl(id: string): string {
+  return `${toMediaUrl(id, "original")}&download=1`;
+}

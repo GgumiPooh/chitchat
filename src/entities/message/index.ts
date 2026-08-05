@@ -1,4 +1,5 @@
 export { countUnreadMessages } from "./api/count-unread";
+export { createMediaMessage, type CreateMediaMessageParams } from "./api/create-media-message";
 export { createTextMessage, type CreateTextMessageParams } from "./api/create-text-message";
 export { deleteMessage } from "./api/delete-message";
 export { getMessage } from "./api/get-message";

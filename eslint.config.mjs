@@ -84,6 +84,9 @@ const eslintConfig = defineConfig([
                 "@/features/*/**",
                 "@/entities/*/**",
                 "@/shared/*/**",
+                // INFO: `@x` is FSD's own cross-import gate, not a bypass — `entities/media/@x/message.ts` is a second public API published for one named consumer, and steiger checks that the importer is that consumer.
+                "!@/entities/*/@x",
+                "!@/entities/*/@x/**",
               ],
               message:
                 "Bypasses the public API. Import from '@/<layer>/<slice|segment>' (its index.ts). For same-segment files, use a relative path like './file' to avoid a circular import through index.ts.",

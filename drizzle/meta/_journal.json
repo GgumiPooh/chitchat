@@ -57,6 +57,13 @@
       "when": 1785780057682,
       "tag": "0007_drop_conversations",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785857665716,
+      "tag": "0008_media_message_type",
+      "breakpoints": true
     }
   ]
 }

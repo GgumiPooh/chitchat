@@ -3,7 +3,7 @@ import { listUsers } from "@/entities/user";
 import { ChatStreamProvider } from "@/features/chat-stream";
 import { PushSync } from "@/features/push-notifications";
 import { requireUserOrRedirect } from "@/shared/auth";
-import { APP_SCROLL_ID } from "@/shared/config";
+import { APP_SCROLL_ID, APP_SHELL_ID } from "@/shared/config";
 import { BottomOverlay, Container, ScrollMemory, VisualViewportSync } from "@/shared/ui";
 import { InstallGuide } from "@/widgets/install-guide";
 import { TabBar } from "@/widgets/tab-bar";
@@ -27,7 +27,10 @@ export default async function MainLayout({ children }: PropsWithChildren) {
       initialUnreadCount={unreadCount}
     >
       <div className="fixed inset-x-0 top-[var(--viewport-top,0px)] bottom-0 flex h-[var(--viewport-height,100dvh)] justify-center bg-backdrop">
-        <Container className="relative flex min-h-0 flex-1 flex-col bg-canvas px-0">
+        <Container
+          className="relative flex min-h-0 flex-1 flex-col bg-canvas px-0"
+          id={APP_SHELL_ID}
+        >
           {/* INFO: DESIGN.md § 3.4., § 3.5. The shell's only scroller. The floating bars sit over it, and `--bottom-inset` is the room it leaves for them. */}
           <main
             className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-y-auto pb-(--bottom-inset)"

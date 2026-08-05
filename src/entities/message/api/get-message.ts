@@ -5,6 +5,7 @@ import type { Nullable } from "@/shared/lib";
 import { and, eq, isNull } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
+import { listMessageMedia } from "./list-message-media";
 
 /**
  * One message by id — what the SSE stream resolves a `new_message` notification
@@ -18,5 +19,11 @@ export async function getMessage(id: number): Promise<Nullable<ChatMessage>> {
     .where(and(eq(messages.id, id), isNull(messages.deletedAt)))
     .limit(1);
 
-  return row ? toChatMessage(row) : null;
+  if (!row) {
+    return null;
+  }
+
+  const byMessage = await listMessageMedia(row.type === "media" ? [row.id] : []);
+
+  return toChatMessage(row, byMessage.get(row.id));
 }
