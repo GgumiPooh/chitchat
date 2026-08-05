@@ -433,18 +433,18 @@ Centered `chat-pill` pill, `caption` in `chat-pill-ink`, padding `4px 12px`, `ro
 
 ## 6.6. Composer.
 
-| Property       | Value                                                                                                                                                                                                                                |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Container      | The tab bar's pill (§ 7.3.): `glass`, 1px `hairline`, `shadow-floating`, radius `--tab-bar-height / 2`, `2xs` inner padding. Anchored to `--bottom-inset`, so it floats directly above the bar stack (§ 3.5.)                        |
-| Padding        | `md` each side, `xs` below, matching the tab bar's inset. The tab bar below it already owns `env(safe-area-inset-bottom)`                                                                                                            |
-| Row            | One row, bottom-aligned: attach, field, right control. The field grows upward and the controls stay level with its last line                                                                                                         |
-| Field          | No shape of its own — the pill is the surface. No fill, no border, square (radius 0), padding `8px 4px`, `body-md`, placeholder `메시지 입력`, auto-grow to 5 lines then scroll internally                                           |
-| Field focus    | No ring. The caret is the focus signal — the one § 3.2. exception, see below                                                                                                                                                         |
-| Left control   | `+` (attach) — 20px glyph in a 44×44 target                                                                                                                                                                                          |
-| Right controls | Emoticon toggle (20px / 44×44) and send, both always present. Send sits **beside** the toggle rather than replacing it, because an emoticon can be staged alongside a typed line (`REQUIREMENTS.md § 13.6.`)                          |
-| Send button    | `primary` fill, `on-primary` glyph, 36×36 visual in a 44×44 target, `rounded-full`. Disabled with a `primary-disabled` fill while there is nothing to send — never unmounted, see below                                              |
-| Keyboard       | The shell is sized to the visual viewport (§ 3.4.), which carries the composer up. Never `100vh` math                                                                                                                                |
-| Sending        | The send button cancels `pointerdown` and refocuses the field, so sending never closes the keyboard                                                                                                                                  |
+| Property       | Value                                                                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Container      | The tab bar's pill (§ 7.3.): `glass`, 1px `hairline`, `shadow-floating`, radius `--tab-bar-height / 2`, `2xs` inner padding. Anchored to `--bottom-inset`, so it floats directly above the bar stack (§ 3.5.) |
+| Padding        | `md` each side, `xs` below, matching the tab bar's inset. The tab bar below it already owns `env(safe-area-inset-bottom)`                                                                                     |
+| Row            | One row, bottom-aligned: attach, field, right control. The field grows upward and the controls stay level with its last line                                                                                  |
+| Field          | No shape of its own — the pill is the surface. No fill, no border, square (radius 0), padding `8px 4px`, `body-md`, placeholder `메시지 입력`, auto-grow to 5 lines then scroll internally                    |
+| Field focus    | No ring. The caret is the focus signal — the one § 3.2. exception, see below                                                                                                                                  |
+| Left control   | `+` (attach) — 20px glyph in a 44×44 target                                                                                                                                                                   |
+| Right controls | Emoticon toggle (20px / 44×44) and send, both always present. Send sits **beside** the toggle rather than replacing it, because an emoticon can be staged alongside a typed line (`REQUIREMENTS.md § 13.6.`)  |
+| Send button    | `primary` fill, `on-primary` glyph, 36×36 visual in a 44×44 target, `rounded-full`. Disabled with a `primary-disabled` fill while there is nothing to send — never unmounted, see below                       |
+| Keyboard       | The shell is sized to the visual viewport (§ 3.4.), which carries the composer up. Never `100vh` math                                                                                                         |
+| Sending        | The send button cancels `pointerdown` and refocuses the field, so sending never closes the keyboard                                                                                                           |
 
 The field is drawn as nothing at all — no fill, no border, no radius, no focus ring — because the pill already _is_ the field: it is the composer's only surface, it is the full width of the tap area, and a second rounded shape nested inside it reads as a box drawn inside a box. This is the single exception to § 3.2.'s `:focus-visible` rule, and it is allowed only here: a focused text field renders a blinking caret, which is a stronger and more conventional focus signal than a ring, and the field is the composer's default focus target anyway. No other control may drop its focus ring on this argument.
 
@@ -630,22 +630,24 @@ Full-width, min-height 56, `canvas` fill, 1px `hairline-soft` bottom border, pad
 
 Every screen renders its own header rather than inheriting one from the layout, because the trailing slot is screen-specific (chat search, month navigation).
 
-| Property    | Value                                                                                                               |
-| ----------- | ------------------------------------------------------------------------------------------------------------------- |
-| Container   | Transparent — **no fill, no border, no shadow**. `sticky` top with `env(safe-area-inset-top)` as top padding        |
-| Height      | `--app-header-height` (56), below the safe-area padding. `--app-header-inset` is the two together                   |
-| Flow        | Cancels its own height with a negative bottom margin, so content starts at the top of the shell and passes under it |
-| Title       | Optional. `title-md` `ink`, left-aligned on the 16px screen gutter (§ 4.3.), truncates on overflow                  |
-| Padding     | `sm` (12) on the row, `2xs` (4) on the title                                                                        |
-| Slots       | Leading and trailing, rendered only when present — an empty slot MUST NOT reserve width                             |
-| Controls    | `icon-button-floating` (§ 7.1.) — the header itself is invisible, so each control carries its own surface           |
-| Hit testing | The strip is `pointer-events-none`; its children re-enable it, so content underneath stays tappable                 |
+| Property    | Value                                                                                                                                                                 |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Container   | Transparent — **no fill, no border, no shadow**. `sticky` top with `env(safe-area-inset-top)` as top padding                                                          |
+| Height      | `--app-header-height` (56), below the safe-area padding. `--app-header-inset` is the two together                                                                     |
+| Flow        | Cancels its own height with a negative bottom margin, so content starts at the top of the shell and passes under it                                                   |
+| Title       | Optional. `title-md` `ink`, left-aligned on the 16px screen gutter (§ 4.3.), truncates on overflow. Fades out (200ms) once the shell's scroller has moved off the top |
+| Padding     | `sm` (12) on the row, `2xs` (4) on the title                                                                                                                          |
+| Slots       | Leading and trailing, rendered only when present — an empty slot MUST NOT reserve width                                                                               |
+| Controls    | `icon-button-floating` (§ 7.1.) — the header itself is invisible, so each control carries its own surface                                                             |
+| Hit testing | The strip is `pointer-events-none`; its children re-enable it, so content underneath stays tappable                                                                   |
 
 `sticky`, not `fixed`: the header sits inside the shell's scroller, so it stays pinned to the top of the visual viewport without a positioning context of its own (§ 3.4.).
 
 The header has no surface because it is not a region — it is a place to put controls. A filled bar would draw a line across the top of a screen whose content is meant to run to the edge, and would need a scroll-aware fill to look right once content passes beneath it. Transparent needs neither.
 
 A screen whose content starts at the top offsets it by `--app-header-inset` itself. Chat does not: its messages are meant to run under the controls.
+
+The title fades on scroll because it is the one part of the header with no surface behind it — the controls are `icon-button-floating` and stay legible over anything, while a bare title collides with the text scrolling under it. Screens that scroll inside their own container (chat's virtualizer) never move the shell's scroller, so their title does not fade — and does not need to.
 
 The padding split follows from an `icon-button` already padding its 20px glyph by 12 inside a 44 target (§ 7.1.): `sm` on the row puts a bare title on the 16px gutter, and the button's own padding puts its glyph there too.
 
