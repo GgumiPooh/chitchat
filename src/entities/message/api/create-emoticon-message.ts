@@ -6,11 +6,14 @@ import { and, eq, isNull } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 import { listMessageEmoticons } from "./list-message-emoticons";
+import { getReplyPreview } from "./list-reply-previews";
 
 export type CreateEmoticonMessageParams = {
   senderId: string;
   clientMsgId: string;
   emoticonItemId: string;
+  /** REQUIREMENTS.md § 8.9. The quoted message; a precondition here, cleared by the route. */
+  replyToId?: number;
 };
 
 /**
@@ -24,11 +27,12 @@ export async function createEmoticonMessage({
   senderId,
   clientMsgId,
   emoticonItemId,
+  replyToId,
 }: CreateEmoticonMessageParams): Promise<Nullable<ChatMessage>> {
   const db = getDb();
   const [inserted] = await db
     .insert(messages)
-    .values({ senderId, type: "emoticon", emoticonItemId, clientMsgId })
+    .values({ senderId, type: "emoticon", emoticonItemId, clientMsgId, replyToId })
     .onConflictDoNothing({ target: messages.clientMsgId })
     .returning();
 
@@ -38,12 +42,16 @@ export async function createEmoticonMessage({
     return null;
   }
 
-  const byEmoticonId = await listMessageEmoticons(row.emoticonItemId ? [row.emoticonItemId] : []);
+  const [byEmoticonId, replyTo] = await Promise.all([
+    listMessageEmoticons(row.emoticonItemId ? [row.emoticonItemId] : []),
+    getReplyPreview(row.replyToId),
+  ]);
 
   return toChatMessage(
     row,
     [],
     row.emoticonItemId ? (byEmoticonId.get(row.emoticonItemId) ?? null) : null,
+    replyTo,
   );
 }
 

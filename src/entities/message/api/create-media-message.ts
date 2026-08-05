@@ -6,6 +6,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 import { listMessageMedia } from "./list-message-media";
+import { getReplyPreview } from "./list-reply-previews";
 
 export type CreateMediaMessageParams = {
   senderId: string;
@@ -18,6 +19,8 @@ export type CreateMediaMessageParams = {
    * clears it with `ownsAllMedia` and answers 400.
    */
   mediaIds: string[];
+  /** REQUIREMENTS.md § 8.9. The quoted message; a precondition here for the same reason `mediaIds` is. */
+  replyToId?: number;
 };
 
 /**
@@ -32,12 +35,13 @@ export async function createMediaMessage({
   senderId,
   clientMsgId,
   mediaIds,
+  replyToId,
 }: CreateMediaMessageParams): Promise<Nullable<ChatMessage>> {
   const db = getDb();
   const inserted = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(messages)
-      .values({ senderId, type: "media", clientMsgId })
+      .values({ senderId, type: "media", clientMsgId, replyToId })
       // INFO: REQUIREMENTS.md § 8.5. Idempotent on `client_msg_id`, so a retried send after a timeout cannot post the same photos twice.
       .onConflictDoNothing({ target: messages.clientMsgId })
       .returning();
@@ -63,9 +67,12 @@ export async function createMediaMessage({
     return null;
   }
 
-  const byMessage = await listMessageMedia([row.id]);
+  const [byMessage, replyTo] = await Promise.all([
+    listMessageMedia([row.id]),
+    getReplyPreview(row.replyToId),
+  ]);
 
-  return toChatMessage(row, byMessage.get(row.id));
+  return toChatMessage(row, byMessage.get(row.id), null, replyTo);
 }
 
 // WARN: `client_msg_id` is unique table-wide rather than per sender, so matching on it alone would hand this caller the other user's message on a collision.

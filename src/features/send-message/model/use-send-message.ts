@@ -2,7 +2,7 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
-import type { ChatMessage } from "@/entities/message";
+import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import { uploadDraft } from "@/features/upload-media/@x/send-message";
 import { MAX_MEDIA_PER_MESSAGE } from "@/shared/config";
 import type { Nullable } from "@/shared/lib";
@@ -16,6 +16,8 @@ export type PendingMessage = {
   media: MediaDraft[];
   // INFO: REQUIREMENTS.md § 13.6. Carried on the pending row so the optimistic bubble renders the art immediately — the asset is already in the browser's cache from the picker.
   emoticon: Nullable<Emoticon>;
+  // INFO: REQUIREMENTS.md § 8.9. Carried on the pending row so the optimistic bubble quotes immediately — the client staged the preview, so nothing has to be fetched to draw it.
+  replyTo: Nullable<ReplyPreview>;
   // WARN: Indexed alongside `media`. A retry re-uploads only the slots still null, so a failure on the last of nine photos does not re-send the eight that landed.
   uploadedIds: Nullable<string>[];
   /** `0`–`1` across the whole bubble's bytes. Meaningless for a text message. */
@@ -151,14 +153,14 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
   );
 
   const send = useCallback(
-    (text: string) => {
+    (text: string, replyTo: Nullable<ReplyPreview> = null) => {
       const trimmed = text.trim();
 
       if (!trimmed) {
         return;
       }
 
-      const message = createPending(trimmed, []);
+      const message = { ...createPending(trimmed, []), replyTo };
 
       commit((previous) => [...previous, message]);
       enqueue([message]);
@@ -172,10 +174,12 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
    * are delivered one after another, so the conversation reads in the picked order.
    */
   const sendMedia = useCallback(
-    (drafts: MediaDraft[]) => {
-      const bubbles = chunk(drafts, MAX_MEDIA_PER_MESSAGE).map((media) =>
-        createPending(null, media),
-      );
+    (drafts: MediaDraft[], replyTo: Nullable<ReplyPreview> = null) => {
+      // WARN: REQUIREMENTS.md § 8.9. The quote goes on the first bubble alone. A pick of twenty photos is three bubbles, and repeating the quote on each would draw the same sentence three times in a row.
+      const bubbles = chunk(drafts, MAX_MEDIA_PER_MESSAGE).map((media, index) => ({
+        ...createPending(null, media),
+        replyTo: index === 0 ? replyTo : null,
+      }));
 
       if (bubbles.length === 0) {
         return;
@@ -189,8 +193,8 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
 
   /** INFO: REQUIREMENTS.md § 13.6. Nothing to upload, so the staged emoticon joins the queue as a bubble that is already complete. */
   const sendEmoticon = useCallback(
-    (emoticon: Emoticon) => {
-      const message = { ...createPending(null, []), emoticon };
+    (emoticon: Emoticon, replyTo: Nullable<ReplyPreview> = null) => {
+      const message = { ...createPending(null, []), emoticon, replyTo };
 
       commit((previous) => [...previous, message]);
       enqueue([message]);
@@ -222,6 +226,7 @@ function createPending(text: Nullable<string>, media: MediaDraft[]): PendingMess
     text,
     media,
     emoticon: null,
+    replyTo: null,
     uploadedIds: media.map(() => null),
     progress: 0,
     status: "sending",
@@ -235,16 +240,17 @@ async function toPostParams(
   uploadAll: (message: PendingMessage) => Promise<string[]>,
 ): Promise<PostMessageParams> {
   const { clientMsgId } = message;
+  const replyToId = message.replyTo?.id;
 
   if (message.emoticon) {
-    return { clientMsgId, emoticonItemId: message.emoticon.id };
+    return { clientMsgId, replyToId, emoticonItemId: message.emoticon.id };
   }
 
   if (message.text === null) {
-    return { clientMsgId, mediaIds: await uploadAll(message) };
+    return { clientMsgId, replyToId, mediaIds: await uploadAll(message) };
   }
 
-  return { clientMsgId, text: message.text };
+  return { clientMsgId, replyToId, text: message.text };
 }
 
 function chunk<T>(items: T[], size: number): T[][] {

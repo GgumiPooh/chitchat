@@ -7,6 +7,7 @@ import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 import { listMessageEmoticons } from "./list-message-emoticons";
 import { listMessageMedia } from "./list-message-media";
+import { listReplyPreviews } from "./list-reply-previews";
 
 export type ListMessagesParams = {
   /** Older than this id — scrolling into the past (REQUIREMENTS.md § 8.2.). */
@@ -79,18 +80,20 @@ async function listAround(target: number, limit: number): Promise<ChatMessage[]>
 }
 
 /**
- * INFO: REQUIREMENTS.md § 9., § 13.6. Two extra queries for the whole page at most,
- * and each only when the page actually holds that kind of row — a text-only
- * conversation pays nothing.
+ * INFO: REQUIREMENTS.md § 9., § 13.6., § 8.9. A few extra queries for the whole page
+ * at most, and each only when the page actually holds that kind of row — a text-only
+ * conversation with no replies in it pays nothing.
  */
 async function withMedia(rows: Message[]): Promise<ChatMessage[]> {
   const mediaIds = rows.filter((row) => row.type === "media").map((row) => row.id);
   const emoticonIds = rows
     .map((row) => row.emoticonItemId)
     .filter((id): id is string => id !== null);
-  const [byMessage, byEmoticonId] = await Promise.all([
+  const parentIds = rows.map((row) => row.replyToId).filter((id): id is number => id !== null);
+  const [byMessage, byEmoticonId, byParentId] = await Promise.all([
     listMessageMedia(mediaIds),
     listMessageEmoticons(emoticonIds),
+    listReplyPreviews(parentIds),
   ]);
 
   return rows.map((row) =>
@@ -98,6 +101,7 @@ async function withMedia(rows: Message[]): Promise<ChatMessage[]> {
       row,
       byMessage.get(row.id),
       row.emoticonItemId ? (byEmoticonId.get(row.emoticonItemId) ?? null) : null,
+      row.replyToId ? (byParentId.get(row.replyToId) ?? null) : null,
     ),
   );
 }

@@ -4,6 +4,7 @@ import {
   createEmoticonMessage,
   createMediaMessage,
   createTextMessage,
+  getReplyPreview,
   listMessages,
   type ChatMessage,
 } from "@/entities/message";
@@ -17,7 +18,7 @@ import {
   PUSH_BODY_MAX_LENGTH,
   isVideoMime,
 } from "@/shared/config";
-import { safelyRunAsync } from "@/shared/lib";
+import { safelyRunAsync, type Optional } from "@/shared/lib";
 import { NextResponse, after } from "next/server";
 import { z } from "zod";
 
@@ -33,18 +34,21 @@ const querySchema = z.object({
   limit: z.coerce.number().int().positive().optional(),
 });
 
+// INFO: REQUIREMENTS.md § 8.9. Orthogonal to the payload, so it rides on every branch of the union below rather than forming one of its own.
+const replySchema = z.object({ replyToId: z.coerce.number().int().positive().optional() });
+
 // INFO: REQUIREMENTS.md § 6. A row is text or attachments, never both — the CHECK constraint says the same thing at the database.
 const bodySchema = z.union([
-  z.object({
+  replySchema.extend({
     clientMsgId: z.uuid(),
     text: z.string().trim().min(1).max(MAX_MESSAGE_LENGTH),
   }),
-  z.object({
+  replySchema.extend({
     clientMsgId: z.uuid(),
     mediaIds: z.array(z.uuid()).min(1).max(MAX_MEDIA_PER_MESSAGE),
   }),
-  // INFO: REQUIREMENTS.md § 13.6. One id and nothing else — selecting an emoticon sends it immediately, with no caption to carry.
-  z.object({
+  // INFO: REQUIREMENTS.md § 13.6. One id and nothing else — an emoticon carries no caption of its own.
+  replySchema.extend({
     clientMsgId: z.uuid(),
     emoticonItemId: z.uuid(),
   }),
@@ -103,6 +107,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
+  // INFO: REQUIREMENTS.md § 8.9. `reply_to_id` is a foreign key and a CHECK refuses a system parent, so either would surface as a 500 without this. A soft-deleted parent is refused here rather than at the database — the row is still there, so nothing but this stops a stale client quoting it.
+  if (!(await canReplyTo(payload.replyToId))) {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+
   const message = await createMessage(user.id, payload);
 
   // INFO: The client id is already taken by a row this sender cannot claim, so echoing anything back would replace their optimistic bubble with a stranger's message.
@@ -114,6 +123,16 @@ export async function POST(request: Request) {
   after(() => safelyRunAsync(() => notifyMessageRecipients(user, toPushBody(message))));
 
   return NextResponse.json({ message }, { status: 201 });
+}
+
+async function canReplyTo(replyToId: Optional<number>): Promise<boolean> {
+  if (replyToId === undefined) {
+    return true;
+  }
+
+  const parent = await getReplyPreview(replyToId);
+
+  return parent !== null && !parent.isDeleted && parent.kind !== "system";
 }
 
 function createMessage(senderId: string, payload: z.infer<typeof bodySchema>) {

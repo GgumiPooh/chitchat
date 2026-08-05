@@ -500,9 +500,33 @@ The count variant recolours to `primary` rather than adding a separate badge ele
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Result row      | `canvas` fill on `surface-soft` list, sender name (`title-sm`), matched line (`body-sm`, 2-line clamp), date (`caption`, `meta`) |
 | Match highlight | `search-hit` background, `ink` text, `rounded-xs`, computed client-side by string split                                          |
-| Jump target     | On arrival the bubble flashes `primary-tint` behind its fill for 1.5s, then fades over 300ms                                     |
+| Jump target     | On arrival the **row** flashes `primary-tint` for 1.5s, then fades over 300ms — see § 6.9.                                       |
 | Return control  | The § 6.7. scroll-to-bottom pill — same component, no search-specific variant                                                    |
 | Empty state     | § 7.6.                                                                                                                           |
+
+## 6.9. Reply Quote.
+
+The message a reply points at, in one line (`REQUIREMENTS.md § 8.9.`).
+
+| Property     | Value                                                                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shape        | `rounded-sm`, 2px `primary` left bar, padding `4px 8px`, `xs` gap between thumbnail and text                                                      |
+| Lines        | Sender name (`chat-name` in `chat-meta`) over the summary (`body-sm` in `meta`). **Both `truncate`, always one line each**                        |
+| Summary copy | The text itself; `사진` / `동영상` for attachments, `이모티콘` for an emoticon, `삭제된 메시지예요` for a parent that has been deleted            |
+| Thumbnail    | The bubble's **first** attachment only, 32×32 `rounded-xs` with a 1px `hairline` inset ring. Box fixed, never derived from the image (§ 6.1.)     |
+| In a bubble  | Inside the text bubble at its top, `2xs` above the text, fill `chat-canvas` — recessed against both bubble fills, which `surface-soft` is not     |
+| Standalone   | Media and emoticon messages have no bubble (§ 6.5.), so the quote is a `bubble-theirs` card above them, capped at the 220px attachment width      |
+| Tap          | Jumps to the original. `:hover` `bg-surface-strong`, `:active` `bg-surface-pressed`. A deleted parent is not tappable — there is nothing to reach |
+| Staged       | Above the composer stack, in flow, in the § 6.6. pill treatment (`glass`, `hairline`, `shadow-floating`) with a 36px `X` to cancel                |
+
+The staged quote pushes the history up, where the staged emoticon of § 6.6. floats over it. The emoticon is one object standing where its own bubble will land; this is a bar, like the media tray, and a bar that floated would hide the messages the user is quoting from.
+
+| Reply affordance | Rule                                                                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Touch            | Hold the bubble → the § 7.5. action sheet, `답장` first                                                                                    |
+| Pointer          | A 32px `CornerUpLeft` button on the bubble's **outer** side, `opacity-0` until the row is hovered or the button is focused                 |
+| Position         | Out of the row's flow (`absolute`, vertically centered). In flow its appearance on hover would shove the bubble sideways under the cursor  |
+| Highlight        | A jump target flashes `primary-tint` on the **row**, not the bubble fill — media and emoticon messages have no fill and must highlight too |
 
 # 7. Components.
 

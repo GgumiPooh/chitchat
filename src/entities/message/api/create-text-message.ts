@@ -5,11 +5,20 @@ import type { Nullable } from "@/shared/lib";
 import { and, eq, isNull } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
+import { getReplyPreview } from "./list-reply-previews";
 
 export type CreateTextMessageParams = {
   senderId: string;
   clientMsgId: string;
   text: string;
+  /**
+   * REQUIREMENTS.md § 8.9. The message this one quotes.
+   *
+   * WARN: A precondition, not something checked here — `reply_to_id` carries a
+   * foreign key, so an id with no row aborts the insert. The route clears it and
+   * answers 400.
+   */
+  replyToId?: number;
 };
 
 /**
@@ -24,20 +33,27 @@ export async function createTextMessage({
   senderId,
   clientMsgId,
   text,
+  replyToId,
 }: CreateTextMessageParams): Promise<Nullable<ChatMessage>> {
   const db = getDb();
   const [inserted] = await db
     .insert(messages)
-    .values({ senderId, type: "text", text, clientMsgId })
+    .values({ senderId, type: "text", text, clientMsgId, replyToId })
     .onConflictDoNothing({ target: messages.clientMsgId })
     .returning();
 
-  if (inserted) {
-    return toChatMessage(inserted);
+  const row = inserted ?? (await findOwnMessage(clientMsgId, senderId));
+
+  if (!row) {
+    return null;
   }
 
-  // WARN: `client_msg_id` is unique across the whole table, not per sender, so matching on it alone would hand this caller the other user's message on a collision.
-  const [existing] = await db
+  return toChatMessage(row, [], null, await getReplyPreview(row.replyToId));
+}
+
+// WARN: `client_msg_id` is unique across the whole table, not per sender, so matching on it alone would hand this caller the other user's message on a collision.
+async function findOwnMessage(clientMsgId: string, senderId: string) {
+  const [existing] = await getDb()
     .select()
     .from(messages)
     .where(
@@ -49,5 +65,5 @@ export async function createTextMessage({
     )
     .limit(1);
 
-  return existing ? toChatMessage(existing) : null;
+  return existing ?? null;
 }
