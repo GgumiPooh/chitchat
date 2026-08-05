@@ -4,6 +4,7 @@ export {
   APP_SCROLL_ID,
   APP_SHELL_ID,
   APP_URL,
+  BACKFILL_EVENT,
   BOTTOM_OVERLAY_ID,
   BUILD_ID,
   CALENDAR_ROUTE,
@@ -37,6 +38,7 @@ export {
   SSE_STALE_AFTER,
   SSE_SYNC_COALESCE_WINDOW,
   VAPID_PUBLIC_KEY,
+  type MessageArrival,
 } from "./app";
 export {
   ALLOWED_EMOTICON_AUDIO_MIMES,

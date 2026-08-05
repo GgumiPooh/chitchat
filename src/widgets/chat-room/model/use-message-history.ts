@@ -76,8 +76,15 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     [commit],
   );
 
+  /** Whether the message was one the loaded window did not already hold — the § 8.4. replay redelivers what is already on screen. */
   const appendMessage = useCallback(
-    (message: ChatMessage) => receiveMessages([message]),
+    (message: ChatMessage) => {
+      const isKnown = messagesRef.current.some((entry) => entry.id === message.id);
+
+      receiveMessages([message]);
+
+      return !isKnown;
+    },
     [receiveMessages],
   );
 

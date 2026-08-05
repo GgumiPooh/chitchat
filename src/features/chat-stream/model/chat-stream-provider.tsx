@@ -3,7 +3,7 @@
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { updateAppBadge } from "@/shared/badge";
-import { READ_CURSOR_THROTTLE } from "@/shared/config";
+import { READ_CURSOR_THROTTLE, type MessageArrival } from "@/shared/config";
 import { safelyGetAsync, safelyRunAsync, type Nullable } from "@/shared/lib";
 import {
   createContext,
@@ -21,7 +21,7 @@ import { useAppRefresh } from "./use-app-refresh";
 import { useChatEventSource } from "./use-chat-event-source";
 
 export type ChatStreamListener = {
-  onMessage?: (message: ChatMessage) => void;
+  onMessage?: (message: ChatMessage, arrival: MessageArrival) => void;
   onResume?: () => void;
 };
 
@@ -129,8 +129,8 @@ export function ChatStreamProvider({
     </ChatStreamContext.Provider>
   );
 
-  function handleMessage(message: ChatMessage) {
-    listeners.current.forEach((listener) => listener.onMessage?.(message));
+  function handleMessage(message: ChatMessage, arrival: MessageArrival) {
+    listeners.current.forEach((listener) => listener.onMessage?.(message, arrival));
 
     // INFO: REQUIREMENTS.md § 8.5. The stream echoes my own message back to me; alerting myself to it is not a notification.
     if (message.senderId === currentUserId) {
@@ -239,7 +239,7 @@ export function useChatStreamListener(listener: ChatStreamListener) {
   useEffect(
     () =>
       subscribe({
-        onMessage: (message) => current.current.onMessage?.(message),
+        onMessage: (message, arrival) => current.current.onMessage?.(message, arrival),
         onResume: () => current.current.onResume?.(),
       }),
     [subscribe],

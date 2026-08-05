@@ -5,6 +5,7 @@ export { isBrowser, isEditableElement } from "./dom";
 export { buildFadeMask, type FadeMaskOptions } from "./fade-mask";
 export type { Maybe, Nullable, Optional } from "./nullish";
 export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./safely";
+export { playSound, unlockSound, useSoundUnlock } from "./sound";
 export {
   AN_HOUR,
   A_DAY,

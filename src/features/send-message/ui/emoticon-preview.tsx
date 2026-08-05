@@ -2,10 +2,10 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn, type Nullable } from "@/shared/lib";
+import { cn, playSound } from "@/shared/lib";
 import { IconButton, PreloadImage } from "@/shared/ui";
 import { X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 // INFO: Smaller than the § 6.5. bubble — this is a staged attachment, and it sits above the composer where `MediaTray`'s thumbnails do.
 const MAX_EDGE = 96;
@@ -25,7 +25,6 @@ export type EmoticonPreviewProps = {
  */
 export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPreviewProps) {
   const [replayToken, setReplayToken] = useState(0);
-  const audioRef = useRef<Nullable<HTMLAudioElement>>(null);
   const box = toBox(emoticon);
 
   return (
@@ -57,21 +56,17 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
           aria-label="이모티콘 취소"
           onClick={onRemove}
         />
-        {emoticon.hasAudio && (
-          <audio
-            ref={audioRef}
-            src={toEmoticonAssetUrl(emoticon.id, "audio", emoticon.version)}
-            preload="none"
-          />
-        )}
       </div>
     </div>
   );
 
   function handleTap() {
     setReplayToken((current) => current + 1);
-    // WARN: Inside the click handler with nothing awaited before it — iOS grants the gesture's audio permission to this call stack alone, so any `await` first loses it.
-    audioRef.current?.play().catch(() => undefined);
+
+    if (emoticon.hasAudio) {
+      // WARN: Inside the click handler with nothing awaited before it — iOS grants the gesture's audio permission to this call stack alone, so any `await` first loses it.
+      playSound(toEmoticonAssetUrl(emoticon.id, "audio", emoticon.version));
+    }
   }
 }
 

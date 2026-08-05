@@ -1,10 +1,12 @@
 import { getMessage, listMessages, type ChatMessage } from "@/entities/message";
 import { getCurrentUser } from "@/shared/auth";
 import {
+  BACKFILL_EVENT,
   BUILD_ID,
   SSE_HEARTBEAT_INTERVAL,
   SSE_REPLAY_LIMIT,
   SSE_REPLAY_MARGIN,
+  type MessageArrival,
 } from "@/shared/config";
 import { listenToChannels, NEW_MESSAGE_CHANNEL, USER_CHANGED_CHANNEL } from "@/shared/db";
 import { safelyGet, safelyRun, type Nullable, type Optional } from "@/shared/lib";
@@ -73,7 +75,7 @@ export async function GET(request: Request) {
         );
 
         for (const message of await replayFrom(cursor)) {
-          write(toMessageEvent(message));
+          write(toMessageEvent(message, "backfill"));
         }
 
         await whenAborted(ended.signal);
@@ -115,7 +117,7 @@ export async function GET(request: Request) {
             const message = await getMessage(id);
 
             if (message) {
-              write(toMessageEvent(message));
+              write(toMessageEvent(message, "live"));
             }
           })
           .catch(() => undefined);
@@ -129,9 +131,17 @@ export async function GET(request: Request) {
   return new Response(stream, { headers: SSE_HEADERS });
 }
 
-/** REQUIREMENTS.md § 8.4. `id:` rides `message` events only — it is the reconnect cursor. */
-function toMessageEvent(message: ChatMessage): string {
-  return `event: message\nid: ${message.id}\ndata: ${JSON.stringify(message)}\n\n`;
+/**
+ * REQUIREMENTS.md § 8.4. `id:` rides message events only — it is the reconnect cursor.
+ *
+ * INFO: The replay is a separate event name because a replayed row is not news to
+ * the client, and § 13.6.'s emoticon sound must not fire for a message the user
+ * has already been shown.
+ */
+function toMessageEvent(message: ChatMessage, arrival: MessageArrival): string {
+  const event = arrival === "live" ? "message" : BACKFILL_EVENT;
+
+  return `event: ${event}\nid: ${message.id}\ndata: ${JSON.stringify(message)}\n\n`;
 }
 
 async function replayFrom(cursor: Nullable<number>): Promise<ChatMessage[]> {

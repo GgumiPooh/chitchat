@@ -2,9 +2,10 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn, type Nullable } from "@/shared/lib";
+import { cn } from "@/shared/lib";
 import { PreloadImage } from "@/shared/ui";
-import { useRef, useState } from "react";
+import { useState } from "react";
+import { playEmoticonSound } from "../model/play-emoticon-sound";
 
 // INFO: DESIGN.md § 6.5. The emoticon renders at its own aspect ratio inside this square ceiling, never cropped to it.
 const MAX_EDGE = 140;
@@ -19,13 +20,12 @@ export type EmoticonBubbleProps = {
  *
  * INFO: REQUIREMENTS.md § 13.2. One image slot, so nothing here knows whether the
  * item animates — an animated file plays because the browser plays it. A tap
- * restarts it, and the audio is a separate thing that plays on tap only: iOS
- * refuses to start audio outside a user gesture, and a scroll past four animated
- * emoticons must not play four sounds.
+ * restarts it and replays the sound; the sound a newly arrived emoticon makes by
+ * itself is the room's business, not the bubble's (§ 13.6.), so scrolling past
+ * four of them still plays nothing.
  */
 export function EmoticonBubble({ className, emoticon }: EmoticonBubbleProps) {
   const [replayToken, setReplayToken] = useState(0);
-  const audioRef = useRef<Nullable<HTMLAudioElement>>(null);
   const box = toBox(emoticon);
 
   return (
@@ -48,21 +48,13 @@ export function EmoticonBubble({ className, emoticon }: EmoticonBubbleProps) {
           src={toEmoticonAssetUrl(emoticon.id, "image", emoticon.version)}
         />
       </button>
-      {emoticon.hasAudio && (
-        // INFO: `preload="none"` — most emoticons in a page are scrolled past, and the audio is only ever reached by a deliberate tap.
-        <audio
-          ref={audioRef}
-          src={toEmoticonAssetUrl(emoticon.id, "audio", emoticon.version)}
-          preload="none"
-        />
-      )}
     </div>
   );
 
   function handleTap() {
     setReplayToken((current) => current + 1);
     // WARN: Inside the click handler with nothing awaited before it — iOS grants the gesture's audio permission to this call stack alone, so any `await` first loses it.
-    audioRef.current?.play().catch(() => undefined);
+    playEmoticonSound(emoticon);
   }
 }
 

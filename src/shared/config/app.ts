@@ -50,6 +50,18 @@ export const MAX_MESSAGE_LENGTH = 2_000;
 /** REQUIREMENTS.md § 8.4. The one `EventSource` the chat client holds open. */
 export const CHAT_STREAM_PATH = "/api/chat/stream";
 
+/**
+ * REQUIREMENTS.md § 8.4. How a message reached the client: as it happened, or as
+ * part of the replay a reconnect opens with.
+ *
+ * INFO: The wire carries the two as separate event names, and the client acts on
+ * the difference — a replayed row is not news, so § 13.6.'s emoticon sound stays
+ * silent for it.
+ */
+export type MessageArrival = "live" | "backfill";
+
+export const BACKFILL_EVENT = "backfill";
+
 // INFO: A ping often enough that no proxy between Vercel and the browser reads an idle conversation as a dead connection.
 export const SSE_HEARTBEAT_INTERVAL = 25 * A_SECOND;
 

@@ -17,10 +17,12 @@ import {
   MediaTray,
   useMediaSelection,
 } from "@/features/upload-media";
+import type { MessageArrival } from "@/shared/config";
 import {
   buildFadeMask,
   cn,
   useIsVirtualKeyboardOpen,
+  useSoundUnlock,
   useUnsentWork,
   type Nullable,
 } from "@/shared/lib";
@@ -30,6 +32,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { buildChatRows } from "../model/build-chat-rows";
+import { playEmoticonSound } from "../model/play-emoticon-sound";
 import { toCellsFromDrafts, toCellsFromMedia, type MediaCell } from "../model/to-media-cells";
 import type { ChatRow } from "../model/types";
 import { useComposerClearance } from "../model/use-composer-clearance";
@@ -126,11 +129,17 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
 
   // INFO: REQUIREMENTS.md § 8.5. The stream echoes my own message back too, so the optimistic bubble is retired on `client_msg_id` rather than waiting for the POST response it may well beat.
   const receiveMessage = useCallback(
-    (message: ChatMessage) => {
-      appendMessage(message);
+    (message: ChatMessage, arrival: MessageArrival) => {
+      const isNew = appendMessage(message);
+
       resolve(message.clientMsgId);
+
+      // INFO: REQUIREMENTS.md § 13.6. My own emoticon already sounded at the tap that sent it, so the echo of it is silent.
+      if (isNew && arrival === "live" && message.senderId !== currentUserId) {
+        playEmoticonSound(message.emoticon);
+      }
     },
-    [appendMessage, resolve],
+    [appendMessage, resolve, currentUserId],
   );
 
   // INFO: REQUIREMENTS.md § 15.1. Staged attachments and sends still in flight both die with the document, so a refresh forced by a new deployment waits them out.
@@ -138,6 +147,9 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   useUnsentWork(isSending || selection.drafts.length > 0 || stagedEmoticon !== null);
 
   useComposerClearance({ containerRef, composerRef, scrollerRef, isAtBottomRef });
+
+  // INFO: REQUIREMENTS.md § 13.6. An arriving emoticon plays by itself, and no gesture of its own is coming — the room borrows the first one the user makes anywhere on the page.
+  useSoundUnlock();
 
   // INFO: REQUIREMENTS.md § 13.6. A tap anywhere else dismisses the panel. `pointerdown` rather than `click`, so it closes on the same gesture that starts a scroll of the history.
   useEffect(() => {
@@ -291,6 +303,8 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   function stageEmoticon(emoticon: Emoticon) {
     selection.clear();
     setStagedEmoticon(emoticon);
+    // INFO: REQUIREMENTS.md § 13.6. The preview autoplays the animation, and the sound is the other half of the same playback.
+    playEmoticonSound(emoticon);
   }
 
   async function stageMedia(files: File[]) {
@@ -305,6 +319,8 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
    */
   function submit(text: string) {
     if (stagedEmoticon) {
+      // WARN: REQUIREMENTS.md § 13.6. Here rather than on the echo, and synchronously inside the tap — the send is the moment KakaoTalk sounds, and iOS grants audio to this call stack alone.
+      playEmoticonSound(stagedEmoticon);
       sendEmoticon(stagedEmoticon);
       setStagedEmoticon(null);
     }

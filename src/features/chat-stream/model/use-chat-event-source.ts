@@ -2,17 +2,19 @@
 
 import type { ChatMessage } from "@/entities/message";
 import {
+  BACKFILL_EVENT,
   CHAT_STREAM_PATH,
   SSE_RETRY_DELAY,
   SSE_STALE_AFTER,
   SSE_SYNC_COALESCE_WINDOW,
+  type MessageArrival,
 } from "@/shared/config";
 import { safelyGet, type Nullable, type Optional } from "@/shared/lib";
 import { useEffect, useRef } from "react";
 import { z } from "zod";
 
 export type ChatEventSourceHandlers = {
-  onMessage: (message: ChatMessage) => void;
+  onMessage: (message: ChatMessage, arrival: MessageArrival) => void;
   onUserChanged: () => void;
   onResume: () => void;
   /** The deployment serving this connection. REQUIREMENTS.md § 15.1. */
@@ -67,15 +69,9 @@ export function useChatEventSource({
         }
       };
 
-      opened.onmessage = (event) => {
-        markAlive();
-
-        const message = safelyGet(() => JSON.parse(event.data) as ChatMessage);
-
-        if (message) {
-          handlers.current.onMessage(message);
-        }
-      };
+      opened.onmessage = (event) => deliver(event, "live");
+      // INFO: REQUIREMENTS.md § 8.4. The reconnect replay, on its own event name — same rows, same `id:` cursor, but nothing here is news to the screen (§ 13.6.).
+      opened.addEventListener(BACKFILL_EVENT, (event) => deliver(event, "backfill"));
       // WARN: A named SSE event never reaches `onmessage`; the server tags these `event: user` precisely so they stay off the message path (§ 8.4.).
       opened.addEventListener("user", () => {
         markAlive();
@@ -100,6 +96,16 @@ export function useChatEventSource({
 
     function markAlive() {
       lastActivityAt = Date.now();
+    }
+
+    function deliver(event: MessageEvent<string>, arrival: MessageArrival) {
+      markAlive();
+
+      const message = safelyGet(() => JSON.parse(event.data) as ChatMessage);
+
+      if (message) {
+        handlers.current.onMessage(message, arrival);
+      }
     }
 
     /** REQUIREMENTS.md § 8.4. Coalesced, since one iOS resume fires several of the events below. */
