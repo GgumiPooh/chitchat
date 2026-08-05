@@ -1,4 +1,4 @@
-import type { ChatMedia, MediaDraft } from "@/entities/media";
+import type { GalleryMedia, MediaDraft } from "@/entities/media";
 import { MEDIA_PATH, MEDIA_UPLOAD_URL_PATH } from "@/shared/config";
 
 type UploadTicket = {
@@ -10,6 +10,14 @@ type UploadTicket = {
 
 export type UploadProgress = (loadedBytes: number) => void;
 
+export type UploadDraftOptions = {
+  // INFO: REQUIREMENTS.md § 10. What puts a photo in the gallery without a message behind it. A chat attachment leaves this alone and earns its place there through `message_media`.
+  addToGallery?: boolean;
+  onProgress?: UploadProgress;
+};
+
+const NO_PROGRESS: UploadProgress = () => {};
+
 /**
  * Puts one attachment in R2 and registers it, answering the `media` row the
  * message will point at (REQUIREMENTS.md § 9.).
@@ -19,15 +27,15 @@ export type UploadProgress = (loadedBytes: number) => void;
  */
 export async function uploadDraft(
   draft: MediaDraft,
-  onProgress: UploadProgress,
-): Promise<ChatMedia> {
+  { addToGallery = false, onProgress = NO_PROGRESS }: UploadDraftOptions = {},
+): Promise<GalleryMedia> {
   const ticket = await requestTicket(draft);
 
   await putWithProgress(ticket.uploadUrl, draft.file, draft.mime, onProgress);
   // INFO: No progress for the thumbnail — it is a few tens of KB against an original measured in MB, so it would only make the bar jump.
   await putWithProgress(ticket.thumbnailUploadUrl, draft.thumbnail, ticket.thumbnailMime, () => {});
 
-  return registerUpload(draft, ticket.r2Key);
+  return registerUpload(draft, ticket.r2Key, addToGallery);
 }
 
 async function requestTicket(draft: MediaDraft): Promise<UploadTicket> {
@@ -44,7 +52,11 @@ async function requestTicket(draft: MediaDraft): Promise<UploadTicket> {
   return response.json() as Promise<UploadTicket>;
 }
 
-async function registerUpload(draft: MediaDraft, r2Key: string): Promise<ChatMedia> {
+async function registerUpload(
+  draft: MediaDraft,
+  r2Key: string,
+  addToGallery: boolean,
+): Promise<GalleryMedia> {
   const response = await fetch(MEDIA_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -53,6 +65,7 @@ async function registerUpload(draft: MediaDraft, r2Key: string): Promise<ChatMed
       width: draft.width,
       height: draft.height,
       durationMs: draft.durationMs,
+      addToGallery,
     }),
   });
 
@@ -60,7 +73,7 @@ async function registerUpload(draft: MediaDraft, r2Key: string): Promise<ChatMed
     throw new Error(`POST ${MEDIA_PATH} responded ${response.status}`);
   }
 
-  const { media } = (await response.json()) as { media: ChatMedia };
+  const { media } = (await response.json()) as { media: GalleryMedia };
 
   return media;
 }

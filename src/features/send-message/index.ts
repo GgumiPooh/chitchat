@@ -1,4 +1,5 @@
-export { uploadDraft, type UploadProgress } from "./api/upload-draft";
+// INFO: REQUIREMENTS.md § 10. The gallery posts what it uploaded without a composer to stage it in, so it reaches the endpoint directly rather than through `useSendMessage`'s optimistic queue.
+export { postMessage, type PostMessageParams } from "./api/post-message";
 export {
   useSendMessage,
   type PendingMessage,

@@ -433,18 +433,18 @@ Centered `chat-pill` pill, `caption` in `chat-pill-ink`, padding `4px 12px`, `ro
 
 ## 6.6. Composer.
 
-| Property       | Value                                                                                                                                                                                                                                |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Container      | The tab bar's pill (§ 7.3.): `glass`, 1px `hairline`, `shadow-floating`, radius `--tab-bar-height / 2`, `2xs` inner padding. Anchored to `--bottom-inset`, so it floats directly above the bar stack (§ 3.5.)                        |
-| Padding        | `md` each side, `xs` below, matching the tab bar's inset. The tab bar below it already owns `env(safe-area-inset-bottom)`                                                                                                            |
-| Row            | One row, bottom-aligned: attach, field, right control. The field grows upward and the controls stay level with its last line                                                                                                         |
-| Field          | No shape of its own — the pill is the surface. No fill, no border, square (radius 0), padding `8px 4px`, `body-md`, placeholder `메시지 입력`, auto-grow to 5 lines then scroll internally                                           |
-| Field focus    | No ring. The caret is the focus signal — the one § 3.2. exception, see below                                                                                                                                                         |
-| Left control   | `+` (attach) — 20px glyph in a 44×44 target                                                                                                                                                                                          |
-| Right controls | Emoticon toggle (20px / 44×44) and send, both always present. Send sits **beside** the toggle rather than replacing it, because an emoticon can be staged alongside a typed line (`REQUIREMENTS.md § 13.6.`)                          |
-| Send button    | `primary` fill, `on-primary` glyph, 36×36 visual in a 44×44 target, `rounded-full`. Disabled with a `primary-disabled` fill while there is nothing to send — never unmounted, see below                                              |
-| Keyboard       | The shell is sized to the visual viewport (§ 3.4.), which carries the composer up. Never `100vh` math                                                                                                                                |
-| Sending        | The send button cancels `pointerdown` and refocuses the field, so sending never closes the keyboard                                                                                                                                  |
+| Property       | Value                                                                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Container      | The tab bar's pill (§ 7.3.): `glass`, 1px `hairline`, `shadow-floating`, radius `--tab-bar-height / 2`, `2xs` inner padding. Anchored to `--bottom-inset`, so it floats directly above the bar stack (§ 3.5.) |
+| Padding        | `md` each side, `xs` below, matching the tab bar's inset. The tab bar below it already owns `env(safe-area-inset-bottom)`                                                                                     |
+| Row            | One row, bottom-aligned: attach, field, right control. The field grows upward and the controls stay level with its last line                                                                                  |
+| Field          | No shape of its own — the pill is the surface. No fill, no border, square (radius 0), padding `8px 4px`, `body-md`, placeholder `메시지 입력`, auto-grow to 5 lines then scroll internally                    |
+| Field focus    | No ring. The caret is the focus signal — the one § 3.2. exception, see below                                                                                                                                  |
+| Left control   | `+` (attach) — 20px glyph in a 44×44 target                                                                                                                                                                   |
+| Right controls | Emoticon toggle (20px / 44×44) and send, both always present. Send sits **beside** the toggle rather than replacing it, because an emoticon can be staged alongside a typed line (`REQUIREMENTS.md § 13.6.`)  |
+| Send button    | `primary` fill, `on-primary` glyph, 36×36 visual in a 44×44 target, `rounded-full`. Disabled with a `primary-disabled` fill while there is nothing to send — never unmounted, see below                       |
+| Keyboard       | The shell is sized to the visual viewport (§ 3.4.), which carries the composer up. Never `100vh` math                                                                                                         |
+| Sending        | The send button cancels `pointerdown` and refocuses the field, so sending never closes the keyboard                                                                                                           |
 
 The field is drawn as nothing at all — no fill, no border, no radius, no focus ring — because the pill already _is_ the field: it is the composer's only surface, it is the full width of the tap area, and a second rounded shape nested inside it reads as a box drawn inside a box. This is the single exception to § 3.2.'s `:focus-visible` rule, and it is allowed only here: a focused text field renders a blinking caret, which is a stronger and more conventional focus signal than a ring, and the field is the composer's default focus target anyway. No other control may drop its focus ring on this argument.
 
@@ -620,7 +620,19 @@ The D-day band is the only place `display-lg` appears in the app. It is the scre
 
 ## 7.10. Gallery.
 
-3-column grid, `2xs` (4px) gutters, square `object-cover` cells, `rounded-sm`. Month section header is `title-sm` `meta`, sticky under the app header with a `canvas` backdrop. Viewer is full-bleed on `scrim` at 92% opacity with no chrome except a close `icon-button` and a `caption` date.
+3-column grid, `2xs` (4px) gutters, square `object-cover` cells, `rounded-sm`. Month section header is `title-sm` `meta`, sticky under the app header with a `canvas` backdrop — its offset is `--app-header-inset`, not zero, because the header floats over the content (§ 7.12.). Viewer is full-bleed on `scrim` at 90% opacity with no chrome except a close `icon-button`, the position counter, and the save control.
+
+| Element         | Rule                                                                                                                                                                             |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Header controls | `icon-button-floating` only (§ 7.12.) — 사진 추가 and 선택, replaced by a single 취소 in selection mode. The count moves into the title (`2장 선택`)                             |
+| Selected tile   | The image **scales to 90%** inside its cell; the cell itself does not move. A dim would read as the photograph being wrong, where the inset reads as the tile having been picked |
+| Selection mark  | 20px circle, top-right inset 4. Selected is a `primary` fill with an `on-primary` check; unselected is a `scrim/25` disc with a `canvas/80` hairline, so it reads on any photo   |
+| Selection bar   | The floating surface of § 3.5. — `glass`, `rounded-full`, `hairline`, `shadow-floating` — over the tab bar, holding 저장 and 삭제 as equal `ghost` rows                          |
+| Video tile      | The play glyph and running-time chip of § 6.5., unchanged from the chat cell                                                                                                     |
+
+Selection mode is entered from a control, never by long-press: a tap has to keep opening the viewer, and the long-press gesture is already spent on emoticon reordering (§ 13.5.) where the grid is not also a link.
+
+The 삭제 row is a `semantic-error` **label**, not a filled red button (§ 7.5.) — the bar is a surface of equals. The filled `destructive` button appears one step later, in the confirmation, which is where the consequence is actually stated.
 
 ## 7.11. Settings Row.
 

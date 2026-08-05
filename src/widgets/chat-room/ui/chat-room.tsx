@@ -26,20 +26,27 @@ import {
   useUnsentWork,
   type Nullable,
 } from "@/shared/lib";
-import { ActionSheet, EmptyState, Skeleton, toast, type ActionSheetItem } from "@/shared/ui";
+import {
+  ActionSheet,
+  EmptyState,
+  MediaViewer,
+  Skeleton,
+  toast,
+  type ActionSheetItem,
+  type MediaCell,
+} from "@/shared/ui";
 import { Copy, MessageCircle, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { buildChatRows } from "../model/build-chat-rows";
 import { playEmoticonSound } from "../model/play-emoticon-sound";
-import { toCellsFromDrafts, toCellsFromMedia, type MediaCell } from "../model/to-media-cells";
+import { toCellsFromDrafts, toCellsFromMedia } from "../model/to-media-cells";
 import type { ChatRow } from "../model/types";
 import { useComposerClearance } from "../model/use-composer-clearance";
 import { useMessageHistory } from "../model/use-message-history";
 import { usePrependAnchor } from "../model/use-prepend-anchor";
 import { DateDivider } from "./date-divider";
-import { MediaViewer } from "./media-viewer";
 import { MessageRow } from "./message-row";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
 import { SystemNotice } from "./system-notice";

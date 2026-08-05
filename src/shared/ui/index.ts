@@ -11,6 +11,8 @@ export { Container, type ContainerProps } from "./container";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
 export { IconButton, type IconButtonProps } from "./icon-button";
 export { Input, type InputProps } from "./input";
+export type { MediaCell } from "./media-cell";
+export { MediaViewer, type MediaViewerProps } from "./media-viewer";
 export { Modal, type ModalProps } from "./modal";
 export { PreloadImage, type PreloadImageProps } from "./preload-image";
 export { RelativeTime, type RelativeTimeProps } from "./relative-time";

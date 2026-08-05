@@ -1,10 +1,8 @@
 "use client";
 
-import { cn } from "@/shared/lib";
-import { PreloadImage } from "@/shared/ui";
+import { cn, formatDuration } from "@/shared/lib";
+import { PreloadImage, type MediaCell } from "@/shared/ui";
 import { Play } from "lucide-react";
-import { formatDuration } from "../model/format-duration";
-import type { MediaCell } from "../model/to-media-cells";
 
 // INFO: DESIGN.md § 6.5. The long edge of an image message. A grid takes the same width so a bubble of one and a bubble of nine line up in the column.
 const MAX_EDGE = "13.75rem";
