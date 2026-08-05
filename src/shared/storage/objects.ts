@@ -73,6 +73,23 @@ export async function headObject(key: string): Promise<Optional<StoredObject>> {
 }
 
 /**
+ * What R2 holds at `key`, but only when it satisfies `isAcceptable`.
+ *
+ * INFO: The single gate REQUIREMENTS.md § 14. is enforced at, for chat media (§ 9.)
+ * and emoticon assets (§ 13.3.) alike. Both upload straight to R2, which enforces
+ * neither the signed `Content-Type` nor any size, so the caller's own claim about
+ * what it uploaded is never what gets checked — this reads the stored object back.
+ */
+export async function headAcceptableObject(
+  key: string,
+  isAcceptable: (object: StoredObject) => boolean,
+): Promise<Optional<StoredObject>> {
+  const object = await headObject(key);
+
+  return object && isAcceptable(object) ? object : undefined;
+}
+
+/**
  * INFO: Never throws. Deleting the objects is cleanup behind a row that is already
  * gone, and failing it must not fail the request that removed the row.
  */

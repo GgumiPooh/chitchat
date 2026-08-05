@@ -8,7 +8,7 @@ import {
 } from "@/shared/config";
 import { getDb, media } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
-import { headObject, toThumbKey } from "@/shared/storage";
+import { headAcceptableObject, toThumbKey } from "@/shared/storage";
 import { and, eq } from "drizzle-orm";
 import { toChatMedia } from "../model/to-chat-media";
 import type { ChatMedia } from "../model/types";
@@ -36,18 +36,19 @@ export async function registerMedia({
   height,
   durationMs,
 }: RegisterMediaParams): Promise<Nullable<ChatMedia>> {
-  const [object, thumbnail] = await Promise.all([headObject(r2Key), headObject(toThumbKey(r2Key))]);
+  const [object, thumbnail] = await Promise.all([
+    headAcceptableObject(
+      r2Key,
+      ({ mime, size }) => isAllowedMediaMime(mime) && size <= maxSizeForMime(mime),
+    ),
+    // WARN: The thumbnail is checked as strictly as the original. It is what every chat cell, grid tile and video poster loads, so an unchecked `_thumb` key is the same hole in § 14. by another name.
+    headAcceptableObject(
+      toThumbKey(r2Key),
+      ({ mime, size }) => mime === THUMBNAIL_MIME && size <= MAX_THUMBNAIL_SIZE,
+    ),
+  ]);
 
   if (!object || !thumbnail) {
-    return null;
-  }
-
-  if (!isAllowedMediaMime(object.mime) || object.size > maxSizeForMime(object.mime)) {
-    return null;
-  }
-
-  // WARN: The thumbnail is checked as strictly as the original. It is what every chat cell, grid tile and video poster loads, so an unchecked `_thumb` key is the same hole in § 14. by another name.
-  if (thumbnail.mime !== THUMBNAIL_MIME || thumbnail.size > MAX_THUMBNAIL_SIZE) {
     return null;
   }
 
