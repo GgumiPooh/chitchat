@@ -38,6 +38,10 @@ export function GallerySelectionBar({
         )}
       >
         <div className="pointer-events-auto flex items-stretch gap-2xs rounded-full border border-hairline glass p-2xs shadow-floating">
+          {/* WARN: The count lives here, not only in the header title. The title fades out once content scrolls under it (DESIGN.md § 7.12.), which would take the selection's only running total with it — this bar has a surface of its own and never leaves. */}
+          <span className="flex min-h-11 shrink-0 items-center pl-md text-button-md text-meta tabular-nums">
+            {selectedCount}장
+          </span>
           <Button
             // WARN: `flex-1 w-auto` overrides `Button`'s own `w-full shrink-0` — two of those in a row each claim the full bar and the second is pushed off the edge.
             className="min-h-11 w-auto flex-1 rounded-full"

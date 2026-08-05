@@ -43,11 +43,6 @@ export async function updateEmoticon(itemId: string, body: UpdateEmoticonBody): 
   return emoticon;
 }
 
-/** REQUIREMENTS.md § 13.1. The whole ordered list — `sort_order` is positional, and it is shared by both users rather than per-user. */
-export async function saveEmoticonOrder(packId: string, itemIds: string[]): Promise<void> {
-  await send(`${EMOTICON_PACKS_PATH}/${packId}/items`, "PUT", { itemIds });
-}
-
 export async function updateEmoticonPack(
   packId: string,
   body: { name?: string; thumbnailItemId?: Nullable<string> },

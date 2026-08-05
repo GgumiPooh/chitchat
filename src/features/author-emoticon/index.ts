@@ -4,7 +4,6 @@ export {
   createEmoticonPack,
   deleteEmoticon,
   deleteEmoticonPack,
-  saveEmoticonOrder,
   updateEmoticon,
   updateEmoticonPack,
   type CreateEmoticonBody,

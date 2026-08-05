@@ -69,11 +69,9 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
         ) : (
           <div className="space-y-sm">
             <EmoticonItemGrid
-              packId={pack.id}
               items={items}
               thumbnailItemId={thumbnailItemId}
               onSelect={setSelectedId}
-              onReorder={setItems}
             />
             {addingCount > 0 && (
               <p className="text-center text-body-sm text-meta">

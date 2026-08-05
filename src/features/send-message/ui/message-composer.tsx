@@ -100,6 +100,12 @@ export function MessageComposer({
 
     onSend(text);
     setText("");
+
+    // WARN: REQUIREMENTS.md § 13.6. The picker survives a send, and focusing the field here would raise the keyboard it can never share the screen with.
+    if (isEmoticonPickerOpen) {
+      return;
+    }
+
     // INFO: Runs inside the click gesture on purpose — iOS only re-opens the keyboard for a `focus()` a user activation still covers.
     fieldRef.current?.focus();
   }
