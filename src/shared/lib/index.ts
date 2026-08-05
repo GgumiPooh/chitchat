@@ -19,6 +19,7 @@ export {
   formatYearMonth,
   toDayKey,
 } from "./time";
+export { hasUnsentWork, useUnsentWork } from "./unsent-work";
 export { useHydrated } from "./use-hydrated";
 export { useIsCoarsePointer } from "./use-is-coarse-pointer";
 export { useIsVirtualKeyboardOpen } from "./use-is-virtual-keyboard-open";

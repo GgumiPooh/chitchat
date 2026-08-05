@@ -9,12 +9,17 @@ import {
 } from "@/shared/config";
 import { safelyGet, type Nullable, type Optional } from "@/shared/lib";
 import { useEffect, useRef } from "react";
+import { z } from "zod";
 
 export type ChatEventSourceHandlers = {
   onMessage: (message: ChatMessage) => void;
   onUserChanged: () => void;
   onResume: () => void;
+  /** The deployment serving this connection. REQUIREMENTS.md § 15.1. */
+  onBuild: (id: string) => void;
 };
+
+const buildSchema = z.object({ id: z.string().min(1) });
 
 /**
  * The single `EventSource` of REQUIREMENTS.md § 8.4. — one connection carrying
@@ -25,12 +30,13 @@ export function useChatEventSource({
   onMessage,
   onUserChanged,
   onResume,
+  onBuild,
 }: ChatEventSourceHandlers) {
   // WARN: Read through a ref so a new handler identity cannot tear the connection down and reconnect it on every render.
-  const handlers = useRef({ onMessage, onUserChanged, onResume });
+  const handlers = useRef({ onMessage, onUserChanged, onResume, onBuild });
 
   useEffect(() => {
-    handlers.current = { onMessage, onUserChanged, onResume };
+    handlers.current = { onMessage, onUserChanged, onResume, onBuild };
   });
 
   useEffect(() => {
@@ -77,6 +83,16 @@ export function useChatEventSource({
       });
       // INFO: REQUIREMENTS.md § 8.4. The heartbeat is a named event rather than a `:ping` comment so it lands here — this is the client's only evidence that the socket underneath is still real.
       opened.addEventListener("ping", markAlive);
+      // INFO: REQUIREMENTS.md § 15.1. Sent once per connection, before the replay.
+      opened.addEventListener("build", (event) => {
+        markAlive();
+
+        const build = buildSchema.safeParse(safelyGet(() => JSON.parse(event.data)));
+
+        if (build.success) {
+          handlers.current.onBuild(build.data.id);
+        }
+      });
       source = opened;
       // WARN: Dated from the connect, not from `onopen` — otherwise a resume arriving before the socket is up reads a never-alive source as the dead one below and tears down a connection that is merely still connecting.
       markAlive();

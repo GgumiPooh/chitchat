@@ -56,6 +56,20 @@ export const SSE_REPLAY_LIMIT = 200;
 // INFO: REQUIREMENTS.md § 8.4. `EventSource` stops retrying after a fatal error (a 401, a body that is not `text/event-stream`), so the client reopens by hand this long after one.
 export const SSE_RETRY_DELAY = 5 * A_SECOND;
 
+/**
+ * REQUIREMENTS.md § 15.1. Identifies the running deployment, so a client that has
+ * been suspended across a deploy can tell.
+ *
+ * WARN: Read on the server and delivered over the stream — never imported by
+ * client code. A non-`NEXT_PUBLIC_` variable is `undefined` in a browser bundle,
+ * and the two sides would then always disagree.
+ */
+export const BUILD_ID =
+  process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "development";
+
+// INFO: REQUIREMENTS.md § 15.1. Long enough that a send in flight or a photo being picked finishes on its own; the check also runs on every backgrounding, which is what usually collects it first.
+export const APP_REFRESH_RETRY_DELAY = 10 * A_SECOND;
+
 /** REQUIREMENTS.md § 8.8. The read cursor, and the count the tab-bar badge reads. */
 export const CHAT_READ_PATH = "/api/chat/read";
 
@@ -89,6 +103,9 @@ export const DEV_LOGIN_ROUTE = "/api/auth/login/dev";
 
 // WARN: `NODE_ENV` is compiled in, not read at runtime — a production build cannot flip this on however the environment is set.
 export const IS_DEV_LOGIN_ENABLED = process.env.NODE_ENV === "development";
+
+// WARN: Same compile-time guarantee as `IS_DEV_LOGIN_ENABLED`. Kept separate because it gates developer tooling rather than an auth path, and the two must be free to diverge.
+export const IS_DEV = process.env.NODE_ENV === "development";
 
 /** Name of the httpOnly cookie holding the opaque session token. */
 export const SESSION_COOKIE_NAME = "jandh_session";

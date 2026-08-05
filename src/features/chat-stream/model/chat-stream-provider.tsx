@@ -20,6 +20,7 @@ import {
 import { fetchParticipants } from "../api/fetch-participants";
 import { fetchUnreadCount } from "../api/fetch-unread-count";
 import { postRead } from "../api/post-read";
+import { useAppRefresh } from "./use-app-refresh";
 import { useChatEventSource } from "./use-chat-event-source";
 
 export type ChatStreamListener = {
@@ -69,6 +70,8 @@ export function ChatStreamProvider({
   const isReadingRef = useRef(false);
   const lastReadPostAt = useRef(0);
   const hasMessageDuringSync = useRef(false);
+  // INFO: REQUIREMENTS.md § 15.1. Lives beside the stream because that is what carries the signal, not because refreshing is a chat concern.
+  const handleBuild = useAppRefresh();
 
   // WARN: The one value in here that has to be referentially stable — `useChatStreamListener` keys its subscription effect on it.
   const subscribe = useCallback((listener: ChatStreamListener) => {
@@ -94,6 +97,7 @@ export function ChatStreamProvider({
     onMessage: handleMessage,
     onUserChanged: refreshParticipants,
     onResume: handleResume,
+    onBuild: handleBuild,
   });
 
   // WARN: The audio context cannot be built before a gesture — browsers start one `suspended`, and a chime from a suspended context is silence with no error to catch.

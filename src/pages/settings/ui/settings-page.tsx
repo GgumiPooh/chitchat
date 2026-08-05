@@ -1,9 +1,11 @@
 import { resolveDisplayName } from "@/entities/user";
 import { PushNotificationRow } from "@/features/push-notifications";
 import { LogoutButton } from "@/features/session";
+import { IS_DEV } from "@/shared/config";
 import type { User } from "@/shared/db";
 import { cn } from "@/shared/lib";
 import { AppHeader, Avatar } from "@/shared/ui";
+import { DevRefreshRow } from "./dev-refresh-row";
 
 export type SettingsPageProps = {
   className?: string;
@@ -24,6 +26,8 @@ export function SettingsPage({ className, user }: SettingsPageProps) {
       </div>
       {/* INFO: DESIGN.md § 7.11. Rows run edge to edge, so they sit outside the padded block above. */}
       <PushNotificationRow />
+      {/* INFO: REQUIREMENTS.md § 15.1. Dev only — a production client is refreshed by the stream's `build` event and never needs to be told by hand. */}
+      {IS_DEV && <DevRefreshRow />}
       <div className="flex justify-center p-md">
         <LogoutButton className="w-auto" />
       </div>

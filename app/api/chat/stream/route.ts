@@ -1,6 +1,11 @@
 import { getMessage, listMessages, type ChatMessage } from "@/entities/message";
 import { getCurrentUser } from "@/shared/auth";
-import { SSE_HEARTBEAT_INTERVAL, SSE_REPLAY_LIMIT, SSE_REPLAY_MARGIN } from "@/shared/config";
+import {
+  BUILD_ID,
+  SSE_HEARTBEAT_INTERVAL,
+  SSE_REPLAY_LIMIT,
+  SSE_REPLAY_MARGIN,
+} from "@/shared/config";
 import { listenToChannels, NEW_MESSAGE_CHANNEL, USER_CHANGED_CHANNEL } from "@/shared/db";
 import { safelyGet, safelyRun, type Nullable, type Optional } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -56,6 +61,9 @@ export async function GET(request: Request) {
         () => write("event: ping\ndata: {}\n\n"),
         SSE_HEARTBEAT_INTERVAL,
       );
+
+      // WARN: REQUIREMENTS.md § 15.1. First, ahead of the replay. An iOS PWA resumes into an old bundle, and every reconnect is a resume — so a stale client learns it is stale before it renders anything the new deployment may have changed. No `id:`, for the same reason `user` carries none.
+      write(`event: build\ndata: ${JSON.stringify({ id: BUILD_ID })}\n\n`);
 
       try {
         // WARN: Registered before the replay query runs. In the other order a message committing between the two would be missed by both — the query does not see it yet and nothing is listening for it.

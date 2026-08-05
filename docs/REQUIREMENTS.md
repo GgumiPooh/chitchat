@@ -450,6 +450,19 @@ Landed: `app/robots.ts` (`Disallow: /` for every agent), root layout `robots: { 
 - [ ] Include `lint:steiger` in `pnpm build` so architecture violations fail the deploy
 - [ ] Separate dev and production databases using Neon branches
 
+### 15.1. Refreshing a client across a deploy
+
+An installed iOS PWA is not reloaded when the user reopens it — the system restores the suspended process, so a phone that was last opened before a deploy keeps running the old bundle indefinitely. This is not a caching problem: `sw.js` registers no `fetch` handler and caches nothing (§ 16.1.), so there is no stale cache to invalidate, only a stale process to replace.
+
+- [x] The server identifies its deployment with `BUILD_ID` — `VERCEL_DEPLOYMENT_ID`, falling back to `VERCEL_GIT_COMMIT_SHA`, then to `development`
+- [x] `/api/chat/stream` emits `event: build` once per connection, ahead of the replay. It carries no `id:`, for the same reason `user` does not — the reconnect cursor is a `messages` bigserial
+- [x] The client compares each `build` against the first one it saw. It never compares against a value baked into the bundle: a browser bundle cannot read a non-`NEXT_PUBLIC_` variable, so the two sides would always disagree
+- [x] The stream already reconnects on every iOS resume (§ 8.4.), so the signal arrives at exactly the moment a suspended client wakes up. No poll and no second connection
+- [x] A detected deploy reloads immediately **unless** the screen holds unsent work — composer text, staged attachments, or a send in flight. Those register through `useUnsentWork`, and the reload retries every `APP_REFRESH_RETRY_DELAY` and on every backgrounding until they clear
+- [x] **A _failed_ send is not unsent work.** It stays in the pending list until the user retries or cancels it, and it never resolves on its own — counting it pins a user who sent a photo on a dead connection to a stale bundle indefinitely. Only `sending` holds the reload
+- [x] Settings carries a manual `강제 새로고침` row on development builds only. `BUILD_ID` is constant locally, so nothing else can exercise the reload path there
+- [ ] Enable Vercel **Skew Protection** — it keeps a superseded deployment's chunks reachable, so a client that has not refreshed yet fails softly instead of 404-ing on a missing chunk
+
 ---
 
 ## 16. Later (not implemented now)
