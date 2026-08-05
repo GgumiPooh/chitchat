@@ -207,6 +207,7 @@ The signature surface. Bubble fills are the only place two adjacent fills are bo
 | `bubble-ink`            | #1F1B17 | Text inside any bubble. Both fills are light — never inverts                      |
 | `chat-meta`             | #8D8375 | Timestamp and sender name on `chat-canvas`                                        |
 | `chat-pill`             | #DED6C9 | Date divider pill fill                                                            |
+| `chat-pill-pressed`     | #D2C9B9 | `:hover` / `:active` on a pill that is a link — the § 11.5. system notice alone   |
 | `chat-pill-ink`         | #6B6153 | Date divider pill text                                                            |
 | `unread`                | #B65C4E | The `1` marker. Same value as `primary`, separate token so it can diverge on dark |
 | `search-hit`            | #F9E9C8 | Matched substring background in search results (§ 6.8.)                           |
@@ -243,6 +244,27 @@ Four tiers, closed. Each tier has one role.
 | `surface-pressed` is `:active` only; never a resting fill                 | The ladder has to terminate                                   |
 | No fifth tier                                                             | Each new tier recreates the same endpoint problem one step up |
 | `chat-canvas` is not part of the ladder                                   | It is a page floor for one screen, not an escalation step     |
+
+### 4.1.7. Event Colours.
+
+A closed set of six, and the only place in the app where colour is user-chosen. Each is a 4px dot in a day cell (§ 7.9.) and a swatch in the event form.
+
+| Token         | Hex     | Name in the UI |
+| ------------- | ------- | -------------- |
+| `event-clay`  | #C97B5A | `클레이`       |
+| `event-honey` | #CFA03F | `머스타드`     |
+| `event-olive` | #7E8B4F | `올리브`       |
+| `event-teal`  | #4F8A7B | `틸`           |
+| `event-blue`  | #5B7297 | `인디고`       |
+| `event-plum`  | #8A6296 | `플럼`         |
+
+| Rule                                                              | Reason                                                                                                                                                                       |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `primary` is **not** in the set                                   | The milestone diamond (§ 7.9.) is `primary`, and an event dot in the same colour would read as a derived anniversary                                                         |
+| Three of the six are cool, against § 8.1.'s warm bias             | The set is not a palette, it is a legend — six hues at 4px have to be told apart at a glance, and a warm-only run collapses into one orange smear. Chroma stays muted for it |
+| A colour is never the only carrier of meaning                     | `scope` is dot **shape** (§ 7.9.), authorship is an avatar. Colour is the user's own label and means nothing to the app                                                      |
+| `null` renders `meta-soft`                                        | An event created without picking a colour is the common case, not an error state                                                                                             |
+| Set membership is validated server-side, never trusted off a body | `events.color` is a free `text` column; the closed set lives in `shared/config`                                                                                              |
 
 ## 4.2. Typography.
 
@@ -720,7 +742,7 @@ The thumb reads as raised through a 1px `hairline-strong` border, not a shadow �
 | Gap                     | Recommendation                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Dark palette            | Deferred (§ 5.4.). Hand-tune; keep the warm bias; drop shadows to `none`                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Event colour set        | Needs a closed 6–7 tint pair set in the `primary`-compatible warm family before calendar build                                                                                                                                                                                                                                                                                                                                                                                          |
+| ~~Event colour set~~    | **Closed** — see § 4.1.7.                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Emoticon picker chrome  | Panel height is `min(22rem, 50% of --viewport-height)` — proportional so a short device keeps a readable message column, capped so a tall one does not hand the panel half the screen, and never `vh` (§ 3.4.). Pack tab-bar geometry and grid density still unspecified. Assets are now user-authored (`REQUIREMENTS.md § 13.`), so the grid must hold arbitrary aspect ratios — a fixed square cell with the still `object-contain` inside it, rather than a ratio taken from the art |
 | Motion                  | Only the search flash (§ 6.8.) and tab `scale-[0.96]` are specified; a shared duration/easing scale is needed before animation work                                                                                                                                                                                                                                                                                                                                                     |
 | Image viewer pinch-zoom | Bounds unspecified. Swiping between attachments is settled — native scroll snapping, which needs no threshold                                                                                                                                                                                                                                                                                                                                                                           |

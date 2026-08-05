@@ -1,3 +1,4 @@
+import { hasEventToday } from "@/entities/event";
 import { countUnreadMessages } from "@/entities/message";
 import { listUsers } from "@/entities/user";
 import { ChatStreamProvider } from "@/features/chat-stream";
@@ -13,9 +14,11 @@ import type { PropsWithChildren } from "react";
 export default async function MainLayout({ children }: PropsWithChildren) {
   const user = await requireUserOrRedirect();
   // INFO: REQUIREMENTS.md § 8.4. Both seed the shell's stream, so every tab starts from the same participant set and unread count the chat screen would have.
-  const [participants, unreadCount] = await Promise.all([
+  // INFO: REQUIREMENTS.md § 11.5. The calendar dot rides the same render — it is conversation-wide, so it needs no per-user query.
+  const [participants, unreadCount, hasTodayEvent] = await Promise.all([
     listUsers(),
     countUnreadMessages(user.id),
+    hasEventToday(),
   ]);
 
   return (
@@ -40,7 +43,7 @@ export default async function MainLayout({ children }: PropsWithChildren) {
           </main>
           <BottomOverlay>
             <InstallGuide />
-            <TabBar />
+            <TabBar hasEventToday={hasTodayEvent} />
           </BottomOverlay>
         </Container>
         <VisualViewportSync />

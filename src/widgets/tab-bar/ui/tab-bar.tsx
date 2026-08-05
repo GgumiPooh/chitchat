@@ -1,7 +1,7 @@
 "use client";
 
 import { useChatStream } from "@/features/chat-stream";
-import { CHAT_ROUTE } from "@/shared/config";
+import { CALENDAR_ROUTE, CHAT_ROUTE } from "@/shared/config";
 import { cn, useIsVirtualKeyboardOpen } from "@/shared/lib";
 import { Badge } from "@/shared/ui";
 import Link from "next/link";
@@ -10,10 +10,18 @@ import { TABS } from "../model/tabs";
 
 export type TabBarProps = {
   className?: string;
+  /**
+   * REQUIREMENTS.md § 11.5. A dot on 캘린더 when something falls on today.
+   *
+   * INFO: Resolved by the shell's server render rather than over the stream. It
+   * changes at most once a day and on a write the user themselves made, and
+   * `user_changed` (§ 8.4.) carries `users` rows — not events.
+   */
+  hasEventToday?: boolean;
 };
 
 // INFO: DESIGN.md § 7.3. The glyphs stay outlined in both states — lucide ships no filled variant for these four.
-export function TabBar({ className }: TabBarProps) {
+export function TabBar({ className, hasEventToday = false }: TabBarProps) {
   // INFO: REQUIREMENTS.md § 8.8. Live off the shell's stream rather than resolved once per page load — the badge has to move while the user is standing on another tab.
   const { unreadCount } = useChatStream();
   const pathname = usePathname();
@@ -54,6 +62,10 @@ export function TabBar({ className }: TabBarProps) {
                         <Badge className="absolute -top-1 -right-2">
                           {unreadCount > 99 ? "99+" : unreadCount}
                         </Badge>
+                      )}
+                      {/* INFO: REQUIREMENTS.md § 11.5. A single dot, never a count — the calendar's news is that there is something today, not how much. */}
+                      {href === CALENDAR_ROUTE && hasEventToday && (
+                        <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
                       )}
                     </span>
                     <span className={cn("text-tab-label", stateClassName)}>{label}</span>

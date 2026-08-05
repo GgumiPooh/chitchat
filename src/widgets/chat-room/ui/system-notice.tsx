@@ -1,6 +1,8 @@
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import { cn, formatMonthDay, type Optional } from "@/shared/lib";
+import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE } from "@/shared/config";
+import { cn, composeEventNotice, toDayKey, type Optional } from "@/shared/lib";
+import Link from "next/link";
 
 export type SystemNoticeProps = {
   className?: string;
@@ -9,31 +11,41 @@ export type SystemNoticeProps = {
 };
 
 // INFO: DESIGN.md § 6.5. Date-divider treatment, so a calendar notice reads as timeline furniture rather than as someone speaking.
-// TODO: Make the pill tap through to its event once the calendar exists — step 9 of REQUIREMENTS.md § 17.
 export function SystemNotice({ className, message, sender }: SystemNoticeProps) {
+  // INFO: REQUIREMENTS.md § 11.5. Composed at render time from the live nickname, so a rename rewrites past notices too (§ 8.7.).
+  const notice = composeEventNotice(
+    message.systemAction,
+    message.eventTitle,
+    message.eventStartsAt,
+    sender?.name,
+  );
+
   return (
     <div className={cn("flex justify-center px-md py-sm", className)}>
-      <span className="rounded-full bg-chat-pill px-sm py-2xs text-center text-caption text-chat-pill-ink">
-        {composeNotice(message, sender)}
-      </span>
+      {/* WARN: The day, not the event id, is what the link always carries — a delete notice outlives its `events` row (§ 6.) and would otherwise have nothing to navigate to. */}
+      <Link
+        className="rounded-full bg-chat-pill px-sm py-2xs text-center text-caption text-chat-pill-ink transition-colors outline-none hover:bg-chat-pill-pressed focus-visible:ring-2 focus-visible:ring-primary active:bg-chat-pill-pressed"
+        href={toCalendarHref(message)}
+      >
+        {notice}
+      </Link>
     </div>
   );
 }
 
-/** REQUIREMENTS.md § 11.5. Composed here so a nickname change rewrites past notices too. */
-function composeNotice(message: ChatMessage, sender: Optional<Participant>): string {
-  const name = sender?.name ?? "";
-  const date = message.eventStartsAt ? formatMonthDay(message.eventStartsAt) : "";
-  const title = message.eventTitle ?? "";
-
-  switch (message.systemAction) {
-    case "event_created":
-      return `${name}님이 ${date} '${title}' 일정을 추가했어요`;
-    case "event_rescheduled":
-      return `${name}님이 '${title}' 일정을 ${date}로 옮겼어요`;
-    case "event_deleted":
-      return `${name}님이 ${date} '${title}' 일정을 삭제했어요`;
-    default:
-      return "";
+/**
+ * WARN: The day is the whole destination — the event id is deliberately **not** in
+ * the URL. A delete notice outlives its `events` row (§ 6.), so half of these
+ * notices have no id to carry and the calendar would need a second way in anyway.
+ * The day's sheet lists the event, which is what "navigates to the event" means
+ * here (§ 11.5.).
+ */
+function toCalendarHref(message: ChatMessage): string {
+  if (!message.eventStartsAt) {
+    return CALENDAR_ROUTE;
   }
+
+  const params = new URLSearchParams({ [CALENDAR_DAY_PARAM]: toDayKey(message.eventStartsAt) });
+
+  return `${CALENDAR_ROUTE}?${params}`;
 }

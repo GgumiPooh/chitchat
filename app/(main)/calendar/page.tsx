@@ -1,5 +1,32 @@
+import { getCalendarSummary, listEventOccurrences } from "@/entities/event";
 import { CalendarPage } from "@/pages/calendar";
+import { CALENDAR_DAY_PARAM } from "@/shared/config";
+import { isDayKey, toMonthKey, type Maybe } from "@/shared/lib";
+import { toGridRange } from "@/widgets/calendar-month";
 
-export default function Page() {
-  return <CalendarPage />;
+type PageProps = {
+  searchParams: Promise<Record<string, Maybe<string | string[]>>>;
+};
+
+/**
+ * REQUIREMENTS.md § 11.1. The D-day is resolved here, in a Server Component, so
+ * both users see the same number whatever their device clock says.
+ */
+export default async function Page({ searchParams }: PageProps) {
+  // INFO: § 11.5. A chat system notice taps through carrying the event's day, so the screen opens on that month with the day's sheet already up.
+  // WARN: Shape-checked, not merely typed. `?day=` or `?day=abc` reaches every date helper below as an Invalid Date, and `Intl.DateTimeFormat.format` throws on one — an unvalidated param is a 500 on a URL anybody can type.
+  const dayParam = (await searchParams)[CALENDAR_DAY_PARAM];
+  const dayKey = isDayKey(dayParam) ? dayParam : undefined;
+  const summary = await getCalendarSummary();
+  const monthKey = toMonthKey(dayKey ?? summary.todayKey);
+  const { from, to } = toGridRange(monthKey);
+
+  return (
+    <CalendarPage
+      initialSummary={summary}
+      initialMonthKey={monthKey}
+      initialOccurrences={await listEventOccurrences(from, to)}
+      initialDayKey={dayKey}
+    />
+  );
 }

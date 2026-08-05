@@ -21,7 +21,7 @@ Precedence on conflict: visuals → `DESIGN.md`; code-authoring rules → `AGENT
 - **`[ ]` = remaining work**, and the authoritative spec for it. Tick the box in the change that lands it (`AGENTS.md § 0.3.`).
 - **Never renumber a section** — `src/` comments reference these numbers.
 
-**Current state** — § 17. steps 1–4 done. Step 6 (R2 media pipeline, § 9.) done, and with it photo and video messages: picker, editor, direct upload with progress, retry and cancel, media bubbles, and the fullscreen viewer. Step 5 (chat) otherwise partly done: text and system bubbles, cursor pagination, virtualization, optimistic send, copy/delete, SSE delivery (§ 8.4.), render-time names (§ 8.7.), push (§ 16.1.), read cursor (§ 8.8.). Step 8 (emoticons, § 13.) is done and was respecified along the way — packs and items are authored in the app rather than seeded, so there is no asset drop and no seed script; an item is one image slot (§ 13.2.), editable after upload, and a pile of images can be added as one item each (§ 13.4.). **Open in chat**: the `1` marker and unread divider (§ 8.8.), search and jump (§ 8.6.). Calendar and Gallery are empty states until their step.
+**Current state** — § 17. steps 1–4 done. Step 6 (R2 media pipeline, § 9.) done, and with it photo and video messages: picker, editor, direct upload with progress, retry and cancel, media bubbles, and the fullscreen viewer. Step 5 (chat) otherwise partly done: text and system bubbles, cursor pagination, virtualization, optimistic send, copy/delete, SSE delivery (§ 8.4.), render-time names (§ 8.7.), push (§ 16.1.), read cursor (§ 8.8.). Step 8 (emoticons, § 13.) is done and was respecified along the way — packs and items are authored in the app rather than seeded, so there is no asset drop and no seed script; an item is one image slot (§ 13.2.), editable after upload, and a pile of images can be added as one item each (§ 13.4.). **Open in chat**: the `1` marker and unread divider (§ 8.8.), search and jump (§ 8.6.). Step 9 (calendar, § 11.) is done: the D-day band and derived anniversaries, the month grid with scope- and colour-coded markers, event CRUD in one form, the chat system notice with its tap-through, the upcoming card, and the tab-bar dot — leaving only a "jump to today" control. It needed no migration (`events` landed with § 6. in `0001`) and no new dependency. Gallery is an empty state until its step.
 
 ---
 
@@ -377,45 +377,59 @@ Landed apart from the blurhash placeholder and the delete path. Contract:
 
 ### 11.1. D-day Header
 
-- [ ] The relationship start date comes from the **`RELATIONSHIP_START_DATE` env var** (ISO `YYYY-MM-DD`); it is **not stored in the database**
-- [ ] Show the elapsed day count at the very top of the tab. Following the Korean convention, **the start date itself is day 1**
-- [ ] Compute it in a Server Component and pass it down, so a skewed client clock or timezone cannot give each user a different number
-- [ ] Recompute on tab focus, in case the app was left open across midnight
+- [x] The relationship start date comes from the **`RELATIONSHIP_START_DATE` env var** (ISO `YYYY-MM-DD`); it is **not stored in the database**
+- [x] Show the elapsed day count at the very top of the tab. Following the Korean convention, **the start date itself is day 1** (`countDays(start, today) + 1`)
+- [x] Compute it in a Server Component and pass it down, so a skewed client clock or timezone cannot give each user a different number. `todayKey` ships with it for the same reason — the grid's "today" cell must not be the device's opinion either
+- [x] Recompute on tab focus, in case the app was left open across midnight. It is a refetch of `GET /api/calendar/summary`, never a client-side recount, or the bullet above would be undone on the first focus
 
 ### 11.2. Derived Anniversaries
 
-- [ ] **Derive from `RELATIONSHIP_START_DATE`** — no database rows, no user input: every 100 days (100 / 200 / 300 …) and yearly anniversaries
-- [ ] Mark them in the month grid distinctly from ordinary events
-- [ ] Show **days remaining until the next anniversary** beneath the D-day header
+- [x] **Derive from `RELATIONSHIP_START_DATE`** — no database rows, no user input: every 100 days (100 / 200 / 300 …) and yearly anniversaries
+- [x] Mark them in the month grid distinctly from ordinary events — a `primary` diamond (DESIGN § 7.9.), which is why `primary` is kept out of the event colour set (DESIGN § 4.1.7.)
+- [x] Show **days remaining until the next anniversary** beneath the D-day header, hidden past a one-year horizon
+- [x] The derivation lives in **`shared/lib/date/calendar.ts`, not `entities/event`** — the grid derives markers for every month it is swiped to, and a value import from that barrel would drag `server-only` into the browser bundle (the § 9. `toMediaUrl` argument). Yearly anniversaries are built by calendar-field arithmetic, never by adding 365 days, so a leap year cannot walk them a day early
 
 ### 11.3. Month View
 
-- [ ] Event markers in day cells
-- [ ] Swipe left/right to change month; a "jump to today" control
-- [ ] Tapping a day opens that day's event list in a `BottomSheet`
-- [ ] Timezone pinned to `Asia/Seoul` on both server and client
+- [x] Event markers in day cells, capped at three dots
+- [x] Swipe left/right to change month; the header's chevrons are the pointer equivalent (§ 4.1.). The swipe requires horizontal **intent** (|Δx| > |Δy|), or a diagonal drag would change month while the user was scrolling the shell
+- [x] Tapping a day opens that day's event list in a `BottomSheet`
+- [x] Timezone pinned to `Asia/Seoul` on both server and client
+- [x] The grid is **always six rows**. A height that changed with the month would reflow the screen under the thumb on every swipe
+- [x] The month's fetch asks for the **grid's** range, not the month's, so the adjacent-month days in the first and last rows carry their markers too
+- [x] **Selecting a day moves the month with it.** The upcoming card reaches a year ahead and the grid's edge rows reach into the neighbouring months, while the day sheet can only see the range currently loaded — without it the sheet opens on `이 날은 일정이 없어요` for a day the card just said had an event
+- [x] Month fetches are **request-id guarded.** Two quick swipes leave two in flight, and the slower one landing last would leave the grid showing the wrong month's dots with nothing left to re-trigger the fetch
+- [x] Opening an event's actions **closes the day sheet first.** Both are modal `Drawer`s portalled to `body` and neither is declared nested, so leaving both up means two focus traps — and dismissing the top one can leave the one underneath inert
+- [ ] A "jump to today" control — the D-day band and the upcoming card both navigate, so this has no room yet; it belongs beside the month label
 
 ### 11.4. Event CRUD
 
-- [ ] Create / edit / delete — title, description, start and end time, all-day flag, color, recurrence (`none` | `yearly`)
-- [ ] Both users can **view and edit every event**; there are no permission tiers
-- [ ] Show authorship via `events.created_by` (avatar or color)
+- [x] Create / edit / delete — title, description, start and end time, all-day flag, color, recurrence (`none` | `yearly`). Create and edit are **one form**; the fields are identical
+- [x] Both users can **view and edit every event**; there are no permission tiers. No write path is scoped to `created_by`, so a missing row is the only 404
+- [x] Show authorship via `events.created_by` — the avatar, in the day sheet's row
+- [x] The form works in **wall-clock fields** (`<input type="date">` / `type="time"`, which iOS renders as its own wheel picker) and converts once, at submit. `TIME_ZONE_OFFSET` is a literal `+09:00` and is sound **only** because Korea observes no daylight saving
+- [x] **An edit seeds from the occurrence's anchor, never its projection.** A `yearly` event edited while looking at a later year would otherwise be saved into that year and stop recurring from where it started
+- [x] `PATCH` sends only what changed. The ordering check runs against the stored row when a patch moves one end alone, since the body schema can only compare two ends it was given both of
+- [x] **The patch schema is built on an undefaulted shape.** `zod`'s `.partial()` makes a key optional but does **not** strip its `.default()`, so a schema shared with the create path would resolve `PATCH {"title":…}` into a body carrying every default and the UPDATE would wipe description, colour, recurrence and scope. Defaults belong to `eventBodySchema` alone
+- [x] **The form's date and time fields are clearable**, so `toInstant` is nullable rather than throwing. `isDraftSubmittable` runs during render, where a `RangeError` out of `toISOString` is a blank screen rather than a disabled button
 
 ### 11.5. Sharing Features
 
 Include only what pays off for exactly two users. Invitations, RSVP, permissions, and external calendar sync are **not adopted** — with two mutually trusting users they are pure complexity.
 
-- [ ] **Event `scope`** — `shared` (ours) or `mine` (my personal schedule), defaulting to `shared`
-  - [ ] `mine` events are still **visible** to the other user — this is a distinction, not a privacy control. The point is to communicate "I'm busy that day"
-  - [ ] Distinguish them in the month grid by marker shape (filled dot for `shared`, ring dot for `mine`)
-- [ ] **Post a `type = 'system'` message to Chat when an event changes** — e.g. `지희님이 8월 10일 '영화 보기' 일정을 추가했어요`
-  - [ ] **Do not bake the name into the stored text.** Store `sender_id`, `system_action`, and the `event_title` / `event_starts_at` snapshot, then **compose the sentence at render time from `users.nickname`** so a rename updates past system messages too (§ 8.7.). The event snapshot is deliberate, not a violation: a delete notice must still say which event it was, and its `events` row is gone. Only the _user_ name must never be copied
-  - [ ] Post on create, time change, and delete. **Do not post** when only the title or description changed
-  - [ ] This rides the existing SSE pipeline, so it costs no additional infrastructure
-  - [ ] Render as a centered pill with no bubble (same treatment as the date divider — DESIGN § 6.4., § 6.5.); tapping navigates to the event
-- [ ] **Upcoming-events card** directly under the D-day header, summarizing the next one or two events; hidden entirely when there are none
-- [ ] **A dot on the Calendar tab-bar icon when there is an event today** (a single dot, not a count)
-- [ ] **Empty state** for a day with no events (DESIGN § 7.6.)
+- [x] **Event `scope`** — `shared` (ours) or `mine` (my personal schedule), defaulting to `shared`
+  - [x] `mine` events are still **visible** to the other user, **title included** (§ 18. #9) — this is a distinction, not a privacy control. The point is to communicate "I'm busy that day"
+  - [x] Distinguish them in the month grid by marker shape (filled dot for `shared`, ring dot for `mine`). Shape, not colour — colour is already spent on the event's own hue
+- [x] **Post a `type = 'system'` message to Chat when an event changes** — e.g. `지희님이 8월 10일 '영화 보기' 일정을 추가했어요`
+  - [x] **Do not bake the name into the stored text.** Store `sender_id`, `system_action`, and the `event_title` / `event_starts_at` snapshot, then **compose the sentence at render time from `users.nickname`** so a rename updates past system messages too (§ 8.7.). The event snapshot is deliberate, not a violation: a delete notice must still say which event it was, and its `events` row is gone. Only the _user_ name must never be copied
+  - [x] Post on create, time change, and delete. **Do not post** when only the title or description changed
+  - [x] This rides the existing SSE pipeline, so it costs no additional infrastructure — the `AFTER INSERT` trigger on `messages` (§ 6.) is what publishes it, and the event routes publish nothing themselves
+  - [x] It also raises the § 16.1. **push** banner, through the same `notifyMessageRecipients` the chat send uses. `features/notify-chat` exists so there is literally one fan-out: § 16.1. permits exactly one alerting channel, and a second copy written beside the event routes is how that stops being true. The banner's body is the notice **without** its actor, since the banner's title is already the sender
+  - [x] Render as a centered pill with no bubble (same treatment as the date divider — DESIGN § 6.4., § 6.5.); tapping navigates to the event's **day** (`?day=`), which opens that day's sheet with the event in it. The day, not the event id, is deliberately the whole destination: a delete notice outlives its `events` row (§ 6.), so half of these notices have no id to carry and the calendar would need this route anyway
+  - [x] The `day` parameter is **shape- and value-checked** before it reaches a date helper (`isDayKey`). `?day=` or `?day=2026-13-45` otherwise arrives as an Invalid Date, and `Intl.DateTimeFormat.format` throws on one — a 500 on a URL anybody can type
+- [x] **Upcoming-events card** directly under the D-day header, summarizing the next one or two events; hidden entirely when there are none
+- [x] **A dot on the Calendar tab-bar icon when there is an event today** (a single dot, not a count). Resolved by the shell's server render, not over the stream — `user_changed` (§ 8.4.) carries `users` rows, and this changes at most once a day
+- [x] **Empty state** for a day with no events (DESIGN § 7.6.)
 
 ### 11.6. Notifications ✅
 
@@ -607,7 +621,7 @@ Landed (§ 18. #8); it reverses the "no service worker" decision in § 7. Contra
 6. ✅ R2 media pipeline + sending photos and videos in chat (§ 9.)
 7. Gallery tab (§ 10.)
 8. ✅ **Emoticons (§ 13.)** — authored in the app, not seeded. Schema and migration, the asset pipeline, the authoring screens, the management list, the picker and the bubble all landed; only the picker's still-preloading is open
-9. Calendar tab (§ 11.)
+9. ✅ **Calendar tab (§ 11.)** — the D-day band, derived anniversaries, the month grid, event CRUD, `scope`, the chat system notice and its tap-through, the upcoming card, and the tab-bar dot all landed. Open: the "jump to today" control (§ 11.3.)
 10. Settings tab (§ 12.)
 11. Security hardening + deployment (§ 14., § 15.)
 
@@ -617,15 +631,15 @@ Landed (§ 18. #8); it reverses the "no service worker" decision in § 7. Contra
 
 Deliberately left open. When work reaches the feature, **confirm with the user**, then update this document.
 
-| #      | Item                                                                                                          | Needed by             | Notes                                                                                                                                                                                                                            |
-| ------ | ------------------------------------------------------------------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1      | What happens to a chat message when its image is deleted from the gallery — delete it, or leave a placeholder | Gallery (§ 10.)       | Affects the schema (whether `media.deleted_at` is needed)                                                                                                                                                                        |
-| ~~2~~  | ~~How emoticon assets are sourced and how packs are composed~~                                                | —                     | **Decided: authored in the app** (§ 13.). A user creates a pack from a title and adds items from one image — still or animated — plus an optional sound. Aspect ratios are therefore arbitrary, which is what #3 must now absorb |
-| 3      | Emoticon picker dimensions — panel height, pack tab bar, grid density                                         | Emoticons (§ 13.6.)   | DESIGN § 9. #2 is now decided, and it decided the assets are user-authored, so the grid must hold **arbitrary** aspect ratios rather than a known set — a fixed square cell with the still `object-contain` inside it            |
-| 4      | Calendar event color set (6–7 warm tints that do not clash with the accent)                                   | Calendar (§ 11.)      | DESIGN § 9.                                                                                                                                                                                                                      |
-| 5      | Motion duration / easing token scale                                                                          | When animation starts | Only the 1.5s search flash and the tab `scale-[0.96]` are specified. DESIGN § 9.                                                                                                                                                 |
-| 6      | Viewer **pinch-zoom** bounds                                                                                  | Gallery / viewer      | Must be tuned on a real device. The swipe half is settled — native scroll snapping, no threshold. DESIGN § 9.                                                                                                                    |
-| 7      | Dark palette hex values                                                                                       | Dark theme (§ 16.)    | Hand-tune; never arithmetically invert. DESIGN § 5.4.                                                                                                                                                                            |
-| ~~8~~  | ~~**Whether to adopt push notifications (new-message only)**~~                                                | —                     | **Decided: adopted.** Landed as § 16.1. **Time-based notifications remain out of scope**                                                                                                                                         |
-| 9      | Whether a `scope = 'mine'` event shows its **title** to the other user, or only "busy"                        | Calendar (§ 11.5.)    | Currently specified as showing the title                                                                                                                                                                                         |
-| ~~10~~ | ~~**Maximum images per message, and the grid layout beyond that count**~~                                     | —                     | **Decided: selection is unlimited; a send splits into consecutive bubbles of 9.** So there is no `+N` overflow cell and no attachment is ever hidden behind one. Caps are per file — 50MB photo, 500MB video (§ 9.)              |
+| #      | Item                                                                                                          | Needed by             | Notes                                                                                                                                                                                                                                                                                       |
+| ------ | ------------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1      | What happens to a chat message when its image is deleted from the gallery — delete it, or leave a placeholder | Gallery (§ 10.)       | Affects the schema (whether `media.deleted_at` is needed)                                                                                                                                                                                                                                   |
+| ~~2~~  | ~~How emoticon assets are sourced and how packs are composed~~                                                | —                     | **Decided: authored in the app** (§ 13.). A user creates a pack from a title and adds items from one image — still or animated — plus an optional sound. Aspect ratios are therefore arbitrary, which is what #3 must now absorb                                                            |
+| 3      | Emoticon picker dimensions — panel height, pack tab bar, grid density                                         | Emoticons (§ 13.6.)   | DESIGN § 9. #2 is now decided, and it decided the assets are user-authored, so the grid must hold **arbitrary** aspect ratios rather than a known set — a fixed square cell with the still `object-contain` inside it                                                                       |
+| ~~4~~  | ~~Calendar event color set (6–7 warm tints that do not clash with the accent)~~                               | —                     | **Decided: a closed set of six** — `clay` / `honey` / `olive` / `teal` / `blue` / `plum` (DESIGN § 4.1.7.). Three are cool, deliberately: six hues at 4px must be told apart, and a warm-only run collapses into one smear. `primary` is excluded, since the milestone diamond is `primary` |
+| 5      | Motion duration / easing token scale                                                                          | When animation starts | Only the 1.5s search flash and the tab `scale-[0.96]` are specified. DESIGN § 9.                                                                                                                                                                                                            |
+| 6      | Viewer **pinch-zoom** bounds                                                                                  | Gallery / viewer      | Must be tuned on a real device. The swipe half is settled — native scroll snapping, no threshold. DESIGN § 9.                                                                                                                                                                               |
+| 7      | Dark palette hex values                                                                                       | Dark theme (§ 16.)    | Hand-tune; never arithmetically invert. DESIGN § 5.4.                                                                                                                                                                                                                                       |
+| ~~8~~  | ~~**Whether to adopt push notifications (new-message only)**~~                                                | —                     | **Decided: adopted.** Landed as § 16.1. **Time-based notifications remain out of scope**                                                                                                                                                                                                    |
+| ~~9~~  | ~~Whether a `scope = 'mine'` event shows its **title** to the other user, or only "busy"~~                    | —                     | **Decided: the title is shown.** Hiding it would have made `scope` a privacy control, which § 11.5. explicitly says it is not. The ring dot is the whole distinction                                                                                                                        |
+| ~~10~~ | ~~**Maximum images per message, and the grid layout beyond that count**~~                                     | —                     | **Decided: selection is unlimited; a send splits into consecutive bubbles of 9.** So there is no `+N` overflow cell and no attachment is ever hidden behind one. Caps are per file — 50MB photo, 500MB video (§ 9.)                                                                         |

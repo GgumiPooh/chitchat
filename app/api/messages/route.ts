@@ -1,18 +1,15 @@
 import { getEmoticonItem } from "@/entities/emoticon";
 import { ownsAllMedia } from "@/entities/media";
 import {
-  countUnreadMessages,
   createEmoticonMessage,
   createMediaMessage,
   createTextMessage,
   listMessages,
   type ChatMessage,
 } from "@/entities/message";
-import { pushToUser, type PushPayload } from "@/entities/push-subscription";
-import { listUsers, resolveDisplayName } from "@/entities/user";
+import { notifyMessageRecipients } from "@/features/notify-chat";
 import { getCurrentUser } from "@/shared/auth";
 import {
-  CHAT_ROUTE,
   MAX_MEDIA_PER_MESSAGE,
   MAX_MESSAGE_LENGTH,
   MAX_MESSAGE_PAGE_SIZE,
@@ -20,7 +17,6 @@ import {
   PUSH_BODY_MAX_LENGTH,
   isVideoMime,
 } from "@/shared/config";
-import type { User } from "@/shared/db";
 import { safelyRunAsync } from "@/shared/lib";
 import { NextResponse, after } from "next/server";
 import { z } from "zod";
@@ -115,7 +111,7 @@ export async function POST(request: Request) {
   }
 
   // WARN: REQUIREMENTS.md § 16.1. `after`, so the fan-out's round trips to the push services never sit between the sender and their 201. It still runs inside this invocation, on a database that is already awake — which is why push costs Neon's autosuspend nothing, unlike the cron § 16.1. rejected.
-  after(() => safelyRunAsync(() => notifyRecipients(user, toPushBody(message))));
+  after(() => safelyRunAsync(() => notifyMessageRecipients(user, toPushBody(message))));
 
   return NextResponse.json({ message }, { status: 201 });
 }
@@ -144,27 +140,4 @@ function toPushBody(message: ChatMessage): string {
   }
 
   return message.media.every((item) => isVideoMime(item.mime)) ? "동영상" : "사진";
-}
-
-/**
- * REQUIREMENTS.md § 16.1. One banner per recipient device, carrying that
- * recipient's own unread count for the app icon badge (§ 8.8.).
- */
-async function notifyRecipients(sender: User, text: string) {
-  const recipients = (await listUsers()).filter((participant) => participant.id !== sender.id);
-  // WARN: § 8.7. bans copying a name onto a stored row, not onto a notification. A banner is a point-in-time artifact the service worker cannot re-resolve — it holds no session and cannot query.
-  const title = resolveDisplayName(sender);
-
-  await Promise.all(
-    recipients.map(async (recipient) => {
-      const payload: PushPayload = {
-        title,
-        body: text.slice(0, PUSH_BODY_MAX_LENGTH),
-        unreadCount: await countUnreadMessages(recipient.id),
-        url: CHAT_ROUTE,
-      };
-
-      await pushToUser(recipient.id, payload);
-    }),
-  );
 }

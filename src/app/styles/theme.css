@@ -41,9 +41,18 @@
   --color-bubble-ink: #1f1b17;
   --color-chat-meta: #8d8375;
   --color-chat-pill: #ded6c9;
+  --color-chat-pill-pressed: #d2c9b9;
   --color-chat-pill-ink: #6b6153;
   --color-unread: #b65c4e;
   --color-search-hit: #f9e9c8;
+
+  /* INFO: Event colours — DESIGN.md § 4.1.7. A closed set; `primary` is deliberately not in it. */
+  --color-event-clay: #c97b5a;
+  --color-event-honey: #cfa03f;
+  --color-event-olive: #7e8b4f;
+  --color-event-teal: #4f8a7b;
+  --color-event-blue: #5b7297;
+  --color-event-plum: #8a6296;
 
   /* INFO: Semantic — DESIGN.md § 4.1.5. */
   --color-semantic-success: #3f7d52;
