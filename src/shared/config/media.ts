@@ -20,6 +20,12 @@ export const MAX_GALLERY_SELECTION = 200;
 // WARN: REQUIREMENTS.md § 10. Saving several files is several top-level navigations that each resolve into a download, and a browser drops the ones that arrive in the same tick as the previous — this is the gap that keeps them apart.
 export const GALLERY_DOWNLOAD_STAGGER = 0.4 * A_SECOND;
 
+// WARN: REQUIREMENTS.md § 10. The share sheet takes the whole selection at once, so every file is in memory before it can open — this is a memory ceiling, not a preference. Past it the save falls back to the download path.
+export const MAX_GALLERY_SHARE_FILES = 20;
+
+// WARN: Read from `Content-Length` before a body is buffered, so the ceiling holds even when the count does not — twenty 4K videos are not twenty photos.
+export const MAX_GALLERY_SHARE_BYTES = 200 * A_MEGABYTE;
+
 // INFO: REQUIREMENTS.md § 14. iPhone ProRAW tops out around 50MB and a panorama around 15MB, so nothing from the camera roll is refused.
 export const MAX_IMAGE_SIZE = 50 * A_MEGABYTE;
 
@@ -73,6 +79,25 @@ export function isImageMime(mime: string): mime is AllowedImageMime {
 
 export function isAllowedMediaMime(mime: string): mime is AllowedMediaMime {
   return isImageMime(mime) || isVideoMime(mime);
+}
+
+// INFO: R2 stores the bytes under a UUID key with no name of its own, so a file handed to the share sheet has to be named here.
+const MIME_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/avif": "avif",
+  "image/heic": "heic",
+  "image/heif": "heif",
+  "video/mp4": "mp4",
+  "video/quicktime": "mov",
+  "video/webm": "webm",
+};
+
+/** The file extension a stored object should carry once it leaves the app under a name. */
+export function extensionForMime(mime: string): string {
+  return MIME_EXTENSIONS[mime] ?? "bin";
 }
 
 /** The cap the given type is measured against. REQUIREMENTS.md § 14. */

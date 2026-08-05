@@ -16,10 +16,11 @@ import {
 } from "@/shared/ui";
 import {
   deleteGalleryMedia,
-  downloadGalleryMedia,
   GalleryGrid,
+  GallerySaveDialog,
   GallerySelectionBar,
   useGalleryMedia,
+  useGallerySave,
   useGallerySelection,
   useGalleryUpload,
 } from "@/widgets/gallery-grid";
@@ -43,6 +44,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
   const [isRemoving, setIsRemoving] = useState(false);
   const { media, isLoadingMore, loadMore, prepend, remove } = useGalleryMedia(initialMedia);
   const selection = useGallerySelection();
+  const saving = useGallerySave();
   const { remainingCount, isBusy: isUploading, upload } = useGalleryUpload(prepend);
   const selectedCount = selection.selectedIds.length;
 
@@ -108,10 +110,16 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
         <GallerySelectionBar
           selectedCount={selectedCount}
           isBusy={isRemoving}
-          onDownload={download}
+          onDownload={startSave}
           onDelete={() => setIsConfirmingDelete(true)}
         />
       )}
+      <GallerySaveDialog
+        progress={saving.progress}
+        blockedCount={saving.blockedCount}
+        onShare={() => void saving.shareBlocked()}
+        onDismiss={saving.dismissBlocked}
+      />
       <MediaPickerSheet
         isOpen={isPickerOpen}
         onClose={() => setIsPickerOpen(false)}
@@ -189,17 +197,15 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
   }
 
   /**
-   * WARN: Started, never awaited. `downloadGalleryMedia` paces itself across the
-   * whole selection, so awaiting it holds this handler for the better part of a
-   * minute at the cap — behind a bar that has already been dismissed.
+   * WARN: Started, never awaited. Both save routes run the length of the selection —
+   * the download path paces itself, the share path buffers every original first — so
+   * awaiting this would hold the handler behind a bar that is already dismissed.
    */
-  function download() {
+  function startSave() {
     const ids = selection.selectedIds;
 
     selection.cancel();
-    void downloadGalleryMedia(ids);
-    // INFO: The browser's own download UI is the progress report; this is only what says the taps registered, since the selection bar is gone by now.
-    toast.success(`${ids.length}장을 저장하고 있어요`);
+    void saving.save(ids);
   }
 
   async function confirmDelete() {
