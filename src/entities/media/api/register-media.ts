@@ -10,8 +10,8 @@ import { getDb, media } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
 import { headAcceptableObject, toThumbKey } from "@/shared/storage";
 import { and, eq } from "drizzle-orm";
-import { toChatMedia } from "../model/to-chat-media";
-import type { ChatMedia } from "../model/types";
+import { toGalleryMedia } from "../model/to-gallery-media";
+import type { GalleryMedia } from "../model/types";
 
 export type RegisterMediaParams = {
   ownerId: string;
@@ -19,6 +19,8 @@ export type RegisterMediaParams = {
   width: number;
   height: number;
   durationMs?: Nullable<number>;
+  // INFO: REQUIREMENTS.md § 10. Set by an upload that starts in the Gallery tab. A chat attachment leaves it false and reaches the grid through the message it is sent in.
+  addToGallery?: boolean;
 };
 
 /**
@@ -35,7 +37,8 @@ export async function registerMedia({
   width,
   height,
   durationMs,
-}: RegisterMediaParams): Promise<Nullable<ChatMedia>> {
+  addToGallery = false,
+}: RegisterMediaParams): Promise<Nullable<GalleryMedia>> {
   const [object, thumbnail] = await Promise.all([
     headAcceptableObject(
       r2Key,
@@ -62,19 +65,20 @@ export async function registerMedia({
       width,
       height,
       durationMs: durationMs ?? null,
+      galleryAddedAt: addToGallery ? new Date() : null,
     })
     // INFO: `r2_key` is unique, so a retried registration returns the row the first attempt wrote instead of failing the send.
     .onConflictDoNothing({ target: media.r2Key })
     .returning();
 
   if (row) {
-    return toChatMedia(row);
+    return toGalleryMedia(row);
   }
 
   return getMediaByKey(r2Key, ownerId);
 }
 
-async function getMediaByKey(r2Key: string, ownerId: string): Promise<Nullable<ChatMedia>> {
+async function getMediaByKey(r2Key: string, ownerId: string): Promise<Nullable<GalleryMedia>> {
   const [existing] = await getDb()
     .select()
     .from(media)
@@ -82,5 +86,5 @@ async function getMediaByKey(r2Key: string, ownerId: string): Promise<Nullable<C
     .where(and(eq(media.r2Key, r2Key), eq(media.ownerId, ownerId)))
     .limit(1);
 
-  return existing ? toChatMedia(existing) : null;
+  return existing ? toGalleryMedia(existing) : null;
 }

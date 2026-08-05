@@ -47,6 +47,11 @@ export async function canReadMedia(row: Media, userId: string): Promise<boolean>
     return true;
   }
 
+  // INFO: REQUIREMENTS.md § 10. A photo put in the gallery without being sent is conversation-wide by construction — the gallery is shared, so the other participant is looking at the same grid.
+  if (row.galleryAddedAt !== null) {
+    return true;
+  }
+
   const [shared] = await getDb()
     .select({ messageId: messageMedia.messageId })
     .from(messageMedia)

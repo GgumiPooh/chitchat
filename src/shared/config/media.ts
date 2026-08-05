@@ -1,9 +1,24 @@
-import { A_MEGABYTE, A_MINUTE } from "@/shared/lib";
+import { A_MEGABYTE, A_MINUTE, A_SECOND } from "@/shared/lib";
 
 /** REQUIREMENTS.md § 9. Presigned PUT, then registration; the id route mints presigned GETs. */
 export const MEDIA_UPLOAD_URL_PATH = "/api/media/upload-url";
 
 export const MEDIA_PATH = "/api/media";
+
+/** REQUIREMENTS.md § 10. Lists the gallery and takes photos back out of it. */
+export const GALLERY_PATH = "/api/gallery";
+
+// INFO: A 3-column grid, so a page is 20 rows — roughly two screens of scrolling before the next request.
+export const GALLERY_PAGE_SIZE = 60;
+
+// WARN: Caps what a caller may ask for; the request-side limit is clamped to it rather than rejected, as `MAX_MESSAGE_PAGE_SIZE` is.
+export const MAX_GALLERY_PAGE_SIZE = 120;
+
+// INFO: One selection's worth. Deletion is a single statement per id, and a body longer than this is a script rather than a thumb.
+export const MAX_GALLERY_SELECTION = 200;
+
+// WARN: REQUIREMENTS.md § 10. Saving several files is several top-level navigations that each resolve into a download, and a browser drops the ones that arrive in the same tick as the previous — this is the gap that keeps them apart.
+export const GALLERY_DOWNLOAD_STAGGER = 0.4 * A_SECOND;
 
 // INFO: REQUIREMENTS.md § 14. iPhone ProRAW tops out around 50MB and a panorama around 15MB, so nothing from the camera roll is refused.
 export const MAX_IMAGE_SIZE = 50 * A_MEGABYTE;

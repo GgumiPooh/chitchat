@@ -9,6 +9,8 @@ const bodySchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   durationMs: z.number().int().nonnegative().nullish(),
+  // INFO: REQUIREMENTS.md § 10. An upload started in the Gallery tab that is not being posted to the conversation. It needs a marker of its own, because the grid's other source is the `message_media` join.
+  addToGallery: z.boolean().optional(),
 });
 
 /**

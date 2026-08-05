@@ -3,11 +3,11 @@
 import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage } from "@/entities/message";
+import { uploadDraft } from "@/features/upload-media/@x/send-message";
 import { MAX_MEDIA_PER_MESSAGE } from "@/shared/config";
 import type { Nullable } from "@/shared/lib";
 import { useCallback, useRef, useState } from "react";
 import { postMessage, type PostMessageParams } from "../api/post-message";
-import { uploadDraft } from "../api/upload-draft";
 
 /** An outgoing message the server has not echoed back yet (REQUIREMENTS.md § 8.5.). */
 export type PendingMessage = {
@@ -87,18 +87,20 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
           continue;
         }
 
-        const media = await uploadDraft(draft, (loadedBytes) => {
-          loaded[index] = loadedBytes;
+        const media = await uploadDraft(draft, {
+          onProgress: (loadedBytes) => {
+            loaded[index] = loadedBytes;
 
-          const progress = sum(loaded) / Math.max(totalBytes, 1);
-          const percent = Math.round(progress * 100);
+            const progress = sum(loaded) / Math.max(totalBytes, 1);
+            const percent = Math.round(progress * 100);
 
-          if (percent === lastPercent) {
-            return;
-          }
+            if (percent === lastPercent) {
+              return;
+            }
 
-          lastPercent = percent;
-          patch(message.clientMsgId, { progress });
+            lastPercent = percent;
+            patch(message.clientMsgId, { progress });
+          },
         });
 
         uploaded[index] = media.id;

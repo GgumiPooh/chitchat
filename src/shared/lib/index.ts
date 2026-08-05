@@ -25,6 +25,7 @@ export {
   countDays,
   formatDate,
   formatDateWithWeekday,
+  formatDuration,
   formatMonthDay,
   formatTime,
   formatYearMonth,

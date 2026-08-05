@@ -97,6 +97,17 @@ export function toDayKey(date: Date | number | string): string {
   return dayKeyFormatter.format(new Date(date));
 }
 
+/** `0:07`, `1:42`, `12:05` — the running time on a video tile. */
+export function formatDuration(durationMs: number): string {
+  // WARN: Minutes are derived from the rounded seconds, not from the raw milliseconds — rounding them independently renders a 59.6s clip as `0:00`.
+  const totalSeconds = Math.max(Math.round(durationMs / A_SECOND), 0);
+  const secondsPerMinute = A_MINUTE / A_SECOND;
+  const minutes = Math.floor(totalSeconds / secondsPerMinute);
+  const seconds = totalSeconds % secondsPerMinute;
+
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
 /**
  * Whole days from `from` to `to`, counted in `TIME_ZONE` calendar days. Same day
  * is `0`, so a D-day following the Korean convention that the start date is day 1

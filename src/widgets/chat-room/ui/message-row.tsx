@@ -3,9 +3,8 @@
 import type { Emoticon } from "@/entities/emoticon";
 import type { Participant } from "@/entities/user";
 import { cn, formatTime, type Nullable, type Optional } from "@/shared/lib";
-import { Avatar, IconButton } from "@/shared/ui";
+import { Avatar, IconButton, type MediaCell } from "@/shared/ui";
 import { RotateCcw, X } from "lucide-react";
-import type { MediaCell } from "../model/to-media-cells";
 import { useLongPress } from "../model/use-long-press";
 import { EmoticonBubble } from "./emoticon-bubble";
 import { MediaGrid } from "./media-grid";

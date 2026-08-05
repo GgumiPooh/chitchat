@@ -26,20 +26,27 @@ import {
   useUnsentWork,
   type Nullable,
 } from "@/shared/lib";
-import { ActionSheet, EmptyState, Skeleton, toast, type ActionSheetItem } from "@/shared/ui";
+import {
+  ActionSheet,
+  EmptyState,
+  MediaViewer,
+  Skeleton,
+  toast,
+  type ActionSheetItem,
+  type MediaCell,
+} from "@/shared/ui";
 import { Copy, MessageCircle, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { buildChatRows } from "../model/build-chat-rows";
 import { playEmoticonSound } from "../model/play-emoticon-sound";
-import { toCellsFromDrafts, toCellsFromMedia, type MediaCell } from "../model/to-media-cells";
+import { toCellsFromDrafts, toCellsFromMedia } from "../model/to-media-cells";
 import type { ChatRow } from "../model/types";
 import { useComposerClearance } from "../model/use-composer-clearance";
 import { useMessageHistory } from "../model/use-message-history";
 import { usePrependAnchor } from "../model/use-prepend-anchor";
 import { DateDivider } from "./date-divider";
-import { MediaViewer } from "./media-viewer";
 import { MessageRow } from "./message-row";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
 import { SystemNotice } from "./system-notice";
@@ -79,6 +86,8 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const [actionTarget, setActionTarget] = useState<Nullable<ChatMessage>>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
+  // INFO: The panel outlives its first open so the collapse has something to animate; until then it is not rendered at all, and a user who never opens it never fetches the packs.
+  const [hasOpenedEmoticonPanel, setHasOpenedEmoticonPanel] = useState(false);
   // INFO: REQUIREMENTS.md § 13.6. Staged rather than sent on selection, so it can be sent with a line of text the way an attachment can.
   const [stagedEmoticon, setStagedEmoticon] = useState<Nullable<Emoticon>>(null);
   const [editing, setEditing] = useState<Nullable<MediaDraft>>(null);
@@ -114,6 +123,10 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
 
   if (initialIndex === null && rows.length > 0) {
     setInitialIndex(rows.length - 1);
+  }
+
+  if (isEmoticonPanelOpen && !hasOpenedEmoticonPanel) {
+    setHasOpenedEmoticonPanel(true);
   }
 
   // WARN: Never a live `rows.length - 1` — Virtuoso re-runs its initial positioning whenever this changes, and on every prepend that empties the list (REQUIREMENTS.md § 8.3.).
@@ -247,17 +260,37 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           onEdit={setEditing}
           onRemove={selection.remove}
         />
+        {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
+        {/* WARN: § 13.6. wants the preview above the open panel, but the panel is half the shell — `bottom-full` alone puts it behind the floating header on a short viewport and off the top of the screen below ~604px, which is the panel not appearing to stage at all. The `min()` stops it at the header and lets it overlap the panel's top rows instead, which only happens where something has to give. */}
         {stagedEmoticon && (
-          <EmoticonPreview
-            className="mx-md mb-2xs"
-            emoticon={stagedEmoticon}
-            onRemove={() => setStagedEmoticon(null)}
-          />
+          <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--viewport-height,100dvh)_-_var(--bottom-inset)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))]">
+            <EmoticonPreview
+              className="mx-md mb-2xs"
+              emoticon={stagedEmoticon}
+              onRemove={() => setStagedEmoticon(null)}
+            />
+          </div>
         )}
-        {/* INFO: REQUIREMENTS.md § 13.6. Inside the composer's own absolute wrapper, so the picker sits above the bar and the messages still scroll underneath both. */}
-        {isEmoticonPanelOpen && (
-          <EmoticonPicker className="mx-md mb-2xs" onSelect={stageEmoticon} />
-        )}
+        {/* INFO: REQUIREMENTS.md § 13.6. Inside the composer's own absolute wrapper, so the panel sits above the bar and the messages still scroll underneath both. */}
+        {/* INFO: § 13.6. `justify-end` anchors the panel to the bottom of the strip, so it is revealed rising from behind the composer rather than unrolling downward from a top edge that is itself moving up. */}
+        {/* WARN: A real `height` and never a `0fr`→`1fr` grid track. Mid-transition Chrome sizes such a track's container taller than the track it resolved, and the strip below the bottom-anchored panel is a gap that opens and shuts — which is what read as the panel stretching apart from its middle. */}
+        <div
+          className={cn(
+            "flex flex-col justify-end overflow-hidden transition-[height] duration-200 ease-out",
+            isEmoticonPanelOpen
+              ? // WARN: The underscores are the spaces `calc()` requires around `+`. Written closed up the declaration is invalid, and the strip resolves to `0px` — the panel opens to nothing and no cell can be tapped.
+                "h-[calc(var(--emoticon-panel-height)_+_var(--spacing-xs)_+_var(--spacing-2xs))]"
+              : "h-0",
+          )}
+          // WARN: The panel stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until this takes them back out.
+          inert={!isEmoticonPanelOpen}
+        >
+          {hasOpenedEmoticonPanel && (
+            // INFO: § 13.6. `mt-xs` matches the composer's own top padding, so the panel clears the history by what the bar alone clears it by. The height above is this panel plus both margins.
+            // WARN: `shrink-0` or the collapsing strip compresses the panel instead of clipping it, and § 13.6.'s own `flex-1` scroller is what gives — the panel then reads as stretching open rather than rising.
+            <EmoticonPicker className="mx-md mt-xs mb-2xs shrink-0" onSelect={stageEmoticon} />
+          )}
+        </div>
         <MessageComposer
           hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
           isEmoticonPickerOpen={isEmoticonPanelOpen}

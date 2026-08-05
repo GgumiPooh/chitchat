@@ -1,10 +1,12 @@
 "use client";
 
 import { cn } from "@/shared/lib";
-import { IconButton, PreloadImage, ShellOverlay } from "@/shared/ui";
 import { Download, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { MediaCell } from "../model/to-media-cells";
+import { IconButton } from "./icon-button";
+import type { MediaCell } from "./media-cell";
+import { PreloadImage } from "./preload-image";
+import { ShellOverlay } from "./shell-overlay";
 
 export type MediaViewerProps = {
   className?: string;
@@ -68,12 +70,19 @@ export function MediaViewer({ className, cells, initialIndex, onClose }: MediaVi
           className="scrollbar-hidden flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
           onScroll={handleScroll}
         >
-          {cells.map((cell) => (
+          {cells.map((cell, slideIndex) => (
             <div
               key={cell.id}
               className="flex w-full shrink-0 snap-center items-center justify-center p-md"
             >
-              {cell.isVideo ? <VideoSlide cell={cell} /> : <ImageSlide cell={cell} />}
+              {/* WARN: REQUIREMENTS.md § 10. Only the neighbours load their asset. Every slide used to request its original on mount, which was bounded by `MAX_MEDIA_PER_MESSAGE` in a chat bubble but is the whole loaded gallery here — opening one photo after three pages of scrolling started 180 requests for objects of up to `MAX_IMAGE_SIZE`. */}
+              {Math.abs(slideIndex - index) > 1 ? (
+                <SlidePlaceholder cell={cell} />
+              ) : cell.isVideo ? (
+                <VideoSlide cell={cell} />
+              ) : (
+                <ImageSlide cell={cell} />
+              )}
             </div>
           ))}
         </div>
@@ -88,6 +97,20 @@ export function MediaViewer({ className, cells, initialIndex, onClose }: MediaVi
       setIndex(Math.round(track.scrollLeft / track.clientWidth));
     }
   }
+}
+
+/**
+ * INFO: The box a slide occupies before it is close enough to load, at the stored
+ * ratio — so scroll snapping resolves against the same geometry the real asset
+ * will take and the track does not resize as slides come and go.
+ */
+function SlidePlaceholder({ cell }: { cell: MediaCell }) {
+  return (
+    <div
+      className="max-h-full w-full rounded-md bg-canvas/10"
+      style={{ aspectRatio: `${cell.width} / ${cell.height}` }}
+    />
+  );
 }
 
 function ImageSlide({ cell }: { cell: MediaCell }) {

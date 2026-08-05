@@ -28,7 +28,13 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
   const box = toBox(emoticon);
 
   return (
-    <div className={cn("pointer-events-auto flex justify-start", className)}>
+    // INFO: Aligned to the send side, so the staged emoticon sits where its own bubble will land (DESIGN.md § 6.2.).
+    <div
+      className={cn(
+        "pointer-events-auto flex animate-in justify-end duration-200 fade-in slide-in-from-bottom-2",
+        className,
+      )}
+    >
       <div className="relative rounded-lg border border-hairline glass p-2xs shadow-floating">
         <button
           className="flex cursor-pointer items-center justify-center rounded-sm transition-transform focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:scale-[0.96]"
