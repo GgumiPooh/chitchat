@@ -69,19 +69,26 @@ export function MessageComposer({
           aria-pressed={isEmoticonPickerOpen}
           onClick={onToggleEmoticons}
         />
-        {canSend && (
-          <button
-            className="group inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            type="button"
-            aria-label="보내기"
-            onPointerDown={keepFieldFocused}
-            onClick={submit}
+        {/* WARN: Disabled rather than unmounted when there is nothing to send — WebKit leaves a control inserted into this row unpainted until a hover forces the invalidation, and staging an emoticon touches nothing else inside the pill that would have forced one. */}
+        <button
+          className="group inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed"
+          type="button"
+          disabled={!canSend}
+          aria-label="보내기"
+          onPointerDown={keepFieldFocused}
+          onClick={submit}
+        >
+          <span
+            className={cn(
+              "inline-flex size-9 items-center justify-center rounded-full text-on-primary transition-colors",
+              canSend
+                ? "bg-primary group-hover:bg-primary-hover group-active:bg-primary-pressed"
+                : "bg-primary-disabled",
+            )}
           >
-            <span className="inline-flex size-9 items-center justify-center rounded-full bg-primary text-on-primary transition-colors group-hover:bg-primary-hover group-active:bg-primary-pressed">
-              <ArrowUp className="size-5" strokeWidth={2} />
-            </span>
-          </button>
-        )}
+            <ArrowUp className="size-5" strokeWidth={2} />
+          </span>
+        </button>
       </div>
     </div>
   );
