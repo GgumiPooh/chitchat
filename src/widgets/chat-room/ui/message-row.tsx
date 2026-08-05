@@ -2,12 +2,14 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import type { Participant } from "@/entities/user";
-import { cn, formatTime, type Nullable, type Optional } from "@/shared/lib";
+import { cn, findFirstUrl, formatTime, type Nullable, type Optional } from "@/shared/lib";
 import { Avatar, IconButton, type MediaCell } from "@/shared/ui";
 import { RotateCcw, X } from "lucide-react";
 import { useLongPress } from "../model/use-long-press";
 import { EmoticonBubble } from "./emoticon-bubble";
+import { LinkPreviewCard } from "./link-preview-card";
 import { MediaGrid } from "./media-grid";
+import { MessageText } from "./message-text";
 
 export type MessageRowProps = {
   className?: string;
@@ -53,6 +55,8 @@ export function MessageRow({
 }: MessageRowProps) {
   const longPressHandlers = useLongPress(onLongPress);
   const hasMedia = media.length > 0;
+  // INFO: REQUIREMENTS.md § 8.9. One card per bubble — the first link, not every link, because a message pasted from a share sheet routinely carries several.
+  const previewUrl = findFirstUrl(text);
 
   return (
     <div
@@ -108,7 +112,9 @@ export function MessageRow({
               )}
               {...longPressHandlers}
             >
-              {text}
+              {/* INFO: DESIGN.md § 6.9. The card sits above the text, inset from the bubble's own padding, so the bubble stays the one shape the message is drawn in. */}
+              {previewUrl && <LinkPreviewCard className="mb-2xs" url={previewUrl} />}
+              {text && <MessageText text={text} />}
             </div>
           )}
           {status === "failed" ? (
