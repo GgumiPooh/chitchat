@@ -54,14 +54,16 @@ export function BottomOverlay({ className, contentClassName, children }: BottomO
     <div
       ref={overlayRef}
       className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-0 z-30 transition-[height] duration-200 ease-out",
+        "pointer-events-none absolute inset-x-0 bottom-0 z-30 transition-[height] ease-out",
+        // WARN: DESIGN.md § 7.3. The bars only come back once the shell has finished easing to its resting height. Rising on the same frame the keyboard starts leaving draws them at the shell's bottom edge while that edge is still halfway up the screen, which reads as the tab bar appearing in mid-air.
+        isKeyboardOpen ? "duration-200" : "delay-200 duration-150",
         className,
       )}
-      id={BOTTOM_OVERLAY_ID}
       // WARN: `undefined` until the first measurement lands, which leaves the height `auto`. A `0` placeholder would hide the bars until an effect has run, and the first transition would then play on load.
       style={{ height: isKeyboardOpen ? 0 : (contentHeight ?? undefined) }}
       // WARN: The bars stay mounted through the collapse so they have something to animate, which leaves their tab stops in the document until this takes them back out.
       inert={isKeyboardOpen}
+      id={BOTTOM_OVERLAY_ID}
     >
       {/* WARN: Deliberately not clipped — the bars slide down past the shell's bottom edge, which is where the keyboard already is. Clipping would buy nothing and cut the pill's `shadow-floating` off at the collapsing edge. */}
       <div ref={contentRef} className={contentClassName}>
