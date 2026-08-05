@@ -645,7 +645,7 @@ The D-day band is the only place `display-lg` appears in the app. It is the scre
 
 ## 7.10. Gallery.
 
-3-column grid, `2xs` (4px) gutters, square `object-cover` cells, `rounded-sm`. Month section header is `title-sm` `meta`, sticky under the app header with a `canvas` backdrop — its offset is `--app-header-inset`, not zero, because the header floats over the content (§ 7.12.). Viewer is full-bleed on `scrim` at 90% opacity with no chrome except a close `icon-button`, the position counter, and the save control.
+3-column grid, `2xs` (4px) gutters, square `object-cover` cells, `rounded-sm`. Month section header is `title-sm` `meta`, sticky under the app header with a `canvas` backdrop — its offset is `--app-header-inset`, not zero, because the header floats over the content (§ 7.12.). Viewer is full-bleed on `scrim` at 90% opacity with no chrome except a close `icon-button`, the position counter, and the save control; slides carry vertical padding only, since a side gutter reads as a frame around a photo the viewer exists to show whole.
 
 | Element         | Rule                                                                                                                                                                              |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
