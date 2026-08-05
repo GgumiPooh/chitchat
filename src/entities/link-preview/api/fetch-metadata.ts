@@ -6,14 +6,25 @@ import {
   MAX_LINK_PREVIEW_BYTES,
   MAX_LINK_PREVIEW_REDIRECTS,
 } from "@/shared/config";
-import { isHttpUrl, type Nullable } from "@/shared/lib";
+import { isHttpUrl, safelyGetAsync, type Nullable } from "@/shared/lib";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { findMetaCharset, parseMetadata, type PageMetadata } from "../model/parse-metadata";
 import { isPublicAddress } from "../model/public-address";
-import { fetchYouTubeMetadata, isYouTubeUrl } from "./fetch-youtube-metadata";
+import {
+  fetchYouTubeMetadata,
+  findYouTubeVideoId,
+  withYouTubeFallbacks,
+} from "./fetch-youtube-metadata";
 
 const HTML_CONTENT_TYPES = ["text/html", "application/xhtml+xml"];
+
+const HEAD_END = /<\/head>/i;
+
+// INFO: One character short of `</head>`, which is the most of it that can be left in the previous chunk.
+const HEAD_END_OVERLAP = 6;
+
+const LATIN1 = new TextDecoder("latin1");
 
 /**
  * REQUIREMENTS.md § 8.9. Resolves one URL into the card's fields, or `null` when
@@ -22,9 +33,15 @@ const HTML_CONTENT_TYPES = ["text/html", "application/xhtml+xml"];
  * function as much as the parsing is.
  */
 export async function fetchMetadata(url: string): Promise<Nullable<PageMetadata>> {
-  // INFO: YouTube's watch page ships its metadata behind JS for most agents; oEmbed answers the same title and thumbnail as JSON to anyone.
-  if (isYouTubeUrl(url)) {
-    return fetchYouTubeMetadata(url);
+  const videoId = findYouTubeVideoId(url);
+
+  if (videoId) {
+    // WARN: Swallowed rather than propagated — oEmbed refuses a video whose uploader disabled embedding (401), and that video's watch page still has the tags. Letting it throw would cache the link as a failure.
+    const embedded = await safelyGetAsync(() => fetchYouTubeMetadata(url));
+
+    if (embedded) {
+      return embedded;
+    }
   }
 
   const response = await followToPage(url);
@@ -34,8 +51,9 @@ export async function fetchMetadata(url: string): Promise<Nullable<PageMetadata>
   }
 
   const html = await readBody(response.body);
+  const metadata = html ? parseMetadata(html, response.url) : null;
 
-  return html ? parseMetadata(html, response.url) : null;
+  return videoId ? withYouTubeFallbacks(metadata, videoId) : metadata;
 }
 
 /**
@@ -84,9 +102,12 @@ async function followToPage(url: string): Promise<Nullable<{ body: Response; url
 }
 
 /**
- * WARN: Read in chunks and stopped at the cap rather than `response.text()` — the
- * `Content-Length` of a hostile response is a claim, and a stream that never ends
- * would otherwise be buffered until the process runs out of memory.
+ * Reads as much of the document as the metadata can be in: everything up to
+ * `</head>`, and never more than `MAX_LINK_PREVIEW_BYTES`.
+ *
+ * WARN: Chunked rather than `response.text()` — the `Content-Length` of a hostile
+ * response is a claim, and a stream that never ends would otherwise be buffered
+ * until the process runs out of memory.
  */
 async function readBody(response: Response): Promise<Nullable<string>> {
   const reader = response.body?.getReader();
@@ -97,6 +118,8 @@ async function readBody(response: Response): Promise<Nullable<string>> {
 
   const chunks: Uint8Array[] = [];
   let size = 0;
+  // INFO: The tags are ASCII wherever they sit in the document, so the closing tag is searched for as bytes and the charset question (below) is left until the whole head is in hand.
+  let scanned = "";
 
   try {
     while (size < MAX_LINK_PREVIEW_BYTES) {
@@ -108,6 +131,14 @@ async function readBody(response: Response): Promise<Nullable<string>> {
 
       chunks.push(value);
       size += value.length;
+      scanned += LATIN1.decode(value);
+
+      if (HEAD_END.test(scanned)) {
+        break;
+      }
+
+      // WARN: Only the tail is carried forward, or this holds a second copy of the whole document — but it has to be *some* of it, since `</head>` can straddle two chunks.
+      scanned = scanned.slice(-HEAD_END_OVERLAP);
     }
   } finally {
     await reader.cancel();

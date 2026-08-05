@@ -1,4 +1,4 @@
-import { AN_HOUR, A_DAY, A_KILOBYTE, A_SECOND } from "@/shared/lib";
+import { AN_HOUR, A_DAY, A_MEGABYTE, A_SECOND } from "@/shared/lib";
 
 /** REQUIREMENTS.md § 8.9. Resolves one URL into the card a text bubble renders above its text. */
 export const LINK_PREVIEW_PATH = "/api/link-preview";
@@ -15,8 +15,8 @@ export const LINK_PREVIEW_FAILURE_TTL = AN_HOUR;
 // INFO: The whole card is one small request; a page that has not answered by now is one the user has already scrolled past.
 export const LINK_PREVIEW_TIMEOUT = 5 * A_SECOND;
 
-// WARN: The metadata lives in `<head>`, so the body is read only until this — a video file or a multi-megabyte page would otherwise be buffered whole to find tags that were never coming.
-export const MAX_LINK_PREVIEW_BYTES = 512 * A_KILOBYTE;
+// WARN: The read stops at `</head>` and this is only the ceiling for a page that never closes one. It is this high because YouTube's watch page puts its Open Graph tags around 670KB in — at 512KB the tags were there and the reader had already stopped.
+export const MAX_LINK_PREVIEW_BYTES = A_MEGABYTE;
 
 // INFO: A redirect chain longer than this is a tracker loop, not a canonicalisation.
 export const MAX_LINK_PREVIEW_REDIRECTS = 3;
