@@ -14,7 +14,7 @@ export type ReplyQuoteProps = {
   /** Resolved from the participant set by the caller — never carried on the wire (REQUIREMENTS.md § 8.7.). */
   name: Optional<string>;
   /**
-   * DESIGN.md § 6.9. `rule` sits on a surface that already exists — inside a bubble,
+   * DESIGN.md § 6.10. `rule` sits on a surface that already exists — inside a bubble,
    * inside the composer pill — and marks itself with a hairline alone. `card` is for
    * a message that has no bubble to sit in.
    */
@@ -24,7 +24,7 @@ export type ReplyQuoteProps = {
 };
 
 /**
- * DESIGN.md § 6.9. The message a reply points at: who wrote it, over one line of
+ * DESIGN.md § 6.10. The message a reply points at: who wrote it, over one line of
  * what it said. Tapping it jumps to the original (REQUIREMENTS.md § 8.6.1.).
  *
  * WARN: The thumbnail's box is fixed rather than derived from the image. It is the
@@ -42,7 +42,7 @@ export function ReplyQuote({
 }: ReplyQuoteProps) {
   const shape = cn(
     "flex w-full min-w-0 items-center gap-xs text-left transition-colors outline-none",
-    // INFO: DESIGN.md § 6.9. A hairline and an indent, with no fill of its own — the bubble it sits in is already a surface, and a second filled box inside one reads as a component rather than as a quotation.
+    // INFO: DESIGN.md § 6.10. A hairline and an indent, with no fill of its own — the bubble it sits in is already a surface, and a second filled box inside one reads as a component rather than as a quotation.
     variant === "rule"
       ? "border-l-2 border-hairline-strong py-px pl-xs"
       : "rounded-md border border-hairline bg-bubble-theirs px-xs py-2xs",

@@ -16,7 +16,7 @@ export type PendingMessage = {
   media: MediaDraft[];
   // INFO: REQUIREMENTS.md § 13.6. Carried on the pending row so the optimistic bubble renders the art immediately — the asset is already in the browser's cache from the picker.
   emoticon: Nullable<Emoticon>;
-  // INFO: REQUIREMENTS.md § 8.9. Carried on the pending row so the optimistic bubble quotes immediately — the client staged the preview, so nothing has to be fetched to draw it.
+  // INFO: REQUIREMENTS.md § 8.10. Carried on the pending row so the optimistic bubble quotes immediately — the client staged the preview, so nothing has to be fetched to draw it.
   replyTo: Nullable<ReplyPreview>;
   // WARN: Indexed alongside `media`. A retry re-uploads only the slots still null, so a failure on the last of nine photos does not re-send the eight that landed.
   uploadedIds: Nullable<string>[];
@@ -175,7 +175,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
    */
   const sendMedia = useCallback(
     (drafts: MediaDraft[], replyTo: Nullable<ReplyPreview> = null) => {
-      // WARN: REQUIREMENTS.md § 8.9. The quote goes on the first bubble alone. A pick of twenty photos is three bubbles, and repeating the quote on each would draw the same sentence three times in a row.
+      // WARN: REQUIREMENTS.md § 8.10. The quote goes on the first bubble alone. A pick of twenty photos is three bubbles, and repeating the quote on each would draw the same sentence three times in a row.
       const bubbles = chunk(drafts, MAX_MEDIA_PER_MESSAGE).map((media, index) => ({
         ...createPending(null, media),
         replyTo: index === 0 ? replyTo : null,

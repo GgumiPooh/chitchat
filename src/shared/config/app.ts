@@ -47,7 +47,7 @@ export const MAX_MESSAGE_PAGE_SIZE = 50;
 
 export const MAX_MESSAGE_LENGTH = 2_000;
 
-// INFO: REQUIREMENTS.md § 8.9. The quote is clamped to one line, so the wire carries a slice rather than a 2000-character parent every reply would otherwise drag along.
+// INFO: REQUIREMENTS.md § 8.10. The quote is clamped to one line, so the wire carries a slice rather than a 2000-character parent every reply would otherwise drag along.
 export const REPLY_PREVIEW_MAX_LENGTH = 120;
 
 /** DESIGN.md § 6.8. How long a jumped-to bubble holds its highlight before it fades. */

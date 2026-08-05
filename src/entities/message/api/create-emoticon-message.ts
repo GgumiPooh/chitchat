@@ -12,7 +12,7 @@ export type CreateEmoticonMessageParams = {
   senderId: string;
   clientMsgId: string;
   emoticonItemId: string;
-  /** REQUIREMENTS.md § 8.9. The quoted message; a precondition here, cleared by the route. */
+  /** REQUIREMENTS.md § 8.10. The quoted message; a precondition here, cleared by the route. */
   replyToId?: number;
 };
 

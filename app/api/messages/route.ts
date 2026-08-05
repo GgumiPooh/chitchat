@@ -34,7 +34,7 @@ const querySchema = z.object({
   limit: z.coerce.number().int().positive().optional(),
 });
 
-// INFO: REQUIREMENTS.md § 8.9. Orthogonal to the payload, so it rides on every branch of the union below rather than forming one of its own.
+// INFO: REQUIREMENTS.md § 8.10. Orthogonal to the payload, so it rides on every branch of the union below rather than forming one of its own.
 const replySchema = z.object({ replyToId: z.coerce.number().int().positive().optional() });
 
 // INFO: REQUIREMENTS.md § 6. A row is text or attachments, never both — the CHECK constraint says the same thing at the database.
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  // INFO: REQUIREMENTS.md § 8.9. `reply_to_id` is a foreign key and a CHECK refuses a system parent, so either would surface as a 500 without this. A soft-deleted parent is refused here rather than at the database — the row is still there, so nothing but this stops a stale client quoting it.
+  // INFO: REQUIREMENTS.md § 8.10. `reply_to_id` is a foreign key and a CHECK refuses a system parent, so either would surface as a 500 without this. A soft-deleted parent is refused here rather than at the database — the row is still there, so nothing but this stops a stale client quoting it.
   if (!(await canReplyTo(payload.replyToId))) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }

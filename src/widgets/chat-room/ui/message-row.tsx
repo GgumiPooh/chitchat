@@ -3,12 +3,14 @@
 import type { Emoticon } from "@/entities/emoticon";
 import type { ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import { cn, formatTime, type Nullable, type Optional } from "@/shared/lib";
+import { cn, findFirstUrl, formatTime, type Nullable, type Optional } from "@/shared/lib";
 import { Avatar, IconButton, type MediaCell } from "@/shared/ui";
 import { CornerUpLeft, RotateCcw, X } from "lucide-react";
 import { useLongPress } from "../model/use-long-press";
 import { EmoticonBubble } from "./emoticon-bubble";
+import { LinkPreviewCard } from "./link-preview-card";
 import { MediaGrid } from "./media-grid";
+import { MessageText } from "./message-text";
 import { ReplyQuote } from "./reply-quote";
 
 export type MessageRowProps = {
@@ -17,7 +19,7 @@ export type MessageRowProps = {
   text: Nullable<string>;
   media?: MediaCell[];
   emoticon?: Nullable<Emoticon>;
-  /** REQUIREMENTS.md § 8.9. The message this one quotes, already resolved by the room. */
+  /** REQUIREMENTS.md § 8.10. The message this one quotes, already resolved by the room. */
   replyTo?: Nullable<ReplyPreview>;
   /** The quoted message's sender name, resolved from the participant set (§ 8.7.). */
   replyToName?: Optional<string>;
@@ -35,7 +37,7 @@ export type MessageRowProps = {
   status: "sent" | "sending" | "failed";
   onLongPress?: () => void;
   onOpenMedia?: (index: number) => void;
-  /** REQUIREMENTS.md § 8.9. The pointer affordance; touch reaches the same action through `onLongPress`. */
+  /** REQUIREMENTS.md § 8.10. The pointer affordance; touch reaches the same action through `onLongPress`. */
   onReply?: () => void;
   onOpenReply?: () => void;
   onRetry?: () => void;
@@ -69,6 +71,8 @@ export function MessageRow({
 }: MessageRowProps) {
   const longPressHandlers = useLongPress(onLongPress);
   const hasMedia = media.length > 0;
+  // INFO: REQUIREMENTS.md § 8.9. One card per bubble — the first link, not every link, because a message pasted from a share sheet routinely carries several.
+  const previewUrl = findFirstUrl(text);
 
   return (
     // INFO: DESIGN.md § 6.8. The flash is on the row rather than on the bubble's own fill, so a media or emoticon message — which has no fill — highlights the same way a text one does.
@@ -98,7 +102,7 @@ export function MessageRow({
         {!isMine && isFirstOfGroup && (
           <span className="px-2xs text-chat-name text-chat-meta">{sender?.name}</span>
         )}
-        {/* INFO: DESIGN.md § 6.9. A bubble-less message quotes in a card of its own; a text one quotes inside its bubble, where the fill already frames it. */}
+        {/* INFO: DESIGN.md § 6.10. A bubble-less message quotes in a card of its own; a text one quotes inside its bubble, where the fill already frames it. */}
         {replyTo && (emoticon || hasMedia) && (
           // WARN: Capped at DESIGN.md § 6.5.'s 220px attachment width. Left to the column's 72%, a long quote would stretch the card well past the photo it sits on top of.
           <ReplyQuote
@@ -141,6 +145,7 @@ export function MessageRow({
               )}
               {...longPressHandlers}
             >
+              {/* INFO: DESIGN.md § 6.10. Above the link card, because the quote is what the message is answering and the card is part of what it says. */}
               {replyTo && (
                 <ReplyQuote
                   className="mb-2xs"
@@ -149,7 +154,9 @@ export function MessageRow({
                   onOpen={onOpenReply}
                 />
               )}
-              {text}
+              {/* INFO: DESIGN.md § 6.9. The card sits above the text, inset from the bubble's own padding, so the bubble stays the one shape the message is drawn in. */}
+              {previewUrl && <LinkPreviewCard className="mb-2xs" url={previewUrl} />}
+              {text && <MessageText text={text} />}
             </div>
           )}
           {status === "failed" ? (
@@ -185,7 +192,7 @@ export function MessageRow({
   );
 
   /**
-   * AGENTS.md § 4.2. The pointer half of REQUIREMENTS.md § 8.9. — touch reaches the
+   * AGENTS.md § 4.2. The pointer half of REQUIREMENTS.md § 8.10. — touch reaches the
    * same action by holding the bubble, which is what opens the action sheet.
    *
    * WARN: Positioned out of flow on the outer side rather than added to the row.

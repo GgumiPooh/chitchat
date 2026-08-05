@@ -1,7 +1,7 @@
 import type { ReplyPreview } from "@/entities/message";
 
 /**
- * The one line a quote shows for the message it points at (DESIGN.md § 6.9.).
+ * The one line a quote shows for the message it points at (DESIGN.md § 6.10.).
  *
  * INFO: A bubble-less kind is named rather than drawn — the quote is one line tall,
  * so an emoticon or a nine-photo grid has nowhere to render itself.

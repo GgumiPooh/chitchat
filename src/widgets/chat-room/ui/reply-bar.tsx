@@ -14,7 +14,7 @@ export type ReplyBarProps = {
 };
 
 /**
- * DESIGN.md § 6.9. The staged quote, above the composer.
+ * DESIGN.md § 6.10. The staged quote, above the composer.
  *
  * WARN: In the composer's flow, unlike the staged emoticon of § 13.6. That one is a
  * single object standing where its own bubble will land and floats over the history;
@@ -23,7 +23,7 @@ export type ReplyBarProps = {
  */
 export function ReplyBar({ className, replyTo, name, onCancel }: ReplyBarProps) {
   return (
-    // INFO: DESIGN.md § 6.9. The composer pill's own surface at a calmer radius — the quote is a header for the bar below it, not a second floating card stacked on one.
+    // INFO: DESIGN.md § 6.10. The composer pill's own surface at a calmer radius — the quote is a header for the bar below it, not a second floating card stacked on one.
     <div
       className={cn(
         "pointer-events-auto flex items-center gap-2xs rounded-lg border border-hairline glass py-2xs pr-2xs pl-sm shadow-raised",

@@ -1,6 +1,6 @@
 {
-  "id": "e606fb1a-f5a6-4028-a2c7-346ff3173762",
-  "prevId": "740353c9-a0b6-4a20-bafe-e9f74d3885bf",
+  "id": "409fe274-7759-4e71-b8e7-5f4700870259",
+  "prevId": "e606fb1a-f5a6-4028-a2c7-346ff3173762",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -676,6 +676,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "reply_to_id": {
+          "name": "reply_to_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
         "client_msg_id": {
           "name": "client_msg_id",
           "type": "uuid",
@@ -736,6 +742,19 @@
           ],
           "onDelete": "set null",
           "onUpdate": "no action"
+        },
+        "messages_reply_to_id_messages_id_fk": {
+          "name": "messages_reply_to_id_messages_id_fk",
+          "tableFrom": "messages",
+          "tableTo": "messages",
+          "columnsFrom": [
+            "reply_to_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -753,6 +772,10 @@
         "messages_type_payload_check": {
           "name": "messages_type_payload_check",
           "value": "CASE \"type\"\n        WHEN 'text' THEN \"text\" IS NOT NULL AND \"emoticon_item_id\" IS NULL AND \"event_id\" IS NULL AND \"system_action\" IS NULL AND \"event_title\" IS NULL AND \"event_starts_at\" IS NULL\n        WHEN 'media' THEN \"text\" IS NULL AND \"emoticon_item_id\" IS NULL AND \"event_id\" IS NULL AND \"system_action\" IS NULL AND \"event_title\" IS NULL AND \"event_starts_at\" IS NULL\n        WHEN 'emoticon' THEN \"text\" IS NULL AND \"emoticon_item_id\" IS NOT NULL AND \"event_id\" IS NULL AND \"system_action\" IS NULL AND \"event_title\" IS NULL AND \"event_starts_at\" IS NULL\n        WHEN 'system' THEN \"text\" IS NULL AND \"emoticon_item_id\" IS NULL AND \"system_action\" IS NOT NULL AND \"event_title\" IS NOT NULL AND \"event_starts_at\" IS NOT NULL\n      END"
+        },
+        "messages_system_no_reply_check": {
+          "name": "messages_system_no_reply_check",
+          "value": "\"type\" <> 'system' OR \"reply_to_id\" IS NULL"
         }
       },
       "isRLSEnabled": false

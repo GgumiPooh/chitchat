@@ -19,7 +19,7 @@ export type CreateMediaMessageParams = {
    * clears it with `ownsAllMedia` and answers 400.
    */
   mediaIds: string[];
-  /** REQUIREMENTS.md § 8.9. The quoted message; a precondition here for the same reason `mediaIds` is. */
+  /** REQUIREMENTS.md § 8.10. The quoted message; a precondition here for the same reason `mediaIds` is. */
   replyToId?: number;
 };
 

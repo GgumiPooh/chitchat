@@ -4,13 +4,13 @@ import type { MessageType, SystemAction } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
 
 /**
- * The message a reply quotes, as the quote renders it (REQUIREMENTS.md § 8.9.).
+ * The message a reply quotes, as the quote renders it (REQUIREMENTS.md § 8.10.).
  *
  * INFO: Resolved from the parent row at read time rather than snapshotted onto the
  * reply, exactly as § 8.7. resolves the sender — so a nickname change or an
  * emoticon edit reaches every quote of it.
  *
- * WARN: Carries no `replyTo` of its own. A quote shows one level (DESIGN.md § 6.9.),
+ * WARN: Carries no `replyTo` of its own. A quote shows one level (DESIGN.md § 6.10.),
  * and nesting `ChatMessage` here would grow a long reply chain's payload with it.
  */
 export type ReplyPreview = {
@@ -45,7 +45,7 @@ export type ChatMessage = {
   systemAction: Nullable<SystemAction>;
   eventTitle: Nullable<string>;
   eventStartsAt: Nullable<string>;
-  // INFO: REQUIREMENTS.md § 8.9. Orthogonal to `type` — a reply may be text, attachments or an emoticon, so this rides beside the payload rather than inside it.
+  // INFO: REQUIREMENTS.md § 8.10. Orthogonal to `type` — a reply may be text, attachments or an emoticon, so this rides beside the payload rather than inside it.
   replyTo: Nullable<ReplyPreview>;
   createdAt: string;
   id: number;

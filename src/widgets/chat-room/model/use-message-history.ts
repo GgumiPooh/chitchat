@@ -98,8 +98,8 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
   );
 
   /**
-   * WARN: REQUIREMENTS.md § 8.9. Also retires the quotes pointing at it. The quote is
-   * resolved from the parent row (§ 8.9.), so every other client's next fetch already
+   * WARN: REQUIREMENTS.md § 8.10. Also retires the quotes pointing at it. The quote is
+   * resolved from the parent row (§ 8.10.), so every other client's next fetch already
    * reads 삭제된 메시지예요 — only the deleter's own loaded window would go on showing
    * the text it just removed, until a reload.
    */
@@ -113,7 +113,7 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
 
   /**
    * REQUIREMENTS.md § 8.6.1. Replaces the window with context on both sides of one
-   * message — the jump a quote (§ 8.9.) or a search result asks for. Answers whether
+   * message — the jump a quote (§ 8.10.) or a search result asks for. Answers whether
    * the target was actually reachable.
    */
   const loadAround = useCallback(

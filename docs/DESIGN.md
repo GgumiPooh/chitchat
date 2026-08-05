@@ -504,13 +504,32 @@ The count variant recolours to `primary` rather than adding a separate badge ele
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Result row      | `canvas` fill on `surface-soft` list, sender name (`title-sm`), matched line (`body-sm`, 2-line clamp), date (`caption`, `meta`) |
 | Match highlight | `search-hit` background, `ink` text, `rounded-xs`, computed client-side by string split                                          |
-| Jump target     | On arrival the **row** flashes `primary-tint` for 1.5s, then fades over 300ms — see § 6.9.                                       |
+| Jump target     | On arrival the **row** flashes `primary-tint` for 1.5s, then fades over 300ms — see § 6.10.                                      |
 | Return control  | The § 6.7. scroll-to-bottom pill — same component, no search-specific variant                                                    |
 | Empty state     | § 7.6.                                                                                                                           |
 
-## 6.9. Reply Quote.
+## 6.9. Link Preview Card.
 
-The message a reply points at, in one line (`REQUIREMENTS.md § 8.9.`).
+A text message carrying a link renders a card above its text, **inside** the bubble (`REQUIREMENTS.md § 8.9.`). Inside, because the card is part of what was said — a separate floating card beside the bubble would read as a second message, and it would have to re-derive the bubble's alignment and max width to sit under it.
+
+| Property   | Value                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| Geometry   | Full bubble width inside its padding, `rounded-md`, 1px `hairline`, `canvas` fill, `2xs` above the text             |
+| Thumbnail  | 16:9, `object-cover`, `surface-strong` while it loads. Omitted entirely when the page published no image            |
+| Video mark | A 40px `scrim/60` disc with an `on-primary` play glyph, centered on the thumbnail. `og:type: video` only            |
+| Title      | `title-sm` in `ink`, 2-line clamp                                                                                   |
+| Body       | `body-sm` in `body`, 2-line clamp. Omitted when the page published no description                                   |
+| Site line  | `caption` in `meta`, 1-line clamp — the site name, or the channel for a video                                       |
+| `:hover`   | `bg-surface-soft`; `:active` `bg-surface-pressed`                                                                   |
+| Absent     | Nothing is rendered while the scrape is in flight, and nothing at all for a page that describes itself with nothing |
+
+The card keeps `canvas` on both sides of the conversation rather than tinting with the bubble: it is quoted material, and the one thing in a `bubble-mine` bubble that did not come from the sender.
+
+Links in the text itself are underlined (`underline-offset-2`) and take `primary` on `:hover`, `primary-pressed` on `:active`. The URL stays in the bubble as the sender typed it — the card is an addition to the message, never a rewrite of it.
+
+## 6.10. Reply Quote.
+
+The message a reply points at, in one line (`REQUIREMENTS.md § 8.10.`).
 
 | Property     | Value                                                                                                                                             |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -80,7 +80,7 @@ async function listAround(target: number, limit: number): Promise<ChatMessage[]>
 }
 
 /**
- * INFO: REQUIREMENTS.md § 9., § 13.6., § 8.9. A few extra queries for the whole page
+ * INFO: REQUIREMENTS.md § 9., § 13.6., § 8.10. A few extra queries for the whole page
  * at most, and each only when the page actually holds that kind of row — a text-only
  * conversation with no replies in it pays nothing.
  */

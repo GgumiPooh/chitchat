@@ -12,7 +12,7 @@ export type CreateTextMessageParams = {
   clientMsgId: string;
   text: string;
   /**
-   * REQUIREMENTS.md § 8.9. The message this one quotes.
+   * REQUIREMENTS.md § 8.10. The message this one quotes.
    *
    * WARN: A precondition, not something checked here — `reply_to_id` carries a
    * foreign key, so an id with no row aborts the insert. The route clears it and

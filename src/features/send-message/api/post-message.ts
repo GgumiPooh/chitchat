@@ -1,6 +1,6 @@
 import type { ChatMessage } from "@/entities/message";
 
-// INFO: REQUIREMENTS.md § 8.9. The quoted id is not a payload of its own — it rides on whichever of the three a reply happens to be.
+// INFO: REQUIREMENTS.md § 8.10. The quoted id is not a payload of its own — it rides on whichever of the three a reply happens to be.
 type ReplyParams = { replyToId?: number };
 
 // INFO: REQUIREMENTS.md § 6. Text, attachments, or one emoticon — never a combination. The route's schema and the table's CHECK constraint say the same thing.

@@ -48,7 +48,7 @@ export const messages = pgTable(
     // INFO: REQUIREMENTS.md § 11.5. A snapshot, because a delete notice outlives its event row; the *user* name is still resolved at render time.
     eventTitle: text("event_title"),
     eventStartsAt: timestamp("event_starts_at", { withTimezone: true }),
-    // INFO: REQUIREMENTS.md § 8.9. The quoted message is joined at read time, never snapshotted — a rename or an emoticon edit reaches the quote for the same reason § 8.7. reaches the bubble.
+    // INFO: REQUIREMENTS.md § 8.10. The quoted message is joined at read time, never snapshotted — a rename or an emoticon edit reaches the quote for the same reason § 8.7. reaches the bubble.
     // WARN: `set null` rather than cascade. Rows are only ever soft-deleted, so this fires for nothing the app does; a cascade would make a hard delete take every reply with it.
     replyToId: bigint("reply_to_id", { mode: "number" }).references(
       (): AnyPgColumn => messages.id,
@@ -70,7 +70,7 @@ export const messages = pgTable(
         WHEN 'system' THEN "text" IS NULL AND "emoticon_item_id" IS NULL AND "system_action" IS NOT NULL AND "event_title" IS NOT NULL AND "event_starts_at" IS NOT NULL
       END`,
     ),
-    // INFO: REQUIREMENTS.md § 8.9. A system notice is timeline furniture rather than someone speaking (DESIGN.md § 6.5.), so nothing may quote from it. Its own column is left out of the CASE above deliberately — `reply_to_id` is legal on all three of the other types, so folding it in would have meant restating each branch.
+    // INFO: REQUIREMENTS.md § 8.10. A system notice is timeline furniture rather than someone speaking (DESIGN.md § 6.5.), so nothing may quote from it. Its own column is left out of the CASE above deliberately — `reply_to_id` is legal on all three of the other types, so folding it in would have meant restating each branch.
     check("messages_system_no_reply_check", sql`"type" <> 'system' OR "reply_to_id" IS NULL`),
   ],
 );

@@ -14,6 +14,14 @@ export {
   type EventRecurrence,
   type EventScope,
 } from "./events";
+export {
+  linkPreviewKindEnum,
+  linkPreviewStatusEnum,
+  linkPreviews,
+  type LinkPreviewKind,
+  type LinkPreviewRow,
+  type LinkPreviewStatus,
+} from "./link-previews";
 export { media, type Media } from "./media";
 export {
   messageMedia,

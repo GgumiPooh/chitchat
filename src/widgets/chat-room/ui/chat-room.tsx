@@ -97,7 +97,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const [hasOpenedEmoticonPanel, setHasOpenedEmoticonPanel] = useState(false);
   // INFO: REQUIREMENTS.md § 13.6. Staged rather than sent on selection, so it can be sent with a line of text the way an attachment can.
   const [stagedEmoticon, setStagedEmoticon] = useState<Nullable<Emoticon>>(null);
-  // INFO: REQUIREMENTS.md § 8.9. Not mutually exclusive with the two above — a quote is an attribute of the send, not a payload competing for the § 6. row.
+  // INFO: REQUIREMENTS.md § 8.10. Not mutually exclusive with the two above — a quote is an attribute of the send, not a payload competing for the § 6. row.
   const [replyTarget, setReplyTarget] = useState<Nullable<ReplyPreview>>(null);
   // INFO: DESIGN.md § 6.8. The bubble a jump landed on, until its flash expires.
   const [highlightedId, setHighlightedId] = useState<Nullable<number>>(null);
@@ -301,7 +301,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
         ref={composerRef}
         className="pointer-events-none absolute inset-x-0 bottom-(--bottom-inset)"
       >
-        {/* INFO: REQUIREMENTS.md § 8.9. Above the tray and the pill, and in the flow — the quote belongs to the send the whole stack is composing, so it reads as the header of it. */}
+        {/* INFO: REQUIREMENTS.md § 8.10. Above the tray and the pill, and in the flow — the quote belongs to the send the whole stack is composing, so it reads as the header of it. */}
         {replyTarget && (
           <ReplyBar
             className="mx-md mb-2xs"
@@ -413,7 +413,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
       void returnToLive();
     }
 
-    // WARN: REQUIREMENTS.md § 8.9. Consumed by the first bubble only. Emoticon, then attachments, then text is the order they are queued in, and a quote repeated over three of them says the same thing three times.
+    // WARN: REQUIREMENTS.md § 8.10. Consumed by the first bubble only. Emoticon, then attachments, then text is the order they are queued in, and a quote repeated over three of them says the same thing three times.
     let quote = replyTarget;
 
     const take = () => {
@@ -498,7 +498,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
       }
       case "message": {
         const cells = toCellsFromMedia(row.message.media);
-        // INFO: REQUIREMENTS.md § 8.9. A deleted parent is still quoted, but there is nothing left to jump to — the row it named is out of every page.
+        // INFO: REQUIREMENTS.md § 8.10. A deleted parent is still quoted, but there is nothing left to jump to — the row it named is out of every page.
         const quoted = row.message.replyTo;
 
         return (
@@ -534,7 +534,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     }
 
     const target = actionTarget;
-    // INFO: REQUIREMENTS.md § 8.9. First, and on the other person's messages as much as on my own — replying is the sheet's most-reached-for action, unlike copy.
+    // INFO: REQUIREMENTS.md § 8.10. First, and on the other person's messages as much as on my own — replying is the sheet's most-reached-for action, unlike copy.
     const items: ActionSheetItem[] = [
       { label: "답장", Icon: CornerUpLeft, onSelect: () => stageReply(target) },
       { label: "복사", Icon: Copy, onSelect: () => void copyText(target.text ?? "") },
@@ -553,7 +553,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   }
 
   /**
-   * INFO: REQUIREMENTS.md § 8.9. The quote is built here rather than fetched — the
+   * INFO: REQUIREMENTS.md § 8.10. The quote is built here rather than fetched — the
    * message being replied to is already on screen, so the staged bar and the
    * optimistic bubble both draw from the row the user just pointed at.
    */

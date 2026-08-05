@@ -21,7 +21,7 @@ export async function getReplyPreview(parentId: Nullable<number>): Promise<Nulla
 /**
  * The quoted messages for a whole page of replies, keyed by the quoted id.
  *
- * INFO: REQUIREMENTS.md § 8.9. One query for the page, for the same reason
+ * INFO: REQUIREMENTS.md § 8.10. One query for the page, for the same reason
  * `listMessageMedia` is one query, and keyed by the *parent* id because a page
  * commonly quotes the same message several times.
  *
@@ -47,7 +47,7 @@ export async function listReplyPreviews(parentIds: number[]): Promise<Map<number
     .from(messages)
     .where(inArray(messages.id, parentIds));
 
-  // INFO: DESIGN.md § 6.9. The quote shows the bubble's first attachment as a 32px tile; the rest of a nine-photo grid has nowhere to go on one line.
+  // INFO: DESIGN.md § 6.10. The quote shows the bubble's first attachment as a 32px tile; the rest of a nine-photo grid has nowhere to go on one line.
   const byMessage = await listMessageMedia(
     rows.filter((row) => row.type === "media" && !row.deletedAt).map((row) => row.id),
   );
