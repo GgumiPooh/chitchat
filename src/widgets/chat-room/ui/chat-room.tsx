@@ -261,8 +261,9 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           onRemove={selection.remove}
         />
         {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
+        {/* WARN: § 13.6. wants the preview above the open panel, but the panel is half the shell — `bottom-full` alone puts it behind the floating header on a short viewport and off the top of the screen below ~604px, which is the panel not appearing to stage at all. The `min()` stops it at the header and lets it overlap the panel's top rows instead, which only happens where something has to give. */}
         {stagedEmoticon && (
-          <div className="absolute inset-x-0 bottom-full">
+          <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--viewport-height,100dvh)_-_var(--bottom-inset)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))]">
             <EmoticonPreview
               className="mx-md mb-2xs"
               emoticon={stagedEmoticon}

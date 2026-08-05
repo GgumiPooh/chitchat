@@ -184,6 +184,8 @@
   /* INFO: REQUIREMENTS.md § 13.6. The emoticon panel's own height, shared so the chat room can animate the strip open against the same value the panel is drawn at. */
   /* WARN: The cap is `px` and never `rem`. A reader's enlarged default font size scales `rem` but not `--viewport-height`, so a `rem` cap wins the `min()` on exactly the devices that can least afford it and the panel overruns the shell. */
   --emoticon-panel-height: min(352px, calc(var(--viewport-height, 100dvh) * 0.5));
+  /* INFO: REQUIREMENTS.md § 13.6. The staged preview at its tallest — the § 13.6. clamp needs the box's height before the emoticon that fills it is known. */
+  --emoticon-preview-height: calc(96px + var(--spacing-2xs) * 2 + 2px);
 }
 
 /* TODO: Populate when the dark theme ships — DESIGN.md § 5.4. Hand-tune; never invert arithmetically. */
