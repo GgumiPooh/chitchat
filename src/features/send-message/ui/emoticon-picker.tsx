@@ -24,9 +24,9 @@ export type EmoticonPickerProps = {
  * tabs are the enabled packs in this user's order (§ 13.1.), and selecting an
  * emoticon sends it immediately.
  *
- * INFO: DESIGN.md § 9. leaves the panel's exact geometry open. The height is fixed
- * rather than proportional so opening the picker cannot resize the message column
- * differently on every device.
+ * INFO: DESIGN.md § 9. leaves the panel's exact geometry open. It is capped at a
+ * fixed height and otherwise takes half of `--viewport-height` (§ 3.4.) — never
+ * `vh`, which resolves against the layout viewport and would overrun the shell.
  */
 export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
   // WARN: Read straight from storage rather than seeded into `useState` — the panel can mount during hydration, where the first snapshot is still the fallback and a seeded state would never pick the stored tab up.
@@ -55,7 +55,7 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
   return (
     <div
       className={cn(
-        "pointer-events-auto flex h-64 flex-col rounded-lg border border-hairline bg-canvas",
+        "pointer-events-auto flex h-[min(22rem,calc(var(--viewport-height,100dvh)*0.5))] flex-col rounded-lg border border-hairline bg-canvas",
         className,
       )}
     >
