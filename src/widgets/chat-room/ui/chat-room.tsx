@@ -1,16 +1,29 @@
 "use client";
 
+import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage } from "@/entities/message";
+import type { Participant } from "@/entities/user";
 import { useChatStream, useChatStreamListener } from "@/features/chat-stream";
-import { MessageComposer, useSendMessage } from "@/features/send-message";
+import {
+  EmoticonPicker,
+  EmoticonPreview,
+  MessageComposer,
+  useSendMessage,
+} from "@/features/send-message";
 import {
   MediaEditor,
   MediaPickerSheet,
   MediaTray,
   useMediaSelection,
 } from "@/features/upload-media";
-import { buildFadeMask, cn, useUnsentWork, type Nullable } from "@/shared/lib";
+import {
+  buildFadeMask,
+  cn,
+  useIsVirtualKeyboardOpen,
+  useUnsentWork,
+  type Nullable,
+} from "@/shared/lib";
 import { ActionSheet, EmptyState, Skeleton, toast, type ActionSheetItem } from "@/shared/ui";
 import { Copy, MessageCircle, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -62,16 +75,22 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const [isAtTop, setIsAtTop] = useState(true);
   const [actionTarget, setActionTarget] = useState<Nullable<ChatMessage>>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
+  // INFO: REQUIREMENTS.md § 13.6. Staged rather than sent on selection, so it can be sent with a line of text the way an attachment can.
+  const [stagedEmoticon, setStagedEmoticon] = useState<Nullable<Emoticon>>(null);
   const [editing, setEditing] = useState<Nullable<MediaDraft>>(null);
   const [viewer, setViewer] = useState<Nullable<{ cells: MediaCell[]; index: number }>>(null);
   // INFO: The newest id the user had in view when they last left the bottom — everything past it is what the § 6.7. pill counts.
   const [seenId, setSeenId] = useState(initialMessages.at(-1)?.id ?? 0);
   const { messages, isLoadingOlder, loadOlder, appendMessage, removeMessage, catchUp } =
     useMessageHistory(initialMessages);
-  const { pending, send, sendMedia, retry, cancel, resolve } = useSendMessage({
+  const { pending, send, sendMedia, sendEmoticon, retry, cancel, resolve } = useSendMessage({
     onSent: appendMessage,
   });
   const selection = useMediaSelection();
+  const isKeyboardOpen = useIsVirtualKeyboardOpen();
+  // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
+  const isEmoticonPanelOpen = isEmoticonPickerOpen && !isKeyboardOpen;
   const { participants, setIsReading } = useChatStream();
   const participantById = useMemo(
     () => new Map(participants.map((participant) => [participant.id, participant])),
@@ -80,6 +99,11 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const rows = useMemo(
     () => buildChatRows({ messages, pending, currentUserId }),
     [messages, pending, currentUserId],
+  );
+  // INFO: REQUIREMENTS.md § 8.8. The cursor is the other participant's `last_read_at`, which the § 8.4. stream already keeps current — 읽음 lands without a request of its own.
+  const lastReadMineId = useMemo(
+    () => findLastReadMineId(messages, currentUserId, participants),
+    [messages, currentUserId, participants],
   );
   const firstItemIndex = usePrependAnchor(rows);
   // WARN: Captured at the first render that has rows, not the first render. An empty room renders the empty state instead of the list, so a value fixed before then is `0` and parks the mount at the oldest arriving message rather than the newest.
@@ -111,9 +135,28 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
 
   // INFO: REQUIREMENTS.md § 15.1. Staged attachments and sends still in flight both die with the document, so a refresh forced by a new deployment waits them out.
   // WARN: `sending` only. A failed bubble never finishes on its own, so counting it pins the app to a stale bundle until the user happens to retry or cancel.
-  useUnsentWork(isSending || selection.drafts.length > 0);
+  useUnsentWork(isSending || selection.drafts.length > 0 || stagedEmoticon !== null);
 
   useComposerClearance({ containerRef, composerRef, scrollerRef, isAtBottomRef });
+
+  // INFO: REQUIREMENTS.md § 13.6. A tap anywhere else dismisses the panel. `pointerdown` rather than `click`, so it closes on the same gesture that starts a scroll of the history.
+  useEffect(() => {
+    if (!isEmoticonPickerOpen) {
+      return;
+    }
+
+    // WARN: The composer's own wrapper is the exception, not just the panel — the toggle lives in it and would otherwise be closed here and re-opened by its own handler.
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!composerRef.current?.contains(event.target as Node)) {
+        setIsEmoticonPickerOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isEmoticonPickerOpen]);
+
   // INFO: REQUIREMENTS.md § 8.4. The connection belongs to the shell; this screen only asks to hear from it.
   useChatStreamListener({ onMessage: receiveMessage, onResume: catchUp });
 
@@ -192,9 +235,23 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           onEdit={setEditing}
           onRemove={selection.remove}
         />
+        {stagedEmoticon && (
+          <EmoticonPreview
+            className="mx-md mb-2xs"
+            emoticon={stagedEmoticon}
+            onRemove={() => setStagedEmoticon(null)}
+          />
+        )}
+        {/* INFO: REQUIREMENTS.md § 13.6. Inside the composer's own absolute wrapper, so the picker sits above the bar and the messages still scroll underneath both. */}
+        {isEmoticonPanelOpen && (
+          <EmoticonPicker className="mx-md mb-2xs" onSelect={stageEmoticon} />
+        )}
         <MessageComposer
-          hasAttachments={selection.drafts.length > 0}
+          hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
+          isEmoticonPickerOpen={isEmoticonPanelOpen}
           onAttach={() => setIsPickerOpen(true)}
+          onFieldFocus={() => setIsEmoticonPickerOpen(false)}
+          onToggleEmoticons={() => setIsEmoticonPickerOpen((current) => !current)}
           onSend={submit}
         />
       </div>
@@ -207,7 +264,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
       <MediaPickerSheet
         isOpen={isPickerOpen}
         onClose={() => setIsPickerOpen(false)}
-        onSelect={(files) => void selection.add(files)}
+        onSelect={(files) => void stageMedia(files)}
       />
       {editing && (
         // WARN: Keyed by draft — `MediaEditor` mints its source object URL once per mount, so editing a second photo must be a second mount.
@@ -228,8 +285,30 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     </div>
   );
 
-  // INFO: Attachments go first, then the text, so a caption reads under the photos it belongs to rather than above them.
+  /**
+   * INFO: REQUIREMENTS.md § 13.6. An emoticon and attachments are mutually exclusive in the composer — each bubble is one or the other (§ 6.), and staging both would promise a single send the schema has no row for.
+   */
+  function stageEmoticon(emoticon: Emoticon) {
+    selection.clear();
+    setStagedEmoticon(emoticon);
+  }
+
+  async function stageMedia(files: File[]) {
+    setStagedEmoticon(null);
+    await selection.add(files);
+  }
+
+  /**
+   * INFO: The emoticon and the attachments go first, then the text, so a caption reads under what it belongs to rather than above it.
+   *
+   * WARN: The order survives because `useSendMessage` delivers on one promise chain. Firing these in parallel would let the text win the race for `messages.id` and land above them on every other client and every reload.
+   */
   function submit(text: string) {
+    if (stagedEmoticon) {
+      sendEmoticon(stagedEmoticon);
+      setStagedEmoticon(null);
+    }
+
     if (selection.drafts.length > 0) {
       sendMedia(selection.takeAll());
     }
@@ -274,6 +353,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           <MessageRow
             text={row.pending.text}
             media={cells}
+            emoticon={row.pending.emoticon}
             progress={row.pending.progress}
             createdAt={row.pending.createdAt}
             sender={participantById.get(currentUserId)}
@@ -293,11 +373,13 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           <MessageRow
             text={row.message.text}
             media={cells}
+            emoticon={row.message.emoticon}
             createdAt={row.message.createdAt}
             sender={participantById.get(row.message.senderId)}
             isMine={row.isMine}
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
+            isRead={row.message.id === lastReadMineId}
             status="sent"
             onLongPress={() => setActionTarget(row.message)}
             onOpenMedia={(index) => setViewer({ cells, index })}
@@ -357,6 +439,31 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
       setSeenId(messages.at(-1)?.id ?? 0);
     }
   }
+}
+
+/**
+ * REQUIREMENTS.md § 8.8. The newest of my messages the other participant has read.
+ *
+ * INFO: Only that one carries 읽음 — every read bubble saying so repeats the same
+ * fact once per row, and the newest one already implies all of them.
+ */
+function findLastReadMineId(
+  messages: ChatMessage[],
+  currentUserId: string,
+  participants: Participant[],
+): Nullable<number> {
+  const other = participants.find((participant) => participant.id !== currentUserId);
+
+  if (!other) {
+    return null;
+  }
+
+  const readAt = Date.parse(other.lastReadAt);
+  const read = messages.filter(
+    (message) => message.senderId === currentUserId && Date.parse(message.createdAt) <= readAt,
+  );
+
+  return read.at(-1)?.id ?? null;
 }
 
 // WARN: Constant height in both states — a header that grows when the fetch starts shifts the very scroll position § 8.3. exists to hold still.

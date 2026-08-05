@@ -1,11 +1,12 @@
 "use client";
 
+import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage } from "@/entities/message";
 import { MAX_MEDIA_PER_MESSAGE } from "@/shared/config";
 import type { Nullable } from "@/shared/lib";
 import { useCallback, useRef, useState } from "react";
-import { postMessage } from "../api/post-message";
+import { postMessage, type PostMessageParams } from "../api/post-message";
 import { uploadDraft } from "../api/upload-draft";
 
 /** An outgoing message the server has not echoed back yet (REQUIREMENTS.md § 8.5.). */
@@ -13,6 +14,8 @@ export type PendingMessage = {
   clientMsgId: string;
   text: Nullable<string>;
   media: MediaDraft[];
+  // INFO: REQUIREMENTS.md § 13.6. Carried on the pending row so the optimistic bubble renders the art immediately — the asset is already in the browser's cache from the picker.
+  emoticon: Nullable<Emoticon>;
   // WARN: Indexed alongside `media`. A retry re-uploads only the slots still null, so a failure on the last of nine photos does not re-send the eight that landed.
   uploadedIds: Nullable<string>[];
   /** `0`–`1` across the whole bubble's bytes. Meaningless for a text message. */
@@ -118,10 +121,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
       const { clientMsgId } = message;
 
       try {
-        const sent =
-          message.text === null
-            ? await postMessage({ clientMsgId, mediaIds: await uploadAll(message) })
-            : await postMessage({ clientMsgId, text: message.text });
+        const sent = await postMessage(await toPostParams(message, uploadAll));
 
         onSent(sent);
         drop(clientMsgId);
@@ -185,6 +185,17 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
     [commit, enqueue],
   );
 
+  /** INFO: REQUIREMENTS.md § 13.6. Nothing to upload, so the staged emoticon joins the queue as a bubble that is already complete. */
+  const sendEmoticon = useCallback(
+    (emoticon: Emoticon) => {
+      const message = { ...createPending(null, []), emoticon };
+
+      commit((previous) => [...previous, message]);
+      enqueue([message]);
+    },
+    [commit, enqueue],
+  );
+
   const retry = useCallback(
     (clientMsgId: string) => {
       const target = pendingRef.current.find((entry) => entry.clientMsgId === clientMsgId);
@@ -199,7 +210,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
     [deliver, patch],
   );
 
-  return { pending, send, sendMedia, retry, cancel: drop, resolve: drop };
+  return { pending, send, sendMedia, sendEmoticon, retry, cancel: drop, resolve: drop };
 }
 
 function createPending(text: Nullable<string>, media: MediaDraft[]): PendingMessage {
@@ -208,11 +219,30 @@ function createPending(text: Nullable<string>, media: MediaDraft[]): PendingMess
     clientMsgId: crypto.randomUUID(),
     text,
     media,
+    emoticon: null,
     uploadedIds: media.map(() => null),
     progress: 0,
     status: "sending",
     createdAt: new Date().toISOString(),
   };
+}
+
+// INFO: REQUIREMENTS.md § 6. A row is text, attachments, or one emoticon — never a combination, which is what the table's CHECK constraint says too.
+async function toPostParams(
+  message: PendingMessage,
+  uploadAll: (message: PendingMessage) => Promise<string[]>,
+): Promise<PostMessageParams> {
+  const { clientMsgId } = message;
+
+  if (message.emoticon) {
+    return { clientMsgId, emoticonItemId: message.emoticon.id };
+  }
+
+  if (message.text === null) {
+    return { clientMsgId, mediaIds: await uploadAll(message) };
+  }
+
+  return { clientMsgId, text: message.text };
 }
 
 function chunk<T>(items: T[], size: number): T[][] {

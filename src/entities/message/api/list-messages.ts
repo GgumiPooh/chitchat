@@ -5,6 +5,7 @@ import { getDb, messages, type Message } from "@/shared/db";
 import { and, asc, desc, gt, isNull, lt, lte } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
+import { listMessageEmoticons } from "./list-message-emoticons";
 import { listMessageMedia } from "./list-message-media";
 
 export type ListMessagesParams = {
@@ -78,12 +79,25 @@ async function listAround(target: number, limit: number): Promise<ChatMessage[]>
 }
 
 /**
- * INFO: REQUIREMENTS.md § 9. One extra query for the whole page, and only when the
- * page actually holds an attachment — a text-only conversation pays nothing.
+ * INFO: REQUIREMENTS.md § 9., § 13.6. Two extra queries for the whole page at most,
+ * and each only when the page actually holds that kind of row — a text-only
+ * conversation pays nothing.
  */
 async function withMedia(rows: Message[]): Promise<ChatMessage[]> {
   const mediaIds = rows.filter((row) => row.type === "media").map((row) => row.id);
-  const byMessage = await listMessageMedia(mediaIds);
+  const emoticonIds = rows
+    .map((row) => row.emoticonItemId)
+    .filter((id): id is string => id !== null);
+  const [byMessage, byEmoticonId] = await Promise.all([
+    listMessageMedia(mediaIds),
+    listMessageEmoticons(emoticonIds),
+  ]);
 
-  return rows.map((row) => toChatMessage(row, byMessage.get(row.id)));
+  return rows.map((row) =>
+    toChatMessage(
+      row,
+      byMessage.get(row.id),
+      row.emoticonItemId ? (byEmoticonId.get(row.emoticonItemId) ?? null) : null,
+    ),
+  );
 }

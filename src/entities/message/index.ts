@@ -1,4 +1,8 @@
 export { countUnreadMessages } from "./api/count-unread";
+export {
+  createEmoticonMessage,
+  type CreateEmoticonMessageParams,
+} from "./api/create-emoticon-message";
 export { createMediaMessage, type CreateMediaMessageParams } from "./api/create-media-message";
 export { createTextMessage, type CreateTextMessageParams } from "./api/create-text-message";
 export { deleteMessage } from "./api/delete-message";

@@ -36,6 +36,9 @@ export const GALLERY_ROUTE = "/gallery";
 
 export const SETTINGS_ROUTE = "/settings";
 
+// INFO: REQUIREMENTS.md § 13.5. Nested under settings, so the tab bar keeps 설정 active while the management screens are open.
+export const EMOTICON_SETTINGS_ROUTE = "/settings/emoticons";
+
 /** REQUIREMENTS.md § 8.2. One cursor page of messages. */
 export const MESSAGE_PAGE_SIZE = 30;
 

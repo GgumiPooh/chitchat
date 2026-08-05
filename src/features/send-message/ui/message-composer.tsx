@@ -9,9 +9,13 @@ import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 export type MessageComposerProps = {
   className?: string;
   fieldClassName?: string;
-  /** Attachments are staged above the composer, so send stays available on an empty field. */
+  /** Attachments and a staged emoticon both sit above the composer, so send stays available on an empty field. */
   hasAttachments?: boolean;
+  isEmoticonPickerOpen?: boolean;
   onAttach: () => void;
+  /** REQUIREMENTS.md § 13.6. Reaching for the field is a request for the keyboard, which the picker would then be buried under. */
+  onFieldFocus?: () => void;
+  onToggleEmoticons?: () => void;
   onSend: (text: string) => void;
 };
 
@@ -20,7 +24,10 @@ export function MessageComposer({
   className,
   fieldClassName,
   hasAttachments = false,
+  isEmoticonPickerOpen = false,
   onAttach,
+  onFieldFocus,
+  onToggleEmoticons,
   onSend,
 }: MessageComposerProps) {
   const fieldRef = useRef<Nullable<HTMLTextAreaElement>>(null);
@@ -41,7 +48,8 @@ export function MessageComposer({
           ref={fieldRef}
           className={cn(
             // INFO: DESIGN.md § 6.6. No shape of its own — the pill is the field's surface, so no border, no radius, and no focus ring.
-            "max-h-34 min-h-11 resize-none rounded-none border-transparent bg-transparent px-2xs py-xs hover:border-transparent focus-visible:border-transparent focus-visible:ring-0",
+            // WARN: `min-w-0` is what keeps the round controls round. A flex item's default `min-width: auto` refuses to shrink below its content, so on a browser without `field-sizing-content` (WebKit) the field pushes and the 44×44 buttons absorb the overflow as ovals.
+            "max-h-34 min-h-11 min-w-0 resize-none rounded-none border-transparent bg-transparent px-2xs py-xs hover:border-transparent focus-visible:border-transparent focus-visible:ring-0",
             fieldClassName,
           )}
           maxLength={MAX_MESSAGE_LENGTH}
@@ -50,9 +58,18 @@ export function MessageComposer({
           placeholder="메시지 입력"
           aria-label="메시지 입력"
           onChange={(event) => setText(event.target.value)}
+          onFocus={onFieldFocus}
           onKeyDown={handleKeyDown}
         />
-        {canSend ? (
+        {/* INFO: DESIGN.md § 6.6. The toggle stays put once text is typed — an emoticon is staged beside a line of text now (REQUIREMENTS.md § 13.6.), so replacing it with send would put the panel out of reach exactly when it is wanted. */}
+        <IconButton
+          className={cn(isEmoticonPickerOpen && "bg-primary-tint text-primary")}
+          Icon={Smile}
+          aria-label="이모티콘"
+          aria-pressed={isEmoticonPickerOpen}
+          onClick={onToggleEmoticons}
+        />
+        {canSend && (
           <button
             className="group inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary"
             type="button"
@@ -64,9 +81,6 @@ export function MessageComposer({
               <ArrowUp className="size-5" strokeWidth={2} />
             </span>
           </button>
-        ) : (
-          // TODO: The emoticon picker is step 8 of REQUIREMENTS.md § 17.
-          <IconButton Icon={Smile} disabled aria-label="이모티콘" />
         )}
       </div>
     </div>

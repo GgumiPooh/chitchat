@@ -1,6 +1,8 @@
+import { getEmoticonItem } from "@/entities/emoticon";
 import { ownsAllMedia } from "@/entities/media";
 import {
   countUnreadMessages,
+  createEmoticonMessage,
   createMediaMessage,
   createTextMessage,
   listMessages,
@@ -44,6 +46,11 @@ const bodySchema = z.union([
   z.object({
     clientMsgId: z.uuid(),
     mediaIds: z.array(z.uuid()).min(1).max(MAX_MEDIA_PER_MESSAGE),
+  }),
+  // INFO: REQUIREMENTS.md § 13.6. One id and nothing else — selecting an emoticon sends it immediately, with no caption to carry.
+  z.object({
+    clientMsgId: z.uuid(),
+    emoticonItemId: z.uuid(),
   }),
 ]);
 
@@ -95,10 +102,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const message =
-    "text" in payload
-      ? await createTextMessage({ senderId: user.id, ...payload })
-      : await createMediaMessage({ senderId: user.id, ...payload });
+  // INFO: `messages.emoticon_item_id` is a foreign key like the media ids above — a picker holding a list the other participant has since deleted (§ 13.6.) would otherwise send its way into a 500.
+  if ("emoticonItemId" in payload && !(await getEmoticonItem(payload.emoticonItemId))) {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+
+  const message = await createMessage(user.id, payload);
 
   // INFO: The client id is already taken by a row this sender cannot claim, so echoing anything back would replace their optimistic bubble with a stranger's message.
   if (!message) {
@@ -111,8 +120,25 @@ export async function POST(request: Request) {
   return NextResponse.json({ message }, { status: 201 });
 }
 
+function createMessage(senderId: string, payload: z.infer<typeof bodySchema>) {
+  if ("text" in payload) {
+    return createTextMessage({ senderId, ...payload });
+  }
+
+  if ("mediaIds" in payload) {
+    return createMediaMessage({ senderId, ...payload });
+  }
+
+  return createEmoticonMessage({ senderId, ...payload });
+}
+
 // INFO: A notification has no room for a thumbnail, so an attachment is announced by kind. `사진` covers a mixed send too — naming both would read as a manifest.
 function toPushBody(message: ChatMessage): string {
+  if (message.type === "emoticon") {
+    // INFO: REQUIREMENTS.md § 16.1. The banner cannot show the art, and the item name is authored by these two users rather than by a vendor, so the kind is what carries.
+    return "이모티콘";
+  }
+
   if (message.type !== "media") {
     return (message.text ?? "").slice(0, PUSH_BODY_MAX_LENGTH);
   }

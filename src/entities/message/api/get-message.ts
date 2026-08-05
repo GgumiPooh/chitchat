@@ -5,6 +5,7 @@ import type { Nullable } from "@/shared/lib";
 import { and, eq, isNull } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
+import { listMessageEmoticons } from "./list-message-emoticons";
 import { listMessageMedia } from "./list-message-media";
 
 /**
@@ -23,7 +24,15 @@ export async function getMessage(id: number): Promise<Nullable<ChatMessage>> {
     return null;
   }
 
-  const byMessage = await listMessageMedia(row.type === "media" ? [row.id] : []);
+  // WARN: The emoticon must be resolved here too, not only in `listMessages`. This is the path every *live* message takes (§ 8.4.), so leaving it out renders an empty bubble until the reader reloads.
+  const [byMessage, byEmoticonId] = await Promise.all([
+    listMessageMedia(row.type === "media" ? [row.id] : []),
+    listMessageEmoticons(row.emoticonItemId ? [row.emoticonItemId] : []),
+  ]);
 
-  return toChatMessage(row, byMessage.get(row.id));
+  return toChatMessage(
+    row,
+    byMessage.get(row.id),
+    row.emoticonItemId ? (byEmoticonId.get(row.emoticonItemId) ?? null) : null,
+  );
 }

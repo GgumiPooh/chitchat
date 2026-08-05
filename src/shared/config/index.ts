@@ -12,6 +12,7 @@ export {
   CHAT_STREAM_PATH,
   CHAT_UNREAD_PATH,
   DEV_LOGIN_ROUTE,
+  EMOTICON_SETTINGS_ROUTE,
   GALLERY_ROUTE,
   HOME_ROUTE,
   IS_DEV,
@@ -37,6 +38,29 @@ export {
   SSE_SYNC_COALESCE_WINDOW,
   VAPID_PUBLIC_KEY,
 } from "./app";
+export {
+  ALLOWED_EMOTICON_ANIMATED_MIMES,
+  ALLOWED_EMOTICON_AUDIO_MIMES,
+  ALLOWED_EMOTICON_STILL_MIMES,
+  EMOTICON_ITEMS_PATH,
+  EMOTICON_MAX_EDGE,
+  EMOTICON_PACKS_PATH,
+  EMOTICON_PREFS_PATH,
+  EMOTICON_SLOTS,
+  EMOTICON_UPLOAD_URL_PATH,
+  MAX_EMOTICON_ANIMATED_SIZE,
+  MAX_EMOTICON_AUDIO_SIZE,
+  MAX_EMOTICON_PACK_NAME_LENGTH,
+  MAX_EMOTICON_STILL_SIZE,
+  allowedMimesForEmoticonSlot,
+  isAllowedEmoticonAsset,
+  maxSizeForEmoticonSlot,
+  toEmoticonAssetUrl,
+  type AllowedEmoticonAnimatedMime,
+  type AllowedEmoticonAudioMime,
+  type AllowedEmoticonStillMime,
+  type EmoticonSlot,
+} from "./emoticon";
 export { ensureEnv } from "./env";
 export {
   ALLOWED_IMAGE_MIMES,

@@ -1,14 +1,21 @@
+import type { Emoticon } from "@/entities/emoticon/@x/message";
 import type { ChatMedia } from "@/entities/media/@x/message";
 import type { Message } from "@/shared/db";
+import type { Nullable } from "@/shared/lib";
 import type { ChatMessage } from "./types";
 
-export function toChatMessage(row: Message, media: ChatMedia[] = []): ChatMessage {
+export function toChatMessage(
+  row: Message,
+  media: ChatMedia[] = [],
+  emoticon: Nullable<Emoticon> = null,
+): ChatMessage {
   return {
     type: row.type,
     senderId: row.senderId,
     clientMsgId: row.clientMsgId,
     text: row.text,
     media,
+    emoticon,
     eventId: row.eventId,
     systemAction: row.systemAction,
     eventTitle: row.eventTitle,

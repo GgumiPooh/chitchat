@@ -28,7 +28,7 @@ export function IconButton({
   return (
     <button
       className={cn(
-        "inline-flex size-11 cursor-pointer items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-40",
+        "inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-40",
         VARIANT_CLASS_NAME[variant],
         className,
       )}

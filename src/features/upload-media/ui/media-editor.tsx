@@ -4,46 +4,48 @@ import type { MediaDraft } from "@/entities/media";
 import { cn, type Nullable } from "@/shared/lib";
 import { Button, Chip, IconButton, ShellOverlay, toast } from "@/shared/ui";
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
-import Cropper, { type Area } from "react-easy-crop";
-import { applyEdit } from "../model/apply-edit";
+import { useEffect, useState, type CSSProperties } from "react";
+import { Cropper, type CropperRef } from "react-advanced-cropper";
+import "react-advanced-cropper/dist/style.css";
+import { applyEdit, type ApplyEditOptions, type CropArea } from "../model/apply-edit";
 import { DEFAULT_FILTER, MEDIA_FILTERS, type MediaFilter } from "../model/filters";
 
+// INFO: `free` is the default because a crop the user drew themselves is the one no ratio here can express; the fixed ratios stay for the common framings.
 const ASPECT_OPTIONS = [
+  { id: "free", label: "자유", ratio: undefined },
   { id: "original", label: "원본", ratio: null },
   { id: "square", label: "1:1", ratio: 1 },
   { id: "portrait", label: "4:5", ratio: 4 / 5 },
   { id: "landscape", label: "16:9", ratio: 16 / 9 },
 ] as const;
 
-const MAX_ZOOM = 4;
-
 export type MediaEditorProps = {
   className?: string;
   draft: MediaDraft;
+  // INFO: REQUIREMENTS.md § 13.4. The emoticon flow passes `image/png` so the crop keeps its alpha, and its own smaller `maxEdge`.
+  editOptions?: ApplyEditOptions;
   onCancel: () => void;
   onDone: (draft: MediaDraft) => void;
 };
 
 /**
- * Crop and filter, over the chat surface.
+ * Crop and filter, over the chat surface. The crop box is resizable by its own
+ * handles, so `자유` is a real free-form crop rather than another fixed ratio.
  *
  * WARN: `absolute`, never `fixed` — AGENTS.md § 4.4. keeps the app shell as the
  * one fixed element, because a second one drifts against the keyboard on WebKit.
  * `ShellOverlay` is what makes the shell, rather than the chat room, the box this
  * fills: staying inside the scroller leaves it under the header and the tab bar.
  */
-export function MediaEditor({ className, draft, onCancel, onDone }: MediaEditorProps) {
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [aspectId, setAspectId] = useState<string>("original");
+export function MediaEditor({ className, draft, editOptions, onCancel, onDone }: MediaEditorProps) {
+  const [aspectId, setAspectId] = useState<string>("free");
   const [filter, setFilter] = useState<MediaFilter>(DEFAULT_FILTER);
-  const [croppedArea, setCroppedArea] = useState<Nullable<Area>>(null);
+  const [croppedArea, setCroppedArea] = useState<Nullable<CropArea>>(null);
   const [isSaving, setIsSaving] = useState(false);
   // INFO: `draft.previewUrl` is the thumbnail's blob, so the cropper needs a URL for the original of its own. Empty until the effect below mints one.
   const [sourceUrl, setSourceUrl] = useState("");
-  const aspect =
-    ASPECT_OPTIONS.find((option) => option.id === aspectId)?.ratio ?? draft.width / draft.height;
+  const selected = ASPECT_OPTIONS.find((option) => option.id === aspectId);
+  const aspectRatio = selected?.ratio === null ? draft.width / draft.height : selected?.ratio;
 
   // WARN: Created and revoked inside one effect, never from a `useState` initializer. StrictMode runs setup → cleanup → setup on mount, and state survives that cycle: a URL minted during render would be revoked by the first cleanup and the cropper would then point at a dead blob for the rest of the edit.
   useEffect(() => {
@@ -57,7 +59,7 @@ export function MediaEditor({ className, draft, onCancel, onDone }: MediaEditorP
 
   return (
     <ShellOverlay>
-      <div className={cn("absolute inset-0 z-40 flex flex-col bg-scrim", className)}>
+      <div className={cn("absolute inset-0 z-50 flex flex-col bg-scrim", className)}>
         <div className="flex items-center justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
           <IconButton
             className="text-on-primary hover:bg-canvas/15 hover:text-on-primary"
@@ -69,21 +71,20 @@ export function MediaEditor({ className, draft, onCancel, onDone }: MediaEditorP
             완료
           </Button>
         </div>
-        <div className="relative min-h-0 flex-1">
-          {/* INFO: `react-easy-crop` measures and loads on mount, so it waits for a real `src` rather than mounting against an empty one. */}
+        {/* INFO: The filter is a preview only — `applyEdit` bakes the same value into the canvas — so it rides a variable the cropper's own `<img>` inherits rather than a prop the library does not expose. */}
+        <div
+          className="relative min-h-0 flex-1 [&_img]:[filter:var(--media-filter)]"
+          style={{ "--media-filter": filter.value } as CSSProperties}
+        >
+          {/* INFO: The cropper measures and loads on mount, so it waits for a real `src` rather than mounting against an empty one. */}
           {sourceUrl && (
             <Cropper
-              image={sourceUrl}
-              crop={crop}
-              zoom={zoom}
-              aspect={aspect}
-              maxZoom={MAX_ZOOM}
-              objectFit="contain"
-              showGrid
-              style={{ mediaStyle: { filter: filter.value } }}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={(_, areaPixels) => setCroppedArea(areaPixels)}
+              // WARN: Keyed by the ratio — the stencil reads `aspectRatio` when it initializes, so switching chips has to remount it or the box keeps the previous ratio.
+              key={aspectId}
+              className="size-full"
+              src={sourceUrl}
+              stencilProps={{ aspectRatio, grid: true }}
+              onChange={handleChange}
             />
           )}
         </div>
@@ -115,6 +116,19 @@ export function MediaEditor({ className, draft, onCancel, onDone }: MediaEditorP
     </ShellOverlay>
   );
 
+  function handleChange(cropper: CropperRef) {
+    const coordinates = cropper.getCoordinates();
+
+    if (coordinates) {
+      setCroppedArea({
+        x: coordinates.left,
+        y: coordinates.top,
+        width: coordinates.width,
+        height: coordinates.height,
+      });
+    }
+  }
+
   async function save() {
     if (!croppedArea) {
       return;
@@ -123,7 +137,7 @@ export function MediaEditor({ className, draft, onCancel, onDone }: MediaEditorP
     setIsSaving(true);
 
     try {
-      onDone(await applyEdit(draft, croppedArea, filter));
+      onDone(await applyEdit(draft, croppedArea, { ...editOptions, filter }));
     } catch {
       toast.error("사진을 편집하지 못했어요");
     } finally {

@@ -21,7 +21,7 @@ Precedence on conflict: visuals → `DESIGN.md`; code-authoring rules → `AGENT
 - **`[ ]` = remaining work**, and the authoritative spec for it. Tick the box in the change that lands it (`AGENTS.md § 0.3.`).
 - **Never renumber a section** — `src/` comments reference these numbers.
 
-**Current state** — § 17. steps 1–4 done. Step 6 (R2 media pipeline, § 9.) done, and with it photo and video messages: picker, editor, direct upload with progress, retry and cancel, media bubbles, and the fullscreen viewer. Step 5 (chat) otherwise partly done: text and system bubbles, cursor pagination, virtualization, optimistic send, copy/delete, SSE delivery (§ 8.4.), render-time names (§ 8.7.), push (§ 16.1.), read cursor (§ 8.8.). **Open in chat**: the `1` marker and unread divider (§ 8.8.), search and jump (§ 8.6.), emoticon bubbles (step 8). Calendar and Gallery are empty states until their step.
+**Current state** — § 17. steps 1–4 done. Step 6 (R2 media pipeline, § 9.) done, and with it photo and video messages: picker, editor, direct upload with progress, retry and cancel, media bubbles, and the fullscreen viewer. Step 5 (chat) otherwise partly done: text and system bubbles, cursor pagination, virtualization, optimistic send, copy/delete, SSE delivery (§ 8.4.), render-time names (§ 8.7.), push (§ 16.1.), read cursor (§ 8.8.). Step 8 (emoticons, § 13.) is done and was respecified along the way — packs and items are authored in the app rather than seeded, so there is no asset drop and no seed script. **Open in chat**: the `1` marker and unread divider (§ 8.8.), search and jump (§ 8.6.). Calendar and Gallery are empty states until their step.
 
 ---
 
@@ -48,7 +48,7 @@ Precedence on conflict: visuals → `DESIGN.md`; code-authoring rules → `AGENT
 Next 16.2.12 + `pnpm` + Turbopack; local Postgres via `docker-compose` (`pnpm db:up`), Neon in production. Config inherited verbatim from the reference project: `tsconfig` (`@/*` → `./src/*`, `verbatimModuleSyntax`, `strict`), `eslint.config.mjs`, `.prettierrc` (`printWidth: 100`), `steiger.config.ts`, `postcss.config.mjs`, `components.json` (shadcn `new-york`, `@/shared/ui`, `@/shared/lib`, lucide), the SVGR turbopack rule, Pretendard Variable as a local font. `pnpm lint` = eslint + steiger; `pnpm dev` runs the app and steiger `--watch`.
 
 - **Deliberately excluded — do not reintroduce**: all i18n (`next-intl`, `[locale]` routing, `messages/`, `Translation`), `orval` (Next _is_ the backend), `msw`, every ads / analytics / RSS / structured-data / sitemap file, the `rewrites` backend proxy
-- **Check `package.json` before adding a dependency** — R2, push, virtualization, query, validation, and image cropping (`react-easy-crop`, § 9.) are already installed. § 13.'s drag-and-drop reordering is the one remaining need with no library present
+- **Check `package.json` before adding a dependency** — R2, push, virtualization, query, validation, image cropping (`react-advanced-cropper`, § 9. — it replaced `react-easy-crop`, whose crop box cannot be resized, so no free-form crop was expressible), client storage (`synced-storage`), and drag-and-drop reordering (`@dnd-kit`, § 13.5.) are all installed. **There is no remaining unmet dependency**; a new one needs the user's approval before it is added
 
 ---
 
@@ -56,22 +56,23 @@ Next 16.2.12 + `pnpm` + Turbopack; local Postgres via `docker-compose` (`pnpm db
 
 ```
 app/                     Next routes — thin, delegate to src/pages
-  (auth)/login/  (main)/{chat,calendar,gallery,settings}/  api/{auth,chat,media}/
+  (auth)/login/  (main)/{chat,calendar,gallery,settings}/  api/{auth,chat,media,emoticons}/
   robots.ts  manifest.ts  icon.svg  favicon.ico
 pages/                   EMPTY SENTINEL — README only, no route files
 proxy.ts                 Next 16's renamed Middleware (§ 5.2.)
 src/
   app/       providers / styles(globals.css, theme.css) / fonts
-  pages/     login, chat, calendar, gallery, settings
+  pages/     login, chat, calendar, gallery, settings, emoticon-settings, emoticon-pack
   widgets/   tab-bar, install-guide, chat-room, gallery-grid, calendar-month, settings-form
   features/  session, send-message, chat-stream, push-notifications,
-             upload-media, emoticon-prefs, update-profile, manage-event
+             upload-media, author-emoticon, emoticon-prefs, update-profile, manage-event
   entities/  user, message, push-subscription, media, event, emoticon
   shared/    db, auth, push, sound, storage, api, config, lib, theme, ui
 ```
 
 - The session slice is `session`, not `auth` — `features/auth` collides with the `shared/auth` segment name (`fsd/ambiguous-slice-names`)
 - The composer and emoticon picker are **`features/send-message/ui/…`, not widgets**: `widgets/chat-room` renders them, and a widget cannot import a sibling widget (`fsd/forbidden-imports`)
+- `features/author-emoticon` reaches `features/upload-media` through **`@x/author-emoticon`**, never its barrel — two slices on the same layer, so the cross-import needs the FSD gate (`fsd/forbidden-imports`). `entities/emoticon/@x/message` is the same arrangement one layer down
 - Client modules import `@/entities/message` with **`import type` only** — its api segment is `server-only` and a value import drags that into the browser bundle. Hence chat row components and the grouping model live in `widgets/chat-room`
 - Root `pages/` MUST exist and stay empty, or Next treats `src/pages/` as the Pages Router and the build breaks
 - Server-only code lives in `shared/` segments and imports `server-only`; entity fetching lives in each entity's `api` segment; every slice is imported through its `index.ts` (eslint-enforced)
@@ -173,7 +174,8 @@ Schema, migrations, and triggers have landed. This is the contract new code is w
 - `events.ends_at` is NOT NULL — the create form defaults it rather than admitting an open-ended event, which would need its own branch in every month-grid calculation. `color` is nullable until § 18. #4. **Recurrence is yearly-only** (anniversaries): never introduce RRULE or a general recurrence engine — project `yearly` rows onto the requested year on read. The relationship start date, 100-day marks, and yearly anniversaries are **not rows** (§ 11.2.)
 - Indexes: `media(created_at DESC, id DESC)`, `message_media(media_id)`, `events(starts_at)`, `sessions(token_hash)`, plus `pg_trgm` + a GIN trigram index on `messages.text` (§ 8.6.). `messages` needs no paging index of its own — its primary key **is** the § 8.2. cursor. The `media` index needs the `id` tiebreaker because `created_at` is the **transaction** timestamp, so a multi-image send's rows compare equal and a keyset page skips or repeats them — **paginate on the pair, never on `created_at` alone**
 - Triggers: `AFTER INSERT` on `messages` fires `pg_notify('new_message', { id })`; `AFTER INSERT` **and** `AFTER UPDATE` on `users` fire `pg_notify('user_changed', '')`. Payloads are minimal because `NOTIFY` caps at 8000 bytes and § 8.4. refetches rather than trusting a payload. Two user triggers because a `WHEN` clause cannot reference `OLD` on an INSERT, so `WHEN (OLD.* IS DISTINCT FROM NEW.*)` rides the UPDATE trigger alone. That guard plus § 8.8.'s `WHERE last_read_at < $new` keeps the channel quiet under the app's highest-frequency write — **both halves are load-bearing**; dropping either puts a `GET /api/users` on every throttle tick
-- `emoticon_items.width` / `height` are **required**, because the virtualizer reserves the box before the asset loads (§ 8.3.)
+- `emoticon_items.width` / `height` are **required**, because the virtualizer reserves the box before the asset loads (§ 8.3.). They describe the **still** image; an item's optional animated asset shares that box rather than measuring its own (§ 13.2.)
+- `emoticon_packs.thumbnail_item_id` points **into `emoticon_items`**, which points back at `emoticon_packs` — a deliberate cycle, added by a separate `ALTER TABLE` and `ON DELETE SET NULL` so removing the item a pack uses as its icon cannot remove the pack (§ 13.2.). Emoticon assets are **not `media` rows** and `emoticon_items` holds R2 keys directly; § 13.3. gives the three reasons, and the gallery one is the load-bearing one
 - Two connection strings: `DATABASE_URL` (pooled, normal queries) and `DATABASE_URL_UNPOOLED` (**required** for `LISTEN` and migrations)
 - **There is nothing to seed.** A `users` row exists only after that person's first login, and no other table has a bootstrap row — `scripts/seed.ts` existed for the conversation singleton alone and went with it. The extension, trigram index, and triggers live in hand-written (`--custom`) migrations, since drizzle-kit cannot infer them
 - **`pnpm db:migrate` is manual and decoupled from the deploy: ship code first, migrate second.** Reversed, a first login against the previous build inserts without the new column, hits `23502`, and the OAuth catch flattens it into the generic `?error=failed` copy — nothing in the UI names the column
@@ -202,7 +204,7 @@ The `(main)` layout is the app shell (max `576px`, centered) holding a per-scree
 
 ### 8.1. UI
 
-Landed: notch-corner bubbles (mine right, theirs left), avatar + nickname on the first message of a group, one timestamp per same-minute group on its last message, date divider pills (`오늘`, `어제`, `2026년 8월 3일 월요일`), the auto-growing composer with `+` and emoticon toggle (both **disabled** until steps 6 and 8; the send button replaces the toggle once the field is non-empty), long-press / right-click → `ActionSheet` (copy / delete), and the scroll-to-bottom button appearing ~200px from the newest message with an incoming count (`새 메시지 3`).
+Landed: notch-corner bubbles (mine right, theirs left), avatar + nickname on the first message of a group, one timestamp per same-minute group on its last message, date divider pills (`오늘`, `어제`, `2026년 8월 3일 월요일`), the auto-growing composer with `+` and emoticon toggle (the send button appears beside the toggle once there is something to send, rather than replacing it), long-press / right-click → `ActionSheet` (copy / delete), and the scroll-to-bottom button appearing ~200px from the newest message with an incoming count (`새 메시지 3`).
 
 - A hardware keyboard sends on Enter and breaks the line on Shift+Enter; on a coarse pointer Enter stays a newline, since the iOS keyboard has no send key (`useIsCoarsePointer`)
 - Tapping send keeps the keyboard open: the button cancels `pointerdown` so the tap never blurs the field, and `submit` refocuses inside the click gesture
@@ -218,11 +220,11 @@ Landed for media (photos **and** videos — the message type is `media`, and `me
   - [x] Tapping any tile opens the viewer at that index and swipes through the rest of the same bubble. The swipe is **native scroll snapping**, not a gesture handler — it needs none of the parameters § 18. #6 leaves open
   - [x] A video tile shows its poster, a play glyph, and its running time from `media.duration_ms`
   - [x] The composer's `+` opens a `BottomSheet` (`사진/영상` → album, `카메라` → capture). `capture` and `multiple` cannot be combined, which is why those are two rows and two inputs. The `카메라` row is shown only on a coarse pointer — a desktop browser ignores `capture` and opens the same file dialog as the row above it
-  - [x] Picked attachments stage in a tray above the composer, each with its own remove control and, for photos, an editor (crop + filter, `react-easy-crop`). Decoding is serial, so a large pick takes seconds — the tray opens on a placeholder tile rather than staying empty until the last file lands
+  - [x] Picked attachments stage in a tray above the composer, each with its own remove control and, for photos, an editor (crop + filter, `react-advanced-cropper`). Decoding is serial, so a large pick takes seconds — the tray opens on a placeholder tile rather than staying empty until the last file lands
   - [x] `heic`/`heif` stay on the allow-list because iOS hands the original over when it declines to transcode, and its thumbnail is produced by decoding it in an `<img>` — so an engine without HEIC support rejects the pick outright instead of storing something it could never render
   - [x] Sending shows real upload progress per bubble; a failure offers **재전송 / 취소**, and a retry re-uploads only the attachments that had not landed. Progress is committed only when the whole-percent figure changes — `upload.onprogress` fires per network chunk, and every commit re-renders the virtualized list
 - [ ] Unread marker — a `1` beside my message, in the `unread` token (DESIGN § 4.1.4.)
-- [ ] Emoticon messages render as the image alone, without a bubble
+- [x] Emoticon messages render as the image alone, without a bubble (§ 13.6.)
 - [ ] Pinch zoom in the viewer — § 18. #6, still open and meant to be tuned on a real device
 - [ ] Tapping the scroll-to-bottom button scrolls smoothly to the bottom **and marks messages read**
 - [ ] The same button returns the user to the newest messages after a search jump (§ 8.6.1.)
@@ -324,6 +326,8 @@ Landed apart from the avatar image, which needs the profile editor of § 12. (st
 
 ### 8.8. Read / Unread
 
+- [x] **`읽음` on the newest of my messages the other participant has read**, beside its timestamp. Nothing marks an unread one — silence is the resting state, and a per-bubble label would repeat one fact per row when the newest already implies every message under it. It costs no request: `users.last_read_at` is already on `Participant` and the § 8.4. stream already refreshes it
+
 Landed: the cursor lives in `users.last_read_at` (no per-message `read_at`, no members table), `countUnreadMessages` joins `users` on the requesting id so the badge stays one round trip, and `POST /api/chat/read` writes the cursor while the chat screen is mounted (`ChatRoom` declares this with `setIsReading`).
 
 - Throttled on the **leading** edge at `READ_CURSOR_THROTTLE`, because every UPDATE that lands fires `user_changed` at the other device. Three posts are **unthrottled and none is optional**: **entering** (a throttled entry parks the cursor behind a message already on screen), **leaving**, and **backgrounding** (the app going away is not a `ChatRoom` unmount, and is the likeliest way to end a session). A cursor parked a throttle window behind turns the last message read into a push notification
@@ -423,7 +427,7 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
 - [ ] Profile — change nickname, upload/change profile image (via R2)
   - [ ] The nickname set here is exactly what appears as the sender name in chat and inside system sentences (§ 8.7.), initialized from the Google account name at first login and owned by the user thereafter
   - [ ] Saving needs no explicit broadcast — the UPDATE lands on `users`, so the § 6. trigger fires `user_changed` and every open screen refetches (§ 8.4.)
-- [ ] Entry point to the emoticon settings screen
+- [x] Entry point to the emoticon management screen (§ 13.5.) — authoring, pack order, and per-pack hiding
 - **No camera-permission toggle.** Taking a photo goes through `<input type="file" capture>`, which hands the shot to iOS's own camera app — the web page never touches the camera, so no site permission is created. A toggle would have no state to read and nothing to switch off
 - [x] **알림** — the push toggle (§ 16.1.), **per device** rather than per account, so it reflects this browser's subscription rather than a stored preference. Three inert states carry their own copy: permission denied (only the browser's site settings can undo it), unsupported (iOS Safari tab — install to the home screen first), and in flight
 - [ ] List of logged-in devices, with per-session revocation
@@ -435,13 +439,85 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
 
 ## 13. Emoticons
 
-- [ ] Emoticon assets are plain image files, **supplied manually** and uploaded to R2
-- [ ] An admin script registers packs and items (`scripts/seed-emoticons.ts`)
-- [ ] Per-pack **enable / disable** toggle in Settings, plus **drag-and-drop reordering**
-- [ ] The chat picker shows only enabled packs, in the configured order, as bottom tabs
-- [ ] Selecting an emoticon sends it immediately (a `type: "emoticon"` message)
-- [ ] A "recently used" section
-- [ ] Preload / cache emoticon images so the picker does not stutter when opened
+**Emoticons are authored inside the app.** There is no asset drop, no `scripts/seed-emoticons.ts`, and nothing to supply by hand — a user creates a pack from the Settings tab, adds items to it, and both users can send them. This reverses the earlier "supplied manually, registered by an admin script" premise, which assumed § 9. did not exist yet; it does, so the same presigned-PUT pipeline carries emoticon art.
+
+### 13.1. Ownership and Scope
+
+- **A pack belongs to the conversation, not to its creator.** Either user may create, rename, add to, and delete any pack; `emoticon_packs.created_by` is a record, never a permission check. This follows § 6.'s two-participant premise — an ownership tier here would be the only one in the app
+- **Order and visibility are per-user and pack-level.** `user_emoticon_prefs` already carries exactly that (`enabled`, `sort_order`, keyed on `(user_id, pack_id)`); nothing is added
+- **Item order is not per-user.** `emoticon_items.sort_order` is **shared** — the pack's own screen reorders it by drag (§ 13.4.) and both participants' pickers follow. A per-user item table was considered and rejected: it would make the same pack look different to each user with no surface saying so, and the pack itself is already conversation-owned
+- **`PUT /api/emoticons/packs/{id}/items` takes the whole ordered list**, because `sort_order` is positional, and renumbers it in one statement — a row per UPDATE would leave the pack half-renumbered if the connection dropped between two of them. The list must be exactly the pack's current items; a stale one (the other participant added or deleted an item meanwhile) is answered `409` rather than partially applied — and the renumbering `CASE` carries an `ELSE` of the row's own `sort_order`, because the completeness check is a separate statement and a row inserted between the two would otherwise renumber to NULL and surface as a `500`. Like § 13.5., it raises no `user_changed` event — the other user picks the order up on their next load
+- A user with no `user_emoticon_prefs` row for a pack sees it **enabled**, ordered after every pack they have expressed an opinion about. The row is written lazily on the first reorder or hide, so creating a pack does not fan out a row per user
+
+### 13.2. Item Composition
+
+One item is **one required still image plus two optional companions**, all three independent objects in R2.
+
+| Slot     | Column         | Required | Notes                                                                   |
+| -------- | -------------- | -------- | ----------------------------------------------------------------------- |
+| Still    | `r2_key`       | yes      | What renders at rest and what the picker grid shows                     |
+| Animated | `animated_key` | no       | `image/webp` or `image/gif`. Replaces the still when playing (§ 13.6.)  |
+| Audio    | `audio_key`    | no       | Played on tap only (§ 13.6.). An item may carry audio without animation |
+
+- `emoticon_items.width` / `height` are **read from the decoded still image in the browser** and stored, exactly as § 9. does for chat media — `features/upload-media`'s `toMediaDraft` already does this and is reused rather than reimplemented. They are NOT NULL because the chat row reserves the box before the asset loads (§ 8.3.)
+- **The animated asset is measured against the still, not itself.** One box is reserved and the two swap inside it, so a mismatched animation is letterboxed rather than allowed to re-measure the row
+- **A pack's thumbnail is one of its own items**, not a separate upload: `emoticon_packs.thumbnail_item_id` is a nullable FK to `emoticon_items` with `ON DELETE SET NULL`. This replaces the old `thumbnail_key`, which required an asset that existed nowhere else and could not be chosen until after the pack was created anyway. Null means the picker tab falls back to the pack's first item
+- The FK is **circular** (`packs` → `items` → `packs`), so it is added as a separate `ALTER TABLE` after both tables exist. `ON DELETE SET NULL`, never cascade: deleting the item a pack happens to use as its tab icon must not delete the pack
+
+### 13.3. Asset Storage
+
+Emoticon objects ride § 9.'s presigned-PUT pipeline — client → R2 directly, key built server-side — but they are **not `media` rows**, and `emoticon_items` stores R2 keys directly.
+
+- `media` is documented as the gallery's single source (§ 10.). An emoticon registered there would appear in the gallery, and filtering it back out would mean the gallery's one source has an exception in it
+- `registerMedia` requires a `_thumb` sibling of `THUMBNAIL_MIME` (JPEG). An emoticon is transparent art rendered without a bubble or background (`DESIGN.md § 6.5.`), so a JPEG derivative would show an opaque box; and it is small enough that a thumbnail buys nothing
+- `media.width` / `height` are NOT NULL and an audio object has neither
+- What is **not** duplicated is the § 14. enforcement itself: registration `HeadObject`s every key it is about to write and refuses anything outside the allow-list, for the same reason and by the same shared helper. R2 enforces neither the signed `Content-Type` nor any size (§ 9.)
+- Key scope is `emoticon/{userId}/{uuid}` — `buildStorageKey` already declares the scope. The uploader's id stays in the key even though the pack is shared, because the key is the ownership proof at registration (§ 9.)
+- **Read authorization is a plain session check**, not `canReadMedia`: packs are conversation-wide, so any signed-in participant may read any emoticon asset. This is the one place a bare session is sufficient, and it is sufficient _because_ the pack is shared — the § 9. argument against it applies to objects nobody has posted
+- **`DELETE /api/emoticons/upload-url` takes back objects that landed for a submit that never produced an item** (§ 13.4.). Nothing in the app addresses R2 by key, so an object no row references is unreachable and would otherwise sit in the bucket forever. It deletes only keys under the caller's own `emoticon/{userId}/` prefix — the same ownership proof registration uses — and only keys **no `emoticon_items` row references**, so a failed retry cannot delete the assets of the item an earlier submit registered
+
+### 13.4. Authoring
+
+- [x] **Create a pack from a title alone.** No thumbnail, no items required — an empty pack is a valid intermediate state, because the thumbnail can only be chosen from items that do not exist yet
+- [x] **Add an item from a still image alone.** The animated image and the audio are added in the same form, both optional. An item carries **no title**: nothing renders one — the bubble is the bare image (§ 13.6.) and the picker grid is 4 squares — so the field only asked for a string that was never read back
+- [x] The still image is picked through `features/upload-media`'s `MediaPickerSheet` (촬영 / 고르기) and may then be cropped and filtered in its `MediaEditor`. Both are reused, not reimplemented
+- [x] **A cropped emoticon is re-encoded as PNG, not JPEG.** `applyEdit` outputs JPEG for chat, which flattens alpha onto an opaque background — invisible in a bubble, glaring on the bubble-less emoticon of `DESIGN.md § 6.5.` The output type becomes a parameter; chat keeps JPEG
+- [x] **The animated asset never enters the editor.** A canvas crop decodes one frame and re-encodes a still, silently turning an animation into a picture. It is picked and uploaded as-is
+- [x] The picker is restricted to images for both image slots — `MediaPickerSheet` takes its `accept` from the caller instead of hardcoding `image/*,video/*`
+- [x] Everything uploads on final submit, not on pick, so abandoning the form leaves nothing in the bucket. A submit that **fails after some slots have landed** — a rejected sibling upload, or a `422` from registration — gives those objects back through § 13.3.'s discard endpoint; the slots are awaited with `allSettled` rather than `all` precisely so every key that reached R2 is known to the failure path
+- [x] **The editor opens over the authoring sheet, not under it.** `MediaEditor` portals into the app shell (`ShellOverlay`) while the sheet portals into `body`, so no z-index inside the shell can lift it — the sheet closes for as long as the editor is up
+- [x] **A free-form crop** (`자유`, the default) alongside the fixed ratios. `react-easy-crop` has no resizable crop box, so this is what `react-advanced-cropper` replaced it for
+- [x] **Set a pack's thumbnail by choosing one of its items**, from the pack's own detail screen
+- [x] **Long-press then drag to reorder items** in that screen's grid, writing the shared `emoticon_items.sort_order` (§ 13.1.). The activation gesture is § 13.5.'s, extracted to `useSortableSensors`; the cell carries the listeners itself, since a 4-column square has no room for a grip handle, and `touch-manipulation` rather than `touch-none` keeps the page scrollable over the grid
+
+### 13.5. Management (Settings)
+
+- [x] A settings row (§ 12.) opens the emoticon management screen: **one flat list of packs**, matching KakaoTalk's 이모티콘 관리
+- [x] **A pack is `이모티콘 그룹` in the UI and an item is `이모티콘`.** Both were called `이모티콘`, which made "이모티콘에 이모티콘을 추가한다" the only way to describe authoring. The screen titles, the create sheet, the picker's empty state and the pack's delete button all follow this split; `pack` / `item` stay as they are in code
+- [x] The screen creates, **renames** and deletes packs, and the pack's own screen creates and deletes items — copy that promised only reordering and hiding under-described it
+- [x] **Rename and delete hang off a gear icon on the row**, opening an `ActionSheet`. Delete used to sit in the pack screen's header one thumb-width from 이모티콘 추가, which is the wrong neighbour for it; the row also carries a chevron, since nothing else said the name was a link to the pack's own screen
+- [x] **Long-press then drag to reorder**, vertical axis only, writing `user_emoticon_prefs.sort_order`
+- [x] **Hide** per pack, writing `user_emoticon_prefs.enabled`. A hidden pack is hidden from the picker (§ 13.6.) for that user only — it is never deleted and the other user is unaffected. Hiding **writes the whole list's current order first**: `sort_order` is positional and a user who has never reordered has no rows at all, so writing the hidden pack's row alone would sort it against every other pack's fallback and silently reshuffle the list on the first hide
+- [x] The management screen **owns the order**; the list component holds none of its own. Both are per-user state that a rename, a create or a delete on the same screen also touches, and two copies of it meant a persisted drag could be rolled back by the next rename
+- [x] Reordering and hiding are **per-user by definition**, so neither broadcasts over `user_changed` (§ 8.4.) — that channel carries `users` changes, and this writes a different table. A second device of the same user refreshes on its next load
+- [x] Drag-and-drop uses **`@dnd-kit`** (`core` + `sortable` + `modifiers`), the one dependency § 1. records as still missing. Its `TouchSensor` `activationConstraint` (`delay` / `tolerance`) is what makes long-press-to-drag the activation gesture rather than a plain drag, which on a scrolling list would fight the scroller
+
+### 13.6. Picker and Bubble
+
+- [x] The composer's emoticon toggle opens a panel whose bottom tabs are the **enabled packs in the user's order**, each tab showing its `thumbnail_item_id` item
+- [x] Selecting an emoticon **stages it as a preview** above the composer, KakaoTalk-style, rather than sending on the tap. The preview autoplays an animated item and replays it (with the audio) on tap, and it survives the panel closing — tapping the field to type a line keeps it staged
+- [x] **The staged emoticon and staged attachments are mutually exclusive.** Picking photos clears the emoticon and staging an emoticon clears the tray — § 6. gives each bubble one payload, so a composer holding both would promise a send that has no row to land in
+- [x] **Emoticon and text are two messages, in that order**, when both are sent together: the emoticon bubble, then the text. Nothing is added to the schema for it — `useSendMessage` delivers on one promise chain, so `messages.id` is assigned in the order the bubbles were queued (the same guarantee attachments-then-caption already relies on). Allowing `text` on an `emoticon` row was considered and rejected: it would relax the § 6. CHECK for a combination `media` rows still could not express
+- [x] A **recently used** section, ahead of the first pack
+- [x] **`POST /api/messages` checks the item exists** before it inserts, like `mediaIds` before it. `messages.emoticon_item_id` is a foreign key, and a picker whose list predates the other participant deleting an item (§ 13.4.) would otherwise send its way into a `500` instead of the `400` every other bad body gets
+- [x] **The panel reopens on the tab it was last left on**, per device, so the pack a user actually sends from is one tap away instead of behind 최근 사용 every time. Stored with `synced-storage`'s `useStorageState` (`localStorage`, synced across hook instances and tabs; `SyncedStorageProvider` sits in `GlobalProvider`), and it falls back to 최근 사용 when the remembered pack has since been deleted or hidden (§ 13.1.). The 최근 사용 list itself uses the same hook
+- [x] **A tap outside the panel closes it**, on `pointerdown` so the gesture that starts a scroll of the history also dismisses it. The composer's own wrapper is the exception — the toggle lives in it, and closing there would fight the toggle's own handler
+- [x] **The panel is never on screen with the keyboard.** Reaching for the field closes it (`onFieldFocus`), and the render is additionally gated on `useIsVirtualKeyboardOpen` — derived rather than an effect, because Android reopens the keyboard on an already-focused field and fires no `focus` for the picker to hear
+- [x] The bubble renders **the image alone** — no bubble, no border, no background, max 140×140 (`DESIGN.md § 6.5.`). The box is reserved from the stored `width`/`height` before the asset loads (§ 8.3.)
+- [x] **An animated item autoplays whenever it is on screen and stops when it leaves**, swapping the still for `animated_key` and back. This is KakaoTalk's behaviour and it is what makes an animated emoticon worth authoring
+- [x] **Audio plays on tap only.** iOS refuses to start audio outside a user gesture, so an autoplaying sound is not a policy choice we get to make — and a chat scrolling past four animated emoticons must not play four sounds
+- [x] A tap also restarts the animation, so an item that scrolled past mid-loop can be replayed deliberately
+- [ ] Preload the enabled packs' stills so the panel does not stutter on first open. The **animated** assets are not preloaded — they are the large ones and most are never seen
 
 ---
 
@@ -475,7 +551,7 @@ An installed iOS PWA is not reloaded when the user reopens it — the system res
 - [x] `/api/chat/stream` emits `event: build` once per connection, ahead of the replay. It carries no `id:`, for the same reason `user` does not — the reconnect cursor is a `messages` bigserial
 - [x] The client compares each `build` against the first one it saw. It never compares against a value baked into the bundle: a browser bundle cannot read a non-`NEXT_PUBLIC_` variable, so the two sides would always disagree
 - [x] The stream already reconnects on every iOS resume (§ 8.4.), so the signal arrives at exactly the moment a suspended client wakes up. No poll and no second connection
-- [x] A detected deploy reloads immediately **unless** the screen holds unsent work — composer text, staged attachments, or a send in flight. Those register through `useUnsentWork`, and the reload retries every `APP_REFRESH_RETRY_DELAY` and on every backgrounding until they clear
+- [x] A detected deploy reloads immediately **unless** the screen holds unsent work — composer text, staged attachments, a staged emoticon (§ 13.6.), or a send in flight. Those register through `useUnsentWork`, and the reload retries every `APP_REFRESH_RETRY_DELAY` and on every backgrounding until they clear
 - [x] **A _failed_ send is not unsent work.** It stays in the pending list until the user retries or cancels it, and it never resolves on its own — counting it pins a user who sent a photo on a dead connection to a stale bundle indefinitely. Only `sending` holds the reload
 - [x] Settings carries a manual `강제 새로고침` row on development builds only. `BUILD_ID` is constant locally, so nothing else can exercise the reload path there
 - [ ] Enable Vercel **Skew Protection** — it keeps a superseded deployment's chunks reachable, so a client that has not refreshed yet fails softly instead of 404-ing on a missing chunk
@@ -520,7 +596,7 @@ Landed (§ 18. #8); it reverses the "no service worker" decision in § 7. Contra
 5. **Chat tab (§ 8.) — in progress.** Static UI → message CRUD → infinite scroll → SSE ✅, read cursor ✅; the `1` marker and unread divider (§ 8.8.) and search and jump (§ 8.6.) remain
 6. ✅ R2 media pipeline + sending photos and videos in chat (§ 9.)
 7. Gallery tab (§ 10.)
-8. Emoticons (§ 13.)
+8. ✅ **Emoticons (§ 13.)** — authored in the app, not seeded. Schema and migration, the asset pipeline, the authoring screens, the management list, the picker and the bubble all landed; only the picker's still-preloading is open
 9. Calendar tab (§ 11.)
 10. Settings tab (§ 12.)
 11. Security hardening + deployment (§ 14., § 15.)
@@ -531,15 +607,15 @@ Landed (§ 18. #8); it reverses the "no service worker" decision in § 7. Contra
 
 Deliberately left open. When work reaches the feature, **confirm with the user**, then update this document.
 
-| #      | Item                                                                                                          | Needed by             | Notes                                                                                                                                                                                                               |
-| ------ | ------------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1      | What happens to a chat message when its image is deleted from the gallery — delete it, or leave a placeholder | Gallery (§ 10.)       | Affects the schema (whether `media.deleted_at` is needed)                                                                                                                                                           |
-| 2      | How emoticon assets are sourced and how packs are composed                                                    | Emoticons (§ 13.)     | The picker grid cannot be designed until the aspect ratios are known                                                                                                                                                |
-| 3      | Emoticon picker dimensions — panel height, pack tab bar, grid density                                         | Emoticons (§ 13.)     | DESIGN § 9.                                                                                                                                                                                                         |
-| 4      | Calendar event color set (6–7 warm tints that do not clash with the accent)                                   | Calendar (§ 11.)      | DESIGN § 9.                                                                                                                                                                                                         |
-| 5      | Motion duration / easing token scale                                                                          | When animation starts | Only the 1.5s search flash and the tab `scale-[0.96]` are specified. DESIGN § 9.                                                                                                                                    |
-| 6      | Viewer **pinch-zoom** bounds                                                                                  | Gallery / viewer      | Must be tuned on a real device. The swipe half is settled — native scroll snapping, no threshold. DESIGN § 9.                                                                                                       |
-| 7      | Dark palette hex values                                                                                       | Dark theme (§ 16.)    | Hand-tune; never arithmetically invert. DESIGN § 5.4.                                                                                                                                                               |
-| ~~8~~  | ~~**Whether to adopt push notifications (new-message only)**~~                                                | —                     | **Decided: adopted.** Landed as § 16.1. **Time-based notifications remain out of scope**                                                                                                                            |
-| 9      | Whether a `scope = 'mine'` event shows its **title** to the other user, or only "busy"                        | Calendar (§ 11.5.)    | Currently specified as showing the title                                                                                                                                                                            |
-| ~~10~~ | ~~**Maximum images per message, and the grid layout beyond that count**~~                                     | —                     | **Decided: selection is unlimited; a send splits into consecutive bubbles of 9.** So there is no `+N` overflow cell and no attachment is ever hidden behind one. Caps are per file — 50MB photo, 500MB video (§ 9.) |
+| #      | Item                                                                                                          | Needed by             | Notes                                                                                                                                                                                                                        |
+| ------ | ------------------------------------------------------------------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1      | What happens to a chat message when its image is deleted from the gallery — delete it, or leave a placeholder | Gallery (§ 10.)       | Affects the schema (whether `media.deleted_at` is needed)                                                                                                                                                                    |
+| ~~2~~  | ~~How emoticon assets are sourced and how packs are composed~~                                                | —                     | **Decided: authored in the app** (§ 13.). A user creates a pack from a title and adds items from a still image plus an optional animation and audio. Aspect ratios are therefore arbitrary, which is what #3 must now absorb |
+| 3      | Emoticon picker dimensions — panel height, pack tab bar, grid density                                         | Emoticons (§ 13.6.)   | DESIGN § 9. #2 is now decided, and it decided the assets are user-authored, so the grid must hold **arbitrary** aspect ratios rather than a known set — a fixed square cell with the still `object-contain` inside it        |
+| 4      | Calendar event color set (6–7 warm tints that do not clash with the accent)                                   | Calendar (§ 11.)      | DESIGN § 9.                                                                                                                                                                                                                  |
+| 5      | Motion duration / easing token scale                                                                          | When animation starts | Only the 1.5s search flash and the tab `scale-[0.96]` are specified. DESIGN § 9.                                                                                                                                             |
+| 6      | Viewer **pinch-zoom** bounds                                                                                  | Gallery / viewer      | Must be tuned on a real device. The swipe half is settled — native scroll snapping, no threshold. DESIGN § 9.                                                                                                                |
+| 7      | Dark palette hex values                                                                                       | Dark theme (§ 16.)    | Hand-tune; never arithmetically invert. DESIGN § 5.4.                                                                                                                                                                        |
+| ~~8~~  | ~~**Whether to adopt push notifications (new-message only)**~~                                                | —                     | **Decided: adopted.** Landed as § 16.1. **Time-based notifications remain out of scope**                                                                                                                                     |
+| 9      | Whether a `scope = 'mine'` event shows its **title** to the other user, or only "busy"                        | Calendar (§ 11.5.)    | Currently specified as showing the title                                                                                                                                                                                     |
+| ~~10~~ | ~~**Maximum images per message, and the grid layout beyond that count**~~                                     | —                     | **Decided: selection is unlimited; a send splits into consecutive bubbles of 9.** So there is no `+N` overflow cell and no attachment is ever hidden behind one. Caps are per file — 50MB photo, 500MB video (§ 9.)          |

@@ -1,8 +1,10 @@
 import type { ChatMessage } from "@/entities/message";
 
-// INFO: REQUIREMENTS.md § 6. Text or attachments, never both — the route's schema and the table's CHECK constraint say the same thing.
+// INFO: REQUIREMENTS.md § 6. Text, attachments, or one emoticon — never a combination. The route's schema and the table's CHECK constraint say the same thing.
 export type PostMessageParams =
-  { clientMsgId: string; text: string } | { clientMsgId: string; mediaIds: string[] };
+  | { clientMsgId: string; text: string }
+  | { clientMsgId: string; mediaIds: string[] }
+  | { clientMsgId: string; emoticonItemId: string };
 
 export async function postMessage(params: PostMessageParams): Promise<ChatMessage> {
   const response = await fetch("/api/messages", {

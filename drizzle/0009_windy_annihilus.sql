@@ -1,0 +1,1 @@
+ALTER TABLE "emoticon_packs" DROP COLUMN "thumbnail_key";

@@ -1,11 +1,13 @@
 "use client";
 
+import type { Emoticon } from "@/entities/emoticon";
 import type { Participant } from "@/entities/user";
 import { cn, formatTime, type Nullable, type Optional } from "@/shared/lib";
 import { Avatar, IconButton } from "@/shared/ui";
 import { RotateCcw, X } from "lucide-react";
 import type { MediaCell } from "../model/to-media-cells";
 import { useLongPress } from "../model/use-long-press";
+import { EmoticonBubble } from "./emoticon-bubble";
 import { MediaGrid } from "./media-grid";
 
 export type MessageRowProps = {
@@ -13,6 +15,7 @@ export type MessageRowProps = {
   bubbleClassName?: string;
   text: Nullable<string>;
   media?: MediaCell[];
+  emoticon?: Nullable<Emoticon>;
   /** `0`–`1` while attachments upload. Ignored for a text message. */
   progress?: number;
   createdAt: string;
@@ -20,6 +23,8 @@ export type MessageRowProps = {
   isMine: boolean;
   isFirstOfGroup: boolean;
   isLastOfGroup: boolean;
+  /** REQUIREMENTS.md § 8.8. Set on the newest of my messages the other participant's read cursor has passed. */
+  isRead?: boolean;
   status: "sent" | "sending" | "failed";
   onLongPress?: () => void;
   onOpenMedia?: (index: number) => void;
@@ -33,12 +38,14 @@ export function MessageRow({
   bubbleClassName,
   text,
   media = [],
+  emoticon,
   progress = 1,
   createdAt,
   sender,
   isMine,
   isFirstOfGroup,
   isLastOfGroup,
+  isRead = false,
   status,
   onLongPress,
   onOpenMedia,
@@ -72,7 +79,12 @@ export function MessageRow({
           <span className="px-2xs text-chat-name text-chat-meta">{sender?.name}</span>
         )}
         <div className={cn("flex items-end gap-2xs", isMine && "flex-row-reverse")}>
-          {hasMedia ? (
+          {emoticon ? (
+            // INFO: DESIGN.md § 6.5. An emoticon renders without a bubble, border or background, for the same reason an attachment does.
+            <div className={cn(status !== "sent" && "opacity-60")} {...longPressHandlers}>
+              <EmoticonBubble emoticon={emoticon} />
+            </div>
+          ) : hasMedia ? (
             // INFO: DESIGN.md § 6.5. Attachments render without a bubble — a container around a photo is redundant chrome.
             <div {...longPressHandlers}>
               <MediaGrid
@@ -119,11 +131,12 @@ export function MessageRow({
               />
             </div>
           ) : (
-            // INFO: DESIGN.md § 6.3. One timestamp per minute-group, on its last bubble.
-            isLastOfGroup && (
-              <time className="shrink-0 text-chat-time text-chat-meta" dateTime={createdAt}>
-                {formatTime(createdAt)}
-              </time>
+            (isLastOfGroup || isRead) && (
+              // INFO: DESIGN.md § 6.3. One timestamp per minute-group, on its last bubble; § 8.8.'s 읽음 stacks above it on the one bubble that carries it.
+              <div className="flex shrink-0 flex-col items-end text-chat-time text-chat-meta">
+                {isRead && <span>읽음</span>}
+                {isLastOfGroup && <time dateTime={createdAt}>{formatTime(createdAt)}</time>}
+              </div>
             )
           )}
         </div>

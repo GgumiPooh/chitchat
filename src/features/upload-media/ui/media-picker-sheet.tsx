@@ -10,7 +10,10 @@ const MEDIA_ACCEPT = "image/*,video/*";
 
 export type MediaPickerSheetProps = {
   className?: string;
+  // INFO: REQUIREMENTS.md § 13.4. The emoticon flow narrows this to images; chat takes the default.
+  accept?: string;
   isOpen: boolean;
+  isMultiple?: boolean;
   onClose: () => void;
   onSelect: (files: File[]) => void;
 };
@@ -22,7 +25,14 @@ export type MediaPickerSheetProps = {
  * and iOS ignores `multiple` on that input. That is why these are two rows and
  * two inputs rather than one control with both attributes.
  */
-export function MediaPickerSheet({ className, isOpen, onClose, onSelect }: MediaPickerSheetProps) {
+export function MediaPickerSheet({
+  className,
+  accept = MEDIA_ACCEPT,
+  isOpen,
+  isMultiple = true,
+  onClose,
+  onSelect,
+}: MediaPickerSheetProps) {
   const albumRef = useRef<Nullable<HTMLInputElement>>(null);
   const cameraRef = useRef<Nullable<HTMLInputElement>>(null);
   // INFO: AGENTS.md § 4.2. An interaction detail, not a layout branch — the sheet keeps its one mobile layout and only drops a row that cannot do anything here.
@@ -47,8 +57,8 @@ export function MediaPickerSheet({ className, isOpen, onClose, onSelect }: Media
         ref={albumRef}
         className="hidden"
         type="file"
-        accept={MEDIA_ACCEPT}
-        multiple
+        accept={accept}
+        multiple={isMultiple}
         onChange={handleChange}
       />
       {isCoarsePointer && (
@@ -57,7 +67,7 @@ export function MediaPickerSheet({ className, isOpen, onClose, onSelect }: Media
           ref={cameraRef}
           className="hidden"
           type="file"
-          accept={MEDIA_ACCEPT}
+          accept={accept}
           capture="environment"
           onChange={handleChange}
         />

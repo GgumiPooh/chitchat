@@ -6,13 +6,14 @@ import type { User } from "@/shared/db";
 import { cn } from "@/shared/lib";
 import { AppHeader, Avatar } from "@/shared/ui";
 import { DevRefreshRow } from "./dev-refresh-row";
+import { EmoticonSettingsRow } from "./emoticon-settings-row";
 
 export type SettingsPageProps = {
   className?: string;
   user: User;
 };
 
-// TODO: Add the profile editor, emoticon settings, and device list — step 10 of REQUIREMENTS.md § 17.
+// TODO: Add the profile editor and the device list — step 10 of REQUIREMENTS.md § 17.
 export function SettingsPage({ className, user }: SettingsPageProps) {
   const displayName = resolveDisplayName(user);
 
@@ -26,6 +27,7 @@ export function SettingsPage({ className, user }: SettingsPageProps) {
       </div>
       {/* INFO: DESIGN.md § 7.11. Rows run edge to edge, so they sit outside the padded block above. */}
       <PushNotificationRow />
+      <EmoticonSettingsRow />
       {/* INFO: REQUIREMENTS.md § 15.1. Dev only — a production client is refreshed by the stream's `build` event and never needs to be told by hand. */}
       {IS_DEV && <DevRefreshRow />}
       <div className="flex justify-center p-md">

@@ -24,3 +24,4 @@ export { hasUnsentWork, useUnsentWork } from "./unsent-work";
 export { useHydrated } from "./use-hydrated";
 export { useIsCoarsePointer } from "./use-is-coarse-pointer";
 export { useIsVirtualKeyboardOpen } from "./use-is-virtual-keyboard-open";
+export { useSortableSensors } from "./use-sortable-sensors";

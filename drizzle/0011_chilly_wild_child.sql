@@ -1,0 +1,1 @@
+ALTER TABLE "emoticon_items" DROP COLUMN "name";

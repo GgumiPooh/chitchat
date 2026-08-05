@@ -12,6 +12,14 @@ const EDITED_QUALITY = 0.92;
 
 export const OUTPUT_MIME = "image/jpeg";
 
+// INFO: REQUIREMENTS.md § 13.4. What an emoticon is encoded as. JPEG would replace its transparency with an opaque box, which is invisible inside a bubble and glaring on the bubble-less emoticon of DESIGN.md § 6.5.
+export const TRANSPARENT_OUTPUT_MIME = "image/png";
+
+/** The file extension `mime` is written out with, so an edited file keeps a name that matches its bytes. */
+export function toExtension(mime: string): string {
+  return mime === TRANSPARENT_OUTPUT_MIME ? "png" : "jpg";
+}
+
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -22,11 +30,16 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-export function toBlob(canvas: HTMLCanvasElement, isThumbnail = false): Promise<Blob> {
+// INFO: `quality` is ignored by the PNG encoder, so the same call serves both output types.
+export function toBlob(
+  canvas: HTMLCanvasElement,
+  isThumbnail = false,
+  mime: string = OUTPUT_MIME,
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error("canvas encode failed"))),
-      OUTPUT_MIME,
+      mime,
       isThumbnail ? THUMBNAIL_QUALITY : EDITED_QUALITY,
     );
   });
@@ -63,6 +76,7 @@ export function renderThumbnail(
   source: CanvasImageSource,
   width: number,
   height: number,
+  mime: string = OUTPUT_MIME,
 ): Promise<Blob> {
   const size = fitWithin(width, height, THUMBNAIL_MAX_EDGE);
   const canvas = createCanvas(size.width, size.height);
@@ -70,5 +84,5 @@ export function renderThumbnail(
 
   context.drawImage(source, 0, 0, size.width, size.height);
 
-  return toBlob(canvas, true);
+  return toBlob(canvas, true, mime);
 }

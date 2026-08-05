@@ -27,8 +27,7 @@ export function buildChatRows({
   currentUserId,
 }: BuildChatRowsParams): ChatRow[] {
   const entries: Entry[] = [
-    // TODO: `emoticon` bubbles are step 8 of REQUIREMENTS.md § 17. They are dropped here rather than rendered as `null` further down, which would leave a group's timestamp on an invisible row and a date divider over nothing.
-    ...messages.filter(isRenderableMessage).map((message) => ({
+    ...messages.map((message) => ({
       key: `m${message.id}`,
       dayKey: toDayKey(message.createdAt),
       // INFO: DESIGN.md § 6.3. A group is one sender inside one clock minute; a `system` notice never joins one.
@@ -89,10 +88,6 @@ export function buildChatRows({
   });
 
   return rows;
-}
-
-function isRenderableMessage(message: ChatMessage): boolean {
-  return message.type === "text" || message.type === "media" || message.type === "system";
 }
 
 // INFO: The ISO string is UTC, and every offset is a whole number of minutes, so slicing it groups by the local clock minute too.
