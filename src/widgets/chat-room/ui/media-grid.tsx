@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/shared/lib";
+import { PreloadImage } from "@/shared/ui";
 import { Play } from "lucide-react";
 import { formatDuration } from "../model/format-duration";
 import type { MediaCell } from "../model/to-media-cells";
@@ -60,7 +61,12 @@ export function MediaGrid({
           className="relative block w-full ring-1 ring-hairline ring-inset"
           style={{ aspectRatio: `${cell.width} / ${cell.height}` }}
         >
-          <img className="size-full object-cover" src={cell.previewUrl} alt="" />
+          <PreloadImage
+            className="size-full"
+            imgClassName="size-full object-cover"
+            src={cell.previewUrl}
+            alt=""
+          />
           {renderVideoOverlay(cell)}
         </span>
       </button>
@@ -78,8 +84,9 @@ export function MediaGrid({
             aria-label={cell.isVideo ? "동영상 보기" : "사진 보기"}
             onClick={() => onOpen?.(index)}
           >
-            <img
-              className="size-full object-cover ring-1 ring-hairline ring-inset"
+            <PreloadImage
+              className="size-full"
+              imgClassName="size-full object-cover ring-1 ring-hairline ring-inset"
               src={cell.previewUrl}
               alt=""
             />

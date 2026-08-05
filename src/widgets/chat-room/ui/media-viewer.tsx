@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/shared/lib";
-import { IconButton, ShellOverlay } from "@/shared/ui";
+import { IconButton, PreloadImage, ShellOverlay } from "@/shared/ui";
 import { Download, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { MediaCell } from "../model/to-media-cells";
@@ -92,8 +92,12 @@ export function MediaViewer({ className, cells, initialIndex, onClose }: MediaVi
 
 function ImageSlide({ cell }: { cell: MediaCell }) {
   return (
-    <img
-      className="max-h-full max-w-full object-contain"
+    // INFO: The stored ratio gives the skeleton a box to fill while the original downloads — the grid tile the user tapped came from a thumbnail, so this request starts cold.
+    <PreloadImage
+      className="max-h-full w-full"
+      imgClassName="size-full object-contain"
+      placeholderClassName="rounded-md"
+      style={{ aspectRatio: `${cell.width} / ${cell.height}` }}
       src={cell.originalUrl ?? cell.previewUrl}
       alt=""
     />

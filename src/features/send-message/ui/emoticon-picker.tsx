@@ -3,7 +3,7 @@
 import type { Emoticon, EmoticonPackWithItems } from "@/entities/emoticon";
 import { EMOTICON_PACKS_PATH, toEmoticonAssetUrl } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
-import { EmptyState } from "@/shared/ui";
+import { EmptyState, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Smile } from "lucide-react";
 import { useStorageState } from "synced-storage/react";
@@ -80,9 +80,10 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
                 aria-label="이모티콘"
                 onClick={() => handleSelect(item)}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element -- REQUIREMENTS.md § 13.3. serves a 302 to a presigned R2 URL, which `next/image` cannot take as a loader source. */}
-                <img
-                  className="size-full object-contain"
+                <PreloadImage
+                  className="size-full"
+                  imgClassName="size-full object-contain"
+                  placeholderClassName="rounded-sm"
                   src={toEmoticonAssetUrl(item.id, "image", item.version)}
                   alt=""
                   loading="lazy"
@@ -112,9 +113,10 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
               onClick={() => setRequestedTab(pack.id)}
             >
               {tabItem ? (
-                // eslint-disable-next-line @next/next/no-img-element -- See above; the asset route answers a 302 to R2.
-                <img
-                  className="size-full object-contain"
+                <PreloadImage
+                  className="size-full"
+                  imgClassName="size-full object-contain"
+                  placeholderClassName="rounded-sm"
                   src={toEmoticonAssetUrl(tabItem.id, "image", tabItem.version)}
                   alt=""
                 />

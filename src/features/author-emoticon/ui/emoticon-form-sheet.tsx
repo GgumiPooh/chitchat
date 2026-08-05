@@ -12,7 +12,7 @@ import {
   toEmoticonAssetUrl,
 } from "@/shared/config";
 import { cn, type Maybe, type Nullable, type Optional } from "@/shared/lib";
-import { BottomSheet, Button, IconButton, toast } from "@/shared/ui";
+import { BottomSheet, Button, IconButton, PreloadImage, toast } from "@/shared/ui";
 import { ImagePlus, Music, Pencil, X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
@@ -88,8 +88,12 @@ export function EmoticonFormSheet({
               onClick={() => setIsPickerOpen(true)}
             >
               {previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- A local blob preview, or REQUIREMENTS.md § 13.3.'s 302 to a presigned R2 URL — neither is a source `next/image` can optimize.
-                <img className="size-full object-contain" src={previewUrl} alt="" />
+                <PreloadImage
+                  className="size-full"
+                  imgClassName="size-full object-contain"
+                  src={previewUrl}
+                  alt=""
+                />
               ) : (
                 <ImagePlus className="size-6" strokeWidth={1.75} />
               )}

@@ -12,6 +12,7 @@ export { EmptyState, type EmptyStateProps } from "./empty-state";
 export { IconButton, type IconButtonProps } from "./icon-button";
 export { Input, type InputProps } from "./input";
 export { Modal, type ModalProps } from "./modal";
+export { PreloadImage, type PreloadImageProps } from "./preload-image";
 export { RelativeTime, type RelativeTimeProps } from "./relative-time";
 export { ScrollMemory } from "./scroll-memory";
 export { ScrollReset } from "./scroll-reset";

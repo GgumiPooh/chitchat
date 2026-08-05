@@ -3,6 +3,7 @@
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import { cn } from "@/shared/lib";
+import { PreloadImage } from "@/shared/ui";
 import { useSortable } from "@dnd-kit/sortable";
 
 export type EmoticonItemCellProps = {
@@ -52,9 +53,10 @@ export function EmoticonItemCell({
       {...listeners}
       onClick={() => onSelect(item.id)}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element -- REQUIREMENTS.md § 13.3. serves a 302 to a presigned R2 URL, which `next/image` cannot take as a loader source. */}
-      <img
-        className="size-full object-contain"
+      <PreloadImage
+        className="size-full"
+        imgClassName="size-full object-contain"
+        placeholderClassName="rounded-sm"
         src={toEmoticonAssetUrl(item.id, "image", item.version)}
         alt=""
         draggable={false}

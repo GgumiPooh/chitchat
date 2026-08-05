@@ -3,7 +3,7 @@
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
-import { IconButton } from "@/shared/ui";
+import { IconButton, PreloadImage } from "@/shared/ui";
 import { X } from "lucide-react";
 import { useRef, useState } from "react";
 
@@ -38,11 +38,11 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
           aria-label="이모티콘 다시 재생"
           onClick={handleTap}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element -- REQUIREMENTS.md § 13.3. serves a 302 to a presigned R2 URL, which `next/image` cannot take as a loader source. */}
-          <img
+          <PreloadImage
             // WARN: Keyed by the replay token so a tap remounts the element. A GIF or animated WebP has no seek API — reassigning the same `src` is ignored by the cache, and only a fresh element restarts the loop.
             key={replayToken}
-            className="size-full object-contain"
+            className="size-full"
+            imgClassName="size-full object-contain"
             alt=""
             width={box.width}
             height={box.height}

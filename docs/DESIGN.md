@@ -590,6 +590,8 @@ The default overlay for anything originating from a bottom-anchored or list inte
 
 `surface-strong` blocks at the final content's radius, pulsing to `surface-soft` over 1.5s. Used for the initial message page, gallery grid, and calendar month. Never for optimistic messages — those render at 60% opacity (§ 6.5.).
 
+Every remote image also carries one while it loads: `PreloadImage` (`@/shared/ui`) fills its own box with the skeleton and fades the asset in over 200ms once it paints. Screens MUST NOT render a bare `<img>` for an R2-backed asset — the skeleton is what stands in for the reserved box of § 6.1. instead of a blank rectangle, and the fade is what keeps a cached image from flashing. An asset that never arrives ends on a static `surface-strong` box with a `meta-soft` `ImageOff` glyph: a skeleton that pulses forever reads as a hung screen.
+
 ## 7.9. Calendar.
 
 The calendar screen opens with a D-day header, then the month grid.

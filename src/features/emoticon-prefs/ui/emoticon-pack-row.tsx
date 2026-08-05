@@ -3,7 +3,7 @@
 import type { EmoticonPackSummary } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import { cn } from "@/shared/lib";
-import { IconButton, Switch } from "@/shared/ui";
+import { IconButton, PreloadImage, Switch } from "@/shared/ui";
 import { useSortable } from "@dnd-kit/sortable";
 import { ChevronRight, GripVertical, Settings2, Smile } from "lucide-react";
 
@@ -57,9 +57,9 @@ export function EmoticonPackRow({
     >
       <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-surface-soft ring-1 ring-hairline ring-inset">
         {pack.thumbnailItemId ? (
-          // eslint-disable-next-line @next/next/no-img-element -- REQUIREMENTS.md § 13.3. serves a 302 to a presigned R2 URL, which `next/image` cannot take as a loader source.
-          <img
-            className="size-full object-contain"
+          <PreloadImage
+            className="size-full"
+            imgClassName="size-full object-contain"
             alt=""
             src={toEmoticonAssetUrl(
               pack.thumbnailItemId,
