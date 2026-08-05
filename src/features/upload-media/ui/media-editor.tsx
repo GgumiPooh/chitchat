@@ -24,6 +24,14 @@ export type MediaEditorProps = {
   draft: MediaDraft;
   // INFO: REQUIREMENTS.md § 13.4. The emoticon flow passes `image/png` so the crop keeps its alpha, and its own smaller `maxEdge`.
   editOptions?: ApplyEditOptions;
+  /**
+   * Locks the crop to one ratio and drops the ratio chips with it.
+   *
+   * INFO: REQUIREMENTS.md § 12. The avatar flow passes `1`, because a circle
+   * (DESIGN.md § 7.7.) crops anything else on its own — and then the § 7.10.
+   * viewer would show a framing the circle never did.
+   */
+  fixedAspectRatio?: number;
   onCancel: () => void;
   onDone: (draft: MediaDraft) => void;
 };
@@ -37,7 +45,14 @@ export type MediaEditorProps = {
  * `ShellOverlay` is what makes the shell, rather than the chat room, the box this
  * fills: staying inside the scroller leaves it under the header and the tab bar.
  */
-export function MediaEditor({ className, draft, editOptions, onCancel, onDone }: MediaEditorProps) {
+export function MediaEditor({
+  className,
+  draft,
+  editOptions,
+  fixedAspectRatio,
+  onCancel,
+  onDone,
+}: MediaEditorProps) {
   const [aspectId, setAspectId] = useState<string>("free");
   const [filter, setFilter] = useState<MediaFilter>(DEFAULT_FILTER);
   const [croppedArea, setCroppedArea] = useState<Nullable<CropArea>>(null);
@@ -45,7 +60,8 @@ export function MediaEditor({ className, draft, editOptions, onCancel, onDone }:
   // INFO: `draft.previewUrl` is the thumbnail's blob, so the cropper needs a URL for the original of its own. Empty until the effect below mints one.
   const [sourceUrl, setSourceUrl] = useState("");
   const selected = ASPECT_OPTIONS.find((option) => option.id === aspectId);
-  const aspectRatio = selected?.ratio === null ? draft.width / draft.height : selected?.ratio;
+  const aspectRatio =
+    fixedAspectRatio ?? (selected?.ratio === null ? draft.width / draft.height : selected?.ratio);
 
   // WARN: Created and revoked inside one effect, never from a `useState` initializer. StrictMode runs setup → cleanup → setup on mount, and state survives that cycle: a URL minted during render would be revoked by the first cleanup and the cropper would then point at a dead blob for the rest of the edit.
   useEffect(() => {
@@ -89,17 +105,19 @@ export function MediaEditor({ className, draft, editOptions, onCancel, onDone }:
           )}
         </div>
         <div className="space-y-xs p-sm pb-[max(var(--spacing-sm),env(safe-area-inset-bottom))]">
-          <div className="scrollbar-hidden flex gap-2xs overflow-x-auto">
-            {ASPECT_OPTIONS.map((option) => (
-              <Chip
-                key={option.id}
-                isSelected={option.id === aspectId}
-                onClick={() => setAspectId(option.id)}
-              >
-                {option.label}
-              </Chip>
-            ))}
-          </div>
+          {fixedAspectRatio === undefined && (
+            <div className="scrollbar-hidden flex gap-2xs overflow-x-auto">
+              {ASPECT_OPTIONS.map((option) => (
+                <Chip
+                  key={option.id}
+                  isSelected={option.id === aspectId}
+                  onClick={() => setAspectId(option.id)}
+                >
+                  {option.label}
+                </Chip>
+              ))}
+            </div>
+          )}
           <div className="scrollbar-hidden flex gap-2xs overflow-x-auto">
             {MEDIA_FILTERS.map((option) => (
               <Chip

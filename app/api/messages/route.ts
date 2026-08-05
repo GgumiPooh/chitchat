@@ -94,7 +94,7 @@ export async function POST(request: Request) {
   const payload = body.data;
 
   // INFO: The ids are only shaped by the schema above. `createMediaMessage` attaches them behind a foreign key, so an unregistered one would leave the route as a 500 rather than the 400 every other bad body gets.
-  if ("mediaIds" in payload && !(await ownsAllMedia(payload.mediaIds, user.id))) {
+  if ("mediaIds" in payload && !(await ownsAllMedia(payload.mediaIds, user.id, "chat"))) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 

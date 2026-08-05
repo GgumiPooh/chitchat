@@ -21,7 +21,9 @@ export {
   LOGIN_ROUTE,
   MAX_MESSAGE_LENGTH,
   MAX_MESSAGE_PAGE_SIZE,
+  MAX_NICKNAME_LENGTH,
   MESSAGE_PAGE_SIZE,
+  PROFILE_PATH,
   PUSH_BODY_MAX_LENGTH,
   PUSH_SUBSCRIPTION_PATH,
   READ_CURSOR_THROTTLE,
@@ -37,6 +39,7 @@ export {
   SSE_RETRY_DELAY,
   SSE_STALE_AFTER,
   SSE_SYNC_COALESCE_WINDOW,
+  USERS_PATH,
   VAPID_PUBLIC_KEY,
   type MessageArrival,
 } from "./app";
@@ -83,6 +86,7 @@ export { ensureEnv } from "./env";
 export {
   ALLOWED_IMAGE_MIMES,
   ALLOWED_VIDEO_MIMES,
+  AVATAR_MAX_EDGE,
   GALLERY_DOWNLOAD_STAGGER,
   GALLERY_PAGE_SIZE,
   GALLERY_PATH,
@@ -94,6 +98,7 @@ export {
   MAX_VIDEO_SIZE,
   MEDIA_CACHE_MAX_AGE,
   MEDIA_PATH,
+  MEDIA_UPLOAD_SCOPES,
   MEDIA_UPLOAD_URL_PATH,
   MEDIA_URL_EXPIRY,
   THUMBNAIL_MIME,
@@ -107,5 +112,6 @@ export {
   type AllowedImageMime,
   type AllowedMediaMime,
   type AllowedVideoMime,
+  type MediaUploadScope,
   type MediaVariant,
 } from "./media";

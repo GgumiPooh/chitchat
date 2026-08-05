@@ -613,6 +613,10 @@ The default overlay for anything originating from a bottom-anchored or list inte
 
 `rounded-full`, `surface-strong` fallback fill with the nickname's first character in `title-sm` `meta`. Sizes: 36 (chat), 44 (settings row), 72 (profile edit). 1px `hairline` inset ring at every size so light photos do not bleed into `canvas`.
 
+The photo is stored **square** (`REQUIREMENTS.md § 12.`), because the circle crops anything else and the § 7.10. viewer would then show a framing the circle never did.
+
+Where it is enlargeable, the avatar is a button: `opacity-80` on hover, `opacity-70` on active, `focus-visible` ring on the circle itself rather than on the image inside it. Tapping opens the § 7.10. viewer on that one photo, with the save control hidden — a profile photo is the person, not an attachment they shared. It is **not** enlargeable inside another interactive element (the § 7.9. day sheet's authorship avatar), where a nested button would swallow the tap.
+
 ## 7.8. Skeleton.
 
 `surface-strong` blocks at the final content's radius, pulsing to `surface-soft` over 1.5s. Used for the initial message page, gallery grid, and calendar month. Never for optimistic messages — those render at 60% opacity (§ 6.5.).

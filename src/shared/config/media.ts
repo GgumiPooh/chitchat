@@ -8,6 +8,21 @@ export const MEDIA_PATH = "/api/media";
 /** REQUIREMENTS.md § 10. Lists the gallery and takes photos back out of it. */
 export const GALLERY_PATH = "/api/gallery";
 
+/**
+ * The key prefixes `POST /api/media/upload-url` will sign for, and the set
+ * `POST /api/media` accepts a registration under.
+ *
+ * WARN: A subset of `StorageScope`, not a copy of it. `emoticon` is deliberately
+ * absent — REQUIREMENTS.md § 13.3. keeps those objects out of `media` entirely and
+ * registers them through their own route, because a `media` row is a gallery row.
+ */
+export const MEDIA_UPLOAD_SCOPES = ["chat", "avatar"] as const;
+
+export type MediaUploadScope = (typeof MEDIA_UPLOAD_SCOPES)[number];
+
+// INFO: An avatar is only ever shown at 72px (DESIGN.md § 7.7.) or full-bleed in the § 7.10. viewer, and the shell is 576px wide — this covers the wider of the two at 2× without storing a whole camera roll photo per profile.
+export const AVATAR_MAX_EDGE = 1_200;
+
 // INFO: A 3-column grid, so a page is 20 rows — roughly two screens of scrolling before the next request.
 export const GALLERY_PAGE_SIZE = 60;
 

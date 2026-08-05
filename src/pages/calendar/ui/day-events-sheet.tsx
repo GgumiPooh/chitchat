@@ -84,6 +84,12 @@ function Author({ className, participant }: AuthorProps) {
     return null;
   }
 
-  // INFO: No `src` yet, matching the chat row — the avatar image waits on the § 12. profile editor (§ 8.7.), and until then both surfaces show the initial-letter fallback.
-  return <Avatar className={cn("size-6 shrink-0", className)} name={participant.name} />;
+  // WARN: Not enlargeable, unlike the chat row's. This sits inside the button that opens the event, where a nested `button` is invalid markup and would swallow the tap the row exists for.
+  return (
+    <Avatar
+      className={cn("size-6 shrink-0", className)}
+      name={participant.name}
+      mediaId={participant.avatarMediaId}
+    />
+  );
 }

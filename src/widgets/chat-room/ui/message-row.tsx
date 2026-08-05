@@ -65,8 +65,8 @@ export function MessageRow({
     >
       {!isMine &&
         (isFirstOfGroup ? (
-          // TODO: Point `src` at `GET /api/media/{sender.avatarMediaId}` once the profile editor lands — step 10 of REQUIREMENTS.md § 17.
-          <Avatar name={sender?.name ?? ""} />
+          // INFO: REQUIREMENTS.md § 8.7. Resolved from the participant set at render time, never copied onto the message row, so a profile change reaches every past bubble.
+          <Avatar name={sender?.name ?? ""} mediaId={sender?.avatarMediaId} canEnlarge />
         ) : (
           // INFO: DESIGN.md § 6.3. Keeps the rest of the group indented to the avatar column.
           <span className="size-9 shrink-0" />
