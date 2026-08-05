@@ -70,8 +70,9 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
       )}
     >
       {/* WARN: `overflow-x-hidden` is what keeps the § 13.6. slide inside the panel — a vertical-only scroller still resolves its horizontal axis to `auto`. */}
+      {/* WARN: `touch-pan-y` leaves the vertical scroll native while denying the browser the horizontal axis, which it would otherwise consume before the § 13.6. swipe ever sees it. */}
       <div
-        className="scrollbar-hidden min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-xs"
+        className="scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain p-xs"
         {...swipeHandlers}
       >
         {isPending ? null : (
@@ -96,9 +97,10 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
             ) : (
               <div className="grid grid-cols-4 gap-2xs">
                 {shown.map((item) => (
+                  // WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it.
                   <button
                     key={item.id}
-                    className="aspect-square rounded-sm p-2xs transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
+                    className="aspect-square touch-pan-y rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
                     type="button"
                     aria-label="이모티콘"
                     onClick={() => handleSelect(item)}
@@ -110,6 +112,7 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
                       src={toEmoticonAssetUrl(item.id, "image", item.version)}
                       alt=""
                       loading="lazy"
+                      draggable={false}
                     />
                   </button>
                 ))}

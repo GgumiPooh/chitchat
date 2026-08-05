@@ -6,25 +6,46 @@ import { useRef, type MouseEvent, type PointerEvent } from "react";
 // INFO: Long enough that the drift of a vertical flick never reads as a swipe, short enough to complete inside one thumb travel.
 const SWIPE_DISTANCE = 48;
 
+// INFO: A flick is short and fast, so it never reaches `SWIPE_DISTANCE` before the finger leaves — it is judged on how quickly the travel arrived instead.
+const FLICK_DISTANCE = 24;
+const FLICK_DURATION = A_SECOND / 4;
+
+// INFO: The axis is locked once the gesture is this far from its origin, so the arc a thumb actually draws cannot flip it back mid-swipe.
+const AXIS_LOCK_DISTANCE = 10;
+
 // WARN: A window rather than a flag held until the next tap — the browser suppresses the `click` after a gesture the scroller also acted on, and a flag left standing would then swallow the next keyboard or assistive activation instead, which arrives with no `pointerdown` to clear it.
 const TAP_SUPPRESSION_WINDOW = A_SECOND / 4;
+
+type Axis = "horizontal" | "vertical";
+
+type Gesture = {
+  pointerId: number;
+  x: number;
+  y: number;
+  startedAt: number;
+  axis: Nullable<Axis>;
+  hasSwiped: boolean;
+};
 
 /** `1` moves to the next item, `-1` to the previous one. */
 export type SwipeDirection = 1 | -1;
 
 /**
  * A horizontal drag over a surface that scrolls vertically: the axis with the
- * larger travel wins, so the scroll is never stolen from a mostly-vertical
- * gesture.
+ * larger travel wins at the moment the gesture commits to one, so the scroll is
+ * never stolen from a mostly-vertical gesture and a curved horizontal one is
+ * never handed back to it.
  */
 export function useHorizontalSwipe(onSwipe: (direction: SwipeDirection) => void) {
-  const origin = useRef<Nullable<{ pointerId: number; x: number; y: number }>>(null);
+  const gesture = useRef<Nullable<Gesture>>(null);
   const swipedAt = useRef(0);
 
   return {
     onPointerDown: begin,
+    onPointerMove: track,
     onPointerUp: end,
-    onPointerCancel: abort,
+    onPointerCancel: end,
+    onPointerLeave: abandon,
     onClickCapture: swallowTapAfterSwipe,
   };
 
@@ -32,35 +53,85 @@ export function useHorizontalSwipe(onSwipe: (direction: SwipeDirection) => void)
   function begin(event: PointerEvent) {
     swipedAt.current = 0;
 
-    if (!origin.current) {
-      origin.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    if (gesture.current) {
+      return;
     }
+
+    gesture.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      startedAt: event.timeStamp,
+      axis: null,
+      hasSwiped: false,
+    };
   }
 
-  function abort(event: PointerEvent) {
-    if (origin.current?.pointerId === event.pointerId) {
-      origin.current = null;
+  // WARN: The swipe fires here rather than on `pointerup`, because a finger that also moved the scroller gets a `pointercancel` instead and the release is never measured.
+  function track(event: PointerEvent) {
+    const from = gesture.current;
+
+    if (!from || from.pointerId !== event.pointerId || from.hasSwiped) {
+      return;
     }
+
+    const travelX = event.clientX - from.x;
+    const travelY = event.clientY - from.y;
+
+    if (!from.axis) {
+      if (Math.hypot(travelX, travelY) < AXIS_LOCK_DISTANCE) {
+        return;
+      }
+
+      from.axis = Math.abs(travelX) > Math.abs(travelY) ? "horizontal" : "vertical";
+
+      // WARN: Capture is taken here and never on `pointerdown`. A captured pointer delivers its `click` to the capturing element, so capturing every press means no emoticon cell is ever clickable — only a gesture already committed to the horizontal axis, whose `click` is meant to be swallowed anyway, can afford it.
+      if (from.axis === "horizontal") {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+    }
+
+    if (from.axis === "vertical") {
+      gesture.current = null;
+
+      return;
+    }
+
+    if (!isSwipe(travelX, event.timeStamp - from.startedAt)) {
+      return;
+    }
+
+    from.hasSwiped = true;
+    swipedAt.current = event.timeStamp;
+    onSwipe(travelX < 0 ? 1 : -1);
   }
 
   function end(event: PointerEvent) {
-    const from = origin.current;
+    const from = gesture.current;
 
     if (!from || from.pointerId !== event.pointerId) {
       return;
     }
 
-    origin.current = null;
+    gesture.current = null;
 
-    const travelX = event.clientX - from.x;
-    const travelY = event.clientY - from.y;
-
-    if (Math.abs(travelX) < SWIPE_DISTANCE || Math.abs(travelX) <= Math.abs(travelY)) {
-      return;
+    // INFO: The suppression window (§ `TAP_SUPPRESSION_WINDOW`) is measured from the release, since a finger can rest for as long as it likes after the swipe already fired.
+    if (from.hasSwiped) {
+      swipedAt.current = event.timeStamp;
     }
+  }
 
-    swipedAt.current = event.timeStamp;
-    onSwipe(travelX < 0 ? 1 : -1);
+  // WARN: What capture used to cover. A press released outside the panel delivers no `pointerup`, and the stale gesture would then block every later one — a gesture already on the horizontal axis holds capture and so is never abandoned here.
+  function abandon(event: PointerEvent) {
+    if (gesture.current?.pointerId === event.pointerId && gesture.current.axis !== "horizontal") {
+      gesture.current = null;
+    }
+  }
+
+  function isSwipe(travelX: number, elapsed: number) {
+    const distance = Math.abs(travelX);
+
+    return distance >= SWIPE_DISTANCE || (distance >= FLICK_DISTANCE && elapsed <= FLICK_DURATION);
   }
 
   // WARN: The browser still fires `click` on whatever a horizontal drag started on, so without this a swipe begun on a cell also picks that cell.
