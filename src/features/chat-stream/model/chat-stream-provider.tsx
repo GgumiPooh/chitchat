@@ -3,11 +3,8 @@
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { updateAppBadge } from "@/shared/badge";
-import { CHAT_ROUTE, READ_CURSOR_THROTTLE } from "@/shared/config";
+import { READ_CURSOR_THROTTLE } from "@/shared/config";
 import { safelyGetAsync, safelyRunAsync, type Nullable } from "@/shared/lib";
-import { playNotificationChime, unlockNotificationChime } from "@/shared/sound";
-import { toast } from "@/shared/ui";
-import { useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -51,9 +48,9 @@ const UNREAD_SYNC_PASSES = 2;
  * Holds the app's one `EventSource` (REQUIREMENTS.md § 8.4.).
  *
  * WARN: It lives in the shell, not in the chat screen. Scoped to the screen the
- * stream would drop on every tab switch, and the other three tabs would neither
- * chime nor move the badge — a message would surface only once the user happened
- * to walk back into the conversation. The § 8.4. background close is untouched
+ * stream would drop on every tab switch, and the other three tabs would never
+ * move the badge — a message would surface only once the user happened to walk
+ * back into the conversation. The § 8.4. background close is untouched
  * and is still what lets Neon's compute autosuspend: the stream ends when the app
  * goes away, not when the user opens the calendar.
  */
@@ -63,7 +60,6 @@ export function ChatStreamProvider({
   initialUnreadCount,
   children,
 }: ChatStreamProviderProps) {
-  const router = useRouter();
   const [participants, setParticipants] = useState(initialParticipants);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const listeners = useRef(new Set<ChatStreamListener>());
@@ -99,14 +95,6 @@ export function ChatStreamProvider({
     onResume: handleResume,
     onBuild: handleBuild,
   });
-
-  // WARN: The audio context cannot be built before a gesture — browsers start one `suspended`, and a chime from a suspended context is silence with no error to catch.
-  // WARN: Deliberately not `{ once: true }`. iOS interrupts the context on every backgrounding, so an unlock that runs once leaves the app silent for the rest of the page's life.
-  useEffect(() => {
-    document.addEventListener("pointerdown", unlockNotificationChime);
-
-    return () => document.removeEventListener("pointerdown", unlockNotificationChime);
-  }, []);
 
   useEffect(() => {
     updateAppBadge(unreadCount);
@@ -149,7 +137,6 @@ export function ChatStreamProvider({
       return;
     }
 
-    playNotificationChime();
     // INFO: Set on every delivery; `syncUnreadCount` clears it before each pass and only reads it while one is in flight.
     hasMessageDuringSync.current = true;
 
@@ -160,7 +147,6 @@ export function ChatStreamProvider({
     }
 
     setUnreadCount((previous) => previous + 1);
-    announce(message);
   }
 
   function handleResume() {
@@ -224,18 +210,6 @@ export function ChatStreamProvider({
     lastReadPostAt.current = now;
 
     await safelyRunAsync(postRead);
-  }
-
-  /** DESIGN.md § 7.14. The in-app banner for a message that arrived while another tab was open. */
-  function announce(message: ChatMessage) {
-    const sender = participants.find((participant) => participant.id === message.senderId);
-
-    toast(sender?.name ?? "새 메시지", {
-      description: message.text ?? "",
-      // WARN: DESIGN.md § 7.14. Top, against the app's bottom-center default — a notice at the bottom lands on the floating tab bar and the composer.
-      position: "top-center",
-      action: { label: "보기", onClick: () => router.push(CHAT_ROUTE) },
-    });
   }
 }
 

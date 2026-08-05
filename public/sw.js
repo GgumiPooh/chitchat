@@ -33,15 +33,10 @@ self.addEventListener("notificationclick", (event) => {
 
 async function handlePush(data) {
   const payload = readPayload(data);
-  const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
 
   updateBadge(payload.unreadCount);
 
-  // WARN: The app open and on screen means its SSE stream (§ 8.4.) already delivered this message and the shell already chimed. Showing a banner too would double every message. Skipping the notification is only permitted because a visible window exists — do not widen this test to "a window exists".
-  if (windows.some((client) => client.visibilityState === "visible")) {
-    return;
-  }
-
+  // WARN: REQUIREMENTS.md § 16.1. Every push MUST end in a banner, with no exception for a visible window — WebKit revokes the subscription after three that do not, which reads as the Settings toggle emptying itself and push dying for good.
   await self.registration.showNotification(payload.title, {
     body: payload.body,
     icon: NOTIFICATION_ICON,

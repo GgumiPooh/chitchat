@@ -662,21 +662,7 @@ It is hidden while the keyboard is up, like the tab bar (§ 7.3.).
 
 It is a banner rather than a `BottomSheet`: the guidance is optional and repeatable, and a modal interruption on arrival is the wrong weight for it.
 
-## 7.14. In-App Message Notice.
-
-The toast raised when a message arrives while the user is on another tab (`REQUIREMENTS.md § 8.4.`). It is the in-app counterpart of the OS notification of `§ 16.1.`, and exactly one of the two ever fires: the service worker suppresses its banner whenever a window is visible.
-
-| Property | Value                                                                                                                    |
-| -------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Surface  | The app `Toaster` (`sonner`) — `canvas` fill, 1px `hairline`, `radius-md`, `shadow-floating`                             |
-| Position | `top-center`, **overriding the app default of `bottom-center`** — the bottom is occupied by the tab bar and the composer |
-| Title    | The sender's resolved display name (`§ 8.7.`)                                                                            |
-| Body     | The message text, as the toast description                                                                               |
-| Action   | `보기`, which navigates to the chat tab                                                                                  |
-
-It is **not** raised while the chat screen is on show — the message is already on screen there, and a notice about a bubble the user is looking at is noise. The chime plays in both cases.
-
-## 7.15. Switch.
+## 7.14. Switch.
 
 The settings-row control (`§ 7.11.`). 48×28 track, 24px thumb, `radius-full`.
 
