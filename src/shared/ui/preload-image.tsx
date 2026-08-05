@@ -66,8 +66,9 @@ export function PreloadImage({
         // WARN: Keyed by `src` so a swap remounts the element — the ref below only re-reads the cache on mount, and an animated emoticon only restarts its loop on a fresh element (REQUIREMENTS.md § 13.2.).
         key={src}
         ref={syncCachedStatus}
+        // WARN: `min-h-0 min-w-0` is load-bearing — as a grid item the image's automatic minimum size is its aspect ratio's transferred suggestion, which beats `height: 100%` and pushes a portrait asset out of a square cell.
         className={cn(
-          "col-start-1 row-start-1 transition-opacity duration-200 ease-out",
+          "col-start-1 row-start-1 min-h-0 min-w-0 transition-opacity duration-200 ease-out",
           status !== "loaded" && "opacity-0",
           imgClassName,
         )}
