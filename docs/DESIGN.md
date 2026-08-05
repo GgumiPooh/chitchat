@@ -110,10 +110,13 @@ The shell is sized to the **visual viewport**, not the layout viewport. `VisualV
 | Rule                | Value                                                                                                                    |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Shell               | `fixed`, `top: var(--viewport-top, 0px)`, `height: var(--viewport-height, 100dvh)` — the only element the keyboard moves |
+| Shell motion        | `height` eases over 200ms `ease-out`; `top` never eases                                                                  |
 | Document scroll     | Forbidden. `html, body` are `h-full overflow-hidden overscroll-none`                                                     |
 | Screen scroll       | Every screen scrolls inside the shell's `#app-scroll` container, or inside its own (chat's virtualizer, login's column)  |
 | `interactiveWidget` | `resizes-content`, kept as a Chromium-side fallback only. WebKit ignores it, so nothing may depend on it                 |
 | Synced offsets      | `height` and `offsetTop` only. Zooming is off (`maximumScale: 1`), so the left/right offsets never leave `0`             |
+
+Why the height eases and `top` does not: WebKit reports `visualViewport.height` in a couple of coarse steps while the keyboard slides, so a raw height lands the composer in its new place in one jump — the keyboard glides, the input bar teleports. A 200ms ease turns that step into motion, and it matches the bars' collapse (§ 3.5.) so the two read as one. `top`, by contrast, is correcting a pan the user can already see; easing it would draw out the wrong position instead of hiding it, so it lands the same frame.
 
 Why the document must not scroll: a document taller than the visual viewport is exactly what lets WebKit pan the page to reveal the focused field, and that pan carries the header off the top of the visual viewport. Sizing the shell to the visual viewport leaves nothing to pan.
 
@@ -131,6 +134,7 @@ The header and the tab bar do not sit in the column's flow — they float over i
 | Header      | A transparent strip pinned to the top of the shell. It has no surface — only the controls inside it are visible (§ 7.12.)     |
 | Surface     | The `glass` utility (`canvas/75` + `backdrop-blur-lg`), 1px `hairline`, `shadow-floating`. Never spelled out at a call site   |
 | Clearance   | `BottomOverlay` measures the bars into `--bottom-inset`, which the shell's scroller takes as bottom padding                   |
+| Keyboard    | The overlay collapses its own height to `0` (§ 7.3.); no bar inside it branches on the keyboard itself                        |
 | Hit testing | The overlay is `pointer-events-none`; each visible surface re-enables it, so content underneath stays tappable                |
 
 The clearance is measured rather than summed from `--tab-bar-height`: the bars come and go with the keyboard, and the install banner's copy wraps to two lines on a narrow viewport, so no constant is right. It is `0px` while nothing is up, so the scroller's padding needs no branch.
@@ -568,7 +572,9 @@ Error state is triggered by `aria-invalid="true"`, never by a class alone.
 | `:active` | `scale-[0.96]` on the icon-label stack                                                                      |
 | Badge     | `unread` fill, `on-primary` `micro`, min 18×18, `rounded-full`, anchored to the icon's top-right; `99+` cap |
 
-The bar is hidden while the on-screen keyboard is up: the shell shrinks to the visual viewport (§ 3.4.), so a bar left in flow would sit between the composer and the keys and eat 56px of an already short column. The install banner (§ 7.13.) goes with it, for the same reason.
+The bar leaves while the on-screen keyboard is up: the shell shrinks to the visual viewport (§ 3.4.), so a bar left in flow would sit between the composer and the keys and eat 56px of an already short column. The install banner (§ 7.13.) goes with it, for the same reason.
+
+It leaves by collapsing `BottomOverlay`'s height to `0` over 200ms `ease-out`, not by unmounting: `--bottom-inset` is measured off that box, so the collapse carries the clearance — and with it the composer — down on one timeline. Unmounting stepped the inset the instant the keyboard was detected while the shell was still easing to its new height, and the composer visibly moved twice. Both bars are therefore keyboard-agnostic; the decision lives in `BottomOverlay` alone. The collapsing box is not clipped: the bars slide down past the shell's bottom edge, which is where the keyboard already is.
 
 The bar floats inside the shell (§ 3.5.), so it is neither `fixed` nor width-re-applying: the shell is already a `fixed` box of the visual viewport's height, and the bar is an absolute child of its column.
 
@@ -700,7 +706,7 @@ iOS "add to home screen" guidance (`REQUIREMENTS.md § 7.`). Shown only in an iO
 | Content   | 18px `meta` share glyph, `body-sm` `body` copy, trailing `icon-button` dismiss                                 |
 | Clearance | Measured into `--bottom-inset` with the tab bar, so its two-line wrap widens the scroller's padding by itself  |
 
-It is hidden while the keyboard is up, like the tab bar (§ 7.3.).
+It leaves while the keyboard is up, like the tab bar and on the same collapse (§ 7.3.).
 
 It is a banner rather than a `BottomSheet`: the guidance is optional and repeatable, and a modal interruption on arrival is the wrong weight for it.
 

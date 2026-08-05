@@ -213,7 +213,8 @@ Landed: notch-corner bubbles (mine right, theirs left), avatar + nickname on the
 - A hardware keyboard sends on Enter and breaks the line on Shift+Enter; on a coarse pointer Enter stays a newline, since the iOS keyboard has no send key (`useIsCoarsePointer`)
 - Tapping send keeps the keyboard open: the button cancels `pointerdown` so the tap never blurs the field, and `submit` refocuses inside the click gesture
 - `DELETE /api/messages/{id}` soft-deletes, scoped to the sender, and answers **404** for someone else's message and for one that never existed alike, so the endpoint cannot probe ids (§ 14.)
-- The tab bar and install banner hide while the keyboard is up — the shell shrinks to what the keyboard leaves and neither is worth 56px of it. `useIsVirtualKeyboardOpen` requires both a drop below the tallest height seen at the current width **and** an editable `activeElement`: height alone misreads a collapsing address bar, focus alone survives Android's back button
+- The tab bar and install banner leave while the keyboard is up — the shell shrinks to what the keyboard leaves and neither is worth 56px of it. `useIsVirtualKeyboardOpen` requires both a drop below the tallest height seen at the current width **and** an editable `activeElement`: height alone misreads a collapsing address bar, focus alone survives Android's back button
+- They leave by collapsing `BottomOverlay`, not by unmounting, and the shell eases its height over the same 200ms (`DESIGN.md` § 3.4., § 7.3.) — measured off the collapsing box, `--bottom-inset` then carries the composer up on one timeline instead of stepping it separately from the shell
 
 Remaining:
 
