@@ -44,7 +44,7 @@ import {
   type MediaCell,
 } from "@/shared/ui";
 import { Copy, CornerUpLeft, MessageCircle, Share, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type TransitionEvent } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { buildChatRows } from "../model/build-chat-rows";
@@ -368,6 +368,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           )}
           // WARN: The panel stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until this takes them back out.
           inert={!isEmoticonPanelOpen}
+          onTransitionEnd={settleAfterPanelTransition}
         >
           {hasOpenedEmoticonPanel && (
             // INFO: § 13.6. `mt-xs` matches the composer's own top padding, so the panel clears the history by what the bar alone clears it by. The height above is this panel plus both margins.
@@ -504,6 +505,30 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   function handleEdited(draft: MediaDraft) {
     selection.replace(draft);
     setEditing(null);
+  }
+
+  /**
+   * REQUIREMENTS.md § 13.6. The last word on where the history sits, after the
+   * strip has stopped moving.
+   *
+   * WARN: The per-frame pin `useComposerClearance` makes is not enough on its own.
+   * A send starts a smooth scroll toward the offset the *open* panel implied, and
+   * on WebKit that animation goes on steering the scroller for the length of the
+   * collapse — every pin made underneath it is overwritten, and the history is
+   * left parked where the panel had pushed it. The transition ending is the one
+   * moment the strip's height is final and nothing else is animating.
+   */
+  function settleAfterPanelTransition(event: TransitionEvent<HTMLDivElement>) {
+    const scroller = scrollerRef.current;
+
+    // WARN: `transitionend` bubbles, so the panel's own transitions reach this too.
+    if (event.target !== event.currentTarget || event.propertyName !== "height") {
+      return;
+    }
+
+    if (scroller && isAtBottomRef.current) {
+      scroller.scrollTop = scroller.scrollHeight;
+    }
   }
 
   function captureScroller(element: Nullable<HTMLElement | Window>) {
