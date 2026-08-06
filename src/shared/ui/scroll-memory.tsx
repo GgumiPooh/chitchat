@@ -10,8 +10,9 @@ const scrollPositions = new Map<string, number>();
 /**
  * Restores the scroll position of the shell's scroll container per route
  * (`REQUIREMENTS.md § 7.`). It is not the document: the document cannot scroll
- * (DESIGN.md § 3.4.). The chat screen scrolls inside the virtualizer instead and
- * restores through Virtuoso's `restoreStateFrom` (`REQUIREMENTS.md § 8.3.`).
+ * (DESIGN.md § 3.4.). The chat screen is not restored here at all — it scrolls
+ * inside its own virtualized list, whose offsets mean nothing until the rows are
+ * measured, and it opens at the newest message anyway (`REQUIREMENTS.md § 8.3.`).
  */
 export function ScrollMemory() {
   const pathname = usePathname();

@@ -16,10 +16,18 @@ export function useLinkPreviewPrefetch(messages: ChatMessage[], pendingOlder: Ch
   const queryClient = useQueryClient();
   // WARN: Attempted, not resolved. A lookup that failed has no data to keep it fresh, so without this every commit would ask again — one request per render against an endpoint that is already answering badly.
   const askedRef = useRef(new Set<string>());
+  // WARN: Scanned, not asked. Every arrival replaces `messages` wholesale, so without this the regex re-runs over the entire loaded window to find the one body that is new.
+  const scannedRef = useRef(new Set<number>());
 
   useEffect(() => {
     // INFO: § 8.3. The held page before the loaded one, because it is the half that has not been measured yet and the wait for a still scroller is the head start it gets.
     for (const message of [...pendingOlder, ...messages]) {
+      if (scannedRef.current.has(message.id)) {
+        continue;
+      }
+
+      scannedRef.current.add(message.id);
+
       const url = findFirstUrl(message.text);
 
       if (!url || askedRef.current.has(url)) {

@@ -75,7 +75,7 @@ export function useComposerClearance({
       }
 
       const scroller = scrollerRef.current;
-      // WARN: Read before the property below moves the spacer, and never from `isAtBottomRef` alone — Virtuoso publishes that flag from its own scroll state, which lands a frame or more after the spacer this loop is growing, so a mid-animation `false` would strand the rest of the animation with no re-pin at all.
+      // WARN: Read before the property below moves the spacer, and never from `isAtBottomRef` alone — the room publishes that flag from a render-scoped effect, which lands a frame or more after the spacer this loop is growing, so a mid-animation `false` would strand the rest of the animation with no re-pin at all.
       const isPinned =
         scroller !== null &&
         (isAtBottomRef.current ||
