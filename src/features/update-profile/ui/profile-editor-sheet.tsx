@@ -91,7 +91,7 @@ export function ProfileEditorSheet({
       {/* WARN: Closed while the editor is up, for § 13.4.'s reason — `MediaEditor` portals into the app shell and this drawer portals into `body`, so no z-index inside the shell can lift it over this. */}
       <BottomSheet
         className={className}
-        isOpen={isOpen && cropping === null}
+        isOpen={isOpen && cropping === null && trimming === null}
         header={{ title: "프로필 편집" }}
         onClose={handleClose}
       >
@@ -191,10 +191,17 @@ export function ProfileEditorSheet({
         onSelect={(files) => files[0] && void pick(files[0])}
       />
       {trimming && (
+        // INFO: REQUIREMENTS.md § 12.1. The cap is only handed over when the clip actually exceeds it. Inside the window there is nothing to enforce, so both handles move and the trimmer is an ordinary edit — a clip that needs no cut is finished by tapping 완료.
+        // WARN: A container with no readable duration is capped. A missing duration is exactly the case that would otherwise walk past the ceiling that makes a background video affordable at all.
         <VideoTrimmer
           key={trimming.id}
           draft={trimming}
-          maxDurationMs={MAX_BACKGROUND_VIDEO_DURATION}
+          maxDurationMs={
+            trimming.durationMs !== null &&
+            isWithinDuration(trimming.durationMs, MAX_BACKGROUND_VIDEO_DURATION)
+              ? undefined
+              : MAX_BACKGROUND_VIDEO_DURATION
+          }
           onCancel={() => setTrimming(null)}
           onDone={(file) => void stageTrimmed(file)}
         />
@@ -249,30 +256,15 @@ export function ProfileEditorSheet({
       return;
     }
 
-    // INFO: REQUIREMENTS.md § 12.1. A video is not cropped — it is trimmed, and only when it runs past the cap. A clip already inside the window is staged as it is, so the common case costs no extra screen.
+    // INFO: REQUIREMENTS.md § 12.1. A video is not cropped — it is trimmed, and every pick gets the trimmer whether or not it runs past the cap.
     if (isVideoMime(draft.mime)) {
-      stageOrTrim(draft);
+      setTrimming(draft);
 
       return;
     }
 
     // INFO: Straight into the crop rather than staging what was picked. The § 7.10. viewer shows the stored object whole, so a photo that is not square there would be framed differently from the circle it was chosen in — and the cover gets the same editor so a wide photo can be aimed before it is worn.
     setCropping(draft);
-  }
-
-  function stageOrTrim(draft: MediaDraft) {
-    // WARN: A container with no readable duration goes to the trimmer rather than straight through. The cap is what makes a background video affordable at all (§ 12.1.), and a missing duration is exactly the case that would walk past it.
-    if (
-      draft.durationMs !== null &&
-      isWithinDuration(draft.durationMs, MAX_BACKGROUND_VIDEO_DURATION)
-    ) {
-      background.stage(draft);
-      setIsPickerOpen(false);
-
-      return;
-    }
-
-    setTrimming(draft);
   }
 
   // INFO: The trimmed file is re-read rather than patched onto the old draft — its poster, dimensions and duration all belong to the new clip, and `toMediaDraft` is the one place that derives them.

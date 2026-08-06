@@ -3,6 +3,7 @@
 import { toMediaUrl } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { PreloadImage } from "./preload-image";
+import { PreloadVideo } from "./preload-video";
 
 export type BackgroundMediaProps = {
   className?: string;
@@ -28,8 +29,10 @@ export type BackgroundMediaProps = {
 export function BackgroundMedia({ className, mediaId, isVideo = false }: BackgroundMediaProps) {
   if (isVideo) {
     return (
-      <video
-        className={cn("size-full object-cover", className)}
+      <PreloadVideo
+        className={cn("size-full", className)}
+        videoClassName="size-full object-cover"
+        placeholderClassName="bg-scrim"
         src={toMediaUrl(mediaId, "original")}
         poster={toMediaUrl(mediaId)}
         autoPlay

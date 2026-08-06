@@ -20,6 +20,7 @@ export type { MediaCell } from "./media-cell";
 export { MediaViewer, type MediaViewerProps } from "./media-viewer";
 export { Modal, type ModalProps } from "./modal";
 export { PreloadImage, type PreloadImageProps } from "./preload-image";
+export { PreloadVideo, type PreloadVideoProps } from "./preload-video";
 export { RelativeTime, type RelativeTimeProps } from "./relative-time";
 export { RouteTransition, type RouteTransitionProps } from "./route-transition";
 export { ScrollMemory } from "./scroll-memory";

@@ -2,7 +2,7 @@
 
 import type { MediaDraft } from "@/entities/media";
 import { A_SECOND, cn, type Nullable } from "@/shared/lib";
-import { Button, IconButton, ShellOverlay, toast } from "@/shared/ui";
+import { Button, IconButton, PreloadVideo, ShellOverlay, toast } from "@/shared/ui";
 import { X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toDefaultTrimRange, trimVideo, type TrimRange } from "../model/trim-video";
@@ -97,10 +97,14 @@ export function VideoTrimmer({
         </div>
         <div className="flex min-h-0 flex-1 items-center justify-center px-md">
           {/* INFO: `muted` and `playsInline` so scrubbing previews on iOS without the element demanding fullscreen; there is no audio in the result either way. */}
-          <video
+          {/* INFO: The poster stands in until the first frame decodes — an unwrapped element paints black for the length of the load, which over a `scrim` backdrop reads as nothing having opened. */}
+          <PreloadVideo
             ref={videoRef}
             className="max-h-full max-w-full"
+            videoClassName="max-h-full max-w-full"
+            placeholderClassName="rounded-md"
             src={sourceUrl || undefined}
+            poster={draft.previewUrl}
             muted
             playsInline
             preload="metadata"

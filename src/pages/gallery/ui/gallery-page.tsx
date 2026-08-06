@@ -150,9 +150,14 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
         onSelect={handlePick}
       />
       {/* INFO: REQUIREMENTS.md § 10. The pick is staged before it goes up, so each item can be cropped or trimmed and any of them dropped — the gallery used to upload straight off the picker, which gave the user nowhere to correct a bad frame. */}
+      {/* WARN: REQUIREMENTS.md § 13.4. Closed while either editor is up. They portal into the app shell and this drawer portals into `body`, so no z-index inside the shell can lift them over it — the sheet has to get out of the way instead. */}
       <BottomSheet
-        isOpen={staging.drafts.length > 0 || staging.isReading}
         header={{ title: "사진 추가", description: "올리기 전에 하나씩 편집할 수 있어요" }}
+        isOpen={
+          (staging.drafts.length > 0 || staging.isReading) &&
+          stagedEditing === null &&
+          stagedTrimming === null
+        }
         onClose={cancelStaging}
       >
         <div className="space-y-md">

@@ -3,6 +3,7 @@
 import type { MediaDraft } from "@/entities/media";
 import { isVideoMime } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
+import { PreloadVideo } from "@/shared/ui";
 import { useEffect, useState } from "react";
 
 export type DraftPreviewProps = {
@@ -41,8 +42,9 @@ export function DraftPreview({ className, draft, src }: DraftPreviewProps) {
 
   if (isVideo) {
     return (
-      <video
-        className={cn("size-full object-cover", className)}
+      <PreloadVideo
+        className={cn("size-full", className)}
+        videoClassName="size-full object-cover"
         src={sourceUrl || undefined}
         poster={draft?.previewUrl}
         autoPlay
