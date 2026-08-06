@@ -47,7 +47,8 @@ export function UpcomingCard({ className, occurrences, todayKey, onSelect }: Upc
               {formatUpcomingWhen(occurrence, todayKey)}
             </span>
           </button>
-          <HapticTap forwardsTap />
+          {/* WARN: `keepsScroll` — the row runs the width of the card, so a finger scrolling the calendar lands here, and the switch would keep that drag and end it as a tap on the event (`DESIGN.md § 7.15.1.`). */}
+          <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
         </li>
       ))}
     </ul>

@@ -41,7 +41,8 @@ export function ActionSheet({ className, isOpen, header, items, onClose }: Actio
               {item.label}
             </button>
             {/* INFO: Every row is a committed choice, so none of them is left silent. */}
-            <HapticTap forwardsTap />
+            {/* WARN: `keepsScroll` — the rows are the sheet's whole surface, so a finger pulling it down to dismiss lands here, and the switch would keep that drag and end it as a tap on the row (`DESIGN.md § 7.15.1.`). */}
+            <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
           </li>
         ))}
       </ul>

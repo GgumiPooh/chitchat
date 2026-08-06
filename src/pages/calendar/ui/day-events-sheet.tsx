@@ -64,7 +64,8 @@ export function DayEventsSheet({
                     participant={participants.find(({ id }) => id === occurrence.event.createdBy)}
                   />
                 </button>
-                <HapticTap forwardsTap />
+                {/* WARN: `keepsScroll` — the row fills the sheet, so a finger scrolling the list or pulling the sheet down lands here, and the switch would keep that drag and end it as a tap on the event (`DESIGN.md § 7.15.1.`). */}
+                <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
               </li>
             ))}
           </ul>
