@@ -621,16 +621,18 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
         className="pointer-events-none absolute inset-x-0 bottom-(--bottom-inset)"
       >
         {/* INFO: REQUIREMENTS.md § 8.10. Above the tray and the pill, and in the flow — the quote belongs to the send the whole stack is composing, so it reads as the header of it. */}
+        {/* WARN: DESIGN.md § 6.6. `mt-xs` matches the emoticon panel's, which is the gap this stack is measured against — without it the bar butts straight into the bubble above. It is safe to carry unconditionally because this renders nothing when there is no reply, so the clearance only grows while the bar is up. */}
         {replyTarget && (
           <ReplyBar
-            className="mx-md mb-2xs"
+            className="mx-md mt-xs mb-2xs"
             replyTo={replyTarget}
             name={participantById.get(replyTarget.senderId)?.name}
             onCancel={() => setReplyTarget(null)}
           />
         )}
+        {/* INFO: DESIGN.md § 6.6. Same gap as the bar above and the panel below; `MediaTray` renders nothing with an empty selection, so this costs the resting composer no height. */}
         <MediaTray
-          className="mx-md mb-2xs"
+          className="mx-md mt-xs mb-2xs"
           drafts={selection.drafts}
           isReading={selection.isReading}
           onEdit={setEditing}
