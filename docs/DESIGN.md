@@ -877,19 +877,20 @@ iOS exposes no Vibration API. The only way a web page reaches the Taptic engine 
 
 Consequences, all of them non-obvious:
 
-| Rule                                                                                  | Reason                                                                                                                            |
-| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Never mount `HapticTap` inside a `<button>`                                           | WebKit ends the tap in the native control; no click reaches JS at all, and the button stops firing                                |
-| Beside a `<button>`, wrap both in a `relative` box and pass `forwardsTap`             | The overlay replays the tap on its sibling control, which is the only path left                                                   |
-| Inside an `<a>`, mount it as the last child with no `forwardsTap`                     | The click still bubbles to the anchor, where `NextLink`'s own handler takes it                                                    |
-| `haptic` on a `Link` is for internal routes only                                      | The anchor's native activation never runs, so an external href or modified click would go nowhere                                 |
-| Hide it with `opacity` alone — never `appearance-none`, never `display: none`         | A restyled control is no longer native and stops ticking; a hidden one cannot be tapped                                           |
-| Put `group` on the wrapper and `group-active:` beside every `active:` on the control  | The tap lands on the overlay, so `:active` matches the wrapper and never the control (`§ 3.2.`)                                   |
-| For motion, read `group-data-[pressed]:` and not `group-active:`                      | WebKit resolves the press inside the native switch; the overlay sets the attribute itself (§ 4.7.2.)                              |
-| Repeat the control's `touch-action` on the overlay                                    | `touch-action` applies to the element a gesture starts on, and that is now the overlay                                            |
-| Over a cell that **tiles** a scroller, pass `keepsScroll` — but never inside an `<a>` | The switch keeps a drag of its own, so the overlay has to become a `<label>`, and an anchor eats a label's activation (§ 7.15.1.) |
-| A gesture threshold, a drag, a route change — none of these can tick                  | They are scripted triggers, which iOS 26.5 removed                                                                                |
-| A release that travelled `GESTURE_SLOP` is a drag: no activation, no tick             | The overlay owns the whole tap, so it is the only place that can tell the two apart (§ 7.15.2.)                                   |
+| Rule                                                                                  | Reason                                                                                                                                                          |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Never mount `HapticTap` inside a `<button>`                                           | WebKit ends the tap in the native control; no click reaches JS at all, and the button stops firing                                                              |
+| Beside a `<button>`, wrap both in a `relative` box and pass `forwardsTap`             | The overlay replays the tap on its sibling control, which is the only path left                                                                                 |
+| Inside an `<a>`, mount it as the last child with no `forwardsTap`                     | The click still bubbles to the anchor, where `NextLink`'s own handler takes it                                                                                  |
+| `haptic` on a `Link` is for internal routes only                                      | The anchor's native activation never runs, so an external href or modified click would go nowhere                                                               |
+| Hide it with `opacity` alone — never `appearance-none`, never `display: none`         | A restyled control is no longer native and stops ticking; a hidden one cannot be tapped                                                                         |
+| Put `group` on the wrapper and `group-active:` beside every `active:` on the control  | The tap lands on the overlay, so `:active` matches the wrapper and never the control (`§ 3.2.`)                                                                 |
+| For motion, read `group-data-[pressed]:` and not `group-active:`                      | WebKit resolves the press inside the native switch; the overlay sets the attribute itself (§ 4.7.2.)                                                            |
+| Repeat the control's `touch-action` on the overlay                                    | `touch-action` applies to the element a gesture starts on, and that is now the overlay                                                                          |
+| Over a cell that **tiles** a scroller, pass `keepsScroll` — but never inside an `<a>` | The switch keeps a drag of its own, so the overlay has to become a `<label>`, and an anchor eats a label's activation (§ 7.15.1.)                               |
+| The `group` wrapper follows the `haptic` prop alone — gate only the overlay on state  | A wrapper that comes and goes with `isSelected` or `disabled` swaps the element type at that position, so React remounts the control and drops the user's focus |
+| A gesture threshold, a drag, a route change — none of these can tick                  | They are scripted triggers, which iOS 26.5 removed                                                                                                              |
+| A release that travelled `GESTURE_SLOP` is a drag: no activation, no tick             | The overlay owns the whole tap, so it is the only place that can tell the two apart (§ 7.15.2.)                                                                 |
 
 It renders on a coarse pointer only (`AGENTS.md § 4.2.`): a mouse gains nothing, and the overlay would swallow the ⌘-click the covered element still owes the pointer.
 
