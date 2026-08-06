@@ -27,9 +27,11 @@ import {
   buildFadeMask,
   cn,
   useIsVirtualKeyboardOpen,
+  useIsomorphicLayoutEffect,
   useSoundUnlock,
   useUnsentWork,
   type Nullable,
+  type Optional,
 } from "@/shared/lib";
 import { MediaShareDialog, canShareText, shareText, useMediaShare } from "@/shared/share";
 import {
@@ -43,17 +45,19 @@ import {
   type ActionSheetItem,
   type MediaCell,
 } from "@/shared/ui";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Copy, CornerUpLeft, MessageCircle, Share, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { buildChatRows } from "../model/build-chat-rows";
+import { estimateRowHeight } from "../model/estimate-row-height";
 import { playEmoticonSound } from "../model/play-emoticon-sound";
 import { toCellsFromDrafts, toCellsFromMedia } from "../model/to-media-cells";
 import type { ChatRow } from "../model/types";
 import { useComposerClearance } from "../model/use-composer-clearance";
+import { useLinkPreviewPrefetch } from "../model/use-link-preview-prefetch";
 import { useMessageHistory } from "../model/use-message-history";
-import { usePrependAnchor } from "../model/use-prepend-anchor";
+import { useSettledCommit } from "../model/use-settled-commit";
 import { DateDivider } from "./date-divider";
 import { MessageRow } from "./message-row";
 import { ReplyBar } from "./reply-bar";
@@ -66,12 +70,17 @@ export type ChatRoomProps = {
   initialMessages: ChatMessage[];
 };
 
-type ListContext = {
-  isLoadingOlder: boolean;
-};
-
-// INFO: DESIGN.md § 6.7. The pill appears once the newest message is roughly this far away.
+// INFO: DESIGN.md § 6.7. The pill appears once the newest message is roughly this far away, and the same distance is what `scrollEndThreshold` treats as near enough to the end that a row re-measuring there should hold the end still rather than let it drift.
 const AT_BOTTOM_THRESHOLD = 200;
+
+// INFO: The loading header's own height (`h-10`), constant whether or not the skeleton is in it — a header that collapsed would move the list under the finger every time a page lands.
+const LIST_HEADER_HEIGHT = 40;
+
+// INFO: Rows here run from a 44px bubble to a 363px photo, so this is counted generously — the old `increaseViewportBy` reserved 600px in each direction.
+const OVERSCAN_ROWS = 8;
+
+// INFO: REQUIREMENTS.md § 8.3. Upward paging fires once the scroller is this close to the top, which is the distance the old `increaseViewportBy` bought.
+const LOAD_OLDER_THRESHOLD = 600;
 
 // INFO: DESIGN.md § 7.12. Deep enough that a bubble dissolves under the floating header rather than being clipped by it.
 const TOP_FADE_LENGTH = "3rem";
@@ -85,11 +94,17 @@ const BOTTOM_FADE_LENGTH = "2rem";
  * keeps years of history scrollable on iOS Safari.
  */
 export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoomProps) {
-  const listRef = useRef<VirtuosoHandle>(null);
   const containerRef = useRef<Nullable<HTMLDivElement>>(null);
   const composerRef = useRef<Nullable<HTMLDivElement>>(null);
   const scrollerRef = useRef<Nullable<HTMLElement>>(null);
   const rowsRef = useRef<ChatRow[]>([]);
+  const hasTakenScrollRef = useRef(false);
+  // INFO: The tail the last pin answered to. An arrival moves it and a page of older history does not, which is the whole difference between following and holding still.
+  const pinnedRowKeyRef = useRef<Optional<string>>(undefined);
+  // INFO: REQUIREMENTS.md § 8.3. Where a chosen row sat in the viewport just before a page was inserted above it, so the same row can be put back there once it has.
+  const prependAnchorRef = useRef<Nullable<{ key: string; viewportY: number }>>(null);
+  // WARN: State, not just the ref beside it — the scroller mounts a render after this component does (an empty room renders no list at all), and the virtualizer has to re-read it when it appears.
+  const [scroller, setScroller] = useState<Nullable<HTMLDivElement>>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isAtBottomRef = useRef(true);
   const [isAtTop, setIsAtTop] = useState(true);
@@ -116,8 +131,10 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const {
     messages,
     isLoadingOlder,
+    pendingOlder,
     hasNewer,
     loadOlder,
+    commitPendingOlder,
     loadNewer,
     loadAround,
     returnToLive,
@@ -148,20 +165,34 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     () => findLastReadMineId(messages, currentUserId, participants),
     [messages, currentUserId, participants],
   );
-  const firstItemIndex = usePrependAnchor(rows);
-  // WARN: Captured at the first render that has rows, not the first render. An empty room renders the empty state instead of the list, so a value fixed before then is `0` and parks the mount at the oldest arriving message rather than the newest.
-  const [initialIndex, setInitialIndex] = useState<Nullable<number>>(null);
+  // INFO: REQUIREMENTS.md § 8.3. Anchored to the end and keyed by row, which is what holds the viewport still across a prepend — the virtualizer re-finds the keyed row after the data changes and offsets the scroll by however far it moved.
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scroller,
+    // WARN: REQUIREMENTS.md § 8.3. Per row, never one flat guess. A row measured above the fold corrects the scroll by however far the estimate missed, and WebKit drops that correction mid-gesture — so the error of a flat estimate is drift the reader watches accumulate.
+    estimateSize: (index) => estimateRowHeight(rows[index], scroller?.clientWidth),
+    getItemKey: (index) => rows[index].key,
+    anchorTo: "end",
+    // WARN: Never `followOnAppend`. It follows through `scrollToIndex`, which resolves against the measurements alone, and `ListFooter` is not one of them — so every arrival parked the newest message exactly `--chat-bottom-gap` low, which is to say behind the composer. The pin below takes the scroller's own maximum instead, the way `scrollToBottom` already does.
+    scrollEndThreshold: AT_BOTTOM_THRESHOLD,
+    // WARN: The list does not start at the top of the scroller — the loading header sits above it, and without this the virtualizer resolves every offset that much too high.
+    scrollMargin: LIST_HEADER_HEIGHT,
+    overscan: OVERSCAN_ROWS,
+  });
 
-  if (initialIndex === null && rows.length > 0) {
-    setInitialIndex(rows.length - 1);
-  }
+  // WARN: Replaces the default, which refuses to compensate a *re*-measure taken while the scroll direction is `backward`. Reading back through history is exactly that, and a § 8.9. link card resolving above the fold then shoves everything below it down by the card's own height. A row that is entirely above the fold has to be compensated whichever way the finger was moving; one that still spans it grew below the anchor and must not be.
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
+    // INFO: The offset the virtualizer is scrolling *to*, not the one the scroller is at — a correction already queued this tick is in `scrollAdjustments` and has yet to reach the DOM.
+    const fold = (instance.scrollOffset ?? 0) + instance.scrollAdjustments;
+
+    // INFO: An unmeasured row is the estimate→actual correction, and the whole estimated block sat above the fold — that one is compensated from its start, as the library's own first-measure branch does.
+    return instance.itemSizeCache.has(item.key) ? item.end <= fold : item.start < fold;
+  };
 
   if (isEmoticonPanelOpen && !hasOpenedEmoticonPanel) {
     setHasOpenedEmoticonPanel(true);
   }
 
-  // WARN: Never a live `rows.length - 1` — Virtuoso re-runs its initial positioning whenever this changes, and on every prepend that empties the list (REQUIREMENTS.md § 8.3.).
-  const initialTopMostItemIndex = initialIndex ?? 0;
   // INFO: My own send is not a new message to me — counting it flashes `새 메시지 1` on the pill for my own bubble.
   const unseenCount = isAtBottom
     ? 0
@@ -193,6 +224,33 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   );
 
   useComposerClearance({ containerRef, composerRef, scrollerRef, isAtBottomRef });
+
+  // INFO: REQUIREMENTS.md § 8.3., § 8.9. Ahead of the viewport, so a § 6.9. card is in the row's first measurement rather than growing it once the reader is already on it — and ahead of the insert too, since a held page's rows have not been measured at all yet.
+  useLinkPreviewPrefetch(messages, pendingOlder);
+
+  /**
+   * REQUIREMENTS.md § 8.3. Inserts the held page, having first written down where the
+   * reader was, so the effect below can put them back.
+   *
+   * WARN: The anchor is the first row that is **not** a date divider, never `rows[0]`. A page of older messages from the same day leaves the divider at index 0 with the same key and the same offset, so the virtualizer's own anchor resolves it as "nothing moved" and the whole page lands as drift — which strands the scroller at the top, where it asks for the next page, and the room walks backwards through history a page at a time.
+   */
+  const insertOlder = useCallback(() => {
+    const element = scrollerRef.current;
+    const index = rowsRef.current.findIndex((row) => row.kind !== "date");
+    const measurement = index < 0 ? undefined : virtualizer.measurementsCache[index];
+
+    if (element && measurement) {
+      prependAnchorRef.current = {
+        key: rowsRef.current[index].key,
+        viewportY: measurement.start - element.scrollTop,
+      };
+    }
+
+    commitPendingOlder();
+  }, [commitPendingOlder, virtualizer]);
+
+  // INFO: REQUIREMENTS.md § 8.3. The page `loadOlder` fetched goes in here, once the list has gone still enough for the scroll correction it needs to survive.
+  useSettledCommit({ scroller, isPending: pendingOlder.length > 0, onSettled: insertOlder });
 
   // INFO: REQUIREMENTS.md § 13.6. An arriving emoticon plays by itself, and no gesture of its own is coming — the room borrows the first one the user makes anywhere on the page.
   useSoundUnlock();
@@ -266,6 +324,109 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     rowsRef.current = rows;
   }, [rows]);
 
+  // INFO: Flags only — the rows that just landed changed both distances, and nothing scrolled to say so.
+  useEffect(() => {
+    readScrollEdges();
+  });
+
+  // WARN: A landed page moves no finger, so it fires no `scroll` of its own. Keyed on the load finishing rather than on every render, so a user parked at the top pages one at a time instead of once per commit.
+  useEffect(() => {
+    if (!isLoadingOlder) {
+      requestAdjacentPages();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingOlder]);
+
+  /**
+   * WARN: `anchorTo: "end"` keeps the viewport at the end once it is there; it does
+   * not put it there. On mount every row is still `ESTIMATED_ROW_HEIGHT`, so a
+   * single `scrollToEnd()` lands on an end that the first measurement then moves —
+   * the room is re-parked on each size change until the rows have real heights.
+   *
+   * WARN: Gated on the gesture flag, never on the at-bottom one — `syncScrollEdges` runs first and has already read the pre-park position as "not at bottom", so this would never fire.
+   */
+  useEffect(() => {
+    const element = scrollerRef.current;
+
+    if (!element || hasTakenScrollRef.current) {
+      return;
+    }
+
+    // WARN: Unconditional, not gated on the total size changing — that is read during render, a layout before the rows it grew for are on screen, so gating on it stops one measurement short of the newest message.
+    element.scrollTop = element.scrollHeight;
+  });
+
+  /**
+   * REQUIREMENTS.md § 8.3. Puts the reader back on the row `insertOlder` wrote down,
+   * now that the page is in front of it.
+   *
+   * WARN: An absolute target, never a delta. Whether the virtualizer already corrected the scroll depends on which row its own anchor happened to resolve to, and restoring the recorded row to the offset it was recorded at is the same answer either way — so this cannot double-apply.
+   */
+  useIsomorphicLayoutEffect(() => {
+    const anchor = prependAnchorRef.current;
+    const element = scrollerRef.current;
+
+    if (!anchor || !element) {
+      return;
+    }
+
+    prependAnchorRef.current = null;
+
+    const index = rows.findIndex((row) => row.key === anchor.key);
+    const measurement = index < 0 ? undefined : virtualizer.measurementsCache[index];
+
+    if (measurement) {
+      element.scrollTop = measurement.start - anchor.viewportY;
+    }
+  }, [rows, virtualizer]);
+
+  /**
+   * REQUIREMENTS.md § 8.3. The follow the virtualizer cannot do for itself: the
+   * scroller's own maximum, which is the newest message parked on the composer,
+   * rather than an index resolved against measurements the trailing spacer is not in.
+   *
+   * WARN: Keyed on the last row, never on the count — a page of older history changes the count too, and it must move the viewport by nothing at all, which is what `anchorTo: "end"` is holding still.
+   */
+  useEffect(() => {
+    const previousKey = pinnedRowKeyRef.current;
+    const lastKey = rows.at(-1)?.key;
+
+    pinnedRowKeyRef.current = lastKey;
+
+    if (previousKey === undefined || previousKey === lastKey) {
+      return;
+    }
+
+    const element = scrollerRef.current;
+
+    // INFO: The previous tail is still in the list exactly when this was an append. A § 8.6.1. jump or a return to live replaces the window instead, and both scroll themselves.
+    // WARN: `isAtBottomRef` still holds the position from before this commit, which is the question being asked — was the user at the live edge when the message landed.
+    if (element && isAtBottomRef.current && rows.some((row) => row.key === previousKey)) {
+      element.scrollTop = element.scrollHeight;
+    }
+  }, [rows]);
+
+  // INFO: A real gesture, not a `scroll` event — the parking above scrolls too, and only the user reaching for the history should end it.
+  useEffect(() => {
+    if (!scroller) {
+      return;
+    }
+
+    const takeScroll = () => {
+      hasTakenScrollRef.current = true;
+    };
+
+    scroller.addEventListener("wheel", takeScroll, { passive: true });
+    scroller.addEventListener("touchstart", takeScroll, { passive: true });
+    scroller.addEventListener("keydown", takeScroll);
+
+    return () => {
+      scroller.removeEventListener("wheel", takeScroll);
+      scroller.removeEventListener("touchstart", takeScroll);
+      scroller.removeEventListener("keydown", takeScroll);
+    };
+  }, [scroller]);
+
   // INFO: DESIGN.md § 6.8. The flash is a moment, not a selection — nothing dismisses it but time.
   useEffect(() => {
     if (highlightedId === null) {
@@ -286,32 +447,35 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
         </div>
       ) : (
         <>
-          {/* WARN: The absolute box is what gives Virtuoso a height. Its scroller is `height: 100%` inline, and a `flex-1` parent is not a definite height for that to resolve against — the list would measure a zero-height viewport and render nothing. */}
+          {/* WARN: The absolute box is what gives the scroller a height. It is `height: 100%`, and a `flex-1` parent is not a definite height for that to resolve against — the list would measure a zero-height viewport and render nothing. */}
           <div className="absolute inset-0">
-            <Virtuoso
-              ref={listRef}
+            <div
+              ref={captureScroller}
               // INFO: The fade edges are the scroll affordance here (§ 6.1.); a bar on top of them would sit over the bubbles and cut through the floating composer.
               // WARN: `overflow-x: clip`, not `hidden` — the § 8.10. pull translates a row past the shell edge on a narrow screen, and `hidden` on a scroller that already scrolls vertically would make that a real horizontal scroll offset.
-              className="scrollbar-hidden overflow-x-clip"
-              atBottomThreshold={AT_BOTTOM_THRESHOLD}
-              components={{ Header: ListHeader, Footer: ListFooter }}
-              computeItemKey={(_, row) => row.key}
-              context={{ isLoadingOlder }}
-              data={rows}
-              // WARN: REQUIREMENTS.md § 8.3. Prepending decrements this instead of growing the list from 0; without it every loaded page jumps the viewport.
-              firstItemIndex={firstItemIndex}
-              followOutput={(atBottom) => (atBottom ? "smooth" : false)}
-              increaseViewportBy={{ top: 600, bottom: 600 }}
-              initialTopMostItemIndex={initialTopMostItemIndex}
-              itemContent={(_, row) => renderRow(row)}
-              scrollerRef={captureScroller}
-              style={{ height: "100%", maskImage: buildScrollFadeMask() }}
-              atBottomStateChange={handleAtBottomChange}
-              atTopStateChange={setIsAtTop}
-              // INFO: REQUIREMENTS.md § 8.6.1. Downward paging exists for the jumped-away window alone; at the live edge `loadNewer` returns immediately.
-              endReached={() => void loadNewer()}
-              startReached={() => void loadOlder()}
-            />
+              className="scrollbar-hidden h-full overflow-x-clip overflow-y-auto"
+              style={{ maskImage: buildScrollFadeMask() }}
+              onScroll={syncScrollEdges}
+            >
+              <ListHeader isLoadingOlder={isLoadingOlder} />
+              {/* INFO: `getTotalSize()` already nets off `scrollMargin`, so this is the rows' own height and the header above it is not counted twice. The row offsets do not — hence the subtraction on each `translateY` below. */}
+              <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+                {virtualizer.getVirtualItems().map((item) => (
+                  <div
+                    key={item.key}
+                    ref={virtualizer.measureElement}
+                    className="absolute top-0 left-0 w-full"
+                    data-index={item.index}
+                    style={{
+                      transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)`,
+                    }}
+                  >
+                    {renderRow(rows[item.index])}
+                  </div>
+                ))}
+              </div>
+              <ListFooter />
+            </div>
           </div>
           <ScrollToBottomPill
             className="absolute inset-x-0 bottom-[calc(var(--chat-bottom-gap)+var(--spacing-md))] mx-auto"
@@ -506,8 +670,59 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     setEditing(null);
   }
 
-  function captureScroller(element: Nullable<HTMLElement | Window>) {
-    scrollerRef.current = element instanceof HTMLElement ? element : null;
+  function captureScroller(element: Nullable<HTMLDivElement>) {
+    scrollerRef.current = element;
+    setScroller(element);
+  }
+
+  /**
+   * The edges Virtuoso used to report. The virtualizer is headless, so upward
+   * paging (§ 8.3.), downward paging (§ 8.6.1.) and the § 6.7. pill's at-bottom
+   * flag are all read off the scroller here.
+   *
+   * WARN: Also called when the content changes, not only on scroll — a page that lands while the finger is still produces no scroll event of its own, and the room would sit at the top with nothing asking for the next one.
+   */
+  function syncScrollEdges() {
+    readScrollEdges();
+    requestAdjacentPages();
+  }
+
+  /** The § 6.7. pill's at-bottom flag and the § 7.12. top fade, both read straight off the scroller. */
+  function readScrollEdges() {
+    const element = scrollerRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    const distanceToEnd = element.scrollHeight - element.scrollTop - element.clientHeight;
+    const atBottom = distanceToEnd <= AT_BOTTOM_THRESHOLD;
+
+    if (atBottom !== isAtBottomRef.current) {
+      handleAtBottomChange(atBottom);
+    }
+
+    setIsAtTop(element.scrollTop <= 0);
+  }
+
+  /**
+   * WARN: Never call this from a render-scoped effect. Both loads commit messages, which renders, which would ask again — one page per render rather than one per landed page, and the room pages itself to the start of history with the main thread pinned the whole way.
+   */
+  function requestAdjacentPages() {
+    const element = scrollerRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    if (element.scrollTop <= LOAD_OLDER_THRESHOLD) {
+      void loadOlder();
+    }
+
+    // INFO: REQUIREMENTS.md § 8.6.1. Downward paging exists for the jumped-away window alone; at the live edge `loadNewer` returns immediately.
+    if (element.scrollHeight - element.scrollTop - element.clientHeight <= AT_BOTTOM_THRESHOLD) {
+      void loadNewer();
+    }
   }
 
   // INFO: The bottom edge needs no scroll condition — resting at the bottom leaves the trailing spacer there, so the gradient has nothing to act on.
@@ -675,7 +890,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
 
       // INFO: The plain data index, not `firstItemIndex + index` — that offset only reaches what `itemContent` and `computeItemKey` are handed.
       // WARN: Not `behavior: "smooth"`. A jump crosses an arbitrary distance, so smooth animates through history the user did not ask to see, and the window it is animating over was replaced a frame ago.
-      listRef.current?.scrollToIndex({ index, align: "center" });
+      virtualizer.scrollToIndex(index, { align: "center" });
       setHighlightedId(id);
     });
   }
@@ -780,10 +995,11 @@ function findLastReadMineId(
 }
 
 // WARN: Constant height in both states — a header that grows when the fetch starts shifts the very scroll position § 8.3. exists to hold still.
-function ListHeader({ context }: { context?: ListContext }) {
+// WARN: A constant `h-10`, matching `LIST_HEADER_HEIGHT`. The skeleton comes and goes inside it rather than sizing it, so a page landing never moves the rows below it.
+function ListHeader({ isLoadingOlder }: { isLoadingOlder: boolean }) {
   return (
     <div className="flex h-10 items-center justify-center">
-      {context?.isLoadingOlder && <Skeleton className="h-4 w-20 rounded-full" />}
+      {isLoadingOlder && <Skeleton className="h-4 w-20 rounded-full" />}
     </div>
   );
 }

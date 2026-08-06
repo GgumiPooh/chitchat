@@ -1,10 +1,10 @@
 "use client";
 
-import { cn, withoutFragment } from "@/shared/lib";
+import { cn } from "@/shared/lib";
+import { PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Play } from "lucide-react";
-import { useState } from "react";
-import { fetchLinkPreview } from "../api/fetch-link-preview";
+import { toLinkPreviewQuery } from "../model/link-preview-query";
 
 export type LinkPreviewCardProps = {
   className?: string;
@@ -21,17 +21,8 @@ export type LinkPreviewCardProps = {
  * list (§ 8.3.) than one that only appears when there is something to show.
  */
 export function LinkPreviewCard({ className, url }: LinkPreviewCardProps) {
-  const [hasImageFailed, setHasImageFailed] = useState(false);
-  // INFO: The card still links to the URL as it was typed; only the lookup drops the fragment, so two bubbles pointing at different anchors of one page share a cache entry instead of a round trip each.
-  const target = withoutFragment(url);
-  const { data: preview } = useQuery({
-    queryKey: ["link-preview", target],
-    queryFn: () => fetchLinkPreview(target),
-    // WARN: The answer is already cached server-side for days (§ 8.9.), so a refetch on mount would be a request per scroll back onto the bubble that can only return what it returned before.
-    staleTime: Infinity,
-    gcTime: Infinity,
-    retry: false,
-  });
+  // INFO: REQUIREMENTS.md § 8.3. Normally already answered — `useLinkPreviewPrefetch` asks the moment the message is in the window, so this reads the cache and the bubble is its final height at its first measurement.
+  const { data: preview } = useQuery(toLinkPreviewQuery(url));
 
   if (!preview) {
     return null;
@@ -48,21 +39,25 @@ export function LinkPreviewCard({ className, url }: LinkPreviewCardProps) {
       href={url}
       target="_blank"
       rel="noreferrer"
-      // WARN: `pointerdown` is what arms the bubble's long press, so it has to stop here or holding the card opens the action sheet *and* follows the link on release.
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
+      // WARN: REQUIREMENTS.md § 8.10. Nothing is stopped here — the pointer has to reach the column so the card pulls to reply like the bubble beside it. The pull's own `onClickCapture` is what keeps the release from following the link, and it runs in the capture phase, so it has already called `preventDefault` by the time this anchor would navigate.
+      // WARN: An `<a>` is natively draggable, and WebKit starts its own link drag on the hold that the § 8.10. pull begins with — which takes the gesture away before the first `pointermove` is measured.
+      draggable={false}
     >
-      {imageUrl && !hasImageFailed && (
-        <div className="relative aspect-video bg-surface-strong">
-          {/* WARN: Loaded straight from the publisher's origin — it is the one image in the app that does not come from R2 (§ 9.), so a host that refuses to serve it hides the tile rather than leaving a broken frame in the bubble. */}
-          <img
-            className="size-full object-cover"
+      {imageUrl && (
+        // WARN: REQUIREMENTS.md § 8.3. The box is the row's height and it survives a refusal. Hiding the tile on `onError` instead took 124px out of a row that had already been measured — and `loading="lazy"` starts the request as the row nears the viewport, so it fired exactly while the reader was scrolling onto it.
+        <div className="relative aspect-video">
+          {/* WARN: `canRetry` off — this is the one image in the app that does not come from R2 (§ 9.), so § 13.3.'s cache-busted second attempt would only ask a host that already refused, on a URL we do not own. */}
+          <PreloadImage
+            className="size-full"
+            imgClassName="size-full object-cover"
             src={imageUrl}
             alt=""
             loading="lazy"
             decoding="async"
             referrerPolicy="no-referrer"
-            onError={() => setHasImageFailed(true)}
+            canRetry={false}
+            // WARN: DESIGN.md § 3.2. As the § 6.5. cells — without it the pull starts WebKit's own image drag instead.
+            draggable={false}
           />
           {kind === "video" && (
             <span className="absolute inset-0 flex items-center justify-center">

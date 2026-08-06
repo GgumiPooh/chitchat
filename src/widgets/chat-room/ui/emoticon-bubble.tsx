@@ -6,9 +6,7 @@ import { cn } from "@/shared/lib";
 import { PreloadImage } from "@/shared/ui";
 import { useState } from "react";
 import { playEmoticonSound } from "../model/play-emoticon-sound";
-
-// INFO: DESIGN.md § 6.5. The emoticon renders at its own aspect ratio inside this square ceiling, never cropped to it.
-const MAX_EDGE = 140;
+import { toEmoticonBox } from "../model/to-emoticon-box";
 
 export type EmoticonBubbleProps = {
   className?: string;
@@ -26,7 +24,7 @@ export type EmoticonBubbleProps = {
  */
 export function EmoticonBubble({ className, emoticon }: EmoticonBubbleProps) {
   const [replayToken, setReplayToken] = useState(0);
-  const box = toBox(emoticon);
+  const box = toEmoticonBox(emoticon);
 
   return (
     <div className={cn("flex", className)} style={{ width: box.width, height: box.height }}>
@@ -56,11 +54,4 @@ export function EmoticonBubble({ className, emoticon }: EmoticonBubbleProps) {
     // WARN: Inside the click handler with nothing awaited before it — iOS grants the gesture's audio permission to this call stack alone, so any `await` first loses it.
     playEmoticonSound(emoticon);
   }
-}
-
-/** DESIGN.md § 6.5. The box is reserved from the stored size before the asset loads (§ 8.3.), fitted inside the 140 ceiling. */
-function toBox({ width, height }: Emoticon) {
-  const scale = Math.min(1, MAX_EDGE / Math.max(width, height));
-
-  return { width: Math.round(width * scale), height: Math.round(height * scale) };
 }

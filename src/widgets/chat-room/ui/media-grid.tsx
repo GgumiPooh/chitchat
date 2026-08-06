@@ -3,9 +3,9 @@
 import { cn, formatDuration } from "@/shared/lib";
 import { PreloadImage, type MediaCell } from "@/shared/ui";
 import { Play } from "lucide-react";
+import { MEDIA_EDGE_REM, toMediaColumns } from "../model/to-media-box";
 
-// INFO: DESIGN.md § 6.5. The long edge of an image message. A grid takes the same width so a bubble of one and a bubble of nine line up in the column.
-const MAX_EDGE = "13.75rem";
+const MAX_EDGE = `${MEDIA_EDGE_REM}rem`;
 
 export type MediaGridProps = {
   className?: string;
@@ -120,7 +120,7 @@ export function MediaGrid({
   }
 }
 
-// INFO: Two sits on one line and four squares up; everything else fills three columns, which is what the nine-per-bubble split of REQUIREMENTS.md § 18. #10 was chosen around.
+// WARN: The two literals stay literals — Tailwind scans for whole class names, and a template built from the column count generates neither.
 function toColumnsClassName(count: number): string {
-  return count === 2 || count === 4 ? "grid-cols-2" : "grid-cols-3";
+  return toMediaColumns(count) === 2 ? "grid-cols-2" : "grid-cols-3";
 }

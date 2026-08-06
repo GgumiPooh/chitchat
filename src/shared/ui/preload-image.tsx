@@ -21,6 +21,8 @@ export type PreloadImageProps = Omit<ComponentProps<"img">, "placeholder" | "sty
   src?: string;
   /** Applied to the wrapper, which is the box the skeleton fills — a reserved size or aspect ratio belongs here, not on the image. */
   style?: CSSProperties;
+  /** Off for an asset this app does not serve: the retry below cache-busts a URL we do not own, and a host that refused it once refuses it again. */
+  canRetry?: boolean;
 };
 
 /**
@@ -42,6 +44,7 @@ export function PreloadImage({
   placeholderClassName,
   style,
   src,
+  canRetry = true,
   onLoad,
   onError,
   ...props
@@ -123,7 +126,7 @@ export function PreloadImage({
 
   /** Whether a retry was scheduled; `false` means the load is finally failed. */
   function fail(): boolean {
-    if (retryCount >= MAX_RETRIES || !isRetryable(src)) {
+    if (!canRetry || retryCount >= MAX_RETRIES || !isRetryable(src)) {
       setStatus("failed");
 
       return false;

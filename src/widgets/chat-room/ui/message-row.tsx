@@ -84,7 +84,8 @@ export function MessageRow({
   const longPressHandlers = useLongPress(onLongPress, { onFire: swipe.cancel });
   const hasMedia = media.length > 0;
   // INFO: REQUIREMENTS.md § 8.9. One card per bubble — the first link, not every link, because a message pasted from a share sheet routinely carries several.
-  const previewUrl = findFirstUrl(text);
+  // INFO: DESIGN.md § 6.5. A bubble-less message carries an attachment rather than text, so there is no link in it to preview.
+  const previewUrl = emoticon || hasMedia ? undefined : findFirstUrl(text);
 
   return (
     // INFO: DESIGN.md § 6.8. The flash is on the row rather than on the bubble's own fill, so a media or emoticon message — which has no fill — highlights the same way a text one does.
@@ -132,6 +133,13 @@ export function MessageRow({
           />
         )}
         {renderHoverActions()}
+        {/* INFO: DESIGN.md § 6.9. Outside the bubble and above it, at § 6.5.'s attachment width — a sibling in this column, so it takes the sender's side and the column's cap without re-deriving either. */}
+        {/* WARN: The hold lives on this wrapper and not on the card, because `useLongPress`'s click capture only reaches a target it is above — on the anchor itself the release would still follow the link out from under the sheet. */}
+        {previewUrl && (
+          <div className={cn("w-full max-w-55", LONG_PRESS_TARGET_CLASS)} {...longPressHandlers}>
+            <LinkPreviewCard url={previewUrl} />
+          </div>
+        )}
         <div className={cn("flex items-end gap-2xs", isMine && "flex-row-reverse")}>
           {emoticon ? (
             // INFO: DESIGN.md § 6.5. An emoticon renders without a bubble, border or background, for the same reason an attachment does.
@@ -168,7 +176,6 @@ export function MessageRow({
               )}
               {...longPressHandlers}
             >
-              {/* INFO: DESIGN.md § 6.10. Above the link card, because the quote is what the message is answering and the card is part of what it says. */}
               {replyTo && (
                 <ReplyQuote
                   className="mb-2xs"
@@ -177,8 +184,6 @@ export function MessageRow({
                   onOpen={onOpenReply}
                 />
               )}
-              {/* INFO: DESIGN.md § 6.9. The card sits above the text, inset from the bubble's own padding, so the bubble stays the one shape the message is drawn in. */}
-              {previewUrl && <LinkPreviewCard className="mb-2xs" url={previewUrl} />}
               {text && <MessageText text={text} />}
             </div>
           )}

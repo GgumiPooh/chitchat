@@ -14,7 +14,12 @@ import { fetchMessages } from "../api/fetch-messages";
  */
 export function useMessageHistory(initialMessages: ChatMessage[]) {
   const [messages, setMessages] = useState(initialMessages);
+  // INFO: True from the fetch starting until the page is actually in the list, which is what keeps the § 8.3. loading header up across the wait for a still scroller.
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  // INFO: REQUIREMENTS.md § 8.3. A fetched page that has not been committed yet. The rows themselves and not just a flag, so the room can warm their § 8.9. link previews during the hold — the wait for a still scroller is exactly the head start those need to be in the rows' first measurement.
+  // WARN: Duplicated into the ref beside it on purpose. The state is what effects wake on; the ref is what `loadOlder`'s guard and `commitPendingOlder` read, and neither may see a render-old value.
+  const [pendingOlder, setPendingOlder] = useState<ChatMessage[]>([]);
+  const pendingOlderRef = useRef<ChatMessage[]>([]);
   // INFO: REQUIREMENTS.md § 8.6.1. True while the window sits around a jump target rather than at the newest message — everything that answers "is this room live" reads it.
   const [hasNewer, setHasNewer] = useState(false);
   const messagesRef = useRef(initialMessages);
@@ -31,10 +36,21 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     setMessages(messagesRef.current);
   }, []);
 
+  /**
+   * WARN: REQUIREMENTS.md § 8.3. Fetches but does not insert. A page committed while the
+   * scroller is still moving needs a scroll correction WebKit will not take mid-gesture,
+   * so the rows wait here for `commitPendingOlder`.
+   */
   const loadOlder = useCallback(async () => {
     const oldest = messagesRef.current[0];
 
-    if (isLoadingRef.current || !hasOlderRef.current || !oldest) {
+    // WARN: The held page counts as loading too — its rows are not in `messagesRef` yet, so a second call would ask the server for the very same page.
+    if (
+      isLoadingRef.current ||
+      pendingOlderRef.current.length > 0 ||
+      !hasOlderRef.current ||
+      !oldest
+    ) {
       return;
     }
 
@@ -47,15 +63,41 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
       hasOlderRef.current = older.length >= MESSAGE_PAGE_SIZE;
 
       if (older.length > 0) {
-        commit((previous) => [...older, ...previous]);
+        pendingOlderRef.current = older;
+        setPendingOlder(older);
+
+        return;
       }
     } catch {
       toast.error("이전 메시지를 불러오지 못했어요");
     } finally {
       isLoadingRef.current = false;
-      setIsLoadingOlder(false);
     }
+
+    // INFO: Only the paths that hold nothing land here — a page that is waiting keeps the header up until it is committed.
+    setIsLoadingOlder(false);
+  }, []);
+
+  /** REQUIREMENTS.md § 8.3. Inserts the held page. The caller owns the timing, and the timing is the fix. */
+  const commitPendingOlder = useCallback(() => {
+    const older = pendingOlderRef.current;
+
+    if (older.length === 0) {
+      return;
+    }
+
+    pendingOlderRef.current = [];
+    setPendingOlder([]);
+    commit((previous) => [...older, ...previous]);
+    setIsLoadingOlder(false);
   }, [commit]);
+
+  // WARN: § 8.6.1. Both window replacements drop it. Splicing a page of the live edge's history into a window parked around a jump target would draw it under messages it does not follow.
+  const discardPendingOlder = useCallback(() => {
+    pendingOlderRef.current = [];
+    setPendingOlder([]);
+    setIsLoadingOlder(false);
+  }, []);
 
   // INFO: REQUIREMENTS.md § 8.4. Deduplicated by id — the SSE replay margin and the resume catch-up overlap by design, so a batch that is entirely duplicates is the normal case.
   const receiveMessages = useCallback(
@@ -123,6 +165,7 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
       }
 
       isLoadingRef.current = true;
+      discardPendingOlder();
 
       try {
         const around = await fetchMessages({ around: id });
@@ -146,7 +189,7 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
         isLoadingRef.current = false;
       }
     },
-    [commit],
+    [commit, discardPendingOlder],
   );
 
   /** REQUIREMENTS.md § 8.6.1. The downward half of paging, which only a jumped-away window ever needs. */
@@ -199,6 +242,7 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     // WARN: Flipped before the fetch, not after. An arrival landing mid-flight belongs in the window this is restoring, and `receiveMessages` is what decides that.
     hasNewerRef.current = false;
     setHasNewer(false);
+    discardPendingOlder();
 
     try {
       const page = await fetchMessages({});
@@ -215,7 +259,7 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     } catch {
       toast.error("최근 메시지를 불러오지 못했어요");
     }
-  }, [commit]);
+  }, [commit, discardPendingOlder]);
 
   /**
    * REQUIREMENTS.md § 8.4. Everything that landed while the stream was closed.
@@ -247,8 +291,10 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
   return {
     messages,
     isLoadingOlder,
+    pendingOlder,
     hasNewer,
     loadOlder,
+    commitPendingOlder,
     loadNewer,
     loadAround,
     returnToLive,

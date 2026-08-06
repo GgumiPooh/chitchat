@@ -26,9 +26,9 @@ export function MessageText({ className, text }: MessageTextProps) {
             href={segment.value}
             target="_blank"
             rel="noreferrer"
-            // WARN: `pointerdown` is what arms the bubble's long press, so it has to stop here or holding a link opens the action sheet *and* follows the link on release.
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
+            // WARN: REQUIREMENTS.md § 8.10. The pointer is deliberately left to bubble, so a link pulls to reply and holds to the action sheet like the rest of the bubble. Stopping it here is what made a link the one dead spot in the row. Nothing follows the link on release either: both gestures swallow the `click` from `onClickCapture` on an ancestor of this anchor, which is exactly where `useLongPress` says those handlers have to live.
+            // WARN: An `<a>` is natively draggable, and WebKit's link drag takes the gesture before the pull has measured a move.
+            draggable={false}
           >
             {segment.value}
           </a>
