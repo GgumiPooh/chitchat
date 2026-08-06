@@ -28,8 +28,6 @@ export type HapticTapProps = {
   forwardsTap?: boolean;
   /** Keeps the tap from moving focus, for a control whose own `pointerdown` handler does the same. */
   keepsFocus?: boolean;
-  /** Leaves the drag to the surface underneath, for an overlay on a cell that tiles a scroller. See `DESIGN.md § 7.15.` */
-  keepsScroll?: boolean;
 };
 
 /**
@@ -50,12 +48,7 @@ export type HapticTapProps = {
  * (`AGENTS.md § 4.2.`).
  */
 // INFO: iOS exposes no Vibration API, and since 26.5 a scripted click on the switch no longer ticks either — only a real finger landing on the native control does, which is why this is an element and not a hook.
-export function HapticTap({
-  className,
-  forwardsTap = false,
-  keepsFocus = false,
-  keepsScroll = false,
-}: HapticTapProps) {
+export function HapticTap({ className, forwardsTap = false, keepsFocus = false }: HapticTapProps) {
   // INFO: AGENTS.md § 4.2. An interaction detail, not layout — a mouse gains nothing from the switch, and it would swallow the ⌘-click the covered element still owes the pointer.
   const isCoarsePointer = useIsCoarsePointer();
   // WARN: Captured on `pointerdown` rather than read off a ref at cleanup time — React detaches refs before a passive cleanup runs, and `useIsCoarsePointer` reports `false` on the first render, so neither the element nor its parent is reachable from the effect itself.
@@ -85,9 +78,8 @@ export function HapticTap({
   );
 
   // WARN: The overlay takes the tap the control would have taken, so a control that cancels `pointerdown` to hold focus has to cancel it here instead — otherwise the field behind it blurs and iOS drops the keyboard.
-  // INFO: `keepsScroll` cancels the same event for a different reason (`DESIGN.md § 7.15.`), and the tick survives either way — a cancelled `pointerdown` still leaves the finger on the native control, which is the only thing 26.5 requires.
   function handlePointerDown(event: PointerEvent<HTMLInputElement>) {
-    if (keepsFocus || keepsScroll) {
+    if (keepsFocus) {
       event.preventDefault();
     }
 

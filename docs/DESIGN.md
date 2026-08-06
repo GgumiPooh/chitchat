@@ -854,18 +854,18 @@ iOS exposes no Vibration API. The only way a web page reaches the Taptic engine 
 
 Consequences, all of them non-obvious:
 
-| Rule                                                                                 | Reason                                                                                                    |
-| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| Never mount `HapticTap` inside a `<button>`                                          | WebKit ends the tap in the native control; no click reaches JS at all, and the button stops firing        |
-| Beside a `<button>`, wrap both in a `relative` box and pass `forwardsTap`            | The overlay replays the tap on its sibling control, which is the only path left                           |
-| Inside an `<a>`, mount it as the last child with no `forwardsTap`                    | The click still bubbles to the anchor, where `NextLink`'s own handler takes it                            |
-| `haptic` on a `Link` is for internal routes only                                     | The anchor's native activation never runs, so an external href or modified click would go nowhere         |
-| Hide it with `opacity` alone — never `appearance-none`, never `display: none`        | A restyled control is no longer native and stops ticking; a hidden one cannot be tapped                   |
-| Put `group` on the wrapper and `group-active:` beside every `active:` on the control | The tap lands on the overlay, so `:active` matches the wrapper and never the control (`§ 3.2.`)           |
-| For motion, read `group-data-[pressed]:` and not `group-active:`                     | WebKit resolves the press inside the native switch; the overlay sets the attribute itself (§ 4.7.2.)      |
-| Repeat the control's `touch-action` on the overlay                                   | `touch-action` applies to the element a gesture starts on, and that is now the overlay                    |
-| Over a cell that **tiles** a scroller, pass `keepsScroll`                            | The switch tracks a drag of its own, and cancelling `pointerdown` is what leaves that drag to the surface |
-| A gesture threshold, a drag, a route change — none of these can tick                 | They are scripted triggers, which iOS 26.5 removed                                                        |
+| Rule                                                                                 | Reason                                                                                               |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Never mount `HapticTap` inside a `<button>`                                          | WebKit ends the tap in the native control; no click reaches JS at all, and the button stops firing   |
+| Beside a `<button>`, wrap both in a `relative` box and pass `forwardsTap`            | The overlay replays the tap on its sibling control, which is the only path left                      |
+| Inside an `<a>`, mount it as the last child with no `forwardsTap`                    | The click still bubbles to the anchor, where `NextLink`'s own handler takes it                       |
+| `haptic` on a `Link` is for internal routes only                                     | The anchor's native activation never runs, so an external href or modified click would go nowhere    |
+| Hide it with `opacity` alone — never `appearance-none`, never `display: none`        | A restyled control is no longer native and stops ticking; a hidden one cannot be tapped              |
+| Put `group` on the wrapper and `group-active:` beside every `active:` on the control | The tap lands on the overlay, so `:active` matches the wrapper and never the control (`§ 3.2.`)      |
+| For motion, read `group-data-[pressed]:` and not `group-active:`                     | WebKit resolves the press inside the native switch; the overlay sets the attribute itself (§ 4.7.2.) |
+| Repeat the control's `touch-action` on the overlay                                   | `touch-action` applies to the element a gesture starts on, and that is now the overlay               |
+| Never over the cells that **tile** a scrolling or swiping surface                    | The switch is a draggable native control, so it takes the drag itself and the surface stops moving   |
+| A gesture threshold, a drag, a route change — none of these can tick                 | They are scripted triggers, which iOS 26.5 removed                                                   |
 
 It renders on a coarse pointer only (`AGENTS.md § 4.2.`): a mouse gains nothing, and the overlay would swallow the ⌘-click the covered element still owes the pointer.
 
@@ -876,13 +876,11 @@ Two boundaries that are easy to read the wrong way:
 - The month stepper is **in**. It commits the same change the month swipe does, and the swipe itself is a drag threshold that can never tick — so without it the gesture the chevrons exist to replace (`§ 4.1.`) is the only way to turn the month silently.
 - Removing a staged emoticon or photo is **in**, despite reading as a cancel. What it cancels is content already committed to the outgoing message, not a surface the user opened — the same act as deleting, which ticks.
 
-### Tiled cells and the drag the switch keeps.
+And where it does **not** go, whatever the interaction means: the day cells of the month grid and the cells of the emoticon grid. Those tile their surface, so an overlay on them is the element every scrolling finger lands on, and the switch keeps the drag for itself — the emoticon panel would not scroll at all, and the month grid turned a drag into a tap. The grids ship without a tick rather than without a scroll.
 
-The day cells of the month grid and the cells of the emoticon grid **tile** their surface: there is no gap between them, so the overlay is the element every scrolling finger lands on. WebKit's switch tracks a drag of its own — that is how a real switch is thrown by sliding it — and it claims that drag before the scroller is consulted. `touch-action: pan-y` does not help, because the control has already taken the gesture. Left alone, the emoticon panel does not scroll at all and the month grid turns a drag into a tap.
+Cancelling the overlay's `pointerdown` **does not** buy it back, and this was measured on device rather than reasoned about. The tick survives the cancel, exactly as it does under `keepsFocus` — so the drag WebKit is keeping is not a `pointerdown` default action, and there is nothing left on that event to refuse. `touch-action: pan-y` does not reach it either. The overlay has to be under the finger at `pointerdown` to tick at all, which leaves no placement that is under a tap but not under a drag: on a tiled surface the two gestures start in the same pixel.
 
-`keepsScroll` is the way out. It cancels the overlay's `pointerdown`, which suppresses the control's own drag while leaving panning to `touch-action` — panning is not a `pointerdown` default action, so the scroller keeps it. The tick is unaffected: what iOS 26.5 requires is a real finger landing on a native control, and a cancelled `pointerdown` still is one. `keepsFocus` has relied on exactly this since the composer's send button.
-
-Nothing else about a tiled cell changes. It still needs `group` on the wrapper and the overlay's own `touch-action`.
+Reviving the tick there would mean driving the scroll from JS on `pointermove` and writing the momentum back by hand. That is the price, and it is not worth a tick.
 
 # 8. Rules.
 
