@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/shared/lib";
-import { Download, X } from "lucide-react";
+import { Download, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./icon-button";
 import type { MediaCell } from "./media-cell";
@@ -13,6 +13,8 @@ export type MediaViewerProps = {
   cells: MediaCell[];
   initialIndex: number;
   onClose: () => void;
+  /** Removes the message the attachments belong to, not the slide on screen. Omitted when they are not the current user's to remove. */
+  onDelete?: () => void;
 };
 
 /**
@@ -28,7 +30,13 @@ export type MediaViewerProps = {
  * tuned on a real device. Swiping between attachments is native scroll snapping,
  * which needs no gesture parameters at all.
  */
-export function MediaViewer({ className, cells, initialIndex, onClose }: MediaViewerProps) {
+export function MediaViewer({
+  className,
+  cells,
+  initialIndex,
+  onClose,
+  onDelete,
+}: MediaViewerProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(initialIndex);
   const downloadUrl = cells[index]?.downloadUrl;
@@ -52,17 +60,28 @@ export function MediaViewer({ className, cells, initialIndex, onClose }: MediaVi
           {cells.length > 1 && (
             <span className="text-caption text-on-primary">{`${index + 1} / ${cells.length}`}</span>
           )}
-          {/* WARN: No `download` attribute — the route 302s to R2 and the spec drops it once the navigation resolves cross-origin. `toMediaDownloadUrl` signs the disposition into the object instead. */}
-          <a
-            className={cn(
-              "inline-flex size-11 items-center justify-center rounded-full text-on-primary transition-colors outline-none hover:bg-canvas/15 focus-visible:ring-2 focus-visible:ring-primary",
-              !downloadUrl && "invisible",
+          <div className="flex items-center">
+            {onDelete && (
+              // INFO: DESIGN.md § 3.2. The only route to deleting one's own attachment — the bubble's hold is left to the OS so it can offer 사진에 저장.
+              <IconButton
+                className="text-semantic-error hover:bg-canvas/15 hover:text-semantic-error-hover"
+                Icon={Trash2}
+                aria-label="메시지 삭제"
+                onClick={onDelete}
+              />
             )}
-            href={downloadUrl ?? undefined}
-            aria-label="원본 저장"
-          >
-            <Download className="size-5" strokeWidth={1.75} />
-          </a>
+            {/* WARN: No `download` attribute — the route 302s to R2 and the spec drops it once the navigation resolves cross-origin. `toMediaDownloadUrl` signs the disposition into the object instead. */}
+            <a
+              className={cn(
+                "inline-flex size-11 items-center justify-center rounded-full text-on-primary transition-colors outline-none hover:bg-canvas/15 focus-visible:ring-2 focus-visible:ring-primary",
+                !downloadUrl && "invisible",
+              )}
+              href={downloadUrl ?? undefined}
+              aria-label="원본 저장"
+            >
+              <Download className="size-5" strokeWidth={1.75} />
+            </a>
+          </div>
         </div>
         {/* INFO: Native scroll snapping is the horizontal swipe of REQUIREMENTS.md § 8.1. — it costs no gesture code and matches the platform's own momentum. */}
         <div
