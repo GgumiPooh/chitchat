@@ -8,7 +8,14 @@ import {
   fetchCalendarSummary,
   fetchOccurrences,
 } from "@/features/manage-event";
-import { cn, toDayKey, toMonthKey, type Maybe, type Nullable } from "@/shared/lib";
+import {
+  cn,
+  listMilestonesInRange,
+  toDayKey,
+  toMonthKey,
+  type Maybe,
+  type Nullable,
+} from "@/shared/lib";
 import { ActionSheet, AppHeader, Container, IconButton, toast } from "@/shared/ui";
 import { CalendarMonth, toGridRange } from "@/widgets/calendar-month";
 import { Plus } from "lucide-react";
@@ -133,6 +140,11 @@ export function CalendarPage({
         dayKey={selectedDayKey ?? summary.todayKey}
         occurrences={selectedDayKey ? occurrencesOn(occurrences, selectedDayKey) : []}
         participants={participants}
+        milestones={
+          selectedDayKey
+            ? listMilestonesInRange(summary.startDate, selectedDayKey, selectedDayKey)
+            : []
+        }
         onClose={() => setSelectedDayKey(null)}
         onCreate={() => openForm(selectedDayKey ?? summary.todayKey, null)}
         onSelect={openActions}
