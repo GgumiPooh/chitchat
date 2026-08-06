@@ -3,7 +3,7 @@
 import type { EmoticonPackSummary } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import { cn } from "@/shared/lib";
-import { HapticTap, IconButton, PreloadImage, Switch } from "@/shared/ui";
+import { HapticTarget, IconButton, PreloadImage, Switch } from "@/shared/ui";
 import { useSortable } from "@dnd-kit/sortable";
 import { ChevronRight, GripVertical, Settings2, Smile } from "lucide-react";
 
@@ -72,7 +72,8 @@ export function EmoticonPackRow({
         )}
       </div>
       {/* INFO: The chevron is the affordance — without it nothing says the name is a link to the pack's own screen rather than a label. */}
-      <span className="group relative flex min-w-0 flex-1">
+      {/* WARN: `keepsScroll` — the name fills the row, so a finger scrolling the list lands here, and the switch would keep that drag and end it as a tap on the pack (`DESIGN.md § 7.15.1.`). */}
+      <HapticTarget className="flex min-w-0 flex-1" overlayClassName="touch-pan-y" keepsScroll>
         <button
           className="flex min-w-0 flex-1 items-center gap-2xs rounded-sm px-2xs py-2xs text-left group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
           type="button"
@@ -91,9 +92,7 @@ export function EmoticonPackRow({
           </span>
           <ChevronRight className="size-4 shrink-0 text-meta-soft" strokeWidth={1.75} />
         </button>
-        {/* WARN: `keepsScroll` — the name fills the row, so a finger scrolling the list lands here, and the switch would keep that drag and end it as a tap on the pack (`DESIGN.md § 7.15.1.`). */}
-        <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
-      </span>
+      </HapticTarget>
       <IconButton
         Icon={Settings2}
         haptic

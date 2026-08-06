@@ -2,7 +2,8 @@ import { discardAvatarMedia, ownsAllMedia } from "@/entities/media";
 import { updateUserProfile } from "@/entities/user";
 import { getCurrentUser } from "@/shared/auth";
 import { MAX_NICKNAME_LENGTH } from "@/shared/config";
-import { NextResponse } from "next/server";
+import { safelyRunAsync } from "@/shared/lib";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
 const bodySchema = z
@@ -46,8 +47,11 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
+  // WARN: Cleanup behind a write that already committed, so it runs after the response and cannot fail it. Awaited inline, a transient pool error here answered 500 for a save that landed — the sheet stayed open on 프로필을 저장하지 못했어요 and a retry uploaded a second avatar.
   if (update.replacedAvatarMediaId) {
-    await discardAvatarMedia(update.replacedAvatarMediaId, user.id);
+    const replaced = update.replacedAvatarMediaId;
+
+    after(() => safelyRunAsync(() => discardAvatarMedia(replaced, user.id)));
   }
 
   return NextResponse.json({ user: update.participant });

@@ -195,7 +195,7 @@ export function MessageRow({
             // INFO: DESIGN.md § 6.5. The failure affordance sits on the outer side of the bubble; cancel is beside retry so a send that cannot succeed can still be cleared.
             <div className="flex shrink-0 flex-col">
               <IconButton
-                className="size-9 text-semantic-error hover:bg-primary-tint hover:text-semantic-error-hover"
+                buttonClassName="size-9 text-semantic-error hover:bg-primary-tint hover:text-semantic-error-hover"
                 iconClassName="size-4"
                 Icon={RotateCcw}
                 haptic

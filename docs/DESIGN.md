@@ -796,6 +796,8 @@ The D-day band is the only place `display-lg` appears in the app. It is the scre
 | Milestone marker | Derived anniversaries (100일, 주년) render a 4px `primary` diamond, distinct from every event dot                                                                        |
 | Event colours    | Drawn from the tint family only; never raw hues                                                                                                                          |
 
+The day sheet leads with that day's milestones, above its events: the diamond again, the label in `title-sm` `ink`, `기념일` in `caption` `meta`. They take the upcoming card's static treatment — 1px `hairline` on `canvas`, no hover or active state — where an event row is `surface-soft` and tappable, because a derived anniversary opens nothing.
+
 ## 7.10. Gallery.
 
 3-column grid, `2xs` (4px) gutters, square `object-cover` cells, `rounded-sm`. Month section header is `title-sm` `meta` and **scrolls with the grid**. Viewer is full-bleed on `scrim` at 90% opacity with no chrome except a close `icon-button`, the position counter, and the save pair — `공유` then `원본 저장` (`REQUIREMENTS.md § 8.11.`); slides carry vertical padding only, since a side gutter reads as a frame around a photo the viewer exists to show whole.
@@ -904,6 +906,10 @@ Consequences, all of them non-obvious:
 
 It renders on a coarse pointer only (`AGENTS.md § 4.2.`): a mouse gains nothing, and the overlay would swallow the ⌘-click the covered element still owes the pointer.
 
+Every rule in that table about the **wrapper** — `relative`, `group`, the overlay as a sibling, gating the tick and not the wrapper — is held by `HapticTarget`, and screens compose that rather than reassembling it. Six copies of the contract had already drifted apart on where `className` goes before it was extracted, which is the argument for the component: `Button` routed it to the wrapper while `Chip`, `IconButton` and `SettingsRow` routed it to the control, so a positioned caller could not ask for `haptic` at all. `HapticTarget` is the outermost element, so `className` is its (`AGENTS.md § 1.2.`) and a primitive that takes `haptic` exposes a second prop — `buttonClassName`, `chipClassName`, `rowClassName` — for the control's own box.
+
+The two remaining hand-rolled wrappers are `<li>` rows (the day sheet, the upcoming card). They are list items before they are haptic wrappers, and a polymorphic `as` on `HapticTarget` would cost more than the duplication it removes.
+
 Where it fires is a product decision, not a technical one: **a committed change of state, and a selection among peers.** Saving, sending, deleting, toggling, switching tab or pack, picking a chip or a swatch, opening a sheet, stepping the calendar to the next month, discarding a staged attachment. Never dismissing a surface, cancelling out of one, or going back — a tick that fires on everything stops meaning anything.
 
 Two boundaries that are easy to read the wrong way:
@@ -915,7 +921,7 @@ Two boundaries that are easy to read the wrong way:
 
 A switch is thrown by sliding it, so WebKit tracks a drag on the control and claims that gesture before the scroller is consulted. Where the overlay has space around it nobody notices. Where the targets **tile** a surface — the day cells of the month grid, the cells of the emoticon grid, the pack tabs under it, a `SettingsRow` or the name of a 이모티콘 관리 row, both of which fill the row they sit in, a 다가오는 일정 row, and the rows of a sheet (`ActionSheet`, the day's events), which are the whole surface a finger has to pull to dismiss it — the overlay is what every scrolling finger lands on: the emoticon panel would not scroll at all, the month grid, the settings list, the pack list and the upcoming list turned a drag into a tap, and the sheets could not be dragged shut from their own rows.
 
-The pack tabs are the one host where the scroller is **horizontal**, and they are the reason this is stated as "tiles a scroller" rather than "tiles a list": a 44px target with a `2xs` gap either side leaves a finger nowhere else to land, whichever way the surface moves. They also carry no `touch-action` beside `keepsScroll`, where every other host repeats the control's `touch-pan-y` — the axis the overlay must leave to the browser is the axis its own scroller runs on.
+The pack tabs are the one host where the scroller is **horizontal**, and they are the reason this is stated as "tiles a scroller" rather than "tiles a list": a 44px target with a `2xs` gap either side leaves a finger nowhere else to land, whichever way the surface moves. They also pass no `overlayClassName` beside `keepsScroll`, where every other host repeats the control's `touch-pan-y` — the axis the overlay must leave to the browser is the axis its own scroller runs on.
 
 Two things that look like they should fix that and do not, both measured on device:
 

@@ -54,6 +54,11 @@ export function isShareableSelection(ids: string[]): boolean {
  * WARN: `Content-Length` is checked before the body is read. It is CORS-safelisted,
  * so it survives the 302 into R2 (§ 15.) — and checking it here is what keeps a
  * 500MB video from being buffered before the ceiling is noticed.
+ *
+ * WARN: The declared length is an optimisation, never the ceiling itself. A chunked
+ * response, a proxy that drops the header, or an engine that does not expose it
+ * cross-origin all report `0`, and a total summed from those alone stops guarding
+ * exactly when it matters. `blob.size` is what the running total is held to.
  */
 export async function collectShareFiles(
   ids: string[],
@@ -69,13 +74,19 @@ export async function collectShareFiles(
       throw new Error("media_unavailable");
     }
 
-    totalBytes += Number(response.headers.get("content-length") ?? 0);
+    const declaredBytes = Number(response.headers.get("content-length") ?? 0);
 
-    if (totalBytes > MAX_GALLERY_SHARE_BYTES) {
+    if (totalBytes + declaredBytes > MAX_GALLERY_SHARE_BYTES) {
       throw new Error("selection_too_large");
     }
 
     const blob = await response.blob();
+
+    totalBytes += blob.size;
+
+    if (totalBytes > MAX_GALLERY_SHARE_BYTES) {
+      throw new Error("selection_too_large");
+    }
 
     files.push(new File([blob], toShareFileName(id, blob.type), { type: blob.type }));
     onProgress(files.length);

@@ -2,9 +2,15 @@
 
 import type { EventOccurrence } from "@/entities/event";
 import type { Participant } from "@/entities/user";
-import { cn, formatDateWithWeekday, parseDayKey, type Optional } from "@/shared/lib";
+import {
+  cn,
+  formatDateWithWeekday,
+  parseDayKey,
+  type Milestone,
+  type Optional,
+} from "@/shared/lib";
 import { Avatar, BottomSheet, Button, EmptyState, HapticTap } from "@/shared/ui";
-import { EventDot } from "@/widgets/calendar-month";
+import { EventDot, MilestoneDot } from "@/widgets/calendar-month";
 import { CalendarDays } from "lucide-react";
 import { formatOccurrenceTime } from "../model/format-event";
 
@@ -13,6 +19,8 @@ export type DayEventsSheetProps = {
   isOpen: boolean;
   dayKey: string;
   occurrences: EventOccurrence[];
+  /** REQUIREMENTS.md § 11.2. Derived, so they are listed but never editable. */
+  milestones: Milestone[];
   participants: Participant[];
   onClose: () => void;
   onCreate: () => void;
@@ -25,11 +33,14 @@ export function DayEventsSheet({
   isOpen,
   dayKey,
   occurrences,
+  milestones,
   participants,
   onClose,
   onCreate,
   onSelect,
 }: DayEventsSheetProps) {
+  const isEmpty = occurrences.length === 0 && milestones.length === 0;
+
   return (
     <BottomSheet
       className={className}
@@ -38,11 +49,24 @@ export function DayEventsSheet({
       onClose={onClose}
     >
       <div className="space-y-sm">
-        {occurrences.length === 0 ? (
+        {isEmpty ? (
           // INFO: REQUIREMENTS.md § 11.5. A day with nothing on it still gets a state of its own rather than a bare gap above the button.
           <EmptyState Icon={CalendarDays} description="이 날은 일정이 없어요" />
         ) : (
           <ul className="space-y-2xs">
+            {/* INFO: REQUIREMENTS.md § 11.2. Listed first, and without the empty state a milestone-only day would otherwise get — the grid marked the day, so the sheet must say what marked it. */}
+            {milestones.map((milestone) => (
+              <li
+                key={milestone.dayKey + milestone.label}
+                className="flex min-h-11 items-center gap-xs rounded-md border border-hairline bg-canvas px-md py-sm"
+              >
+                <MilestoneDot />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-title-sm text-ink">{milestone.label}</span>
+                  <span className="block text-caption text-meta">기념일</span>
+                </span>
+              </li>
+            ))}
             {occurrences.map((occurrence) => (
               <li key={occurrence.event.id + occurrence.startsAt} className="group relative flex">
                 <button

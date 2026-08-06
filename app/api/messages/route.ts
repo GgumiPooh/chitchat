@@ -4,7 +4,7 @@ import {
   createEmoticonMessage,
   createMediaMessage,
   createTextMessage,
-  getReplyPreview,
+  isQuotable,
   listMessages,
   type ChatMessage,
 } from "@/entities/message";
@@ -126,13 +126,7 @@ export async function POST(request: Request) {
 }
 
 async function canReplyTo(replyToId: Optional<number>): Promise<boolean> {
-  if (replyToId === undefined) {
-    return true;
-  }
-
-  const parent = await getReplyPreview(replyToId);
-
-  return parent !== null && !parent.isDeleted && parent.kind !== "system";
+  return replyToId === undefined || isQuotable(replyToId);
 }
 
 function createMessage(senderId: string, payload: z.infer<typeof bodySchema>) {

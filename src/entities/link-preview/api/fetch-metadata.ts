@@ -9,6 +9,7 @@ import {
 import { isHttpUrl, safelyGetAsync, type Nullable } from "@/shared/lib";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { Agent, fetch as dialFetch, type Response as DialResponse } from "undici";
 import { findMetaCharset, parseMetadata, type PageMetadata } from "../model/parse-metadata";
 import { isPublicAddress } from "../model/public-address";
 import {
@@ -47,21 +48,26 @@ export async function fetchMetadata(url: string): Promise<Nullable<PageMetadata>
     }
   }
 
-  const response = await followToPage(url, signal);
+  const page = await followToPage(url, signal);
 
-  if (!response) {
+  if (!page) {
     return null;
   }
 
-  const html = await readBody(response.body);
-  const metadata = html ? parseMetadata(html, response.url) : null;
+  try {
+    const html = await readBody(page.body);
+    const metadata = html ? parseMetadata(html, page.url) : null;
 
-  return videoId ? withYouTubeFallbacks(metadata, videoId) : metadata;
+    return videoId ? withYouTubeFallbacks(metadata, videoId) : metadata;
+  } finally {
+    // WARN: The dispatcher is pinned to one address (§ 14.), so it cannot be pooled across calls and has to be torn down with the response it dialled.
+    await page.agent.destroy();
+  }
 }
 
 /**
  * WARN: Redirects are followed by hand rather than by `fetch`, because every hop
- * has to clear `isPublicHttpUrl` — a URL on a public host that 302s to
+ * has to clear `vetHost` — a URL on a public host that 302s to
  * `http://169.254.169.254/` is exactly the request this endpoint must not make.
  *
  * WARN: The `signal` bounds the whole chain and is the caller's, not this
@@ -71,15 +77,19 @@ export async function fetchMetadata(url: string): Promise<Nullable<PageMetadata>
 async function followToPage(
   url: string,
   signal: AbortSignal,
-): Promise<Nullable<{ body: Response; url: string }>> {
+): Promise<Nullable<{ body: DialResponse; url: string; agent: Agent }>> {
   let current = url;
 
   for (let hop = 0; hop <= MAX_LINK_PREVIEW_REDIRECTS; hop += 1) {
-    if (!(await isPublicHttpUrl(current))) {
+    const vetted = await vetHost(current);
+
+    if (!vetted) {
       return null;
     }
 
-    const response = await fetch(current, {
+    const agent = toPinnedAgent(vetted);
+    const response = await dialFetch(current, {
+      dispatcher: agent,
       redirect: "manual",
       signal,
       headers: {
@@ -88,22 +98,29 @@ async function followToPage(
         "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
         Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
       },
+    }).catch(async (error: unknown) => {
+      await agent.destroy();
+
+      throw error;
     });
 
     const location = response.headers.get("location");
 
     if (response.status >= 300 && response.status < 400 && location) {
       await response.body?.cancel();
+      await agent.destroy();
       current = new URL(location, current).toString();
       continue;
     }
 
     if (!response.ok || !isHtml(response)) {
       await response.body?.cancel();
+      await agent.destroy();
+
       return null;
     }
 
-    return { body: response, url: current };
+    return { body: response, url: current, agent };
   }
 
   return null;
@@ -117,7 +134,7 @@ async function followToPage(
  * response is a claim, and a stream that never ends would otherwise be buffered
  * until the process runs out of memory.
  */
-async function readBody(response: Response): Promise<Nullable<string>> {
+async function readBody(response: DialResponse): Promise<Nullable<string>> {
   const reader = response.body?.getReader();
 
   if (!reader) {
@@ -180,38 +197,64 @@ function decodeAs(bytes: Uint8Array, charset: string): Nullable<string> {
   }
 }
 
-function charsetOf(response: Response): Nullable<string> {
+function charsetOf(response: DialResponse): Nullable<string> {
   return response.headers.get("content-type")?.match(/charset=([\w-]+)/i)?.[1] ?? null;
 }
 
-function isHtml(response: Response): boolean {
+function isHtml(response: DialResponse): boolean {
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
 
   return HTML_CONTENT_TYPES.some((type) => contentType.includes(type));
 }
 
+type VettedHost = { address: string; family: number };
+
 /**
  * REQUIREMENTS.md § 14. The URL comes from a message body, so the fetch is an
  * attacker-chosen request made from inside the deployment — every address the
  * host resolves to has to be a public one before it is dialled.
+ *
+ * WARN: It answers with the address, not a verdict, and `toPinnedAgent` dials
+ * exactly that. Handing the *hostname* to `fetch` after checking it lets the name
+ * resolve a second time, and an authoritative server that answers a public record
+ * here and `169.254.169.254` there walks straight through this check — DNS
+ * rebinding defeats a guard that only ever sees the first answer.
  */
-async function isPublicHttpUrl(url: string): Promise<boolean> {
+async function vetHost(url: string): Promise<Nullable<VettedHost>> {
   if (!isHttpUrl(url)) {
-    return false;
+    return null;
   }
 
   const { hostname } = new URL(url);
   const host = hostname.replace(/^\[|\]$/g, "");
+  const literal = isIP(host);
 
-  if (isIP(host)) {
-    return isPublicAddress(host);
+  if (literal) {
+    return isPublicAddress(host) ? { address: host, family: literal } : null;
   }
 
   try {
     const addresses = await lookup(host, { all: true });
+    const [first] = addresses;
 
-    return addresses.length > 0 && addresses.every(({ address }) => isPublicAddress(address));
+    if (!first || !addresses.every(({ address }) => isPublicAddress(address))) {
+      return null;
+    }
+
+    return { address: first.address, family: first.family };
   } catch {
-    return false;
+    return null;
   }
+}
+
+// WARN: `connect.lookup`, not a rewritten URL. The hostname still reaches TLS, so SNI and certificate validation stay on the name the user typed while only the vetted address is ever dialled.
+function toPinnedAgent({ address, family }: VettedHost): Agent {
+  return new Agent({
+    connect: {
+      lookup: (_hostname, options, callback) =>
+        options.all
+          ? callback(null, [{ address, family }] as never, family)
+          : callback(null, address, family),
+    },
+  });
 }

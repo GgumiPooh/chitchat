@@ -12,7 +12,7 @@ import {
   toEmoticonAssetUrl,
 } from "@/shared/config";
 import { cn, type Maybe, type Nullable, type Optional } from "@/shared/lib";
-import { BottomSheet, Button, HapticTap, IconButton, PreloadImage, toast } from "@/shared/ui";
+import { BottomSheet, Button, HapticTarget, IconButton, PreloadImage, toast } from "@/shared/ui";
 import { ImagePlus, Music, Pencil, X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
@@ -81,7 +81,7 @@ export function EmoticonFormSheet({
       >
         <div className="space-y-sm pt-2xs">
           <div className="flex items-center gap-sm">
-            <span className="group relative inline-flex shrink-0">
+            <HapticTarget className="inline-flex shrink-0">
               <button
                 className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-hairline-strong bg-surface-soft text-meta group-active:bg-surface-pressed hover:bg-surface-strong hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-pressed"
                 type="button"
@@ -99,8 +99,7 @@ export function EmoticonFormSheet({
                   <ImagePlus className="size-6" strokeWidth={1.75} />
                 )}
               </button>
-              <HapticTap forwardsTap />
-            </span>
+            </HapticTarget>
             <div className="min-w-0 flex-1 space-y-2xs">
               <p className="text-title-sm text-ink">이미지</p>
               <p className="text-body-sm text-meta">

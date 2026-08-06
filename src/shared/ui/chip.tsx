@@ -1,10 +1,12 @@
 import { cn } from "@/shared/lib";
 import { Slot } from "radix-ui";
 import type { ComponentProps } from "react";
-import { HapticTap } from "./haptic-tap";
+import { HapticTarget } from "./haptic-target";
 
 export type ChipProps = ComponentProps<"button"> & {
   className?: string;
+  /** WARN: The chip's own box, for anything `className` cannot reach once `haptic` moves that to the wrapper — padding, radius, colour. */
+  chipClassName?: string;
   isSelected?: boolean;
   asChild?: boolean;
   /** Ticks the Taptic engine when a finger lands on the chip. Silent on the chip already selected, which chooses nothing. */
@@ -12,8 +14,10 @@ export type ChipProps = ComponentProps<"button"> & {
 };
 
 // INFO: DESIGN.md § 7.1. Selected chips take no hover change — selection is a state, not a hover target.
+// WARN: With `haptic`, `className` lands on the wrapper rather than the chip — the wrapper is what the parent lays out. Anything about the chip's own box goes to `chipClassName`.
 export function Chip({
   className,
+  chipClassName,
   isSelected = false,
   asChild,
   haptic = false,
@@ -30,7 +34,7 @@ export function Chip({
         isSelected
           ? "bg-primary-tint text-primary group-active:bg-primary-tint/80 active:bg-primary-tint/80"
           : "bg-surface-soft text-body group-active:bg-surface-pressed hover:bg-surface-strong active:bg-surface-pressed",
-        className,
+        haptic ? chipClassName : className,
       )}
       disabled={disabled}
       {...props}
@@ -42,11 +46,8 @@ export function Chip({
   }
 
   return (
-    // WARN: The wrapper follows `haptic` alone, never the selection. Gating it on state too swaps this position between `<span>` and `<button>`, and React then remounts the chip and drops the focus a keyboard user was holding.
-    // WARN: A sibling directly after the chip, never a child. Inside a `<button>` WebKit ends the tap in the native control and no click reaches JS at all.
-    <span className="group relative inline-flex shrink-0">
+    <HapticTarget className={cn("inline-flex shrink-0", className)} isTicking={isTicking}>
       {chip}
-      {isTicking && <HapticTap forwardsTap />}
-    </span>
+    </HapticTarget>
   );
 }

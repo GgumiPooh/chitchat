@@ -1,6 +1,6 @@
 import { MAX_DAY_EVENT_DOTS } from "@/shared/config";
 import { cn } from "@/shared/lib";
-import { HapticTap } from "@/shared/ui";
+import { HapticTarget } from "@/shared/ui";
 import type { MonthCell } from "../model/build-month-grid";
 import { EventDot, MilestoneDot } from "./event-dot";
 
@@ -15,7 +15,9 @@ export type DayCellProps = {
 /** DESIGN.md § 7.9. Square cell, numeral, then up to three markers beneath it. */
 export function DayCell({ className, cell, isToday, isSelected, onSelect }: DayCellProps) {
   return (
-    <span className={cn("group relative flex", className)}>
+    // WARN: `touch-pan-y` is repeated on the overlay, not inherited — `touch-action` applies to the element a gesture starts on, and the overlay is now that element for the grid's month swipe.
+    // WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the shell would stop scrolling (`DESIGN.md § 7.15.`).
+    <HapticTarget className={cn("flex", className)} overlayClassName="touch-pan-y" keepsScroll>
       <button
         className={cn(
           "flex aspect-square w-full cursor-pointer flex-col items-center justify-center gap-0.5 rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
@@ -42,10 +44,7 @@ export function DayCell({ className, cell, isToday, isSelected, onSelect }: DayC
           ))}
         </span>
       </button>
-      {/* WARN: `touch-pan-y` is repeated here, not inherited — `touch-action` applies to the element a gesture starts on, and the overlay is now that element for the grid's month swipe. */}
-      {/* WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the shell would stop scrolling (`DESIGN.md § 7.15.`). */}
-      <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
-    </span>
+    </HapticTarget>
   );
 }
 
