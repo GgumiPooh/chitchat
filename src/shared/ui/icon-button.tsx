@@ -37,7 +37,8 @@ export function IconButton({
   const button = (
     <button
       className={cn(
-        "inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-40",
+        // INFO: DESIGN.md § 4.7.2. The bloom is what a round control has instead of a fill change large enough to see — the circle is 44px and the fill sits under the finger.
+        "inline-flex size-11 shrink-0 press-bloom cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-40",
         VARIANT_CLASS_NAME[variant],
         className,
       )}

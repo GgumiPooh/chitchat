@@ -23,8 +23,67 @@
   }
 }
 
+/* INFO: DESIGN.md § 4.7.1. The arriving screen slides in from the side its tab sits on. Nothing captures anything — see `RouteTransition` for why a view transition cannot be used here. */
+/* WARN: `translate` and not `transform`, so a screen that sets its own `transform` for another reason does not silently drop this one. */
+@keyframes route-enter {
+  from {
+    translate: var(--route-slide) 0;
+    opacity: 0;
+  }
+  to {
+    translate: 0 0;
+    opacity: 1;
+  }
+}
+
+@utility route-enter-forward {
+  --route-slide: 24px;
+  animation: route-enter var(--duration-route-enter) var(--ease-route) both;
+}
+
+@utility route-enter-back {
+  --route-slide: -24px;
+  animation: route-enter var(--duration-route-enter) var(--ease-route) both;
+}
+
+/* INFO: DESIGN.md § 4.7. Positional motion is the common motion-sensitivity trigger; without a duration the browser falls back to swapping content outright. */
+@media (prefers-reduced-motion: reduce) {
+  .route-enter-forward,
+  .route-enter-back {
+    animation-duration: 0s !important;
+  }
+}
+
+/* INFO: DESIGN.md § 4.7.2. The press for every round control — it swells under the finger and settles back, so the touch reads as the surface answering rather than the control receding. */
+/* WARN: Three selectors, and all three are load-bearing. `:active` is the mouse; `group-active:` is a wrapper the pointer lands on directly; `group-data-[pressed]:` is the only one that fires under a finger, because `HapticTap`'s native switch swallows `:active` before the wrapper ever sees it (§ 7.15.). */
+/* WARN: The resting `scale-100` is not redundant. Left off, the resting value is `none`, and WebKit refuses to interpolate `none` → a number: the control snaps to its pressed size instead of growing into it. */
+/* WARN: The `transition` shorthand carries a per-property timing list, so the control keeps `--duration-state` colour (§ 4.7.) while only the scale runs on the long overshoot. A caller MUST NOT add `transition-colors` beside this — `transition-property` is one declaration and the loser is silently dropped. */
+/* WARN: The resting `scale: 1` is not redundant. Left off, the resting value is `none`, and WebKit refuses to interpolate `none` → a number: the control snaps to its pressed size instead of growing into it. */
+/* INFO: DESIGN.md § 4.7.2. `--press-fill-duration` lets a control take its fill on instantly while still losing it over `--duration-state` — set it on the filled state alone and the asymmetry falls out of the cascade. */
+@utility press-bloom {
+  scale: 1;
+  transition:
+    scale var(--press-duration, var(--duration-press-out)) var(--press-ease, var(--ease-bloom)),
+    color var(--duration-state),
+    background-color var(--press-fill-duration, var(--duration-state)),
+    border-color var(--duration-state),
+    opacity var(--duration-state);
+
+  /* WARN: Four selectors, and all four are load-bearing. `:active` is the mouse; the `.group:active` form is a wrapper the pointer lands on directly; the `[data-pressed]` pair is the only one that fires under a finger, because `HapticTap`'s native switch swallows `:active` before anything else sees it (§ 7.15.). */
+  /* WARN: `[data-pressed]` needs both the self and the descendant form. `HapticTap` marks its own parent, so which one matches depends on whether the bloom sits on the element holding the overlay — the tab bar blooms that element itself, every other caller blooms a child of it. */
+  &:active,
+  &[data-pressed],
+  :where(.group):active &,
+  :where(.group)[data-pressed] & {
+    --press-duration: var(--duration-press-in);
+    --press-ease: var(--ease-press);
+    scale: var(--press-scale, 1.3);
+  }
+}
+
 /* INFO: DESIGN.md § 3.5. One definition for every surface that floats over scrolling content, so the bars and the floating icon buttons cannot drift apart. */
 /* WARN: Composed from Tailwind's own backdrop utilities, never from a raw `backdrop-filter` declaration — a hand-written one is dropped from the build and the surface silently ships as a thin tint with no blur at all. */
+/* INFO: DESIGN.md § 4.7.1. The blur is only viable because route changes no longer capture anything; a `backdrop-filter` cannot survive a view-transition capture. */
 @utility glass {
   @apply bg-canvas/75 backdrop-blur-lg;
 }

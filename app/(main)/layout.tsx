@@ -5,10 +5,16 @@ import { ChatStreamProvider } from "@/features/chat-stream";
 import { PushSync } from "@/features/push-notifications";
 import { requireUserOrRedirect } from "@/shared/auth";
 import { APP_SCROLL_ID, APP_SHELL_ID } from "@/shared/config";
-import { BottomOverlay, Container, ScrollMemory, VisualViewportSync } from "@/shared/ui";
+import {
+  BottomOverlay,
+  Container,
+  RouteTransition,
+  ScrollMemory,
+  VisualViewportSync,
+} from "@/shared/ui";
 import { InstallGuide } from "@/widgets/install-guide";
 import { TabBar } from "@/widgets/tab-bar";
-import type { PropsWithChildren } from "react";
+import { type PropsWithChildren } from "react";
 
 // INFO: The proxy only saw that a cookie exists (REQUIREMENTS.md § 5.2.); this is the real check, and it covers every screen below.
 export default async function MainLayout({ children }: PropsWithChildren) {
@@ -40,7 +46,8 @@ export default async function MainLayout({ children }: PropsWithChildren) {
             className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-y-auto pb-(--bottom-inset)"
             id={APP_SCROLL_ID}
           >
-            {children}
+            {/* INFO: DESIGN.md § 4.7.1. Inside the scroller, so the animation is the screen's alone — the scroller keeps its own scroll position and the bars outside it are untouched. */}
+            <RouteTransition>{children}</RouteTransition>
           </main>
           <BottomOverlay>
             <InstallGuide />

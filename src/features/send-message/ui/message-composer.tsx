@@ -68,7 +68,7 @@ export function MessageComposer({
           haptic
           aria-label="이모티콘"
           aria-pressed={isEmoticonPickerOpen}
-          onClick={onToggleEmoticons}
+          onClick={toggleEmoticons}
         />
         {/* WARN: The overlay is a sibling of the button, never a child — inside a `<button>` WebKit ends the tap in the native control and the button never fires. */}
         <span className="group relative inline-flex shrink-0">
@@ -83,7 +83,9 @@ export function MessageComposer({
           >
             <span
               className={cn(
-                "inline-flex size-9 items-center justify-center rounded-full text-on-primary transition-colors",
+                // INFO: DESIGN.md § 4.7.2. The same bloom the round `IconButton`s carry, on the disc rather than the 44 target so the swell reads against the pill it sits in.
+                // WARN: The bloom stays on both branches. Sending clears the field in the same click, so `canSend` flips while the release is still running — dropping the class there takes the resting `scale: 1` with it and the disc snaps instead of settling.
+                "inline-flex size-9 press-bloom items-center justify-center rounded-full text-on-primary",
                 canSend
                   ? "bg-primary group-hover:bg-primary-hover group-active:bg-primary-pressed"
                   : "bg-primary-disabled",
@@ -114,6 +116,17 @@ export function MessageComposer({
 
     // INFO: Runs inside the click gesture on purpose — iOS only re-opens the keyboard for a `focus()` a user activation still covers.
     fieldRef.current?.focus();
+  }
+
+  /**
+   * WARN: REQUIREMENTS.md § 13.6. The panel is gated on the keyboard being down,
+   * and iOS lowers it for a blur alone — a tap on this button is not one, so
+   * without this the toggle flips a flag the panel never gets to act on and the
+   * press reads as doing nothing at all.
+   */
+  function toggleEmoticons() {
+    fieldRef.current?.blur();
+    onToggleEmoticons?.();
   }
 
   // WARN: Cancelling `pointerdown` is what stops the tap from blurring the field; `click` still fires, so `submit` is untouched.

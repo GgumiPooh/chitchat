@@ -8,7 +8,7 @@ import {
 } from "@/features/upload-media/@x/update-profile";
 import { AVATAR_MAX_EDGE, MAX_NICKNAME_LENGTH, toMediaUrl } from "@/shared/config";
 import type { Nullable, Optional } from "@/shared/lib";
-import { Avatar, BottomSheet, Button, Input, toast } from "@/shared/ui";
+import { Avatar, BottomSheet, Button, HapticTap, Input, toast } from "@/shared/ui";
 import { useState } from "react";
 import { updateProfile, type ProfileBody } from "../api/write-profile";
 import { useAvatarDraft } from "../model/use-avatar-draft";
@@ -64,14 +64,18 @@ export function ProfileEditorSheet({
       >
         <div className="space-y-md pt-2xs">
           <div className="flex flex-col items-center gap-xs">
-            <button
-              className="cursor-pointer rounded-full transition-opacity outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary active:opacity-70"
-              type="button"
-              aria-label="프로필 사진 바꾸기"
-              onClick={openPicker}
-            >
-              <Avatar name={trimmed || nickname} size="profile" src={toPreviewUrl()} />
-            </button>
+            <span className="group relative flex rounded-full">
+              <button
+                className="cursor-pointer rounded-full transition-opacity outline-none group-active:opacity-70 hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary active:opacity-70"
+                type="button"
+                aria-label="프로필 사진 바꾸기"
+                onClick={openPicker}
+              >
+                <Avatar name={trimmed || nickname} size="profile" src={toPreviewUrl()} />
+              </button>
+              {/* WARN: A sibling directly after the button, never a child. Inside a `<button>` WebKit ends the tap in the native control and no click reaches JS at all. */}
+              <HapticTap forwardsTap />
+            </span>
             <div className="flex items-center gap-2xs">
               <Button
                 className="w-auto"
@@ -83,7 +87,13 @@ export function ProfileEditorSheet({
                 {avatar.isReading ? "읽는 중이에요" : "사진 바꾸기"}
               </Button>
               {toPreviewUrl() && (
-                <Button className="h-9 w-auto px-sm" variant="ghost" onClick={avatar.clear}>
+                <Button
+                  className="w-auto"
+                  buttonClassName="h-9 w-auto px-sm"
+                  variant="ghost"
+                  haptic
+                  onClick={avatar.clear}
+                >
                   기본 이미지
                 </Button>
               )}

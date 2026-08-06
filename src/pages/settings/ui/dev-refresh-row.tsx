@@ -25,6 +25,7 @@ export function DevRefreshRow({ className }: DevRefreshRowProps) {
       description="서비스 워커와 캐시를 비우고 다시 불러와요"
       Icon={RotateCw}
       label="강제 새로고침"
+      haptic
       onClick={() => void refresh()}
     />
   );

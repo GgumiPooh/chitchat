@@ -36,6 +36,7 @@ export function ProfileSettingsRow({
         label="프로필"
         description="이름과 프로필 사진을 바꿀 수 있어요"
         Icon={UserRound}
+        haptic
         onClick={() => setIsOpen(true)}
       />
       {/* WARN: Keyed by what it seeds from. The sheet holds the name in its own state, so a save has to remount it or the next open reseeds from the value that was replaced. */}

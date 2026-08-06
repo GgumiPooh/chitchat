@@ -19,6 +19,7 @@ export { MediaViewer, type MediaViewerProps } from "./media-viewer";
 export { Modal, type ModalProps } from "./modal";
 export { PreloadImage, type PreloadImageProps } from "./preload-image";
 export { RelativeTime, type RelativeTimeProps } from "./relative-time";
+export { RouteTransition, type RouteTransitionProps } from "./route-transition";
 export { ScrollMemory } from "./scroll-memory";
 export { ScrollReset } from "./scroll-reset";
 export { ScrollableRow, type ScrollableRowProps } from "./scrollable-row";

@@ -11,6 +11,9 @@ const LONG_PRESS_DELAY = A_SECOND / 2;
 export const LONG_PRESS_TARGET_CLASS =
   "[-webkit-touch-callout:none] [@media(pointer:coarse)]:select-none";
 
+/** Where the hold fired, for a gesture that has to pick its own finger out of a multi-touch (`REQUIREMENTS.md § 10.`). */
+export type LongPressPoint = { x: number; y: number };
+
 export type LongPressOptions = {
   /** DESIGN.md § 3.2. Off where the pointer equivalent is a control of its own rather than this gesture, so right-click keeps the browser's own menu. */
   withContextMenu?: boolean;
@@ -27,11 +30,11 @@ export type LongPressOptions = {
  * release ends in, and it only reaches a target it is above.
  */
 export function useLongPress(
-  onLongPress: Optional<() => void>,
+  onLongPress: Optional<(point: LongPressPoint) => void>,
   { withContextMenu = true, onFire }: LongPressOptions = {},
 ) {
   const timerRef = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
-  const startRef = useRef<Nullable<{ x: number; y: number }>>(null);
+  const startRef = useRef<Nullable<LongPressPoint>>(null);
   const hasFiredRef = useRef(false);
 
   const cancel = useCallback(() => {
@@ -80,14 +83,20 @@ export function useLongPress(
 
       event.preventDefault();
       cancel();
-      onLongPress();
+      onLongPress({ x: event.clientX, y: event.clientY });
     },
   };
 
   function fire() {
+    const start = startRef.current;
+
+    if (!start) {
+      return;
+    }
+
     hasFiredRef.current = true;
     // WARN: Before the sheet opens, not after. The finger is still down and still owns whatever gesture it shares the element with — on a bubble that is the § 8.10. pull, which would otherwise go on tracking behind the sheet and reply on release.
     onFire?.();
-    onLongPress?.();
+    onLongPress?.(start);
   }
 }

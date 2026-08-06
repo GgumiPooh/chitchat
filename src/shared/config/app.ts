@@ -39,6 +39,14 @@ export const SETTINGS_ROUTE = "/settings";
 // INFO: REQUIREMENTS.md § 13.5. Nested under settings, so the tab bar keeps 설정 active while the management screens are open.
 export const EMOTICON_SETTINGS_ROUTE = "/settings/emoticons";
 
+/**
+ * The tab routes in bar order — the single source of that order.
+ *
+ * DESIGN.md § 4.7.1. Which way a screen slides is read from this, so the bar's
+ * own `TABS` builds itself from it rather than repeating it.
+ */
+export const TAB_ROUTES = [CHAT_ROUTE, CALENDAR_ROUTE, GALLERY_ROUTE, SETTINGS_ROUTE];
+
 /** REQUIREMENTS.md § 8.4. The whole participant set, cursorless. */
 export const USERS_PATH = "/api/users";
 
