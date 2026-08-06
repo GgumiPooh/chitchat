@@ -36,14 +36,15 @@
   }
 }
 
+/* WARN: `backwards` and never `both`. A forwards fill keeps the `to` keyframe applied for good, and `translate: 0 0` is not `translate: none` — the wrapper would stay a containing block for every `fixed` descendant under it, but only on the navigations that animated. */
 @utility route-enter-forward {
   --route-slide: 24px;
-  animation: route-enter var(--duration-route-enter) var(--ease-route) both;
+  animation: route-enter var(--duration-route-enter) var(--ease-route) backwards;
 }
 
 @utility route-enter-back {
   --route-slide: -24px;
-  animation: route-enter var(--duration-route-enter) var(--ease-route) both;
+  animation: route-enter var(--duration-route-enter) var(--ease-route) backwards;
 }
 
 /* INFO: DESIGN.md § 4.7. Positional motion is the common motion-sensitivity trigger; without a duration the browser falls back to swapping content outright. */
@@ -55,8 +56,6 @@
 }
 
 /* INFO: DESIGN.md § 4.7.2. The press for every round control — it swells under the finger and settles back, so the touch reads as the surface answering rather than the control receding. */
-/* WARN: Three selectors, and all three are load-bearing. `:active` is the mouse; `group-active:` is a wrapper the pointer lands on directly; `group-data-[pressed]:` is the only one that fires under a finger, because `HapticTap`'s native switch swallows `:active` before the wrapper ever sees it (§ 7.15.). */
-/* WARN: The resting `scale-100` is not redundant. Left off, the resting value is `none`, and WebKit refuses to interpolate `none` → a number: the control snaps to its pressed size instead of growing into it. */
 /* WARN: The `transition` shorthand carries a per-property timing list, so the control keeps `--duration-state` colour (§ 4.7.) while only the scale runs on the long overshoot. A caller MUST NOT add `transition-colors` beside this — `transition-property` is one declaration and the loser is silently dropped. */
 /* WARN: The resting `scale: 1` is not redundant. Left off, the resting value is `none`, and WebKit refuses to interpolate `none` → a number: the control snaps to its pressed size instead of growing into it. */
 /* INFO: DESIGN.md § 4.7.2. `--press-fill-duration` lets a control take its fill on instantly while still losing it over `--duration-state` — set it on the filled state alone and the asymmetry falls out of the cascade. */

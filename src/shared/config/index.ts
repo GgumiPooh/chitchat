@@ -44,7 +44,9 @@ export {
   TAB_ROUTES,
   USERS_PATH,
   VAPID_PUBLIC_KEY,
+  isUnderRoute,
   type MessageArrival,
+  type TabRoute,
 } from "./app";
 export {
   CALENDAR_DAY_PARAM,

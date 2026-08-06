@@ -43,8 +43,9 @@ export default async function MainLayout({ children }: PropsWithChildren) {
         >
           {/* INFO: DESIGN.md § 3.4., § 3.5. The shell's only scroller. The floating bars sit over it, and `RouteTransition` trails the room it leaves for them. */}
           {/* WARN: DESIGN.md § 3.5. The clearance cannot be this element's `pb-(--bottom-inset)` — `RouteTransition` is a `min-h-0` flex item, so a taller screen overflows *out* of it, past end padding that is only laid out after in-flow content. */}
+          {/* WARN: DESIGN.md § 4.7.1. `overflow-x: clip`, not `hidden` — the route slide translates the screen 24px past the shell edge, and on a scroller that already scrolls vertically `overflow-x` computes to `auto`, which would make that a real horizontal scroll offset for the length of every navigation. */}
           <main
-            className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-y-auto"
+            className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-x-clip overflow-y-auto"
             id={APP_SCROLL_ID}
           >
             {/* INFO: DESIGN.md § 4.7.1. Inside the scroller, so the animation is the screen's alone — the scroller keeps its own scroll position and the bars outside it are untouched. */}

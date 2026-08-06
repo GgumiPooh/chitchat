@@ -1,4 +1,4 @@
-import { A_DAY, A_SECOND } from "@/shared/lib";
+import { A_DAY, A_SECOND, type Maybe } from "@/shared/lib";
 
 export const APP_NAME = "J&H";
 
@@ -44,8 +44,25 @@ export const EMOTICON_SETTINGS_ROUTE = "/settings/emoticons";
  *
  * DESIGN.md § 4.7.1. Which way a screen slides is read from this, so the bar's
  * own `TABS` builds itself from it rather than repeating it.
+ *
+ * WARN: `as const` so the member type is the four literals. Widened to `string[]`,
+ * a route added here without a face in `TABS` is an `undefined` `Icon` that
+ * typechecks and blanks the shell at render instead of failing the build.
  */
-export const TAB_ROUTES = [CHAT_ROUTE, CALENDAR_ROUTE, GALLERY_ROUTE, SETTINGS_ROUTE];
+export const TAB_ROUTES = [CHAT_ROUTE, CALENDAR_ROUTE, GALLERY_ROUTE, SETTINGS_ROUTE] as const;
+
+export type TabRoute = (typeof TAB_ROUTES)[number];
+
+/**
+ * Whether `pathname` is that tab's screen or something nested under it.
+ *
+ * WARN: DESIGN.md § 4.7.1. One rule for both readers. The bar fills a tab from it
+ * and `RouteTransition` picks the slide direction from it — spelled out twice, a
+ * change to one leaves the fill on one tab while the slide reads from the other.
+ */
+export function isUnderRoute(pathname: Maybe<string>, route: string): boolean {
+  return pathname === route || (pathname?.startsWith(`${route}/`) ?? false);
+}
 
 /** REQUIREMENTS.md § 8.4. The whole participant set, cursorless. */
 export const USERS_PATH = "/api/users";

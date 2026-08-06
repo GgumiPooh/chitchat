@@ -169,7 +169,7 @@
   --shadow-raised: 0 1px 2px rgb(31 27 23 / 0.04), 0 2px 8px rgb(31 27 23 / 0.05);
   --shadow-floating: 0 4px 12px rgb(31 27 23 / 0.06), 0 16px 32px rgb(31 27 23 / 0.12);
 
-  /* INFO: Motion — DESIGN.md § 4.7. Five durations and three curves; nothing in the app times itself. */
+  /* INFO: Motion — DESIGN.md § 4.7. Four durations and three curves; nothing in the app times itself. */
   --duration-press-in: 140ms;
   /* INFO: DESIGN.md § 4.7.2. Long because the release is a spring with two crossings to spend it on, not a single ease. */
   --duration-press-out: 520ms;

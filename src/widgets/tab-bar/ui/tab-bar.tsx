@@ -1,7 +1,7 @@
 "use client";
 
 import { useChatStream } from "@/features/chat-stream";
-import { CALENDAR_ROUTE, CHAT_ROUTE } from "@/shared/config";
+import { CALENDAR_ROUTE, CHAT_ROUTE, isUnderRoute } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
 import { Badge, Link } from "@/shared/ui";
 import { usePathname } from "next/navigation";
@@ -9,9 +9,6 @@ import { useState } from "react";
 import { TABS } from "../model/tabs";
 
 type PendingTab = { href: string; from: Nullable<string> };
-
-const covers = (pathname: Nullable<string>, href: string) =>
-  pathname === href || (pathname?.startsWith(`${href}/`) ?? false);
 
 export type TabBarProps = {
   className?: string;
@@ -51,7 +48,7 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
       <div className="pointer-events-auto flex h-(--tab-bar-height) items-stretch rounded-full border border-hairline glass p-2xs shadow-floating">
         <ul className="flex flex-1 items-stretch">
           {TABS.map(({ href, label, Icon }) => {
-            const isActive = covers(activeHref, href);
+            const isActive = isUnderRoute(activeHref, href);
             const stateClassName = isActive ? "text-primary" : "text-meta group-hover:text-ink";
 
             return (
@@ -59,8 +56,9 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
                 <Link
                   // INFO: DESIGN.md § 7.3. The active tab is the one place a filled surface appears, since the pill has no room for an indicator bar.
                   // WARN: DESIGN.md § 4.7.2. The bloom goes here and not on the glyph stack inside, so the active tab's fill springs with its contents instead of holding still while they bounce out of it. `press-bloom` owns the whole `transition` shorthand — the colour transition it replaced MUST NOT come back as `transition-colors`, which would silently drop one of the two.
+                  // WARN: DESIGN.md § 4.7.2. The 1.3 default is sized for a 44px circle; this anchor is the full width of a quarter of the pill, so it takes the documented `--press-scale` dial instead. Left at the default it swells ~13px past the pill's `2xs` padding and over the tabs beside it.
                   className={cn(
-                    "group flex size-full min-h-11 press-bloom flex-col items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+                    "group flex size-full min-h-11 press-bloom flex-col items-center justify-center rounded-full outline-none [--press-scale:1.08] focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
                     // WARN: DESIGN.md § 7.3. The zero duration rides on the active branch, not the base class, so it applies only while the fill is arriving. Removed with the branch, the fill still leaves over `--duration-state` — the tab the user left fades out while the one they tapped is already lit under the finger.
                     isActive
                       ? "bg-primary-tint [--press-fill-duration:0s]"
