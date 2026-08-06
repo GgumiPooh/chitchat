@@ -137,7 +137,8 @@ export async function copyObject(sourceKey: string, destinationKey: string): Pro
     new CopyObjectCommand({
       Bucket: getBucket(),
       // WARN: The source is `{bucket}/{key}`, and the key half must be URI-encoded. Ours are `{scope}/{uuid}/{uuid}` so nothing in them needs escaping today, but a key that ever carries one would silently copy the wrong object rather than fail.
-      CopySource: `${getBucket()}/${encodeURI(sourceKey)}`,
+      // WARN: Per segment with `encodeURIComponent`, never `encodeURI` over the whole key. `encodeURI` preserves the URI-reserved set by design, so it leaves `?`, `#`, `&` and `+` intact — which is precisely the silent wrong-object copy above, not a guard against it. The `split`/`join` is what keeps the `/` separators literal.
+      CopySource: `${getBucket()}/${sourceKey.split("/").map(encodeURIComponent).join("/")}`,
       Key: destinationKey,
     }),
   );

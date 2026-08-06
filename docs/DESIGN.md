@@ -145,7 +145,9 @@ The header and the tab bar do not sit in the column's flow — they float over i
 | Keyboard    | The overlay collapses its own height to `0` (§ 7.3.); no bar inside it branches on the keyboard itself                          |
 | Hit testing | The overlay is `pointer-events-none`; each visible surface re-enables it, so content underneath stays tappable                  |
 
-The clearance is measured rather than summed from `--tab-bar-height`: the bars come and go with the keyboard, and the install banner's copy wraps to two lines on a narrow viewport, so no constant is right. It is `0px` while nothing is up, so the spacer needs no branch.
+The clearance is measured rather than summed from `--tab-bar-height`: the bars come and go with the keyboard, and the install banner's copy wraps to two lines on a narrow viewport, so no constant is right.
+
+The **seed** in `theme.css` is a constant all the same — `--tab-bar-height` plus `--bar-float-gap` plus `env(safe-area-inset-bottom)`, which is what the resting bar stack measures to. It is what the server render has to go on, and it MUST NOT be `0px`: chat's composer is anchored to `--bottom-inset` (§ 6.6.), so a zero seed paints the input bar flush with the shell's bottom edge and jumps it up a whole bar's height the frame `BottomOverlay`'s first `ResizeObserver` callback lands. On a cold start — a PWA launching into 채팅 — hydration is far enough behind the first paint for that jump to read as the bar sliding into place. Seeding it right costs nothing: the measurement resolves to the same number and rewrites the property with no visible change.
 
 The clearance is a spacer inside `RouteTransition` and **MUST NOT** be moved back to the scroller's `pb-(--bottom-inset)`. `RouteTransition` is a `min-h-0 flex-1` item — it has to be, or chat's inner message scroller grows to its content instead of filling the shell — so it is clamped to the scroller's height and a taller screen overflows _out_ of it. End padding is only laid out after in-flow content, so it fell inside the clamped box and the overflow ran straight past it: every long screen (이모티콘 관리, 캘린더, 갤러리) reported a `scrollHeight` short by the whole inset and stranded its last row under the bars. A sibling the overflow pushes down is what actually grows the scrollable area. It is `shrink-0` for the same reason — a default-shrinking item is squeezed back to nothing by the overflow.
 
@@ -180,7 +182,7 @@ The system is built on warm neutrals. Every neutral carries a yellow/red bias; t
 | `backdrop`        | #E4DED4 | Area outside the app shell (desktop only) — § 3.3.                              |
 | `canvas`          | #FBF9F6 | Page floor for calendar / gallery / settings                                    |
 | `chat-canvas`     | #EFEAE2 | Page floor for the chat screen only — one step deeper so bubbles read as raised |
-| `chat-scrim`      | #EFEAE2 | The wash over a § 7.16. chat wallpaper, at 35% — same hex, different job        |
+| `chat-scrim`      | #EFEAE2 | The wash over a § 7.16. chat wallpaper, at 45% — same hex, different job        |
 | `surface-soft`    | #F4F0E9 | Default raised surface; resting fill for chip-style controls                    |
 | `surface-strong`  | #EAE4DA | `:hover` escalation; terminal static fill (skeletons, disabled inputs)          |
 | `surface-pressed` | #DFD8CB | `:active` escalation. Ladder ceiling                                            |
@@ -1047,6 +1049,15 @@ The token's hex is `chat-canvas`'s own, and that is the point rather than an ove
 The general rule this leaves: **a halo is a tool for large text.** At meta size the only thing that separates text from an arbitrary photo is putting a known surface behind it — either across the screen, which is the wash, or locally, which is an opaque chip like the date divider's `chat-pill`. The chip is the escape hatch if the wash ever has to come down further; it is heavier and it has not been needed.
 
 The date divider needs none of this: its `chat-pill` fill is already that opaque chip, so it reads over any photo at any wash.
+
+**Open, and it is the wash's real limit: `chat-scrim/45` does not restore the meta colours over a _dark_ wallpaper.** A partial wash cannot put a known surface behind anything — it only moves the photo part of the way toward one, and 45% of a light `chat-scrim` over a near-black photo composites to roughly `rgb(108,105,102)`. Against that, `chat-sender` (#6b6153) falls to ~1.1:1 and `chat-meta` (#8d8375) to ~1.5:1, both at 11–12px, both far under the 4.5:1 § 4.1. holds them to — so a dark photo undoes the very split that lifted `chat-sender` out of `chat-meta`. The claim above that the wash "puts them back on the surface they were designed against" holds for a light photo and is an overstatement for a dark one. Bubbles and the date pill are opaque and unaffected, which is why a bright test wallpaper hides this completely.
+
+Neither way out is free, and the choice is a product one rather than a bug fix:
+
+- **Raise the wash** until the composite clears AA against the darkest admissible photo. That is most of the way to opaque, and it dims the wallpaper into a tint — which is the feature's whole point spent.
+- **Take the chip escape hatch** above and put an opaque `chat-pill` behind the sender name and the timestamp, as the date divider already does. Contrast stops depending on the photo entirely; the cost is a chip on every bubble's meta line, which is visual weight the room was designed without.
+
+Until one is picked, the wash stays at 45% and this is a known gap, not a decision.
 
 # 8. Rules.
 

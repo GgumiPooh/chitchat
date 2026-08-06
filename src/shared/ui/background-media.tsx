@@ -42,11 +42,13 @@ export function BackgroundMedia({ className, mediaId, isVideo = false }: Backgro
   }
 
   return (
+    // WARN: No skeleton. `bg-scrim` is already the base of every screen this is drawn on, and `Skeleton` is an opaque `surface-strong` filling the same box — left on, it paints straight over the placeholder and flashes a pulsing light plate the size of the cover before the photo lands.
     <PreloadImage
       className={cn("size-full", className)}
       imgClassName="size-full object-cover"
       placeholderClassName="bg-scrim"
       src={toMediaUrl(mediaId, "original")}
+      hasSkeleton={false}
       alt=""
     />
   );

@@ -12,13 +12,14 @@ export type ChatPageProps = {
 };
 
 export async function ChatPage({ className, currentUserId, backgroundMediaId }: ChatPageProps) {
-  // INFO: The newest page comes from the server render, so opening the tab costs no client round trip before the first paint. Participants are the shell's (§ 8.4.), since every tab needs them for the in-app banner.
-  const initialMessages = await listMessages();
-
   // WARN: REQUIREMENTS.md § 12.2. Emitted from the server render, not requested by the `<img>` on mount. The wallpaper is drawn across the whole screen behind the first bubble the user sees, so a request that waits for hydration paints the flat `chat-canvas` first and swaps the photo in underneath a conversation the reader is already looking at.
+  // WARN: Above the `await`, not below it. React only flushes the `<link rel=preload>` once this component resolves, so ordering it after the query holds the full-resolution wallpaper behind a database round trip it does not depend on.
   if (backgroundMediaId) {
     preload(toMediaUrl(backgroundMediaId, "original"), { as: "image", fetchPriority: "high" });
   }
+
+  // INFO: The newest page comes from the server render, so opening the tab costs no client round trip before the first paint. Participants are the shell's (§ 8.4.), since every tab needs them for the in-app banner.
+  const initialMessages = await listMessages();
 
   return (
     <ChatScreen

@@ -94,10 +94,15 @@ export async function updateUserProfile({
     replaced: {
       avatar: toReplaced(row.previousAvatarMediaId, row.avatarMediaId),
       // WARN: Both backgrounds discard under the one `background/` scope, so they are collected together — and a photo still worn in the other slot MUST NOT be in this list. Setting one image as both cover and wallpaper and then changing only the cover would otherwise delete the object the wallpaper is still drawn from.
+      // WARN: Deduplicated, because one id can be in both slots — `ownsAllMedia` checks owner and scope, and the two columns share the `background` scope, so a patch that moves both off the same photo yields it twice. The route runs one `discardScopedMedia` per entry under `Promise.all`, which would put two concurrent `DELETE … RETURNING` on one row and leave the loser's outcome to Postgres.
       background: [
-        toReplaced(row.previousProfileBackgroundMediaId, row.profileBackgroundMediaId),
-        toReplaced(row.previousChatBackgroundMediaId, row.chatBackgroundMediaId),
-      ].filter((id): id is string => id !== null && !isStillWorn(id, row)),
+        ...new Set(
+          [
+            toReplaced(row.previousProfileBackgroundMediaId, row.profileBackgroundMediaId),
+            toReplaced(row.previousChatBackgroundMediaId, row.chatBackgroundMediaId),
+          ].filter((id): id is string => id !== null && !isStillWorn(id, row)),
+        ),
+      ],
     },
   };
 }

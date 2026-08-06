@@ -33,11 +33,13 @@ export function ChatBackdrop({ className, mediaId }: ChatBackdropProps) {
   return (
     <div className={cn("pointer-events-none absolute inset-0", className)}>
       {/* INFO: `original`, not the thumbnail. This is drawn across the whole screen, where § 9.'s 720px long edge would be visibly soft. */}
+      {/* WARN: No skeleton. The flat `chat-canvas` *is* the room's own floor, so a load that has not landed reads as a wallpaper that was never set; a pulsing plate the size of the screen behind the conversation is louder than the swap it covers. */}
       <PreloadImage
         className="size-full"
         imgClassName="size-full object-cover"
         placeholderClassName="bg-chat-canvas"
         src={toMediaUrl(mediaId, "original")}
+        hasSkeleton={false}
         alt=""
       />
       <div className="absolute inset-0 bg-chat-scrim/45" />

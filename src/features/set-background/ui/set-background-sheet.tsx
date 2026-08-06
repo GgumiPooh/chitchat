@@ -49,7 +49,14 @@ export function SetBackgroundSheet({ className, sourceId, onClose }: SetBackgrou
   );
 
   async function apply(slot: BackgroundSlot) {
-    if (!sourceId || isApplyingRef.current) {
+    if (!sourceId) {
+      return;
+    }
+
+    // WARN: The refusal has to be said out loud. `ActionSheet` closes itself on every select (§ 12.1.), so a swallowed second tap is a sheet dismissing exactly as it does on success — and the loading toast still up is the *first* tap's, which reads as confirming a slot the user did not pick.
+    if (isApplyingRef.current) {
+      toast.error("앞의 배경을 설정하고 있어요");
+
       return;
     }
 

@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  */
 export function usePickedPhoto() {
   const [cropping, setCropping] = useState<Nullable<MediaDraft>>(null);
+  const [isReading, setIsReading] = useState(false);
   const urlsRef = useRef(new Set<string>());
 
   // WARN: Every object URL this hook mints is tracked, including one whose crop was abandoned — a preview outlives the state that referenced it, and nothing else knows the URL exists.
@@ -46,6 +47,9 @@ export function usePickedPhoto() {
       return;
     }
 
+    // INFO: The picker sheet has already closed itself by the time the OS hands the file over, so without this a large photo's decode leaves the settings list unchanged for seconds and the tap reads as having missed.
+    setIsReading(true);
+
     try {
       const draft = await toMediaDraft(file);
 
@@ -53,10 +57,19 @@ export function usePickedPhoto() {
       setCropping(draft);
     } catch {
       toast.error("사진을 읽지 못했어요");
+    } finally {
+      setIsReading(false);
     }
   }, []);
 
   const cancel = useCallback(() => setCropping(null), []);
+
+  // WARN: The editor's 완료 hands back a *new* draft with a `previewUrl` of its own, which nothing else knows about — untracked it outlives every reset and leaks one thumbnail blob per wallpaper change. `usePhotoDraft.stage` tracks the same URL for the same reason.
+  // WARN: Takes the editor down before the upload rather than after it. `MediaEditor` re-enables 완료 the moment `onDone` returns, and `onDone` returns long before the R2 PUT does — left mounted, a second tap uploads a second object and races a second PATCH against the first.
+  const commit = useCallback((draft: MediaDraft) => {
+    urlsRef.current.add(draft.previewUrl);
+    setCropping(null);
+  }, []);
 
   const reset = useCallback(() => {
     urlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -64,5 +77,5 @@ export function usePickedPhoto() {
     setCropping(null);
   }, []);
 
-  return { cropping, read, cancel, reset };
+  return { cropping, isReading, read, cancel, commit, reset };
 }

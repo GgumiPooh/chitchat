@@ -23,6 +23,8 @@ export type PreloadImageProps = Omit<ComponentProps<"img">, "placeholder" | "sty
   style?: CSSProperties;
   /** Off for an asset this app does not serve: the retry below cache-busts a URL we do not own, and a host that refused it once refuses it again. */
   canRetry?: boolean;
+  /** WARN: DESIGN.md § 7.8. Off for a full-bleed backdrop, where `placeholderClassName` is the flat surface the load is meant to hide behind — `Skeleton` is opaque `surface-strong` and would paint straight over it, turning the whole screen into a pulsing plate. */
+  hasSkeleton?: boolean;
 };
 
 /**
@@ -45,6 +47,7 @@ export function PreloadImage({
   style,
   src,
   canRetry = true,
+  hasSkeleton = true,
   onLoad,
   onError,
   ...props
@@ -74,7 +77,7 @@ export function PreloadImage({
               <ImageOff className="size-4 text-meta-soft" strokeWidth={1.75} />
             </span>
           ) : (
-            <Skeleton className="size-full rounded-[inherit]" />
+            hasSkeleton && <Skeleton className="size-full rounded-[inherit]" />
           )}
         </span>
       )}

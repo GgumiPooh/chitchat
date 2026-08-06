@@ -25,7 +25,11 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
 
   return (
     <div className={cn("flex flex-1 flex-col", className)}>
-      <AppHeader title="설정" />
+      {/* WARN: DESIGN.md § 7.16. The title follows the band underneath it, exactly as `ProfileCover`'s name does. The top scrim darkens the strip this sits in, so `text-ink` left over a cover is near-black on near-black — the scrim only makes a title legible if the title is `on-primary`. */}
+      <AppHeader
+        titleClassName={user.profileBackgroundMediaId ? "text-on-primary" : undefined}
+        title="설정"
+      />
       {/* INFO: DESIGN.md § 7.16. The cover runs full-bleed from the top of the screen, so it deliberately does *not* clear the floating header — its own top scrim is what keeps the 설정 title legible over a photo. */}
       <ProfileCover
         userId={user.id}

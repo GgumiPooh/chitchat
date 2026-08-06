@@ -934,6 +934,7 @@ Remaining:
 
 - [ ] Every API route validates the session (401 when unauthenticated)
 - [ ] Rate-limit the login callback endpoint
+- [ ] Rate-limit `POST /api/media/copy` (§ 12.1.), or cap the unworn `background/` objects one user may hold. It is the cheapest expensive endpoint in the app: one authenticated POST runs two server-side R2 `CopyObject`s over a full-resolution original, and it needs no upload and no follow-up `PATCH` to do it. The rows it mints are invisible to § 10.'s gallery (`galleryAddedAt` null, no `message_media`) and unreachable through `canReadMedia` once nothing wears them, so nothing surfaces them for deletion — § 12.'s accepted one-object orphan window is behind a _failed upload_, and this reaches the same state deliberately and at volume. § 14.'s size caps do not apply, because a copy uploads no bytes to check
 - [ ] Error responses must not leak internal details
 
 ---

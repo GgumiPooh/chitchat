@@ -43,9 +43,8 @@ export function ChatBackgroundRow({ className, chatBackgroundMediaId }: ChatBack
         label="채팅방 배경"
         Icon={Wallpaper}
         haptic
-        description={
-          chatBackgroundMediaId ? "설정한 사진이 대화 뒤에 깔려요" : "기본 배경을 쓰고 있어요"
-        }
+        // INFO: The row is the only surface still on screen while a photo is read and uploaded — the picker closed itself at the tap and the editor comes down at 완료 — so it says so rather than sitting unchanged for several seconds.
+        description={toDescription()}
         trailing={
           chatBackgroundMediaId && (
             <PreloadImage
@@ -90,15 +89,32 @@ export function ChatBackgroundRow({ className, chatBackgroundMediaId }: ChatBack
           draft={photo.cropping}
           editOptions={{ maxEdge: BACKGROUND_MAX_EDGE }}
           // INFO: REQUIREMENTS.md § 12.2. Free-form. The wallpaper is drawn `object-cover` against whatever the visual viewport is, so a fixed ratio here would only crop it twice.
-          onDone={(edited) => void upload(edited)}
+          onDone={(edited) => {
+            photo.commit(edited);
+            void upload(edited);
+          }}
           onCancel={photo.cancel}
         />
       )}
     </>
   );
 
+  function toDescription(): string {
+    if (photo.isReading) {
+      return "읽는 중이에요";
+    }
+
+    if (isBusy) {
+      return "배경으로 설정하는 중이에요";
+    }
+
+    return chatBackgroundMediaId ? "설정한 사진이 대화 뒤에 깔려요" : "기본 배경을 쓰고 있어요";
+  }
+
   async function upload(draft: MediaDraft) {
     setIsBusy(true);
+    // WARN: Here and not in the `finally` below. `commit` clears `cropping` in the same batch, and this sheet is open on `isPickerOpen && photo.cropping === null` — left set, the picker would spring back open for the length of the upload.
+    setIsPickerOpen(false);
 
     try {
       const media = await uploadDraft(draft, { scope: "background" });
@@ -109,7 +125,6 @@ export function ChatBackgroundRow({ className, chatBackgroundMediaId }: ChatBack
     } finally {
       setIsBusy(false);
       photo.reset();
-      setIsPickerOpen(false);
     }
   }
 

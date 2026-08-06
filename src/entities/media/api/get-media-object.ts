@@ -23,7 +23,7 @@ export async function getMediaRow(id: string): Promise<Nullable<Media>> {
  *
  * WARN: The scope half is what keeps each pipeline's objects inside it, and it is
  * load-bearing in both directions. Attaching an `avatar/` object to a message
- * would put a `message_media` child under the row `discardAvatarMedia` deletes on
+ * would put a `message_media` child under the row `discardScopedMedia` deletes on
  * the next profile change, which fails on that non-cascading key (§ 6.) and leaves
  * the user unable to change their photo at all; pointing an avatar at a `chat/`
  * object would put the same delete in front of a photo a bubble still renders.

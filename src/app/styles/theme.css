@@ -229,13 +229,13 @@
   --app-header-height: 56px;
   /* INFO: DESIGN.md § 7.12. What the floating header covers — screens whose content starts at the top offset by this. */
   --app-header-inset: calc(var(--app-header-height) + env(safe-area-inset-top));
-  /* INFO: DESIGN.md § 3.5. `BottomOverlay` measures the floating bars into this; `0px` while nothing is up, so the clearance spacer needs no branch. */
-  --bottom-inset: 0px;
+  /* INFO: DESIGN.md § 3.5. `BottomOverlay` measures the floating bars into this; the value here is only what the server render has to go on until it does. */
+  /* WARN: DESIGN.md § 3.5. Seeded at the tab bar's resting height and never `0px` — the chat composer is anchored to this, so a `0` seed paints it flush with the shell's bottom edge and jumps it up a bar's worth the frame the first measurement lands. */
+  --bottom-inset: calc(var(--tab-bar-height) + var(--bar-float-gap) + env(safe-area-inset-bottom));
   /* INFO: DESIGN.md § 3.5. How far the floating bars sit from the shell's edges. */
   --bar-float-gap: 12px;
   /* WARN: DESIGN.md § 6.6. `useComposerClearance` overwrites this on the chat container one frame after mount; without the default here the list's trailing spacer is invalid until then and the first bottom-anchored paint parks the newest message behind the composer. */
   --chat-bottom-gap: 0px;
-  /* WARN: DESIGN.md § 7.16. There is no text-shadow lift on the chat meta lines, and two attempts at one are why this comment exists rather than a token. A dark shadow under dark ink blurs the glyph's own edges; a light halo big enough to separate 11px text from a photo is wider than the glyph is tall and fogs it. The wash is the only tool that works at this size. */
   /* INFO: REQUIREMENTS.md § 13.6. The emoticon panel's own height, shared so the chat room can animate the strip open against the same value the panel is drawn at. */
   /* WARN: The cap is `px` and never `rem`. A reader's enlarged default font size scales `rem` but not `--viewport-height`, so a `rem` cap wins the `min()` on exactly the devices that can least afford it and the panel overruns the shell. */
   --emoticon-panel-height: min(352px, calc(var(--viewport-height, 100dvh) * 0.5));
