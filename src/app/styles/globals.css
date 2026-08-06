@@ -28,32 +28,16 @@
   }
 }
 
-/* WARN: DESIGN.md § 4.7.1. Without this the browser also crossfades its own `root` group, which is the whole document — the floating bars included. Two half-opaque copies of a `glass` bar over each other is what made it flash transparent mid-navigation. */
-::view-transition-group(root) {
-  animation: none;
+/* WARN: DESIGN.md § 4.7.1. The document is deliberately NOT captured. Suppressing the root group's animation is not enough: a captured group is composited on its own, so `glass` inside one has no live backdrop to sample and the bars render as the flat `canvas / 0.75` fill underneath their blur. Uncaptured, the page goes on painting live beneath the transition layer and the bars keep their blur throughout. */
+:root {
+  view-transition-name: none;
 }
 
-::view-transition-old(root) {
-  display: none;
-}
-
-::view-transition-new(root) {
-  animation: none;
-}
-
-/* INFO: DESIGN.md § 4.7.1. `BottomOverlay` names itself into this group so the screen animates under the bars and they do not move at all. */
-/* WARN: `z-index` is required — a group of its own is painted in name order, so without it the sliding screen passes over the bar rather than under it. */
-::view-transition-group(bottom-overlay) {
-  animation: none;
-  z-index: 100;
-}
-
-::view-transition-old(bottom-overlay) {
-  display: none;
-}
-
-::view-transition-new(bottom-overlay) {
-  animation: none;
+/* WARN: DESIGN.md § 4.7.1. The transition layer is the top layer, so nothing on the page can be lifted over it — the bars stay visible only because the animating screen is clipped out of the strip they occupy. Without this the snapshot paints across the bars for the whole navigation, which is worse than the flash it replaced. */
+/* INFO: `--bottom-inset` is `BottomOverlay`'s measured height, already on the root for the scroller's padding; a pseudo-element inherits it from there. */
+::view-transition-group(.tab-forward),
+::view-transition-group(.tab-back) {
+  clip-path: inset(0 0 var(--bottom-inset, 0px) 0);
 }
 
 /* INFO: DESIGN.md § 4.7.1. A tab switch slides along the bar's own order. Nothing else the shell swaps animates yet — an untyped update is a data refresh as often as it is a navigation. */

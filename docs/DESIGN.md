@@ -392,7 +392,7 @@ Exits are shorter than enters on purpose: content that is leaving should not com
 
 Route changes animate through React's `<ViewTransition>`, which `next.config.ts` enables with `experimental.viewTransition`. The flag alone animates nothing: only an element inside a `<ViewTransition>` boundary is ever snapshotted.
 
-The boundary wraps the shell's scroller and nothing else, keyed on `update` — a route change mutates the scroller's contents, which is what `update` names, and the floating bars (§ 3.5.) stay outside the snapshot so they hold still while the screen behind them changes.
+The boundary wraps the shell's scroller and nothing else, keyed on `update` — a route change mutates the scroller's contents, which is what `update` names, and the floating bars (§ 3.5.) stay off the transition entirely so they hold still while the screen behind them changes.
 
 A tab switch is a **24px directional slide**, along the tab bar's own order: tapping a tab to the right of the current one brings the new screen in from the right, and a tab to the left brings it in from the left. The direction is the bar's, not the app's history — the tab bar is the only thing that knows the order, so it tags each `Link` with a `tab-forward` / `tab-back` transition type and the shell's boundary maps those to the two animations. Direction taken from history instead would put 갤러리 on a different side depending on where the user came from, which is the one thing a slide must never do.
 
@@ -400,10 +400,13 @@ An untyped update does **not** animate, and the boundary must never carry a catc
 
 Exits and enters never overlap: the incoming screen is delayed by the full exit duration. Two translucent screens crossing over each other is what makes a slide read as cheap.
 
-Two groups are explicitly held still, and both are non-negotiable:
+**Nothing but the scroller is captured, and that is the whole of it.** `:root` takes `view-transition-name: none`, and `BottomOverlay` carries no name either. Only `<main>` is snapshotted.
 
-- **`root`.** The browser crossfades its own root group — the entire document — for every view transition, on top of whatever the app animates. Left on, it fades the floating bars against a second half-opaque copy of themselves, and a `glass` surface (§ 3.5.) inside a half-opaque snapshot loses the backdrop it is blurring: the bar visibly flashes transparent mid-navigation. `root` therefore takes `animation: none` and its old snapshot is dropped outright.
-- **`bottom-overlay`.** `BottomOverlay` names itself into its own group with `animation: none` and a high `z-index`, so the screen slides underneath the bars rather than carrying them along. The name is set on the element, beside the id it already carries — a bare `#bottom-overlay` rule in the stylesheet would go stale silently.
+This is stricter than it first needs to be, and the reason is `glass` (§ 3.5.). A captured group is composited **on its own**, so a `backdrop-filter` inside one has no live page behind it to blur — the bar falls back to the flat `canvas / 0.75` fill under its blur, which reads as the bar going opaque for the length of the navigation and snapping back when it ends. Holding a group still does not help: `animation: none` stops it moving, not being captured. Naming the bar into a group of its own does not help either, because the group then contains the bar and nothing else. Nor does leaving the bar inside `root`, because `<main>` is named out of `root` and the hole it leaves is exactly what sits behind the bar.
+
+The only arrangement where the blur survives is one where the bar and the content it blurs are **both still on the live page**. Leaving `root` uncaptured is what buys that: the page goes on painting underneath, and only the screen's snapshots ride in the transition layer.
+
+The cost is layering. That layer is the **top layer**, so no `z-index` on the page can lift the bars over it — the screen's snapshot would paint straight across them. The groups therefore carry `clip-path: inset(0 0 var(--bottom-inset) 0)`, which keeps the animating screen out of the strip the bars occupy. Inside that strip the live page shows through for the length of the animation, which is the new screen slightly early, seen through a blurred bar.
 
 One more consequence of the same mechanism: a view transition paints **only inside the snapshot containing block**, and on iOS the safe-area strips beside the notch fall outside it. What shows there for the length of the animation is the colour propagated to the canvas — so `html` carries `canvas`, not the `backdrop` that `body` uses to letterbox the shell on a wide viewport (§ 3.3.). With `backdrop` propagating, those strips visibly darkened on every tab switch and snapped back when it ended.
 
