@@ -58,5 +58,5 @@ export { randomId } from "./random";
 export { mapPooled, type PoolOptions } from "./run/pool";
 export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./run/safely";
 export { playSound, unlockSound, useSoundUnlock } from "./sound";
-export { hasUnsentWork, useUnsentWork } from "./unsent-work";
+export { hasUnsentWork, holdUnsentWork, useUnsentWork } from "./unsent-work";
 export { findFirstUrl, isHttpUrl, splitTextByUrls, withoutFragment, type TextSegment } from "./url";

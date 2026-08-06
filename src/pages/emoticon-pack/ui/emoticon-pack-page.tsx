@@ -11,7 +11,7 @@ import {
 } from "@/features/author-emoticon";
 import { MediaPickerSheet } from "@/features/upload-media";
 import { EMOTICON_SETTINGS_ROUTE } from "@/shared/config";
-import { cn, useUnsentWork, type Maybe, type Nullable } from "@/shared/lib";
+import { cn, type Maybe, type Nullable } from "@/shared/lib";
 import { ActionSheet, AppHeader, EmptyState, IconButton, Modal, toast } from "@/shared/ui";
 import { ChevronLeft, Images, Pencil, Plus, Smile, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -42,9 +42,6 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   const [selectedId, setSelectedId] = useState<Nullable<string>>(null);
   const router = useRouter();
   const selected = items.find((item) => item.id === selectedId);
-
-  // INFO: REQUIREMENTS.md § 15.1. A bulk add is work a deploy-forced reload would cut in half, and unlike a draft message nothing on screen would survive to resume it.
-  useUnsentWork(addingCount > 0);
 
   return (
     <div className={cn("flex flex-1 flex-col", className)}>

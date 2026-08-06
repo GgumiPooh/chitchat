@@ -1,4 +1,5 @@
 import type { Emoticon } from "@/entities/emoticon";
+import type { MediaDraft } from "@/entities/media";
 import { toEmoticonImageDraft } from "@/features/upload-media/@x/author-emoticon";
 import {
   MAX_EMOTICON_IMAGE_SIZE,
@@ -7,7 +8,7 @@ import {
   allowedMimesForEmoticonSlot,
   isAllowedEmoticonAsset,
 } from "@/shared/config";
-import { formatSize, mapPooled, type Optional } from "@/shared/lib";
+import { formatSize, holdUnsentWork, mapPooled } from "@/shared/lib";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
 import { createEmoticon } from "../api/write-emoticon";
 
@@ -53,25 +54,32 @@ export async function addEmoticonsFromFiles(
       }),
   );
 
-  await Promise.all([
-    mapPooled(
-      files,
-      // WARN: `prepare` is written never to reject, and this guard is what keeps that from being load-bearing — an unsettled deferred would hang `registerInPickOrder` forever, and the screen's remaining count with it.
-      async (file, index) => {
-        try {
-          settle[index](await prepare(file));
-        } catch {
-          settle[index]({ reason: "업로드하지 못했어요" });
-        }
-      },
-      {
-        limit: UPLOAD_CONCURRENCY,
-        byteBudget: MAX_UPLOAD_INFLIGHT_BYTES,
-        weigh: (file) => file.size,
-      },
-    ),
-    registerInPickOrder(),
-  ]);
+  // INFO: REQUIREMENTS.md § 15.1. Held here rather than from the screen, which unmounts the moment the user routes away and would take the guarantee with it.
+  const release = holdUnsentWork();
+
+  try {
+    await Promise.all([
+      mapPooled(
+        files,
+        // WARN: `prepare` is written never to reject, and this guard is what keeps that from being load-bearing — an unsettled deferred would hang `registerInPickOrder` forever, and the screen's remaining count with it.
+        async (file, index) => {
+          try {
+            settle[index](await prepare(file));
+          } catch {
+            settle[index]({ reason: "업로드하지 못했어요" });
+          }
+        },
+        {
+          limit: UPLOAD_CONCURRENCY,
+          byteBudget: MAX_UPLOAD_INFLIGHT_BYTES,
+          weigh: (file) => file.size,
+        },
+      ),
+      registerInPickOrder(),
+    ]);
+  } finally {
+    release();
+  }
 
   return { added, failed };
 
@@ -121,26 +129,30 @@ export async function addEmoticonsFromFiles(
  * the batch — every file here has to be able to fail on its own.
  */
 async function prepare(file: File): Promise<Prepared> {
-  let uploadedKey: Optional<string>;
+  // WARN: Two `try` blocks and not one. A single block cannot tell the two failures apart — the key is only ever assigned by the upload that would have thrown, so it is always unset in the `catch` and every failure reads as an unreadable file (§ 13.4.).
+  let draft: MediaDraft;
 
   try {
-    const draft = await toEmoticonImageDraft(file);
+    draft = await toEmoticonImageDraft(file);
+  } catch {
+    return { reason: "파일을 읽지 못했어요" };
+  }
 
-    // INFO: The preview is never rendered on this path — the grid reads the registered item back through its asset URL — so it is released as soon as the size has been read off it.
-    URL.revokeObjectURL(draft.previewUrl);
+  // INFO: The preview is never rendered on this path — the grid reads the registered item back through its asset URL — so it is released as soon as the size has been read off it.
+  URL.revokeObjectURL(draft.previewUrl);
 
-    // INFO: REQUIREMENTS.md § 14. A courtesy check, so an oversized file fails before it is uploaded rather than at registration.
-    if (!isAllowedEmoticonAsset("image", draft.file.type, draft.file.size)) {
-      return { reason: describeRejection(draft.file) };
-    }
+  // INFO: REQUIREMENTS.md § 14. A courtesy check, so an oversized file fails before it is uploaded rather than at registration.
+  if (!isAllowedEmoticonAsset("image", draft.file.type, draft.file.size)) {
+    return { reason: describeRejection(draft.file) };
+  }
 
-    uploadedKey = await uploadEmoticonAsset("image", draft.file);
+  try {
+    const uploadedKey = await uploadEmoticonAsset("image", draft.file);
 
     return { uploadedKey, width: draft.width, height: draft.height };
   } catch {
-    void discardEmoticonAssets(uploadedKey ? [uploadedKey] : []);
-
-    return { reason: uploadedKey ? "업로드하지 못했어요" : "파일을 읽지 못했어요" };
+    // INFO: Nothing to discard — an upload that threw never handed back a key, and § 13.3.'s cleanup has nothing to name.
+    return { reason: "업로드하지 못했어요" };
   }
 }
 
