@@ -49,6 +49,8 @@ export function useTypingSignal(isStaging: boolean): (isComposing: boolean) => v
   const end = useCallback(() => {
     stopPump();
     lastEditAt.current = 0;
+    // WARN: The floor is released here, and it has to be. It paces *repeats* of a signal the receiver already has — but a stop takes that signal away, so the next start is news, not a repeat. Left standing it swallows the restart for up to a full interval, and someone who clears the field and immediately types again shows as not typing while they type.
+    lastSentAt.current = 0;
 
     // INFO: Only if the other side was actually told something. A field emptied without a ping ever going out has nothing to retract, and the DELETE would be a request answering a question nobody asked.
     if (!isBroadcasting.current) {
@@ -69,7 +71,7 @@ export function useTypingSignal(isStaging: boolean): (isComposing: boolean) => v
       return;
     }
 
-    // WARN: The floor is kept outside the pump's own lifetime. A held backspace re-arms the loop repeatedly, and a leading edge fired fresh on each arm is a burst at exactly the rate `TYPING_PING_INTERVAL` exists to cap.
+    // WARN: A floor on *repeats only*, kept outside the pump's own lifetime — a held backspace re-arms the loop repeatedly, and a leading edge fired fresh on each arm is a burst at the rate `TYPING_PING_INTERVAL` exists to cap. `end` releases it, because a signal that has been retracted is not one the receiver still holds.
     if (now - lastSentAt.current < TYPING_PING_INTERVAL) {
       return;
     }
