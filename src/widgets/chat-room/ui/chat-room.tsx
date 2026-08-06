@@ -218,7 +218,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
       rows[index] ? estimateRowHeight(rows[index], estimateContext) : LIST_HEADER_HEIGHT,
     getItemKey,
     anchorTo: "end",
-    // WARN: Never `followOnAppend`. It follows through `scrollToIndex`, which resolves against the measurements alone, and `ListFooter` is not one of them — so every arrival parked the newest message exactly `--chat-bottom-gap` low, which is to say behind the composer. The pin below takes the scroller's own maximum instead, the way `scrollToBottom` already does.
+    // WARN: Never `followOnAppend`. It follows through `scrollToIndex`, which resolves against the measurements alone, and `ListFooter` is not one of them — so every arrival parked the newest message exactly `--chat-bottom-gap` low, which is to say behind the composer. `pinToBottom` takes the scroller's own maximum instead.
     scrollEndThreshold: AT_BOTTOM_THRESHOLD,
     // WARN: The list does not start at the top of the scroller — the loading header sits above it, and without this the virtualizer resolves every offset that much too high.
     scrollMargin: LIST_HEADER_HEIGHT,
@@ -283,6 +283,20 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     isSending || selection.drafts.length > 0 || stagedEmoticon !== null || replyTarget !== null,
   );
 
+  /**
+   * REQUIREMENTS.md § 8.3. The newest message parked directly above the composer,
+   * which is what every follow in this room means by "the bottom".
+   *
+   * WARN: The scroller's own maximum, never `scrollToIndex`. The list's trailing spacer already _is_ the composer's clearance, while an index resolves against the measurements alone — and `ListFooter` is not one of them, so it stops a whole spacer short.
+   */
+  const pinToBottom = useCallback(() => {
+    const element = scrollerRef.current;
+
+    if (element) {
+      element.scrollTop = element.scrollHeight;
+    }
+  }, []);
+
   useComposerClearance({ containerRef, composerRef, scrollerRef, isAtBottomRef });
 
   // INFO: REQUIREMENTS.md § 8.3., § 8.9. Ahead of the viewport, so a § 6.9. card is in the row's first measurement rather than growing it once the reader is already on it — and ahead of the insert too, since a held page's rows have not been measured at all yet.
@@ -315,40 +329,6 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   // INFO: REQUIREMENTS.md § 13.6. An arriving emoticon plays by itself, and no gesture of its own is coming — the room borrows the first one the user makes anywhere on the page.
   useSoundUnlock();
 
-  // INFO: REQUIREMENTS.md § 13.6. A tap anywhere else dismisses the panel. `pointerdown` rather than `click`, so it closes on the same gesture that starts a scroll of the history.
-  useEffect(() => {
-    if (!isEmoticonPickerOpen) {
-      return;
-    }
-
-    // WARN: The composer's own wrapper is the exception, not just the panel — the toggle lives in it and would otherwise be closed here and re-opened by its own handler.
-    const handlePointerDown = (event: PointerEvent) => {
-      if (composerRef.current?.contains(event.target as Node)) {
-        return;
-      }
-
-      setIsEmoticonPickerOpen(false);
-      // WARN: § 13.6. The collapse runs under a finger that is still down, and WebKit hands the scroll offset to the compositor for the length of that gesture — every re-pin `useComposerClearance` makes while the strip shrinks is dropped, and the list is left where the open panel had pushed it.
-      document.addEventListener("pointerup", pinToBottom, { once: true });
-    };
-
-    // WARN: `pointerup` only, never `pointercancel` — the browser cancels the pointer precisely when it takes the gesture over as a scroll, and re-pinning there would yank the user out of the history they just started dragging through.
-    const pinToBottom = () => {
-      const scroller = scrollerRef.current;
-
-      if (scroller && isAtBottomRef.current) {
-        scroller.scrollTop = scroller.scrollHeight;
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("pointerup", pinToBottom);
-    };
-  }, [isEmoticonPickerOpen]);
-
   // INFO: REQUIREMENTS.md § 8.4. The connection belongs to the shell; this screen only asks to hear from it.
   useChatStreamListener({ onMessage: receiveMessage, onResume: catchUp });
 
@@ -359,7 +339,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     return () => setIsReading(false);
   }, [setIsReading]);
 
-  // WARN: Deliberately the scroller's own maximum rather than `scrollToIndex`. The list's trailing spacer already _is_ the clearance, so the bottom of the scroll range is the newest message sitting on the composer — while an index resolves against the measurements alone, and `ListFooter` is not one of them, so it stops a whole spacer short.
+  // INFO: DESIGN.md § 6.7. The same target `pinToBottom` takes, animated — the pill is a journey back to the live edge that the user asked for, not a pin.
   const scrollToBottom = useCallback(() => {
     scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
   }, []);
@@ -371,13 +351,14 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   }, [returnToLive, scrollToBottom]);
 
   // WARN: Scrolling inside the send handler resolves against the pre-send data, so a message sent from deep in history lands below the fold. The row only exists from this commit onward.
+  // WARN: REQUIREMENTS.md § 13.6. A pin and never `scrollToBottom` — a smooth scroll started here outlives the emoticon panel's collapse and steers the history back to the offset the open panel implied.
   useEffect(() => {
     if (pendingCount > lastPendingCount.current) {
-      scrollToBottom();
+      pinToBottom();
     }
 
     lastPendingCount.current = pendingCount;
-  }, [pendingCount, scrollToBottom]);
+  }, [pendingCount, pinToBottom]);
 
   // WARN: REQUIREMENTS.md § 8.6.1. The jump reads the rows back through this rather than through the closure it was called in — `loadAround` replaces the window, and the array the handler captured predates it.
   useEffect(() => {
@@ -457,14 +438,12 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
       return;
     }
 
-    const element = scrollerRef.current;
-
     // INFO: The previous tail is still in the list exactly when this was an append. A § 8.6.1. jump or a return to live replaces the window instead, and both scroll themselves.
     // WARN: `isAtBottomRef` still holds the position from before this commit, which is the question being asked — was the user at the live edge when the message landed.
-    if (element && isAtBottomRef.current && rows.some((row) => row.key === previousKey)) {
-      element.scrollTop = element.scrollHeight;
+    if (isAtBottomRef.current && rows.some((row) => row.key === previousKey)) {
+      pinToBottom();
     }
-  }, [rows]);
+  }, [rows, pinToBottom]);
 
   /**
    * REQUIREMENTS.md § 8.3. Republishes the width the row estimate wraps against.
@@ -785,23 +764,16 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
    * REQUIREMENTS.md § 13.6. The last word on where the history sits, after the
    * strip has stopped moving.
    *
-   * WARN: The per-frame pin `useComposerClearance` makes is not enough on its own.
-   * A send starts a smooth scroll toward the offset the *open* panel implied, and
-   * on WebKit that animation goes on steering the scroller for the length of the
-   * collapse — every pin made underneath it is overwritten, and the history is
-   * left parked where the panel had pushed it. The transition ending is the one
-   * moment the strip's height is final and nothing else is animating.
+   * WARN: The per-frame pin `useComposerClearance` makes is not enough on its own — the collapse starts under the finger still on the toggle, and WebKit hands the scroll offset to the compositor for the length of that gesture. The transition ending is the one moment the strip's height is final and nothing else is moving.
    */
   function settleAfterPanelTransition(event: TransitionEvent<HTMLDivElement>) {
-    const scroller = scrollerRef.current;
-
     // WARN: `transitionend` bubbles, so the panel's own transitions reach this too.
     if (event.target !== event.currentTarget || event.propertyName !== "height") {
       return;
     }
 
-    if (scroller && isAtBottomRef.current) {
-      scroller.scrollTop = scroller.scrollHeight;
+    if (isAtBottomRef.current) {
+      pinToBottom();
     }
   }
 
