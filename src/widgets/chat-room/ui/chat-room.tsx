@@ -381,7 +381,8 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           isEmoticonPickerOpen={isEmoticonPanelOpen}
           onAttach={() => setIsPickerOpen(true)}
           onFieldFocus={() => setIsEmoticonPickerOpen(false)}
-          onToggleEmoticons={() => setIsEmoticonPickerOpen((current) => !current)}
+          // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
+          onToggleEmoticons={() => setIsEmoticonPickerOpen(!isEmoticonPanelOpen)}
           onSend={submit}
         />
       </div>
