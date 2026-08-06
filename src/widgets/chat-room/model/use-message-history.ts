@@ -30,10 +30,19 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
   // INFO: REQUIREMENTS.md § 8.2. The gap-recovery cursor. Tracked apart from the loaded window because it only ever moves forward — a delete must not walk it back and have § 8.4.'s catch-up refetch what was already seen.
   // WARN: § 8.6.1.'s jump moves the *window* into the past and leaves this alone. They are two different questions: what is on screen, and what this client has already been told about.
   const newestKnownIdRef = useRef(initialMessages.at(-1)?.id ?? 0);
+  // WARN: § 8.6.1. Bumped by everything that replaces the window whole. `discardPendingOlder` drops a page already *held*, but a fetch still in flight was started against the window that is now gone, and letting it land is what leaves `hasNewerRef` true while `hasNewer` reads false — live arrivals dropped from then on, and the pill that would fix it hidden.
+  const windowId = useRef(0);
 
   const commit = useCallback((update: (previous: ChatMessage[]) => ChatMessage[]) => {
     messagesRef.current = update(messagesRef.current);
     setMessages(messagesRef.current);
+  }, []);
+
+  // WARN: The lock is released only by the load that still owns the window. A superseded pager clearing it would hand it back while the replacement is still fetching.
+  const endLoad = useCallback((generation: number) => {
+    if (generation === windowId.current) {
+      isLoadingRef.current = false;
+    }
   }, []);
 
   /**
@@ -57,8 +66,15 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     isLoadingRef.current = true;
     setIsLoadingOlder(true);
 
+    const generation = windowId.current;
+
     try {
       const older = await fetchMessages({ before: oldest.id });
+
+      // WARN: The page is dropped whole, `hasOlder` included — it describes history behind a window that is no longer on screen, and the replacement already cleared the header through `discardPendingOlder`.
+      if (generation !== windowId.current) {
+        return;
+      }
 
       hasOlderRef.current = older.length >= MESSAGE_PAGE_SIZE;
 
@@ -69,14 +85,16 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
         return;
       }
     } catch {
-      toast.error("이전 메시지를 불러오지 못했어요");
+      if (generation === windowId.current) {
+        toast.error("이전 메시지를 불러오지 못했어요");
+      }
     } finally {
-      isLoadingRef.current = false;
+      endLoad(generation);
     }
 
     // INFO: Only the paths that hold nothing land here — a page that is waiting keeps the header up until it is committed.
     setIsLoadingOlder(false);
-  }, []);
+  }, [endLoad]);
 
   /** REQUIREMENTS.md § 8.3. Inserts the held page. The caller owns the timing, and the timing is the fix. */
   const commitPendingOlder = useCallback(() => {
@@ -98,6 +116,15 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     setPendingOlder([]);
     setIsLoadingOlder(false);
   }, []);
+
+  // INFO: Seizes the lock rather than waiting for it — both callers replace the window whole, so whatever a pager is fetching is about to be irrelevant, and the generation is what stops it landing anyway.
+  const beginReplacement = useCallback(() => {
+    windowId.current += 1;
+    isLoadingRef.current = true;
+    discardPendingOlder();
+
+    return windowId.current;
+  }, [discardPendingOlder]);
 
   // INFO: REQUIREMENTS.md § 8.4. Deduplicated by id — the SSE replay margin and the resume catch-up overlap by design, so a batch that is entirely duplicates is the normal case.
   const receiveMessages = useCallback(
@@ -157,20 +184,20 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
    * REQUIREMENTS.md § 8.6.1. Replaces the window with context on both sides of one
    * message — the jump a quote (§ 8.10.) or a search result asks for. Answers whether
    * the target was actually reachable.
+   *
+   * WARN: It preempts a pager in flight rather than declining. Declining returned the
+   * same `false` as a genuinely unreachable message, so tapping a quote while the
+   * scroller happened to be fetching answered 원본 메시지를 찾지 못했어요 for a parent
+   * that was one page away.
    */
   const loadAround = useCallback(
     async (id: number) => {
-      if (isLoadingRef.current) {
-        return false;
-      }
-
-      isLoadingRef.current = true;
-      discardPendingOlder();
+      const generation = beginReplacement();
 
       try {
         const around = await fetchMessages({ around: id });
 
-        if (!around.some((message) => message.id === id)) {
+        if (generation !== windowId.current || !around.some((message) => message.id === id)) {
           return false;
         }
 
@@ -182,14 +209,16 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
 
         return true;
       } catch {
-        toast.error("메시지를 불러오지 못했어요");
+        if (generation === windowId.current) {
+          toast.error("메시지를 불러오지 못했어요");
+        }
 
         return false;
       } finally {
-        isLoadingRef.current = false;
+        endLoad(generation);
       }
     },
-    [commit, discardPendingOlder],
+    [beginReplacement, commit, endLoad],
   );
 
   /** REQUIREMENTS.md § 8.6.1. The downward half of paging, which only a jumped-away window ever needs. */
@@ -202,8 +231,16 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
 
     isLoadingRef.current = true;
 
+    const generation = windowId.current;
+
     try {
       const newer = await fetchMessages({ after: newest.id });
+
+      // WARN: The verdict is dropped along with the page. Writing `hasNewerRef` here after a `returnToLive` has restored the live window is what strands the room: the ref says "not live" while `hasNewer` says it is, so `receiveMessages` refuses every arrival and no pill offers a way back.
+      if (generation !== windowId.current) {
+        return;
+      }
+
       const isAtLiveEdge = newer.length < MESSAGE_PAGE_SIZE;
 
       hasNewerRef.current = !isAtLiveEdge;
@@ -221,11 +258,13 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
         });
       }
     } catch {
-      toast.error("다음 메시지를 불러오지 못했어요");
+      if (generation === windowId.current) {
+        toast.error("다음 메시지를 불러오지 못했어요");
+      }
     } finally {
-      isLoadingRef.current = false;
+      endLoad(generation);
     }
-  }, [commit]);
+  }, [commit, endLoad]);
 
   /**
    * REQUIREMENTS.md § 8.6.1. Back to the newest messages from a jump, which the
@@ -239,16 +278,18 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
       return;
     }
 
+    // WARN: The generation is bumped before the flags, so a pager already in flight can no longer write either of them back.
+    const generation = beginReplacement();
+
     // WARN: Flipped before the fetch, not after. An arrival landing mid-flight belongs in the window this is restoring, and `receiveMessages` is what decides that.
     hasNewerRef.current = false;
     setHasNewer(false);
-    discardPendingOlder();
 
     try {
       const page = await fetchMessages({});
       const newestId = page.at(-1)?.id ?? 0;
 
-      if (page.length === 0) {
+      if (page.length === 0 || generation !== windowId.current) {
         return;
       }
 
@@ -257,9 +298,13 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
       // INFO: Anything that arrived while the page was in flight is newer than it, so it is carried over rather than replaced away.
       commit((previous) => [...page, ...previous.filter((entry) => entry.id > newestId)]);
     } catch {
-      toast.error("최근 메시지를 불러오지 못했어요");
+      if (generation === windowId.current) {
+        toast.error("최근 메시지를 불러오지 못했어요");
+      }
+    } finally {
+      endLoad(generation);
     }
-  }, [commit, discardPendingOlder]);
+  }, [beginReplacement, commit, endLoad]);
 
   /**
    * REQUIREMENTS.md § 8.4. Everything that landed while the stream was closed.
