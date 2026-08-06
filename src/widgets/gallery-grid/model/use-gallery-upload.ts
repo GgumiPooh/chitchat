@@ -3,8 +3,12 @@
 import type { GalleryMedia, MediaDraft } from "@/entities/media";
 import { postMessage } from "@/features/send-message";
 import { toMediaDraft, uploadDraft, validateFile } from "@/features/upload-media";
-import { MAX_MEDIA_PER_MESSAGE } from "@/shared/config";
-import { randomId } from "@/shared/lib";
+import {
+  MAX_MEDIA_PER_MESSAGE,
+  MAX_UPLOAD_INFLIGHT_BYTES,
+  UPLOAD_CONCURRENCY,
+} from "@/shared/config";
+import { mapPooled, randomId } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useState } from "react";
 
@@ -37,24 +41,35 @@ export function useGalleryUpload(onAdded: (media: GalleryMedia) => void) {
         // INFO: What validation rejected never reaches the loop below, so its share of the claim is released here.
         setRemainingCount((current) => Math.max(current - (files.length - drafts.length), 0));
 
-        const uploadedIds: string[] = [];
-        let failedCount = 0;
+        // WARN: Pooled, not one at a time. § 13.4. settled this for the bulk emoticon add and the reason is the same here — the byte budget is what keeps a pick of 500MB videos from going out four abreast, which a bare concurrency limit would not.
+        const results = await mapPooled(
+          drafts,
+          async (draft) => {
+            try {
+              // WARN: `addToGallery` even when the photo is also being posted. The user filed it in the gallery, so it must be there whether or not the POST that follows succeeds — and it must survive that message later being deleted.
+              const media = await uploadDraft(draft, { addToGallery: true });
 
-        // WARN: One at a time. § 13.4. settled this for the bulk emoticon add and the reason is the same here — twenty simultaneous presigned PUTs on a phone network are twenty ways to time out.
-        for (const draft of drafts) {
-          try {
-            // WARN: `addToGallery` even when the photo is also being posted. The user filed it in the gallery, so it must be there whether or not the POST that follows succeeds — and it must survive that message later being deleted.
-            const media = await uploadDraft(draft, { addToGallery: true });
+              onAdded(media);
 
-            uploadedIds.push(media.id);
-            onAdded(media);
-          } catch {
-            failedCount += 1;
-          } finally {
-            URL.revokeObjectURL(draft.previewUrl);
-            setRemainingCount((current) => Math.max(current - 1, 0));
-          }
-        }
+              return media.id;
+            } catch {
+              return null;
+            } finally {
+              URL.revokeObjectURL(draft.previewUrl);
+              setRemainingCount((current) => Math.max(current - 1, 0));
+            }
+          },
+          {
+            limit: UPLOAD_CONCURRENCY,
+            byteBudget: MAX_UPLOAD_INFLIGHT_BYTES,
+            weigh: (draft) => draft.file.size,
+          },
+        );
+
+        // WARN: `mapPooled` answers in pick order, and `post` below depends on it — § 18. #10. splits a long send into consecutive bubbles and `messages.id` is assigned by the POST, so completion order would reverse the photos on every other client.
+        // WARN: `Boolean`, not `!== null`. A rejected task leaves its slot a hole rather than a `null`, and `undefined` would pass that narrower test and be posted as a `mediaId`.
+        const uploadedIds = results.filter((id): id is string => Boolean(id));
+        const failedCount = results.length - uploadedIds.length;
 
         if (shouldPost && uploadedIds.length > 0) {
           await post(uploadedIds);

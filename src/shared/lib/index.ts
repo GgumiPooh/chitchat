@@ -55,7 +55,8 @@ export {
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
 export type { Maybe, Nullable, Optional } from "./nullish";
 export { randomId } from "./random";
-export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./safely";
+export { mapPooled, type PoolOptions } from "./run/pool";
+export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./run/safely";
 export { playSound, unlockSound, useSoundUnlock } from "./sound";
 export { hasUnsentWork, useUnsentWork } from "./unsent-work";
 export { findFirstUrl, isHttpUrl, splitTextByUrls, withoutFragment, type TextSegment } from "./url";

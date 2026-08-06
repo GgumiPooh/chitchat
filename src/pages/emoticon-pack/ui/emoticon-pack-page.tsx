@@ -7,11 +7,12 @@ import {
   addEmoticonsFromFiles,
   deleteEmoticon,
   updateEmoticonPack,
+  type BulkAddFailure,
 } from "@/features/author-emoticon";
 import { MediaPickerSheet } from "@/features/upload-media";
 import { EMOTICON_SETTINGS_ROUTE } from "@/shared/config";
-import { cn, type Maybe, type Nullable } from "@/shared/lib";
-import { ActionSheet, AppHeader, EmptyState, IconButton, toast } from "@/shared/ui";
+import { cn, useUnsentWork, type Maybe, type Nullable } from "@/shared/lib";
+import { ActionSheet, AppHeader, EmptyState, IconButton, Modal, toast } from "@/shared/ui";
 import { ChevronLeft, Images, Pencil, Plus, Smile, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -37,9 +38,13 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   const [pendingFile, setPendingFile] = useState<Nullable<File>>(null);
   const [editing, setEditing] = useState<Nullable<Emoticon>>(null);
   const [addingCount, setAddingCount] = useState(0);
+  const [failures, setFailures] = useState<BulkAddFailure[]>([]);
   const [selectedId, setSelectedId] = useState<Nullable<string>>(null);
   const router = useRouter();
   const selected = items.find((item) => item.id === selectedId);
+
+  // INFO: REQUIREMENTS.md § 15.1. A bulk add is work a deploy-forced reload would cut in half, and unlike a draft message nothing on screen would survive to resume it.
+  useUnsentWork(addingCount > 0);
 
   return (
     <div className={cn("flex flex-1 flex-col", className)}>
@@ -55,10 +60,12 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
           />
         }
         trailing={
+          // WARN: § 13.4. Closed for as long as a pile is landing, and it is the only way into `addMany` — a second batch would run its own registration chain, interleaving two picks in one `sort_order` sequence, and `setAddingCount(files.length)` is an absolute write that the overlap would corrupt.
           <IconButton
             variant="floating"
             Icon={Plus}
             haptic
+            disabled={addingCount > 0}
             aria-label="이모티콘 추가"
             onClick={() => setIsAddMenuOpen(true)}
           />
@@ -131,6 +138,27 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
         ]}
         onClose={() => setSelectedId(null)}
       />
+      <Modal
+        isOpen={failures.length > 0}
+        header={{
+          title: "추가하지 못한 이모티콘",
+          description: `${failures.length}개를 추가하지 못했어요`,
+        }}
+        onClose={() => setFailures([])}
+      >
+        {/* INFO: Scrolls at a fixed height — a pick of forty images can fail forty times, and the modal must not grow past the shell. */}
+        <ul className="max-h-[40vh] space-y-2xs overflow-y-auto">
+          {failures.map((failure, index) => (
+            <li
+              key={`${failure.fileName}-${index}`}
+              className="rounded-sm bg-surface-soft px-sm py-xs"
+            >
+              <p className="truncate text-body-sm text-ink">{failure.fileName}</p>
+              <p className="text-body-sm text-meta">{failure.reason}</p>
+            </li>
+          ))}
+        </ul>
+      </Modal>
     </div>
   );
 
@@ -158,16 +186,20 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   async function addMany(files: File[]) {
     setAddingCount(files.length);
 
-    // WARN: The count is what is *left*, not what was picked — it is rendered beside a grid that is already filling in, so a fixed total would contradict the rows next to it.
-    const { failedCount } = await addEmoticonsFromFiles(pack.id, files, {
-      onAdded: (emoticon) => setItems((current) => [...current, emoticon]),
-      onSettled: () => setAddingCount((current) => Math.max(current - 1, 0)),
-    });
+    try {
+      // WARN: The count is what is *left*, not what was picked — it is rendered beside a grid that is already filling in, so a fixed total would contradict the rows next to it.
+      const { failed } = await addEmoticonsFromFiles(pack.id, files, {
+        onAdded: (emoticon) => setItems((current) => [...current, emoticon]),
+        onSettled: () => setAddingCount((current) => Math.max(current - 1, 0)),
+      });
 
-    setAddingCount(0);
-
-    if (failedCount > 0) {
-      toast.error(`${failedCount}개를 추가하지 못했어요`);
+      // INFO: § 13.4. A modal rather than a toast — a bulk add fails per file and for different reasons, and a count alone leaves the user re-picking twenty images to find the three that did not land.
+      setFailures(failed);
+    } catch {
+      toast.error("이모티콘을 추가하지 못했어요");
+    } finally {
+      // WARN: In `finally`, or a rejection would strand the count above zero — which disables the `+` for the life of the screen and pins § 15.1.'s reload open with it.
+      setAddingCount(0);
     }
   }
 
