@@ -887,6 +887,7 @@ Consequences, all of them non-obvious:
 | Repeat the control's `touch-action` on the overlay                                    | `touch-action` applies to the element a gesture starts on, and that is now the overlay                                            |
 | Over a cell that **tiles** a scroller, pass `keepsScroll` — but never inside an `<a>` | The switch keeps a drag of its own, so the overlay has to become a `<label>`, and an anchor eats a label's activation (§ 7.15.1.) |
 | A gesture threshold, a drag, a route change — none of these can tick                  | They are scripted triggers, which iOS 26.5 removed                                                                                |
+| A release that travelled `GESTURE_SLOP` is a drag: no activation, no tick             | The overlay owns the whole tap, so it is the only place that can tell the two apart (§ 7.15.2.)                                   |
 
 It renders on a coarse pointer only (`AGENTS.md § 4.2.`): a mouse gains nothing, and the overlay would swallow the ⌘-click the covered element still owes the pointer.
 
@@ -899,7 +900,7 @@ Two boundaries that are easy to read the wrong way:
 
 ### 7.15.1. `keepsScroll`, and why it is opt-in rather than the default.
 
-A switch is thrown by sliding it, so WebKit tracks a drag on the control and claims that gesture before the scroller is consulted. Where the overlay has space around it nobody notices. Where the cells **tile** a surface — the day cells of the month grid, the cells of the emoticon grid — the overlay is what every scrolling finger lands on: the emoticon panel would not scroll at all, and the month grid turned a drag into a tap.
+A switch is thrown by sliding it, so WebKit tracks a drag on the control and claims that gesture before the scroller is consulted. Where the overlay has space around it nobody notices. Where the targets **tile** a surface — the day cells of the month grid, the cells of the emoticon grid, a `SettingsRow` or the name of a 이모티콘 관리 row, both of which fill the row they sit in — the overlay is what every scrolling finger lands on: the emoticon panel would not scroll at all, and the month grid, the settings list and the pack list turned a drag into a tap.
 
 Two things that look like they should fix that and do not, both measured on device:
 
@@ -911,6 +912,19 @@ Two things that look like they should fix that and do not, both measured on devi
 It is still **opt-in, and must stay that way.** Promoted to the default it silently kills the tick on `Link`, where the overlay is mounted inside the `<a>` rather than beside it: the anchor's own activation takes the click, the label's never runs, and the switch is never toggled. The tab bar is the visible casualty. So the rule is by host, not by taste — `keepsScroll` for a cell that tiles a scroller, the switch itself everywhere else, and never inside an anchor.
 
 Driving the scroll from JS on `pointermove`, momentum included, is what would be left if the label ever stopped working. It is not worth a tick.
+
+### 7.15.2. A drag is not a tap, and `HapticTap` is where that is decided.
+
+A finger that travels and then lifts has not tapped anything. The platform mostly agrees — once a scroll starts, WebKit sends `pointercancel` and no `click` follows — but the overlay is exactly the case where it does not: the switch claims the gesture before the scroller is consulted (§ 7.15.1.), so the page never scrolls, nothing is cancelled, and the release arrives as an ordinary click on whatever the finger began on.
+
+So the overlay measures its own gesture. `pointerdown` records the origin, `pointermove` raises a flag once the finger has travelled `GESTURE_SLOP` — the same distance the reply pull, the month swipe and the long press all disarm at (`shared/lib/gesture.ts`), so a drag cannot mean one thing to one gesture and another to the next — and the `click` that follows a raised flag is spent rather than delivered:
+
+- `preventDefault()` **silences the tick.** The overlay's default action is the toggle and the toggle is the only thing that ticks, so refusing it is the only way to stay quiet. A drag was never a committed change of state, which is the bar the tick answers to (§ 7.15.).
+- `stopPropagation()` **stops the navigation** for the one host whose click travels to an ancestor rather than a sibling. Inside an `<a>` nothing else stands between the drag and the route change; beside a `<button>` the forward is simply not made.
+
+This is **not** opt-in, and unlike `keepsScroll` it has no host it can break: it changes no markup, only which releases count. The surfaces that already do this for themselves — the month grid's `onClickCapture`, the long press's — keep doing it, and agreeing twice costs nothing.
+
+One thing it does give up: **sliding a `Switch` no longer toggles it.** The visible track is Radix's `<button>`, which only ever flipped because the overlay forwarded the click the slide ended in — so past 8px that slide now does nothing. Tapping is unaffected, and a finger crossing a row on its way down the list no longer flips the toggle it passes over, which is the trade this is worth.
 
 # 8. Rules.
 

@@ -91,7 +91,8 @@ export function EmoticonPackRow({
           </span>
           <ChevronRight className="size-4 shrink-0 text-meta-soft" strokeWidth={1.75} />
         </button>
-        <HapticTap forwardsTap />
+        {/* WARN: `keepsScroll` — the name fills the row, so a finger scrolling the list lands here, and the switch would keep that drag and end it as a tap on the pack (`DESIGN.md § 7.15.1.`). */}
+        <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
       </span>
       <IconButton
         Icon={Settings2}

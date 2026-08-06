@@ -1,6 +1,6 @@
 "use client";
 
-import { cn, useIsCoarsePointer, type Maybe, type Nullable } from "@/shared/lib";
+import { GESTURE_SLOP, cn, useIsCoarsePointer, type Maybe, type Nullable } from "@/shared/lib";
 import { useEffect, useId, useRef, type MouseEvent, type PointerEvent } from "react";
 
 // WARN: React's typings carry no `switch` attribute, and it has to be on the element from the first render — WebKit decides there whether to build the native control.
@@ -47,6 +47,10 @@ export type HapticTapProps = {
  * link's own `onClick`. Beside a `<button>`, mount it as the last child of a
  * `relative` wrapper alongside the button, and pass `forwardsTap`.
  *
+ * A release that travelled `GESTURE_SLOP` or more is a drag, and a drag reaches
+ * neither the control nor the Taptic engine (`DESIGN.md § 7.15.2.`). Every host
+ * gets that; there is nothing to opt into.
+ *
  * WARN: Never *inside* a `<button>`. WebKit ends the tap in the native control
  * there and no click reaches JS at all — not the button's handler, and not this
  * element's own — so there is nothing left to forward with.
@@ -68,6 +72,8 @@ export function HapticTap({
   const switchId = useId();
   // WARN: Captured on `pointerdown` rather than read off a ref at cleanup time — React detaches refs before a passive cleanup runs, and `useIsCoarsePointer` reports `false` on the first render, so neither the element nor its parent is reachable from the effect itself.
   const pressedParentRef = useRef<Nullable<HTMLElement>>(null);
+  const pressOriginRef = useRef<Nullable<{ x: number; y: number }>>(null);
+  const hasDraggedRef = useRef(false);
 
   // WARN: The flag lives on an element this component does not own, so nothing else takes it back down. The tab bar drops `haptic` off the tab it has just switched to, which unmounts this mid-press and would otherwise leave that tab bloomed for good.
   useEffect(() => () => setPressed(pressedParentRef.current, false), []);
@@ -79,8 +85,9 @@ export function HapticTap({
   const overlayProps = {
     className: cn("absolute inset-0 size-full opacity-0", className),
     onPointerDown: handlePointerDown,
+    onPointerMove: handlePointerMove,
     onPointerUp: releasePress,
-    onPointerCancel: releasePress,
+    onPointerCancel: cancelPress,
     onPointerLeave: releasePress,
     onClick: handleClick,
   };
@@ -112,7 +119,7 @@ export function HapticTap({
         onClick={(event) => event.stopPropagation()}
       />
       {/* WARN: A `<label>` and not the switch, so the drag stays with the scroller — the switch is a native control and keeps a drag of its own (`DESIGN.md § 7.15.`). */}
-      {/* WARN: Never `preventDefault` this click. The label's default action *is* the toggle, and the toggle is the tick. */}
+      {/* WARN: Never `preventDefault` this click except on the drag branch below. The label's default action *is* the toggle, and the toggle is the tick. */}
       <label {...overlayProps} htmlFor={switchId} aria-hidden />
     </>
   );
@@ -123,17 +130,49 @@ export function HapticTap({
       event.preventDefault();
     }
 
+    pressOriginRef.current = { x: event.clientX, y: event.clientY };
+    hasDraggedRef.current = false;
     pressedParentRef.current = event.currentTarget.parentElement;
     setPressed(pressedParentRef.current, true);
+  }
+
+  // INFO: `GESTURE_SLOP`, the same distance every other gesture in the app disarms at (`shared/lib/gesture.ts`) — a tap that drifts a few pixels is still a tap.
+  function handlePointerMove(event: PointerEvent<HTMLElement>) {
+    const origin = pressOriginRef.current;
+
+    if (!origin || Math.hypot(event.clientX - origin.x, event.clientY - origin.y) < GESTURE_SLOP) {
+      return;
+    }
+
+    hasDraggedRef.current = true;
+    // INFO: A finger that has started travelling is no longer pressing this, and the bloom would otherwise sit under it for the length of the scroll.
+    setPressed(pressedParentRef.current, false);
   }
 
   function releasePress() {
     setPressed(pressedParentRef.current, false);
     pressedParentRef.current = null;
+    pressOriginRef.current = null;
+  }
+
+  // WARN: The flag is cleared here as well as on the click — a `pointercancel` is followed by no `click` at all, so one left standing would swallow the next genuine tap.
+  function cancelPress() {
+    releasePress();
+    hasDraggedRef.current = false;
   }
 
   // INFO: The control is reached through the DOM rather than a ref the caller passes, so a Server Component may still render it — a function prop would drag it over the client boundary.
   function handleClick(event: MouseEvent<HTMLElement>) {
+    if (hasDraggedRef.current) {
+      hasDraggedRef.current = false;
+      // WARN: `preventDefault` is what silences the tick — the overlay's default action is the toggle, and the toggle is the only thing that ticks (`DESIGN.md § 7.15.2.`).
+      event.preventDefault();
+      // WARN: And `stopPropagation` is what stops the navigation, for the one host whose click reaches an ancestor rather than a sibling — inside an `<a>` there is nothing else standing between the drag and the route change.
+      event.stopPropagation();
+
+      return;
+    }
+
     if (!forwardsTap) {
       return;
     }
