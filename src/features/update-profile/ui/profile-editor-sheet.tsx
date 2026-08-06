@@ -89,7 +89,7 @@ export function ProfileEditorSheet({
               {toPreviewUrl() && (
                 <Button
                   className="w-auto"
-                  buttonClassName="h-9 w-auto px-sm"
+                  buttonClassName="h-9 min-h-9 w-auto px-sm"
                   variant="ghost"
                   haptic
                   onClick={avatar.clear}
