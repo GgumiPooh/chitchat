@@ -37,6 +37,7 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
   }
 
   const activeHref = pendingTab?.href ?? pathname;
+  const activeIndex = TABS.findIndex(({ href }) => isUnderRoute(activeHref, href));
 
   // INFO: DESIGN.md § 7.3. Leaving for the keyboard is `BottomOverlay`'s job — unmounting here would step `--bottom-inset` on its own timeline and tear the composer's motion in two.
   return (
@@ -46,51 +47,67 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
       aria-label="주요 화면"
     >
       <div className="pointer-events-auto flex h-(--tab-bar-height) items-stretch rounded-full border border-hairline glass p-2xs shadow-floating">
-        <ul className="flex flex-1 items-stretch">
-          {TABS.map(({ href, label, Icon }) => {
-            const isActive = isUnderRoute(activeHref, href);
-            const stateClassName = isActive ? "text-primary" : "text-meta group-hover:text-ink";
+        {/* INFO: DESIGN.md § 7.3. The fill's own track, so it measures against the padded row of items rather than the pill's border box. */}
+        <div className="relative flex flex-1 items-stretch">
+          {activeIndex >= 0 && (
+            // INFO: DESIGN.md § 7.3. One fill for the whole bar rather than one per tab, so a switch travels it across instead of lighting a second one.
+            // WARN: DESIGN.md § 7.3. A percentage of the fill's own box, so the travel needs no measurement — the columns are `flex-1` and have no pixel geometry to read until layout.
+            <span
+              className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-primary-tint transition-[translate] duration-(--duration-state) ease-route motion-reduce:duration-0"
+              aria-hidden="true"
+              style={{
+                width: `calc(100% / ${TABS.length})`,
+                translate: `${activeIndex * 100}% 0`,
+              }}
+            />
+          )}
+          {/* WARN: DESIGN.md § 7.3. The list is lifted over the fill explicitly, never by DOM order. `Link` makes an anchor `relative` only when `haptic` is on, and `haptic` is off on the active tab — the one tab the fill is parked under is therefore the one non-positioned anchor, and its `focus-visible` ring would paint beneath an opaque `primary-tint`. */}
+          <ul className="relative z-10 flex flex-1 items-stretch">
+            {TABS.map(({ href, label, Icon }) => {
+              const isActive = isUnderRoute(activeHref, href);
+              // INFO: DESIGN.md § 7.3. Crossed over `--duration-state` rather than swapped, so the pair lands with the fill instead of turning `primary` while it is still travelling.
+              const stateClassName = cn(
+                "transition-colors duration-(--duration-state)",
+                isActive ? "text-primary" : "text-meta group-hover:text-ink",
+              );
 
-            return (
-              <li key={href} className="flex-1">
-                <Link
-                  // INFO: DESIGN.md § 7.3. The active tab is the one place a filled surface appears, since the pill has no room for an indicator bar.
-                  // WARN: DESIGN.md § 4.7.2. The bloom goes here and not on the glyph stack inside, so the active tab's fill springs with its contents instead of holding still while they bounce out of it. `press-bloom` owns the whole `transition` shorthand — the colour transition it replaced MUST NOT come back as `transition-colors`, which would silently drop one of the two.
-                  // WARN: DESIGN.md § 4.7.2. The 1.3 default is sized for a 44px circle; this anchor is the full width of a quarter of the pill, so it takes the documented `--press-scale` dial instead. Left at the default it swells ~13px past the pill's `2xs` padding and over the tabs beside it.
-                  className={cn(
-                    "group flex size-full min-h-11 press-bloom flex-col items-center justify-center rounded-full outline-none [--press-scale:1.08] focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
-                    // WARN: DESIGN.md § 7.3. The zero duration rides on the active branch, not the base class, so it applies only while the fill is arriving. Removed with the branch, the fill still leaves over `--duration-state` — the tab the user left fades out while the one they tapped is already lit under the finger.
-                    isActive
-                      ? "bg-primary-tint [--press-fill-duration:0s]"
-                      : "hover:bg-surface-soft",
-                  )}
-                  href={href}
-                  // INFO: Only off the tab the user is standing on — re-tapping the current tab switches nothing, so it has nothing to confirm.
-                  haptic={!isActive}
-                  aria-current={isActive ? "page" : undefined}
-                  // INFO: `onNavigate` and not `onClick` — a ⌘-click opens a tab in a new window and switches nothing here, and Next skips this handler for exactly those.
-                  onNavigate={() => setPendingTab({ href, from: pathname })}
-                >
-                  <span className="flex flex-col items-center gap-0.5">
-                    <span className="relative">
-                      <Icon className={cn("size-5", stateClassName)} strokeWidth={1.75} />
-                      {href === CHAT_ROUTE && unreadCount > 0 && (
-                        <Badge className="absolute -top-1 -right-2">
-                          {unreadCount > 99 ? "99+" : unreadCount}
-                        </Badge>
-                      )}
-                      {/* INFO: REQUIREMENTS.md § 11.5. A single dot, never a count — the calendar's news is that there is something today, not how much. */}
-                      {href === CALENDAR_ROUTE && hasEventToday && (
-                        <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
-                      )}
+              return (
+                <li key={href} className="flex-1">
+                  <Link
+                    className={cn(
+                      "group flex size-full min-h-11 flex-col items-center justify-center rounded-full transition-colors duration-(--duration-state) outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+                      !isActive && "hover:bg-surface-soft",
+                    )}
+                    href={href}
+                    // INFO: Only off the tab the user is standing on — re-tapping the current tab switches nothing, so it has nothing to confirm.
+                    haptic={!isActive}
+                    aria-current={isActive ? "page" : undefined}
+                    // INFO: `onNavigate` and not `onClick` — a ⌘-click opens a tab in a new window and switches nothing here, and Next skips this handler for exactly those.
+                    onNavigate={() => setPendingTab({ href, from: pathname })}
+                  >
+                    {/* WARN: DESIGN.md § 4.7.2. The bloom is on the glyph stack and not the anchor. The anchor is a quarter of the pill wide, so at this dial its hover fill and focus ring would swell a third of a column past the pill and over the tabs beside it — and the fill it used to spring with now travels behind the items (§ 7.3.) rather than riding it. */}
+                    {/* WARN: DESIGN.md § 4.7.2. It is reached through the anchor's `.group`, which is the descendant form of `[data-pressed]` — the only one that fires under a finger, since `HapticTap` marks the anchor and not this span. */}
+                    <span className="flex press-bloom flex-col items-center gap-0.5 [--press-scale:1.25]">
+                      <span className="relative">
+                        <Icon className={cn("size-5", stateClassName)} strokeWidth={1.75} />
+                        {href === CHAT_ROUTE && unreadCount > 0 && (
+                          <Badge className="absolute -top-1 -right-2">
+                            {unreadCount > 99 ? "99+" : unreadCount}
+                          </Badge>
+                        )}
+                        {/* INFO: REQUIREMENTS.md § 11.5. A single dot, never a count — the calendar's news is that there is something today, not how much. */}
+                        {href === CALENDAR_ROUTE && hasEventToday && (
+                          <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
+                        )}
+                      </span>
+                      <span className={cn("text-tab-label", stateClassName)}>{label}</span>
                     </span>
-                    <span className={cn("text-tab-label", stateClassName)}>{label}</span>
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </div>
     </nav>
   );

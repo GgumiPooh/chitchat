@@ -195,7 +195,7 @@ Schema, migrations, and triggers have landed. This is the contract new code is w
 
 ## 7. Layout, Tab Bar, PWA ✅
 
-The `(main)` layout is the app shell (max `576px`, centered) holding a per-screen header, the content, and the tab bar. Four tabs — `채팅` / `캘린더` / `갤러리` / `설정` — icon + label, colour-only active state, hover/active styling, `env(safe-area-inset-bottom)` honoured.
+The `(main)` layout is the app shell (max `576px`, centered) holding a per-screen header, the content, and the tab bar. Four tabs — `채팅` / `캘린더` / `갤러리` / `설정` — icon + label, one active fill that travels between tabs (`DESIGN.md § 7.3.`), hover/active styling, `env(safe-area-inset-bottom)` honoured.
 
 - The layout is the **only** place a screen's session is resolved (`requireUserOrRedirect`, `AGENTS.md § 6.4.`); a page re-reads it only when it needs the row, and `cache()` makes that free
 - The header is per-screen, not layout-owned, because it carries screen-specific actions — screens render `AppHeader` themselves

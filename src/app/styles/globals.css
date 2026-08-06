@@ -58,18 +58,17 @@
 /* INFO: DESIGN.md § 4.7.2. The press for every round control — it swells under the finger and settles back, so the touch reads as the surface answering rather than the control receding. */
 /* WARN: The `transition` shorthand carries a per-property timing list, so the control keeps `--duration-state` colour (§ 4.7.) while only the scale runs on the long overshoot. A caller MUST NOT add `transition-colors` beside this — `transition-property` is one declaration and the loser is silently dropped. */
 /* WARN: The resting `scale: 1` is not redundant. Left off, the resting value is `none`, and WebKit refuses to interpolate `none` → a number: the control snaps to its pressed size instead of growing into it. */
-/* INFO: DESIGN.md § 4.7.2. `--press-fill-duration` lets a control take its fill on instantly while still losing it over `--duration-state` — set it on the filled state alone and the asymmetry falls out of the cascade. */
 @utility press-bloom {
   scale: 1;
   transition:
     scale var(--press-duration, var(--duration-press-out)) var(--press-ease, var(--ease-bloom)),
     color var(--duration-state),
-    background-color var(--press-fill-duration, var(--duration-state)),
+    background-color var(--duration-state),
     border-color var(--duration-state),
     opacity var(--duration-state);
 
   /* WARN: Four selectors, and all four are load-bearing. `:active` is the mouse; the `.group:active` form is a wrapper the pointer lands on directly; the `[data-pressed]` pair is the only one that fires under a finger, because `HapticTap`'s native switch swallows `:active` before anything else sees it (§ 7.15.). */
-  /* WARN: `[data-pressed]` needs both the self and the descendant form. `HapticTap` marks its own parent, so which one matches depends on whether the bloom sits on the element holding the overlay — the tab bar blooms that element itself, every other caller blooms a child of it. */
+  /* WARN: `[data-pressed]` needs both the self and the descendant form. `HapticTap` marks its own parent, so which one matches depends on whether the bloom sits on the element holding the overlay or on a child of it — every caller today is the latter, and the self form is what keeps the former working. */
   &:active,
   &[data-pressed],
   :where(.group):active &,
