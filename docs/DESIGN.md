@@ -576,26 +576,26 @@ The count variant recolours to `primary` rather than adding a separate badge ele
 
 `입력 중` while the other person is composing (`REQUIREMENTS.md § 8.12.`).
 
-| Property   | Value                                                                                                       |
-| ---------- | ----------------------------------------------------------------------------------------------------------- |
-| Geometry   | `rounded-bubble` (§ 6.2.), glass over 1px `hairline`, `shadow-floating`, padding `8px 12px`                 |
-| Position   | Left-aligned in the message column, directly above the composer bar, `2xs` clear of it                      |
-| Content    | The typist's `chat`-size avatar (§ 7.7.), then three 6px `meta` dots bouncing on a staggered 150ms offset   |
-| Alignment  | `items-end` — the circle sits on the bubble's baseline, exactly as it does on an incoming row (§ 6.3.)      |
-| Transition | Fade + `translate-y-1` over 150ms, both directions                                                          |
-| Pointer    | `pointer-events-none` throughout — it is status, and nothing behind it may become untappable                |
-| A11y       | `aria-live="polite"` around a visually hidden `{이름}님이 입력 중이에요`; avatar and dots are `aria-hidden` |
-| Spacing    | `px-sm py-xs`, `gap-2xs` — the § 2.3. scale, never Tailwind's raw numeric one                               |
+| Property  | Value                                                                                                                    |
+| --------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Geometry  | The incoming bubble of § 6.2. exactly — `rounded-bubble`, the `rounded-tl-xs` notch, `bubble-theirs` over 1px `hairline` |
+| Position  | The last item in the conversation, in the scroller's own flow above the trailing spacer                                  |
+| Content   | The typist's `chat`-size avatar (§ 7.7.), then three 6px `meta` dots bouncing on a staggered 150ms offset                |
+| Alignment | `items-end` — the circle sits on the bubble's baseline, exactly as it does on an incoming row (§ 6.3.)                   |
+| Padding   | `px-md py-2xs` on the row, `px-sm py-sm` inside the bubble — dots are shorter than a line of text                        |
+| Lifecycle | Mounted and unmounted. No fade in place: it holds real height at the tail of the list                                    |
+| A11y      | `aria-live="polite"` around a visually hidden `{이름}님이 입력 중이에요`; avatar and dots are `aria-hidden`              |
+| Spacing   | The § 2.3. scale (`px-md`, `gap-2xs`), never Tailwind's raw numeric one                                                  |
 
-**The avatar, and no written name.** It reads as an incoming bubble from that person, which is what the conversation's own geometry already means — the photo carries the identity in the same column the sender's bubbles use, so a name beside it would be a wider box appearing and disappearing every few seconds to say what the circle said. The name is still spoken: it is in the live region, where there is no photo to carry it.
+**It is a message, not a badge.** It sits where the bubble it announces will sit, in the same column and wearing the same shape, so the arrival replaces it rather than displacing it. Floated over the composer it was a status light bolted to the chrome; here the conversation simply has one more thing at the end of it.
 
-**`canEnlarge` stays off.** The § 7.10. viewer opened from here would sit behind the composer, over a wrapper that takes no pointer events anyway; this circle is a status glyph, not the photo offered for inspection.
+**The avatar, and no written name.** The photo carries the identity in the column that already means "them", so a name beside it would be a wider box appearing and disappearing every few seconds to say what the circle said. The name is still spoken: it is in the live region, where there is no photo to carry it.
 
-**The last typist is held through the fade-out.** Cleared the instant the signal lapses, the avatar leaves a frame before the bubble it belongs to.
+**`canEnlarge` stays off.** This circle stands in for a bubble that does not exist yet; enlarging it would offer a photo the row is not really showing.
 
 **Polite, never assertive.** The signal changes several times a minute, and an assertive live region would interrupt a screen reader mid-message to announce it.
 
-**The sentence is mounted by the transition, not revealed by it.** A live region announces a _mutation_ of its own contents — text that is always present and merely styled away, or toggled with `aria-hidden`, is announced exactly never. The region itself is therefore never hidden and never unmounted; only the string inside it comes and goes.
+**The sentence arrives with the row.** A live region announces a _mutation_ of its own contents, so text that is always present and merely styled away — or toggled with `aria-hidden` — is announced exactly never. Mounting the whole row solves it here: the region and its string enter together, which is the mutation.
 
 ## 6.8. Search.
 

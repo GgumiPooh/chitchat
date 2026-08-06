@@ -173,15 +173,6 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   );
   // INFO: REQUIREMENTS.md § 1. Exactly two people, so the first id is the only id — a list of names would be answering a question this app cannot ask.
   const typist = typingUserIds.length > 0 ? (participantById.get(typingUserIds[0]) ?? null) : null;
-  // WARN: Kept so the avatar survives the fade-out. Dropped with `typingUserIds`, the photo and the bubble would leave on different frames — the circle vanishing instantly while the dots are still fading.
-  const [lastTypist, setLastTypist] = useState<Nullable<Participant>>(null);
-
-  useEffect(() => {
-    if (typist) {
-      setLastTypist(typist);
-    }
-  }, [typist]);
-
   const rows = useMemo(
     () => buildChatRows({ messages, pending, currentUserId }),
     [messages, pending, currentUserId],
@@ -313,6 +304,13 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   }, []);
 
   useComposerClearance({ containerRef, composerRef, scrollerRef, isAtBottomRef });
+
+  // WARN: REQUIREMENTS.md § 8.12. The indicator grows the list at the tail, and content added below the fold does not move the scroller — so a reader sitting at the bottom would watch it appear off-screen and the newest message stay put. Followed only from the bottom: mid-history it is not on screen and must not yank the reader there. `useLayoutEffect` and not `useEffect`, or the row paints one frame below the viewport before the pin lands.
+  useIsomorphicLayoutEffect(() => {
+    if (typist && isAtBottomRef.current) {
+      pinToBottom();
+    }
+  }, [typist, pinToBottom]);
 
   // INFO: REQUIREMENTS.md § 8.3., § 8.9. Ahead of the viewport, so a § 6.9. card is in the row's first measurement rather than growing it once the reader is already on it — and ahead of the insert too, since a held page's rows have not been measured at all yet.
   useLinkPreviewPrefetch(messages, pendingOlder);
@@ -524,9 +522,18 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     // INFO: DESIGN.md § 3.5. One scroll region spanning the whole screen; the composer and the tab bar float over its bottom edge rather than shortening it.
     <div ref={containerRef} className={cn("relative min-h-0 flex-1 bg-chat-canvas", className)}>
       {rows.length === 0 ? (
-        <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">
-          <EmptyState Icon={MessageCircle} description="아직 주고받은 메시지가 없어요" />
-        </div>
+        <>
+          <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">
+            <EmptyState Icon={MessageCircle} description="아직 주고받은 메시지가 없어요" />
+          </div>
+          {/* INFO: REQUIREMENTS.md § 8.12. An empty room renders no scroller for the indicator to sit in, and this is exactly when it matters most — the other person composing the conversation's first message. Positioned where that message will land. */}
+          {typist && (
+            <TypingIndicator
+              className="absolute inset-x-0 bottom-(--chat-bottom-gap)"
+              typist={typist}
+            />
+          )}
+        </>
       ) : (
         <>
           {/* WARN: The absolute box is what gives the scroller a height. It is `height: 100%`, and a `flex-1` parent is not a definite height for that to resolve against — the list would measure a zero-height viewport and render nothing. */}
@@ -560,6 +567,8 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
                   </div>
                 ))}
               </div>
+              {/* WARN: REQUIREMENTS.md § 8.12. In the scroller's flow, after the virtualized box and before the trailing spacer — so it reads as the next message and scrolls with the conversation. It is deliberately **not** a virtualized row: a tail item that mounts and unmounts every few seconds re-measures the list and drags the reader's scroll with it (§ 8.3.). Out here it costs the virtualizer nothing, exactly as `ListFooter` does. */}
+              {typist && <TypingIndicator typist={typist} />}
               <ListFooter />
             </div>
           </div>
@@ -631,24 +640,16 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
             />
           )}
         </div>
-        {/* WARN: REQUIREMENTS.md § 8.12. The indicator is anchored to the composer bar, not to the wrapper above — `bottom-full` against that wrapper measures over the open emoticon panel too, which throws it behind the floating header and off the top of a short viewport (the hazard § 13.6.'s preview clamps for). This box adds no height of its own, so `useComposerClearance` still measures the same stack. */}
-        <div className="relative">
-          <TypingIndicator
-            className="absolute inset-x-0 bottom-full mx-md mb-2xs"
-            typist={typist ?? lastTypist}
-            isVisible={typist !== null}
-          />
-          <MessageComposer
-            hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
-            isEmoticonPickerOpen={isEmoticonPanelOpen}
-            onAttach={() => setIsPickerOpen(true)}
-            onEdit={signalEdit}
-            onFieldFocus={() => setIsEmoticonPickerOpen(false)}
-            // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
-            onToggleEmoticons={() => setIsEmoticonPickerOpen(!isEmoticonPanelOpen)}
-            onSend={submit}
-          />
-        </div>
+        <MessageComposer
+          hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
+          isEmoticonPickerOpen={isEmoticonPanelOpen}
+          onAttach={() => setIsPickerOpen(true)}
+          onEdit={signalEdit}
+          onFieldFocus={() => setIsEmoticonPickerOpen(false)}
+          // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
+          onToggleEmoticons={() => setIsEmoticonPickerOpen(!isEmoticonPanelOpen)}
+          onSend={submit}
+        />
       </div>
       <ActionSheet
         isOpen={actionTarget !== null}
