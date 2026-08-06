@@ -123,8 +123,6 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const [actionTarget, setActionTarget] = useState<Nullable<ChatMessage>>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
-  // INFO: REQUIREMENTS.md § 8.12. Lifted out of the composer because the 입력 중 signal is one boolean over three sources, and the other two live here.
-  const [hasDraft, setHasDraft] = useState(false);
   const { remember: rememberEmoticon } = useRecentEmoticons();
   // INFO: The panel outlives its first open so the collapse has something to animate; until then it is not rendered at all, and a user who never opens it never fetches the packs.
   const [hasOpenedEmoticonPanel, setHasOpenedEmoticonPanel] = useState(false);
@@ -167,12 +165,23 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
   const isEmoticonPanelOpen = isEmoticonPickerOpen && !isKeyboardOpen;
   const { participants, typingUserIds, setIsReading } = useChatStream();
-  // WARN: REQUIREMENTS.md § 8.12. Sending is *not* a trigger of its own — a send empties the field and clears the staged emoticon, so this falls on its own. Given an explicit stop on send it would also fire for a send made with the panel still open, hiding an indicator that is still true.
-  useTypingSignal(hasDraft || isEmoticonPanelOpen || stagedEmoticon !== null);
+  // WARN: REQUIREMENTS.md § 8.12. Only the two *sustained* sources are passed; typing arrives as edit pulses through the returned callback, because a field holding a draft is not somebody typing. Sending is not a trigger either way — it clears both of these and produces no edit.
+  const signalEdit = useTypingSignal(isEmoticonPanelOpen || stagedEmoticon !== null);
   const participantById = useMemo(
     () => new Map(participants.map((participant) => [participant.id, participant])),
     [participants],
   );
+  // INFO: REQUIREMENTS.md § 1. Exactly two people, so the first id is the only id — a list of names would be answering a question this app cannot ask.
+  const typist = typingUserIds.length > 0 ? (participantById.get(typingUserIds[0]) ?? null) : null;
+  // WARN: Kept so the avatar survives the fade-out. Dropped with `typingUserIds`, the photo and the bubble would leave on different frames — the circle vanishing instantly while the dots are still fading.
+  const [lastTypist, setLastTypist] = useState<Nullable<Participant>>(null);
+
+  useEffect(() => {
+    if (typist) {
+      setLastTypist(typist);
+    }
+  }, [typist]);
+
   const rows = useMemo(
     () => buildChatRows({ messages, pending, currentUserId }),
     [messages, pending, currentUserId],
@@ -626,13 +635,14 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
         <div className="relative">
           <TypingIndicator
             className="absolute inset-x-0 bottom-full mx-md mb-2xs"
-            isVisible={typingUserIds.length > 0}
+            typist={typist ?? lastTypist}
+            isVisible={typist !== null}
           />
           <MessageComposer
             hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
             isEmoticonPickerOpen={isEmoticonPanelOpen}
             onAttach={() => setIsPickerOpen(true)}
-            onDraftChange={setHasDraft}
+            onEdit={signalEdit}
             onFieldFocus={() => setIsEmoticonPickerOpen(false)}
             // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
             onToggleEmoticons={() => setIsEmoticonPickerOpen(!isEmoticonPanelOpen)}

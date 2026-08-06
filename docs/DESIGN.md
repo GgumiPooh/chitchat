@@ -576,17 +576,22 @@ The count variant recolours to `primary` rather than adding a separate badge ele
 
 `입력 중` while the other person is composing (`REQUIREMENTS.md § 8.12.`).
 
-| Property   | Value                                                                                              |
-| ---------- | -------------------------------------------------------------------------------------------------- |
-| Geometry   | `rounded-full`, glass over 1px `hairline`, `shadow-floating`, padding `8px 12px`                   |
-| Position   | Left-aligned in the message column, directly above the composer stack, `2xs` clear of it           |
-| Content    | Three 6px `meta` dots, bouncing on a staggered 150ms offset                                        |
-| Transition | Fade + `translate-y-1` over 150ms, both directions                                                 |
-| Pointer    | `pointer-events-none` throughout — it is status, and nothing behind it may become untappable       |
-| A11y       | `aria-live="polite"` around a visually hidden `상대방이 입력 중이에요`; the dots are `aria-hidden` |
-| Spacing    | `px-sm py-xs`, `gap-2xs` — the § 2.3. scale, never Tailwind's raw numeric one                      |
+| Property   | Value                                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------------------------- |
+| Geometry   | `rounded-bubble` (§ 6.2.), glass over 1px `hairline`, `shadow-floating`, padding `8px 12px`                 |
+| Position   | Left-aligned in the message column, directly above the composer bar, `2xs` clear of it                      |
+| Content    | The typist's `chat`-size avatar (§ 7.7.), then three 6px `meta` dots bouncing on a staggered 150ms offset   |
+| Alignment  | `items-end` — the circle sits on the bubble's baseline, exactly as it does on an incoming row (§ 6.3.)      |
+| Transition | Fade + `translate-y-1` over 150ms, both directions                                                          |
+| Pointer    | `pointer-events-none` throughout — it is status, and nothing behind it may become untappable                |
+| A11y       | `aria-live="polite"` around a visually hidden `{이름}님이 입력 중이에요`; avatar and dots are `aria-hidden` |
+| Spacing    | `px-sm py-xs`, `gap-2xs` — the § 2.3. scale, never Tailwind's raw numeric one                               |
 
-**No name and no avatar.** The conversation has exactly two people in it, so naming the one who is not the reader says nothing they do not already know — and a name is a wider box that has to appear and disappear every few seconds.
+**The avatar, and no written name.** It reads as an incoming bubble from that person, which is what the conversation's own geometry already means — the photo carries the identity in the same column the sender's bubbles use, so a name beside it would be a wider box appearing and disappearing every few seconds to say what the circle said. The name is still spoken: it is in the live region, where there is no photo to carry it.
+
+**`canEnlarge` stays off.** The § 7.10. viewer opened from here would sit behind the composer, over a wrapper that takes no pointer events anyway; this circle is a status glyph, not the photo offered for inspection.
+
+**The last typist is held through the fade-out.** Cleared the instant the signal lapses, the avatar leaves a frame before the bubble it belongs to.
 
 **Polite, never assertive.** The signal changes several times a minute, and an assertive live region would interrupt a screen reader mid-message to announce it.
 

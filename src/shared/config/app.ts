@@ -161,6 +161,9 @@ export type TypingEvent = z.infer<typeof typingEventSchema>;
 // INFO: REQUIREMENTS.md § 8.12. A keystroke does not send; this is how often one is resent while composing continues, which is what keeps the receiver's expiry from firing.
 export const TYPING_PING_INTERVAL = 3 * A_SECOND;
 
+// WARN: REQUIREMENTS.md § 8.12. Composing is measured from the last *edit*, never from the field being non-empty. A draft is a thing that sits there — someone who typed a line and walked away is not typing, and a signal keyed on emptiness would broadcast 입력 중 at them for as long as the tab stayed open.
+export const TYPING_IDLE_AFTER = 4 * A_SECOND;
+
 // WARN: REQUIREMENTS.md § 8.12. Comfortably more than one ping interval plus network slack, and the *only* thing that clears the indicator — a sender who is frozen, offline or closed sends no stop, so anything shorter blinks under a slow round trip and anything derived from a stop event sticks forever.
 export const TYPING_TIMEOUT = 8 * A_SECOND;
 
