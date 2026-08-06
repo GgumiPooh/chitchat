@@ -89,32 +89,35 @@ Touch-first geometry, full pointer states.
 
 ## 3.3. App Shell.
 
-| Property          | Value                                                                                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Max width         | `576px` — token `--container-app`                                                                                                                                  |
-| Bar heights       | `--tab-bar-height` and `--app-header-height`, both `56px`. Declared outside `@theme` because a screen may read them back through `calc()` rather than as a utility |
-| Narrow max width  | `448px` — token `--container-app-narrow`, `Container size="sm"`. Single-column entry screens (login) only                                                          |
-| Alignment         | Horizontally centered, full height                                                                                                                                 |
-| Shell background  | `canvas` (or `chat-canvas` on the chat screen)                                                                                                                     |
-| Outside the shell | `backdrop` — one step deeper than `canvas`, so the shell reads as a held device on desktop                                                                         |
-| Fixed children    | None. The shell itself is the one `fixed` element (§ 3.4.); the header and the bars float inside it (§ 3.5.)                                                       |
-| Safe areas        | `env(safe-area-inset-bottom)` on the tab bar, `env(safe-area-inset-top)` on the header                                                                             |
-| Viewport height   | `--viewport-height` (§ 3.4.), falling back to `100dvh` before hydration. Never `100vh`                                                                             |
+| Property          | Value                                                                                                                                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Max width         | `576px` — token `--container-app`                                                                                                                                                                            |
+| Bar heights       | `--tab-bar-height` and `--app-header-height`, both `56px`. Declared outside `@theme` because a screen may read them back through `calc()` rather than as a utility                                           |
+| Narrow max width  | `448px` — token `--container-app-narrow`, `Container size="sm"`. Single-column entry screens (login) only                                                                                                    |
+| Alignment         | Horizontally centered, full height                                                                                                                                                                           |
+| Shell background  | `canvas` (or `chat-canvas` on the chat screen)                                                                                                                                                               |
+| Outside the shell | `backdrop` — one step deeper than `canvas`, so the shell reads as a held device on desktop                                                                                                                   |
+| Fixed children    | None. The shell itself is the one `fixed` element (§ 3.4.); the header and the bars float inside it (§ 3.5.). Portalled overlays are outside the shell and anchor themselves to the visual viewport (§ 3.4.) |
+| Safe areas        | `env(safe-area-inset-bottom)` on the tab bar, `env(safe-area-inset-top)` on the header                                                                                                                       |
+| Viewport height   | `--viewport-height` (§ 3.4.), falling back to `100dvh` before hydration. Never `100vh`                                                                                                                       |
 
 576px, not a tablet 768px: at 768 a 72%-width bubble spans 550px, which forces long lines and breaks the chat rhythm; the four tab-bar items also drift apart to the point of reading as a desktop nav. Screens MUST obtain this width from `Container`, never by hardcoding `max-w-*`.
 
 ## 3.4. Visual Viewport.
 
-The shell is sized to the **visual viewport**, not the layout viewport. `VisualViewportSync` mirrors `visualViewport.height` and `visualViewport.offsetTop` onto the root element as `--viewport-height` and `--viewport-top`; the `(main)` layout is a single `fixed inset-0` box of that height. The header sits at its top, the composer and tab bar at its bottom, so all three stay pinned to what the user can actually see while the keyboard is up.
+The shell is sized to the **visual viewport**, not the layout viewport. `VisualViewportSync` mirrors `visualViewport.height` and `visualViewport.offsetTop` onto the root element as `--viewport-height` and `--viewport-top`, plus the leftover strip beneath the visual viewport as `--viewport-bottom`; the `(main)` layout is a single `fixed inset-0` box of that height. The header sits at its top, the composer and tab bar at its bottom, so all three stay pinned to what the user can actually see while the keyboard is up.
 
-| Rule                | Value                                                                                                                    |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Shell               | `fixed`, `top: var(--viewport-top, 0px)`, `height: var(--viewport-height, 100dvh)` — the only element the keyboard moves |
-| Shell motion        | `height` eases over 200ms `ease-out`; `top` never eases                                                                  |
-| Document scroll     | Forbidden. `html, body` are `h-full overflow-hidden overscroll-none`                                                     |
-| Screen scroll       | Every screen scrolls inside the shell's `#app-scroll` container, or inside its own (chat's virtualizer, login's column)  |
-| `interactiveWidget` | `resizes-content`, kept as a Chromium-side fallback only. WebKit ignores it, so nothing may depend on it                 |
-| Synced offsets      | `height` and `offsetTop` only. Zooming is off (`maximumScale: 1`), so the left/right offsets never leave `0`             |
+| Rule                | Value                                                                                                                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shell               | `fixed`, `top: var(--viewport-top, 0px)`, `height: var(--viewport-height, 100dvh)` — the only element the keyboard moves                                                                    |
+| Shell motion        | `height` eases over 200ms `ease-out`; `top` never eases                                                                                                                                     |
+| Document scroll     | Forbidden. `html, body` are `h-full overflow-hidden overscroll-none`                                                                                                                        |
+| Screen scroll       | Every screen scrolls inside the shell's `#app-scroll` container, or inside its own (chat's virtualizer, login's column)                                                                     |
+| `interactiveWidget` | `resizes-content`, kept as a Chromium-side fallback only. WebKit ignores it, so nothing may depend on it                                                                                    |
+| Synced offsets      | `height` and `offsetTop` only. Zooming is off (`maximumScale: 1`), so the left/right offsets never leave `0`                                                                                |
+| Portalled overlays  | Sheets and modals live outside the shell, so they anchor themselves: `bottom: var(--viewport-bottom, 0px)` (§ 7.5.), `top: calc(var(--viewport-top) + var(--viewport-height) / 2)` (§ 7.4.) |
+
+Why an overlay needs `--viewport-bottom`: it is portalled to `body`, and a `fixed` box resolves its offsets against the layout viewport, which the keyboard does not shrink on WebKit. `bottom: 0` therefore parks the sheet behind the keys the moment a field inside it takes focus — the shell moving is exactly what makes it look like the sheet was pushed out. `--viewport-bottom` is `documentElement.clientHeight - offsetTop - height`, the strip of layout viewport the visual viewport no longer covers. For the same reason vaul's own `repositionInputs` is off: it measures against `window.innerHeight` and stretches the sheet downwards instead of lifting it.
 
 Why the height eases and `top` does not: WebKit reports `visualViewport.height` in a couple of coarse steps while the keyboard slides, so a raw height lands the composer in its new place in one jump — the keyboard glides, the input bar teleports. A 200ms ease turns that step into motion, and it matches the bars' collapse (§ 3.5.) so the two read as one. `top`, by contrast, is correcting a pan the user can already see; easing it would draw out the wrong position instead of hiding it, so it lands the same frame.
 
@@ -642,15 +645,16 @@ No size beyond `md`: the shell is 576px, so anything larger is a screen, not a m
 
 The default overlay for anything originating from a bottom-anchored or list interaction. Bottom-anchored **floating card**, inset `sm` (12px) from the screen edges, `rounded-xl`, `canvas` fill, 1px `hairline`, `shadow-floating`, `overflow-hidden`.
 
-| Rule                                                                    | Reason                                               |
-| ----------------------------------------------------------------------- | ---------------------------------------------------- |
-| Drag handle at top: 48×6, `rounded-full`, `hairline-strong`             | The dismissal affordance                             |
-| No close `X` alongside the handle                                       | Two redundant dismiss controls on the same edge      |
-| Centered `title-md` `ink` header; optional `body-sm` `meta` description | Matches the reference implementation                 |
-| A sheet whose rows already say what it is may hide the header           | A title over `사진/영상`/`카메라` only restates them |
-| Body scrolls internally past `70dvh`; max height `90dvh - 12px`         | Sheet must never push past the viewport              |
-| Focus ring inside the sheet is `ring-2 ring-primary ring-inset`         | `overflow-hidden` would crop an outward offset ring  |
-| Never swapped for a `Modal` at any width                                | § 3.1.                                               |
+| Rule                                                                                 | Reason                                                  |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| Drag handle at top: 48×6, `rounded-full`, `hairline-strong`                          | The dismissal affordance                                |
+| No close `X` alongside the handle                                                    | Two redundant dismiss controls on the same edge         |
+| Centered `title-md` `ink` header; optional `body-sm` `meta` description              | Matches the reference implementation                    |
+| A sheet whose rows already say what it is may hide the header                        | A title over `사진/영상`/`카메라` only restates them    |
+| Body scrolls internally past `70dvh`; max height `90% - 12px` of `--viewport-height` | Sheet must never push past the visual viewport (§ 3.4.) |
+| Bottom edge sits at `--viewport-bottom`, not `0`                                     | The keyboard would otherwise cover it (§ 3.4.)          |
+| Focus ring inside the sheet is `ring-2 ring-primary ring-inset`                      | `overflow-hidden` would crop an outward offset ring     |
+| Never swapped for a `Modal` at any width                                             | § 3.1.                                                  |
 
 `ActionSheet` is a bottom sheet whose body is a list of full-width `surface-soft` rows, `rounded-md`, `button-md` centered label with optional leading icon, following the chip ladder for states. Destructive rows use `semantic-error` text.
 

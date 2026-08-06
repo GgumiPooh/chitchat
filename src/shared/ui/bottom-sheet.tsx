@@ -23,7 +23,7 @@ export function BottomSheet({ className, isOpen, header, children, onClose }: Bo
     <Drawer open={isOpen} direction="bottom" onOpenChange={handleOpenChange}>
       <DrawerContent
         className={cn(
-          "mx-sm mb-sm flex h-auto! max-h-[calc(90dvh-var(--spacing-sm))] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+          "mx-sm mb-sm flex h-auto! max-h-[calc(var(--viewport-height,100dvh)_*_0.9_-_var(--spacing-sm))] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
           className,
         )}
       >
