@@ -16,13 +16,18 @@ export const metadata: Metadata = {
       { url: "/icons/icon.svg", type: "image/svg+xml" },
     ],
     apple: { url: "/icons/icon-180.png", sizes: "180x180", type: "image/png" },
+  },
+  appleWebApp: {
+    capable: true,
+    title: APP_NAME,
     // WARN: iOS has no manifest-driven splash the way Chromium does — without a `media` match here a home-screen launch shows a blank screen until the shell paints.
-    other: APPLE_SPLASH_LINKS.map(({ fileName, media }) => ({
-      rel: "apple-touch-startup-image",
+    startupImage: APPLE_SPLASH_LINKS.map(({ fileName, media }) => ({
       url: `${APPLE_SPLASH_DIR}/${fileName}`,
       media,
     })),
   },
+  // INFO: `appleWebApp.capable` only emits the unprefixed `mobile-web-app-capable`, which iOS below 15.4 ignores — and WebKit paints no startup image outside standalone.
+  other: { "apple-mobile-web-app-capable": "yes" },
 };
 
 export const viewport: Viewport = {
