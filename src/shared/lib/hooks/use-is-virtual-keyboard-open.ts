@@ -29,13 +29,12 @@ export function useIsVirtualKeyboardOpen(): boolean {
 
     sync();
     viewport.addEventListener("resize", sync);
+    // INFO: Focus moving between two fields keeps the keyboard up and fires no resize, so the opening signal needs this; there is no `focusout` counterpart because blurring no longer closes the flag.
     document.addEventListener("focusin", sync);
-    document.addEventListener("focusout", sync);
 
     return () => {
       viewport.removeEventListener("resize", sync);
       document.removeEventListener("focusin", sync);
-      document.removeEventListener("focusout", sync);
     };
 
     function sync() {
@@ -48,9 +47,12 @@ export function useIsVirtualKeyboardOpen(): boolean {
 
       restingHeight = Math.max(restingHeight, height);
 
+      const isCovered = restingHeight - height > MIN_KEYBOARD_HEIGHT;
+
       // INFO: The height drop alone misreads a short viewport; focus alone stays true after Android's back button closes the keyboard without blurring the field.
-      setIsOpen(
-        isEditableElement(document.activeElement) && restingHeight - height > MIN_KEYBOARD_HEIGHT,
+      // WARN: DESIGN.md § 7.3. Opening takes both signals, closing takes the viewport alone. `focusout` lands the frame the field is blurred while WebKit only reports the restored height once the keys have finished sliding, so an AND here dropped the flag ~250ms early and the bars rose against a shell edge still halfway up the screen.
+      setIsOpen((current) =>
+        current ? isCovered : isCovered && isEditableElement(document.activeElement),
       );
     }
   }, [isCoarsePointer]);
