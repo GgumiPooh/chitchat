@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/shared/lib";
+import { cn, useIsIos } from "@/shared/lib";
 import { Download, Share, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { IconButton } from "./icon-button";
@@ -20,6 +20,8 @@ export type MediaViewerProps = {
   onDelete?: () => void;
   /** REQUIREMENTS.md § 8.11. Hands the slide on screen to the OS share sheet. Given the media id, since the slide moves under the control. */
   onShare?: (mediaId: string) => void;
+  /** REQUIREMENTS.md § 8.11. The 저장 route for the slide on screen. Used on iOS only, where the download beside it cannot reach the photo library. */
+  onSave?: (mediaId: string) => void;
 };
 
 /**
@@ -47,12 +49,17 @@ export function MediaViewer({
   onClose,
   onDelete,
   onShare,
+  onSave,
 }: MediaViewerProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(initialIndex);
   const current = cells[index];
   // INFO: A draft has no stored object yet, so there is nothing for either control to reach.
   const downloadUrl = current?.downloadUrl;
+  // INFO: REQUIREMENTS.md § 8.11. Picks which save routes this platform is offered, by the same rule the § 10. selection bar follows.
+  const isIosDevice = useIsIos();
+  // WARN: REQUIREMENTS.md § 8.11. The same sheet either way, but not the same intent — on iOS this control *is* 저장, and asking for it as 공유 would word the buffering wait and the re-tap dialog for a share the user never asked for.
+  const handleSheet = isIosDevice ? onSave : onShare;
 
   useEffect(() => {
     const track = trackRef.current;
@@ -97,29 +104,31 @@ export function MediaViewer({
                 onClick={onDelete}
               />
             )}
-            {onShare && current && (
-              // INFO: REQUIREMENTS.md § 8.11. The pointer's route to what a hold reaches on touch — a desktop has no OS callout over the photo, and 원본 저장 beside it lands in Files rather than in a share sheet.
+            {handleSheet && current && (
               <IconButton
                 className={cn(
                   "text-on-primary hover:bg-canvas/15 hover:text-on-primary",
                   !downloadUrl && "invisible",
                 )}
-                Icon={Share}
-                aria-label="공유"
-                onClick={() => onShare(current.id)}
+                Icon={isIosDevice ? Download : Share}
+                aria-label={isIosDevice ? "저장/공유" : "공유"}
+                onClick={() => handleSheet(current.id)}
               />
             )}
             {/* WARN: No `download` attribute — the route 302s to R2 and the spec drops it once the navigation resolves cross-origin. `toMediaDownloadUrl` signs the disposition into the object instead. */}
-            <a
-              className={cn(
-                "inline-flex size-11 items-center justify-center rounded-full text-on-primary transition-colors outline-none hover:bg-canvas/15 focus-visible:ring-2 focus-visible:ring-primary",
-                !downloadUrl && "invisible",
-              )}
-              href={downloadUrl ?? undefined}
-              aria-label="원본 저장"
-            >
-              <Download className="size-5" strokeWidth={1.75} />
-            </a>
+            {/* WARN: REQUIREMENTS.md § 8.11. Withheld on iOS alone, where it lands in Files rather than the photo library the control beside it reaches — and where holding the slide is already the OS's own route to 사진에 저장. */}
+            {!isIosDevice && (
+              <a
+                className={cn(
+                  "inline-flex size-11 items-center justify-center rounded-full text-on-primary transition-colors outline-none hover:bg-canvas/15 focus-visible:ring-2 focus-visible:ring-primary",
+                  !downloadUrl && "invisible",
+                )}
+                href={downloadUrl ?? undefined}
+                aria-label="원본 저장"
+              >
+                <Download className="size-5" strokeWidth={1.75} />
+              </a>
+            )}
           </div>
         </div>
         {/* INFO: Native scroll snapping is the horizontal swipe of REQUIREMENTS.md § 8.1. — it costs no gesture code and matches the platform's own momentum. */}

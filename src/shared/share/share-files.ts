@@ -39,6 +39,9 @@ export function canShareText(): boolean {
   return isBrowser() && typeof navigator.share === "function";
 }
 
+// INFO: One copy of the sentence, because two callers say it — the hook when a selection reaches the route, and REQUIREMENTS.md § 10.'s 공유 when it refuses to start one.
+export const SHARE_CAP_MESSAGE = `한 번에 ${MAX_GALLERY_SHARE_FILES}장까지 공유할 수 있어요`;
+
 /** Whether a selection is small enough to be buffered for the share sheet at all. */
 export function isShareableSelection(ids: string[]): boolean {
   return ids.length > 0 && ids.length <= MAX_GALLERY_SHARE_FILES;

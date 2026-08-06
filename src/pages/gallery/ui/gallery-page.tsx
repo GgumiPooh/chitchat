@@ -3,7 +3,12 @@
 import type { GalleryMedia } from "@/entities/media";
 import { MediaPickerSheet } from "@/features/upload-media";
 import { cn, type Nullable } from "@/shared/lib";
-import { MediaShareDialog, useMediaShare } from "@/shared/share";
+import {
+  isShareableSelection,
+  MediaShareDialog,
+  SHARE_CAP_MESSAGE,
+  useMediaShare,
+} from "@/shared/share";
 import {
   ActionSheet,
   AppHeader,
@@ -114,7 +119,8 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
         <GallerySelectionBar
           selectedCount={selectedCount}
           isBusy={isRemoving}
-          onDownload={startSave}
+          onSave={startSave}
+          onShare={startShare}
           onDelete={() => setIsConfirmingDelete(true)}
         />
       )}
@@ -183,6 +189,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
           initialIndex={viewer.index}
           onClose={() => setViewer(null)}
           onShare={(mediaId) => void saving.share([mediaId])}
+          onSave={(mediaId) => void saving.save([mediaId])}
         />
       )}
     </div>
@@ -213,6 +220,29 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
 
     selection.cancel();
     void saving.save(ids);
+  }
+
+  /**
+   * REQUIREMENTS.md § 10. 공유 names the sheet outright, so it takes one wherever
+   * there is one — unlike 저장, which only routes that way on iOS.
+   *
+   * WARN: The cap is answered here, before the selection is dropped. This control
+   * renders where the selection may run to `MAX_GALLERY_SELECTION`, ten times what
+   * a sheet can be handed, and letting it through would fall back to a download of
+   * two hundred files — which is not what 공유 was asked for, and would cost the
+   * user the sweep they just made on the way.
+   */
+  function startShare() {
+    const ids = selection.selectedIds;
+
+    if (!isShareableSelection(ids)) {
+      toast.error(SHARE_CAP_MESSAGE);
+
+      return;
+    }
+
+    selection.cancel();
+    void saving.share(ids);
   }
 
   async function confirmDelete() {

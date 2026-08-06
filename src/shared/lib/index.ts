@@ -45,6 +45,7 @@ export { buildFadeMask, type FadeMaskOptions } from "./fade-mask";
 export { GESTURE_SLOP } from "./gesture";
 export { useHydrated } from "./hooks/use-hydrated";
 export { useIsCoarsePointer } from "./hooks/use-is-coarse-pointer";
+export { isIos, useIsIos } from "./hooks/use-is-ios";
 export { useIsVirtualKeyboardOpen } from "./hooks/use-is-virtual-keyboard-open";
 export { useIsomorphicLayoutEffect } from "./hooks/use-isomorphic-layout-effect";
 export {

@@ -71,6 +71,8 @@ This app ships exactly one layout: the mobile one. Do not branch layout or swap 
 
 Desktop users see the mobile UI but MUST get proper pointer behaviour: mouse `click` handlers (never touch-only handlers), plus `hover:`, `active:`, and `focus-visible:` states on every interactive element. Tailwind's `hover:` already resolves under `@media (hover: hover)`, so it is safe on touch devices. Use `useIsCoarsePointer` only for interaction details, never for layout.
 
+**One exception, and it is a platform capability rather than a pointer or a viewport:** where an OS cannot perform an action at all, the control offering it may be withheld or merged, through `useIsIos` from `@/shared/lib` — never through `useIsCoarsePointer`, and never through a width. `REQUIREMENTS.md § 10.`'s 저장 is the only instance: a download cannot reach the iOS photo library, so iOS merges 저장 into the share sheet's row while Android and desktop keep both controls. Rendering a different control set is otherwise still forbidden, and this exception does not extend to layout, sizing, or component choice. `useIsIos` reads the user agent because no feature detects "will this download be findable"; do not add a second UA branch without a comparable argument in `docs/`.
+
 ## 4.3. App shell width
 
 All screen content, including the bottom tab bar, is constrained to the app shell max width and horizontally centered. Use `Container` from `@/shared/ui`; do not hardcode `max-w-*` values in screens.

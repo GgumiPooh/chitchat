@@ -743,6 +743,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           onClose={() => setViewer(null)}
           onDelete={buildViewerDelete(viewer.deletableMessageId)}
           onShare={(mediaId) => void sharing.share([mediaId])}
+          onSave={(mediaId) => void sharing.save([mediaId])}
         />
       )}
     </div>

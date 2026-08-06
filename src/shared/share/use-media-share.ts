@@ -1,11 +1,17 @@
 "use client";
 
 import { MAX_GALLERY_SHARE_FILES } from "@/shared/config";
-import { useIsCoarsePointer, type Nullable } from "@/shared/lib";
+import { isIos, type Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useState } from "react";
 import { downloadMedia } from "./download-files";
-import { canShareFiles, collectShareFiles, isShareableSelection, shareFiles } from "./share-files";
+import {
+  canShareFiles,
+  collectShareFiles,
+  isShareableSelection,
+  SHARE_CAP_MESSAGE,
+  shareFiles,
+} from "./share-files";
 
 /** Which control the files were asked for from — the two differ in wording and in when the sheet is used. */
 export type MediaShareIntent = "save" | "share";
@@ -24,60 +30,56 @@ export type MediaShareProgress = {
  * download path saves into Files, where a user who tapped 저장 in a gallery will not
  * look for it.
  *
- * WARN: 저장 is pointer-gated on top of the feature detection, and 공유 is not.
- * Desktop Chrome answers `canShare` too, and its sheet offers mail and AirDrop rather
- * than a photo library — which is not what 저장 meant, and is exactly what 공유 does
- * (AGENTS.md § 4.2.).
+ * WARN: 저장 takes the sheet on iOS alone, and 공유 takes it wherever there is one.
+ * Everywhere else a download is what 저장 meant: desktop Chrome answers `canShare` but
+ * offers mail and AirDrop, and Android indexes the Downloads folder into the gallery,
+ * so on both the sheet is the worse answer to 저장 and the right answer to 공유.
  */
 export function useMediaShare() {
-  const isCoarsePointer = useIsCoarsePointer();
   const [progress, setProgress] = useState<Nullable<MediaShareProgress>>(null);
   // INFO: Set only when the share was refused for a spent user activation — the files are in hand and all that is missing is a tap to spend on them.
   const [blocked, setBlocked] =
     useState<Nullable<{ files: File[]; intent: MediaShareIntent }>>(null);
 
-  const run = useCallback(
-    async (ids: string[], intent: MediaShareIntent) => {
-      if (!canShareFiles() || (intent === "save" && !isCoarsePointer)) {
-        download(ids, intent);
+  const run = useCallback(async (ids: string[], intent: MediaShareIntent) => {
+    if (!canShareFiles() || (intent === "save" && !isIos())) {
+      download(ids, intent);
 
-        return;
+      return;
+    }
+
+    if (!isShareableSelection(ids)) {
+      toast.error(
+        intent === "save"
+          ? `사진 앱에는 한 번에 ${MAX_GALLERY_SHARE_FILES}장까지 저장할 수 있어요`
+          : SHARE_CAP_MESSAGE,
+      );
+      download(ids, intent);
+
+      return;
+    }
+
+    setProgress({ preparedCount: 0, totalCount: ids.length });
+
+    try {
+      const files = await collectShareFiles(ids, (preparedCount) =>
+        setProgress({ preparedCount, totalCount: ids.length }),
+      );
+
+      if ((await shareFiles(files)) === "blocked") {
+        setBlocked({ files, intent });
       }
-
-      if (!isShareableSelection(ids)) {
-        toast.error(
-          intent === "save"
-            ? `사진 앱에는 한 번에 ${MAX_GALLERY_SHARE_FILES}장까지 저장할 수 있어요`
-            : `한 번에 ${MAX_GALLERY_SHARE_FILES}장까지 공유할 수 있어요`,
-        );
-        download(ids, intent);
-
-        return;
-      }
-
-      setProgress({ preparedCount: 0, totalCount: ids.length });
-
-      try {
-        const files = await collectShareFiles(ids, (preparedCount) =>
-          setProgress({ preparedCount, totalCount: ids.length }),
-        );
-
-        if ((await shareFiles(files)) === "blocked") {
-          setBlocked({ files, intent });
-        }
-      } catch {
-        toast.error(
-          intent === "save"
-            ? "사진 앱에 저장하지 못해 파일로 내려받고 있어요"
-            : "공유하지 못해 파일로 내려받고 있어요",
-        );
-        download(ids, intent);
-      } finally {
-        setProgress(null);
-      }
-    },
-    [isCoarsePointer],
-  );
+    } catch {
+      toast.error(
+        intent === "save"
+          ? "사진 앱에 저장하지 못해 파일로 내려받고 있어요"
+          : "공유하지 못해 파일로 내려받고 있어요",
+      );
+      download(ids, intent);
+    } finally {
+      setProgress(null);
+    }
+  }, []);
 
   const save = useCallback((ids: string[]) => run(ids, "save"), [run]);
   const share = useCallback((ids: string[]) => run(ids, "share"), [run]);

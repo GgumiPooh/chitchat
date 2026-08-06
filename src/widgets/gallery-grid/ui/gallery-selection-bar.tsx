@@ -1,20 +1,23 @@
 "use client";
 
-import { cn } from "@/shared/lib";
+import { cn, useIsIos } from "@/shared/lib";
 import { Button, ShellOverlay } from "@/shared/ui";
-import { Download, Trash2 } from "lucide-react";
+import { Download, Share, Trash2 } from "lucide-react";
 
 export type GallerySelectionBarProps = {
   className?: string;
   selectedCount: number;
   isBusy: boolean;
-  onDownload: () => void;
+  /** REQUIREMENTS.md § 10. 저장 — a download everywhere but iOS, where the route runs through the share sheet instead. */
+  onSave: () => void;
+  onShare: () => void;
   onDelete: () => void;
 };
 
 /**
- * The 저장 / 삭제 bar of REQUIREMENTS.md § 10., in the floating-surface language of
- * DESIGN.md § 3.5.
+ * The 저장 / 공유 / 삭제 bar of REQUIREMENTS.md § 10., in the floating-surface
+ * language of DESIGN.md § 3.5. On iOS the first two collapse into one row, since
+ * there is only one route there for either to take.
  *
  * WARN: Portalled into the shell rather than left in the screen. It has to sit
  * over the tab bar, which is a sibling of the scroller this screen lives in — and
@@ -24,9 +27,12 @@ export function GallerySelectionBar({
   className,
   selectedCount,
   isBusy,
-  onDownload,
+  onSave,
+  onShare,
   onDelete,
 }: GallerySelectionBarProps) {
+  // INFO: REQUIREMENTS.md § 10. iOS, not touch — an Android download lands in the gallery and an iPad with a trackpad still cannot get one there.
+  const isIosDevice = useIsIos();
   const isDisabled = selectedCount === 0 || isBusy;
 
   return (
@@ -42,6 +48,7 @@ export function GallerySelectionBar({
           <span className="flex min-h-11 shrink-0 items-center pl-md text-button-md text-meta tabular-nums">
             {selectedCount}장
           </span>
+          {/* WARN: REQUIREMENTS.md § 10. On iOS this row and the next would take the identical route, so only one is rendered — and it is this one, because 저장 is what the tap is for and 공유 is the sheet it happens to arrive through. */}
           <Button
             // WARN: `flex-1 w-auto` overrides `Button`'s own `w-full shrink-0` — two of those in a row each claim the full bar and the second is pushed off the edge. With `haptic` it is the wrapper that has to carry them, since the wrapper is what this row lays out.
             className="w-auto flex-1"
@@ -49,11 +56,24 @@ export function GallerySelectionBar({
             variant="ghost"
             disabled={isDisabled}
             haptic
-            onClick={onDownload}
+            onClick={onSave}
           >
             <Download className="size-4" strokeWidth={1.75} />
-            저장
+            {isIosDevice ? "저장/공유" : "저장"}
           </Button>
+          {!isIosDevice && (
+            <Button
+              className="w-auto flex-1"
+              buttonClassName="min-h-11 rounded-full"
+              variant="ghost"
+              disabled={isDisabled}
+              haptic
+              onClick={onShare}
+            >
+              <Share className="size-4" strokeWidth={1.75} />
+              공유
+            </Button>
+          )}
           {/* INFO: DESIGN.md § 7.5. A destructive action in a list of choices is the label in `semantic-error`, not a filled red button — the bar is a surface of equals, not a confirmation. */}
           <Button
             className="w-auto flex-1"
