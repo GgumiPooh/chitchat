@@ -309,6 +309,11 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
    * WARN: The anchor is the first row that is **not** a date divider, never `rows[0]`. A page of older messages from the same day leaves the divider at index 0 with the same key and the same offset, so the virtualizer's own anchor resolves it as "nothing moved" and the whole page lands as drift — which strands the scroller at the top, where it asks for the next page, and the room walks backwards through history a page at a time.
    */
   const insertOlder = useCallback(() => {
+    // WARN: `useSettledCommit` listens for every settle, not only the ones a page is waiting on, so without this the anchor is rewritten each time the reader stops scrolling — and the next unrelated `rows` change (an arrival, a send, a delete) restores them to wherever they last paused.
+    if (pendingOlder.length === 0) {
+      return;
+    }
+
     const element = scrollerRef.current;
     const index = rowsRef.current.findIndex((row) => row.kind !== "date");
     const measurement = index < 0 ? undefined : virtualizer.measurementsCache[index];
@@ -321,7 +326,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     }
 
     commitPendingOlder();
-  }, [commitPendingOlder, virtualizer]);
+  }, [pendingOlder, commitPendingOlder, virtualizer]);
 
   // INFO: REQUIREMENTS.md § 8.3. The page `loadOlder` fetched goes in here, once the list has gone still enough for the scroll correction it needs to survive.
   useSettledCommit({ scroller, isPending: pendingOlder.length > 0, onSettled: insertOlder });
@@ -385,8 +390,10 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
    * the room is re-parked on each size change until the rows have real heights.
    *
    * WARN: Gated on the gesture flag, never on the at-bottom one — `syncScrollEdges` runs first and has already read the pre-park position as "not at bottom", so this would never fire.
+   *
+   * WARN: A layout effect, never a passive one. Passive runs after paint, so the room's first frame would be the top of the loaded window rather than the newest message — and the two effects above it, which are passive, would read that pre-park position: the § 6.7. pill would flash and `requestAdjacentPages` would see `scrollTop === 0` and fetch a page of history nobody asked for on every open.
    */
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const element = scrollerRef.current;
 
     if (!element || hasTakenScrollRef.current) {
