@@ -805,13 +805,19 @@ Consequences, all of them non-obvious:
 | Hide it with `opacity` alone — never `appearance-none`, never `display: none`        | A restyled control is no longer native and stops ticking; a hidden one cannot be tapped            |
 | Put `group` on the wrapper and `group-active:` beside every `active:` on the control | The tap lands on the overlay, so `:active` matches the wrapper and never the control (`§ 3.2.`)    |
 | Repeat the control's `touch-action` on the overlay                                   | `touch-action` applies to the element a gesture starts on, and that is now the overlay             |
+| Never over the cells that **tile** a scrolling or swiping surface                    | The switch is a draggable native control, so it takes the drag itself and the surface stops moving |
 | A gesture threshold, a drag, a route change — none of these can tick                 | They are scripted triggers, which iOS 26.5 removed                                                 |
 
 It renders on a coarse pointer only (`AGENTS.md § 4.2.`): a mouse gains nothing, and the overlay would swallow the ⌘-click the covered element still owes the pointer.
 
-Where it fires is a product decision, not a technical one: **a committed change of state, and a selection among peers.** Saving, sending, deleting, toggling, switching tab or pack, picking a chip or a swatch, opening a sheet, stepping the calendar to the next month. Never dismissal, cancellation, or back navigation — a tick that fires on everything stops meaning anything.
+Where it fires is a product decision, not a technical one: **a committed change of state, and a selection among peers.** Saving, sending, deleting, toggling, switching tab or pack, picking a chip or a swatch, opening a sheet, stepping the calendar to the next month, discarding a staged attachment. Never dismissing a surface, cancelling out of one, or going back — a tick that fires on everything stops meaning anything.
 
-The month stepper is in rather than out: it commits the same change the month swipe does, and the swipe itself is a drag threshold that can never tick — so without it the gesture the chevrons exist to replace (`§ 4.1.`) is the only way to turn the month silently.
+Two boundaries that are easy to read the wrong way:
+
+- The month stepper is **in**. It commits the same change the month swipe does, and the swipe itself is a drag threshold that can never tick — so without it the gesture the chevrons exist to replace (`§ 4.1.`) is the only way to turn the month silently.
+- Removing a staged emoticon or photo is **in**, despite reading as a cancel. What it cancels is content already committed to the outgoing message, not a surface the user opened — the same act as deleting, which ticks.
+
+And where it does **not** go, whatever the interaction means: the day cells of the month grid and the cells of the emoticon grid. Those tile their surface, so an overlay on them is the element every scrolling finger lands on, and the switch keeps the drag for itself. The grids ship without a tick rather than without a scroll.
 
 # 8. Rules.
 
