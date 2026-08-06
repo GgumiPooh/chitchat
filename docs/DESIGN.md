@@ -654,7 +654,7 @@ The default overlay for anything originating from a bottom-anchored or list inte
 | Drag handle at top: 48×6, `rounded-full`, `hairline-strong`                          | The dismissal affordance                                |
 | No close `X` alongside the handle                                                    | Two redundant dismiss controls on the same edge         |
 | Centered `title-md` `ink` header; optional `body-sm` `meta` description              | Matches the reference implementation                    |
-| A sheet whose rows already say what it is may hide the header                        | A title over `사진/영상`/`카메라` only restates them    |
+| A sheet whose rows already say what it is may hide the header                        | A title over `사진/영상` only restates it               |
 | Body scrolls internally past `70dvh`; max height `90% - 12px` of `--viewport-height` | Sheet must never push past the visual viewport (§ 3.4.) |
 | Bottom edge sits at `--viewport-bottom`, not `0`                                     | The keyboard would otherwise cover it (§ 3.4.)          |
 | Focus ring inside the sheet is `ring-2 ring-primary ring-inset`                      | `overflow-hidden` would crop an outward offset ring     |
