@@ -2,7 +2,7 @@
 
 import { MAX_MESSAGE_LENGTH } from "@/shared/config";
 import { cn, useIsCoarsePointer, useUnsentWork, type Nullable } from "@/shared/lib";
-import { HapticTap, IconButton, Textarea } from "@/shared/ui";
+import { HapticTarget, IconButton, Textarea } from "@/shared/ui";
 import { ArrowUp, Plus, Smile } from "lucide-react";
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 
@@ -63,15 +63,15 @@ export function MessageComposer({
         />
         {/* INFO: DESIGN.md § 6.6. The toggle stays put once text is typed — an emoticon is staged beside a line of text now (REQUIREMENTS.md § 13.6.), so replacing it with send would put the panel out of reach exactly when it is wanted. */}
         <IconButton
-          className={cn(isEmoticonPickerOpen && "bg-primary-tint text-primary")}
+          buttonClassName={cn(isEmoticonPickerOpen && "bg-primary-tint text-primary")}
           Icon={Smile}
           haptic
           aria-label="이모티콘"
           aria-pressed={isEmoticonPickerOpen}
           onClick={toggleEmoticons}
         />
-        {/* WARN: The overlay is a sibling of the button, never a child — inside a `<button>` WebKit ends the tap in the native control and the button never fires. */}
-        <span className="group relative inline-flex shrink-0">
+        {/* WARN: `keepsFocus` repeats `keepFieldFocused` on the overlay. It takes the tap the button would have taken, so without it the textarea blurs and iOS drops the keyboard on every send. */}
+        <HapticTarget className="inline-flex shrink-0" isTicking={canSend} keepsFocus>
           {/* WARN: Disabled rather than unmounted when there is nothing to send — WebKit leaves a control inserted into this row unpainted until a hover forces the invalidation, and staging an emoticon touches nothing else inside the pill that would have forced one. */}
           <button
             className="group inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed"
@@ -94,9 +94,7 @@ export function MessageComposer({
               <ArrowUp className="size-5" strokeWidth={2} />
             </span>
           </button>
-          {/* WARN: `keepsFocus` repeats `keepFieldFocused` here. The overlay takes the tap the button would have taken, so without it the textarea blurs and iOS drops the keyboard on every send. */}
-          {canSend && <HapticTap forwardsTap keepsFocus />}
-        </span>
+        </HapticTarget>
       </div>
     </div>
   );

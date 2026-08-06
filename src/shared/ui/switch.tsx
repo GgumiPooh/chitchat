@@ -3,7 +3,7 @@
 import { cn } from "@/shared/lib";
 import { Switch as SwitchPrimitive } from "radix-ui";
 import type { ComponentProps } from "react";
-import { HapticTap } from "./haptic-tap";
+import { HapticTarget } from "./haptic-target";
 
 export type SwitchProps = ComponentProps<typeof SwitchPrimitive.Root> & {
   className?: string;
@@ -26,8 +26,9 @@ export function Switch({
   const hasHaptic = haptic && !disabled;
 
   return (
-    // WARN: The overlay is a sibling of the track, never a child. `Root` renders a `<button>`, and a native `input[switch]` inside one swallows the tap whole — the track stops toggling at all.
-    <span className={cn("group relative inline-flex", className)}>
+    // WARN: `Root` renders a `<button>`, and a native `input[switch]` inside one swallows the tap whole — the track stops toggling at all. `HapticTarget` is what keeps the overlay a sibling.
+    // INFO: The tap is forwarded as a click rather than read off `checked` — a click is what `Root` already listens to, so controlled and uncontrolled switches both keep working.
+    <HapticTarget className={cn("inline-flex", className)} isTicking={hasHaptic}>
       <SwitchPrimitive.Root
         className={cn(
           "inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors outline-none",
@@ -47,8 +48,6 @@ export function Switch({
           )}
         />
       </SwitchPrimitive.Root>
-      {/* INFO: The tap is forwarded as a click rather than read off `checked` — a click is what `Root` already listens to, so controlled and uncontrolled switches both keep working. */}
-      {hasHaptic && <HapticTap forwardsTap />}
-    </span>
+    </HapticTarget>
   );
 }

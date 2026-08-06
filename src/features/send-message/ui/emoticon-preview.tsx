@@ -3,7 +3,7 @@
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import { cn, playSound } from "@/shared/lib";
-import { HapticTap, IconButton, PreloadImage } from "@/shared/ui";
+import { IconButton, PreloadImage } from "@/shared/ui";
 import { X } from "lucide-react";
 import { useState } from "react";
 
@@ -55,18 +55,16 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
             src={toEmoticonAssetUrl(emoticon.id, "image", emoticon.version)}
           />
         </button>
-        {/* WARN: The wrapper carries the positioning, never `IconButton`'s own `haptic` — that wrapper is what the parent lays out, so `absolute` handed to the button inside it would anchor to the wrapper rather than to this box. */}
-        <span className="group absolute -top-2xs -right-2xs flex">
-          <IconButton
-            className="size-7 border border-hairline bg-canvas shadow-floating hover:bg-surface-soft"
-            iconClassName="size-3.5"
-            Icon={X}
-            aria-label="이모티콘 취소"
-            onClick={onRemove}
-          />
-          {/* WARN: A sibling directly after the button, never a child. Inside a `<button>` WebKit ends the tap in the native control and no click reaches JS at all. */}
-          <HapticTap forwardsTap />
-        </span>
+        {/* INFO: `className` positions the haptic wrapper and `buttonClassName` styles the disc inside it — the split `IconButton` exposes precisely so a positioned control can still ask for `haptic` (`AGENTS.md § 1.2.`). */}
+        <IconButton
+          className="absolute -top-2xs -right-2xs"
+          buttonClassName="size-7 border border-hairline bg-canvas shadow-floating hover:bg-surface-soft"
+          iconClassName="size-3.5"
+          Icon={X}
+          haptic
+          aria-label="이모티콘 취소"
+          onClick={onRemove}
+        />
       </div>
     </div>
   );

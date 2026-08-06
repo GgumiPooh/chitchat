@@ -2,7 +2,7 @@ import { cn } from "@/shared/lib";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "radix-ui";
 import type { ComponentProps } from "react";
-import { HapticTap } from "./haptic-tap";
+import { HapticTarget } from "./haptic-target";
 
 // INFO: DESIGN.md § 7.1. 48 tall, not the 44 tap-target floor: full-width buttons read cramped at 44.
 const buttonVariants = cva(
@@ -64,11 +64,9 @@ export function Button({
 
   return (
     // WARN: The wrapper stands whether or not the button is disabled — dropping it there would hand `className` back to the button, and a disabled `삭제` would take the wrapper's `flex-1` as its own styling.
-    <span className={cn("group relative flex w-full", className)}>
+    // INFO: A disabled button confirms nothing, and the overlay would still take the tap and tick.
+    <HapticTarget className={cn("flex w-full", className)} isTicking={!disabled}>
       {button}
-      {/* INFO: A disabled button confirms nothing, and the overlay would still take the tap and tick. */}
-      {/* WARN: A sibling of the button, never a child. Inside a `<button>` WebKit ends the tap in the native control and no click reaches JS at all. */}
-      {!disabled && <HapticTap forwardsTap />}
-    </span>
+    </HapticTarget>
   );
 }

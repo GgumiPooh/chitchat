@@ -8,7 +8,6 @@ const INSET_PROPERTY = "--bottom-inset";
 
 export type BottomOverlayProps = PropsWithChildren<{
   className?: string;
-  contentClassName?: string;
 }>;
 
 /**
@@ -18,7 +17,7 @@ export type BottomOverlayProps = PropsWithChildren<{
  * one place the bars leave for the on-screen keyboard (§ 7.3.), so they go on a
  * single timeline instead of each dropping out of the tree on its own.
  */
-export function BottomOverlay({ className, contentClassName, children }: BottomOverlayProps) {
+export function BottomOverlay({ className, children }: BottomOverlayProps) {
   const overlayRef = useRef<Nullable<HTMLDivElement>>(null);
   const contentRef = useRef<Nullable<HTMLDivElement>>(null);
   const isKeyboardOpen = useIsVirtualKeyboardOpen();
@@ -67,9 +66,7 @@ export function BottomOverlay({ className, contentClassName, children }: BottomO
       id={BOTTOM_OVERLAY_ID}
     >
       {/* WARN: Deliberately not clipped — the bars slide down past the shell's bottom edge, which is where the keyboard already is. Clipping would buy nothing and cut the pill's `shadow-floating` off at the collapsing edge. */}
-      <div ref={contentRef} className={contentClassName}>
-        {children}
-      </div>
+      <div ref={contentRef}>{children}</div>
     </div>
   );
 }

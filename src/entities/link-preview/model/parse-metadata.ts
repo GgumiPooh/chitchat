@@ -1,5 +1,5 @@
 import type { LinkPreviewKind } from "@/shared/db";
-import { isHttpUrl, type Nullable } from "@/shared/lib";
+import { isHttpUrl, type Maybe, type Nullable } from "@/shared/lib";
 
 export type PageMetadata = {
   kind: LinkPreviewKind;
@@ -125,7 +125,7 @@ function pick(tags: Map<string, string>, keys: string[], maxLength: number): Nul
   return null;
 }
 
-function clean(value: Nullable<string> | undefined, maxLength: number): Nullable<string> {
+function clean(value: Maybe<string>, maxLength: number): Nullable<string> {
   if (!value) {
     return null;
   }

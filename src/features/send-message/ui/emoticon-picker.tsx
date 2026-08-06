@@ -3,10 +3,10 @@
 import type { Emoticon, EmoticonPackWithItems } from "@/entities/emoticon";
 import { EMOTICON_PACKS_PATH, toEmoticonAssetUrl } from "@/shared/config";
 import { A_SECOND, cn, type Nullable } from "@/shared/lib";
-import { EmptyState, HapticTap, PreloadImage } from "@/shared/ui";
+import { EmptyState, HapticTarget, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Smile } from "lucide-react";
-import { useEffect, useRef, useState, type Ref } from "react";
+import { useEffect, useRef, useState, type PropsWithChildren, type Ref } from "react";
 import { useStorageState } from "synced-storage/react";
 import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
@@ -107,7 +107,14 @@ export function EmoticonPicker({ className, onSelect, onQuickSend }: EmoticonPic
             ) : (
               <div className="grid grid-cols-4 gap-2xs">
                 {shown.map((item) => (
-                  <span key={item.id} className="group relative flex">
+                  // WARN: `touch-pan-y` is repeated on the overlay, not inherited — `touch-action` applies to the element a gesture starts on, and the overlay is now that element.
+                  // WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the panel would stop scrolling (`DESIGN.md § 7.15.`).
+                  <HapticTarget
+                    key={item.id}
+                    className="flex"
+                    overlayClassName="touch-pan-y"
+                    keepsScroll
+                  >
                     {/* WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it. */}
                     <button
                       className="aspect-square w-full touch-pan-y rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
@@ -125,10 +132,7 @@ export function EmoticonPicker({ className, onSelect, onQuickSend }: EmoticonPic
                         draggable={false}
                       />
                     </button>
-                    {/* WARN: `touch-pan-y` is repeated here, not inherited — `touch-action` applies to the element a gesture starts on, and the overlay is now that element. */}
-                    {/* WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the panel would stop scrolling (`DESIGN.md § 7.15.`). */}
-                    <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
-                  </span>
+                  </HapticTarget>
                 ))}
               </div>
             )}
@@ -248,19 +252,19 @@ export function EmoticonPicker({ className, onSelect, onQuickSend }: EmoticonPic
   }
 }
 
-type TabButtonProps = {
+type TabButtonProps = PropsWithChildren<{
   /** The strip scrolls the active tab back into view, which needs the element rather than an index. */
   ref?: Ref<HTMLSpanElement>;
   className?: string;
   isActive: boolean;
   label: string;
-  children: React.ReactNode;
   onClick: () => void;
-};
+}>;
 
 function TabButton({ ref, className, isActive, label, children, onClick }: TabButtonProps) {
   return (
-    <span ref={ref} className={cn("group relative inline-flex shrink-0", className)}>
+    // INFO: A pack switch is a selection among peers, the same thing the tab bar ticks for.
+    <HapticTarget ref={ref} className={cn("inline-flex shrink-0", className)} isTicking={!isActive}>
       <button
         className={cn(
           "flex size-11 shrink-0 items-center justify-center rounded-md p-2xs transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
@@ -275,9 +279,7 @@ function TabButton({ ref, className, isActive, label, children, onClick }: TabBu
       >
         {children}
       </button>
-      {/* INFO: A pack switch is a selection among peers, the same thing the tab bar ticks for. */}
-      {!isActive && <HapticTap forwardsTap />}
-    </span>
+    </HapticTarget>
   );
 }
 

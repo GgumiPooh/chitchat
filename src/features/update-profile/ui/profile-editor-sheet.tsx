@@ -8,7 +8,7 @@ import {
 } from "@/features/upload-media/@x/update-profile";
 import { AVATAR_MAX_EDGE, MAX_NICKNAME_LENGTH, toMediaUrl } from "@/shared/config";
 import type { Nullable, Optional } from "@/shared/lib";
-import { Avatar, BottomSheet, Button, HapticTap, Input, toast } from "@/shared/ui";
+import { Avatar, BottomSheet, Button, HapticTarget, Input, toast } from "@/shared/ui";
 import { useState } from "react";
 import { updateProfile, type ProfileBody } from "../api/write-profile";
 import { useAvatarDraft } from "../model/use-avatar-draft";
@@ -64,7 +64,7 @@ export function ProfileEditorSheet({
       >
         <div className="space-y-md pt-2xs">
           <div className="flex flex-col items-center gap-xs">
-            <span className="group relative flex rounded-full">
+            <HapticTarget className="flex rounded-full">
               <button
                 className="cursor-pointer rounded-full transition-opacity outline-none group-active:opacity-70 hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary active:opacity-70"
                 type="button"
@@ -73,9 +73,7 @@ export function ProfileEditorSheet({
               >
                 <Avatar name={trimmed || nickname} size="profile" src={toPreviewUrl()} />
               </button>
-              {/* WARN: A sibling directly after the button, never a child. Inside a `<button>` WebKit ends the tap in the native control and no click reaches JS at all. */}
-              <HapticTap forwardsTap />
-            </span>
+            </HapticTarget>
             <div className="flex items-center gap-2xs">
               <Button
                 className="w-auto"

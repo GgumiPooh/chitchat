@@ -11,6 +11,7 @@ export { Container, type ContainerProps } from "./container";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
 // INFO: Exported for controls that cannot be a `Button` — anything that can takes the `haptic` prop instead, so the overlay's invariants stay inside the primitive.
 export { HapticTap, type HapticTapProps } from "./haptic-tap";
+export { HapticTarget, type HapticTargetProps } from "./haptic-target";
 export { IconButton, type IconButtonProps } from "./icon-button";
 export { Input, type InputProps } from "./input";
 export { Link, type LinkProps } from "./link";

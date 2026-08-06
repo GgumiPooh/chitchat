@@ -1,13 +1,15 @@
 import { cn } from "@/shared/lib";
 import type { ComponentProps, FC } from "react";
-import { HapticTap } from "./haptic-tap";
+import { HapticTarget } from "./haptic-target";
 
 export type IconButtonProps = Omit<ComponentProps<"button">, "aria-label"> & {
   className?: string;
+  /** WARN: The button's own box, for anything `className` cannot reach once `haptic` moves that to the wrapper — size, radius, colour. */
+  buttonClassName?: string;
   iconClassName?: string;
   Icon: FC<ComponentProps<"svg">>;
   variant?: "plain" | "floating";
-  /** Ticks the Taptic engine when a finger lands on the button. Only for a button the caller does not position itself — it gains a wrapper. */
+  /** Ticks the Taptic engine when a finger lands on the button. */
   haptic?: boolean;
   "aria-label": string;
 };
@@ -21,8 +23,10 @@ const VARIANT_CLASS_NAME: Record<NonNullable<IconButtonProps["variant"]>, string
 };
 
 // INFO: DESIGN.md § 3.2., § 7.1. The 44 target pads a 20 glyph, and the ring takes no offset.
+// WARN: With `haptic`, `className` lands on the wrapper rather than the button (`AGENTS.md § 1.2.`) — the wrapper is what the parent lays out, so `absolute` and `flex-1` have to reach it. Anything about the button's own box goes to `buttonClassName`.
 export function IconButton({
   className,
+  buttonClassName,
   iconClassName,
   Icon,
   variant = "plain",
@@ -40,7 +44,7 @@ export function IconButton({
         // INFO: DESIGN.md § 4.7.2. The bloom is what a round control has instead of a fill change large enough to see — the circle is 44px and the fill sits under the finger.
         "inline-flex size-11 shrink-0 press-bloom cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-40",
         VARIANT_CLASS_NAME[variant],
-        className,
+        haptic ? buttonClassName : className,
       )}
       disabled={disabled}
       type={type}
@@ -55,12 +59,8 @@ export function IconButton({
   }
 
   return (
-    // WARN: The wrapper shrink-wraps the button, so `className` sizing still governs — but a caller that positions the button itself (`absolute`, `flex-1`) must not ask for `haptic`, since those classes would land on the button inside the wrapper rather than on the box its parent lays out.
-    // WARN: The wrapper follows `haptic` alone, never `disabled`. Gating it on state too swaps this position between `<span>` and `<button>`, and React then remounts the button and drops the focus a keyboard user was holding.
-    <span className="group relative inline-flex shrink-0">
+    <HapticTarget className={cn("inline-flex shrink-0", className)} isTicking={isTicking}>
       {button}
-      {/* WARN: A sibling directly after the button, never a child. Inside a `<button>` WebKit ends the tap in the native control and no click reaches JS at all. */}
-      {isTicking && <HapticTap forwardsTap />}
-    </span>
+    </HapticTarget>
   );
 }

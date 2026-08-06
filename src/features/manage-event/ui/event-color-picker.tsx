@@ -8,7 +8,7 @@ import {
   type EventColor,
 } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
-import { HapticTap } from "@/shared/ui";
+import { HapticTarget } from "@/shared/ui";
 import { Check } from "lucide-react";
 
 export type EventColorPickerProps = {
@@ -53,7 +53,8 @@ type SwatchProps = {
 
 function Swatch({ className, colorClassName, label, isSelected, onSelect }: SwatchProps) {
   return (
-    <span className={cn("group relative inline-flex shrink-0", className)}>
+    // INFO: Silent on the swatch already chosen — re-picking it changes nothing.
+    <HapticTarget className={cn("inline-flex shrink-0", className)} isTicking={!isSelected}>
       <button
         className={cn(
           "flex size-9 cursor-pointer items-center justify-center rounded-full transition-transform outline-none group-active:scale-95 hover:scale-105 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:scale-95",
@@ -68,8 +69,6 @@ function Swatch({ className, colorClassName, label, isSelected, onSelect }: Swat
         {/* INFO: A checkmark rather than a ring, because a ring in the swatch's own colour is invisible and one in `primary` would read as a seventh option. */}
         {isSelected && <Check className="size-4.5 text-on-primary" strokeWidth={2.5} />}
       </button>
-      {/* INFO: Silent on the swatch already chosen — re-picking it changes nothing. */}
-      {!isSelected && <HapticTap forwardsTap />}
-    </span>
+    </HapticTarget>
   );
 }
