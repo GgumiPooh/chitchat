@@ -1,5 +1,6 @@
 export { listUsers } from "./api/list-users";
 export { markUserRead } from "./api/mark-user-read";
+export { publishTyping } from "./api/publish-typing";
 export {
   updateUserProfile,
   type ProfileUpdate,

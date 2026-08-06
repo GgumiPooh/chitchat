@@ -572,6 +572,26 @@ Shown whenever the viewport is away from the newest message — after scrolling 
 
 The count variant recolours to `primary` rather than adding a separate badge element: a badge on a floating pill stacks two elevated shapes in the busiest corner of the screen.
 
+## 6.7.1. Typing Indicator.
+
+`입력 중` while the other person is composing (`REQUIREMENTS.md § 8.12.`).
+
+| Property   | Value                                                                                              |
+| ---------- | -------------------------------------------------------------------------------------------------- |
+| Geometry   | `rounded-full`, glass over 1px `hairline`, `shadow-floating`, padding `8px 12px`                   |
+| Position   | Left-aligned in the message column, directly above the composer stack, `2xs` clear of it           |
+| Content    | Three 6px `meta` dots, bouncing on a staggered 150ms offset                                        |
+| Transition | Fade + `translate-y-1` over 150ms, both directions                                                 |
+| Pointer    | `pointer-events-none` throughout — it is status, and nothing behind it may become untappable       |
+| A11y       | `aria-live="polite"` around a visually hidden `상대방이 입력 중이에요`; the dots are `aria-hidden` |
+| Spacing    | `px-sm py-xs`, `gap-2xs` — the § 2.3. scale, never Tailwind's raw numeric one                      |
+
+**No name and no avatar.** The conversation has exactly two people in it, so naming the one who is not the reader says nothing they do not already know — and a name is a wider box that has to appear and disappear every few seconds.
+
+**Polite, never assertive.** The signal changes several times a minute, and an assertive live region would interrupt a screen reader mid-message to announce it.
+
+**The sentence is mounted by the transition, not revealed by it.** A live region announces a _mutation_ of its own contents — text that is always present and merely styled away, or toggled with `aria-hidden`, is announced exactly never. The region itself is therefore never hidden and never unmounted; only the string inside it comes and goes.
+
 ## 6.8. Search.
 
 | Element         | Rule                                                                                                                             |

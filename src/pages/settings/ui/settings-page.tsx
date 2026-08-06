@@ -1,6 +1,7 @@
 import { resolveDisplayName } from "@/entities/user";
 import { PushNotificationRow } from "@/features/push-notifications";
 import { LogoutButton } from "@/features/session";
+import { TypingSettingsRow } from "@/features/typing-indicator";
 import { ProfileSettingsRow } from "@/features/update-profile";
 import { IS_DEV } from "@/shared/config";
 import type { User } from "@/shared/db";
@@ -31,6 +32,8 @@ export function SettingsPage({ className, user }: SettingsPageProps) {
       {/* WARN: The resolved name, not the raw column. An empty nickname is legal (REQUIREMENTS.md § 8.7. falls back to the email local part), and seeding the editor from the column would open it on a blank field under a screen showing that fallback — with 저장 dead until the user typed. */}
       <ProfileSettingsRow nickname={displayName} avatarMediaId={user.avatarMediaId} />
       <PushNotificationRow />
+      {/* INFO: REQUIREMENTS.md § 8.12. Per account, not per device like the row above — it governs what this user broadcasts, which is not a property of the browser they happen to be typing in. */}
+      <TypingSettingsRow isEnabled={user.typingIndicatorEnabled} />
       <EmoticonSettingsRow />
       {/* INFO: REQUIREMENTS.md § 15.1. Dev only — a production client is refreshed by the stream's `build` event and never needs to be told by hand. */}
       {IS_DEV && <DevRefreshRow />}

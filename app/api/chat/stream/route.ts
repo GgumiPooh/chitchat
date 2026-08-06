@@ -6,9 +6,15 @@ import {
   SSE_HEARTBEAT_INTERVAL,
   SSE_REPLAY_LIMIT,
   SSE_REPLAY_MARGIN,
+  typingEventSchema,
   type MessageArrival,
 } from "@/shared/config";
-import { listenToChannels, NEW_MESSAGE_CHANNEL, USER_CHANGED_CHANNEL } from "@/shared/db";
+import {
+  listenToChannels,
+  NEW_MESSAGE_CHANNEL,
+  TYPING_CHANNEL,
+  USER_CHANGED_CHANNEL,
+} from "@/shared/db";
 import { safelyGet, safelyRun, type Nullable, type Optional } from "@/shared/lib";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -35,9 +41,9 @@ const newMessageSchema = z.object({
 });
 
 /**
- * REQUIREMENTS.md § 8.4. One endpoint, one `EventSource`, two channels — the
- * `user_changed` `LISTEN` rides the connection this stream already holds rather
- * than opening a second stream.
+ * REQUIREMENTS.md § 8.4. One endpoint, one `EventSource`, three channels — the
+ * `user_changed` and `typing` `LISTEN`s ride the connection this stream already
+ * holds rather than opening a stream each.
  */
 export async function GET(request: Request) {
   const user = await getCurrentUser();
@@ -70,7 +76,7 @@ export async function GET(request: Request) {
       try {
         // WARN: Registered before the replay query runs. In the other order a message committing between the two would be missed by both — the query does not see it yet and nothing is listening for it.
         release = await listenToChannels(
-          [NEW_MESSAGE_CHANNEL, USER_CHANGED_CHANNEL],
+          [NEW_MESSAGE_CHANNEL, USER_CHANGED_CHANNEL, TYPING_CHANNEL],
           handleNotification,
         );
 
@@ -97,6 +103,18 @@ export async function GET(request: Request) {
         if (channel === USER_CHANGED_CHANNEL) {
           // WARN: No `id:` field. The reconnect cursor is a `messages` bigserial and a user event has no counterpart, so anything here would hand the next reconnect a garbage replay bound (REQUIREMENTS.md § 8.4.).
           write("event: user\ndata: {}\n\n");
+
+          return;
+        }
+
+        if (channel === TYPING_CHANNEL) {
+          // INFO: REQUIREMENTS.md § 8.12. Unlike the two other channels this payload is the whole event — there is no row to read back, and a uuid is nowhere near the 8000-byte cap.
+          const typing = typingEventSchema.safeParse(safelyGet(() => JSON.parse(payload)));
+
+          if (typing.success) {
+            // WARN: No `id:`, and never queued behind the pipeline below. It carries no `messages` cursor to advance, and a signal that only means "right now" must not wait on a chain of row reads that would deliver it after it expired (REQUIREMENTS.md § 8.12.).
+            write(`event: typing\ndata: ${JSON.stringify(typing.data)}\n\n`);
+          }
 
           return;
         }

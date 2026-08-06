@@ -12,9 +12,17 @@ const bodySchema = z
     nickname: z.string().trim().min(1).max(MAX_NICKNAME_LENGTH).optional(),
     // INFO: REQUIREMENTS.md § 12. Absent keeps the current photo; an explicit `null` is 기본 이미지로 되돌리기.
     avatarMediaId: z.uuid().nullish(),
+    // INFO: REQUIREMENTS.md § 8.12. The 입력 중 switch. It is a `users` column the owner may write, so it rides this patch rather than an endpoint of its own.
+    typingIndicatorEnabled: z.boolean().optional(),
   })
-  // WARN: Both keys are optional, so `{}` parses — and drizzle throws `No values to set` on the empty `.set()` that follows, which surfaces as a 500 for what is a malformed request. The UI cannot send one, but a retry or any other client can.
-  .refine((body) => body.nickname !== undefined || body.avatarMediaId !== undefined, "empty patch");
+  // WARN: Every key is optional, so `{}` parses — and drizzle throws `No values to set` on the empty `.set()` that follows, which surfaces as a 500 for what is a malformed request. The UI cannot send one, but a retry or any other client can.
+  .refine(
+    (body) =>
+      body.nickname !== undefined ||
+      body.avatarMediaId !== undefined ||
+      body.typingIndicatorEnabled !== undefined,
+    "empty patch",
+  );
 
 /**
  * REQUIREMENTS.md § 12. The nickname and avatar, both owned by the user they
@@ -34,14 +42,19 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const { nickname, avatarMediaId } = body.data;
+  const { nickname, avatarMediaId, typingIndicatorEnabled } = body.data;
 
   // WARN: REQUIREMENTS.md § 14. The same check `POST /api/messages` runs on `mediaIds`, scoped to `avatar` rather than `chat`. `avatar_media_id` is a foreign key, so an id that is only a well-formed UUID is a 500 rather than a 400; the ownership half stops one participant wearing the other's photograph, and the scope half stops a chat photo becoming an avatar `discardAvatarMedia` would later delete out from under its bubble.
   if (avatarMediaId && !(await ownsAllMedia([avatarMediaId], user.id, "avatar"))) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const update = await updateUserProfile({ userId: user.id, nickname, avatarMediaId });
+  const update = await updateUserProfile({
+    userId: user.id,
+    nickname,
+    avatarMediaId,
+    typingIndicatorEnabled,
+  });
 
   if (!update) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });

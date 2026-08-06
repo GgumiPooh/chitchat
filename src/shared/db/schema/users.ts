@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { boolean, pgTable, text, timestamp, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { media } from "./media";
 
 // INFO: REQUIREMENTS.md § 6. `google_sub` sits on the row itself — one provider means no `accounts` table.
@@ -14,6 +14,8 @@ export const users = pgTable("users", {
   }),
   // WARN: No `defaultNow()` — REQUIREMENTS.md § 8.8. reads unread as `created_at > last_read_at`, so joining at `now()` would mark every message sent before this person's first login as already read.
   lastReadAt: timestamp("last_read_at", { withTimezone: true }).notNull(),
+  // INFO: REQUIREMENTS.md § 8.12. Governs whether this user *broadcasts* 입력 중, never whether they are typing right now — that signal is never stored.
+  typingIndicatorEnabled: boolean("typing_indicator_enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -12,6 +12,8 @@ export type UpdateUserProfileParams = {
   nickname?: string;
   /** REQUIREMENTS.md § 12. Absent keeps the current photo; an explicit `null` removes it. */
   avatarMediaId?: Nullable<string>;
+  /** REQUIREMENTS.md § 8.12. Whether this user broadcasts 입력 중 at all. */
+  typingIndicatorEnabled?: boolean;
 };
 
 export type ProfileUpdate = {
@@ -38,6 +40,7 @@ export async function updateUserProfile({
   userId,
   nickname,
   avatarMediaId,
+  typingIndicatorEnabled,
 }: UpdateUserProfileParams): Promise<Maybe<ProfileUpdate>> {
   // WARN: A self-join, so the photo being replaced is read in the same statement that replaces it. Postgres resolves `previous` against the pre-update snapshot, which a separate `SELECT` cannot promise: two devices saving different photos would both read the same row and neither would report the one that lost, orphaning its objects in R2 permanently — `canReadMedia` admits only a currently worn avatar, so nothing could ever reach them again.
   const previous = alias(users, "previous");
@@ -47,6 +50,7 @@ export async function updateUserProfile({
     .set({
       ...(nickname === undefined ? {} : { nickname }),
       ...(avatarMediaId === undefined ? {} : { avatarMediaId }),
+      ...(typingIndicatorEnabled === undefined ? {} : { typingIndicatorEnabled }),
     })
     .from(previous)
     .where(and(eq(users.id, userId), eq(previous.id, userId)))

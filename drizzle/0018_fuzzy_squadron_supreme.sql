@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "typing_indicator_enabled" boolean DEFAULT true NOT NULL;

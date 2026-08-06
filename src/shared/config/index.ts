@@ -11,6 +11,7 @@ export {
   CHAT_READ_PATH,
   CHAT_ROUTE,
   CHAT_STREAM_PATH,
+  CHAT_TYPING_PATH,
   CHAT_UNREAD_PATH,
   DEV_LOGIN_ROUTE,
   EMOTICON_SETTINGS_ROUTE,
@@ -42,11 +43,15 @@ export {
   SSE_STALE_AFTER,
   SSE_SYNC_COALESCE_WINDOW,
   TAB_ROUTES,
+  TYPING_PING_INTERVAL,
+  TYPING_TIMEOUT,
   USERS_PATH,
   VAPID_PUBLIC_KEY,
   isUnderRoute,
+  typingEventSchema,
   type MessageArrival,
   type TabRoute,
+  type TypingEvent,
 } from "./app";
 export {
   CALENDAR_DAY_PARAM,

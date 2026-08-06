@@ -12,6 +12,7 @@ import {
   useRecentEmoticons,
   useSendMessage,
 } from "@/features/send-message";
+import { useTypingSignal } from "@/features/typing-indicator";
 import {
   MediaEditor,
   MediaPickerSheet,
@@ -71,6 +72,7 @@ import { MessageRow } from "./message-row";
 import { ReplyBar } from "./reply-bar";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
 import { SystemNotice } from "./system-notice";
+import { TypingIndicator } from "./typing-indicator";
 
 export type ChatRoomProps = {
   className?: string;
@@ -121,6 +123,8 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const [actionTarget, setActionTarget] = useState<Nullable<ChatMessage>>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
+  // INFO: REQUIREMENTS.md § 8.12. Lifted out of the composer because the 입력 중 signal is one boolean over three sources, and the other two live here.
+  const [hasDraft, setHasDraft] = useState(false);
   const { remember: rememberEmoticon } = useRecentEmoticons();
   // INFO: The panel outlives its first open so the collapse has something to animate; until then it is not rendered at all, and a user who never opens it never fetches the packs.
   const [hasOpenedEmoticonPanel, setHasOpenedEmoticonPanel] = useState(false);
@@ -162,7 +166,9 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const isKeyboardOpen = useIsVirtualKeyboardOpen();
   // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
   const isEmoticonPanelOpen = isEmoticonPickerOpen && !isKeyboardOpen;
-  const { participants, setIsReading } = useChatStream();
+  const { participants, typingUserIds, setIsReading } = useChatStream();
+  // WARN: REQUIREMENTS.md § 8.12. Sending is *not* a trigger of its own — a send empties the field and clears the staged emoticon, so this falls on its own. Given an explicit stop on send it would also fire for a send made with the panel still open, hiding an indicator that is still true.
+  useTypingSignal(hasDraft || isEmoticonPanelOpen || stagedEmoticon !== null);
   const participantById = useMemo(
     () => new Map(participants.map((participant) => [participant.id, participant])),
     [participants],
@@ -616,15 +622,23 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
             />
           )}
         </div>
-        <MessageComposer
-          hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
-          isEmoticonPickerOpen={isEmoticonPanelOpen}
-          onAttach={() => setIsPickerOpen(true)}
-          onFieldFocus={() => setIsEmoticonPickerOpen(false)}
-          // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
-          onToggleEmoticons={() => setIsEmoticonPickerOpen(!isEmoticonPanelOpen)}
-          onSend={submit}
-        />
+        {/* WARN: REQUIREMENTS.md § 8.12. The indicator is anchored to the composer bar, not to the wrapper above — `bottom-full` against that wrapper measures over the open emoticon panel too, which throws it behind the floating header and off the top of a short viewport (the hazard § 13.6.'s preview clamps for). This box adds no height of its own, so `useComposerClearance` still measures the same stack. */}
+        <div className="relative">
+          <TypingIndicator
+            className="absolute inset-x-0 bottom-full mx-md mb-2xs"
+            isVisible={typingUserIds.length > 0}
+          />
+          <MessageComposer
+            hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
+            isEmoticonPickerOpen={isEmoticonPanelOpen}
+            onAttach={() => setIsPickerOpen(true)}
+            onDraftChange={setHasDraft}
+            onFieldFocus={() => setIsEmoticonPickerOpen(false)}
+            // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
+            onToggleEmoticons={() => setIsEmoticonPickerOpen(!isEmoticonPanelOpen)}
+            onSend={submit}
+          />
+        </div>
       </div>
       <ActionSheet
         isOpen={actionTarget !== null}

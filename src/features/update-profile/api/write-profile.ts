@@ -6,6 +6,8 @@ import type { Nullable } from "@/shared/lib";
 export type ProfileBody = {
   nickname?: string;
   avatarMediaId?: Nullable<string>;
+  /** REQUIREMENTS.md § 8.12. The 입력 중 표시 switch, reached through `@x/typing-indicator`. */
+  typingIndicatorEnabled?: boolean;
 };
 
 export async function updateProfile(body: ProfileBody): Promise<Participant> {

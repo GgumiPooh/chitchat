@@ -7,6 +7,7 @@ import {
   SSE_RETRY_DELAY,
   SSE_STALE_AFTER,
   SSE_SYNC_COALESCE_WINDOW,
+  typingEventSchema,
   type MessageArrival,
 } from "@/shared/config";
 import { safelyGet, type Nullable, type Optional } from "@/shared/lib";
@@ -17,6 +18,8 @@ export type ChatEventSourceHandlers = {
   onMessage: (message: ChatMessage, arrival: MessageArrival) => void;
   onUserChanged: () => void;
   onResume: () => void;
+  /** Someone is composing. REQUIREMENTS.md § 8.12. */
+  onTyping: (userId: string) => void;
   /** The deployment serving this connection. REQUIREMENTS.md § 15.1. */
   onBuild: (id: string) => void;
 };
@@ -32,13 +35,14 @@ export function useChatEventSource({
   onMessage,
   onUserChanged,
   onResume,
+  onTyping,
   onBuild,
 }: ChatEventSourceHandlers) {
   // WARN: Read through a ref so a new handler identity cannot tear the connection down and reconnect it on every render.
-  const handlers = useRef({ onMessage, onUserChanged, onResume, onBuild });
+  const handlers = useRef({ onMessage, onUserChanged, onResume, onTyping, onBuild });
 
   useEffect(() => {
-    handlers.current = { onMessage, onUserChanged, onResume, onBuild };
+    handlers.current = { onMessage, onUserChanged, onResume, onTyping, onBuild };
   });
 
   useEffect(() => {
@@ -76,6 +80,16 @@ export function useChatEventSource({
       opened.addEventListener("user", () => {
         markAlive();
         handlers.current.onUserChanged();
+      });
+      // INFO: REQUIREMENTS.md § 8.12. Never replayed and never caught up on — a signal that meant "right now" ten seconds ago is not news, so a reconnect deliberately arrives knowing nothing.
+      opened.addEventListener("typing", (event) => {
+        markAlive();
+
+        const typing = typingEventSchema.safeParse(safelyGet(() => JSON.parse(event.data)));
+
+        if (typing.success) {
+          handlers.current.onTyping(typing.data.userId);
+        }
       });
       // INFO: REQUIREMENTS.md § 8.4. The heartbeat is a named event rather than a `:ping` comment so it lands here — this is the client's only evidence that the socket underneath is still real.
       opened.addEventListener("ping", markAlive);

@@ -8,6 +8,12 @@ export const NEW_MESSAGE_CHANNEL = "new_message";
 
 export const USER_CHANGED_CHANNEL = "user_changed";
 
+/**
+ * REQUIREMENTS.md § 8.12. 입력 중, and the one channel with no trigger behind it —
+ * nothing is written, so there is no row for a trigger to fire on.
+ */
+export const TYPING_CHANNEL = "typing";
+
 export type NotificationHandler = (channel: string, payload: string) => void;
 
 /**

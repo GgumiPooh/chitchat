@@ -101,7 +101,9 @@ Read a required environment variable with `ensureEnv("NAME")` from `@/shared/con
 
 ## 6.3. Database access
 
-Obtain the connection with `getDb()` from `@/shared/db` — it is the pooled client and it is lazy, so a missing `DATABASE_URL` cannot fail the build. `LISTEN`/`NOTIFY` (`REQUIREMENTS.md § 8.4.`) and migrations need `DATABASE_URL_UNPOOLED` and MUST NOT use it.
+Obtain the connection with `getDb()` from `@/shared/db` — it is the pooled client and it is lazy, so a missing `DATABASE_URL` cannot fail the build. `LISTEN` (`REQUIREMENTS.md § 8.4.`) and migrations need `DATABASE_URL_UNPOOLED` and MUST NOT use it.
+
+**`NOTIFY` is the exception and belongs on the pooled client**, through `notifyChannel`. What a transaction-mode pooler breaks is session state, and `LISTEN` is exactly that — the connection is handed to another caller between transactions and the subscription silently goes with it. A notification owns no session: it is queued by the statement and delivered at `COMMIT`, which the pooler performs. § 6.'s triggers have always published this way, from inside ordinary pooled writes. Giving `NOTIFY` an unpooled connection of its own would open and tear down a connection per publish, which `REQUIREMENTS.md § 8.12.` does several times a minute per typist.
 
 ## 6.4. Session in Server Components
 

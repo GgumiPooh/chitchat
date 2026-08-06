@@ -3,8 +3,8 @@
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { updateAppBadge } from "@/shared/badge";
-import { READ_CURSOR_THROTTLE, type MessageArrival } from "@/shared/config";
-import { safelyGetAsync, safelyRunAsync, type Nullable } from "@/shared/lib";
+import { READ_CURSOR_THROTTLE, TYPING_TIMEOUT, type MessageArrival } from "@/shared/config";
+import { safelyGetAsync, safelyRunAsync, type Nullable, type Optional } from "@/shared/lib";
 import {
   createContext,
   useCallback,
@@ -28,6 +28,8 @@ export type ChatStreamListener = {
 export type ChatStreamValue = {
   participants: Participant[];
   unreadCount: number;
+  /** Everyone but me who is composing right now. REQUIREMENTS.md § 8.12. */
+  typingUserIds: string[];
   subscribe: (listener: ChatStreamListener) => () => void;
   /** Declared by whichever screen is showing the conversation — it suppresses the badge and drives the read cursor. */
   setIsReading: (isReading: boolean) => void;
@@ -62,6 +64,10 @@ export function ChatStreamProvider({
 }: ChatStreamProviderProps) {
   const [participants, setParticipants] = useState(initialParticipants);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
+  // INFO: REQUIREMENTS.md § 8.12. When each signal stops counting, by this device's clock. Nothing seeds it — 입력 중 is never replayed, so a fresh mount knows nothing until a live event arrives.
+  const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
+  const typingExpiry = useRef(new Map<string, number>());
+  const typingSweep = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
   const listeners = useRef(new Set<ChatStreamListener>());
   const isReadingRef = useRef(false);
   const lastReadPostAt = useRef(0);
@@ -93,8 +99,12 @@ export function ChatStreamProvider({
     onMessage: handleMessage,
     onUserChanged: refreshParticipants,
     onResume: handleResume,
+    onTyping: handleTyping,
     onBuild: handleBuild,
   });
+
+  // INFO: The provider outlives every screen, so this only ever runs on a full teardown — but a timer left armed past it would call `setTypingUserIds` on an unmounted tree.
+  useEffect(() => () => clearTimeout(typingSweep.current), []);
 
   useEffect(() => {
     updateAppBadge(unreadCount);
@@ -124,10 +134,59 @@ export function ChatStreamProvider({
   }, []);
 
   return (
-    <ChatStreamContext.Provider value={{ participants, unreadCount, subscribe, setIsReading }}>
+    <ChatStreamContext.Provider
+      value={{ participants, unreadCount, typingUserIds, subscribe, setIsReading }}
+    >
       {children}
     </ChatStreamContext.Provider>
   );
+
+  /**
+   * REQUIREMENTS.md § 8.12. The signal renews rather than toggles — every arrival
+   * pushes this sender's deadline out, and nothing but the deadline takes it back
+   * down.
+   */
+  function handleTyping(userId: string) {
+    // INFO: The channel is a conversation-wide broadcast, exactly like `user_changed`, so my own ping and my other device's both come back to me here.
+    if (userId === currentUserId) {
+      return;
+    }
+
+    // WARN: Stamped on arrival with this device's clock. The publisher deliberately sends no deadline of its own (§ 8.12.) — two devices a few seconds apart would otherwise hold the indicator up well past the typing that raised it.
+    typingExpiry.current.set(userId, Date.now() + TYPING_TIMEOUT);
+    sweepTyping();
+  }
+
+  /**
+   * WARN: Expiry is the only thing that clears 입력 중. There is no stop event to
+   * wait for — a sender who backgrounds, loses signal or is killed sends nothing
+   * at all, and a design that waited would leave the indicator up forever.
+   */
+  function sweepTyping() {
+    const now = Date.now();
+    const expiry = typingExpiry.current;
+    let nextExpiresAt = Infinity;
+
+    expiry.forEach((expiresAt, userId) => {
+      if (expiresAt <= now) {
+        expiry.delete(userId);
+
+        return;
+      }
+
+      nextExpiresAt = Math.min(nextExpiresAt, expiresAt);
+    });
+
+    // WARN: Read out of the Map here, never inside the updater. An updater runs when React drains the queue, by which time an arrival or a resume sweep may have mutated the Map behind it — so it would commit a set the timer armed below does not match, and StrictMode would run it twice against different contents.
+    const next = [...expiry.keys()];
+
+    // INFO: The previous array is kept when the membership is unchanged, so a renewal every `TYPING_PING_INTERVAL` re-renders nothing.
+    setTypingUserIds((previous) => (haveSameMembers(previous, next) ? previous : next));
+
+    clearTimeout(typingSweep.current);
+    typingSweep.current =
+      nextExpiresAt === Infinity ? undefined : setTimeout(sweepTyping, nextExpiresAt - now);
+  }
 
   function handleMessage(message: ChatMessage, arrival: MessageArrival) {
     listeners.current.forEach((listener) => listener.onMessage?.(message, arrival));
@@ -151,6 +210,9 @@ export function ChatStreamProvider({
 
   function handleResume() {
     listeners.current.forEach((listener) => listener.onResume?.());
+
+    // WARN: REQUIREMENTS.md § 8.12. A frozen page runs no timers, so the sweep above did not fire while the app was away and every deadline it was holding is now long past. Re-evaluated here rather than trusted, for the same reason § 8.4. re-checks the socket instead of assuming it survived.
+    sweepTyping();
 
     if (isReadingRef.current) {
       setUnreadCount(0);
@@ -211,6 +273,13 @@ export function ChatStreamProvider({
 
     await safelyRunAsync(postRead);
   }
+}
+
+// WARN: Compared as sets, not position by position. `Map` keys come back in insertion order, so a typist whose signal lapses and resumes is re-inserted at the tail — same members, different order, and an index-wise check would call that a change and re-render every consumer for nothing.
+function haveSameMembers(previous: string[], next: string[]): boolean {
+  const seen = new Set(previous);
+
+  return previous.length === next.length && next.every((id) => seen.has(id));
 }
 
 export function useChatStream(): ChatStreamValue {

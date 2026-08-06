@@ -224,6 +224,8 @@ Schema, migrations, and triggers have landed. **Columns are not listed here — 
 - `media(created_at DESC, id DESC)`, `message_media(media_id)`, `events(starts_at)`, `sessions(token_hash)`, plus `pg_trgm` + a GIN trigram index on `messages.text` (§ 8.6.). `messages` needs no paging index of its own — its primary key **is** the § 8.2. cursor. The `media` index needs the `id` tiebreaker because `created_at` is the **transaction** timestamp, so a multi-image send's rows compare equal — **paginate on the pair, never on `created_at` alone**
 - `AFTER INSERT` on `messages` fires `pg_notify('new_message', { id })`; `AFTER INSERT` **and** `AFTER UPDATE` on `users` fire `pg_notify('user_changed', '')`. Payloads are minimal because `NOTIFY` caps at 8000 bytes and § 8.4. refetches rather than trusting a payload. Two user triggers because a `WHEN` clause cannot reference `OLD` on an INSERT, so `WHEN (OLD.* IS DISTINCT FROM NEW.*)` rides the UPDATE trigger alone. That guard plus § 8.8.'s `WHERE last_read_at < $new` keeps the channel quiet under the app's highest-frequency write — **both halves are load-bearing**; dropping either puts a `GET /api/users` on every throttle tick
 
+- **`typing` (§ 8.12.) has no trigger and no table.** It is the one channel published by application code, because there is no row whose write could fire it — which is the point: the app's highest-frequency signal costs no WAL at all. Flipping § 12.'s switch does write `users` and so does raise one `user_changed`, but that is a rare deliberate action and the refetch it causes is the same one a rename causes
+
 **Migration ordering — three rules, and they disagree with each other on purpose**
 
 1. **Default: ship code first, migrate second.** Reversed, a first login against the previous build inserts without the new column, hits `23502`, and the OAuth catch flattens it into the generic `?error=failed` copy — nothing in the UI names the column
@@ -349,7 +351,7 @@ Remaining:
 **`GET /api/chat/stream`** — `text/event-stream`, `runtime = "nodejs"`, `maxDuration = 300`
 
 - The connection comes from the **direct (unpooled)** string via `listenToChannels` (`shared/db`) and is released in a `finally`. A transaction-mode pooler hands the connection to another client between transactions, silently dropping the `LISTEN`
-- **One endpoint, one `EventSource`, two channels.** `LISTEN user_changed` rides the same connection; the two are told apart by the SSE `event:` field (`message`, `user`)
+- **One endpoint, one `EventSource`, three channels.** `LISTEN user_changed` and `LISTEN typing` (§ 8.12.) ride the same connection; they are told apart by the SSE `event:` field (`message`, `user`, `typing`)
 - `LISTEN` is registered **before** the replay query. Reversed, a message committing between the two is missed by both
 - **`id > cursor` alone loses messages**: `bigserial` ids are handed out at INSERT but become visible at COMMIT, so they can commit out of order. Replay starts at `cursor - SSE_REPLAY_MARGIN` and lets id-deduplication drop the overlap
 - `id:` goes on **message events only** — it is the reconnect cursor, a `messages` bigserial with no counterpart on `user`, `build` or `ping`
@@ -503,6 +505,42 @@ Tapping a quote runs the machinery § 8.6.1. will reuse unchanged:
 - **Deleting an attachment bubble is confirmed wherever it was reached from**, the sheet included: one row is every photo in it (§ 6.), which is the one thing neither the sheet nor the viewer shows. A text bubble's 삭제 stays immediate
 - **공유 is not pointer-gated, unlike 저장.** § 10. branches away from the share sheet on a fine pointer because a desktop sheet offers mail and AirDrop where 저장 meant a file on disk — but that sheet is exactly what 공유 names. Only its absence falls back, to the § 10. download for files and to the clipboard for text. Every fallback says which one it took: the 저장 wording and the 공유 wording are separate strings throughout
 
+### 8.12. Typing Indicator ✅
+
+`입력 중` rides the § 8.4. stream as a third channel. Nothing is written, nothing is replayed, and the receiver's own timer is what takes it back down.
+
+**`POST /api/chat/typing`** — no body, answers 204
+
+- **A third channel on the one connection**, not a stream of its own. `LISTEN typing` joins `new_message` and `user_changed` on the socket § 8.4. already holds; a second `EventSource` would double the unpooled connections and need every § 8.4. resume rule written twice
+- **No table, no column, no trigger.** The signal is published straight to `pg_notify` by the route. Stored instead, the app's highest-frequency write by far would churn WAL and hold Neon's compute awake — defeating exactly what § 8.4.'s background close exists to allow
+- **The payload is the whole event** (`{ userId }`), unlike `new_message`'s id-and-refetch: there is no row to read back, and a uuid is nowhere near `NOTIFY`'s 8000-byte cap
+- **It publishes on the pooled client** (`notifyChannel`). `AGENTS.md § 6.3.` — `LISTEN` is session state a pooler hands away, a notification is delivered at `COMMIT`
+- **The payload carries no expiry.** A deadline computed by the sender is on the sender's clock; the receiver stamps `Date.now() + TYPING_TIMEOUT` on arrival, so two devices that disagree cannot hold the indicator up past the typing
+- `event: typing` carries **no `id:`** — the reconnect cursor is a `messages` bigserial with no counterpart here, the same reason `user`, `build` and `ping` carry none. It is also written straight out rather than queued behind § 8.4.'s notification chain, which exists to keep row reads in id order and would deliver this after it expired
+- **Never replayed and never caught up on.** A reconnect arrives knowing nothing, deliberately: a signal that meant "right now" ten seconds ago is not news. This is also why entering the chat tab can never show a stale indicator — there is nothing to read
+
+**Client**
+
+- **The ping repeats every `TYPING_PING_INTERVAL` while composing**, leading edge first so the indicator appears on the first keystroke. Not one request per keystroke, and not one request total — the repeat is what keeps the receiver's expiry from firing. **The floor outlives the composing state**: a held backspace flickers the draft false and true, and a leading edge armed fresh on each rise is a burst at exactly the rate the interval exists to cap
+- **The payload schema has one definition** (`typingEventSchema`, `shared/config`) shared by publisher, stream and client. Written out per side it drifts, and the client's copy fails **closed** — `safeParse` stops matching and the indicator silently never appears again, raising nothing anywhere
+- **`TYPING_TIMEOUT` at the receiver is the only thing that clears it.** There is no stop event to wait for: a sender who backgrounds, loses signal or is killed sends nothing, and anything that waited for a stop would stick forever. Ceasing to send _is_ the stop
+- **The sweep re-runs on resume.** A frozen page runs no timers, so a restored iOS PWA holds deadlines that are long past — re-evaluated on the § 8.4. resume rather than trusted, the same way the socket is
+- **One boolean over three sources** — a draft in the field, the emoticon panel open, an emoticon staged. Given a signal each they would run competing ping loops and the last to stop would decide what the other participant saw. **Sending is not a trigger of its own**: it empties the field and clears the staging, so the signal falls on its own — and an explicit stop on send would wrongly hide an indicator that is still true when the panel stayed open
+- **A hidden tab never pings.** A draft left in the field keeps the boolean true after the user walks away, and a background tab still runs the interval at the platform's once-a-minute floor — which reads as `입력 중` blinking on for eight seconds every minute, from someone who left. It observes the same four events § 8.4. does, for the same reason: iOS produces an inconsistent subset of them on a PWA app-switch, and trusting `visibilitychange` alone leaves the interval armed on the switches that fire only `pagehide`
+- **The set lives in `ChatStreamProvider`**, beside the participants and the unread count, because that is where the stream is. My own signal is dropped on arrival — the channel is a conversation-wide broadcast, so my ping and my other device's both come back to me
+- **The indicator is an overlay above the composer, never a row in the virtualized list.** A tail item appearing and disappearing every few seconds re-measures the list and drags the scroll with it (§ 8.3.); it is also kept out of the box `useComposerClearance` measures, or the whole history would shift each time
+- **It is anchored to the composer bar, not to the composer wrapper.** That wrapper's height includes the open emoticon panel (§ 13.6.) — roughly half the shell — so `bottom-full` against it puts the indicator behind the floating header, and off the top entirely below ~604px. A zero-height positioning box around the bar alone fixes the anchor without adding to what the clearance measures
+
+**The switch** (§ 12.) — `users.typing_indicator_enabled`, default `true`
+
+- **Migrate before shipping** (§ 6. rule 2), and this column more than most: `getSessionContext` selects `users` by explicit column list, so code deployed ahead of `0018` fails **every request that resolves a session** — the `(main)` layout, every Route Handler, login — on `42703`, not merely the chat tab
+- **A column on `users`, not a prefs table.** `user_emoticon_prefs` exists because it is per-pack; one boolean is read for free by the Settings screen's own Server Component render
+- **It rides `PATCH /api/users/me`** rather than an endpoint of its own — it is a column its owner may write, which is what that route is, and the § 12. client is reached through `@x/typing-indicator` rather than copied
+- **Enforced in `POST /api/chat/typing`, and nowhere else.** Filtered where the indicator renders, the signal has already left the sender's device, and the setting means "do not broadcast that I am typing". The client deliberately does **not** cache the preference to skip the request: it would be fixed at whatever the page was rendered with, and § 8.4. restores a frozen PWA without re-running that render — so a device that had been open across the change would broadcast against the switch, or fall silent behind one reading 켜짐. The route cannot go stale, and the request it discards is one POST per interval from a user who is actively typing
+- **It never reaches `toParticipant`**, and must not. Shipping it would tell the other participant that this person turned the indicator off, which is precisely what turning it off withholds
+- **Not reciprocal.** Turning it off changes what this account sends and nothing about what it receives; read-receipt-style trading buys nothing between two people
+- **Rate limiting is still open** (§ 14.), and this is now the endpoint most exposed to it — one authenticated POST costs a session lookup, a `pg_notify`, and a frame on every open stream
+
 ---
 
 ## 9. Media Storage (R2)
@@ -621,7 +659,7 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
 
 ## 12. Settings Tab
 
-**Landed:** the profile editor (nickname + avatar) and the tap-to-enlarge avatar. The device list, 로그아웃 and app info remain.
+**Landed:** the profile editor (nickname + avatar), the tap-to-enlarge avatar, and the 입력 중 표시 switch (§ 8.12.). The device list, 로그아웃 and app info remain.
 
 **Profile** — `PATCH /api/users/me`, reached from a 프로필 row; `features/update-profile` owns the sheet and reuses § 9.'s picker, editor and upload through `@x/update-profile`.
 
@@ -645,6 +683,7 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
 
 - Entry point to the emoticon management screen (§ 13.5.) — authoring, pack order, and per-pack hiding
 - **알림** — the push toggle (§ 16.1.), **per device** rather than per account, so it reflects this browser's subscription rather than a stored preference. Three inert states carry their own copy: permission denied (only the browser's site settings can undo it), unsupported (iOS Safari tab — install to the home screen first), and in flight
+- **입력 중 표시** — the § 8.12. switch, on by default. **Per account**, unlike the row above it: it governs what this user broadcasts, which is not a property of whichever browser they happen to be typing in. The toggle moves optimistically and is put back on a failed write, since a switch reading 꺼짐 over a preference the server never took would sit in front of a ping that is still going out
 - **No camera-permission toggle.** Taking a photo goes through `<input type="file" capture>`, which hands the shot to iOS's own camera app — the web page never touches the camera, so no site permission is created
 
 Remaining:
@@ -869,12 +908,12 @@ An installed iOS PWA is not reloaded when the user reopens it — the system res
 2. ✅ Auth + session (§ 5.) — highest-risk area, so it went first. **The real-device cookie check (§ 5.3.) is still open**
 3. ✅ Database schema + migrations (§ 6.)
 4. ✅ Layout + tab bar + PWA manifest (§ 7.)
-5. **Chat tab (§ 8.) — in progress.** Text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies and the jump machinery all landed. **Open: the `1` marker and unread divider (§ 8.8.), and search (§ 8.6.)**
+5. **Chat tab (§ 8.) — in progress.** Text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies, the jump machinery and the typing indicator (§ 8.12.) all landed. **Open: the `1` marker and unread divider (§ 8.8.), and search (§ 8.6.)**
 6. ✅ R2 media pipeline + sending photos and videos in chat (§ 9.)
 7. ✅ Gallery tab (§ 10.) — open: the jump-to-message link, which waits on § 8.6.1.
 8. ✅ Emoticons (§ 13.) — open: the picker's image preloading
 9. ✅ Calendar tab (§ 11.) — open: the "jump to today" control (§ 11.3.)
-10. **Settings tab (§ 12.) — in progress.** Profile editor and tap-to-enlarge avatar landed. **Open: the device list, 로그아웃, and app info**
+10. **Settings tab (§ 12.) — in progress.** Profile editor, tap-to-enlarge avatar and the 입력 중 표시 switch (§ 8.12.) landed. **Open: the device list, 로그아웃, and app info**
 11. Security hardening + deployment (§ 14., § 15.)
 
 ---

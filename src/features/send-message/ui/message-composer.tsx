@@ -4,7 +4,7 @@ import { MAX_MESSAGE_LENGTH } from "@/shared/config";
 import { cn, useIsCoarsePointer, useUnsentWork, type Nullable } from "@/shared/lib";
 import { HapticTarget, IconButton, Textarea } from "@/shared/ui";
 import { ArrowUp, Plus, Smile } from "lucide-react";
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 
 export type MessageComposerProps = {
   className?: string;
@@ -15,6 +15,8 @@ export type MessageComposerProps = {
   onAttach: () => void;
   /** REQUIREMENTS.md § 13.6. Reaching for the field is a request for the keyboard, which the picker would then be buried under. */
   onFieldFocus?: () => void;
+  /** REQUIREMENTS.md § 8.12. Whether the field holds a draft, which the screen folds together with the emoticon panel into one 입력 중 signal. */
+  onDraftChange?: (hasDraft: boolean) => void;
   onToggleEmoticons?: () => void;
   onSend: (text: string) => void;
 };
@@ -27,16 +29,30 @@ export function MessageComposer({
   isEmoticonPickerOpen = false,
   onAttach,
   onFieldFocus,
+  onDraftChange,
   onToggleEmoticons,
   onSend,
 }: MessageComposerProps) {
   const fieldRef = useRef<Nullable<HTMLTextAreaElement>>(null);
   const [text, setText] = useState("");
   const isCoarsePointer = useIsCoarsePointer();
-  const canSend = text.trim().length > 0 || hasAttachments;
+  const hasDraft = text.trim().length > 0;
+  const canSend = hasDraft || hasAttachments;
 
   // INFO: REQUIREMENTS.md § 15.1. Declared here rather than lifted to the screen — the draft never leaves this component, and a forced refresh must not discard it.
-  useUnsentWork(text.trim().length > 0);
+  useUnsentWork(hasDraft);
+
+  // WARN: Read through a ref, so a caller passing a fresh closure on every render cannot make the effect below fire on renders where the draft state did not move.
+  const onDraftChangeRef = useRef(onDraftChange);
+
+  useEffect(() => {
+    onDraftChangeRef.current = onDraftChange;
+  });
+
+  // WARN: REQUIREMENTS.md § 8.12. An effect on the derived boolean, not a call inside `onChange` — the field is also cleared by `submit` below, and a notification wired to the change handler alone would leave the screen signalling 입력 중 after every send.
+  useEffect(() => {
+    onDraftChangeRef.current?.(hasDraft);
+  }, [hasDraft]);
 
   return (
     // WARN: DESIGN.md § 3.5. Transparent to the pointer so the messages underneath stay tappable; only the pill itself takes taps.

@@ -1,4 +1,5 @@
 import { A_DAY, A_SECOND, type Maybe } from "@/shared/lib";
+import { z } from "zod";
 
 export const APP_NAME = "J&H";
 
@@ -141,6 +142,27 @@ export const CHAT_UNREAD_PATH = "/api/chat/unread";
 
 // INFO: REQUIREMENTS.md § 8.8. The cursor moves while the chat is on screen, so the write is throttled rather than run per message — every UPDATE fires `user_changed` at the other device.
 export const READ_CURSOR_THROTTLE = 5 * A_SECOND;
+
+/** REQUIREMENTS.md § 8.12. 입력 중 — a broadcast with no row behind it. */
+export const CHAT_TYPING_PATH = "/api/chat/typing";
+
+/**
+ * The `typing` payload, on the `pg_notify` hop and on the wire alike.
+ *
+ * WARN: One definition for all three sides — publisher, stream, client. Spelled
+ * out separately they drift, and the client's copy fails **closed**: `safeParse`
+ * simply stops matching and the indicator quietly never appears again, with no
+ * error raised anywhere to say why.
+ */
+export const typingEventSchema = z.object({ userId: z.uuid() });
+
+export type TypingEvent = z.infer<typeof typingEventSchema>;
+
+// INFO: REQUIREMENTS.md § 8.12. A keystroke does not send; this is how often one is resent while composing continues, which is what keeps the receiver's expiry from firing.
+export const TYPING_PING_INTERVAL = 3 * A_SECOND;
+
+// WARN: REQUIREMENTS.md § 8.12. Comfortably more than one ping interval plus network slack, and the *only* thing that clears the indicator — a sender who is frozen, offline or closed sends no stop, so anything shorter blinks under a slow round trip and anything derived from a stop event sticks forever.
+export const TYPING_TIMEOUT = 8 * A_SECOND;
 
 /** REQUIREMENTS.md § 16.1. Web Push — the subscription endpoint and the push-only service worker. */
 export const PUSH_SUBSCRIPTION_PATH = "/api/push/subscription";
