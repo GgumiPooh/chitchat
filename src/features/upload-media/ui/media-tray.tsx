@@ -4,7 +4,7 @@ import type { MediaDraft } from "@/entities/media";
 import { isVideoMime } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { Skeleton } from "@/shared/ui";
-import { Pencil, Play, X } from "lucide-react";
+import { Pencil, Play, Scissors, X } from "lucide-react";
 
 export type MediaTrayProps = {
   className?: string;
@@ -17,8 +17,7 @@ export type MediaTrayProps = {
 
 /**
  * The staged attachments, above the composer. Every tile carries its own remove
- * control, and images carry an edit one — a video has no editor (§ 9. stores it
- * as it arrived).
+ * control and an edit one — a photo crops and filters, a video trims.
  */
 export function MediaTray({ className, drafts, isReading, onEdit, onRemove }: MediaTrayProps) {
   if (drafts.length === 0 && !isReading) {
@@ -41,20 +40,25 @@ export function MediaTray({ className, drafts, isReading, onEdit, onRemove }: Me
             src={draft.previewUrl}
             alt=""
           />
-          {isVideoMime(draft.mime) ? (
-            <span className="absolute inset-0 flex items-center justify-center">
+          {/* INFO: The play glyph marks the tile as a video; it is not a control, so it takes no pointer events and the edit strip below it stays reachable. */}
+          {isVideoMime(draft.mime) && (
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <Play className="size-5 text-on-primary drop-shadow-sm" strokeWidth={1.75} />
             </span>
-          ) : (
-            <button
-              className="absolute inset-x-0 bottom-0 flex h-6 cursor-pointer items-center justify-center rounded-b-sm bg-scrim/45 text-on-primary transition-colors outline-none hover:bg-scrim/60 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
-              type="button"
-              aria-label="사진 편집"
-              onClick={() => onEdit(draft)}
-            >
-              <Pencil className="size-3.5" strokeWidth={1.75} />
-            </button>
           )}
+          {/* INFO: Both kinds are editable — a photo crops and filters (§ 9.), a video trims (§ 12.1.'s trimmer, with no length cap here). */}
+          <button
+            className="absolute inset-x-0 bottom-0 flex h-6 cursor-pointer items-center justify-center rounded-b-sm bg-scrim/45 text-on-primary transition-colors outline-none hover:bg-scrim/60 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+            type="button"
+            aria-label={isVideoMime(draft.mime) ? "영상 자르기" : "사진 편집"}
+            onClick={() => onEdit(draft)}
+          >
+            {isVideoMime(draft.mime) ? (
+              <Scissors className="size-3.5" strokeWidth={1.75} />
+            ) : (
+              <Pencil className="size-3.5" strokeWidth={1.75} />
+            )}
+          </button>
           {/* INFO: DESIGN.md § 3.2. The glyph stays small while the button keeps a finger-sized hit area through its negative inset. */}
           <button
             className="absolute -top-1 -right-1 inline-flex size-6 cursor-pointer items-center justify-center rounded-full border border-hairline bg-canvas text-meta transition-colors outline-none hover:bg-surface-strong hover:text-ink focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-pressed"

@@ -2,7 +2,7 @@
 
 import type { GalleryMedia, MediaDraft } from "@/entities/media";
 import { postMessage } from "@/features/send-message";
-import { toMediaDraft, uploadDraft, validateFile } from "@/features/upload-media";
+import { uploadDraft } from "@/features/upload-media";
 import {
   MAX_MEDIA_PER_MESSAGE,
   MAX_UPLOAD_INFLIGHT_BYTES,
@@ -23,6 +23,11 @@ export type GalleryUploadParams = {
  * INFO: Not routed through `useSendMessage`. That queue exists to render an
  * optimistic bubble in a room this screen is not showing, and its failure state is
  * a 재전송 affordance on a bubble that does not exist here.
+ *
+ * WARN: Takes **drafts, not files**. The screen stages a pick first so each item
+ * can be edited before it goes up (§ 10.), which means validation and decoding have
+ * already happened by the time this runs — reading them again here would decode
+ * every file a second time and throw away the edit.
  */
 export function useGalleryUpload(onAdded: (media: GalleryMedia) => void) {
   // WARN: Every write to these two is relative, never absolute. A second pick while the first batch is running is an ordinary thing to do, and an absolute `setRemainingCount(n)` would wipe the batch already in flight — then the first batch finishing would zero the counter under the second and flip the screen to its empty state mid-upload.
@@ -30,17 +35,11 @@ export function useGalleryUpload(onAdded: (media: GalleryMedia) => void) {
   const [runningCount, setRunningCount] = useState(0);
 
   const upload = useCallback(
-    async (files: File[], { shouldPost }: GalleryUploadParams) => {
+    async (drafts: MediaDraft[], { shouldPost }: GalleryUploadParams) => {
       setRunningCount((current) => current + 1);
-      // INFO: Claimed before the files are decoded, not after. Decoding forty photos takes seconds (§ 9. reads their real dimensions), and until this lands the screen says nothing is happening.
-      setRemainingCount((current) => current + files.length);
+      setRemainingCount((current) => current + drafts.length);
 
       try {
-        const drafts = await readDrafts(files);
-
-        // INFO: What validation rejected never reaches the loop below, so its share of the claim is released here.
-        setRemainingCount((current) => Math.max(current - (files.length - drafts.length), 0));
-
         // WARN: Pooled, not one at a time. § 13.4. settled this for the bulk emoticon add and the reason is the same here — the byte budget is what keeps a pick of 500MB videos from going out four abreast, which a bare concurrency limit would not.
         const results = await mapPooled(
           drafts,
@@ -89,42 +88,6 @@ export function useGalleryUpload(onAdded: (media: GalleryMedia) => void) {
   return { remainingCount, isBusy: runningCount > 0, upload };
 }
 
-/**
- * INFO: The same validation and decoding the composer's tray does — § 9.'s
- * dimensions and thumbnail are read here too, because the `media` row needs them
- * whichever screen the file came from.
- */
-async function readDrafts(files: File[]): Promise<MediaDraft[]> {
-  const drafts: MediaDraft[] = [];
-  const rejections = new Set<string>();
-
-  for (const file of files) {
-    const rejection = validateFile(file);
-
-    if (rejection) {
-      rejections.add(rejection);
-      continue;
-    }
-
-    try {
-      drafts.push(await toMediaDraft(file));
-    } catch {
-      rejections.add("파일을 읽지 못했어요");
-    }
-  }
-
-  // INFO: One toast per distinct reason, not per file — picking forty photos with three oversized ones must not stack forty banners.
-  rejections.forEach((rejection) => toast.error(rejection));
-
-  return drafts;
-}
-
-/**
- * WARN: REQUIREMENTS.md § 18. #10. A send longer than `MAX_MEDIA_PER_MESSAGE`
- * splits into consecutive bubbles rather than being capped, and the chunks are
- * posted in order — `messages.id` is assigned by the POST, so racing them would
- * reverse the order on every other client.
- */
 async function post(mediaIds: string[]) {
   try {
     for (let index = 0; index < mediaIds.length; index += MAX_MEDIA_PER_MESSAGE) {

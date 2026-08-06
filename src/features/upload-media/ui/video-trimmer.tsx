@@ -10,24 +10,30 @@ import { toDefaultTrimRange, trimVideo, type TrimRange } from "../model/trim-vid
 export type VideoTrimmerProps = {
   className?: string;
   draft: MediaDraft;
-  /** REQUIREMENTS.md § 12.1. The window the result must fit inside, in milliseconds. */
-  maxDurationMs: number;
+  /**
+   * REQUIREMENTS.md § 12.1. The window the result must fit inside, in milliseconds.
+   *
+   * INFO: Given, the window is a fixed width and the user chooses only where it
+   * sits — a second handle would offer a length that is already decided. Omitted
+   * (§ 9.'s chat and gallery attachments, which have no length cap), both ends
+   * move and trimming is an edit rather than a requirement.
+   */
+  maxDurationMs?: number;
   onCancel: () => void;
   /** Given the trimmed file, for the caller to re-read into a draft of its own. */
   onDone: (file: File) => void;
 };
 
+// INFO: Short enough that a handle cannot produce a clip with no frames in it.
+const MIN_TRIM_SECONDS = 0.5;
+
 /**
- * REQUIREMENTS.md § 12.1. Picks the `maxDurationMs` window a background video is
- * cut down to, over the app shell.
+ * Cuts a video down, over the app shell — the § 12.1. background's 30s window, or
+ * a free range for an attachment.
  *
  * WARN: `absolute`, never `fixed` — AGENTS.md § 4.4. keeps the app shell as the one
  * fixed element. `ShellOverlay` is what makes the shell the box this fills, exactly
  * as `MediaEditor` does.
- *
- * INFO: One handle, not two. The window is a fixed `maxDurationMs` wide, so the
- * user is choosing **where** it sits rather than how long it is — a second handle
- * would offer a length that is already decided.
  */
 export function VideoTrimmer({
   className,
@@ -39,10 +45,22 @@ export function VideoTrimmer({
   const videoRef = useRef<Nullable<HTMLVideoElement>>(null);
   const [sourceUrl, setSourceUrl] = useState("");
   const [isTrimming, setIsTrimming] = useState(false);
-  const durationMs = draft.durationMs ?? maxDurationMs;
-  const windowSeconds = Math.min(durationMs, maxDurationMs) / A_SECOND;
-  const latestStart = Math.max(0, (durationMs - maxDurationMs) / A_SECOND);
-  const [start, setStart] = useState(() => toDefaultTrimRange(durationMs, maxDurationMs).start);
+  // WARN: A container whose duration never resolved falls back to the cap, or to a one-second range with no cap — either way the handles stay finite. `NaN` here would silently disable every control.
+  const durationMs = draft.durationMs ?? maxDurationMs ?? A_SECOND;
+  const durationSeconds = durationMs / A_SECOND;
+  const isFixedWindow = maxDurationMs !== undefined;
+  const windowSeconds = isFixedWindow
+    ? Math.min(durationMs, maxDurationMs) / A_SECOND
+    : durationSeconds;
+  const latestStart = isFixedWindow
+    ? Math.max(0, (durationMs - maxDurationMs) / A_SECOND)
+    : durationSeconds - MIN_TRIM_SECONDS;
+  const [start, setStart] = useState(
+    () => toDefaultTrimRange(durationMs, maxDurationMs ?? durationMs).start,
+  );
+  const [end, setEnd] = useState(durationSeconds);
+  // INFO: The fixed window follows its start; a free range is whatever the two handles say.
+  const resolvedEnd = isFixedWindow ? Math.min(start + windowSeconds, durationSeconds) : end;
 
   // WARN: Created and revoked inside one effect, never from a `useState` initializer — `MediaEditor` carries the argument: StrictMode's setup → cleanup → setup would revoke a URL that state kept, leaving the element on a dead blob.
   useEffect(() => {
@@ -65,7 +83,7 @@ export function VideoTrimmer({
             onClick={onCancel}
           />
           <span className="text-caption text-on-primary">
-            {`${Math.round(windowSeconds)}초만 쓸 수 있어요`}
+            {isFixedWindow ? `${Math.round(windowSeconds)}초만 쓸 수 있어요` : "영상 자르기"}
           </span>
           <Button
             className="w-auto"
@@ -90,9 +108,9 @@ export function VideoTrimmer({
         </div>
         <div className="space-y-xs p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))]">
           <label className="block text-body-sm text-on-primary" htmlFor="trim-start">
-            시작 지점
+            {isFixedWindow ? "시작 지점" : "시작"}
           </label>
-          {/* INFO: A range input rather than a filmstrip. Decoding a strip of thumbnails is a second pass over the file for an affordance one handle already gives, and the preview beside it already shows the frame. */}
+          {/* INFO: Range inputs rather than a filmstrip. Decoding a strip of thumbnails is a second pass over the file for an affordance the handles already give, and the preview above already shows the frame under the one being dragged. */}
           <input
             className="w-full accent-primary"
             type="range"
@@ -100,26 +118,57 @@ export function VideoTrimmer({
             max={latestStart}
             step={0.1}
             value={start}
-            disabled={isTrimming || latestStart === 0}
+            disabled={isTrimming || latestStart <= 0}
             id="trim-start"
-            onChange={handleScrub}
+            onChange={handleStartScrub}
           />
+          {!isFixedWindow && (
+            <>
+              <label className="block text-body-sm text-on-primary" htmlFor="trim-end">
+                끝
+              </label>
+              <input
+                className="w-full accent-primary"
+                type="range"
+                min={0}
+                max={durationSeconds}
+                step={0.1}
+                value={end}
+                disabled={isTrimming}
+                id="trim-end"
+                onChange={handleEndScrub}
+              />
+            </>
+          )}
           <p className="text-center text-caption text-on-primary/80">
-            {`${formatSeconds(start)} ~ ${formatSeconds(start + windowSeconds)}`}
+            {`${formatSeconds(start)} ~ ${formatSeconds(resolvedEnd)} · ${formatSeconds(resolvedEnd - start)}`}
           </p>
         </div>
       </div>
     </ShellOverlay>
   );
 
-  // INFO: The preview seeks with the handle, so the frame under it is the one the cut starts on.
-  function handleScrub(event: ChangeEvent<HTMLInputElement>) {
+  // INFO: The preview seeks with whichever handle moved, so the frame on screen is the cut the user is aiming.
+  function handleStartScrub(event: ChangeEvent<HTMLInputElement>) {
     const next = Number(event.target.value);
 
     setStart(next);
+    // WARN: The end is pushed rather than clamped on submit. Left behind the start, the range inverts and `mediabunny` is handed a negative window.
+    setEnd((current) => Math.max(current, next + MIN_TRIM_SECONDS));
+    seek(next);
+  }
 
+  function handleEndScrub(event: ChangeEvent<HTMLInputElement>) {
+    const next = Number(event.target.value);
+
+    setEnd(next);
+    setStart((current) => Math.min(current, next - MIN_TRIM_SECONDS));
+    seek(next);
+  }
+
+  function seek(seconds: number) {
     if (videoRef.current) {
-      videoRef.current.currentTime = next;
+      videoRef.current.currentTime = seconds;
     }
   }
 
@@ -127,7 +176,7 @@ export function VideoTrimmer({
     setIsTrimming(true);
 
     try {
-      const range: TrimRange = { start, end: start + windowSeconds };
+      const range: TrimRange = { start, end: resolvedEnd };
 
       onDone(await trimVideo(draft.file, range));
     } catch {

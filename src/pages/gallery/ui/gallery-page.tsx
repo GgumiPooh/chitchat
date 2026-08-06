@@ -1,8 +1,16 @@
 "use client";
 
-import type { GalleryMedia } from "@/entities/media";
+import type { GalleryMedia, MediaDraft } from "@/entities/media";
 import { useSetBackground } from "@/features/set-background";
-import { MediaPickerSheet } from "@/features/upload-media";
+import {
+  MediaEditor,
+  MediaPickerSheet,
+  MediaTray,
+  toMediaDraft,
+  useMediaSelection,
+  VideoTrimmer,
+} from "@/features/upload-media";
+import { isVideoMime } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
 import {
   isShareableSelection,
@@ -11,8 +19,8 @@ import {
   useMediaShare,
 } from "@/shared/share";
 import {
-  ActionSheet,
   AppHeader,
+  BottomSheet,
   Button,
   EmptyState,
   IconButton,
@@ -29,7 +37,7 @@ import {
   useGallerySelection,
   useGalleryUpload,
 } from "@/widgets/gallery-grid";
-import { ImagePlus, Images, ListChecks, MessageCircle, X } from "lucide-react";
+import { ImagePlus, Images, ListChecks, X } from "lucide-react";
 import { useState } from "react";
 
 export type GalleryPageProps = {
@@ -44,7 +52,10 @@ export type GalleryPageProps = {
 export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
   const [viewer, setViewer] = useState<Nullable<{ cells: MediaCell[]; index: number }>>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<Nullable<File[]>>(null);
+  // INFO: REQUIREMENTS.md § 10. The pick, staged for editing before anything is uploaded. The same hook the composer's tray uses (§ 9.), so both screens edit an attachment the same way.
+  const staging = useMediaSelection();
+  const [stagedEditing, setStagedEditing] = useState<Nullable<MediaDraft>>(null);
+  const [stagedTrimming, setStagedTrimming] = useState<Nullable<MediaDraft>>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const { media, isLoadingMore, loadMore, prepend, remove } = useGalleryMedia(initialMedia);
@@ -138,24 +149,60 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
         onClose={() => setIsPickerOpen(false)}
         onSelect={handlePick}
       />
-      {/* INFO: REQUIREMENTS.md § 10. The gallery is the shared album, so posting to the conversation is the default and not posting is the option beside it. */}
-      <ActionSheet
-        isOpen={pendingFiles !== null}
-        header={{ title: "사진 추가", description: "대화에도 보낼까요?" }}
-        items={[
-          {
-            label: "대화에도 보내기",
-            Icon: MessageCircle,
-            onSelect: () => void startUpload({ shouldPost: true }),
-          },
-          {
-            label: "갤러리에만 추가",
-            Icon: Images,
-            onSelect: () => void startUpload({ shouldPost: false }),
-          },
-        ]}
-        onClose={() => setPendingFiles(null)}
-      />
+      {/* INFO: REQUIREMENTS.md § 10. The pick is staged before it goes up, so each item can be cropped or trimmed and any of them dropped — the gallery used to upload straight off the picker, which gave the user nowhere to correct a bad frame. */}
+      <BottomSheet
+        isOpen={staging.drafts.length > 0 || staging.isReading}
+        header={{ title: "사진 추가", description: "올리기 전에 하나씩 편집할 수 있어요" }}
+        onClose={cancelStaging}
+      >
+        <div className="space-y-md">
+          <MediaTray
+            drafts={staging.drafts}
+            isReading={staging.isReading}
+            onEdit={openStagedEditor}
+            onRemove={staging.remove}
+          />
+          {/* INFO: REQUIREMENTS.md § 10. The gallery is the shared album, so posting to the conversation is the default and not posting is the option beside it. */}
+          <div className="space-y-xs">
+            <Button
+              disabled={staging.drafts.length === 0 || staging.isReading}
+              haptic
+              onClick={() => void startUpload({ shouldPost: true })}
+            >
+              대화에도 보내기
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={staging.drafts.length === 0 || staging.isReading}
+              haptic
+              onClick={() => void startUpload({ shouldPost: false })}
+            >
+              갤러리에만 추가
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
+      {stagedEditing && (
+        // WARN: Keyed by draft — `MediaEditor` mints its source object URL once per mount, so editing a second photo must be a second mount.
+        <MediaEditor
+          key={stagedEditing.id}
+          draft={stagedEditing}
+          onDone={(edited) => {
+            staging.replace(edited);
+            setStagedEditing(null);
+          }}
+          onCancel={() => setStagedEditing(null)}
+        />
+      )}
+      {stagedTrimming && (
+        // INFO: No `maxDurationMs` — a gallery attachment has no length cap (§ 9.), so both handles move.
+        <VideoTrimmer
+          key={stagedTrimming.id}
+          draft={stagedTrimming}
+          onCancel={() => setStagedTrimming(null)}
+          onDone={(file) => void applyTrim(stagedTrimming, file)}
+        />
+      )}
       <Modal
         isOpen={isConfirmingDelete}
         header={{
@@ -202,16 +249,54 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
 
   function handlePick(files: File[]) {
     setIsPickerOpen(false);
-    setPendingFiles(files);
+    void staging.add(files);
   }
 
+  // INFO: One control per tile, two editors behind it — a photo crops and filters, a video trims (§ 9.).
+  function openStagedEditor(draft: MediaDraft) {
+    if (isVideoMime(draft.mime)) {
+      setStagedTrimming(draft);
+
+      return;
+    }
+
+    setStagedEditing(draft);
+  }
+
+  /**
+   * WARN: The trimmed clip keeps the **old draft's id**. `useMediaSelection.replace`
+   * matches on it and `toMediaDraft` mints a fresh one, so without this the trim
+   * would append a second tile rather than replace the one being edited.
+   */
+  async function applyTrim(source: MediaDraft, file: File) {
+    setStagedTrimming(null);
+
+    try {
+      staging.replace({ ...(await toMediaDraft(file)), id: source.id });
+    } catch {
+      toast.error("자른 영상을 읽지 못했어요");
+    }
+  }
+
+  function cancelStaging() {
+    staging.clear();
+    setStagedEditing(null);
+    setStagedTrimming(null);
+  }
+
+  /**
+   * WARN: `takeAll`, not a read of `staging.drafts`. It empties the tray without
+   * revoking the previews, and `upload` revokes each one as it settles — leaving the
+   * hook to revoke them on unmount instead would kill the blob mid-upload.
+   */
   async function startUpload({ shouldPost }: { shouldPost: boolean }) {
-    const files = pendingFiles;
+    const drafts = staging.takeAll();
 
-    setPendingFiles(null);
+    setStagedEditing(null);
+    setStagedTrimming(null);
 
-    if (files) {
-      await upload(files, { shouldPost });
+    if (drafts.length > 0) {
+      await upload(drafts, { shouldPost });
     }
   }
 
