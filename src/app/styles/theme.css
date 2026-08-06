@@ -169,6 +169,19 @@
   --shadow-raised: 0 1px 2px rgb(31 27 23 / 0.04), 0 2px 8px rgb(31 27 23 / 0.05);
   --shadow-floating: 0 4px 12px rgb(31 27 23 / 0.06), 0 16px 32px rgb(31 27 23 / 0.12);
 
+  /* INFO: Motion — DESIGN.md § 4.7. Five durations and three curves; nothing in the app times itself. */
+  --duration-press-in: 180ms;
+  --duration-press-out: 420ms;
+  --duration-state: 200ms;
+  --duration-route-exit: 140ms;
+  --duration-route-enter: 220ms;
+
+  /* WARN: `--ease-*` is Tailwind's timing-function namespace, so these also ship as `ease-press` / `ease-bloom` / `ease-route` utilities — renaming one renames the utility. */
+  --ease-press: cubic-bezier(0.2, 0, 0, 1);
+  /* INFO: DESIGN.md § 4.7. The one curve that overshoots — the release settles past its resting size and back, which is what reads as a material relaxing rather than a transform ending. */
+  --ease-bloom: cubic-bezier(0.34, 1.35, 0.64, 1);
+  --ease-route: cubic-bezier(0.32, 0.72, 0, 1);
+
   /* INFO: App shell — DESIGN.md § 3.3. Narrower than a tablet so the tab bar cannot read as a desktop nav. */
   --container-app: 576px;
 

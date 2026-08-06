@@ -11,6 +11,11 @@
     @apply h-full overflow-hidden overscroll-none;
   }
 
+  /* WARN: DESIGN.md § 4.7.1. The colour that propagates to the canvas, and it is `canvas` rather than the `backdrop` below it on purpose — a view transition paints only inside the snapshot containing block, and iOS leaves the safe-area strips beside the notch outside it, so this is what shows there mid-navigation. `body` still carries `backdrop`, which is what letterboxes the shell on a wide viewport. */
+  html {
+    @apply bg-canvas;
+  }
+
   body {
     @apply bg-backdrop font-sans text-ink antialiased;
     /* INFO: Korean wraps mid-word by default; keep-all breaks at spaces only (DESIGN.md § 4.2.3.). */
@@ -20,6 +25,116 @@
   button:not(:disabled):hover,
   [role="button"]:not(:disabled):hover {
     @apply cursor-pointer;
+  }
+}
+
+/* WARN: DESIGN.md § 4.7.1. Without this the browser also crossfades its own `root` group, which is the whole document — the floating bars included. Two half-opaque copies of a `glass` bar over each other is what made it flash transparent mid-navigation. */
+::view-transition-group(root) {
+  animation: none;
+}
+
+::view-transition-old(root) {
+  display: none;
+}
+
+::view-transition-new(root) {
+  animation: none;
+}
+
+/* INFO: DESIGN.md § 4.7.1. `BottomOverlay` names itself into this group so the screen animates under the bars and they do not move at all. */
+/* WARN: `z-index` is required — a group of its own is painted in name order, so without it the sliding screen passes over the bar rather than under it. */
+::view-transition-group(bottom-overlay) {
+  animation: none;
+  z-index: 100;
+}
+
+::view-transition-old(bottom-overlay) {
+  display: none;
+}
+
+::view-transition-new(bottom-overlay) {
+  animation: none;
+}
+
+/* INFO: DESIGN.md § 4.7.1. A tab switch slides along the bar's own order. Nothing else the shell swaps animates yet — an untyped update is a data refresh as often as it is a navigation. */
+::view-transition-old(.tab-forward) {
+  --route-slide: -24px;
+  animation:
+    var(--duration-route-exit) var(--ease-route) both route-fade reverse,
+    var(--duration-route-exit) var(--ease-route) both route-slide reverse;
+}
+
+::view-transition-new(.tab-forward) {
+  --route-slide: 24px;
+  animation:
+    var(--duration-route-enter) var(--ease-route) var(--duration-route-exit) both route-fade,
+    var(--duration-route-enter) var(--ease-route) var(--duration-route-exit) both route-slide;
+}
+
+::view-transition-old(.tab-back) {
+  --route-slide: 24px;
+  animation:
+    var(--duration-route-exit) var(--ease-route) both route-fade reverse,
+    var(--duration-route-exit) var(--ease-route) both route-slide reverse;
+}
+
+::view-transition-new(.tab-back) {
+  --route-slide: -24px;
+  animation:
+    var(--duration-route-enter) var(--ease-route) var(--duration-route-exit) both route-fade,
+    var(--duration-route-enter) var(--ease-route) var(--duration-route-exit) both route-slide;
+}
+
+@keyframes route-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* WARN: `translate` and not `transform` — the snapshot pseudo-element already carries a `transform` the browser owns, and re-declaring it drops the group's own positioning. */
+@keyframes route-slide {
+  from {
+    translate: var(--route-slide) 0;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+
+/* INFO: DESIGN.md § 4.7. Positional motion is the common motion-sensitivity trigger; without a duration the browser falls back to swapping content outright. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
+/* INFO: DESIGN.md § 4.7.2. The press for every round control — it swells under the finger and settles back, so the touch reads as the surface answering rather than the control receding. */
+/* WARN: Three selectors, and all three are load-bearing. `:active` is the mouse; `group-active:` is a wrapper the pointer lands on directly; `group-data-[pressed]:` is the only one that fires under a finger, because `HapticTap`'s native switch swallows `:active` before the wrapper ever sees it (§ 7.15.). */
+/* WARN: The resting `scale-100` is not redundant. Left off, the resting value is `none`, and WebKit refuses to interpolate `none` → a number: the control snaps to its pressed size instead of growing into it. */
+/* WARN: The `transition` shorthand carries a per-property timing list, so the control keeps `--duration-state` colour (§ 4.7.) while only the scale runs on the long overshoot. A caller MUST NOT add `transition-colors` beside this — `transition-property` is one declaration and the loser is silently dropped. */
+/* WARN: The resting `scale: 1` is not redundant. Left off, the resting value is `none`, and WebKit refuses to interpolate `none` → a number: the control snaps to its pressed size instead of growing into it. */
+@utility press-bloom {
+  scale: 1;
+  transition:
+    scale var(--press-duration, var(--duration-press-out)) var(--press-ease, var(--ease-bloom)),
+    color var(--duration-state),
+    background-color var(--duration-state),
+    border-color var(--duration-state),
+    opacity var(--duration-state);
+
+  /* WARN: Three selectors, and all three are load-bearing. `:active` is the mouse; the `.group:active` form is a wrapper the pointer lands on directly; `[data-pressed]` is the only one that fires under a finger, because `HapticTap`'s native switch swallows `:active` before the wrapper ever sees it (§ 7.15.). */
+  &:active,
+  :where(.group):active &,
+  :where(.group)[data-pressed] & {
+    --press-duration: var(--duration-press-in);
+    --press-ease: var(--ease-press);
+    scale: 1.18;
   }
 }
 

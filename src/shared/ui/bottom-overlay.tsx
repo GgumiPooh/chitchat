@@ -54,7 +54,8 @@ export function BottomOverlay({ className, contentClassName, children }: BottomO
     <div
       ref={overlayRef}
       className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-0 z-30 transition-[height] ease-out",
+        // WARN: DESIGN.md § 4.7.1. Named out of the root snapshot, which a route change crossfades whole — inside it the bars' `glass` is composited against a second half-opaque copy of itself and flashes transparent.
+        "pointer-events-none absolute inset-x-0 bottom-0 z-30 transition-[height] ease-out [view-transition-name:bottom-overlay]",
         // WARN: DESIGN.md § 7.3. The bars only come back once the shell has finished easing to its resting height. Rising on the same frame the keyboard starts leaving draws them at the shell's bottom edge while that edge is still halfway up the screen, which reads as the tab bar appearing in mid-air.
         isKeyboardOpen ? "duration-200" : "delay-200 duration-150",
         className,

@@ -371,6 +371,58 @@ Bubbles carry **no shadow**. `bubble-theirs` is separated from `chat-canvas` by 
 | Colour         | `meta` at rest, `ink` when emphasized, `primary` only when active-state (§ 8.) |
 | Emoji as icons | Forbidden (§ 2.2.)                                                             |
 
+## 4.7. Motion.
+
+Five durations and three curves. Nothing in the app times itself; every animated property reads one of these.
+
+| Token                    | Value                               | Use                                                                                    |
+| ------------------------ | ----------------------------------- | -------------------------------------------------------------------------------------- |
+| `--duration-press-in`    | 180ms                               | A finger landing — the bloom growing (§ 4.7.2.)                                        |
+| `--duration-press-out`   | 420ms                               | A finger leaving — the bloom settling back, long enough for the overshoot to be seen   |
+| `--duration-state`       | 200ms                               | A committed state change — the tab fill, a toggle, the bars' collapse (§ 3.5., § 7.3.) |
+| `--duration-route-exit`  | 140ms                               | The outgoing screen in a route change (§ 4.7.1.)                                       |
+| `--duration-route-enter` | 220ms                               | The incoming screen, delayed by the exit so the two never overlap (§ 4.7.1.)           |
+| `ease-press`             | `cubic-bezier(0.2, 0, 0, 1)`        | The press itself — no overshoot going in, or the control feels loose under the finger  |
+| `ease-bloom`             | `cubic-bezier(0.34, 1.35, 0.64, 1)` | The release. The only curve in the system that overshoots                              |
+| `ease-route`             | `cubic-bezier(0.32, 0.72, 0, 1)`    | Route motion — a longer tail, so the screen settles rather than stops                  |
+
+Exits are shorter than enters on purpose: content that is leaving should not compete for attention, and content that is arriving needs long enough to be read as arriving.
+
+### 4.7.1. Route transitions.
+
+Route changes animate through React's `<ViewTransition>`, which `next.config.ts` enables with `experimental.viewTransition`. The flag alone animates nothing: only an element inside a `<ViewTransition>` boundary is ever snapshotted.
+
+The boundary wraps the shell's scroller and nothing else, keyed on `update` — a route change mutates the scroller's contents, which is what `update` names, and the floating bars (§ 3.5.) stay outside the snapshot so they hold still while the screen behind them changes.
+
+A tab switch is a **24px directional slide**, along the tab bar's own order: tapping a tab to the right of the current one brings the new screen in from the right, and a tab to the left brings it in from the left. The direction is the bar's, not the app's history — the tab bar is the only thing that knows the order, so it tags each `Link` with a `tab-forward` / `tab-back` transition type and the shell's boundary maps those to the two animations. Direction taken from history instead would put 갤러리 on a different side depending on where the user came from, which is the one thing a slide must never do.
+
+An untyped update does **not** animate, and the boundary must never carry a catch-all. `update` names any transition-scoped mutation beneath it, and a `router.refresh()` — what saving a profile or logging out issues — is one: with a fallback animation in place, a same-route data refresh replays the full route transition on the whole screen. Deeper navigation (설정 → 이모티콘) is therefore instant today. It is a hierarchy and can take its own directional treatment later, by tagging those links with their own transition type rather than by widening the default.
+
+Exits and enters never overlap: the incoming screen is delayed by the full exit duration. Two translucent screens crossing over each other is what makes a slide read as cheap.
+
+Two groups are explicitly held still, and both are non-negotiable:
+
+- **`root`.** The browser crossfades its own root group — the entire document — for every view transition, on top of whatever the app animates. Left on, it fades the floating bars against a second half-opaque copy of themselves, and a `glass` surface (§ 3.5.) inside a half-opaque snapshot loses the backdrop it is blurring: the bar visibly flashes transparent mid-navigation. `root` therefore takes `animation: none` and its old snapshot is dropped outright.
+- **`bottom-overlay`.** `BottomOverlay` names itself into its own group with `animation: none` and a high `z-index`, so the screen slides underneath the bars rather than carrying them along. The name is set on the element, beside the id it already carries — a bare `#bottom-overlay` rule in the stylesheet would go stale silently.
+
+One more consequence of the same mechanism: a view transition paints **only inside the snapshot containing block**, and on iOS the safe-area strips beside the notch fall outside it. What shows there for the length of the animation is the colour propagated to the canvas — so `html` carries `canvas`, not the `backdrop` that `body` uses to letterbox the shell on a wide viewport (§ 3.3.). With `backdrop` propagating, those strips visibly darkened on every tab switch and snapped back when it ended.
+
+Under `prefers-reduced-motion: reduce` every view transition drops to a `0s` duration, which is the browser's own instant swap.
+
+### 4.7.2. Press bloom.
+
+A round control **grows** under the finger — `scale-[1.18]` in over `--duration-press-in`, back to rest over `--duration-press-out` on `ease-bloom`, which overshoots slightly before it lands. It is one utility, `press-bloom`, and it pins a resting `scale: 1`: from an unset `scale: none` WebKit refuses to interpolate and the control snaps to size instead of growing into it.
+
+The utility owns the control's whole `transition` shorthand, with a per-property timing list — the scale on the long overshoot, colour and opacity on `--duration-state`. `transition-property` is a single declaration, so a caller that adds `transition-colors` beside it silently drops one of the two. That is also why the bloom must be applied unconditionally rather than on a state branch: the send disc (§ 6.6.) flips `canSend` in the same click that sends, and a class removed there takes the resting `scale: 1` with it while the release is still running.
+
+18% and not less, over durations that are long for touch feedback. The bloom is carried by a 20px glyph and a 44px circle: 6% is a single pixel of travel and 110ms is over before the eye finds it — enough to measure, not enough to see. Both numbers are sized to the smallest thing wearing them, not to what would be tasteful on a full-width button.
+
+It fires off three selectors and all three are needed. `:active` is the mouse. `.group:active` is a wrapper the pointer lands on directly. `.group[data-pressed]` is the only one that fires **under a finger**: wherever `HapticTap` is mounted, the tap lands on a native switch (§ 7.15.), and WebKit resolves that press inside the native control rather than propagating `:active` up to the wrapper — and on a control that cancels `pointerdown` to hold focus (the send button), cancelling the event suppresses `:active` outright. `HapticTap` therefore sets `data-pressed` on its own parent from `pointerdown` and clears it on up, cancel, leave, and unmount. Without that last one the tab bar strands a bloomed tab: it drops `haptic` off the tab it has just switched to, which unmounts the overlay mid-press. The unmount path has to read the parent captured on `pointerdown`, not a ref: React detaches refs before a passive cleanup runs, and `useIsCoarsePointer` reports `false` on the first render, so the overlay is not even in the tree when a mount effect would try to find it.
+
+It grows rather than shrinks on purpose. A control that recedes reads as being pushed away, which is a button pretending to be a physical key; the platform's own glass controls swell toward the finger instead, as if the material were answering the touch. There is no perspective, no rotation, and no shadow change — those are the parts of that language that read as a 3D toy on a flat interface. Scale and the existing fill change carry it.
+
+Where it applies: the tab bar's icon-label stack (§ 7.3.), every `icon-button` (§ 7.1.), and the composer's send disc (§ 6.6.). A circle 44px across sits entirely under the finger, so its fill change is invisible at the moment it matters and the scale is the only feedback the user can actually see. Rectangular buttons and chips (§ 7.1.) keep the fill change alone — they are wide enough that their edges stay in view.
+
 # 5. Theming.
 
 ## 5.1. State Model.
@@ -500,7 +552,7 @@ Shown whenever the viewport is away from the newest message — after scrolling 
 | Threshold         | Appears past ~200px from the bottom; hides on arrival                                             |
 | Transition        | Fade + `translate-y-1` over 150ms, both directions                                                |
 | `:hover`          | `bg-surface-soft` (rest) / `bg-primary-hover` (new-message)                                       |
-| `:active`         | `scale-[0.96]`                                                                                    |
+| `:active`         | The press bloom (§ 4.7.2.) — it is a floating round control, like the bars' own buttons           |
 | Tap target        | 44 high including padding                                                                         |
 
 The count variant recolours to `primary` rather than adding a separate badge element: a badge on a floating pill stacks two elevated shapes in the busiest corner of the screen.
@@ -589,6 +641,8 @@ State matrix. `:focus-visible` is `ring-2 ring-primary ring-offset-2 ring-offset
 | `icon-button`          | `bg-surface-soft`, `text-ink`                        | `bg-surface-strong`         | `opacity-40`, `cursor-not-allowed`          |
 | `icon-button-floating` | `bg-canvas` (opacity closes)                         | `bg-surface-soft`           | `opacity-40`, `cursor-not-allowed`          |
 
+`icon-button` and `icon-button-floating` additionally take the press bloom (§ 4.7.2.) on `:active`. The composer's send disc (§ 6.6.) is not an `icon-button` — it is a 36 disc inside a 44 target — but it carries the same bloom, applied to the disc so the swell reads against the pill around it.
+
 `icon-button` uses `ring-2 ring-primary` with no offset — the circle bounding box is the visual edge.
 
 `icon-button-floating` is the only variant that sits over scrolling content (§ 3.5.), so it is the only one carrying a surface, a hairline, and `shadow-floating`. It is a translucent `canvas` with a blur behind it rather than a solid fill: solid reads as a detached chip, and the blur is what makes it read as floating above the content instead of punched out of it. This is a suggestion of the platform's material, not a reproduction of it — no specular edge, no dynamic tint.
@@ -620,7 +674,7 @@ Error state is triggered by `aria-invalid="true"`, never by a class alone.
 | Rest      | icon and label `meta`                                                                                       |
 | Active    | icon and label `primary` on a `primary-tint` `rounded-full` fill spanning the item                          |
 | `:hover`  | icon and label `ink` on a `surface-soft` fill (inactive items only)                                         |
-| `:active` | `scale-[0.96]` on the icon-label stack                                                                      |
+| `:active` | The press bloom on the icon-label stack (§ 4.7.2.)                                                          |
 | Badge     | `unread` fill, `on-primary` `micro`, min 18×18, `rounded-full`, anchored to the icon's top-right; `99+` cap |
 
 The bar leaves while the on-screen keyboard is up: the shell shrinks to the visual viewport (§ 3.4.), so a bar left in flow would sit between the composer and the keys and eat 56px of an already short column. The install banner (§ 7.13.) goes with it, for the same reason.
@@ -630,6 +684,10 @@ It leaves by collapsing `BottomOverlay`'s height to `0` over 200ms `ease-out`, n
 The 200ms delay is counted from the shell's height ease starting, which means `useIsVirtualKeyboardOpen` MUST NOT report the keyboard gone before the visual viewport has grown back. Detection is therefore asymmetric: **opening** takes a focused editable element _and_ a height drop past 160px, **closing** takes the height alone. Blur is not a closing signal — `focusout` lands the frame the field is blurred while WebKit only reports the restored height once the keys have finished sliding, so an AND across both signals dropped the flag roughly 250ms early. The delay then expired before the shell had started growing, the bars rose against an edge still halfway up the screen, and `--bottom-inset` yanked the composer and the history up by the bar's height before the shell brought them back down — the flinch this asymmetry exists to remove. Closing on the viewport alone also keeps Android's back button correct, which hides the keyboard without blurring the field.
 
 The bar floats inside the shell (§ 3.5.), so it is neither `fixed` nor width-re-applying: the shell is already a `fixed` box of the visual viewport's height, and the bar is an absolute child of its column.
+
+Re-tapping the tab the user is already on carries no transition type, so it does not animate — it still navigates, and a type would slide the screen out and the identical screen back in.
+
+The fill moves on the tap, not on the commit. Every tab screen is dynamic (`REQUIREMENTS.md § 8.`), so none of them prefetches to anything usable and the router holds the click for a server round trip — long enough that a bar driven by `usePathname` alone reads as a dropped tap. The tapped `href` is held as pending state and **discarded** — not merely masked — the render the pathname lands, so the fill and the label colour move immediately while the outgoing screen stays up. A value left in state would match again the next time the user arrives back on the route it was tapped from, and a swipe-back would refill the tab they had just left. This is presentation only: `aria-current` moves with it, but nothing else acts on the pending value, and a navigation that never commits returns the fill to the real route.
 
 The active item is the one filled surface in the system's navigation: on a pill this narrow there is no room for an indicator bar underneath, and colour alone is too weak a signal against a translucent, blurred backdrop that changes with whatever scrolls behind it.
 
@@ -796,17 +854,18 @@ iOS exposes no Vibration API. The only way a web page reaches the Taptic engine 
 
 Consequences, all of them non-obvious:
 
-| Rule                                                                                 | Reason                                                                                             |
-| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| Never mount `HapticTap` inside a `<button>`                                          | WebKit ends the tap in the native control; no click reaches JS at all, and the button stops firing |
-| Beside a `<button>`, wrap both in a `relative` box and pass `forwardsTap`            | The overlay replays the tap on its sibling control, which is the only path left                    |
-| Inside an `<a>`, mount it as the last child with no `forwardsTap`                    | The click still bubbles to the anchor, where `NextLink`'s own handler takes it                     |
-| `haptic` on a `Link` is for internal routes only                                     | The anchor's native activation never runs, so an external href or modified click would go nowhere  |
-| Hide it with `opacity` alone — never `appearance-none`, never `display: none`        | A restyled control is no longer native and stops ticking; a hidden one cannot be tapped            |
-| Put `group` on the wrapper and `group-active:` beside every `active:` on the control | The tap lands on the overlay, so `:active` matches the wrapper and never the control (`§ 3.2.`)    |
-| Repeat the control's `touch-action` on the overlay                                   | `touch-action` applies to the element a gesture starts on, and that is now the overlay             |
-| Never over the cells that **tile** a scrolling or swiping surface                    | The switch is a draggable native control, so it takes the drag itself and the surface stops moving |
-| A gesture threshold, a drag, a route change — none of these can tick                 | They are scripted triggers, which iOS 26.5 removed                                                 |
+| Rule                                                                                 | Reason                                                                                               |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Never mount `HapticTap` inside a `<button>`                                          | WebKit ends the tap in the native control; no click reaches JS at all, and the button stops firing   |
+| Beside a `<button>`, wrap both in a `relative` box and pass `forwardsTap`            | The overlay replays the tap on its sibling control, which is the only path left                      |
+| Inside an `<a>`, mount it as the last child with no `forwardsTap`                    | The click still bubbles to the anchor, where `NextLink`'s own handler takes it                       |
+| `haptic` on a `Link` is for internal routes only                                     | The anchor's native activation never runs, so an external href or modified click would go nowhere    |
+| Hide it with `opacity` alone — never `appearance-none`, never `display: none`        | A restyled control is no longer native and stops ticking; a hidden one cannot be tapped              |
+| Put `group` on the wrapper and `group-active:` beside every `active:` on the control | The tap lands on the overlay, so `:active` matches the wrapper and never the control (`§ 3.2.`)      |
+| For motion, read `group-data-[pressed]:` and not `group-active:`                     | WebKit resolves the press inside the native switch; the overlay sets the attribute itself (§ 4.7.2.) |
+| Repeat the control's `touch-action` on the overlay                                   | `touch-action` applies to the element a gesture starts on, and that is now the overlay               |
+| Never over the cells that **tile** a scrolling or swiping surface                    | The switch is a draggable native control, so it takes the drag itself and the surface stops moving   |
+| A gesture threshold, a drag, a route change — none of these can tick                 | They are scripted triggers, which iOS 26.5 removed                                                   |
 
 It renders on a coarse pointer only (`AGENTS.md § 4.2.`): a mouse gains nothing, and the overlay would swallow the ⌘-click the covered element still owes the pointer.
 
@@ -860,5 +919,5 @@ And where it does **not** go, whatever the interaction means: the day cells of t
 | Dark palette            | Deferred (§ 5.4.). Hand-tune; keep the warm bias; drop shadows to `none`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ~~Event colour set~~    | **Closed** — see § 4.1.7.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Emoticon picker chrome  | Panel height is `--emoticon-panel-height` (`theme.css`), `min(352px, 50% of --viewport-height)` — proportional so a short device keeps a readable message column, capped so a tall one does not hand the panel half the screen, never `vh` (§ 3.4.), and the cap in `px` rather than `rem`: an enlarged default font size scales `rem` and not the viewport, which let the cap win the `min()` and overrun the shell. Pack tab-bar geometry and grid density still unspecified. Assets are now user-authored (`REQUIREMENTS.md § 13.`), so the grid must hold arbitrary aspect ratios — a fixed square cell with the still `object-contain` inside it, rather than a ratio taken from the art |
-| Motion                  | Only the search flash (§ 6.8.), tab `scale-[0.96]`, and the emoticon panel's 200ms expand and pack slide (`REQUIREMENTS.md § 13.6.`) are specified; a shared duration/easing scale is needed before animation work                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ~~Motion~~              | **Closed** — see § 4.7. Five durations and three curves; route transitions are § 4.7.1., the press is § 4.7.2. Still unstyled against it: the search flash (§ 6.8.) and the bottom sheet's own enter/exit, which Vaul times internally                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Image viewer pinch-zoom | Bounds unspecified. Swiping between attachments is settled — native scroll snapping, which needs no threshold                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |

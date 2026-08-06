@@ -8,7 +8,7 @@ import { APP_SCROLL_ID, APP_SHELL_ID } from "@/shared/config";
 import { BottomOverlay, Container, ScrollMemory, VisualViewportSync } from "@/shared/ui";
 import { InstallGuide } from "@/widgets/install-guide";
 import { TabBar } from "@/widgets/tab-bar";
-import type { PropsWithChildren } from "react";
+import { ViewTransition, type PropsWithChildren } from "react";
 
 // INFO: The proxy only saw that a cookie exists (REQUIREMENTS.md § 5.2.); this is the real check, and it covers every screen below.
 export default async function MainLayout({ children }: PropsWithChildren) {
@@ -35,13 +35,21 @@ export default async function MainLayout({ children }: PropsWithChildren) {
           className="relative flex min-h-0 flex-1 flex-col bg-canvas px-0"
           id={APP_SHELL_ID}
         >
-          {/* INFO: DESIGN.md § 3.4., § 3.5. The shell's only scroller. The floating bars sit over it, and `--bottom-inset` is the room it leaves for them. */}
-          <main
-            className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-y-auto pb-(--bottom-inset)"
-            id={APP_SCROLL_ID}
+          {/* INFO: DESIGN.md § 4.7. The scroller is the whole animation — a route change mutates its contents, which is what `update` names, and the bars outside it never enter the snapshot. */}
+          {/* WARN: The single child has to be a real DOM node the browser can snapshot; wrapping `{children}` instead would name whatever element each screen happens to render first. */}
+          {/* WARN: DESIGN.md § 4.7.1. `default: "none"` and never a catch-all animation — `update` names any transition-scoped mutation under this boundary, so a `router.refresh()` after saving a profile would replay the whole route animation for a same-route data refresh. */}
+          <ViewTransition
+            update={{ "tab-forward": "tab-forward", "tab-back": "tab-back", default: "none" }}
+            default="none"
           >
-            {children}
-          </main>
+            {/* INFO: DESIGN.md § 3.4., § 3.5. The shell's only scroller. The floating bars sit over it, and `--bottom-inset` is the room it leaves for them. */}
+            <main
+              className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-y-auto pb-(--bottom-inset)"
+              id={APP_SCROLL_ID}
+            >
+              {children}
+            </main>
+          </ViewTransition>
           <BottomOverlay>
             <InstallGuide />
             <TabBar hasEventToday={hasTodayEvent} />
