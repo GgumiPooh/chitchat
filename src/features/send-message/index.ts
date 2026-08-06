@@ -1,5 +1,7 @@
 // INFO: REQUIREMENTS.md § 10. The gallery posts what it uploaded without a composer to stage it in, so it reaches the endpoint directly rather than through `useSendMessage`'s optimistic queue.
 export { postMessage, type PostMessageParams } from "./api/post-message";
+// INFO: REQUIREMENTS.md § 13.6. 최근 "사용" is recorded at the send, which the room owns — the picker only reads the list back.
+export { useRecentEmoticons } from "./model/use-recent-emoticons";
 export {
   useSendMessage,
   type PendingMessage,

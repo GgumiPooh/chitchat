@@ -9,6 +9,7 @@ import {
   EmoticonPicker,
   EmoticonPreview,
   MessageComposer,
+  useRecentEmoticons,
   useSendMessage,
 } from "@/features/send-message";
 import {
@@ -96,6 +97,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const [actionTarget, setActionTarget] = useState<Nullable<ChatMessage>>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
+  const { remember: rememberEmoticon } = useRecentEmoticons();
   // INFO: The panel outlives its first open so the collapse has something to animate; until then it is not rendered at all, and a user who never opens it never fetches the packs.
   const [hasOpenedEmoticonPanel, setHasOpenedEmoticonPanel] = useState(false);
   // INFO: REQUIREMENTS.md § 13.6. Staged rather than sent on selection, so it can be sent with a line of text the way an attachment can.
@@ -377,6 +379,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
             <EmoticonPicker
               className="mx-md mt-xs mb-2xs shrink-0 will-change-transform"
               onSelect={stageEmoticon}
+              onQuickSend={sendStagedEmoticon}
             />
           )}
         </div>
@@ -462,6 +465,23 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     playEmoticonSound(emoticon);
   }
 
+  /**
+   * INFO: REQUIREMENTS.md § 13.6. A double tap in the picker skips the preview. The first tap already staged it, so this only takes it back off the composer and sends.
+   */
+  function sendStagedEmoticon(emoticon: Emoticon) {
+    // INFO: REQUIREMENTS.md § 8.6.1. A send from a jumped-away window has to land somewhere the sender can see it, and the only place that is true is the live edge.
+    if (hasNewer) {
+      void returnToLive();
+    }
+
+    setStagedEmoticon(null);
+    // WARN: REQUIREMENTS.md § 13.6. Synchronously inside the tap, like `submit` — iOS grants audio to this call stack alone.
+    playEmoticonSound(emoticon);
+    rememberEmoticon(emoticon.id);
+    sendEmoticon(emoticon, replyTarget);
+    setReplyTarget(null);
+  }
+
   async function stageMedia(files: File[]) {
     setStagedEmoticon(null);
     await selection.add(files);
@@ -492,6 +512,8 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     if (stagedEmoticon) {
       // WARN: REQUIREMENTS.md § 13.6. Here rather than on the echo, and synchronously inside the tap — the send is the moment KakaoTalk sounds, and iOS grants audio to this call stack alone.
       playEmoticonSound(stagedEmoticon);
+      // INFO: REQUIREMENTS.md § 13.6. 최근 사용 is recorded here rather than at the pick, so an emoticon staged and then abandoned never enters the list.
+      rememberEmoticon(stagedEmoticon.id);
       sendEmoticon(stagedEmoticon, take());
       setStagedEmoticon(null);
     }

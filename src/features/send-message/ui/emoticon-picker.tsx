@@ -2,7 +2,7 @@
 
 import type { Emoticon, EmoticonPackWithItems } from "@/entities/emoticon";
 import { EMOTICON_PACKS_PATH, toEmoticonAssetUrl } from "@/shared/config";
-import { cn, type Nullable } from "@/shared/lib";
+import { A_SECOND, cn, type Nullable } from "@/shared/lib";
 import { EmptyState, HapticTap, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Smile } from "lucide-react";
@@ -19,21 +19,25 @@ const ACTIVE_TAB_KEY = "jandh:emoticon-tab";
 // INFO: A sliver of the neighbouring tab stays visible past the revealed one, so the strip still reads as scrollable where it stops.
 const TAB_REVEAL_MARGIN = 8;
 
+// INFO: REQUIREMENTS.md § 13.6. Two taps on the same cell inside this window are the shortcut past the preview.
+const DOUBLE_TAP_WINDOW = A_SECOND / 3;
+
 export type EmoticonPickerProps = {
   className?: string;
   onSelect: (emoticon: Emoticon) => void;
+  onQuickSend: (emoticon: Emoticon) => void;
 };
 
 /**
  * REQUIREMENTS.md § 13.6. The panel behind the composer's emoticon toggle: bottom
- * tabs are the enabled packs in this user's order (§ 13.1.), and selecting an
- * emoticon sends it immediately.
+ * tabs are the enabled packs in this user's order (§ 13.1.), selecting an emoticon
+ * stages it as a preview, and tapping it twice sends it outright.
  *
  * INFO: DESIGN.md § 9. leaves the panel's exact geometry open, so the height lives
  * in `--emoticon-panel-height` (`theme.css`) — the chat room animates the strip
  * open against the same value, and the two cannot drift apart.
  */
-export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
+export function EmoticonPicker({ className, onSelect, onQuickSend }: EmoticonPickerProps) {
   // WARN: Read straight from storage rather than seeded into `useState` — the panel can mount during hydration, where the first snapshot is still the fallback and a seeded state would never pick the stored tab up.
   const [storedTab, setRequestedTab] = useStorageState<string>(ACTIVE_TAB_KEY, RECENTS_TAB, {
     strategy: "localStorage",
@@ -42,8 +46,10 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
   const tabStripRef = useRef<Nullable<HTMLDivElement>>(null);
   const activeTabRef = useRef<Nullable<HTMLSpanElement>>(null);
   const [slideFrom, setSlideFrom] = useState<SwipeDirection>(1);
+  const lastTapRef = useRef<Nullable<{ at: number; id: string }>>(null);
   const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
-  const { recentIds, remember } = useRecentEmoticons();
+  // WARN: § 13.6. Read only. `remember` belongs to the send, not to the tap — recording it here re-sorts 최근 사용 between the two taps of a double tap, moving the cell out from under the second one.
+  const { recentIds } = useRecentEmoticons();
   const { data: packs = [], isPending } = useQuery({
     queryKey: ["emoticon-packs", "enabled"],
     queryFn: fetchEnabledPacks,
@@ -171,8 +177,24 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
     </div>
   );
 
+  /**
+   * INFO: REQUIREMENTS.md § 13.6. The second tap of a double tap sends what the first one staged.
+   *
+   * WARN: Counted off `click` rather than `dblclick`, which never arrives on touch — `HapticTap` takes the tap on its overlay and replays it as a scripted `control.click()`, and a scripted click starts no double-click sequence.
+   */
   function handleSelect(item: Emoticon) {
-    remember(item.id);
+    const lastTap = lastTapRef.current;
+    const now = Date.now();
+
+    if (lastTap?.id === item.id && now - lastTap.at < DOUBLE_TAP_WINDOW) {
+      // INFO: Cleared so a third tap opens a fresh pair rather than sending again off the second one.
+      lastTapRef.current = null;
+      onQuickSend(item);
+
+      return;
+    }
+
+    lastTapRef.current = { id: item.id, at: now };
     onSelect(item);
   }
 
