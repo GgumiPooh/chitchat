@@ -6,7 +6,7 @@ import { useEffect, useId, useRef, type MouseEvent, type PointerEvent } from "re
 // WARN: React's typings carry no `switch` attribute, and it has to be on the element from the first render — WebKit decides there whether to build the native control.
 const NATIVE_SWITCH = { switch: "" } as Record<string, string>;
 
-// INFO: DESIGN.md § 4.7.2. What `group-data-[pressed]:` reads, because `:active` cannot reach the wrapper from here — WebKit resolves the press inside the native switch, and `keepsFocus` cancels `pointerdown`, which suppresses `:active` outright.
+// INFO: DESIGN.md § 4.7.2. What `group-data-[pressed]:` reads, because `:active` is not dependable here — `keepsFocus` cancels `pointerdown`, which suppresses it outright.
 const PRESSED_ATTRIBUTE = "data-pressed";
 
 function setPressed(element: Maybe<HTMLElement>, isPressed: boolean) {
@@ -28,41 +28,28 @@ export type HapticTapProps = {
   forwardsTap?: boolean;
   /** Keeps the tap from moving focus, for a control whose own `pointerdown` handler does the same. */
   keepsFocus?: boolean;
-  /**
-   * Takes the tap on a `<label>` and leaves the switch itself out of the way, for
-   * an overlay on a cell that tiles a scroller. See `DESIGN.md § 7.15.`
-   *
-   * WARN: Unproven. The switch is the only element 26.5 is known to tick for, and
-   * whether it also ticks for a real finger on its label is exactly what this is
-   * here to find out — a *scripted* `label.click()` is known not to.
-   */
-  keepsScroll?: boolean;
 };
 
 /**
- * An invisible WebKit switch stretched over an interactive element, so that
- * tapping that element fires the system haptic tick on iOS.
+ * An invisible `<label>` stretched over an interactive element, wired to a native
+ * WebKit switch beside it, so that tapping that element fires the system haptic
+ * tick on iOS.
  *
  * Inside an `<a>`, mount it as the last child and the tap goes on reaching the
  * link's own `onClick`. Beside a `<button>`, mount it as the last child of a
  * `relative` wrapper alongside the button, and pass `forwardsTap`.
  *
- * WARN: Never *inside* a `<button>`. WebKit ends the tap in the native control
- * there and no click reaches JS at all — not the button's handler, and not this
- * element's own — so there is nothing left to forward with.
+ * WARN: Never *inside* a `<button>`. A label there activates the button as well
+ * as the switch, so the control fires twice on one tap.
  *
  * WARN: The wrapper, not the control, is what `:active` matches once this is
  * mounted — the tap lands here. A control with `active:` styling needs `group` on
  * the wrapper and `group-active:` on itself, or it goes flat on touch
  * (`AGENTS.md § 4.2.`).
  */
-// INFO: iOS exposes no Vibration API, and since 26.5 a scripted click on the switch no longer ticks either — only a real finger landing on the native control does, which is why this is an element and not a hook.
-export function HapticTap({
-  className,
-  forwardsTap = false,
-  keepsFocus = false,
-  keepsScroll = false,
-}: HapticTapProps) {
+// INFO: iOS exposes no Vibration API, and since 26.5 a scripted click no longer ticks either — only a real finger reaching the native control does, which is why this is an element and not a hook.
+// WARN: The label takes the tap and the switch stays out of the touch path, because the switch is a native control that keeps a drag of its own (`DESIGN.md § 7.15.`). Laying the switch itself under the finger ticks too, but any surface it tiles stops scrolling.
+export function HapticTap({ className, forwardsTap = false, keepsFocus = false }: HapticTapProps) {
   // INFO: AGENTS.md § 4.2. An interaction detail, not layout — a mouse gains nothing from the switch, and it would swallow the ⌘-click the covered element still owes the pointer.
   const isCoarsePointer = useIsCoarsePointer();
   const switchId = useId();
@@ -76,31 +63,9 @@ export function HapticTap({
     return null;
   }
 
-  const overlayProps = {
-    className: cn("absolute inset-0 size-full opacity-0", className),
-    onPointerDown: handlePointerDown,
-    onPointerUp: releasePress,
-    onPointerCancel: releasePress,
-    onPointerLeave: releasePress,
-    onClick: handleClick,
-  };
-
-  if (!keepsScroll) {
-    return (
-      <input
-        {...NATIVE_SWITCH}
-        {...overlayProps}
-        // WARN: The switch must keep its native rendering — `appearance-none` or any restyle drops the haptic, so it is hidden with opacity alone.
-        type="checkbox"
-        tabIndex={-1}
-        aria-hidden
-      />
-    );
-  }
-
   return (
     <>
-      {/* WARN: A pixel, out of the way, but never `hidden` or `display:none` — a switch that is not rendered is not a native control, and a control that is not native does not tick. */}
+      {/* WARN: A pixel, out of the way, but never `hidden`, `display:none` or `appearance-none` — a switch that is not rendered natively is not a native control, and a control that is not native does not tick. */}
       <input
         {...NATIVE_SWITCH}
         className="pointer-events-none absolute top-0 left-0 size-px opacity-0"
@@ -111,9 +76,17 @@ export function HapticTap({
         // WARN: The label's activation toggles the switch, and that toggle's own `click` bubbles. Left alone it reaches the ancestor the forwarded tap has already fired.
         onClick={(event) => event.stopPropagation()}
       />
-      {/* WARN: A `<label>` and not the switch, so the drag stays with the scroller — the switch is a native control and keeps a drag of its own (`DESIGN.md § 7.15.`). */}
       {/* WARN: Never `preventDefault` this click. The label's default action *is* the toggle, and the toggle is the tick. */}
-      <label {...overlayProps} htmlFor={switchId} aria-hidden />
+      <label
+        className={cn("absolute inset-0 size-full opacity-0", className)}
+        htmlFor={switchId}
+        aria-hidden
+        onPointerDown={handlePointerDown}
+        onPointerUp={releasePress}
+        onPointerCancel={releasePress}
+        onPointerLeave={releasePress}
+        onClick={handleClick}
+      />
     </>
   );
 
