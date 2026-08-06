@@ -93,25 +93,28 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
             ) : (
               <div className="grid grid-cols-4 gap-2xs">
                 {shown.map((item) => (
-                  // WARN: No `HapticTap` here, by `DESIGN.md § 7.15.` — the cells tile the scroller, so an overlay on them is what every scrolling finger lands on.
-                  // WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it.
-                  <button
-                    key={item.id}
-                    className="aspect-square touch-pan-y rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
-                    type="button"
-                    aria-label="이모티콘"
-                    onClick={() => handleSelect(item)}
-                  >
-                    <PreloadImage
-                      className="size-full"
-                      imgClassName="size-full object-contain"
-                      placeholderClassName="rounded-sm"
-                      src={toEmoticonAssetUrl(item.id, "image", item.version)}
-                      alt=""
-                      loading="lazy"
-                      draggable={false}
-                    />
-                  </button>
+                  <span key={item.id} className="group relative flex">
+                    {/* WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it. */}
+                    <button
+                      className="aspect-square w-full touch-pan-y rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
+                      type="button"
+                      aria-label="이모티콘"
+                      onClick={() => handleSelect(item)}
+                    >
+                      <PreloadImage
+                        className="size-full"
+                        imgClassName="size-full object-contain"
+                        placeholderClassName="rounded-sm"
+                        src={toEmoticonAssetUrl(item.id, "image", item.version)}
+                        alt=""
+                        loading="lazy"
+                        draggable={false}
+                      />
+                    </button>
+                    {/* WARN: `touch-pan-y` is repeated here, not inherited — `touch-action` applies to the element a gesture starts on, and the overlay is now that element. */}
+                    {/* WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the panel would stop scrolling (`DESIGN.md § 7.15.`). */}
+                    <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
+                  </span>
                 ))}
               </div>
             )}

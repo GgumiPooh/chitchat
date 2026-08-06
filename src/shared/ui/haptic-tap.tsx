@@ -1,7 +1,7 @@
 "use client";
 
 import { cn, useIsCoarsePointer, type Maybe, type Nullable } from "@/shared/lib";
-import { useEffect, useRef, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useId, useRef, type MouseEvent, type PointerEvent } from "react";
 
 // WARN: React's typings carry no `switch` attribute, and it has to be on the element from the first render — WebKit decides there whether to build the native control.
 const NATIVE_SWITCH = { switch: "" } as Record<string, string>;
@@ -28,6 +28,15 @@ export type HapticTapProps = {
   forwardsTap?: boolean;
   /** Keeps the tap from moving focus, for a control whose own `pointerdown` handler does the same. */
   keepsFocus?: boolean;
+  /**
+   * Takes the tap on a `<label>` and leaves the switch itself out of the way, for
+   * an overlay on a cell that tiles a scroller. See `DESIGN.md § 7.15.`
+   *
+   * WARN: Unproven. The switch is the only element 26.5 is known to tick for, and
+   * whether it also ticks for a real finger on its label is exactly what this is
+   * here to find out — a *scripted* `label.click()` is known not to.
+   */
+  keepsScroll?: boolean;
 };
 
 /**
@@ -48,9 +57,15 @@ export type HapticTapProps = {
  * (`AGENTS.md § 4.2.`).
  */
 // INFO: iOS exposes no Vibration API, and since 26.5 a scripted click on the switch no longer ticks either — only a real finger landing on the native control does, which is why this is an element and not a hook.
-export function HapticTap({ className, forwardsTap = false, keepsFocus = false }: HapticTapProps) {
+export function HapticTap({
+  className,
+  forwardsTap = false,
+  keepsFocus = false,
+  keepsScroll = false,
+}: HapticTapProps) {
   // INFO: AGENTS.md § 4.2. An interaction detail, not layout — a mouse gains nothing from the switch, and it would swallow the ⌘-click the covered element still owes the pointer.
   const isCoarsePointer = useIsCoarsePointer();
+  const switchId = useId();
   // WARN: Captured on `pointerdown` rather than read off a ref at cleanup time — React detaches refs before a passive cleanup runs, and `useIsCoarsePointer` reports `false` on the first render, so neither the element nor its parent is reachable from the effect itself.
   const pressedParentRef = useRef<Nullable<HTMLElement>>(null);
 
@@ -61,24 +76,49 @@ export function HapticTap({ className, forwardsTap = false, keepsFocus = false }
     return null;
   }
 
+  const overlayProps = {
+    className: cn("absolute inset-0 size-full opacity-0", className),
+    onPointerDown: handlePointerDown,
+    onPointerUp: releasePress,
+    onPointerCancel: releasePress,
+    onPointerLeave: releasePress,
+    onClick: handleClick,
+  };
+
+  if (!keepsScroll) {
+    return (
+      <input
+        {...NATIVE_SWITCH}
+        {...overlayProps}
+        // WARN: The switch must keep its native rendering — `appearance-none` or any restyle drops the haptic, so it is hidden with opacity alone.
+        type="checkbox"
+        tabIndex={-1}
+        aria-hidden
+      />
+    );
+  }
+
   return (
-    <input
-      {...NATIVE_SWITCH}
-      // WARN: The switch must keep its native rendering — `appearance-none` or any restyle drops the haptic, so it is hidden with opacity alone.
-      className={cn("absolute inset-0 size-full opacity-0", className)}
-      type="checkbox"
-      tabIndex={-1}
-      aria-hidden
-      onPointerDown={handlePointerDown}
-      onPointerUp={releasePress}
-      onPointerCancel={releasePress}
-      onPointerLeave={releasePress}
-      onClick={handleClick}
-    />
+    <>
+      {/* WARN: A pixel, out of the way, but never `hidden` or `display:none` — a switch that is not rendered is not a native control, and a control that is not native does not tick. */}
+      <input
+        {...NATIVE_SWITCH}
+        className="pointer-events-none absolute top-0 left-0 size-px opacity-0"
+        type="checkbox"
+        tabIndex={-1}
+        id={switchId}
+        aria-hidden
+        // WARN: The label's activation toggles the switch, and that toggle's own `click` bubbles. Left alone it reaches the ancestor the forwarded tap has already fired.
+        onClick={(event) => event.stopPropagation()}
+      />
+      {/* WARN: A `<label>` and not the switch, so the drag stays with the scroller — the switch is a native control and keeps a drag of its own (`DESIGN.md § 7.15.`). */}
+      {/* WARN: Never `preventDefault` this click. The label's default action *is* the toggle, and the toggle is the tick. */}
+      <label {...overlayProps} htmlFor={switchId} aria-hidden />
+    </>
   );
 
   // WARN: The overlay takes the tap the control would have taken, so a control that cancels `pointerdown` to hold focus has to cancel it here instead — otherwise the field behind it blurs and iOS drops the keyboard.
-  function handlePointerDown(event: PointerEvent<HTMLInputElement>) {
+  function handlePointerDown(event: PointerEvent<HTMLElement>) {
     if (keepsFocus) {
       event.preventDefault();
     }
@@ -93,7 +133,7 @@ export function HapticTap({ className, forwardsTap = false, keepsFocus = false }
   }
 
   // INFO: The control is reached through the DOM rather than a ref the caller passes, so a Server Component may still render it — a function prop would drag it over the client boundary.
-  function handleClick(event: MouseEvent<HTMLInputElement>) {
+  function handleClick(event: MouseEvent<HTMLElement>) {
     if (!forwardsTap) {
       return;
     }
