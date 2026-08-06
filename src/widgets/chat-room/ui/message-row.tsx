@@ -5,7 +5,7 @@ import type { Participant } from "@/entities/user";
 import { cn, formatTime, type Nullable, type Optional } from "@/shared/lib";
 import { Avatar, IconButton, type MediaCell } from "@/shared/ui";
 import { RotateCcw, X } from "lucide-react";
-import { useLongPress } from "../model/use-long-press";
+import { LONG_PRESS_TARGET_CLASS, useLongPress } from "../model/use-long-press";
 import { EmoticonBubble } from "./emoticon-bubble";
 import { MediaGrid } from "./media-grid";
 
@@ -80,12 +80,16 @@ export function MessageRow({
         <div className={cn("flex items-end gap-2xs", isMine && "flex-row-reverse")}>
           {emoticon ? (
             // INFO: DESIGN.md § 6.5. An emoticon renders without a bubble, border or background, for the same reason an attachment does.
-            <div className={cn(status !== "sent" && "opacity-60")} {...longPressHandlers}>
+            <div
+              className={cn(LONG_PRESS_TARGET_CLASS, status !== "sent" && "opacity-60")}
+              {...longPressHandlers}
+            >
               <EmoticonBubble emoticon={emoticon} />
             </div>
           ) : hasMedia ? (
             // INFO: DESIGN.md § 6.5. Attachments render without a bubble — a container around a photo is redundant chrome.
-            <div {...longPressHandlers}>
+            // WARN: No long-press handlers here on purpose — an attachment's hold belongs to the OS, whose sheet is the only route from a web page to the iOS photo library. Deleting one's own attachment lives in `MediaViewer` instead.
+            <div>
               <MediaGrid
                 cells={media}
                 progress={progress}
@@ -98,6 +102,7 @@ export function MessageRow({
             <div
               className={cn(
                 "rounded-bubble px-sm py-xs text-chat-body break-words wrap-anywhere whitespace-pre-wrap text-bubble-ink transition-colors select-text",
+                LONG_PRESS_TARGET_CLASS,
                 isMine
                   ? "bg-bubble-mine active:bg-bubble-mine-pressed"
                   : "border border-hairline bg-bubble-theirs active:bg-bubble-theirs-pressed",

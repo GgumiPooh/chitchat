@@ -5,6 +5,10 @@ import { useCallback, useEffect, useRef, type MouseEvent, type PointerEvent } fr
 
 const LONG_PRESS_DELAY = A_SECOND / 2;
 
+// WARN: Every element that takes the handlers below needs this. A held finger otherwise runs the browser's own long-press natives first — the selection drag over `select-text`, iOS's callout, the image drag — and the sheet opens behind a gesture the page no longer owns. A fine pointer keeps all of them, since it never arms the timer.
+export const LONG_PRESS_TARGET_CLASS =
+  "[-webkit-touch-callout:none] [@media(pointer:coarse)]:select-none";
+
 /**
  * DESIGN.md § 3.2. Touch holds the element; a mouse right-clicks it. Both open
  * the same action sheet, so the long-press affordance is never mouse-inaccessible.

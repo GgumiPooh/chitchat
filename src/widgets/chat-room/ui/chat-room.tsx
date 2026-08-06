@@ -91,7 +91,11 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   // INFO: REQUIREMENTS.md § 13.6. Staged rather than sent on selection, so it can be sent with a line of text the way an attachment can.
   const [stagedEmoticon, setStagedEmoticon] = useState<Nullable<Emoticon>>(null);
   const [editing, setEditing] = useState<Nullable<MediaDraft>>(null);
-  const [viewer, setViewer] = useState<Nullable<{ cells: MediaCell[]; index: number }>>(null);
+  // INFO: `deletableMessageId` is null for the other participant's attachments — the § 3.2. delete control is the only route to removing one's own, since the bubble's hold now belongs to the OS.
+  const [viewer, setViewer] =
+    useState<Nullable<{ cells: MediaCell[]; index: number; deletableMessageId: Nullable<number> }>>(
+      null,
+    );
   // INFO: The newest id the user had in view when they last left the bottom — everything past it is what the § 6.7. pill counts.
   const [seenId, setSeenId] = useState(initialMessages.at(-1)?.id ?? 0);
   const { messages, isLoadingOlder, loadOlder, appendMessage, removeMessage, catchUp } =
@@ -325,6 +329,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           cells={viewer.cells}
           initialIndex={viewer.index}
           onClose={() => setViewer(null)}
+          onDelete={buildViewerDelete(viewer.deletableMessageId)}
         />
       )}
     </div>
@@ -430,8 +435,14 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
             isLastOfGroup={row.isLastOfGroup}
             isRead={row.message.id === lastReadMineId}
             status="sent"
+            onOpenMedia={(index) =>
+              setViewer({
+                cells,
+                index,
+                deletableMessageId: row.isMine ? row.message.id : null,
+              })
+            }
             onLongPress={() => setActionTarget(row.message)}
-            onOpenMedia={(index) => setViewer({ cells, index })}
           />
         );
       }
@@ -467,6 +478,17 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     } catch {
       toast.error("메시지를 복사하지 못했어요");
     }
+  }
+
+  function buildViewerDelete(messageId: Nullable<number>) {
+    if (messageId === null) {
+      return undefined;
+    }
+
+    return () => {
+      setViewer(null);
+      void deleteMessage(messageId);
+    };
   }
 
   async function deleteMessage(id: number) {
