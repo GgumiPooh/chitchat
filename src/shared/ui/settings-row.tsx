@@ -64,7 +64,8 @@ export function SettingsRow({
     // WARN: A sibling directly after the row, never a child. Inside a `<button>` WebKit ends the tap in the native control and no click reaches JS at all.
     <span className="group relative flex w-full">
       {row}
-      <HapticTap forwardsTap />
+      {/* WARN: `keepsScroll` — the row runs edge to edge, so a finger scrolling the list lands here, and the switch would keep that drag and end it as a tap on the row (`DESIGN.md § 7.15.1.`). */}
+      <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
     </span>
   );
 }

@@ -883,7 +883,7 @@ Two boundaries that are easy to read the wrong way:
 
 ### 7.15.1. `keepsScroll`, and why it is opt-in rather than the default.
 
-A switch is thrown by sliding it, so WebKit tracks a drag on the control and claims that gesture before the scroller is consulted. Where the overlay has space around it nobody notices. Where the cells **tile** a surface — the day cells of the month grid, the cells of the emoticon grid — the overlay is what every scrolling finger lands on: the emoticon panel would not scroll at all, and the month grid turned a drag into a tap.
+A switch is thrown by sliding it, so WebKit tracks a drag on the control and claims that gesture before the scroller is consulted. Where the overlay has space around it nobody notices. Where the targets **tile** a surface — the day cells of the month grid, the cells of the emoticon grid, a `SettingsRow` or the name of a 이모티콘 관리 row, both of which fill the row they sit in — the overlay is what every scrolling finger lands on: the emoticon panel would not scroll at all, and the month grid, the settings list and the pack list turned a drag into a tap.
 
 Two things that look like they should fix that and do not, both measured on device:
 
