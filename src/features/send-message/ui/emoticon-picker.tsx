@@ -276,7 +276,8 @@ function TabButton({ ref, className, isActive, label, children, onClick }: TabBu
         {children}
       </button>
       {/* INFO: A pack switch is a selection among peers, the same thing the tab bar ticks for. */}
-      {!isActive && <HapticTap forwardsTap />}
+      {/* WARN: DESIGN.md § 7.15.1. The tabs tile the strip they scroll, so the switch would claim every drag that starts on one and the strip would not move. No `touch-action` beside it, unlike the § 13.6. grid cells: this scroller is the horizontal one. */}
+      {!isActive && <HapticTap forwardsTap keepsScroll />}
     </span>
   );
 }
