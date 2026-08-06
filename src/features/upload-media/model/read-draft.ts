@@ -1,6 +1,6 @@
 import type { MediaDraft } from "@/entities/media";
 import { isAllowedMediaMime, isVideoMime, maxSizeForMime } from "@/shared/config";
-import { A_SECOND, formatSize, type Nullable } from "@/shared/lib";
+import { A_SECOND, formatSize, randomId, type Nullable } from "@/shared/lib";
 import { loadImage, renderThumbnail } from "./canvas";
 
 // INFO: Far enough in that a video opening on a black frame still yields a recognisable poster, clamped below for a clip shorter than that.
@@ -43,7 +43,7 @@ async function toImageDraft(file: File): Promise<MediaDraft> {
     const thumbnail = await renderThumbnail(image, width, height);
 
     return {
-      id: crypto.randomUUID(),
+      id: randomId(),
       file,
       thumbnail,
       previewUrl: URL.createObjectURL(thumbnail),
@@ -72,7 +72,7 @@ async function toVideoDraft(file: File): Promise<MediaDraft> {
     const thumbnail = await renderThumbnail(video, width, height);
 
     return {
-      id: crypto.randomUUID(),
+      id: randomId(),
       file,
       thumbnail,
       previewUrl: URL.createObjectURL(thumbnail),

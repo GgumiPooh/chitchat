@@ -47,6 +47,7 @@ export { useIsCoarsePointer } from "./hooks/use-is-coarse-pointer";
 export { useIsVirtualKeyboardOpen } from "./hooks/use-is-virtual-keyboard-open";
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
 export type { Maybe, Nullable, Optional } from "./nullish";
+export { randomId } from "./random";
 export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./safely";
 export { playSound, unlockSound, useSoundUnlock } from "./sound";
 export { hasUnsentWork, useUnsentWork } from "./unsent-work";

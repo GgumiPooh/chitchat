@@ -1,6 +1,6 @@
 import type { MediaDraft } from "@/entities/media";
 import { EMOTICON_MAX_EDGE, isAnimatableEmoticonMime } from "@/shared/config";
-import { A_KILOBYTE } from "@/shared/lib";
+import { A_KILOBYTE, randomId } from "@/shared/lib";
 import type { ApplyEditOptions } from "./apply-edit";
 import {
   TRANSPARENT_OUTPUT_MIME,
@@ -101,7 +101,7 @@ async function toAnimatedDraft(file: File, mime: string): Promise<MediaDraft> {
     const image = await loadImage(previewUrl);
 
     return {
-      id: crypto.randomUUID(),
+      id: randomId(),
       file,
       thumbnail: file,
       previewUrl,
@@ -137,7 +137,7 @@ async function toStillDraft(file: File): Promise<MediaDraft> {
     const blob = await toBlob(canvas, false, TRANSPARENT_OUTPUT_MIME);
 
     return {
-      id: crypto.randomUUID(),
+      id: randomId(),
       file: new File([blob], toStillName(file.name), { type: TRANSPARENT_OUTPUT_MIME }),
       // INFO: An emoticon has no `_thumb` sibling (§ 13.3.), so the image stands in for one — nothing uploads it, and it is what the tray preview renders.
       thumbnail: blob,

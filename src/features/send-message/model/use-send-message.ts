@@ -5,7 +5,7 @@ import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import { uploadDraft } from "@/features/upload-media/@x/send-message";
 import { MAX_MEDIA_PER_MESSAGE } from "@/shared/config";
-import type { Nullable } from "@/shared/lib";
+import { randomId, type Nullable } from "@/shared/lib";
 import { useCallback, useRef, useState } from "react";
 import { postMessage, type PostMessageParams } from "../api/post-message";
 
@@ -222,7 +222,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
 function createPending(text: Nullable<string>, media: MediaDraft[]): PendingMessage {
   return {
     // INFO: REQUIREMENTS.md § 8.5. Client-generated, so the retry above collides with the first attempt instead of duplicating it.
-    clientMsgId: crypto.randomUUID(),
+    clientMsgId: randomId(),
     text,
     media,
     emoticon: null,

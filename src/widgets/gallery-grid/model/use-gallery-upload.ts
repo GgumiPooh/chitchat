@@ -4,6 +4,7 @@ import type { GalleryMedia, MediaDraft } from "@/entities/media";
 import { postMessage } from "@/features/send-message";
 import { toMediaDraft, uploadDraft, validateFile } from "@/features/upload-media";
 import { MAX_MEDIA_PER_MESSAGE } from "@/shared/config";
+import { randomId } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useState } from "react";
 
@@ -113,7 +114,7 @@ async function post(mediaIds: string[]) {
   try {
     for (let index = 0; index < mediaIds.length; index += MAX_MEDIA_PER_MESSAGE) {
       await postMessage({
-        clientMsgId: crypto.randomUUID(),
+        clientMsgId: randomId(),
         mediaIds: mediaIds.slice(index, index + MAX_MEDIA_PER_MESSAGE),
       });
     }
