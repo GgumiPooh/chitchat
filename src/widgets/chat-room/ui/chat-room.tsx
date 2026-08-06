@@ -373,7 +373,11 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           {hasOpenedEmoticonPanel && (
             // INFO: § 13.6. `mt-xs` matches the composer's own top padding, so the panel clears the history by what the bar alone clears it by. The height above is this panel plus both margins.
             // WARN: `shrink-0` or the collapsing strip compresses the panel instead of clipping it, and § 13.6.'s own `flex-1` scroller is what gives — the panel then reads as stretching open rather than rising.
-            <EmoticonPicker className="mx-md mt-xs mb-2xs shrink-0" onSelect={stageEmoticon} />
+            // INFO: § 13.6. Promoted to its own layer so the strip's growing clip is a compositor crop — unpromoted, every frame of the 200ms repaints a grid of animated images against a moving clip rect, which is what the open stutters on.
+            <EmoticonPicker
+              className="mx-md mt-xs mb-2xs shrink-0 will-change-transform"
+              onSelect={stageEmoticon}
+            />
           )}
         </div>
         <MessageComposer
