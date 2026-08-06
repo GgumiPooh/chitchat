@@ -58,5 +58,13 @@ export type { Maybe, Nullable, Optional } from "./nullish";
 export { randomId } from "./random";
 export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./safely";
 export { playSound, unlockSound, useSoundUnlock } from "./sound";
+export { measureLineHeight, warmLineHeights } from "./text/line-height";
+export { countTextLines, type FontSpec } from "./text/text-layout";
+export {
+  findFirstUrl,
+  isHttpUrl,
+  splitTextByUrls,
+  withoutFragment,
+  type TextSegment,
+} from "./text/url";
 export { hasUnsentWork, useUnsentWork } from "./unsent-work";
-export { findFirstUrl, isHttpUrl, splitTextByUrls, withoutFragment, type TextSegment } from "./url";

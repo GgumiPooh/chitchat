@@ -1,4 +1,4 @@
-import type { Nullable } from "./nullish";
+import type { Nullable } from "../nullish";
 
 // WARN: `http(s)` only, and deliberately no bare-domain rule — `1.5.` or `가.나` would otherwise linkify, and a false positive is a bubble that navigates away on a mis-tap.
 const URL_PATTERN = /https?:\/\/[^\s<>"']+/gi;
