@@ -52,7 +52,9 @@ export function GallerySaveDialog({
       }}
       onClose={onDismiss}
     >
-      <Button onClick={onShare}>사진에 저장</Button>
+      <Button haptic onClick={onShare}>
+        사진에 저장
+      </Button>
     </Modal>
   );
 }

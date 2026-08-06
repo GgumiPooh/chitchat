@@ -43,10 +43,12 @@ export function GallerySelectionBar({
             {selectedCount}장
           </span>
           <Button
-            // WARN: `flex-1 w-auto` overrides `Button`'s own `w-full shrink-0` — two of those in a row each claim the full bar and the second is pushed off the edge.
-            className="min-h-11 w-auto flex-1 rounded-full"
+            // WARN: `flex-1 w-auto` overrides `Button`'s own `w-full shrink-0` — two of those in a row each claim the full bar and the second is pushed off the edge. With `haptic` it is the wrapper that has to carry them, since the wrapper is what this row lays out.
+            className="w-auto flex-1"
+            buttonClassName="min-h-11 rounded-full"
             variant="ghost"
             disabled={isDisabled}
+            haptic
             onClick={onDownload}
           >
             <Download className="size-4" strokeWidth={1.75} />
@@ -54,9 +56,11 @@ export function GallerySelectionBar({
           </Button>
           {/* INFO: DESIGN.md § 7.5. A destructive action in a list of choices is the label in `semantic-error`, not a filled red button — the bar is a surface of equals, not a confirmation. */}
           <Button
-            className="min-h-11 w-auto flex-1 rounded-full text-semantic-error"
+            className="w-auto flex-1"
+            buttonClassName="min-h-11 rounded-full text-semantic-error"
             variant="ghost"
             disabled={isDisabled}
+            haptic
             onClick={onDelete}
           >
             <Trash2 className="size-4" strokeWidth={1.75} />

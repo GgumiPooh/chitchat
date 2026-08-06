@@ -83,7 +83,13 @@ export function MediaEditor({
             aria-label="편집 취소"
             onClick={onCancel}
           />
-          <Button className="h-11 w-auto px-md" disabled={isSaving} onClick={() => void save()}>
+          <Button
+            className="w-auto"
+            buttonClassName="h-11 min-h-11 w-auto px-md"
+            disabled={isSaving}
+            haptic
+            onClick={() => void save()}
+          >
             완료
           </Button>
         </div>

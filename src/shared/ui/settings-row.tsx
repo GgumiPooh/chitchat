@@ -1,6 +1,7 @@
 import { cn } from "@/shared/lib";
 import { ChevronRight } from "lucide-react";
 import type { ComponentType, ReactNode, SVGProps } from "react";
+import { HapticTap } from "./haptic-tap";
 
 export type SettingsRowProps = {
   className?: string;
@@ -11,6 +12,8 @@ export type SettingsRowProps = {
   Icon?: ComponentType<SVGProps<SVGSVGElement>>;
   /** Rendered in the trailing slot in place of the chevron — a switch, a value, a spinner. */
   trailing?: ReactNode;
+  /** Ticks the Taptic engine when a finger lands on the row. Ignored on a row with no `onClick`, which is not a target. */
+  haptic?: boolean;
   onClick?: () => void;
 };
 
@@ -27,16 +30,18 @@ export function SettingsRow({
   description,
   Icon,
   trailing,
+  haptic = false,
   onClick,
 }: SettingsRowProps) {
   const Tag = onClick ? "button" : "div";
+  const hasHaptic = haptic && Boolean(onClick);
 
-  return (
+  const row = (
     <Tag
       className={cn(
         "flex min-h-14 w-full items-center gap-sm border-b border-hairline-soft bg-canvas p-md text-left transition-colors",
         onClick &&
-          "cursor-pointer outline-none hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-strong",
+          "cursor-pointer outline-none group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-strong",
         className,
       )}
       type={onClick ? "button" : undefined}
@@ -49,5 +54,17 @@ export function SettingsRow({
       </span>
       {trailing ?? (onClick && <ChevronRight className="size-4 shrink-0 text-meta" />)}
     </Tag>
+  );
+
+  if (!hasHaptic) {
+    return row;
+  }
+
+  return (
+    // WARN: A sibling directly after the row, never a child. Inside a `<button>` WebKit ends the tap in the native control and no click reaches JS at all.
+    <span className="group relative flex w-full">
+      {row}
+      <HapticTap forwardsTap />
+    </span>
   );
 }

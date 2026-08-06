@@ -39,7 +39,11 @@ export function CreatePackSheet({ className, isOpen, onClose, onCreated }: Creat
           placeholder="이모티콘 그룹 이름"
           onChange={(event) => setName(event.target.value)}
         />
-        <Button disabled={name.trim().length === 0 || isSubmitting} onClick={() => void submit()}>
+        <Button
+          disabled={name.trim().length === 0 || isSubmitting}
+          haptic
+          onClick={() => void submit()}
+        >
           만들기
         </Button>
       </div>

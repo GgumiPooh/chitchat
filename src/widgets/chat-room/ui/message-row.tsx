@@ -179,6 +179,7 @@ export function MessageRow({
                 className="size-9 text-semantic-error hover:bg-primary-tint hover:text-semantic-error-hover"
                 iconClassName="size-4"
                 Icon={RotateCcw}
+                haptic
                 aria-label="다시 보내기"
                 onClick={onRetry}
               />

@@ -3,7 +3,7 @@
 import type { EmoticonPackSummary } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import { cn } from "@/shared/lib";
-import { IconButton, PreloadImage, Switch } from "@/shared/ui";
+import { HapticTap, IconButton, PreloadImage, Switch } from "@/shared/ui";
 import { useSortable } from "@dnd-kit/sortable";
 import { ChevronRight, GripVertical, Settings2, Smile } from "lucide-react";
 
@@ -72,34 +72,42 @@ export function EmoticonPackRow({
         )}
       </div>
       {/* INFO: The chevron is the affordance — without it nothing says the name is a link to the pack's own screen rather than a label. */}
-      <button
-        className="flex min-w-0 flex-1 items-center gap-2xs rounded-sm px-2xs py-2xs text-left hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
-        type="button"
-        onClick={() => onOpen(pack.id)}
-      >
-        <span className="min-w-0 flex-1">
-          <span
-            className={cn("block truncate text-title-md text-ink", !pack.isEnabled && "text-meta")}
-          >
-            {pack.name}
+      <span className="group relative flex min-w-0 flex-1">
+        <button
+          className="flex min-w-0 flex-1 items-center gap-2xs rounded-sm px-2xs py-2xs text-left group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
+          type="button"
+          onClick={() => onOpen(pack.id)}
+        >
+          <span className="min-w-0 flex-1">
+            <span
+              className={cn(
+                "block truncate text-title-md text-ink",
+                !pack.isEnabled && "text-meta",
+              )}
+            >
+              {pack.name}
+            </span>
+            <span className="block text-body-sm text-meta">{pack.itemCount}개</span>
           </span>
-          <span className="block text-body-sm text-meta">{pack.itemCount}개</span>
-        </span>
-        <ChevronRight className="size-4 shrink-0 text-meta-soft" strokeWidth={1.75} />
-      </button>
+          <ChevronRight className="size-4 shrink-0 text-meta-soft" strokeWidth={1.75} />
+        </button>
+        <HapticTap forwardsTap />
+      </span>
       <IconButton
         Icon={Settings2}
+        haptic
         aria-label={`${pack.name} 관리`}
         onClick={() => onManage(pack.id)}
       />
       <Switch
         checked={pack.isEnabled}
+        haptic
         aria-label={`${pack.name} 사용`}
         onCheckedChange={(checked) => onToggle(pack.id, checked)}
       />
       <button
         ref={setActivatorNodeRef}
-        className="flex size-11 shrink-0 touch-none items-center justify-center rounded-full text-meta hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
+        className="flex size-11 shrink-0 touch-none items-center justify-center rounded-full text-meta group-active:bg-surface-strong hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
         type="button"
         aria-label={`${pack.name} 순서 변경`}
         {...attributes}

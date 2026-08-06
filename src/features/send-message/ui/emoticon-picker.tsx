@@ -3,7 +3,7 @@
 import type { Emoticon, EmoticonPackWithItems } from "@/entities/emoticon";
 import { EMOTICON_PACKS_PATH, toEmoticonAssetUrl } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
-import { EmptyState, PreloadImage } from "@/shared/ui";
+import { EmptyState, HapticTap, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Smile } from "lucide-react";
 import { useState } from "react";
@@ -93,24 +93,27 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
             ) : (
               <div className="grid grid-cols-4 gap-2xs">
                 {shown.map((item) => (
-                  // WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it.
-                  <button
-                    key={item.id}
-                    className="aspect-square touch-pan-y rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
-                    type="button"
-                    aria-label="이모티콘"
-                    onClick={() => handleSelect(item)}
-                  >
-                    <PreloadImage
-                      className="size-full"
-                      imgClassName="size-full object-contain"
-                      placeholderClassName="rounded-sm"
-                      src={toEmoticonAssetUrl(item.id, "image", item.version)}
-                      alt=""
-                      loading="lazy"
-                      draggable={false}
-                    />
-                  </button>
+                  <span key={item.id} className="group relative flex">
+                    {/* WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it. */}
+                    <button
+                      className="aspect-square w-full touch-pan-y rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
+                      type="button"
+                      aria-label="이모티콘"
+                      onClick={() => handleSelect(item)}
+                    >
+                      <PreloadImage
+                        className="size-full"
+                        imgClassName="size-full object-contain"
+                        placeholderClassName="rounded-sm"
+                        src={toEmoticonAssetUrl(item.id, "image", item.version)}
+                        alt=""
+                        loading="lazy"
+                        draggable={false}
+                      />
+                    </button>
+                    {/* WARN: `touch-pan-y` is repeated here, not inherited — `touch-action` applies to the element a gesture starts on, and the overlay is now that element. */}
+                    <HapticTap className="touch-pan-y" forwardsTap />
+                  </span>
                 ))}
               </div>
             )}
@@ -194,19 +197,24 @@ type TabButtonProps = {
 
 function TabButton({ className, isActive, label, children, onClick }: TabButtonProps) {
   return (
-    <button
-      className={cn(
-        "flex size-11 shrink-0 items-center justify-center rounded-md p-2xs transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
-        isActive ? "bg-primary-tint" : "hover:bg-surface-soft active:bg-surface-strong",
-        className,
-      )}
-      type="button"
-      aria-label={label}
-      aria-pressed={isActive}
-      onClick={onClick}
-    >
-      {children}
-    </button>
+    <span className={cn("group relative inline-flex shrink-0", className)}>
+      <button
+        className={cn(
+          "flex size-11 shrink-0 items-center justify-center rounded-md p-2xs transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
+          isActive
+            ? "bg-primary-tint"
+            : "group-active:bg-surface-strong hover:bg-surface-soft active:bg-surface-strong",
+        )}
+        type="button"
+        aria-label={label}
+        aria-pressed={isActive}
+        onClick={onClick}
+      >
+        {children}
+      </button>
+      {/* INFO: A pack switch is a selection among peers, the same thing the tab bar ticks for. */}
+      {!isActive && <HapticTap forwardsTap />}
+    </span>
   );
 }
 

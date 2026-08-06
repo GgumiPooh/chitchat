@@ -36,7 +36,7 @@ export function RenamePackSheet({ className, pack, onClose, onRenamed }: RenameP
           placeholder="이모티콘 그룹 이름"
           onChange={(event) => setName(event.target.value)}
         />
-        <Button disabled={!canSubmit} onClick={() => void submit()}>
+        <Button disabled={!canSubmit} haptic onClick={() => void submit()}>
           저장
         </Button>
       </div>

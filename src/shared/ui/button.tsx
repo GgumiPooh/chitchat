@@ -2,6 +2,7 @@ import { cn } from "@/shared/lib";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "radix-ui";
 import type { ComponentProps } from "react";
+import { HapticTap } from "./haptic-tap";
 
 // INFO: DESIGN.md § 7.1. 48 tall, not the 44 tap-target floor: full-width buttons read cramped at 44.
 const buttonVariants = cva(
@@ -10,13 +11,13 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          "bg-primary text-on-primary hover:bg-primary-hover active:bg-primary-pressed disabled:bg-primary-disabled",
+          "bg-primary text-on-primary group-active:bg-primary-pressed hover:bg-primary-hover active:bg-primary-pressed disabled:bg-primary-disabled",
         secondary:
-          "border border-hairline-strong bg-canvas text-ink hover:bg-surface-soft active:bg-surface-strong disabled:opacity-50",
+          "border border-hairline-strong bg-canvas text-ink group-active:bg-surface-strong hover:bg-surface-soft active:bg-surface-strong disabled:opacity-50",
         ghost:
-          "bg-transparent text-ink hover:bg-surface-soft active:bg-surface-strong disabled:opacity-50",
+          "bg-transparent text-ink group-active:bg-surface-strong hover:bg-surface-soft active:bg-surface-strong disabled:opacity-50",
         destructive:
-          "bg-semantic-error text-on-semantic-error hover:bg-semantic-error-hover active:bg-semantic-error-pressed disabled:opacity-50",
+          "bg-semantic-error text-on-semantic-error group-active:bg-semantic-error-pressed hover:bg-semantic-error-hover active:bg-semantic-error-pressed disabled:opacity-50",
       },
     },
     defaultVariants: {
@@ -28,17 +29,46 @@ const buttonVariants = cva(
 export type ButtonProps = ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     className?: string;
+    /** WARN: The button's own box, for anything `className` cannot reach once `haptic` moves that to the wrapper — padding, radius, colour. */
+    buttonClassName?: string;
     asChild?: boolean;
+    /** Ticks the Taptic engine when a finger lands on the button. */
+    haptic?: boolean;
   };
 
-export function Button({ className, variant, asChild, type = "button", ...props }: ButtonProps) {
+// WARN: With `haptic`, `className` lands on the wrapper rather than the button — the wrapper is what the parent lays out, so `flex-1` and `w-auto` have to reach it. Anything about the button's own box goes to `buttonClassName`.
+export function Button({
+  className,
+  buttonClassName,
+  variant,
+  asChild,
+  haptic = false,
+  disabled,
+  type = "button",
+  ...props
+}: ButtonProps) {
   const Comp = asChild ? Slot.Root : "button";
 
-  return (
+  const button = (
     <Comp
-      className={cn(buttonVariants({ variant }), className)}
+      className={cn(buttonVariants({ variant }), haptic ? buttonClassName : className)}
+      disabled={disabled}
       type={asChild ? undefined : type}
       {...props}
     />
+  );
+
+  if (!haptic) {
+    return button;
+  }
+
+  return (
+    // WARN: The wrapper stands whether or not the button is disabled — dropping it there would hand `className` back to the button, and a disabled `삭제` would take the wrapper's `flex-1` as its own styling.
+    <span className={cn("group relative flex w-full", className)}>
+      {button}
+      {/* INFO: A disabled button confirms nothing, and the overlay would still take the tap and tick. */}
+      {/* WARN: A sibling of the button, never a child. Inside a `<button>` WebKit ends the tap in the native control and no click reaches JS at all. */}
+      {!disabled && <HapticTap forwardsTap />}
+    </span>
   );
 }

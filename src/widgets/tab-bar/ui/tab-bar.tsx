@@ -3,8 +3,7 @@
 import { useChatStream } from "@/features/chat-stream";
 import { CALENDAR_ROUTE, CHAT_ROUTE } from "@/shared/config";
 import { cn } from "@/shared/lib";
-import { Badge } from "@/shared/ui";
-import Link from "next/link";
+import { Badge, Link } from "@/shared/ui";
 import { usePathname } from "next/navigation";
 import { TABS } from "../model/tabs";
 
@@ -48,6 +47,8 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
                     isActive ? "bg-primary-tint" : "hover:bg-surface-soft",
                   )}
                   href={href}
+                  // INFO: Only off the tab the user is standing on — re-tapping the current tab switches nothing, so it has nothing to confirm.
+                  haptic={!isActive}
                   aria-current={isActive ? "page" : undefined}
                 >
                   <span className="flex flex-col items-center gap-0.5 transition-transform group-active:scale-[0.96]">

@@ -33,7 +33,7 @@ export function LogoutButton({ className }: LogoutButtonProps) {
   };
 
   return (
-    <Button className={className} variant="ghost" disabled={isPending} onClick={logOut}>
+    <Button className={className} variant="ghost" disabled={isPending} haptic onClick={logOut}>
       로그아웃
     </Button>
   );

@@ -2,7 +2,7 @@
 
 import { MAX_MESSAGE_LENGTH } from "@/shared/config";
 import { cn, useIsCoarsePointer, useUnsentWork, type Nullable } from "@/shared/lib";
-import { IconButton, Textarea } from "@/shared/ui";
+import { HapticTap, IconButton, Textarea } from "@/shared/ui";
 import { ArrowUp, Plus, Smile } from "lucide-react";
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 
@@ -43,7 +43,7 @@ export function MessageComposer({
     <div className={cn("pointer-events-none px-md pt-xs pb-xs", className)}>
       {/* INFO: DESIGN.md § 6.6. The tab bar's floating surface (§ 7.3.). One row, bottom-aligned — the field grows upward and the controls stay on the last line. */}
       <div className="pointer-events-auto flex items-end gap-2xs rounded-[calc(var(--tab-bar-height)/2)] border border-hairline glass p-2xs shadow-floating">
-        <IconButton Icon={Plus} aria-label="첨부" onClick={onAttach} />
+        <IconButton Icon={Plus} haptic aria-label="첨부" onClick={onAttach} />
         <Textarea
           ref={fieldRef}
           className={cn(
@@ -65,30 +65,36 @@ export function MessageComposer({
         <IconButton
           className={cn(isEmoticonPickerOpen && "bg-primary-tint text-primary")}
           Icon={Smile}
+          haptic
           aria-label="이모티콘"
           aria-pressed={isEmoticonPickerOpen}
           onClick={onToggleEmoticons}
         />
-        {/* WARN: Disabled rather than unmounted when there is nothing to send — WebKit leaves a control inserted into this row unpainted until a hover forces the invalidation, and staging an emoticon touches nothing else inside the pill that would have forced one. */}
-        <button
-          className="group inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed"
-          type="button"
-          disabled={!canSend}
-          aria-label="보내기"
-          onPointerDown={keepFieldFocused}
-          onClick={submit}
-        >
-          <span
-            className={cn(
-              "inline-flex size-9 items-center justify-center rounded-full text-on-primary transition-colors",
-              canSend
-                ? "bg-primary group-hover:bg-primary-hover group-active:bg-primary-pressed"
-                : "bg-primary-disabled",
-            )}
+        {/* WARN: The overlay is a sibling of the button, never a child — inside a `<button>` WebKit ends the tap in the native control and the button never fires. */}
+        <span className="group relative inline-flex shrink-0">
+          {/* WARN: Disabled rather than unmounted when there is nothing to send — WebKit leaves a control inserted into this row unpainted until a hover forces the invalidation, and staging an emoticon touches nothing else inside the pill that would have forced one. */}
+          <button
+            className="group inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed"
+            type="button"
+            disabled={!canSend}
+            aria-label="보내기"
+            onPointerDown={keepFieldFocused}
+            onClick={submit}
           >
-            <ArrowUp className="size-5" strokeWidth={2} />
-          </span>
-        </button>
+            <span
+              className={cn(
+                "inline-flex size-9 items-center justify-center rounded-full text-on-primary transition-colors",
+                canSend
+                  ? "bg-primary group-hover:bg-primary-hover group-active:bg-primary-pressed"
+                  : "bg-primary-disabled",
+              )}
+            >
+              <ArrowUp className="size-5" strokeWidth={2} />
+            </span>
+          </button>
+          {/* WARN: `keepsFocus` repeats `keepFieldFocused` here. The overlay takes the tap the button would have taken, so without it the textarea blurs and iOS drops the keyboard on every send. */}
+          {canSend && <HapticTap forwardsTap keepsFocus />}
+        </span>
       </div>
     </div>
   );

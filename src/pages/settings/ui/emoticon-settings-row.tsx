@@ -14,6 +14,7 @@ export function EmoticonSettingsRow() {
       label="이모티콘"
       description="이모티콘을 만들고 순서를 바꾸거나 숨길 수 있어요"
       Icon={Smile}
+      haptic
       onClick={() => router.push(EMOTICON_SETTINGS_ROUTE)}
     />
   );

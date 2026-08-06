@@ -103,6 +103,7 @@ export function CalendarPage({
         trailing={
           <IconButton
             Icon={Plus}
+            haptic
             aria-label="일정 추가"
             onClick={() => openForm(selectedDayKey ?? summary.todayKey, null)}
           />

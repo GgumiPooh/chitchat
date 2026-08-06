@@ -65,6 +65,7 @@ export function EventFormSheet({
         <Field label="하루 종일">
           <Switch
             checked={draft.allDay}
+            haptic
             aria-label="하루 종일"
             onCheckedChange={(allDay) => update({ allDay })}
           />
@@ -96,10 +97,18 @@ export function EventFormSheet({
           <Label>구분</Label>
           {/* INFO: REQUIREMENTS.md § 11.5. A distinction, not a privacy control — a `mine` event stays fully visible to the other person, title included (§ 18. #9). */}
           <div className="flex gap-xs">
-            <Chip isSelected={draft.scope === "shared"} onClick={() => update({ scope: "shared" })}>
+            <Chip
+              haptic
+              isSelected={draft.scope === "shared"}
+              onClick={() => update({ scope: "shared" })}
+            >
               우리 일정
             </Chip>
-            <Chip isSelected={draft.scope === "mine"} onClick={() => update({ scope: "mine" })}>
+            <Chip
+              haptic
+              isSelected={draft.scope === "mine"}
+              onClick={() => update({ scope: "mine" })}
+            >
               내 일정
             </Chip>
           </div>
@@ -110,12 +119,14 @@ export function EventFormSheet({
           {/* INFO: REQUIREMENTS.md § 6. Yearly is the only recurrence there will ever be — it exists for anniversaries, not as a rule engine. */}
           <div className="flex gap-xs">
             <Chip
+              haptic
               isSelected={draft.recurrence === "none"}
               onClick={() => update({ recurrence: "none" })}
             >
               반복 없음
             </Chip>
             <Chip
+              haptic
               isSelected={draft.recurrence === "yearly"}
               onClick={() => update({ recurrence: "yearly" })}
             >
@@ -137,7 +148,11 @@ export function EventFormSheet({
           onChange={(event) => update({ description: event.target.value })}
         />
 
-        <Button disabled={!isDraftSubmittable(draft) || isSubmitting} onClick={() => void submit()}>
+        <Button
+          disabled={!isDraftSubmittable(draft) || isSubmitting}
+          haptic
+          onClick={() => void submit()}
+        >
           {occurrence ? "저장" : "추가"}
         </Button>
       </div>

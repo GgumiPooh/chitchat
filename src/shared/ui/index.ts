@@ -9,8 +9,11 @@ export { Button, type ButtonProps } from "./button";
 export { Chip, type ChipProps } from "./chip";
 export { Container, type ContainerProps } from "./container";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
+// INFO: Exported for controls that cannot be a `Button` — anything that can takes the `haptic` prop instead, so the overlay's invariants stay inside the primitive.
+export { HapticTap, type HapticTapProps } from "./haptic-tap";
 export { IconButton, type IconButtonProps } from "./icon-button";
 export { Input, type InputProps } from "./input";
+export { Link, type LinkProps } from "./link";
 export type { MediaCell } from "./media-cell";
 export { MediaViewer, type MediaViewerProps } from "./media-viewer";
 export { Modal, type ModalProps } from "./modal";

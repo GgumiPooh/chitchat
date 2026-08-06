@@ -49,6 +49,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
           <IconButton
             variant="floating"
             Icon={ChevronLeft}
+            haptic
             aria-label="뒤로"
             onClick={() => router.push(EMOTICON_SETTINGS_ROUTE)}
           />
@@ -57,6 +58,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
           <IconButton
             variant="floating"
             Icon={Plus}
+            haptic
             aria-label="이모티콘 추가"
             onClick={() => setIsAddMenuOpen(true)}
           />

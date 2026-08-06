@@ -3,6 +3,7 @@
 import { cn } from "@/shared/lib";
 import type { ComponentProps, FC } from "react";
 import { BottomSheet, type BottomSheetProps } from "./bottom-sheet";
+import { HapticTap } from "./haptic-tap";
 
 export type ActionSheetItem = {
   label: string;
@@ -25,10 +26,10 @@ export function ActionSheet({ className, isOpen, header, items, onClose }: Actio
     <BottomSheet className={className} isOpen={isOpen} header={header} onClose={onClose}>
       <ul className="flex flex-col gap-2xs">
         {items.map((item) => (
-          <li key={item.label}>
+          <li key={item.label} className="group relative flex">
             <button
               className={cn(
-                "inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-xs rounded-md bg-surface-soft px-md py-sm text-button-md transition-colors outline-none hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-pressed",
+                "inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-xs rounded-md bg-surface-soft px-md py-sm text-button-md transition-colors outline-none group-active:bg-surface-pressed hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-pressed",
                 item.variant === "destructive" ? "text-semantic-error" : "text-ink",
               )}
               type="button"
@@ -39,6 +40,8 @@ export function ActionSheet({ className, isOpen, header, items, onClose }: Actio
               )}
               {item.label}
             </button>
+            {/* INFO: Every row is a committed choice, so none of them is left silent. */}
+            <HapticTap forwardsTap />
           </li>
         ))}
       </ul>

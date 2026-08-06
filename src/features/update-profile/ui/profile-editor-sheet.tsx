@@ -73,7 +73,13 @@ export function ProfileEditorSheet({
               <Avatar name={trimmed || nickname} size="profile" src={toPreviewUrl()} />
             </button>
             <div className="flex items-center gap-2xs">
-              <Button className="h-9 w-auto px-sm" variant="secondary" onClick={openPicker}>
+              <Button
+                className="w-auto"
+                buttonClassName="h-9 min-h-9 w-auto px-sm"
+                variant="secondary"
+                haptic
+                onClick={openPicker}
+              >
                 {avatar.isReading ? "읽는 중이에요" : "사진 바꾸기"}
               </Button>
               {toPreviewUrl() && (
@@ -95,7 +101,7 @@ export function ProfileEditorSheet({
               onChange={(event) => setName(event.target.value)}
             />
           </div>
-          <Button disabled={!canSubmit} onClick={() => void submit()}>
+          <Button disabled={!canSubmit} haptic onClick={() => void submit()}>
             {isSubmitting ? "저장하는 중이에요" : "저장"}
           </Button>
         </div>

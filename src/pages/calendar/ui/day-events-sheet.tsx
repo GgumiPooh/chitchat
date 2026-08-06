@@ -3,7 +3,7 @@
 import type { EventOccurrence } from "@/entities/event";
 import type { Participant } from "@/entities/user";
 import { cn, formatDateWithWeekday, parseDayKey, type Optional } from "@/shared/lib";
-import { Avatar, BottomSheet, Button, EmptyState } from "@/shared/ui";
+import { Avatar, BottomSheet, Button, EmptyState, HapticTap } from "@/shared/ui";
 import { EventDot } from "@/widgets/calendar-month";
 import { CalendarDays } from "lucide-react";
 import { formatOccurrenceTime } from "../model/format-event";
@@ -44,9 +44,9 @@ export function DayEventsSheet({
         ) : (
           <ul className="space-y-2xs">
             {occurrences.map((occurrence) => (
-              <li key={occurrence.event.id + occurrence.startsAt}>
+              <li key={occurrence.event.id + occurrence.startsAt} className="group relative flex">
                 <button
-                  className="flex min-h-11 w-full cursor-pointer items-center gap-xs rounded-md bg-surface-soft px-md py-sm text-left transition-colors outline-none hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-pressed"
+                  className="flex min-h-11 w-full cursor-pointer items-center gap-xs rounded-md bg-surface-soft px-md py-sm text-left transition-colors outline-none group-active:bg-surface-pressed hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-pressed"
                   type="button"
                   onClick={() => onSelect(occurrence)}
                 >
@@ -64,11 +64,14 @@ export function DayEventsSheet({
                     participant={participants.find(({ id }) => id === occurrence.event.createdBy)}
                   />
                 </button>
+                <HapticTap forwardsTap />
               </li>
             ))}
           </ul>
         )}
-        <Button onClick={onCreate}>일정 추가</Button>
+        <Button haptic onClick={onCreate}>
+          일정 추가
+        </Button>
       </div>
     </BottomSheet>
   );

@@ -66,6 +66,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
               <IconButton
                 variant="floating"
                 Icon={ImagePlus}
+                haptic
                 aria-label="사진 추가"
                 onClick={() => setIsPickerOpen(true)}
               />
@@ -74,6 +75,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
                 variant="floating"
                 Icon={ListChecks}
                 disabled={media.length === 0 || isUploading}
+                haptic
                 aria-label="선택"
                 onClick={() => selection.start()}
               />
@@ -165,6 +167,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
             className="flex-1"
             variant="destructive"
             disabled={isRemoving}
+            haptic
             onClick={() => void confirmDelete()}
           >
             삭제

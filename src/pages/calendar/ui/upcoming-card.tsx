@@ -1,5 +1,6 @@
 import type { EventOccurrence } from "@/entities/event";
 import { cn, toDayKey } from "@/shared/lib";
+import { HapticTap } from "@/shared/ui";
 import { EventDot } from "@/widgets/calendar-month";
 import { formatUpcomingWhen } from "../model/format-event";
 
@@ -29,10 +30,14 @@ export function UpcomingCard({ className, occurrences, todayKey, onSelect }: Upc
       )}
       aria-label="다가오는 일정"
     >
+      {/* WARN: The end radii sit on the row, not on the button. The overlay is a second child, so the button is no longer `:last-child` and `last:rounded-b-md` would never match again. */}
       {occurrences.map((occurrence) => (
-        <li key={occurrence.event.id + occurrence.startsAt}>
+        <li
+          key={occurrence.event.id + occurrence.startsAt}
+          className="group relative flex overflow-hidden first:rounded-t-md last:rounded-b-md"
+        >
           <button
-            className="flex min-h-11 w-full cursor-pointer items-center gap-xs px-md py-sm text-left transition-colors outline-none first:rounded-t-md last:rounded-b-md hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-strong"
+            className="flex min-h-11 w-full cursor-pointer items-center gap-xs px-md py-sm text-left transition-colors outline-none group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-strong"
             type="button"
             onClick={() => onSelect(toDayKey(occurrence.startsAt))}
           >
@@ -42,6 +47,7 @@ export function UpcomingCard({ className, occurrences, todayKey, onSelect }: Upc
               {formatUpcomingWhen(occurrence, todayKey)}
             </span>
           </button>
+          <HapticTap forwardsTap />
         </li>
       ))}
     </ul>

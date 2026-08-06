@@ -12,7 +12,7 @@ import {
   toEmoticonAssetUrl,
 } from "@/shared/config";
 import { cn, type Maybe, type Nullable, type Optional } from "@/shared/lib";
-import { BottomSheet, Button, IconButton, PreloadImage, toast } from "@/shared/ui";
+import { BottomSheet, Button, HapticTap, IconButton, PreloadImage, toast } from "@/shared/ui";
 import { ImagePlus, Music, Pencil, X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
@@ -81,23 +81,26 @@ export function EmoticonFormSheet({
       >
         <div className="space-y-sm pt-2xs">
           <div className="flex items-center gap-sm">
-            <button
-              className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-hairline-strong bg-surface-soft text-meta hover:bg-surface-strong hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-pressed"
-              type="button"
-              aria-label="이모티콘 이미지 선택"
-              onClick={() => setIsPickerOpen(true)}
-            >
-              {previewUrl ? (
-                <PreloadImage
-                  className="size-full"
-                  imgClassName="size-full object-contain"
-                  src={previewUrl}
-                  alt=""
-                />
-              ) : (
-                <ImagePlus className="size-6" strokeWidth={1.75} />
-              )}
-            </button>
+            <span className="group relative inline-flex shrink-0">
+              <button
+                className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-hairline-strong bg-surface-soft text-meta group-active:bg-surface-pressed hover:bg-surface-strong hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-pressed"
+                type="button"
+                aria-label="이모티콘 이미지 선택"
+                onClick={() => setIsPickerOpen(true)}
+              >
+                {previewUrl ? (
+                  <PreloadImage
+                    className="size-full"
+                    imgClassName="size-full object-contain"
+                    src={previewUrl}
+                    alt=""
+                  />
+                ) : (
+                  <ImagePlus className="size-6" strokeWidth={1.75} />
+                )}
+              </button>
+              <HapticTap forwardsTap />
+            </span>
             <div className="min-w-0 flex-1 space-y-2xs">
               <p className="text-title-sm text-ink">이미지</p>
               <p className="text-body-sm text-meta">
@@ -105,8 +108,10 @@ export function EmoticonFormSheet({
               </p>
               {isCroppable && (
                 <Button
-                  className="h-9 w-auto px-sm"
+                  className="w-auto"
+                  buttonClassName="h-9 min-h-9 w-auto px-sm"
                   variant="secondary"
+                  haptic
                   onClick={() => setIsEditing(true)}
                 >
                   <Pencil className="size-4" strokeWidth={1.75} />
@@ -122,7 +127,7 @@ export function EmoticonFormSheet({
             onPick={() => audioRef.current?.click()}
             onClear={draft.clearAudio}
           />
-          <Button disabled={!canSubmit} onClick={() => void submit()}>
+          <Button disabled={!canSubmit} haptic onClick={() => void submit()}>
             {isSubmitting ? "올리는 중이에요" : emoticon ? "저장" : "추가"}
           </Button>
         </div>
@@ -282,9 +287,15 @@ function AudioRow({ className, fileName, onPick, onClear }: AudioRowProps) {
         <p className="truncate text-body-sm text-meta">{fileName ?? "선택 · 탭할 때만 재생돼요"}</p>
       </div>
       {fileName ? (
-        <IconButton Icon={X} aria-label="소리 제거" onClick={onClear} />
+        <IconButton Icon={X} haptic aria-label="소리 제거" onClick={onClear} />
       ) : (
-        <Button className="h-9 w-auto px-sm" variant="secondary" onClick={onPick}>
+        <Button
+          className="w-auto"
+          buttonClassName="h-9 min-h-9 w-auto px-sm"
+          variant="secondary"
+          haptic
+          onClick={onPick}
+        >
           선택
         </Button>
       )}

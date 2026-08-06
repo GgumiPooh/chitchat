@@ -783,6 +783,27 @@ The settings-row control (`§ 7.11.`). 48×28 track, 24px thumb, `radius-full`.
 
 The thumb reads as raised through a 1px `hairline-strong` border, not a shadow — a switch is a resting control and `§ 8.2.` bans shadows on those. Focus is the standard 2px `primary` ring offset against `canvas` (`§ 3.2.`).
 
+## 7.15. Haptics.
+
+iOS exposes no Vibration API. The only way a web page reaches the Taptic engine is WebKit's native switch control (`<input type="checkbox" switch>`), which ticks when it toggles — and since iOS 26.5 it ticks **only for a real finger landing on it**, never for a scripted `click()`. `HapticTap` is therefore an invisible switch stretched over the control it decorates, not a function anything calls.
+
+Consequences, all of them non-obvious:
+
+| Rule                                                                                 | Reason                                                                                             |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| Never mount `HapticTap` inside a `<button>`                                          | WebKit ends the tap in the native control; no click reaches JS at all, and the button stops firing |
+| Beside a `<button>`, wrap both in a `relative` box and pass `forwardsTap`            | The overlay replays the tap on its sibling control, which is the only path left                    |
+| Inside an `<a>`, mount it as the last child with no `forwardsTap`                    | The click still bubbles to the anchor, where `NextLink`'s own handler takes it                     |
+| `haptic` on a `Link` is for internal routes only                                     | The anchor's native activation never runs, so an external href or modified click would go nowhere  |
+| Hide it with `opacity` alone — never `appearance-none`, never `display: none`        | A restyled control is no longer native and stops ticking; a hidden one cannot be tapped            |
+| Put `group` on the wrapper and `group-active:` beside every `active:` on the control | The tap lands on the overlay, so `:active` matches the wrapper and never the control (`§ 3.2.`)    |
+| Repeat the control's `touch-action` on the overlay                                   | `touch-action` applies to the element a gesture starts on, and that is now the overlay             |
+| A gesture threshold, a drag, a route change — none of these can tick                 | They are scripted triggers, which iOS 26.5 removed                                                 |
+
+It renders on a coarse pointer only (`AGENTS.md § 4.2.`): a mouse gains nothing, and the overlay would swallow the ⌘-click the covered element still owes the pointer.
+
+Where it fires is a product decision, not a technical one: **a committed change of state, and a selection among peers.** Saving, sending, deleting, toggling, switching tab or pack, picking a chip or a swatch, opening a sheet. Never dismissal, cancellation, back navigation, or a repeat-tap control like a month stepper — a tick that fires on everything stops meaning anything.
+
 # 8. Rules.
 
 ## 8.1. Do.

@@ -2,7 +2,7 @@ import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE } from "@/shared/config";
 import { cn, composeEventNotice, toDayKey, type Optional } from "@/shared/lib";
-import Link from "next/link";
+import { Link } from "@/shared/ui";
 
 export type SystemNoticeProps = {
   className?: string;
