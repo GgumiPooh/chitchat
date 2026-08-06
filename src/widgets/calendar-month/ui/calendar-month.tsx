@@ -43,12 +43,14 @@ export function CalendarMonth({
       <header className="flex items-center justify-between">
         <IconButton
           Icon={ChevronLeft}
+          haptic
           aria-label="이전 달"
           onClick={() => onMonthChange(shiftMonthKey(monthKey, -1))}
         />
         <h2 className="text-display-md text-ink">{formatYearMonth(toMonthStart(monthKey))}</h2>
         <IconButton
           Icon={ChevronRight}
+          haptic
           aria-label="다음 달"
           onClick={() => onMonthChange(shiftMonthKey(monthKey, 1))}
         />

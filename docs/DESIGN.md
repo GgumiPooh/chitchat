@@ -809,7 +809,9 @@ Consequences, all of them non-obvious:
 
 It renders on a coarse pointer only (`AGENTS.md § 4.2.`): a mouse gains nothing, and the overlay would swallow the ⌘-click the covered element still owes the pointer.
 
-Where it fires is a product decision, not a technical one: **a committed change of state, and a selection among peers.** Saving, sending, deleting, toggling, switching tab or pack, picking a chip or a swatch, opening a sheet. Never dismissal, cancellation, back navigation, or a repeat-tap control like a month stepper — a tick that fires on everything stops meaning anything.
+Where it fires is a product decision, not a technical one: **a committed change of state, and a selection among peers.** Saving, sending, deleting, toggling, switching tab or pack, picking a chip or a swatch, opening a sheet, stepping the calendar to the next month. Never dismissal, cancellation, or back navigation — a tick that fires on everything stops meaning anything.
+
+The month stepper is in rather than out: it commits the same change the month swipe does, and the swipe itself is a drag threshold that can never tick — so without it the gesture the chevrons exist to replace (`§ 4.1.`) is the only way to turn the month silently.
 
 # 8. Rules.
 
