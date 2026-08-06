@@ -268,12 +268,8 @@ function TabButton({ ref, className, isActive, label, children, onClick }: TabBu
   return (
     // INFO: A pack switch is a selection among peers, the same thing the tab bar ticks for.
     // WARN: DESIGN.md § 7.15.1. The tabs tile the strip they scroll, so the switch would claim every drag that starts on one and the strip would not move. No `overlayClassName` beside it, unlike the § 13.6. grid cells: this scroller is the horizontal one.
-    <HapticTarget
-      ref={ref}
-      className={cn("inline-flex shrink-0", className)}
-      isTicking={!isActive}
-      keepsScroll
-    >
+    // WARN: DESIGN.md § 7.15.3. Never gated on `isActive` here — the selection lands synchronously, so gating unmounts the label before its activation and the tick is lost on the very tap that earned it.
+    <HapticTarget ref={ref} className={cn("inline-flex shrink-0", className)} keepsScroll>
       <button
         className={cn(
           "flex size-11 shrink-0 items-center justify-center rounded-md p-2xs transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",

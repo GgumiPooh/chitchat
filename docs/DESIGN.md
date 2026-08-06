@@ -901,6 +901,7 @@ Consequences, all of them non-obvious:
 | Repeat the control's `touch-action` on the overlay                                    | `touch-action` applies to the element a gesture starts on, and that is now the overlay                                                                          |
 | Over a cell that **tiles** a scroller, pass `keepsScroll` — but never inside an `<a>` | The switch keeps a drag of its own, so the overlay has to become a `<label>`, and an anchor eats a label's activation (§ 7.15.1.)                               |
 | The `group` wrapper follows the `haptic` prop alone — gate only the overlay on state  | A wrapper that comes and goes with `isSelected` or `disabled` swaps the element type at that position, so React remounts the control and drops the user's focus |
+| Gate the overlay on nothing the tap itself settles synchronously                      | The tick is a default action, so an overlay unmounted during the click it is answering never toggles and goes silent (§ 7.15.3.)                                |
 | A gesture threshold, a drag, a route change — none of these can tick                  | They are scripted triggers, which iOS 26.5 removed                                                                                                              |
 | A release that travelled `GESTURE_SLOP` is a drag: no activation, no tick             | The overlay owns the whole tap, so it is the only place that can tell the two apart (§ 7.15.2.)                                                                 |
 
@@ -946,6 +947,14 @@ So the overlay measures its own gesture. `pointerdown` records the origin, `poin
 This is **not** opt-in, and unlike `keepsScroll` it has no host it can break: it changes no markup, only which releases count. The surfaces that already do this for themselves — the month grid's `onClickCapture`, the long press's — keep doing it, and agreeing twice costs nothing.
 
 One thing it does give up: **sliding a `Switch` no longer toggles it.** The visible track is Radix's `<button>`, which only ever flipped because the overlay forwarded the click the slide ended in — so past 8px that slide now does nothing. Tapping is unaffected, and a finger crossing a row on its way down the list no longer flips the toggle it passes over, which is the trade this is worth.
+
+### 7.15.3. `isTicking` cannot be gated on a selection that lands synchronously.
+
+The tick is the overlay's **default action**, and a default action runs after the click has finished dispatching. So the overlay has to still be in the document at that moment — not merely at the moment it was tapped.
+
+That is a live distinction wherever the tap is what turns the gate off. `Link` survives it because the route change is a round trip: the anchor is still standing when the switch toggles, and `haptic={!isActive}` on the tab bar (§ 7.3.) drops the overlay a render later. The emoticon pack tabs are the opposite case — `useStorageState` writes and broadcasts inside the handler, React flushes a discrete update before returning from it, and `isTicking={!isActive}` therefore tore the just-selected tab's `<label>` out of the tree mid-click. A detached label has no labelled control to find, so nothing toggled: the previously active tab could not tick because it had no overlay, and the newly active one could not tick because it no longer had one. **Every pack tap was silent** — on the one strip whose tick is most of its feedback, since the fill it moves sits under the finger.
+
+So the pack tabs tick unconditionally, re-taps on the open pack included. That reads as the narrower rule of § 7.15. rather than a break from it: a finger that lands on a tab and lifts has selected that pack, whether or not the panel had to change. Where a state gate is genuinely wanted (`Chip`, the colour swatches, the composer's send disc), it is safe exactly when the state does not settle in the same tick as the tap.
 
 # 8. Rules.
 
