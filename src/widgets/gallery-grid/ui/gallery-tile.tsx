@@ -1,8 +1,15 @@
 "use client";
 
-import { LONG_PRESS_TARGET_CLASS, cn, formatDuration, useLongPress } from "@/shared/lib";
+import {
+  LONG_PRESS_TARGET_CLASS,
+  cn,
+  formatDuration,
+  useLongPress,
+  type LongPressPoint,
+} from "@/shared/lib";
 import { PreloadImage, type MediaCell } from "@/shared/ui";
 import { Check, Play } from "lucide-react";
+import { GALLERY_TILE_ID_ATTRIBUTE } from "../model/use-gallery-sweep";
 
 export type GalleryTileProps = {
   className?: string;
@@ -10,8 +17,8 @@ export type GalleryTileProps = {
   isSelecting: boolean;
   isSelected: boolean;
   onActivate: () => void;
-  /** REQUIREMENTS.md § 10. Enters selection mode on this tile; the header control is the pointer equivalent. */
-  onLongPress?: () => void;
+  /** REQUIREMENTS.md § 10. Picks this tile and anchors the sweep where the hold fired; the header control is the pointer equivalent. */
+  onLongPress?: (point: LongPressPoint) => void;
 };
 
 /** DESIGN.md § 7.10. A square `object-cover` cell — the grid decides its size. */
@@ -28,7 +35,12 @@ export function GalleryTile({
 
   return (
     // WARN: A wrapper rather than the handlers on the button itself. `onClickCapture` is what stops the hold's release from also toggling the tile it just selected, and it only reaches a target it sits above.
-    <div className={cn("relative", LONG_PRESS_TARGET_CLASS, className)} {...longPressHandlers}>
+    <div
+      className={cn("relative", LONG_PRESS_TARGET_CLASS, className)}
+      // INFO: What the sweep of REQUIREMENTS.md § 10. hit-tests for — the drag hears no event of this tile's own, since the finger that owns it went down on another one.
+      {...{ [GALLERY_TILE_ID_ATTRIBUTE]: cell.id }}
+      {...longPressHandlers}
+    >
       <button
         className="relative block aspect-square w-full cursor-pointer overflow-hidden rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
         type="button"

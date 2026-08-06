@@ -6,7 +6,7 @@ import { cn, type Nullable } from "@/shared/lib";
 import { EmptyState, HapticTap, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Smile } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import { useStorageState } from "synced-storage/react";
 import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
@@ -15,6 +15,9 @@ import { useRecentEmoticons } from "../model/use-recent-emoticons";
 const RECENTS_TAB = "recents";
 
 const ACTIVE_TAB_KEY = "jandh:emoticon-tab";
+
+// INFO: A sliver of the neighbouring tab stays visible past the revealed one, so the strip still reads as scrollable where it stops.
+const TAB_REVEAL_MARGIN = 8;
 
 export type EmoticonPickerProps = {
   className?: string;
@@ -36,6 +39,8 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
     strategy: "localStorage",
   });
   const requestedTab = typeof storedTab === "string" ? storedTab : RECENTS_TAB;
+  const tabStripRef = useRef<Nullable<HTMLDivElement>>(null);
+  const activeTabRef = useRef<Nullable<HTMLSpanElement>>(null);
   const [slideFrom, setSlideFrom] = useState<SwipeDirection>(1);
   const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
   const { recentIds, remember } = useRecentEmoticons();
@@ -57,6 +62,9 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
   const shown = activeTab === RECENTS_TAB ? recents : (findPack(packs, activeTab)?.items ?? []);
   const tabIds = [RECENTS_TAB, ...packs.map((pack) => pack.id)];
   const activeIndex = tabIds.indexOf(activeTab);
+
+  // INFO: § 13.6. The swipe moves the tab without the finger ever touching the strip, and the remembered tab can reopen the panel on a pack that is already past its right edge — either way the strip has to follow the selection or the active tab is unreachable to the eye.
+  useEffect(revealActiveTab, [activeTab, packs]);
 
   return (
     <div
@@ -122,8 +130,12 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
         )}
       </div>
       {/* INFO: § 13.6. Pack tabs along the bottom, matching where the thumb already is. */}
-      <div className="scrollbar-hidden flex shrink-0 gap-2xs overflow-x-auto border-t border-hairline-soft p-2xs">
+      <div
+        ref={tabStripRef}
+        className="scrollbar-hidden flex shrink-0 gap-2xs overflow-x-auto border-t border-hairline-soft p-2xs"
+      >
         <TabButton
+          ref={activeTab === RECENTS_TAB ? activeTabRef : undefined}
           isActive={activeTab === RECENTS_TAB}
           label="최근 사용"
           onClick={() => selectTab(RECENTS_TAB)}
@@ -136,6 +148,7 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
           return (
             <TabButton
               key={pack.id}
+              ref={activeTab === pack.id ? activeTabRef : undefined}
               isActive={activeTab === pack.id}
               label={pack.name}
               onClick={() => selectTab(pack.id)}
@@ -161,6 +174,31 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
   function handleSelect(item: Emoticon) {
     remember(item.id);
     onSelect(item);
+  }
+
+  /**
+   * INFO: Scrolled by hand rather than with `scrollIntoView`, which walks every
+   * scrollable ancestor — the § 13.6. strip the panel is clipped by is
+   * `overflow: hidden`, and mid-collapse that counts as one.
+   */
+  function revealActiveTab() {
+    const strip = tabStripRef.current;
+    const tab = activeTabRef.current;
+
+    if (!strip || !tab) {
+      return;
+    }
+
+    const stripBox = strip.getBoundingClientRect();
+    const tabBox = tab.getBoundingClientRect();
+    const clippedLeft = stripBox.left + TAB_REVEAL_MARGIN - tabBox.left;
+    const clippedRight = tabBox.right + TAB_REVEAL_MARGIN - stripBox.right;
+
+    if (clippedLeft <= 0 && clippedRight <= 0) {
+      return;
+    }
+
+    strip.scrollBy({ left: clippedLeft > 0 ? -clippedLeft : clippedRight, behavior: "smooth" });
   }
 
   function selectTab(id: string) {
@@ -189,6 +227,8 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
 }
 
 type TabButtonProps = {
+  /** The strip scrolls the active tab back into view, which needs the element rather than an index. */
+  ref?: Ref<HTMLSpanElement>;
   className?: string;
   isActive: boolean;
   label: string;
@@ -196,9 +236,9 @@ type TabButtonProps = {
   onClick: () => void;
 };
 
-function TabButton({ className, isActive, label, children, onClick }: TabButtonProps) {
+function TabButton({ ref, className, isActive, label, children, onClick }: TabButtonProps) {
   return (
-    <span className={cn("group relative inline-flex shrink-0", className)}>
+    <span ref={ref} className={cn("group relative inline-flex shrink-0", className)}>
       <button
         className={cn(
           "flex size-11 shrink-0 items-center justify-center rounded-md p-2xs transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",

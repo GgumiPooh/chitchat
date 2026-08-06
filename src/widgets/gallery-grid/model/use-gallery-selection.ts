@@ -2,7 +2,15 @@
 
 import { MAX_GALLERY_SELECTION } from "@/shared/config";
 import { toast } from "@/shared/ui";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+
+// INFO: One toast id for the cap, because a sweep sitting at it reaches it again on every tile it goes on covering, and sonner replaces a live toast rather than stacking another.
+const CAP_TOAST_ID = "gallery-selection-cap";
+
+const CAP_MESSAGE = `한 번에 ${MAX_GALLERY_SELECTION}장까지 선택할 수 있어요`;
+
+/** REQUIREMENTS.md § 10. What the held tile did, which the range the drag covers then repeats. */
+type SweepAnchor = { base: string[]; mode: "select" | "deselect"; id: string };
 
 /**
  * The multi-select of REQUIREMENTS.md § 10. Entered from the header control with no
@@ -12,6 +20,8 @@ export function useGallerySelection() {
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
+  // INFO: The selection the sweep started from. Every range the drag reports is applied to *this*, never to the last one, so pulling the finger back releases the tiles it has left behind.
+  const anchorRef = useRef<SweepAnchor>({ id: "", base: [], mode: "select" });
 
   const start = useCallback((id?: string) => {
     setIsSelecting(true);
@@ -34,7 +44,7 @@ export function useGallerySelection() {
 
       // INFO: The cap the delete endpoint enforces anyway (§ 14.), said here instead of as a rejected request after the user picked two hundred and one.
       if (selectedIds.length >= MAX_GALLERY_SELECTION) {
-        toast.error(`한 번에 ${MAX_GALLERY_SELECTION}장까지 선택할 수 있어요`);
+        toast.error(CAP_MESSAGE, { id: CAP_TOAST_ID });
 
         return;
       }
@@ -44,5 +54,49 @@ export function useGallerySelection() {
     [selected, selectedIds.length],
   );
 
-  return { isSelecting, selectedIds, selected, start, cancel, toggle };
+  /** REQUIREMENTS.md § 10. The whole range from the held tile to the one under the finger, in grid order. */
+  // WARN: The cap is applied out here rather than in an updater, so the toast is not at the mercy of one React may run twice (see `toggle`). It can be: the result is computed from the anchor's baseline rather than from the live selection, so there is nothing the updater would have known better.
+  const sweepTo = useCallback((ids: string[]) => {
+    const { base, mode, id: anchorId } = anchorRef.current;
+
+    if (mode === "deselect") {
+      const dropped = new Set(ids);
+
+      setSelectedIds(base.filter((entry) => !dropped.has(entry)));
+
+      return;
+    }
+
+    const picked = new Set(base);
+    const added = ids.filter((id) => !picked.has(id));
+    const room = Math.max(MAX_GALLERY_SELECTION - base.length, 0);
+
+    if (added.length > room) {
+      toast.error(CAP_MESSAGE, { id: CAP_TOAST_ID });
+    }
+
+    // WARN: Truncated from the anchor outwards, not from the head of the range. A sweep running *up* the grid is ordered away from the finger, so keeping the first `room` would strip the mark off the held tile and everything under the finger and light up a distant block instead.
+    const kept =
+      ids[0] === anchorId ? added.slice(0, room) : added.slice(Math.max(added.length - room, 0));
+
+    setSelectedIds([...base, ...kept]);
+  }, []);
+
+  /**
+   * REQUIREMENTS.md § 10. The tile a hold fired on: it takes the action a tap
+   * would have, and that action is what the sweep repeats over the range the drag
+   * goes on to cover.
+   */
+  const startSweep = useCallback(
+    (id: string) => {
+      const base = isSelecting ? selectedIds : [];
+
+      anchorRef.current = { id, base, mode: base.includes(id) ? "deselect" : "select" };
+      setIsSelecting(true);
+      sweepTo([id]);
+    },
+    [isSelecting, selectedIds, sweepTo],
+  );
+
+  return { isSelecting, selectedIds, selected, start, cancel, toggle, startSweep, sweepTo };
 }

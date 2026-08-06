@@ -97,8 +97,9 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
               selected={selection.selected}
               onOpen={(cells, index) => setViewer({ cells, index })}
               onToggle={selection.toggle}
+              onSweepTo={selection.sweepTo}
               // WARN: REQUIREMENTS.md § 10. Withheld while an upload is in flight for the same reason the header control is disabled — a row with no message attached yet cannot be deleted out from under the send.
-              onStartSelecting={isUploading ? undefined : selection.start}
+              onSweepStart={isUploading ? undefined : selection.startSweep}
               onLoadMore={loadMore}
             />
             {remainingCount > 0 && (

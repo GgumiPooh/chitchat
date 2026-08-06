@@ -791,6 +791,8 @@ The month header was `sticky` under the app header and is deliberately not any m
 
 Selection mode is entered from the header control, or by **holding a tile**, which enters it with that tile picked. A tap still opens the viewer, because a hold that fires swallows the `click` its release ends in (§ 3.2.). The hold is touch-only: right-click keeps the browser's image menu, since the header control is already this gesture's pointer equivalent.
 
+The hold does not end there — **keep the finger down and drag, and everything from the held tile to the one under the finger takes the same action the hold took** (`REQUIREMENTS.md § 10.`). It fills in grid order, row by row, so the marks land in reading order rather than along the line the finger drew, and dragging back up releases the rows it retreats over. Reaching the top or bottom edge scrolls the grid under the finger, faster the further into the edge zone it goes, so picking a month's worth is one gesture rather than fifty taps. In selection mode the hold is live on every tile, so a sweep starting on a picked one clears instead of picks.
+
 The 삭제 row is a `semantic-error` **label**, not a filled red button (§ 7.5.) — the bar is a surface of equals. The filled `destructive` button appears one step later, in the confirmation, which is where the consequence is actually stated.
 
 ## 7.11. Settings Row.
