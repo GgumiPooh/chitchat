@@ -112,7 +112,8 @@ export function EmoticonPicker({ className, onSelect }: EmoticonPickerProps) {
                       />
                     </button>
                     {/* WARN: `touch-pan-y` is repeated here, not inherited — `touch-action` applies to the element a gesture starts on, and the overlay is now that element. */}
-                    <HapticTap className="touch-pan-y" forwardsTap />
+                    {/* WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the panel would stop scrolling (`DESIGN.md § 7.15.`). */}
+                    <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
                   </span>
                 ))}
               </div>
