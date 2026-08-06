@@ -139,14 +139,14 @@ The header and the tab bar do not sit in the column's flow — they float over i
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Tab bar     | A pill inset from the shell's bottom edge by `--bar-float-gap` (12) plus `env(safe-area-inset-bottom)`, and by `md` each side |
 | Header      | A transparent strip pinned to the top of the shell. It has no surface — only the controls inside it are visible (§ 7.12.)     |
-| Surface     | The `glass` utility (`canvas/75` + `backdrop-blur-lg`), 1px `hairline`, `shadow-floating`. Never spelled out at a call site   |
+| Surface     | The `glass` utility (`canvas/75`), 1px `hairline`, `shadow-floating`. Never spelled out at a call site                        |
 | Clearance   | `BottomOverlay` measures the bars into `--bottom-inset`, which the shell's scroller takes as bottom padding                   |
 | Keyboard    | The overlay collapses its own height to `0` (§ 7.3.); no bar inside it branches on the keyboard itself                        |
 | Hit testing | The overlay is `pointer-events-none`; each visible surface re-enables it, so content underneath stays tappable                |
 
 The clearance is measured rather than summed from `--tab-bar-height`: the bars come and go with the keyboard, and the install banner's copy wraps to two lines on a narrow viewport, so no constant is right. It is `0px` while nothing is up, so the scroller's padding needs no branch.
 
-The clearance is the scroller's own padding, so a screen whose background is not `canvas` — chat's `chat-canvas` — MUST extend it under the bars with `pb-(--bottom-inset)` and a matching negative bottom margin. A child's background stops at its parent's content box, so without it the strip behind the bars falls back to the shell's `canvas` and the blur has nothing to blur.
+The clearance is the scroller's own padding, so a screen whose background is not `canvas` — chat's `chat-canvas` — MUST extend it under the bars with `pb-(--bottom-inset)` and a matching negative bottom margin. A child's background stops at its parent's content box, so without it the strip behind the bars falls back to the shell's `canvas` and shows as a band of the wrong colour through the translucent bar.
 
 Padding, not a hard stop: mid-scroll the content genuinely passes under the bars — that is the effect — and the padding only guarantees that the _last_ row can still be scrolled clear of them.
 
@@ -156,7 +156,9 @@ A screen-owned overlay that must cover the bars — the media viewer (§ 7.10.),
 
 A larger `z-index` is not an alternative. The bars are siblings of the scroller, not of the screen inside it, so an overlay left in the screen's subtree cannot outrank them from there — and being inside the scroller it would also stop at the clearance padding, leaving the tab bar sitting on top of it.
 
-The surface is a translucent `canvas` over a blur, not a solid fill. This is an imitation of the platform's floating material, deliberately a plain one: no specular edge, no dynamic tint, no refraction. It is defined once as the `glass` utility in `globals.css` — every floating surface (both bars, the install banner, `icon-button-floating`) uses it, so they cannot drift apart.
+The surface is a translucent `canvas`, not a solid fill. This is an imitation of the platform's floating material, deliberately a plain one: no specular edge, no dynamic tint, no refraction — and, since § 4.7.1., **no blur**. It is defined once as the `glass` utility in `globals.css` — every floating surface (both bars, the install banner, `icon-button-floating`) uses it, so they cannot drift apart.
+
+The blur is gone because it cannot survive a view-transition capture (§ 4.7.1.), and every arrangement that kept it alive cost the bars something worse than a missing blur. Translucency carries the effect on its own: what makes a bar read as floating is that the content behind it keeps moving and showing through, not that it is smeared. `backdrop-filter` MUST NOT be reintroduced on any surface that can be captured.
 
 # 4. Tokens.
 
@@ -375,16 +377,16 @@ Bubbles carry **no shadow**. `bubble-theirs` is separated from `chat-canvas` by 
 
 Five durations and three curves. Nothing in the app times itself; every animated property reads one of these.
 
-| Token                    | Value                               | Use                                                                                    |
-| ------------------------ | ----------------------------------- | -------------------------------------------------------------------------------------- |
-| `--duration-press-in`    | 180ms                               | A finger landing — the bloom growing (§ 4.7.2.)                                        |
-| `--duration-press-out`   | 420ms                               | A finger leaving — the bloom settling back, long enough for the overshoot to be seen   |
-| `--duration-state`       | 200ms                               | A committed state change — the tab fill, a toggle, the bars' collapse (§ 3.5., § 7.3.) |
-| `--duration-route-exit`  | 140ms                               | The outgoing screen in a route change (§ 4.7.1.)                                       |
-| `--duration-route-enter` | 220ms                               | The incoming screen, delayed by the exit so the two never overlap (§ 4.7.1.)           |
-| `ease-press`             | `cubic-bezier(0.2, 0, 0, 1)`        | The press itself — no overshoot going in, or the control feels loose under the finger  |
-| `ease-bloom`             | `cubic-bezier(0.34, 1.35, 0.64, 1)` | The release. The only curve in the system that overshoots                              |
-| `ease-route`             | `cubic-bezier(0.32, 0.72, 0, 1)`    | Route motion — a longer tail, so the screen settles rather than stops                  |
+| Token                    | Value                            | Use                                                                                    |
+| ------------------------ | -------------------------------- | -------------------------------------------------------------------------------------- |
+| `--duration-press-in`    | 140ms                            | A finger landing — the bloom growing (§ 4.7.2.)                                        |
+| `--duration-press-out`   | 520ms                            | A finger leaving — the bloom bouncing back, long enough for both crossings to be seen  |
+| `--duration-state`       | 200ms                            | A committed state change — the tab fill, a toggle, the bars' collapse (§ 3.5., § 7.3.) |
+| `--duration-route-exit`  | 140ms                            | The outgoing screen in a route change (§ 4.7.1.)                                       |
+| `--duration-route-enter` | 220ms                            | The incoming screen, delayed by the exit so the two never overlap (§ 4.7.1.)           |
+| `ease-press`             | `cubic-bezier(0.2, 0, 0, 1)`     | The press itself — no overshoot going in, or the control feels loose under the finger  |
+| `ease-bloom`             | a `linear()` spring              | The release. The only curve in the system that crosses its resting value — twice       |
+| `ease-route`             | `cubic-bezier(0.32, 0.72, 0, 1)` | Route motion — a longer tail, so the screen settles rather than stops                  |
 
 Exits are shorter than enters on purpose: content that is leaving should not compete for attention, and content that is arriving needs long enough to be read as arriving.
 
@@ -398,27 +400,41 @@ A tab switch is a **24px directional slide**, along the tab bar's own order: tap
 
 An untyped update does **not** animate, and the boundary must never carry a catch-all. `update` names any transition-scoped mutation beneath it, and a `router.refresh()` — what saving a profile or logging out issues — is one: with a fallback animation in place, a same-route data refresh replays the full route transition on the whole screen. Deeper navigation (설정 → 이모티콘) is therefore instant today. It is a hierarchy and can take its own directional treatment later, by tagging those links with their own transition type rather than by widening the default.
 
-Exits and enters never overlap: the incoming screen is delayed by the full exit duration. Two translucent screens crossing over each other is what makes a slide read as cheap.
+The **slides** are sequenced — the incoming screen's `route-slide` is delayed by the full exit duration, so it starts moving only once the outgoing one has finished. The **fades** are not: `route-fade` runs on both screens over the exit duration, with no delay on the incoming one.
 
-**Nothing but the scroller is captured, and that is the whole of it.** `:root` takes `view-transition-name: none`, and `BottomOverlay` carries no name either. Only `<main>` is snapshotted.
+That split is load-bearing, and delaying both fades was a real bug. A screen at zero opacity is not a blank screen, it is a **hole**: `:root` is deliberately uncaptured (below), so nothing is painted behind the transition layer except the shell itself, and for the length of the gap the shell's flat `canvas` showed straight through — across the whole screen, and most visibly behind the translucent bars, which read as filling with white and emptying again. Overlapping the fades keeps total coverage at 1 throughout: the two snapshots carry the UA's `mix-blend-mode: plus-lighter`, so complementary opacities sum rather than dip. What the original rule was guarding against — two screens visibly crossing over each other, which is what makes a slide read as cheap — is avoided by sequencing the slides, not the fades. Only one screen is ever in motion.
 
-This is stricter than it first needs to be, and the reason is `glass` (§ 3.5.). A captured group is composited **on its own**, so a `backdrop-filter` inside one has no live page behind it to blur — the bar falls back to the flat `canvas / 0.75` fill under its blur, which reads as the bar going opaque for the length of the navigation and snapping back when it ends. Holding a group still does not help: `animation: none` stops it moving, not being captured. Naming the bar into a group of its own does not help either, because the group then contains the bar and nothing else. Nor does leaving the bar inside `root`, because `<main>` is named out of `root` and the hole it leaves is exactly what sits behind the bar.
+**Two things are captured, and no more.** `:root` takes `view-transition-name: none` so the shell's own surface never rides the transition; `<main>` and `BottomOverlay` each carry a name. They become two groups, and groups stack in the paint order of the elements they came from — the overlay follows the scroller in the shell, so its group draws above.
 
-The only arrangement where the blur survives is one where the bar and the content it blurs are **both still on the live page**. Leaving `root` uncaptured is what buys that: the page goes on painting underneath, and only the screen's snapshots ride in the transition layer.
+The layering is the whole reason the bars are named. The transition layer is the **top layer**: no `z-index` on the page reaches above it, and neither does the top layer's other tenant — a `popover` bar is painted over by the screen's snapshot just the same. A bar that stays on the live page therefore cannot stay visible. The only way over the sliding screen is to ride the same layer.
 
-The cost is layering. That layer is the **top layer**, so no `z-index` on the page can lift the bars over it — the screen's snapshot would paint straight across them. The groups therefore carry `clip-path: inset(0 0 var(--bottom-inset) 0)`, which keeps the animating screen out of the strip the bars occupy. Inside that strip the live page shows through for the length of the animation, which is the new screen slightly early, seen through a blurred bar.
+Clipping the screen's snapshot out of the bar strip is not an alternative, and the reason is worth keeping: **a captured element stops painting on the live page entirely.** Cut the snapshot away and nothing takes its place — the strip falls through to the shell's `canvas`, and a translucent bar over a flat fill of its own colour reads as a solid white block for the length of every navigation. There is no arrangement in which the strip shows live screen content while the screen is captured.
 
-One more consequence of the same mechanism: a view transition paints **only inside the snapshot containing block**, and on iOS the safe-area strips beside the notch fall outside it. What shows there for the length of the animation is the colour propagated to the canvas — so `html` carries `canvas`, not the `backdrop` that `body` uses to letterbox the shell on a wide viewport (§ 3.3.). With `backdrop` propagating, those strips visibly darkened on every tab switch and snapped back when it ended.
+The cost is `backdrop-filter`, and it is why `glass` no longer carries one (§ 3.5.). A captured group is composited on its own, so a `backdrop-filter` inside one has no backdrop left to sample and collapses to a flat fill. Plain alpha has no such problem: it composites against whatever the group is drawn over, so a captured `canvas/75` bar still shows the sliding screen through it, exactly as it does at rest. Translucency survives capture; blur does not.
+
+The bars are captured but they never **cross-fade**, and that is a correctness rule rather than a taste one. A group's two snapshots are composited with `mix-blend-mode: plus-lighter`, which sums them — and the bars' old and new snapshots are the same picture, since `pendingTab` (§ 7.3.) moves the fill before the capture. Two copies of a `canvas/75` surface add to 1.5, clamp, and render as a flat opaque plate for the length of the navigation: the bar and the transparent nav padding around it fill in solid and empty again when it ends. A complementary fade hides this by keeping the sum at 1, which is what the screen's two snapshots do — but that fade lives in the class-gated rules, so an engine without `view-transition-class` never runs it and gets the plate. `::view-transition-old(bars)` is therefore pinned to `opacity: 0` and the new one to `1`, with no animation on either. One snapshot has nothing to add itself to.
+
+This is the third arrangement tried, and the two it replaces are both traps worth naming. Leaving the bars unnamed and uncaptured kept the blur alive but let the snapshot paint straight across them. Clipping the snapshot instead kept the bars visible but emptied the strip behind them. Both were attempts to keep a live blurring surface above an animating snapshot, which the API does not permit.
+
+**Neither `html` nor `body` may carry a background.** Whichever of them does becomes the **canvas background**, and the canvas background is drawn into view-transition snapshots — so it lands as a rectangular plate of that colour behind every captured group. On the screen that is invisible, since the screen is opaque anyway. On the bars it is the whole bug: their box is mostly transparent padding around a rounded pill, so the plate shows up as a solid rectangle filling in behind the bar for the length of every navigation and emptying again when it ends. It was `canvas` — the lightest colour in the palette — which is why it read as white.
+
+The letterbox on a wide viewport (§ 3.3.) is painted by the shell element instead, which is neither captured nor the canvas, so it is unaffected. The login screen paints its own full-height `canvas` for the same reason.
+
+An earlier revision put `canvas` on `html` deliberately, to keep iOS's safe-area strips beside the notch from darkening mid-navigation — a view transition paints only inside the snapshot containing block, and those strips fall outside it, so what shows there is whatever the canvas carries. That fix is what created this one. With no canvas background at all the strips take the browser's own default for the length of the animation; if that reads badly, the answer is a solution that does not go through the canvas, not putting a colour back.
 
 Under `prefers-reduced-motion: reduce` every view transition drops to a `0s` duration, which is the browser's own instant swap.
 
 ### 4.7.2. Press bloom.
 
-A round control **grows** under the finger — `scale-[1.18]` in over `--duration-press-in`, back to rest over `--duration-press-out` on `ease-bloom`, which overshoots slightly before it lands. It is one utility, `press-bloom`, and it pins a resting `scale: 1`: from an unset `scale: none` WebKit refuses to interpolate and the control snaps to size instead of growing into it.
+A round control **grows** under the finger — `scale: 1.3` in over `--duration-press-in`, then **bounces** back to rest over `--duration-press-out` on `ease-bloom`. It is one utility, `press-bloom`, and it pins a resting `scale: 1`: from an unset `scale: none` WebKit refuses to interpolate and the control snaps to size instead of growing into it. The pressed scale reads from `--press-scale`, so a control can dial the swell without forking the utility; nothing overrides it today.
 
 The utility owns the control's whole `transition` shorthand, with a per-property timing list — the scale on the long overshoot, colour and opacity on `--duration-state`. `transition-property` is a single declaration, so a caller that adds `transition-colors` beside it silently drops one of the two. That is also why the bloom must be applied unconditionally rather than on a state branch: the send disc (§ 6.6.) flips `canSend` in the same click that sends, and a class removed there takes the resting `scale: 1` with it while the release is still running.
 
-18% and not less, over durations that are long for touch feedback. The bloom is carried by a 20px glyph and a 44px circle: 6% is a single pixel of travel and 110ms is over before the eye finds it — enough to measure, not enough to see. Both numbers are sized to the smallest thing wearing them, not to what would be tasteful on a full-width button.
+30% and not less, over durations that are long for touch feedback. The bloom is carried by a 20px glyph and a 44px circle: 6% is a single pixel of travel and 110ms is over before the eye finds it — enough to measure, not enough to see. Both numbers are sized to the smallest thing wearing them, not to what would be tasteful on a full-width button.
+
+The release is a **spring**, not an ease. `ease-bloom` is a `linear()` easing that crosses its resting value twice — the control shoots past its resting size to roughly 5% under it, comes back about 1% over, and settles. A `cubic-bezier` cannot express that: its output crosses the resting value at most once, so the most it can do is settle from one side. The spring is what turns the release from a transform ending into something with weight.
+
+It stays a `transition`, not a keyframe animation, and that is the constraint the curve has to live inside. The press is driven by state — `:active`, `[data-pressed]` — and there is no CSS event for "released", so an animation would have nothing to fire on. `linear()` is what lets a transition carry a multi-crossing curve at all. Its stops are generated, not tuned by hand: nudging one produces a kink rather than a softer bounce, so the list is replaced whole or not at all.
 
 It fires off three selectors and all three are needed. `:active` is the mouse. `.group:active` is a wrapper the pointer lands on directly. `.group[data-pressed]` is the only one that fires **under a finger**: wherever `HapticTap` is mounted, the tap lands on a native switch (§ 7.15.), and WebKit resolves that press inside the native control rather than propagating `:active` up to the wrapper — and on a control that cancels `pointerdown` to hold focus (the send button), cancelling the event suppresses `:active` outright. `HapticTap` therefore sets `data-pressed` on its own parent from `pointerdown` and clears it on up, cancel, leave, and unmount. Without that last one the tab bar strands a bloomed tab: it drops `haptic` off the tab it has just switched to, which unmounts the overlay mid-press. The unmount path has to read the parent captured on `pointerdown`, not a ref: React detaches refs before a passive cleanup runs, and `useIsCoarsePointer` reports `false` on the first render, so the overlay is not even in the tree when a mount effect would try to find it.
 
@@ -648,7 +664,7 @@ State matrix. `:focus-visible` is `ring-2 ring-primary ring-offset-2 ring-offset
 
 `icon-button` uses `ring-2 ring-primary` with no offset — the circle bounding box is the visual edge.
 
-`icon-button-floating` is the only variant that sits over scrolling content (§ 3.5.), so it is the only one carrying a surface, a hairline, and `shadow-floating`. It is a translucent `canvas` with a blur behind it rather than a solid fill: solid reads as a detached chip, and the blur is what makes it read as floating above the content instead of punched out of it. This is a suggestion of the platform's material, not a reproduction of it — no specular edge, no dynamic tint.
+`icon-button-floating` is the only variant that sits over scrolling content (§ 3.5.), so it is the only one carrying a surface, a hairline, and `shadow-floating`. It is a translucent `canvas` rather than a solid fill: solid reads as a detached chip, and seeing the content keep moving through it is what makes it read as floating above that content instead of punched out of it. This is a suggestion of the platform's material, not a reproduction of it — no specular edge, no dynamic tint.
 
 48px button height (not 44) because the shell is narrow and buttons are full-width: at 44 they read cramped against 16px gutters.
 
@@ -692,7 +708,7 @@ Re-tapping the tab the user is already on carries no transition type, so it does
 
 The fill moves on the tap, not on the commit. Every tab screen is dynamic (`REQUIREMENTS.md § 8.`), so none of them prefetches to anything usable and the router holds the click for a server round trip — long enough that a bar driven by `usePathname` alone reads as a dropped tap. The tapped `href` is held as pending state and **discarded** — not merely masked — the render the pathname lands, so the fill and the label colour move immediately while the outgoing screen stays up. A value left in state would match again the next time the user arrives back on the route it was tapped from, and a swipe-back would refill the tab they had just left. This is presentation only: `aria-current` moves with it, but nothing else acts on the pending value, and a navigation that never commits returns the fill to the real route.
 
-The active item is the one filled surface in the system's navigation: on a pill this narrow there is no room for an indicator bar underneath, and colour alone is too weak a signal against a translucent, blurred backdrop that changes with whatever scrolls behind it.
+The active item is the one filled surface in the system's navigation: on a pill this narrow there is no room for an indicator bar underneath, and colour alone is too weak a signal against a translucent backdrop that changes with whatever scrolls behind it.
 
 The glyphs stay outlined in both states: lucide ships no filled counterpart for `MessageCircle`, `CalendarDays`, `Images`, or `Settings`, and faking one with `fill-current` turns them into solid blobs. If a filled set is ever adopted it MUST cover all four — a single filled tab reads as a rendering bug.
 

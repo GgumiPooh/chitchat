@@ -170,16 +170,43 @@
   --shadow-floating: 0 4px 12px rgb(31 27 23 / 0.06), 0 16px 32px rgb(31 27 23 / 0.12);
 
   /* INFO: Motion — DESIGN.md § 4.7. Five durations and three curves; nothing in the app times itself. */
-  --duration-press-in: 180ms;
-  --duration-press-out: 420ms;
+  --duration-press-in: 140ms;
+  /* INFO: DESIGN.md § 4.7.2. Long because the release is a spring with two crossings to spend it on, not a single ease. */
+  --duration-press-out: 520ms;
   --duration-state: 200ms;
-  --duration-route-exit: 140ms;
   --duration-route-enter: 220ms;
 
   /* WARN: `--ease-*` is Tailwind's timing-function namespace, so these also ship as `ease-press` / `ease-bloom` / `ease-route` utilities — renaming one renames the utility. */
   --ease-press: cubic-bezier(0.2, 0, 0, 1);
-  /* INFO: DESIGN.md § 4.7. The one curve that overshoots — the release settles past its resting size and back, which is what reads as a material relaxing rather than a transform ending. */
-  --ease-bloom: cubic-bezier(0.34, 1.35, 0.64, 1);
+  /* INFO: DESIGN.md § 4.7.2. The one curve that overshoots, and it is a spring rather than a bezier — a bezier can cross its resting value once, so it can settle but it cannot bounce. */
+  /* WARN: A `linear()` easing, not a keyframe animation, so the release stays a `transition` and keeps firing off `:active` / `[data-pressed]` with no state to trigger it. Editing a stop by hand will kink the curve; regenerate the whole list. */
+  --ease-bloom: linear(
+    0,
+    0.009,
+    0.035 2.1%,
+    0.141,
+    0.281 6.7%,
+    0.723 12.9%,
+    0.938 16.7%,
+    1.017,
+    1.077,
+    1.121,
+    1.149 24.3%,
+    1.159,
+    1.163,
+    1.161,
+    1.154 29.9%,
+    1.129 32.8%,
+    1.051 39.6%,
+    1.017 43.1%,
+    0.991,
+    0.977 51%,
+    0.974 53.8%,
+    0.975 57.1%,
+    0.997 69.8%,
+    1.003 76.9%,
+    1
+  );
   --ease-route: cubic-bezier(0.32, 0.72, 0, 1);
 
   /* INFO: App shell — DESIGN.md § 3.3. Narrower than a tablet so the tab bar cannot read as a desktop nav. */

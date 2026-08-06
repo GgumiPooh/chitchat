@@ -11,11 +11,6 @@
     @apply h-full overflow-hidden overscroll-none;
   }
 
-  /* WARN: DESIGN.md § 4.7.1. The colour that propagates to the canvas, and it is `canvas` rather than the `backdrop` below it on purpose — a view transition paints only inside the snapshot containing block, and iOS leaves the safe-area strips beside the notch outside it, so this is what shows there mid-navigation. `body` still carries `backdrop`, which is what letterboxes the shell on a wide viewport. */
-  html {
-    @apply bg-canvas;
-  }
-
   body {
     @apply bg-backdrop font-sans text-ink antialiased;
     /* INFO: Korean wraps mid-word by default; keep-all breaks at spaces only (DESIGN.md § 4.2.3.). */
@@ -28,73 +23,34 @@
   }
 }
 
-/* WARN: DESIGN.md § 4.7.1. The document is deliberately NOT captured. Suppressing the root group's animation is not enough: a captured group is composited on its own, so `glass` inside one has no live backdrop to sample and the bars render as the flat `canvas / 0.75` fill underneath their blur. Uncaptured, the page goes on painting live beneath the transition layer and the bars keep their blur throughout. */
-:root {
-  view-transition-name: none;
-}
-
-/* WARN: DESIGN.md § 4.7.1. The transition layer is the top layer, so nothing on the page can be lifted over it — the bars stay visible only because the animating screen is clipped out of the strip they occupy. Without this the snapshot paints across the bars for the whole navigation, which is worse than the flash it replaced. */
-/* INFO: `--bottom-inset` is `BottomOverlay`'s measured height, already on the root for the scroller's padding; a pseudo-element inherits it from there. */
-::view-transition-group(.tab-forward),
-::view-transition-group(.tab-back) {
-  clip-path: inset(0 0 var(--bottom-inset, 0px) 0);
-}
-
-/* INFO: DESIGN.md § 4.7.1. A tab switch slides along the bar's own order. Nothing else the shell swaps animates yet — an untyped update is a data refresh as often as it is a navigation. */
-::view-transition-old(.tab-forward) {
-  --route-slide: -24px;
-  animation:
-    var(--duration-route-exit) var(--ease-route) both route-fade reverse,
-    var(--duration-route-exit) var(--ease-route) both route-slide reverse;
-}
-
-::view-transition-new(.tab-forward) {
-  --route-slide: 24px;
-  animation:
-    var(--duration-route-enter) var(--ease-route) var(--duration-route-exit) both route-fade,
-    var(--duration-route-enter) var(--ease-route) var(--duration-route-exit) both route-slide;
-}
-
-::view-transition-old(.tab-back) {
-  --route-slide: 24px;
-  animation:
-    var(--duration-route-exit) var(--ease-route) both route-fade reverse,
-    var(--duration-route-exit) var(--ease-route) both route-slide reverse;
-}
-
-::view-transition-new(.tab-back) {
-  --route-slide: -24px;
-  animation:
-    var(--duration-route-enter) var(--ease-route) var(--duration-route-exit) both route-fade,
-    var(--duration-route-enter) var(--ease-route) var(--duration-route-exit) both route-slide;
-}
-
-@keyframes route-fade {
+/* INFO: DESIGN.md § 4.7.1. The arriving screen slides in from the side its tab sits on. Nothing captures anything — see `RouteTransition` for why a view transition cannot be used here. */
+/* WARN: `translate` and not `transform`, so a screen that sets its own `transform` for another reason does not silently drop this one. */
+@keyframes route-enter {
   from {
+    translate: var(--route-slide) 0;
     opacity: 0;
   }
   to {
+    translate: 0 0;
     opacity: 1;
   }
 }
 
-/* WARN: `translate` and not `transform` — the snapshot pseudo-element already carries a `transform` the browser owns, and re-declaring it drops the group's own positioning. */
-@keyframes route-slide {
-  from {
-    translate: var(--route-slide) 0;
-  }
-  to {
-    translate: 0 0;
-  }
+@utility route-enter-forward {
+  --route-slide: 24px;
+  animation: route-enter var(--duration-route-enter) var(--ease-route) both;
+}
+
+@utility route-enter-back {
+  --route-slide: -24px;
+  animation: route-enter var(--duration-route-enter) var(--ease-route) both;
 }
 
 /* INFO: DESIGN.md § 4.7. Positional motion is the common motion-sensitivity trigger; without a duration the browser falls back to swapping content outright. */
 @media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
+  .route-enter-forward,
+  .route-enter-back {
     animation-duration: 0s !important;
-    animation-delay: 0s !important;
   }
 }
 
@@ -103,27 +59,31 @@
 /* WARN: The resting `scale-100` is not redundant. Left off, the resting value is `none`, and WebKit refuses to interpolate `none` → a number: the control snaps to its pressed size instead of growing into it. */
 /* WARN: The `transition` shorthand carries a per-property timing list, so the control keeps `--duration-state` colour (§ 4.7.) while only the scale runs on the long overshoot. A caller MUST NOT add `transition-colors` beside this — `transition-property` is one declaration and the loser is silently dropped. */
 /* WARN: The resting `scale: 1` is not redundant. Left off, the resting value is `none`, and WebKit refuses to interpolate `none` → a number: the control snaps to its pressed size instead of growing into it. */
+/* INFO: DESIGN.md § 4.7.2. `--press-fill-duration` lets a control take its fill on instantly while still losing it over `--duration-state` — set it on the filled state alone and the asymmetry falls out of the cascade. */
 @utility press-bloom {
   scale: 1;
   transition:
     scale var(--press-duration, var(--duration-press-out)) var(--press-ease, var(--ease-bloom)),
     color var(--duration-state),
-    background-color var(--duration-state),
+    background-color var(--press-fill-duration, var(--duration-state)),
     border-color var(--duration-state),
     opacity var(--duration-state);
 
-  /* WARN: Three selectors, and all three are load-bearing. `:active` is the mouse; the `.group:active` form is a wrapper the pointer lands on directly; `[data-pressed]` is the only one that fires under a finger, because `HapticTap`'s native switch swallows `:active` before the wrapper ever sees it (§ 7.15.). */
+  /* WARN: Four selectors, and all four are load-bearing. `:active` is the mouse; the `.group:active` form is a wrapper the pointer lands on directly; the `[data-pressed]` pair is the only one that fires under a finger, because `HapticTap`'s native switch swallows `:active` before anything else sees it (§ 7.15.). */
+  /* WARN: `[data-pressed]` needs both the self and the descendant form. `HapticTap` marks its own parent, so which one matches depends on whether the bloom sits on the element holding the overlay — the tab bar blooms that element itself, every other caller blooms a child of it. */
   &:active,
+  &[data-pressed],
   :where(.group):active &,
   :where(.group)[data-pressed] & {
     --press-duration: var(--duration-press-in);
     --press-ease: var(--ease-press);
-    scale: 1.18;
+    scale: var(--press-scale, 1.3);
   }
 }
 
 /* INFO: DESIGN.md § 3.5. One definition for every surface that floats over scrolling content, so the bars and the floating icon buttons cannot drift apart. */
 /* WARN: Composed from Tailwind's own backdrop utilities, never from a raw `backdrop-filter` declaration — a hand-written one is dropped from the build and the surface silently ships as a thin tint with no blur at all. */
+/* INFO: DESIGN.md § 4.7.1. The blur is only viable because route changes no longer capture anything; a `backdrop-filter` cannot survive a view-transition capture. */
 @utility glass {
   @apply bg-canvas/75 backdrop-blur-lg;
 }

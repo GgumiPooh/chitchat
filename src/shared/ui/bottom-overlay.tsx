@@ -54,7 +54,7 @@ export function BottomOverlay({ className, contentClassName, children }: BottomO
     <div
       ref={overlayRef}
       className={cn(
-        // WARN: DESIGN.md § 4.7.1. Deliberately unnamed, so a route change never captures the bars. A captured group is composited on its own, and `glass` inside one has no live backdrop to blur — the bars would go flat for the length of the navigation and snap back at the end.
+        // INFO: DESIGN.md § 4.7.1. A route change never touches this element — the screen animates inside the scroller and the bars simply stay put, blurring whatever slides underneath.
         "pointer-events-none absolute inset-x-0 bottom-0 z-30 transition-[height] ease-out",
         // WARN: DESIGN.md § 7.3. The bars only come back once the shell has finished easing to its resting height. Rising on the same frame the keyboard starts leaving draws them at the shell's bottom edge while that edge is still halfway up the screen, which reads as the tab bar appearing in mid-air.
         isKeyboardOpen ? "duration-200" : "delay-200 duration-150",

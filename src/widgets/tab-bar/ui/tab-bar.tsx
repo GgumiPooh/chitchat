@@ -40,8 +40,6 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
   }
 
   const activeHref = pendingTab?.href ?? pathname;
-  // INFO: DESIGN.md § 4.7.1. The slide follows the bar's own order, so a tab always arrives from the side it sits on.
-  const activeIndex = TABS.findIndex(({ href }) => covers(activeHref, href));
 
   // INFO: DESIGN.md § 7.3. Leaving for the keyboard is `BottomOverlay`'s job — unmounting here would step `--bottom-inset` on its own timeline and tear the composer's motion in two.
   return (
@@ -52,7 +50,7 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
     >
       <div className="pointer-events-auto flex h-(--tab-bar-height) items-stretch rounded-full border border-hairline glass p-2xs shadow-floating">
         <ul className="flex flex-1 items-stretch">
-          {TABS.map(({ href, label, Icon }, index) => {
+          {TABS.map(({ href, label, Icon }) => {
             const isActive = covers(activeHref, href);
             const stateClassName = isActive ? "text-primary" : "text-meta group-hover:text-ink";
 
@@ -60,23 +58,22 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
               <li key={href} className="flex-1">
                 <Link
                   // INFO: DESIGN.md § 7.3. The active tab is the one place a filled surface appears, since the pill has no room for an indicator bar.
+                  // WARN: DESIGN.md § 4.7.2. The bloom goes here and not on the glyph stack inside, so the active tab's fill springs with its contents instead of holding still while they bounce out of it. `press-bloom` owns the whole `transition` shorthand — the colour transition it replaced MUST NOT come back as `transition-colors`, which would silently drop one of the two.
                   className={cn(
-                    "group flex size-full min-h-11 flex-col items-center justify-center rounded-full transition-colors duration-(--duration-state) ease-press outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
-                    isActive ? "bg-primary-tint" : "hover:bg-surface-soft",
+                    "group flex size-full min-h-11 press-bloom flex-col items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+                    // WARN: DESIGN.md § 7.3. The zero duration rides on the active branch, not the base class, so it applies only while the fill is arriving. Removed with the branch, the fill still leaves over `--duration-state` — the tab the user left fades out while the one they tapped is already lit under the finger.
+                    isActive
+                      ? "bg-primary-tint [--press-fill-duration:0s]"
+                      : "hover:bg-surface-soft",
                   )}
                   href={href}
                   // INFO: Only off the tab the user is standing on — re-tapping the current tab switches nothing, so it has nothing to confirm.
                   haptic={!isActive}
                   aria-current={isActive ? "page" : undefined}
-                  // INFO: DESIGN.md § 4.7.1. Which way the screens slide, read by the `(main)` shell's `ViewTransition` — the tab bar is the only thing that knows the order.
-                  // WARN: Untyped off the tab the user is standing on. It still navigates, and a type would slide the screen out and the identical screen back in.
-                  transitionTypes={
-                    isActive ? undefined : [index > activeIndex ? "tab-forward" : "tab-back"]
-                  }
                   // INFO: `onNavigate` and not `onClick` — a ⌘-click opens a tab in a new window and switches nothing here, and Next skips this handler for exactly those.
                   onNavigate={() => setPendingTab({ href, from: pathname })}
                 >
-                  <span className="flex press-bloom flex-col items-center gap-0.5">
+                  <span className="flex flex-col items-center gap-0.5">
                     <span className="relative">
                       <Icon className={cn("size-5", stateClassName)} strokeWidth={1.75} />
                       {href === CHAT_ROUTE && unreadCount > 0 && (
