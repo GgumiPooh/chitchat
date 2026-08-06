@@ -1,7 +1,7 @@
 import { pretendard } from "@/app/fonts";
 import { GlobalProvider } from "@/app/providers";
 import "@/app/styles";
-import { APP_NAME } from "@/shared/config";
+import { APPLE_SPLASH_DIR, APPLE_SPLASH_LINKS, APP_NAME } from "@/shared/config";
 import type { Metadata, Viewport } from "next";
 import type { PropsWithChildren } from "react";
 
@@ -16,6 +16,12 @@ export const metadata: Metadata = {
       { url: "/icons/icon.svg", type: "image/svg+xml" },
     ],
     apple: { url: "/icons/icon-180.png", sizes: "180x180", type: "image/png" },
+    // WARN: iOS has no manifest-driven splash the way Chromium does — without a `media` match here a home-screen launch shows a blank screen until the shell paints.
+    other: APPLE_SPLASH_LINKS.map(({ fileName, media }) => ({
+      rel: "apple-touch-startup-image",
+      url: `${APPLE_SPLASH_DIR}/${fileName}`,
+      media,
+    })),
   },
 };
 
