@@ -134,6 +134,13 @@
       "when": 1786028162821,
       "tag": "0018_fuzzy_squadron_supreme",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786037301300,
+      "tag": "0019_quick_dark_beast",
+      "breakpoints": true
     }
   ]
 }

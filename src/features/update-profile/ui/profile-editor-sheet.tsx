@@ -6,15 +6,23 @@ import {
   MediaPickerSheet,
   uploadDraft,
 } from "@/features/upload-media/@x/update-profile";
-import { AVATAR_MAX_EDGE, MAX_NICKNAME_LENGTH, toMediaUrl } from "@/shared/config";
+import {
+  AVATAR_MAX_EDGE,
+  BACKGROUND_MAX_EDGE,
+  MAX_NICKNAME_LENGTH,
+  toMediaUrl,
+} from "@/shared/config";
 import type { Nullable, Optional } from "@/shared/lib";
-import { Avatar, BottomSheet, Button, HapticTarget, Input, toast } from "@/shared/ui";
+import { Avatar, BottomSheet, Button, HapticTarget, Input, PreloadImage, toast } from "@/shared/ui";
 import { useState } from "react";
 import { updateProfile, type ProfileBody } from "../api/write-profile";
-import { useAvatarDraft } from "../model/use-avatar-draft";
+import { usePhotoDraft } from "../model/use-photo-draft";
 
 // INFO: DESIGN.md § 7.7. The avatar is a circle, so the crop is square and the ratio chips have nothing left to offer.
 const AVATAR_ASPECT_RATIO = 1;
+
+/** Which slot the picker and the editor are currently working for. */
+type PhotoSlot = "avatar" | "background";
 
 export type ProfileEditorSheetProps = {
   className?: string;
@@ -22,36 +30,54 @@ export type ProfileEditorSheetProps = {
   /** WARN: The **resolved** display name (REQUIREMENTS.md § 8.7.), never the raw column — an empty nickname would seed a blank field the user has to retype before 저장 does anything. */
   nickname: string;
   avatarMediaId: Nullable<string>;
+  /** REQUIREMENTS.md § 12.1. The profile cover behind the § 12.3. profile screen. */
+  profileBackgroundMediaId: Nullable<string>;
   onClose: () => void;
   onSaved: () => void;
 };
 
 /**
- * REQUIREMENTS.md § 12. The nickname and photo the user owns. The name written
- * here is the one every bubble and system sentence renders (§ 8.7.), past messages
- * included — nothing is copied onto a row, so a rename reaches all of them.
+ * REQUIREMENTS.md § 12. The nickname, photo and cover the user owns. The name
+ * written here is the one every bubble and system sentence renders (§ 8.7.), past
+ * messages included — nothing is copied onto a row, so a rename reaches all of them.
  *
  * INFO: Saving broadcasts nothing of its own. The write lands on `users`, so § 6.'s
  * trigger fires `user_changed` and § 8.4. carries it to every open screen.
+ *
+ * WARN: The **chat** wallpaper is not edited here (§ 12.2.). It is not part of what
+ * the other participant sees, so putting it in the sheet named 프로필 편집 would say
+ * it is — it has its own Settings row instead.
  */
 export function ProfileEditorSheet({
   className,
   isOpen,
   nickname,
   avatarMediaId,
+  profileBackgroundMediaId,
   onClose,
   onSaved,
 }: ProfileEditorSheetProps) {
   const [name, setName] = useState(nickname);
   // INFO: The photo the crop is running on. It is not staged until the editor completes — backing out of a crop is backing out of the pick (§ 12.).
   const [cropping, setCropping] = useState<Nullable<MediaDraft>>(null);
+  // WARN: The slot identity is separate from the picker's open flag, and merging the two is a real bug rather than a tidiness question. `MediaPickerSheet` is an `ActionSheet`, which fires `onSelect` and then closes itself in the same tick — the OS file dialog opens asynchronously, so a slot held in the open flag is already `null` by the time a file arrives, and every pick lands in whichever slot the fallthrough names.
+  const [slot, setSlot] = useState<PhotoSlot>("avatar");
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const avatar = useAvatarDraft();
+  const avatar = usePhotoDraft();
+  const background = usePhotoDraft();
+  const picking = slot === "avatar" ? avatar : background;
   const trimmed = name.trim();
   const hasNameChange = trimmed.length > 0 && trimmed !== nickname;
-  const hasAvatarChange = avatar.staged !== null || avatar.isCleared;
-  const canSubmit = (hasNameChange || hasAvatarChange) && !isSubmitting && !avatar.isReading;
+  const hasPhotoChange =
+    avatar.staged !== null ||
+    avatar.isCleared ||
+    background.staged !== null ||
+    background.isCleared;
+  const isReading = avatar.isReading || background.isReading;
+  const canSubmit = (hasNameChange || hasPhotoChange) && !isSubmitting && !isReading;
+  const avatarUrl = toAvatarUrl();
+  const backgroundUrl = toBackgroundUrl();
 
   return (
     <>
@@ -63,15 +89,54 @@ export function ProfileEditorSheet({
         onClose={handleClose}
       >
         <div className="space-y-md pt-2xs">
+          <div className="space-y-2xs">
+            <p className="px-2xs text-body-sm text-meta">배경 사진</p>
+            {/* WARN: DESIGN.md § 7.16. A letterbox preview, deliberately NOT either surface's real geometry — the cover is worn at half the viewport on Settings and at the whole of it on the profile screen, so no single box here can promise the framing. It shows what was picked; the crop that matters is free-form for exactly this reason. */}
+            <HapticTarget className="flex overflow-hidden rounded-md" keepsScroll>
+              <button
+                className="relative w-full cursor-pointer overflow-hidden rounded-md bg-surface-strong outline-none group-active:opacity-70 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary"
+                style={{ aspectRatio: "3 / 2" }}
+                type="button"
+                aria-label="프로필 배경 사진 바꾸기"
+                onClick={() => openPicker("background")}
+              >
+                {backgroundUrl ? (
+                  <PreloadImage
+                    className="size-full"
+                    imgClassName="size-full object-cover"
+                    src={backgroundUrl}
+                    alt=""
+                  />
+                ) : (
+                  <span className="flex size-full items-center justify-center text-body-sm text-meta">
+                    배경 사진 고르기
+                  </span>
+                )}
+              </button>
+            </HapticTarget>
+            {backgroundUrl && (
+              <div className="flex justify-end">
+                <Button
+                  className="w-auto"
+                  buttonClassName="h-9 min-h-9 w-auto px-sm"
+                  variant="ghost"
+                  haptic
+                  onClick={background.clear}
+                >
+                  배경 없애기
+                </Button>
+              </div>
+            )}
+          </div>
           <div className="flex flex-col items-center gap-xs">
             <HapticTarget className="flex rounded-full">
               <button
                 className="cursor-pointer rounded-full transition-opacity outline-none group-active:opacity-70 hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary active:opacity-70"
                 type="button"
                 aria-label="프로필 사진 바꾸기"
-                onClick={openPicker}
+                onClick={() => openPicker("avatar")}
               >
-                <Avatar name={trimmed || nickname} size="profile" src={toPreviewUrl()} />
+                <Avatar name={trimmed || nickname} size="profile" src={avatarUrl} />
               </button>
             </HapticTarget>
             <div className="flex items-center gap-2xs">
@@ -80,11 +145,11 @@ export function ProfileEditorSheet({
                 buttonClassName="h-9 min-h-9 w-auto px-sm"
                 variant="secondary"
                 haptic
-                onClick={openPicker}
+                onClick={() => openPicker("avatar")}
               >
-                {avatar.isReading ? "읽는 중이에요" : "사진 바꾸기"}
+                {isReading ? "읽는 중이에요" : "사진 바꾸기"}
               </Button>
-              {toPreviewUrl() && (
+              {avatarUrl && (
                 <Button
                   className="w-auto"
                   buttonClassName="h-9 min-h-9 w-auto px-sm"
@@ -116,7 +181,7 @@ export function ProfileEditorSheet({
       </BottomSheet>
       <MediaPickerSheet
         accept="image/*"
-        isOpen={isPickerOpen}
+        isOpen={isPickerOpen && cropping === null}
         isMultiple={false}
         onClose={() => setIsPickerOpen(false)}
         onSelect={(files) => files[0] && void pick(files[0])}
@@ -126,11 +191,13 @@ export function ProfileEditorSheet({
         <MediaEditor
           key={cropping.id}
           draft={cropping}
-          editOptions={{ maxEdge: AVATAR_MAX_EDGE }}
-          fixedAspectRatio={AVATAR_ASPECT_RATIO}
+          editOptions={{ maxEdge: slot === "avatar" ? AVATAR_MAX_EDGE : BACKGROUND_MAX_EDGE }}
+          // INFO: REQUIREMENTS.md § 12.1. The cover is free-form. A background is drawn `object-cover` at whatever the visual viewport is, so pinning a ratio here would crop it twice.
+          fixedAspectRatio={slot === "avatar" ? AVATAR_ASPECT_RATIO : undefined}
           onDone={(edited) => {
-            avatar.stage(edited);
+            picking.stage(edited);
             setCropping(null);
+            setIsPickerOpen(false);
           }}
           onCancel={() => setCropping(null)}
         />
@@ -138,7 +205,7 @@ export function ProfileEditorSheet({
     </>
   );
 
-  function toPreviewUrl(): Optional<string> {
+  function toAvatarUrl(): Optional<string> {
     if (avatar.staged) {
       return avatar.staged.previewUrl;
     }
@@ -146,14 +213,25 @@ export function ProfileEditorSheet({
     return avatar.isCleared || !avatarMediaId ? undefined : toMediaUrl(avatarMediaId);
   }
 
-  function openPicker() {
+  function toBackgroundUrl(): Optional<string> {
+    if (background.staged) {
+      return background.staged.previewUrl;
+    }
+
+    return background.isCleared || !profileBackgroundMediaId
+      ? undefined
+      : toMediaUrl(profileBackgroundMediaId, "original");
+  }
+
+  function openPicker(next: PhotoSlot) {
+    setSlot(next);
     setIsPickerOpen(true);
   }
 
   async function pick(file: File) {
-    const draft = await avatar.read(file);
+    const draft = await picking.read(file);
 
-    // INFO: Straight into the crop rather than staging what was picked. The § 7.10. viewer shows the stored object whole, so a photo that is not square there would be framed differently from the circle it was chosen in.
+    // INFO: Straight into the crop rather than staging what was picked. The § 7.10. viewer shows the stored object whole, so a photo that is not square there would be framed differently from the circle it was chosen in — and the cover gets the same editor so a wide photo can be aimed before it is worn.
     if (draft) {
       setCropping(draft);
     }
@@ -162,6 +240,8 @@ export function ProfileEditorSheet({
   function handleClose() {
     setName(nickname);
     avatar.reset();
+    background.reset();
+    setIsPickerOpen(false);
     onClose();
   }
 
@@ -169,12 +249,16 @@ export function ProfileEditorSheet({
     setIsSubmitting(true);
 
     try {
-      const body: ProfileBody = {
-        ...(hasNameChange ? { nickname: trimmed } : {}),
-        ...(await toAvatarPatch()),
-      };
+      const [avatarPatch, backgroundPatch] = await Promise.all([
+        toPhotoPatch("avatar"),
+        toPhotoPatch("background"),
+      ]);
 
-      await updateProfile(body);
+      await updateProfile({
+        ...(hasNameChange ? { nickname: trimmed } : {}),
+        ...avatarPatch,
+        ...backgroundPatch,
+      });
       onSaved();
       handleClose();
     } catch {
@@ -184,15 +268,19 @@ export function ProfileEditorSheet({
     }
   }
 
-  /** INFO: REQUIREMENTS.md § 12. An untouched photo leaves the key out of the body entirely, so the row keeps what it has; 기본 이미지 is an explicit `null`. */
-  async function toAvatarPatch(): Promise<ProfileBody> {
-    // WARN: A photo that lands and then a `PATCH` that fails leaves one registered object nothing points at. It is unreachable — `canReadMedia` admits an avatar only while somebody wears it, and § 10.'s grid never had it — so it costs bucket space and nothing else, which is the same trade § 9. already takes on a re-PUT.
-    if (avatar.staged) {
-      const media = await uploadDraft(avatar.staged, { scope: "avatar" });
+  /** INFO: REQUIREMENTS.md § 12. An untouched photo leaves the key out of the body entirely, so the row keeps what it has; 기본 이미지 and 배경 없애기 are an explicit `null`. */
+  // WARN: The parameter is named apart from the `slot` state above it. Shadowing it would compile and would mean the opposite thing — this runs for both slots regardless of which one the picker last worked for.
+  async function toPhotoPatch(target: PhotoSlot): Promise<ProfileBody> {
+    const draft = target === "avatar" ? avatar : background;
+    const key = target === "avatar" ? "avatarMediaId" : "profileBackgroundMediaId";
 
-      return { avatarMediaId: media.id };
+    // WARN: A photo that lands and then a `PATCH` that fails leaves one registered object nothing points at. It is unreachable — `canReadMedia` admits a profile photo only while somebody wears it, and § 10.'s grid never had it — so it costs bucket space and nothing else, which is the same trade § 9. already takes on a re-PUT.
+    if (draft.staged) {
+      const media = await uploadDraft(draft.staged, { scope: target });
+
+      return { [key]: media.id };
     }
 
-    return avatar.isCleared ? { avatarMediaId: null } : {};
+    return draft.isCleared ? { [key]: null } : {};
   }
 }

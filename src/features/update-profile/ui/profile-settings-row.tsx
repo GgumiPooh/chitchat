@@ -12,6 +12,8 @@ export type ProfileSettingsRowProps = {
   /** WARN: The **resolved** display name (REQUIREMENTS.md § 8.7.), which is what the sheet seeds its field from. */
   nickname: string;
   avatarMediaId: Nullable<string>;
+  /** REQUIREMENTS.md § 12.1. The profile cover, edited in the same sheet. */
+  profileBackgroundMediaId: Nullable<string>;
 };
 
 /**
@@ -25,6 +27,7 @@ export function ProfileSettingsRow({
   className,
   nickname,
   avatarMediaId,
+  profileBackgroundMediaId,
 }: ProfileSettingsRowProps) {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
@@ -34,17 +37,18 @@ export function ProfileSettingsRow({
       <SettingsRow
         className={className}
         label="프로필"
-        description="이름과 프로필 사진을 바꿀 수 있어요"
+        description="이름과 사진, 배경을 바꿀 수 있어요"
         Icon={UserRound}
         haptic
         onClick={() => setIsOpen(true)}
       />
       {/* WARN: Keyed by what it seeds from. The sheet holds the name in its own state, so a save has to remount it or the next open reseeds from the value that was replaced. */}
       <ProfileEditorSheet
-        key={`${nickname}:${avatarMediaId}`}
+        key={`${nickname}:${avatarMediaId}:${profileBackgroundMediaId}`}
         isOpen={isOpen}
         nickname={nickname}
         avatarMediaId={avatarMediaId}
+        profileBackgroundMediaId={profileBackgroundMediaId}
         onClose={() => setIsOpen(false)}
         // INFO: The screen is a Server Component reading `users` directly, so the saved row reaches it by re-rendering rather than over `user_changed` (§ 8.4.), which only carries the participant set to clients that subscribe to it.
         onSaved={() => router.refresh()}

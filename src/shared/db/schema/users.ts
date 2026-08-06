@@ -12,6 +12,15 @@ export const users = pgTable("users", {
   avatarMediaId: uuid("avatar_media_id").references((): AnyPgColumn => media.id, {
     onDelete: "set null",
   }),
+  // INFO: REQUIREMENTS.md § 12.1. The cover behind the profile screen. Public to the other participant, which is what separates it from the column below.
+  profileBackgroundMediaId: uuid("profile_background_media_id").references(
+    (): AnyPgColumn => media.id,
+    { onDelete: "set null" },
+  ),
+  // WARN: REQUIREMENTS.md § 12.2. Private to its owner and must stay out of `toParticipant`, exactly as `typing_indicator_enabled` does — it decorates this person's own screen and says nothing the other participant is entitled to.
+  chatBackgroundMediaId: uuid("chat_background_media_id").references((): AnyPgColumn => media.id, {
+    onDelete: "set null",
+  }),
   // WARN: No `defaultNow()` — REQUIREMENTS.md § 8.8. reads unread as `created_at > last_read_at`, so joining at `now()` would mark every message sent before this person's first login as already read.
   lastReadAt: timestamp("last_read_at", { withTimezone: true }).notNull(),
   // INFO: REQUIREMENTS.md § 8.12. Governs whether this user *broadcasts* 입력 중, never whether they are typing right now — that signal is never stored.

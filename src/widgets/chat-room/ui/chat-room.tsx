@@ -12,6 +12,7 @@ import {
   useRecentEmoticons,
   useSendMessage,
 } from "@/features/send-message";
+import { useSetBackground } from "@/features/set-background";
 import { useTypingSignal } from "@/features/typing-indicator";
 import {
   MediaEditor,
@@ -75,6 +76,7 @@ import { useComposerClearance } from "../model/use-composer-clearance";
 import { useLinkPreviewPrefetch } from "../model/use-link-preview-prefetch";
 import { useMessageHistory } from "../model/use-message-history";
 import { useSettledCommit } from "../model/use-settled-commit";
+import { ChatBackdrop } from "./chat-backdrop";
 import { DateDivider } from "./date-divider";
 import { MessageRow } from "./message-row";
 import { ReplyBar } from "./reply-bar";
@@ -86,6 +88,8 @@ export type ChatRoomProps = {
   className?: string;
   currentUserId: string;
   initialMessages: ChatMessage[];
+  /** REQUIREMENTS.md § 12.2. This user's own wallpaper; `null` leaves the room on the flat `chat-canvas`. */
+  backgroundMediaId: Nullable<string>;
 };
 
 // INFO: DESIGN.md § 6.7. The pill appears once the newest message is roughly this far away, and the same distance is what `scrollEndThreshold` treats as near enough to the end that a row re-measuring there should hold the end still rather than let it drift.
@@ -111,7 +115,12 @@ const BOTTOM_FADE_LENGTH = "2rem";
  * Offscreen bubbles stay out of the DOM (REQUIREMENTS.md § 8.3.), which is what
  * keeps years of history scrollable on iOS Safari.
  */
-export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoomProps) {
+export function ChatRoom({
+  className,
+  currentUserId,
+  initialMessages,
+  backgroundMediaId,
+}: ChatRoomProps) {
   const containerRef = useRef<Nullable<HTMLDivElement>>(null);
   const composerRef = useRef<Nullable<HTMLDivElement>>(null);
   // INFO: REQUIREMENTS.md § 8.12. Observed rather than derived from `typist`, because what has to be followed is every frame of the height transition, not the state change that started it.
@@ -134,6 +143,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
   const { remember: rememberEmoticon } = useRecentEmoticons();
+  const setBackground = useSetBackground();
   // INFO: The panel outlives its first open so the collapse has something to animate; until then it is not rendered at all, and a user who never opens it never fetches the packs.
   const [hasOpenedEmoticonPanel, setHasOpenedEmoticonPanel] = useState(false);
   // INFO: REQUIREMENTS.md § 13.6. Staged rather than sent on selection, so it can be sent with a line of text the way an attachment can.
@@ -556,6 +566,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   return (
     // INFO: DESIGN.md § 3.5. One scroll region spanning the whole screen; the composer and the tab bar float over its bottom edge rather than shortening it.
     <div ref={containerRef} className={cn("relative min-h-0 flex-1 bg-chat-canvas", className)}>
+      {backgroundMediaId && <ChatBackdrop mediaId={backgroundMediaId} />}
       {rows.length === 0 ? (
         <>
           <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">
@@ -744,8 +755,11 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           onDelete={buildViewerDelete(viewer.deletableMessageId)}
           onShare={(mediaId) => void sharing.share([mediaId])}
           onSave={(mediaId) => void sharing.save([mediaId])}
+          onSetBackground={setBackground.open}
         />
       )}
+      {/* INFO: REQUIREMENTS.md § 12.1. Mounted outside the viewer conditional above, so dismissing the viewer cannot unmount the sheet mid-write — `useSetBackground` returns the two halves separately for exactly this. */}
+      {setBackground.sheet}
     </div>
   );
 

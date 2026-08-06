@@ -1,0 +1,46 @@
+"use client";
+
+import { toMediaUrl } from "@/shared/config";
+import { cn } from "@/shared/lib";
+import { PreloadImage } from "@/shared/ui";
+
+export type ChatBackdropProps = {
+  className?: string;
+  mediaId: string;
+};
+
+/**
+ * REQUIREMENTS.md § 12.2. The wallpaper behind the conversation, under a fixed
+ * `chat-scrim` wash.
+ *
+ * WARN: The wash is not decoration. Every meta colour in the room — `chat-meta`,
+ * the date pill, `읽음` — was picked for contrast against `chat-canvas`
+ * (DESIGN.md § 4.1.), and a photo underneath them is an arbitrary colour. The wash
+ * is what puts them back on the surface they were designed against, which is why it
+ * is fixed rather than a slider: a user-chosen opacity has a setting at which the
+ * timestamps are unreadable.
+ *
+ * WARN: First child of the room, and every sibling after it is absolutely
+ * positioned too (the scroller, the empty state). That is what orders them — both
+ * layers are in the positioned-descendant paint order, so DOM order decides and no
+ * `z-index` is involved. Adding one here would have to outrank the composer.
+ *
+ * INFO: `pointer-events-none` throughout. The photo sits under the § 8.3. scroller
+ * and under the § 8.11. hold on every bubble; taking a tap here would mean a photo
+ * in the wallpaper competing with the photos in the conversation.
+ */
+export function ChatBackdrop({ className, mediaId }: ChatBackdropProps) {
+  return (
+    <div className={cn("pointer-events-none absolute inset-0", className)}>
+      {/* INFO: `original`, not the thumbnail. This is drawn across the whole screen, where § 9.'s 720px long edge would be visibly soft. */}
+      <PreloadImage
+        className="size-full"
+        imgClassName="size-full object-cover"
+        placeholderClassName="bg-chat-canvas"
+        src={toMediaUrl(mediaId, "original")}
+        alt=""
+      />
+      <div className="absolute inset-0 bg-chat-scrim/45" />
+    </div>
+  );
+}

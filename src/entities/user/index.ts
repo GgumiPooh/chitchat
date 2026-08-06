@@ -4,6 +4,7 @@ export { publishTyping } from "./api/publish-typing";
 export {
   updateUserProfile,
   type ProfileUpdate,
+  type ReplacedMedia,
   type UpdateUserProfileParams,
 } from "./api/update-user-profile";
 export { upsertGoogleUser } from "./api/upsert-google-user";

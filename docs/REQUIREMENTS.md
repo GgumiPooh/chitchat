@@ -34,8 +34,9 @@ Every open item in this document, so an agent can read one table and then only t
 | **Chat — link previews**     | Four polish/hardening items on an otherwise finished feature                                        | § 8.9.           |
 | **Gallery**                  | Jump-to-message link (waits on § 8.6.1.)                                                            | § 10.            |
 | **Calendar**                 | "Jump to today" control                                                                             | § 11.3.          |
-| **Settings**                 | Device list + revocation, log out, app info. Theme row stays hidden                                 | § 12., § 16.1.   |
-| **Media**                    | Blurhash placeholder; re-PUT window; orphaned avatar object                                         | § 9., § 12.      |
+| **Settings**                 | Device list + revocation, app info. Theme row stays hidden                                          | § 12., § 16.1.   |
+| **Overlays**                 | A focus trap shared by the profile screen and the § 7.10. viewer                                    | § 12.3.          |
+| **Media**                    | Blurhash placeholder; re-PUT window; orphaned avatar and background objects                         | § 9., § 12.      |
 | **Emoticons**                | Preload enabled packs' images                                                                       | § 13.6.          |
 | **Security**                 | Session check audit, login rate limit, error-detail leaks                                           | § 14.            |
 | **Deployment**               | Vercel project, domain, env vars, steiger in build, Neon branches, Skew Protection                  | § 15.            |
@@ -84,8 +85,9 @@ src/
   app/       providers / styles(globals.css, theme.css) / fonts
   pages/     login, chat, calendar, gallery, settings, emoticon-settings, emoticon-pack
   widgets/   tab-bar, install-guide, chat-room, gallery-grid, calendar-month, settings-form
-  features/  session, send-message, chat-stream, push-notifications,
-             upload-media, author-emoticon, emoticon-prefs, update-profile, manage-event
+  features/  session, send-message, chat-stream, push-notifications, upload-media,
+             author-emoticon, emoticon-prefs, update-profile, manage-event,
+             set-background, view-profile
   entities/  user, message, push-subscription, media, event, emoticon
   shared/    db, auth, push, sound, storage, share, api, config, lib, theme, ui
 ```
@@ -94,7 +96,8 @@ src/
 
 - The session slice is `session`, not `auth` — `features/auth` collides with the `shared/auth` segment name (`fsd/ambiguous-slice-names`)
 - The composer and emoticon picker are **`features/send-message/ui/…`, not widgets**: `widgets/chat-room` renders them, and a widget cannot import a sibling widget (`fsd/forbidden-imports`)
-- Same-layer cross-imports go through the **`@x` gate**, never a barrel: `features/author-emoticon` → `@x/author-emoticon`, `features/upload-media` → `@x/send-message` and `@x/update-profile`, `entities/emoticon/@x/message`
+- Same-layer cross-imports go through the **`@x` gate**, never a barrel: `features/author-emoticon` → `@x/author-emoticon`, `features/upload-media` → `@x/send-message`, `@x/update-profile` and `@x/set-background`, `features/update-profile` → `@x/typing-indicator`, `@x/set-background` and `@x/view-profile`, `features/chat-stream` → `@x/view-profile`, `entities/emoticon/@x/message`
+- **`features/view-profile` owns the § 12.3. overlay and the provider that opens it**, and it is a feature rather than a widget precisely so `widgets/chat-room` can reach the hook — a widget may not import a sibling widget
 - **`uploadDraft` lives in `features/upload-media`, not `send-message`** — chat and the gallery both put an attachment in R2, and the slice named for uploading owns the one implementation
 - **`shared/share`** owns handing stored objects to the OS: the gallery's 저장 (§ 10.) and a message's 공유 (§ 8.11.) are one route with two labels, and the callers are a widget and a widget's sibling. The segment is `share`, not `media` (`entities/media` claims that name). Its dialog lives there too — the hook toasts, so `shared/ui` importing it would close a cycle
 - **`useLongPress` and `GESTURE_SLOP` live in `shared/lib`** — chat bubbles and gallery tiles both arm the gesture
@@ -202,6 +205,7 @@ Schema, migrations, and triggers have landed. **Columns are not listed here — 
 - `messages.event_id` is `ON DELETE SET NULL`; § 11.5. composes its sentence from the `event_title` / `event_starts_at` snapshot, because a delete notice outlives its `events` row. Only the **user name** is resolved at render time (§ 8.7.)
 - `messages.reply_to_id` is a **self-FK**, `ON DELETE SET NULL`, and carries **no snapshot of what it points at** (§ 8.10. gives the reason it is the opposite call from the line above). It is orthogonal to `type`, so it stays out of the payload CASE and takes a CHECK of its own for the one rule it needs (no system parent). It has **no index** — the only lookup is parent-by-id, which is the primary key
 - `users.last_read_at` has **no default**, so every insert names one; a `defaultNow()` would silently mark everything sent before that person's first login as read (§ 8.8. reads unread as `created_at > last_read_at`). The one insert site, `upsertGoogleUser`, passes the epoch
+- `users` carries **three** nullable `media` references — `avatar_media_id`, `profile_background_media_id` (§ 12.1.) and `chat_background_media_id` (§ 12.2.) — all `ON DELETE SET NULL`, all declared through `AnyPgColumn` to break the `users` ⇄ `media` type cycle. Two of them are published and one is not, and that asymmetry is enforced in three separate places: `toParticipant`, `listUsers`' projection, and `canReadMedia`. **`0019` is a migrate-first migration** (rule 2 below), and more than most: `getSessionContext` selects `users` whole, so code deployed ahead of it fails **every request that resolves a session** on `42703`
 
 **Media**
 
@@ -561,11 +565,11 @@ Tapping a quote runs the machinery § 8.6.1. will reuse unchanged:
 **Landed** apart from the blurhash placeholder and two accepted-risk items.
 
 - `POST /api/media/upload-url` issues a **pair** of presigned PUTs — the object and its `{key}_thumb` sibling — and `POST /api/media` registers the result. The upload goes **client → R2 directly**, which gets a full-resolution iPhone photo past Vercel's 4.5MB request body limit and makes `XMLHttpRequest`'s `upload.onprogress` a real byte count
-- **The key is built server-side from the uploader's id** (`{scope}/{userId}/{uuid}`, `toScopePrefix`) and never read off the request — a signature the browser could aim is a signature that overwrites any object in the bucket. `POST /api/media` re-checks the prefix and matches the **scope** as well as the id. `MEDIA_UPLOAD_SCOPES` is `chat` and `avatar` (§ 12.), deliberately **not** `emoticon`, or a § 13.3. object could be claimed as a `media` row and would then be a gallery row
+- **The key is built server-side from the uploader's id** (`{scope}/{userId}/{uuid}`, `toScopePrefix`) and never read off the request — a signature the browser could aim is a signature that overwrites any object in the bucket. `POST /api/media` re-checks the prefix and matches the **scope** as well as the id. `MEDIA_UPLOAD_SCOPES` is `chat`, `avatar` (§ 12.) and `background` (§ 12.1.), deliberately **not** `emoticon`, or a § 13.3. object could be claimed as a `media` row and would then be a gallery row
 - **`POST /api/media` is the only place § 14.'s type and size limits actually hold — for the thumbnail as much as for the original.** Verified against the live bucket: **R2 enforces neither the signed `Content-Type` nor any size on a presigned PUT.** So the server `HeadObject`s both keys, reads back what R2 really holds, and refuses to write a `media` row for anything outside the allow-list. Nothing in the app addresses R2 by key, only by `media.id`, so an unregistered object is unreachable
 - Caps: **50MB per photo, 500MB per video** (`shared/config/media.ts`). The video ceiling is an upload-**reliability** limit, not a storage one — a presigned PUT is one request with no resume, so raising it means adopting multipart upload, not a bigger number
 - `GET /api/media/{id}?variant=thumb|original` validates the session and `302`s to a presigned GET. `variant` defaults to `thumb`; only the fullscreen viewer asks for `original`. Same-origin, so a bare `<img src>` carries the session cookie. `Cache-Control: private, max-age` is **shorter than the signature's expiry**, or the browser replays a cached redirect to a URL R2 has stopped honouring. Both windows stay at minutes here, unlike § 13.3.'s: a `media` URL carries no version, so the bytes behind it are only immutable by convention
-- **Never rely on a UUID in the URL as access control** — every read revalidates the session **and then checks the object itself**: readable when the caller owns it, when it hangs off a message that has not been deleted, or when somebody is wearing it as an avatar (§ 12.). An unreadable id answers **404 rather than 403**, so the response cannot confirm it exists
+- **Never rely on a UUID in the URL as access control** — every read revalidates the session **and then checks the object itself**: readable when the caller owns it, when it hangs off a message that has not been deleted, or when somebody is wearing it as an avatar (§ 12.) or a profile cover (§ 12.1.). A **chat wallpaper is not in that list** (§ 12.2.) — the owner check is all of its authorization. An unreadable id answers **404 rather than 403**, so the response cannot confirm it exists
 - **Saving the original is a `Content-Disposition` on the presigned GET**, requested with `?download=1`. An `<a download>` is not enough: the route answers a 302 and the spec makes the browser drop the attribute once the navigation resolves cross-origin, which in a standalone PWA replaces the app with a bare asset view and no way back
 - Thumbnails are rendered in the browser at pick time (long edge 720, JPEG) and uploaded beside the original. For a video the same slot holds the **poster frame**, extracted by seeking a decoded `<video>` onto a canvas — which on iOS requires `muted` + `playsInline` + an actual `play()`, since WebKit will not decode a frame for a video that has never played. The seek is guarded on **both** sides: a container whose `duration` is `NaN` at `loadedmetadata` throws when assigned to `currentTime`, and seeking to the position the video already holds fires no `seeked` at all — either way the promise never settles, and decoding is serial, so one such file silently swallows the rest of the pick. A timeout backs both guards
 - R2 credentials live only in server env. `shared/storage` is `server-only`; `toMediaUrl` lives in `shared/config` rather than `entities/media`, because a client value-import from that barrel drags `server-only` into the browser bundle
@@ -605,6 +609,7 @@ Remaining:
 - **Selection is unavailable while an upload is in flight**, and "in flight" runs until the `postMessage` settles, not until the last byte lands. `addToGallery` puts a row in the grid before it has a `message_media` child, which is exactly what the delete path reads as "nothing renders this, remove it outright" — deleting there would pull the row out from under the send. The screen closes that window; the server cannot, because the two states are indistinguishable to it
 - **A second pick while the first batch is running is ordinary**, so the progress counter is written **relatively, never absolutely**. It is claimed before decoding rather than after — reading forty photos' real dimensions takes seconds, and an absolute write would let the first batch finishing zero the counter under the second and flip the screen to its empty state mid-upload
 - **Read authorization admits a gallery-only object.** `canReadMedia` would otherwise refuse the other participant a photo that hangs off no message; the gallery is shared
+- **The viewer carries 배경으로 설정** (§ 12.1.), here and in a chat bubble's viewer alike. It is hidden on a video, which has no still frame to wear, and on a draft, which has no stored object for the server-side copy to read. The sheet is mounted **outside** the viewer's own conditional, so dismissing the viewer over it cannot unmount it mid-write
 
 - [ ] A link that jumps to where the image was sent in the conversation — it needs § 8.6.1.'s reinitialize-around-a-message machinery, which is not built
 
@@ -674,9 +679,11 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
 
 ## 12. Settings Tab
 
-**Landed:** the profile editor (nickname + avatar), the tap-to-enlarge avatar, and the 입력 중 표시 switch (§ 8.12.). The device list, 로그아웃 and app info remain.
+**Landed:** the profile editor (nickname + avatar + cover), the tap-to-enlarge avatar, the 입력 중 표시 switch (§ 8.12.), the two backgrounds (§ 12.1., § 12.2.), the profile screen (§ 12.3.) and 로그아웃. The device list and app info remain.
 
-**Profile** — `PATCH /api/users/me`, reached from a 프로필 row; `features/update-profile` owns the sheet and reuses § 9.'s picker, editor and upload through `@x/update-profile`.
+The screen opens on a **half-viewport cover header** (`DESIGN.md § 7.16.`) rather than the old padded avatar block — the § 12.1. background is drawn behind the avatar and the name, and tapping the avatar opens § 12.3.
+
+**Profile** — `PATCH /api/users/me`, reached from a 프로필 row or § 12.3.'s 프로필 편집; `features/update-profile` owns the sheet and reuses § 9.'s picker, editor and upload through `@x/update-profile`.
 
 - The nickname set here is exactly what appears as the sender name in chat and inside system sentences (§ 8.7.), initialized from the Google account name at first login. `MAX_NICKNAME_LENGTH` bounds it, and the body is trimmed **before** the length check — twenty spaces would otherwise pass and § 8.7. would fall back to the email local part for a name the user believes they set
 - Saving needs no explicit broadcast — the UPDATE lands on `users`, so the § 6. trigger fires `user_changed`. The Settings screen itself is a Server Component, so it takes the new row from a `router.refresh()`
@@ -687,12 +694,58 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
 - **`canReadMedia` admits an object somebody is wearing.** Without it the other participant 404s on the avatar that names every bubble in front of them. The check is **last**, after the message join, so it costs nothing on the common path — and an avatar the owner has since replaced falls through it, which is what makes the swap real
 - **The write reads the photo it replaces in the same statement**, through a `users` self-join whose alias Postgres resolves against the pre-update snapshot. A separate `SELECT` first cannot promise it: two devices saving different photos would both read the same row, and the loser would be reported by neither — orphaning its objects permanently, since `canReadMedia` admits only a **currently worn** avatar
 - **The patch body must carry at least one key.** Both are optional, so `{}` parses, and the empty `.set()` behind it makes drizzle throw `No values to set` — a 500 for what is a malformed request
-- **A replaced photo's row is deleted at once and its objects on the § 13.4. delay.** The other participant is holding the 302 the old id resolved to, cached for `MEDIA_CACHE_MAX_AGE` (§ 9.), so deleting the object with the row is a broken image rather than a stale one. `discardAvatarMedia` is narrowed to the caller's own `avatar/` prefix, not merely their own rows: a crafted `PATCH` can aim `avatar_media_id` at any object its sender owns, and a chat photo reached that way would be deleted out from under the bubble carrying it. It runs in `after`, never inline: the profile write has already committed and `user_changed` has already fired, so a transient failure in cleanup answering 500 would leave the sheet open on `프로필을 저장하지 못했어요` for a save that landed — and the retry uploads a second avatar
+- **A replaced photo's row is deleted at once and its objects on the § 13.4. delay.** The other participant is holding the 302 the old id resolved to, cached for `MEDIA_CACHE_MAX_AGE` (§ 9.), so deleting the object with the row is a broken image rather than a stale one. `discardScopedMedia` is narrowed to the caller's own prefix **for the scope it is given**, not merely their own rows: a crafted `PATCH` can aim any of the three media columns at any object its sender owns, and a chat photo reached that way would be deleted out from under the bubble carrying it. It runs in `after`, never inline: the profile write has already committed and `user_changed` has already fired, so a transient failure in cleanup answering 500 would leave the sheet open on `프로필을 저장하지 못했어요` for a save that landed — and the retry uploads a second avatar
+- **The `background/` discards are collected across both columns and filtered against what is still worn.** § 12.1. and § 12.2. share one scope, so one photo may sit in both — and changing only the cover would otherwise delete the object the wallpaper is still drawn from
 
-**Avatar enlargement** — tapping an avatar opens the photo full screen in the § 7.10. viewer, in chat and on this screen. A single square cell with **no save control**: a profile photo is the person, not an attachment they shared. `Avatar` owns both halves behind `mediaId` and `canEnlarge`, and lives in `shared/ui` (§ 2.).
+**Avatar enlargement** — tapping an avatar opens the photo full screen in the § 7.10. viewer. A single square cell with **no save control**: a profile photo is the person, not an attachment they shared. `Avatar` owns both halves behind `mediaId` and `canEnlarge`, and lives in `shared/ui` (§ 2.).
 
 - **`canEnlarge` is off by default and stays off in the calendar day sheet** — that avatar sits inside the row button that opens the event (§ 11.4.), where a nested `button` is invalid markup and swallows the tap the row exists for
 - **The button takes over sizing when it wraps the circle**, which keeps `className` meaning one thing either way. Left on the circle, a caller's `size-*` would size the wrapper while the circle kept its own — and the day sheet passes exactly that
+- **The enlargement moved one level in when § 12.3. landed.** An avatar in chat or on the Settings cover now opens the **profile screen**, and it is that screen's own avatar that enlarges. `Avatar` carries both affordances and `onClick` wins over `canEnlarge`, because one avatar can only mean one thing per screen
+
+### 12.1. Profile Background ✅
+
+`users.profile_background_media_id` — the cover behind the § 12.3. profile screen and the Settings header. **Published**: it is projected by `toParticipant` and the other participant sees it.
+
+- **A column on `users`, not a table.** § 8.12.'s argument, unchanged: one nullable reference per user is read for free by the Server Component that already selects the row. `ON DELETE SET NULL`, like the avatar beside it
+- **Its objects live in their own `background/` scope**, which is added to `MEDIA_UPLOAD_SCOPES` and to `StorageScope`. `ownsAllMedia` is what enforces it at the `PATCH`, exactly as `avatar` is enforced — the two arguments are the same one (§ 12.)
+- **`canReadMedia` admits an object worn as a profile cover**, beside the avatar clause and for the same reason: without it the other participant 404s on the photo the profile screen is drawn from. **The chat wallpaper is deliberately not in that clause** (§ 12.2.)
+- **배경으로 설정 copies rather than points.** A photo already in the gallery or a chat bubble reaches `POST /api/media/copy`, which `canReadMedia`-checks the source and then duplicates **both** R2 objects into `background/{userId}/{uuid}` with a server-side `CopyObject` — the bytes never leave the bucket. Pointing the column at the source row would have been free and is wrong twice over: § 12.'s replacement cleanup would stand in front of a `chat/` object a bubble still renders, and § 10.'s gallery delete would silently strip the background through `ON DELETE SET NULL`. The copy is registered through `registerMedia`, which re-`HeadObject`s both keys — § 14. is a claim about a key, and the copy is a different key
+- **The route fixes the scope itself and does not read one off the body.** `chat` would mint a row § 10.'s gallery immediately owns; `avatar` would put a second copy behind the next profile save's cleanup
+- **The source must be an image, checked on the server.** The viewer withholds the control on a video, but that is a client decision and the route is reachable without it — a video worn as a cover is drawn into an `<img>` in front of the other participant, having first duplicated up to `MAX_VIDEO_SIZE`. It answers **415**
+- **A missing source and an unreadable one both answer 404**, per § 9. — the response must not confirm an id exists. **A failed registration is its own status (422) and must not be folded into that 404**: the copy has already put two objects in the bucket, and reporting it as a source that does not exist leaves them attributable to nothing
+- **배경으로 설정 is one hook, not two copies.** The chat room and the gallery both mount the § 7.10. viewer and neither may import the other (§ 2.), so `useSetBackground` returns the handler and the sheet as a pair. The sheet is handed back **separately** because it has to be mounted outside the viewer's own conditional — inside it, dismissing the viewer unmounts the sheet mid-write and orphans the copy
+- **The sheet cannot gate a second tap with state.** `ActionSheet` fires `onSelect` and closes in the same tick, so by the first `await` the sheet is already closed and any `isBusy` it holds gates nothing — while the viewer underneath is still up, still offering the control. The guard is a **ref**, and without it a slow connection turns an impatient second tap into a second orphaned `background/` object. The wait is reported by `toast.promise`, which is the only surface left on screen
+- Edited in the **프로필 편집** sheet beside the avatar, with a free-form crop: the cover is drawn `object-cover` against the visual viewport, so a fixed ratio would crop it twice. The sheet's preview box is a letterbox and promises no framing — the cover is worn at two different geometries (`DESIGN.md § 7.16.`) and no single preview can stand for both
+- **The sheet's slot identity must not be the picker's open flag.** `MediaPickerSheet` is an `ActionSheet`, which fires `onSelect` and closes itself in the same tick while the OS file dialog opens asynchronously — a slot stored in the open flag is already `null` when the file arrives, and **every pick lands in whichever slot the fallthrough names**. Shipped that way, choosing a new profile photo silently replaced the cover instead, uncropped
+
+### 12.2. Chat Background ✅
+
+`users.chat_background_media_id` — the wallpaper behind the conversation. **Private**: drawn on its owner's screen alone.
+
+- **It must stay out of `toParticipant`**, exactly as `typing_indicator_enabled` does (§ 8.12.), and out of `canReadMedia`'s worn-on-a-profile clause. The owner check is the whole of its authorization, and the copy 배경으로 설정 makes is owned by whoever set it — so a wallpaper taken from the other participant's photo is still only readable by the person wearing it
+- **A Settings row of its own, not a slot in 프로필 편집.** The sheet is named for what the other participant sees; a private wallpaper inside it would say it is public
+- **Per account, like the 입력 중 switch and unlike the push toggle** — it is a `users` column, so it follows the person rather than the browser
+- **The wash over the photo is a fixed token (`chat-scrim`), not a slider.** Every meta colour in the room — `chat-meta`, the date pill, `읽음` — was chosen for contrast against `chat-canvas` (`DESIGN.md § 4.1.`), and a photo underneath them is an arbitrary colour. A user-chosen opacity has a setting at which the timestamps are unreadable
+- **The backdrop is the room's first child and every sibling after it is absolutely positioned too**, which is what orders them: both are in the positioned-descendant paint order, so DOM order decides and no `z-index` is involved. One here would have to outrank the composer
+- **It is `pointer-events-none` throughout** — it sits under the § 8.3. scroller and under the § 8.11. hold on every bubble, and a photo in the wallpaper must not compete with the photos in the conversation
+- **The asset is preloaded from the chat screen's server render** (`react-dom`'s `preload`, `as: "image"`, `fetchPriority: "high"`), not requested by the `<img>` on mount. It covers the whole screen behind the first bubble the reader sees, so a request that waits for hydration paints the flat `chat-canvas` first and swaps the photo in underneath a conversation already being read. It asks for `variant=original`: § 9.'s 720px thumbnail is visibly soft at full-bleed
+- **Only the wallpaper is preloaded.** The profile cover (§ 12.1.) is behind a tap that may never happen, and `/api/media/{id}`'s 302 is cached for `MEDIA_CACHE_MAX_AGE` anyway — a preload starts a request early within one page load, it does not keep anything warm across sessions
+
+### 12.3. Profile Screen ✅
+
+Tapping an avatar opens a full-screen profile, KakaoTalk-style: the § 12.1. cover, the avatar, the name, and one action.
+
+- **A `ShellOverlay`, not a route.** It has to cover the tab bar, which a screen under `(main)` cannot — and `absolute`, never `fixed` (`AGENTS.md § 4.4.`)
+- **`ProfileViewerProvider` lives in the shell**, for `ChatStreamProvider`'s reason and one of its own: an avatar is rendered by `widgets/chat-room`, by the Settings cover and by the calendar day sheet, and a widget may not import a sibling widget (§ 2.) — so an overlay mounted beside any one of them would need a copy per screen, with two able to be open at once
+- **`Avatar` does not reach the provider and must not.** It is `shared/ui`, below every layer the provider reads from, so the tap is wired by whoever renders the avatar — and the calendar day sheet deliberately wires none (§ 12.)
+- **The person is resolved live against the participant set**, so a rename or a new cover reaches a profile that is already open (§ 8.7.). A `userId` the set does not hold closes the screen rather than drawing an empty one
+- **The base is `scrim` and the text is `on-primary` whether or not a cover is set.** A colour that followed the photo would have to be sampled from it. The cover sits under a **two-stop** gradient — the top darkens the strip the close control is in, the bottom darkens the name, and the middle is left alone rather than dimming what the user came to look at
+- **`Escape` is guarded on nothing being open above it.** The avatar's own § 7.10. viewer composes no `Dialog`, so it marks itself with `data-media-viewer` and this screen tests for that alongside `OPEN_DIALOG_SELECTOR`
+- **`role="dialog"` and `aria-modal` are written by hand**, because nothing here composes a Radix primitive. The opaque fill hides the screen underneath from the eye and from the pointer, and without these it was still announced as live content with no boundary
+- Own profile → **프로필 편집**, opening the one § 12. editor. The other participant's → **대화하기**
+
+- [ ] A focus trap. This screen and the § 7.10. viewer are the app's two hand-rolled overlays and neither has one, so `Tab` walks into the composer behind them. It wants **one** owner shared by both rather than a second copy of the same logic
 
 **Other rows**
 
@@ -703,9 +756,9 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
 
 Remaining:
 
-- [ ] An upload that lands and is then followed by a failed `PATCH` leaves one registered object nothing points at. It is unreachable and costs bucket space alone, which is the trade § 9. already takes on a re-PUT; a discard endpoint like § 13.3.'s is what would close it
+- [ ] An upload that lands and is then followed by a failed `PATCH` leaves one registered object nothing points at — and § 12.1.'s copy has the same window. It is unreachable and costs bucket space alone, which is the trade § 9. already takes on a re-PUT; a discard endpoint like § 13.3.'s is what would close it
 - [ ] List of logged-in devices, with per-session revocation
-- [ ] Log out
+- [x] Log out
 - [ ] The theme setting stays **hidden until the dark theme ships**
 - [ ] App info / version
 
@@ -928,7 +981,7 @@ An installed iOS PWA is not reloaded when the user reopens it — the system res
 7. ✅ Gallery tab (§ 10.) — open: the jump-to-message link, which waits on § 8.6.1.
 8. ✅ Emoticons (§ 13.) — open: the picker's image preloading
 9. ✅ Calendar tab (§ 11.) — open: the "jump to today" control (§ 11.3.)
-10. **Settings tab (§ 12.) — in progress.** Profile editor, tap-to-enlarge avatar and the 입력 중 표시 switch (§ 8.12.) landed. **Open: the device list, 로그아웃, and app info**
+10. **Settings tab (§ 12.) — in progress.** Profile editor, tap-to-enlarge avatar, the 입력 중 표시 switch (§ 8.12.), 로그아웃, both backgrounds (§ 12.1., § 12.2.) and the profile screen (§ 12.3.) landed. **Open: the device list and app info**
 11. Security hardening + deployment (§ 14., § 15.)
 
 ---

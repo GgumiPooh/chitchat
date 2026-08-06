@@ -1,4 +1,5 @@
-export { discardAvatarMedia } from "./api/discard-avatar-media";
+export { copyMediaIntoScope, type CopyMediaIntoScopeParams } from "./api/copy-media-into-scope";
+export { discardScopedMedia } from "./api/discard-scoped-media";
 export { canReadMedia, getMediaRow, ownsAllMedia, toVariantKey } from "./api/get-media-object";
 export {
   listGalleryMedia,

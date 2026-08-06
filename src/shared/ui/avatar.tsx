@@ -24,6 +24,19 @@ export type AvatarProps = {
    * (§ 11.4.), where a nested `button` is invalid markup and swallows that tap.
    */
   canEnlarge?: boolean;
+  /**
+   * Makes the avatar a button that runs this instead of enlarging the photo.
+   *
+   * INFO: REQUIREMENTS.md § 12.3. What opens the profile screen. It takes
+   * precedence over `canEnlarge`, because the enlargement moved one level in — it
+   * is what the avatar *inside* the profile screen does, and one avatar can only
+   * mean one thing per screen (§ 12.).
+   *
+   * WARN: `shared/ui` cannot reach the provider that owns the profile screen (§ 2.),
+   * so the tap is wired by whoever renders the avatar. The calendar day sheet
+   * deliberately wires neither this nor `canEnlarge` (§ 12.).
+   */
+  onClick?: () => void;
 };
 
 const SIZE_CLASS_NAME = {
@@ -41,18 +54,21 @@ export function Avatar({
   name,
   size = "chat",
   canEnlarge = false,
+  onClick,
 }: AvatarProps) {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const resolvedSrc = src ?? (mediaId ? toMediaUrl(mediaId) : undefined);
   const cells = useMemo(() => (mediaId ? [toAvatarCell(mediaId)] : []), [mediaId]);
   const isEnlargeable = canEnlarge && cells.length > 0;
+  // INFO: A caller-supplied tap works with no photo at all — an initial-letter avatar still names a person whose profile there is to open (DESIGN.md § 7.7.).
+  const isTappable = onClick !== undefined || isEnlargeable;
 
   const face = (
     <AvatarPrimitive.Root
       className={cn(
         "relative flex shrink-0 overflow-hidden rounded-full ring-1 ring-hairline select-none ring-inset",
         // WARN: The button below takes over sizing when it wraps this, or a caller's `size-*` would size the wrapper while the circle kept its own — the calendar day sheet passes exactly that (§ 11.4.).
-        isEnlargeable ? "size-full" : cn(SIZE_CLASS_NAME[size], className),
+        isTappable ? "size-full" : cn(SIZE_CLASS_NAME[size], className),
       )}
     >
       {resolvedSrc && (
@@ -69,7 +85,7 @@ export function Avatar({
     </AvatarPrimitive.Root>
   );
 
-  if (!isEnlargeable) {
+  if (!isTappable) {
     return face;
   }
 
@@ -82,8 +98,8 @@ export function Avatar({
           className,
         )}
         type="button"
-        aria-label={`${name} 프로필 사진 크게 보기`}
-        onClick={() => setIsViewerOpen(true)}
+        aria-label={onClick ? `${name} 프로필 보기` : `${name} 프로필 사진 크게 보기`}
+        onClick={onClick ?? (() => setIsViewerOpen(true))}
       >
         {face}
       </button>

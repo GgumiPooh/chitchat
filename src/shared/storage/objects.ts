@@ -3,6 +3,7 @@ import "server-only";
 import { MEDIA_CACHE_MAX_AGE, MEDIA_URL_EXPIRY, UPLOAD_URL_EXPIRY } from "@/shared/config";
 import { A_SECOND, safelyGetAsync, safelyRunAsync, type Optional } from "@/shared/lib";
 import {
+  CopyObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -111,6 +112,35 @@ export async function headAcceptableObject(
   const object = await headObject(key);
 
   return object && isAcceptable(object) ? object : undefined;
+}
+
+/**
+ * Duplicates a stored object under a second key, inside the bucket.
+ *
+ * INFO: REQUIREMENTS.md § 12.1. What 배경으로 설정 runs on a photo that is already
+ * in the conversation. It is a server-side copy — the bytes never leave R2 — which
+ * is the whole reason the feature can afford to own its object rather than point at
+ * somebody else's: `discardScopedMedia` may then delete it without reaching into
+ * the `chat/` scope a bubble is still rendering (§ 12.).
+ *
+ * WARN: Unlike `presignUpload`, this carries no `Content-Type` of its own.
+ * `CopyObjectCommand` defaults to `COPY` metadata, so the destination inherits the
+ * type § 14. already verified on the source — re-stating it here would be a second
+ * claim about bytes this process has still never seen.
+ *
+ * WARN: Throws. A copy that half-lands leaves a key with no `media` row, which is
+ * unreachable and costs bucket space alone (§ 9.) — but a caller that registered a
+ * row for an object that is not there would render a broken image forever.
+ */
+export async function copyObject(sourceKey: string, destinationKey: string): Promise<void> {
+  await getR2().send(
+    new CopyObjectCommand({
+      Bucket: getBucket(),
+      // WARN: The source is `{bucket}/{key}`, and the key half must be URI-encoded. Ours are `{scope}/{uuid}/{uuid}` so nothing in them needs escaping today, but a key that ever carries one would silently copy the wrong object rather than fail.
+      CopySource: `${getBucket()}/${encodeURI(sourceKey)}`,
+      Key: destinationKey,
+    }),
+  );
 }
 
 /**

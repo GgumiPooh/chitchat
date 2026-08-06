@@ -19,6 +19,8 @@ export async function listUsers(): Promise<Participant[]> {
       email: users.email,
       nickname: users.nickname,
       avatarMediaId: users.avatarMediaId,
+      // INFO: REQUIREMENTS.md § 12.1. The profile cover the other participant sees when they open this person's profile. `chat_background_media_id` is deliberately not projected (§ 12.2.).
+      profileBackgroundMediaId: users.profileBackgroundMediaId,
       // INFO: REQUIREMENTS.md § 8.8. The other person's cursor is what the `1` marker reads.
       lastReadAt: users.lastReadAt,
     })

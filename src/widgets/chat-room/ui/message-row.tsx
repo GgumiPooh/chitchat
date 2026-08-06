@@ -3,6 +3,7 @@
 import type { Emoticon } from "@/entities/emoticon";
 import type { ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
+import { useProfileViewer } from "@/features/view-profile";
 import {
   LONG_PRESS_TARGET_CLASS,
   cn,
@@ -80,6 +81,8 @@ export function MessageRow({
   onRetry,
   onCancel,
 }: MessageRowProps) {
+  // INFO: REQUIREMENTS.md § 12.3. Read here rather than threaded down from the room — the row is what renders the avatar, and the provider is in the shell either way.
+  const { openProfile } = useProfileViewer();
   const swipe = useSwipeToReply(onReply, isMine);
   const longPressHandlers = useLongPress(onLongPress, { onFire: swipe.cancel });
   const hasMedia = media.length > 0;
@@ -101,7 +104,12 @@ export function MessageRow({
       {!isMine &&
         (isFirstOfGroup ? (
           // INFO: REQUIREMENTS.md § 8.7. Resolved from the participant set at render time, never copied onto the message row, so a profile change reaches every past bubble.
-          <Avatar name={sender?.name ?? ""} mediaId={sender?.avatarMediaId} canEnlarge />
+          // INFO: REQUIREMENTS.md § 12.3. The tap opens the profile screen rather than the photo — the enlargement is still there, one level in, on that screen's own avatar.
+          <Avatar
+            name={sender?.name ?? ""}
+            mediaId={sender?.avatarMediaId}
+            onClick={sender ? () => openProfile(sender.id) : undefined}
+          />
         ) : (
           // INFO: DESIGN.md § 6.3. Keeps the rest of the group indented to the avatar column.
           <span className="size-9 shrink-0" />
@@ -119,7 +127,8 @@ export function MessageRow({
       >
         {renderPullIndicator()}
         {!isMine && isFirstOfGroup && (
-          <span className="px-2xs text-chat-name text-chat-meta">{sender?.name}</span>
+          // INFO: DESIGN.md § 4.1.4. `chat-sender`, not `chat-meta` — the name says who is speaking and has to clear AA at 12px, which the clock's tone does not.
+          <span className="px-2xs text-chat-name text-chat-sender">{sender?.name}</span>
         )}
         {/* INFO: DESIGN.md § 6.10. A bubble-less message quotes in a card of its own; a text one quotes inside its bubble, where the fill already frames it. */}
         {replyTo && (emoticon || hasMedia) && (
@@ -215,6 +224,7 @@ export function MessageRow({
               // INFO: DESIGN.md § 6.3. One timestamp per minute-group, on its last bubble; § 8.8.'s 읽음 stacks above it on the one bubble that carries it.
               // WARN: REQUIREMENTS.md § 8.3. A fixed `w-14`, wide enough for the longest `오후 12:34`. It is beside the bubble rather than under it, so its width comes off the width the text wraps in — left to size itself, the § 8.3. row estimate would have to re-measure a string it cannot see, and would flip a whole line wherever it guessed wrong.
               // WARN: `whitespace-nowrap` guards the fixed width above. `오후 12:34` clears 56px only just, and the app's font is `display: swap` — a wider fallback on the first paint would wrap the time onto a second line, breaking § 6.3.'s one-line rule and the § 8.3. estimate that trusts it. Invisible to a developer whose webfont is already cached.
+              // INFO: DESIGN.md § 7.16. The clock keeps `chat-meta`'s quiet tone and takes the lift instead — over a wallpaper it is unreadable for the same reason the name was, but making it darker would give it emphasis it is not owed.
               <div className="flex w-14 shrink-0 flex-col items-end text-chat-time whitespace-nowrap text-chat-meta">
                 {isRead && <span>읽음</span>}
                 {isLastOfGroup && <time dateTime={createdAt}>{formatTime(createdAt)}</time>}

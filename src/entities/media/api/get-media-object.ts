@@ -4,7 +4,7 @@ import type { MediaUploadScope, MediaVariant } from "@/shared/config";
 import { getDb, media, messageMedia, messages, users, type Media } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
 import { toScopePrefix, toThumbKey } from "@/shared/storage";
-import { and, eq, inArray, isNull, like } from "drizzle-orm";
+import { and, eq, inArray, isNull, like, or } from "drizzle-orm";
 
 export async function getMediaRow(id: string): Promise<Nullable<Media>> {
   const [row] = await getDb().select().from(media).where(eq(media.id, id)).limit(1);
@@ -82,14 +82,22 @@ export async function canReadMedia(row: Media, userId: string): Promise<boolean>
   }
 
   // INFO: REQUIREMENTS.md § 12. A profile photo is worn in front of the other participant by definition — it names every bubble the wearer sends (§ 8.7.). An avatar object the owner has since replaced falls back through here and stops being readable, which is what makes the swap a real one.
-  return isSomeonesAvatar(row.id);
+  return isWornOnAProfile(row.id);
 }
 
-async function isSomeonesAvatar(mediaId: string): Promise<boolean> {
+/**
+ * WARN: REQUIREMENTS.md § 12.2. `chat_background_media_id` is deliberately not one
+ * of these columns. A profile cover is published to the other participant (§ 12.1.)
+ * and an avatar names every bubble its wearer sends, but a chat wallpaper is only
+ * ever drawn on its owner's own screen — the owner check above is the whole of its
+ * authorization, and admitting it here would hand the other participant a photo
+ * they were never shown.
+ */
+async function isWornOnAProfile(mediaId: string): Promise<boolean> {
   const [worn] = await getDb()
     .select({ id: users.id })
     .from(users)
-    .where(eq(users.avatarMediaId, mediaId))
+    .where(or(eq(users.avatarMediaId, mediaId), eq(users.profileBackgroundMediaId, mediaId)))
     .limit(1);
 
   return Boolean(worn);

@@ -3,6 +3,7 @@ import { countUnreadMessages } from "@/entities/message";
 import { listUsers } from "@/entities/user";
 import { ChatStreamProvider } from "@/features/chat-stream";
 import { PushSync } from "@/features/push-notifications";
+import { ProfileViewerProvider } from "@/features/view-profile";
 import { requireUserOrRedirect } from "@/shared/auth";
 import { APP_SCROLL_ID, APP_SHELL_ID } from "@/shared/config";
 import {
@@ -35,31 +36,34 @@ export default async function MainLayout({ children }: PropsWithChildren) {
       initialParticipants={participants}
       initialUnreadCount={unreadCount}
     >
-      {/* WARN: DESIGN.md § 3.4. The height eases and `top` never does — WebKit reports the height in a couple of coarse steps while the keyboard slides, so a raw height snaps the composer into place, whereas `top` is correcting a pan that is already wrong on screen and has to land the same frame. */}
-      <div className="fixed inset-x-0 top-[var(--viewport-top,0px)] bottom-0 flex h-[var(--viewport-height,100dvh)] justify-center bg-backdrop transition-[height] duration-200 ease-out">
-        <Container
-          className="relative flex min-h-0 flex-1 flex-col bg-canvas px-0"
-          id={APP_SHELL_ID}
-        >
-          {/* INFO: DESIGN.md § 3.4., § 3.5. The shell's only scroller. The floating bars sit over it, and `RouteTransition` trails the room it leaves for them. */}
-          {/* WARN: DESIGN.md § 3.5. The clearance cannot be this element's `pb-(--bottom-inset)` — `RouteTransition` is a `min-h-0` flex item, so a taller screen overflows *out* of it, past end padding that is only laid out after in-flow content. */}
-          {/* WARN: DESIGN.md § 4.7.1. `overflow-x: clip`, not `hidden` — the route slide translates the screen 24px past the shell edge, and on a scroller that already scrolls vertically `overflow-x` computes to `auto`, which would make that a real horizontal scroll offset for the length of every navigation. */}
-          <main
-            className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-x-clip overflow-y-auto"
-            id={APP_SCROLL_ID}
+      {/* INFO: REQUIREMENTS.md § 12.3. Inside the stream provider, because the profile it draws is resolved against the live participant set; outside the shell box, because the overlay portals into that box rather than nesting in it. */}
+      <ProfileViewerProvider currentUserId={user.id}>
+        {/* WARN: DESIGN.md § 3.4. The height eases and `top` never does — WebKit reports the height in a couple of coarse steps while the keyboard slides, so a raw height snaps the composer into place, whereas `top` is correcting a pan that is already wrong on screen and has to land the same frame. */}
+        <div className="fixed inset-x-0 top-[var(--viewport-top,0px)] bottom-0 flex h-[var(--viewport-height,100dvh)] justify-center bg-backdrop transition-[height] duration-200 ease-out">
+          <Container
+            className="relative flex min-h-0 flex-1 flex-col bg-canvas px-0"
+            id={APP_SHELL_ID}
           >
-            {/* INFO: DESIGN.md § 4.7.1. Inside the scroller, so the animation is the screen's alone — the scroller keeps its own scroll position and the bars outside it are untouched. */}
-            <RouteTransition>{children}</RouteTransition>
-          </main>
-          <BottomOverlay>
-            <InstallGuide />
-            <TabBar hasEventToday={hasTodayEvent} />
-          </BottomOverlay>
-        </Container>
-        <VisualViewportSync />
-        <ScrollMemory />
-        <PushSync />
-      </div>
+            {/* INFO: DESIGN.md § 3.4., § 3.5. The shell's only scroller. The floating bars sit over it, and `RouteTransition` trails the room it leaves for them. */}
+            {/* WARN: DESIGN.md § 3.5. The clearance cannot be this element's `pb-(--bottom-inset)` — `RouteTransition` is a `min-h-0` flex item, so a taller screen overflows *out* of it, past end padding that is only laid out after in-flow content. */}
+            {/* WARN: DESIGN.md § 4.7.1. `overflow-x: clip`, not `hidden` — the route slide translates the screen 24px past the shell edge, and on a scroller that already scrolls vertically `overflow-x` computes to `auto`, which would make that a real horizontal scroll offset for the length of every navigation. */}
+            <main
+              className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-x-clip overflow-y-auto"
+              id={APP_SCROLL_ID}
+            >
+              {/* INFO: DESIGN.md § 4.7.1. Inside the scroller, so the animation is the screen's alone — the scroller keeps its own scroll position and the bars outside it are untouched. */}
+              <RouteTransition>{children}</RouteTransition>
+            </main>
+            <BottomOverlay>
+              <InstallGuide />
+              <TabBar hasEventToday={hasTodayEvent} />
+            </BottomOverlay>
+          </Container>
+          <VisualViewportSync />
+          <ScrollMemory />
+          <PushSync />
+        </div>
+      </ProfileViewerProvider>
     </ChatStreamProvider>
   );
 }

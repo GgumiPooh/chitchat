@@ -1,6 +1,7 @@
 "use client";
 
 import type { GalleryMedia } from "@/entities/media";
+import { useSetBackground } from "@/features/set-background";
 import { MediaPickerSheet } from "@/features/upload-media";
 import { cn, type Nullable } from "@/shared/lib";
 import {
@@ -48,6 +49,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
   const [isRemoving, setIsRemoving] = useState(false);
   const { media, isLoadingMore, loadMore, prepend, remove } = useGalleryMedia(initialMedia);
   const selection = useGallerySelection();
+  const setBackground = useSetBackground();
   const saving = useMediaShare();
   const { remainingCount, isBusy: isUploading, upload } = useGalleryUpload(prepend);
   const selectedCount = selection.selectedIds.length;
@@ -190,8 +192,11 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
           onClose={() => setViewer(null)}
           onShare={(mediaId) => void saving.share([mediaId])}
           onSave={(mediaId) => void saving.save([mediaId])}
+          onSetBackground={setBackground.open}
         />
       )}
+      {/* INFO: REQUIREMENTS.md § 12.1. Mounted outside the viewer conditional above, so dismissing the viewer cannot unmount the sheet mid-write — `useSetBackground` returns the two halves separately for exactly this. */}
+      {setBackground.sheet}
     </div>
   );
 

@@ -3,7 +3,7 @@ import { requireUserOrRedirect } from "@/shared/auth";
 
 export default async function Page() {
   // INFO: `requireUserOrRedirect` is request-cached, so this reuses the `(main)` layout's session lookup.
-  const { id } = await requireUserOrRedirect();
+  const { chatBackgroundMediaId, id } = await requireUserOrRedirect();
 
-  return <ChatPage currentUserId={id} />;
+  return <ChatPage currentUserId={id} backgroundMediaId={chatBackgroundMediaId} />;
 }

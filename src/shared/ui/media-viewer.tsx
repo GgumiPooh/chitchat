@@ -1,7 +1,7 @@
 "use client";
 
 import { cn, useIsIos } from "@/shared/lib";
-import { Download, Share, Trash2, X } from "lucide-react";
+import { Download, Share, Trash2, Wallpaper, X } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { IconButton } from "./icon-button";
 import type { MediaCell } from "./media-cell";
@@ -22,6 +22,13 @@ export type MediaViewerProps = {
   onShare?: (mediaId: string) => void;
   /** REQUIREMENTS.md § 8.11. The 저장 route for the slide on screen. Used on iOS only, where the download beside it cannot reach the photo library. */
   onSave?: (mediaId: string) => void;
+  /**
+   * REQUIREMENTS.md § 12.1. Opens 배경으로 설정 for the slide on screen.
+   *
+   * INFO: Given the media id for `onShare`'s reason — the slide moves under the
+   * control, so the id has to be read at the tap rather than captured at mount.
+   */
+  onSetBackground?: (mediaId: string) => void;
 };
 
 /**
@@ -50,6 +57,7 @@ export function MediaViewer({
   onDelete,
   onShare,
   onSave,
+  onSetBackground,
 }: MediaViewerProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(initialIndex);
@@ -83,7 +91,11 @@ export function MediaViewer({
 
   return (
     <ShellOverlay>
-      <div className={cn("absolute inset-0 z-40 flex flex-col bg-scrim/90", className)}>
+      {/* INFO: `data-media-viewer` is how an overlay *underneath* this one tells that it is open. The viewer composes no `Dialog`, so `OPEN_DIALOG_SELECTOR` does not find it, and REQUIREMENTS.md § 12.3.'s profile screen has to leave `Escape` to whatever is on top of it. */}
+      <div
+        className={cn("absolute inset-0 z-40 flex flex-col bg-scrim/90", className)}
+        data-media-viewer=""
+      >
         <div className="flex items-center justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
           <IconButton
             className="text-on-primary hover:bg-canvas/15 hover:text-on-primary"
@@ -102,6 +114,19 @@ export function MediaViewer({
                 Icon={Trash2}
                 aria-label="메시지 삭제"
                 onClick={onDelete}
+              />
+            )}
+            {onSetBackground && current && (
+              // INFO: REQUIREMENTS.md § 12.1. Withheld on a video, which has no still frame to wear, and on a draft, which has no stored object for the server-side copy to read.
+              // WARN: `invisible`, never unmounted — the controls beside it keep their box for the same reason. Removing a 44px slot from this right-aligned row mid-swipe slides the save control under a finger already travelling towards it.
+              <IconButton
+                className={cn(
+                  "text-on-primary hover:bg-canvas/15 hover:text-on-primary",
+                  (!downloadUrl || current.isVideo) && "invisible",
+                )}
+                Icon={Wallpaper}
+                aria-label="배경으로 설정"
+                onClick={() => onSetBackground(current.id)}
               />
             )}
             {handleSheet && current && (

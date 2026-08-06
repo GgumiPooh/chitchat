@@ -100,7 +100,7 @@ Touch-first geometry, full pointer states.
 | Bar heights       | `--tab-bar-height` and `--app-header-height`, both `56px`. Declared outside `@theme` because a screen may read them back through `calc()` rather than as a utility                                           |
 | Narrow max width  | `448px` — token `--container-app-narrow`, `Container size="sm"`. Single-column entry screens (login) only                                                                                                    |
 | Alignment         | Horizontally centered, full height                                                                                                                                                                           |
-| Shell background  | `canvas` (or `chat-canvas` on the chat screen)                                                                                                                                                               |
+| Shell background  | `canvas` (or `chat-canvas` on the chat screen, under an optional § 7.16. wallpaper)                                                                                                                          |
 | Outside the shell | `backdrop` — one step deeper than `canvas`, so the shell reads as a held device on desktop                                                                                                                   |
 | Fixed children    | None. The shell itself is the one `fixed` element (§ 3.4.); the header and the bars float inside it (§ 3.5.). Portalled overlays are outside the shell and anchor themselves to the visual viewport (§ 3.4.) |
 | Safe areas        | `env(safe-area-inset-bottom)` on the tab bar, `env(safe-area-inset-top)` on the header                                                                                                                       |
@@ -180,6 +180,7 @@ The system is built on warm neutrals. Every neutral carries a yellow/red bias; t
 | `backdrop`        | #E4DED4 | Area outside the app shell (desktop only) — § 3.3.                              |
 | `canvas`          | #FBF9F6 | Page floor for calendar / gallery / settings                                    |
 | `chat-canvas`     | #EFEAE2 | Page floor for the chat screen only — one step deeper so bubbles read as raised |
+| `chat-scrim`      | #EFEAE2 | The wash over a § 7.16. chat wallpaper, at 35% — same hex, different job        |
 | `surface-soft`    | #F4F0E9 | Default raised surface; resting fill for chip-style controls                    |
 | `surface-strong`  | #EAE4DA | `:hover` escalation; terminal static fill (skeletons, disabled inputs)          |
 | `surface-pressed` | #DFD8CB | `:active` escalation. Ladder ceiling                                            |
@@ -223,7 +224,8 @@ The signature surface. Bubble fills are the only place two adjacent fills are bo
 | `bubble-theirs`         | #FFFFFF | Their message fill — the one pure white in the system                             |
 | `bubble-theirs-pressed` | #F4F1EC | `:active` / long-press feedback on their bubble                                   |
 | `bubble-ink`            | #1F1B17 | Text inside any bubble. Both fills are light — never inverts                      |
-| `chat-meta`             | #8D8375 | Timestamp and sender name on `chat-canvas`                                        |
+| `chat-meta`             | #8D8375 | Timestamp and `읽음` on `chat-canvas`. **Not the sender name** — see below        |
+| `chat-sender`           | #6B6153 | Sender name above a `theirs` group                                                |
 | `chat-pill`             | #DED6C9 | Date divider pill fill                                                            |
 | `chat-pill-pressed`     | #D2C9B9 | `:hover` / `:active` on a pill that is a link — the § 11.5. system notice alone   |
 | `chat-pill-ink`         | #6B6153 | Date divider pill text                                                            |
@@ -231,6 +233,10 @@ The signature surface. Bubble fills are the only place two adjacent fills are bo
 | `search-hit`            | #F9E9C8 | Matched substring background in search results (§ 6.8.)                           |
 
 `bubble-mine` is a tint of the accent rather than a second hue: it keeps the palette at one chromatic family, and it makes "my voice" and "the app's voice" the same colour, which is the point of a two-person app.
+
+**`chat-sender` and `chat-meta` were one token, and splitting them is the fix for a real defect.** At `chat-meta` on `chat-canvas` the sender name ran at **3.1:1** — below AA's 4.5:1 for 12px text, and it had been that way since § 6.3. was written. It could not be darkened while the clock shared the token: a name that reads is emphasis the name has earned, and the same value on a timestamp is a clock competing with the message. `chat-sender` clears AA at **5.1:1**; `chat-meta` keeps its tone for the things that genuinely are secondary. **Never point a sender name back at `chat-meta`** — the low contrast is the whole reason the second token exists.
+
+**`--text-chat-name` is the size and `--color-chat-sender` is the colour, and they are deliberately not the same key.** Tailwind resolves `text-*` against both scales, so one name in both is an ambiguous utility.
 
 ### 4.1.5. Semantic.
 
@@ -511,7 +517,7 @@ A group is consecutive messages from one sender within the same clock minute.
 | Element     | Rule                                                                                                                                                                                                                                                                                                                                                                                        |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Avatar      | `theirs` only, 36×36 `rounded-full`, rendered on the first bubble of the group; subsequent bubbles indent by the avatar width + `xs`                                                                                                                                                                                                                                                        |
-| Sender name | `theirs` only, `chat-name` in `chat-meta`, above the first bubble                                                                                                                                                                                                                                                                                                                           |
+| Sender name | `theirs` only, `chat-name` in **`chat-sender`** (§ 4.1.4. — never `chat-meta`), above the first bubble                                                                                                                                                                                                                                                                                      |
 | Timestamp   | `chat-time` in `chat-meta`, on the **last** bubble of the group, on the outer side (left of `mine`, right of `theirs`), bottom-aligned, in a **fixed 56px slot** — it is in flow beside the bubble, so its width is width the text does not get to wrap in, and a slot that sized itself to `오후 12:34` or `오전 9:05` would move the wrap point with the clock (`REQUIREMENTS.md § 8.3.`) |
 | Unread `1`  | `mine` only, `chat-badge` in `unread`, directly above the timestamp                                                                                                                                                                                                                                                                                                                         |
 
@@ -994,6 +1000,29 @@ The tick is the overlay's **default action**, and a default action runs after th
 That is a live distinction wherever the tap is what turns the gate off. `Link` survives it because the route change is a round trip: the anchor is still standing when the switch toggles, and `haptic={!isActive}` on the tab bar (§ 7.3.) drops the overlay a render later. The emoticon pack tabs are the opposite case — `useStorageState` writes and broadcasts inside the handler, React flushes a discrete update before returning from it, and `isTicking={!isActive}` therefore tore the just-selected tab's `<label>` out of the tree mid-click. A detached label has no labelled control to find, so nothing toggled: the previously active tab could not tick because it had no overlay, and the newly active one could not tick because it no longer had one. **Every pack tap was silent** — on the one strip whose tick is most of its feedback, since the fill it moves sits under the finger.
 
 So the pack tabs tick unconditionally, re-taps on the open pack included. That reads as the narrower rule of § 7.15. rather than a break from it: a finger that lands on a tab and lifts has selected that pack, whether or not the panel had to change. Where a state gate is genuinely wanted (`Chip`, the colour swatches, the composer's send disc), it is safe exactly when the state does not settle in the same tick as the tap.
+
+## 7.16. Backgrounds — the profile cover, the chat wallpaper, and the Settings header.
+
+Two user-chosen photos, drawn in three places. `REQUIREMENTS.md § 12.1.`–`§ 12.3.` own what they are and who may see them; this section owns how they look.
+
+**The Settings header** is a cover band **half the visual viewport tall** — `calc(var(--viewport-height, 100dvh) * 0.5)`, never `50vh`. `vh` is the layout viewport on WebKit, so it neither shrinks for the keyboard nor accounts for the browser chrome the shell is already sized around (§ 3.4.). The photo is `object-cover`, the avatar and the name sit at the bottom of the band, and the band runs **full-bleed from the top of the screen**: it deliberately does not clear the floating 설정 header, because its own top scrim is what keeps that title legible over a photo.
+
+**The profile screen** (`REQUIREMENTS.md § 12.3.`) is the same composition at full height, in a `ShellOverlay` over the tab bar.
+
+Both put the cover under a **two-stop** gradient — `from-scrim/55…60 via-transparent to-scrim/80…85`. One flat wash would dim the middle of the photo, which is the part the user chose it for; the two stops darken only the strip the controls are in and the strip the name is on. The base under a missing cover differs between the two on purpose: the profile screen falls back to `scrim`, because its text is `on-primary` either way and a colour that followed the photo would have to be sampled from it; the Settings band falls back to `surface-soft` with `ink` text, because half a screen of near-black on a settings list reads as a broken image rather than as a profile nobody has decorated yet.
+
+**The chat wallpaper** is the room's backdrop under a **fixed** `chat-scrim/45` wash. That wash is not decoration and it is not adjustable. Every meta colour in the room — `chat-meta`, the date pill, `읽음` (§ 4.1., § 6.) — was chosen for contrast against `chat-canvas`, and a photograph underneath them is an arbitrary colour; the wash is what puts them back on the surface they were designed against. A brightness slider would have a setting at which the timestamps are unreadable, which is why `chat-scrim` is a token the dark theme moves rather than a value the user does.
+
+The token's hex is `chat-canvas`'s own, and that is the point rather than an oversight: the wash is a partial application of the surface the room would otherwise have had. It is a separate token because the dark theme has to be able to move the two independently — a dark room wants a deeper floor **and** a lighter wash, or a photo behind it disappears.
+
+**Do not try to replace the wash with a text-shadow on the meta lines.** It was tried twice, in both directions, and both shipped something worse than the problem:
+
+- A **dark** shadow (from `scrim`) under `chat-sender` and `chat-meta`, which are dark ink. A shadow only separates text from a background it contrasts with, so this blurred the glyphs' own edges on a light photo and vanished along with the text on a dark one.
+- A **light** halo (from `chat-canvas`), which is the correct direction and still failed. These lines are 11–12px. A blur radius wide enough to separate them from a photo is wider than the glyph is tall, so it fills the counters and reads as fog — the name and the clock came out visibly smeared, which is worse than low contrast because it looks like a rendering fault.
+
+The general rule this leaves: **a halo is a tool for large text.** At meta size the only thing that separates text from an arbitrary photo is putting a known surface behind it — either across the screen, which is the wash, or locally, which is an opaque chip like the date divider's `chat-pill`. The chip is the escape hatch if the wash ever has to come down further; it is heavier and it has not been needed.
+
+The date divider needs none of this: its `chat-pill` fill is already that opaque chip, so it reads over any photo at any wash.
 
 # 8. Rules.
 

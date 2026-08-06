@@ -11,6 +11,8 @@
   --color-backdrop: #e4ded4;
   --color-canvas: #fbf9f6;
   --color-chat-canvas: #efeae2;
+  /* WARN: REQUIREMENTS.md § 12.2. The wash over a chat wallpaper, and it is a token rather than a `chat-canvas/50` at the call site so the dark theme can move it. Every meta colour in the room — `chat-meta`, the date pill, 읽음 — was chosen against `chat-canvas`, and this is what keeps them on it. */
+  --color-chat-scrim: #efeae2;
   --color-surface-soft: #f4f0e9;
   --color-surface-strong: #eae4da;
   --color-surface-pressed: #dfd8cb;
@@ -40,6 +42,9 @@
   --color-bubble-theirs-pressed: #f4f1ec;
   --color-bubble-ink: #1f1b17;
   --color-chat-meta: #8d8375;
+  /* WARN: DESIGN.md § 4.1.4. Darker than `chat-meta` on purpose — the two used to share one token, which meant the sender name could not be made legible without also making the clock loud. */
+  /* WARN: Named `chat-sender`, not `chat-name`, because `--text-chat-name` already exists — Tailwind resolves `text-*` against both scales and one key in both is an ambiguous utility. */
+  --color-chat-sender: #6b6153;
   --color-chat-pill: #ded6c9;
   --color-chat-pill-pressed: #d2c9b9;
   --color-chat-pill-ink: #6b6153;
@@ -230,6 +235,7 @@
   --bar-float-gap: 12px;
   /* WARN: DESIGN.md § 6.6. `useComposerClearance` overwrites this on the chat container one frame after mount; without the default here the list's trailing spacer is invalid until then and the first bottom-anchored paint parks the newest message behind the composer. */
   --chat-bottom-gap: 0px;
+  /* WARN: DESIGN.md § 7.16. There is no text-shadow lift on the chat meta lines, and two attempts at one are why this comment exists rather than a token. A dark shadow under dark ink blurs the glyph's own edges; a light halo big enough to separate 11px text from a photo is wider than the glyph is tall and fogs it. The wash is the only tool that works at this size. */
   /* INFO: REQUIREMENTS.md § 13.6. The emoticon panel's own height, shared so the chat room can animate the strip open against the same value the panel is drawn at. */
   /* WARN: The cap is `px` and never `rem`. A reader's enlarged default font size scales `rem` but not `--viewport-height`, so a `rem` cap wins the `min()` on exactly the devices that can least afford it and the panel overruns the shell. */
   --emoticon-panel-height: min(352px, calc(var(--viewport-height, 100dvh) * 0.5));

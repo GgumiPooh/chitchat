@@ -10,6 +10,8 @@ import type { Nullable } from "@/shared/lib";
 export type Participant = {
   name: string;
   avatarMediaId: Nullable<string>;
+  /** REQUIREMENTS.md § 12.1. The profile cover, which is published — unlike the chat wallpaper beside it in `users`. */
+  profileBackgroundMediaId: Nullable<string>;
   lastReadAt: string;
   id: string;
 };

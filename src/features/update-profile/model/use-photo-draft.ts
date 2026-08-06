@@ -8,14 +8,17 @@ import { toast } from "@/shared/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * The profile photo staged in the browser (REQUIREMENTS.md § 12.). Nothing reaches
- * R2 until the form is submitted, so abandoning the sheet leaves no object behind —
- * the same rule § 13.4. authors emoticons under.
+ * One photo staged in the browser — the avatar (REQUIREMENTS.md § 12.) or the
+ * profile cover (§ 12.1.), one instance each. Nothing reaches R2 until the form is
+ * submitted, so abandoning the sheet leaves no object behind — the same rule
+ * § 13.4. authors emoticons under.
  *
  * INFO: Reading a file and staging it are two steps, because the crop between them
- * is not optional: a photo the user backs out of the editor on was never chosen.
+ * is not optional for the avatar: a photo the user backs out of the editor on was
+ * never chosen. The cover stages what it read, since its crop is offered rather
+ * than required.
  */
-export function useAvatarDraft() {
+export function usePhotoDraft() {
   const [staged, setStaged] = useState<Nullable<MediaDraft>>(null);
   // INFO: Only the editor can tell these apart: no staged photo means "keep the current one", this means "go back to the initial-letter fallback" (DESIGN.md § 7.7.).
   const [isCleared, setIsCleared] = useState(false);
