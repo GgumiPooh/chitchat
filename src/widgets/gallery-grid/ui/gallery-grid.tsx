@@ -18,6 +18,8 @@ export type GalleryGridProps = {
   /** Given the whole ordered cell list and the tapped index, so the viewer can swipe past the month it started in. */
   onOpen: (cells: MediaCell[], index: number) => void;
   onToggle: (id: string) => void;
+  /** REQUIREMENTS.md § 10. Holding a tile enters selection mode on it; omitted while selection is unavailable. */
+  onStartSelecting?: (id: string) => void;
   onLoadMore: () => void;
 };
 
@@ -37,6 +39,7 @@ export function GalleryGrid({
   selected,
   onOpen,
   onToggle,
+  onStartSelecting,
   onLoadMore,
 }: GalleryGridProps) {
   const sections = useMemo(() => toGallerySections(media), [media]);
@@ -64,6 +67,9 @@ export function GalleryGrid({
                 cell={cell}
                 isSelecting={isSelecting}
                 isSelected={selected.has(cell.id)}
+                onLongPress={
+                  isSelecting || !onStartSelecting ? undefined : () => onStartSelecting(cell.id)
+                }
                 onActivate={() => activate(cell.id, section.startIndex + i)}
               />
             ))}

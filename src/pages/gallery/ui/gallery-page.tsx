@@ -3,6 +3,7 @@
 import type { GalleryMedia } from "@/entities/media";
 import { MediaPickerSheet } from "@/features/upload-media";
 import { cn, type Nullable } from "@/shared/lib";
+import { MediaShareDialog, useMediaShare } from "@/shared/share";
 import {
   ActionSheet,
   AppHeader,
@@ -17,10 +18,8 @@ import {
 import {
   deleteGalleryMedia,
   GalleryGrid,
-  GallerySaveDialog,
   GallerySelectionBar,
   useGalleryMedia,
-  useGallerySave,
   useGallerySelection,
   useGalleryUpload,
 } from "@/widgets/gallery-grid";
@@ -44,7 +43,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
   const [isRemoving, setIsRemoving] = useState(false);
   const { media, isLoadingMore, loadMore, prepend, remove } = useGalleryMedia(initialMedia);
   const selection = useGallerySelection();
-  const saving = useGallerySave();
+  const saving = useMediaShare();
   const { remainingCount, isBusy: isUploading, upload } = useGalleryUpload(prepend);
   const selectedCount = selection.selectedIds.length;
 
@@ -98,6 +97,8 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
               selected={selection.selected}
               onOpen={(cells, index) => setViewer({ cells, index })}
               onToggle={selection.toggle}
+              // WARN: REQUIREMENTS.md § 10. Withheld while an upload is in flight for the same reason the header control is disabled — a row with no message attached yet cannot be deleted out from under the send.
+              onStartSelecting={isUploading ? undefined : selection.start}
               onLoadMore={loadMore}
             />
             {remainingCount > 0 && (
@@ -116,10 +117,11 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
           onDelete={() => setIsConfirmingDelete(true)}
         />
       )}
-      <GallerySaveDialog
+      <MediaShareDialog
         progress={saving.progress}
         blockedCount={saving.blockedCount}
-        onShare={() => void saving.shareBlocked()}
+        blockedIntent={saving.blockedIntent}
+        onRetry={() => void saving.retryBlocked()}
         onDismiss={saving.dismissBlocked}
       />
       <MediaPickerSheet
@@ -179,6 +181,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
           cells={viewer.cells}
           initialIndex={viewer.index}
           onClose={() => setViewer(null)}
+          onShare={(mediaId) => void saving.share([mediaId])}
         />
       )}
     </div>

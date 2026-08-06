@@ -3,10 +3,17 @@
 import type { Emoticon } from "@/entities/emoticon";
 import type { ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import { cn, findFirstUrl, formatTime, type Nullable, type Optional } from "@/shared/lib";
+import {
+  LONG_PRESS_TARGET_CLASS,
+  cn,
+  findFirstUrl,
+  formatTime,
+  useLongPress,
+  type Nullable,
+  type Optional,
+} from "@/shared/lib";
 import { Avatar, IconButton, type MediaCell } from "@/shared/ui";
-import { CornerUpLeft, RotateCcw, X } from "lucide-react";
-import { LONG_PRESS_TARGET_CLASS, useLongPress } from "../model/use-long-press";
+import { CornerUpLeft, RotateCcw, Share, X } from "lucide-react";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
 import { EmoticonBubble } from "./emoticon-bubble";
 import { LinkPreviewCard } from "./link-preview-card";
@@ -40,6 +47,8 @@ export type MessageRowProps = {
   onOpenMedia?: (index: number) => void;
   /** REQUIREMENTS.md § 8.10. The pointer affordance; touch reaches the same action through `onLongPress`. */
   onReply?: () => void;
+  /** REQUIREMENTS.md § 8.11. As `onReply`: the hover control here, the action sheet on touch. Omitted for a message with nothing to hand the OS. */
+  onShare?: () => void;
   onOpenReply?: () => void;
   onRetry?: () => void;
   onCancel?: () => void;
@@ -66,12 +75,13 @@ export function MessageRow({
   onLongPress,
   onOpenMedia,
   onReply,
+  onShare,
   onOpenReply,
   onRetry,
   onCancel,
 }: MessageRowProps) {
-  const longPressHandlers = useLongPress(onLongPress);
   const swipe = useSwipeToReply(onReply, isMine);
+  const longPressHandlers = useLongPress(onLongPress, { onFire: swipe.cancel });
   const hasMedia = media.length > 0;
   // INFO: REQUIREMENTS.md § 8.9. One card per bubble — the first link, not every link, because a message pasted from a share sheet routinely carries several.
   const previewUrl = findFirstUrl(text);
@@ -121,7 +131,7 @@ export function MessageRow({
             onOpen={onOpenReply}
           />
         )}
-        {renderReplyButton()}
+        {renderHoverActions()}
         <div className={cn("flex items-end gap-2xs", isMine && "flex-row-reverse")}>
           {emoticon ? (
             // INFO: DESIGN.md § 6.5. An emoticon renders without a bubble, border or background, for the same reason an attachment does.
@@ -133,8 +143,8 @@ export function MessageRow({
             </div>
           ) : hasMedia ? (
             // INFO: DESIGN.md § 6.5. Attachments render without a bubble — a container around a photo is redundant chrome.
-            // WARN: No long-press handlers here on purpose — an attachment's hold belongs to the OS, whose sheet is the only route from a web page to the iOS photo library. Deleting one's own attachment lives in `MediaViewer` instead.
-            <div>
+            // WARN: REQUIREMENTS.md § 8.11. The hold is the app's, not the OS's: iOS's own callout would open on top of the action sheet, and 공유 inside that sheet is what reaches the photo library instead. The OS menu keeps the § 7.10. viewer to itself.
+            <div className={LONG_PRESS_TARGET_CLASS} {...longPressHandlers}>
               <MediaGrid
                 cells={media}
                 progress={progress}
@@ -230,31 +240,48 @@ export function MessageRow({
   }
 
   /**
-   * AGENTS.md § 4.2. The pointer half of REQUIREMENTS.md § 8.10. — touch reaches the
-   * same action by pulling the row sideways, or by holding it for the action sheet.
+   * AGENTS.md § 4.2. The pointer half of REQUIREMENTS.md § 8.10. and § 8.11. — touch
+   * reaches the same actions by holding the row for the action sheet, and reply also
+   * by pulling it sideways.
    *
    * WARN: Positioned out of flow on the outer side rather than added to the row.
-   * In flow it would only exist while hovered, and its appearance would shove the
-   * bubble sideways under the cursor that is aiming at it.
+   * In flow they would only exist while hovered, and their appearance would shove the
+   * bubble sideways under the cursor that is aiming at them.
    */
-  function renderReplyButton() {
-    if (!onReply) {
+  function renderHoverActions() {
+    if (!onReply && !onShare) {
       return null;
     }
 
     return (
-      <IconButton
+      <div
         className={cn(
-          "absolute top-1/2 size-8 -translate-y-1/2 opacity-0 transition-opacity",
-          // INFO: `hover:` already resolves under `@media (hover: hover)`, so a touch device never reveals this and never has to.
-          "pointer-events-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100",
-          isMine ? "right-full mr-2xs" : "left-full ml-2xs",
+          "absolute top-1/2 flex -translate-y-1/2 items-center",
+          // INFO: `hover:` already resolves under `@media (hover: hover)`, so a touch device never reveals these and never has to.
+          "pointer-events-none opacity-0 transition-opacity group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100",
+          // INFO: 답장 stays the control nearest the bubble on either side, so the reach for it does not move with the sender.
+          isMine ? "right-full mr-2xs flex-row-reverse" : "left-full ml-2xs",
         )}
-        iconClassName="size-4"
-        Icon={CornerUpLeft}
-        aria-label="답장"
-        onClick={onReply}
-      />
+      >
+        {onReply && (
+          <IconButton
+            className="size-8"
+            iconClassName="size-4"
+            Icon={CornerUpLeft}
+            aria-label="답장"
+            onClick={onReply}
+          />
+        )}
+        {onShare && (
+          <IconButton
+            className="size-8"
+            iconClassName="size-4"
+            Icon={Share}
+            aria-label="공유"
+            onClick={onShare}
+          />
+        )}
+      </div>
     );
   }
 }

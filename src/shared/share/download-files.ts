@@ -1,7 +1,7 @@
 import { GALLERY_DOWNLOAD_STAGGER, toMediaDownloadUrl } from "@/shared/config";
 
 /**
- * Saves the selected originals (REQUIREMENTS.md § 10.).
+ * Saves the given originals to disk (REQUIREMENTS.md § 10.).
  *
  * WARN: No `download` attribute, and no `fetch` of the bytes. The route answers a
  * 302 to R2 and the spec drops `download` once the navigation resolves
@@ -13,7 +13,7 @@ import { GALLERY_DOWNLOAD_STAGGER, toMediaDownloadUrl } from "@/shared/config";
  * WARN: Staggered. Several navigations started in the same tick collapse into
  * one — the browser treats the later ones as the same gesture and drops them.
  */
-export async function downloadGalleryMedia(ids: string[]): Promise<void> {
+export async function downloadMedia(ids: string[]): Promise<void> {
   for (const [index, id] of ids.entries()) {
     if (index > 0) {
       await delay(GALLERY_DOWNLOAD_STAGGER);

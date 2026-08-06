@@ -31,6 +31,7 @@ import {
   useUnsentWork,
   type Nullable,
 } from "@/shared/lib";
+import { MediaShareDialog, canShareText, shareText, useMediaShare } from "@/shared/share";
 import {
   ActionSheet,
   Button,
@@ -42,7 +43,7 @@ import {
   type ActionSheetItem,
   type MediaCell,
 } from "@/shared/ui";
-import { Copy, CornerUpLeft, MessageCircle, Trash2 } from "lucide-react";
+import { Copy, CornerUpLeft, MessageCircle, Share, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { requestMessageDeletion } from "../api/request-message-deletion";
@@ -105,7 +106,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const [highlightedId, setHighlightedId] = useState<Nullable<number>>(null);
   const [editing, setEditing] = useState<Nullable<MediaDraft>>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<Nullable<number>>(null);
-  // INFO: `deletableMessageId` is null for the other participant's attachments — the § 3.2. delete control is the only route to removing one's own, since the bubble's hold now belongs to the OS.
+  // INFO: `deletableMessageId` is null for the other participant's attachments — mine carry the § 7.10. delete control, which is the same confirmed delete the § 8.11. sheet reaches.
   const [viewer, setViewer] =
     useState<Nullable<{ cells: MediaCell[]; index: number; deletableMessageId: Nullable<number> }>>(
       null,
@@ -128,6 +129,8 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     onSent: appendMessage,
   });
   const selection = useMediaSelection();
+  // INFO: REQUIREMENTS.md § 8.11. The same route the gallery's 저장 takes (§ 10.), asked for by 공유 rather than by 저장.
+  const sharing = useMediaShare();
   const isKeyboardOpen = useIsVirtualKeyboardOpen();
   // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
   const isEmoticonPanelOpen = isEmoticonPickerOpen && !isKeyboardOpen;
@@ -387,6 +390,13 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
         header={{ title: "메시지" }}
         onClose={() => setActionTarget(null)}
       />
+      <MediaShareDialog
+        progress={sharing.progress}
+        blockedCount={sharing.blockedCount}
+        blockedIntent={sharing.blockedIntent}
+        onRetry={() => void sharing.retryBlocked()}
+        onDismiss={sharing.dismissBlocked}
+      />
       <Modal
         isOpen={confirmingDeleteId !== null}
         header={{
@@ -405,7 +415,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           >
             취소
           </Button>
-          <Button className="flex-1" variant="destructive" onClick={confirmViewerDelete}>
+          <Button className="flex-1" variant="destructive" onClick={confirmMediaDelete}>
             삭제
           </Button>
         </div>
@@ -430,6 +440,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
           initialIndex={viewer.index}
           onClose={() => setViewer(null)}
           onDelete={buildViewerDelete(viewer.deletableMessageId)}
+          onShare={(mediaId) => void sharing.share([mediaId])}
         />
       )}
     </div>
@@ -574,6 +585,9 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
                 deletableMessageId: row.isMine ? row.message.id : null,
               })
             }
+            onShare={
+              canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
+            }
             onLongPress={() => setActionTarget(row.message)}
             onReply={() => stageReply(row.message)}
           />
@@ -591,15 +605,26 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     // INFO: REQUIREMENTS.md § 8.10. First, and on the other person's messages as much as on my own — replying is the sheet's most-reached-for action, unlike copy.
     const items: ActionSheetItem[] = [
       { label: "답장", Icon: CornerUpLeft, onSelect: () => stageReply(target) },
-      { label: "복사", Icon: Copy, onSelect: () => void copyText(target.text ?? "") },
     ];
+
+    if (target.text) {
+      items.push({ label: "복사", Icon: Copy, onSelect: () => void copyText(target.text ?? "") });
+    }
+
+    if (canShareMessage(target)) {
+      items.push({ label: "공유", Icon: Share, onSelect: () => void shareMessage(target) });
+    }
 
     if (target.senderId === currentUserId) {
       items.push({
         label: "삭제",
         Icon: Trash2,
         variant: "destructive",
-        onSelect: () => void deleteMessage(target.id),
+        // INFO: DESIGN.md § 7.10. An attachment bubble is confirmed, wherever the delete was reached from — one row is every photo in it (§ 6.), which is the one thing neither the sheet nor the viewer shows.
+        onSelect: () =>
+          target.media.length > 0
+            ? setConfirmingDeleteId(target.id)
+            : void deleteMessage(target.id),
       });
     }
 
@@ -655,6 +680,35 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     });
   }
 
+  /**
+   * REQUIREMENTS.md § 8.11. Attachments go to the OS as files — which is what puts a
+   * received photo in the iOS photo library — and a text message as its text. An
+   * emoticon is neither: it is a pack item rather than something the sender sent.
+   */
+  function canShareMessage(message: ChatMessage): boolean {
+    return message.media.length > 0 || (message.text !== null && message.text.length > 0);
+  }
+
+  /**
+   * WARN: Nothing is awaited before `navigator.share` on the text path. iOS spends the
+   * tap's transient activation on the first `await`, and text needs no buffering — so
+   * the one case that could reach the sheet directly does.
+   */
+  async function shareMessage(message: ChatMessage) {
+    if (message.media.length > 0) {
+      await sharing.share(message.media.map((item) => item.id));
+
+      return;
+    }
+
+    const text = message.text ?? "";
+
+    // WARN: A refusal falls back the same way a missing `navigator.share` does. The files path answers a spent activation with the § 8.11. retry dialog, but there is nothing buffered here to hold for a second tap — the clipboard is what is left, and it is the same recovery the sheet's own 복사 would have been.
+    if (!canShareText() || (await shareText(text)) === "blocked") {
+      await copyText(text);
+    }
+  }
+
   async function copyText(text: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -665,11 +719,12 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   }
 
   function buildViewerDelete(messageId: Nullable<number>) {
-    // INFO: DESIGN.md § 3.2. Confirmed rather than immediate, unlike the action sheet's own 삭제 — the control sits beside a per-slide 원본 저장, so the reach of one tap is not obvious from where it is.
+    // INFO: DESIGN.md § 7.10. The control sits beside a per-slide 원본 저장, so the reach of one tap is not obvious from where it is.
     return messageId === null ? undefined : () => setConfirmingDeleteId(messageId);
   }
 
-  function confirmViewerDelete() {
+  // WARN: Closes the viewer unconditionally. The same confirmation answers for the § 8.11. sheet, where there is no viewer open to close.
+  function confirmMediaDelete() {
     if (confirmingDeleteId !== null) {
       void deleteMessage(confirmingDeleteId);
     }

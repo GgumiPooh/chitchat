@@ -1,8 +1,7 @@
 "use client";
 
-import type { Nullable, Optional } from "@/shared/lib";
+import { GESTURE_SLOP, type Nullable, type Optional } from "@/shared/lib";
 import { useRef, useState, type MouseEvent, type PointerEvent } from "react";
-import { GESTURE_SLOP } from "./gesture-slop";
 
 // INFO: DESIGN.md § 6.10. Releasing past this fires the reply; short of it the row springs back and nothing happens.
 const TRIGGER_DISTANCE = 56;
@@ -33,6 +32,8 @@ export function useSwipeToReply(onReply: Optional<() => void>, isMine: boolean) 
     offset: distance * direction,
     isArmed: distance >= TRIGGER_DISTANCE,
     isDragging,
+    // INFO: DESIGN.md § 3.2. The hold calls this when it wins; `gestureRef` going null is what stops the same finger from re-engaging the pull behind the action sheet.
+    cancel: () => handleRelease(false),
     handlers: onReply
       ? {
           onPointerDown: handlePointerDown,

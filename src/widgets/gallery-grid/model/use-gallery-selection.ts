@@ -5,9 +5,8 @@ import { toast } from "@/shared/ui";
 import { useCallback, useMemo, useState } from "react";
 
 /**
- * The multi-select of REQUIREMENTS.md § 10. Selection mode is explicit rather than
- * entered by a long-press: a tap has to keep opening the viewer, and a grid this
- * dense makes an accidental long-press easy.
+ * The multi-select of REQUIREMENTS.md § 10. Entered from the header control with no
+ * tile picked, or by holding one — which is `start`'s argument.
  */
 export function useGallerySelection() {
   const [isSelecting, setIsSelecting] = useState(false);

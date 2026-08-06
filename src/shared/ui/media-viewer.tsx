@@ -1,12 +1,15 @@
 "use client";
 
 import { cn } from "@/shared/lib";
-import { Download, Trash2, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Download, Share, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { IconButton } from "./icon-button";
 import type { MediaCell } from "./media-cell";
 import { PreloadImage } from "./preload-image";
 import { ShellOverlay } from "./shell-overlay";
+
+// INFO: What every overlay in `shared/ui` renders — `Modal` through Radix's `Dialog`, `BottomSheet` and `ActionSheet` through Vaul's `Drawer`.
+const OPEN_DIALOG_SELECTOR = '[role="dialog"][data-state="open"]';
 
 export type MediaViewerProps = {
   className?: string;
@@ -15,6 +18,8 @@ export type MediaViewerProps = {
   onClose: () => void;
   /** Removes the message the attachments belong to, not the slide on screen. Omitted when they are not the current user's to remove. */
   onDelete?: () => void;
+  /** REQUIREMENTS.md § 8.11. Hands the slide on screen to the OS share sheet. Given the media id, since the slide moves under the control. */
+  onShare?: (mediaId: string) => void;
 };
 
 /**
@@ -29,6 +34,11 @@ export type MediaViewerProps = {
  * TODO: Pinch zoom is REQUIREMENTS.md § 18. #6, still undecided and meant to be
  * tuned on a real device. Swiping between attachments is native scroll snapping,
  * which needs no gesture parameters at all.
+ *
+ * WARN: REQUIREMENTS.md § 8.11. This is the one surface that suppresses none of the
+ * OS's own hold gestures — a slide is the whole screen with nothing of the app's
+ * competing for the hold, so it is where iOS's 사진에 저장 lives. Never add a
+ * `LONG_PRESS_TARGET_CLASS` or a `draggable={false}` here.
  */
 export function MediaViewer({
   className,
@@ -36,16 +46,33 @@ export function MediaViewer({
   initialIndex,
   onClose,
   onDelete,
+  onShare,
 }: MediaViewerProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(initialIndex);
-  const downloadUrl = cells[index]?.downloadUrl;
+  const current = cells[index];
+  // INFO: A draft has no stored object yet, so there is nothing for either control to reach.
+  const downloadUrl = current?.downloadUrl;
 
   useEffect(() => {
     const track = trackRef.current;
 
     track?.scrollTo({ left: track.clientWidth * initialIndex });
   }, [initialIndex]);
+
+  // INFO: DESIGN.md § 7.10. The viewer composes no `Dialog`, so the dismissal `Modal` gets from Radix is written out here.
+  useEffect(() => {
+    // WARN: The viewer is the bottom of the overlay stack, not the top — a confirmation or the § 8.11. share dialog opens over it, and both answer `Escape` themselves. Without this the key dismisses that overlay and takes the viewer under it with it.
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !document.querySelector(OPEN_DIALOG_SELECTOR)) {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   return (
     <ShellOverlay>
@@ -62,12 +89,24 @@ export function MediaViewer({
           )}
           <div className="flex items-center">
             {onDelete && (
-              // INFO: DESIGN.md § 3.2. The only route to deleting one's own attachment — the bubble's hold is left to the OS so it can offer 사진에 저장.
+              // INFO: DESIGN.md § 7.10. Deleting one's own attachment, confirmed — the same delete the § 8.11. action sheet reaches.
               <IconButton
                 className="text-semantic-error hover:bg-canvas/15 hover:text-semantic-error-hover"
                 Icon={Trash2}
                 aria-label="메시지 삭제"
                 onClick={onDelete}
+              />
+            )}
+            {onShare && current && (
+              // INFO: REQUIREMENTS.md § 8.11. The pointer's route to what a hold reaches on touch — a desktop has no OS callout over the photo, and 원본 저장 beside it lands in Files rather than in a share sheet.
+              <IconButton
+                className={cn(
+                  "text-on-primary hover:bg-canvas/15 hover:text-on-primary",
+                  !downloadUrl && "invisible",
+                )}
+                Icon={Share}
+                aria-label="공유"
+                onClick={() => onShare(current.id)}
               />
             )}
             {/* WARN: No `download` attribute — the route 302s to R2 and the spec drops it once the navigation resolves cross-origin. `toMediaDownloadUrl` signs the disposition into the object instead. */}
@@ -87,6 +126,7 @@ export function MediaViewer({
         <div
           ref={trackRef}
           className="scrollbar-hidden flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
+          onClick={handleBackdropClick}
           onScroll={handleScroll}
         >
           {cells.map((cell, slideIndex) => (
@@ -117,6 +157,55 @@ export function MediaViewer({
       setIndex(Math.round(track.scrollLeft / track.clientWidth));
     }
   }
+
+  /**
+   * DESIGN.md § 7.10. A tap on the scrim closes, as it does on every other overlay —
+   * the photo itself is the one thing that does not, since holding it is how the OS
+   * menu is reached (`REQUIREMENTS.md § 8.11.`).
+   *
+   * WARN: A `<video>` is excluded whole. Its controls are the platform's own and a
+   * tap that lands between two of them is aimed at the player, not past it. So is
+   * every control on a slide — the 원본 저장 fallback an undecodable video ends on
+   * would otherwise close the viewer as it starts the download.
+   */
+  function handleBackdropClick(event: MouseEvent<HTMLDivElement>) {
+    const target = event.target as HTMLElement;
+
+    if (target.closest("a, button, video")) {
+      return;
+    }
+
+    const image = target.closest("img");
+
+    if (image && isOnPaintedArea(image, event.clientX, event.clientY)) {
+      return;
+    }
+
+    onClose();
+  }
+}
+
+/**
+ * WARN: The element's box is not what the user sees. `object-contain` letterboxes
+ * the asset inside it, so a portrait photo's side gutters are `<img>` as far as the
+ * DOM is concerned and scrim as far as the eye is — and those gutters are most of
+ * what there is to tap on a phone.
+ */
+function isOnPaintedArea(image: HTMLImageElement, x: number, y: number): boolean {
+  const rect = image.getBoundingClientRect();
+  const ratio = image.naturalWidth / image.naturalHeight;
+
+  if (!Number.isFinite(ratio) || ratio <= 0) {
+    return true;
+  }
+
+  const width = Math.min(rect.width, rect.height * ratio);
+  const height = Math.min(rect.height, rect.width / ratio);
+
+  return (
+    Math.abs(x - (rect.left + rect.width / 2)) <= width / 2 &&
+    Math.abs(y - (rect.top + rect.height / 2)) <= height / 2
+  );
 }
 
 /**

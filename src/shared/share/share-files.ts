@@ -6,7 +6,7 @@ import {
 } from "@/shared/config";
 import { isBrowser } from "@/shared/lib";
 
-/** What `navigator.share` did with the files it was handed. */
+/** What `navigator.share` did with what it was handed. */
 export type ShareOutcome = "shared" | "dismissed" | "blocked";
 
 /**
@@ -32,6 +32,11 @@ export function canShareFiles(): boolean {
   } catch {
     return false;
   }
+}
+
+/** Whether the OS share sheet can be offered a line of text at all. */
+export function canShareText(): boolean {
+  return isBrowser() && typeof navigator.share === "function";
 }
 
 /** Whether a selection is small enough to be buffered for the share sheet at all. */
@@ -86,8 +91,17 @@ export async function collectShareFiles(
  * so the caller can ask for the one extra tap instead of failing silently.
  */
 export async function shareFiles(files: File[]): Promise<ShareOutcome> {
+  return toOutcome(() => navigator.share({ files }));
+}
+
+/** REQUIREMENTS.md § 8.11. The text of a message, handed to the same sheet the files go to. */
+export async function shareText(text: string): Promise<ShareOutcome> {
+  return toOutcome(() => navigator.share({ text }));
+}
+
+async function toOutcome(share: () => Promise<void>): Promise<ShareOutcome> {
   try {
-    await navigator.share({ files });
+    await share();
 
     return "shared";
   } catch (error) {
