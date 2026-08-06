@@ -19,7 +19,7 @@ import {
   MediaPickerSheet,
   MediaTray,
   VideoTrimmer,
-  toMediaDraft,
+  useAttachmentEditing,
   useMediaSelection,
 } from "@/features/upload-media";
 import {
@@ -186,9 +186,6 @@ export function ChatRoom({
   const [replyTarget, setReplyTarget] = useState<Nullable<ReplyPreview>>(null);
   // INFO: DESIGN.md § 6.8. The bubble a jump landed on, until its flash expires.
   const [highlightedId, setHighlightedId] = useState<Nullable<number>>(null);
-  const [editing, setEditing] = useState<Nullable<MediaDraft>>(null);
-  // INFO: The staged video the trimmer is open on. Separate from `editing` because the two overlays are different components — one crops, one cuts.
-  const [trimming, setTrimming] = useState<Nullable<MediaDraft>>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<Nullable<number>>(null);
   // INFO: `deletableMessageId` is null for the other participant's attachments — mine carry the § 7.10. delete control, which is the same confirmed delete the § 8.11. sheet reaches.
   const [viewer, setViewer] =
@@ -215,6 +212,7 @@ export function ChatRoom({
     onSent: appendMessage,
   });
   const selection = useMediaSelection();
+  const editing = useAttachmentEditing(selection.replace);
   // INFO: REQUIREMENTS.md § 8.11. The same route the gallery's 저장 takes (§ 10.), asked for by 공유 rather than by 저장.
   const sharing = useMediaShare();
   const isKeyboardOpen = useIsVirtualKeyboardOpen();
@@ -350,7 +348,12 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 15.1. Staged attachments and sends still in flight both die with the document, so a refresh forced by a new deployment waits them out.
   // WARN: `sending` only. A failed bubble never finishes on its own, so counting it pins the app to a stale bundle until the user happens to retry or cancel.
   useUnsentWork(
-    isSending || selection.drafts.length > 0 || stagedEmoticon !== null || replyTarget !== null,
+    isSending ||
+      selection.drafts.length > 0 ||
+      stagedEmoticon !== null ||
+      replyTarget !== null ||
+      // INFO: A trim being read back is unsent work too — the trimmed file exists only in memory until `replace` lands, so a § 15.1. reload during the decode discards it.
+      editing.isApplying,
   );
 
   /**
@@ -711,7 +714,7 @@ export function ChatRoom({
               className="mx-md mt-xs mb-2xs"
               drafts={selection.drafts}
               isReading={selection.isReading}
-              onEdit={openAttachmentEditor}
+              onEdit={editing.open}
               onRemove={selection.remove}
             />
             {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
@@ -805,24 +808,16 @@ export function ChatRoom({
         onClose={() => setIsPickerOpen(false)}
         onSelect={(files) => void stageMedia(files)}
       />
-      {editing && (
+      {editing.cropping && (
         // WARN: Keyed by draft — `MediaEditor` mints its source object URL once per mount, so editing a second photo must be a second mount.
         <MediaEditor
-          key={editing.id}
-          draft={editing}
-          onCancel={() => setEditing(null)}
-          onDone={handleEdited}
+          key={editing.cropping.id}
+          draft={editing.cropping}
+          onCancel={editing.close}
+          onDone={editing.applyCrop}
         />
       )}
-      {trimming && (
-        // INFO: No `maxDurationMs` — an attachment has no length cap (§ 9.), so both handles move and trimming is an edit rather than a requirement.
-        <VideoTrimmer
-          key={trimming.id}
-          draft={trimming}
-          onCancel={() => setTrimming(null)}
-          onDone={(file) => void handleTrimmed(trimming, file)}
-        />
-      )}
+      {editing.trimming && renderTrimmer(editing.trimming)}
       {viewer && (
         <MediaViewer
           cells={viewer.cells}
@@ -913,37 +908,17 @@ export function ChatRoom({
     setReplyTarget(null);
   }
 
-  // INFO: One control on the tile, two editors behind it — a photo crops and filters, a video trims (§ 9.).
-  function openAttachmentEditor(draft: MediaDraft) {
-    if (isVideoMime(draft.mime)) {
-      setTrimming(draft);
-
-      return;
-    }
-
-    setEditing(draft);
-  }
-
-  function handleEdited(draft: MediaDraft) {
-    selection.replace(draft);
-    setEditing(null);
-  }
-
-  /**
-   * WARN: The trimmed file is re-read into a full draft — its poster, dimensions
-   * and duration all belong to the new clip — but it keeps the **old draft's id**.
-   * `useMediaSelection.replace` matches on that id, and `toMediaDraft` mints a fresh
-   * one, so without this the trim would append a second tile rather than replace the
-   * tile the user edited.
-   */
-  async function handleTrimmed(source: MediaDraft, file: File) {
-    setTrimming(null);
-
-    try {
-      selection.replace({ ...(await toMediaDraft(file)), id: source.id });
-    } catch {
-      toast.error("자른 영상을 읽지 못했어요");
-    }
+  // INFO: The draft is bound here rather than read back inside the callback — `applyTrim` clears `editing.trimming`, so a callback reading it again would be handed `null`.
+  function renderTrimmer(source: MediaDraft) {
+    return (
+      // INFO: No `maxDurationMs` — an attachment has no length cap (§ 9.), so both handles move and trimming is an edit rather than a requirement.
+      <VideoTrimmer
+        key={source.id}
+        draft={source}
+        onCancel={editing.close}
+        onDone={(file) => void editing.applyTrim(source, file)}
+      />
+    );
   }
 
   /**

@@ -88,6 +88,12 @@ export function useGalleryUpload(onAdded: (media: GalleryMedia) => void) {
   return { remainingCount, isBusy: runningCount > 0, upload };
 }
 
+/**
+ * WARN: REQUIREMENTS.md § 18. #10. A send longer than `MAX_MEDIA_PER_MESSAGE` splits
+ * into consecutive bubbles rather than being capped, and the chunks are posted **in
+ * order** — `messages.id` is assigned by the POST, so racing them with a `Promise.all`
+ * would reverse the photos on every other client.
+ */
 async function post(mediaIds: string[]) {
   try {
     for (let index = 0; index < mediaIds.length; index += MAX_MEDIA_PER_MESSAGE) {

@@ -3,7 +3,7 @@
 import type { MediaDraft } from "@/entities/media";
 import { isVideoMime } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
-import { PreloadVideo, Skeleton } from "@/shared/ui";
+import { PreloadImage, PreloadVideo, Skeleton } from "@/shared/ui";
 import { useEffect, useState } from "react";
 
 export type DraftPreviewProps = {
@@ -29,12 +29,15 @@ export function DraftPreview({ className, draft, src }: DraftPreviewProps) {
   // WARN: Minted and revoked inside one effect, never from a `useState` initializer — StrictMode runs setup → cleanup → setup while state survives, so a URL made during render is revoked by the first cleanup and the element spends the rest of its life on a dead blob.
   useEffect(() => {
     if (!draft || !isVideoMime(draft.mime)) {
+      // WARN: Cleared, not merely skipped. Left standing, the string outlives the URL its own cleanup revoked — and re-staging a video renders one frame against that dead blob, which errors into the failure glyph before the new URL lands.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- The object URL is external state, and dropping it is the other half of minting it.
+      setSourceUrl("");
+
       return;
     }
 
     const url = URL.createObjectURL(draft.file);
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- The object URL is external state; minting it and handing it to React is this effect's whole purpose.
     setSourceUrl(url);
 
     return () => URL.revokeObjectURL(url);
@@ -60,10 +63,14 @@ export function DraftPreview({ className, draft, src }: DraftPreviewProps) {
     );
   }
 
+  // WARN: `PreloadImage`, never a bare `<img>` — DESIGN.md § 7.8. The stored cover is an R2-backed asset, so it wants the reserved box, the fade, the failure glyph, and above all the cache-busted retry that recovers a 302 cached past the object an edit replaced (REQUIREMENTS.md § 13.3.).
   return (
-    <img
-      className={cn("size-full object-cover", className)}
+    <PreloadImage
+      className={cn("size-full", className)}
+      imgClassName="size-full object-cover"
       src={draft?.previewUrl ?? src}
+      // INFO: A staged pick is a `blob:` URL with no cache to get past, so the retry is only meaningful for the stored object.
+      canRetry={draft === null}
       alt=""
     />
   );

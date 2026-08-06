@@ -4,7 +4,7 @@ import type { MediaDraft } from "@/entities/media";
 import { A_SECOND, cn, type Nullable } from "@/shared/lib";
 import { Button, IconButton, PreloadVideo, ShellOverlay, toast } from "@/shared/ui";
 import { X } from "lucide-react";
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type SyntheticEvent } from "react";
 import { toDefaultTrimRange, trimVideo, type TrimRange } from "../model/trim-video";
 
 export type VideoTrimmerProps = {
@@ -24,8 +24,8 @@ export type VideoTrimmerProps = {
   onDone: (file: File) => void;
 };
 
-// INFO: Short enough that a handle cannot produce a clip with no frames in it.
-const MIN_TRIM_SECONDS = 0.5;
+// INFO: Short enough that a handle cannot produce a clip with no frames in it. AGENTS.md § 8.1. — a duration is milliseconds here and converted at the call site like every other one.
+const MIN_TRIM_DURATION = A_SECOND / 2;
 
 /**
  * Cuts a video down, over the app shell — the § 12.1. background's 30s window, or
@@ -45,8 +45,11 @@ export function VideoTrimmer({
   const videoRef = useRef<Nullable<HTMLVideoElement>>(null);
   const [sourceUrl, setSourceUrl] = useState("");
   const [isTrimming, setIsTrimming] = useState(false);
-  // WARN: A container whose duration never resolved falls back to the cap, or to a one-second range with no cap — either way the handles stay finite. `NaN` here would silently disable every control.
-  const durationMs = draft.durationMs ?? maxDurationMs ?? A_SECOND;
+  // WARN: The element's own duration, not only the draft's. `toVideoDraft` reports `null` for a fragmented MP4 and some `.mov`, and a free-range trim that fell back to a literal would have cut every such clip down to that literal — data loss with no message. The element resolves it for real at `loadedmetadata`, and until then the handles are pinned to the cap.
+  const [measuredMs, setMeasuredMs] = useState<Nullable<number>>(draft.durationMs);
+  const durationMs = measuredMs ?? maxDurationMs ?? A_SECOND;
+  const isMeasured = measuredMs !== null;
+  const minTrimSeconds = MIN_TRIM_DURATION / A_SECOND;
   const durationSeconds = durationMs / A_SECOND;
   const isFixedWindow = maxDurationMs !== undefined;
   const windowSeconds = isFixedWindow
@@ -54,13 +57,17 @@ export function VideoTrimmer({
     : durationSeconds;
   const latestStart = isFixedWindow
     ? Math.max(0, (durationMs - maxDurationMs) / A_SECOND)
-    : durationSeconds - MIN_TRIM_SECONDS;
+    : Math.max(0, durationSeconds - MIN_TRIM_DURATION / A_SECOND);
   const [start, setStart] = useState(
     () => toDefaultTrimRange(durationMs, maxDurationMs ?? durationMs).start,
   );
   const [end, setEnd] = useState(durationSeconds);
+  // INFO: The end handle follows a duration that only resolved at `loadedmetadata`; before that it is sitting on the placeholder and would cut the clip to it.
+  const resolvedFreeEnd = isMeasured ? end : durationSeconds;
   // INFO: The fixed window follows its start; a free range is whatever the two handles say.
-  const resolvedEnd = isFixedWindow ? Math.min(start + windowSeconds, durationSeconds) : end;
+  const resolvedEnd = isFixedWindow
+    ? Math.min(start + windowSeconds, durationSeconds)
+    : resolvedFreeEnd;
 
   // WARN: Created and revoked inside one effect, never from a `useState` initializer — `MediaEditor` carries the argument: StrictMode's setup → cleanup → setup would revoke a URL that state kept, leaving the element on a dead blob.
   useEffect(() => {
@@ -88,7 +95,7 @@ export function VideoTrimmer({
           <Button
             className="w-auto"
             buttonClassName="h-9 min-h-9 w-auto px-sm"
-            disabled={isTrimming}
+            disabled={isTrimming || !isMeasured}
             haptic
             onClick={() => void submit()}
           >
@@ -110,8 +117,7 @@ export function VideoTrimmer({
               muted
               playsInline
               preload="metadata"
-              // INFO: The element opens on the frame the start handle names, which for a clip past the cap is not frame 0.
-              onLoadedMetadata={(event) => (event.currentTarget.currentTime = start)}
+              onLoadedMetadata={handleMetadata}
             />
           )}
         </div>
@@ -157,13 +163,34 @@ export function VideoTrimmer({
     </ShellOverlay>
   );
 
+  /**
+   * WARN: The duration is taken from the element, because `toVideoDraft` reports
+   * `null` for containers whose header does not carry one. Without this a free-range
+   * trim of such a clip cut it down to the placeholder length and said nothing.
+   *
+   * INFO: The element also opens on the frame the start handle names, which for a
+   * clip past the cap is not frame 0.
+   */
+  function handleMetadata(event: SyntheticEvent<HTMLVideoElement>) {
+    const video = event.currentTarget;
+
+    if (Number.isFinite(video.duration) && video.duration > 0) {
+      const resolved = Math.round(video.duration * A_SECOND);
+
+      setMeasuredMs(resolved);
+      setEnd((current) => (isMeasured ? current : resolved / A_SECOND));
+    }
+
+    video.currentTime = start;
+  }
+
   // INFO: The preview seeks with whichever handle moved, so the frame on screen is the cut the user is aiming.
   function handleStartScrub(event: ChangeEvent<HTMLInputElement>) {
     const next = Number(event.target.value);
 
     setStart(next);
     // WARN: The end is pushed rather than clamped on submit. Left behind the start, the range inverts and `mediabunny` is handed a negative window.
-    setEnd((current) => Math.max(current, next + MIN_TRIM_SECONDS));
+    setEnd((current) => Math.min(durationSeconds, Math.max(current, next + minTrimSeconds)));
     seek(next);
   }
 
@@ -171,7 +198,8 @@ export function VideoTrimmer({
     const next = Number(event.target.value);
 
     setEnd(next);
-    setStart((current) => Math.min(current, next - MIN_TRIM_SECONDS));
+    // WARN: Clamped at zero. Dragging the end to the very start would otherwise push this negative, handing `mediabunny` a range that begins before the file does — and leaving the `min={0}` input showing 0 while state held something else.
+    setStart((current) => Math.max(0, Math.min(current, next - minTrimSeconds)));
     seek(next);
   }
 

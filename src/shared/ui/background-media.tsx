@@ -35,6 +35,7 @@ export function BackgroundMedia({ className, mediaId, isVideo = false }: Backgro
         placeholderClassName="bg-scrim"
         src={toMediaUrl(mediaId, "original")}
         poster={toMediaUrl(mediaId)}
+        hasSkeleton={false}
         autoPlay
         loop
         muted

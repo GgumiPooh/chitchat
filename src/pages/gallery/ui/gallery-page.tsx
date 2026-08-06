@@ -6,11 +6,10 @@ import {
   MediaEditor,
   MediaPickerSheet,
   MediaTray,
-  toMediaDraft,
+  useAttachmentEditing,
   useMediaSelection,
   VideoTrimmer,
 } from "@/features/upload-media";
-import { isVideoMime } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
 import {
   isShareableSelection,
@@ -54,8 +53,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   // INFO: REQUIREMENTS.md § 10. The pick, staged for editing before anything is uploaded. The same hook the composer's tray uses (§ 9.), so both screens edit an attachment the same way.
   const staging = useMediaSelection();
-  const [stagedEditing, setStagedEditing] = useState<Nullable<MediaDraft>>(null);
-  const [stagedTrimming, setStagedTrimming] = useState<Nullable<MediaDraft>>(null);
+  const editing = useAttachmentEditing(staging.replace);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const { media, isLoadingMore, loadMore, prepend, remove } = useGalleryMedia(initialMedia);
@@ -155,8 +153,8 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
         header={{ title: "사진 추가", description: "올리기 전에 하나씩 편집할 수 있어요" }}
         isOpen={
           (staging.drafts.length > 0 || staging.isReading) &&
-          stagedEditing === null &&
-          stagedTrimming === null
+          editing.cropping === null &&
+          editing.trimming === null
         }
         onClose={cancelStaging}
       >
@@ -164,13 +162,14 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
           <MediaTray
             drafts={staging.drafts}
             isReading={staging.isReading}
-            onEdit={openStagedEditor}
+            onEdit={editing.open}
             onRemove={staging.remove}
           />
           {/* INFO: REQUIREMENTS.md § 10. The gallery is the shared album, so posting to the conversation is the default and not posting is the option beside it. */}
+          {/* WARN: Both are held while a trim is being read back. The trimmer is already gone by then, so an upload started in that window would ship the untrimmed original and the `replace` behind it would land on a draft `takeAll` had removed. */}
           <div className="space-y-xs">
             <Button
-              disabled={staging.drafts.length === 0 || staging.isReading}
+              disabled={staging.drafts.length === 0 || staging.isReading || editing.isApplying}
               haptic
               onClick={() => void startUpload({ shouldPost: true })}
             >
@@ -178,7 +177,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
             </Button>
             <Button
               variant="secondary"
-              disabled={staging.drafts.length === 0 || staging.isReading}
+              disabled={staging.drafts.length === 0 || staging.isReading || editing.isApplying}
               haptic
               onClick={() => void startUpload({ shouldPost: false })}
             >
@@ -187,27 +186,16 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
           </div>
         </div>
       </BottomSheet>
-      {stagedEditing && (
+      {editing.cropping && (
         // WARN: Keyed by draft — `MediaEditor` mints its source object URL once per mount, so editing a second photo must be a second mount.
         <MediaEditor
-          key={stagedEditing.id}
-          draft={stagedEditing}
-          onDone={(edited) => {
-            staging.replace(edited);
-            setStagedEditing(null);
-          }}
-          onCancel={() => setStagedEditing(null)}
+          key={editing.cropping.id}
+          draft={editing.cropping}
+          onCancel={editing.close}
+          onDone={editing.applyCrop}
         />
       )}
-      {stagedTrimming && (
-        // INFO: No `maxDurationMs` — a gallery attachment has no length cap (§ 9.), so both handles move.
-        <VideoTrimmer
-          key={stagedTrimming.id}
-          draft={stagedTrimming}
-          onCancel={() => setStagedTrimming(null)}
-          onDone={(file) => void applyTrim(stagedTrimming, file)}
-        />
-      )}
+      {editing.trimming && renderTrimmer(editing.trimming)}
       <Modal
         isOpen={isConfirmingDelete}
         header={{
@@ -257,36 +245,22 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
     void staging.add(files);
   }
 
-  // INFO: One control per tile, two editors behind it — a photo crops and filters, a video trims (§ 9.).
-  function openStagedEditor(draft: MediaDraft) {
-    if (isVideoMime(draft.mime)) {
-      setStagedTrimming(draft);
-
-      return;
-    }
-
-    setStagedEditing(draft);
-  }
-
-  /**
-   * WARN: The trimmed clip keeps the **old draft's id**. `useMediaSelection.replace`
-   * matches on it and `toMediaDraft` mints a fresh one, so without this the trim
-   * would append a second tile rather than replace the one being edited.
-   */
-  async function applyTrim(source: MediaDraft, file: File) {
-    setStagedTrimming(null);
-
-    try {
-      staging.replace({ ...(await toMediaDraft(file)), id: source.id });
-    } catch {
-      toast.error("자른 영상을 읽지 못했어요");
-    }
+  // INFO: The draft is bound here rather than read back inside the callback — `applyTrim` clears `editing.trimming`, so a callback reading it again would be handed `null`.
+  function renderTrimmer(source: MediaDraft) {
+    return (
+      // INFO: No `maxDurationMs` — a gallery attachment has no length cap (§ 9.), so both handles move.
+      <VideoTrimmer
+        key={source.id}
+        draft={source}
+        onCancel={editing.close}
+        onDone={(file) => void editing.applyTrim(source, file)}
+      />
+    );
   }
 
   function cancelStaging() {
     staging.clear();
-    setStagedEditing(null);
-    setStagedTrimming(null);
+    editing.close();
   }
 
   /**
@@ -297,8 +271,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
   async function startUpload({ shouldPost }: { shouldPost: boolean }) {
     const drafts = staging.takeAll();
 
-    setStagedEditing(null);
-    setStagedTrimming(null);
+    editing.close();
 
     if (drafts.length > 0) {
       await upload(drafts, { shouldPost });
