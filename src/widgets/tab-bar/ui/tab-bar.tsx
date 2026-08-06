@@ -74,8 +74,9 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
               return (
                 <li key={href} className="flex-1">
                   <Link
+                    // INFO: DESIGN.md § 3.2. On top of the callout suppression `Link` already carries: the labels are chrome, so a hold that finds no preview must not raise the selection magnifier over 채팅 instead.
                     className={cn(
-                      "group flex size-full min-h-11 flex-col items-center justify-center rounded-full transition-colors duration-(--duration-state) outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+                      "group flex size-full min-h-11 flex-col items-center justify-center rounded-full transition-colors duration-(--duration-state) outline-none select-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
                       !isActive && "hover:bg-surface-soft",
                     )}
                     href={href}
