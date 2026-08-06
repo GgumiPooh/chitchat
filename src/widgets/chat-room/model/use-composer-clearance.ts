@@ -6,6 +6,9 @@ import { useEffect, useRef, type RefObject } from "react";
 
 const CLEARANCE_PROPERTY = "--chat-bottom-gap";
 
+// INFO: Subpixel slack only — anything wider would re-pin a user who has deliberately scrolled a little way up.
+const BOTTOM_EPSILON = 1;
+
 export type ComposerClearanceOptions = {
   containerRef: RefObject<Nullable<HTMLElement>>;
   composerRef: RefObject<Nullable<HTMLElement>>;
@@ -71,13 +74,18 @@ export function useComposerClearance({
         return;
       }
 
+      const scroller = scrollerRef.current;
+      // WARN: Read before the property below moves the spacer, and never from `isAtBottomRef` alone — Virtuoso publishes that flag from its own scroll state, which lands a frame or more after the spacer this loop is growing, so a mid-animation `false` would strand the rest of the animation with no re-pin at all.
+      const isPinned =
+        scroller !== null &&
+        (isAtBottomRef.current ||
+          scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= BOTTOM_EPSILON);
+
       clearanceRef.current = clearance;
       container.style.setProperty(CLEARANCE_PROPERTY, `${clearance}px`);
 
-      const scroller = scrollerRef.current;
-
       // INFO: The property above drives the list's trailing spacer, so reading `scrollHeight` here already sees the new one and the newest message stays parked above the composer as it grows.
-      if (scroller && isAtBottomRef.current) {
+      if (scroller && isPinned) {
         scroller.scrollTop = scroller.scrollHeight;
       }
     }

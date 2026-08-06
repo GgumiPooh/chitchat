@@ -195,14 +195,30 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
 
     // WARN: The composer's own wrapper is the exception, not just the panel — the toggle lives in it and would otherwise be closed here and re-opened by its own handler.
     const handlePointerDown = (event: PointerEvent) => {
-      if (!composerRef.current?.contains(event.target as Node)) {
-        setIsEmoticonPickerOpen(false);
+      if (composerRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      setIsEmoticonPickerOpen(false);
+      // WARN: § 13.6. The collapse runs under a finger that is still down, and WebKit hands the scroll offset to the compositor for the length of that gesture — every re-pin `useComposerClearance` makes while the strip shrinks is dropped, and the list is left where the open panel had pushed it.
+      document.addEventListener("pointerup", pinToBottom, { once: true });
+    };
+
+    // WARN: `pointerup` only, never `pointercancel` — the browser cancels the pointer precisely when it takes the gesture over as a scroll, and re-pinning there would yank the user out of the history they just started dragging through.
+    const pinToBottom = () => {
+      const scroller = scrollerRef.current;
+
+      if (scroller && isAtBottomRef.current) {
+        scroller.scrollTop = scroller.scrollHeight;
       }
     };
 
     document.addEventListener("pointerdown", handlePointerDown);
 
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("pointerup", pinToBottom);
+    };
   }, [isEmoticonPickerOpen]);
 
   // INFO: REQUIREMENTS.md § 8.4. The connection belongs to the shell; this screen only asks to hear from it.
