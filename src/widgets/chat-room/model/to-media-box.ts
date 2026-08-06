@@ -2,7 +2,7 @@
 export const MEDIA_EDGE_REM = 13.75;
 
 // WARN: The px twin of the edge above, which REQUIREMENTS.md § 8.3.'s row estimate needs and `rem` cannot give it. A reader's enlarged default font size moves the rendered edge and not this one, so the estimate drifts on exactly those devices — it is an estimate, and the measurement that follows corrects it.
-const MEDIA_EDGE = MEDIA_EDGE_REM * 16;
+export const MEDIA_EDGE = MEDIA_EDGE_REM * 16;
 
 // INFO: `--spacing-2xs`, the `gap-2xs` between grid cells.
 const CELL_GAP = 4;

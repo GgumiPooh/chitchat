@@ -136,7 +136,11 @@ export function MessageRow({
         {/* INFO: DESIGN.md § 6.9. Outside the bubble and above it, at § 6.5.'s attachment width — a sibling in this column, so it takes the sender's side and the column's cap without re-deriving either. */}
         {/* WARN: The hold lives on this wrapper and not on the card, because `useLongPress`'s click capture only reaches a target it is above — on the anchor itself the release would still follow the link out from under the sheet. */}
         {previewUrl && (
-          <div className={cn("w-full max-w-55", LONG_PRESS_TARGET_CLASS)} {...longPressHandlers}>
+          /* WARN: `empty:hidden` because `LinkPreviewCard` renders nothing until the scrape answers, and for most links it never does (REQUIREMENTS.md § 8.9.). An empty flex item still takes the column's `gap-2xs`, so without this every link message carries 4px of dead space that § 8.3.'s estimate cannot see. */
+          <div
+            className={cn("w-full max-w-55 empty:hidden", LONG_PRESS_TARGET_CLASS)}
+            {...longPressHandlers}
+          >
             <LinkPreviewCard url={previewUrl} />
           </div>
         )}
@@ -209,7 +213,9 @@ export function MessageRow({
           ) : (
             (isLastOfGroup || isRead) && (
               // INFO: DESIGN.md § 6.3. One timestamp per minute-group, on its last bubble; § 8.8.'s 읽음 stacks above it on the one bubble that carries it.
-              <div className="flex shrink-0 flex-col items-end text-chat-time text-chat-meta">
+              // WARN: REQUIREMENTS.md § 8.3. A fixed `w-14`, wide enough for the longest `오후 12:34`. It is beside the bubble rather than under it, so its width comes off the width the text wraps in — left to size itself, the § 8.3. row estimate would have to re-measure a string it cannot see, and would flip a whole line wherever it guessed wrong.
+              // WARN: `whitespace-nowrap` guards the fixed width above. `오후 12:34` clears 56px only just, and the app's font is `display: swap` — a wider fallback on the first paint would wrap the time onto a second line, breaking § 6.3.'s one-line rule and the § 8.3. estimate that trusts it. Invisible to a developer whose webfont is already cached.
+              <div className="flex w-14 shrink-0 flex-col items-end text-chat-time whitespace-nowrap text-chat-meta">
                 {isRead && <span>읽음</span>}
                 {isLastOfGroup && <time dateTime={createdAt}>{formatTime(createdAt)}</time>}
               </div>
