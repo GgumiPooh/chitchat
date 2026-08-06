@@ -50,7 +50,8 @@ export async function mapPooled<T, R>(
 
     inFlightBytes += weight;
 
-    const task = run(item, index)
+    // WARN: The mapper is invoked inside an async wrapper so a synchronous throw becomes this task's rejection. Called bare it would escape the loop before `running.add`, and the uploads already in flight would be abandoned mid-request rather than settled — which is the guarantee documented above.
+    const task = (async () => run(item, index))()
       .then((result) => {
         results[index] = result;
       })
