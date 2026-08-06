@@ -34,17 +34,20 @@ const LATIN1 = new TextDecoder("latin1");
  */
 export async function fetchMetadata(url: string): Promise<Nullable<PageMetadata>> {
   const videoId = findYouTubeVideoId(url);
+  // WARN: § 8.9. One signal for the whole resolution, oEmbed and the scrape behind it included — armed per call instead, a YouTube link that oEmbed refuses costs two timeouts and the platform's own function limit ends the request before anything reaches the cache.
+  const signal = AbortSignal.timeout(LINK_PREVIEW_TIMEOUT);
 
   if (videoId) {
     // WARN: Swallowed rather than propagated — oEmbed refuses a video whose uploader disabled embedding (401), and that video's watch page still has the tags. Letting it throw would cache the link as a failure.
-    const embedded = await safelyGetAsync(() => fetchYouTubeMetadata(url));
+    const embedded = await safelyGetAsync(() => fetchYouTubeMetadata(url, signal));
 
+    // INFO: § 8.9. Wrapped too, not returned raw — oEmbed can answer a title with no `thumbnail_url`, and the id is in hand either way.
     if (embedded) {
-      return embedded;
+      return withYouTubeFallbacks(embedded, videoId);
     }
   }
 
-  const response = await followToPage(url);
+  const response = await followToPage(url, signal);
 
   if (!response) {
     return null;
@@ -60,10 +63,15 @@ export async function fetchMetadata(url: string): Promise<Nullable<PageMetadata>
  * WARN: Redirects are followed by hand rather than by `fetch`, because every hop
  * has to clear `isPublicHttpUrl` — a URL on a public host that 302s to
  * `http://169.254.169.254/` is exactly the request this endpoint must not make.
+ *
+ * WARN: The `signal` bounds the whole chain and is the caller's, not this
+ * function's (§ 8.9.). Armed per hop, four slow redirects and their DNS lookups
+ * cost four times the timeout.
  */
-async function followToPage(url: string): Promise<Nullable<{ body: Response; url: string }>> {
-  // WARN: One signal for the whole chain, not one per hop — armed inside the loop, four slow redirects and their DNS lookups cost four times the timeout and the platform's own function limit ends the request first, which caches nothing and pays the same price again on the next scroll.
-  const signal = AbortSignal.timeout(LINK_PREVIEW_TIMEOUT);
+async function followToPage(
+  url: string,
+  signal: AbortSignal,
+): Promise<Nullable<{ body: Response; url: string }>> {
   let current = url;
 
   for (let hop = 0; hop <= MAX_LINK_PREVIEW_REDIRECTS; hop += 1) {

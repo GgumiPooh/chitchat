@@ -11,7 +11,7 @@ export type PageMetadata = {
 
 const META_TAG = /<meta\b[^>]*>/gi;
 
-// WARN: Every quantifier before the `=` is bounded, and that is the whole point — `[\w:-]*\s*=` backtracks quadratically over a `<meta>` tag full of word characters that never reaches one, and the body this runs on is 512KB of whatever the linked host chose to send (§ 8.9.). No real attribute name or gap is anywhere near these bounds.
+// WARN: Every quantifier before the `=` is bounded, and that is the whole point — `[\w:-]*\s*=` backtracks quadratically over a `<meta>` tag full of word characters that never reaches one, and the body this runs on is `MAX_LINK_PREVIEW_BYTES` — a megabyte — of whatever the linked host chose to send (§ 8.9.). No real attribute name or gap is anywhere near these bounds.
 const ATTRIBUTE =
   /([a-z][\w:-]{0,63})[ \t\n\r\f]{0,16}=[ \t\n\r\f]{0,16}(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi;
 
