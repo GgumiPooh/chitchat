@@ -2,13 +2,14 @@
 
 import type { Nullable } from "@/shared/lib";
 import { Button, Modal } from "@/shared/ui";
-import type { GallerySaveProgress } from "../model/use-gallery-save";
+import type { MediaShareIntent, MediaShareProgress } from "./use-media-share";
 
-export type GallerySaveDialogProps = {
+export type MediaShareDialogProps = {
   className?: string;
-  progress: Nullable<GallerySaveProgress>;
+  progress: Nullable<MediaShareProgress>;
   blockedCount: number;
-  onShare: () => void;
+  blockedIntent: MediaShareIntent;
+  onRetry: () => void;
   onDismiss: () => void;
 };
 
@@ -20,13 +21,16 @@ export type GallerySaveDialogProps = {
  * the first `await`, so a selection that took long enough to buffer can only reach
  * the share sheet from a fresh tap — this is that tap.
  */
-export function GallerySaveDialog({
+export function MediaShareDialog({
   className,
   progress,
   blockedCount,
-  onShare,
+  blockedIntent,
+  onRetry,
   onDismiss,
-}: GallerySaveDialogProps) {
+}: MediaShareDialogProps) {
+  const isSaving = blockedIntent === "save";
+
   if (progress) {
     return (
       <Modal
@@ -48,12 +52,14 @@ export function GallerySaveDialog({
       isOpen={blockedCount > 0}
       header={{
         title: `${blockedCount}장이 준비됐어요`,
-        description: "사진 앱에 저장하려면 한 번 더 눌러주세요",
+        description: isSaving
+          ? "사진 앱에 저장하려면 한 번 더 눌러주세요"
+          : "공유하려면 한 번 더 눌러주세요",
       }}
       onClose={onDismiss}
     >
-      <Button haptic onClick={onShare}>
-        사진에 저장
+      <Button haptic onClick={onRetry}>
+        {isSaving ? "사진에 저장" : "공유하기"}
       </Button>
     </Modal>
   );

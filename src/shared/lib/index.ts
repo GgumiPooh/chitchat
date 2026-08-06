@@ -42,9 +42,15 @@ export {
 } from "./date/time";
 export { isBrowser, isEditableElement } from "./dom";
 export { buildFadeMask, type FadeMaskOptions } from "./fade-mask";
+export { GESTURE_SLOP } from "./gesture";
 export { useHydrated } from "./hooks/use-hydrated";
 export { useIsCoarsePointer } from "./hooks/use-is-coarse-pointer";
 export { useIsVirtualKeyboardOpen } from "./hooks/use-is-virtual-keyboard-open";
+export {
+  LONG_PRESS_TARGET_CLASS,
+  useLongPress,
+  type LongPressOptions,
+} from "./hooks/use-long-press";
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
 export type { Maybe, Nullable, Optional } from "./nullish";
 export { randomId } from "./random";

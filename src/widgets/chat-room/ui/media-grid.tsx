@@ -64,6 +64,8 @@ export function MediaGrid({
             imgClassName="size-full object-cover"
             src={cell.previewUrl}
             alt=""
+            // WARN: DESIGN.md § 3.2. Without it the hold on a bubble starts iOS's own image drag before the § 8.11. sheet can open.
+            draggable={false}
           />
           {renderVideoOverlay(cell)}
         </span>
@@ -87,6 +89,7 @@ export function MediaGrid({
               imgClassName="size-full object-cover ring-1 ring-hairline ring-inset"
               src={cell.previewUrl}
               alt=""
+              draggable={false}
             />
             {renderVideoOverlay(cell)}
           </button>
