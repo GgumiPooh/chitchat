@@ -1,4 +1,8 @@
-import { EMOTICON_UPLOAD_URL_PATH, type EmoticonSlot } from "@/shared/config";
+import {
+  EMOTICON_OBJECT_CACHE_CONTROL,
+  EMOTICON_UPLOAD_URL_PATH,
+  type EmoticonSlot,
+} from "@/shared/config";
 
 type UploadTicket = {
   r2Key: string;
@@ -18,8 +22,8 @@ export async function uploadEmoticonAsset(slot: EmoticonSlot, file: Blob): Promi
 
   const response = await fetch(ticket.uploadUrl, {
     method: "PUT",
-    // WARN: Must match what the URL was signed for, or R2 rejects the signature (§ 9.).
-    headers: { "Content-Type": file.type },
+    // WARN: Both headers are signed into the URL, and R2 rejects the signature unless each arrives byte for byte (§ 9., § 13.3.).
+    headers: { "Content-Type": file.type, "Cache-Control": EMOTICON_OBJECT_CACHE_CONTROL },
     body: file,
   });
 

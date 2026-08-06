@@ -1,6 +1,7 @@
 import { listUnregisteredEmoticonKeys } from "@/entities/emoticon";
 import { getCurrentUser } from "@/shared/auth";
 import {
+  EMOTICON_OBJECT_CACHE_CONTROL,
   EMOTICON_SLOTS,
   allowedMimesForEmoticonSlot,
   maxSizeForEmoticonSlot,
@@ -51,7 +52,11 @@ export async function POST(request: Request) {
   // WARN: Built from the caller's own id and never read off the request — a signature the browser could aim would let it overwrite any object in the bucket (§ 9.).
   const r2Key = buildStorageKey("emoticon", user.id);
 
-  return NextResponse.json({ r2Key, uploadUrl: await presignUpload(r2Key, mime) });
+  // WARN: § 13.3. The `Cache-Control` is signed, so `uploadEmoticonAsset` MUST put the identical header on the PUT or R2 refuses the whole upload.
+  return NextResponse.json({
+    r2Key,
+    uploadUrl: await presignUpload(r2Key, mime, EMOTICON_OBJECT_CACHE_CONTROL),
+  });
 }
 
 /**
