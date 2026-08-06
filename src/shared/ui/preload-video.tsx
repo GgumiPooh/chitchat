@@ -35,6 +35,8 @@ export function PreloadVideo({
   src,
   poster,
   style,
+  autoPlay,
+  muted,
   onLoadedData,
   onError,
   ...props
@@ -76,6 +78,8 @@ export function PreloadVideo({
         )}
         src={src}
         poster={poster}
+        autoPlay={autoPlay}
+        muted={muted}
         // INFO: `loadeddata` and not `canplay` — the first frame being decoded is exactly the moment the element stops painting black, and waiting for playable-through would hold the skeleton over a video that is already showing something.
         onLoadedData={handleLoadedData}
         onError={handleError}
@@ -84,7 +88,16 @@ export function PreloadVideo({
   );
 
   function handleLoadedData(event: SyntheticEvent<HTMLVideoElement>) {
+    const video = event.currentTarget;
+
     setStatus("loaded");
+
+    // WARN: An explicit start, because the declarative `autoPlay` alone is not enough twice over. React assigns `muted` as a property rather than an attribute, so the element can be unmuted at the moment the browser judges autoplay and be refused; and a source that arrives after mount is never judged at all. Setting the property here and asking again covers both, and a refusal still leaves the poster.
+    if (autoPlay) {
+      video.muted = muted ?? false;
+      void video.play().catch(() => undefined);
+    }
+
     onLoadedData?.(event);
   }
 

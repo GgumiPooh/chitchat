@@ -3,7 +3,7 @@
 import type { MediaDraft } from "@/entities/media";
 import { isVideoMime } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
-import { PreloadVideo } from "@/shared/ui";
+import { PreloadVideo, Skeleton } from "@/shared/ui";
 import { useEffect, useState } from "react";
 
 export type DraftPreviewProps = {
@@ -41,11 +41,16 @@ export function DraftPreview({ className, draft, src }: DraftPreviewProps) {
   }, [draft]);
 
   if (isVideo) {
+    // WARN: Not rendered until the object URL exists, and that is what makes it play. A browser evaluates autoplay once, when the element loads its source — mounting with `src` undefined and filling it in from the effect a tick later means that judgement already happened against nothing, so the clip sits on frame 0 and the preview is the black frame it starts on.
+    if (!sourceUrl) {
+      return <Skeleton className={cn("size-full", className)} />;
+    }
+
     return (
       <PreloadVideo
         className={cn("size-full", className)}
         videoClassName="size-full object-cover"
-        src={sourceUrl || undefined}
+        src={sourceUrl}
         poster={draft?.previewUrl}
         autoPlay
         loop

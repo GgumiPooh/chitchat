@@ -98,17 +98,22 @@ export function VideoTrimmer({
         <div className="flex min-h-0 flex-1 items-center justify-center px-md">
           {/* INFO: `muted` and `playsInline` so scrubbing previews on iOS without the element demanding fullscreen; there is no audio in the result either way. */}
           {/* INFO: The poster stands in until the first frame decodes — an unwrapped element paints black for the length of the load, which over a `scrim` backdrop reads as nothing having opened. */}
-          <PreloadVideo
-            ref={videoRef}
-            className="max-h-full max-w-full"
-            videoClassName="max-h-full max-w-full"
-            placeholderClassName="rounded-md"
-            src={sourceUrl || undefined}
-            poster={draft.previewUrl}
-            muted
-            playsInline
-            preload="metadata"
-          />
+          {/* WARN: Mounted only once the object URL exists. An element that loads its source after mount is never re-judged for playback and its seeks before that point are dropped, so it would sit on a frame the handles do not agree with. */}
+          {sourceUrl && (
+            <PreloadVideo
+              ref={videoRef}
+              className="max-h-full max-w-full"
+              videoClassName="max-h-full max-w-full"
+              placeholderClassName="rounded-md"
+              src={sourceUrl}
+              poster={draft.previewUrl}
+              muted
+              playsInline
+              preload="metadata"
+              // INFO: The element opens on the frame the start handle names, which for a clip past the cap is not frame 0.
+              onLoadedMetadata={(event) => (event.currentTarget.currentTime = start)}
+            />
+          )}
         </div>
         <div className="space-y-xs p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))]">
           <label className="block text-body-sm text-on-primary" htmlFor="trim-start">
