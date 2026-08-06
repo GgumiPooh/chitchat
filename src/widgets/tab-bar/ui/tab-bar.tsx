@@ -66,7 +66,7 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
             {TABS.map(({ href, label, Icon }) => {
               const isActive = isUnderRoute(activeHref, href);
               // INFO: DESIGN.md § 7.3. Crossed over the fill's own duration rather than swapped, so the pair lands with the fill instead of turning `primary` while it is still travelling.
-              // WARN: `--duration-tab-travel`, and it MUST track whatever the fill above uses. On `--duration-state` the label would finish 120ms early and sit `primary` on bare glass waiting for the fill to arrive — the exact snap this crossfade exists to prevent, just smaller.
+              // WARN: `--duration-tab-travel`, and it MUST track whatever the fill above uses. Left on `--duration-state` the label lands before the fill is halfway across and sits `primary` on bare glass waiting for it — the exact snap this crossfade exists to prevent, and it widens every time the travel is slowed.
               const stateClassName = cn(
                 "transition-colors duration-(--duration-tab-travel)",
                 isActive ? "text-primary" : "text-meta group-hover:text-ink",
