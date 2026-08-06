@@ -2,6 +2,7 @@
 
 import type { MediaDraft } from "@/entities/media";
 import {
+  DraftPreview,
   MediaEditor,
   MediaPickerSheet,
   VideoTrimmer,
@@ -17,7 +18,7 @@ import {
   toMediaUrl,
 } from "@/shared/config";
 import type { Nullable, Optional } from "@/shared/lib";
-import { Avatar, BottomSheet, Button, HapticTarget, Input, PreloadImage, toast } from "@/shared/ui";
+import { Avatar, BottomSheet, Button, HapticTarget, Input, toast } from "@/shared/ui";
 import { useState } from "react";
 import { updateProfile, type ProfileBody } from "../api/write-profile";
 import { usePhotoDraft } from "../model/use-photo-draft";
@@ -106,13 +107,9 @@ export function ProfileEditorSheet({
                 aria-label="프로필 배경 바꾸기"
                 onClick={() => openPicker("background")}
               >
-                {backgroundUrl ? (
-                  <PreloadImage
-                    className="size-full"
-                    imgClassName="size-full object-cover"
-                    src={backgroundUrl}
-                    alt=""
-                  />
+                {backgroundUrl || background.staged ? (
+                  // INFO: A staged video previews as itself, playing — a still of a clip chosen for its motion reads as a failed load (§ 12.1.).
+                  <DraftPreview draft={background.staged} src={backgroundUrl} />
                 ) : (
                   <span className="flex size-full items-center justify-center text-body-sm text-meta">
                     배경 사진이나 영상 고르기

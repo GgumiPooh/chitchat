@@ -91,11 +91,19 @@ async function toVideoDraft(file: File): Promise<MediaDraft> {
  * will not decode a frame into a canvas for a video that has never played, so a
  * seek alone yields a blank poster, and an unmuted `play()` without a user
  * gesture is refused outright.
+ *
+ * WARN: `seeked` and `timeupdate` say the *position* moved, never that a frame has
+ * been painted — `drawImage` off either one races the decoder and writes a black
+ * poster often enough to be the normal result for some files. `requestVideoFrameCallback`
+ * is the one signal that means "a frame is on screen", so it wins wherever it
+ * exists (Safari 15.4+, comfortably under the app's iOS 16.4 floor) and the two
+ * events stay as the fallback for engines without it.
  */
 function loadVideoFrame(src: string): Promise<HTMLVideoElement> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
     const timer = setTimeout(() => fail(new Error("video decode timed out")), DECODE_TIMEOUT);
+    let isSettled = false;
 
     video.muted = true;
     video.playsInline = true;
@@ -105,8 +113,10 @@ function loadVideoFrame(src: string): Promise<HTMLVideoElement> {
     video.onloadedmetadata = () => {
       video.currentTime = toPosterTime(video.duration);
       void video.play().catch(() => undefined);
+      video.requestVideoFrameCallback?.(() => succeed());
     };
 
+    // INFO: Only reached where `requestVideoFrameCallback` is absent — it resolves first everywhere else, and `isSettled` is what keeps the loser from re-entering.
     video.onseeked = () => succeed();
     // WARN: Seeking to the position the video already holds produces no `seeked` at all. Playback is running by then, so the first frame decoded arrives here instead.
     video.ontimeupdate = () => succeed();
@@ -114,12 +124,22 @@ function loadVideoFrame(src: string): Promise<HTMLVideoElement> {
     video.src = src;
 
     function succeed() {
+      if (isSettled) {
+        return;
+      }
+
+      isSettled = true;
       clearTimeout(timer);
       video.pause();
       resolve(video);
     }
 
     function fail(error: Error) {
+      if (isSettled) {
+        return;
+      }
+
+      isSettled = true;
       clearTimeout(timer);
       video.pause();
       reject(error);

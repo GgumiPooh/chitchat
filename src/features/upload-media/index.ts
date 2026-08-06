@@ -4,6 +4,7 @@ export { toMediaDraft, validateFile } from "./model/read-draft";
 export { EMOTICON_IMAGE_EDIT_OPTIONS, toEmoticonImageDraft } from "./model/read-emoticon-image";
 export { isWithinDuration, trimVideo, type TrimRange } from "./model/trim-video";
 export { useMediaSelection } from "./model/use-media-selection";
+export { DraftPreview, type DraftPreviewProps } from "./ui/draft-preview";
 export { MediaEditor, type MediaEditorProps } from "./ui/media-editor";
 export { MediaPickerSheet, type MediaPickerSheetProps } from "./ui/media-picker-sheet";
 export { MediaTray, type MediaTrayProps } from "./ui/media-tray";
