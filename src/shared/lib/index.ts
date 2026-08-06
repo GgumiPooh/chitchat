@@ -61,6 +61,7 @@ export { mapPooled, type PoolOptions } from "./run/pool";
 export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./run/safely";
 export { playSound, stopSound, unlockSound, useSoundUnlock } from "./sound";
 export { measureLineHeight, warmLineHeights } from "./text/line-height";
+export { findQueryIndex, splitTextByQuery, type QuerySegment } from "./text/query-match";
 export { countTextLines, type FontSpec } from "./text/text-layout";
 export {
   findFirstUrl,

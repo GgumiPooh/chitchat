@@ -29,6 +29,23 @@ export type ReplyPreview = {
 };
 
 /**
+ * One hit from `/api/messages/search` (REQUIREMENTS.md § 8.6.).
+ *
+ * INFO: Deliberately not a `ChatMessage`. A result row shows a name, a line and a
+ * date (DESIGN.md § 6.8.) — carrying attachments, quotes and emoticons through it
+ * would drag the whole read path behind a list that renders none of them.
+ */
+export type MessageSearchResult = {
+  /** Resolved against the participant set on the client, exactly as a bubble is (§ 8.7.). */
+  senderId: string;
+  // INFO: Already windowed around the first match, since the row clamps to two lines and the match has to survive the clamp.
+  excerpt: string;
+  createdAt: string;
+  /** What the jump asks `GET /api/messages?around=` for (§ 8.6.1.). */
+  id: number;
+};
+
+/**
  * A message as it crosses `/api/messages`. Timestamps are ISO strings because the
  * wire format is JSON; the client parses them where it needs a `Date`.
  */

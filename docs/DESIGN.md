@@ -613,13 +613,35 @@ The count variant recolours to `primary` rather than adding a separate badge ele
 
 ## 6.8. Search.
 
-| Element         | Rule                                                                                                                             |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Result row      | `canvas` fill on `surface-soft` list, sender name (`title-sm`), matched line (`body-sm`, 2-line clamp), date (`caption`, `meta`) |
-| Match highlight | `search-hit` background, `ink` text, `rounded-xs`, computed client-side by string split                                          |
-| Jump target     | On arrival the **row** flashes `primary-tint` for 1.5s, then fades over 300ms — see § 6.10.                                      |
-| Return control  | The § 6.7. scroll-to-bottom pill — same component, no search-specific variant                                                    |
-| Empty state     | § 7.6.                                                                                                                           |
+| Element         | Rule                                                                                                                                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Search bar      | Replaces § 7.12.'s header in place, same height and inset — the § 6.6. pill holding a 16px `meta-soft` glyph, the field, a clear button, and the submit disc, with a plain `취소` label beside it |
+| Navigation bar  | Stands in the composer's position and wears its pill exactly (§ 6.6.): 목록 at the left, `{n}/{total}` centered in `caption` `meta` `tabular-nums`, `∧` and `∨` at the right                      |
+| Result list     | A full overlay in `surface-soft`, inset below the search bar rather than running under it                                                                                                         |
+| Result row      | `canvas` fill on `surface-soft` list, sender name (`title-sm`), matched line (`body-sm`, 2-line clamp), date (`caption`, `meta`)                                                                  |
+| Active row      | 1px `primary` border — the row the room is parked on, so the list says where `∧∨` will step from                                                                                                  |
+| Match highlight | `search-hit` background, `ink` text, `rounded-xs`, computed client-side by string split                                                                                                           |
+| Match in bubble | The same mark, painted inside every visible bubble the query occurs in; a URL run is left alone                                                                                                   |
+| Jump target     | The marked words and the centered row, nothing more. § 6.10.'s `primary-tint` row flash belongs to the **quote** jump, which has no substring to mark                                             |
+| Return control  | The § 6.7. scroll-to-bottom pill — same component, no search-specific variant                                                                                                                     |
+| Empty state     | § 7.6. — `대화 내용을 검색해 보세요` before a query, `검색 결과가 없어요` after one                                                                                                               |
+| Loading         | § 7.8. — skeleton rows for the first page, a `LoaderCircle` at the list's end for the next                                                                                                        |
+
+**The bar takes the header's place rather than covering it**, so opening a search moves nothing on the screen behind it and the conversation goes on scrolling under the same strip it always does.
+
+**The pill is the composer's shape and the disc is the composer's send button**, in the same corner, at the same 36 inside a 44 row — a field with the action it feeds parked at its right end is already this app's one arrangement for that. It is `primary` while there is something to ask for and `primary-disabled` otherwise, and it swaps its glyph for a spinner while the scan is out. On a phone it is the redundant half: the keyboard's own search key is what the thumb reaches (`REQUIREMENTS.md § 8.6.`). The pill's height is fixed rather than sized to its contents, or the clear button appearing on the first keystroke would grow it under the finger.
+
+**This is the one overlay the floating header must not be transparent over.** § 7.12.'s rule is written for content that is meant to pass beneath the controls, and the conversation has a fade mask to dissolve it. A result row has neither: sliding under the field it would put message text behind `취소`. So the list is inset to `--app-header-inset` and the strip behind the bar is the list's own `surface-soft`.
+
+**The composer's whole stack leaves while a search is open**, not just the field — a reply bar or an attachment tray left standing would be composing a message the screen offers no way to send. The navigation bar takes the vacated position, which is also the box `--chat-bottom-gap` is measured from (§ 6.6.).
+
+**`∧` is the older hit, `∨` the newer one.** The conversation runs oldest to newest down the screen, so the arrow points the way the room is about to move — not the way the newest-first list is ordered.
+
+**The list and the arrows are two readings of one result set, not two features.** The arrows walk the hits in order; the list is for picking the one whose date you recognise, which is the faster route once a common word matches a dozen times.
+
+**Which is why the list must hand the reader back.** It covers the navigation bar completely, so without `목록 닫기` the only ways out are picking a result or 취소 — and 취소 takes the query and the parked position with it. A reader who opened the list to look and then wanted the arrows would have to search again.
+
+**A search jump is marked in the words, not behind the row.** § 6.10.'s flash exists because a quote jump has nothing else to point at — it says "here" and stops. A search knows which characters were asked for, so it lights those, in the colour the result row already used, and the mark stays up while the reader steps through the rest. Washing a full-width row in `primary-tint` on top of that puts a block of colour behind text that is being read, once per arrow press.
 
 ## 6.9. Link Preview Card.
 
@@ -878,16 +900,16 @@ Full-width, min-height 56, `canvas` fill, 1px `hairline-soft` bottom border, pad
 
 Every screen renders its own header rather than inheriting one from the layout, because the trailing slot is screen-specific (chat search, month navigation).
 
-| Property    | Value                                                                                                                                                                 |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Container   | Transparent — **no fill, no border, no shadow**. `sticky` top with `env(safe-area-inset-top)` as top padding                                                          |
-| Height      | `--app-header-height` (56), below the safe-area padding. `--app-header-inset` is the two together                                                                     |
-| Flow        | Cancels its own height with a negative bottom margin, so content starts at the top of the shell and passes under it                                                   |
-| Title       | Optional. `title-md` `ink`, left-aligned on the 16px screen gutter (§ 4.3.), truncates on overflow. Fades out (200ms) once the shell's scroller has moved off the top |
-| Padding     | `sm` (12) on the row, `2xs` (4) on the title                                                                                                                          |
-| Slots       | Leading and trailing, rendered only when present — an empty slot MUST NOT reserve width                                                                               |
-| Controls    | `icon-button-floating` (§ 7.1.) — the header itself is invisible, so each control carries its own surface                                                             |
-| Hit testing | The strip is `pointer-events-none`; its children re-enable it, so content underneath stays tappable                                                                   |
+| Property    | Value                                                                                                                                                                                                           |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Container   | Transparent — **no fill, no border, no shadow**. `sticky` top with `env(safe-area-inset-top)` as top padding                                                                                                    |
+| Height      | `--app-header-height` (56), below the safe-area padding. `--app-header-inset` is the two together                                                                                                               |
+| Flow        | Cancels its own height with a negative bottom margin, so content starts at the top of the shell and passes under it                                                                                             |
+| Title       | Optional. `title-md` `ink`, left-aligned on the 16px screen gutter (§ 4.3.), truncates on overflow. Fades out (200ms) once the shell's scroller has moved off the top                                           |
+| Padding     | `sm` (12) on the row, `2xs` (4) on the title                                                                                                                                                                    |
+| Slots       | Leading and trailing, rendered only when present — an empty slot MUST NOT reserve width. A titleless header with a leading slot gives that slot the row, and grows no spacer of its own (§ 6.8.'s search field) |
+| Controls    | `icon-button-floating` (§ 7.1.) — the header itself is invisible, so each control carries its own surface                                                                                                       |
+| Hit testing | The strip is `pointer-events-none`; its children re-enable it, so content underneath stays tappable                                                                                                             |
 
 `sticky`, not `fixed`: the header sits inside the shell's scroller, so it stays pinned to the top of the visual viewport without a positioning context of its own (§ 3.4.).
 

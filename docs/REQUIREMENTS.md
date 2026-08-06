@@ -26,23 +26,22 @@ Precedence on conflict: visuals → `DESIGN.md`; code-authoring rules → `AGENT
 
 Every open item in this document, so an agent can read one table and then only the section it needs. Nothing else is outstanding.
 
-| Area                         | Open                                                                                                | §                |
-| ---------------------------- | --------------------------------------------------------------------------------------------------- | ---------------- |
-| **Chat — unread marks**      | The `1` marker beside a bubble, and the unread divider. Cursor is written; only the drawing is left | § 8.8., § 8.1.   |
-| **Chat — search**            | The whole query side and result list. The jump machinery already exists (§ 8.10.1.)                 | § 8.6., § 8.6.1. |
-| **Chat — scroll polish**     | Sticky date indicator, tab-return scroll restore, scroll-to-bottom marking read                     | § 8.3., § 8.1.   |
-| **Chat — link previews**     | Four polish/hardening items on an otherwise finished feature                                        | § 8.9.           |
-| **Gallery**                  | Jump-to-message link (waits on § 8.6.1.)                                                            | § 10.            |
-| **Calendar**                 | "Jump to today" control                                                                             | § 11.3.          |
-| **Settings**                 | Device list + revocation, app info. Theme row stays hidden                                          | § 12., § 16.1.   |
-| **Overlays**                 | A focus trap shared by the profile screen and the § 7.10. viewer                                    | § 12.3.          |
-| **Media**                    | Blurhash placeholder; re-PUT window; orphaned avatar and background objects                         | § 9., § 12.      |
-| **Emoticons**                | Preload enabled packs' images                                                                       | § 13.6.          |
-| **Security**                 | Session check audit, login rate limit, error-detail leaks                                           | § 14.            |
-| **Deployment**               | Vercel project, domain, env vars, steiger in build, Neon branches, Skew Protection                  | § 15.            |
-| **Real-device verification** | iOS PWA keyboard geometry, cookie survival across days                                              | § 4.3., § 5.3.   |
-| **Undecided — ask first**    | Emoticon grid density (#3), pinch-zoom bounds (#6), dark palette (#7)                               | § 18.            |
-| **Later**                    | Dark theme, offline caching, backup/export                                                          | § 16.            |
+| Area                         | Open                                                                                                | §              |
+| ---------------------------- | --------------------------------------------------------------------------------------------------- | -------------- |
+| **Chat — unread marks**      | The `1` marker beside a bubble, and the unread divider. Cursor is written; only the drawing is left | § 8.8., § 8.1. |
+| **Chat — scroll polish**     | Sticky date indicator, tab-return scroll restore, scroll-to-bottom marking read                     | § 8.3., § 8.1. |
+| **Chat — link previews**     | Four polish/hardening items on an otherwise finished feature                                        | § 8.9.         |
+| **Gallery**                  | Jump-to-message link — the § 8.6.1. machinery it waited on is built                                 | § 10.          |
+| **Calendar**                 | "Jump to today" control                                                                             | § 11.3.        |
+| **Settings**                 | Device list + revocation, app info. Theme row stays hidden                                          | § 12., § 16.1. |
+| **Overlays**                 | A focus trap shared by the profile screen and the § 7.10. viewer                                    | § 12.3.        |
+| **Media**                    | Blurhash placeholder; re-PUT window; orphaned avatar and background objects                         | § 9., § 12.    |
+| **Emoticons**                | Preload enabled packs' images                                                                       | § 13.6.        |
+| **Security**                 | Session check audit, login rate limit, error-detail leaks                                           | § 14.          |
+| **Deployment**               | Vercel project, domain, env vars, steiger in build, Neon branches, Skew Protection                  | § 15.          |
+| **Real-device verification** | iOS PWA keyboard geometry, cookie survival across days                                              | § 4.3., § 5.3. |
+| **Undecided — ask first**    | Emoticon grid density (#3), pinch-zoom bounds (#6), dark palette (#7)                               | § 18.          |
+| **Later**                    | Dark theme, offline caching, backup/export                                                          | § 16.          |
 
 ---
 
@@ -86,8 +85,8 @@ src/
   app/       providers / styles(globals.css, theme.css) / fonts
   pages/     login, chat, calendar, gallery, settings, emoticon-settings, emoticon-pack
   widgets/   tab-bar, install-guide, chat-room, gallery-grid, calendar-month, settings-form
-  features/  session, send-message, chat-stream, push-notifications, upload-media,
-             author-emoticon, emoticon-prefs, update-profile, manage-event,
+  features/  session, send-message, chat-stream, search-messages, push-notifications,
+             upload-media, author-emoticon, emoticon-prefs, update-profile, manage-event,
              set-background, view-profile
   entities/  user, message, push-subscription, media, event, emoticon
   shared/    db, auth, push, sound, storage, share, api, config, lib, theme, ui
@@ -299,7 +298,7 @@ Remaining:
 - [ ] Unread marker — a `1` beside my message, in the `unread` token (DESIGN § 4.1.4.)
 - [ ] Pinch zoom in the viewer — § 18. #6, still open and meant to be tuned on a real device
 - [ ] Tapping the scroll-to-bottom button scrolls smoothly to the bottom **and marks messages read**
-- [ ] The same button returns the user to the newest messages after a search jump (§ 8.6.1.)
+- [x] The same button returns the user to the newest messages after a search jump (§ 8.6.1.)
 
 ### 8.2. Message Loading ✅
 
@@ -347,7 +346,7 @@ Remaining:
 
 - [ ] Date dividers are list items (done), but the **sticky top indicator is a separate overlay** computed from the visible range — not built
 - [ ] Restore scroll position when returning to the tab — `takeSnapshot` on the way out, `initialMeasurementsCache` and `initialOffset` on the way back in. `ScrollMemory` cannot do it: it remembers a `scrollTop`, and here that number means nothing until the rows are measured
-- [ ] Native `Ctrl+F` cannot find offscreen messages — in-app search (§ 8.6.) is the deliberate replacement
+- [x] Native `Ctrl+F` cannot find offscreen messages — in-app search (§ 8.6.) is the deliberate replacement, and it has landed
 
 ### 8.4. Realtime (SSE) ✅
 
@@ -393,27 +392,44 @@ The client generates `client_msg_id` (uuid) and renders optimistically; `POST /a
 - The SSE echo is matched by `client_msg_id` and replaces the optimistic entry. The echo routinely beats the POST response, so the pending bubble retires on whichever arrives first
 - **Every send goes through one delivery queue**, not one chain per call. `messages.id` is assigned by the POST, so a caption sent alongside attachments would otherwise be POSTed while the uploads were still running and land _above_ the photos everywhere but the sender's optimistic render
 
-### 8.6. Message Search
+### 8.6. Message Search ✅
 
 **Why substring matching**: Postgres FTS has no Korean morphological dictionary and `'simple'` only splits on whitespace — Korean attaches particles (조사) to nouns, so `저녁` fails to match the stored `저녁을`. Korean-aware parsers (`mecab-ko`, `pg_bigm`) cannot be installed on Neon. **`pg_trgm` + `ILIKE`** is language-neutral and matches substrings, so the particle problem cannot occur.
 
-- [ ] `GET /api/messages/search?q=&before=` — `type = 'text' AND deleted_at IS NULL AND text ILIKE '%' || $q || '%'`
-- [ ] **Order by recency, not relevance** (`ORDER BY id DESC`) — chat search is "where was that thing we talked about", so BM25-style ranking gets in the way. This is also why no search engine is warranted
-- [ ] Normalize the query — `lower()`, trim, escape `%` and `_`
-- [ ] Cursor-paginate results (same mechanism as § 8.2.)
-- [ ] Queries of ≤2 characters cannot use the trigram index and fall back to a sequential scan — acceptable at our scale (tens of thousands of rows)
-- [ ] The header search button already exists in the chat screen; it is UI only until this lands
+- `GET /api/messages/search?q=&before=` — `type = 'text' AND deleted_at IS NULL AND text ILIKE '%' || $q || '%'`
+- **Order by recency, not relevance** (`ORDER BY id DESC`) — chat search is "where was that thing we talked about", so BM25-style ranking gets in the way. This is also why no search engine is warranted
+- Normalize the query — `lower()`, trim, escape `%` and `_`. **The escape is load-bearing, not hygiene**: unescaped, a query of `%` matches every message in the conversation and one of `_` matches every message of any length, so the two characters most likely to be typed by accident are the two that answer with everything
+- Cursor-paginate results (same mechanism as § 8.2.). **The counter beside the field is a `count()` asked for on the cursorless page alone** — the keyset cursor cannot say what is behind it, and a total that grew as the user stepped would read as the conversation gaining matches while they searched it
+- **The row carries a window around the first hit, not the message.** `toSearchExcerpt` slices `SEARCH_EXCERPT_MAX_LENGTH` around the match, because the result row clamps to two lines (`DESIGN.md § 6.8.`) — a hit 1,500 characters into a message would otherwise be cut away by the clamp and the row would highlight nothing, which reads as a result that does not contain the query
+- **The scan runs on submit, never while the user types.** One call is an `ILIKE` over the whole conversation, plus a `count()` that cannot be `LIMIT`ed, plus a window replacement for the first hit — and a Korean field commits jamo by jamo, so even a debounced handler pays all of it for `ㅈ`, `저` and `점` on the way to `저녁`. The trigger is the keyboard's own search key, which is what iOS draws for a field with `enterKeyHint="search"` inside a `<form>`; a pointer gets the disc beside it (`AGENTS.md § 4.2.`)
+- **Asking again for the string already on screen steps to the next hit** rather than re-running the scan — the find-in-page gesture, and the answer is already in hand
+- **The submitted string commits with its page, never ahead of it.** Written before the fetch, a scan that then fails leaves the previous query's results, total and active index standing under a `submitted` naming the new one: the bubbles mark one string while the arrows step another, `loadMore` pages the new query onto the old list, and the step-instead-of-scan shortcut above makes the failed query unreachable
+- **A scan that matched nothing opens the result list.** It is the only surface that can report the outcome — the counter goes blank, no bubble is marked and nothing scrolls, so without it a search that found nothing is indistinguishable from one that never ran
+- **The results describe the submitted string, not the field's.** They are tracked apart, or a half-typed word would light matches in the bubbles for a query nobody has asked for yet. Every fetch still carries a generation and only the newest may write, since submitting twice in quick succession is one keypress away
+- Queries of ≤2 characters cannot use the trigram index and fall back to a sequential scan — acceptable at our scale (tens of thousands of rows)
+- **The chat header becomes the search bar in place** — field plus 취소, over a conversation that stays visible behind it, as KakaoTalk's own in-room search does. It is built on `AppHeader` itself rather than on a copy of its geometry: the two strips swap in place, so a second definition of the sticky root, the safe-area padding or the row height would let them drift and the swap would start jumping
+- **The composer's whole stack (reply bar, attachment tray, emoticon panel) is withheld while a search is open**, and the § 8.6.1. navigation bar stands in the composer's own position, inside the wrapper `useComposerClearance` measures — anywhere else and the history would clear a composer that is not on screen
+- **Withheld means hidden, never unmounted.** The draft is `MessageComposer`'s own state and never leaves it, so unmounting discards a typed-but-unsent message silently, and takes its `useUnsentWork` hold with it — § 15.1. would then be free to reload the tab over the draft. `display: none` is what keeps the wrapper's measured height right without touching the state inside it
+- **What the hidden stack drives has to stop with it.** A staged emoticon and an open emoticon panel are § 8.12.'s two sustained typing sources and both are `ChatRoom` state that outlives the hiding, so the signal is cut for the length of the search — left connected it re-POSTs every `TYPING_PING_INTERVAL` and the other participant reads 입력 중 from a composer that is not on screen, which is exactly the parked-draft failure § 8.12. exists to have removed
 
-#### 8.6.1. Jumping From a Result to the Message (the hard part)
+#### 8.6.1. Jumping From a Result to the Message (the hard part) ✅
 
-**The jump itself landed with § 8.10.1.** — replying needed the same machinery first. Tapping a result navigates to chat, loads context via `GET /api/messages?around={id}&limit=30`, reinitializes the **window's** edges (not `newestKnownId`), moves with `scrollToIndex({ align: "center" })`, and flashes a highlight behind the target. What is left is the search half:
+**The jump itself landed with § 8.10.1.** — replying needed the same machinery first. Tapping a result loads context via `GET /api/messages?around={id}&limit=30`, reinitializes the **window's** edges (not `newestKnownId`), moves with `scrollToIndex({ align: "center" })`, and flashes a highlight behind the target.
 
 **Every window replacement carries a generation, and a pager that resolves against a superseded one commits nothing.** `loadAround` and `returnToLive` swap the window whole; `loadOlder` and `loadNewer` were started against the one before it. Without the counter a `loadNewer` in flight when the user taps 최신 (or sends, which also returns to live) lands afterwards and writes `hasNewerRef = true` back while the `hasNewer` **state** stays `false` — the room then drops every SSE arrival silently, no pill offers a way back, and each `endReached` refetches the same page forever. `discardPendingOlder` covers only a page already _held_; a fetch still in flight needs the generation. The lock is released solely by the load that still owns it, or a superseded pager hands it back mid-replacement. And `loadAround` **preempts** rather than declining: declining returned the same `false` as an unreachable message, answering `원본 메시지를 찾지 못했어요` for a parent one page away.
 
-- [ ] Previous / next navigation between results, as in KakaoTalk; returning to the newest messages reuses the § 8.1. button, which § 8.10.1. has already taught to restore the window before it scrolls
-- [ ] Highlight the matched substring **client-side by splitting the string** — do not use `ts_headline`
-- [ ] Media and emoticon messages are excluded from search
-- [ ] Empty states for "no query yet" and "no results"
+- **A jump that is superseded is not a jump that failed.** `loadAround` answers `ok` / `missing` / `superseded`, and only `missing` raises 원본 메시지를 찾지 못했어요 — pressing the arrows twice in a row leaves the first fetch resolving against a window the second has already replaced, and reported as a failure it apologises for a jump the user is watching land
+- **The flash is a property of the jump, never of whether a search is open.** A quote jump taken while searching lands on a parent that need not contain the query, so keying the suppression on the search being open leaves that jump marked by nothing at all — the caller says which kind of jump it is
+- **A jump takes the scroll.** § 8.3.'s open re-parks the room on the newest message after every render until a real gesture (`wheel` / `touchstart` / `keydown`) claims it, and a programmatic jump is not one — so `jumpToMessage` sets that flag itself, or the park runs on the very next commit and drags the reader straight back to the live edge. Search is what made this reachable: open, type, jump, on a screen nobody has scrolled at all. The § 8.10.1. quote jump had the same hole and only ever escaped it because the reader had usually scrolled to find the quote first
+- **The search names a target and the room owns the move.** The result list, the arrows and the field are a feature slice; what crosses into `ChatRoom` is one `{ token, id }`. The token is what makes re-picking the row the room is already parked on a fresh instruction — keyed on the id alone that is no change at all, and the tap reads as having done nothing
+- Previous / next navigation between results, as in KakaoTalk. **`∧` is the older hit and `∨` the newer one**, because the conversation runs oldest to newest down the screen — the arrow points the way the room is about to move, not the way the newest-first result list is ordered. Stepping past the loaded end pages first and then moves. Returning to the newest messages reuses the § 8.1. button, which § 8.10.1. has already taught to restore the window before it scrolls
+- **The newest hit is taken as soon as a page lands**, so the counter reads `1/12` beside a field that has only just stopped moving — this is what KakaoTalk does while the query is still being typed, and it is why the arrows have a position to step from without the user picking one
+- Highlight the matched substring **client-side by splitting the string** — do not use `ts_headline`. Split by case-folded `indexOf`, never a regex: the query is whatever the user typed, so a `.` or a `(` in it would otherwise be a pattern rather than the character they meant. `splitTextByQuery` is in `shared/lib` because the result row and the bubble both paint from it
+- **The bubble carries the mark, and the § 8.10.1. flash is withheld while a search is open.** The flash is for a jump with nothing else to point at; a search knows the characters that were asked for, so `search-hit` inside the bubble says which words matched and stays up across the next arrow press (`DESIGN.md § 6.8.`). Only the written text is marked — a URL is one run the reader recognises by its shape, and a mark cut through it breaks that for a match nobody was looking for there
+- **The § 6.7. pill counts nothing while the window is parked away from the live edge.** `messages` is then a slice of history, and every row in it outranking `seenId` was being counted as an arrival — stepping from an older hit to a newer one replaces the window with a page of them and the pill announced `새 메시지 30` for last month's messages. `seenId` must not be rewritten from such a window either, or it walks backwards and everything between there and the live edge counts as unseen on the way back
+- Media and emoticon messages are excluded from search — they carry no text, so this is `type = 'text'` at the query rather than a filter over the result
+- **The result list is a surface of its own, opened from the navigation bar.** KakaoTalk has no list inside the room — it keeps one in its global search instead, which this app cannot have, since § 6. makes the one conversation implicit and there is nothing to search across. So the two KakaoTalk surfaces collapse into one here, and `DESIGN.md § 6.8.`'s result row lives in the room
+- Empty states for "no query yet" and "no results". **Both are reachable or they are not implemented** — the list is the only place either can appear, so a nothing-found scan has to open it rather than leaving the reader in front of an unchanged conversation
 
 ### 8.7. Display Names and Profiles
 
@@ -494,7 +510,7 @@ Tapping a quote runs the machinery § 8.6.1. will reuse unchanged:
 - The scroll waits a frame after the window commits. The virtualizer only takes the replaced rows on the next render, so scrolling inside the same call stack resolves the index against the previous window's measurements
 - On arrival the row flashes `primary-tint` for `MESSAGE_FLASH_DURATION`. The flash is on the **row**, not the bubble's fill, so a media or emoticon message highlights the same way a text one does
 
-- [ ] Search (§ 8.6.) reuses all of the above unchanged when it lands; only the result list and its query are left
+- Search (§ 8.6.) reuses all of the above unchanged, and landing it added exactly one thing: the jump now claims the scroll, which the quote jump had always needed too (§ 8.6.1.)
 
 ### 8.11. Sharing a Message ✅
 
@@ -612,7 +628,7 @@ Remaining:
 - **Read authorization admits a gallery-only object.** `canReadMedia` would otherwise refuse the other participant a photo that hangs off no message; the gallery is shared
 - **The viewer carries 배경으로 설정** (§ 12.1.), here and in a chat bubble's viewer alike. It is hidden on a video, which has no still frame to wear, and on a draft, which has no stored object for the server-side copy to read. The sheet is mounted **outside** the viewer's own conditional, so dismissing the viewer over it cannot unmount it mid-write
 
-- [ ] A link that jumps to where the image was sent in the conversation — it needs § 8.6.1.'s reinitialize-around-a-message machinery, which is not built
+- [ ] A link that jumps to where the image was sent in the conversation. **The machinery it was waiting on is built** (§ 8.6.1.) — what is left is finding the message a `media` row hangs off, and reaching the chat tab with a target the room will take
 
 ---
 
@@ -988,9 +1004,9 @@ An installed iOS PWA is not reloaded when the user reopens it — the system res
 2. ✅ Auth + session (§ 5.) — highest-risk area, so it went first. **The real-device cookie check (§ 5.3.) is still open**
 3. ✅ Database schema + migrations (§ 6.)
 4. ✅ Layout + tab bar + PWA manifest (§ 7.)
-5. **Chat tab (§ 8.) — in progress.** Text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies, the jump machinery and the typing indicator (§ 8.12.) all landed. **Open: the `1` marker and unread divider (§ 8.8.), and search (§ 8.6.)**
+5. **Chat tab (§ 8.) — in progress.** Text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies, the jump machinery, the typing indicator (§ 8.12.) and search (§ 8.6.) all landed. **Open: the `1` marker and unread divider (§ 8.8.)**
 6. ✅ R2 media pipeline + sending photos and videos in chat (§ 9.)
-7. ✅ Gallery tab (§ 10.) — open: the jump-to-message link, which waits on § 8.6.1.
+7. ✅ Gallery tab (§ 10.) — open: the jump-to-message link, now unblocked by § 8.6.1.
 8. ✅ Emoticons (§ 13.) — open: the picker's image preloading
 9. ✅ Calendar tab (§ 11.) — open: the "jump to today" control (§ 11.3.)
 10. **Settings tab (§ 12.) — in progress.** Profile editor, tap-to-enlarge avatar, the 입력 중 표시 switch (§ 8.12.), 로그아웃, both backgrounds (§ 12.1., § 12.2.) and the profile screen (§ 12.3.) landed. **Open: the device list and app info**

@@ -1,11 +1,14 @@
 "use client";
 
-import { cn, splitTextByUrls } from "@/shared/lib";
+import { cn, splitTextByQuery, splitTextByUrls } from "@/shared/lib";
 import { Fragment } from "react";
 
 export type MessageTextProps = {
   className?: string;
+  markClassName?: string;
   text: string;
+  /** REQUIREMENTS.md § 8.6.1. Lit in the bubble while a search is open; empty the rest of the time. */
+  query?: string;
 };
 
 /**
@@ -15,7 +18,7 @@ export type MessageTextProps = {
  * what the sender typed is what the bubble says, and the card above it is an
  * addition to the message, not a rewrite of it.
  */
-export function MessageText({ className, text }: MessageTextProps) {
+export function MessageText({ className, markClassName, text, query = "" }: MessageTextProps) {
   return (
     <span className={cn(className)}>
       {splitTextByUrls(text).map((segment, index) =>
@@ -33,9 +36,29 @@ export function MessageText({ className, text }: MessageTextProps) {
             {segment.value}
           </a>
         ) : (
-          <Fragment key={index}>{segment.value}</Fragment>
+          // INFO: REQUIREMENTS.md § 8.6.1. Only the written text is lit — a URL is one unbroken run the reader is meant to recognise as an address, and cutting a mark through it would break that shape for a match nobody was looking for there.
+          <Fragment key={index}>{renderMatches(segment.value)}</Fragment>
         ),
       )}
     </span>
   );
+
+  function renderMatches(value: string) {
+    if (query.trim().length === 0) {
+      return value;
+    }
+
+    return splitTextByQuery(value, query).map((part, index) => (
+      <Fragment key={index}>
+        {part.isMatch ? (
+          // INFO: DESIGN.md § 6.8. The same `search-hit` the result row uses, so the line the list showed and the bubble it led to are marked the same way.
+          <mark className={cn("rounded-xs bg-search-hit text-ink", markClassName)}>
+            {part.value}
+          </mark>
+        ) : (
+          part.value
+        )}
+      </Fragment>
+    ));
+  }
 }

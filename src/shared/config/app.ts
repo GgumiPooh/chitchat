@@ -82,6 +82,21 @@ export const MAX_MESSAGE_PAGE_SIZE = 50;
 
 export const MAX_MESSAGE_LENGTH = 2_000;
 
+/** REQUIREMENTS.md § 8.6. Substring search over `messages.text`, newest first. */
+export const MESSAGE_SEARCH_PATH = "/api/messages/search";
+
+// INFO: Smaller than a message page — a result row is two clamped lines, so a screenful is fewer rows than a screenful of bubbles.
+export const SEARCH_PAGE_SIZE = 20;
+
+// WARN: The query is a `LIKE` pattern the caller composes; bounding it here is what keeps a pathological one out of the scan the § 8.6. index cannot serve.
+export const MAX_SEARCH_QUERY_LENGTH = 100;
+
+// INFO: DESIGN.md § 6.8. The result row clamps to two lines, so the server sends a window around the hit rather than a 2000-character message the clamp would cut the match out of.
+export const SEARCH_EXCERPT_MAX_LENGTH = 120;
+
+// INFO: How much of the sentence before the hit rides along, so the match is not flush against the left edge with no context in front of it.
+export const SEARCH_EXCERPT_LEAD = 24;
+
 // INFO: REQUIREMENTS.md § 8.10. The quote is clamped to one line, so the wire carries a slice rather than a 2000-character parent every reply would otherwise drag along.
 export const REPLY_PREVIEW_MAX_LENGTH = 120;
 

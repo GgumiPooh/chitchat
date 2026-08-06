@@ -47,7 +47,8 @@ export function AppHeader({ className, titleClassName, title, leading, trailing 
             {title}
           </h1>
         ) : (
-          <div className="flex-1" />
+          // INFO: The spacer exists to push `trailing` to the far edge when there is no title to do it. A `leading` that came without a title is a caller filling the row itself (REQUIREMENTS.md § 8.6.'s search field), and a second flexible child beside it would halve the width it asked for.
+          !leading && <div className="flex-1" />
         )}
         {trailing}
       </div>

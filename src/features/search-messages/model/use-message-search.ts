@@ -1,0 +1,249 @@
+"use client";
+
+import type { MessageSearchResult } from "@/entities/message";
+import { SEARCH_PAGE_SIZE } from "@/shared/config";
+import type { Nullable } from "@/shared/lib";
+import { toast } from "@/shared/ui";
+import { useCallback, useRef, useState } from "react";
+import { fetchMessageSearch } from "../api/fetch-message-search";
+
+/**
+ * The message the room is being asked to move to. The token is what makes a
+ * repeat of the same id a new instruction — re-picking the row the room is
+ * already parked on has to re-run the jump (and so re-centre it) rather than
+ * resolve to no change at all.
+ */
+export type SearchJumpTarget = {
+  token: number;
+  id: number;
+};
+
+export type MessageSearch = ReturnType<typeof useMessageSearch>;
+
+/**
+ * The query side of REQUIREMENTS.md § 8.6. — the field, the result page, and
+ * which hit the room is parked on. The jump itself belongs to the room
+ * (§ 8.6.1.); this only ever names a target.
+ */
+export function useMessageSearch() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isListOpen, setIsListOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  // INFO: The string the results actually describe, which is not the field's while it is being edited. The bubbles' marks and the row highlight both read this, or a half-typed word would light up matches nobody has asked for yet.
+  const [submitted, setSubmitted] = useState("");
+  const [results, setResults] = useState<MessageSearchResult[]>([]);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // INFO: Null until a page lands — a query with no answer yet is not the same as a query parked on its first hit, and the counter has to tell them apart.
+  const [activeIndex, setActiveIndex] = useState<Nullable<number>>(null);
+  const [target, setTarget] = useState<Nullable<SearchJumpTarget>>(null);
+  // WARN: Every fetch carries one, and only the newest may write. Typing 저녁 fires a page per debounce window, and a slow early one landing last would leave the field showing 저녁 over the results for 저.
+  const requestId = useRef(0);
+  const tokenRef = useRef(0);
+  const resultsRef = useRef<MessageSearchResult[]>([]);
+
+  const jumpTo = useCallback((index: number, hits: MessageSearchResult[]) => {
+    const hit = hits[index];
+
+    if (!hit) {
+      return;
+    }
+
+    tokenRef.current += 1;
+    setActiveIndex(index);
+    setTarget({ id: hit.id, token: tokenRef.current });
+  }, []);
+
+  const reset = useCallback(() => {
+    requestId.current += 1;
+    resultsRef.current = [];
+    setResults([]);
+    setTotal(0);
+    setHasMore(false);
+    setActiveIndex(null);
+    setTarget(null);
+    setIsLoading(false);
+    setIsLoadingMore(false);
+  }, []);
+
+  const open = useCallback(() => setIsOpen(true), []);
+
+  const close = useCallback(() => {
+    setIsOpen(false);
+    setIsListOpen(false);
+    setQuery("");
+    setSubmitted("");
+    reset();
+  }, [reset]);
+
+  // INFO: Emptying the field is the one edit that changes anything on its own — it takes the results, the marks in the bubbles and the counter away, because there is no longer a query for any of them to be about.
+  const changeQuery = useCallback(
+    (value: string) => {
+      setQuery(value);
+
+      if (value.trim().length === 0) {
+        setSubmitted("");
+        reset();
+      }
+    },
+    [reset],
+  );
+
+  /** The next page of hits, behind the same keyset cursor § 8.2. pages history on. */
+  const loadMore = useCallback(async () => {
+    const oldest = resultsRef.current.at(-1);
+
+    if (!hasMore || isLoadingMore || isLoading || !oldest) {
+      return false;
+    }
+
+    setIsLoadingMore(true);
+
+    const generation = requestId.current;
+
+    try {
+      const page = await fetchMessageSearch({ query: submitted, before: oldest.id });
+
+      // WARN: Dropped whole if the query moved on. Appending it would splice hits for the previous string into the list under the new one, and the counter would then describe neither.
+      if (generation !== requestId.current) {
+        return false;
+      }
+
+      resultsRef.current = [...resultsRef.current, ...page.results];
+      setResults(resultsRef.current);
+      setHasMore(page.results.length >= SEARCH_PAGE_SIZE);
+
+      return page.results.length > 0;
+    } catch {
+      if (generation === requestId.current) {
+        toast.error("검색 결과를 더 불러오지 못했어요");
+      }
+
+      return false;
+    } finally {
+      if (generation === requestId.current) {
+        setIsLoadingMore(false);
+      }
+    }
+  }, [hasMore, isLoadingMore, isLoading, submitted]);
+
+  const select = useCallback(
+    (index: number) => {
+      setIsListOpen(false);
+      jumpTo(index, resultsRef.current);
+    },
+    [jumpTo],
+  );
+
+  /**
+   * INFO: Results are newest-first, and the conversation runs oldest to newest
+   * down the screen — so `∧` is the older hit and `∨` the newer one, and the
+   * arrow points the way the room is about to move.
+   */
+  const goOlder = useCallback(async () => {
+    const next = (activeIndex ?? -1) + 1;
+
+    if (next < resultsRef.current.length) {
+      jumpTo(next, resultsRef.current);
+
+      return;
+    }
+
+    if (await loadMore()) {
+      jumpTo(next, resultsRef.current);
+    }
+  }, [activeIndex, jumpTo, loadMore]);
+
+  const goNewer = useCallback(() => {
+    if (activeIndex !== null && activeIndex > 0) {
+      jumpTo(activeIndex - 1, resultsRef.current);
+    }
+  }, [activeIndex, jumpTo]);
+
+  /**
+   * REQUIREMENTS.md § 8.6. One scan per asked-for query.
+   *
+   * WARN: Run on submit, never per keystroke. Each call is an `ILIKE` over the
+   * whole conversation plus a `count()` that cannot be `LIMIT`ed plus, on the
+   * first hit, a window replacement — and a Korean field commits jamo by jamo,
+   * so a debounced handler still pays all of that for `ㅈ`, `저` and `점` on
+   * the way to `저녁`. The keyboard's own search key is the trigger, which is
+   * the button iOS already draws for `enterKeyHint="search"`.
+   */
+  const submit = useCallback(async () => {
+    const trimmed = query.trim();
+
+    if (trimmed.length === 0) {
+      return;
+    }
+
+    // INFO: Asking again for the string already on screen is the find-in-page gesture, so it steps to the next hit rather than re-running a scan whose answer is already in hand.
+    if (trimmed === submitted && resultsRef.current.length > 0) {
+      void goOlder();
+
+      return;
+    }
+
+    const generation = (requestId.current += 1);
+
+    setIsLoading(true);
+
+    try {
+      const page = await fetchMessageSearch({ query: trimmed });
+
+      if (generation !== requestId.current) {
+        return;
+      }
+
+      // WARN: `submitted` commits here, with the page, and never before the fetch. Written ahead of it, a scan that then failed would leave the previous query's results, total and active index standing under a `submitted` naming the new one — the bubbles marking one string while the arrows stepped another, `loadMore` paging the new query onto the old list, and the re-submit shortcut below stepping the stale hits instead of retrying.
+      setSubmitted(trimmed);
+      resultsRef.current = page.results;
+      setResults(page.results);
+      setTotal(page.total ?? page.results.length);
+      setHasMore(page.results.length >= SEARCH_PAGE_SIZE);
+      setIsLoading(false);
+      // INFO: The newest hit is taken as soon as the page lands, so the counter reads `1/12` and the arrows have somewhere to step from without the user picking a row first.
+      jumpTo(0, page.results);
+      // INFO: A scan that matched nothing has only one thing to report, and the list is the only surface that can report it — the counter goes blank and no bubble is marked, so without this the search reads as never having run.
+      setIsListOpen(page.results.length === 0);
+    } catch {
+      if (generation === requestId.current) {
+        setIsLoading(false);
+        toast.error("검색하지 못했어요");
+      }
+    }
+  }, [query, submitted, jumpTo, goOlder]);
+
+  return {
+    isOpen,
+    isListOpen,
+    query,
+    submitted,
+    results,
+    total,
+    hasMore,
+    isLoading,
+    isLoadingMore,
+    activeIndex,
+    target,
+    // INFO: The older end is only known to be reached once paging has run out, so the arrow stays live while another page could still answer it.
+    // WARN: `results.length > 0` first. Without it the arrow is live on a search that has not run — `activeIndex` is null before the first page, and a control that ticks the Taptic engine and then does nothing reads as broken.
+    hasOlder:
+      results.length > 0 && (activeIndex === null || activeIndex + 1 < results.length || hasMore),
+    hasNewer: activeIndex !== null && activeIndex > 0,
+    // INFO: An empty field has nothing to ask for. Re-submitting the string already on screen is allowed and steps to the next hit — that decision lives in `submit`, not in whether the control is offered.
+    canSubmit: query.trim().length > 0,
+    open,
+    close,
+    submit,
+    setQuery: changeQuery,
+    openList: useCallback(() => setIsListOpen(true), []),
+    closeList: useCallback(() => setIsListOpen(false), []),
+    loadMore,
+    select,
+    goOlder,
+    goNewer,
+  };
+}

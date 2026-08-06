@@ -8,6 +8,12 @@ import { useCallback, useRef, useState } from "react";
 import { fetchMessages } from "../api/fetch-messages";
 
 /**
+ * What a jump asked for: it landed, the message is not reachable, or a later
+ * jump replaced the window while this one was in flight (REQUIREMENTS.md § 8.6.1.).
+ */
+export type LoadAroundResult = "ok" | "missing" | "superseded";
+
+/**
  * The loaded window of the conversation. Older pages are keyset-paginated on the
  * message id (REQUIREMENTS.md § 8.2.); the newest page arrives from the server
  * render, so opening the tab costs no client round trip.
@@ -182,8 +188,12 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
 
   /**
    * REQUIREMENTS.md § 8.6.1. Replaces the window with context on both sides of one
-   * message — the jump a quote (§ 8.10.) or a search result asks for. Answers whether
-   * the target was actually reachable.
+   * message — the jump a quote (§ 8.10.) or a search result asks for.
+   *
+   * WARN: Three answers, not two. `superseded` is a later jump having taken the
+   * window while this fetch was out, which is an ordinary outcome of pressing
+   * § 8.6.1.'s arrows twice in a row — reported as `missing` it puts
+   * 원본 메시지를 찾지 못했어요 on screen for a jump the user watched succeed.
    *
    * WARN: It preempts a pager in flight rather than declining. Declining returned the
    * same `false` as a genuinely unreachable message, so tapping a quote while the
@@ -191,14 +201,18 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
    * that was one page away.
    */
   const loadAround = useCallback(
-    async (id: number) => {
+    async (id: number): Promise<LoadAroundResult> => {
       const generation = beginReplacement();
 
       try {
         const around = await fetchMessages({ around: id });
 
-        if (generation !== windowId.current || !around.some((message) => message.id === id)) {
-          return false;
+        if (generation !== windowId.current) {
+          return "superseded";
+        }
+
+        if (!around.some((message) => message.id === id)) {
+          return "missing";
         }
 
         // WARN: Both flags are set optimistically rather than derived from the page. `around` splits its limit over two directions, so neither half's length says whether more exists — an unnecessary fetch in each direction is the cost, and it corrects itself on the first short page.
@@ -207,13 +221,15 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
         setHasNewer(true);
         commit(() => around);
 
-        return true;
+        return "ok";
       } catch {
         if (generation === windowId.current) {
           toast.error("메시지를 불러오지 못했어요");
+
+          return "missing";
         }
 
-        return false;
+        return "superseded";
       } finally {
         endLoad(generation);
       }

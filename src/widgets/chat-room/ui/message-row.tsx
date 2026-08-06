@@ -41,8 +41,10 @@ export type MessageRowProps = {
   isLastOfGroup: boolean;
   /** REQUIREMENTS.md § 8.8. Set on the newest of my messages the other participant's read cursor has passed. */
   isRead?: boolean;
-  /** DESIGN.md § 6.8. Flashes behind the row on arrival from a quote or a search result. */
+  /** DESIGN.md § 6.8. Flashes behind the row on arrival from a quote (§ 8.10.1.), which has no substring to mark instead. */
   isHighlighted?: boolean;
+  /** REQUIREMENTS.md § 8.6.1. The open search's query, lit inside the bubble. */
+  searchQuery?: string;
   status: "sent" | "sending" | "failed";
   onLongPress?: () => void;
   onOpenMedia?: (index: number) => void;
@@ -72,6 +74,7 @@ export function MessageRow({
   isLastOfGroup,
   isRead = false,
   isHighlighted = false,
+  searchQuery,
   status,
   onLongPress,
   onOpenMedia,
@@ -197,7 +200,7 @@ export function MessageRow({
                   onOpen={onOpenReply}
                 />
               )}
-              {text && <MessageText text={text} />}
+              {text && <MessageText text={text} query={searchQuery} />}
             </div>
           )}
           {status === "failed" ? (

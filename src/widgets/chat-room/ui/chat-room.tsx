@@ -58,6 +58,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
   type RefObject,
   type TransitionEvent,
 } from "react";
@@ -90,6 +91,34 @@ export type ChatRoomProps = {
   initialMessages: ChatMessage[];
   /** REQUIREMENTS.md § 12.2. This user's own wallpaper; `null` leaves the room on the flat `chat-canvas`. */
   backgroundMediaId: Nullable<string>;
+  /**
+   * REQUIREMENTS.md § 8.6.1. A message the room is being told to move to, from
+   * outside it. The token is what makes a repeat of the same id a fresh
+   * instruction rather than no change at all.
+   */
+  jumpTarget?: Nullable<{ token: number; id: number }>;
+  /**
+   * REQUIREMENTS.md § 8.6.1. The open search's query, lit inside every bubble
+   * that contains it — which is what marks a search jump, in place of the
+   * quote jump's flash. A whole row washed in `primary-tint` says "here" and
+   * nothing else; the mark says which words were matched, and it stays up
+   * while the reader steps through the other hits.
+   */
+  searchQuery?: string;
+  /**
+   * Stands in the composer's place while it is set — the § 8.6. search nav.
+   *
+   * WARN: It goes inside the composer's own wrapper, not beside it.
+   * `useComposerClearance` measures `container.bottom − composer.top` off that
+   * box, so a bar mounted anywhere else would leave the history clearing a
+   * composer that is not on screen.
+   *
+   * WARN: The composer it stands in for is **hidden, never unmounted**. The
+   * draft is `MessageComposer`'s own state and never leaves it, so unmounting
+   * throws away a typed-but-unsent message — silently, and along with the
+   * `useUnsentWork` hold that stops § 15.1. reloading the tab over it.
+   */
+  bottomBar?: ReactNode;
 };
 
 // INFO: DESIGN.md § 6.7. The pill appears once the newest message is roughly this far away, and the same distance is what `scrollEndThreshold` treats as near enough to the end that a row re-measuring there should hold the end still rather than let it drift.
@@ -120,6 +149,9 @@ export function ChatRoom({
   currentUserId,
   initialMessages,
   backgroundMediaId,
+  jumpTarget,
+  searchQuery,
+  bottomBar,
 }: ChatRoomProps) {
   const containerRef = useRef<Nullable<HTMLDivElement>>(null);
   const composerRef = useRef<Nullable<HTMLDivElement>>(null);
@@ -182,11 +214,17 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 8.11. The same route the gallery's 저장 takes (§ 10.), asked for by 공유 rather than by 저장.
   const sharing = useMediaShare();
   const isKeyboardOpen = useIsVirtualKeyboardOpen();
+  // INFO: REQUIREMENTS.md § 8.6. The composer's whole stack is put away for the length of a search, and everything it drives has to go with it.
+  const isSearching = bottomBar !== undefined;
   // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
-  const isEmoticonPanelOpen = isEmoticonPickerOpen && !isKeyboardOpen;
+  // WARN: `!isSearching` is load-bearing beyond the drawing. The panel being open is one of § 8.12.'s two sustained typing sources, so a panel left open behind the search goes on announcing 입력 중 — and it would pop back open on 취소.
+  const isEmoticonPanelOpen = isEmoticonPickerOpen && !isKeyboardOpen && !isSearching;
   const { participants, typingUserIds, setIsReading } = useChatStream();
   // WARN: REQUIREMENTS.md § 8.12. Only the two *sustained* sources are passed; typing arrives as edit pulses through the returned callback, because a field holding a draft is not somebody typing. Sending is not a trigger either way — it clears both of these and produces no edit.
-  const signalEdit = useTypingSignal(isEmoticonPanelOpen || stagedEmoticon !== null);
+  // WARN: REQUIREMENTS.md § 8.12. Silent for the length of a search. A staged emoticon is state that outlives the hidden composer, so left connected it holds the signal up and re-POSTs every `TYPING_PING_INTERVAL` — the other participant reads 입력 중 from a composer that is not even on screen, which is exactly the parked-draft failure § 8.12. exists to have removed.
+  const signalEdit = useTypingSignal(
+    !isSearching && (isEmoticonPanelOpen || stagedEmoticon !== null),
+  );
   const participantById = useMemo(
     () => new Map(participants.map((participant) => [participant.id, participant])),
     [participants],
@@ -280,10 +318,12 @@ export function ChatRoom({
   }
 
   // INFO: My own send is not a new message to me — counting it flashes `새 메시지 1` on the pill for my own bubble.
-  const unseenCount = isAtBottom
-    ? 0
-    : messages.filter((message) => message.id > seenId && message.senderId !== currentUserId)
-        .length;
+  // WARN: REQUIREMENTS.md § 8.6.1. Silent while the window is parked away from the live edge. `messages` is then a slice of history rather than the newest page, and every row in it that happens to outrank `seenId` would be counted as an arrival — stepping from an older search hit to a newer one replaces the window with 30 such rows and the pill announces `새 메시지 30` for messages from last month. Nothing in a jumped window is news, and the pill is already visible there for the other reason: it is the way back.
+  const unseenCount =
+    isAtBottom || hasNewer
+      ? 0
+      : messages.filter((message) => message.id > seenId && message.senderId !== currentUserId)
+          .length;
   const pendingCount = pending.length;
   const lastPendingCount = useRef(pendingCount);
   const isSending = pending.some((entry) => entry.status === "sending");
@@ -552,6 +592,22 @@ export function ChatRoom({
     };
   }, [scroller]);
 
+  /**
+   * REQUIREMENTS.md § 8.6.1. A result the § 8.6. search picked, run through the
+   * same jump a quote takes.
+   *
+   * WARN: Keyed on the token, never on the id. Re-picking the row the room is
+   * already parked on has to flash it again — keyed on the id that would be no
+   * change at all, and the tap would read as having done nothing.
+   */
+  useEffect(() => {
+    if (jumpTarget) {
+      // INFO: A search jump is marked by the § 8.6. mark inside the bubble, so it takes no flash on top of it.
+      void jumpToMessage(jumpTarget.id, { flash: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpTarget?.token]);
+
   // INFO: DESIGN.md § 6.8. The flash is a moment, not a selection — nothing dismisses it but time.
   useEffect(() => {
     if (highlightedId === null) {
@@ -631,71 +687,78 @@ export function ChatRoom({
         ref={composerRef}
         className="pointer-events-none absolute inset-x-0 bottom-(--bottom-inset)"
       >
-        {/* INFO: REQUIREMENTS.md § 8.10. Above the tray and the pill, and in the flow — the quote belongs to the send the whole stack is composing, so it reads as the header of it. */}
-        {/* WARN: DESIGN.md § 6.6. `mt-xs` matches the emoticon panel's, which is the gap this stack is measured against — without it the bar butts straight into the bubble above. It is safe to carry unconditionally because this renders nothing when there is no reply, so the clearance only grows while the bar is up. */}
-        {replyTarget && (
-          <ReplyBar
-            className="mx-md mt-xs mb-2xs"
-            replyTo={replyTarget}
-            name={participantById.get(replyTarget.senderId)?.name}
-            onCancel={() => setReplyTarget(null)}
-          />
-        )}
-        {/* INFO: DESIGN.md § 6.6. Same gap as the bar above and the panel below; `MediaTray` renders nothing with an empty selection, so this costs the resting composer no height. */}
-        <MediaTray
-          className="mx-md mt-xs mb-2xs"
-          drafts={selection.drafts}
-          isReading={selection.isReading}
-          onEdit={setEditing}
-          onRemove={selection.remove}
-        />
-        {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
-        {/* WARN: § 13.6. wants the preview above the open panel, but the panel is half the shell — `bottom-full` alone puts it behind the floating header on a short viewport and off the top of the screen below ~604px, which is the panel not appearing to stage at all. The `min()` stops it at the header and lets it overlap the panel's top rows instead, which only happens where something has to give. */}
-        {stagedEmoticon && (
-          <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--viewport-height,100dvh)_-_var(--bottom-inset)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))]">
-            <EmoticonPreview
-              className="mx-md mb-2xs"
-              emoticon={stagedEmoticon}
-              onRemove={() => setStagedEmoticon(null)}
+        {bottomBar}
+        {/* WARN: REQUIREMENTS.md § 8.6. The whole stack goes while a search is open, not just the field — a reply bar or an attachment tray left standing would be composing a message the screen offers no way to send. */}
+        {/* WARN: `hidden`, never a conditional subtree. `MessageComposer` holds the draft in its own state, so unmounting it here silently discards a typed message and drops its `useUnsentWork` hold with it. `display: none` takes it out of the wrapper's height, which is all `useComposerClearance` reads. */}
+        <div className={cn(isSearching && "hidden")} inert={isSearching}>
+          <>
+            {/* INFO: REQUIREMENTS.md § 8.10. Above the tray and the pill, and in the flow — the quote belongs to the send the whole stack is composing, so it reads as the header of it. */}
+            {/* WARN: DESIGN.md § 6.6. `mt-xs` matches the emoticon panel's, which is the gap this stack is measured against — without it the bar butts straight into the bubble above. It is safe to carry unconditionally because this renders nothing when there is no reply, so the clearance only grows while the bar is up. */}
+            {replyTarget && (
+              <ReplyBar
+                className="mx-md mt-xs mb-2xs"
+                replyTo={replyTarget}
+                name={participantById.get(replyTarget.senderId)?.name}
+                onCancel={() => setReplyTarget(null)}
+              />
+            )}
+            {/* INFO: DESIGN.md § 6.6. Same gap as the bar above and the panel below; `MediaTray` renders nothing with an empty selection, so this costs the resting composer no height. */}
+            <MediaTray
+              className="mx-md mt-xs mb-2xs"
+              drafts={selection.drafts}
+              isReading={selection.isReading}
+              onEdit={setEditing}
+              onRemove={selection.remove}
             />
-          </div>
-        )}
-        {/* INFO: REQUIREMENTS.md § 13.6. Inside the composer's own absolute wrapper, so the panel sits above the bar and the messages still scroll underneath both. */}
-        {/* INFO: § 13.6. `justify-end` anchors the panel to the bottom of the strip, so it is revealed rising from behind the composer rather than unrolling downward from a top edge that is itself moving up. */}
-        {/* WARN: A real `height` and never a `0fr`→`1fr` grid track. Mid-transition Chrome sizes such a track's container taller than the track it resolved, and the strip below the bottom-anchored panel is a gap that opens and shuts — which is what read as the panel stretching apart from its middle. */}
-        <div
-          className={cn(
-            "flex flex-col justify-end overflow-hidden transition-[height] duration-200 ease-out",
-            isEmoticonPanelOpen
-              ? // WARN: The underscores are the spaces `calc()` requires around `+`. Written closed up the declaration is invalid, and the strip resolves to `0px` — the panel opens to nothing and no cell can be tapped.
-                "h-[calc(var(--emoticon-panel-height)_+_var(--spacing-xs)_+_var(--spacing-2xs))]"
-              : "h-0",
-          )}
-          // WARN: The panel stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until this takes them back out.
-          inert={!isEmoticonPanelOpen}
-          onTransitionEnd={settleAfterPanelTransition}
-        >
-          {hasOpenedEmoticonPanel && (
-            // INFO: § 13.6. `mt-xs` matches the composer's own top padding, so the panel clears the history by what the bar alone clears it by. The height above is this panel plus both margins.
-            // WARN: `shrink-0` or the collapsing strip compresses the panel instead of clipping it, and § 13.6.'s own `flex-1` scroller is what gives — the panel then reads as stretching open rather than rising.
-            // INFO: § 13.6. Promoted to its own layer so the strip's growing clip is a compositor crop — unpromoted, every frame of the 200ms repaints a grid of animated images against a moving clip rect, which is what the open stutters on.
-            <EmoticonPicker
-              className="mx-md mt-xs mb-2xs shrink-0 will-change-transform"
-              onSelect={stageEmoticon}
-              onQuickSend={sendStagedEmoticon}
+            {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
+            {/* WARN: § 13.6. wants the preview above the open panel, but the panel is half the shell — `bottom-full` alone puts it behind the floating header on a short viewport and off the top of the screen below ~604px, which is the panel not appearing to stage at all. The `min()` stops it at the header and lets it overlap the panel's top rows instead, which only happens where something has to give. */}
+            {stagedEmoticon && (
+              <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--viewport-height,100dvh)_-_var(--bottom-inset)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))]">
+                <EmoticonPreview
+                  className="mx-md mb-2xs"
+                  emoticon={stagedEmoticon}
+                  onRemove={() => setStagedEmoticon(null)}
+                />
+              </div>
+            )}
+            {/* INFO: REQUIREMENTS.md § 13.6. Inside the composer's own absolute wrapper, so the panel sits above the bar and the messages still scroll underneath both. */}
+            {/* INFO: § 13.6. `justify-end` anchors the panel to the bottom of the strip, so it is revealed rising from behind the composer rather than unrolling downward from a top edge that is itself moving up. */}
+            {/* WARN: A real `height` and never a `0fr`→`1fr` grid track. Mid-transition Chrome sizes such a track's container taller than the track it resolved, and the strip below the bottom-anchored panel is a gap that opens and shuts — which is what read as the panel stretching apart from its middle. */}
+            <div
+              className={cn(
+                "flex flex-col justify-end overflow-hidden transition-[height] duration-200 ease-out",
+                isEmoticonPanelOpen
+                  ? // WARN: The underscores are the spaces `calc()` requires around `+`. Written closed up the declaration is invalid, and the strip resolves to `0px` — the panel opens to nothing and no cell can be tapped.
+                    "h-[calc(var(--emoticon-panel-height)_+_var(--spacing-xs)_+_var(--spacing-2xs))]"
+                  : "h-0",
+              )}
+              // WARN: The panel stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until this takes them back out.
+              inert={!isEmoticonPanelOpen}
+              onTransitionEnd={settleAfterPanelTransition}
+            >
+              {hasOpenedEmoticonPanel && (
+                // INFO: § 13.6. `mt-xs` matches the composer's own top padding, so the panel clears the history by what the bar alone clears it by. The height above is this panel plus both margins.
+                // WARN: `shrink-0` or the collapsing strip compresses the panel instead of clipping it, and § 13.6.'s own `flex-1` scroller is what gives — the panel then reads as stretching open rather than rising.
+                // INFO: § 13.6. Promoted to its own layer so the strip's growing clip is a compositor crop — unpromoted, every frame of the 200ms repaints a grid of animated images against a moving clip rect, which is what the open stutters on.
+                <EmoticonPicker
+                  className="mx-md mt-xs mb-2xs shrink-0 will-change-transform"
+                  onSelect={stageEmoticon}
+                  onQuickSend={sendStagedEmoticon}
+                />
+              )}
+            </div>
+            <MessageComposer
+              hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
+              isEmoticonPickerOpen={isEmoticonPanelOpen}
+              onAttach={() => setIsPickerOpen(true)}
+              onEdit={signalEdit}
+              onFieldFocus={() => setIsEmoticonPickerOpen(false)}
+              // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
+              onToggleEmoticons={() => setIsEmoticonPickerOpen(!isEmoticonPanelOpen)}
+              onSend={submit}
             />
-          )}
+          </>
         </div>
-        <MessageComposer
-          hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
-          isEmoticonPickerOpen={isEmoticonPanelOpen}
-          onAttach={() => setIsPickerOpen(true)}
-          onEdit={signalEdit}
-          onFieldFocus={() => setIsEmoticonPickerOpen(false)}
-          // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
-          onToggleEmoticons={() => setIsEmoticonPickerOpen(!isEmoticonPanelOpen)}
-          onSend={submit}
-        />
       </div>
       <ActionSheet
         isOpen={actionTarget !== null}
@@ -978,9 +1041,12 @@ export function ChatRoom({
             isLastOfGroup={row.isLastOfGroup}
             isRead={row.message.id === lastReadMineId}
             isHighlighted={row.message.id === highlightedId}
+            searchQuery={searchQuery}
             status="sent"
             onOpenReply={
-              quoted && !quoted.isDeleted ? () => void jumpToMessage(quoted.id) : undefined
+              quoted && !quoted.isDeleted
+                ? () => void jumpToMessage(quoted.id, { flash: true })
+                : undefined
             }
             onOpenMedia={(index) =>
               setViewer({
@@ -1062,12 +1128,22 @@ export function ChatRoom({
    * scroll inside this call stack resolves the index against measurements the
    * previous window left behind, and lands on whatever was at that offset.
    */
-  async function jumpToMessage(id: number) {
-    if (!messages.some((message) => message.id === id) && !(await loadAround(id))) {
-      toast.error("원본 메시지를 찾지 못했어요");
+  async function jumpToMessage(id: number, { flash }: { flash: boolean }) {
+    if (!messages.some((message) => message.id === id)) {
+      const outcome = await loadAround(id);
 
-      return;
+      // WARN: Only `missing` is a failure to report. `superseded` means a later jump has already taken the window — the ordinary result of pressing § 8.6.1.'s arrows twice — and the user is watching that jump land while this one apologises for it.
+      if (outcome === "missing") {
+        toast.error("원본 메시지를 찾지 못했어요");
+      }
+
+      if (outcome !== "ok") {
+        return;
+      }
     }
+
+    // WARN: The open parks the room on the newest message after *every* render until a real gesture takes the scroll (§ 8.3.), and a jump is not one — so without this the park runs on the very next commit and drags the reader straight back to the live edge. A search reaches this on a screen nobody has scrolled at all: open, type, jump.
+    hasTakenScrollRef.current = true;
 
     requestAnimationFrame(() => {
       const index = rowsRef.current.findIndex(
@@ -1080,7 +1156,11 @@ export function ChatRoom({
 
       // WARN: Not `behavior: "smooth"`. A jump crosses an arbitrary distance, so smooth animates through history the user did not ask to see, and the window it is animating over was replaced a frame ago.
       virtualizer.scrollToIndex(index, { align: "center" });
-      setHighlightedId(id);
+
+      // WARN: DESIGN.md § 6.8. A property of the jump, never of whether a search happens to be open. The flash is for a jump with nothing else to point at — a quote, whose parent need not contain the query, so keying this on the search being open leaves such a jump marked by nothing at all.
+      if (flash) {
+        setHighlightedId(id);
+      }
     });
   }
 
@@ -1152,7 +1232,8 @@ export function ChatRoom({
     isAtBottomRef.current = atBottom;
 
     // INFO: Leaving the bottom fixes the mark everything loaded so far is "seen"; while at the bottom the count is zero regardless.
-    if (!atBottom) {
+    // WARN: § 8.6.1. Never from a jumped-away window. Its newest row is somewhere in the past, so writing it here walks the mark backwards, and everything the reader had already seen between there and the live edge counts as unseen the moment they return.
+    if (!atBottom && !hasNewer) {
       setSeenId(messages.at(-1)?.id ?? 0);
     }
   }
