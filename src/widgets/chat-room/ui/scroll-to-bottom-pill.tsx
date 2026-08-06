@@ -37,7 +37,7 @@ export function ScrollToBottomPill({
       {/* INFO: DESIGN.md § 6.7. The count variant recolours the pill instead of stacking a badge on top of it. */}
       <span
         className={cn(
-          "inline-flex min-h-10 items-center gap-2xs rounded-full px-3.5 py-xs shadow-raised transition-transform group-active:scale-[0.96]",
+          "inline-flex min-h-10 press-bloom items-center gap-2xs rounded-full px-3.5 py-xs shadow-raised",
           hasNewMessages
             ? "bg-primary text-on-primary group-hover:bg-primary-hover"
             : "border border-hairline bg-canvas text-meta group-hover:bg-surface-soft",

@@ -83,7 +83,9 @@ export function MessageComposer({
           >
             <span
               className={cn(
-                "inline-flex size-9 items-center justify-center rounded-full text-on-primary transition-colors",
+                // INFO: DESIGN.md § 4.7.2. The same bloom the round `IconButton`s carry, on the disc rather than the 44 target so the swell reads against the pill it sits in.
+                // WARN: The bloom stays on both branches. Sending clears the field in the same click, so `canSend` flips while the release is still running — dropping the class there takes the resting `scale: 1` with it and the disc snaps instead of settling.
+                "inline-flex size-9 press-bloom items-center justify-center rounded-full text-on-primary",
                 canSend
                   ? "bg-primary group-hover:bg-primary-hover group-active:bg-primary-pressed"
                   : "bg-primary-disabled",
