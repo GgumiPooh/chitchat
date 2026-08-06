@@ -493,6 +493,7 @@ Landed apart from the jump-to-message link, which waits on § 8.6.1.'s machinery
 - [x] Event markers in day cells, capped at three dots
 - [x] Swipe left/right to change month; the header's chevrons are the pointer equivalent (§ 4.1.). The swipe requires horizontal **intent** (|Δx| > |Δy|), or a diagonal drag would change month while the user was scrolling the shell
 - [x] Tapping a day opens that day's event list in a `BottomSheet`
+- [x] **A drag over the grid never selects a day.** A finger that scrolls the shell or swipes the month from inside a cell still releases into a `click` on it, so the grid's own `onClickCapture` swallows the tap once the pointer has moved past `GESTURE_SLOP`
 - [x] Timezone pinned to `Asia/Seoul` on both server and client
 - [x] The grid is **always six rows**. A height that changed with the month would reflow the screen under the thumb on every swipe
 - [x] The month's fetch asks for the **grid's** range, not the month's, so the adjacent-month days in the first and last rows carry their markers too
