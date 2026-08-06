@@ -50,6 +50,7 @@ export {
   LONG_PRESS_TARGET_CLASS,
   useLongPress,
   type LongPressOptions,
+  type LongPressPoint,
 } from "./hooks/use-long-press";
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
 export type { Maybe, Nullable, Optional } from "./nullish";

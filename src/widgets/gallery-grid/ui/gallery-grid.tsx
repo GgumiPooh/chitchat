@@ -1,12 +1,13 @@
 "use client";
 
 import type { GalleryMedia } from "@/entities/media";
-import { cn } from "@/shared/lib";
+import { cn, type LongPressPoint, type Nullable } from "@/shared/lib";
 import { Skeleton, type MediaCell } from "@/shared/ui";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useInView } from "react-intersection-observer";
 import { toGalleryCells } from "../model/to-gallery-cells";
 import { toGallerySections } from "../model/to-gallery-sections";
+import { useGallerySweep } from "../model/use-gallery-sweep";
 import { GalleryTile } from "./gallery-tile";
 
 export type GalleryGridProps = {
@@ -18,8 +19,10 @@ export type GalleryGridProps = {
   /** Given the whole ordered cell list and the tapped index, so the viewer can swipe past the month it started in. */
   onOpen: (cells: MediaCell[], index: number) => void;
   onToggle: (id: string) => void;
-  /** REQUIREMENTS.md § 10. Holding a tile enters selection mode on it; omitted while selection is unavailable. */
-  onStartSelecting?: (id: string) => void;
+  /** REQUIREMENTS.md § 10. Holding a tile picks it and anchors the sweep, entering selection mode if it is not on yet; omitted while selection is unavailable. */
+  onSweepStart?: (id: string) => void;
+  /** REQUIREMENTS.md § 10. Every id from the held tile to the one under the finger, in grid order — the range, not the tile that changed. */
+  onSweepTo: (ids: string[]) => void;
   onLoadMore: () => void;
 };
 
@@ -39,11 +42,20 @@ export function GalleryGrid({
   selected,
   onOpen,
   onToggle,
-  onStartSelecting,
+  onSweepStart,
+  onSweepTo,
   onLoadMore,
 }: GalleryGridProps) {
+  const startSweep = useGallerySweep({
+    onEnter: sweepTo,
+    onEnd: () => {
+      anchorRef.current = null;
+    },
+  });
   const sections = useMemo(() => toGallerySections(media), [media]);
   const cells = useMemo(() => toGalleryCells(media), [media]);
+  const indexById = useMemo(() => new Map(cells.map((cell, i) => [cell.id, i])), [cells]);
+  const anchorRef = useRef<Nullable<number>>(null);
   // INFO: The sentinel sits a screen below the last row, so the next page is usually in hand before the user reaches the bottom.
   const { ref: sentinelRef, inView } = useInView({ rootMargin: "600px" });
 
@@ -67,9 +79,7 @@ export function GalleryGrid({
                 cell={cell}
                 isSelecting={isSelecting}
                 isSelected={selected.has(cell.id)}
-                onLongPress={
-                  isSelecting || !onStartSelecting ? undefined : () => onStartSelecting(cell.id)
-                }
+                onLongPress={onSweepStart ? (point) => hold(cell.id, point) : undefined}
                 onActivate={() => activate(cell.id, section.startIndex + i)}
               />
             ))}
@@ -87,6 +97,33 @@ export function GalleryGrid({
       </div>
     </div>
   );
+
+  /** REQUIREMENTS.md § 10. The hold picks the tile it fired on and anchors the sweep there. */
+  // WARN: The anchor is written after the sweep is armed, never before. Arming disposes a sweep still running on another finger, and that disposal ends with the `onEnd` that clears this very ref.
+  function hold(id: string, point: LongPressPoint) {
+    onSweepStart?.(id);
+    startSweep(point);
+    anchorRef.current = indexById.get(id) ?? null;
+  }
+
+  /**
+   * REQUIREMENTS.md § 10. The range between the anchor and the tile the finger is
+   * over, in grid order — so a drag fills row by row rather than picking out the
+   * tiles its path happened to touch, and pulling back releases what it leaves.
+   */
+  function sweepTo(id: string) {
+    const anchor = anchorRef.current;
+    const index = indexById.get(id);
+
+    if (anchor === null || index === undefined) {
+      return;
+    }
+
+    const from = Math.min(anchor, index);
+    const to = Math.max(anchor, index);
+
+    onSweepTo(cells.slice(from, to + 1).map((cell) => cell.id));
+  }
 
   function activate(id: string, index: number) {
     if (isSelecting) {
