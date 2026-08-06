@@ -12,6 +12,8 @@ export type Participant = {
   avatarMediaId: Nullable<string>;
   /** REQUIREMENTS.md § 12.1. The profile cover, which is published — unlike the chat wallpaper beside it in `users`. */
   profileBackgroundMediaId: Nullable<string>;
+  /** WARN: REQUIREMENTS.md § 12.1. A cover may be a video, and `<img>` and `<video>` are not interchangeable — so the kind has to cross the wire beside the id. Nothing can infer it from a `media` id. */
+  isProfileBackgroundVideo: boolean;
   lastReadAt: string;
   id: string;
 };

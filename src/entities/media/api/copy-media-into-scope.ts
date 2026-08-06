@@ -1,6 +1,12 @@
 import "server-only";
 
-import { isImageMime, type MediaUploadScope } from "@/shared/config";
+import {
+  MAX_BACKGROUND_VIDEO_DURATION,
+  MAX_BACKGROUND_VIDEO_SIZE,
+  isImageMime,
+  isVideoMime,
+  type MediaUploadScope,
+} from "@/shared/config";
 import type { Media } from "@/shared/db";
 import { buildStorageKey, copyObject, toThumbKey } from "@/shared/storage";
 import type { GalleryMedia } from "../model/types";
@@ -12,6 +18,13 @@ export type CopyMediaIntoScopeParams = {
   /** The caller, who becomes the copy's owner — the copy is theirs however the source got there. */
   userId: string;
   scope: MediaUploadScope;
+  /**
+   * WARN: REQUIREMENTS.md § 12.1. Only the **profile** background may be a video —
+   * the chat wallpaper sits behind § 8.3.'s virtualized list and is drawn in an
+   * `<img>`. The caller names the slot, because this function only knows the scope
+   * and the two backgrounds share one.
+   */
+  canBeVideo?: boolean;
 };
 
 /**
@@ -51,6 +64,7 @@ export async function copyMediaIntoScope({
   sourceId,
   userId,
   scope,
+  canBeVideo = false,
 }: CopyMediaIntoScopeParams): Promise<CopyMediaResult> {
   const source = await getMediaRow(sourceId);
 
@@ -58,8 +72,13 @@ export async function copyMediaIntoScope({
     return { status: "unreachable" };
   }
 
-  // WARN: REQUIREMENTS.md § 12.1. The viewer hides 배경으로 설정 on a video, but that is a client-side decision and this route is reachable without it. A video worn as a background is drawn into a `PreloadImage`, which fails, retries once and settles on the broken-asset glyph — in front of the other participant, since a cover is published. It would also have duplicated up to `MAX_VIDEO_SIZE` of objects to get there.
-  if (!isImageMime(source.mime)) {
+  // WARN: REQUIREMENTS.md § 12.1. Checked here and not only in the viewer, which withholds the control on a video by a client-side decision this route is reachable without. A video worn where an `<img>` draws it fails, retries once and settles on the broken-asset glyph — in front of the other participant, since a cover is published — having first duplicated the whole object to get there.
+  if (!isImageMime(source.mime) && !(canBeVideo && isVideoMime(source.mime))) {
+    return { status: "unsupported" };
+  }
+
+  // WARN: § 12.1.'s duration and size caps are checked against the *source row*, before anything is copied. `registerMedia` re-checks the size of what actually landed, but it cannot see a duration — and a copy is the one path where the bytes never pass through a client that could measure one.
+  if (isVideoMime(source.mime) && !isWearableVideo(source)) {
     return { status: "unsupported" };
   }
 
@@ -73,10 +92,25 @@ export async function copyMediaIntoScope({
     width: source.width,
     height: source.height,
     durationMs: source.durationMs,
+    scope,
   });
 
   // WARN: Told apart from `unreachable` deliberately. Both used to answer the caller `null`, so a copy whose registration failed § 14. was reported as a source that does not exist — and the two objects it had already put in the bucket were attributable to nothing. This branch is the only record that they are there.
   return media ? { status: "copied", media } : { status: "unregistered" };
+}
+
+/**
+ * INFO: REQUIREMENTS.md § 12.1. A gallery video reaches the caps by being trimmed
+ * on the way in; one already in the conversation was never bounded by them, so a
+ * copy is refused rather than silently worn. A row with no `duration_ms` is refused
+ * too — it is what the cap is read from.
+ */
+function isWearableVideo(source: Media): boolean {
+  return (
+    source.size <= MAX_BACKGROUND_VIDEO_SIZE &&
+    source.durationMs !== null &&
+    source.durationMs <= MAX_BACKGROUND_VIDEO_DURATION
+  );
 }
 
 /**

@@ -15,10 +15,12 @@ import { ProfileCover } from "./profile-cover";
 export type SettingsPageProps = {
   className?: string;
   user: User;
+  /** REQUIREMENTS.md § 12.1. Resolved by the route, since `users` holds the id and `media` holds the kind. */
+  isProfileBackgroundVideo: boolean;
 };
 
 // TODO: Add the device list — REQUIREMENTS.md § 12., riding the `user_agent` and `last_success_at` § 16.1. already stores.
-export function SettingsPage({ className, user }: SettingsPageProps) {
+export function SettingsPage({ className, user, isProfileBackgroundVideo }: SettingsPageProps) {
   const displayName = resolveDisplayName(user);
 
   return (
@@ -30,6 +32,7 @@ export function SettingsPage({ className, user }: SettingsPageProps) {
         name={displayName}
         avatarMediaId={user.avatarMediaId}
         profileBackgroundMediaId={user.profileBackgroundMediaId}
+        isProfileBackgroundVideo={isProfileBackgroundVideo}
       />
       {/* INFO: DESIGN.md § 7.11. Rows run edge to edge. */}
       {/* WARN: The resolved name, not the raw column. An empty nickname is legal (REQUIREMENTS.md § 8.7. falls back to the email local part), and seeding the editor from the column would open it on a blank field under a screen showing that fallback — with 저장 dead until the user typed. */}

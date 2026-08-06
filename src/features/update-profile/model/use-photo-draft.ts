@@ -2,8 +2,13 @@
 
 import type { MediaDraft } from "@/entities/media";
 import { toMediaDraft, validateFile } from "@/features/upload-media/@x/update-profile";
-import { isImageMime } from "@/shared/config";
-import type { Maybe, Nullable } from "@/shared/lib";
+import {
+  MAX_BACKGROUND_VIDEO_SIZE,
+  isImageMime,
+  isVideoMime,
+  type MediaUploadScope,
+} from "@/shared/config";
+import { formatSize, type Maybe, type Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -17,8 +22,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * is not optional for the avatar: a photo the user backs out of the editor on was
  * never chosen. The cover stages what it read, since its crop is offered rather
  * than required.
+ *
+ * INFO: REQUIREMENTS.md § 12.1. `background` also takes a video, which the avatar
+ * slot must not — an avatar is drawn in a circle by an `<img>` everywhere in the
+ * app, so a video there has nothing that could play it.
  */
-export function usePhotoDraft() {
+export function usePhotoDraft(scope: MediaUploadScope = "avatar") {
+  const canTakeVideo = scope === "background";
   const [staged, setStaged] = useState<Nullable<MediaDraft>>(null);
   // INFO: Only the editor can tell these apart: no staged photo means "keep the current one", this means "go back to the initial-letter fallback" (DESIGN.md § 7.7.).
   const [isCleared, setIsCleared] = useState(false);
@@ -35,38 +45,34 @@ export function usePhotoDraft() {
     };
   }, []);
 
-  const read = useCallback(async (file: File): Promise<Nullable<MediaDraft>> => {
-    // WARN: The picker's `accept` is advisory — a desktop file dialog hands over whatever the user types the name of, and a video reaching `toMediaDraft` would stage its poster frame as a profile photo.
-    if (!isImageMime(file.type)) {
-      toast.error("사진만 올릴 수 있어요");
+  const read = useCallback(
+    async (file: File): Promise<Nullable<MediaDraft>> => {
+      const rejection = rejectFile(file, canTakeVideo);
 
-      return null;
-    }
+      if (rejection) {
+        toast.error(rejection);
 
-    const rejection = validateFile(file);
+        return null;
+      }
 
-    if (rejection) {
-      toast.error(rejection);
+      setIsReading(true);
 
-      return null;
-    }
+      try {
+        const draft = await toMediaDraft(file);
 
-    setIsReading(true);
+        urlsRef.current.add(draft.previewUrl);
 
-    try {
-      const draft = await toMediaDraft(file);
+        return draft;
+      } catch {
+        toast.error(isVideoMime(file.type) ? "영상을 읽지 못했어요" : "사진을 읽지 못했어요");
 
-      urlsRef.current.add(draft.previewUrl);
-
-      return draft;
-    } catch {
-      toast.error("사진을 읽지 못했어요");
-
-      return null;
-    } finally {
-      setIsReading(false);
-    }
-  }, []);
+        return null;
+      } finally {
+        setIsReading(false);
+      }
+    },
+    [canTakeVideo],
+  );
 
   const stage = useCallback((draft: MediaDraft) => {
     urlsRef.current.add(draft.previewUrl);
@@ -95,6 +101,37 @@ export function usePhotoDraft() {
   }, []);
 
   return { staged, isCleared, isReading, read, stage, clear, reset };
+}
+
+/**
+ * The Korean reason this pick cannot be worn, or `null`.
+ *
+ * WARN: The picker's `accept` is advisory — a desktop file dialog hands over
+ * whatever the user types the name of, so a video reaching `toMediaDraft` on the
+ * avatar slot would stage its poster frame as a profile photo.
+ *
+ * WARN: The video size is measured against `MAX_BACKGROUND_VIDEO_SIZE`, not
+ * `validateFile`'s `MAX_VIDEO_SIZE` (§ 12.1.). It is checked **before** the trim,
+ * which is the wrong end for a source that is about to get shorter — but the trim
+ * decodes the whole file, and a 500MB one would be an unbounded wait on a phone for
+ * a pick that is going to be refused anyway.
+ */
+function rejectFile(file: File, canTakeVideo: boolean): Nullable<string> {
+  if (isVideoMime(file.type)) {
+    if (!canTakeVideo) {
+      return "사진만 올릴 수 있어요";
+    }
+
+    return file.size > MAX_BACKGROUND_VIDEO_SIZE
+      ? `배경 영상은 ${formatSize(MAX_BACKGROUND_VIDEO_SIZE)}까지 쓸 수 있어요`
+      : null;
+  }
+
+  if (!isImageMime(file.type)) {
+    return "지원하지 않는 형식이에요";
+  }
+
+  return validateFile(file);
 }
 
 function release(urls: Set<string>, url: Maybe<string>) {

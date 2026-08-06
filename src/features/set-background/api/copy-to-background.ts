@@ -10,11 +10,14 @@ import { MEDIA_COPY_PATH } from "@/shared/config";
  * renders, and would make deleting that photo from the gallery silently strip the
  * background too — the copy is what makes a background survive its source.
  */
-export async function copyToBackground(sourceId: string): Promise<GalleryMedia> {
+export async function copyToBackground(
+  sourceId: string,
+  slot: "profile" | "chat",
+): Promise<GalleryMedia> {
   const response = await fetch(MEDIA_COPY_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sourceId }),
+    body: JSON.stringify({ sourceId, slot }),
   });
 
   if (!response.ok) {

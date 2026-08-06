@@ -4,12 +4,16 @@ import type { MediaDraft } from "@/entities/media";
 import {
   MediaEditor,
   MediaPickerSheet,
+  VideoTrimmer,
+  isWithinDuration,
   uploadDraft,
 } from "@/features/upload-media/@x/update-profile";
 import {
   AVATAR_MAX_EDGE,
   BACKGROUND_MAX_EDGE,
+  MAX_BACKGROUND_VIDEO_DURATION,
   MAX_NICKNAME_LENGTH,
+  isVideoMime,
   toMediaUrl,
 } from "@/shared/config";
 import type { Nullable, Optional } from "@/shared/lib";
@@ -64,8 +68,10 @@ export function ProfileEditorSheet({
   const [slot, setSlot] = useState<PhotoSlot>("avatar");
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const avatar = usePhotoDraft();
-  const background = usePhotoDraft();
+  // INFO: REQUIREMENTS.md § 12.1. Only the cover takes a video; the avatar is drawn in an `<img>` everywhere in the app.
+  const [trimming, setTrimming] = useState<Nullable<MediaDraft>>(null);
+  const avatar = usePhotoDraft("avatar");
+  const background = usePhotoDraft("background");
   const picking = slot === "avatar" ? avatar : background;
   const trimmed = name.trim();
   const hasNameChange = trimmed.length > 0 && trimmed !== nickname;
@@ -90,14 +96,14 @@ export function ProfileEditorSheet({
       >
         <div className="space-y-md pt-2xs">
           <div className="space-y-2xs">
-            <p className="px-2xs text-body-sm text-meta">배경 사진</p>
+            <p className="px-2xs text-body-sm text-meta">배경</p>
             {/* WARN: DESIGN.md § 7.16. A letterbox preview, deliberately NOT either surface's real geometry — the cover is worn at half the viewport on Settings and at the whole of it on the profile screen, so no single box here can promise the framing. It shows what was picked; the crop that matters is free-form for exactly this reason. */}
             <HapticTarget className="flex overflow-hidden rounded-md" keepsScroll>
               <button
                 className="relative w-full cursor-pointer overflow-hidden rounded-md bg-surface-strong outline-none group-active:opacity-70 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary"
                 style={{ aspectRatio: "3 / 2" }}
                 type="button"
-                aria-label="프로필 배경 사진 바꾸기"
+                aria-label="프로필 배경 바꾸기"
                 onClick={() => openPicker("background")}
               >
                 {backgroundUrl ? (
@@ -109,7 +115,7 @@ export function ProfileEditorSheet({
                   />
                 ) : (
                   <span className="flex size-full items-center justify-center text-body-sm text-meta">
-                    배경 사진 고르기
+                    배경 사진이나 영상 고르기
                   </span>
                 )}
               </button>
@@ -180,12 +186,22 @@ export function ProfileEditorSheet({
         </div>
       </BottomSheet>
       <MediaPickerSheet
-        accept="image/*"
-        isOpen={isPickerOpen && cropping === null}
+        // INFO: REQUIREMENTS.md § 12.1. The cover takes a video; the avatar does not. `usePhotoDraft` re-checks either way, since a desktop file dialog hands over whatever the user names.
+        accept={slot === "background" ? "image/*,video/*" : "image/*"}
+        isOpen={isPickerOpen && cropping === null && trimming === null}
         isMultiple={false}
         onClose={() => setIsPickerOpen(false)}
         onSelect={(files) => files[0] && void pick(files[0])}
       />
+      {trimming && (
+        <VideoTrimmer
+          key={trimming.id}
+          draft={trimming}
+          maxDurationMs={MAX_BACKGROUND_VIDEO_DURATION}
+          onCancel={() => setTrimming(null)}
+          onDone={(file) => void stageTrimmed(file)}
+        />
+      )}
       {cropping && (
         // WARN: Keyed by the draft — `MediaEditor` mints its source object URL once per mount, so re-cropping a replaced photo has to be a second mount.
         <MediaEditor
@@ -218,9 +234,10 @@ export function ProfileEditorSheet({
       return background.staged.previewUrl;
     }
 
+    // WARN: The **thumb**, not the original. A stored cover may be a video (§ 12.1.), and its thumb is the poster frame this `<img>` can actually draw — the original would be a video URL in an image element. A still is also all this 3:2 box was ever showing.
     return background.isCleared || !profileBackgroundMediaId
       ? undefined
-      : toMediaUrl(profileBackgroundMediaId, "original");
+      : toMediaUrl(profileBackgroundMediaId);
   }
 
   function openPicker(next: PhotoSlot) {
@@ -231,9 +248,45 @@ export function ProfileEditorSheet({
   async function pick(file: File) {
     const draft = await picking.read(file);
 
+    if (!draft) {
+      return;
+    }
+
+    // INFO: REQUIREMENTS.md § 12.1. A video is not cropped — it is trimmed, and only when it runs past the cap. A clip already inside the window is staged as it is, so the common case costs no extra screen.
+    if (isVideoMime(draft.mime)) {
+      stageOrTrim(draft);
+
+      return;
+    }
+
     // INFO: Straight into the crop rather than staging what was picked. The § 7.10. viewer shows the stored object whole, so a photo that is not square there would be framed differently from the circle it was chosen in — and the cover gets the same editor so a wide photo can be aimed before it is worn.
+    setCropping(draft);
+  }
+
+  function stageOrTrim(draft: MediaDraft) {
+    // WARN: A container with no readable duration goes to the trimmer rather than straight through. The cap is what makes a background video affordable at all (§ 12.1.), and a missing duration is exactly the case that would walk past it.
+    if (
+      draft.durationMs !== null &&
+      isWithinDuration(draft.durationMs, MAX_BACKGROUND_VIDEO_DURATION)
+    ) {
+      background.stage(draft);
+      setIsPickerOpen(false);
+
+      return;
+    }
+
+    setTrimming(draft);
+  }
+
+  // INFO: The trimmed file is re-read rather than patched onto the old draft — its poster, dimensions and duration all belong to the new clip, and `toMediaDraft` is the one place that derives them.
+  async function stageTrimmed(file: File) {
+    setTrimming(null);
+
+    const draft = await background.read(file);
+
     if (draft) {
-      setCropping(draft);
+      background.stage(draft);
+      setIsPickerOpen(false);
     }
   }
 

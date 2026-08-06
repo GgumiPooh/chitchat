@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const media = await registerMedia({ ownerId: user.id, ...body.data });
+  const media = await registerMedia({ ownerId: user.id, scope, ...body.data });
 
   // INFO: The object is missing, or its stored type or size failed § 14. Either way there is nothing to point a message at.
   if (!media) {

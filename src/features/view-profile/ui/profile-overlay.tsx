@@ -2,9 +2,8 @@
 
 import { useChatStream } from "@/features/chat-stream/@x/view-profile";
 import { ProfileEditorSheet } from "@/features/update-profile/@x/view-profile";
-import { toMediaUrl } from "@/shared/config";
 import { cn } from "@/shared/lib";
-import { Avatar, HapticTarget, IconButton, PreloadImage, ShellOverlay } from "@/shared/ui";
+import { Avatar, BackgroundMedia, HapticTarget, IconButton, ShellOverlay } from "@/shared/ui";
 import { MessageCircle, Pencil, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -75,12 +74,10 @@ export function ProfileOverlay({ className, userId, currentUserId, onClose }: Pr
         aria-label={`${participant.name} 프로필`}
       >
         {participant.profileBackgroundMediaId && (
-          <PreloadImage
+          <BackgroundMedia
             className="absolute inset-0"
-            imgClassName="size-full object-cover"
-            placeholderClassName="bg-scrim"
-            src={toMediaUrl(participant.profileBackgroundMediaId, "original")}
-            alt=""
+            mediaId={participant.profileBackgroundMediaId}
+            isVideo={participant.isProfileBackgroundVideo}
           />
         )}
         {/* INFO: Two stops, not one. The top darkens the strip the close control sits in and the bottom darkens the name; a flat wash over the whole photo would dim the part the user came to look at. */}

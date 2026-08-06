@@ -29,6 +29,23 @@ export const AVATAR_MAX_EDGE = 1_200;
 // INFO: REQUIREMENTS.md § 12.1. A background is drawn full-bleed at the shell's 576px across whatever the visual viewport is tall, so the long edge is the one that has to cover — this is that at 2× on the tallest phone the shell runs on.
 export const BACKGROUND_MAX_EDGE = 2_000;
 
+/**
+ * REQUIREMENTS.md § 12.1. The ceiling on a **profile** background video.
+ *
+ * WARN: Nothing to do with `MAX_VIDEO_SIZE`, which bounds one upload's
+ * reliability. This bounds a **download**: a profile cover is fetched in full every
+ * time either participant opens that profile, over whatever connection they are on.
+ */
+export const MAX_BACKGROUND_VIDEO_SIZE = 20 * A_MEGABYTE;
+
+/**
+ * REQUIREMENTS.md § 12.1. How long a profile background video may be.
+ *
+ * INFO: Enforced by trimming rather than by refusal — a longer pick opens the
+ * trimmer instead of being rejected, so the cap never costs the user a re-pick.
+ */
+export const MAX_BACKGROUND_VIDEO_DURATION = 30 * A_SECOND;
+
 // INFO: A 3-column grid, so a page is 20 rows — roughly two screens of scrolling before the next request.
 export const GALLERY_PAGE_SIZE = 60;
 
@@ -142,6 +159,21 @@ export function extensionForMime(mime: string): string {
 /** The cap the given type is measured against. REQUIREMENTS.md § 14. */
 export function maxSizeForMime(mime: string): number {
   return isVideoMime(mime) ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+}
+
+/**
+ * The cap for an object being uploaded under `scope`. REQUIREMENTS.md § 14.
+ *
+ * WARN: `background` is the one scope that narrows the video ceiling, and it must
+ * be applied at registration too — the client's own check is a courtesy, and R2
+ * enforces no size at all on a presigned PUT (§ 9.).
+ */
+export function maxSizeForScope(mime: string, scope: MediaUploadScope): number {
+  if (scope === "background" && isVideoMime(mime)) {
+    return MAX_BACKGROUND_VIDEO_SIZE;
+  }
+
+  return maxSizeForMime(mime);
 }
 
 /** REQUIREMENTS.md § 9. `thumb` for grid and chat cells, `original` for the viewer. */

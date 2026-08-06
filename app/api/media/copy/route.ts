@@ -5,6 +5,8 @@ import { z } from "zod";
 
 const bodySchema = z.object({
   sourceId: z.uuid(),
+  // INFO: REQUIREMENTS.md § 12.1. Which background this copy is for. It is not the scope — both share `background/` — it is the one thing that decides whether a video is allowed.
+  slot: z.enum(["profile", "chat"]),
 });
 
 /**
@@ -34,6 +36,8 @@ export async function POST(request: Request) {
     sourceId: body.data.sourceId,
     userId: user.id,
     scope: "background",
+    // INFO: REQUIREMENTS.md § 12.1. The chat wallpaper is image-only — it sits behind § 8.3.'s virtualized list, where a decoding video is a battery cost paid for as long as the tab is open.
+    canBeVideo: body.data.slot === "profile",
   });
 
   switch (result.status) {

@@ -77,7 +77,7 @@ export function SetBackgroundSheet({ className, sourceId, onClose }: SetBackgrou
 
   // WARN: The id is a parameter rather than a read of `sourceId`. The sheet closes as it starts, so the state is `null` by the time this resolves — captured at the tap, it is still the photo the user was looking at.
   async function copyAndWear(id: string, slot: BackgroundSlot) {
-    const media = await copyToBackground(id);
+    const media = await copyToBackground(id, slot);
 
     await updateProfile(
       slot === "profile"

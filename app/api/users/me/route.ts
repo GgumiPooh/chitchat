@@ -1,7 +1,7 @@
-import { discardScopedMedia, ownsAllMedia } from "@/entities/media";
+import { discardScopedMedia, getMediaRow, ownsAllMedia } from "@/entities/media";
 import { updateUserProfile, type ReplacedMedia } from "@/entities/user";
 import { getCurrentUser } from "@/shared/auth";
-import { MAX_NICKNAME_LENGTH } from "@/shared/config";
+import { isImageMime, MAX_NICKNAME_LENGTH } from "@/shared/config";
 import { safelyRunAsync, type Maybe } from "@/shared/lib";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
@@ -47,6 +47,8 @@ export async function PATCH(request: Request) {
     isOwnedInScope(avatarMediaId, user.id, "avatar"),
     isOwnedInScope(profileBackgroundMediaId, user.id, "background"),
     isOwnedInScope(chatBackgroundMediaId, user.id, "background"),
+    // WARN: REQUIREMENTS.md § 12.1. The copy route already refuses a video for the chat slot, but this column is writable with any `background/` object its owner holds — including one copied a moment earlier for the profile. Without this, aiming that id here puts a video behind § 8.3.'s list, where an `<img>` draws it.
+    isStillImage(chatBackgroundMediaId),
   ]);
 
   if (isScoped.includes(false)) {
@@ -70,6 +72,16 @@ async function isOwnedInScope(
   scope: "avatar" | "background",
 ): Promise<boolean> {
   return !mediaId || ownsAllMedia([mediaId], userId, scope);
+}
+
+async function isStillImage(mediaId: Maybe<string>): Promise<boolean> {
+  if (!mediaId) {
+    return true;
+  }
+
+  const row = await getMediaRow(mediaId);
+
+  return Boolean(row && isImageMime(row.mime));
 }
 
 /**

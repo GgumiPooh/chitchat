@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getDb, users } from "@/shared/db";
+import { getDb, media, users } from "@/shared/db";
 import type { Maybe, Nullable } from "@/shared/lib";
 import { and, eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -86,7 +86,11 @@ export async function updateUserProfile({
   }
 
   return {
-    participant: toParticipant(row),
+    // WARN: A second read, because `.returning()` cannot join. It is one indexed lookup on a primary key, and only when a cover is actually set — the alternative is shipping a participant whose `isProfileBackgroundVideo` is a guess.
+    participant: toParticipant({
+      ...row,
+      profileBackgroundMime: await readMime(row.profileBackgroundMediaId),
+    }),
     replaced: {
       avatar: toReplaced(row.previousAvatarMediaId, row.avatarMediaId),
       // WARN: Both backgrounds discard under the one `background/` scope, so they are collected together — and a photo still worn in the other slot MUST NOT be in this list. Setting one image as both cover and wallpaper and then changing only the cover would otherwise delete the object the wallpaper is still drawn from.
@@ -96,6 +100,20 @@ export async function updateUserProfile({
       ].filter((id): id is string => id !== null && !isStillWorn(id, row)),
     },
   };
+}
+
+async function readMime(mediaId: Nullable<string>): Promise<Nullable<string>> {
+  if (!mediaId) {
+    return null;
+  }
+
+  const [row] = await getDb()
+    .select({ mime: media.mime })
+    .from(media)
+    .where(eq(media.id, mediaId))
+    .limit(1);
+
+  return row?.mime ?? null;
 }
 
 // INFO: Only a photo that is actually gone is handed back. Re-submitting the same id is a no-op, and its object is still the one being worn.

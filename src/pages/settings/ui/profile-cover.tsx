@@ -1,9 +1,8 @@
 "use client";
 
 import { useProfileViewer } from "@/features/view-profile";
-import { toMediaUrl } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
-import { Avatar, PreloadImage } from "@/shared/ui";
+import { Avatar, BackgroundMedia } from "@/shared/ui";
 
 export type ProfileCoverProps = {
   className?: string;
@@ -11,6 +10,8 @@ export type ProfileCoverProps = {
   name: string;
   avatarMediaId: Nullable<string>;
   profileBackgroundMediaId: Nullable<string>;
+  /** REQUIREMENTS.md § 12.1. A cover may be a video, and the element to draw it in cannot be inferred from the id. */
+  isProfileBackgroundVideo: boolean;
 };
 
 /**
@@ -31,6 +32,7 @@ export function ProfileCover({
   name,
   avatarMediaId,
   profileBackgroundMediaId,
+  isProfileBackgroundVideo,
 }: ProfileCoverProps) {
   const { openProfile } = useProfileViewer();
   const hasCover = profileBackgroundMediaId !== null;
@@ -47,12 +49,10 @@ export function ProfileCover({
       style={{ height: "calc(var(--viewport-height, 100dvh) * 0.5)" }}
     >
       {profileBackgroundMediaId && (
-        <PreloadImage
+        <BackgroundMedia
           className="absolute inset-0"
-          imgClassName="size-full object-cover"
-          placeholderClassName="bg-scrim"
-          src={toMediaUrl(profileBackgroundMediaId, "original")}
-          alt=""
+          mediaId={profileBackgroundMediaId}
+          isVideo={isProfileBackgroundVideo}
         />
       )}
       {/* INFO: Two stops for `ProfileOverlay`'s reason — the top darkens the strip the floating 설정 header sits in, the bottom darkens the name, and the middle is left alone. */}

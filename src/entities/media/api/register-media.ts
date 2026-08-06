@@ -4,7 +4,8 @@ import {
   MAX_THUMBNAIL_SIZE,
   THUMBNAIL_MIME,
   isAllowedMediaMime,
-  maxSizeForMime,
+  maxSizeForScope,
+  type MediaUploadScope,
 } from "@/shared/config";
 import { getDb, media } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
@@ -21,6 +22,8 @@ export type RegisterMediaParams = {
   durationMs?: Nullable<number>;
   // INFO: REQUIREMENTS.md § 10. Set by an upload that starts in the Gallery tab. A chat attachment leaves it false and reaches the grid through the message it is sent in.
   addToGallery?: boolean;
+  /** WARN: REQUIREMENTS.md § 12.1. Read from the key rather than trusted from the caller, and it narrows the size ceiling — a `background` video is bounded far below `MAX_VIDEO_SIZE`. */
+  scope: MediaUploadScope;
 };
 
 /**
@@ -38,11 +41,12 @@ export async function registerMedia({
   height,
   durationMs,
   addToGallery = false,
+  scope,
 }: RegisterMediaParams): Promise<Nullable<GalleryMedia>> {
   const [object, thumbnail] = await Promise.all([
     headAcceptableObject(
       r2Key,
-      ({ mime, size }) => isAllowedMediaMime(mime) && size <= maxSizeForMime(mime),
+      ({ mime, size }) => isAllowedMediaMime(mime) && size <= maxSizeForScope(mime, scope),
     ),
     // WARN: The thumbnail is checked as strictly as the original. It is what every chat cell, grid tile and video poster loads, so an unchecked `_thumb` key is the same hole in § 14. by another name.
     headAcceptableObject(

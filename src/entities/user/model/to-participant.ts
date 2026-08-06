@@ -1,4 +1,6 @@
+import { isVideoMime } from "@/shared/config";
 import type { User } from "@/shared/db";
+import type { Nullable } from "@/shared/lib";
 import { resolveDisplayName } from "./display-name";
 import type { Participant } from "./types";
 
@@ -7,7 +9,10 @@ import type { Participant } from "./types";
 export type ParticipantSource = Pick<
   User,
   "id" | "email" | "nickname" | "avatarMediaId" | "profileBackgroundMediaId" | "lastReadAt"
->;
+> & {
+  /** WARN: REQUIREMENTS.md § 12.1. Joined from `media`, not held on `users` — the caller resolves it, because a cover may be a video and the renderer has to pick an element before it fetches anything. */
+  profileBackgroundMime: Nullable<string>;
+};
 
 export function toParticipant(user: ParticipantSource): Participant {
   return {
@@ -15,6 +20,7 @@ export function toParticipant(user: ParticipantSource): Participant {
     name: resolveDisplayName(user),
     avatarMediaId: user.avatarMediaId,
     profileBackgroundMediaId: user.profileBackgroundMediaId,
+    isProfileBackgroundVideo: isVideoMime(user.profileBackgroundMime ?? ""),
     lastReadAt: user.lastReadAt.toISOString(),
   };
 }
