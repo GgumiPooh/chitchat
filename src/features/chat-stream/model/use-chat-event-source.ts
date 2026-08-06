@@ -18,8 +18,8 @@ export type ChatEventSourceHandlers = {
   onMessage: (message: ChatMessage, arrival: MessageArrival) => void;
   onUserChanged: () => void;
   onResume: () => void;
-  /** Someone is composing. REQUIREMENTS.md § 8.12. */
-  onTyping: (userId: string) => void;
+  /** Someone started or stopped composing. REQUIREMENTS.md § 8.12. */
+  onTyping: (userId: string, isTyping: boolean) => void;
   /** The deployment serving this connection. REQUIREMENTS.md § 15.1. */
   onBuild: (id: string) => void;
 };
@@ -88,7 +88,7 @@ export function useChatEventSource({
         const typing = typingEventSchema.safeParse(safelyGet(() => JSON.parse(event.data)));
 
         if (typing.success) {
-          handlers.current.onTyping(typing.data.userId);
+          handlers.current.onTyping(typing.data.userId, typing.data.isTyping);
         }
       });
       // INFO: REQUIREMENTS.md § 8.4. The heartbeat is a named event rather than a `:ping` comment so it lands here — this is the client's only evidence that the socket underneath is still real.

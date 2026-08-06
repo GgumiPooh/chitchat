@@ -579,15 +579,22 @@ The count variant recolours to `primary` rather than adding a separate badge ele
 | Property  | Value                                                                                                                    |
 | --------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Geometry  | The incoming bubble of § 6.2. exactly — `rounded-bubble`, the `rounded-tl-xs` notch, `bubble-theirs` over 1px `hairline` |
-| Position  | The last item in the conversation, in the scroller's own flow above the trailing spacer                                  |
+| Position  | The last item in the conversation, in a slot above the trailing spacer that opens to `--typing-indicator-height`         |
 | Content   | The typist's `chat`-size avatar (§ 7.7.), then three 6px `meta` dots bouncing on a staggered 150ms offset                |
 | Alignment | `items-end` — the circle sits on the bubble's baseline, exactly as it does on an incoming row (§ 6.3.)                   |
-| Padding   | `px-md py-2xs` on the row, `px-sm py-sm` inside the bubble — dots are shorter than a line of text                        |
-| Lifecycle | Mounted and unmounted. No fade in place: it holds real height at the tail of the list                                    |
+| Padding   | `px-md py-xs` on the row, `px-sm py-xs` inside the bubble — the text bubble's own padding (§ 6.2.)                       |
+| Bubble    | Exactly one line of `chat-body` — `--text-chat-body` × its own line-height — never the height of three 6px dots          |
+| Lifecycle | The slot's height animates `0` ⇄ open over 200ms `ease-out`; the row mounts and unmounts inside it                       |
 | A11y      | `aria-live="polite"` around a visually hidden `{이름}님이 입력 중이에요`; avatar and dots are `aria-hidden`              |
 | Spacing   | The § 2.3. scale (`px-md`, `gap-2xs`), never Tailwind's raw numeric one                                                  |
 
 **It is a message, not a badge.** It sits where the bubble it announces will sit, in the same column and wearing the same shape, so the arrival replaces it rather than displacing it. Floated over the composer it was a status light bolted to the chrome; here the conversation simply has one more thing at the end of it.
+
+**The bubble is a message's height, not its contents' height.** Dots left to themselves collapse the box into a lozenge visibly shorter than every bubble around it, which reads as a different kind of object. The dot row is therefore given exactly one line of `chat-body`, from the same two tokens the text it stands in for would use — so the bubble is the size of the message that is coming.
+
+**The row's padding and `--typing-indicator-height` are one measurement.** The token is `36px` — the `chat` avatar, the tallest thing in the row — plus the row's own `py-xs` twice. Changed on one side only, the slot crops the row it is holding.
+
+**The slot animates rather than appearing.** The row is real list content, so mounting it outright resized the scroller in a single frame and the end of the list lurched under anyone following it. Opening the height over 200ms pushes the conversation up instead, and the reader at the bottom is carried with it frame by frame (`REQUIREMENTS.md § 8.12.`). It closes the same way, which is why nothing is reserved while nobody is typing.
 
 **The avatar, and no written name.** The photo carries the identity in the column that already means "them", so a name beside it would be a wider box appearing and disappearing every few seconds to say what the circle said. The name is still spoken: it is in the live region, where there is no photo to carry it.
 

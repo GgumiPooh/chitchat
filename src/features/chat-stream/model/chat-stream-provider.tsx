@@ -146,9 +146,17 @@ export function ChatStreamProvider({
    * pushes this sender's deadline out, and nothing but the deadline takes it back
    * down.
    */
-  function handleTyping(userId: string) {
+  function handleTyping(userId: string, isTyping: boolean) {
     // INFO: The channel is a conversation-wide broadcast, exactly like `user_changed`, so my own ping and my other device's both come back to me here.
     if (userId === currentUserId) {
+      return;
+    }
+
+    if (!isTyping) {
+      // WARN: § 8.12. The stop only ever brings the deadline *forward*. A stop that raced ahead of a ping still in flight would otherwise be undone by it, and the indicator would sit there for the full timeout after the message had already landed — dropping the entry is what makes that race cost nothing.
+      typingExpiry.current.delete(userId);
+      sweepTyping();
+
       return;
     }
 

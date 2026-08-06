@@ -4,14 +4,30 @@ import { NextResponse } from "next/server";
 
 /**
  * REQUIREMENTS.md § 8.12. 입력 중, resent every `TYPING_PING_INTERVAL` for as long
- * as composing continues. There is no body and no stop verb: the receiver expires
- * the indicator on silence, so the only thing a client can say is "still going".
+ * as composing continues.
  *
  * INFO: No row is written, so this is a POST that reads nothing back and answers
- * 204. The session lookup already carries the preference below, which is why the
- * check costs no query of its own.
+ * 204. The session lookup already carries the § 12. preference, which is why the
+ * check below costs no query of its own.
  */
 export async function POST() {
+  return publish(true);
+}
+
+/**
+ * REQUIREMENTS.md § 8.12. Composing ended — the field was emptied, the message
+ * was sent, or the typist simply stopped.
+ *
+ * WARN: This is an optimization on top of the receiver's expiry, never a
+ * replacement for it. A sender who is frozen, offline or killed sends no DELETE
+ * at all, so the indicator must still come down on silence; what this buys is the
+ * common case coming down at once instead of `TYPING_TIMEOUT` later.
+ */
+export async function DELETE() {
+  return publish(false);
+}
+
+async function publish(isTyping: boolean) {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -23,7 +39,7 @@ export async function POST() {
     return new NextResponse(null, { status: 204 });
   }
 
-  await publishTyping(user.id);
+  await publishTyping(user.id, isTyping);
 
   return new NextResponse(null, { status: 204 });
 }

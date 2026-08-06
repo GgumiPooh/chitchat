@@ -154,7 +154,7 @@ export const CHAT_TYPING_PATH = "/api/chat/typing";
  * simply stops matching and the indicator quietly never appears again, with no
  * error raised anywhere to say why.
  */
-export const typingEventSchema = z.object({ userId: z.uuid() });
+export const typingEventSchema = z.object({ userId: z.uuid(), isTyping: z.boolean() });
 
 export type TypingEvent = z.infer<typeof typingEventSchema>;
 

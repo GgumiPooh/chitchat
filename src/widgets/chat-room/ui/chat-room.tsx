@@ -51,7 +51,15 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { measureElement as measureRenderedElement, useVirtualizer } from "@tanstack/react-virtual";
 import { Copy, CornerUpLeft, LoaderCircle, MessageCircle, Share, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type TransitionEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+  type TransitionEvent,
+} from "react";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { buildChatRows } from "../model/build-chat-rows";
 import {
@@ -106,6 +114,8 @@ const BOTTOM_FADE_LENGTH = "2rem";
 export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoomProps) {
   const containerRef = useRef<Nullable<HTMLDivElement>>(null);
   const composerRef = useRef<Nullable<HTMLDivElement>>(null);
+  // INFO: REQUIREMENTS.md § 8.12. Observed rather than derived from `typist`, because what has to be followed is every frame of the height transition, not the state change that started it.
+  const typingSlotRef = useRef<Nullable<HTMLDivElement>>(null);
   const scrollerRef = useRef<Nullable<HTMLElement>>(null);
   const rowsRef = useRef<ChatRow[]>([]);
   const hasTakenScrollRef = useRef(false);
@@ -305,12 +315,37 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
 
   useComposerClearance({ containerRef, composerRef, scrollerRef, isAtBottomRef });
 
-  // WARN: REQUIREMENTS.md § 8.12. The indicator grows the list at the tail, and content added below the fold does not move the scroller — so a reader sitting at the bottom would watch it appear off-screen and the newest message stay put. Followed only from the bottom: mid-history it is not on screen and must not yank the reader there. `useLayoutEffect` and not `useEffect`, or the row paints one frame below the viewport before the pin lands.
-  useIsomorphicLayoutEffect(() => {
-    if (typist && isAtBottomRef.current) {
-      pinToBottom();
+  /**
+   * REQUIREMENTS.md § 8.12. Holds the reader at the bottom while the 입력 중 slot
+   * opens and closes underneath them, frame by frame — the same job
+   * `useComposerClearance` does for the composer's own growth.
+   */
+  useEffect(() => {
+    const slot = typingSlotRef.current;
+
+    if (!slot) {
+      return;
     }
-  }, [typist, pinToBottom]);
+
+    const observer = new ResizeObserver(([entry]) => {
+      const scroller = scrollerRef.current;
+
+      if (!scroller) {
+        return;
+      }
+
+      // WARN: The threshold is the slot's *own* height, and that is what makes this self-limiting: being within it of the bottom is exactly the condition of having been at the bottom before this frame grew. A fixed epsilon would lose the follow on the first frame; a loose one would yank a reader who had deliberately scrolled up.
+      const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+
+      if (distance <= entry.contentRect.height + 1) {
+        scroller.scrollTop = scroller.scrollHeight;
+      }
+    });
+
+    observer.observe(slot);
+
+    return () => observer.disconnect();
+  }, []);
 
   // INFO: REQUIREMENTS.md § 8.3., § 8.9. Ahead of the viewport, so a § 6.9. card is in the row's first measurement rather than growing it once the reader is already on it — and ahead of the insert too, since a held page's rows have not been measured at all yet.
   useLinkPreviewPrefetch(messages, pendingOlder);
@@ -567,9 +602,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
                   </div>
                 ))}
               </div>
-              {/* WARN: REQUIREMENTS.md § 8.12. In the scroller's flow, after the virtualized box and before the trailing spacer — so it reads as the next message and scrolls with the conversation. It is deliberately **not** a virtualized row: a tail item that mounts and unmounts every few seconds re-measures the list and drags the reader's scroll with it (§ 8.3.). Out here it costs the virtualizer nothing, exactly as `ListFooter` does. */}
-              {typist && <TypingIndicator typist={typist} />}
-              <ListFooter />
+              <ListFooter slotRef={typingSlotRef} typist={typist} />
             </div>
           </div>
           <ScrollToBottomPill
@@ -1144,7 +1177,29 @@ function ListHeader({ isLoadingOlder }: { isLoadingOlder: boolean }) {
   );
 }
 
-// INFO: DESIGN.md § 3.5. The trailing space the floating bars need. It is the list's own content, so scrolling to the bottom parks the newest message just above the composer instead of behind it.
-function ListFooter() {
-  return <div className="h-(--chat-bottom-gap)" />;
+type ListFooterProps = {
+  slotRef: RefObject<Nullable<HTMLDivElement>>;
+  typist: Nullable<Participant>;
+};
+
+// INFO: DESIGN.md § 3.5. The trailing space the floating bars need, plus the § 8.12. 입력 중 slot standing on top of it. Both are the list's own content, so scrolling to the bottom parks the newest message just above the composer instead of behind it.
+function ListFooter({ slotRef, typist }: ListFooterProps) {
+  return (
+    <>
+      {/* WARN: REQUIREMENTS.md § 8.12. It sits *above* the spacer below, never inside it. That spacer is the strip the composer covers (`useComposerClearance` measures exactly `container.bottom − composer.top`), so anything placed in it is behind the bar by construction. */}
+      {/* WARN: § 13.6. A real `height` and never a `0fr`→`1fr` grid track, for the reason the emoticon strip carries: mid-transition Chrome sizes such a track's container taller than the track it resolved. */}
+      {/* INFO: The transition is also what makes the growth safe. Mounted outright, the row appeared and vanished in one frame and the end of the list lurched under anyone following it; opened over 200ms with the scroller re-pinned each frame, the conversation is simply pushed up. */}
+      <div
+        ref={slotRef}
+        className={cn(
+          "relative overflow-hidden transition-[height] duration-200 ease-out",
+          typist ? "h-(--typing-indicator-height)" : "h-0",
+        )}
+      >
+        {/* INFO: Anchored to the bottom so it is revealed rising from behind the composer rather than unrolling downward, exactly as § 13.6.'s panel is. */}
+        {typist && <TypingIndicator className="absolute inset-x-0 bottom-0" typist={typist} />}
+      </div>
+      <div className="h-(--chat-bottom-gap)" />
+    </>
+  );
 }

@@ -8,3 +8,15 @@ import { CHAT_TYPING_PATH } from "@/shared/config";
 export async function postTyping(): Promise<void> {
   await fetch(CHAT_TYPING_PATH, { method: "POST" });
 }
+
+/**
+ * REQUIREMENTS.md § 8.12. Composing ended.
+ *
+ * INFO: `keepalive`, because the most common way to stop typing is to send the
+ * message — and a navigation or a backgrounding immediately after would otherwise
+ * cancel the request in flight, leaving the indicator up for the full
+ * `TYPING_TIMEOUT` behind a message that has already arrived.
+ */
+export async function deleteTyping(): Promise<void> {
+  await fetch(CHAT_TYPING_PATH, { method: "DELETE", keepalive: true });
+}

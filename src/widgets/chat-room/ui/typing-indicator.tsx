@@ -21,20 +21,27 @@ const DOT_DELAYS = ["[animation-delay:0ms]", "[animation-delay:150ms]", "[animat
 export function TypingIndicator({ className, typist }: TypingIndicatorProps) {
   return (
     // INFO: Announced politely — it is ambient status, and it changes often enough that an assertive region would interrupt a screen reader mid-message.
-    <div className={cn("flex items-end gap-2xs px-md py-2xs", className)} aria-live="polite">
+    // WARN: DESIGN.md § 6.7.1. `py-xs`, and `--typing-indicator-height` is computed from the same token — they are one measurement written twice, so changing the padding here without the token crops the row against the slot that holds it.
+    <div className={cn("flex items-end gap-2xs px-md py-xs", className)} aria-live="polite">
       <span className="sr-only">{typist.name}님이 입력 중이에요</span>
       {/* WARN: DESIGN.md § 6.7.1. `canEnlarge` stays off — this circle stands in for a bubble that does not exist yet, and enlarging it would offer a photo the row is not really showing. */}
       <span className="shrink-0" aria-hidden>
         <Avatar name={typist.name} mediaId={typist.avatarMediaId} />
       </span>
-      {/* INFO: DESIGN.md § 6.2. The incoming bubble exactly — same radius, same fill, same hairline — because this is where that bubble is about to appear. */}
+      {/* INFO: DESIGN.md § 6.2. The incoming bubble exactly — same radius, same fill, same hairline, same `px-sm py-xs` — because this is where that bubble is about to appear. */}
       <span
-        className="inline-flex items-center gap-2xs rounded-bubble rounded-tl-xs border border-hairline bg-bubble-theirs px-sm py-sm"
+        className="inline-flex items-center rounded-bubble rounded-tl-xs border border-hairline bg-bubble-theirs px-sm py-xs"
         aria-hidden
       >
-        {DOT_DELAYS.map((delay) => (
-          <span key={delay} className={cn("size-1.5 animate-bounce rounded-full bg-meta", delay)} />
-        ))}
+        {/* WARN: DESIGN.md § 6.7.1. Exactly one line of `chat-body`, from the same two tokens the text it stands in for would use — so the bubble is the height of a one-line message, not of three 6px dots. */}
+        <span className="flex h-[calc(var(--text-chat-body)*var(--text-chat-body--line-height))] items-center gap-2xs">
+          {DOT_DELAYS.map((delay) => (
+            <span
+              key={delay}
+              className={cn("size-1.5 animate-bounce rounded-full bg-meta", delay)}
+            />
+          ))}
+        </span>
       </span>
     </div>
   );

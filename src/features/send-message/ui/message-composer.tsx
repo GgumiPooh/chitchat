@@ -15,8 +15,8 @@ export type MessageComposerProps = {
   onAttach: () => void;
   /** REQUIREMENTS.md § 13.6. Reaching for the field is a request for the keyboard, which the picker would then be buried under. */
   onFieldFocus?: () => void;
-  /** REQUIREMENTS.md § 8.12. Fired on each edit — writing or deleting — never on the field merely holding a draft. */
-  onEdit?: () => void;
+  /** REQUIREMENTS.md § 8.12. Each edit, carrying whether the field still holds anything — `false` is the end of composing, not a quieter form of it. */
+  onEdit?: (isComposing: boolean) => void;
   onToggleEmoticons?: () => void;
   onSend: (text: string) => void;
 };
@@ -61,10 +61,10 @@ export function MessageComposer({
           value={text}
           placeholder="메시지 입력"
           aria-label="메시지 입력"
-          // WARN: REQUIREMENTS.md § 8.12. The edit itself is the signal, so this fires on deletions too — and `submit` below clears the field without coming through here, which is what keeps a send from reading as one more keystroke.
+          // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
           onChange={(event) => {
             setText(event.target.value);
-            onEdit?.();
+            onEdit?.(event.target.value.trim().length > 0);
           }}
           onFocus={onFieldFocus}
           onKeyDown={handleKeyDown}
@@ -114,6 +114,8 @@ export function MessageComposer({
 
     onSend(text);
     setText("");
+    // WARN: REQUIREMENTS.md § 8.12. The send is the end of composing, and it clears the field without going through `onChange` — so nothing else here would ever retract the broadcast, and 입력 중 would sit under the message that had just arrived.
+    onEdit?.(false);
 
     // WARN: REQUIREMENTS.md § 13.6. The picker survives a send, and focusing the field here would raise the keyboard it can never share the screen with.
     if (isEmoticonPickerOpen) {
