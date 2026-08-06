@@ -135,20 +135,22 @@ Why not `interactive-widget=resizes-content` alone: it is Chromium 108+ and Fire
 
 The header and the tab bar do not sit in the column's flow — they float over it, and content passes underneath.
 
-| Rule        | Value                                                                                                                         |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Tab bar     | A pill inset from the shell's bottom edge by `--bar-float-gap` (12) plus `env(safe-area-inset-bottom)`, and by `md` each side |
-| Header      | A transparent strip pinned to the top of the shell. It has no surface — only the controls inside it are visible (§ 7.12.)     |
-| Surface     | The `glass` utility (`canvas/75`), 1px `hairline`, `shadow-floating`. Never spelled out at a call site                        |
-| Clearance   | `BottomOverlay` measures the bars into `--bottom-inset`, which the shell's scroller takes as bottom padding                   |
-| Keyboard    | The overlay collapses its own height to `0` (§ 7.3.); no bar inside it branches on the keyboard itself                        |
-| Hit testing | The overlay is `pointer-events-none`; each visible surface re-enables it, so content underneath stays tappable                |
+| Rule        | Value                                                                                                                           |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Tab bar     | A pill inset from the shell's bottom edge by `--bar-float-gap` (12) plus `env(safe-area-inset-bottom)`, and by `md` each side   |
+| Header      | A transparent strip pinned to the top of the shell. It has no surface — only the controls inside it are visible (§ 7.12.)       |
+| Surface     | The `glass` utility (`canvas/75`), 1px `hairline`, `shadow-floating`. Never spelled out at a call site                          |
+| Clearance   | `BottomOverlay` measures the bars into `--bottom-inset`, which `RouteTransition` trails as a `shrink-0` spacer below the screen |
+| Keyboard    | The overlay collapses its own height to `0` (§ 7.3.); no bar inside it branches on the keyboard itself                          |
+| Hit testing | The overlay is `pointer-events-none`; each visible surface re-enables it, so content underneath stays tappable                  |
 
-The clearance is measured rather than summed from `--tab-bar-height`: the bars come and go with the keyboard, and the install banner's copy wraps to two lines on a narrow viewport, so no constant is right. It is `0px` while nothing is up, so the scroller's padding needs no branch.
+The clearance is measured rather than summed from `--tab-bar-height`: the bars come and go with the keyboard, and the install banner's copy wraps to two lines on a narrow viewport, so no constant is right. It is `0px` while nothing is up, so the spacer needs no branch.
 
-The clearance is the scroller's own padding, so a screen whose background is not `canvas` — chat's `chat-canvas` — MUST extend it under the bars with `pb-(--bottom-inset)` and a matching negative bottom margin. A child's background stops at its parent's content box, so without it the strip behind the bars falls back to the shell's `canvas` and shows as a band of the wrong colour through the translucent bar.
+The clearance is a spacer inside `RouteTransition` and **MUST NOT** be moved back to the scroller's `pb-(--bottom-inset)`. `RouteTransition` is a `min-h-0 flex-1` item — it has to be, or chat's inner message scroller grows to its content instead of filling the shell — so it is clamped to the scroller's height and a taller screen overflows _out_ of it. End padding is only laid out after in-flow content, so it fell inside the clamped box and the overflow ran straight past it: every long screen (이모티콘 관리, 캘린더, 갤러리) reported a `scrollHeight` short by the whole inset and stranded its last row under the bars. A sibling the overflow pushes down is what actually grows the scrollable area. It is `shrink-0` for the same reason — a default-shrinking item is squeezed back to nothing by the overflow.
 
-Padding, not a hard stop: mid-scroll the content genuinely passes under the bars — that is the effect — and the padding only guarantees that the _last_ row can still be scrolled clear of them.
+A screen whose background is not `canvas` — chat's `chat-canvas` — MUST extend it under the bars with a negative bottom margin that cancels the spacer. A child's background stops at its own box, so without it the strip behind the bars falls back to the shell's `canvas` and shows as a band of the wrong colour through the translucent bar.
+
+Clearance, not a hard stop: mid-scroll the content genuinely passes under the bars — that is the effect — and the spacer only guarantees that the _last_ row can still be scrolled clear of them.
 
 ### 3.5.1. Full-screen overlays.
 
@@ -849,7 +851,7 @@ iOS "add to home screen" guidance (`REQUIREMENTS.md § 7.`). Shown only in an iO
 | Position  | Inside `BottomOverlay`, directly above the floating tab bar (§ 3.5.), `md` side gutters and an `xs` bottom gap |
 | Container | The floating surface of § 3.5. — `glass`, 1px `hairline`, `rounded-lg`, `shadow-floating`                      |
 | Content   | 18px `meta` share glyph, `body-sm` `body` copy, trailing `icon-button` dismiss                                 |
-| Clearance | Measured into `--bottom-inset` with the tab bar, so its two-line wrap widens the scroller's padding by itself  |
+| Clearance | Measured into `--bottom-inset` with the tab bar, so its two-line wrap widens the spacer by itself              |
 
 It leaves while the keyboard is up, like the tab bar and on the same collapse (§ 7.3.).
 

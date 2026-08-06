@@ -15,7 +15,7 @@ export async function ChatPage({ className, currentUserId }: ChatPageProps) {
   const initialMessages = await listMessages();
 
   return (
-    // WARN: DESIGN.md § 3.5. Cancels the scroller's `--bottom-inset` padding rather than honouring it — chat is the one screen whose messages run all the way under the floating bars, and the composer reserves that room inside the list instead (§ 6.6.).
+    // WARN: DESIGN.md § 3.5. Cancels `RouteTransition`'s `--bottom-inset` spacer rather than honouring it — chat is the one screen whose messages run all the way under the floating bars, and the composer reserves that room inside the list instead (§ 6.6.).
     <div
       className={cn(
         "mb-[calc(var(--bottom-inset,0px)*-1)] flex min-h-0 flex-1 flex-col bg-chat-canvas",

@@ -60,6 +60,9 @@ export function RouteTransition({ className, children }: RouteTransitionProps) {
       )}
     >
       {children}
+      {/* INFO: DESIGN.md § 3.5. The bars' clearance, and it has to live inside this box rather than as the scroller's end padding — the screen overflows out of this clamped flex item, so only a sibling it pushes down grows the scrollable area. */}
+      {/* WARN: `shrink-0`, or the overflowing screen squeezes it back to nothing and the last row returns to sitting under the bars. */}
+      <div className="h-(--bottom-inset) shrink-0" />
     </div>
   );
 }

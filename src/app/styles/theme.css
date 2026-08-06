@@ -224,7 +224,7 @@
   --app-header-height: 56px;
   /* INFO: DESIGN.md § 7.12. What the floating header covers — screens whose content starts at the top offset by this. */
   --app-header-inset: calc(var(--app-header-height) + env(safe-area-inset-top));
-  /* INFO: DESIGN.md § 3.5. `BottomOverlay` measures the floating bars into this; `0px` while nothing is up, so the scroller's padding needs no branch. */
+  /* INFO: DESIGN.md § 3.5. `BottomOverlay` measures the floating bars into this; `0px` while nothing is up, so the clearance spacer needs no branch. */
   --bottom-inset: 0px;
   /* INFO: DESIGN.md § 3.5. How far the floating bars sit from the shell's edges. */
   --bar-float-gap: 12px;

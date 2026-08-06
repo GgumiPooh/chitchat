@@ -109,7 +109,7 @@ Landed; full rules in `AGENTS.md § 4.4.` and `DESIGN.md § 3.4.`–`§ 3.5.` Wh
 
 - The shell is the app's **one** `fixed` element, sized to the **visual viewport** (`VisualViewportSync` → `--viewport-height` / `--viewport-top`). A second `fixed` element drifts against the keyboard on WebKit
 - The document must never scroll (`html, body` are `h-full overflow-hidden overscroll-none`) — a document taller than the visual viewport lets WebKit pan the header off-screen. Screens scroll inside `#app-scroll` (`APP_SCROLL_ID`) or their own container, and `ScrollMemory` / `ScrollReset` address that container, never `window`
-- Header and bars **float over** content: `sticky` header, absolute `BottomOverlay` whose measured height becomes the scroller's `--bottom-inset` padding. Both use the single `glass` utility so they cannot drift apart; every floating strip is `pointer-events-none` at its root, re-enabled only on the visible surface
+- Header and bars **float over** content: `sticky` header, absolute `BottomOverlay` whose measured height becomes the `--bottom-inset` spacer `RouteTransition` trails below the screen (never the scroller's end padding — `DESIGN.md § 3.5.` has why). Both use the single `glass` utility so they cannot drift apart; every floating strip is `pointer-events-none` at its root, re-enabled only on the visible surface
 - **Nothing may depend on `interactiveWidget: "resizes-content"`** (Chromium/Firefox only, ignored by iOS), and `env(safe-area-inset-bottom)` is **not** a keyboard inset — it reports the home indicator and never moves for the keyboard
 - [ ] Real-device pass (§ 5.3.) — keyboard-open geometry is reasoned through but unverified on an iPhone
 
