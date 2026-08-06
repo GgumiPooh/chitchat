@@ -7,6 +7,7 @@ import { cn, findFirstUrl, formatTime, type Nullable, type Optional } from "@/sh
 import { Avatar, IconButton, type MediaCell } from "@/shared/ui";
 import { CornerUpLeft, RotateCcw, X } from "lucide-react";
 import { LONG_PRESS_TARGET_CLASS, useLongPress } from "../model/use-long-press";
+import { useSwipeToReply } from "../model/use-swipe-to-reply";
 import { EmoticonBubble } from "./emoticon-bubble";
 import { LinkPreviewCard } from "./link-preview-card";
 import { MediaGrid } from "./media-grid";
@@ -70,6 +71,7 @@ export function MessageRow({
   onCancel,
 }: MessageRowProps) {
   const longPressHandlers = useLongPress(onLongPress);
+  const swipe = useSwipeToReply(onReply, isMine);
   const hasMedia = media.length > 0;
   // INFO: REQUIREMENTS.md § 8.9. One card per bubble — the first link, not every link, because a message pasted from a share sheet routinely carries several.
   const previewUrl = findFirstUrl(text);
@@ -97,8 +99,14 @@ export function MessageRow({
         className={cn(
           "relative flex max-w-[72%] flex-col gap-2xs",
           isMine ? "items-end" : "items-start",
+          // WARN: `pan-y` — without it WebKit claims the horizontal gesture for its own back-navigation swipe and the pull never completes.
+          onReply && "touch-pan-y",
+          !swipe.isDragging && "transition-transform duration-200",
         )}
+        style={{ transform: `translateX(${swipe.offset}px)` }}
+        {...swipe.handlers}
       >
+        {renderPullIndicator()}
         {!isMine && isFirstOfGroup && (
           <span className="px-2xs text-chat-name text-chat-meta">{sender?.name}</span>
         )}
@@ -197,8 +205,32 @@ export function MessageRow({
   );
 
   /**
+   * DESIGN.md § 6.10. Sits in the gap the pull opens behind the row, on the edge
+   * the row is moving away from, and fills in as the threshold is approached so
+   * the release is never a guess.
+   */
+  function renderPullIndicator() {
+    if (!onReply || swipe.offset === 0) {
+      return null;
+    }
+
+    return (
+      <span
+        className={cn(
+          "pointer-events-none absolute top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors",
+          swipe.isArmed ? "bg-primary text-on-primary" : "bg-surface-soft text-meta",
+          isMine ? "left-full ml-2xs" : "right-full mr-2xs",
+        )}
+        aria-hidden
+      >
+        <CornerUpLeft className="size-4" strokeWidth={1.75} />
+      </span>
+    );
+  }
+
+  /**
    * AGENTS.md § 4.2. The pointer half of REQUIREMENTS.md § 8.10. — touch reaches the
-   * same action by holding the bubble, which is what opens the action sheet.
+   * same action by pulling the row sideways, or by holding it for the action sheet.
    *
    * WARN: Positioned out of flow on the outer side rather than added to the row.
    * In flow it would only exist while hovered, and its appearance would shove the

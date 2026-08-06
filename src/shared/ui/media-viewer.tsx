@@ -13,7 +13,7 @@ export type MediaViewerProps = {
   cells: MediaCell[];
   initialIndex: number;
   onClose: () => void;
-  /** Omitted when the viewer's attachments are not the current user's to remove. */
+  /** Removes the message the attachments belong to, not the slide on screen. Omitted when they are not the current user's to remove. */
   onDelete?: () => void;
 };
 
@@ -66,7 +66,7 @@ export function MediaViewer({
               <IconButton
                 className="text-semantic-error hover:bg-canvas/15 hover:text-semantic-error-hover"
                 Icon={Trash2}
-                aria-label="삭제"
+                aria-label="메시지 삭제"
                 onClick={onDelete}
               />
             )}

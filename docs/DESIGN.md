@@ -548,12 +548,13 @@ The message a reply points at, in one line (`REQUIREMENTS.md § 8.10.`).
 
 The staged quote pushes the history up, where the staged emoticon of § 6.6. floats over it. The emoticon is one object standing where its own bubble will land; this is a bar, like the media tray, and a bar that floated would hide the messages the user is quoting from.
 
-| Reply affordance | Rule                                                                                                                                       |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Touch            | Hold the bubble → the § 7.5. action sheet, `답장` first                                                                                    |
-| Pointer          | A 32px `CornerUpLeft` button on the bubble's **outer** side, `opacity-0` until the row is hovered or the button is focused                 |
-| Position         | Out of the row's flow (`absolute`, vertically centered). In flow its appearance on hover would shove the bubble sideways under the cursor  |
-| Highlight        | A jump target flashes `primary-tint` on the **row**, not the bubble fill — media and emoticon messages have no fill and must highlight too |
+| Reply affordance | Rule                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Touch            | **Pull the row sideways** — toward the middle of the screen, so the pull always leaves the edge the row is aligned to. Engages at 8px, fires on release past 56px, damped to a 72px stop past that. Holding the bubble still opens the § 7.5. action sheet, `답장` first, but an attachment has no hold to spare (§ 3.2.) and the pull is its only reply route |
+| Pull indicator   | A 32px `CornerUpLeft` in the gap the pull opens, on the edge the row moves **away** from — `surface-soft` on `meta` until the threshold, `primary` on `on-primary` past it, so the release is never a guess                                                                                                                                                    |
+| Pointer          | A 32px `CornerUpLeft` button on the bubble's **outer** side, `opacity-0` until the row is hovered or the button is focused                                                                                                                                                                                                                                     |
+| Position         | Out of the row's flow (`absolute`, vertically centered). In flow its appearance on hover would shove the bubble sideways under the cursor                                                                                                                                                                                                                      |
+| Highlight        | A jump target flashes `primary-tint` on the **row**, not the bubble fill — media and emoticon messages have no fill and must highlight too                                                                                                                                                                                                                     |
 
 # 7. Components.
 
@@ -704,6 +705,8 @@ The D-day band is the only place `display-lg` appears in the app. It is the scre
 ## 7.10. Gallery.
 
 3-column grid, `2xs` (4px) gutters, square `object-cover` cells, `rounded-sm`. Month section header is `title-sm` `meta` and **scrolls with the grid**. Viewer is full-bleed on `scrim` at 90% opacity with no chrome except a close `icon-button`, the position counter, and the save control; slides carry vertical padding only, since a side gutter reads as a frame around a photo the viewer exists to show whole.
+
+Opened from a chat bubble the user sent, the viewer takes one more control: a `semantic-error` trash beside the save, labelled `메시지 삭제` because it removes the whole bubble (`REQUIREMENTS.md § 6.`) and not the slide on screen. It is the only route to deleting one's own attachment, since § 3.2. leaves that bubble's hold to the OS. Unlike the action sheet's own 삭제 it is **confirmed**, in the § 7.4. modal that names the consequence — the control sits beside a per-slide 원본 저장, so the reach of one tap is not readable from where it is.
 
 The month header was `sticky` under the app header and is deliberately not any more. The app header is transparent (§ 7.12.), so a pinned opaque band left tiles rendering above it and read as a strip cutting through the grid rather than as a label. Covering the header zone in `canvas` would have fixed that by making the gallery the one screen whose header is not transparent; letting the label scroll costs a way to tell which month is on screen mid-scroll, and that was the cheaper loss.
 

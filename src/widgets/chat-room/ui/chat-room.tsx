@@ -33,8 +33,10 @@ import {
 } from "@/shared/lib";
 import {
   ActionSheet,
+  Button,
   EmptyState,
   MediaViewer,
+  Modal,
   Skeleton,
   toast,
   type ActionSheetItem,
@@ -102,6 +104,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   // INFO: DESIGN.md § 6.8. The bubble a jump landed on, until its flash expires.
   const [highlightedId, setHighlightedId] = useState<Nullable<number>>(null);
   const [editing, setEditing] = useState<Nullable<MediaDraft>>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<Nullable<number>>(null);
   // INFO: `deletableMessageId` is null for the other participant's attachments — the § 3.2. delete control is the only route to removing one's own, since the bubble's hold now belongs to the OS.
   const [viewer, setViewer] =
     useState<Nullable<{ cells: MediaCell[]; index: number; deletableMessageId: Nullable<number> }>>(
@@ -269,7 +272,8 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
             <Virtuoso
               ref={listRef}
               // INFO: The fade edges are the scroll affordance here (§ 6.1.); a bar on top of them would sit over the bubbles and cut through the floating composer.
-              className="scrollbar-hidden"
+              // WARN: `overflow-x: clip`, not `hidden` — the § 8.10. pull translates a row past the shell edge on a narrow screen, and `hidden` on a scroller that already scrolls vertically would make that a real horizontal scroll offset.
+              className="scrollbar-hidden overflow-x-clip"
               atBottomThreshold={AT_BOTTOM_THRESHOLD}
               components={{ Header: ListHeader, Footer: ListFooter }}
               computeItemKey={(_, row) => row.key}
@@ -367,6 +371,29 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
         header={{ title: "메시지" }}
         onClose={() => setActionTarget(null)}
       />
+      <Modal
+        isOpen={confirmingDeleteId !== null}
+        header={{
+          title: "이 메시지를 삭제할까요?",
+          // INFO: The one thing the viewer cannot show — REQUIREMENTS.md § 6. makes a bubble one row, so the other attachments in it go with the one on screen.
+          description: "말풍선에 담긴 사진과 동영상이 모두 사라져요",
+        }}
+        onClose={() => setConfirmingDeleteId(null)}
+      >
+        {/* WARN: `flex-1` on both — `Button` is `w-full shrink-0`, so a bare pair in a row would push the second one off the modal. */}
+        <div className="flex gap-xs">
+          <Button
+            className="flex-1"
+            variant="secondary"
+            onClick={() => setConfirmingDeleteId(null)}
+          >
+            취소
+          </Button>
+          <Button className="flex-1" variant="destructive" onClick={confirmViewerDelete}>
+            삭제
+          </Button>
+        </div>
+      </Modal>
       <MediaPickerSheet
         isOpen={isPickerOpen}
         onClose={() => setIsPickerOpen(false)}
@@ -622,14 +649,17 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   }
 
   function buildViewerDelete(messageId: Nullable<number>) {
-    if (messageId === null) {
-      return undefined;
+    // INFO: DESIGN.md § 3.2. Confirmed rather than immediate, unlike the action sheet's own 삭제 — the control sits beside a per-slide 원본 저장, so the reach of one tap is not obvious from where it is.
+    return messageId === null ? undefined : () => setConfirmingDeleteId(messageId);
+  }
+
+  function confirmViewerDelete() {
+    if (confirmingDeleteId !== null) {
+      void deleteMessage(confirmingDeleteId);
     }
 
-    return () => {
-      setViewer(null);
-      void deleteMessage(messageId);
-    };
+    setConfirmingDeleteId(null);
+    setViewer(null);
   }
 
   async function deleteMessage(id: number) {

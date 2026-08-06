@@ -1,7 +1,8 @@
 "use client";
 
-import { A_SECOND, type Optional } from "@/shared/lib";
+import { A_SECOND, type Nullable, type Optional } from "@/shared/lib";
 import { useCallback, useEffect, useRef, type MouseEvent, type PointerEvent } from "react";
+import { GESTURE_SLOP } from "./gesture-slop";
 
 const LONG_PRESS_DELAY = A_SECOND / 2;
 
@@ -15,8 +16,12 @@ export const LONG_PRESS_TARGET_CLASS =
  */
 export function useLongPress(onLongPress: Optional<() => void>) {
   const timerRef = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
+  const startRef = useRef<Nullable<{ x: number; y: number }>>(null);
 
-  const cancel = useCallback(() => clearTimeout(timerRef.current), []);
+  const cancel = useCallback(() => {
+    clearTimeout(timerRef.current);
+    startRef.current = null;
+  }, []);
 
   useEffect(() => cancel, [cancel]);
 
@@ -24,7 +29,15 @@ export function useLongPress(onLongPress: Optional<() => void>) {
     // WARN: A mouse must not arm the timer — the bubble is `select-text`, so press-and-drag to select would open the sheet mid-selection. The mouse affordance is `onContextMenu`.
     onPointerDown: (event: PointerEvent) => {
       if (onLongPress && event.isPrimary && event.pointerType !== "mouse") {
+        startRef.current = { x: event.clientX, y: event.clientY };
         timerRef.current = setTimeout(onLongPress, LONG_PRESS_DELAY);
+      }
+    },
+    onPointerMove: (event: PointerEvent) => {
+      const start = startRef.current;
+
+      if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) >= GESTURE_SLOP) {
+        cancel();
       }
     },
     onPointerUp: cancel,
