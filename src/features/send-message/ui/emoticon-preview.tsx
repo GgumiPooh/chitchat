@@ -29,13 +29,14 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
 
   return (
     // INFO: REQUIREMENTS.md § 13.6. Centered rather than aligned to the send side — this is what is about to be sent, not a rehearsal of where its bubble lands.
+    // WARN: REQUIREMENTS.md § 13.6. The row stays transparent to the pointer and only the card below takes taps. It floats over the history rather than pushing it, so a full-width band that took them would be a strip of dead history on either side of a 96px card.
     <div
       className={cn(
-        "pointer-events-auto flex animate-in justify-center duration-200 fade-in slide-in-from-bottom-2",
+        "flex animate-in justify-center duration-200 fade-in slide-in-from-bottom-2",
         className,
       )}
     >
-      <div className="relative rounded-lg border border-hairline glass p-2xs shadow-floating">
+      <div className="pointer-events-auto relative rounded-lg border border-hairline glass p-2xs shadow-floating">
         <button
           className="flex cursor-pointer items-center justify-center rounded-sm transition-transform focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:scale-[0.96]"
           type="button"
