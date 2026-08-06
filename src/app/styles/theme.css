@@ -179,6 +179,8 @@
   /* INFO: DESIGN.md § 4.7.2. Long because the release is a spring with two crossings to spend it on, not a single ease. */
   --duration-press-out: 520ms;
   --duration-state: 200ms;
+  /* INFO: DESIGN.md § 7.3. The tab fill's travel, and the only thing slower than `--duration-state` on a committed state change — it crosses up to three columns where a toggle crosses its own width, so the same duration made it the one state change too fast to follow. */
+  --duration-tab-travel: 320ms;
   --duration-route-enter: 220ms;
 
   /* WARN: `--ease-*` is Tailwind's timing-function namespace, so these also ship as `ease-press` / `ease-bloom` / `ease-route` utilities — renaming one renames the utility. */

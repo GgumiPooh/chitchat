@@ -388,17 +388,18 @@ Bubbles carry **no shadow**. `bubble-theirs` is separated from `chat-canvas` by 
 
 ## 4.7. Motion.
 
-Four durations and three curves. Nothing in the app times itself; every animated property reads one of these.
+Five durations and three curves. Nothing in the app times itself; every animated property reads one of these.
 
-| Token                    | Value                            | Use                                                                                    |
-| ------------------------ | -------------------------------- | -------------------------------------------------------------------------------------- |
-| `--duration-press-in`    | 140ms                            | A finger landing — the bloom growing (§ 4.7.2.)                                        |
-| `--duration-press-out`   | 520ms                            | A finger leaving — the bloom bouncing back, long enough for both crossings to be seen  |
-| `--duration-state`       | 200ms                            | A committed state change — the tab fill, a toggle, the bars' collapse (§ 3.5., § 7.3.) |
-| `--duration-route-enter` | 220ms                            | The arriving screen in a route change — the only one there is (§ 4.7.1.)               |
-| `ease-press`             | `cubic-bezier(0.2, 0, 0, 1)`     | The press itself — no overshoot going in, or the control feels loose under the finger  |
-| `ease-bloom`             | a `linear()` spring              | The release. The only curve in the system that crosses its resting value — twice       |
-| `ease-route`             | `cubic-bezier(0.32, 0.72, 0, 1)` | Route motion — a longer tail, so the screen settles rather than stops                  |
+| Token                    | Value                            | Use                                                                                     |
+| ------------------------ | -------------------------------- | --------------------------------------------------------------------------------------- |
+| `--duration-press-in`    | 140ms                            | A finger landing — the bloom growing (§ 4.7.2.)                                         |
+| `--duration-press-out`   | 520ms                            | A finger leaving — the bloom bouncing back, long enough for both crossings to be seen   |
+| `--duration-state`       | 200ms                            | A committed state change — a toggle, a hover fill, the bars' collapse (§ 3.5., § 7.3.)  |
+| `--duration-tab-travel`  | 320ms                            | The tab fill crossing the bar, and the icon/label crossfade that lands with it (§ 7.3.) |
+| `--duration-route-enter` | 220ms                            | The arriving screen in a route change — the only one there is (§ 4.7.1.)                |
+| `ease-press`             | `cubic-bezier(0.2, 0, 0, 1)`     | The press itself — no overshoot going in, or the control feels loose under the finger   |
+| `ease-bloom`             | a `linear()` spring              | The release. The only curve in the system that crosses its resting value — twice        |
+| `ease-route`             | `cubic-bezier(0.32, 0.72, 0, 1)` | Route motion — a longer tail, so the screen settles rather than stops                   |
 
 There is deliberately **no exit duration**: nothing animates on the way out (§ 4.7.1.), so a token for it would only be something to reach for by mistake. An unresolved `var()` makes the whole `animation` shorthand fall back to `0s`, which is an animation that silently never plays.
 
@@ -771,11 +772,13 @@ The bar floats inside the shell (§ 3.5.), so it is neither `fixed` nor width-re
 
 Re-tapping the tab the user is already on carries no transition type, so it does not animate — it still navigates, and a type would slide the screen out and the identical screen back in.
 
-There is **one fill**, not one per tab, and a switch **travels** it. It is a single absolutely-positioned surface in a track behind the items, moved by the `translate` property over `--duration-state` on `ease-route` — the same curve the arriving screen slides on (§ 4.7.1.), so the fill and the screen read as one gesture rather than two. Its width is `100% / TABS.length` and its travel is a multiple of **its own** box, so it tracks four `flex-1` columns without measuring anything: `left`/`width` would animate layout every frame, and there is no pixel geometry to read until layout has run anyway. Under `prefers-reduced-motion: reduce` the travel drops to `0s`, which is the instant swap the per-tab fill used to be.
+There is **one fill**, not one per tab, and a switch **travels** it. It is a single absolutely-positioned surface in a track behind the items, moved by the `translate` property over `--duration-tab-travel` on `ease-route` — the same curve the arriving screen slides on (§ 4.7.1.), so the fill and the screen read as one gesture rather than two. Its width is `100% / TABS.length` and its travel is a multiple of **its own** box, so it tracks four `flex-1` columns without measuring anything: `left`/`width` would animate layout every frame, and there is no pixel geometry to read until layout has run anyway. Under `prefers-reduced-motion: reduce` the travel drops to `0s`, which is the instant swap the per-tab fill used to be.
+
+**Why the travel has a duration of its own, and why it is the longest committed state change in the app.** It ran on `--duration-state` (200ms) with everything else, and at that length it was the one state change users reported not seeing. The reason is distance, not speed: a toggle's knob crosses its own width and the bars collapse by their own height, while this crosses up to three quarters of the bar — the same duration therefore buys it several times the velocity, and the eye reads it as already-arrived rather than as having moved. 320ms is what makes the travel legible without reading as lag. It deliberately **outlasts** `--duration-route-enter` (220ms), so the fill is the last thing on screen to settle: the arriving screen is what the user is looking at, and the fill confirming behind it a moment later is the correct order for the two. Raising `--duration-state` instead is the wrong lever twice over — it would slow every toggle and hover fill in the app, and the bars' collapse is paired to the shell's own 200ms height ease (§ 3.4.), which is not a coincidence to break.
 
 The list is lifted over the fill with an explicit `z-10`, and DOM order is **not** enough. `Link` adds `relative` only when `haptic` is on, and `haptic` is off on the tab the user is already standing on (nothing to confirm) — so the one tab the fill is parked under is the one non-positioned anchor in the bar, painted before the fill rather than after it. Its `focus-visible` ring is an inset `box-shadow` on that anchor, and an opaque `primary-tint` over it leaves the current tab with no focus indicator at all while every other tab keeps one. Lifting the whole list, rather than the anchors, is what keeps that from depending on a prop about haptics.
 
-The icon and label cross over that same `--duration-state` rather than swapping. Snapped, the tapped tab turns `primary` on bare glass while the fill is still 200ms away, and the tab being left keeps a fill it has already lost the colour of.
+The icon and label cross over that same `--duration-tab-travel` rather than swapping, and the two **MUST** stay on one token. Snapped, the tapped tab turns `primary` on bare glass while the fill is still travelling toward it, and the tab being left keeps a fill it has already lost the colour of; left on `--duration-state` while the fill moved to its own duration, the pair would finish 120ms early and reintroduce the same fault at that width.
 
 The travelling fill is why the tab is the one caller whose press bloom carries **no fill of its own** (§ 4.7.2.). The fill can no longer live inside the anchor whose press it would answer, and forwarding the press to a sibling buys almost nothing: `haptic` is off on the active tab, so under a finger there is no `[data-pressed]` on it to forward, and on a switch the attribute is cleared before `aria-current` arrives. The travel is what answers a tab switch; the bloom on the glyph stack still answers the touch.
 

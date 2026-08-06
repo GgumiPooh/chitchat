@@ -53,7 +53,7 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
             // INFO: DESIGN.md § 7.3. One fill for the whole bar rather than one per tab, so a switch travels it across instead of lighting a second one.
             // WARN: DESIGN.md § 7.3. A percentage of the fill's own box, so the travel needs no measurement — the columns are `flex-1` and have no pixel geometry to read until layout.
             <span
-              className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-primary-tint transition-[translate] duration-(--duration-state) ease-route motion-reduce:duration-0"
+              className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-primary-tint transition-[translate] duration-(--duration-tab-travel) ease-route motion-reduce:duration-0"
               aria-hidden="true"
               style={{
                 width: `calc(100% / ${TABS.length})`,
@@ -65,9 +65,10 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
           <ul className="relative z-10 flex flex-1 items-stretch">
             {TABS.map(({ href, label, Icon }) => {
               const isActive = isUnderRoute(activeHref, href);
-              // INFO: DESIGN.md § 7.3. Crossed over `--duration-state` rather than swapped, so the pair lands with the fill instead of turning `primary` while it is still travelling.
+              // INFO: DESIGN.md § 7.3. Crossed over the fill's own duration rather than swapped, so the pair lands with the fill instead of turning `primary` while it is still travelling.
+              // WARN: `--duration-tab-travel`, and it MUST track whatever the fill above uses. On `--duration-state` the label would finish 120ms early and sit `primary` on bare glass waiting for the fill to arrive — the exact snap this crossfade exists to prevent, just smaller.
               const stateClassName = cn(
-                "transition-colors duration-(--duration-state)",
+                "transition-colors duration-(--duration-tab-travel)",
                 isActive ? "text-primary" : "text-meta group-hover:text-ink",
               );
 
