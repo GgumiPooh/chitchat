@@ -21,7 +21,7 @@ export function Chip({
   ...props
 }: ChipProps) {
   const Comp = asChild ? Slot.Root : "button";
-  const hasHaptic = haptic && !isSelected && !disabled;
+  const isTicking = !isSelected && !disabled;
 
   const chip = (
     <Comp
@@ -37,15 +37,16 @@ export function Chip({
     />
   );
 
-  if (!hasHaptic) {
+  if (!haptic) {
     return chip;
   }
 
   return (
+    // WARN: The wrapper follows `haptic` alone, never the selection. Gating it on state too swaps this position between `<span>` and `<button>`, and React then remounts the chip and drops the focus a keyboard user was holding.
     // WARN: A sibling directly after the chip, never a child. Inside a `<button>` WebKit ends the tap in the native control and no click reaches JS at all.
     <span className="group relative inline-flex shrink-0">
       {chip}
-      <HapticTap forwardsTap />
+      {isTicking && <HapticTap forwardsTap />}
     </span>
   );
 }

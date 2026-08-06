@@ -11,9 +11,13 @@ export type LinkProps = ComponentProps<typeof NextLink> & {
 
 // WARN: `haptic` is for internal routes only. The overlay becomes the click target, so the anchor's own activation never runs and navigation rides entirely on `NextLink`'s handler — which bows out without it for an external href, a `target`, or a modified click, and those would then go nowhere.
 // INFO: The overlay pairs with `relative` and has to stay the last child; owning both here keeps a caller from silently losing the haptic by restyling around it.
+// INFO: DESIGN.md § 3.2. Every href this renders is an app route, so iOS's hold-to-preview is suppressed here rather than at each call site — it inherits, which is what puts the label and glyph inside a tab out of its reach too.
 export function Link({ className, haptic = false, children, ...props }: LinkProps) {
   return (
-    <NextLink className={cn(haptic && "relative", className)} {...props}>
+    <NextLink
+      className={cn("[-webkit-touch-callout:none]", haptic && "relative", className)}
+      {...props}
+    >
       {children}
       {haptic && <HapticTap />}
     </NextLink>

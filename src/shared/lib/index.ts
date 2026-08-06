@@ -56,7 +56,8 @@ export {
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
 export type { Maybe, Nullable, Optional } from "./nullish";
 export { randomId } from "./random";
-export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./safely";
+export { mapPooled, type PoolOptions } from "./run/pool";
+export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./run/safely";
 export { playSound, unlockSound, useSoundUnlock } from "./sound";
 export { measureLineHeight, warmLineHeights } from "./text/line-height";
 export { countTextLines, type FontSpec } from "./text/text-layout";
@@ -67,4 +68,4 @@ export {
   withoutFragment,
   type TextSegment,
 } from "./text/url";
-export { hasUnsentWork, useUnsentWork } from "./unsent-work";
+export { hasUnsentWork, holdUnsentWork, useUnsentWork } from "./unsent-work";

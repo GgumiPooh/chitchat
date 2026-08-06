@@ -4,6 +4,7 @@ import {
   GALLERY_ROUTE,
   SETTINGS_ROUTE,
   TAB_ROUTES,
+  type TabRoute,
 } from "@/shared/config";
 import { CalendarDays, Images, MessageCircle, Settings } from "lucide-react";
 import type { ComponentProps, FC } from "react";
@@ -16,7 +17,8 @@ export type Tab = {
 
 type TabFace = Pick<Tab, "label" | "Icon">;
 
-const TAB_FACES: Record<string, TabFace> = {
+// WARN: Keyed by `TabRoute`, not `string`. A route added to `TAB_ROUTES` without a face here has to be a compile error — widened, it is an `undefined` `Icon` that blanks the whole shell at render.
+const TAB_FACES: Record<TabRoute, TabFace> = {
   [CHAT_ROUTE]: { label: "채팅", Icon: MessageCircle },
   [CALENDAR_ROUTE]: { label: "캘린더", Icon: CalendarDays },
   [GALLERY_ROUTE]: { label: "갤러리", Icon: Images },

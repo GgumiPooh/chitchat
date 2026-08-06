@@ -108,7 +108,7 @@ export function EmoticonPackRow({
       />
       <button
         ref={setActivatorNodeRef}
-        className="flex size-11 shrink-0 touch-none items-center justify-center rounded-full text-meta group-active:bg-surface-strong hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
+        className="flex size-11 shrink-0 touch-none items-center justify-center rounded-full text-meta hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
         type="button"
         aria-label={`${pack.name} 순서 변경`}
         {...attributes}

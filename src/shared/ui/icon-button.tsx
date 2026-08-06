@@ -32,7 +32,7 @@ export function IconButton({
   ...props
 }: IconButtonProps) {
   // INFO: A disabled button confirms nothing, and the overlay would still take the tap and tick.
-  const hasHaptic = haptic && !disabled;
+  const isTicking = !disabled;
 
   const button = (
     <button
@@ -50,16 +50,17 @@ export function IconButton({
     </button>
   );
 
-  if (!hasHaptic) {
+  if (!haptic) {
     return button;
   }
 
   return (
     // WARN: The wrapper shrink-wraps the button, so `className` sizing still governs — but a caller that positions the button itself (`absolute`, `flex-1`) must not ask for `haptic`, since those classes would land on the button inside the wrapper rather than on the box its parent lays out.
+    // WARN: The wrapper follows `haptic` alone, never `disabled`. Gating it on state too swaps this position between `<span>` and `<button>`, and React then remounts the button and drops the focus a keyboard user was holding.
     <span className="group relative inline-flex shrink-0">
       {button}
       {/* WARN: A sibling directly after the button, never a child. Inside a `<button>` WebKit ends the tap in the native control and no click reaches JS at all. */}
-      <HapticTap forwardsTap />
+      {isTicking && <HapticTap forwardsTap />}
     </span>
   );
 }

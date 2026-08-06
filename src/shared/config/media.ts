@@ -50,6 +50,24 @@ export const MAX_VIDEO_SIZE = 500 * A_MEGABYTE;
 // INFO: REQUIREMENTS.md § 18. #10. Selection is unlimited; a send longer than this is split across consecutive messages so the grid never needs a `+N` overflow cell.
 export const MAX_MEDIA_PER_MESSAGE = 9;
 
+/**
+ * How many presigned PUTs a batch may have in flight (REQUIREMENTS.md § 13.4.).
+ *
+ * WARN: Meaningless without `MAX_UPLOAD_INFLIGHT_BYTES` beside it. Uploads were
+ * serial precisely because a batch can be twenty 8MB emoticons or nine 500MB
+ * videos, and a count alone cannot tell those apart.
+ */
+export const UPLOAD_CONCURRENCY = 4;
+
+/**
+ * The bytes a batch may have in flight at once, across `UPLOAD_CONCURRENCY` slots.
+ *
+ * INFO: Sized so a full width of emoticons (`MAX_EMOTICON_IMAGE_SIZE`, 8MB) runs in
+ * parallel while a `MAX_VIDEO_SIZE` upload holds the budget alone — which is the old
+ * serial behaviour, kept exactly where it was earning its keep.
+ */
+export const MAX_UPLOAD_INFLIGHT_BYTES = 32 * A_MEGABYTE;
+
 // INFO: Long enough for a 500MB upload on a slow connection to start, short enough that a leaked URL is worthless.
 export const UPLOAD_URL_EXPIRY = 10 * A_MINUTE;
 

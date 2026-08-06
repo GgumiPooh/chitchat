@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import type { Nullable } from "./nullish";
-import { safelyRun } from "./safely";
+import { safelyRun } from "./run/safely";
 
 // INFO: One element for the whole page: a second sound cuts the first off instead of layering over it, and the gesture that approves this element approves every sound that follows.
 let player: Nullable<HTMLAudioElement> = null;

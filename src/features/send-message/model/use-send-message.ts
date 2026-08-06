@@ -4,8 +4,12 @@ import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import { uploadDraft } from "@/features/upload-media/@x/send-message";
-import { MAX_MEDIA_PER_MESSAGE } from "@/shared/config";
-import { randomId, type Nullable } from "@/shared/lib";
+import {
+  MAX_MEDIA_PER_MESSAGE,
+  MAX_UPLOAD_INFLIGHT_BYTES,
+  UPLOAD_CONCURRENCY,
+} from "@/shared/config";
+import { mapPooled, randomId, type Nullable } from "@/shared/lib";
 import { useCallback, useRef, useState } from "react";
 import { postMessage, type PostMessageParams } from "../api/post-message";
 
@@ -84,33 +88,44 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
       // WARN: `upload.onprogress` fires per network chunk and every patch re-renders the whole virtualized list. A 500MB video would otherwise reconcile it hundreds of times on the device least able to absorb it.
       let lastPercent = -1;
 
-      for (const [index, draft] of message.media.entries()) {
-        if (uploaded[index]) {
-          continue;
-        }
+      // WARN: The byte budget is doing the work here, not the concurrency limit — nine slots of `MAX_VIDEO_SIZE` is what this path can be handed, and § 13.4.'s reason for not firing those at once still stands. Nine small photos do go out `UPLOAD_CONCURRENCY` wide.
+      await mapPooled(
+        message.media,
+        async (draft, index) => {
+          if (uploaded[index]) {
+            return;
+          }
 
-        const media = await uploadDraft(draft, {
-          onProgress: (loadedBytes) => {
-            loaded[index] = loadedBytes;
+          const media = await uploadDraft(draft, {
+            onProgress: (loadedBytes) => {
+              loaded[index] = loadedBytes;
 
-            const progress = sum(loaded) / Math.max(totalBytes, 1);
-            const percent = Math.round(progress * 100);
+              const progress = sum(loaded) / Math.max(totalBytes, 1);
+              const percent = Math.round(progress * 100);
 
-            if (percent === lastPercent) {
-              return;
-            }
+              if (percent === lastPercent) {
+                return;
+              }
 
-            lastPercent = percent;
-            patch(message.clientMsgId, { progress });
-          },
-        });
+              lastPercent = percent;
+              patch(message.clientMsgId, { progress });
+            },
+          });
 
-        uploaded[index] = media.id;
-        loaded[index] = draft.file.size;
-        // WARN: Recorded as each one lands, so a failure halfway through leaves the retry nothing to re-upload but the remainder.
-        patch(message.clientMsgId, { uploadedIds: [...uploaded] });
-      }
+          uploaded[index] = media.id;
+          loaded[index] = draft.file.size;
+          // WARN: Recorded as each one lands, so a failure halfway through leaves the retry nothing to re-upload but the remainder. `mapPooled` settles everything in flight before it rethrows precisely so this holds.
+          patch(message.clientMsgId, { uploadedIds: [...uploaded] });
+        },
+        {
+          limit: UPLOAD_CONCURRENCY,
+          byteBudget: MAX_UPLOAD_INFLIGHT_BYTES,
+          // INFO: A slot the retry is skipping costs nothing to run, so its bytes must not be reserved against the budget either.
+          weigh: (draft, index) => (uploaded[index] ? 0 : draft.file.size),
+        },
+      );
 
+      // WARN: Indexed, so `mediaIds` stays in the picked order however the uploads interleaved — § 6. renders the grid in exactly this order.
       return uploaded.filter((id): id is string => Boolean(id));
     },
     [patch],

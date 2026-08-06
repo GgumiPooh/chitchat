@@ -13,8 +13,8 @@ export type BottomOverlayProps = PropsWithChildren<{
 
 /**
  * Holds the floating bars over the bottom of the shell (DESIGN.md § 3.5.) and
- * measures their total height into `--bottom-inset`, which the shell's scroller
- * takes as bottom padding so the last row can still clear them. It is also the
+ * measures their total height into `--bottom-inset`, which `RouteTransition`
+ * trails as a spacer so the last row can still clear them. It is also the
  * one place the bars leave for the on-screen keyboard (§ 7.3.), so they go on a
  * single timeline instead of each dropping out of the tree on its own.
  */

@@ -69,15 +69,18 @@ export const EMOTICON_URL_EXPIRY = 7 * A_DAY;
 export const EMOTICON_CACHE_MAX_AGE = 6 * A_DAY;
 
 /**
- * The `Cache-Control` an emoticon object is stored with.
+ * The `Cache-Control` an emoticon's presigned GET answers with.
  *
- * WARN: Signed into the presigned PUT (§ 13.3.), so the browser MUST send this
- * exact string with the upload or R2 rejects the signature. Without it R2 answers
- * no `Cache-Control` at all and the browser falls back to a heuristic lifetime of
- * a tenth of the object's age — nearly zero for one just uploaded, which is what
- * made a fresh emoticon re-fetch on every single mount.
+ * WARN: Signed into the *download* URL, never sent on the upload (§ 13.3.). R2
+ * stores no `Cache-Control` of its own, so without this the browser falls back to a
+ * heuristic lifetime of a tenth of the object's age — nearly zero for one just
+ * uploaded, which is what made a fresh emoticon re-fetch on every single mount.
+ *
+ * WARN: `private`, matching the 302 that points here. `public` would license a
+ * shared cache to hold the bytes for a year and keep replaying them past
+ * `EMOTICON_URL_EXPIRY`, which is the ceiling the signature exists to impose.
  */
-export const EMOTICON_OBJECT_CACHE_CONTROL = `public, max-age=${(365 * A_DAY) / A_SECOND}, immutable`;
+export const EMOTICON_ASSET_CACHE_CONTROL = `private, max-age=${(365 * A_DAY) / A_SECOND}, immutable`;
 
 export type AllowedEmoticonImageMime = (typeof ALLOWED_EMOTICON_IMAGE_MIMES)[number];
 

@@ -17,6 +17,26 @@ export function hasUnsentWork(): boolean {
 }
 
 /**
+ * Holds the reload for work that outlives the screen that started it, until the
+ * returned release is called. `REQUIREMENTS.md § 15.1.` promises a bulk emoticon
+ * add survives routing away, and a promise chain does — but `useUnsentWork` drops
+ * its probe at unmount, so the hold has to belong to the work and not to a
+ * component.
+ *
+ * WARN: Release it from a `finally`. A hold left standing pins every client on
+ * this deployment for the rest of the session.
+ */
+export function holdUnsentWork(): () => void {
+  const probe = () => true;
+
+  probes.add(probe);
+
+  return () => {
+    probes.delete(probe);
+  };
+}
+
+/**
  * Declares, for as long as the caller is mounted, whether it is holding work the
  * user has not committed yet. A reload forced by a new deployment waits for every
  * caller to report `false` (`REQUIREMENTS.md § 15.1.`).

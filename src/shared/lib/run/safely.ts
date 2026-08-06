@@ -1,4 +1,4 @@
-import type { Optional } from "./nullish";
+import type { Optional } from "../nullish";
 
 export function safelyGet<T>(callback: () => T): Optional<T> {
   try {
