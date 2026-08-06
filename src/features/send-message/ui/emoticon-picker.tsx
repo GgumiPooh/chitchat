@@ -22,6 +22,9 @@ const TAB_REVEAL_MARGIN = 8;
 // INFO: REQUIREMENTS.md § 13.6. Two taps on the same cell inside this window are the shortcut past the preview.
 const DOUBLE_TAP_WINDOW = A_SECOND / 3;
 
+// WARN: Hoisted so the pending query answers the same array every render — an inline `= []` mints a new identity, and the effect keyed on `packs` then re-runs its two `getBoundingClientRect` reads on every frame of the § 13.6. open animation.
+const NO_PACKS: EmoticonPackWithItems[] = [];
+
 export type EmoticonPickerProps = {
   className?: string;
   onSelect: (emoticon: Emoticon) => void;
@@ -50,7 +53,7 @@ export function EmoticonPicker({ className, onSelect, onQuickSend }: EmoticonPic
   const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
   // WARN: § 13.6. Read only. `remember` belongs to the send, not to the tap — recording it here re-sorts 최근 사용 between the two taps of a double tap, moving the cell out from under the second one.
   const { recentIds } = useRecentEmoticons();
-  const { data: packs = [], isPending } = useQuery({
+  const { data: packs = NO_PACKS, isPending } = useQuery({
     queryKey: ["emoticon-packs", "enabled"],
     queryFn: fetchEnabledPacks,
   });
