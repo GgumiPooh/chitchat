@@ -45,10 +45,9 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  const url = await presignDownload(
-    toVariantKey(row, query.data.variant),
-    query.data.download === "1",
-  );
+  const url = await presignDownload(toVariantKey(row, query.data.variant), {
+    asAttachment: query.data.download === "1",
+  });
 
   return NextResponse.redirect(url, {
     status: 302,

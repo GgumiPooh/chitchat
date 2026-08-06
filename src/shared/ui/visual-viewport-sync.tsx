@@ -4,6 +4,7 @@ import { useEffect } from "react";
 
 const HEIGHT_PROPERTY = "--viewport-height";
 const TOP_PROPERTY = "--viewport-top";
+const BOTTOM_PROPERTY = "--viewport-bottom";
 
 /**
  * Mirrors the visual viewport onto the root element so the app shell can size
@@ -33,6 +34,7 @@ export function VisualViewportSync() {
       viewport.removeEventListener("scroll", sync);
       root.style.removeProperty(HEIGHT_PROPERTY);
       root.style.removeProperty(TOP_PROPERTY);
+      root.style.removeProperty(BOTTOM_PROPERTY);
     };
 
     // INFO: The keyboard animates open over several frames, and each one fires both events — coalescing keeps the shell to one resize per frame.
@@ -46,6 +48,11 @@ export function VisualViewportSync() {
 
       root.style.setProperty(HEIGHT_PROPERTY, `${height}px`);
       root.style.setProperty(TOP_PROPERTY, `${offsetTop}px`);
+      // INFO: DESIGN.md § 3.4. What a portalled overlay needs: a `fixed` box outside the shell resolves `bottom` against the layout viewport, which the keyboard never shrinks.
+      root.style.setProperty(
+        BOTTOM_PROPERTY,
+        `${Math.max(root.clientHeight - offsetTop - height, 0)}px`,
+      );
 
       // WARN: WebKit pans the document to reveal the focused field before the shell has resized; left in place that pan carries the header out of the visual viewport, which is the bug this component exists to fix.
       if (window.scrollY !== 0) {

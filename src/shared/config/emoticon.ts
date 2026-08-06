@@ -1,4 +1,4 @@
-import { A_MEGABYTE } from "@/shared/lib";
+import { A_DAY, A_MEGABYTE, A_SECOND } from "@/shared/lib";
 
 /** REQUIREMENTS.md § 13.3. Presigned PUT then registration, exactly as § 9. does — but no `_thumb` sibling and no `media` row. */
 export const EMOTICON_UPLOAD_URL_PATH = "/api/emoticons/upload-url";
@@ -51,6 +51,33 @@ export const MAX_EMOTICON_AUDIO_SIZE = 2 * A_MEGABYTE;
 export const EMOTICON_MAX_EDGE = 420;
 
 export const MAX_EMOTICON_PACK_NAME_LENGTH = 40;
+
+/**
+ * How long an emoticon's presigned GET stays valid, and how long the 302 in front
+ * of it may be cached.
+ *
+ * WARN: REQUIREMENTS.md § 13.3. Deliberately not § 9.'s `MEDIA_URL_EXPIRY`. An
+ * emoticon's asset URL carries `v` (§ 13.4.), so it addresses one immutable version
+ * and a long cache can never serve the wrong bytes — a `media` URL has no such
+ * version and stays on the short window.
+ *
+ * WARN: Seven days is SigV4's ceiling; the cache MUST stay under it, or the browser
+ * replays a cached redirect to a signature R2 has stopped honouring (§ 9.).
+ */
+export const EMOTICON_URL_EXPIRY = 7 * A_DAY;
+
+export const EMOTICON_CACHE_MAX_AGE = 6 * A_DAY;
+
+/**
+ * The `Cache-Control` an emoticon object is stored with.
+ *
+ * WARN: Signed into the presigned PUT (§ 13.3.), so the browser MUST send this
+ * exact string with the upload or R2 rejects the signature. Without it R2 answers
+ * no `Cache-Control` at all and the browser falls back to a heuristic lifetime of
+ * a tenth of the object's age — nearly zero for one just uploaded, which is what
+ * made a fresh emoticon re-fetch on every single mount.
+ */
+export const EMOTICON_OBJECT_CACHE_CONTROL = `public, max-age=${(365 * A_DAY) / A_SECOND}, immutable`;
 
 export type AllowedEmoticonImageMime = (typeof ALLOWED_EMOTICON_IMAGE_MIMES)[number];
 

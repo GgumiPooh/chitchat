@@ -2,7 +2,7 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
-import type { ChatMessage } from "@/entities/message";
+import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { useChatStream, useChatStreamListener } from "@/features/chat-stream";
 import {
@@ -17,7 +17,12 @@ import {
   MediaTray,
   useMediaSelection,
 } from "@/features/upload-media";
-import type { MessageArrival } from "@/shared/config";
+import {
+  MESSAGE_FLASH_DURATION,
+  REPLY_PREVIEW_MAX_LENGTH,
+  isVideoMime,
+  type MessageArrival,
+} from "@/shared/config";
 import {
   buildFadeMask,
   cn,
@@ -35,7 +40,7 @@ import {
   type ActionSheetItem,
   type MediaCell,
 } from "@/shared/ui";
-import { Copy, MessageCircle, Trash2 } from "lucide-react";
+import { Copy, CornerUpLeft, MessageCircle, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { requestMessageDeletion } from "../api/request-message-deletion";
@@ -48,6 +53,7 @@ import { useMessageHistory } from "../model/use-message-history";
 import { usePrependAnchor } from "../model/use-prepend-anchor";
 import { DateDivider } from "./date-divider";
 import { MessageRow } from "./message-row";
+import { ReplyBar } from "./reply-bar";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
 import { SystemNotice } from "./system-notice";
 
@@ -80,6 +86,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const containerRef = useRef<Nullable<HTMLDivElement>>(null);
   const composerRef = useRef<Nullable<HTMLDivElement>>(null);
   const scrollerRef = useRef<Nullable<HTMLElement>>(null);
+  const rowsRef = useRef<ChatRow[]>([]);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isAtBottomRef = useRef(true);
   const [isAtTop, setIsAtTop] = useState(true);
@@ -90,6 +97,10 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
   const [hasOpenedEmoticonPanel, setHasOpenedEmoticonPanel] = useState(false);
   // INFO: REQUIREMENTS.md § 13.6. Staged rather than sent on selection, so it can be sent with a line of text the way an attachment can.
   const [stagedEmoticon, setStagedEmoticon] = useState<Nullable<Emoticon>>(null);
+  // INFO: REQUIREMENTS.md § 8.10. Not mutually exclusive with the two above — a quote is an attribute of the send, not a payload competing for the § 6. row.
+  const [replyTarget, setReplyTarget] = useState<Nullable<ReplyPreview>>(null);
+  // INFO: DESIGN.md § 6.8. The bubble a jump landed on, until its flash expires.
+  const [highlightedId, setHighlightedId] = useState<Nullable<number>>(null);
   const [editing, setEditing] = useState<Nullable<MediaDraft>>(null);
   // INFO: `deletableMessageId` is null for the other participant's attachments — the § 3.2. delete control is the only route to removing one's own, since the bubble's hold now belongs to the OS.
   const [viewer, setViewer] =
@@ -98,8 +109,18 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     );
   // INFO: The newest id the user had in view when they last left the bottom — everything past it is what the § 6.7. pill counts.
   const [seenId, setSeenId] = useState(initialMessages.at(-1)?.id ?? 0);
-  const { messages, isLoadingOlder, loadOlder, appendMessage, removeMessage, catchUp } =
-    useMessageHistory(initialMessages);
+  const {
+    messages,
+    isLoadingOlder,
+    hasNewer,
+    loadOlder,
+    loadNewer,
+    loadAround,
+    returnToLive,
+    appendMessage,
+    removeMessage,
+    catchUp,
+  } = useMessageHistory(initialMessages);
   const { pending, send, sendMedia, sendEmoticon, retry, cancel, resolve } = useSendMessage({
     onSent: appendMessage,
   });
@@ -161,7 +182,9 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
 
   // INFO: REQUIREMENTS.md § 15.1. Staged attachments and sends still in flight both die with the document, so a refresh forced by a new deployment waits them out.
   // WARN: `sending` only. A failed bubble never finishes on its own, so counting it pins the app to a stale bundle until the user happens to retry or cancel.
-  useUnsentWork(isSending || selection.drafts.length > 0 || stagedEmoticon !== null);
+  useUnsentWork(
+    isSending || selection.drafts.length > 0 || stagedEmoticon !== null || replyTarget !== null,
+  );
 
   useComposerClearance({ containerRef, composerRef, scrollerRef, isAtBottomRef });
 
@@ -201,6 +224,12 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
   }, []);
 
+  /** REQUIREMENTS.md § 8.6.1. The § 6.7. pill is also the way back from a jump, so it restores the window before it scrolls. */
+  const goToNewest = useCallback(async () => {
+    await returnToLive();
+    scrollToBottom();
+  }, [returnToLive, scrollToBottom]);
+
   // WARN: Scrolling inside the send handler resolves against the pre-send data, so a message sent from deep in history lands below the fold. The row only exists from this commit onward.
   useEffect(() => {
     if (pendingCount > lastPendingCount.current) {
@@ -209,6 +238,22 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
 
     lastPendingCount.current = pendingCount;
   }, [pendingCount, scrollToBottom]);
+
+  // WARN: REQUIREMENTS.md § 8.6.1. The jump reads the rows back through this rather than through the closure it was called in — `loadAround` replaces the window, and the array the handler captured predates it.
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
+  // INFO: DESIGN.md § 6.8. The flash is a moment, not a selection — nothing dismisses it but time.
+  useEffect(() => {
+    if (highlightedId === null) {
+      return;
+    }
+
+    const timer = setTimeout(() => setHighlightedId(null), MESSAGE_FLASH_DURATION);
+
+    return () => clearTimeout(timer);
+  }, [highlightedId]);
 
   return (
     // INFO: DESIGN.md § 3.5. One scroll region spanning the whole screen; the composer and the tab bar float over its bottom edge rather than shortening it.
@@ -240,14 +285,17 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
               style={{ height: "100%", maskImage: buildScrollFadeMask() }}
               atBottomStateChange={handleAtBottomChange}
               atTopStateChange={setIsAtTop}
+              // INFO: REQUIREMENTS.md § 8.6.1. Downward paging exists for the jumped-away window alone; at the live edge `loadNewer` returns immediately.
+              endReached={() => void loadNewer()}
               startReached={() => void loadOlder()}
             />
           </div>
           <ScrollToBottomPill
             className="absolute inset-x-0 bottom-[calc(var(--chat-bottom-gap)+var(--spacing-md))] mx-auto"
-            isVisible={!isAtBottom}
+            // WARN: § 8.6.1. A window parked around a jump target can sit at the bottom of its own scroll range while the newest message is still pages away, so the pill has to answer to the window too.
+            isVisible={!isAtBottom || hasNewer}
             newMessageCount={unseenCount}
-            onClick={scrollToBottom}
+            onClick={() => void goToNewest()}
           />
         </>
       )}
@@ -257,6 +305,15 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
         ref={composerRef}
         className="pointer-events-none absolute inset-x-0 bottom-(--bottom-inset)"
       >
+        {/* INFO: REQUIREMENTS.md § 8.10. Above the tray and the pill, and in the flow — the quote belongs to the send the whole stack is composing, so it reads as the header of it. */}
+        {replyTarget && (
+          <ReplyBar
+            className="mx-md mb-2xs"
+            replyTo={replyTarget}
+            name={participantById.get(replyTarget.senderId)?.name}
+            onCancel={() => setReplyTarget(null)}
+          />
+        )}
         <MediaTray
           className="mx-md mb-2xs"
           drafts={selection.drafts}
@@ -356,20 +413,38 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
    * WARN: The order survives because `useSendMessage` delivers on one promise chain. Firing these in parallel would let the text win the race for `messages.id` and land above them on every other client and every reload.
    */
   function submit(text: string) {
+    // INFO: REQUIREMENTS.md § 8.6.1. A send from a jumped-away window has to land somewhere the sender can see it, and the only place that is true is the live edge.
+    if (hasNewer) {
+      void returnToLive();
+    }
+
+    // WARN: REQUIREMENTS.md § 8.10. Consumed by the first bubble only. Emoticon, then attachments, then text is the order they are queued in, and a quote repeated over three of them says the same thing three times.
+    let quote = replyTarget;
+
+    const take = () => {
+      const taken = quote;
+
+      quote = null;
+
+      return taken;
+    };
+
     if (stagedEmoticon) {
       // WARN: REQUIREMENTS.md § 13.6. Here rather than on the echo, and synchronously inside the tap — the send is the moment KakaoTalk sounds, and iOS grants audio to this call stack alone.
       playEmoticonSound(stagedEmoticon);
-      sendEmoticon(stagedEmoticon);
+      sendEmoticon(stagedEmoticon, take());
       setStagedEmoticon(null);
     }
 
     if (selection.drafts.length > 0) {
-      sendMedia(selection.takeAll());
+      sendMedia(selection.takeAll(), take());
     }
 
     if (text.trim()) {
-      send(text);
+      send(text, take());
     }
+
+    setReplyTarget(null);
   }
 
   function handleEdited(draft: MediaDraft) {
@@ -408,6 +483,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
             text={row.pending.text}
             media={cells}
             emoticon={row.pending.emoticon}
+            replyTo={row.pending.replyTo}
             progress={row.pending.progress}
             createdAt={row.pending.createdAt}
             sender={participantById.get(currentUserId)}
@@ -415,6 +491,11 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
             status={row.pending.status}
+            replyToName={
+              row.pending.replyTo
+                ? participantById.get(row.pending.replyTo.senderId)?.name
+                : undefined
+            }
             onRetry={() => retry(row.pending.clientMsgId)}
             onCancel={() => cancel(row.pending.clientMsgId)}
           />
@@ -422,19 +503,27 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
       }
       case "message": {
         const cells = toCellsFromMedia(row.message.media);
+        // INFO: REQUIREMENTS.md § 8.10. A deleted parent is still quoted, but there is nothing left to jump to — the row it named is out of every page.
+        const quoted = row.message.replyTo;
 
         return (
           <MessageRow
             text={row.message.text}
             media={cells}
             emoticon={row.message.emoticon}
+            replyTo={quoted}
+            replyToName={quoted ? participantById.get(quoted.senderId)?.name : undefined}
             createdAt={row.message.createdAt}
             sender={participantById.get(row.message.senderId)}
             isMine={row.isMine}
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
             isRead={row.message.id === lastReadMineId}
+            isHighlighted={row.message.id === highlightedId}
             status="sent"
+            onOpenReply={
+              quoted && !quoted.isDeleted ? () => void jumpToMessage(quoted.id) : undefined
+            }
             onOpenMedia={(index) =>
               setViewer({
                 cells,
@@ -443,6 +532,7 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
               })
             }
             onLongPress={() => setActionTarget(row.message)}
+            onReply={() => stageReply(row.message)}
           />
         );
       }
@@ -455,7 +545,9 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     }
 
     const target = actionTarget;
+    // INFO: REQUIREMENTS.md § 8.10. First, and on the other person's messages as much as on my own — replying is the sheet's most-reached-for action, unlike copy.
     const items: ActionSheetItem[] = [
+      { label: "답장", Icon: CornerUpLeft, onSelect: () => stageReply(target) },
       { label: "복사", Icon: Copy, onSelect: () => void copyText(target.text ?? "") },
     ];
 
@@ -469,6 +561,55 @@ export function ChatRoom({ className, currentUserId, initialMessages }: ChatRoom
     }
 
     return items;
+  }
+
+  /**
+   * INFO: REQUIREMENTS.md § 8.10. The quote is built here rather than fetched — the
+   * message being replied to is already on screen, so the staged bar and the
+   * optimistic bubble both draw from the row the user just pointed at.
+   */
+  function stageReply(message: ChatMessage) {
+    setReplyTarget({
+      senderId: message.senderId,
+      kind: message.type,
+      text: message.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null,
+      thumbnailMediaId: message.media[0]?.id ?? null,
+      isVideoOnly:
+        message.media.length > 0 && message.media.every((item) => isVideoMime(item.mime)),
+      isDeleted: false,
+      id: message.id,
+    });
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.6.1. Already-loaded targets skip the fetch — a quote commonly
+   * points a few rows up.
+   *
+   * WARN: The scroll waits a frame. `loadAround` replaces the window, and Virtuoso
+   * resolves an index against rows it has not been handed yet — asking it to scroll
+   * inside this call stack lands on whatever the previous window held there.
+   */
+  async function jumpToMessage(id: number) {
+    if (!messages.some((message) => message.id === id) && !(await loadAround(id))) {
+      toast.error("원본 메시지를 찾지 못했어요");
+
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const index = rowsRef.current.findIndex(
+        (row) => row.kind === "message" && row.message.id === id,
+      );
+
+      if (index < 0) {
+        return;
+      }
+
+      // INFO: The plain data index, not `firstItemIndex + index` — that offset only reaches what `itemContent` and `computeItemKey` are handed.
+      // WARN: Not `behavior: "smooth"`. A jump crosses an arbitrary distance, so smooth animates through history the user did not ask to see, and the window it is animating over was replaced a frame ago.
+      listRef.current?.scrollToIndex({ index, align: "center" });
+      setHighlightedId(id);
+    });
   }
 
   async function copyText(text: string) {

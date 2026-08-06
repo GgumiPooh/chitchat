@@ -6,8 +6,9 @@ import { Drawer as DrawerPrimitive } from "vaul";
 
 // WARN: AGENTS.md § 2.4. Composition primitive — compose it inside `@/shared/ui` only, never in a screen.
 
+// WARN: `repositionInputs` is vaul's own keyboard handling and it measures against `window.innerHeight`, which WebKit does not shrink — it stretched the sheet downwards behind the keys instead of lifting it. DESIGN.md § 3.4. already tracks the visual viewport for the whole app.
 export function Drawer(props: ComponentProps<typeof DrawerPrimitive.Root>) {
-  return <DrawerPrimitive.Root {...props} />;
+  return <DrawerPrimitive.Root repositionInputs={false} {...props} />;
 }
 
 export function DrawerPortal(props: ComponentProps<typeof DrawerPrimitive.Portal>) {
@@ -41,8 +42,12 @@ export function DrawerContent({
   return (
     <DrawerPortal>
       <DrawerOverlay />
+      {/* WARN: `bottom` rides `--viewport-bottom`, not `0`. The portal puts this outside the shell, so its `fixed` box is laid out against the layout viewport and the keyboard would otherwise slide it under the keys (DESIGN.md § 3.4.). */}
       <DrawerPrimitive.Content
-        className={cn("fixed inset-x-0 bottom-0 z-50 flex h-auto flex-col", className)}
+        className={cn(
+          "fixed inset-x-0 bottom-[var(--viewport-bottom,0px)] z-50 flex h-auto flex-col",
+          className,
+        )}
         {...props}
       >
         {children}

@@ -1,6 +1,6 @@
 import { deleteEmoticonItem, updateEmoticonItem } from "@/entities/emoticon";
 import { getCurrentUser } from "@/shared/auth";
-import { deleteObjects, deleteObjectsAfterCacheWindow } from "@/shared/storage";
+import { deleteObjects } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -65,8 +65,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ error: "unprocessable" }, { status: 422 });
   }
 
-  // WARN: Deferred, not immediate. The other participant still holds the pre-edit version and a cached redirect to the object behind it (§ 13.4.), so deleting it now would break their image rather than stale it.
-  deleteObjectsAfterCacheWindow(result.orphanedKeys);
+  // WARN: Immediate, and a participant holding the pre-edit redirect does get a broken image for one load — `PreloadImage` retries past the cache (§ 13.4.), which is what pays for the multi-day asset cache the deferred delete could not have outlived.
+  await deleteObjects(result.orphanedKeys);
 
   return NextResponse.json({ emoticon: result.emoticon });
 }

@@ -25,23 +25,49 @@ export type StoredObject = {
  * stores the header it was sent. Neither the type nor the size is enforced at
  * upload — `headObject` at registration is the *only* place REQUIREMENTS.md § 14.
  * actually holds, which is why nothing may reference an object before that runs.
+ *
+ * WARN: `cacheControl` is the opposite of advisory. It is signed as a header, so a
+ * caller that passes it MUST send the identical `Cache-Control` on the PUT or R2
+ * answers 403 for the whole upload.
  */
-export function presignUpload(key: string, contentType: string): Promise<string> {
+export function presignUpload(
+  key: string,
+  contentType: string,
+  cacheControl?: string,
+): Promise<string> {
   return getSignedUrl(
     getR2(),
-    new PutObjectCommand({ Bucket: getBucket(), Key: key, ContentType: contentType }),
+    new PutObjectCommand({
+      Bucket: getBucket(),
+      Key: key,
+      ContentType: contentType,
+      CacheControl: cacheControl,
+    }),
     { expiresIn: UPLOAD_URL_EXPIRY / A_SECOND },
   );
 }
 
+export type PresignDownloadOptions = {
+  asAttachment?: boolean;
+  /** INFO: Defaults to § 9.'s window; `EMOTICON_URL_EXPIRY` is the long one, and REQUIREMENTS.md § 13.3. is why only emoticons may take it. */
+  expiry?: number;
+};
+
 /**
- * A short-lived read URL. The bucket stays private, so this is the only way out of it.
+ * A read URL. The bucket stays private, so this is the only way out of it.
  *
  * WARN: `asAttachment` has to be signed into the URL. The route answers a 302 to
  * R2, and an `<a download>` is dropped the moment the navigation resolves
  * cross-origin — only R2's own `Content-Disposition` still saves the file.
+ *
+ * WARN: Whatever `Cache-Control` the caller puts on that 302 MUST stay under
+ * `expiry`, or the browser replays a cached redirect to a signature R2 has stopped
+ * honouring (REQUIREMENTS.md § 9.).
  */
-export function presignDownload(key: string, asAttachment = false): Promise<string> {
+export function presignDownload(
+  key: string,
+  { asAttachment, expiry = MEDIA_URL_EXPIRY }: PresignDownloadOptions = {},
+): Promise<string> {
   return getSignedUrl(
     getR2(),
     new GetObjectCommand({
@@ -49,7 +75,7 @@ export function presignDownload(key: string, asAttachment = false): Promise<stri
       Key: key,
       ResponseContentDisposition: asAttachment ? "attachment" : undefined,
     }),
-    { expiresIn: MEDIA_URL_EXPIRY / A_SECOND },
+    { expiresIn: expiry / A_SECOND },
   );
 }
 
@@ -110,17 +136,16 @@ export async function deleteObjects(keys: string[]): Promise<void> {
 
 /**
  * Deletes objects that a *replacement* detached, once the read path has stopped
- * pointing at them (REQUIREMENTS.md § 13.4.).
+ * pointing at them (REQUIREMENTS.md § 12.).
  *
- * WARN: Not the same cleanup as `deleteObjects`. An asset route answers a 302 that
- * the browser caches for `MEDIA_CACHE_MAX_AGE` (§ 9.), so a participant who loaded
- * the pre-edit asset replays that redirect at a key deleting it immediately would
- * have removed — a broken image rather than a stale one. Deleting a row's object is
- * unaffected, because the row it was rendered from is gone too.
+ * WARN: For § 9.'s media window only. It waits `MEDIA_CACHE_MAX_AGE`, so an
+ * emoticon — whose redirect is cached for days (§ 13.3.) — MUST NOT use it: the
+ * timer would have to outlive the process by most of a week. That path deletes
+ * immediately and recovers on the read side instead (§ 13.4.).
  *
  * WARN: In-process, so a restart inside the window leaks the objects. That is the
- * accepted cost: they are a handful of edited emoticon images, they are unreachable
- * (§ 13.3.), and the alternative is a durable queue for a two-person app.
+ * accepted cost: they are replaced avatars, they are unreachable once the row is
+ * gone, and the alternative is a durable queue for a two-person app.
  */
 export function deleteObjectsAfterCacheWindow(keys: string[]): void {
   if (keys.length === 0) {

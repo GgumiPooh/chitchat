@@ -42,11 +42,12 @@ export {
 } from "./date/time";
 export { isBrowser, isEditableElement } from "./dom";
 export { buildFadeMask, type FadeMaskOptions } from "./fade-mask";
+export { useHydrated } from "./hooks/use-hydrated";
+export { useIsCoarsePointer } from "./hooks/use-is-coarse-pointer";
+export { useIsVirtualKeyboardOpen } from "./hooks/use-is-virtual-keyboard-open";
+export { useSortableSensors } from "./hooks/use-sortable-sensors";
 export type { Maybe, Nullable, Optional } from "./nullish";
 export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./safely";
 export { playSound, unlockSound, useSoundUnlock } from "./sound";
 export { hasUnsentWork, useUnsentWork } from "./unsent-work";
-export { useHydrated } from "./use-hydrated";
-export { useIsCoarsePointer } from "./use-is-coarse-pointer";
-export { useIsVirtualKeyboardOpen } from "./use-is-virtual-keyboard-open";
-export { useSortableSensors } from "./use-sortable-sensors";
+export { findFirstUrl, isHttpUrl, splitTextByUrls, withoutFragment, type TextSegment } from "./url";

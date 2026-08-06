@@ -1,6 +1,6 @@
 import { getEmoticonItem, toSlotKey } from "@/entities/emoticon";
 import { getCurrentUser } from "@/shared/auth";
-import { EMOTICON_SLOTS, MEDIA_CACHE_MAX_AGE } from "@/shared/config";
+import { EMOTICON_CACHE_MAX_AGE, EMOTICON_SLOTS, EMOTICON_URL_EXPIRY } from "@/shared/config";
 import { A_SECOND } from "@/shared/lib";
 import { presignDownload } from "@/shared/storage";
 import { NextResponse } from "next/server";
@@ -44,9 +44,9 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  return NextResponse.redirect(await presignDownload(key), {
+  return NextResponse.redirect(await presignDownload(key, { expiry: EMOTICON_URL_EXPIRY }), {
     status: 302,
-    // WARN: REQUIREMENTS.md § 9. Shorter than the signature's own lifetime, or the browser replays a cached redirect to a URL R2 has stopped honouring.
-    headers: { "Cache-Control": `private, max-age=${MEDIA_CACHE_MAX_AGE / A_SECOND}` },
+    // WARN: REQUIREMENTS.md § 13.3. Days rather than § 9.'s minutes, because `v` makes this URL address one immutable version — and still shorter than the signature's own lifetime, or the browser replays a redirect R2 has stopped honouring.
+    headers: { "Cache-Control": `private, max-age=${EMOTICON_CACHE_MAX_AGE / A_SECOND}` },
   });
 }

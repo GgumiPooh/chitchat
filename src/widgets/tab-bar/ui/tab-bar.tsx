@@ -2,7 +2,7 @@
 
 import { useChatStream } from "@/features/chat-stream";
 import { CALENDAR_ROUTE, CHAT_ROUTE } from "@/shared/config";
-import { cn, useIsVirtualKeyboardOpen } from "@/shared/lib";
+import { cn } from "@/shared/lib";
 import { Badge } from "@/shared/ui";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -25,13 +25,8 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
   // INFO: REQUIREMENTS.md § 8.8. Live off the shell's stream rather than resolved once per page load — the badge has to move while the user is standing on another tab.
   const { unreadCount } = useChatStream();
   const pathname = usePathname();
-  // INFO: DESIGN.md § 7.3. The shell shrinks to the visual viewport, so a bar left up would eat what little the keyboard leaves.
-  const isKeyboardOpen = useIsVirtualKeyboardOpen();
 
-  if (isKeyboardOpen) {
-    return null;
-  }
-
+  // INFO: DESIGN.md § 7.3. Leaving for the keyboard is `BottomOverlay`'s job — unmounting here would step `--bottom-inset` on its own timeline and tear the composer's motion in two.
   return (
     <nav
       // INFO: DESIGN.md § 7.3. A floating pill, inset from the shell's bottom edge by `--bar-float-gap` on top of the home-indicator area.

@@ -39,6 +39,15 @@ export const SETTINGS_ROUTE = "/settings";
 // INFO: REQUIREMENTS.md § 13.5. Nested under settings, so the tab bar keeps 설정 active while the management screens are open.
 export const EMOTICON_SETTINGS_ROUTE = "/settings/emoticons";
 
+/** REQUIREMENTS.md § 8.4. The whole participant set, cursorless. */
+export const USERS_PATH = "/api/users";
+
+/** REQUIREMENTS.md § 12. The signed-in user's own row — nickname and avatar. */
+export const PROFILE_PATH = `${USERS_PATH}/me`;
+
+// INFO: REQUIREMENTS.md § 8.7. The name every bubble and system sentence is rendered from, so it is bounded by what a chat row can show rather than by the column.
+export const MAX_NICKNAME_LENGTH = 20;
+
 /** REQUIREMENTS.md § 8.2. One cursor page of messages. */
 export const MESSAGE_PAGE_SIZE = 30;
 
@@ -46,6 +55,12 @@ export const MESSAGE_PAGE_SIZE = 30;
 export const MAX_MESSAGE_PAGE_SIZE = 50;
 
 export const MAX_MESSAGE_LENGTH = 2_000;
+
+// INFO: REQUIREMENTS.md § 8.10. The quote is clamped to one line, so the wire carries a slice rather than a 2000-character parent every reply would otherwise drag along.
+export const REPLY_PREVIEW_MAX_LENGTH = 120;
+
+/** DESIGN.md § 6.8. How long a jumped-to bubble holds its highlight before it fades. */
+export const MESSAGE_FLASH_DURATION = 1.5 * A_SECOND;
 
 /** REQUIREMENTS.md § 8.4. The one `EventSource` the chat client holds open. */
 export const CHAT_STREAM_PATH = "/api/chat/stream";

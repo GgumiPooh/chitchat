@@ -43,9 +43,10 @@ export function DialogContent({
   return (
     <DialogPortal>
       <DialogOverlay />
+      {/* WARN: Centred on the visual viewport, not the layout one — the portal puts this outside the shell, so `top-1/2` would centre it on a box the keyboard never shrinks (DESIGN.md § 3.4.). */}
       <DialogPrimitive.Content
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-var(--spacing-xl))] -translate-x-1/2 -translate-y-1/2 gap-md overflow-y-auto rounded-lg border border-hairline bg-canvas p-lg shadow-floating duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          "fixed top-[calc(var(--viewport-top,0px)_+_var(--viewport-height,100dvh)_/_2)] left-1/2 z-50 grid max-h-[calc(var(--viewport-height,100dvh)_-_var(--spacing-xl))] -translate-x-1/2 -translate-y-1/2 gap-md overflow-y-auto rounded-lg border border-hairline bg-canvas p-lg shadow-floating duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}
         {...props}

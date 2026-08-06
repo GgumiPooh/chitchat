@@ -1,3 +1,4 @@
+export { discardAvatarMedia } from "./api/discard-avatar-media";
 export { canReadMedia, getMediaRow, ownsAllMedia, toVariantKey } from "./api/get-media-object";
 export {
   listGalleryMedia,
