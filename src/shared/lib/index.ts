@@ -58,7 +58,7 @@ export type { Maybe, Nullable, Optional } from "./nullish";
 export { randomId } from "./random";
 export { mapPooled, type PoolOptions } from "./run/pool";
 export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./run/safely";
-export { playSound, unlockSound, useSoundUnlock } from "./sound";
+export { playSound, stopSound, unlockSound, useSoundUnlock } from "./sound";
 export { measureLineHeight, warmLineHeights } from "./text/line-height";
 export { countTextLines, type FontSpec } from "./text/text-layout";
 export {

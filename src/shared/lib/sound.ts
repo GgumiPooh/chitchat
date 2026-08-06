@@ -4,6 +4,11 @@ import { useEffect } from "react";
 import type { Nullable } from "./nullish";
 import { safelyRun } from "./run/safely";
 
+// INFO: `navigator.audioSession` is Safari 16.4+ and shipped nowhere else, so it is read off a widened `Navigator` rather than waiting on the DOM lib.
+type AudioSessionNavigator = Navigator & {
+  audioSession?: { type: string };
+};
+
 // INFO: One element for the whole page: a second sound cuts the first off instead of layering over it, and the gesture that approves this element approves every sound that follows.
 let player: Nullable<HTMLAudioElement> = null;
 
@@ -36,6 +41,26 @@ export function playSound(src: string): void {
   void audio.play().catch(() => undefined);
 }
 
+/**
+ * Stops the shared player and lets go of its source, so a caller may revoke the
+ * object URL it handed over.
+ *
+ * WARN: `removeAttribute` and not `src = ""` — an empty source resolves against
+ * the document URL, and the element goes on to fetch the page itself as media.
+ */
+export function stopSound(): void {
+  const audio = player;
+
+  if (!audio) {
+    return;
+  }
+
+  audio.pause();
+  audio.removeAttribute("src");
+  // INFO: The element stays approved through this — `unlockSound` grants the gesture to the element, and a sourceless `load()` is what it does itself.
+  safelyRun(() => audio.load());
+}
+
 /** Arms `unlockSound` on the first gesture anywhere in the page. */
 export function useSoundUnlock(): void {
   useEffect(() => {
@@ -53,7 +78,23 @@ export function useSoundUnlock(): void {
 }
 
 function getPlayer(): HTMLAudioElement {
-  player ??= new Audio();
+  if (!player) {
+    declareTransientSession();
+    player = new Audio();
+  }
 
   return player;
+}
+
+/**
+ * WARN: REQUIREMENTS.md § 13.6. Before the element exists, because the `auto`
+ * session an `<audio>` element would otherwise settle into is `playback` — the
+ * category that mints iOS's Now Playing entry.
+ */
+function declareTransientSession(): void {
+  const session = (navigator as AudioSessionNavigator).audioSession;
+
+  if (session) {
+    session.type = "transient";
+  }
 }

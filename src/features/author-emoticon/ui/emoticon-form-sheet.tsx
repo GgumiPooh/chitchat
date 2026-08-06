@@ -11,9 +11,9 @@ import {
   isAnimatableEmoticonMime,
   toEmoticonAssetUrl,
 } from "@/shared/config";
-import { cn, type Maybe, type Nullable, type Optional } from "@/shared/lib";
+import { cn, playSound, stopSound, type Maybe, type Nullable, type Optional } from "@/shared/lib";
 import { BottomSheet, Button, HapticTarget, IconButton, PreloadImage, toast } from "@/shared/ui";
-import { ImagePlus, Music, Pencil, X } from "lucide-react";
+import { ImagePlus, Music, Pencil, Play, X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
 import { createEmoticon, updateEmoticon } from "../api/write-emoticon";
@@ -59,6 +59,7 @@ export function EmoticonFormSheet({
   const draft = useEmoticonDraft();
   const { pickImage } = draft;
   const previewUrl = draft.image?.previewUrl ?? toExistingImageUrl(emoticon);
+  const audioUrl = draft.audio?.previewUrl ?? toExistingAudioUrl(emoticon, draft.isAudioCleared);
   const isCroppable = draft.image !== null && !isAnimatableEmoticonMime(draft.image.mime);
   const hasChange = draft.image !== null || draft.audio !== null || draft.isAudioCleared;
   const canSubmit = !isSubmitting && hasChange && (emoticon != null || draft.image !== null);
@@ -123,6 +124,7 @@ export function EmoticonFormSheet({
             fileName={
               draft.audio?.file.name ?? toExistingAudioLabel(emoticon, draft.isAudioCleared)
             }
+            onPlay={playAudio}
             onPick={() => audioRef.current?.click()}
             onClear={draft.clearAudio}
           />
@@ -172,7 +174,17 @@ export function EmoticonFormSheet({
     }
   }
 
+  /** INFO: The picked file plays off its object URL and a kept one off R2, so the button auditions whatever the submit would actually save. */
+  function playAudio() {
+    if (audioUrl) {
+      // WARN: Synchronously inside the click, like the § 13.6. bubble — iOS grants the gesture's audio permission to this call stack alone.
+      playSound(audioUrl);
+    }
+  }
+
   function handleClose() {
+    // WARN: Before `reset`, which revokes the object URL an audition still in progress is sourcing — the shared player would be left pointing at a dead blob.
+    stopSound();
     draft.reset();
     onClose();
   }
@@ -270,14 +282,21 @@ function toExistingAudioLabel(emoticon: Maybe<Emoticon>, isCleared: boolean): Op
   return emoticon?.hasAudio && !isCleared ? "등록된 소리" : undefined;
 }
 
+function toExistingAudioUrl(emoticon: Maybe<Emoticon>, isCleared: boolean): Optional<string> {
+  return emoticon?.hasAudio && !isCleared
+    ? toEmoticonAssetUrl(emoticon.id, "audio", emoticon.version)
+    : undefined;
+}
+
 type AudioRowProps = {
   className?: string;
   fileName?: string;
+  onPlay: () => void;
   onPick: () => void;
   onClear: () => void;
 };
 
-function AudioRow({ className, fileName, onPick, onClear }: AudioRowProps) {
+function AudioRow({ className, fileName, onPlay, onPick, onClear }: AudioRowProps) {
   return (
     <div className={cn("flex items-center gap-sm rounded-md bg-surface-soft p-sm", className)}>
       <Music className="size-5 shrink-0 text-meta" strokeWidth={1.75} />
@@ -286,7 +305,10 @@ function AudioRow({ className, fileName, onPick, onClear }: AudioRowProps) {
         <p className="truncate text-body-sm text-meta">{fileName ?? "선택 · 탭할 때만 재생돼요"}</p>
       </div>
       {fileName ? (
-        <IconButton Icon={X} haptic aria-label="소리 제거" onClick={onClear} />
+        <>
+          <IconButton Icon={Play} haptic aria-label="소리 듣기" onClick={onPlay} />
+          <IconButton Icon={X} haptic aria-label="소리 제거" onClick={onClear} />
+        </>
       ) : (
         <Button
           className="w-auto"
