@@ -512,12 +512,12 @@ The notch corner replaces a drawn tail (§ 2.1.). It carries direction, survives
 
 A group is consecutive messages from one sender within the same clock minute.
 
-| Element     | Rule                                                                                                                                   |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Avatar      | `theirs` only, 36×36 `rounded-full`, rendered on the first bubble of the group; subsequent bubbles indent by the avatar width + `xs`   |
-| Sender name | `theirs` only, `chat-name` in `chat-meta`, above the first bubble                                                                      |
-| Timestamp   | `chat-time` in `chat-meta`, on the **last** bubble of the group, on the outer side (left of `mine`, right of `theirs`), bottom-aligned |
-| Unread `1`  | `mine` only, `chat-badge` in `unread`, directly above the timestamp                                                                    |
+| Element     | Rule                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Avatar      | `theirs` only, 36×36 `rounded-full`, rendered on the first bubble of the group; subsequent bubbles indent by the avatar width + `xs`                                                                                                                                                                                                                                                        |
+| Sender name | `theirs` only, `chat-name` in `chat-meta`, above the first bubble                                                                                                                                                                                                                                                                                                                           |
+| Timestamp   | `chat-time` in `chat-meta`, on the **last** bubble of the group, on the outer side (left of `mine`, right of `theirs`), bottom-aligned, in a **fixed 56px slot** — it is in flow beside the bubble, so its width is width the text does not get to wrap in, and a slot that sized itself to `오후 12:34` or `오전 9:05` would move the wrap point with the clock (`REQUIREMENTS.md § 8.3.`) |
+| Unread `1`  | `mine` only, `chat-badge` in `unread`, directly above the timestamp                                                                                                                                                                                                                                                                                                                         |
 
 `mine` groups render no avatar and no name — in a two-person conversation, right-alignment is unambiguous identity.
 
@@ -765,6 +765,8 @@ Where it is enlargeable, the avatar is a button: `opacity-80` on hover, `opacity
 `surface-strong` blocks at the final content's radius, pulsing to `surface-soft` over 1.5s. Used for the initial message page, gallery grid, and calendar month. Never for optimistic messages — those render at 60% opacity (§ 6.5.).
 
 Every remote image also carries one while it loads: `PreloadImage` (`@/shared/ui`) fills its own box with the skeleton and fades the asset in over 200ms once it paints. Screens MUST NOT render a bare `<img>` for an R2-backed asset — the skeleton is what stands in for the reserved box of § 6.1. instead of a blank rectangle, and the fade is what keeps a cached image from flashing. An asset that never arrives ends on a static `surface-strong` box with a `meta-soft` `ImageOff` glyph: a skeleton that pulses forever reads as a hung screen.
+
+**A skeleton stands in for a shape; a spinner stands in for a wait.** Use a skeleton only where the placeholder can take the geometry of the thing arriving — a bubble, a tile, a month cell. Where there is no shape to borrow, or where the wait has no bound the user can see, use a `LoaderCircle` at `size-4` in `meta-soft`, `animate-spin`. § 8.3.'s upward paging is the second case twice over: its indicator lives in a 40px header that no message could fill, and it outlasts its own fetch, because the page is held until the scroller goes still. The one place neither belongs is an optimistic message — that dims to 60% and shows nothing (§ 6.5.).
 
 ## 7.9. Calendar.
 
