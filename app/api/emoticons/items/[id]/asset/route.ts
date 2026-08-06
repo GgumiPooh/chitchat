@@ -1,6 +1,11 @@
 import { getEmoticonItem, toSlotKey } from "@/entities/emoticon";
 import { getCurrentUser } from "@/shared/auth";
-import { EMOTICON_CACHE_MAX_AGE, EMOTICON_SLOTS, EMOTICON_URL_EXPIRY } from "@/shared/config";
+import {
+  EMOTICON_ASSET_CACHE_CONTROL,
+  EMOTICON_CACHE_MAX_AGE,
+  EMOTICON_SLOTS,
+  EMOTICON_URL_EXPIRY,
+} from "@/shared/config";
 import { A_SECOND } from "@/shared/lib";
 import { presignDownload } from "@/shared/storage";
 import { NextResponse } from "next/server";
@@ -44,7 +49,13 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  return NextResponse.redirect(await presignDownload(key, { expiry: EMOTICON_URL_EXPIRY }), {
+  // WARN: § 13.3. The `Cache-Control` on the *bytes* is signed into this URL, not stored on the object — R2 holds none, and a browser cannot put one on the upload.
+  const url = await presignDownload(key, {
+    expiry: EMOTICON_URL_EXPIRY,
+    cacheControl: EMOTICON_ASSET_CACHE_CONTROL,
+  });
+
+  return NextResponse.redirect(url, {
     status: 302,
     // WARN: REQUIREMENTS.md § 13.3. Days rather than § 9.'s minutes, because `v` makes this URL address one immutable version — and still shorter than the signature's own lifetime, or the browser replays a redirect R2 has stopped honouring.
     headers: { "Cache-Control": `private, max-age=${EMOTICON_CACHE_MAX_AGE / A_SECOND}` },

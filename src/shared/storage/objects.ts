@@ -26,23 +26,15 @@ export type StoredObject = {
  * upload — `headObject` at registration is the *only* place REQUIREMENTS.md § 14.
  * actually holds, which is why nothing may reference an object before that runs.
  *
- * WARN: `cacheControl` is the opposite of advisory. It is signed as a header, so a
- * caller that passes it MUST send the identical `Cache-Control` on the PUT or R2
- * answers 403 for the whole upload.
+ * WARN: The PUT carries `Content-Type` and nothing else. Every further header is a
+ * header the browser has to be allowed to send, and the bucket's CORS
+ * `AllowedHeaders` is a deploy step (REQUIREMENTS.md § 9.) — one the code must not
+ * depend on. `Cache-Control` in particular belongs on `presignDownload`.
  */
-export function presignUpload(
-  key: string,
-  contentType: string,
-  cacheControl?: string,
-): Promise<string> {
+export function presignUpload(key: string, contentType: string): Promise<string> {
   return getSignedUrl(
     getR2(),
-    new PutObjectCommand({
-      Bucket: getBucket(),
-      Key: key,
-      ContentType: contentType,
-      CacheControl: cacheControl,
-    }),
+    new PutObjectCommand({ Bucket: getBucket(), Key: key, ContentType: contentType }),
     { expiresIn: UPLOAD_URL_EXPIRY / A_SECOND },
   );
 }
@@ -51,6 +43,8 @@ export type PresignDownloadOptions = {
   asAttachment?: boolean;
   /** INFO: Defaults to § 9.'s window; `EMOTICON_URL_EXPIRY` is the long one, and REQUIREMENTS.md § 13.3. is why only emoticons may take it. */
   expiry?: number;
+  /** INFO: REQUIREMENTS.md § 13.3. What R2 answers the bytes with, for objects it stores no `Cache-Control` of its own for — which is all of them. */
+  cacheControl?: string;
 };
 
 /**
@@ -63,10 +57,13 @@ export type PresignDownloadOptions = {
  * WARN: Whatever `Cache-Control` the caller puts on that 302 MUST stay under
  * `expiry`, or the browser replays a cached redirect to a signature R2 has stopped
  * honouring (REQUIREMENTS.md § 9.).
+ *
+ * WARN: `cacheControl` is signed here rather than stored on the object at upload,
+ * and it is the only way to set one that costs the browser nothing (§ 13.3.).
  */
 export function presignDownload(
   key: string,
-  { asAttachment, expiry = MEDIA_URL_EXPIRY }: PresignDownloadOptions = {},
+  { asAttachment, expiry = MEDIA_URL_EXPIRY, cacheControl }: PresignDownloadOptions = {},
 ): Promise<string> {
   return getSignedUrl(
     getR2(),
@@ -74,6 +71,7 @@ export function presignDownload(
       Bucket: getBucket(),
       Key: key,
       ResponseContentDisposition: asAttachment ? "attachment" : undefined,
+      ResponseCacheControl: cacheControl,
     }),
     { expiresIn: expiry / A_SECOND },
   );
