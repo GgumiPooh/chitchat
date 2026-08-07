@@ -1199,7 +1199,7 @@ Shown while the realtime stream is dropped for idleness (`REQUIREMENTS.md § 8.4
 | Surface          | `bg-canvas/45` over `backdrop-blur-md` — **not** the `glass` of § 3.5.1.                                                    |
 | Content          | 32px `meta` moon glyph, `display-sm` `ink` `절전 모드`, `body-sm` `meta` reason, `caption` `meta` dismissal hint            |
 | Element          | A real `<button>` filling the overlay, not a click handler on a backdrop                                                    |
-| `:active`        | `bg-canvas/85` — the surface darkens under the press that dismisses it                                                      |
+| `:active`        | `bg-canvas/60` — the surface thickens under the press that dismisses it                                                     |
 | `:focus-visible` | `ring-2 ring-primary ring-inset` — inset, since the button is flush with the shell and an outset ring has nothing to sit on |
 | `:hover`         | **None** — the one exception recorded in § 3.2.                                                                             |
 | Focus            | `autoFocus` on mount                                                                                                        |

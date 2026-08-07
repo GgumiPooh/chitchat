@@ -162,6 +162,13 @@ export function ChatStreamProvider({
     function flushWhenHidden() {
       if (document.visibilityState === "hidden") {
         flushReadCursor();
+
+        return;
+      }
+
+      // WARN: REQUIREMENTS.md § 8.4.2. The badge's only other mover is the § 16.1. push, and that has three states where it never arrives — denied, unsupported, and in flight. Without this a client in one of them shows the count it was rendered with until it next walks into 채팅.
+      if (!isReadingRef.current) {
+        void syncUnreadCount();
       }
     }
 
