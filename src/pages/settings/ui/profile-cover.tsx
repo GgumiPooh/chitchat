@@ -38,7 +38,7 @@ export function ProfileCover({
       className={cn(
         // WARN: `shrink-0` — this is the only item in the settings column with real shrink headroom (half the viewport against ~16px per row), so an overflowing screen would absorb all of it here and collapse the band DESIGN.md § 7.16. specifies. `RouteTransition`'s spacer carries the same warning for the same reason.
         "relative flex shrink-0 flex-col items-center justify-end gap-sm overflow-hidden pb-lg",
-        // WARN: DESIGN.md § 3.4. `lvh`, and the unit is the whole fix — the band is a background, so the keyboard must not resize it. `--viewport-height` is the visual viewport and shrinks by a third the moment the § 12.1. editor sheet takes focus; `dvh` and `--layout-viewport-height` both shrink too under Chromium's `interactive-widget=resizes-content`, which this app sets. The large viewport is the only one no keyboard moves on either engine.
+        // WARN: DESIGN.md § 3.4. `lvh`, and the unit is the whole fix — the band is a background, so the keyboard must not resize it. `--viewport-height` is the visual viewport and shrinks by a third the moment the § 12.1. editor sheet takes focus; `dvh` and `documentElement.clientHeight` both shrink too under Chromium's `interactive-widget=resizes-content`, which this app sets. The large viewport is the only one no keyboard moves on either engine.
         "h-[50lvh]",
         // INFO: The floor under a missing cover is `surface-soft` rather than `scrim` — an empty half-screen of near-black would read as a broken image rather than as a profile nobody has decorated yet.
         hasCover ? "bg-scrim" : "bg-surface-soft",

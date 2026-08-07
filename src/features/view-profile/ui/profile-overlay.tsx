@@ -74,9 +74,10 @@ export function ProfileOverlay({ className, userId, currentUserId, onClose }: Pr
         aria-label={`${participant.name} 프로필`}
       >
         {participant.profileBackgroundMediaId && (
-          // WARN: DESIGN.md § 3.4. The photo is held at the *layout* viewport height and anchored to the top, because the § 12.1. editor sheet raises the keyboard over this screen — and this box follows it, so an `inset-0` cover would re-crop and rescale the photo on every frame of the slide. The clipping wrapper keeps the taller box from painting past the shell.
+          // WARN: DESIGN.md § 3.4. The photo is held at the *large* viewport height and anchored to the top, because the § 12.1. editor sheet raises the keyboard over this screen — and this box follows it, so an `inset-0` cover would re-crop and rescale the photo on every frame of the slide. The clipping wrapper keeps the taller box from painting past the shell.
+          // WARN: `lvh` and not the visual viewport, `dvh`, or `documentElement.clientHeight` — a keyboard moves every one of those on one engine or the other, `dvh` and the layout viewport under Chromium's `interactive-widget=resizes-content` (which this app sets).
           <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute inset-x-0 top-0 h-[var(--layout-viewport-height,100dvh)]">
+            <div className="absolute inset-x-0 top-0 h-[100lvh]">
               <BackgroundMedia
                 className="size-full"
                 mediaId={participant.profileBackgroundMediaId}
