@@ -124,10 +124,13 @@ export function PreloadVideo({
     onLoadedData?.(event);
   }
 
+  // WARN: Reported only once the shell has given up, exactly as `PreloadImage` reports it. Fired on an attempt the shell is about to retry, a caller that swaps the element out on `onError` — `VideoTrimmer` does — tears down the retry it was never told about.
   function handleError(event: SyntheticEvent<HTMLVideoElement>) {
     clearTimeout(graceTimer.current);
-    markFailed();
-    onError?.(event);
+
+    if (!markFailed()) {
+      onError?.(event);
+    }
   }
 
   /**

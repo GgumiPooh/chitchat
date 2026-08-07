@@ -45,6 +45,7 @@ export function VideoTrimmer({
   const videoRef = useRef<Nullable<HTMLVideoElement>>(null);
   const [sourceUrl, setSourceUrl] = useState("");
   const [isTrimming, setIsTrimming] = useState(false);
+  const [hasFailed, setHasFailed] = useState(false);
   // WARN: The element's own duration, not only the draft's. `toVideoDraft` reports `null` for a fragmented MP4 and some `.mov`, and a free-range trim that fell back to a literal would have cut every such clip down to that literal — data loss with no message. The element resolves it for real at `loadedmetadata`, and until then the handles are pinned to the cap.
   const [measuredMs, setMeasuredMs] = useState<Nullable<number>>(draft.durationMs);
   const durationMs = measuredMs ?? maxDurationMs ?? A_SECOND;
@@ -95,7 +96,8 @@ export function VideoTrimmer({
           <Button
             className="w-auto"
             buttonClassName="h-9 min-h-9 w-auto px-sm"
-            disabled={isTrimming || !isMeasured}
+            // WARN: `hasFailed` closes 완료 as well as the preview. A draft that carried its own duration leaves `isMeasured` true, so without this the screen says the clip is unplayable while the button that cuts it stays live — and `trimVideo` decodes through `mediabunny` rather than the element, so it answers with a second, different reason.
+            disabled={isTrimming || !isMeasured || hasFailed}
             haptic
             onClick={() => void submit()}
           >
@@ -103,21 +105,30 @@ export function VideoTrimmer({
           </Button>
         </div>
         <div className="flex min-h-0 flex-1 items-center justify-center px-md">
+          {/* INFO: The one failure the user can act on, named rather than drawn — `PreloadVideo`'s glyph says a load ended and this says the pick is unusable, which is what 취소 is the answer to. The § 7.10. viewer carries the same sentence. */}
+          {sourceUrl && hasFailed && (
+            <p className="text-center text-body-md text-on-primary">
+              이 기기에서는 재생할 수 없는 형식이에요
+            </p>
+          )}
           {/* INFO: `muted` and `playsInline` so scrubbing previews on iOS without the element demanding fullscreen; there is no audio in the result either way. */}
           {/* INFO: The poster stands in until the first frame decodes — an unwrapped element paints black for the length of the load, which over a `scrim` backdrop reads as nothing having opened. */}
+          {/* WARN: The box is reserved from the draft, and the overlay is `bg-scrim` — an unsized frame renders the skeleton and the failure glyph at 0×0, so a clip that never decodes was a black screen with nothing on it at all. */}
           {/* WARN: Mounted only once the object URL exists. An element that loads its source after mount is never re-judged for playback and its seeks before that point are dropped, so it would sit on a frame the handles do not agree with. */}
-          {sourceUrl && (
+          {sourceUrl && !hasFailed && (
             <PreloadVideo
               ref={videoRef}
-              className="max-h-full max-w-full"
-              videoClassName="max-h-full max-w-full"
+              className="max-h-full w-full"
+              videoClassName="size-full object-contain"
               placeholderClassName="rounded-md"
+              style={{ aspectRatio: toAspectRatio(draft.width, draft.height) }}
               src={sourceUrl}
               poster={draft.previewUrl ?? undefined}
               muted
               playsInline
               preload="metadata"
               onLoadedMetadata={handleMetadata}
+              onError={handleError}
             />
           )}
         </div>
@@ -133,7 +144,7 @@ export function VideoTrimmer({
             max={latestStart}
             step={0.1}
             value={start}
-            disabled={isTrimming || latestStart <= 0}
+            disabled={isTrimming || hasFailed || latestStart <= 0}
             id="trim-start"
             onChange={handleStartScrub}
           />
@@ -149,7 +160,7 @@ export function VideoTrimmer({
                 max={durationSeconds}
                 step={0.1}
                 value={end}
-                disabled={isTrimming}
+                disabled={isTrimming || hasFailed}
                 id="trim-end"
                 onChange={handleEndScrub}
               />
@@ -171,6 +182,20 @@ export function VideoTrimmer({
    * INFO: The element also opens on the frame the start handle names, which for a
    * clip past the cap is not frame 0.
    */
+  /**
+   * WARN: Only a container this engine cannot play, never every `error`. A load
+   * iOS aborted under memory pressure reports `MEDIA_ERR_ABORTED`, and treating
+   * that as an unsupported format tells the user a decodable clip is unusable with
+   * no way back — the sentence has no retry and `hasFailed` has no reset.
+   */
+  function handleError(event: SyntheticEvent<HTMLVideoElement>) {
+    const code = event.currentTarget.error?.code;
+
+    if (code === MediaError.MEDIA_ERR_DECODE || code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+      setHasFailed(true);
+    }
+  }
+
   function handleMetadata(event: SyntheticEvent<HTMLVideoElement>) {
     const video = event.currentTarget;
 
@@ -223,6 +248,11 @@ export function VideoTrimmer({
       setIsTrimming(false);
     }
   }
+}
+
+// WARN: Falls back rather than emitting `0 / 0`, which collapses the box back to the nothing this reserves it against — a draft carries zeroes for a container `toVideoDraft` could not measure.
+function toAspectRatio(width: number, height: number): string {
+  return width > 0 && height > 0 ? `${width} / ${height}` : "16 / 9";
 }
 
 function formatSeconds(value: number): string {
