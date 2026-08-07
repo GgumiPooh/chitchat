@@ -34,7 +34,6 @@ Every open item in this document, so an agent can read one table and then only t
 | **Library**               | Jump-to-message link — the § 8.6.1. machinery it waited on is built             | § 10.           |
 | **Settings**              | Device list + revocation (`sessions`). Theme row stays hidden until § 16. ships | § 12.           |
 | **Overlays**              | A focus trap shared by the profile screen and the § 7.10. viewer                | § 12.3.         |
-| **Emoticons**             | Preload enabled packs' images                                                   | § 13.6.         |
 | **Security**              | Session check audit, error-detail leaks                                         | § 14.           |
 | **Deployment**            | Skew Protection                                                                 | § 15.1.         |
 | **iOS audio**             | Verify the voice element's post-capture discard on a device                     | § 5.3., § 13.6. |
@@ -1085,9 +1084,7 @@ Emoticon objects ride § 9.'s presigned-PUT pipeline — client → R2 directly,
 - Reordering and hiding are **per-user by definition**, so neither broadcasts over `user_changed` — that channel carries `users` changes, and this writes a different table
 - Drag-and-drop uses **`@dnd-kit`** (`core` + `sortable` + `modifiers`). Its `TouchSensor` `activationConstraint` (`delay` / `tolerance`) is what makes long-press-to-drag the activation gesture rather than a plain drag, which on a scrolling list would fight the scroller
 
-### 13.6. Picker and Bubble
-
-**Landed** apart from image preloading.
+### 13.6. Picker and Bubble ✅
 
 **Picking and staging**
 
@@ -1139,8 +1136,10 @@ Emoticon objects ride § 9.'s presigned-PUT pipeline — client → R2 directly,
 - **The resting category is written down in exactly one place**, `RESTING_TYPE` in `shared/lib/audio/session.ts`, and it is not exported. Anything that moves the session for the length of an operation — § 9.3.'s capture is the only one, to `play-and-record` — comes back through `declareRestingAudioSession()` and never by naming a category of its own, or revisiting this decision silently leaves one caller behind
 - **Voice uses a second `Audio` element**, beside this one. Sharing it, `playSound` overwriting `src` would cut a voice message off mid-sentence when an emoticon arrived, and `stopSound`'s `removeAttribute("src")` would take the track away outright. The **session** is still shared, so the `transient` decision above governs both. That element needs no `useSoundUnlock` twin: playback only ever starts from a tap on the play control, which is already the gesture iOS wants to see
 - A tap also **restarts the animation**. A GIF or animated WebP has no seek API and re-assigning the same `src` is ignored by the cache, so the `<img>` is keyed by a replay token and remounted
-
-- [ ] Preload the enabled packs' images so the panel does not stutter on first open
+- **The enabled packs are warmed from the room, not from the panel** (`useEmoticonPreload`) — the panel does not exist until the tap this exists to make cheap. Both halves are warmed: the pack list, and then every item's image. Without the first the panel opened empty for a round trip; without the second it then filled in cell by cell, each cell costing the § 13.3. route's 302 as well as the object
+- **The warm is deferred to `requestIdleCallback`, never started on mount.** § 8.3. is the reason: the list is one more round trip against a room already making several, and a pack of images is decode work landing while the first screenful of bubbles is still being measured. iOS Safari only shipped the API in 17, so a `setTimeout` of the same delay stands in — a second late is not the failure mode worth writing a polyfill for
+- **The list has one descriptor, `toEnabledPacksQuery`**, and the key is never restated at a call site: two spellings are two caches, and the preload would warm a list the panel never reads. The `staleTime` belongs to the **preload's call alone** — the descriptor's own `0` is what makes the panel re-ask on mount, which is when a § 13.5. edit has to land, while the preload would otherwise re-ask on every return to the room
+- Images are warmed through § 13.4.'s pool, and **every task resolves**: an asset the route refuses cannot stop the queue on the rest of the pack. This withdrew "a user who never opens the panel never fetches the packs" — the cost is one list request and one pack of images per visit, against an affordance one tap from the composer
 
 ---
 

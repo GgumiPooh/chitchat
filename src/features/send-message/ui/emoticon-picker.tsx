@@ -1,13 +1,14 @@
 "use client";
 
 import type { Emoticon, EmoticonPackWithItems } from "@/entities/emoticon";
-import { EMOTICON_PACKS_PATH, toEmoticonAssetUrl } from "@/shared/config";
+import { toEmoticonAssetUrl } from "@/shared/config";
 import { A_SECOND, cn, type Nullable } from "@/shared/lib";
 import { EmptyState, HapticTarget, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Smile } from "lucide-react";
 import { useEffect, useRef, useState, type PropsWithChildren, type Ref } from "react";
 import { useStorageState } from "synced-storage/react";
+import { toEnabledPacksQuery } from "../model/enabled-packs-query";
 import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
 
@@ -53,10 +54,8 @@ export function EmoticonPicker({ className, onSelect, onQuickSend }: EmoticonPic
   const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
   // WARN: § 13.6. Read only. `remember` belongs to the send, not to the tap — recording it here re-sorts 최근 사용 between the two taps of a double tap, moving the cell out from under the second one.
   const { recentIds } = useRecentEmoticons();
-  const { data: packs = NO_PACKS, isPending } = useQuery({
-    queryKey: ["emoticon-packs", "enabled"],
-    queryFn: fetchEnabledPacks,
-  });
+  // INFO: § 13.6. The same descriptor `useEmoticonPreload` warmed, so the panel opens on the cached list rather than on `isPending`.
+  const { data: packs = NO_PACKS, isPending } = useQuery(toEnabledPacksQuery());
 
   // INFO: The remembered pack can be gone or hidden (§ 13.1.) by the time the panel reopens, so it only holds while the loaded list still has it.
   const activeTab =
@@ -296,16 +295,4 @@ function toTabItem(pack: EmoticonPackWithItems): Nullable<Emoticon> {
 
 function findPack(packs: EmoticonPackWithItems[], id: string) {
   return packs.find((pack) => pack.id === id);
-}
-
-async function fetchEnabledPacks(): Promise<EmoticonPackWithItems[]> {
-  const response = await fetch(`${EMOTICON_PACKS_PATH}?enabled=1`);
-
-  if (!response.ok) {
-    throw new Error(`GET ${EMOTICON_PACKS_PATH} responded ${response.status}`);
-  }
-
-  const { packs } = (await response.json()) as { packs: EmoticonPackWithItems[] };
-
-  return packs;
 }

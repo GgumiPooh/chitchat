@@ -9,6 +9,7 @@ import {
   EmoticonPicker,
   EmoticonPreview,
   MessageComposer,
+  useEmoticonPreload,
   useRecentEmoticons,
   useSendMessage,
 } from "@/features/send-message";
@@ -199,7 +200,9 @@ export function ChatRoom({
   const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
   const { remember: rememberEmoticon } = useRecentEmoticons();
   const setBackground = useSetBackground();
-  // INFO: The panel outlives its first open so the collapse has something to animate; until then it is not rendered at all, and a user who never opens it never fetches the packs.
+  // INFO: REQUIREMENTS.md § 13.6. The panel's list and images are warmed from here, because the panel itself does not exist until the tap this exists to make cheap.
+  useEmoticonPreload();
+  // INFO: The panel outlives its first open so the collapse has something to animate; until then it is not rendered at all.
   const [hasOpenedEmoticonPanel, setHasOpenedEmoticonPanel] = useState(false);
   // INFO: REQUIREMENTS.md § 13.6. Staged rather than sent on selection, so it can be sent with a line of text the way an attachment can.
   const [stagedEmoticon, setStagedEmoticon] = useState<Nullable<Emoticon>>(null);
