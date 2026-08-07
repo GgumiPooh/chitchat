@@ -1,4 +1,5 @@
 import { countUnreadMessages } from "@/entities/message";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { NextResponse } from "next/server";
 
@@ -11,7 +12,7 @@ export async function GET() {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   return NextResponse.json({ unreadCount: await countUnreadMessages(user.id) });

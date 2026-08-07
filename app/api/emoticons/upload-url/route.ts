@@ -1,4 +1,5 @@
 import { listUnregisteredEmoticonKeys } from "@/entities/emoticon";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
   EMOTICON_SLOTS,
@@ -28,24 +29,24 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = bodySchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const { slot, mime, size } = body.data;
 
   if (!allowedMimesForEmoticonSlot(slot).includes(mime)) {
-    return NextResponse.json({ error: "unsupported_type" }, { status: 415 });
+    return apiError("unsupported_media");
   }
 
   // INFO: REQUIREMENTS.md § 14. A courtesy rejection on the client's own claim. R2 enforces neither the type nor the size of a presigned PUT, so `registerEmoticon` re-checks both against what actually landed.
   if (size > maxSizeForEmoticonSlot(slot)) {
-    return NextResponse.json({ error: "too_large" }, { status: 413 });
+    return apiError("too_large");
   }
 
   // WARN: Built from the caller's own id and never read off the request — a signature the browser could aim would let it overwrite any object in the bucket (§ 9.).
@@ -68,13 +69,13 @@ export async function DELETE(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = discardSchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const own = body.data.r2Keys.filter((key) => key.startsWith(`emoticon/${user.id}/`));

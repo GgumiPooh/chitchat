@@ -1,5 +1,6 @@
 import { getMessage, listMessages, type ChatMessage } from "@/entities/message";
-import { getCurrentUser } from "@/shared/auth";
+import { apiError } from "@/shared/api";
+import { getSessionContext, isSessionLive } from "@/shared/auth";
 import {
   BACKFILL_EVENT,
   BUILD_ID,
@@ -16,7 +17,6 @@ import {
   USER_CHANGED_CHANNEL,
 } from "@/shared/db";
 import { safelyGet, safelyRun, type Nullable, type Optional } from "@/shared/lib";
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
 // WARN: The stream holds a `LISTEN` connection open, which the edge runtime cannot do.
@@ -46,12 +46,14 @@ const newMessageSchema = z.object({
  * holds rather than opening a stream each.
  */
 export async function GET(request: Request) {
-  const user = await getCurrentUser();
+  // INFO: The session row, not just the user — this connection outlives its own authentication, and the heartbeat below re-asks whether it is still valid (REQUIREMENTS.md § 12.).
+  const context = await getSessionContext();
 
-  if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!context) {
+    return apiError("unauthorized");
   }
 
+  const sessionId = context.session.id;
   const cursor = parseCursor(request.headers.get("Last-Event-ID"));
   const encoder = new TextEncoder();
   const ended = new AbortController();
@@ -64,11 +66,7 @@ export async function GET(request: Request) {
       let release: Optional<() => Promise<void>>;
       // INFO: Serialized behind one promise chain — each notification costs a query, and letting them interleave would emit the rows out of id order.
       let pipeline: Promise<void> = Promise.resolve();
-      // WARN: A named event, not a `:ping` comment — a comment keeps proxies awake but is invisible to `EventSource`, and the client needs to see the heartbeat to tell a live socket from an iOS-frozen one (§ 8.4.). No `id:`, for the same reason `user` carries none.
-      const heartbeat = setInterval(
-        () => write("event: ping\ndata: {}\n\n"),
-        SSE_HEARTBEAT_INTERVAL,
-      );
+      const heartbeat = setInterval(() => void beat(), SSE_HEARTBEAT_INTERVAL);
 
       // WARN: REQUIREMENTS.md § 15.1. First, ahead of the replay. An iOS PWA resumes into an old bundle, and every reconnect is a resume — so a stale client learns it is stale before it renders anything the new deployment may have changed. No `id:`, for the same reason `user` carries none.
       write(`event: build\ndata: ${JSON.stringify({ id: BUILD_ID })}\n\n`);
@@ -97,6 +95,27 @@ export async function GET(request: Request) {
         if (isOpen) {
           safelyRun(() => controller.enqueue(encoder.encode(chunk)));
         }
+      }
+
+      /**
+       * REQUIREMENTS.md § 12. Revocation has to reach a stream that is already open.
+       * This connection authenticated once and is held for as long as the tab is, so
+       * without the re-ask a signed-out device keeps reading the conversation live
+       * until it happens to reconnect — which an active one never does.
+       *
+       * WARN: A named event, not a `:ping` comment — a comment keeps proxies awake but
+       * is invisible to `EventSource`, and the client needs to see the heartbeat to
+       * tell a live socket from an iOS-frozen one (§ 8.4.). No `id:`, for the same
+       * reason `user` carries none.
+       */
+      async function beat() {
+        if (!(await isSessionLive(sessionId))) {
+          ended.abort();
+
+          return;
+        }
+
+        write("event: ping\ndata: {}\n\n");
       }
 
       function handleNotification(channel: string, payload: string) {

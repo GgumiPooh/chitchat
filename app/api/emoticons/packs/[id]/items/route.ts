@@ -1,4 +1,5 @@
 import { getEmoticonPack, registerEmoticon, setEmoticonItemOrder } from "@/entities/emoticon";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -24,18 +25,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const params = paramsSchema.safeParse(await context.params);
   const body = bodySchema.safeParse(await request.json().catch(() => null));
 
   if (!params.success || !body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   if (!(await getEmoticonPack(params.data.id, user.id))) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return apiError("not_found");
   }
 
   const emoticon = await registerEmoticon({
@@ -46,7 +47,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   // INFO: An object is missing, or its stored type or size failed § 14., or a key was not this uploader's to claim. Either way there is nothing to write a row for.
   if (!emoticon) {
-    return NextResponse.json({ error: "unprocessable" }, { status: 422 });
+    return apiError("unprocessable");
   }
 
   return NextResponse.json({ emoticon }, { status: 201 });
@@ -64,23 +65,23 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const params = paramsSchema.safeParse(await context.params);
   const body = orderSchema.safeParse(await request.json().catch(() => null));
 
   if (!params.success || !body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   if (!(await getEmoticonPack(params.data.id, user.id))) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return apiError("not_found");
   }
 
   // INFO: The list is stale — the other participant added or deleted an item since this screen loaded (§ 13.1.), so there is no order to write.
   if (!(await setEmoticonItemOrder(params.data.id, body.data.itemIds))) {
-    return NextResponse.json({ error: "conflict" }, { status: 409 });
+    return apiError("conflict");
   }
 
   return new NextResponse(null, { status: 204 });

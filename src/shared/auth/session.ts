@@ -8,7 +8,7 @@ import {
 } from "@/shared/config";
 import { getDb, sessions, users, type Session, type User } from "@/shared/db";
 import { A_DAY, type Nullable } from "@/shared/lib";
-import { eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -104,6 +104,26 @@ export async function getCurrentUser(): Promise<Nullable<User>> {
 }
 
 /**
+ * Whether a session row is still present and unexpired.
+ *
+ * WARN: Deliberately **not** `cache()`d, unlike `getSessionContext`. This exists for
+ * the one caller that outlives its own authentication — § 8.4.'s SSE stream is a
+ * single request held open for as long as the tab is, and a memoized answer would
+ * report the session it opened with until the socket dropped, which is exactly the
+ * window § 12. revocation has to close. It renews nothing, so re-asking cannot keep
+ * a session alive.
+ */
+export async function isSessionLive(sessionId: string): Promise<boolean> {
+  const [row] = await getDb()
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(and(eq(sessions.id, sessionId), gt(sessions.expiresAt, new Date())))
+    .limit(1);
+
+  return row !== undefined;
+}
+
+/**
  * For Server Components. A cookie the proxy accepted but the database rejects
  * must be cleared, and a Server Component cannot write cookies — so the redirect
  * goes through the Route Handler that can, which also breaks the
@@ -117,6 +137,21 @@ export async function requireUserOrRedirect(): Promise<User> {
   }
 
   return user;
+}
+
+/**
+ * `requireUserOrRedirect` for a Server Component that needs the session row too —
+ * REQUIREMENTS.md § 12.'s device list, which marks the caller's own session rather
+ * than offering to revoke it. Shares the request cache, so it costs no second query.
+ */
+export async function requireSessionOrRedirect(): Promise<SessionContext> {
+  const context = await getSessionContext();
+
+  if (!context) {
+    redirect(SESSION_EXPIRE_ROUTE);
+  }
+
+  return context;
 }
 
 export async function invalidateCurrentSession(): Promise<void> {

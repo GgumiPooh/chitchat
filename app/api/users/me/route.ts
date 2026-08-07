@@ -1,5 +1,6 @@
 import { discardScopedMedia, getMediaRow, ownsAllMedia } from "@/entities/media";
 import { updateUserProfile, type ReplacedMedia } from "@/entities/user";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { isImageMime, MAX_NICKNAME_LENGTH } from "@/shared/config";
 import { safelyRunAsync, type Maybe } from "@/shared/lib";
@@ -31,13 +32,13 @@ export async function PATCH(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = bodySchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const { avatarMediaId, profileBackgroundMediaId, chatBackgroundMediaId } = body.data;
@@ -52,13 +53,13 @@ export async function PATCH(request: Request) {
   ]);
 
   if (isScoped.includes(false)) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const update = await updateUserProfile({ userId: user.id, ...body.data });
 
   if (!update) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return apiError("not_found");
   }
 
   discardReplaced(update.replaced, user.id);

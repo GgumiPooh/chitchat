@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-
-// INFO: REQUIREMENTS.md § 8.4.1. What an open sheet, dialog or full-screen viewer looks like from outside the component that raised it — the same selector `MediaViewer` and § 12.3.'s profile screen already dismiss against.
-const OPEN_OVERLAY_SELECTOR = '[role="dialog"][data-state="open"], [data-media-viewer]';
+import { OPEN_OVERLAY_SELECTOR } from "./use-modal-overlay";
 
 let holders = 0;
 

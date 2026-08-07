@@ -9,6 +9,7 @@ import type { User } from "@/shared/db";
 import { cn } from "@/shared/lib";
 import { AppHeader } from "@/shared/ui";
 import { DevRefreshRow } from "./dev-refresh-row";
+import { DeviceSettingsRow } from "./device-settings-row";
 import { EmoticonSettingsRow } from "./emoticon-settings-row";
 import { ProfileCover } from "./profile-cover";
 
@@ -19,7 +20,6 @@ export type SettingsPageProps = {
   isProfileBackgroundVideo: boolean;
 };
 
-// TODO: Add the device list — REQUIREMENTS.md § 12., riding the `user_agent` and `last_success_at` § 16.1. already stores.
 export function SettingsPage({ className, user, isProfileBackgroundVideo }: SettingsPageProps) {
   const displayName = resolveDisplayName(user);
 
@@ -51,6 +51,8 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
       {/* INFO: REQUIREMENTS.md § 12.2. The wallpaper this user sees behind the conversation, which the other participant never does. */}
       <ChatBackgroundRow chatBackgroundMediaId={user.chatBackgroundMediaId} />
       <EmoticonSettingsRow />
+      {/* INFO: REQUIREMENTS.md § 12. Reads `sessions` — the push subscriptions beside it in the 알림 row are a different set, and not revocable. */}
+      <DeviceSettingsRow />
       {/* INFO: REQUIREMENTS.md § 15.1. Dev only — a production client is refreshed by the stream's `build` event and never needs to be told by hand. */}
       {IS_DEV && <DevRefreshRow />}
       <div className="flex justify-center p-md">

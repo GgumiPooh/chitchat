@@ -85,6 +85,9 @@ export const SETTINGS_ROUTE = "/settings";
 // INFO: REQUIREMENTS.md § 13.5. Nested under settings, so the tab bar keeps 설정 active while the management screens are open.
 export const EMOTICON_SETTINGS_ROUTE = "/settings/emoticons";
 
+// INFO: REQUIREMENTS.md § 12. The device list, nested for the reason the line above is.
+export const DEVICE_SETTINGS_ROUTE = "/settings/devices";
+
 /**
  * The tab routes in bar order — the single source of that order.
  *
@@ -115,6 +118,9 @@ export const USERS_PATH = "/api/users";
 
 /** REQUIREMENTS.md § 12. The signed-in user's own row — nickname and avatar. */
 export const PROFILE_PATH = `${USERS_PATH}/me`;
+
+/** REQUIREMENTS.md § 12. One logged-in device, for the revocation the list offers. */
+export const SESSIONS_PATH = "/api/sessions";
 
 // INFO: REQUIREMENTS.md § 8.7. The name every bubble and system sentence is rendered from, so it is bounded by what a chat row can show rather than by the column.
 export const MAX_NICKNAME_LENGTH = 20;

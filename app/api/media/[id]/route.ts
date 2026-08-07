@@ -1,4 +1,5 @@
 import { canReadMedia, getMediaRow, toVariantKey } from "@/entities/media";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { MEDIA_CACHE_MAX_AGE } from "@/shared/config";
 import { A_SECOND } from "@/shared/lib";
@@ -26,7 +27,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const params = paramsSchema.safeParse(await context.params);
@@ -35,14 +36,14 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   );
 
   if (!params.success || !query.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const row = await getMediaRow(params.data.id);
 
   // INFO: The same answer for an object that does not exist and one this user may not read — a distinguishable 403 would confirm the id.
   if (!row || !(await canReadMedia(row, user.id))) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return apiError("not_found");
   }
 
   // WARN: REQUIREMENTS.md § 9.1. A file attachment is served as an attachment whatever the query says, and never as a thumb variant it has no object for. Nothing in the app renders one inline, so the only way this URL is ever opened is to save it.

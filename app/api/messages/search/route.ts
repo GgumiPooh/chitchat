@@ -1,4 +1,5 @@
 import { countMatchingMessages, searchMessages } from "@/entities/message";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { MAX_SEARCH_QUERY_LENGTH, SEARCH_PAGE_SIZE } from "@/shared/config";
 import { NextResponse } from "next/server";
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const query = querySchema.safeParse(
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
   );
 
   if (!query.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const { q, before } = query.data;

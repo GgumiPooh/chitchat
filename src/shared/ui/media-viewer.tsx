@@ -1,15 +1,12 @@
 "use client";
 
-import { cn, useIsIos } from "@/shared/lib";
+import { cn, useIsIos, useModalOverlay } from "@/shared/lib";
 import { Download, MessageCircle, Share, Trash2, Wallpaper, X } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { IconButton } from "./icon-button";
 import type { MediaCell } from "./media-cell";
 import { PreloadImage } from "./preload-image";
 import { ShellOverlay } from "./shell-overlay";
-
-// INFO: What every overlay in `shared/ui` renders — `Modal` through Radix's `Dialog`, `BottomSheet` and `ActionSheet` through Vaul's `Drawer`.
-const OPEN_DIALOG_SELECTOR = '[role="dialog"][data-state="open"]';
 
 export type MediaViewerProps = {
   className?: string;
@@ -68,6 +65,8 @@ export function MediaViewer({
   onOpenMessage,
 }: MediaViewerProps) {
   const trackRef = useRef<HTMLDivElement>(null);
+  // INFO: REQUIREMENTS.md § 12.3. `Escape`, the focus trap and the marker the profile screen underneath reads, from the one owner the profile screen shares.
+  const overlayRef = useModalOverlay<HTMLDivElement>(onClose);
   const [index, setIndex] = useState(initialIndex);
   const current = cells[index];
   // INFO: A draft has no stored object yet, so there is nothing for either control to reach.
@@ -85,26 +84,15 @@ export function MediaViewer({
     track?.scrollTo({ left: track.clientWidth * initialIndex });
   }, [initialIndex]);
 
-  // INFO: DESIGN.md § 7.10. The viewer composes no `Dialog`, so the dismissal `Modal` gets from Radix is written out here.
-  useEffect(() => {
-    // WARN: The viewer is the bottom of the overlay stack, not the top — a confirmation or the § 8.11. share dialog opens over it, and both answer `Escape` themselves. Without this the key dismisses that overlay and takes the viewer under it with it.
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !document.querySelector(OPEN_DIALOG_SELECTOR)) {
-        onClose();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
   return (
     <ShellOverlay>
-      {/* INFO: `data-media-viewer` is how an overlay *underneath* this one tells that it is open. The viewer composes no `Dialog`, so `OPEN_DIALOG_SELECTOR` does not find it, and REQUIREMENTS.md § 12.3.'s profile screen has to leave `Escape` to whatever is on top of it. */}
+      {/* WARN: `role`/`aria-modal` by hand, because this composes no Radix primitive (§ 12.3.) — and required, not decoration: the hook focuses this element on open, so without them focus lands on an anonymous `div` and a reader is told nothing while the conversation behind stays exposed to it. */}
       <div
+        ref={overlayRef}
         className={cn("absolute inset-0 z-40 flex flex-col bg-scrim/90", className)}
-        data-media-viewer=""
+        role="dialog"
+        aria-modal="true"
+        aria-label="첨부 크게 보기"
       >
         <div className="flex items-center justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
           <IconButton

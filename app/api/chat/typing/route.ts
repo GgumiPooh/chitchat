@@ -1,4 +1,5 @@
 import { publishTyping } from "@/entities/user";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { NextResponse } from "next/server";
 
@@ -31,7 +32,7 @@ async function publish(isTyping: boolean) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   // WARN: § 12. Enforced here, on the sending side, and not where the indicator renders. The setting means "do not broadcast that I am typing" — filtered at the receiver the signal has already left this user's device, and the other participant's client is the wrong place to be trusted with it.

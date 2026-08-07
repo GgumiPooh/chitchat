@@ -3,6 +3,7 @@ import {
   listEmoticonPacks,
   listEnabledEmoticonPacks,
 } from "@/entities/emoticon";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { MAX_EMOTICON_PACK_NAME_LENGTH } from "@/shared/config";
 import { NextResponse } from "next/server";
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const isEnabledOnly = new URL(request.url).searchParams.get("enabled") === "1";
@@ -41,13 +42,13 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = bodySchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const pack = await createEmoticonPack(body.data.name, user.id);

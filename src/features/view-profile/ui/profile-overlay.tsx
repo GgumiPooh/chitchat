@@ -2,14 +2,11 @@
 
 import { useChatStream } from "@/features/chat-stream/@x/view-profile";
 import { ProfileEditorSheet } from "@/features/update-profile/@x/view-profile";
-import { cn } from "@/shared/lib";
+import { cn, useModalOverlay } from "@/shared/lib";
 import { Avatar, BackgroundMedia, HapticTarget, IconButton, ShellOverlay } from "@/shared/ui";
 import { MessageCircle, Pencil, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-
-// INFO: What every overlay in `shared/ui` renders, plus the § 7.10. viewer, which composes no `Dialog` and marks itself instead.
-const OVERLAY_ABOVE_SELECTOR = '[role="dialog"][data-state="open"], [data-media-viewer]';
 
 export type ProfileOverlayProps = {
   className?: string;
@@ -35,22 +32,10 @@ export function ProfileOverlay({ className, userId, currentUserId, onClose }: Pr
   const { participants } = useChatStream();
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const router = useRouter();
+  // INFO: REQUIREMENTS.md § 12.3. `Escape` and the focus trap, from the one owner this screen shares with the § 7.10. viewer its own avatar opens.
+  const overlayRef = useModalOverlay<HTMLDivElement>(onClose);
   const participant = participants.find((candidate) => candidate.id === userId);
   const isMine = userId === currentUserId;
-
-  // INFO: DESIGN.md § 7.10. This composes no `Dialog`, so the dismissal `Modal` gets from Radix is written out here.
-  useEffect(() => {
-    // WARN: Only when nothing is open above. The avatar's own § 7.10. viewer and the 프로필 편집 sheet both answer `Escape` themselves, and without this the key would take this screen down with them.
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !document.querySelector(OVERLAY_ABOVE_SELECTOR)) {
-        onClose();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
 
   // INFO: A participant that is not in the set is a row this client has not been told about yet (§ 8.4.); there is nothing to draw and the screen closes itself rather than showing an empty one.
   useEffect(() => {
@@ -66,8 +51,8 @@ export function ProfileOverlay({ className, userId, currentUserId, onClose }: Pr
   return (
     <ShellOverlay>
       {/* WARN: `role`/`aria-modal` by hand, because this composes no Radix primitive (§ 12.3.). Without them a screen reader announces the chat screen underneath as live content with no boundary — the opaque fill hides it from the eye and from the pointer, and nothing else was telling assistive tech that it is gone. */}
-      {/* TODO: A focus trap is still missing here and in the § 7.10. viewer, which has the same hand-rolled shape — Tab walks into the composer behind this. It needs one owner for both rather than a second copy. */}
       <div
+        ref={overlayRef}
         className={cn("absolute inset-0 z-40 flex flex-col bg-scrim", className)}
         role="dialog"
         aria-modal="true"

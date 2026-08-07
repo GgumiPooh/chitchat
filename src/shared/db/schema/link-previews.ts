@@ -19,6 +19,8 @@ export const linkPreviews = pgTable("link_previews", {
   description: text("description"),
   // WARN: A third-party URL, unlike every other image in the app (§ 9.) — it is rendered straight from the origin that published it and is never fetched or stored by us.
   imageUrl: text("image_url"),
+  // INFO: REQUIREMENTS.md § 8.9. A signed thumbnail dies long before the row does, so the signature's own deadline is read off the URL at scrape time and the tile is withheld past it.
+  imageExpiresAt: timestamp("image_expires_at", { withTimezone: true }),
   siteName: text("site_name"),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
 });

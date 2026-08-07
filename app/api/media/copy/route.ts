@@ -1,4 +1,5 @@
 import { copyMediaIntoScope } from "@/entities/media";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -23,13 +24,13 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = bodySchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const result = await copyMediaIntoScope({
@@ -45,12 +46,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ media: result.media }, { status: 201 });
     // INFO: The source is missing or this user may not read it. REQUIREMENTS.md § 9. answers 404 rather than 403 for both, so the response cannot confirm an id exists.
     case "unreachable":
-      return NextResponse.json({ error: "not_found" }, { status: 404 });
+      return apiError("not_found");
     // INFO: REQUIREMENTS.md § 12.1. A background is drawn in an `<img>`, so a video has no still frame to wear. Its own status, because unlike the 404 above this is a real object the caller can see.
     case "unsupported":
-      return NextResponse.json({ error: "unsupported_media" }, { status: 415 });
+      return apiError("unsupported_media");
     // WARN: The copy landed in R2 and then failed § 14. at registration, so two objects are now in the bucket with no row. Answering 404 here reported that as a source that never existed and left the orphan attributable to nothing.
     case "unregistered":
-      return NextResponse.json({ error: "unprocessable" }, { status: 422 });
+      return apiError("unprocessable");
   }
 }

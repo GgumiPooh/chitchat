@@ -1,4 +1,5 @@
 import { listArchiveMedia, removeArchiveMedia } from "@/entities/media";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
   ARCHIVE_PAGE_SIZE,
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const query = querySchema.safeParse(
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
   );
 
   if (!query.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const { kind, beforeCreatedAt, beforeId, limit } = query.data;
@@ -68,13 +69,13 @@ export async function DELETE(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = bodySchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   return NextResponse.json(await removeArchiveMedia(body.data.ids));

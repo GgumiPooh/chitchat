@@ -9,6 +9,7 @@ import { getDb, linkPreviews, type LinkPreviewRow, type LinkPreviewStatus } from
 import { isHttpUrl, safelyGetAsync, type Maybe, type Nullable } from "@/shared/lib";
 import { eq } from "drizzle-orm";
 import type { PageMetadata } from "../model/parse-metadata";
+import { readSignedUrlExpiry } from "../model/signed-url-expiry";
 import type { LinkPreview } from "../model/types";
 import { fetchMetadata } from "./fetch-metadata";
 
@@ -70,15 +71,18 @@ function isFresh(row: LinkPreviewRow): boolean {
 
 async function store(url: string, scraped: Maybe<PageMetadata>): Promise<LinkPreviewRow> {
   const metadata = scraped ?? null;
+  const imageUrl = metadata?.imageUrl ?? null;
+  const fetchedAt = new Date();
   const values = {
     url,
     status: statusOf(scraped),
     kind: metadata?.kind ?? ("link" as const),
     title: metadata?.title ?? null,
     description: metadata?.description ?? null,
-    imageUrl: metadata?.imageUrl ?? null,
+    imageUrl,
+    imageExpiresAt: readImageExpiry(imageUrl, fetchedAt),
     siteName: metadata?.siteName ?? null,
-    fetchedAt: new Date(),
+    fetchedAt,
   };
 
   const [row] = await getDb()
@@ -104,8 +108,29 @@ function statusOf(scraped: Maybe<PageMetadata>): LinkPreviewStatus {
   return scraped?.title || scraped?.imageUrl ? "ok" : "empty";
 }
 
+/**
+ * REQUIREMENTS.md § 8.9. Only an expiry the scrape itself outran is kept. A live page
+ * hands out a signature that is good now, so one that already passed is far more
+ * likely a parameter named `expires` that means something else entirely — and reading
+ * it as a deadline would withhold a working tile forever, where ignoring it leaves
+ * exactly the broken frame we already had.
+ */
+function readImageExpiry(imageUrl: Nullable<string>, fetchedAt: Date): Nullable<Date> {
+  const expiry = readSignedUrlExpiry(imageUrl);
+
+  return expiry && expiry.getTime() > fetchedAt.getTime() ? expiry : null;
+}
+
 function toLinkPreview(row: LinkPreviewRow): Nullable<LinkPreview> {
   if (row.status !== "ok") {
+    return null;
+  }
+
+  // INFO: REQUIREMENTS.md § 8.9. The signature dies long before the row does, and a card that decays into a broken frame is worse than one that was always text.
+  const imageUrl = isImageLive(row) ? row.imageUrl : null;
+
+  // INFO: The `statusOf` rule applied a second time — what made the row a card was a title or an image, and withholding the image can take the last of them away.
+  if (!row.title && !imageUrl) {
     return null;
   }
 
@@ -114,7 +139,11 @@ function toLinkPreview(row: LinkPreviewRow): Nullable<LinkPreview> {
     kind: row.kind,
     title: row.title,
     description: row.description,
-    imageUrl: row.imageUrl,
+    imageUrl,
     siteName: row.siteName,
   };
+}
+
+function isImageLive(row: LinkPreviewRow): boolean {
+  return !row.imageExpiresAt || row.imageExpiresAt.getTime() > Date.now();
 }

@@ -9,6 +9,7 @@ import {
   type ChatMessage,
 } from "@/entities/message";
 import { notifyMessageRecipients } from "@/features/notify-chat";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
   MAX_MEDIA_PER_MESSAGE,
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const query = querySchema.safeParse(
@@ -68,7 +69,7 @@ export async function GET(request: Request) {
   );
 
   if (!query.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const { before, after, around, limit } = query.data;
@@ -87,37 +88,37 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = bodySchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const payload = body.data;
 
   // INFO: The ids are only shaped by the schema above. `createMediaMessage` attaches them behind a foreign key, so an unregistered one would leave the route as a 500 rather than the 400 every other bad body gets.
   if ("mediaIds" in payload && !(await ownsAllMedia(payload.mediaIds, user.id, "chat"))) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   // INFO: `messages.emoticon_item_id` is a foreign key like the media ids above — a picker holding a list the other participant has since deleted (§ 13.6.) would otherwise send its way into a 500.
   if ("emoticonItemId" in payload && !(await getEmoticonItem(payload.emoticonItemId))) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   // INFO: REQUIREMENTS.md § 8.10. `reply_to_id` is a foreign key and a CHECK refuses a system parent, so either would surface as a 500 without this. A soft-deleted parent is refused here rather than at the database — the row is still there, so nothing but this stops a stale client quoting it.
   if (!(await canReplyTo(payload.replyToId))) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const message = await createMessage(user.id, payload);
 
   // INFO: The client id is already taken by a row this sender cannot claim, so echoing anything back would replace their optimistic bubble with a stranger's message.
   if (!message) {
-    return NextResponse.json({ error: "conflict" }, { status: 409 });
+    return apiError("conflict");
   }
 
   // WARN: REQUIREMENTS.md § 16.1. `after`, so the fan-out's round trips to the push services never sit between the sender and their 201. It still runs inside this invocation, on a database that is already awake — which is why push costs Neon's autosuspend nothing, unlike the cron § 16.1. rejected.

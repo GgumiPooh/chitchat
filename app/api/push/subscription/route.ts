@@ -1,4 +1,5 @@
 import { deletePushSubscription, savePushSubscription } from "@/entities/push-subscription";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -18,13 +19,13 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = subscriptionSchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   await savePushSubscription({
@@ -40,13 +41,13 @@ export async function DELETE(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = removalSchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   // WARN: Scoped to the caller. An endpoint is unguessable, but this path has a session and nothing else stops one participant from retiring the other's device by naming its endpoint.

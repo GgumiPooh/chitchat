@@ -1,4 +1,5 @@
 import { markUserRead } from "@/entities/user";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { NextResponse } from "next/server";
 
@@ -7,7 +8,7 @@ export async function POST() {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   await markUserRead(user.id);

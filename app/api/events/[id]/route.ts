@@ -1,6 +1,7 @@
 import { deleteEvent, getEvent, updateEvent, type UpdateEventParams } from "@/entities/event";
 import { createSystemMessage } from "@/entities/message";
 import { notifyMessageRecipients } from "@/features/notify-chat";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import type { SystemAction, User } from "@/shared/db";
 import { composeEventNoticeBody, safelyRunAsync, type Nullable } from "@/shared/lib";
@@ -18,33 +19,33 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = eventPatchSchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const { id } = await params;
   const before = await getEvent(id);
 
   if (!before) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return apiError("not_found");
   }
 
   const patch = toUpdateParams(body.data);
 
   // INFO: The schema can only compare two ends it was given both of; moving one alone is checked against the row we just read.
   if (!isOrderedAgainst(before, patch)) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const event = await updateEvent(id, patch);
 
   if (!event) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return apiError("not_found");
   }
 
   // INFO: REQUIREMENTS.md § 11.5. A retitled or re-described event posts nothing — only a move is news to the other person.
@@ -59,14 +60,14 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const { id } = await params;
   const event = await deleteEvent(id);
 
   if (!event) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return apiError("not_found");
   }
 
   // WARN: `eventId` is null — the row is already gone, and `messages.event_id` is `ON DELETE SET NULL` anyway (§ 6.). The snapshot is what lets the notice still name what was deleted.

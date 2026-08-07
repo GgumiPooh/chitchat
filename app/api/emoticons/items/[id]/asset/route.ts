@@ -1,4 +1,5 @@
 import { getEmoticonItem, toSlotKey } from "@/entities/emoticon";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
   EMOTICON_ASSET_CACHE_CONTROL,
@@ -29,7 +30,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const params = paramsSchema.safeParse(await context.params);
@@ -38,7 +39,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   );
 
   if (!params.success || !query.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const row = await getEmoticonItem(params.data.id);
@@ -46,7 +47,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
   // INFO: The same answer for an item that does not exist and one that carries no asset in this slot — an optional companion's absence is not worth a distinguishable status.
   if (!key) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return apiError("not_found");
   }
 
   // WARN: § 13.3. The `Cache-Control` on the *bytes* is signed into this URL, not stored on the object — R2 holds none, and a browser cannot put one on the upload.

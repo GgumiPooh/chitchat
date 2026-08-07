@@ -3,6 +3,7 @@ import {
   setEmoticonPackEnabled,
   setEmoticonPackOrder,
 } from "@/entities/emoticon";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -23,20 +24,20 @@ export async function PUT(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = orderSchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const known = new Set((await listEmoticonPacks(user.id)).map((pack) => pack.id));
 
   // WARN: Every id must be a real pack. `user_emoticon_prefs.pack_id` is a foreign key, so an unknown one would surface as a 500 rather than a 400.
   if (body.data.packIds.some((packId) => !known.has(packId))) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   await setEmoticonPackOrder(user.id, body.data.packIds);
@@ -49,19 +50,19 @@ export async function PATCH(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = enabledSchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const packs = await listEmoticonPacks(user.id);
 
   if (!packs.some((pack) => pack.id === body.data.packId)) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return apiError("not_found");
   }
 
   // INFO: § 13.1. The list as this user currently sees it, so hiding a pack records the order it already had rather than inventing one.

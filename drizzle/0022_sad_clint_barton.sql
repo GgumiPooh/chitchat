@@ -1,0 +1,1 @@
+ALTER TABLE "link_previews" ADD COLUMN "image_expires_at" timestamp with time zone;

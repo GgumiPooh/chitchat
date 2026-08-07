@@ -4,6 +4,7 @@ import {
   renameEmoticonPack,
   setEmoticonPackThumbnail,
 } from "@/entities/emoticon";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { MAX_EMOTICON_PACK_NAME_LENGTH } from "@/shared/config";
 import { deleteObjects } from "@/shared/storage";
@@ -26,19 +27,19 @@ export async function GET(_request: Request, context: RouteContext) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const params = paramsSchema.safeParse(await context.params);
 
   if (!params.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const pack = await getEmoticonPack(params.data.id, user.id);
 
   if (!pack) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return apiError("not_found");
   }
 
   return NextResponse.json({ pack });
@@ -49,18 +50,18 @@ export async function PATCH(request: Request, context: RouteContext) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const params = paramsSchema.safeParse(await context.params);
   const body = bodySchema.safeParse(await request.json().catch(() => null));
 
   if (!params.success || !body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   if (body.data.name !== undefined && !(await renameEmoticonPack(params.data.id, body.data.name))) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return apiError("not_found");
   }
 
   if (
@@ -68,7 +69,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     !(await setEmoticonPackThumbnail(params.data.id, body.data.thumbnailItemId ?? null))
   ) {
     // INFO: `setEmoticonPackThumbnail` refuses an item belonging to another pack, which is a bad request rather than a missing one.
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const pack = await getEmoticonPack(params.data.id, user.id);
@@ -80,24 +81,24 @@ export async function DELETE(_request: Request, context: RouteContext) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const params = paramsSchema.safeParse(await context.params);
 
   if (!params.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const result = await deleteEmoticonPack(params.data.id);
 
   if (result.status === "not_found") {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return apiError("not_found");
   }
 
   // INFO: One of its items has been sent, so the pack cannot go without deciding what those bubbles become (§ 18. #1).
   if (result.status === "in_use") {
-    return NextResponse.json({ error: "in_use" }, { status: 409 });
+    return apiError("in_use");
   }
 
   // INFO: REQUIREMENTS.md § 9. Cleanup behind a row that is already gone — `deleteObjects` never throws, so a bucket that refuses must not fail the delete.

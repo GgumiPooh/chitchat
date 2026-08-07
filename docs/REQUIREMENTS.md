@@ -26,17 +26,14 @@ Precedence on conflict: visuals → `DESIGN.md`; code-authoring rules → `AGENT
 
 Every open item in this document, so an agent can read one table and then only the section it needs. Nothing else is outstanding.
 
-| Area                      | Open                                                                            | §               |
-| ------------------------- | ------------------------------------------------------------------------------- | --------------- |
-| **Chat — viewer**         | Pinch zoom, tuned on a real device                                              | § 8.1.          |
-| **Chat — link previews**  | Withhold a thumbnail whose signed URL has expired                               | § 8.9.          |
-| **Settings**              | Device list + revocation (`sessions`). Theme row stays hidden until § 16. ships | § 12.           |
-| **Overlays**              | A focus trap shared by the profile screen and the § 7.10. viewer                | § 12.3.         |
-| **Security**              | Session check audit, error-detail leaks                                         | § 14.           |
-| **Deployment**            | Skew Protection                                                                 | § 15.1.         |
-| **iOS audio**             | Verify the voice element's post-capture discard on a device                     | § 5.3., § 13.6. |
-| **Undecided — ask first** | Emoticon grid density (#3), pinch-zoom bounds (#6), dark palette (#7)           | § 18.           |
-| **Later**                 | Dark theme, offline caching                                                     | § 16.           |
+| Area                      | Open                                                                  | §               |
+| ------------------------- | --------------------------------------------------------------------- | --------------- |
+| **Chat — viewer**         | Pinch zoom, tuned on a real device                                    | § 8.1.          |
+| **Settings**              | Theme row stays hidden until § 16. ships                              | § 12.           |
+| **Deployment**            | Skew Protection — a Vercel project toggle, not a code change          | § 15.1.         |
+| **iOS audio**             | Verify the voice element's post-capture discard on a device           | § 5.3., § 13.6. |
+| **Undecided — ask first** | Emoticon grid density (#3), pinch-zoom bounds (#6), dark palette (#7) | § 18.           |
+| **Later**                 | Dark theme, offline caching                                           | § 16.           |
 
 ---
 
@@ -538,7 +535,7 @@ A text message containing a link renders a card above its text — thumbnail, ti
 Remaining:
 
 - [x] **The vetted address is what gets dialled, never the hostname again.** Checking the name and handing that same name to `fetch` resolves it a second time, and the two answers need not agree: a record with a zero TTL can answer a public address to the check and `169.254.169.254` to the connection, which is DNS rebinding and walks straight past a guard that only ever sees the first answer. `vetHost` returns the address and the request goes out on an undici `Agent({ connect: { lookup } })` pinned to it — **not** a rewritten URL, which would have put the IP in front of TLS and broken SNI and certificate validation. The dispatcher is per-request and destroyed with the response, since a pool keyed to one pinned address cannot be shared
-- [ ] A signed `og:image` URL (GitHub mints one that expires in five minutes) goes stale long before the row does, so a card whole yesterday loses its tile on the scroll back. **Read the expiry out of the URL at scrape time onto the row** (`X-Amz-Expires` against `X-Amz-Date`, or a bare `exp` / `se` / `Expires`) and withhold `imageUrl` once it passes — the card is then consistently text rather than decaying, and needs no refetch since the title did not expire with the signature. Shortening the row's whole TTL instead would re-scrape what the row got right
+- [x] A signed `og:image` URL (GitHub mints one that expires in five minutes) goes stale long before the row does, so a card whole yesterday loses its tile on the scroll back. **Read the expiry out of the URL at scrape time onto the row** (`X-Amz-Expires` against `X-Amz-Date`, or a bare `exp` / `se` / `Expires`) and withhold `imageUrl` once it passes — the card is then consistently text rather than decaying, and needs no refetch since the title did not expire with the signature. Shortening the row's whole TTL instead would re-scrape what the row got right. **Only an expiry the scrape itself outran is stored**: a live page signs a URL that is good now, so one already past is far more likely a parameter named `expires` that means something else, and reading it as a deadline withholds a working tile forever where ignoring it leaves the broken frame we already had. Withholding can take away the last thing that made the row a card, so `statusOf`'s rule is applied a second time on the way out — an expired image with no title is `null`, not an empty card
 
 ### 8.10. Replying to a Message ✅
 
@@ -1002,7 +999,7 @@ Tapping an avatar opens a full-screen profile, KakaoTalk-style: the § 12.1. cov
 - **`role="dialog"` and `aria-modal` are written by hand**, because nothing here composes a Radix primitive. The opaque fill hides the screen underneath from the eye and from the pointer, and without these it was still announced as live content with no boundary
 - Own profile → **프로필 편집**, opening the one § 12. editor. The other participant's → **대화하기**
 
-- [ ] A focus trap. This screen and the § 7.10. viewer are the app's two hand-rolled overlays and neither has one, so `Tab` walks into the composer behind them. It wants **one** owner shared by both rather than a second copy of the same logic
+- [x] A focus trap. This screen and the § 7.10. viewer are the app's two hand-rolled overlays and neither has one, so `Tab` walks into the composer behind them. It wants **one** owner shared by both rather than a second copy of the same logic — `useModalOverlay`, which owns `Escape`, the `Tab` cycle **and** the marker the next overlay down reads, because all three turn on the same question of whether anything is open above. Both screens already dismissed from their own copy of that predicate, so a trap beside them would have written it a third and fourth time. An overlay defers only to one that **follows it in document order** — never to "any other overlay". Both screens carry the marker, so the any-other rule made a stacked pair defer to each other, and the viewer an avatar opens inside the profile screen left neither answering `Escape` and the trap skipped in both. Document order is the stacking order here: `ShellOverlay` portals both into the same shell node at one `z-index`, and Radix and Vaul portal past it to the end of `body`. Focus lands on the **container**, not its first control, so a reader announces the dialog rather than opening on 닫기 — which is why **both** callers must carry `role="dialog"` and an `aria-label`, or focus lands on an anonymous `div` and nothing is announced. It is restored on close only if the opener is still connected — a 대화하기 navigates away and an avatar's message can be deleted under it. The cycle is filtered by **visibility**: the viewer keeps its controls mounted as `invisible` (they must not resize the track mid-swipe), the browser skips them on `Tab`, and a cycle ending on one would `focus()` something that cannot take it and strand focus on `body`. The hook binds through a **ref callback with a cleanup return**, not an effect reading `ref.current`: this screen renders `null` until the participant reaches it, and an effect that found no element on its one run would never bind again. `onClose` is held in a ref rather than being a dependency — every caller passes a fresh arrow, and re-binding on it would restore focus to the opener and seize it back on each parent render, which in the chat room is every message that arrives. Replacing `data-media-viewer` with the hook's own marker also closes a § 8.4.1. gap — `isBusy` matched `[role="dialog"][data-state="open"]`, which this hand-written screen never set, so an open profile did not hold the stream awake
 
 **Other rows**
 
@@ -1013,7 +1010,7 @@ Tapping an avatar opens a full-screen profile, KakaoTalk-style: the § 12.1. cov
 
 Remaining:
 
-- [ ] List of logged-in devices, with per-session revocation. Reads `sessions` (`device_label`, `last_seen_at`, `created_at` are written and nothing renders them), **not** the § 16.1. push subscriptions — a different set, and not revocable. A § 12. row opens the screen; the caller's own session is marked rather than revocable
+- [x] List of logged-in devices, with per-session revocation. Reads `sessions` (`device_label`, `last_seen_at`, `created_at` are written and nothing renders them), **not** the § 16.1. push subscriptions — a different set, and not revocable. A § 12. row opens the screen; the caller's own session is marked rather than revocable. `DELETE /api/sessions/{id}` is scoped to the caller's own `user_id` **and** away from their own session id — the first because the id comes from the client and one participant could otherwise sign the other out everywhere, the second because revoking the running session leaves a cookie the proxy still waves through (§ 5.2.), which is what the 로그아웃 row exists for. The id is parsed as a UUID before it reaches the query, or `sessions.id`'s `uuid` column raises `22P02` and a malformed path segment surfaces as a 500 rather than a 400. **Expired rows are filtered from the list, never deleted**: § 5.2. clears a session only when its own cookie is presented, so a device that was simply never opened again leaves a row that would otherwise offer a 로그아웃 for a session already dead — and deleting it would make a read route write. The row shows an **absolute** date, because `last_seen_at` slides at most once a day (§ 5.2.) and "3분 전" would claim a precision the column does not carry. **Revocation reaches an already-open stream.** § 8.4.'s SSE connection authenticates once and is then held for as long as the tab is, so a revoked device would keep reading the conversation live until it happened to reconnect — which an idle one does within § 8.4.1.'s minute and an active one never does. The heartbeat re-asks through `isSessionLive`, which is deliberately **not** `cache()`d: `getSessionContext` is memoized per request, and one request is this whole connection, so it would answer with the session it opened with forever. A revoked stream aborts and the client falls into the same reopen-and-401 path an expired session already took
 - [x] Log out
 - [ ] The theme setting stays **hidden until the dark theme ships**
 
@@ -1168,8 +1165,8 @@ Emoticon objects ride § 9.'s presigned-PUT pipeline — client → R2 directly,
 
 Remaining:
 
-- [ ] Every API route validates the session (401 when unauthenticated)
-- [ ] Error responses must not leak internal details — no stack, no driver message, no key or path. One helper the routes answer through, applied over the same sweep as the item above
+- [x] Every API route validates the session (401 when unauthenticated). Audited across every exported method, not every file — a route with two verbs can check one and not the other. The four **auth** routes are the deliberate exceptions and the only ones: `login/google`, `callback/google` and `logout` cannot require what they exist to establish or clear, and `login/dev` answers a **bodiless 404** before anything else unless `IS_DEV_LOGIN_ENABLED`, which is `NODE_ENV` and therefore compile-time. That 404 is deliberately not `apiError("not_found")` — a body would confirm the endpoint exists
+- [x] Error responses must not leak internal details — no stack, no driver message, no key or path. One helper the routes answer through, applied over the same sweep as the item above: `apiError(code)` in `shared/api`, the sole owner of both the shape (`{ error: code }`, nothing else) and the code→status table. All 109 error responses across the 27 routes that raise one go through it. **A new error is a case added to that table**, never a `NextResponse.json({ error })` inlined beside one — an assembled message is where a driver string or a storage key gets out, and Next's own Route Handler guide reaches for `reason.message` at exactly that spot. `unsupported_type` and `unsupported_media` collapsed into one: two names for a single 415, and no client reads the code at all — every caller branches on the status
 
 ---
 

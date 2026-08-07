@@ -1,3 +1,4 @@
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
   ALLOWED_IMAGE_MIMES,
@@ -34,13 +35,13 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = bodySchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const { mime, size, scope } = body.data;
@@ -49,12 +50,12 @@ export async function POST(request: Request) {
 
   // WARN: § 9.1. `registerMedia` refuses a file outside the `chat` scope, and refusing it here too is what keeps that from being a 422 arriving *after* the bytes landed — the ticket is live for `UPLOAD_URL_EXPIRY`, so a 500MB archive would sit in `background/` with no row able to name it and nothing to clean it up.
   if (isFile && scope !== "chat") {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   // INFO: REQUIREMENTS.md § 14. A courtesy rejection on the client's own claim. R2 enforces neither the type nor the size of a presigned PUT, so `registerMedia` re-checks both against what actually landed.
   if (size > maxSizeForMime(mime)) {
-    return NextResponse.json({ error: "too_large" }, { status: 413 });
+    return apiError("too_large");
   }
 
   const r2Key = buildStorageKey(scope, user.id);

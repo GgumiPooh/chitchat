@@ -1,6 +1,7 @@
 import { createEvent, listEventOccurrences } from "@/entities/event";
 import { createSystemMessage } from "@/entities/message";
 import { notifyMessageRecipients } from "@/features/notify-chat";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { composeEventNoticeBody, safelyRunAsync } from "@/shared/lib";
 import { NextResponse, after } from "next/server";
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const query = rangeSchema.safeParse(
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
   );
 
   if (!query.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   return NextResponse.json({
@@ -31,13 +32,13 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = eventBodySchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const { title, description, startsAt, endsAt, allDay, color, recurrence, scope } = body.data;

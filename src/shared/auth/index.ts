@@ -14,6 +14,8 @@ export {
   getCurrentUser,
   getSessionContext,
   invalidateCurrentSession,
+  isSessionLive,
+  requireSessionOrRedirect,
   requireUserOrRedirect,
   setSessionCookie,
   type SessionContext,

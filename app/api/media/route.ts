@@ -1,4 +1,5 @@
 import { registerMedia } from "@/entities/media";
+import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { MEDIA_UPLOAD_SCOPES, VOICE_PEAK_SCALE, VOICE_WAVEFORM_PEAKS } from "@/shared/config";
 import { toScopePrefix } from "@/shared/storage";
@@ -34,13 +35,13 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return apiError("unauthorized");
   }
 
   const body = bodySchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   // WARN: The prefix is the ownership check. `buildStorageKey` puts the uploader's id in the key, so a caller naming someone else's key is claiming an object it never uploaded. The scope is matched too, or an emoticon object could be claimed as a `media` row and land in the library (§ 13.3.).
@@ -49,19 +50,19 @@ export async function POST(request: Request) {
   );
 
   if (!scope) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   // WARN: REQUIREMENTS.md § 12. `addToGallery` is the caller's own claim, so it has to be refused rather than ignored for a scope the library does not own. An avatar filed into the grid is deleted outright by § 10.'s removal — nothing carries it in a message — and `users.avatar_media_id` is `ON DELETE SET NULL`, so the wearer's photo would silently disappear.
   if (scope !== "chat" && body.data.addToGallery) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    return apiError("invalid_request");
   }
 
   const media = await registerMedia({ ownerId: user.id, scope, ...body.data });
 
   // INFO: The object is missing, or its stored type or size failed § 14. Either way there is nothing to point a message at.
   if (!media) {
-    return NextResponse.json({ error: "unprocessable" }, { status: 422 });
+    return apiError("unprocessable");
   }
 
   return NextResponse.json({ media }, { status: 201 });
