@@ -2,6 +2,7 @@
 
 import { hasDataTransferFiles } from "@/shared/lib";
 import { useState, type DragEvent } from "react";
+import { toTransferFiles } from "./to-transfer-files";
 
 /** The handlers the drop target spreads onto its own outermost element. */
 export type FileDropHandlers = {
@@ -49,7 +50,7 @@ export function useFileDrop({ isEnabled = true, onDrop }: UseFileDropParams) {
 
   const handlers: FileDropHandlers = {
     onDragEnter: (event) => {
-      if (!isEnabled || !hasDataTransferFiles(event.nativeEvent)) {
+      if (!isEnabled || !hasDataTransferFiles(event.dataTransfer)) {
         return;
       }
 
@@ -58,7 +59,7 @@ export function useFileDrop({ isEnabled = true, onDrop }: UseFileDropParams) {
     },
     // WARN: `dragover` has to `preventDefault` on every single event, not only the first. The drop is refused outright otherwise — the default action is what the browser reads as "this target does not take drops".
     onDragOver: (event) => {
-      if (!isEnabled || !hasDataTransferFiles(event.nativeEvent)) {
+      if (!isEnabled || !hasDataTransferFiles(event.dataTransfer)) {
         return;
       }
 
@@ -66,21 +67,21 @@ export function useFileDrop({ isEnabled = true, onDrop }: UseFileDropParams) {
       event.dataTransfer.dropEffect = "copy";
     },
     onDragLeave: (event) => {
-      if (!isEnabled || !hasDataTransferFiles(event.nativeEvent)) {
+      if (!isEnabled || !hasDataTransferFiles(event.dataTransfer)) {
         return;
       }
 
       setDepth((current) => Math.max(0, current - 1));
     },
     onDrop: (event) => {
-      if (!isEnabled || !hasDataTransferFiles(event.nativeEvent)) {
+      if (!isEnabled || !hasDataTransferFiles(event.dataTransfer)) {
         return;
       }
 
       event.preventDefault();
       setDepth(0);
 
-      const files = toDroppedFiles(event);
+      const files = toTransferFiles(event.dataTransfer);
 
       if (files.length > 0) {
         onDrop(files);
@@ -89,24 +90,4 @@ export function useFileDrop({ isEnabled = true, onDrop }: UseFileDropParams) {
   };
 
   return { isDropping, handlers };
-}
-
-/**
- * WARN: A dropped **folder** arrives as a `File` with no type and no bytes, and
- * uploading it would put an empty object in the bucket under the folder's name.
- * `webkitGetAsEntry` is the only thing that tells the two apart — a real empty file
- * is indistinguishable from a directory by size alone.
- */
-function toDroppedFiles(event: DragEvent): File[] {
-  const items = Array.from(event.dataTransfer.items);
-
-  if (items.length === 0) {
-    return Array.from(event.dataTransfer.files);
-  }
-
-  return items.flatMap((item) => {
-    const file = item.kind === "file" ? item.getAsFile() : null;
-
-    return file && !item.webkitGetAsEntry()?.isDirectory ? [file] : [];
-  });
 }

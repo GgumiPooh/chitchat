@@ -17,7 +17,7 @@ export function FileDropGuard() {
     const swallow = (event: DragEvent) => {
       const { dataTransfer } = event;
 
-      if (!dataTransfer || !hasDataTransferFiles(event)) {
+      if (!dataTransfer || !hasDataTransferFiles(dataTransfer)) {
         return;
       }
 

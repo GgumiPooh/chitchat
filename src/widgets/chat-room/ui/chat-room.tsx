@@ -24,6 +24,7 @@ import {
   toVoiceDraft,
   useAttachmentEditing,
   useFileDrop,
+  useFilePaste,
   useMediaSelection,
   type VoiceRecording,
 } from "@/features/upload-media";
@@ -239,11 +240,19 @@ export function ChatRoom({
   const isKeyboardOpen = useIsVirtualKeyboardOpen();
   // INFO: REQUIREMENTS.md § 8.6. The composer's whole stack is put away for the length of a search, and everything it drives has to go with it.
   const isSearching = bottomBar !== undefined;
-  // INFO: REQUIREMENTS.md § 9.2. Refused for the length of a search — the composer and its tray are put away there, so a drop would stage attachments the screen offers no way to send.
-  // WARN: REQUIREMENTS.md § 9.2. Refused under an editor or the viewer too. React bubbles a drop through the *component* tree, so those overlays deliver one here however they are portalled — and a drop landing behind the crop editor stages into a tray the overlay is covering.
+  // INFO: REQUIREMENTS.md § 9.2. Refused for the length of a search — the composer and its tray are put away there, so a drop or a paste would stage attachments the screen offers no way to send.
+  // WARN: REQUIREMENTS.md § 9.2. Refused under an editor or the viewer too. React bubbles a drop through the *component* tree, so those overlays deliver one here however they are portalled — and one landing behind the crop editor stages into a tray the overlay is covering.
+  const canStageAttachments = !isSearching && !editing.isEditing && !viewer;
   const fileDrop = useFileDrop({
-    isEnabled: !isSearching && !editing.isEditing && !viewer,
+    isEnabled: canStageAttachments,
     onDrop: (files) => void stageMedia(files),
+  });
+  // INFO: REQUIREMENTS.md § 9.2. The clipboard reaches the same tray a drop does, which is why it takes the same guard rather than one of its own.
+  // WARN: § 9.2. The room's own box is the fourth cover, and only this route needs one — a `window` listener has no tree position, so § 8.4.1.'s overlay (a sibling of this widget, which takes focus on mount) would otherwise have its paste staged behind it.
+  useFilePaste({
+    containerRef,
+    isEnabled: canStageAttachments,
+    onPaste: (files) => void stageMedia(files),
   });
   // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
   // WARN: `!isSearching` is load-bearing beyond the drawing. The panel being open is one of § 8.12.'s two sustained typing sources, so a panel left open behind the search goes on announcing 입력 중 — and it would pop back open on 취소.
