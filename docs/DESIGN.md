@@ -597,6 +597,8 @@ The count variant recolours to `primary` rather than adding a separate badge ele
 | Padding   | `px-md py-xs` on the row, `px-sm py-xs` inside the bubble — the text bubble's own padding (§ 6.2.)                       |
 | Bubble    | Exactly one line of `chat-body` — `--text-chat-body` × its own line-height — never the height of three 6px dots          |
 | Lifecycle | The slot's height animates `0` ⇄ open over 200ms `ease-out`; the row mounts and unmounts inside it                       |
+| Reveal    | The row fades in over 150ms **after** the slot has opened — a 200ms delay. Nothing fades out                             |
+| Height    | `--typing-indicator-height` is `max(avatar, bubble)` + the row's `py-xs`. The **bubble** is the taller of the two        |
 | A11y      | `aria-live="polite"` around a visually hidden `{이름}님이 입력 중이에요`; avatar and dots are `aria-hidden`              |
 | Spacing   | The § 2.3. scale (`px-md`, `gap-2xs`), never Tailwind's raw numeric one                                                  |
 
@@ -604,7 +606,9 @@ The count variant recolours to `primary` rather than adding a separate badge ele
 
 **The bubble is a message's height, not its contents' height.** Dots left to themselves collapse the box into a lozenge visibly shorter than every bubble around it, which reads as a different kind of object. The dot row is therefore given exactly one line of `chat-body`, from the same two tokens the text it stands in for would use — so the bubble is the size of the message that is coming.
 
-**The row's padding and `--typing-indicator-height` are one measurement.** The token is `36px` — the `chat` avatar, the tallest thing in the row — plus the row's own `py-xs` twice. Changed on one side only, the slot crops the row it is holding.
+**The row is not drawn while the slot is still short of its height.** The strip clips, so a row drawn mid-transition is a horizontal cut travelling down through the avatar and the bubble. The fade is therefore held until the growth is over: the conversation is pushed up by an empty gap, and the row arrives into a slot that is already its own size. That is one of the two ways this row was cropped — the other is the token below, and both shipped.
+
+**The row's padding and `--typing-indicator-height` are one measurement.** The token is `max()` of the two things that can be tallest — the `chat` avatar at `36px`, and one line of `chat-body` inside the bubble's own `py-xs` and hairline — plus the row's own `py-xs` twice. Changed on one side only, the slot crops the row it is holding, which is exactly how the avatar-only version shipped a permanent ~4px crop.
 
 **The slot animates rather than appearing.** The row is real list content, so mounting it outright resized the scroller in a single frame and the end of the list lurched under anyone following it. Opening the height over 200ms pushes the conversation up instead, and the reader at the bottom is carried with it frame by frame (`REQUIREMENTS.md § 8.12.`). It closes the same way, which is why nothing is reserved while nobody is typing.
 

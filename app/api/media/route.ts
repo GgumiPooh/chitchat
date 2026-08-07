@@ -1,6 +1,6 @@
 import { registerMedia } from "@/entities/media";
 import { getCurrentUser } from "@/shared/auth";
-import { MAX_FILENAME_LENGTH, MEDIA_UPLOAD_SCOPES } from "@/shared/config";
+import { MEDIA_UPLOAD_SCOPES } from "@/shared/config";
 import { toScopePrefix } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -13,12 +13,8 @@ const bodySchema = z.object({
   height: z.number().int().nonnegative(),
   durationMs: z.number().int().nonnegative().nullish(),
   // INFO: REQUIREMENTS.md § 9.1. The name the file was picked under. Sanitized and accepted only for a stored type the app cannot draw — `registerMedia` decides that from R2, not from here.
-  // WARN: Bounded by **code point**, never `.max()`. `toSafeFilename` truncates that way on purpose, so a name of emoji or astral ideographs is well under the cap and twice it in UTF-16 units — a `.max()` here would 400 exactly those names, after the bytes had already landed in R2 with no row able to name them.
-  filename: z
-    .string()
-    .min(1)
-    .refine((name) => Array.from(name).length <= MAX_FILENAME_LENGTH)
-    .nullish(),
+  // WARN: Length is not bounded here, by either `.max()` or a code-point refine. Registration is the step *after* the bytes are in R2, so every rejection at this schema orphans an object that no row can name and that no retry can rescue — the same 400 comes back forever. `registerMedia` runs `toSafeFilename`, which truncates to `MAX_FILENAME_LENGTH` by code point, so an over-long name is already a harmless truncation rather than a failure. Bounding it here converts that into the orphan.
+  filename: z.string().min(1).nullish(),
   // INFO: REQUIREMENTS.md § 10. An upload started in the Gallery tab that is not being posted to the conversation. It needs a marker of its own, because the grid's other source is the `message_media` join.
   addToGallery: z.boolean().optional(),
 });

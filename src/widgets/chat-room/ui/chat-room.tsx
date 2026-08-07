@@ -170,6 +170,8 @@ export function ChatRoom({
   const composerRef = useRef<Nullable<HTMLDivElement>>(null);
   // INFO: REQUIREMENTS.md § 8.12. Observed rather than derived from `typist`, because what has to be followed is every frame of the height transition, not the state change that started it.
   const typingSlotRef = useRef<Nullable<HTMLDivElement>>(null);
+  // INFO: REQUIREMENTS.md § 8.3. The rows' own box, observed for the same reason the slot above is — a row that grows after it was estimated moves the end of the list, and nothing scrolls to say so.
+  const contentRef = useRef<Nullable<HTMLDivElement>>(null);
   const scrollerRef = useRef<Nullable<HTMLElement>>(null);
   const rowsRef = useRef<ChatRow[]>([]);
   const hasTakenScrollRef = useRef(false);
@@ -233,7 +235,7 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 9.2. Refused for the length of a search — the composer and its tray are put away there, so a drop would stage attachments the screen offers no way to send.
   // WARN: REQUIREMENTS.md § 9.2. Refused under an editor or the viewer too. React bubbles a drop through the *component* tree, so those overlays deliver one here however they are portalled — and a drop landing behind the crop editor stages into a tray the overlay is covering.
   const fileDrop = useFileDrop({
-    isEnabled: !isSearching && editing.cropping === null && editing.trimming === null && !viewer,
+    isEnabled: !isSearching && !editing.isEditing && !viewer,
     onDrop: (files) => void stageMedia(files),
   });
   // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
@@ -422,6 +424,46 @@ export function ChatRoom({
     return () => observer.disconnect();
   }, []);
 
+  /**
+   * REQUIREMENTS.md § 8.3. Holds the reader at the bottom while a row already on
+   * screen grows under them — the § 8.9. card resolving on the link they just sent,
+   * a photo's real height replacing its estimate, a bubble that measured taller than
+   * it was wrapped for. Every one of those lands *after* the send has pinned, so
+   * without this the message the user just sent finishes below the fold.
+   *
+   * WARN: Two conditions, and the growth alone is not enough for either. `distance ≤ growth` reconstructs where the reader was *only* while `scrollTop` held still across the change — and § 8.3.'s prepend deliberately moves it, by a whole page, so a reader who had just paged backwards satisfies it and is thrown to the live edge. `isAtBottomRef` is what excludes them: it is this commit's own answer, written by `readScrollEdges` before the measurement lands.
+   * WARN: And the at-bottom flag alone is not enough either — it is `AT_BOTTOM_THRESHOLD` wide, so a reader parked 150px up would be yanked down by any row that grew more than that. The growth test is what keeps the follow to those who were actually at the end.
+   */
+  useEffect(() => {
+    const content = contentRef.current;
+
+    if (!content) {
+      return;
+    }
+
+    let lastHeight = content.getBoundingClientRect().height;
+
+    const observer = new ResizeObserver(([entry]) => {
+      const scroller = scrollerRef.current;
+      const growth = entry.contentRect.height - lastHeight;
+
+      lastHeight = entry.contentRect.height;
+
+      if (!scroller || growth <= 0 || !isAtBottomRef.current) {
+        return;
+      }
+
+      if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= growth + 1) {
+        scroller.scrollTop = scroller.scrollHeight;
+      }
+    });
+
+    observer.observe(content);
+
+    return () => observer.disconnect();
+    // INFO: The rows' box mounts with the scroller and is unmounted with it when the room empties, so this is what says the element has changed.
+  }, [scroller]);
+
   // INFO: REQUIREMENTS.md § 8.3., § 8.9. Ahead of the viewport, so a § 6.9. card is in the row's first measurement rather than growing it once the reader is already on it — and ahead of the insert too, since a held page's rows have not been measured at all yet.
   useLinkPreviewPrefetch(messages, pendingOlder);
 
@@ -472,10 +514,16 @@ export function ChatRoom({
     scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
   }, []);
 
-  /** REQUIREMENTS.md § 8.6.1. The § 6.7. pill is also the way back from a jump, so it restores the window before it scrolls. */
+  /**
+   * REQUIREMENTS.md § 8.6.1. The § 6.7. pill is also the way back from a jump, so it
+   * restores the window before it scrolls.
+   *
+   * WARN: Only on a restore that landed. A refused fetch leaves the jumped window on screen and toasts, and travelling to *its* bottom on top of that moves the reader somewhere they never asked to be — for a tap that has already reported it failed.
+   */
   const goToNewest = useCallback(async () => {
-    await returnToLive();
-    scrollToBottom();
+    if (await returnToLive()) {
+      scrollToBottom();
+    }
   }, [returnToLive, scrollToBottom]);
 
   // WARN: Scrolling inside the send handler resolves against the pre-send data, so a message sent from deep in history lands below the fold. The row only exists from this commit onward.
@@ -618,6 +666,40 @@ export function ChatRoom({
   }, [scroller]);
 
   /**
+   * REQUIREMENTS.md § 13.6. Reaching for the history puts the panel away, the same
+   * way reaching for the field does.
+   *
+   * WARN: Real gestures only, never the `scroll` event. Opening the panel scrolls the history itself — every frame of the strip's growth re-pins it — so a `scroll` listener would close the panel on the frame it opened.
+   *
+   * WARN: On the room, never on the scroller. An empty room renders no scroller at all (§ 8.12.), and that is the room where the panel covers the most nothing — bound to the scroller the rule simply does not hold there, and the toggle is the only way out.
+   *
+   * WARN: Which is why the composer has to be excluded by hand: the panel is inside its wrapper, so every tap on a cell reaches this too and would close the panel on the emoticon being chosen.
+   */
+  useEffect(() => {
+    const container = containerRef.current;
+
+    if (!container || !isEmoticonPanelOpen) {
+      return;
+    }
+
+    const dismiss = ({ target }: Event) => {
+      if (target instanceof Node && composerRef.current?.contains(target)) {
+        return;
+      }
+
+      setIsEmoticonPickerOpen(false);
+    };
+
+    container.addEventListener("pointerdown", dismiss, { passive: true });
+    container.addEventListener("wheel", dismiss, { passive: true });
+
+    return () => {
+      container.removeEventListener("pointerdown", dismiss);
+      container.removeEventListener("wheel", dismiss);
+    };
+  }, [isEmoticonPanelOpen]);
+
+  /**
    * REQUIREMENTS.md § 8.6.1. A result the § 8.6. search picked, run through the
    * same jump a quote takes.
    *
@@ -682,6 +764,7 @@ export function ChatRoom({
               {/* INFO: `getTotalSize()` already nets off `scrollMargin`, so this is the rows' own height and the header above it is not counted twice. The row offsets do not — hence the subtraction on each `translateY` below. */}
               {/* WARN: Left off until the scroller exists, which is the one thing here the server cannot agree on. The estimate this resolves to is measured off the page (`measureLineHeight`), so the server computes it from literals and the browser from real layout — rendering that difference into an attribute is a hydration mismatch. No scroller also means no rows, so there is nothing for a height to hold up yet. */}
               <div
+                ref={contentRef}
                 className="relative w-full"
                 style={{ height: scroller ? virtualizer.getTotalSize() : undefined }}
               >
@@ -861,6 +944,30 @@ export function ChatRoom({
   );
 
   /**
+   * REQUIREMENTS.md § 8.6.1. A send from a jumped-away window has to land somewhere
+   * the sender can see it, and the only place that is true is the live edge.
+   *
+   * WARN: The pin is the other half of it and nothing else in the room would make
+   * it. `returnToLive` replaces the window whole rather than appending, so the
+   * follow keyed on the tail row sees no append to follow — and § 8.3.'s open park
+   * was claimed by a real gesture long before a jump was ever made. Without this the
+   * newest page lands at whatever offset the jumped window happened to leave behind.
+   *
+   * WARN: A frame later, as § 8.6.1.'s jump is: the virtualizer only takes the replaced window on the render that follows the commit, so a pin made in this call stack resolves against the measurements of a window that is gone.
+   *
+   * WARN: And only on a restore that landed. `returnToLive` swallows a refused fetch and declines a superseded generation, both of which leave the jumped window up — pinning anyway drags the reader off the history they were on, and a jump made while this was in flight is positioned and then overwritten a frame later.
+   */
+  async function goLiveForSend() {
+    if (!hasNewer) {
+      return;
+    }
+
+    if (await returnToLive()) {
+      requestAnimationFrame(pinToBottom);
+    }
+  }
+
+  /**
    * INFO: REQUIREMENTS.md § 13.6. An emoticon and attachments are mutually exclusive in the composer — each bubble is one or the other (§ 6.), and staging both would promise a single send the schema has no row for.
    */
   function stageEmoticon(emoticon: Emoticon) {
@@ -874,11 +981,7 @@ export function ChatRoom({
    * INFO: REQUIREMENTS.md § 13.6. A double tap in the picker skips the preview. The first tap already staged it, so this only takes it back off the composer and sends.
    */
   function sendStagedEmoticon(emoticon: Emoticon) {
-    // INFO: REQUIREMENTS.md § 8.6.1. A send from a jumped-away window has to land somewhere the sender can see it, and the only place that is true is the live edge.
-    if (hasNewer) {
-      void returnToLive();
-    }
-
+    void goLiveForSend();
     setStagedEmoticon(null);
     // WARN: REQUIREMENTS.md § 13.6. Synchronously inside the tap, like `submit` — iOS grants audio to this call stack alone.
     playEmoticonSound(emoticon);
@@ -898,10 +1001,7 @@ export function ChatRoom({
    * WARN: The order survives because `useSendMessage` delivers on one promise chain. Firing these in parallel would let the text win the race for `messages.id` and land above them on every other client and every reload.
    */
   function submit(text: string) {
-    // INFO: REQUIREMENTS.md § 8.6.1. A send from a jumped-away window has to land somewhere the sender can see it, and the only place that is true is the live edge.
-    if (hasNewer) {
-      void returnToLive();
-    }
+    void goLiveForSend();
 
     // WARN: REQUIREMENTS.md § 8.10. Consumed by the first bubble only. Emoticon, then attachments, then text is the order they are queued in, and a quote repeated over three of them says the same thing three times.
     let quote = replyTarget;
@@ -1366,8 +1466,14 @@ function ListFooter({ slotRef, typist }: ListFooterProps) {
           typist ? "h-(--typing-indicator-height)" : "h-0",
         )}
       >
-        {/* INFO: Anchored to the bottom so it is revealed rising from behind the composer rather than unrolling downward, exactly as § 13.6.'s panel is. */}
-        {typist && <TypingIndicator className="absolute inset-x-0 bottom-0" typist={typist} />}
+        {/* INFO: Anchored to the bottom, so it holds one position on screen while the slot opens under it rather than travelling with the clip. */}
+        {/* WARN: REQUIREMENTS.md § 8.12. It fades in *after* the slot has finished opening, and the delay is what makes the reveal readable. The strip clips, so a row drawn during the growth is a horizontal cut travelling down through the avatar and the bubble — held at zero for those 200ms the reader sees the conversation pushed up by an empty gap, and the row appears in a slot that is already its own size. */}
+        {typist && (
+          <TypingIndicator
+            className="absolute inset-x-0 bottom-0 animate-in delay-200 duration-150 fill-mode-both fade-in"
+            typist={typist}
+          />
+        )}
       </div>
       <div className="h-(--chat-bottom-gap)" />
     </>

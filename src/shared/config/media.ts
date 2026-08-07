@@ -240,6 +240,31 @@ export function extensionForMime(mime: string): string {
   return MIME_EXTENSIONS[mime] ?? "bin";
 }
 
+// INFO: The reverse of the table above rather than a second table, so "what this type is called" and "what that name means" cannot drift apart.
+// WARN: `jpeg` is the one alias the forward table cannot carry — it holds one extension per type — and it is as common as `.jpg` on exactly the files an OS declines to type.
+const MEDIA_MIMES_BY_EXTENSION: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(MIME_EXTENSIONS).map(([mime, name]) => [name, mime])),
+  jpeg: "image/jpeg",
+};
+
+/**
+ * REQUIREMENTS.md § 9.1. The media type a file's own name implies, for the one case
+ * nothing else can answer: a `File` the OS handed over with no type at all.
+ *
+ * WARN: A fallback for an empty `File.type`, never an override of one — a browser
+ * that did report a type read the bytes, where an extension is only a claim.
+ *
+ * WARN: Answers the § 9. allow-list or nothing. Guessing a type the app cannot draw
+ * would move a file attachment onto the media path, which is the reverse of the
+ * divergence this exists to close.
+ */
+export function toMediaMimeFromName(name: string): Nullable<AllowedMediaMime> {
+  const extension = name.split(".").pop()?.toLowerCase() ?? "";
+  const mime = MEDIA_MIMES_BY_EXTENSION[extension] ?? "";
+
+  return isAllowedMediaMime(mime) ? mime : null;
+}
+
 /** The cap the given type is measured against. REQUIREMENTS.md § 14. */
 export function maxSizeForMime(mime: string): number {
   if (isVideoMime(mime)) {

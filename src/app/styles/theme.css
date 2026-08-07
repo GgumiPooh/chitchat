@@ -243,8 +243,15 @@
   --emoticon-panel-height: min(352px, calc(var(--viewport-height, 100dvh) * 0.5));
   /* INFO: REQUIREMENTS.md § 13.6. The staged preview at its tallest — the § 13.6. clamp needs the box's height before the emoticon that fills it is known. */
   --emoticon-preview-height: calc(96px + var(--spacing-2xs) * 2 + 2px);
-  /* INFO: REQUIREMENTS.md § 8.12. The 입력 중 row's open height, which the chat list animates the slot between. The `chat` avatar is the tallest thing in it (DESIGN.md § 7.7.). */
-  --typing-indicator-height: calc(36px + var(--spacing-xs) * 2);
+  /* INFO: REQUIREMENTS.md § 8.12. The 입력 중 row's open height, which the chat list animates the slot between. */
+  /* WARN: The bubble is the taller of the two, not the `chat` avatar (DESIGN.md § 7.7.) — one line of `chat-body` plus its own `py-xs` and hairline clears 36px, and a slot sized to the avatar clips the row by that difference for as long as it is up. */
+  --typing-indicator-height: calc(
+    max(
+        36px,
+        var(--text-chat-body) * var(--text-chat-body--line-height) + var(--spacing-xs) * 2 + 2px
+      ) +
+      var(--spacing-xs) * 2
+  );
 }
 
 /* TODO: Populate when the dark theme ships — DESIGN.md § 5.4. Hand-tune; never invert arithmetically. */

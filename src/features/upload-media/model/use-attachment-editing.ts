@@ -14,6 +14,16 @@ export type AttachmentEditing = {
   trimming: Nullable<MediaDraft>;
   /** True while a trimmed file is being decoded back into a draft. */
   isApplying: boolean;
+  /**
+   * Whether either editor is up — the § 9.2. drop gate, and the gallery's staging
+   * sheet, both hang off this.
+   *
+   * WARN: Derived here rather than tested at the call sites. Written out, the pair
+   * was three copies across two screens, and a third editor added to `open` has to
+   * be remembered at every one of them — miss one and the drop-behind-an-overlay
+   * hole § 9.2. closes is silently reopened.
+   */
+  isEditing: boolean;
   /** Hand this to `MediaTray`'s `onEdit`; it picks the editor the kind calls for. */
   open: (draft: MediaDraft) => void;
   close: () => void;
@@ -89,5 +99,14 @@ export function useAttachmentEditing(replace: (draft: MediaDraft) => void): Atta
     [replace],
   );
 
-  return { cropping, trimming, isApplying, open, close, applyCrop, applyTrim };
+  return {
+    cropping,
+    trimming,
+    isApplying,
+    isEditing: cropping !== null || trimming !== null,
+    open,
+    close,
+    applyCrop,
+    applyTrim,
+  };
 }

@@ -67,8 +67,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
   // INFO: REQUIREMENTS.md § 9.2. Refused while a selection is up — a drop would upload into the grid the bar is about to delete from, which is the very window § 10. closes by withholding selection during an upload.
   // WARN: REQUIREMENTS.md § 9.2. Refused under an editor or the viewer too. React bubbles a drop through the *component* tree, so those overlays deliver one here however they are portalled — and the staging sheet is suppressed for exactly their duration, so the drop would land in a tray the user cannot see.
   const fileDrop = useFileDrop({
-    isEnabled:
-      !selection.isSelecting && editing.cropping === null && editing.trimming === null && !viewer,
+    isEnabled: !selection.isSelecting && !editing.isEditing && !viewer,
     onDrop: handlePick,
   });
   const selectedCount = selection.selectedIds.length;
@@ -162,11 +161,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
       {/* WARN: REQUIREMENTS.md § 13.4. Closed while either editor is up. They portal into the app shell and this drawer portals into `body`, so no z-index inside the shell can lift them over it — the sheet has to get out of the way instead. */}
       <BottomSheet
         header={{ title: "사진 추가", description: "올리기 전에 하나씩 편집할 수 있어요" }}
-        isOpen={
-          (staging.drafts.length > 0 || staging.isReading) &&
-          editing.cropping === null &&
-          editing.trimming === null
-        }
+        isOpen={(staging.drafts.length > 0 || staging.isReading) && !editing.isEditing}
         onClose={cancelStaging}
       >
         <div className="space-y-md">

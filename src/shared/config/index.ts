@@ -153,6 +153,7 @@ export {
   toMediaDownloadUrl,
   toMediaKind,
   toMediaLabel,
+  toMediaMimeFromName,
   toMediaUrl,
   toSafeFilename,
   type AllowedImageMime,

@@ -288,10 +288,15 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
    *
    * INFO: Refetches the newest page rather than paging down to it — the gap can be
    * years wide, and nothing between here and there was going to be read on the way.
+   *
+   * @returns Whether the window on screen is now the live one. Both callers scroll
+   * to the newest message on the strength of it, and both must not when it is
+   * `false` — the window is then still the jumped one, so the bottom they would
+   * travel to belongs to history the reader was in the middle of.
    */
-  const returnToLive = useCallback(async () => {
+  const returnToLive = useCallback(async (): Promise<boolean> => {
     if (!hasNewerRef.current) {
-      return;
+      return true;
     }
 
     // WARN: The generation is bumped before the flags, so a pager already in flight can no longer write either of them back.
@@ -305,18 +310,23 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
       const page = await fetchMessages({});
       const newestId = page.at(-1)?.id ?? 0;
 
+      // WARN: Both of these leave the jumped window on screen — an empty page commits nothing, and a superseded generation belongs to a jump that has already replaced it — so neither may report the live edge.
       if (page.length === 0 || generation !== windowId.current) {
-        return;
+        return false;
       }
 
       hasOlderRef.current = page.length >= MESSAGE_PAGE_SIZE;
       newestKnownIdRef.current = Math.max(newestKnownIdRef.current, newestId);
       // INFO: Anything that arrived while the page was in flight is newer than it, so it is carried over rather than replaced away.
       commit((previous) => [...page, ...previous.filter((entry) => entry.id > newestId)]);
+
+      return true;
     } catch {
       if (generation === windowId.current) {
         toast.error("최근 메시지를 불러오지 못했어요");
       }
+
+      return false;
     } finally {
       endLoad(generation);
     }

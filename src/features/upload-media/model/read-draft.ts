@@ -5,6 +5,7 @@ import {
   isFileMime,
   isVideoMime,
   maxSizeForMime,
+  toMediaMimeFromName,
   toSafeFilename,
 } from "@/shared/config";
 import { A_SECOND, formatSize, randomId, type Nullable } from "@/shared/lib";
@@ -43,9 +44,14 @@ export function validateFile(file: File): Nullable<string> {
  * WARN: An empty `File.type` is routine — the OS has no type registered for the
  * extension — and it has to become a real one here, because it is signed into the
  * PUT and read back at registration, where a blank mime is refused.
+ *
+ * WARN: The name is consulted before the fallback is taken, and that is the whole
+ * point of it. Resolved straight to `FALLBACK_FILE_MIME`, a typeless JPEG became a
+ * § 9.1. file card in the composer and was refused outright by the gallery — one
+ * pick, two answers, neither of them the photo the user chose.
  */
 export function toStoredMime(file: File): string {
-  return file.type || FALLBACK_FILE_MIME;
+  return file.type || toMediaMimeFromName(file.name) || FALLBACK_FILE_MIME;
 }
 
 /**
@@ -95,7 +101,8 @@ async function toImageDraft(file: File): Promise<MediaDraft> {
       file,
       thumbnail,
       previewUrl: URL.createObjectURL(thumbnail),
-      mime: file.type,
+      // WARN: The resolved type, never the raw `File.type`. A typeless file now reaches this branch on the strength of its name, and a blank mime signed into the PUT is refused at registration with the bytes already in R2.
+      mime: toStoredMime(file),
       width,
       height,
       durationMs: null,
@@ -125,7 +132,8 @@ async function toVideoDraft(file: File): Promise<MediaDraft> {
       file,
       thumbnail,
       previewUrl: URL.createObjectURL(thumbnail),
-      mime: file.type,
+      // WARN: The resolved type, for the reason `toImageDraft` carries — a `.mov` the OS declined to type reaches here now, and it must not be signed into the PUT as an empty string.
+      mime: toStoredMime(file),
       width,
       height,
       durationMs: Number.isFinite(video.duration) ? Math.round(video.duration * A_SECOND) : null,
