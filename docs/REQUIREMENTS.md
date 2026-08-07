@@ -32,13 +32,12 @@ Every open item in this document, so an agent can read one table and then only t
 | **Chat — viewer**         | Pinch zoom, tuned on a real device                                              | § 8.1.          |
 | **Chat — link previews**  | Withhold a thumbnail whose signed URL has expired                               | § 8.9.          |
 | **Library**               | Jump-to-message link — the § 8.6.1. machinery it waited on is built             | § 10.           |
-| **Calendar**              | "Jump to today" control                                                         | § 11.3.         |
 | **Settings**              | Device list + revocation (`sessions`). Theme row stays hidden until § 16. ships | § 12.           |
 | **Overlays**              | A focus trap shared by the profile screen and the § 7.10. viewer                | § 12.3.         |
 | **Emoticons**             | Preload enabled packs' images                                                   | § 13.6.         |
 | **Security**              | Session check audit, error-detail leaks                                         | § 14.           |
 | **Deployment**            | Skew Protection                                                                 | § 15.1.         |
-| **iOS audio**             | Verify the voice element's post-capture discard on a device                      | § 5.3., § 13.6. |
+| **iOS audio**             | Verify the voice element's post-capture discard on a device                     | § 5.3., § 13.6. |
 | **Undecided — ask first** | Emoticon grid density (#3), pinch-zoom bounds (#6), dark palette (#7)           | § 18.           |
 | **Later**                 | Dark theme, offline caching                                                     | § 16.           |
 
@@ -855,9 +854,9 @@ The tab is `보관함` with three segments, `사진`, `파일` and `음성`; the
 - **Days remaining until the next anniversary** shows beneath the D-day header, hidden past a one-year horizon
 - The derivation lives in **`shared/lib/date/calendar.ts`, not `entities/event`** — the grid derives markers for every month it is swiped to, and a value import from that barrel would drag `server-only` into the browser bundle. Yearly anniversaries are built by **calendar-field arithmetic, never by adding 365 days**, so a leap year cannot walk them a day early
 
-### 11.3. Month View
+### 11.3. Month View ✅
 
-**Landed:** event markers in day cells (capped at three dots), swipe left/right to change month with the header's chevrons as the pointer equivalent, tapping a day opens that day's list in a `BottomSheet`, timezone pinned to `Asia/Seoul` on both server and client.
+Event markers in day cells (capped at three dots), swipe left/right to change month with the header's chevrons as the pointer equivalent, tapping a day opens that day's list in a `BottomSheet`, timezone pinned to `Asia/Seoul` on both server and client.
 
 - The swipe requires horizontal **intent** (|Δx| > |Δy|), or a diagonal drag would change month while the user was scrolling the shell
 - **A drag over the grid never selects a day.** A finger that scrolls the shell or swipes the month from inside a cell still releases into a `click` on it, so the grid's own `onClickCapture` swallows the tap once the pointer has moved past `GESTURE_SLOP`
@@ -866,8 +865,8 @@ The tab is `보관함` with three segments, `사진`, `파일` and `음성`; the
 - **Selecting a day moves the month with it.** The upcoming card reaches a year ahead and the grid's edge rows reach into neighbouring months, while the day sheet can only see the range currently loaded — without it the sheet opens on `이 날은 일정이 없어요` for a day the card just said had an event
 - Month fetches are **request-id guarded** — two quick swipes leave two in flight, and the slower one landing last would leave the grid showing the wrong month's dots with nothing left to re-trigger the fetch
 - Opening an event's actions **closes the day sheet first.** Both are modal `Drawer`s portalled to `body` and neither is declared nested, so leaving both up means two focus traps — and dismissing the top one can leave the one underneath inert
-
-- [ ] A "jump to today" control — the D-day band and the upcoming card both navigate, so this has no room yet; it belongs beside the month label
+- **"Jump to today" is a `오늘` chip beside the month label**, not a control above the grid — the D-day band and the upcoming card both navigate already. It is **withheld while the grid is on today's month**, where the cell is on screen and marked and a control that moves nothing reads as broken. It moves the month and **does not select the day**: selecting opens the day sheet, and a sheet is not what a tap meaning "take me back" asked for
+- The month header is a **`1fr auto 1fr` grid, not `justify-between`** — the centre column holds `DESIGN.md § 7.9.`'s centered label against the middle of the row however wide the sides get. Under `justify-between` the chip appearing would push the label off centre and shift it back on every return to this month
 
 ### 11.4. Event CRUD ✅
 

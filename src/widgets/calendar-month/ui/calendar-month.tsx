@@ -1,8 +1,8 @@
 "use client";
 
 import type { EventOccurrence } from "@/entities/event";
-import { cn, formatYearMonth, shiftMonthKey, toMonthStart } from "@/shared/lib";
-import { IconButton } from "@/shared/ui";
+import { cn, formatYearMonth, shiftMonthKey, toMonthKey, toMonthStart } from "@/shared/lib";
+import { Chip, IconButton } from "@/shared/ui";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { buildMonthGrid } from "../model/build-month-grid";
 import { useMonthSwipe } from "../model/use-month-swipe";
@@ -34,26 +34,39 @@ export function CalendarMonth({
   onSelectDay,
 }: CalendarMonthProps) {
   const cells = buildMonthGrid(monthKey, startDate, occurrences);
+  const todayMonthKey = toMonthKey(todayKey);
   const swipeHandlers = useMonthSwipe((direction) =>
     onMonthChange(shiftMonthKey(monthKey, direction)),
   );
 
   return (
     <section className={cn("space-y-xs", className)} aria-label="월별 일정">
-      <header className="flex items-center justify-between">
+      {/* WARN: DESIGN.md § 7.9. A grid rather than `justify-between`, so the centre column holds the label against the middle of the row however wide the sides get. Under `justify-between` the 오늘 chip appearing would push the label off centre and shift it back on every return to this month. */}
+      <header className="grid grid-cols-[1fr_auto_1fr] items-center">
         <IconButton
+          className="justify-self-start"
           Icon={ChevronLeft}
           haptic
           aria-label="이전 달"
           onClick={() => onMonthChange(shiftMonthKey(monthKey, -1))}
         />
-        <h2 className="text-display-md text-ink">{formatYearMonth(toMonthStart(monthKey))}</h2>
-        <IconButton
-          Icon={ChevronRight}
-          haptic
-          aria-label="다음 달"
-          onClick={() => onMonthChange(shiftMonthKey(monthKey, 1))}
-        />
+        <h2 className="text-display-md whitespace-nowrap text-ink">
+          {formatYearMonth(toMonthStart(monthKey))}
+        </h2>
+        <div className="flex items-center gap-2xs justify-self-end">
+          {/* INFO: REQUIREMENTS.md § 11.3. Withheld on today's own month, where the cell is already on screen and marked — a control that moves nothing reads as broken rather than as reassurance. */}
+          {monthKey !== todayMonthKey && (
+            <Chip haptic onClick={() => onMonthChange(todayMonthKey)}>
+              오늘
+            </Chip>
+          )}
+          <IconButton
+            Icon={ChevronRight}
+            haptic
+            aria-label="다음 달"
+            onClick={() => onMonthChange(shiftMonthKey(monthKey, 1))}
+          />
+        </div>
       </header>
 
       <div className="grid grid-cols-7">

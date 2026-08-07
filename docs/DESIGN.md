@@ -896,6 +896,7 @@ The D-day band is the only place `display-lg` appears in the app. It is the scre
 | Element          | Rule                                                                                                                                                                     |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Month label      | `display-md` `ink`, centered, chevron `icon-button` either side                                                                                                          |
+| 오늘 chip        | `chip`, `2xs` left of the next-month chevron; rendered only while the grid is off today's month                                                                          |
 | Weekday header   | `caption` `meta`; Sunday `semantic-error`, Saturday `primary`                                                                                                            |
 | Day cell         | Square, `body-md`; current month `ink`, adjacent months `meta-soft`                                                                                                      |
 | Today            | `chat-badge`-weight numeral in `primary`, no fill                                                                                                                        |
