@@ -6,6 +6,7 @@ export {
 } from "./audio/session";
 export { playSound, stopSound, unlockSound, useSoundUnlock } from "./audio/sound";
 export {
+  discardVoicePlayer,
   isVoiceActive,
   seekVoice,
   stopVoice,

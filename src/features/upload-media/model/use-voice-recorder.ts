@@ -14,6 +14,7 @@ import {
   A_SECOND,
   declareAudioSession,
   declareRestingAudioSession,
+  discardVoicePlayer,
   useKeepAwake,
   type Nullable,
 } from "@/shared/lib";
@@ -200,7 +201,7 @@ export function useVoiceRecorder({ onDone }: UseVoiceRecorderParams) {
       if (isAbandonedRef.current) {
         stream.getTracks().forEach((track) => track.stop());
         void audio.close().catch(() => undefined);
-        declareRestingAudioSession();
+        leaveCapture();
         setState("idle");
 
         return true;
@@ -216,7 +217,7 @@ export function useVoiceRecorder({ onDone }: UseVoiceRecorderParams) {
     } catch (error) {
       stream?.getTracks().forEach((track) => track.stop());
       void audio.close().catch(() => undefined);
-      declareRestingAudioSession();
+      leaveCapture();
       setState("idle");
       toast.error(toRefusal(error));
     }
@@ -283,7 +284,17 @@ function closeSession({ stream, audio, timer }: RecordingSession): void {
   clearInterval(timer);
   stream.getTracks().forEach((track) => track.stop());
   void audio.close().catch(() => undefined);
+  leaveCapture();
+}
+
+/**
+ * Every way out of `play-and-record`, so a fourth exit path cannot restore half of it.
+ *
+ * WARN: REQUIREMENTS.md § 5.3. The discard is not tidiness — `declareRestingAudioSession` moves the **page** back, while WebKit has already fixed the voice player's own category from its first playback, so an element minted before this capture goes on minting a Now Playing entry under `play-and-record` until it is replaced.
+ */
+function leaveCapture(): void {
   declareRestingAudioSession();
+  discardVoicePlayer();
 }
 
 // INFO: RMS rather than the largest sample. One clipped sample paints a full-height bar over a frame of nothing; the root mean square is the window's energy, which is what a listener would call loudness.

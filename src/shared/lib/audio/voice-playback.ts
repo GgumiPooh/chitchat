@@ -180,6 +180,28 @@ export function stopVoice(): void {
   publish(IDLE);
 }
 
+/**
+ * Throws the shared element away, so the next playback mints a fresh one.
+ *
+ * WARN: REQUIREMENTS.md § 5.3. What a capture owes this module on every exit path, and putting the page back in the resting category is **not** enough on its own: the category is page-wide, but WebKit fixes an element's own at its first playback — so a player minted before the session moved to `play-and-record` keeps that category however the page is redeclared afterwards, and its next tap mints an iOS Now Playing entry and stops the user's music instead of ducking it.
+ * INFO: Only this element is discarded, never § 13.6.'s emoticon player: that one is approved by `unlockSound` from the page's first gesture and a replacement would have none, leaving an arriving emoticon unable to sound at all. Voice playback starts from a tap on the play control every time, so a fresh element is always inside the gesture iOS wants to see.
+ */
+export function discardVoicePlayer(): void {
+  const audio = element;
+
+  if (!audio) {
+    return;
+  }
+
+  stopVoice();
+  audio.removeEventListener("play", syncPlayState);
+  audio.removeEventListener("pause", syncPlayState);
+  audio.removeEventListener("ended", handleEnded);
+  audio.removeEventListener("timeupdate", syncPosition);
+  audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+  element = null;
+}
+
 function readSnapshot(src: Nullable<string>): VoiceSnapshot {
   return isVoiceActive(src) ? snapshot : IDLE;
 }

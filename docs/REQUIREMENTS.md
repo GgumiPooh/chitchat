@@ -38,7 +38,7 @@ Every open item in this document, so an agent can read one table and then only t
 | **Emoticons**             | Preload enabled packs' images                                                   | § 13.6.         |
 | **Security**              | Session check audit, error-detail leaks                                         | § 14.           |
 | **Deployment**            | Skew Protection                                                                 | § 15.1.         |
-| **iOS audio**             | Discard the shared voice element after a capture, then verify on a device       | § 5.3., § 13.6. |
+| **iOS audio**             | Verify the voice element's post-capture discard on a device                      | § 5.3., § 13.6. |
 | **Undecided — ask first** | Emoticon grid density (#3), pinch-zoom bounds (#6), dark palette (#7)           | § 18.           |
 | **Later**                 | Dark theme, offline caching                                                     | § 16.           |
 
@@ -169,7 +169,8 @@ A 32-byte token is stored **hashed** in `sessions.token_hash`; only the raw toke
 
 - [x] Verify **on a real device** that the Google login redirect from a home-screen standalone PWA returns to the app correctly
 - [x] Verify **what iOS actually hands a file input for a video** — it transcodes HEIC to JPEG, so § 9.'s "store whatever arrives" costs nothing and the viewer's download fallback never fires
-- [ ] **Discard `voice-playback.ts`'s shared element when a recording ends**, then verify the one sequence that fails: play a voice message, record one, play another. § 13.6.'s resting category is page-**wide** and capture moves it to `play-and-record` and back, while WebKit fixes an `<audio>` element's own category at its first playback — so the third step is where a player minted before the switch mints a Now Playing entry or stops the user's music instead of ducking it. Restoring the resting category is **not** enough on an element already fixed; dropping it is what makes the next playback mint a fresh one under `transient`. Neither of the first two steps shows anything alone
+- [x] **`voice-playback.ts`'s shared element is discarded when a recording ends.** § 13.6.'s resting category is page-**wide** and capture moves it to `play-and-record` and back, while WebKit fixes an `<audio>` element's own category at its first playback — so a player minted before the switch would go on minting a Now Playing entry and stopping the user's music instead of ducking it. Restoring the resting category is **not** enough on an element already fixed; dropping it is what makes the next playback mint a fresh one under `transient`. `leaveCapture` in `use-voice-recorder.ts` is the **one** exit from `play-and-record` and does both, so a fourth exit path cannot restore half of it. § 13.6.'s emoticon player is deliberately **not** discarded with it: `unlockSound` approved that element from the page's first gesture and a replacement would carry no approval, leaving a live arrival unable to sound at all — where voice playback starts from a tap on the play control every time
+- [ ] Verify the discard above **on a real device**, on the one sequence that fails: play a voice message, record one, play another. Neither of the first two steps shows anything alone
 
 ### 5.4. Development Login ✅
 
