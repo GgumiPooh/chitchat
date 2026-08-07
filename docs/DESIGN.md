@@ -1102,7 +1102,7 @@ So the pack tabs tick unconditionally, re-taps on the open pack included. That r
 
 Two user-chosen photos, drawn in three places. `REQUIREMENTS.md § 12.1.`–`§ 12.3.` own what they are and who may see them; this section owns how they look.
 
-**The Settings header** is a cover band **half the visual viewport tall** — `calc(var(--viewport-height, 100dvh) * 0.5)`, never `50vh`. `vh` is the layout viewport on WebKit, so it neither shrinks for the keyboard nor accounts for the browser chrome the shell is already sized around (§ 3.4.). The photo is `object-cover`, the avatar and the name sit at the bottom of the band, and the band runs **full-bleed from the top of the screen**: it deliberately does not clear the floating 설정 header, because its own top scrim is what keeps that title legible over a photo.
+**The Settings header** is a cover band **half the layout viewport tall** — `calc(var(--layout-viewport-height, 100dvh) * 0.5)`, never `50vh` and no longer `--viewport-height`. `vh` is the large viewport on WebKit, so it ignores the browser chrome the shell is already sized around; that half of the objection stands and `--layout-viewport-height` answers it. The other half — that `vh` does not shrink for the keyboard — was written as a defect and is the behaviour actually wanted here (§ 3.4.). The photo is `object-cover`, the avatar and the name sit at the bottom of the band, and the band runs **full-bleed from the top of the screen**: it deliberately does not clear the floating 설정 header, because its own top scrim is what keeps that title legible over a photo.
 
 **The profile screen** (`REQUIREMENTS.md § 12.3.`) is the same composition at full height, in a `ShellOverlay` over the tab bar.
 
@@ -1114,7 +1114,9 @@ Both put the cover under a **two-stop** gradient — `from-scrim/55…60 via-tra
 
 The token's hex is `chat-canvas`'s own, and that is the point rather than an oversight: the wash is a partial application of the surface the room would otherwise have had. It is a separate token because the dark theme has to be able to move the two independently — a dark room wants a deeper floor **and** a lighter wash, or a photo behind it disappears.
 
-**No full-bleed photo follows the keyboard** (§ 3.4.), and all three here are one rule. Sized to the box it sits in, each is `object-cover` over something that loses a third of its height the moment a field takes focus, so the photo re-crops and rescales on every frame of the 200ms the shell eases — a background visibly zooming while the screen is only making room for the keys. Each is held at `--layout-viewport-height` instead (the Settings band at half of it, matching its own resting height) and anchored to the top, so the shrinking box in front **clips** it and the image itself does not move.
+**No full-bleed photo follows the keyboard** (§ 3.4.), and all three here are one rule. Sized to the box it sits in, each is `object-cover` over something that loses a third of its height the moment a field takes focus, so the photo re-crops and rescales on every frame of the 200ms the shell eases — a background visibly zooming while the screen is only making room for the keys.
+
+**Where the box itself is the background, the box takes the stable height.** The Settings band is the whole cover, so it is `--layout-viewport-height * 0.5` outright and the photo inside it is a plain `inset-0`. Stabilising only the photo and leaving the band on `--viewport-height` was tried and is not a fix: the picture stops rescaling and the band goes on collapsing around it, which to look at is the same thing. **Where the box is a screen the photo merely sits behind** — the chat room, the profile screen — the box must keep following the keyboard, because its content has to stay reachable; there the photo alone is held at `--layout-viewport-height`, anchored to the top, and **clipped** by the shrinking box in front of it.
 
 Where each one is reachable differs, and none of them are exempt:
 
@@ -1126,7 +1128,7 @@ Where each one is reachable differs, and none of them are exempt:
 
 The latter two are behind a sheet and its scrim, which is why they read as less urgent — but the sheet is capped at 90% of the _visual_ viewport, so a strip of re-cropping photo shows above it either way. Neither screen has an inline field, so the sheet is the only path; that bounds the exposure and does not remove it.
 
-Two mechanics that are not optional. The **wash or gradient stays on the visible box**, never on the photo: it answers for the contrast of what is on screen, not for the strip the keyboard has covered. And the photo needs a **clipping ancestor** — a box standing taller than its parent extends `#app-scroll`'s scroll range into a phantom scroll on the chat screen, and paints past the shell on the other two. The Settings band already clips; the room and the profile screen take a wrapper for it.
+Two mechanics that are not optional, and both belong to the clipped case alone. The **wash or gradient stays on the visible box**, never on the photo: it answers for the contrast of what is on screen, not for the strip the keyboard has covered. And the photo needs a **clipping ancestor** — a box standing taller than its parent extends `#app-scroll`'s scroll range into a phantom scroll on the chat screen, and paints past the shell on the profile screen. Both take a wrapper for it rather than putting `overflow-hidden` on the screen's own box, which would silently clip anything later rendered to escape it.
 
 **Do not try to replace the wash with a text-shadow on the meta lines.** It was tried twice, in both directions, and both shipped something worse than the problem:
 
