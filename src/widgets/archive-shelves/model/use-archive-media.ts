@@ -3,6 +3,7 @@
 import type { ArchiveMedia } from "@/entities/media";
 import { ARCHIVE_PAGE_SIZE, type LibraryKind } from "@/shared/config";
 import { toast } from "@/shared/ui";
+import { josa } from "es-hangul";
 import { useCallback, useRef, useState } from "react";
 import { fetchArchiveMedia } from "../api/fetch-archive-media";
 
@@ -55,7 +56,7 @@ export function useArchiveMedia(initialMedia: ArchiveMedia[], kind: LibraryKind 
         });
       }
     } catch {
-      toast.error(kind === "file" ? "파일을 더 불러오지 못했어요" : "사진을 더 불러오지 못했어요");
+      toast.error(`${josa(LOAD_FAILURE_SUBJECTS[kind], "을/를")} 더 불러오지 못했어요`);
     } finally {
       isLoadingRef.current = false;
       setIsLoadingMore(false);
@@ -79,3 +80,10 @@ export function useArchiveMedia(initialMedia: ArchiveMedia[], kind: LibraryKind 
 
   return { media, isLoadingMore, loadMore, prepend, remove };
 }
+
+// INFO: REQUIREMENTS.md § 10. One noun per shelf — 음성 shared 사진's copy while this was a two-way branch.
+const LOAD_FAILURE_SUBJECTS: Record<LibraryKind, string> = {
+  photo: "사진",
+  file: "파일",
+  voice: "음성",
+};
