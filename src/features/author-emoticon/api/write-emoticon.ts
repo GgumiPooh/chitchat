@@ -1,4 +1,5 @@
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
+import { request } from "@/shared/api";
 import { EMOTICON_ITEMS_PATH, EMOTICON_PACKS_PATH } from "@/shared/config";
 import type { Maybe, Nullable } from "@/shared/lib";
 
@@ -64,7 +65,7 @@ export async function deleteEmoticon(itemId: string): Promise<void> {
  * and the user needs to be told that rather than shown a generic failure.
  */
 async function send<T = void>(path: string, method: string, body?: unknown): Promise<T> {
-  const response = await fetch(path, {
+  const response = await request(path, {
     method,
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),

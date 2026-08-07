@@ -22,8 +22,10 @@ import {
 import { fetchParticipants } from "../api/fetch-participants";
 import { fetchUnreadCount } from "../api/fetch-unread-count";
 import { postRead } from "../api/post-read";
+import { DormantOverlay } from "../ui/dormant-overlay";
 import { useAppRefresh } from "./use-app-refresh";
 import { type ChatEventSourceHandlers } from "./use-chat-event-source";
+import { useDormancy } from "./use-dormancy";
 
 export type ChatStreamListener = {
   onMessage?: (message: ChatMessage, arrival: MessageArrival) => void;
@@ -35,6 +37,8 @@ export type ChatStreamValue = {
   unreadCount: number;
   /** Everyone but me who is composing right now. REQUIREMENTS.md § 8.12. */
   typingUserIds: string[];
+  /** REQUIREMENTS.md § 8.4.1. The app is asleep and every request to our API is refused. */
+  isDormant: boolean;
   subscribe: (listener: ChatStreamListener) => () => void;
   /** Declared by whichever screen is showing the conversation — it suppresses the badge and drives the read cursor. */
   setIsReading: (isReading: boolean) => void;
@@ -94,10 +98,12 @@ export function ChatStreamProvider({
   const typingSweep = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
   const listeners = useRef(new Set<ChatStreamListener>());
   const isReadingRef = useRef(false);
-  // INFO: REQUIREMENTS.md § 8.4.1. Reported by `ChatStreamConnection`, because "the conversation is mounted" and "the conversation is live" stopped being the same thing when the overlay arrived.
-  const isDormantRef = useRef(false);
   const lastReadPostAt = useRef(0);
   const hasMessageDuringSync = useRef(false);
+  // WARN: REQUIREMENTS.md § 8.4.1. First, and deliberately. Effects run in declaration order, so this is what registers the departure listener that shuts the request gate ahead of the read-cursor flush below.
+  const { isDormant, wake } = useDormancy();
+  // INFO: § 8.4.1. The listeners below are registered once and read this from a closure, so the state needs a ref beside it.
+  const isDormantRef = useRef(isDormant);
   // INFO: REQUIREMENTS.md § 15.1. Lives beside the stream because that is what carries the signal, not because refreshing is a chat concern.
   const handleBuild = useAppRefresh();
 
@@ -131,13 +137,30 @@ export function ChatStreamProvider({
     onResume: () => handleResume(),
     onTyping: (userId, isTyping) => handleTyping(userId, isTyping),
     onBuild: (id) => handleBuild(id),
-    onDormancyChange: (isDormant) => {
-      isDormantRef.current = isDormant;
-    },
   }));
 
   // INFO: The provider outlives every screen, so this only ever runs on a full teardown — but a timer left armed past it would call `setTypingUserIds` on an unmounted tree.
   useEffect(() => () => clearTimeout(typingSweep.current), []);
+
+  /**
+   * REQUIREMENTS.md § 8.4.1. The catch-up for a wake on a screen that holds no
+   * socket — 캘린더, 보관함, 설정 never mount `ChatStreamConnection`, so nothing else
+   * would correct a badge that went stale while the gate was shut.
+   *
+   * WARN: Gated on `isReadingRef` because that is what "the conversation is on
+   * screen" means here, and there the reopened stream's own `onopen` already syncs
+   * — running both would spend two `GET /api/chat/unread` on one tap.
+   */
+  useEffect(() => {
+    // WARN: The transition, never the value. This effect also runs on mount, where `isDormant` is already `false` and the count is the one the shell was server-rendered with — syncing there would be a request per launch that the § 8.4.2. seeding exists to avoid.
+    const wasDormant = isDormantRef.current;
+
+    isDormantRef.current = isDormant;
+
+    if (wasDormant && !isDormant && !isReadingRef.current) {
+      void syncUnreadCount();
+    }
+  }, [isDormant]);
 
   useEffect(() => {
     updateAppBadge(unreadCount);
@@ -203,6 +226,7 @@ export function ChatStreamProvider({
         participants,
         unreadCount,
         typingUserIds,
+        isDormant,
         subscribe,
         setIsReading,
         markRead: markReadNow,
@@ -210,6 +234,8 @@ export function ChatStreamProvider({
     >
       <ChatStreamHandlersContext.Provider value={handlers}>
         {children}
+        {/* INFO: REQUIREMENTS.md § 8.4.1. Rendered by the shell rather than the chat screen, because the request gate it stands for is shut on every tab and a screen that could not explain why nothing loads is worse than one that never sleeps. */}
+        {isDormant && <DormantOverlay onWake={wake} />}
       </ChatStreamHandlersContext.Provider>
     </ChatStreamContext.Provider>
   );

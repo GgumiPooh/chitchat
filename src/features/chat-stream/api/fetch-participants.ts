@@ -1,7 +1,8 @@
 import type { Participant } from "@/entities/user";
+import { request } from "@/shared/api";
 
 export async function fetchParticipants(): Promise<Participant[]> {
-  const response = await fetch("/api/users");
+  const response = await request("/api/users");
 
   if (!response.ok) {
     throw new Error(`GET /api/users responded ${response.status}`);

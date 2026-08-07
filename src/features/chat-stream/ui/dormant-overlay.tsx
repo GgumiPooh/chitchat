@@ -11,8 +11,8 @@ export type DormantOverlayProps = {
 };
 
 /**
- * REQUIREMENTS.md § 8.4.1. Shown while the stream is dropped for idleness, and
- * dismissed by touching it anywhere — the touch is what reopens the connection.
+ * REQUIREMENTS.md § 8.4.1. Shown on every tab while the app is dormant, and
+ * dismissed by touching it anywhere — the touch is what reopens the request gate.
  *
  * WARN: `absolute`, never `fixed` (AGENTS.md § 4.4.). `ShellOverlay` is what puts
  * it over the floating header and the tab bar (DESIGN.md § 3.5.1.).
@@ -37,8 +37,9 @@ export function DormantOverlay({ className, bodyClassName, onWake }: DormantOver
         <span className={cn("flex flex-col items-center gap-xs", bodyClassName)}>
           <Moon className="size-8 text-meta" aria-hidden />
           <span className="text-display-sm text-ink">절전 모드</span>
+          {/* INFO: DESIGN.md § 7.17. 실시간 연결 rather than 서버 연결 was true only while this lived on 채팅 — it now covers 캘린더 and 보관함, which never held a stream to drop. */}
           <span className="text-body-sm text-meta">
-            한동안 쓰지 않아 실시간 연결을 잠시 끊었어요.
+            한동안 쓰지 않아 서버 연결을 잠시 끊었어요.
           </span>
           <span className="text-caption text-meta">화면을 누르면 다시 이어져요</span>
         </span>

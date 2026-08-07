@@ -8,7 +8,7 @@ import {
   allowedMimesForEmoticonSlot,
   isAllowedEmoticonAsset,
 } from "@/shared/config";
-import { formatSize, holdUnsentWork, mapPooled } from "@/shared/lib";
+import { formatSize, holdAwake, holdUnsentWork, mapPooled } from "@/shared/lib";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
 import { createEmoticon } from "../api/write-emoticon";
 
@@ -56,6 +56,8 @@ export async function addEmoticonsFromFiles(
 
   // INFO: REQUIREMENTS.md § 15.1. Held here rather than from the screen, which unmounts the moment the user routes away and would take the guarantee with it.
   const release = holdUnsentWork();
+  // WARN: REQUIREMENTS.md § 8.4.1. A second hold, against dormancy rather than the reload, and it has to span the whole batch. `uploadEmoticonAsset` releases its own the moment its PUT lands, so once the uploads finish `registerInPickOrder` is a bare run of POSTs with nothing holding the app awake and no pointer or key events under it — twenty files outlast `SSE_IDLE_TIMEOUT` easily, and a dormancy landing mid-loop would refuse every remaining `createEmoticon` *and* the `discardEmoticonAssets` meant to clean up after it, stranding the objects in the bucket.
+  const releaseAwake = holdAwake();
 
   try {
     await Promise.all([
@@ -79,6 +81,7 @@ export async function addEmoticonsFromFiles(
     ]);
   } finally {
     release();
+    releaseAwake();
   }
 
   return { added, failed };

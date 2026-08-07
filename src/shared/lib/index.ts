@@ -1,3 +1,5 @@
+export { isDormant, setDormant } from "./activity/dormancy";
+export { hasUnsentWork, holdUnsentWork, useUnsentWork } from "./activity/unsent-work";
 export { AssertionError, assert, ensure } from "./assert";
 export {
   declareAudioSession,
@@ -64,7 +66,7 @@ export { useIsCoarsePointer } from "./hooks/use-is-coarse-pointer";
 export { isIos, useIsIos } from "./hooks/use-is-ios";
 export { useIsVirtualKeyboardOpen } from "./hooks/use-is-virtual-keyboard-open";
 export { useIsomorphicLayoutEffect } from "./hooks/use-isomorphic-layout-effect";
-export { isBusy, useKeepAwake } from "./hooks/use-keep-awake";
+export { holdAwake, isBusy, useKeepAwake } from "./hooks/use-keep-awake";
 export {
   LONG_PRESS_TARGET_CLASS,
   useLongPress,
@@ -86,4 +88,3 @@ export {
   withoutFragment,
   type TextSegment,
 } from "./text/url";
-export { hasUnsentWork, holdUnsentWork, useUnsentWork } from "./unsent-work";

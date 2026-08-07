@@ -5,7 +5,14 @@ import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import { revokePreview, uploadDraft } from "@/features/upload-media/@x/send-message";
 import { MAX_UPLOAD_INFLIGHT_BYTES, UPLOAD_CONCURRENCY } from "@/shared/config";
-import { isVoiceActive, mapPooled, randomId, stopVoice, type Nullable } from "@/shared/lib";
+import {
+  holdAwake,
+  isVoiceActive,
+  mapPooled,
+  randomId,
+  stopVoice,
+  type Nullable,
+} from "@/shared/lib";
 import { useCallback, useRef, useState } from "react";
 import { postMessage, type PostMessageParams } from "../api/post-message";
 import { toBubbles, toDraftKind } from "./to-bubbles";
@@ -163,10 +170,12 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
    */
   const enqueue = useCallback(
     (messages: PendingMessage[]) => {
-      queueRef.current = messages.reduce(
-        (queue, message) => queue.then(() => deliver(message)),
-        queueRef.current,
-      );
+      // WARN: REQUIREMENTS.md § 8.4.1. A send is a task in flight the idle timer cannot see — it produces no `pointerdown` and no `keydown`, and going dormant mid-chain would close the request gate between an uploaded photo and the POST that would have referenced it.
+      const release = holdAwake();
+
+      queueRef.current = messages
+        .reduce((queue, message) => queue.then(() => deliver(message)), queueRef.current)
+        .finally(release);
     },
     [deliver],
   );

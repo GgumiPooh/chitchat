@@ -1,4 +1,5 @@
 import type { ArchiveMedia } from "@/entities/media";
+import { request } from "@/shared/api";
 import { MEDIA_COPY_PATH } from "@/shared/config";
 
 /**
@@ -14,7 +15,7 @@ export async function copyToBackground(
   sourceId: string,
   slot: "profile" | "chat",
 ): Promise<ArchiveMedia> {
-  const response = await fetch(MEDIA_COPY_PATH, {
+  const response = await request(MEDIA_COPY_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sourceId, slot }),

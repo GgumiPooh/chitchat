@@ -28,6 +28,32 @@ export function useKeepAwake(isActive: boolean): void {
 }
 
 /**
+ * REQUIREMENTS.md § 8.4.1. Holds the app awake for work that outlives the
+ * component that started it, until the returned release is called. § 8.5.'s
+ * delivery queue is the case: it survives routing away, and `useKeepAwake` drops
+ * its hold at unmount.
+ *
+ * WARN: Release it from a `finally`. Dormancy also closes the request gate, so a
+ * hold left standing does not merely keep the stream open — it is the only thing
+ * between the user and an app that never sleeps again.
+ */
+export function holdAwake(): () => void {
+  holders += 1;
+
+  let isReleased = false;
+
+  // WARN: Idempotent, because `holders` is a bare counter — a release called twice would let a later hold read as already free and drop the overlay onto a task still running.
+  return () => {
+    if (isReleased) {
+      return;
+    }
+
+    isReleased = true;
+    holders -= 1;
+  };
+}
+
+/**
  * REQUIREMENTS.md § 8.4.1. Whether something on screen is mid-task and must not be
  * covered.
  *

@@ -1,4 +1,5 @@
 import type { Participant } from "@/entities/user";
+import { request } from "@/shared/api";
 import { PROFILE_PATH } from "@/shared/config";
 import type { Nullable } from "@/shared/lib";
 
@@ -15,7 +16,7 @@ export type ProfileBody = {
 };
 
 export async function updateProfile(body: ProfileBody): Promise<Participant> {
-  const response = await fetch(PROFILE_PATH, {
+  const response = await request(PROFILE_PATH, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

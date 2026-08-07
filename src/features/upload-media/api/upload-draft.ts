@@ -1,6 +1,7 @@
 import type { ArchiveMedia, MediaDraft } from "@/entities/media";
+import { request } from "@/shared/api";
 import { MEDIA_PATH, MEDIA_UPLOAD_URL_PATH, type MediaUploadScope } from "@/shared/config";
-import type { Nullable } from "@/shared/lib";
+import { holdAwake, type Nullable } from "@/shared/lib";
 
 type UploadTicket = {
   r2Key: string;
@@ -33,25 +34,32 @@ export async function uploadDraft(
   draft: MediaDraft,
   { addToGallery = false, scope = "chat", onProgress = NO_PROGRESS }: UploadDraftOptions = {},
 ): Promise<ArchiveMedia> {
-  const ticket = await requestTicket(draft, scope);
+  // WARN: REQUIREMENTS.md § 8.4.1. Held here rather than at each caller, because the bytes are already in R2 by the time the registration runs — a dormancy landing between the two would leave an object nothing points at and no way to retry it.
+  const release = holdAwake();
 
-  await putWithProgress(ticket.uploadUrl, draft.file, draft.mime, onProgress);
+  try {
+    const ticket = await requestTicket(draft, scope);
 
-  // INFO: No progress for the thumbnail — it is a few tens of KB against an original measured in MB, so it would only make the bar jump.
-  if (draft.thumbnail && ticket.thumbnailUploadUrl && ticket.thumbnailMime) {
-    await putWithProgress(
-      ticket.thumbnailUploadUrl,
-      draft.thumbnail,
-      ticket.thumbnailMime,
-      () => {},
-    );
+    await putWithProgress(ticket.uploadUrl, draft.file, draft.mime, onProgress);
+
+    // INFO: No progress for the thumbnail — it is a few tens of KB against an original measured in MB, so it would only make the bar jump.
+    if (draft.thumbnail && ticket.thumbnailUploadUrl && ticket.thumbnailMime) {
+      await putWithProgress(
+        ticket.thumbnailUploadUrl,
+        draft.thumbnail,
+        ticket.thumbnailMime,
+        () => {},
+      );
+    }
+
+    return await registerUpload(draft, ticket.r2Key, addToGallery);
+  } finally {
+    release();
   }
-
-  return registerUpload(draft, ticket.r2Key, addToGallery);
 }
 
 async function requestTicket(draft: MediaDraft, scope: MediaUploadScope): Promise<UploadTicket> {
-  const response = await fetch(MEDIA_UPLOAD_URL_PATH, {
+  const response = await request(MEDIA_UPLOAD_URL_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mime: draft.mime, size: draft.file.size, scope }),
@@ -69,7 +77,7 @@ async function registerUpload(
   r2Key: string,
   addToGallery: boolean,
 ): Promise<ArchiveMedia> {
-  const response = await fetch(MEDIA_PATH, {
+  const response = await request(MEDIA_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

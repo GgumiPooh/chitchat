@@ -8,8 +8,10 @@ import {
   fetchCalendarSummary,
   fetchOccurrences,
 } from "@/features/manage-event";
+import { SSE_SYNC_COALESCE_WINDOW } from "@/shared/config";
 import {
   cn,
+  isDormant as isAppDormant,
   listMilestonesInRange,
   toDayKey,
   toMonthKey,
@@ -47,7 +49,7 @@ export function CalendarPage({
   initialOccurrences,
   initialDayKey,
 }: CalendarPageProps) {
-  const { participants } = useChatStream();
+  const { participants, isDormant } = useChatStream();
   const [summary, setSummary] = useState(initialSummary);
   const [monthKey, setMonthKey] = useState(initialMonthKey);
   const [occurrences, setOccurrences] = useState(initialOccurrences);
@@ -58,6 +60,9 @@ export function CalendarPage({
   const loadedMonthKey = useRef(initialMonthKey);
   // WARN: Two quick swipes leave two fetches in flight, and the slower one may land last. Without this counter it wins, and the grid keeps the previous month's dots while `loadedMonthKey` claims the fetch is done — the effect below has already run and will not re-run.
   const requestId = useRef(0);
+  // INFO: REQUIREMENTS.md § 8.4.1. What the effect below compares against to catch the wake rather than the state.
+  const wasDormant = useRef(false);
+  const lastSummaryFetchAt = useRef(0);
 
   const reload = useCallback(async (nextMonthKey: string) => {
     requestId.current += 1;
@@ -84,24 +89,56 @@ export function CalendarPage({
     }
   }, [monthKey, reload]);
 
-  // INFO: REQUIREMENTS.md § 11.1. Recomputed on focus, so an app left open across midnight stops showing yesterday's D-day. The count is the server's, never recomputed here.
-  useEffect(() => {
-    const refresh = () => {
-      if (document.visibilityState === "visible") {
-        void fetchCalendarSummary()
-          .then(setSummary)
-          .catch(() => undefined);
-      }
-    };
+  /**
+   * REQUIREMENTS.md § 11.1. Recomputed when the app comes back, so one left open
+   * across midnight stops showing yesterday's D-day. The count is the server's,
+   * never recomputed here.
+   *
+   * WARN: § 8.4.1. Waking is not the only way back, which is why this is not hung
+   * off dormancy alone. `isBusy` skips dormancy on a departure and
+   * `IS_SSE_IDLE_SLEEP_ENABLED` disables it outright — under either, a return
+   * produces no wake at all and the D-day would sit stale for the life of the page.
+   */
+  const refreshSummary = useCallback(() => {
+    // INFO: § 8.4.1. Read from the module rather than the context boolean, because this callback is registered once and a reactive read would re-register both listeners on every wake.
+    if (isAppDormant() || document.visibilityState !== "visible") {
+      return;
+    }
 
-    document.addEventListener("visibilitychange", refresh);
-    window.addEventListener("focus", refresh);
+    const now = Date.now();
+
+    // WARN: § 8.4. Coalesced for the same reason the stream's catch-up is: a desktop window raised from behind another fires `focus` and `visibilitychange` for one return, and this used to spend two summary requests on it.
+    if (now - lastSummaryFetchAt.current < SSE_SYNC_COALESCE_WINDOW) {
+      return;
+    }
+
+    lastSummaryFetchAt.current = now;
+
+    void fetchCalendarSummary()
+      .then(setSummary)
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    // WARN: The transition, never the value. This also runs on mount, where the summary is the one the server rendered and a refetch would be a request per visit.
+    const hasWoken = wasDormant.current && !isDormant;
+
+    wasDormant.current = isDormant;
+
+    if (hasWoken) {
+      refreshSummary();
+    }
+  }, [isDormant, refreshSummary]);
+
+  useEffect(() => {
+    document.addEventListener("visibilitychange", refreshSummary);
+    window.addEventListener("focus", refreshSummary);
 
     return () => {
-      document.removeEventListener("visibilitychange", refresh);
-      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refreshSummary);
+      window.removeEventListener("focus", refreshSummary);
     };
-  }, []);
+  }, [refreshSummary]);
 
   return (
     <div className={cn("flex flex-1 flex-col", className)}>

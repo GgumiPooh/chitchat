@@ -1,4 +1,5 @@
 import type { ArchiveMedia } from "@/entities/media";
+import { request } from "@/shared/api";
 import { ARCHIVE_PATH, type LibraryKind } from "@/shared/config";
 
 export type FetchArchiveMediaParams = {
@@ -23,7 +24,7 @@ export async function fetchArchiveMedia({ kind, before }: FetchArchiveMediaParam
     query.set("beforeId", before.id);
   }
 
-  const response = await fetch(`${ARCHIVE_PATH}?${query}`);
+  const response = await request(`${ARCHIVE_PATH}?${query}`);
 
   if (!response.ok) {
     throw new Error(`GET ${ARCHIVE_PATH} responded ${response.status}`);

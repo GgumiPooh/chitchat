@@ -1,4 +1,5 @@
 import type { MessageSearchResult } from "@/entities/message";
+import { request } from "@/shared/api";
 import { MESSAGE_SEARCH_PATH } from "@/shared/config";
 import type { Optional } from "@/shared/lib";
 
@@ -23,7 +24,7 @@ export async function fetchMessageSearch({
     params.set("before", String(before));
   }
 
-  const response = await fetch(`${MESSAGE_SEARCH_PATH}?${params}`);
+  const response = await request(`${MESSAGE_SEARCH_PATH}?${params}`);
 
   if (!response.ok) {
     throw new Error(`GET ${MESSAGE_SEARCH_PATH} responded ${response.status}`);

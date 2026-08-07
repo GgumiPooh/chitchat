@@ -1204,7 +1204,7 @@ Until one is picked, the wash stays at 45% and this is a known gap, not a decisi
 
 ## 7.17. 절전 모드 Overlay.
 
-Shown while the realtime stream is dropped for idleness (`REQUIREMENTS.md § 8.4.1.`), and dismissed by pressing it anywhere — the press is also what reopens the connection.
+Shown while the app is dormant (`REQUIREMENTS.md § 8.4.1.`), and dismissed by pressing it anywhere — the press is also what reopens the request gate.
 
 | Property         | Value                                                                                                                       |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
@@ -1230,9 +1230,11 @@ Shown while the realtime stream is dropped for idleness (`REQUIREMENTS.md § 8.4
 
 **No `:hover`.** The surface is the entire screen, so a hover state would fire wherever the pointer already happened to be resting when the overlay appeared — it would read as the overlay reacting to nothing.
 
-**The reason is written out, not implied by the glyph alone.** A screen that has covered itself with no explanation reads as a fault; `한동안 쓰지 않아 실시간 연결을 잠시 끊었어요.` says the app chose this, and the `caption` line below says how to leave.
+**The reason is written out, not implied by the glyph alone.** A screen that has covered itself with no explanation reads as a fault; `한동안 쓰지 않아 서버 연결을 잠시 끊었어요.` says the app chose this, and the `caption` line below says how to leave.
 
-**It appears on 채팅 and nowhere else.** The socket is scoped to that screen (`REQUIREMENTS.md § 8.4.2.`), so it is the only screen that can be dormant — the other three hold no stream to drop and have nothing to announce. An earlier revision put this over all four tabs, which covered a calendar the user was actively reading to report a connection that screen never had.
+**It says 서버 연결, not 실시간 연결.** The earlier copy was accurate only while this lived on 채팅. Dormancy now shuts the request gate for the whole app (`REQUIREMENTS.md § 8.4.1.`), and on 캘린더 or 보관함 — which never held a stream — naming the socket would describe something that screen never had.
+
+**It appears on all four tabs.** An earlier revision scoped it to 채팅, on the reasoning that the socket is scoped there (`REQUIREMENTS.md § 8.4.2.`) and the other screens had no connection to report. That stopped being the whole story when dormancy took over the request gate: a dormant 보관함 refuses every request it makes, so a screen without the overlay would silently fail to load anything with nothing on it to explain why or to tap. The objection that killed the earlier revision — covering a calendar the user is actively reading — is answered by the countdown rather than by scope: `pointerdown` and `keydown` reset it, so the overlay only reaches a screen genuinely untouched for `SSE_IDLE_TIMEOUT`.
 
 # 8. Rules.
 

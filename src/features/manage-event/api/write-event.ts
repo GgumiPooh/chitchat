@@ -1,4 +1,5 @@
 import type { CalendarEvent, CalendarSummary, EventOccurrence } from "@/entities/event";
+import { request } from "@/shared/api";
 import { CALENDAR_SUMMARY_PATH, EVENTS_PATH, type EventColor } from "@/shared/config";
 import type { EventRecurrence, EventScope } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
@@ -47,7 +48,7 @@ export async function deleteEvent(id: string): Promise<void> {
 
 // WARN: Throws the response status as the message, matching `features/author-emoticon` — screens branch on `404`, which is how the other participant deleting the event mid-edit surfaces.
 async function send<T = void>(path: string, method: string, body?: unknown): Promise<T> {
-  const response = await fetch(path, {
+  const response = await request(path, {
     method,
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),

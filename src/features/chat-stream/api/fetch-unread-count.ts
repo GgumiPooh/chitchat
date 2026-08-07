@@ -1,3 +1,4 @@
+import { request } from "@/shared/api";
 import { CHAT_UNREAD_PATH } from "@/shared/config";
 
 /**
@@ -6,7 +7,7 @@ import { CHAT_UNREAD_PATH } from "@/shared/config";
  * the connection was closed.
  */
 export async function fetchUnreadCount(): Promise<number> {
-  const response = await fetch(CHAT_UNREAD_PATH);
+  const response = await request(CHAT_UNREAD_PATH);
 
   if (!response.ok) {
     throw new Error(`GET ${CHAT_UNREAD_PATH} responded ${response.status}`);

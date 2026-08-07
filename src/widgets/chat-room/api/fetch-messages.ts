@@ -1,4 +1,5 @@
 import type { ChatMessage } from "@/entities/message";
+import { request } from "@/shared/api";
 
 export type FetchMessagesParams = {
   before?: number;
@@ -15,7 +16,7 @@ export async function fetchMessages(params: FetchMessagesParams): Promise<ChatMe
     }
   });
 
-  const response = await fetch(`/api/messages?${query}`);
+  const response = await request(`/api/messages?${query}`);
 
   if (!response.ok) {
     throw new Error(`GET /api/messages responded ${response.status}`);

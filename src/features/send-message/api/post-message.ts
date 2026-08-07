@@ -1,4 +1,5 @@
 import type { ChatMessage } from "@/entities/message";
+import { request } from "@/shared/api";
 
 // INFO: REQUIREMENTS.md § 8.10. The quoted id is not a payload of its own — it rides on whichever of the three a reply happens to be.
 type ReplyParams = { replyToId?: number };
@@ -12,7 +13,7 @@ export type PostMessageParams = ReplyParams &
   );
 
 export async function postMessage(params: PostMessageParams): Promise<ChatMessage> {
-  const response = await fetch("/api/messages", {
+  const response = await request("/api/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),

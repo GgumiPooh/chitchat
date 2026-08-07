@@ -1,3 +1,4 @@
+import { request } from "@/shared/api";
 import {
   MAX_ARCHIVE_SHARE_BYTES,
   MAX_ARCHIVE_SHARE_FILES,
@@ -81,7 +82,7 @@ export async function collectShareFiles(
   let totalBytes = 0;
 
   for (const id of ids) {
-    const response = await fetch(toMediaDownloadUrl(id));
+    const response = await request(toMediaDownloadUrl(id));
 
     if (!response.ok) {
       throw new Error("media_unavailable");

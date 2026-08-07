@@ -1,3 +1,4 @@
+import { request } from "@/shared/api";
 import { CHAT_TYPING_PATH } from "@/shared/config";
 
 /**
@@ -6,7 +7,7 @@ import { CHAT_TYPING_PATH } from "@/shared/config";
  * and a signal nobody heard expires on its own at the receiver.
  */
 export async function postTyping(): Promise<void> {
-  await fetch(CHAT_TYPING_PATH, { method: "POST" });
+  await request(CHAT_TYPING_PATH, { method: "POST" });
 }
 
 /**
@@ -18,5 +19,5 @@ export async function postTyping(): Promise<void> {
  * `TYPING_TIMEOUT` behind a message that has already arrived.
  */
 export async function deleteTyping(): Promise<void> {
-  await fetch(CHAT_TYPING_PATH, { method: "DELETE", keepalive: true });
+  await request(CHAT_TYPING_PATH, { method: "DELETE", keepalive: true });
 }

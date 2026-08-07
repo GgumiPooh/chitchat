@@ -1,5 +1,6 @@
 "use client";
 
+import { request } from "@/shared/api";
 import { LOGIN_ROUTE } from "@/shared/config";
 import { Button, toast } from "@/shared/ui";
 import { useRouter } from "next/navigation";
@@ -17,7 +18,7 @@ export function LogoutButton({ className }: LogoutButtonProps) {
     setIsPending(true);
 
     // INFO: A rejected fetch is the offline PWA case, which is the target environment — an unhandled one would strand the button disabled.
-    const isLoggedOut = await fetch("/api/auth/logout", { method: "POST" })
+    const isLoggedOut = await request("/api/auth/logout", { method: "POST" })
       .then((response) => response.ok)
       .catch(() => false);
 

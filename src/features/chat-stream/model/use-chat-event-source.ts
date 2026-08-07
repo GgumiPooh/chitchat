@@ -4,17 +4,14 @@ import type { ChatMessage } from "@/entities/message";
 import {
   BACKFILL_EVENT,
   CHAT_STREAM_PATH,
-  IS_SSE_IDLE_SLEEP_ENABLED,
-  SSE_BUSY_RECHECK_INTERVAL,
-  SSE_IDLE_TIMEOUT,
   SSE_RETRY_DELAY,
   SSE_STALE_AFTER,
   SSE_SYNC_COALESCE_WINDOW,
   typingEventSchema,
   type MessageArrival,
 } from "@/shared/config";
-import { isBusy, safelyGet, type Nullable, type Optional } from "@/shared/lib";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { safelyGet, type Nullable, type Optional } from "@/shared/lib";
+import { useEffect, useRef } from "react";
 import { z } from "zod";
 
 export type ChatEventSourceHandlers = {
@@ -25,71 +22,39 @@ export type ChatEventSourceHandlers = {
   onTyping: (userId: string, isTyping: boolean) => void;
   /** The deployment serving this connection. REQUIREMENTS.md § 15.1. */
   onBuild: (id: string) => void;
-  /** The stream went dormant, or came back. REQUIREMENTS.md § 8.4.1. */
-  onDormancyChange: (isDormant: boolean) => void;
 };
 
 const buildSchema = z.object({ id: z.string().min(1) });
-
-// INFO: REQUIREMENTS.md § 8.4.1. Keys that are never a keystroke on their own — pressing one is the first half of a shortcut, not typing.
-const MODIFIER_KEYS = new Set(["Meta", "Control", "Alt", "Shift", "CapsLock"]);
-
-export type ChatEventSourceState = {
-  /** REQUIREMENTS.md § 8.4.1. The stream was dropped for idleness and only `wake` brings it back. */
-  isDormant: boolean;
-  wake: () => void;
-};
 
 /**
  * The single `EventSource` of REQUIREMENTS.md § 8.4. — one connection carrying
  * both channels, closed while the tab is in the background so Neon's compute can
  * autosuspend, and caught up on every return.
  *
- * INFO: § 8.4.1. It is also dropped after an idle stretch, which is the only thing
- * that reaches a desktop PWA left open behind another window — that window is never
- * `hidden`, so the background close above never fires for it.
+ * INFO: § 8.4.1. Dormancy is not decided here. It belongs to the shell, because it
+ * governs the whole app's request gate and not merely this socket; this hook is
+ * handed the answer and closes or reopens against it.
  */
-export function useChatEventSource({
-  onMessage,
-  onUserChanged,
-  onResume,
-  onTyping,
-  onBuild,
-  onDormancyChange,
-}: ChatEventSourceHandlers): ChatEventSourceState {
+export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: boolean): void {
   // WARN: Read through a ref so a new handler identity cannot tear the connection down and reconnect it on every render.
-  const handlers = useRef({
-    onMessage,
-    onUserChanged,
-    onResume,
-    onTyping,
-    onBuild,
-    onDormancyChange,
-  });
-  const [isDormant, setIsDormant] = useState(false);
-  // WARN: The effect below runs once and owns the connection, so the only way out of dormancy is a function it publishes here. Rebuilding the effect to expose one would tear the stream down on every wake.
-  const leaveDormancy = useRef(() => undefined as void);
-  const wake = useCallback(() => leaveDormancy.current(), []);
+  const handlers = useRef(events);
 
   useEffect(() => {
-    handlers.current = { onMessage, onUserChanged, onResume, onTyping, onBuild, onDormancyChange };
+    handlers.current = events;
   });
 
   useEffect(() => {
+    // INFO: § 8.4.1. A dormant client holds no socket and syncs nothing — the catch-up below is several requests, and running them for a screen nobody has come back to is the cost that state exists to avoid.
+    if (isDormant) {
+      return;
+    }
+
     let source: Nullable<EventSource> = null;
     let retryTimer: Optional<ReturnType<typeof setTimeout>>;
-    let idleTimer: Optional<ReturnType<typeof setTimeout>>;
     let lastSyncAt = 0;
     let lastActivityAt = 0;
-    let lastInteractionAt = Date.now();
-    let isSleeping = false;
 
     function open() {
-      // INFO: § 8.4.1. Dormancy outranks every reopen path — the retry, the resume and the visibility handler all route through here, and only `wake` clears it.
-      if (isSleeping) {
-        return;
-      }
-
       // WARN: `EventSource` retries a dropped transport on its own but gives up for good on a fatal one (a 401, a body that is not `text/event-stream`), so a `CLOSED` source is replaced rather than kept.
       if (source && source.readyState !== EventSource.CLOSED) {
         return;
@@ -199,16 +164,11 @@ export function useChatEventSource({
      * REQUIREMENTS.md § 8.4. Resume is the normal sync path. An iOS home-screen
      * PWA restores the frozen page instead of navigating, so the Server
      * Component render does not re-run and cannot cover the gap.
+     *
+     * INFO: § 8.4.1. Only a departure that found `isBusy` reaches this — any other
+     * one went dormant, and waking rebuilds this effect from scratch instead.
      */
     function resume() {
-      // INFO: § 8.4.1. A dormant client syncs nothing either — the catch-up below is several requests, and running them for a screen nobody has come back to is the cost this state exists to avoid.
-      if (isSleeping) {
-        return;
-      }
-
-      // INFO: § 8.4.1. Returning to the window counts as touching it, which is also what keeps a timer armed before an iOS freeze from coming due the moment the page is restored.
-      noteInteraction();
-
       // WARN: The catch-up runs before the socket, never through it. `onopen` alone would strand the screen on stale messages for as long as the reconnect takes — and forever if it never lands.
       sync();
 
@@ -224,163 +184,38 @@ export function useChatEventSource({
       return source !== null && Date.now() - lastActivityAt > SSE_STALE_AFTER;
     }
 
-    function noteInteraction() {
-      lastInteractionAt = Date.now();
-
-      if (!isSleeping) {
-        armIdleTimer();
-      }
-    }
-
-    // INFO: § 8.4.1. Every path into dormancy — the first arm, an interaction, a departure, a resume — goes through here, so the kill switch only has to be honoured once.
-    function armIdleTimer(delay = Math.max(lastInteractionAt + SSE_IDLE_TIMEOUT - Date.now(), 0)) {
-      if (!IS_SSE_IDLE_SLEEP_ENABLED) {
-        return;
-      }
-
-      clearTimeout(idleTimer);
-      idleTimer = setTimeout(sleep, delay);
-    }
-
-    /**
-     * WARN: The deadline is re-derived from the clock rather than trusted to the
-     * timer that fired. A frozen PWA runs no timers, so one armed before the freeze
-     * comes due the instant the page is restored — and would put the § 8.4.1.
-     * overlay in front of a user who has just this moment come back.
-     */
-    function sleep() {
-      const remaining = lastInteractionAt + SSE_IDLE_TIMEOUT - Date.now();
-
-      if (remaining > 0) {
-        idleTimer = setTimeout(sleep, remaining);
-
-        return;
-      }
-
-      // WARN: § 8.4.1. This is also what tells an app-switch apart from a window-switch, since the two are indistinguishable at `blur` and only one of them should end here. A tab opened in the background starts `hidden` and fires no `visibilitychange` either, so the disarm in the visibility handler never runs for it.
-      if (document.visibilityState !== "visible") {
-        idleTimer = undefined;
-
-        return;
-      }
-
-      // INFO: § 8.4.1. A recording, a playing clip or an open sheet is a task in flight, and the overlay would cover its controls — so the countdown simply runs again.
-      if (isBusy()) {
-        armIdleTimer(SSE_BUSY_RECHECK_INTERVAL);
-
-        return;
-      }
-
-      enterDormancy();
-    }
-
-    /**
-     * REQUIREMENTS.md § 8.4.1. The one transition into 절전 모드, whatever led here —
-     * an idle stretch, a window left, or the app backgrounded.
-     *
-     * WARN: Every close that is not a teardown comes through here, because the
-     * overlay's meaning is exactly "the stream is not connected". A path that closed
-     * without it would leave the app silently disconnected behind a screen still
-     * claiming to be live.
-     */
-    function enterDormancy() {
-      if (isSleeping) {
-        return;
-      }
-
-      isSleeping = true;
-      clearTimeout(idleTimer);
-      idleTimer = undefined;
-      close();
-      setIsDormant(true);
-      handlers.current.onDormancyChange(true);
-    }
-
-    // INFO: § 8.4.1. The one way out, and it is always a deliberate act — returning focus does not qualify, or the overlay would be dismissed by the very switch that is meant to reveal it.
-    function awaken() {
-      if (!isSleeping) {
-        return;
-      }
-
-      isSleeping = false;
-      setIsDormant(false);
-      handlers.current.onDormancyChange(false);
-      resume();
-    }
-
     function handleVisibilityChange() {
       if (document.visibilityState === "hidden") {
-        // INFO: § 8.4.1. Backgrounding closes the stream, so it raises the overlay like any other close — the alternative is an app that reconnects behind the user's back and never says it had stopped.
-        leave();
-
-        return;
-      }
-
-      resume();
-    }
-
-    /**
-     * REQUIREMENTS.md § 8.4.1. `blur` has no counterpart in § 8.4. — a desktop PWA
-     * behind another window stays `visible`, so this is the only event that sees
-     * that one go away.
-     */
-    function handleBlur() {
-      leave();
-    }
-
-    /**
-     * WARN: § 8.4.1. A task in flight closes the stream without going dormant. The
-     * overlay would cover the controls of a recording or an open sheet, and on iOS
-     * a file picker and the share sheet both take focus away mid-task — so those
-     * keep the ordinary § 8.4. resume rather than demanding a tap to come back.
-     */
-    function leave() {
-      if (isBusy()) {
-        clearTimeout(idleTimer);
-        idleTimer = undefined;
         close();
 
         return;
       }
 
-      enterDormancy();
-    }
-
-    // INFO: § 8.4.1. A key wakes as a tap does. Focus is usually still in the composer when the overlay arrives, so without this the keystrokes that follow go into a field the user can no longer see and nothing reconnects.
-    function handleKeyDown(event: KeyboardEvent) {
-      if (isSleeping) {
-        if (isTypingKey(event)) {
-          awaken();
-        }
-
-        return;
-      }
-
-      // INFO: Unfiltered here. `Cmd+C` in the composer is a user plainly at the keyboard, and a shortcut that is a departure is caught by the `blur` above instead.
-      noteInteraction();
+      resume();
     }
 
     /**
-     * WARN: § 8.4.1. `Cmd` reaches the page before focus leaves it, so waking on
-     * any key at all meant `Cmd+Tab` — a departure — opened a connection on the way
-     * out. Only a keystroke that would have put a character on screen counts.
+     * REQUIREMENTS.md § 8.4. Closing on a departure belongs to this hook and is
+     * unconditional, because § 8.4.1.'s dormancy is not the only thing that can be
+     * true here: `isBusy` skips it, and `IS_SSE_IDLE_SLEEP_ENABLED` disables it
+     * outright.
+     *
+     * WARN: Do not make this contingent on dormancy. `blur` is the only event a
+     * desktop PWA pushed behind another window produces — it stays `visible` — so a
+     * blur that closed nothing would hold an unpooled Neon connection open
+     * indefinitely, which is the whole cost § 8.4.1. was written to remove.
      */
-    function isTypingKey(event: KeyboardEvent) {
-      return !MODIFIER_KEYS.has(event.key) && !event.metaKey && !event.ctrlKey && !event.altKey;
+    function handleBlur() {
+      close();
     }
 
     open();
-    armIdleTimer();
     document.addEventListener("visibilitychange", handleVisibilityChange);
     // INFO: § 8.4. iOS is inconsistent about which of these a PWA app-switch produces, so all three are observed and `sync` coalesces the duplicates.
     window.addEventListener("pageshow", resume);
     window.addEventListener("focus", resume);
     window.addEventListener("pagehide", close);
     window.addEventListener("blur", handleBlur);
-    // WARN: § 8.4.1. `pointerdown` and `keydown` only. `mousemove` and `scroll` would hand the countdown to a cursor crossing the window and to momentum the user is not driving, which is most of what this is meant to catch.
-    document.addEventListener("pointerdown", noteInteraction);
-    document.addEventListener("keydown", handleKeyDown);
-    leaveDormancy.current = awaken;
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -388,14 +223,7 @@ export function useChatEventSource({
       window.removeEventListener("focus", resume);
       window.removeEventListener("pagehide", close);
       window.removeEventListener("blur", handleBlur);
-      document.removeEventListener("pointerdown", noteInteraction);
-      document.removeEventListener("keydown", handleKeyDown);
-      clearTimeout(idleTimer);
       close();
-      // WARN: § 8.4.1. The provider outlives this hook, so a dormancy left standing here is one nothing ever takes back down — leaving 채팅 while the overlay is up would strand it believing the conversation is still asleep.
-      handlers.current.onDormancyChange(false);
     };
-  }, []);
-
-  return { isDormant, wake };
+  }, [isDormant]);
 }

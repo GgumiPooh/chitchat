@@ -1,4 +1,6 @@
+import { request } from "@/shared/api";
 import { EMOTICON_UPLOAD_URL_PATH, type EmoticonSlot } from "@/shared/config";
+import { holdAwake } from "@/shared/lib";
 
 type UploadTicket = {
   r2Key: string;
@@ -14,20 +16,28 @@ type UploadTicket = {
  * for the whole submit instead.
  */
 export async function uploadEmoticonAsset(slot: EmoticonSlot, file: Blob): Promise<string> {
-  const ticket = await requestTicket(slot, file);
+  // WARN: REQUIREMENTS.md § 8.4.1. This covers the ticket and the PUT only. Whatever registers the key afterwards is a separate request and must take a hold of its own that outlives this one — `addEmoticonsFromFiles` does, and an object uploaded without one is unreachable the moment dormancy refuses its registration.
+  const release = holdAwake();
 
-  const response = await fetch(ticket.uploadUrl, {
-    method: "PUT",
-    // WARN: `Content-Type` alone. It is CORS-safelisted; anything else needs the bucket's `AllowedHeaders` to name it, and a header the policy omits fails the preflight for every upload (§ 9., § 13.3.).
-    headers: { "Content-Type": file.type },
-    body: file,
-  });
+  try {
+    const ticket = await requestTicket(slot, file);
 
-  if (!response.ok) {
-    throw new Error(`PUT responded ${response.status}`);
+    // INFO: Plain `fetch`. This is R2's presigned URL, not our API, so § 8.4.1.'s gate has nothing to protect and the hold above is what covers it.
+    const response = await fetch(ticket.uploadUrl, {
+      method: "PUT",
+      // WARN: `Content-Type` alone. It is CORS-safelisted; anything else needs the bucket's `AllowedHeaders` to name it, and a header the policy omits fails the preflight for every upload (§ 9., § 13.3.).
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+
+    if (!response.ok) {
+      throw new Error(`PUT responded ${response.status}`);
+    }
+
+    return ticket.r2Key;
+  } finally {
+    release();
   }
-
-  return ticket.r2Key;
 }
 
 /**
@@ -41,7 +51,7 @@ export async function discardEmoticonAssets(r2Keys: string[]): Promise<void> {
     return;
   }
 
-  await fetch(EMOTICON_UPLOAD_URL_PATH, {
+  await request(EMOTICON_UPLOAD_URL_PATH, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ r2Keys }),
@@ -49,7 +59,7 @@ export async function discardEmoticonAssets(r2Keys: string[]): Promise<void> {
 }
 
 async function requestTicket(slot: EmoticonSlot, file: Blob): Promise<UploadTicket> {
-  const response = await fetch(EMOTICON_UPLOAD_URL_PATH, {
+  const response = await request(EMOTICON_UPLOAD_URL_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ slot, mime: file.type, size: file.size }),

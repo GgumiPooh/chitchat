@@ -1,8 +1,9 @@
 import type { EmoticonPackWithItems } from "@/entities/emoticon";
+import { request } from "@/shared/api";
 import { EMOTICON_PACKS_PATH } from "@/shared/config";
 
 export async function fetchEnabledPacks(): Promise<EmoticonPackWithItems[]> {
-  const response = await fetch(`${EMOTICON_PACKS_PATH}?enabled=1`);
+  const response = await request(`${EMOTICON_PACKS_PATH}?enabled=1`);
 
   if (!response.ok) {
     throw new Error(`GET ${EMOTICON_PACKS_PATH} responded ${response.status}`);

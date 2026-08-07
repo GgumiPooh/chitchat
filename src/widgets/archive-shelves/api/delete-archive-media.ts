@@ -1,3 +1,4 @@
+import { request } from "@/shared/api";
 import { ARCHIVE_PATH } from "@/shared/config";
 
 /**
@@ -6,7 +7,7 @@ import { ARCHIVE_PATH } from "@/shared/config";
  * the photo or deleting an object no bubble was ever rendering.
  */
 export async function deleteArchiveMedia(ids: string[]): Promise<void> {
-  const response = await fetch(ARCHIVE_PATH, {
+  const response = await request(ARCHIVE_PATH, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids }),
