@@ -1,7 +1,14 @@
 import "server-only";
 
 import { MEDIA_CACHE_MAX_AGE, MEDIA_URL_EXPIRY, UPLOAD_URL_EXPIRY } from "@/shared/config";
-import { A_SECOND, safelyGetAsync, safelyRunAsync, type Optional } from "@/shared/lib";
+import {
+  A_SECOND,
+  safelyGetAsync,
+  safelyRunAsync,
+  type Maybe,
+  type Nullable,
+  type Optional,
+} from "@/shared/lib";
 import {
   CopyObjectCommand,
   DeleteObjectsCommand,
@@ -42,6 +49,8 @@ export function presignUpload(key: string, contentType: string): Promise<string>
 
 export type PresignDownloadOptions = {
   asAttachment?: boolean;
+  /** REQUIREMENTS.md § 9.1. The name a file attachment saves under, since the key is a UUID. Ignored unless `asAttachment` is set. */
+  filename?: Nullable<string>;
   /** INFO: Defaults to § 9.'s window; `EMOTICON_URL_EXPIRY` is the long one, and REQUIREMENTS.md § 13.3. is why only emoticons may take it. */
   expiry?: number;
   /** INFO: REQUIREMENTS.md § 13.3. What R2 answers the bytes with, for objects it stores no `Cache-Control` of its own for — which is all of them. */
@@ -64,18 +73,42 @@ export type PresignDownloadOptions = {
  */
 export function presignDownload(
   key: string,
-  { asAttachment, expiry = MEDIA_URL_EXPIRY, cacheControl }: PresignDownloadOptions = {},
+  { asAttachment, filename, expiry = MEDIA_URL_EXPIRY, cacheControl }: PresignDownloadOptions = {},
 ): Promise<string> {
   return getSignedUrl(
     getR2(),
     new GetObjectCommand({
       Bucket: getBucket(),
       Key: key,
-      ResponseContentDisposition: asAttachment ? "attachment" : undefined,
+      ResponseContentDisposition: asAttachment ? toDisposition(filename) : undefined,
       ResponseCacheControl: cacheControl,
     }),
     { expiresIn: expiry / A_SECOND },
   );
+}
+
+/**
+ * WARN: REQUIREMENTS.md § 9.1. `filename*` alone, in RFC 8187 form. A bare
+ * `filename=` may carry only ASCII, and a Korean document name is exactly what this
+ * exists to preserve — percent-encoding also takes the quotes and semicolons a name
+ * could otherwise inject into the header out of play.
+ *
+ * WARN: `encodeURIComponent` is **not** an `ext-value` encoder on its own. It leaves
+ * `'` `(` `)` `*` `!` `~` unescaped, and `'` is the delimiter this very form is built
+ * from — so `don't panic.pdf` would parse as charset `UTF-8`, language `don`, and a
+ * value missing its first characters. The second pass is what closes that.
+ */
+function toDisposition(filename: Maybe<string>): string {
+  if (!filename) {
+    return "attachment";
+  }
+
+  const encoded = encodeURIComponent(filename).replace(
+    /['()*!~]/g,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+
+  return `attachment; filename*=UTF-8''${encoded}`;
 }
 
 /**

@@ -1,16 +1,31 @@
 "use client";
 
 import type { MediaDraft } from "@/entities/media";
+import { isAllowedMediaMime } from "@/shared/config";
 import { toast } from "@/shared/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toMediaDraft, validateFile } from "./read-draft";
+import { revokePreview } from "./revoke-preview";
+
+export type UseMediaSelectionParams = {
+  /**
+   * Whether a § 9.1. file attachment may be staged. The composer says yes; the
+   * gallery says no.
+   *
+   * WARN: Off by default, and the gallery depends on that. `validateFile` admits
+   * anything shaped like a mime now, so a `.zip` would stage a tile the grid can
+   * never show — and `registerMedia` refuses a file under `addToGallery`, which
+   * would surface as a 422 with nothing in the UI naming the reason.
+   */
+  acceptsFiles?: boolean;
+};
 
 /**
  * The attachments staged above the composer. Selection is unlimited
  * (REQUIREMENTS.md § 18. #10) — the split into bubbles happens at send time, not
  * here, so the tray shows exactly what the user picked.
  */
-export function useMediaSelection() {
+export function useMediaSelection({ acceptsFiles = false }: UseMediaSelectionParams = {}) {
   const [drafts, setDrafts] = useState<MediaDraft[]>([]);
   const [isReading, setIsReading] = useState(false);
   const draftsRef = useRef<MediaDraft[]>([]);
@@ -23,7 +38,7 @@ export function useMediaSelection() {
 
   // WARN: Revokes whatever the tray still holds. `takeAll` empties this first on a send, so a sent attachment's preview survives into the optimistic bubble.
   useEffect(() => {
-    return () => draftsRef.current.forEach((draft) => URL.revokeObjectURL(draft.previewUrl));
+    return () => draftsRef.current.forEach(revokePreview);
   }, []);
 
   const add = useCallback(
@@ -39,7 +54,10 @@ export function useMediaSelection() {
         const rejections = new Set<string>();
 
         for (const file of files) {
-          const rejection = validateFile(file);
+          const rejection =
+            acceptsFiles || isAllowedMediaMime(file.type)
+              ? validateFile(file)
+              : "사진과 동영상만 올릴 수 있어요";
 
           if (rejection) {
             rejections.add(rejection);
@@ -60,7 +78,7 @@ export function useMediaSelection() {
         setIsReading(false);
       }
     },
-    [commit],
+    [acceptsFiles, commit],
   );
 
   const remove = useCallback(
@@ -69,7 +87,7 @@ export function useMediaSelection() {
         const dropped = previous.find((draft) => draft.id === id);
 
         if (dropped) {
-          URL.revokeObjectURL(dropped.previewUrl);
+          revokePreview(dropped);
         }
 
         return previous.filter((draft) => draft.id !== id);
@@ -87,7 +105,7 @@ export function useMediaSelection() {
             return draft;
           }
 
-          URL.revokeObjectURL(draft.previewUrl);
+          revokePreview(draft);
 
           return next;
         }),
@@ -113,7 +131,7 @@ export function useMediaSelection() {
 
   const clear = useCallback(() => {
     commit((previous) => {
-      previous.forEach((draft) => URL.revokeObjectURL(draft.previewUrl));
+      previous.forEach(revokePreview);
 
       return [];
     });

@@ -2,7 +2,7 @@
 
 import type { GalleryMedia, MediaDraft } from "@/entities/media";
 import { postMessage } from "@/features/send-message";
-import { uploadDraft } from "@/features/upload-media";
+import { revokePreview, uploadDraft } from "@/features/upload-media";
 import {
   MAX_MEDIA_PER_MESSAGE,
   MAX_UPLOAD_INFLIGHT_BYTES,
@@ -54,7 +54,7 @@ export function useGalleryUpload(onAdded: (media: GalleryMedia) => void) {
             } catch {
               return null;
             } finally {
-              URL.revokeObjectURL(draft.previewUrl);
+              revokePreview(draft);
               setRemainingCount((current) => Math.max(current - 1, 0));
             }
           },

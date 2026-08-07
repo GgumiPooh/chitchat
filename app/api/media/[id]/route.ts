@@ -45,8 +45,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  const url = await presignDownload(toVariantKey(row, query.data.variant), {
-    asAttachment: query.data.download === "1",
+  // WARN: REQUIREMENTS.md § 9.1. A file attachment is served as an attachment whatever the query says, and never as a thumb variant it has no object for. Nothing in the app renders one inline, so the only way this URL is ever opened is to save it.
+  const isFile = row.filename !== null;
+  const url = await presignDownload(toVariantKey(row, isFile ? "original" : query.data.variant), {
+    asAttachment: isFile || query.data.download === "1",
+    filename: row.filename,
   });
 
   return NextResponse.redirect(url, {

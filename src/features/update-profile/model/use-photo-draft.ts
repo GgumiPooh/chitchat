@@ -60,7 +60,7 @@ export function usePhotoDraft(scope: MediaUploadScope = "avatar") {
       try {
         const draft = await toMediaDraft(file);
 
-        urlsRef.current.add(draft.previewUrl);
+        retain(urlsRef.current, draft.previewUrl);
 
         return draft;
       } catch {
@@ -75,7 +75,7 @@ export function usePhotoDraft(scope: MediaUploadScope = "avatar") {
   );
 
   const stage = useCallback((draft: MediaDraft) => {
-    urlsRef.current.add(draft.previewUrl);
+    retain(urlsRef.current, draft.previewUrl);
     setIsCleared(false);
     setStaged((previous) => {
       release(urlsRef.current, previous?.previewUrl);
@@ -132,6 +132,13 @@ function rejectFile(file: File, canTakeVideo: boolean): Nullable<string> {
   }
 
   return validateFile(file);
+}
+
+// INFO: REQUIREMENTS.md § 9.1. `previewUrl` is nullable because a chat file attachment has none; every draft reaching this hook is an image and always does.
+function retain(urls: Set<string>, url: Maybe<string>) {
+  if (url) {
+    urls.add(url);
+  }
 }
 
 function release(urls: Set<string>, url: Maybe<string>) {

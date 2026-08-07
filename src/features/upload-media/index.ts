@@ -2,10 +2,13 @@ export { uploadDraft, type UploadDraftOptions, type UploadProgress } from "./api
 export { applyEdit, type ApplyEditOptions, type CropArea } from "./model/apply-edit";
 export { toMediaDraft, validateFile } from "./model/read-draft";
 export { EMOTICON_IMAGE_EDIT_OPTIONS, toEmoticonImageDraft } from "./model/read-emoticon-image";
+export { revokePreview } from "./model/revoke-preview";
 export { isWithinDuration, trimVideo, type TrimRange } from "./model/trim-video";
 export { useAttachmentEditing, type AttachmentEditing } from "./model/use-attachment-editing";
+export { useFileDrop, type FileDropHandlers } from "./model/use-file-drop";
 export { useMediaSelection } from "./model/use-media-selection";
 export { DraftPreview, type DraftPreviewProps } from "./ui/draft-preview";
+export { FileDropOverlay, type FileDropOverlayProps } from "./ui/file-drop-overlay";
 export { MediaEditor, type MediaEditorProps } from "./ui/media-editor";
 export { MediaPickerSheet, type MediaPickerSheetProps } from "./ui/media-picker-sheet";
 export { MediaTray, type MediaTrayProps } from "./ui/media-tray";

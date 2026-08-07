@@ -54,7 +54,7 @@ export function DraftPreview({ className, draft, src }: DraftPreviewProps) {
         className={cn("size-full", className)}
         videoClassName="size-full object-cover"
         src={sourceUrl}
-        poster={draft?.previewUrl}
+        poster={draft?.previewUrl ?? undefined}
         autoPlay
         loop
         muted

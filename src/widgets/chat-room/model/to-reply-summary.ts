@@ -1,4 +1,5 @@
 import type { ReplyPreview } from "@/entities/message";
+import { toMediaLabel } from "@/shared/config";
 
 /**
  * The one line a quote shows for the message it points at (DESIGN.md § 6.10.).
@@ -13,7 +14,7 @@ export function toReplySummary(replyTo: ReplyPreview): string {
 
   switch (replyTo.kind) {
     case "media":
-      return replyTo.isVideoOnly ? "동영상" : "사진";
+      return toMediaLabel(replyTo.mediaKind);
     case "emoticon":
       return "이모티콘";
     default:

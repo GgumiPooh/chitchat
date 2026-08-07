@@ -3,7 +3,7 @@
 import type { MediaDraft } from "@/entities/media";
 import { toMediaDraft, validateFile } from "@/features/upload-media/@x/set-background";
 import { isImageMime } from "@/shared/config";
-import type { Nullable } from "@/shared/lib";
+import type { Maybe, Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -53,7 +53,7 @@ export function usePickedPhoto() {
     try {
       const draft = await toMediaDraft(file);
 
-      urlsRef.current.add(draft.previewUrl);
+      retain(urlsRef.current, draft.previewUrl);
       setCropping(draft);
     } catch {
       toast.error("사진을 읽지 못했어요");
@@ -67,7 +67,7 @@ export function usePickedPhoto() {
   // WARN: The editor's 완료 hands back a *new* draft with a `previewUrl` of its own, which nothing else knows about — untracked it outlives every reset and leaks one thumbnail blob per wallpaper change. `usePhotoDraft.stage` tracks the same URL for the same reason.
   // WARN: Takes the editor down before the upload rather than after it. `MediaEditor` re-enables 완료 the moment `onDone` returns, and `onDone` returns long before the R2 PUT does — left mounted, a second tap uploads a second object and races a second PATCH against the first.
   const commit = useCallback((draft: MediaDraft) => {
-    urlsRef.current.add(draft.previewUrl);
+    retain(urlsRef.current, draft.previewUrl);
     setCropping(null);
   }, []);
 
@@ -78,4 +78,11 @@ export function usePickedPhoto() {
   }, []);
 
   return { cropping, isReading, read, cancel, commit, reset };
+}
+
+// INFO: REQUIREMENTS.md § 9.1. `previewUrl` is nullable because a chat file attachment has none; every draft reaching this hook is an image and always does.
+function retain(urls: Set<string>, url: Maybe<string>) {
+  if (url) {
+    urls.add(url);
+  }
 }

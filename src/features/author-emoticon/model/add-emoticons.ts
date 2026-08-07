@@ -1,6 +1,6 @@
 import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
-import { toEmoticonImageDraft } from "@/features/upload-media/@x/author-emoticon";
+import { revokePreview, toEmoticonImageDraft } from "@/features/upload-media/@x/author-emoticon";
 import {
   MAX_EMOTICON_IMAGE_SIZE,
   MAX_UPLOAD_INFLIGHT_BYTES,
@@ -139,7 +139,7 @@ async function prepare(file: File): Promise<Prepared> {
   }
 
   // INFO: The preview is never rendered on this path — the grid reads the registered item back through its asset URL — so it is released as soon as the size has been read off it.
-  URL.revokeObjectURL(draft.previewUrl);
+  revokePreview(draft);
 
   // INFO: REQUIREMENTS.md § 14. A courtesy check, so an oversized file fails before it is uploaded rather than at registration.
   if (!isAllowedEmoticonAsset("image", draft.file.type, draft.file.size)) {

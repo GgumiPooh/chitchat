@@ -1,5 +1,6 @@
 import type { Emoticon } from "@/entities/emoticon/@x/message";
 import type { ChatMedia } from "@/entities/media/@x/message";
+import type { MediaKind } from "@/shared/config";
 import type { MessageType, SystemAction } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
 
@@ -19,10 +20,10 @@ export type ReplyPreview = {
   kind: MessageType;
   /** Already sliced to `REPLY_PREVIEW_MAX_LENGTH` — the quote clamps to one line. */
   text: Nullable<string>;
-  /** The first attachment, for the quote's thumbnail; null for every other kind. */
+  /** The first attachment, for the quote's thumbnail; null for every other kind, and for a file attachment, which has no thumbnail object (§ 9.1.). */
   thumbnailMediaId: Nullable<string>;
-  // INFO: Names the bubble the way the § 16.1. push body does — 사진 covers a mixed send, since listing both kinds would read as a manifest in a line that has room for neither.
-  isVideoOnly: boolean;
+  // INFO: Names the bubble the way the § 16.1. push body does — 사진 covers a mixed send of photos and videos, since listing both would read as a manifest in a line with room for neither. A file bubble is its own kind, and § 6. never mixes it with the other two.
+  mediaKind: Nullable<MediaKind>;
   // INFO: § 6. is append-only and a delete is a soft one, so the parent row outlives its content and the quote says 삭제된 메시지예요 instead of going blank.
   isDeleted: boolean;
   id: number;

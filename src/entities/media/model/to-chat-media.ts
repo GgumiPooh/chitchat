@@ -10,5 +10,7 @@ export function toChatMedia(row: Media): ChatMedia {
     height: row.height,
     durationMs: row.durationMs,
     blurhash: row.blurhash,
+    filename: row.filename,
+    size: row.size,
   };
 }

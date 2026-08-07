@@ -15,17 +15,19 @@ import {
 import { useSetBackground } from "@/features/set-background";
 import { useTypingSignal } from "@/features/typing-indicator";
 import {
+  FileDropOverlay,
   MediaEditor,
   MediaPickerSheet,
   MediaTray,
   VideoTrimmer,
   useAttachmentEditing,
+  useFileDrop,
   useMediaSelection,
 } from "@/features/upload-media";
 import {
   MESSAGE_FLASH_DURATION,
   REPLY_PREVIEW_MAX_LENGTH,
-  isVideoMime,
+  toMediaKind,
   type MessageArrival,
 } from "@/shared/config";
 import {
@@ -40,7 +42,13 @@ import {
   type Nullable,
   type Optional,
 } from "@/shared/lib";
-import { MediaShareDialog, canShareText, shareText, useMediaShare } from "@/shared/share";
+import {
+  MediaShareDialog,
+  canShareText,
+  downloadMedia,
+  shareText,
+  useMediaShare,
+} from "@/shared/share";
 import {
   ActionSheet,
   Button,
@@ -125,6 +133,9 @@ export type ChatRoomProps = {
 
 // INFO: DESIGN.md § 6.7. The pill appears once the newest message is roughly this far away, and the same distance is what `scrollEndThreshold` treats as near enough to the end that a row re-measuring there should hold the end still rather than let it drift.
 const AT_BOTTOM_THRESHOLD = 200;
+
+// INFO: REQUIREMENTS.md § 6. One row is every attachment in it, which is the one thing neither the sheet nor the viewer shows. REQUIREMENTS.md § 9.1.'s file bubble names files instead.
+const MEDIA_DELETE_WARNING = "말풍선에 담긴 사진과 동영상이 모두 사라져요";
 
 // INFO: The loading header's own height (`h-10`), constant whether or not the skeleton is in it — a header that collapsed would move the list under the finger every time a page lands.
 const LIST_HEADER_HEIGHT = 40;
@@ -211,13 +222,19 @@ export function ChatRoom({
   const { pending, send, sendMedia, sendEmoticon, retry, cancel, resolve } = useSendMessage({
     onSent: appendMessage,
   });
-  const selection = useMediaSelection();
+  // INFO: REQUIREMENTS.md § 9.1. The one surface that takes a file attachment — the gallery stages the same way but shows tiles, so it keeps the default.
+  const selection = useMediaSelection({ acceptsFiles: true });
   const editing = useAttachmentEditing(selection.replace);
   // INFO: REQUIREMENTS.md § 8.11. The same route the gallery's 저장 takes (§ 10.), asked for by 공유 rather than by 저장.
   const sharing = useMediaShare();
   const isKeyboardOpen = useIsVirtualKeyboardOpen();
   // INFO: REQUIREMENTS.md § 8.6. The composer's whole stack is put away for the length of a search, and everything it drives has to go with it.
   const isSearching = bottomBar !== undefined;
+  // INFO: REQUIREMENTS.md § 9.2. Refused for the length of a search — the composer and its tray are put away there, so a drop would stage attachments the screen offers no way to send.
+  const fileDrop = useFileDrop({
+    isEnabled: !isSearching,
+    onDrop: (files) => void stageMedia(files),
+  });
   // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
   // WARN: `!isSearching` is load-bearing beyond the drawing. The panel being open is one of § 8.12.'s two sustained typing sources, so a panel left open behind the search goes on announcing 입력 중 — and it would pop back open on 취소.
   const isEmoticonPanelOpen = isEmoticonPickerOpen && !isKeyboardOpen && !isSearching;
@@ -628,7 +645,12 @@ export function ChatRoom({
 
   return (
     // INFO: DESIGN.md § 3.5. One scroll region spanning the whole screen; the composer and the tab bar float over its bottom edge rather than shortening it.
-    <div ref={containerRef} className={cn("relative min-h-0 flex-1 bg-chat-canvas", className)}>
+    // INFO: REQUIREMENTS.md § 9.2. The drop target is the whole room, so a file dragged anywhere over the conversation stages rather than having to find the composer.
+    <div
+      ref={containerRef}
+      className={cn("relative min-h-0 flex-1 bg-chat-canvas", className)}
+      {...fileDrop.handlers}
+    >
       {backgroundMediaId && <ChatBackdrop mediaId={backgroundMediaId} />}
       {rows.length === 0 ? (
         <>
@@ -785,7 +807,7 @@ export function ChatRoom({
         header={{
           title: "이 메시지를 삭제할까요?",
           // INFO: The one thing the viewer cannot show — REQUIREMENTS.md § 6. makes a bubble one row, so the other attachments in it go with the one on screen.
-          description: "말풍선에 담긴 사진과 동영상이 모두 사라져요",
+          description: toDeleteWarning(confirmingDeleteId),
         }}
         onClose={() => setConfirmingDeleteId(null)}
       >
@@ -805,6 +827,7 @@ export function ChatRoom({
       </Modal>
       <MediaPickerSheet
         isOpen={isPickerOpen}
+        hasFileRow
         onClose={() => setIsPickerOpen(false)}
         onSelect={(files) => void stageMedia(files)}
       />
@@ -831,6 +854,8 @@ export function ChatRoom({
       )}
       {/* INFO: REQUIREMENTS.md § 12.1. Mounted outside the viewer conditional above, so dismissing the viewer cannot unmount the sheet mid-write — `useSetBackground` returns the two halves separately for exactly this. */}
       {setBackground.sheet}
+      {/* INFO: REQUIREMENTS.md § 9.2. Last in the tree, so it covers the composer and the pill as well as the history — a drag reads as being over the conversation, not over whichever strip it happens to be crossing. */}
+      <FileDropOverlay isActive={fileDrop.isDropping} />
     </div>
   );
 
@@ -1065,11 +1090,7 @@ export function ChatRoom({
                 : undefined
             }
             onOpenMedia={(index) =>
-              setViewer({
-                cells,
-                index,
-                deletableMessageId: row.isMine ? row.message.id : null,
-              })
+              openAttachment(cells, index, row.isMine ? row.message.id : null)
             }
             onShare={
               canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
@@ -1080,6 +1101,35 @@ export function ChatRoom({
         );
       }
     }
+  }
+
+  // INFO: REQUIREMENTS.md § 9.1. A file bubble carries no photos to warn about losing, and § 6. keeps a bubble's attachments all of one kind — so the first one names them all.
+  function toDeleteWarning(messageId: Nullable<number>): string {
+    // INFO: The modal stays mounted, so this prop is evaluated on every render of the room — the scan belongs behind the one state that can ask for it.
+    if (messageId === null) {
+      return MEDIA_DELETE_WARNING;
+    }
+
+    const target = messages.find((message) => message.id === messageId);
+
+    return target?.media[0]?.filename ? "말풍선에 담긴 파일이 모두 사라져요" : MEDIA_DELETE_WARNING;
+  }
+
+  /**
+   * WARN: REQUIREMENTS.md § 9.1. A file attachment saves instead of opening. It has
+   * no thumbnail and no inline representation, so the § 7.10. viewer would open on
+   * an empty slide it could neither draw nor swipe out of.
+   */
+  function openAttachment(cells: MediaCell[], index: number, deletableMessageId: Nullable<number>) {
+    const cell = cells[index];
+
+    if (cell?.filename) {
+      void downloadMedia([cell.id]);
+
+      return;
+    }
+
+    setViewer({ cells, index, deletableMessageId });
   }
 
   function buildActionItems(): ActionSheetItem[] {
@@ -1127,9 +1177,9 @@ export function ChatRoom({
       senderId: message.senderId,
       kind: message.type,
       text: message.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null,
-      thumbnailMediaId: message.media[0]?.id ?? null,
-      isVideoOnly:
-        message.media.length > 0 && message.media.every((item) => isVideoMime(item.mime)),
+      // INFO: REQUIREMENTS.md § 9.1. A file attachment has no `_thumb` object, so the quote takes its label alone rather than a tile that would 404.
+      thumbnailMediaId: message.media[0]?.filename ? null : (message.media[0]?.id ?? null),
+      mediaKind: toMediaKind(message.media),
       isDeleted: false,
       id: message.id,
     });
@@ -1185,8 +1235,11 @@ export function ChatRoom({
    * received photo in the iOS photo library — and a text message as its text. An
    * emoticon is neither: it is a pack item rather than something the sender sent.
    */
+  // WARN: REQUIREMENTS.md § 9.1. A file bubble is withheld. `useMediaShare` buffers originals for iOS's photo library and words every step of it as 사진 — a document reaching that path is offered a save it cannot perform, and the card's own tap already downloads it.
   function canShareMessage(message: ChatMessage): boolean {
-    return message.media.length > 0 || (message.text !== null && message.text.length > 0);
+    const hasShareableMedia = message.media.length > 0 && message.media[0].filename === null;
+
+    return hasShareableMedia || (message.text !== null && message.text.length > 0);
   }
 
   /**

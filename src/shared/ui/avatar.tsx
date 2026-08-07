@@ -121,6 +121,9 @@ function toAvatarCell(mediaId: string): MediaCell {
     id: mediaId,
     previewUrl: toMediaUrl(mediaId),
     originalUrl: toMediaUrl(mediaId, "original"),
+    // INFO: REQUIREMENTS.md § 9.1. An avatar is never a file attachment — the scope refuses one at registration — so it names none and reports no size the viewer would show.
+    filename: null,
+    sizeBytes: 0,
     // INFO: No save control. A profile photo is the person, not an attachment they shared, and § 7.10.'s viewer hides the affordance when there is nothing to point it at.
     downloadUrl: null,
     width: 1,

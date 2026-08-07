@@ -298,7 +298,7 @@ function VideoSlide({ cell }: { cell: MediaCell }) {
     <video
       className="max-h-full max-w-full"
       src={cell.originalUrl ?? undefined}
-      poster={cell.previewUrl}
+      poster={cell.previewUrl ?? undefined}
       controls
       playsInline
       preload="metadata"

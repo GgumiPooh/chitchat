@@ -1,11 +1,13 @@
 import type { GalleryMedia, MediaDraft } from "@/entities/media";
 import { MEDIA_PATH, MEDIA_UPLOAD_URL_PATH, type MediaUploadScope } from "@/shared/config";
+import type { Nullable } from "@/shared/lib";
 
 type UploadTicket = {
   r2Key: string;
   uploadUrl: string;
-  thumbnailUploadUrl: string;
-  thumbnailMime: string;
+  // INFO: REQUIREMENTS.md § 9.1. Both null for a file attachment, which has no thumbnail to sign a second PUT for.
+  thumbnailUploadUrl: Nullable<string>;
+  thumbnailMime: Nullable<string>;
 };
 
 export type UploadProgress = (loadedBytes: number) => void;
@@ -34,8 +36,16 @@ export async function uploadDraft(
   const ticket = await requestTicket(draft, scope);
 
   await putWithProgress(ticket.uploadUrl, draft.file, draft.mime, onProgress);
+
   // INFO: No progress for the thumbnail — it is a few tens of KB against an original measured in MB, so it would only make the bar jump.
-  await putWithProgress(ticket.thumbnailUploadUrl, draft.thumbnail, ticket.thumbnailMime, () => {});
+  if (draft.thumbnail && ticket.thumbnailUploadUrl && ticket.thumbnailMime) {
+    await putWithProgress(
+      ticket.thumbnailUploadUrl,
+      draft.thumbnail,
+      ticket.thumbnailMime,
+      () => {},
+    );
+  }
 
   return registerUpload(draft, ticket.r2Key, addToGallery);
 }
@@ -67,6 +77,7 @@ async function registerUpload(
       width: draft.width,
       height: draft.height,
       durationMs: draft.durationMs,
+      filename: draft.filename,
       addToGallery,
     }),
   });

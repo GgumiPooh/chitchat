@@ -4,7 +4,7 @@ import type { MediaDraft } from "@/entities/media";
 import { isVideoMime } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { Skeleton } from "@/shared/ui";
-import { Pencil, Play, Scissors, X } from "lucide-react";
+import { FileText, Pencil, Play, Scissors, X } from "lucide-react";
 
 export type MediaTrayProps = {
   className?: string;
@@ -17,7 +17,8 @@ export type MediaTrayProps = {
 
 /**
  * The staged attachments, above the composer. Every tile carries its own remove
- * control and an edit one — a photo crops and filters, a video trims.
+ * control, and a photo or a video an edit one — a photo crops and filters, a video
+ * trims. A file has neither editor and nothing to draw (REQUIREMENTS.md § 9.1.).
  */
 export function MediaTray({ className, drafts, isReading, onEdit, onRemove }: MediaTrayProps) {
   if (drafts.length === 0 && !isReading) {
@@ -34,31 +35,8 @@ export function MediaTray({ className, drafts, isReading, onEdit, onRemove }: Me
     >
       {drafts.map((draft) => (
         <div key={draft.id} className="relative shrink-0">
-          {/* WARN: DESIGN.md § 8.1. bans hex in TSX, and this is a user photo rather than a token surface — the ring is what keeps a light image off the glass. */}
-          <img
-            className="size-16 rounded-sm object-cover ring-1 ring-hairline ring-inset"
-            src={draft.previewUrl}
-            alt=""
-          />
-          {/* INFO: The play glyph marks the tile as a video; it is not a control, so it takes no pointer events and the edit strip below it stays reachable. */}
-          {isVideoMime(draft.mime) && (
-            <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <Play className="size-5 text-on-primary drop-shadow-sm" strokeWidth={1.75} />
-            </span>
-          )}
-          {/* INFO: Both kinds are editable — a photo crops and filters (§ 9.), a video trims (§ 12.1.'s trimmer, with no length cap here). */}
-          <button
-            className="absolute inset-x-0 bottom-0 flex h-6 cursor-pointer items-center justify-center rounded-b-sm bg-scrim/45 text-on-primary transition-colors outline-none hover:bg-scrim/60 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
-            type="button"
-            aria-label={isVideoMime(draft.mime) ? "영상 자르기" : "사진 편집"}
-            onClick={() => onEdit(draft)}
-          >
-            {isVideoMime(draft.mime) ? (
-              <Scissors className="size-3.5" strokeWidth={1.75} />
-            ) : (
-              <Pencil className="size-3.5" strokeWidth={1.75} />
-            )}
-          </button>
+          {/* INFO: REQUIREMENTS.md § 9.1. Branched on `filename`, the one discriminator — a preview that failed to mint is a broken photo, not a file, and the two must not swap tiles over it. */}
+          {draft.filename ? renderFileTile(draft) : renderMediaTile(draft)}
           {/* INFO: DESIGN.md § 3.2. The glyph stays small while the button keeps a finger-sized hit area through its negative inset. */}
           <button
             className="absolute -top-1 -right-1 inline-flex size-6 cursor-pointer items-center justify-center rounded-full border border-hairline bg-canvas text-meta transition-colors outline-none hover:bg-surface-strong hover:text-ink focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-pressed"
@@ -74,4 +52,50 @@ export function MediaTray({ className, drafts, isReading, onEdit, onRemove }: Me
       {isReading && <Skeleton className="size-16 shrink-0 rounded-sm" />}
     </div>
   );
+
+  // INFO: REQUIREMENTS.md § 9.1. Nothing to draw, so the tile is the name — in the same 64px square, since a tray of mixed attachments has to stay one row of one height.
+  function renderFileTile(draft: MediaDraft) {
+    return (
+      <span className="flex size-16 flex-col items-center justify-center gap-2xs rounded-sm bg-surface-soft px-1 ring-1 ring-hairline ring-inset">
+        <FileText className="size-5 shrink-0 text-meta" strokeWidth={1.75} />
+        <span className="line-clamp-2 w-full text-center text-micro break-all text-meta">
+          {draft.filename}
+        </span>
+      </span>
+    );
+  }
+
+  function renderMediaTile(draft: MediaDraft) {
+    const isVideo = isVideoMime(draft.mime);
+
+    return (
+      <>
+        {/* WARN: DESIGN.md § 8.1. bans hex in TSX, and this is a user photo rather than a token surface — the ring is what keeps a light image off the glass. */}
+        <img
+          className="size-16 rounded-sm object-cover ring-1 ring-hairline ring-inset"
+          src={draft.previewUrl ?? undefined}
+          alt=""
+        />
+        {/* INFO: The play glyph marks the tile as a video; it is not a control, so it takes no pointer events and the edit strip below it stays reachable. */}
+        {isVideo && (
+          <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <Play className="size-5 text-on-primary drop-shadow-sm" strokeWidth={1.75} />
+          </span>
+        )}
+        {/* INFO: Both kinds are editable — a photo crops and filters (§ 9.), a video trims (§ 12.1.'s trimmer, with no length cap here). */}
+        <button
+          className="absolute inset-x-0 bottom-0 flex h-6 cursor-pointer items-center justify-center rounded-b-sm bg-scrim/45 text-on-primary transition-colors outline-none hover:bg-scrim/60 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+          type="button"
+          aria-label={isVideo ? "영상 자르기" : "사진 편집"}
+          onClick={() => onEdit(draft)}
+        >
+          {isVideo ? (
+            <Scissors className="size-3.5" strokeWidth={1.75} />
+          ) : (
+            <Pencil className="size-3.5" strokeWidth={1.75} />
+          )}
+        </button>
+      </>
+    );
+  }
 }

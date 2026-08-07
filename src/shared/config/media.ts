@@ -1,4 +1,4 @@
-import { A_MEGABYTE, A_MINUTE, A_SECOND } from "@/shared/lib";
+import { A_MEGABYTE, A_MINUTE, A_SECOND, type Nullable } from "@/shared/lib";
 
 /** REQUIREMENTS.md § 9. Presigned PUT, then registration; the id route mints presigned GETs. */
 export const MEDIA_UPLOAD_URL_PATH = "/api/media/upload-url";
@@ -70,6 +70,18 @@ export const MAX_IMAGE_SIZE = 50 * A_MEGABYTE;
 // WARN: A presigned PUT is a single request with no resume, so this is an upload-reliability ceiling, not a storage one — raising it needs multipart upload, not a bigger number. 500MB is roughly one minute of 4K60 or seven of 1080p30.
 export const MAX_VIDEO_SIZE = 500 * A_MEGABYTE;
 
+// WARN: REQUIREMENTS.md § 9.1. The same upload-reliability ceiling the line above sets, for the same reason — a file is one presigned PUT too. It is deliberately not smaller: the pair send each other archives and videos the OS declined to hand over as video.
+export const MAX_FILE_SIZE = 500 * A_MEGABYTE;
+
+// WARN: REQUIREMENTS.md § 9.1. R2 keys carry no name, so a file attachment's own name is stored on the row and rebuilt into `Content-Disposition` at download. Long enough for a real document title, short enough that the header stays one.
+export const MAX_FILENAME_LENGTH = 200;
+
+// INFO: What a `file` input reports for an extension the OS has no type for. Signed into the PUT and stored, so the row never carries an empty mime.
+export const FALLBACK_FILE_MIME = "application/octet-stream";
+
+// WARN: REQUIREMENTS.md § 9.1. A file attachment's type is whatever the browser claimed and R2 stored, so this is the only thing bounding what reaches `media.mime` — it is a shape check, never an allow-list.
+const MIME_PATTERN = /^[\w.+-]+\/[\w.+-]+$/;
+
 // INFO: REQUIREMENTS.md § 18. #10. Selection is unlimited; a send longer than this is split across consecutive messages so the grid never needs a `+N` overflow cell.
 export const MAX_MEDIA_PER_MESSAGE = 9;
 
@@ -137,6 +149,75 @@ export function isAllowedMediaMime(mime: string): mime is AllowedMediaMime {
   return isImageMime(mime) || isVideoMime(mime);
 }
 
+/**
+ * Whether this type is carried as a **file attachment** rather than as something
+ * the grid and the viewer draw (REQUIREMENTS.md § 9.1.).
+ *
+ * WARN: The complement of the media allow-list, not a second list of its own. A
+ * type the app cannot render is a file, which is what makes `image/svg+xml` or a
+ * `.mkv` arrive as a downloadable card instead of as a broken tile — and what keeps
+ * one type from ever being both.
+ */
+export function isFileMime(mime: string): boolean {
+  return MIME_PATTERN.test(mime) && !isAllowedMediaMime(mime);
+}
+
+/**
+ * The name a file attachment is stored and downloaded under.
+ *
+ * WARN: REQUIREMENTS.md § 9.1. Applied server-side at registration, not merely at
+ * the pick. It strips the path segments a directory drop carries and the control
+ * characters that would otherwise be built into a `Content-Disposition` header.
+ */
+export function toSafeFilename(name: string): string {
+  const cleaned = name
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/[\\/]+/g, " ")
+    .trim();
+
+  // WARN: Cut by code point, never by `slice`. A string index counts UTF-16 units, so a name ending in an emoji or an astral-plane ideograph is cut *inside* its surrogate pair — and the lone surrogate left behind is what makes `toDisposition` throw `URIError` on every attempt to save that attachment.
+  return Array.from(cleaned).slice(0, MAX_FILENAME_LENGTH).join("") || "파일";
+}
+
+/** What a media bubble is called where it cannot be drawn — the § 8.10. quote and the § 16.1. push body. */
+export type MediaKind = "photo" | "video" | "file";
+
+/**
+ * The one kind that names a whole bubble's attachments.
+ *
+ * WARN: Lives here rather than in `entities/media` for the same reason `toMediaUrl`
+ * does — the chat room composes an optimistic quote in the browser, and a value
+ * import from that barrel drags `server-only` into the bundle.
+ *
+ * INFO: 사진 covers a mixed photo-and-video send: listing both would read as a
+ * manifest in a line with room for neither. A file bubble never mixes with them at
+ * all (REQUIREMENTS.md § 9.1.), so its own kind is exact rather than a majority.
+ */
+export function toMediaKind(items: MediaKindInput[]): Nullable<MediaKind> {
+  if (items.length === 0) {
+    return null;
+  }
+
+  if (items.every((item) => item.filename !== null)) {
+    return "file";
+  }
+
+  return items.every((item) => isVideoMime(item.mime)) ? "video" : "photo";
+}
+
+export function toMediaLabel(kind: Nullable<MediaKind>): string {
+  if (kind === "file") {
+    return "파일";
+  }
+
+  return kind === "video" ? "동영상" : "사진";
+}
+
+type MediaKindInput = {
+  mime: string;
+  filename: Nullable<string>;
+};
+
 // INFO: R2 stores the bytes under a UUID key with no name of its own, so a file handed to the share sheet has to be named here.
 const MIME_EXTENSIONS: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -158,7 +239,12 @@ export function extensionForMime(mime: string): string {
 
 /** The cap the given type is measured against. REQUIREMENTS.md § 14. */
 export function maxSizeForMime(mime: string): number {
-  return isVideoMime(mime) ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+  if (isVideoMime(mime)) {
+    return MAX_VIDEO_SIZE;
+  }
+
+  // WARN: The image cap is the narrow one, so the file branch has to come off `isImageMime` rather than off a trailing `else` — a `.zip` measured against `MAX_IMAGE_SIZE` is refused at 50MB with no copy that explains why.
+  return isImageMime(mime) ? MAX_IMAGE_SIZE : MAX_FILE_SIZE;
 }
 
 /**

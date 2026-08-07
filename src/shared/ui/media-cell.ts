@@ -9,8 +9,8 @@ import type { Nullable } from "@/shared/lib";
  * widget (REQUIREMENTS.md § 2.), so this and `MediaViewer` are what the two share.
  */
 export type MediaCell = {
-  /** What the tile shows — the stored thumbnail, or the draft's local preview. */
-  previewUrl: string;
+  /** What the tile shows — the stored thumbnail, or the draft's local preview. Null for a file attachment (REQUIREMENTS.md § 9.1.), which has neither. */
+  previewUrl: Nullable<string>;
   // INFO: Null while the attachment is still a local draft. The viewer needs the full-size object, which does not exist until the upload is registered.
   originalUrl: Nullable<string>;
   /** The same object as `originalUrl`, signed to save rather than to display. */
@@ -19,5 +19,16 @@ export type MediaCell = {
   height: number;
   durationMs: Nullable<number>;
   isVideo: boolean;
+  /**
+   * REQUIREMENTS.md § 9.1. The name a file attachment carries, and the flag that
+   * says it is one — `null` for a photo or a video.
+   *
+   * WARN: A cell with a filename is never handed to `MediaViewer`. It has no
+   * thumbnail, no original to display and no box; § 6. keeps a bubble's cells all
+   * of one kind so the two never meet in one track.
+   */
+  filename: Nullable<string>;
+  /** § 9.1. The stored byte count, which is all the file card can say about what it cannot draw. */
+  sizeBytes: number;
   id: string;
 };

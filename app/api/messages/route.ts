@@ -16,7 +16,8 @@ import {
   MAX_MESSAGE_PAGE_SIZE,
   MESSAGE_PAGE_SIZE,
   PUSH_BODY_MAX_LENGTH,
-  isVideoMime,
+  toMediaKind,
+  toMediaLabel,
 } from "@/shared/config";
 import { safelyRunAsync, type Optional } from "@/shared/lib";
 import { NextResponse, after } from "next/server";
@@ -152,5 +153,5 @@ function toPushBody(message: ChatMessage): string {
     return (message.text ?? "").slice(0, PUSH_BODY_MAX_LENGTH);
   }
 
-  return message.media.every((item) => isVideoMime(item.mime)) ? "동영상" : "사진";
+  return toMediaLabel(toMediaKind(message.media));
 }

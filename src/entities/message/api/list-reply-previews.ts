@@ -1,6 +1,6 @@
 import "server-only";
 
-import { REPLY_PREVIEW_MAX_LENGTH, isVideoMime } from "@/shared/config";
+import { REPLY_PREVIEW_MAX_LENGTH, toMediaKind } from "@/shared/config";
 import { getDb, messages } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
 import { inArray } from "drizzle-orm";
@@ -60,9 +60,10 @@ export async function listReplyPreviews(parentIds: number[]): Promise<Map<number
       kind: row.type,
       // INFO: A deleted parent surrenders its content and keeps only its identity — the quote replaces both with 삭제된 메시지예요.
       text: row.deletedAt ? null : (row.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null),
-      thumbnailMediaId: attachments[0]?.id ?? null,
+      // INFO: REQUIREMENTS.md § 9.1. A file attachment has no `_thumb` object, so the quote is left with the label alone rather than a tile that 404s.
+      thumbnailMediaId: attachments[0]?.filename ? null : (attachments[0]?.id ?? null),
       // INFO: The same rule the § 16.1. push body applies — 동영상 only when there is no photo in the bubble to contradict it.
-      isVideoOnly: attachments.length > 0 && attachments.every((item) => isVideoMime(item.mime)),
+      mediaKind: toMediaKind(attachments),
       isDeleted: row.deletedAt !== null,
       id: row.id,
     });

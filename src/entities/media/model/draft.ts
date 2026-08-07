@@ -10,11 +10,14 @@ import type { Nullable } from "@/shared/lib";
 export type MediaDraft = {
   file: File;
   // INFO: REQUIREMENTS.md § 9. Uploaded alongside the original as `{key}_thumb`; for a video it is the poster frame.
-  thumbnail: Blob;
-  previewUrl: string;
+  // INFO: § 9.1. Null for a file attachment, which has nothing to render a thumbnail from — the pair of PUTs is a single one there.
+  thumbnail: Nullable<Blob>;
+  previewUrl: Nullable<string>;
   mime: string;
   width: number;
   height: number;
   durationMs: Nullable<number>;
+  /** REQUIREMENTS.md § 9.1. Set on a file attachment and null on a photo or video, exactly as `ChatMedia.filename` is. */
+  filename: Nullable<string>;
   id: string;
 };

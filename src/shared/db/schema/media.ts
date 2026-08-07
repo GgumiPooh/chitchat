@@ -14,8 +14,11 @@ export const media = pgTable(
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
     // INFO: REQUIREMENTS.md § 8.3. Required, so the virtualized list can reserve the box before the asset loads.
+    // WARN: REQUIREMENTS.md § 9.1. Zero on a file attachment, which has no drawn box to reserve — every reader of these must branch on `filename` before trusting them as a ratio.
     width: integer("width").notNull(),
     height: integer("height").notNull(),
+    // WARN: REQUIREMENTS.md § 9.1. The discriminator, not decoration: a row with a filename is a file attachment, and it has no `_thumb` sibling, never enters the gallery (§ 10.) and is never drawn by the viewer. Set by the server from the stored mime, never taken as the client says it.
+    filename: text("filename"),
     // INFO: DESIGN.md § 6.5. Null for a still image; a video cell draws its running time from this, read off the element that produced the poster frame.
     durationMs: integer("duration_ms"),
     blurhash: text("blurhash"),

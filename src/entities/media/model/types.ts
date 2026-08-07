@@ -8,10 +8,18 @@ import type { Nullable } from "@/shared/lib";
 export type ChatMedia = {
   mime: string;
   // INFO: REQUIREMENTS.md § 8.3. What the virtualizer reserves the row's box from, before the asset loads.
+  // WARN: Both zero on a file attachment (§ 9.1.) — read `filename` first, or a card lands as a `0 / 0` aspect ratio.
   width: number;
   height: number;
   durationMs: Nullable<number>;
   blurhash: Nullable<string>;
+  /**
+   * REQUIREMENTS.md § 9.1. The name a file attachment was sent under, and the
+   * discriminator that says it is one — `null` for every photo and video.
+   */
+  filename: Nullable<string>;
+  // INFO: § 9.1. The file card names its own size, which is the only thing it can say about a document it cannot draw.
+  size: number;
   id: string;
 };
 

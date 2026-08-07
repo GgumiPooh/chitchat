@@ -1,6 +1,6 @@
 import { registerMedia } from "@/entities/media";
 import { getCurrentUser } from "@/shared/auth";
-import { MEDIA_UPLOAD_SCOPES } from "@/shared/config";
+import { MAX_FILENAME_LENGTH, MEDIA_UPLOAD_SCOPES } from "@/shared/config";
 import { toScopePrefix } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -8,9 +8,12 @@ import { z } from "zod";
 const bodySchema = z.object({
   r2Key: z.string().min(1),
   // INFO: REQUIREMENTS.md § 8.3. Read off the decoded `<img>` / `<video>` in the browser, because the server never receives the bytes to measure.
-  width: z.number().int().positive(),
-  height: z.number().int().positive(),
+  // INFO: § 9.1. Zero is allowed because a file attachment has no box to measure; `registerMedia` zeroes it there regardless and refuses a media row whose thumbnail never landed.
+  width: z.number().int().nonnegative(),
+  height: z.number().int().nonnegative(),
   durationMs: z.number().int().nonnegative().nullish(),
+  // INFO: REQUIREMENTS.md § 9.1. The name the file was picked under. Sanitized and accepted only for a stored type the app cannot draw — `registerMedia` decides that from R2, not from here.
+  filename: z.string().min(1).max(MAX_FILENAME_LENGTH).nullish(),
   // INFO: REQUIREMENTS.md § 10. An upload started in the Gallery tab that is not being posted to the conversation. It needs a marker of its own, because the grid's other source is the `message_media` join.
   addToGallery: z.boolean().optional(),
 });

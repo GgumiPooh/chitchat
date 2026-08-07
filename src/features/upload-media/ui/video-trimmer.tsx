@@ -113,7 +113,7 @@ export function VideoTrimmer({
               videoClassName="max-h-full max-w-full"
               placeholderClassName="rounded-md"
               src={sourceUrl}
-              poster={draft.previewUrl}
+              poster={draft.previewUrl ?? undefined}
               muted
               playsInline
               preload="metadata"

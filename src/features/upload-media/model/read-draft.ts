@@ -1,5 +1,12 @@
 import type { MediaDraft } from "@/entities/media";
-import { isAllowedMediaMime, isVideoMime, maxSizeForMime } from "@/shared/config";
+import {
+  FALLBACK_FILE_MIME,
+  isAllowedMediaMime,
+  isFileMime,
+  isVideoMime,
+  maxSizeForMime,
+  toSafeFilename,
+} from "@/shared/config";
 import { A_SECOND, formatSize, randomId, type Nullable } from "@/shared/lib";
 import { loadImage, renderThumbnail } from "./canvas";
 
@@ -11,15 +18,29 @@ const DECODE_TIMEOUT = 15 * A_SECOND;
 
 /** The Korean reason this file cannot be attached, or `null` when it can. */
 export function validateFile(file: File): Nullable<string> {
-  if (!isAllowedMediaMime(file.type)) {
+  const mime = toStoredMime(file);
+
+  // INFO: REQUIREMENTS.md § 9.1. Anything shaped like a mime gets through as a file attachment, so this only refuses a type that is malformed — the app draws what it recognises and downloads the rest.
+  if (!isAllowedMediaMime(mime) && !isFileMime(mime)) {
     return "지원하지 않는 형식이에요";
   }
 
-  if (file.size > maxSizeForMime(file.type)) {
-    return `${formatSize(maxSizeForMime(file.type))}까지 보낼 수 있어요`;
+  if (file.size > maxSizeForMime(mime)) {
+    return `${formatSize(maxSizeForMime(mime))}까지 보낼 수 있어요`;
   }
 
   return null;
+}
+
+/**
+ * REQUIREMENTS.md § 9.1. What the object will be stored as.
+ *
+ * WARN: An empty `File.type` is routine — the OS has no type registered for the
+ * extension — and it has to become a real one here, because it is signed into the
+ * PUT and read back at registration, where a blank mime is refused.
+ */
+export function toStoredMime(file: File): string {
+  return file.type || FALLBACK_FILE_MIME;
 }
 
 /**
@@ -31,7 +52,29 @@ export function validateFile(file: File): Nullable<string> {
  * so a wrong number is a visible scroll jolt rather than a cosmetic error.
  */
 export function toMediaDraft(file: File): Promise<MediaDraft> {
-  return isVideoMime(file.type) ? toVideoDraft(file) : toImageDraft(file);
+  const mime = toStoredMime(file);
+
+  // INFO: REQUIREMENTS.md § 9.1. A file attachment is never decoded — there is no box to measure and no frame to render, so it stages the moment it is picked.
+  if (isFileMime(mime)) {
+    return Promise.resolve(toFileDraft(file, mime));
+  }
+
+  return isVideoMime(mime) ? toVideoDraft(file) : toImageDraft(file);
+}
+
+function toFileDraft(file: File, mime: string): MediaDraft {
+  return {
+    id: randomId(),
+    file,
+    thumbnail: null,
+    previewUrl: null,
+    mime,
+    // INFO: § 9.1. The card is a fixed height (DESIGN.md § 6.5.), so § 8.3.'s estimate needs no dimensions from here — and the row stores zeroes whatever this said.
+    width: 0,
+    height: 0,
+    durationMs: null,
+    filename: toSafeFilename(file.name),
+  };
 }
 
 async function toImageDraft(file: File): Promise<MediaDraft> {
@@ -51,6 +94,7 @@ async function toImageDraft(file: File): Promise<MediaDraft> {
       width,
       height,
       durationMs: null,
+      filename: null,
     };
   } finally {
     URL.revokeObjectURL(sourceUrl);
@@ -80,6 +124,7 @@ async function toVideoDraft(file: File): Promise<MediaDraft> {
       width,
       height,
       durationMs: Number.isFinite(video.duration) ? Math.round(video.duration * A_SECOND) : null,
+      filename: null,
     };
   } finally {
     URL.revokeObjectURL(sourceUrl);

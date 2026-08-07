@@ -1,0 +1,44 @@
+"use client";
+
+import { cn } from "@/shared/lib";
+import { Upload } from "lucide-react";
+
+export type FileDropOverlayProps = {
+  className?: string;
+  labelClassName?: string;
+  isActive: boolean;
+};
+
+/**
+ * What a drag over the drop target looks like (REQUIREMENTS.md § 9.2.).
+ *
+ * WARN: `pointer-events-none` throughout, and it is load-bearing rather than
+ * tidiness. An overlay that takes pointer events appears under the cursor mid-drag,
+ * which the browser reports to the target below as a `dragleave` — the overlay then
+ * unmounts, the pointer is over the target again, and the whole thing flickers at
+ * frame rate while the drop never lands.
+ */
+export function FileDropOverlay({ className, labelClassName, isActive }: FileDropOverlayProps) {
+  return (
+    <div
+      className={cn(
+        "pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-md transition-opacity duration-150",
+        // WARN: Never unmounted. The transition needs both ends of the fade in the tree, and a node mounting under a live drag is the same flicker the note above describes.
+        isActive ? "opacity-100" : "opacity-0",
+        className,
+      )}
+      aria-hidden
+    >
+      <div className="absolute inset-2xs rounded-lg border-2 border-dashed border-primary bg-scrim/20" />
+      <span
+        className={cn(
+          "relative inline-flex items-center gap-2xs rounded-full border border-hairline glass px-md py-xs text-body-sm text-ink shadow-floating",
+          labelClassName,
+        )}
+      >
+        <Upload className="size-4 text-primary" strokeWidth={1.75} />
+        여기에 놓으면 첨부돼요
+      </span>
+    </div>
+  );
+}

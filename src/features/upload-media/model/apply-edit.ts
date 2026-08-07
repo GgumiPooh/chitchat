@@ -81,6 +81,7 @@ export async function applyEdit(
       width: size.width,
       height: size.height,
       durationMs: null,
+      filename: null,
     };
   } finally {
     URL.revokeObjectURL(sourceUrl);

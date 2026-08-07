@@ -18,7 +18,14 @@ export type PreloadImageProps = Omit<ComponentProps<"img">, "placeholder" | "sty
   className?: string;
   imgClassName?: string;
   placeholderClassName?: string;
-  src?: string;
+  /**
+   * WARN: Null is coerced to absent, and absent renders the **failed** state, not an
+   * empty one — an `<img>` with no source reports `complete` with a zero natural
+   * width, which is exactly what a broken asset reports. It accepts a null only to
+   * spare callers a coercion; a caller with nothing to show (REQUIREMENTS.md § 9.1.'s
+   * file attachment) must render something else instead of passing it here.
+   */
+  src?: Nullable<string>;
   /** Applied to the wrapper, which is the box the skeleton fills — a reserved size or aspect ratio belongs here, not on the image. */
   style?: CSSProperties;
   /** Off for an asset this app does not serve: the retry below cache-busts a URL we do not own, and a host that refused it once refuses it again. */
@@ -53,12 +60,13 @@ export function PreloadImage({
   ...props
 }: PreloadImageProps) {
   const [status, setStatus] = useState<LoadStatus>("loading");
-  const [trackedSrc, setTrackedSrc] = useState(src);
+  const source = src ?? undefined;
+  const [trackedSrc, setTrackedSrc] = useState(source);
   const [retryCount, setRetryCount] = useState(0);
-  const resolvedSrc = toAttemptUrl(src, retryCount);
+  const resolvedSrc = toAttemptUrl(source, retryCount);
 
-  if (trackedSrc !== src) {
-    setTrackedSrc(src);
+  if (trackedSrc !== source) {
+    setTrackedSrc(source);
     setStatus("loading");
     setRetryCount(0);
   }
@@ -129,7 +137,7 @@ export function PreloadImage({
 
   /** Whether a retry was scheduled; `false` means the load is finally failed. */
   function fail(): boolean {
-    if (!canRetry || retryCount >= MAX_RETRIES || !isRetryable(src)) {
+    if (!canRetry || retryCount >= MAX_RETRIES || !isRetryable(source)) {
       setStatus("failed");
 
       return false;

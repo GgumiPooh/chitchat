@@ -227,7 +227,7 @@ export function ProfileEditorSheet({
 
   function toAvatarUrl(): Optional<string> {
     if (avatar.staged) {
-      return avatar.staged.previewUrl;
+      return avatar.staged.previewUrl ?? undefined;
     }
 
     return avatar.isCleared || !avatarMediaId ? undefined : toMediaUrl(avatarMediaId);
@@ -235,7 +235,7 @@ export function ProfileEditorSheet({
 
   function toBackgroundUrl(): Optional<string> {
     if (background.staged) {
-      return background.staged.previewUrl;
+      return background.staged.previewUrl ?? undefined;
     }
 
     // WARN: The **thumb**, not the original. A stored cover may be a video (§ 12.1.), and its thumb is the poster frame this `<img>` can actually draw — the original would be a video URL in an image element. A still is also all this 3:2 box was ever showing.

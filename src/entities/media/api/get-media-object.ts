@@ -27,6 +27,14 @@ export async function getMediaRow(id: string): Promise<Nullable<Media>> {
  * the next profile change, which fails on that non-cascading key (§ 6.) and leaves
  * the user unable to change their photo at all; pointing an avatar at a `chat/`
  * object would put the same delete in front of a photo a bubble still renders.
+ *
+ * WARN: REQUIREMENTS.md § 9.1. The set must also be **all files or all photos**, and
+ * this is the only place that holds — `toBubbles` splits a pick by kind in the
+ * browser, which a stale client or a hand-made request simply does not run. Five
+ * readers take the whole bubble's layout, height estimate, quote label and 공유
+ * affordance from `media[0]` alone, so a mixed row renders a file cell through the
+ * photo grid, estimates § 8.3.'s box against the wrong arithmetic, and offers a
+ * document to the iOS photo library.
  */
 export async function ownsAllMedia(
   ids: string[],
@@ -38,7 +46,7 @@ export async function ownsAllMedia(
   }
 
   const rows = await getDb()
-    .select({ id: media.id })
+    .select({ id: media.id, filename: media.filename })
     .from(media)
     .where(
       and(
@@ -48,7 +56,11 @@ export async function ownsAllMedia(
       ),
     );
 
-  return new Set(rows.map((row) => row.id)).size === new Set(ids).size;
+  if (new Set(rows.map((row) => row.id)).size !== new Set(ids).size) {
+    return false;
+  }
+
+  return new Set(rows.map((row) => row.filename !== null)).size <= 1;
 }
 
 /**

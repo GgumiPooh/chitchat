@@ -1,3 +1,5 @@
+import type { Nullable } from "@/shared/lib";
+
 // INFO: DESIGN.md § 6.5. The long edge of an image message. A grid takes the same width so a bubble of one and a bubble of nine line up in the column.
 export const MEDIA_EDGE_REM = 13.75;
 
@@ -7,9 +9,17 @@ export const MEDIA_EDGE = MEDIA_EDGE_REM * 16;
 // INFO: `--spacing-2xs`, the `gap-2xs` between grid cells.
 const CELL_GAP = 4;
 
+// INFO: DESIGN.md § 6.5. `h-14` on the file card. Fixed rather than derived from the name, so REQUIREMENTS.md § 8.3.'s estimate is exact for a bubble whose contents it cannot measure — a document title has no reliable height and the card clamps it to one line for that reason.
+export const FILE_CARD_HEIGHT = 56;
+
+// INFO: `--spacing-2xs`, the `gap-2xs` between stacked file cards.
+const FILE_CARD_GAP = 4;
+
 type Sized = {
   width: number;
   height: number;
+  /** REQUIREMENTS.md § 9.1. Set on a file attachment, which is a stacked card rather than a tile in the grid. */
+  filename?: Nullable<string>;
 };
 
 // INFO: Two sits on one line and four squares up; everything else fills three columns, which is what the nine-per-bubble split of REQUIREMENTS.md § 18. #10 was chosen around.
@@ -28,6 +38,11 @@ export function toMediaBoxHeight(cells: Sized[]): number {
 
   if (!first) {
     return 0;
+  }
+
+  // INFO: REQUIREMENTS.md § 9.1. A bubble is files or photos, never both (§ 6.), so the first cell decides for all of them — a stack of fixed-height cards rather than a grid of ratios.
+  if (first.filename) {
+    return cells.length * FILE_CARD_HEIGHT + (cells.length - 1) * FILE_CARD_GAP;
   }
 
   if (cells.length === 1) {

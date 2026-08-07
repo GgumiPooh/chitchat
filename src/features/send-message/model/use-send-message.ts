@@ -3,7 +3,7 @@
 import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
-import { uploadDraft } from "@/features/upload-media/@x/send-message";
+import { revokePreview, uploadDraft } from "@/features/upload-media/@x/send-message";
 import {
   MAX_MEDIA_PER_MESSAGE,
   MAX_UPLOAD_INFLIGHT_BYTES,
@@ -69,7 +69,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
           }
 
           // WARN: The last owner of these object URLs. `useMediaSelection.takeAll` handed them over precisely so the optimistic bubble could keep rendering, so nothing else will free them.
-          entry.media.forEach((draft) => URL.revokeObjectURL(draft.previewUrl));
+          entry.media.forEach(revokePreview);
 
           return false;
         }),
@@ -191,7 +191,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
   const sendMedia = useCallback(
     (drafts: MediaDraft[], replyTo: Nullable<ReplyPreview> = null) => {
       // WARN: REQUIREMENTS.md § 8.10. The quote goes on the first bubble alone. A pick of twenty photos is three bubbles, and repeating the quote on each would draw the same sentence three times in a row.
-      const bubbles = chunk(drafts, MAX_MEDIA_PER_MESSAGE).map((media, index) => ({
+      const bubbles = toBubbles(drafts).map((media, index) => ({
         ...createPending(null, media),
         replyTo: index === 0 ? replyTo : null,
       }));
@@ -266,6 +266,38 @@ async function toPostParams(
   }
 
   return { clientMsgId, replyToId, text: message.text };
+}
+
+/**
+ * The bubbles a pick becomes (REQUIREMENTS.md § 18. #10., § 9.1.).
+ *
+ * WARN: A bubble is photos **or** files, never both — the two are drawn by
+ * different layouts at different heights, and § 6. gives one `messages` row one of
+ * them. The split walks consecutive runs rather than partitioning by kind, so a
+ * pick of photo, file, photo stays in the order it was made instead of being sorted
+ * into two blocks the sender never asked for.
+ */
+function toBubbles(drafts: MediaDraft[]): MediaDraft[][] {
+  return groupConsecutive(drafts, (draft) => draft.filename !== null).flatMap((run) =>
+    chunk(run, MAX_MEDIA_PER_MESSAGE),
+  );
+}
+
+function groupConsecutive<T, K>(items: T[], toKey: (item: T) => K): T[][] {
+  const runs: T[][] = [];
+
+  for (const item of items) {
+    const run = runs.at(-1);
+
+    if (run && toKey(run[0]) === toKey(item)) {
+      run.push(item);
+      continue;
+    }
+
+    runs.push([item]);
+  }
+
+  return runs;
 }
 
 function chunk<T>(items: T[], size: number): T[][] {

@@ -4,6 +4,7 @@ import {
   ALLOWED_VIDEO_MIMES,
   MEDIA_UPLOAD_SCOPES,
   THUMBNAIL_MIME,
+  isFileMime,
   maxSizeForMime,
 } from "@/shared/config";
 import { buildStorageKey, presignUpload, toThumbKey } from "@/shared/storage";
@@ -11,7 +12,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const bodySchema = z.object({
-  mime: z.enum([...ALLOWED_IMAGE_MIMES, ...ALLOWED_VIDEO_MIMES]),
+  // INFO: REQUIREMENTS.md § 9.1. The media allow-list, or anything else that is shaped like a mime — the second branch is a file attachment, and `registerMedia` is still where the stored type is checked.
+  mime: z.union([
+    z.enum([...ALLOWED_IMAGE_MIMES, ...ALLOWED_VIDEO_MIMES]),
+    z.string().refine(isFileMime),
+  ]),
   size: z.number().int().positive(),
   // INFO: REQUIREMENTS.md § 12. Only the profile editor asks for anything else; every other caller predates the scope and keeps the default.
   scope: z.enum(MEDIA_UPLOAD_SCOPES).default("chat"),
@@ -39,6 +44,13 @@ export async function POST(request: Request) {
   }
 
   const { mime, size, scope } = body.data;
+  // INFO: REQUIREMENTS.md § 9.1. A file attachment is one PUT, not a pair — there is no frame to render a thumbnail from, so signing a second URL would only invite an object nothing ever reads.
+  const isFile = isFileMime(mime);
+
+  // WARN: § 9.1. `registerMedia` refuses a file outside the `chat` scope, and refusing it here too is what keeps that from being a 422 arriving *after* the bytes landed — the ticket is live for `UPLOAD_URL_EXPIRY`, so a 500MB archive would sit in `background/` with no row able to name it and nothing to clean it up.
+  if (isFile && scope !== "chat") {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
 
   // INFO: REQUIREMENTS.md § 14. A courtesy rejection on the client's own claim. R2 enforces neither the type nor the size of a presigned PUT, so `registerMedia` re-checks both against what actually landed.
   if (size > maxSizeForMime(mime)) {
@@ -48,8 +60,13 @@ export async function POST(request: Request) {
   const r2Key = buildStorageKey(scope, user.id);
   const [uploadUrl, thumbnailUploadUrl] = await Promise.all([
     presignUpload(r2Key, mime),
-    presignUpload(toThumbKey(r2Key), THUMBNAIL_MIME),
+    isFile ? null : presignUpload(toThumbKey(r2Key), THUMBNAIL_MIME),
   ]);
 
-  return NextResponse.json({ r2Key, uploadUrl, thumbnailUploadUrl, thumbnailMime: THUMBNAIL_MIME });
+  return NextResponse.json({
+    r2Key,
+    uploadUrl,
+    thumbnailUploadUrl,
+    thumbnailMime: isFile ? null : THUMBNAIL_MIME,
+  });
 }

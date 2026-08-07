@@ -1,8 +1,8 @@
 "use client";
 
-import { cn, formatDuration } from "@/shared/lib";
+import { cn, formatDuration, formatSize } from "@/shared/lib";
 import { PreloadImage, type MediaCell } from "@/shared/ui";
-import { Play } from "lucide-react";
+import { FileText, Play } from "lucide-react";
 import { MEDIA_EDGE_REM, toMediaColumns } from "../model/to-media-box";
 
 const MAX_EDGE = `${MEDIA_EDGE_REM}rem`;
@@ -33,7 +33,7 @@ export function MediaGrid({
       className={cn("relative overflow-hidden rounded-md", isPending && "opacity-60", className)}
       style={{ width: MAX_EDGE }}
     >
-      {cells.length === 1 ? renderSingle(cells[0]) : renderGrid()}
+      {renderCells()}
       {isPending && progress < 1 && (
         // INFO: The one progress affordance in the chat column. DESIGN.md § 6.5. dims an optimistic bubble rather than spinning it, so this reads as the dimmed bubble filling in.
         <div className="absolute inset-x-0 bottom-0 h-1 bg-scrim/45">
@@ -45,6 +45,49 @@ export function MediaGrid({
       )}
     </div>
   );
+
+  // INFO: REQUIREMENTS.md § 9.1. A bubble is files or photos, never both (§ 6.), so the first cell picks the layout for all of them.
+  function renderCells() {
+    if (cells[0].filename) {
+      return renderFiles();
+    }
+
+    return cells.length === 1 ? renderSingle(cells[0]) : renderGrid();
+  }
+
+  /**
+   * DESIGN.md § 6.5. The file card — a fixed-height row naming what the app cannot
+   * draw, stacked when a bubble carries several.
+   *
+   * WARN: A tap **saves**, it does not open. § 9.1. serves these with
+   * `Content-Disposition: attachment` whatever is asked for, so there is no inline
+   * view for the § 7.10. viewer to have shown.
+   */
+  function renderFiles() {
+    return (
+      <div className="flex flex-col gap-2xs">
+        {cells.map((cell, index) => (
+          <button
+            key={cell.id}
+            className="flex h-14 w-full cursor-pointer items-center gap-xs rounded-md border border-hairline bg-surface-soft px-sm text-left transition-colors outline-none hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-pressed disabled:cursor-default"
+            type="button"
+            // INFO: A draft has no stored object yet, so the card is inert until the upload registers one.
+            disabled={cell.downloadUrl === null}
+            aria-label={`${cell.filename} 저장`}
+            onClick={() => onOpen?.(index)}
+          >
+            <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-sm bg-primary-tint text-primary">
+              <FileText className="size-4" strokeWidth={1.75} />
+            </span>
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate text-body-sm text-ink">{cell.filename}</span>
+              <span className="text-caption text-meta">{formatSize(cell.sizeBytes)}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    );
+  }
 
   function renderSingle(cell: MediaCell) {
     return (

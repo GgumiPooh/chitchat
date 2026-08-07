@@ -56,7 +56,12 @@ export function isInGallery(): Optional<SQL> {
   );
 
   // INFO: REQUIREMENTS.md § 18. #1. The gallery's own delete, and the only place it is read — a hidden photo still renders in the bubble it was sent in.
-  return and(isNull(media.galleryHiddenAt), or(isNotNull(media.galleryAddedAt), isPosted));
+  // WARN: REQUIREMENTS.md § 9.1. `filename` is what keeps file attachments out of the grid, and it is the whole of that guard — a file has no `_thumb` object, so a tile of one is a broken image and the § 7.10. viewer opens on nothing.
+  return and(
+    isNull(media.filename),
+    isNull(media.galleryHiddenAt),
+    or(isNotNull(media.galleryAddedAt), isPosted),
+  );
 }
 
 /**

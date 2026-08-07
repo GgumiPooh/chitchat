@@ -39,8 +39,11 @@ export function useEmoticonDraft() {
     };
   }, []);
 
-  const track = useCallback((url: string) => {
-    urlsRef.current.add(url);
+  // INFO: REQUIREMENTS.md § 9.1. Takes a `Maybe` because `MediaDraft.previewUrl` is nullable for a chat file attachment; an emoticon image always has one.
+  const track = useCallback((url: Maybe<string>) => {
+    if (url) {
+      urlsRef.current.add(url);
+    }
 
     return url;
   }, []);
@@ -99,7 +102,9 @@ export function useEmoticonDraft() {
         return;
       }
 
-      const draft = { file, previewUrl: track(URL.createObjectURL(file)) };
+      const draft = { file, previewUrl: URL.createObjectURL(file) };
+
+      track(draft.previewUrl);
 
       setIsAudioCleared(false);
       setAudio((previous) => {
