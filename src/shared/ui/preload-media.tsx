@@ -1,6 +1,7 @@
 "use client";
 
 import { cn, type Optional } from "@/shared/lib";
+import type { ClassValue } from "clsx";
 import type { LucideIcon } from "lucide-react";
 import { useState, type CSSProperties, type PropsWithChildren } from "react";
 import { Skeleton } from "./skeleton";
@@ -114,14 +115,16 @@ export function PreloadFrame({
   return (
     <span className={cn("grid", className)} style={style}>
       {!isRevealed && (
+        // WARN: The failed state's `bg-surface-strong` sits on this element and never on a child of it, so `placeholderClassName` still wins it through tailwind-merge — a full-bleed caller passing `bg-scrim` is asking for a near-black floor, and a light plate the size of the cover is what it is passing that to avoid.
         <span
           className={cn(
             "col-start-1 row-start-1 size-full overflow-hidden rounded-[inherit]",
+            status === "failed" && "bg-surface-strong",
             placeholderClassName,
           )}
         >
           {status === "failed" ? (
-            <span className="flex size-full items-center justify-center bg-surface-strong">
+            <span className="flex size-full items-center justify-center">
               <FailureIcon className="size-4 text-meta-soft" strokeWidth={1.75} />
             </span>
           ) : (
@@ -139,11 +142,11 @@ export function PreloadFrame({
  *
  * WARN: `min-h-0 min-w-0` is load-bearing — as a grid item the element's automatic minimum size is its aspect ratio's transferred suggestion, which beats `height: 100%` and pushes a portrait asset out of the box.
  */
-export function toMediaElementClassName(isVisible: boolean, className: Optional<string>): string {
+export function toMediaElementClassName(isVisible: boolean, ...classNames: ClassValue[]): string {
   return cn(
     "col-start-1 row-start-1 min-h-0 min-w-0 transition-opacity duration-200 ease-out",
     !isVisible && "opacity-0",
-    className,
+    classNames,
   );
 }
 

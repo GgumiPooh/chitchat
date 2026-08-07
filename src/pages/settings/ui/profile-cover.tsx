@@ -56,6 +56,7 @@ export function ProfileCover({
         />
       )}
       {/* INFO: Two stops for `ProfileOverlay`'s reason — the top darkens the strip the floating 설정 header sits in, the bottom darkens the name, and the middle is left alone. */}
+      {/* WARN: No `pointer-events-none`. Nothing under the tint takes a press — the avatar and the name are later `relative` siblings and hit-test above it — so letting presses through only reaches the cover's own `<img>`/`<video>` and opens the OS "이미지 저장" callout on the Settings screen. */}
       {hasCover && (
         <div className="absolute inset-0 bg-gradient-to-b from-scrim/55 via-transparent to-scrim/80" />
       )}

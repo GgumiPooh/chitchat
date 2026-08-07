@@ -86,6 +86,15 @@
   @apply bg-canvas/75 backdrop-blur-lg;
 }
 
+/* INFO: REQUIREMENTS.md § 12.1. A refused autoplay leaves the poster; WebKit instead paints its own start-playback button over it, which is a control the app never rendered and cannot style. */
+/* WARN: `!important` — this is a UA shadow pseudo-element, and WebKit's own rule for it wins a plain author declaration on iOS. */
+@utility no-start-playback-button {
+  &::-webkit-media-controls-start-playback-button {
+    display: none !important;
+    -webkit-appearance: none;
+  }
+}
+
 @utility scrollbar-hidden {
   -ms-overflow-style: none;
   scrollbar-width: none;

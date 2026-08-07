@@ -1,9 +1,18 @@
 "use client";
 
-import type { Nullable } from "@/shared/lib";
+import { A_SECOND, type Nullable, type Optional } from "@/shared/lib";
 import { VideoOff } from "lucide-react";
-import type { ComponentProps, CSSProperties, SyntheticEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  type ComponentProps,
+  type CSSProperties,
+  type SyntheticEvent,
+} from "react";
 import { PreloadFrame, toMediaElementClassName, useLoadStatus } from "./preload-media";
+
+// INFO: REQUIREMENTS.md § 12.1. How long a poster-less element waits for a real frame before metadata is taken as arrival regardless — bounded, because an engine that stops at `HAVE_METADATA` sends nothing further to wait for.
+const FIRST_FRAME_GRACE = A_SECOND;
 
 export type PreloadVideoProps = Omit<ComponentProps<"video">, "style" | "src" | "poster"> & {
   className?: string;
@@ -39,6 +48,12 @@ export type PreloadVideoProps = Omit<ComponentProps<"video">, "style" | "src" | 
  * length of the download, which reads as a broken asset rather than a pending one.
  *
  * INFO: No retry, unlike `PreloadImage` — every source here is a `blob:` URL or a § 12.1. cover under an id a replacement never reuses, so there is no cached redirect to get past.
+ *
+ * WARN: `loadeddata` is what reveals a poster-less element, and `loadedmetadata` only
+ * starts a bounded deadline — `HAVE_METADATA` is zero decoded frames, so revealing
+ * there is revealing the black. The deadline is what keeps that from becoming a hang:
+ * an engine honouring `preload="metadata"`, or WebKit having refused autoplay, sends
+ * no further event at all (REQUIREMENTS.md § 12.1.).
  */
 export function PreloadVideo({
   className,
@@ -55,11 +70,15 @@ export function PreloadVideo({
   onError,
   ...props
 }: PreloadVideoProps) {
-  const { status, isRevealed, markLoaded, markFailed } = useLoadStatus({
+  const { status, isRevealed, attemptSrc, markLoaded, markFailed } = useLoadStatus({
     src,
     canRetry: false,
     hasPoster: poster !== undefined,
   });
+  const graceTimer = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
+
+  // WARN: Keyed on `src`, not empty — the hook resets to `loading` when the source changes, and a deadline left running from the old one would reveal the new one's black frame.
+  useEffect(() => () => clearTimeout(graceTimer.current), [src]);
 
   return (
     <PreloadFrame
@@ -73,12 +92,13 @@ export function PreloadVideo({
     >
       <video
         {...props}
-        className={toMediaElementClassName(isRevealed, videoClassName)}
-        src={src}
+        // WARN: Keyed and sourced by the attempt URL, exactly as `PreloadImage` is. The retry is off for every caller today, so the two are the same string — but the shell owns that machinery now, and a wrapper that reads `src` instead is one that silently ignores it the day a caller turns it on.
+        key={attemptSrc}
+        className={toMediaElementClassName(isRevealed, "no-start-playback-button", videoClassName)}
+        src={attemptSrc}
         poster={poster}
         autoPlay={autoPlay}
         muted={muted}
-        // WARN: Metadata counts as arrival, not just `loadeddata`. A caller asking for `preload="metadata"` is asking the engine to stop at `HAVE_METADATA`, and on an engine that honours that literally `loadeddata` never fires at all — the skeleton would then sit over a player that is working perfectly.
         onLoadedMetadata={handleLoadedMetadata}
         onLoadedData={handleLoadedData}
         onError={handleError}
@@ -86,18 +106,26 @@ export function PreloadVideo({
     </PreloadFrame>
   );
 
+  // WARN: With a poster the element is already revealed and this is bookkeeping; without one it is a deadline, never a reveal — REQUIREMENTS.md § 12.1. for why neither `autoPlay` nor `preload` can decide it.
   function handleLoadedMetadata(event: SyntheticEvent<HTMLVideoElement>) {
-    markLoaded();
+    if (poster !== undefined) {
+      markLoaded();
+    } else {
+      graceTimer.current = setTimeout(markLoaded, FIRST_FRAME_GRACE);
+    }
+
     onLoadedMetadata?.(event);
   }
 
   function handleLoadedData(event: SyntheticEvent<HTMLVideoElement>) {
+    clearTimeout(graceTimer.current);
     markLoaded();
     startPlayback(event.currentTarget);
     onLoadedData?.(event);
   }
 
   function handleError(event: SyntheticEvent<HTMLVideoElement>) {
+    clearTimeout(graceTimer.current);
     markFailed();
     onError?.(event);
   }
