@@ -14,12 +14,8 @@ export type ProfileCoverProps = {
   isProfileBackgroundVideo: boolean;
 };
 
-// WARN: DESIGN.md § 3.4. The whole band, photo included, is held against the *layout* viewport — the keyboard must not resize it. Stabilising only the photo inside a band that still shrank was the half-fix: the picture stopped rescaling and the band went on collapsing around it, which is the same thing to look at.
-// WARN: Still never `50vh`. `vh` is the large viewport on WebKit, so it ignores the browser chrome the shell is already sized around — that half of the original objection stands, and `--layout-viewport-height` answers it while `vh` does not.
-const BAND_HEIGHT = "calc(var(--layout-viewport-height, 100dvh) * 0.5)";
-
 /**
- * DESIGN.md § 7.16. The Settings screen's own header — half the layout viewport,
+ * DESIGN.md § 7.16. The Settings screen's own header — half the large viewport,
  * with the § 12.1. profile cover behind the avatar and the name.
  *
  * INFO: REQUIREMENTS.md § 12.3. Tapping the avatar opens the profile screen, which
@@ -42,11 +38,12 @@ export function ProfileCover({
       className={cn(
         // WARN: `shrink-0` — this is the only item in the settings column with real shrink headroom (half the viewport against ~16px per row), so an overflowing screen would absorb all of it here and collapse the band DESIGN.md § 7.16. specifies. `RouteTransition`'s spacer carries the same warning for the same reason.
         "relative flex shrink-0 flex-col items-center justify-end gap-sm overflow-hidden pb-lg",
+        // WARN: DESIGN.md § 3.4. `lvh`, and the unit is the whole fix — the band is a background, so the keyboard must not resize it. `--viewport-height` is the visual viewport and shrinks by a third the moment the § 12.1. editor sheet takes focus; `dvh` and `--layout-viewport-height` both shrink too under Chromium's `interactive-widget=resizes-content`, which this app sets. The large viewport is the only one no keyboard moves on either engine.
+        "h-[50lvh]",
         // INFO: The floor under a missing cover is `surface-soft` rather than `scrim` — an empty half-screen of near-black would read as a broken image rather than as a profile nobody has decorated yet.
         hasCover ? "bg-scrim" : "bg-surface-soft",
         className,
       )}
-      style={{ height: BAND_HEIGHT }}
     >
       {/* INFO: Plain `inset-0` — the band above no longer moves under the keyboard, so the photo needs no stable height of its own to be held at. */}
       {profileBackgroundMediaId && (
