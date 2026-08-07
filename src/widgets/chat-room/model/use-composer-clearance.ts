@@ -22,6 +22,12 @@ export type ComposerClearanceOptions = {
  * parked directly above the composer while that strip changes height. It moves
  * often: the field auto-grows per line (DESIGN.md § 6.6.) and the bars behind it
  * come and go with the keyboard (§ 7.3.).
+ *
+ * WARN: It re-pins for a scroller that changed height too, not only for a
+ * clearance that did. The keyboard is the one thing that shortens the history
+ * without moving the composer inside it (DESIGN.md § 3.4.), and the two
+ * animations it starts do not end together — so the tail of the shell's ease
+ * would otherwise leave the newest message stranded below the fold.
  */
 export function useComposerClearance({
   containerRef,
@@ -30,6 +36,7 @@ export function useComposerClearance({
   isAtBottomRef,
 }: ComposerClearanceOptions) {
   const clearanceRef = useRef(0);
+  const scrollerHeightRef = useRef(0);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -69,19 +76,29 @@ export function useComposerClearance({
         container.getBoundingClientRect().bottom - composer.getBoundingClientRect().top,
         0,
       );
+      const scroller = scrollerRef.current;
+      // INFO: The rect and not `clientHeight` — the shell eases its height (DESIGN.md § 3.4.), so most frames of a keyboard move it by a fraction of a pixel that the rounded property reports as no change at all.
+      const scrollerHeight = scroller?.getBoundingClientRect().height ?? 0;
+      const hasClearanceChanged = clearance !== clearanceRef.current;
 
-      if (clearance === clearanceRef.current) {
+      if (!hasClearanceChanged && scrollerHeight === scrollerHeightRef.current) {
         return;
       }
 
-      const scroller = scrollerRef.current;
+      const distance = scroller
+        ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
+        : 0;
       // WARN: Read before the property below moves the spacer, and never from `isAtBottomRef` alone — the room publishes that flag from a render-scoped effect, which lands a frame or more after the spacer this loop is growing, so a mid-animation `false` would strand the rest of the animation with no re-pin at all.
+      // WARN: The shrink branch cannot borrow that flag. It is `AT_BOTTOM_THRESHOLD` wide, and a height change is not always a keyboard — a rotation or a desktop window resize would throw a reader parked inside those 200px to the live edge, which is a scroll they never asked for and did not get before.
+      // INFO: Subtracting the shrink is what leaves the tight test usable at all: the frame's own shrink is what opened the distance, so `distance − shrink` is where the reader stood before it.
       const isPinned =
         scroller !== null &&
-        (isAtBottomRef.current ||
-          scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= BOTTOM_EPSILON);
+        (hasClearanceChanged
+          ? isAtBottomRef.current || distance <= BOTTOM_EPSILON
+          : distance - (scrollerHeightRef.current - scrollerHeight) <= BOTTOM_EPSILON);
 
       clearanceRef.current = clearance;
+      scrollerHeightRef.current = scrollerHeight;
       container.style.setProperty(CLEARANCE_PROPERTY, `${clearance}px`);
 
       // INFO: The property above drives the list's trailing spacer, so reading `scrollHeight` here already sees the new one and the newest message stays parked above the composer as it grows.
