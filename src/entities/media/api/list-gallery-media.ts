@@ -1,6 +1,6 @@
 import "server-only";
 
-import { GALLERY_PAGE_SIZE } from "@/shared/config";
+import { GALLERY_PAGE_SIZE, type LibraryKind } from "@/shared/config";
 import { getDb, media, messageMedia, messages } from "@/shared/db";
 import type { Optional } from "@/shared/lib";
 import { and, desc, eq, exists, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
@@ -13,13 +13,15 @@ export type GalleryCursor = {
 };
 
 export type ListGalleryMediaParams = {
+  /** Which shelf of the library to page through — 사진 by default (REQUIREMENTS.md § 10.). */
+  kind?: LibraryKind;
   /** The last tile of the previous page — everything older than it comes next. */
   before?: GalleryCursor;
   limit?: number;
 };
 
 /**
- * One page of the gallery, newest first (REQUIREMENTS.md § 10.).
+ * One page of one library shelf, newest first (REQUIREMENTS.md § 10.).
  *
  * WARN: The cursor is the `(created_at, id)` **pair**, never `created_at` alone.
  * `created_at` defaults to the transaction timestamp, so every attachment of one
@@ -27,13 +29,15 @@ export type ListGalleryMediaParams = {
  * or repeat images (§ 6.).
  */
 export async function listGalleryMedia({
+  kind = "photo",
   before,
   limit = GALLERY_PAGE_SIZE,
 }: ListGalleryMediaParams = {}): Promise<GalleryMedia[]> {
+  const shelf = and(isInLibrary(), isOfKind(kind));
   const rows = await getDb()
     .select()
     .from(media)
-    .where(before ? and(isInGallery(), isOlderThan(before)) : isInGallery())
+    .where(before ? and(shelf, isOlderThan(before)) : shelf)
     .orderBy(desc(media.createdAt), desc(media.id))
     .limit(limit);
 
@@ -41,12 +45,16 @@ export async function listGalleryMedia({
 }
 
 /**
- * INFO: REQUIREMENTS.md § 10. `media` is the gallery's single source, so a photo
+ * INFO: REQUIREMENTS.md § 10. `media` is the library's single source, so a row
  * belongs here either because a message that is still visible carries it, or
- * because it was uploaded straight into the gallery. An object with neither is an
- * upload whose send never landed, and it is not a photo the user ever saw.
+ * because it was uploaded straight in. An object with neither is an upload whose
+ * send never landed, and it is not something the user ever saw.
+ *
+ * WARN: Membership only — which **shelf** a row lands on is `isOfKind`, and the
+ * two were one predicate until 파일 got a segment of its own. `removeGalleryMedia`
+ * wants this half alone, since 삭제 reaches every shelf.
  */
-export function isInGallery(): Optional<SQL> {
+export function isInLibrary(): Optional<SQL> {
   const isPosted = exists(
     getDb()
       .select({ one: sql`1` })
@@ -55,13 +63,33 @@ export function isInGallery(): Optional<SQL> {
       .where(and(eq(messageMedia.mediaId, media.id), isNull(messages.deletedAt))),
   );
 
-  // INFO: REQUIREMENTS.md § 18. #1. The gallery's own delete, and the only place it is read — a hidden photo still renders in the bubble it was sent in.
-  // WARN: REQUIREMENTS.md § 9.1. `filename` is what keeps file attachments out of the grid, and it is the whole of that guard — a file has no `_thumb` object, so a tile of one is a broken image and the § 7.10. viewer opens on nothing.
-  return and(
-    isNull(media.filename),
-    isNull(media.galleryHiddenAt),
-    or(isNotNull(media.galleryAddedAt), isPosted),
-  );
+  // INFO: REQUIREMENTS.md § 18. #1. The library's own delete, and the only place it is read — a hidden row still renders in the bubble it was sent in.
+  return and(isNull(media.galleryHiddenAt), or(isNotNull(media.galleryAddedAt), isPosted));
+}
+
+/**
+ * Which segment a row is drawn under (REQUIREMENTS.md § 10.).
+ *
+ * WARN: REQUIREMENTS.md § 9.1. `filename` is the discriminator and the whole of it —
+ * a file has no `_thumb` object, so it must never reach the grid, where a tile of one
+ * is a broken image and the § 7.10. viewer opens on nothing.
+ *
+ * WARN: REQUIREMENTS.md § 9.3. A voice message shares `filename IS NULL` with a
+ * photo, so it is excluded **explicitly** — without the second clause every
+ * recording appears as a tile in the 사진 grid, and it has no `_thumb` object
+ * either, so the tile is broken and the viewer opens on nothing. Excluded from 파일
+ * for free: a recording carries no filename.
+ *
+ * INFO: Derived, never stored. A third shelf (음성) is `isNotNull(media.waveformPeaks)`
+ * added here, not a column and not a migration — which is the whole reason § 9.3.
+ * took the peaks as its discriminator.
+ */
+function isOfKind(kind: LibraryKind): Optional<SQL> {
+  if (kind === "file") {
+    return isNotNull(media.filename);
+  }
+
+  return and(isNull(media.filename), isNull(media.waveformPeaks));
 }
 
 /**

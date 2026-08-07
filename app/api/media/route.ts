@@ -1,6 +1,6 @@
 import { registerMedia } from "@/entities/media";
 import { getCurrentUser } from "@/shared/auth";
-import { MEDIA_UPLOAD_SCOPES } from "@/shared/config";
+import { MEDIA_UPLOAD_SCOPES, VOICE_PEAK_SCALE, VOICE_WAVEFORM_PEAKS } from "@/shared/config";
 import { toScopePrefix } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -15,6 +15,12 @@ const bodySchema = z.object({
   // INFO: REQUIREMENTS.md § 9.1. The name the file was picked under. Sanitized and accepted only for a stored type the app cannot draw — `registerMedia` decides that from R2, not from here.
   // WARN: Length is not bounded here, by either `.max()` or a code-point refine. Registration is the step *after* the bytes are in R2, so every rejection at this schema orphans an object that no row can name and that no retry can rescue — the same 400 comes back forever. `registerMedia` runs `toSafeFilename`, which truncates to `MAX_FILENAME_LENGTH` by code point, so an over-long name is already a harmless truncation rather than a failure. Bounding it here converts that into the orphan.
   filename: z.string().min(1).nullish(),
+  // INFO: REQUIREMENTS.md § 9.3. The waveform the recorder extracted. Bounded here only in shape; `registerMedia` is what refuses it on a mime this app does not record into, which is the check that matters.
+  // WARN: Shape only, and the length is exact rather than a ceiling — unlike `filename` above, a malformed array is not a name to salvage, and `registerMedia` refuses the row on it either way.
+  waveformPeaks: z
+    .array(z.number().int().min(0).max(VOICE_PEAK_SCALE))
+    .length(VOICE_WAVEFORM_PEAKS)
+    .nullish(),
   // INFO: REQUIREMENTS.md § 10. An upload started in the Gallery tab that is not being posted to the conversation. It needs a marker of its own, because the grid's other source is the `message_media` join.
   addToGallery: z.boolean().optional(),
 });

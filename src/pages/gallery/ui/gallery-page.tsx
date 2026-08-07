@@ -16,7 +16,7 @@ import { cn, type Nullable } from "@/shared/lib";
 import {
   isShareableSelection,
   MediaShareDialog,
-  SHARE_CAP_MESSAGE,
+  toShareCapMessage,
   useMediaShare,
 } from "@/shared/share";
 import {
@@ -41,6 +41,7 @@ import {
 } from "@/widgets/gallery-grid";
 import { ImagePlus, Images, ListChecks, X } from "lucide-react";
 import { useState } from "react";
+import { LibrarySegments } from "./library-segments";
 
 export type GalleryPageProps = {
   className?: string;
@@ -48,8 +49,9 @@ export type GalleryPageProps = {
 };
 
 /**
- * REQUIREMENTS.md § 10. Everything the conversation has ever exchanged, newest
- * first — `media` is the single source, so nothing here is a copy of a chat row.
+ * REQUIREMENTS.md § 10. 보관함's 사진 segment — everything the conversation has ever
+ * exchanged, newest first. `media` is the single source, so nothing here is a copy
+ * of a chat row.
  */
 export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
   const [viewer, setViewer] = useState<Nullable<{ cells: MediaCell[]; index: number }>>(null);
@@ -76,7 +78,8 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
     // INFO: REQUIREMENTS.md § 9.2. The drop target is the whole screen, so photos dragged anywhere over the grid stage rather than having to find the 사진 추가 control.
     <div className={cn("flex flex-1 flex-col", className)} {...fileDrop.handlers}>
       <AppHeader
-        title={selection.isSelecting ? `${selectedCount}장 선택` : "갤러리"}
+        // INFO: 보관함 on both segments, matching the tab label — the chips below say which shelf, so the title has no reason to repeat it.
+        title={selection.isSelecting ? `${selectedCount}장 선택` : "보관함"}
         // INFO: DESIGN.md § 7.12. Every header control is an `icon-button-floating` — the header itself has no surface, so a bare text button would sit on whatever tile scrolled under it.
         trailing={
           selection.isSelecting ? (
@@ -110,6 +113,8 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
       />
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
       <div className="flex flex-1 flex-col p-md pt-[calc(var(--app-header-inset)+var(--spacing-xs))]">
+        {/* INFO: REQUIREMENTS.md § 10. Withheld in selection mode, as the header's own controls are — a segment tap there is a navigation that would drop the selection with nothing having said so. */}
+        {!selection.isSelecting && <LibrarySegments className="pb-sm" active="photo" />}
         {media.length === 0 && remainingCount === 0 ? (
           <div className="flex flex-1 items-center justify-center">
             <EmptyState Icon={Images} description="아직 주고받은 사진이 없어요" />
@@ -187,7 +192,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
               haptic
               onClick={() => void startUpload({ shouldPost: false })}
             >
-              갤러리에만 추가
+              보관함에만 추가
             </Button>
           </div>
         </div>
@@ -314,7 +319,7 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
     const ids = selection.selectedIds;
 
     if (!isShareableSelection(ids)) {
-      toast.error(SHARE_CAP_MESSAGE);
+      toast.error(toShareCapMessage());
 
       return;
     }

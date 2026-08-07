@@ -10,6 +10,7 @@ import {
 } from "@/shared/config";
 import { A_SECOND, formatSize, randomId, type Nullable } from "@/shared/lib";
 import { loadImage, renderThumbnail } from "./canvas";
+import type { VoiceRecording } from "./use-voice-recorder";
 
 // INFO: Far enough in that a video opening on a black frame still yields a recognisable poster, clamped below for a clip shorter than that.
 const POSTER_SEEK_SECONDS = 0.2;
@@ -73,6 +74,34 @@ export function toMediaDraft(file: File): Promise<MediaDraft> {
   return isVideoMime(mime) ? toVideoDraft(file) : toImageDraft(file);
 }
 
+/**
+ * REQUIREMENTS.md § 9.3. A finished recording as the § 9. upload wants it.
+ *
+ * INFO: Nothing is decoded. The waveform was extracted while recording and the
+ * duration was measured off the wall clock, so a recording stages instantly the way
+ * a § 9.1. file does — there is no frame to render and no box to measure.
+ *
+ * WARN: `previewUrl` is what the optimistic bubble **plays**, handed to the cell's
+ * `originalUrl`. Whoever retires that bubble owes it a `stopVoice()` before
+ * revoking, or the shared element is left parked on a dead blob URL.
+ */
+export function toVoiceDraft({ file, mime, durationMs, peaks }: VoiceRecording): MediaDraft {
+  return {
+    id: randomId(),
+    file,
+    thumbnail: null,
+    previewUrl: URL.createObjectURL(file),
+    mime,
+    // INFO: § 9.3. Fixed 56px height (DESIGN.md § 6.5.), so there is no ratio for § 8.3. to reserve and the row stores zeroes whatever this said.
+    width: 0,
+    height: 0,
+    durationMs,
+    // INFO: § 9.3. A recording is not a file attachment — it is named by neither the user nor the OS, and a filename here would file it into the 파일 shelf of § 10.
+    filename: null,
+    waveformPeaks: peaks,
+  };
+}
+
 function toFileDraft(file: File, mime: string): MediaDraft {
   return {
     id: randomId(),
@@ -85,6 +114,7 @@ function toFileDraft(file: File, mime: string): MediaDraft {
     height: 0,
     durationMs: null,
     filename: toSafeFilename(file.name),
+    waveformPeaks: null,
   };
 }
 
@@ -107,6 +137,7 @@ async function toImageDraft(file: File): Promise<MediaDraft> {
       height,
       durationMs: null,
       filename: null,
+      waveformPeaks: null,
     };
   } finally {
     URL.revokeObjectURL(sourceUrl);
@@ -138,6 +169,7 @@ async function toVideoDraft(file: File): Promise<MediaDraft> {
       height,
       durationMs: Number.isFinite(video.duration) ? Math.round(video.duration * A_SECOND) : null,
       filename: null,
+      waveformPeaks: null,
     };
   } finally {
     URL.revokeObjectURL(sourceUrl);

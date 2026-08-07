@@ -11,7 +11,7 @@ type Arrival = { pathname: string; direction: "forward" | "back" | "none"; run: 
 const tabIndexOf = (pathname: string) =>
   TAB_ROUTES.findIndex((route) => isUnderRoute(pathname, route));
 
-// INFO: DESIGN.md § 4.7.1. Direction is the bar's own order and never history — 갤러리 must not arrive from a different side depending on where the user came from.
+// INFO: DESIGN.md § 4.7.1. Direction is the bar's own order and never history — 보관함 must not arrive from a different side depending on where the user came from.
 function directionBetween(from: string, to: string): Arrival["direction"] {
   const fromIndex = tabIndexOf(from);
   const toIndex = tabIndexOf(to);

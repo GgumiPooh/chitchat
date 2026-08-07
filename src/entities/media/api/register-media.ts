@@ -3,9 +3,12 @@ import "server-only";
 import {
   MAX_FILE_SIZE,
   MAX_THUMBNAIL_SIZE,
+  MAX_VOICE_SIZE,
   THUMBNAIL_MIME,
   isAllowedMediaMime,
   isFileMime,
+  isVoiceMime,
+  isWaveformPeaks,
   maxSizeForScope,
   toSafeFilename,
   type MediaUploadScope,
@@ -25,6 +28,8 @@ export type RegisterMediaParams = {
   durationMs?: Nullable<number>;
   /** REQUIREMENTS.md § 9.1. What the file was picked as. Required of a file attachment and ignored for a photo or video, which are named by their type. */
   filename?: Nullable<string>;
+  /** REQUIREMENTS.md § 9.3. The waveform extracted while recording, and the thing that makes this row a voice message rather than an attached audio file. */
+  waveformPeaks?: Nullable<number[]>;
   // INFO: REQUIREMENTS.md § 10. Set by an upload that starts in the Gallery tab. A chat attachment leaves it false and reaches the grid through the message it is sent in.
   addToGallery?: boolean;
   /** WARN: REQUIREMENTS.md § 12.1. Read from the key rather than trusted from the caller, and it narrows the size ceiling — a `background` video is bounded far below `MAX_VIDEO_SIZE`. */
@@ -44,6 +49,12 @@ export type RegisterMediaParams = {
  * discriminator every other reader branches on, so letting a client set it would
  * let it file a JPEG out of the gallery, or claim a `.zip` was a photo and put an
  * undrawable row in the grid.
+ *
+ * WARN: § 9.3. A voice message is the one row whose discriminator the client does
+ * supply, because the server never sees the bytes and cannot extract a waveform
+ * (§ 9.). What is enforced here instead is that peaks may only ride a mime this app
+ * actually records into, and only in the shape the recorder produces — otherwise a
+ * JPEG could be filed as a voice message and would vanish from the gallery.
  */
 export async function registerMedia({
   ownerId,
@@ -52,6 +63,7 @@ export async function registerMedia({
   height,
   durationMs,
   filename,
+  waveformPeaks,
   addToGallery = false,
   scope,
 }: RegisterMediaParams): Promise<Nullable<GalleryMedia>> {
@@ -69,7 +81,19 @@ export async function registerMedia({
     return null;
   }
 
-  const isFile = isFileMime(object.mime);
+  // WARN: § 9.3. Voice is decided before file, and it narrows what would otherwise be a file: `isFileMime` is true for `audio/mp4`, so an unguarded order files every recording as an attachment. The peaks must be well-formed *and* ride a recordable mime — a caller cannot turn a `.zip` or a JPEG into a voice message by attaching an array to it.
+  const isVoice =
+    Boolean(waveformPeaks) &&
+    isVoiceMime(object.mime) &&
+    isWaveformPeaks(waveformPeaks ?? []) &&
+    object.size <= MAX_VOICE_SIZE;
+
+  // WARN: § 9.3. Peaks that failed any part of the test above are **refused**, never quietly dropped. Stored as a file instead, the object would render as a download card in the bubble the sender recorded a voice message into.
+  if (waveformPeaks && !isVoice) {
+    return null;
+  }
+
+  const isFile = !isVoice && isFileMime(object.mime);
   const storedName = isFile && filename ? toSafeFilename(filename) : null;
 
   // INFO: § 9.1. A file has no drawn box and no gallery tile, so the two things the gallery pipelines depend on are exactly what it must not claim: an avatar or a background cannot be one, and neither can a row filed straight into the grid.
@@ -77,13 +101,26 @@ export async function registerMedia({
     return null;
   }
 
-  // INFO: § 9.1. A file attachment has no sibling to require — nothing renders it, and `toVariantKey` never asks for a thumb variant of a row carrying a filename.
-  if (!isFile && !thumbnail) {
+  // INFO: § 9.3. The same rule, for the same reasons: a recording is a chat attachment and nothing else. It is excluded from the library by `isOfKind` rather than by a filename it does not have (§ 10.).
+  if (isVoice && (scope !== "chat" || addToGallery)) {
     return null;
   }
 
-  // WARN: REQUIREMENTS.md § 8.3. The route admits a zero only so a file can decline to measure a box it has not got. A photo or a video that arrives with one is refused here rather than stored: `toMediaBoxHeight` divides by `width` for a single attachment, so a `0` row makes the whole virtualized list resolve its total size to `NaN` and stop laying out.
-  if (!isFile && (width <= 0 || height <= 0)) {
+  // WARN: § 9.3. A recording's duration is required, not merely nullable. It is wall-clock from the browser and nothing recomputes it here, and the player draws its progress against it — at `0` the bubble reads `0:00` under a waveform that never fills however long the clip runs.
+  if (isVoice && (durationMs ?? 0) <= 0) {
+    return null;
+  }
+
+  // INFO: § 9.1., § 9.3. The two kinds drawn at a fixed height rather than from a ratio — a file card and a voice player. Neither has a frame to render a thumbnail from and neither has a box to measure, so the two tests below are one test.
+  const hasNoBox = isFile || isVoice;
+
+  // INFO: § 9.1. A file attachment has no sibling to require — nothing renders it, and `toVariantKey` never asks for a thumb variant of a row carrying a filename. A voice message has none either (§ 9.3.), for the same reason and by the same single PUT.
+  if (!hasNoBox && !thumbnail) {
+    return null;
+  }
+
+  // WARN: REQUIREMENTS.md § 8.3. The route admits a zero only so a row with no drawn box can decline to measure one. A photo or a video that arrives with one is refused here rather than stored: `toMediaBoxHeight` divides by `width` for a single attachment, so a `0` row makes the whole virtualized list resolve its total size to `NaN` and stop laying out.
+  if (!hasNoBox && (width <= 0 || height <= 0)) {
     return null;
   }
 
@@ -94,11 +131,13 @@ export async function registerMedia({
       r2Key,
       mime: object.mime,
       size: object.size,
-      // WARN: § 9.1. Zeroed rather than trusted for a file. The client has no box to measure there, so whatever it sent is a guess the row would carry forever.
-      width: isFile ? 0 : width,
-      height: isFile ? 0 : height,
+      // WARN: § 9.1., § 9.3. Zeroed rather than trusted. The client has no box to measure for either kind, so whatever it sent is a guess the row would carry forever.
+      width: hasNoBox ? 0 : width,
+      height: hasNoBox ? 0 : height,
+      // WARN: § 9.3. A voice message **keeps** its duration where a file drops one. It is not decoration: the player draws its progress against this figure rather than against `audio.duration`, which a `MediaRecorder` WebM reports as `Infinity`. Nulling it here is what left the waveform frozen at `0:00`.
       durationMs: isFile ? null : (durationMs ?? null),
       filename: storedName,
+      waveformPeaks: isVoice ? waveformPeaks : null,
       galleryAddedAt: addToGallery ? new Date() : null,
     })
     // INFO: `r2_key` is unique, so a retried registration returns the row the first attempt wrote instead of failing the send.

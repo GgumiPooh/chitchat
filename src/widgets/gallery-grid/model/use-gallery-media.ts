@@ -1,17 +1,21 @@
 "use client";
 
 import type { GalleryMedia } from "@/entities/media";
-import { GALLERY_PAGE_SIZE } from "@/shared/config";
+import { GALLERY_PAGE_SIZE, type LibraryKind } from "@/shared/config";
 import { toast } from "@/shared/ui";
 import { useCallback, useRef, useState } from "react";
 import { fetchGalleryMedia } from "../api/fetch-gallery-media";
 
 /**
- * The loaded window of the gallery, newest first. Older pages are keyset-paginated
- * on the `(created_at, id)` pair (REQUIREMENTS.md § 6., § 10.); the first page
- * arrives from the server render, so opening the tab costs no round trip.
+ * The loaded window of one library segment, newest first. Older pages are
+ * keyset-paginated on the `(created_at, id)` pair (REQUIREMENTS.md § 6., § 10.);
+ * the first page arrives from the server render, so opening the tab costs no
+ * round trip.
+ *
+ * INFO: `kind` is fixed for the life of the hook — the two segments are two routes
+ * (§ 10.), so switching them remounts rather than refetching in place.
  */
-export function useGalleryMedia(initialMedia: GalleryMedia[]) {
+export function useGalleryMedia(initialMedia: GalleryMedia[], kind: LibraryKind = "photo") {
   const [media, setMedia] = useState(initialMedia);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const mediaRef = useRef(initialMedia);
@@ -36,6 +40,7 @@ export function useGalleryMedia(initialMedia: GalleryMedia[]) {
 
     try {
       const older = await fetchGalleryMedia({
+        kind,
         before: { createdAt: oldest.createdAt, id: oldest.id },
       });
 
@@ -50,12 +55,12 @@ export function useGalleryMedia(initialMedia: GalleryMedia[]) {
         });
       }
     } catch {
-      toast.error("사진을 더 불러오지 못했어요");
+      toast.error(kind === "file" ? "파일을 더 불러오지 못했어요" : "사진을 더 불러오지 못했어요");
     } finally {
       isLoadingRef.current = false;
       setIsLoadingMore(false);
     }
-  }, [commit]);
+  }, [commit, kind]);
 
   // INFO: A just-uploaded photo is the newest one there is, so it goes to the front rather than being re-fetched into place.
   const prepend = useCallback(

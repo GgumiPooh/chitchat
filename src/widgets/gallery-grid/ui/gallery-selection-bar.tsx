@@ -7,8 +7,19 @@ import { Download, Share, Trash2 } from "lucide-react";
 export type GallerySelectionBarProps = {
   className?: string;
   selectedCount: number;
+  /** The Korean counter the running total is said in — 장 for 사진, 개 for 파일. */
+  countUnit?: string;
   isBusy: boolean;
-  /** REQUIREMENTS.md § 10. 저장 — a download everywhere but iOS, where the route runs through the share sheet instead. */
+  /**
+   * Whether 저장 means the iOS photo library, which is the only reason the two
+   * controls ever merge (REQUIREMENTS.md § 10.).
+   *
+   * WARN: False for 파일 (§ 9.1.). That selection downloads on every platform, so
+   * on iOS 저장 and 공유 still reach different places and merging them would hide a
+   * control that works.
+   */
+  savesToPhotoLibrary?: boolean;
+  /** REQUIREMENTS.md § 10. 저장 — a download everywhere but iOS, where a photo's route runs through the share sheet instead. */
   onSave: () => void;
   onShare: () => void;
   onDelete: () => void;
@@ -26,13 +37,16 @@ export type GallerySelectionBarProps = {
 export function GallerySelectionBar({
   className,
   selectedCount,
+  countUnit = "장",
   isBusy,
+  savesToPhotoLibrary = true,
   onSave,
   onShare,
   onDelete,
 }: GallerySelectionBarProps) {
   // INFO: REQUIREMENTS.md § 10. iOS, not touch — an Android download lands in the gallery and an iPad with a trackpad still cannot get one there.
   const isIosDevice = useIsIos();
+  const isMerged = isIosDevice && savesToPhotoLibrary;
   const isDisabled = selectedCount === 0 || isBusy;
 
   return (
@@ -46,9 +60,10 @@ export function GallerySelectionBar({
         <div className="pointer-events-auto flex items-stretch gap-2xs rounded-full border border-hairline glass p-2xs shadow-floating">
           {/* WARN: The count lives here, not only in the header title. The title fades out once content scrolls under it (DESIGN.md § 7.12.), which would take the selection's only running total with it — this bar has a surface of its own and never leaves. */}
           <span className="flex min-h-11 shrink-0 items-center pl-md text-button-md text-meta tabular-nums">
-            {selectedCount}장
+            {selectedCount}
+            {countUnit}
           </span>
-          {/* WARN: REQUIREMENTS.md § 10. On iOS this row and the next would take the identical route, so only one is rendered — and it is this one, because 저장 is what the tap is for and 공유 is the sheet it happens to arrive through. */}
+          {/* WARN: REQUIREMENTS.md § 10. Where 저장 is the iOS photo library, this row and the next take the identical route, so only one is rendered — and it is this one, because 저장 is what the tap is for and 공유 is the sheet it happens to arrive through. A 파일 selection never merges (§ 9.1.): it downloads on iOS too, so the two still reach different places. */}
           <Button
             // WARN: `flex-1 w-auto` overrides `Button`'s own `w-full shrink-0` — two of those in a row each claim the full bar and the second is pushed off the edge. With `haptic` it is the wrapper that has to carry them, since the wrapper is what this row lays out.
             className="w-auto flex-1"
@@ -59,9 +74,9 @@ export function GallerySelectionBar({
             onClick={onSave}
           >
             <Download className="size-4" strokeWidth={1.75} />
-            {isIosDevice ? "저장/공유" : "저장"}
+            {isMerged ? "저장/공유" : "저장"}
           </Button>
-          {!isIosDevice && (
+          {!isMerged && (
             <Button
               className="w-auto flex-1"
               buttonClassName="min-h-11 rounded-full"

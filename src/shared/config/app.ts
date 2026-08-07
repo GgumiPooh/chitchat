@@ -35,6 +35,19 @@ export const CALENDAR_ROUTE = "/calendar";
 
 export const GALLERY_ROUTE = "/gallery";
 
+/**
+ * REQUIREMENTS.md § 10. The 파일 segment of 보관함.
+ *
+ * INFO: Nested under `GALLERY_ROUTE`, so `isUnderRoute` keeps the tab filled and
+ * `RouteTransition` resolves both segments to one tab — a segment switch is not a
+ * sideways move and must not slide (DESIGN.md § 4.7.1.).
+ *
+ * WARN: The route stays `/gallery` while the label is 보관함, as `/settings/emoticons`
+ * is 이모티콘 관리. Renaming it would churn the widget, the API and every § 10.
+ * citation for a string the user never sees.
+ */
+export const GALLERY_FILES_ROUTE = `${GALLERY_ROUTE}/files`;
+
 export const SETTINGS_ROUTE = "/settings";
 
 // INFO: REQUIREMENTS.md § 13.5. Nested under settings, so the tab bar keeps 설정 active while the management screens are open.

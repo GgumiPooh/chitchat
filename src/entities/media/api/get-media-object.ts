@@ -28,13 +28,17 @@ export async function getMediaRow(id: string): Promise<Nullable<Media>> {
  * the user unable to change their photo at all; pointing an avatar at a `chat/`
  * object would put the same delete in front of a photo a bubble still renders.
  *
- * WARN: REQUIREMENTS.md § 9.1. The set must also be **all files or all photos**, and
+ * WARN: REQUIREMENTS.md § 9.1., § 9.3. The set must also be **all of one kind**, and
  * this is the only place that holds — `toBubbles` splits a pick by kind in the
  * browser, which a stale client or a hand-made request simply does not run. Five
  * readers take the whole bubble's layout, height estimate, quote label and 공유
  * affordance from `media[0]` alone, so a mixed row renders a file cell through the
  * photo grid, estimates § 8.3.'s box against the wrong arithmetic, and offers a
  * document to the iOS photo library.
+ *
+ * WARN: § 9.3. Voice is a **third** kind, not a variety of the second. It shares
+ * `filename IS NULL` with a photo, so the old two-way test passed a recording and a
+ * photo in one bubble — which draws a voice card through the photo grid.
  */
 export async function ownsAllMedia(
   ids: string[],
@@ -46,7 +50,7 @@ export async function ownsAllMedia(
   }
 
   const rows = await getDb()
-    .select({ id: media.id, filename: media.filename })
+    .select({ id: media.id, filename: media.filename, waveformPeaks: media.waveformPeaks })
     .from(media)
     .where(
       and(
@@ -58,6 +62,11 @@ export async function ownsAllMedia(
 
   if (new Set(rows.map((row) => row.id)).size !== new Set(ids).size) {
     return false;
+  }
+
+  // INFO: § 9.3. A voice bubble is additionally always **one** clip — there is no layout for two, and nothing in the app can produce a pick of them.
+  if (rows.some((row) => row.waveformPeaks !== null)) {
+    return rows.length === 1;
   }
 
   return new Set(rows.map((row) => row.filename !== null)).size <= 1;

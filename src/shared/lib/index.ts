@@ -1,4 +1,19 @@
 export { AssertionError, assert, ensure } from "./assert";
+export {
+  declareAudioSession,
+  declareRestingAudioSession,
+  type AudioSessionType,
+} from "./audio/session";
+export { playSound, stopSound, unlockSound, useSoundUnlock } from "./audio/sound";
+export {
+  isVoiceActive,
+  seekVoice,
+  stopVoice,
+  toggleVoice,
+  useVoicePlayback,
+  type VoicePlayback,
+  type VoiceSnapshot,
+} from "./audio/voice-playback";
 export { A_KILOBYTE, A_MEGABYTE, formatSize } from "./bytes";
 export { cn } from "./class-name";
 export {
@@ -59,7 +74,6 @@ export type { Maybe, Nullable, Optional } from "./nullish";
 export { randomId } from "./random";
 export { mapPooled, type PoolOptions } from "./run/pool";
 export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./run/safely";
-export { playSound, stopSound, unlockSound, useSoundUnlock } from "./sound";
 export { measureLineHeight, warmLineHeights } from "./text/line-height";
 export { findQueryIndex, splitTextByQuery, type QuerySegment } from "./text/query-match";
 export { countTextLines, type FontSpec } from "./text/text-layout";

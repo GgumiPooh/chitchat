@@ -8,21 +8,37 @@ import { useCallback, useMemo, useRef, useState } from "react";
 // INFO: One toast id for the cap, because a sweep sitting at it reaches it again on every tile it goes on covering, and sonner replaces a live toast rather than stacking another.
 const CAP_TOAST_ID = "gallery-selection-cap";
 
-function toCapMessage(cap: number): string {
-  return `한 번에 ${cap}장까지 선택할 수 있어요`;
+function toCapMessage(cap: number, unit: string): string {
+  return `한 번에 ${cap}${unit}까지 선택할 수 있어요`;
 }
 
 /** REQUIREMENTS.md § 10. What the held tile did, which the range the drag covers then repeats. */
 type SweepAnchor = { base: string[]; mode: "select" | "deselect"; id: string };
 
+export type GallerySelectionOptions = {
+  /**
+   * Whether 저장 reaches the iOS photo library, which is the only thing that lowers
+   * the cap there (REQUIREMENTS.md § 10.).
+   *
+   * WARN: False for 파일 (§ 9.1.). Those download on every platform, so an iOS file
+   * selection has no sheet-sized ceiling to be held to and 삭제 keeps its full reach.
+   */
+  savesToPhotoLibrary?: boolean;
+  /** The Korean counter the cap is said in — 장 for 사진, 개 for 파일. */
+  countUnit?: string;
+};
+
 /**
  * The multi-select of REQUIREMENTS.md § 10. Entered from the header control with no
  * tile picked, or by holding one — which is `start`'s argument.
  */
-export function useGallerySelection() {
-  // WARN: REQUIREMENTS.md § 10. iOS saves only through the share sheet, which cannot be handed more than `MAX_GALLERY_SHARE_FILES` — so there the selection is held to what the platform can act on, rather than letting the user sweep two hundred tiles into the only route they have and be refused. Everywhere else 저장 is a download with no such ceiling, so the selection keeps its own, and 삭제 keeps the reach that comes with it.
+export function useGallerySelection({
+  savesToPhotoLibrary = true,
+  countUnit = "장",
+}: GallerySelectionOptions = {}) {
+  // WARN: REQUIREMENTS.md § 10. iOS saves a photo only through the share sheet, which cannot be handed more than `MAX_GALLERY_SHARE_FILES` — so there the selection is held to what the platform can act on, rather than letting the user sweep two hundred tiles into the only route they have and be refused. Everywhere else 저장 is a download with no such ceiling, so the selection keeps its own, and 삭제 keeps the reach that comes with it.
   const isIosDevice = useIsIos();
-  const cap = isIosDevice ? MAX_GALLERY_SHARE_FILES : MAX_GALLERY_SELECTION;
+  const cap = isIosDevice && savesToPhotoLibrary ? MAX_GALLERY_SHARE_FILES : MAX_GALLERY_SELECTION;
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -50,14 +66,14 @@ export function useGallerySelection() {
 
       // INFO: The cap the delete endpoint enforces anyway (§ 14.), said here instead of as a rejected request after the user picked one past it.
       if (selectedIds.length >= cap) {
-        toast.error(toCapMessage(cap), { id: CAP_TOAST_ID });
+        toast.error(toCapMessage(cap, countUnit), { id: CAP_TOAST_ID });
 
         return;
       }
 
       setSelectedIds((previous) => [...previous, id]);
     },
-    [cap, selected, selectedIds.length],
+    [cap, countUnit, selected, selectedIds.length],
   );
 
   /** REQUIREMENTS.md § 10. The whole range from the held tile to the one under the finger, in grid order. */
@@ -79,7 +95,7 @@ export function useGallerySelection() {
       const room = Math.max(cap - base.length, 0);
 
       if (added.length > room) {
-        toast.error(toCapMessage(cap), { id: CAP_TOAST_ID });
+        toast.error(toCapMessage(cap, countUnit), { id: CAP_TOAST_ID });
       }
 
       // WARN: Truncated from the anchor outwards, not from the head of the range. A sweep running *up* the grid is ordered away from the finger, so keeping the first `room` would strip the mark off the held tile and everything under the finger and light up a distant block instead.
@@ -93,7 +109,7 @@ export function useGallerySelection() {
 
       setSelectedIds([...base, ...kept]);
     },
-    [cap],
+    [cap, countUnit],
   );
 
   /**

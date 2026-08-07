@@ -1,3 +1,4 @@
+import { toVoiceTrack } from "@/shared/config";
 import type { Media } from "@/shared/db";
 import type { ChatMedia } from "./types";
 
@@ -11,6 +12,7 @@ export function toChatMedia(row: Media): ChatMedia {
     durationMs: row.durationMs,
     blurhash: row.blurhash,
     filename: row.filename,
+    voice: toVoiceTrack(row.waveformPeaks),
     size: row.size,
   };
 }

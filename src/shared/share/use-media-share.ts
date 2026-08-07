@@ -3,18 +3,33 @@
 import { MAX_GALLERY_SHARE_FILES } from "@/shared/config";
 import { isIos, type Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";
+import { josa } from "es-hangul";
 import { useCallback, useState } from "react";
 import { downloadMedia } from "./download-files";
 import {
   canShareFiles,
   collectShareFiles,
   isShareableSelection,
-  SHARE_CAP_MESSAGE,
   shareFiles,
+  toShareCapMessage,
 } from "./share-files";
 
 /** Which control the files were asked for from — the two differ in wording and in when the sheet is used. */
 export type MediaShareIntent = "save" | "share";
+
+export type MediaShareOptions = {
+  /**
+   * REQUIREMENTS.md § 9.1. id → the name a file attachment is stored under, for a
+   * selection R2 cannot name on its own.
+   *
+   * WARN: Required for the 파일 segment of § 10. and meaningless for 사진, whose
+   * name is derived from the mime. Omitted on a file selection, the OS is handed
+   * `{uuid}.bin`.
+   */
+  names?: Record<string, string>;
+  /** The Korean counter every sentence below is said in — 장 for 사진, 개 for 파일. */
+  countUnit?: string;
+};
 
 export type MediaShareProgress = {
   preparedCount: number;
@@ -41,48 +56,65 @@ export function useMediaShare() {
   const [blocked, setBlocked] =
     useState<Nullable<{ files: File[]; intent: MediaShareIntent }>>(null);
 
-  const run = useCallback(async (ids: string[], intent: MediaShareIntent) => {
-    if (!canShareFiles() || (intent === "save" && !isIos())) {
-      download(ids, intent);
+  const run = useCallback(
+    async (
+      ids: string[],
+      intent: MediaShareIntent,
+      { names, countUnit = "장" }: MediaShareOptions,
+    ) => {
+      if (!canShareFiles() || (intent === "save" && !isIos())) {
+        download(ids, intent, countUnit);
 
-      return;
-    }
-
-    if (!isShareableSelection(ids)) {
-      toast.error(
-        intent === "save"
-          ? `사진 앱에는 한 번에 ${MAX_GALLERY_SHARE_FILES}장까지 저장할 수 있어요`
-          : SHARE_CAP_MESSAGE,
-      );
-      download(ids, intent);
-
-      return;
-    }
-
-    setProgress({ preparedCount: 0, totalCount: ids.length });
-
-    try {
-      const files = await collectShareFiles(ids, (preparedCount) =>
-        setProgress({ preparedCount, totalCount: ids.length }),
-      );
-
-      if ((await shareFiles(files)) === "blocked") {
-        setBlocked({ files, intent });
+        return;
       }
-    } catch {
-      toast.error(
-        intent === "save"
-          ? "사진 앱에 저장하지 못해 파일로 내려받고 있어요"
-          : "공유하지 못해 파일로 내려받고 있어요",
-      );
-      download(ids, intent);
-    } finally {
-      setProgress(null);
-    }
-  }, []);
 
-  const save = useCallback((ids: string[]) => run(ids, "save"), [run]);
-  const share = useCallback((ids: string[]) => run(ids, "share"), [run]);
+      if (!isShareableSelection(ids)) {
+        toast.error(
+          intent === "save"
+            ? `사진 앱에는 한 번에 ${MAX_GALLERY_SHARE_FILES}${countUnit}까지 저장할 수 있어요`
+            : toShareCapMessage(countUnit),
+        );
+        download(ids, intent, countUnit);
+
+        return;
+      }
+
+      setProgress({ preparedCount: 0, totalCount: ids.length });
+
+      try {
+        // WARN: REQUIREMENTS.md § 9.1. `names` is what keeps a file attachment's own name on the `File` handed to the sheet; without it the mime decides, and a file's mime has no extension to decide with.
+        const files = await collectShareFiles(
+          ids,
+          (preparedCount) => setProgress({ preparedCount, totalCount: ids.length }),
+          names,
+        );
+
+        if ((await shareFiles(files)) === "blocked") {
+          setBlocked({ files, intent });
+        }
+      } catch {
+        toast.error(
+          intent === "save"
+            ? "사진 앱에 저장하지 못해 파일로 내려받고 있어요"
+            : "공유하지 못해 내려받고 있어요",
+        );
+        download(ids, intent, countUnit);
+      } finally {
+        setProgress(null);
+      }
+    },
+    [],
+  );
+
+  // INFO: 저장 is the 사진 route only (REQUIREMENTS.md § 9.1.) — a file downloads on every platform and never reaches the sheet through this.
+  const save = useCallback(
+    (ids: string[], options: MediaShareOptions = {}) => run(ids, "save", options),
+    [run],
+  );
+  const share = useCallback(
+    (ids: string[], options: MediaShareOptions = {}) => run(ids, "share", options),
+    [run],
+  );
 
   /** WARN: Called straight from a click handler and never awaited before `navigator.share` — awaiting anything first is what put us here. */
   const retryBlocked = useCallback(async () => {
@@ -111,11 +143,12 @@ export function useMediaShare() {
 }
 
 // INFO: The browser's own download UI is the progress report; the toast is only what says the tap registered, since the control that started it is gone by now — and on the 공유 intent it is also the only thing that says the sheet was never an option.
-function download(ids: string[], intent: MediaShareIntent) {
+function download(ids: string[], intent: MediaShareIntent, countUnit: string) {
+  // INFO: The particle follows the counter — `3장을` but `3개를`, so it cannot be part of the sentence. `josa` decides it (AGENTS.md § 0.4.).
+  const counted = josa(`${ids.length}${countUnit}`, "을/를");
+
   void downloadMedia(ids);
   toast.success(
-    intent === "save"
-      ? `${ids.length}장을 저장하고 있어요`
-      : `공유할 수 없어 ${ids.length}장을 파일로 내려받고 있어요`,
+    intent === "save" ? `${counted} 저장하고 있어요` : `공유할 수 없어 ${counted} 내려받고 있어요`,
   );
 }

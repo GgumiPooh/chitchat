@@ -9,7 +9,7 @@ import {
   MAX_UPLOAD_INFLIGHT_BYTES,
   UPLOAD_CONCURRENCY,
 } from "@/shared/config";
-import { mapPooled, randomId, type Nullable } from "@/shared/lib";
+import { isVoiceActive, mapPooled, randomId, stopVoice, type Nullable } from "@/shared/lib";
 import { useCallback, useRef, useState } from "react";
 import { postMessage, type PostMessageParams } from "../api/post-message";
 
@@ -69,7 +69,14 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
           }
 
           // WARN: The last owner of these object URLs. `useMediaSelection.takeAll` handed them over precisely so the optimistic bubble could keep rendering, so nothing else will free them.
-          entry.media.forEach(revokePreview);
+          // WARN: REQUIREMENTS.md § 9.3. A voice draft's preview is the URL the shared player is parked on, so it has to be released **before** it is revoked — `stopVoice`'s own `load()` would otherwise run against a dead blob and log a media error. Guarded on this source being the active one, or retiring my own upload would cut off an older voice note the reader is listening to.
+          entry.media.forEach((draft) => {
+            if (isVoiceActive(draft.previewUrl)) {
+              stopVoice();
+            }
+
+            revokePreview(draft);
+          });
 
           return false;
         }),
@@ -278,9 +285,24 @@ async function toPostParams(
  * into two blocks the sender never asked for.
  */
 function toBubbles(drafts: MediaDraft[]): MediaDraft[][] {
-  return groupConsecutive(drafts, (draft) => draft.filename !== null).flatMap((run) =>
-    chunk(run, MAX_MEDIA_PER_MESSAGE),
+  return groupConsecutive(drafts, toDraftKind).flatMap((run) =>
+    // INFO: REQUIREMENTS.md § 9.3. A voice bubble is one clip. There is no layout for two, and `ownsAllMedia` refuses a longer set at the server anyway.
+    chunk(run, toDraftKind(run[0]) === "voice" ? 1 : MAX_MEDIA_PER_MESSAGE),
   );
+}
+
+/**
+ * WARN: REQUIREMENTS.md § 9.3. Three kinds, not the two `filename` used to answer.
+ * A recording carries no filename, so a two-way split grouped it with the photos
+ * either side of it — one bubble whose first cell decides the layout for all of
+ * them, which draws a voice card through the photo grid.
+ */
+function toDraftKind(draft: MediaDraft): "voice" | "file" | "media" {
+  if (draft.waveformPeaks) {
+    return "voice";
+  }
+
+  return draft.filename ? "file" : "media";
 }
 
 function groupConsecutive<T, K>(items: T[], toKey: (item: T) => K): T[][] {

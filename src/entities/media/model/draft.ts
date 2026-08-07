@@ -19,5 +19,14 @@ export type MediaDraft = {
   durationMs: Nullable<number>;
   /** REQUIREMENTS.md § 9.1. Set on a file attachment and null on a photo or video, exactly as `ChatMedia.filename` is. */
   filename: Nullable<string>;
+  /**
+   * REQUIREMENTS.md § 9.3. Set on a recording and null on everything else — what
+   * makes this draft a voice message, and what the row is registered with.
+   *
+   * WARN: Integers `0`–`VOICE_PEAK_SCALE`, the **wire and column** form, not the
+   * `0`–`1` the player draws. A draft is an upload object, so it carries what the
+   * upload sends; `toVoiceTrack` is what converts it for anything that renders.
+   */
+  waveformPeaks: Nullable<number[]>;
   id: string;
 };

@@ -15,12 +15,29 @@ export const FILE_CARD_HEIGHT = 56;
 // INFO: `--spacing-2xs`, the `gap-2xs` between stacked file cards.
 const FILE_CARD_GAP = 4;
 
+// INFO: REQUIREMENTS.md § 9.3. `h-14` on `VoicePlayer`, fixed for the same reason the file card is — a waveform has no intrinsic height, so REQUIREMENTS.md § 8.3.'s estimate would have nothing to derive one from.
+export const VOICE_CARD_HEIGHT = 56;
+
 type Sized = {
   width: number;
   height: number;
   /** REQUIREMENTS.md § 9.1. Set on a file attachment, which is a stacked card rather than a tile in the grid. */
   filename?: Nullable<string>;
+  /** Set on a sent voice message, which is one fixed-height row rather than a box with a ratio. */
+  voice?: Nullable<unknown>;
+  /** REQUIREMENTS.md § 9.3. The same thing on a **draft**, which carries the raw peaks rather than the shaped track. */
+  waveformPeaks?: Nullable<number[]>;
 };
+
+/**
+ * WARN: Both fields, because a voice bubble reaches this from two shapes — `ChatMedia.voice`
+ * once it is registered and `MediaDraft.waveformPeaks` while it is still optimistic. Testing
+ * only the first let a draft fall through to the ratio branch, where its `0 / 0` box resolved
+ * the whole virtualized list's total size to `NaN` (§ 8.3.).
+ */
+function isVoiceSized({ voice, waveformPeaks }: Sized): boolean {
+  return Boolean(voice ?? waveformPeaks);
+}
 
 // INFO: Two sits on one line and four squares up; everything else fills three columns, which is what the nine-per-bubble split of REQUIREMENTS.md § 18. #10 was chosen around.
 export function toMediaColumns(count: number): number {
@@ -38,6 +55,11 @@ export function toMediaBoxHeight(cells: Sized[]): number {
 
   if (!first) {
     return 0;
+  }
+
+  // INFO: REQUIREMENTS.md § 9.3. A voice bubble is one clip, so the count never enters into it.
+  if (isVoiceSized(first)) {
+    return VOICE_CARD_HEIGHT;
   }
 
   // INFO: REQUIREMENTS.md § 9.1. A bubble is files or photos, never both (§ 6.), so the first cell decides for all of them — a stack of fixed-height cards rather than a grid of ratios.

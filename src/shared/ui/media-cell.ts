@@ -1,6 +1,17 @@
 import type { Nullable } from "@/shared/lib";
 
 /**
+ * What a voice message carries beyond an ordinary attachment: the precomputed
+ * waveform the bubble is drawn from, since the file itself is not decoded to draw
+ * it (REQUIREMENTS.md § 8.3. — the row's height has to be known before anything
+ * loads).
+ */
+export type VoiceTrack = {
+  /** `0`–`1`, a fixed number of them per clip. The count is the recorder's, and the player draws however many it is given. */
+  peaks: number[];
+};
+
+/**
  * One attachment as the grid and the viewer render it — a stored `media` row, a
  * draft still uploading, or a gallery tile.
  *
@@ -30,5 +41,14 @@ export type MediaCell = {
   filename: Nullable<string>;
   /** § 9.1. The stored byte count, which is all the file card can say about what it cannot draw. */
   sizeBytes: number;
+  /**
+   * Set on a voice message, and the flag that says it is one — the same job
+   * `filename` does for a file attachment. A bubble carrying one carries nothing
+   * else (§ 6.), so the first cell decides the whole bubble's layout.
+   *
+   * TODO: Optional until the § 9. read path carries peaks; `toCellsFromMedia` and
+   * `toCellsFromDrafts` are what fill it once the column exists.
+   */
+  voice?: Nullable<VoiceTrack>;
   id: string;
 };

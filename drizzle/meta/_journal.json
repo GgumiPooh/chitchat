@@ -148,6 +148,13 @@
       "when": 1786044058085,
       "tag": "0020_media_filename",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1786070833749,
+      "tag": "0021_media_waveform_peaks",
+      "breakpoints": true
     }
   ]
 }

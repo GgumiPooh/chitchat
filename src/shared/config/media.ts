@@ -8,8 +8,27 @@ export const MEDIA_PATH = "/api/media";
 /** REQUIREMENTS.md § 12.1. Duplicates a readable object into the caller's `background/` scope. */
 export const MEDIA_COPY_PATH = `${MEDIA_PATH}/copy`;
 
-/** REQUIREMENTS.md § 10. Lists the gallery and takes photos back out of it. */
+/** REQUIREMENTS.md § 10. Lists the library and takes rows back out of it. */
 export const GALLERY_PATH = "/api/gallery";
+
+/**
+ * Which shelf of the library (REQUIREMENTS.md § 10.) a listing asks for — the
+ * 사진 / 파일 segments, and the `kind` `GET /api/gallery` takes.
+ *
+ * WARN: A union and never an `isFile` boolean. 음성 is the third member this is
+ * waiting for, and a boolean would have to be replaced in the predicate, the API,
+ * the fetch, the hook and the URL alike rather than gaining one literal here.
+ *
+ * WARN: § 9.3. A voice message is **not** a member and must not become one here —
+ * it is excluded from every shelf by `isOfKind`. The 음성 segment is a later
+ * change, and adding the literal without the query behind it puts recordings in
+ * the 사진 grid.
+ *
+ * INFO: Derived from `mime` and `filename`, so no column stores it (§ 6.).
+ */
+export const LIBRARY_KINDS = ["photo", "file"] as const;
+
+export type LibraryKind = (typeof LIBRARY_KINDS)[number];
 
 /**
  * The key prefixes `POST /api/media/upload-url` will sign for, and the set
@@ -183,7 +202,7 @@ export function toSafeFilename(name: string): string {
 }
 
 /** What a media bubble is called where it cannot be drawn — the § 8.10. quote and the § 16.1. push body. */
-export type MediaKind = "photo" | "video" | "file";
+export type MediaKind = "photo" | "video" | "file" | "voice";
 
 /**
  * The one kind that names a whole bubble's attachments.
@@ -201,6 +220,11 @@ export function toMediaKind(items: MediaKindInput[]): Nullable<MediaKind> {
     return null;
   }
 
+  // WARN: REQUIREMENTS.md § 9.3. First, and not as one more `every`. A voice row carries no `filename`, so every test below it reads one as a photo — and a voice bubble is always exactly one clip, which is why the first item settles it.
+  if (items[0].voice) {
+    return "voice";
+  }
+
   if (items.every((item) => item.filename !== null)) {
     return "file";
   }
@@ -213,12 +237,18 @@ export function toMediaLabel(kind: Nullable<MediaKind>): string {
     return "파일";
   }
 
+  if (kind === "voice") {
+    return "음성";
+  }
+
   return kind === "video" ? "동영상" : "사진";
 }
 
 type MediaKindInput = {
   mime: string;
   filename: Nullable<string>;
+  /** REQUIREMENTS.md § 9.3. Present on a voice message and `null` on everything else — the same job `filename` does one line above. */
+  voice?: Nullable<unknown>;
 };
 
 // INFO: R2 stores the bytes under a UUID key with no name of its own, so a file handed to the share sheet has to be named here.

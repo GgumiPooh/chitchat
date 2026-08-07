@@ -82,6 +82,7 @@ export async function applyEdit(
       height: size.height,
       durationMs: null,
       filename: null,
+      waveformPeaks: null,
     };
   } finally {
     URL.revokeObjectURL(sourceUrl);

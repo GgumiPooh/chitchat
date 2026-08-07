@@ -2,7 +2,7 @@
 
 import type { Nullable } from "@/shared/lib";
 import { ActionSheet, type ActionSheetItem } from "@/shared/ui";
-import { FileUp, Images } from "lucide-react";
+import { FileUp, Images, Mic } from "lucide-react";
 import { useRef, type ChangeEvent } from "react";
 
 // INFO: The wildcard, not the § 14. allow-list — iOS narrows its own picker from this and a long explicit list makes it hide formats it would happily have transcoded. `validateFile` rejects what slips through.
@@ -19,6 +19,16 @@ export type MediaPickerSheetProps = {
   isMultiple?: boolean;
   /** REQUIREMENTS.md § 9.1. Offers 파일 beside 사진/영상. Chat alone sets it — an avatar, a background and an emoticon are all images by definition. */
   hasFileRow?: boolean;
+  /**
+   * REQUIREMENTS.md § 9.3. Offers 음성, which opens the recorder rather than a file
+   * input. Chat alone sets it.
+   *
+   * WARN: A row here rather than a fourth control in the composer. DESIGN.md § 6.6.
+   * fixes that row at attach, field, emoticon toggle and send, and a 44px target
+   * added to it is what makes the round buttons oval on an engine without
+   * `field-sizing-content`.
+   */
+  onRecordVoice?: () => void;
   onClose: () => void;
   onSelect: (files: File[]) => void;
 };
@@ -35,6 +45,7 @@ export function MediaPickerSheet({
   isOpen,
   isMultiple = true,
   hasFileRow = false,
+  onRecordVoice,
   onClose,
   onSelect,
 }: MediaPickerSheetProps) {
@@ -79,6 +90,11 @@ export function MediaPickerSheet({
 
     if (hasFileRow) {
       items.push({ label: "파일", Icon: FileUp, onSelect: () => fileRef.current?.click() });
+    }
+
+    // INFO: REQUIREMENTS.md § 9.3. Last, because the two above open a picker and this one opens the microphone — the odd one out belongs at the end rather than between them.
+    if (onRecordVoice) {
+      items.push({ label: "음성", Icon: Mic, onSelect: onRecordVoice });
     }
 
     return items;

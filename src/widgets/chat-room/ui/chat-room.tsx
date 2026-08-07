@@ -1,7 +1,7 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
-import type { MediaDraft } from "@/entities/media";
+import type { ChatMedia, MediaDraft } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { useChatStream, useChatStreamListener } from "@/features/chat-stream";
@@ -20,9 +20,12 @@ import {
   MediaPickerSheet,
   MediaTray,
   VideoTrimmer,
+  VoiceRecorderBar,
+  toVoiceDraft,
   useAttachmentEditing,
   useFileDrop,
   useMediaSelection,
+  type VoiceRecording,
 } from "@/features/upload-media";
 import {
   MESSAGE_FLASH_DURATION,
@@ -35,6 +38,7 @@ import {
   buildFadeMask,
   cn,
   composeEventNotice,
+  stopVoice,
   useIsVirtualKeyboardOpen,
   useIsomorphicLayoutEffect,
   useSoundUnlock,
@@ -189,6 +193,8 @@ export function ChatRoom({
   const [isAtTop, setIsAtTop] = useState(true);
   const [actionTarget, setActionTarget] = useState<Nullable<ChatMessage>>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  // INFO: REQUIREMENTS.md § 9.3. The recorder bar stands in the composer stack while it is true. Mounting is what starts the microphone, so this is only ever set from the tap that asked for it.
+  const [isRecording, setIsRecording] = useState(false);
   const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
   const { remember: rememberEmoticon } = useRecentEmoticons();
   const setBackground = useSetBackground();
@@ -242,6 +248,14 @@ export function ChatRoom({
   // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
   // WARN: `!isSearching` is load-bearing beyond the drawing. The panel being open is one of § 8.12.'s two sustained typing sources, so a panel left open behind the search goes on announcing 입력 중 — and it would pop back open on 취소.
   const isEmoticonPanelOpen = isEmoticonPickerOpen && !isKeyboardOpen && !isSearching;
+  // WARN: REQUIREMENTS.md § 9.3. The shared element outlives every bubble that addresses it, so leaving the room has to stop it. Unlike § 13.6.'s two-second ping a recording runs for minutes, and no screen outside this one draws a transport that could pause it.
+  useEffect(() => stopVoice, []);
+  // WARN: REQUIREMENTS.md § 9.3. The recorder is closed by the search rather than hidden with the rest of the stack. `hidden` + `inert` leaves the microphone open with both 취소 and 완료 unreachable, and `MAX_VOICE_DURATION` then sends a recording the user walked away from two minutes earlier.
+  useEffect(() => {
+    if (isSearching) {
+      setIsRecording(false);
+    }
+  }, [isSearching]);
   const { participants, typingUserIds, setIsReading } = useChatStream();
   // WARN: REQUIREMENTS.md § 8.12. Only the two *sustained* sources are passed; typing arrives as edit pulses through the returned callback, because a field holding a draft is not somebody typing. Sending is not a trigger either way — it clears both of these and produces no edit.
   // WARN: REQUIREMENTS.md § 8.12. Silent for the length of a search. A staged emoticon is state that outlives the hidden composer, so left connected it holds the signal up and re-POSTs every `TYPING_PING_INTERVAL` — the other participant reads 입력 중 from a composer that is not even on screen, which is exactly the parked-draft failure § 8.12. exists to have removed.
@@ -845,6 +859,14 @@ export function ChatRoom({
                 onCancel={() => setReplyTarget(null)}
               />
             )}
+            {/* INFO: REQUIREMENTS.md § 9.3. Tops the composer stack while it is up, clearing the history by the same `xs` every other row in this position does (DESIGN.md § 6.6.). It replaces nothing — a recording is sent outright, so there is no tray for it to compete with. */}
+            {isRecording && (
+              <VoiceRecorderBar
+                className="mx-md mt-xs mb-2xs"
+                onDone={sendVoice}
+                onClose={() => setIsRecording(false)}
+              />
+            )}
             {/* INFO: DESIGN.md § 6.6. Same gap as the bar above and the panel below; `MediaTray` renders nothing with an empty selection, so this costs the resting composer no height. */}
             <MediaTray
               className="mx-md mt-xs mb-2xs"
@@ -943,6 +965,7 @@ export function ChatRoom({
         isOpen={isPickerOpen}
         hasFileRow
         onClose={() => setIsPickerOpen(false)}
+        onRecordVoice={() => setIsRecording(true)}
         onSelect={(files) => void stageMedia(files)}
       />
       {editing.cropping && (
@@ -1023,6 +1046,26 @@ export function ChatRoom({
   async function stageMedia(files: File[]) {
     setStagedEmoticon(null);
     await selection.add(files);
+  }
+
+  /**
+   * INFO: REQUIREMENTS.md § 9.3. A recording is sent outright rather than staged
+   * into the tray. `useMediaSelection` holds one list that `toBubbles` splits by
+   * kind, so a staged recording would sit beside photos competing for a § 6. row it
+   * cannot share — and 완료 already reads as the commitment a tray exists to defer.
+   *
+   * WARN: It goes through `sendMedia` rather than a path of its own. That is where
+   * the § 9. upload, the per-bubble progress, the § 8.5. retry and the one delivery
+   * queue live, and a second implementation of any of them would drift.
+   */
+  function sendVoice(recording: VoiceRecording) {
+    // INFO: REQUIREMENTS.md § 8.6.1. A send from a jumped-away window has to land somewhere the sender can see it, and the only place that is true is the live edge.
+    if (hasNewer) {
+      void returnToLive();
+    }
+
+    sendMedia([toVoiceDraft(recording)], replyTarget);
+    setReplyTarget(null);
   }
 
   /**
@@ -1310,8 +1353,9 @@ export function ChatRoom({
       senderId: message.senderId,
       kind: message.type,
       text: message.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null,
-      // INFO: REQUIREMENTS.md § 9.1. A file attachment has no `_thumb` object, so the quote takes its label alone rather than a tile that would 404.
-      thumbnailMediaId: message.media[0]?.filename ? null : (message.media[0]?.id ?? null),
+      // INFO: REQUIREMENTS.md § 9.1., § 9.3. Neither a file attachment nor a recording has a `_thumb` object, so the quote takes its label alone rather than a tile that would 404.
+      // WARN: Must stay in step with `listReplyPreviews`, which answers the same question on the server — the optimistic quote and the echoed one are the same row and may not disagree about whether it has a tile.
+      thumbnailMediaId: toQuoteThumbnailId(message.media[0]),
       mediaKind: toMediaKind(message.media),
       isDeleted: false,
       id: message.id,
@@ -1368,11 +1412,26 @@ export function ChatRoom({
    * received photo in the iOS photo library — and a text message as its text. An
    * emoticon is neither: it is a pack item rather than something the sender sent.
    */
-  // WARN: REQUIREMENTS.md § 9.1. A file bubble is withheld. `useMediaShare` buffers originals for iOS's photo library and words every step of it as 사진 — a document reaching that path is offered a save it cannot perform, and the card's own tap already downloads it.
+  // WARN: REQUIREMENTS.md § 9.1. A file bubble is withheld here, and only here — the card's own tap already downloads it, so a second route to the same bytes in the hold sheet is a row that does nothing new. 보관함's 파일 segment does offer 공유 (§ 10.), because there a selection of several is the thing being handed over and no tap has downloaded them.
+  // WARN: REQUIREMENTS.md § 9.3. A recording is withheld for the reason a file attachment is — `useMediaShare` names each `File` from its mime, and `extensionForMime` answers `bin` for `audio/mp4`, so 공유 would hand the OS `{uuid}.bin` under a dialog worded 사진.
   function canShareMessage(message: ChatMessage): boolean {
-    const hasShareableMedia = message.media.length > 0 && message.media[0].filename === null;
+    const [first] = message.media;
+    const hasShareableMedia = first !== undefined && !first.filename && !first.voice;
 
     return hasShareableMedia || (message.text !== null && message.text.length > 0);
+  }
+
+  /**
+   * WARN: The same test `listReplyPreviews` runs on the server, and the two answer for
+   * the same row — a quote that disagrees between the optimistic bubble and the echo
+   * would swap a tile in or out under the reader.
+   */
+  function toQuoteThumbnailId(attachment: Optional<ChatMedia>): Nullable<string> {
+    if (!attachment || attachment.filename || attachment.voice) {
+      return null;
+    }
+
+    return attachment.id;
   }
 
   /**

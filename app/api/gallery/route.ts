@@ -1,12 +1,19 @@
 import { listGalleryMedia, removeGalleryMedia } from "@/entities/media";
 import { getCurrentUser } from "@/shared/auth";
-import { GALLERY_PAGE_SIZE, MAX_GALLERY_PAGE_SIZE, MAX_GALLERY_SELECTION } from "@/shared/config";
+import {
+  GALLERY_PAGE_SIZE,
+  LIBRARY_KINDS,
+  MAX_GALLERY_PAGE_SIZE,
+  MAX_GALLERY_SELECTION,
+} from "@/shared/config";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 // INFO: REQUIREMENTS.md § 6. Both halves of the keyset cursor, or neither — `created_at` alone cannot separate the rows of one multi-photo send.
 const querySchema = z
   .object({
+    // INFO: REQUIREMENTS.md § 10. Which segment is being paged, 사진 when the caller says nothing. An unknown value is a 400 rather than a silent fallback — a client asking for a shelf this build has never heard of must not be handed photos.
+    kind: z.enum(LIBRARY_KINDS).optional(),
     beforeCreatedAt: z.iso.datetime({ offset: true }).optional(),
     beforeId: z.uuid().optional(),
     limit: z.coerce.number().int().positive().optional(),
@@ -36,10 +43,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const { beforeCreatedAt, beforeId, limit } = query.data;
+  const { kind, beforeCreatedAt, beforeId, limit } = query.data;
 
   return NextResponse.json({
     media: await listGalleryMedia({
+      kind,
       before:
         beforeCreatedAt && beforeId ? { createdAt: beforeCreatedAt, id: beforeId } : undefined,
       limit: Math.min(limit ?? GALLERY_PAGE_SIZE, MAX_GALLERY_PAGE_SIZE),

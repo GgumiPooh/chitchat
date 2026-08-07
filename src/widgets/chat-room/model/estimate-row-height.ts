@@ -108,12 +108,20 @@ const DEFAULT_CONTEXT: RowEstimateContext = {
 // INFO: The half of a message a height follows from — `ChatMessage` and `PendingMessage` differ elsewhere, and an optimistic bubble is drawn at exactly the size the sent one will be.
 type Payload = {
   text: Nullable<string>;
-  // INFO: REQUIREMENTS.md § 9.1. `filename` is what tells the box arithmetic a stack of file cards from a grid of photos; a bubble never mixes the two (§ 6.).
-  media: { width: number; height: number; filename: Nullable<string> }[];
   emoticon: Nullable<Emoticon>;
   replyTo: Nullable<ReplyPreview>;
   // INFO: DESIGN.md § 6.5. Only an optimistic bubble carries one; a message that landed is always sent.
   status?: "sending" | "failed";
+  // INFO: REQUIREMENTS.md § 9.1. `filename` is what tells the box arithmetic a stack of file cards from a grid of photos; a bubble never mixes the two (§ 6.).
+  // INFO: REQUIREMENTS.md § 9.3. A voice bubble is one fixed-height row rather than a box with a ratio, and `toMediaBoxHeight` reads that before either of the others.
+  // WARN: Both voice fields, because a pending row is `MediaDraft[]` and a sent one is `ChatMedia[]` — the draft carries `waveformPeaks` and no `voice`, so dropping it here estimates an optimistic recording from its `0 / 0` box.
+  media: {
+    width: number;
+    height: number;
+    filename: Nullable<string>;
+    voice?: Nullable<unknown>;
+    waveformPeaks?: Nullable<number[]>;
+  }[];
 };
 
 type RowFlags = {

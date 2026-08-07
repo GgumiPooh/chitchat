@@ -19,6 +19,12 @@ Before starting any task, read **all** files in the `docs/` directory. They defi
 
 When a decision changes or a requirement is completed, update the corresponding document in `docs/` in the same change. Requirement checkboxes in `docs/REQUIREMENTS.md` MUST be ticked as work lands.
 
+## 0.4. Korean particles come from `es-hangul`
+
+A particle that follows an interpolated value MUST be chosen with `josa` from `es-hangul` (`josa("3개", "을/를")`, or `josa.pick` for the particle alone). **Never compute 받침 by hand**, and never bake one form into a sentence two different words reach — `3장을` and `3개를` are the same sentence.
+
+Hand-rolled syllable arithmetic works only while every value ends in a Hangul syllable, and it silently picks the wrong form the moment one does not: a file name (`계약서.hwp`, `IMG_2034`) is the case already in the app, and Korean reads a trailing Latin letter or digit by its pronunciation rather than treating it as vowel-final. `josa` carries those tables; a `%` and a `hasFinalConsonant` helper do not.
+
 # 1. UI Component Conventions
 
 ## 1.1. Props type

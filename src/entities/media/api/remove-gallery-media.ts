@@ -3,7 +3,7 @@ import "server-only";
 import { getDb, media, messageMedia } from "@/shared/db";
 import { deleteObjects, toThumbKey } from "@/shared/storage";
 import { and, inArray, isNull } from "drizzle-orm";
-import { isInGallery } from "./list-gallery-media";
+import { isInLibrary } from "./list-gallery-media";
 
 export type GalleryRemoval = {
   /** Still in a bubble, so only the gallery lost them. */
@@ -32,12 +32,13 @@ export async function removeGalleryMedia(ids: string[]): Promise<GalleryRemoval>
   }
 
   const db = getDb();
-  // INFO: Narrowed to what the gallery actually shows, so an id that never reached the grid removes nothing and cannot be probed with.
+  // INFO: Narrowed to what the library actually shows, so an id that never reached it removes nothing and cannot be probed with.
+  // WARN: Membership without the kind test (§ 10.), so one 삭제 serves every segment — narrowed to 사진 it would silently remove nothing for a file selection.
   // WARN: This does *not* protect a gallery upload whose `postMessage` is still in flight — § 10. registers those with `gallery_added_at` set, so they are in the grid with no `message_media` child and read as orphans here. The screen is what closes that window: `useGalleryUpload` reports `isBusy` until the post settles, and selection is unavailable while it does.
   const visible = await db
     .select({ id: media.id })
     .from(media)
-    .where(and(inArray(media.id, ids), isInGallery()));
+    .where(and(inArray(media.id, ids), isInLibrary()));
   const targetIds = visible.map((row) => row.id);
 
   if (targetIds.length === 0) {

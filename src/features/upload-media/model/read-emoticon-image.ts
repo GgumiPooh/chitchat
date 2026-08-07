@@ -110,6 +110,7 @@ async function toAnimatedDraft(file: File, mime: string): Promise<MediaDraft> {
       height: image.naturalHeight,
       durationMs: null,
       filename: null,
+      waveformPeaks: null,
     };
   } catch (error) {
     // WARN: Only the failure path releases it. On the way out the URL *is* the draft's preview, and revoking it would leave the caller with a `previewUrl` nothing can render.
@@ -148,6 +149,7 @@ async function toStillDraft(file: File): Promise<MediaDraft> {
       height: size.height,
       durationMs: null,
       filename: null,
+      waveformPeaks: null,
     };
   } finally {
     URL.revokeObjectURL(sourceUrl);

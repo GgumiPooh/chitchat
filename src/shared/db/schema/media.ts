@@ -1,4 +1,4 @@
-import { index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 // INFO: REQUIREMENTS.md § 10. The single source for the gallery too — a chat image is never copied into a second table.
@@ -19,7 +19,11 @@ export const media = pgTable(
     height: integer("height").notNull(),
     // WARN: REQUIREMENTS.md § 9.1. The discriminator, not decoration: a row with a filename is a file attachment, and it has no `_thumb` sibling, never enters the gallery (§ 10.) and is never drawn by the viewer. Set by the server from the stored mime, never taken as the client says it.
     filename: text("filename"),
+    // WARN: REQUIREMENTS.md § 9.3. The discriminator for a **voice message**, exactly as `filename` above is the one for a file attachment: a row with peaks is a recording, and a row without them is not. It is the payload and the flag at once, which is deliberate — the alternative was a `kind` enum requiring a backfill of every existing row, and § 9.1. already established the pattern.
+    // WARN: Integers `0`–`VOICE_PEAK_SCALE`, not floats, and always `VOICE_WAVEFORM_PEAKS` of them. `registerMedia` refuses any other shape, and refuses peaks at all on a mime that is not one § 9.3. records into — otherwise a JPEG could be filed as a voice message and would vanish from the gallery.
+    waveformPeaks: smallint("waveform_peaks").array(),
     // INFO: DESIGN.md § 6.5. Null for a still image; a video cell draws its running time from this, read off the element that produced the poster frame.
+    // WARN: § 9.3. Required in practice for a voice message — the § 8.3. box is fixed, but the player's progress is drawn against this figure and a null reads as a waveform that never moves.
     durationMs: integer("duration_ms"),
     blurhash: text("blurhash"),
     takenAt: timestamp("taken_at", { withTimezone: true }),

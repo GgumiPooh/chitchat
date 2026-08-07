@@ -1,13 +1,18 @@
 export { downloadMedia } from "./download-files";
 export { MediaShareDialog, type MediaShareDialogProps } from "./media-share-dialog";
 export {
-  SHARE_CAP_MESSAGE,
   canShareFiles,
   canShareText,
   collectShareFiles,
   isShareableSelection,
   shareFiles,
   shareText,
+  toShareCapMessage,
   type ShareOutcome,
 } from "./share-files";
-export { useMediaShare, type MediaShareIntent, type MediaShareProgress } from "./use-media-share";
+export {
+  useMediaShare,
+  type MediaShareIntent,
+  type MediaShareOptions,
+  type MediaShareProgress,
+} from "./use-media-share";

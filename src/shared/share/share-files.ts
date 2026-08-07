@@ -39,8 +39,17 @@ export function canShareText(): boolean {
   return isBrowser() && typeof navigator.share === "function";
 }
 
-// INFO: One copy of the sentence, because two callers say it — the hook when a selection reaches the route, and REQUIREMENTS.md § 10.'s 공유 when it refuses to start one.
-export const SHARE_CAP_MESSAGE = `한 번에 ${MAX_GALLERY_SHARE_FILES}장까지 공유할 수 있어요`;
+/**
+ * INFO: One copy of the sentence, because two callers say it — the hook when a
+ * selection reaches the route, and REQUIREMENTS.md § 10.'s 공유 when it refuses to
+ * start one.
+ *
+ * INFO: The counter is a parameter because 보관함 has two segments (§ 10.): 사진 is
+ * counted in 장 and 파일 in 개.
+ */
+export function toShareCapMessage(countUnit = "장"): string {
+  return `한 번에 ${MAX_GALLERY_SHARE_FILES}${countUnit}까지 공유할 수 있어요`;
+}
 
 /** Whether a selection is small enough to be buffered for the share sheet at all. */
 export function isShareableSelection(ids: string[]): boolean {
@@ -66,6 +75,7 @@ export function isShareableSelection(ids: string[]): boolean {
 export async function collectShareFiles(
   ids: string[],
   onProgress: (count: number) => void,
+  names?: Record<string, string>,
 ): Promise<File[]> {
   const files: File[] = [];
   let totalBytes = 0;
@@ -91,7 +101,9 @@ export async function collectShareFiles(
       throw new Error("selection_too_large");
     }
 
-    files.push(new File([blob], toShareFileName(id, blob.type), { type: blob.type }));
+    files.push(
+      new File([blob], names?.[id] ?? toShareFileName(id, blob.type), { type: blob.type }),
+    );
     onProgress(files.length);
   }
 
@@ -123,6 +135,15 @@ async function toOutcome(share: () => Promise<void>): Promise<ShareOutcome> {
   }
 }
 
+/**
+ * WARN: The fallback, and only for a photo or a video. A REQUIREMENTS.md § 9.1. file
+ * attachment MUST be named from `media.filename` through `names` — its mime is
+ * outside the media allow-list, so `extensionForMime` answers `bin` and the pair
+ * would hand each other `9f3c….bin` instead of the document they picked. R2 stores
+ * the bytes under a UUID key and the server's own `Content-Disposition` cannot be
+ * read back here: the header is not CORS-safelisted and the response has already
+ * been redirected cross-origin (§ 9.).
+ */
 function toShareFileName(id: string, mime: string): string {
   return `${id}.${extensionForMime(mime)}`;
 }

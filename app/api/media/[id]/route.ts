@@ -47,10 +47,15 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
   // WARN: REQUIREMENTS.md § 9.1. A file attachment is served as an attachment whatever the query says, and never as a thumb variant it has no object for. Nothing in the app renders one inline, so the only way this URL is ever opened is to save it.
   const isFile = row.filename !== null;
-  const url = await presignDownload(toVariantKey(row, isFile ? "original" : query.data.variant), {
-    asAttachment: isFile || query.data.download === "1",
-    filename: row.filename,
-  });
+  // WARN: REQUIREMENTS.md § 9.3. A voice message has no `_thumb` sibling either — one PUT, like a file — so it is forced off the default variant for the same reason. It is **not** forced to an attachment: unlike a file it is meant to play inline, and `variant` defaulting to `thumb` is what would otherwise sign a URL for an object R2 never received.
+  const hasNoThumb = isFile || row.waveformPeaks !== null;
+  const url = await presignDownload(
+    toVariantKey(row, hasNoThumb ? "original" : query.data.variant),
+    {
+      asAttachment: isFile || query.data.download === "1",
+      filename: row.filename,
+    },
+  );
 
   return NextResponse.redirect(url, {
     status: 302,

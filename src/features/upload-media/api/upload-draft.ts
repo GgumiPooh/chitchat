@@ -78,6 +78,8 @@ async function registerUpload(
       height: draft.height,
       durationMs: draft.durationMs,
       filename: draft.filename,
+      // INFO: REQUIREMENTS.md § 9.3. Already in the wire form the column stores — a draft carries integers, and only what renders converts to `0`–`1`.
+      waveformPeaks: draft.waveformPeaks,
       addToGallery,
     }),
   });

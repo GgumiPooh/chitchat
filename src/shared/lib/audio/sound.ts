@@ -1,13 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import type { Nullable } from "./nullish";
-import { safelyRun } from "./run/safely";
-
-// INFO: `navigator.audioSession` is Safari 16.4+ and shipped nowhere else, so it is read off a widened `Navigator` rather than waiting on the DOM lib.
-type AudioSessionNavigator = Navigator & {
-  audioSession?: { type: string };
-};
+import type { Nullable } from "../nullish";
+import { safelyRun } from "../run/safely";
+import { declareRestingAudioSession } from "./session";
 
 // INFO: One element for the whole page: a second sound cuts the first off instead of layering over it, and the gesture that approves this element approves every sound that follows.
 let player: Nullable<HTMLAudioElement> = null;
@@ -79,22 +75,10 @@ export function useSoundUnlock(): void {
 
 function getPlayer(): HTMLAudioElement {
   if (!player) {
-    declareTransientSession();
+    // WARN: REQUIREMENTS.md § 13.6. Before the element exists, because the `auto` session an `<audio>` element would otherwise settle into is `playback` — the category that mints iOS's Now Playing entry.
+    declareRestingAudioSession();
     player = new Audio();
   }
 
   return player;
-}
-
-/**
- * WARN: REQUIREMENTS.md § 13.6. Before the element exists, because the `auto`
- * session an `<audio>` element would otherwise settle into is `playback` — the
- * category that mints iOS's Now Playing entry.
- */
-function declareTransientSession(): void {
-  const session = (navigator as AudioSessionNavigator).audioSession;
-
-  if (session) {
-    session.type = "transient";
-  }
 }
