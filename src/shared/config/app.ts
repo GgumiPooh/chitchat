@@ -310,8 +310,15 @@ export const IS_DEV = process.env.NODE_ENV === "development";
  * beside a domain-scoped one of the same name: reads would pick between two
  * values, and a logout could clear only one of the two and bounce off the proxy
  * forever.
+ *
+ * WARN: A generic name over a whole domain. Every subdomain of `jeheecheon.com`
+ * receives this cookie, and `session` is what several frameworks call theirs by
+ * default — so anything else hosted there reads this token, and a host-only
+ * `session` of its own would shadow this one exactly as the paragraph above
+ * describes. The domain is ours and holds these two apps, which is the whole of
+ * why the name is safe.
  */
-export const SESSION_COOKIE_NAME = "jeheecheon_session";
+export const SESSION_COOKIE_NAME = "session";
 
 /**
  * Parent domain the session cookie is issued to — `.jeheecheon.com` in
