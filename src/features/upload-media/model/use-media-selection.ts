@@ -10,9 +10,9 @@ import { revokePreview } from "./revoke-preview";
 export type UseMediaSelectionParams = {
   /**
    * Whether a § 9.1. file attachment may be staged. The composer says yes; the
-   * gallery says no.
+   * library says no.
    *
-   * WARN: Off by default, and the gallery depends on that. `validateFile` admits
+   * WARN: Off by default, and the library depends on that. `validateFile` admits
    * anything shaped like a mime now, so a `.zip` would stage a tile the grid can
    * never show — and `registerMedia` refuses a file under `addToGallery`, which
    * would surface as a 422 with nothing in the UI naming the reason.
@@ -54,7 +54,7 @@ export function useMediaSelection({ acceptsFiles = false }: UseMediaSelectionPar
         const rejections = new Set<string>();
 
         for (const file of files) {
-          // WARN: `toStoredMime`, never a raw `file.type`. An empty type is routine, and everything downstream resolves it to `FALLBACK_FILE_MIME` — reading it raw here let the same typeless JPEG stage as a file card in the composer and be refused outright in the gallery.
+          // WARN: `toStoredMime`, never a raw `file.type`. An empty type is routine, and everything downstream resolves it to `FALLBACK_FILE_MIME` — reading it raw here let the same typeless JPEG stage as a file card in the composer and be refused outright in the library.
           const rejection =
             acceptsFiles || isAllowedMediaMime(toStoredMime(file))
               ? validateFile(file)
@@ -80,6 +80,23 @@ export function useMediaSelection({ acceptsFiles = false }: UseMediaSelectionPar
       }
     },
     [acceptsFiles, commit],
+  );
+
+  /**
+   * Stages a draft that was never a picked `File` — REQUIREMENTS.md § 9.3.'s
+   * recording, which arrives already decoded with its peaks and its wall-clock
+   * duration attached.
+   *
+   * WARN: It bypasses `validateFile` deliberately, and that is safe only because the
+   * recorder is the sole caller: the bytes came from `MediaRecorder` under
+   * `MAX_VOICE_DURATION`, and `toVoiceDraft` has already filled in everything
+   * `toMediaDraft` would have had to decode. Do not widen this to arbitrary input.
+   */
+  const addDraft = useCallback(
+    (draft: MediaDraft) => {
+      commit((previous) => [...previous, draft]);
+    },
+    [commit],
   );
 
   const remove = useCallback(
@@ -138,5 +155,5 @@ export function useMediaSelection({ acceptsFiles = false }: UseMediaSelectionPar
     });
   }, [commit]);
 
-  return { drafts, isReading, add, remove, replace, takeAll, clear };
+  return { drafts, isReading, add, addDraft, remove, replace, takeAll, clear };
 }

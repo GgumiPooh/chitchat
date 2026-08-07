@@ -1,6 +1,6 @@
 "use client";
 
-import { MAX_GALLERY_SHARE_FILES } from "@/shared/config";
+import { MAX_ARCHIVE_SHARE_FILES } from "@/shared/config";
 import { isIos, type Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { josa } from "es-hangul";
@@ -38,16 +38,16 @@ export type MediaShareProgress = {
 
 /**
  * Handing stored originals to the OS, over whichever of the two routes the platform
- * actually has: `save` is the gallery's 저장 (REQUIREMENTS.md § 10.), `share` is the
+ * actually has: `save` is the library's 저장 (REQUIREMENTS.md § 10.), `share` is the
  * 공유 of a chat message (§ 8.11.).
  *
  * INFO: The share sheet is the only way a photo reaches the iOS photo library; the
- * download path saves into Files, where a user who tapped 저장 in a gallery will not
+ * download path saves into Files, where a user who tapped 저장 in a library will not
  * look for it.
  *
  * WARN: 저장 takes the sheet on iOS alone, and 공유 takes it wherever there is one.
  * Everywhere else a download is what 저장 meant: desktop Chrome answers `canShare` but
- * offers mail and AirDrop, and Android indexes the Downloads folder into the gallery,
+ * offers mail and AirDrop, and Android indexes the Downloads folder into the library,
  * so on both the sheet is the worse answer to 저장 and the right answer to 공유.
  */
 export function useMediaShare() {
@@ -71,7 +71,7 @@ export function useMediaShare() {
       if (!isShareableSelection(ids)) {
         toast.error(
           intent === "save"
-            ? `사진 앱에는 한 번에 ${MAX_GALLERY_SHARE_FILES}${countUnit}까지 저장할 수 있어요`
+            ? `사진 앱에는 한 번에 ${MAX_ARCHIVE_SHARE_FILES}${countUnit}까지 저장할 수 있어요`
             : toShareCapMessage(countUnit),
         );
         download(ids, intent, countUnit);

@@ -8,7 +8,8 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { TABS } from "../model/tabs";
 
-type PendingTab = { href: string; from: Nullable<string> };
+// WARN: The tab's **route** prefix, not its `href`. 보관함 links to its 사진 shelf while the bar fills from `/archive` (§ 10.), so a pending tab holding the link would never match `isUnderRoute` against itself.
+type PendingTab = { route: string; from: Nullable<string> };
 
 export type TabBarProps = {
   className?: string;
@@ -36,8 +37,8 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
     setPendingTab(null);
   }
 
-  const activeHref = pendingTab?.href ?? pathname;
-  const activeIndex = TABS.findIndex(({ href }) => isUnderRoute(activeHref, href));
+  const activePath = pendingTab?.route ?? pathname;
+  const activeIndex = TABS.findIndex(({ route }) => isUnderRoute(activePath, route));
 
   // INFO: DESIGN.md § 7.3. Leaving for the keyboard is `BottomOverlay`'s job — unmounting here would step `--bottom-inset` on its own timeline and tear the composer's motion in two.
   return (
@@ -63,8 +64,8 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
           )}
           {/* WARN: DESIGN.md § 7.3. The list is lifted over the fill explicitly, never by DOM order. `Link` makes an anchor `relative` only when `haptic` is on, and `haptic` is off on the active tab — the one tab the fill is parked under is therefore the one non-positioned anchor, and its `focus-visible` ring would paint beneath an opaque `primary-tint`. */}
           <ul className="relative z-10 flex flex-1 items-stretch">
-            {TABS.map(({ href, label, Icon }) => {
-              const isActive = isUnderRoute(activeHref, href);
+            {TABS.map(({ route, href, label, Icon }) => {
+              const isActive = isUnderRoute(activePath, route);
               // INFO: DESIGN.md § 7.3. Crossed over the fill's own duration rather than swapped, so the pair lands with the fill instead of turning `primary` while it is still travelling.
               // WARN: `--duration-tab-travel`, and it MUST track whatever the fill above uses. Left on `--duration-state` the label lands before the fill is halfway across and sits `primary` on bare glass waiting for it — the exact snap this crossfade exists to prevent, and it widens every time the travel is slowed.
               // WARN: `motion-reduce:duration-0` has to track the fill's too, or the desync this crossfade prevents comes back inverted under reduced motion — the fill snapping instantly while the glyph and label take the full travel. DESIGN.md § 7.3.'s contract is that the travel drops to 0s for both.
@@ -74,7 +75,7 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
               );
 
               return (
-                <li key={href} className="flex-1">
+                <li key={route} className="flex-1">
                   <Link
                     // INFO: DESIGN.md § 3.2. On top of the callout suppression `Link` already carries: the labels are chrome, so a hold that finds no preview must not raise the selection magnifier over 채팅 instead.
                     className={cn(
@@ -86,20 +87,20 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
                     haptic={!isActive}
                     aria-current={isActive ? "page" : undefined}
                     // INFO: `onNavigate` and not `onClick` — a ⌘-click opens a tab in a new window and switches nothing here, and Next skips this handler for exactly those.
-                    onNavigate={() => setPendingTab({ href, from: pathname })}
+                    onNavigate={() => setPendingTab({ route, from: pathname })}
                   >
                     {/* WARN: DESIGN.md § 4.7.2. The bloom is on the glyph stack and not the anchor. The anchor is a quarter of the pill wide, so at this dial its hover fill and focus ring would swell a third of a column past the pill and over the tabs beside it — and the fill it used to spring with now travels behind the items (§ 7.3.) rather than riding it. */}
                     {/* WARN: DESIGN.md § 4.7.2. It is reached through the anchor's `.group`, which is the descendant form of `[data-pressed]` — the only one that fires under a finger, since `HapticTap` marks the anchor and not this span. */}
                     <span className="flex press-bloom flex-col items-center gap-0.5 [--press-scale:1.25]">
                       <span className="relative">
                         <Icon className={cn("size-5", stateClassName)} strokeWidth={1.75} />
-                        {href === CHAT_ROUTE && unreadCount > 0 && (
+                        {route === CHAT_ROUTE && unreadCount > 0 && (
                           <Badge className="absolute -top-1 -right-2">
                             {unreadCount > 99 ? "99+" : unreadCount}
                           </Badge>
                         )}
                         {/* INFO: REQUIREMENTS.md § 11.5. A single dot, never a count — the calendar's news is that there is something today, not how much. */}
-                        {href === CALENDAR_ROUTE && hasEventToday && (
+                        {route === CALENDAR_ROUTE && hasEventToday && (
                           <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
                         )}
                       </span>

@@ -231,10 +231,10 @@ export function ChatRoom({
   const { pending, send, sendMedia, sendEmoticon, retry, cancel, resolve } = useSendMessage({
     onSent: appendMessage,
   });
-  // INFO: REQUIREMENTS.md § 9.1. The one surface that takes a file attachment — the gallery stages the same way but shows tiles, so it keeps the default.
+  // INFO: REQUIREMENTS.md § 9.1. The one surface that takes a file attachment — the library stages the same way but shows tiles, so it keeps the default.
   const selection = useMediaSelection({ acceptsFiles: true });
   const editing = useAttachmentEditing(selection.replace);
-  // INFO: REQUIREMENTS.md § 8.11. The same route the gallery's 저장 takes (§ 10.), asked for by 공유 rather than by 저장.
+  // INFO: REQUIREMENTS.md § 8.11. The same route the library's 저장 takes (§ 10.), asked for by 공유 rather than by 저장.
   const sharing = useMediaShare();
   const isKeyboardOpen = useIsVirtualKeyboardOpen();
   // INFO: REQUIREMENTS.md § 8.6. The composer's whole stack is put away for the length of a search, and everything it drives has to go with it.

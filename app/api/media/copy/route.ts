@@ -15,7 +15,7 @@ const bodySchema = z.object({
  *
  * WARN: The scope is fixed here rather than taken from the body. `background` is
  * the one scope whose objects are duplicates by design; letting a caller name
- * `chat` would mint a `media` row that the § 10. gallery immediately owns, and
+ * `chat` would mint a `media` row that the § 10. library immediately owns, and
  * `avatar` would put a second copy behind `discardScopedMedia` on the next profile
  * save.
  */

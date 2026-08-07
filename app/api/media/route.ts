@@ -21,7 +21,7 @@ const bodySchema = z.object({
     .array(z.number().int().min(0).max(VOICE_PEAK_SCALE))
     .length(VOICE_WAVEFORM_PEAKS)
     .nullish(),
-  // INFO: REQUIREMENTS.md § 10. An upload started in the Gallery tab that is not being posted to the conversation. It needs a marker of its own, because the grid's other source is the `message_media` join.
+  // INFO: REQUIREMENTS.md § 10. An upload started in the 보관함 tab that is not being posted to the conversation. It needs a marker of its own, because the grid's other source is the `message_media` join.
   addToGallery: z.boolean().optional(),
 });
 
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  // WARN: The prefix is the ownership check. `buildStorageKey` puts the uploader's id in the key, so a caller naming someone else's key is claiming an object it never uploaded. The scope is matched too, or an emoticon object could be claimed as a `media` row and land in the gallery (§ 13.3.).
+  // WARN: The prefix is the ownership check. `buildStorageKey` puts the uploader's id in the key, so a caller naming someone else's key is claiming an object it never uploaded. The scope is matched too, or an emoticon object could be claimed as a `media` row and land in the library (§ 13.3.).
   const scope = MEDIA_UPLOAD_SCOPES.find((candidate) =>
     body.data.r2Key.startsWith(toScopePrefix(candidate, user.id)),
   );
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  // WARN: REQUIREMENTS.md § 12. `addToGallery` is the caller's own claim, so it has to be refused rather than ignored for a scope the gallery does not own. An avatar filed into the grid is deleted outright by § 10.'s removal — nothing carries it in a message — and `users.avatar_media_id` is `ON DELETE SET NULL`, so the wearer's photo would silently disappear.
+  // WARN: REQUIREMENTS.md § 12. `addToGallery` is the caller's own claim, so it has to be refused rather than ignored for a scope the library does not own. An avatar filed into the grid is deleted outright by § 10.'s removal — nothing carries it in a message — and `users.avatar_media_id` is `ON DELETE SET NULL`, so the wearer's photo would silently disappear.
   if (scope !== "chat" && body.data.addToGallery) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }

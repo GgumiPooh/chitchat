@@ -34,7 +34,7 @@ export const emoticonItems = pgTable(
     packId: uuid("pack_id")
       .notNull()
       .references(() => emoticonPacks.id, { onDelete: "cascade" }),
-    // INFO: REQUIREMENTS.md § 13.3. The R2 key itself, not a `media` row — an emoticon is neither gallery content nor a thumbnailed pair.
+    // INFO: REQUIREMENTS.md § 13.3. The R2 key itself, not a `media` row — an emoticon is neither library content nor a thumbnailed pair.
     r2Key: text("r2_key").notNull().unique(),
     // INFO: REQUIREMENTS.md § 13.2. One image slot for both kinds — an animated GIF or WebP is stored here exactly as a PNG is, and the renderer never branches on which it got.
     mime: text("mime").notNull(),

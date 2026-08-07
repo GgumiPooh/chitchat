@@ -33,20 +33,42 @@ export const CHAT_ROUTE = "/chat";
 
 export const CALENDAR_ROUTE = "/calendar";
 
-export const GALLERY_ROUTE = "/gallery";
+/**
+ * REQUIREMENTS.md § 7., § 10. 보관함's **prefix**, and not a screen of its own.
+ *
+ * WARN: Nothing renders here — `app/(main)/archive/page.tsx` redirects to
+ * `ARCHIVE_GALLERY_ROUTE`. This constant exists for `isUnderRoute`, which is what
+ * keeps the tab bar's fill on 보관함 across all three shelves and what
+ * `RouteTransition` reads the slide direction from (DESIGN.md § 4.7.1.). **It is not
+ * a link target**: `widgets/tab-bar` points the tab at the 사진 shelf so a tab tap
+ * does not spend a redirect.
+ */
+export const ARCHIVE_ROUTE = "/archive";
+
+/**
+ * REQUIREMENTS.md § 10. The 사진 segment of 보관함.
+ *
+ * INFO: All three shelves take a segment, including this one. With three of them,
+ * leaving 사진 on the bare `/archive` would read as the other two being nested
+ * *inside* it rather than beside it — the same thing that made `/gallery/files` wrong
+ * (§ 7.).
+ *
+ * WARN: The path says `gallery` where the chip says `사진`, and that is the user's
+ * call rather than an oversight. Do not "tidy" it to `/archive/photos`.
+ */
+export const ARCHIVE_GALLERY_ROUTE = `${ARCHIVE_ROUTE}/gallery`;
 
 /**
  * REQUIREMENTS.md § 10. The 파일 segment of 보관함.
  *
- * INFO: Nested under `GALLERY_ROUTE`, so `isUnderRoute` keeps the tab filled and
- * `RouteTransition` resolves both segments to one tab — a segment switch is not a
- * sideways move and must not slide (DESIGN.md § 4.7.1.).
- *
- * WARN: The route stays `/gallery` while the label is 보관함, as `/settings/emoticons`
- * is 이모티콘 관리. Renaming it would churn the widget, the API and every § 10.
- * citation for a string the user never sees.
+ * INFO: Nested under `ARCHIVE_ROUTE`, so `isUnderRoute` keeps the tab filled and
+ * `RouteTransition` resolves all three segments to one tab — a segment switch is not
+ * a sideways move and must not slide (DESIGN.md § 4.7.1.).
  */
-export const GALLERY_FILES_ROUTE = `${GALLERY_ROUTE}/files`;
+export const ARCHIVE_FILES_ROUTE = `${ARCHIVE_ROUTE}/files`;
+
+/** REQUIREMENTS.md § 10. The 음성 segment — the same nesting, for the same reasons as the line above. */
+export const ARCHIVE_VOICE_ROUTE = `${ARCHIVE_ROUTE}/voice`;
 
 export const SETTINGS_ROUTE = "/settings";
 
@@ -63,7 +85,7 @@ export const EMOTICON_SETTINGS_ROUTE = "/settings/emoticons";
  * a route added here without a face in `TABS` is an `undefined` `Icon` that
  * typechecks and blanks the shell at render instead of failing the build.
  */
-export const TAB_ROUTES = [CHAT_ROUTE, CALENDAR_ROUTE, GALLERY_ROUTE, SETTINGS_ROUTE] as const;
+export const TAB_ROUTES = [CHAT_ROUTE, CALENDAR_ROUTE, ARCHIVE_ROUTE, SETTINGS_ROUTE] as const;
 
 export type TabRoute = (typeof TAB_ROUTES)[number];
 

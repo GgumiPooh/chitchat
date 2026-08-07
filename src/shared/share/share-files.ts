@@ -1,6 +1,6 @@
 import {
-  MAX_GALLERY_SHARE_BYTES,
-  MAX_GALLERY_SHARE_FILES,
+  MAX_ARCHIVE_SHARE_BYTES,
+  MAX_ARCHIVE_SHARE_FILES,
   extensionForMime,
   toMediaDownloadUrl,
 } from "@/shared/config";
@@ -48,12 +48,12 @@ export function canShareText(): boolean {
  * counted in 장 and 파일 in 개.
  */
 export function toShareCapMessage(countUnit = "장"): string {
-  return `한 번에 ${MAX_GALLERY_SHARE_FILES}${countUnit}까지 공유할 수 있어요`;
+  return `한 번에 ${MAX_ARCHIVE_SHARE_FILES}${countUnit}까지 공유할 수 있어요`;
 }
 
 /** Whether a selection is small enough to be buffered for the share sheet at all. */
 export function isShareableSelection(ids: string[]): boolean {
-  return ids.length > 0 && ids.length <= MAX_GALLERY_SHARE_FILES;
+  return ids.length > 0 && ids.length <= MAX_ARCHIVE_SHARE_FILES;
 }
 
 /**
@@ -89,7 +89,7 @@ export async function collectShareFiles(
 
     const declaredBytes = Number(response.headers.get("content-length") ?? 0);
 
-    if (totalBytes + declaredBytes > MAX_GALLERY_SHARE_BYTES) {
+    if (totalBytes + declaredBytes > MAX_ARCHIVE_SHARE_BYTES) {
       throw new Error("selection_too_large");
     }
 
@@ -97,7 +97,7 @@ export async function collectShareFiles(
 
     totalBytes += blob.size;
 
-    if (totalBytes > MAX_GALLERY_SHARE_BYTES) {
+    if (totalBytes > MAX_ARCHIVE_SHARE_BYTES) {
       throw new Error("selection_too_large");
     }
 

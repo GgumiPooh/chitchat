@@ -15,7 +15,7 @@ export type SetBackgroundControl = {
  * REQUIREMENTS.md § 12.1. The whole 배경으로 설정 affordance for a screen that shows
  * the § 7.10. viewer — the state, the handler and the sheet as one thing.
  *
- * INFO: A hook rather than two copies of four lines. The chat room and the gallery
+ * INFO: A hook rather than two copies of four lines. The chat room and the library
  * both mount the viewer and neither may import the other (§ 2.), so the wiring was
  * duplicated verbatim, comment included — and the next change to it (a busy state, a
  * second slot) would have had to be made twice.

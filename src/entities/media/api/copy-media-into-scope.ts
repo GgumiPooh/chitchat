@@ -9,7 +9,7 @@ import {
 } from "@/shared/config";
 import type { Media } from "@/shared/db";
 import { buildStorageKey, copyObject, toThumbKey } from "@/shared/storage";
-import type { GalleryMedia } from "../model/types";
+import type { ArchiveMedia } from "../model/types";
 import { canReadMedia, getMediaRow } from "./get-media-object";
 import { registerMedia } from "./register-media";
 
@@ -36,7 +36,7 @@ export type CopyMediaIntoScopeParams = {
  * at.
  */
 export type CopyMediaResult =
-  | { status: "copied"; media: GalleryMedia }
+  | { status: "copied"; media: ArchiveMedia }
   | { status: "unreachable" }
   | { status: "unsupported" }
   | { status: "unregistered" };
@@ -45,12 +45,12 @@ export type CopyMediaResult =
  * Duplicates a `media` row and its two R2 objects into `scope`, under `userId`.
  *
  * INFO: REQUIREMENTS.md § 12.1. This is 배경으로 설정 — the route from a photo in
- * the gallery or a chat bubble to a background. Pointing the column at the source
+ * the library or a chat bubble to a background. Pointing the column at the source
  * row would have been free, and is what § 12. rules out: every pipeline's objects
  * stay inside their own scope, so that the replacement cleanup can delete them
  * without ever standing in front of a bubble that is still rendering one.
  *
- * WARN: `canReadMedia`, not ownership. The gallery and the conversation are shared
+ * WARN: `canReadMedia`, not ownership. The library and the conversation are shared
  * (§ 10.), so the photo worth setting as a background is routinely the other
  * participant's — but the check still has to run, or an id alone would lift any
  * object in the bucket into a scope this user owns.
@@ -100,7 +100,7 @@ export async function copyMediaIntoScope({
 }
 
 /**
- * INFO: REQUIREMENTS.md § 12.1. A gallery video reaches the caps by being trimmed
+ * INFO: REQUIREMENTS.md § 12.1. A library video reaches the caps by being trimmed
  * on the way in; one already in the conversation was never bounded by them, so a
  * copy is refused rather than silently worn. A row with no `duration_ms` is refused
  * too — it is what the cap is read from.

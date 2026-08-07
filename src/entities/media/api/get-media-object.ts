@@ -78,7 +78,7 @@ export async function ownsAllMedia(
  * WARN: A signed-in session is not by itself the answer. Every conversation
  * message is visible to both participants (REQUIREMENTS.md § 6.), but the key
  * scopes already reach past chat — an `avatar` or `emoticon` object nobody has
- * posted is reachable by id alone without this, and the gallery of § 18. #1 makes
+ * posted is reachable by id alone without this, and the library of § 18. #1 makes
  * that a real leak rather than a theoretical one.
  */
 export async function canReadMedia(row: Media, userId: string): Promise<boolean> {
@@ -86,7 +86,7 @@ export async function canReadMedia(row: Media, userId: string): Promise<boolean>
     return true;
   }
 
-  // INFO: REQUIREMENTS.md § 10. A photo put in the gallery without being sent is conversation-wide by construction — the gallery is shared, so the other participant is looking at the same grid.
+  // INFO: REQUIREMENTS.md § 10. A photo put in the library without being sent is conversation-wide by construction — the library is shared, so the other participant is looking at the same grid.
   if (row.galleryAddedAt !== null) {
     return true;
   }

@@ -20,7 +20,7 @@ import { and, eq, like } from "drizzle-orm";
  * sender owns, and a chat photo reached this way would be deleted out from under
  * the bubble that carries it — or fail outright on `message_media`'s non-cascading
  * key (§ 6.). The prefix is what makes "nothing else can be rendering this" true,
- * and it is why § 12.1.'s 배경으로 설정 copies a gallery photo into `background/`
+ * and it is why § 12.1.'s 배경으로 설정 copies a library photo into `background/`
  * rather than pointing at it where it lies.
  */
 export async function discardScopedMedia(

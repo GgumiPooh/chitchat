@@ -48,7 +48,7 @@ export function validateFile(file: File): Nullable<string> {
  *
  * WARN: The name is consulted before the fallback is taken, and that is the whole
  * point of it. Resolved straight to `FALLBACK_FILE_MIME`, a typeless JPEG became a
- * § 9.1. file card in the composer and was refused outright by the gallery — one
+ * § 9.1. file card in the composer and was refused outright by the library — one
  * pick, two answers, neither of them the photo the user chose.
  */
 export function toStoredMime(file: File): string {

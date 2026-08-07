@@ -82,7 +82,7 @@ export const messageMedia = pgTable(
     messageId: bigint("message_id", { mode: "number" })
       .notNull()
       .references(() => messages.id, { onDelete: "cascade" }),
-    // TODO: Decide the delete behaviour with § 18 #1 — gallery deletion may need `media.deleted_at` instead of a cascade.
+    // TODO: Decide the delete behaviour with § 18 #1 — library deletion may need `media.deleted_at` instead of a cascade.
     mediaId: uuid("media_id")
       .notNull()
       .references(() => media.id),

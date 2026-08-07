@@ -9,7 +9,7 @@ Design specification for a private two-person messaging, calendar, and photo app
 
 ## 1.1. Purpose.
 
-Define design tokens, primitive UI components, theming behaviour, and authoring rules for J&H. Feature-level compositions (message list, calendar grid, gallery grid, settings rows) live with their owning slice, not in this document — but the chat surface is specified here (§ 6.) because it carries the product's entire visual identity.
+Define design tokens, primitive UI components, theming behaviour, and authoring rules for J&H. Feature-level compositions (message list, calendar grid, library grid, settings rows) live with their owning slice, not in this document — but the chat surface is specified here (§ 6.) because it carries the product's entire visual identity.
 
 Reference UX: KakaoTalk (chat mechanics only — see § 2.2. for what is deliberately not taken).
 
@@ -91,7 +91,7 @@ Touch-first geometry, full pointer states.
 | `Link` (`shared/ui`) carries `-webkit-touch-callout: none` for every app route, and a link whose text is chrome rather than content adds `select-none` — the tab bar (§ 7.3.) does both                            | iOS's hold-to-preview raises a card of a screen the user is one tap from anyway, and it is the same native gesture the row above has to get out of the way. The property inherits, so declaring it on the anchor covers the glyph and label inside it                                                                                                                                                                                     |
 | A hold that fires swallows the `click` its release ends in, and disarms whatever gesture shares the element with it                                                                                                | The finger is still down when the sheet opens and still owns the gesture: the release would tap what it is sitting on — the photo behind the sheet, or the tile the hold just selected — and on a bubble the § 6.10. pull would go on tracking behind the sheet and reply on release                                                                                                                                                      |
 | The OS hold is surrendered on exactly one surface: the § 7.10. viewer                                                                                                                                              | Two menus over one photo is not a choice the user can read (`REQUIREMENTS.md § 8.11.`), so the app takes the hold wherever it has something of its own to offer and leaves the full-screen slide, which has nothing competing, to iOS                                                                                                                                                                                                     |
-| The pointer equivalent may be the `contextmenu` half of the same gesture **or** a control elsewhere on the screen                                                                                                  | The gallery's hold-to-select has a header button (§ 7.10.), so taking right-click there would cost the browser's image menu for nothing                                                                                                                                                                                                                                                                                                   |
+| The pointer equivalent may be the `contextmenu` half of the same gesture **or** a control elsewhere on the screen                                                                                                  | The library's hold-to-select has a header button (§ 7.10.), so taking right-click there would cost the browser's image menu for nothing                                                                                                                                                                                                                                                                                                   |
 | Dropping files onto the chat room stages them, marked by a full-room overlay: a `2xs`-inset 2px dashed `primary` border over a `scrim/20` wash, with a `glass` pill reading `여기에 놓으면 첨부돼요` centred in it | `REQUIREMENTS.md § 9.2.` The one affordance that exists only with a pointer, so it is additive rather than a branch — a touch platform fires no drag events and simply never sees it. The overlay is `pointer-events-none` and never unmounted, or the cursor entering it reads as a `dragleave` and the drop flickers away                                                                                                               |
 
 ## 3.3. App Shell.
@@ -170,6 +170,8 @@ A screen-owned overlay that must cover the bars — the media viewer (§ 7.10.),
 
 A larger `z-index` is not an alternative. The bars are siblings of the scroller, not of the screen inside it, so an overlay left in the screen's subtree cannot outrank them from there — and being inside the scroller it would also stop at the clearance padding, leaving the tab bar sitting on top of it.
 
+**`ShellOverlay` resolves the shell through `useSyncExternalStore`, and the server snapshot is `null`.** A portal target can only be read in the browser, so the server renders nothing where the overlay stands — and a lazy `useState` reads the DOM on the **hydration** render, which mounts the portal in a position the server left empty and throws `Hydration failed` for the whole route. It surfaced on 보관함, whose drop overlay (`REQUIREMENTS.md § 9.2.`) is up from first paint rather than opened by a tap; every other overlay hid it by opening long after hydration. `useSyncExternalStore` renders the server's answer while hydrating and the real one immediately after, **before paint** — which is why it is not an effect either: an effect mounts the children a frame late, and anything measuring itself on mount would run against a box that does not exist yet.
+
 The surface is a translucent `canvas` over a blur, not a solid fill. This is an imitation of the platform's floating material, deliberately a plain one: no specular edge, no dynamic tint, no refraction. It is defined once as the `glass` utility in `globals.css` — every floating surface (both bars, the install banner, `icon-button-floating`) uses it, so they cannot drift apart.
 
 The blur is **conditional on nothing being captured** (§ 4.7.1.). A captured group is composited on its own, so a `backdrop-filter` inside one has no backdrop left to sample and collapses to a flat fill — which is why the blur was dropped for as long as route changes went through `<ViewTransition>`, and why it came back with the CSS animation that replaced it. `backdrop-filter` MUST NOT be reintroduced on a surface that can be captured, so anything that reinstates a view transition takes the blur out with it.
@@ -189,7 +191,7 @@ The system is built on warm neutrals. Every neutral carries a yellow/red bias; t
 | Token             | Hex     | Use                                                                             |
 | ----------------- | ------- | ------------------------------------------------------------------------------- |
 | `backdrop`        | #E4DED4 | Area outside the app shell (desktop only) — § 3.3.                              |
-| `canvas`          | #FBF9F6 | Page floor for calendar / gallery / settings                                    |
+| `canvas`          | #FBF9F6 | Page floor for calendar / library / settings                                    |
 | `chat-canvas`     | #EFEAE2 | Page floor for the chat screen only — one step deeper so bubbles read as raised |
 | `chat-scrim`      | #EFEAE2 | The wash over a § 7.16. chat wallpaper, at 45% — same hex, different job        |
 | `surface-soft`    | #F4F0E9 | Default raised surface; resting fill for chip-style controls                    |
@@ -362,7 +364,7 @@ There is no `section=64` tier: this is a mobile app with no marketing sections. 
 | Token    | px   | Use                                    |
 | -------- | ---- | -------------------------------------- |
 | `xs`     | 4    | Badge, notch corner (§ 6.2.)           |
-| `sm`     | 8    | Small controls, gallery thumbnails     |
+| `sm`     | 8    | Small controls, library thumbnails     |
 | `md`     | 12   | Buttons, inputs, image messages, cards |
 | `lg`     | 16   | Modals, containers                     |
 | `xl`     | 20   | Bottom sheet                           |
@@ -422,7 +424,7 @@ Only the **arriving** screen moves. There is no exit animation: the outgoing scr
 
 Navigation that resolves to the **same** tab does not animate — 설정 → 이모티콘 is a hierarchy, not a sideways move — and neither does anything off the bar entirely. It can take its own directional treatment later; widening this one is not how.
 
-보관함's 사진 ⇄ 파일 falls under that rule and is the one case where it is load-bearing rather than incidental. Both segments live under `/gallery` (`REQUIREMENTS.md § 10.`), so `tabIndexOf` returns the same index for each and `directionBetween` answers `none` — **no slide, and nothing had to be added to arrange it**. That is the behaviour the segments want: they sit two chips apart on one screen, so sliding the whole screen sideways between them would claim a distance the eye can see is not there, and the direction would be arbitrary the moment a third segment (음성) arrived. If a segment switch is ever given motion, it belongs to the list that changes and not to the screen that contains it.
+보관함's 사진 ⇄ 파일 ⇄ 음성 falls under that rule and is the one case where it is load-bearing rather than incidental. All three segments live under `/archive` (`REQUIREMENTS.md § 10.`), so `tabIndexOf` returns the same index for each and `directionBetween` answers `none` — **no slide, and nothing had to be added to arrange it**. That is the behaviour the segments want: they sit two chips apart on one screen, so sliding the whole screen sideways between them would claim a distance the eye can see is not there, and the direction would be arbitrary now that a third segment (음성) has arrived. If a segment switch is ever given motion, it belongs to the list that changes and not to the screen that contains it.
 
 Three implementation details are load-bearing, and each has already been a bug:
 
@@ -829,7 +831,7 @@ The glyphs stay outlined in both states: lucide ships no filled counterpart for 
 
 Labels: `채팅` / `캘린더` / `보관함` / `설정`.
 
-The third tab was `갤러리` on `Images` until it grew a 파일 segment (`REQUIREMENTS.md § 10.`), and a tab holding documents cannot be called a gallery. `Archive` is the glyph because it is the one in lucide's outlined set that reads as "things put away" rather than as one medium — `Images` would have kept naming half the contents, and `Folder` reads as a filesystem the app does not have. **The route stays `/gallery`**; the label and the path are allowed to differ here exactly as they do for `이모티콘 관리` at `/settings/emoticons`.
+The third tab was `갤러리` on `Images` until it grew a 파일 segment (`REQUIREMENTS.md § 10.`), and a tab holding documents cannot be called a gallery. `Archive` is the glyph because it is the one in lucide's outlined set that reads as "things put away" rather than as one medium — `Images` would have kept naming half the contents, and `Folder` reads as a filesystem the app does not have. **The prefix is `/archive`, and it caught up with the label one segment later**: it stayed `/gallery` while it was a leaf, on the same reasoning that keeps `이모티콘 관리` at `/settings/emoticons`, and that reasoning broke the moment the shelves nested under it — `/gallery/files` reads as a claim that files are a kind of gallery (`REQUIREMENTS.md § 7.`). The tab's own tap goes to `/archive/gallery` rather than the prefix, so the fill travels without spending a redirect first.
 
 ## 7.4. Modal.
 
@@ -873,7 +875,7 @@ Where it is enlargeable, the avatar is a button: `opacity-80` on hover, `opacity
 
 ## 7.8. Skeleton.
 
-`surface-strong` blocks at the final content's radius, pulsing to `surface-soft` over 1.5s. Used for the initial message page, gallery grid, and calendar month. Never for optimistic messages — those render at 60% opacity (§ 6.5.).
+`surface-strong` blocks at the final content's radius, pulsing to `surface-soft` over 1.5s. Used for the initial message page, library grid, and calendar month. Never for optimistic messages — those render at 60% opacity (§ 6.5.).
 
 Every remote image also carries one while it loads: `PreloadImage` (`@/shared/ui`) fills its own box with the skeleton and fades the asset in over 200ms once it paints. Screens MUST NOT render a bare `<img>` for an R2-backed asset — the skeleton is what stands in for the reserved box of § 6.1. instead of a blank rectangle, and the fade is what keeps a cached image from flashing. An asset that never arrives ends on a static `surface-strong` box with a `meta-soft` `ImageOff` glyph: a skeleton that pulses forever reads as a hung screen.
 
@@ -913,7 +915,7 @@ The tab carries two segments, `사진` and `파일` (`REQUIREMENTS.md § 10.`), 
 
 The chips are withheld in selection mode, in the same swap that replaces the header's controls with 취소.
 
-Everything below this paragraph describes the **사진** segment, which is what this section covered before 파일 existed; the 파일 segment is § 7.10.1.
+Everything below this paragraph describes the **사진** segment, which is what this section covered before 파일 existed; the 파일 and 음성 segments are § 7.10.1. and § 7.10.2.
 
 3-column grid, `2xs` (4px) gutters, square `object-cover` cells, `rounded-sm`. Month section header is `title-sm` `meta` and **scrolls with the grid**. Viewer is full-bleed on `scrim` at 90% opacity with no chrome except a close `icon-button`, the position counter, and the save pair — `공유` then `원본 저장`, collapsing on iOS to `저장/공유` alone, by the same rule the § 7.10. selection bar follows (`REQUIREMENTS.md § 8.11.`); slides carry vertical padding only, since a side gutter reads as a frame around a photo the viewer exists to show whole.
 
@@ -923,7 +925,7 @@ Opened from a chat bubble the user sent, the viewer takes one more control: a `s
 
 The viewer is also the one surface that suppresses **none** of the OS's own hold gestures (§ 3.2.): a slide is the whole screen with nothing of the app's competing for the hold, so holding a photo here is how a user reaches iOS's 사진에 저장.
 
-The month header was `sticky` under the app header and is deliberately not any more. The app header is transparent (§ 7.12.), so a pinned opaque band left tiles rendering above it and read as a strip cutting through the grid rather than as a label. Covering the header zone in `canvas` would have fixed that by making the gallery the one screen whose header is not transparent; letting the label scroll costs a way to tell which month is on screen mid-scroll, and that was the cheaper loss.
+The month header was `sticky` under the app header and is deliberately not any more. The app header is transparent (§ 7.12.), so a pinned opaque band left tiles rendering above it and read as a strip cutting through the grid rather than as a label. Covering the header zone in `canvas` would have fixed that by making the library the one screen whose header is not transparent; letting the label scroll costs a way to tell which month is on screen mid-scroll, and that was the cheaper loss.
 
 | Element         | Rule                                                                                                                                                                                                       |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -944,7 +946,7 @@ The 삭제 row is a `semantic-error` **label**, not a filled red button (§ 7.5.
 
 Three rows plus the running count is the widest this bar gets, and the shell is mobile-width on every platform (§ 3.4.). Labels stay two characters each for that reason; a longer one belongs in the sheet the row opens, not on the row — `저장/공유` is the exception and it is affordable only because it is the row that has no 공유 beside it.
 
-The share cap is said at the tap, not on the bar. On iOS the selection can never reach it (`REQUIREMENTS.md § 10.` holds it to `MAX_GALLERY_SHARE_FILES` and the sweep's own cap toast says so); everywhere else 공유 answers an over-cap press with an error toast and keeps the selection, since the sweep it refuses cost the user real work.
+The share cap is said at the tap, not on the bar. On iOS the selection can never reach it (`REQUIREMENTS.md § 10.` holds it to `MAX_ARCHIVE_SHARE_FILES` and the sweep's own cap toast says so); everywhere else 공유 answers an over-cap press with an error toast and keeps the selection, since the sweep it refuses cost the user real work.
 
 ### 7.10.1. The 파일 segment.
 
@@ -958,13 +960,44 @@ A **list**, not a grid: the same month sections as above, each holding one colum
 | Selection mark | The 20px circle of the grid, at the row's trailing edge. Unselected is `border-hairline-strong` on `canvas`, **not** the grid's `scrim/25` disc — that one exists to read over a photograph, and over `surface-soft` it only looks smudged |
 | Selection bar  | § 7.10.'s bar, with 저장 / 공유 / 삭제 as three rows on **every** platform, and the count in `개` rather than `장`                                                                                                                         |
 | Tap            | Downloads. `REQUIREMENTS.md § 9.1.` serves a file as an attachment whatever is asked for, so there is no viewer to open and none is mounted                                                                                                |
+| Audio row      | A file whose mime is `audio/*` carries an extra leading control — see below. Every other file row is exactly the one above                                                                                                                 |
 | Empty state    | § 7.6., on `Files`, reading `아직 주고받은 파일이 없어요`                                                                                                                                                                                  |
 
 There is **no hold and no sweep here.** The grid's sweep fills a range in _grid order_ across three columns, which is what makes one drag worth fifty taps; in one column that range is the two taps it saves, and owning `touchmove` to buy them is not a trade. The checkbox is also the more honest control in a list, where a row is already a horizontal band with a trailing slot.
 
-The header carries no 파일 추가 either. A file is sent from the composer (`REQUIREMENTS.md § 8.1.`), and one filed here with no bubble to sit in is a document nobody was handed — unlike a photo, which the pair genuinely does file into the shared album without saying anything about it.
+The header **does** carry 파일 추가, on `FilePlus`. It used to say here that it did not, on the argument that a file filed with no bubble to sit in is a document nobody was handed — that argument was really about `registerMedia` refusing `addToGallery` for a file, which it no longer does, and the shelf that refusal was missing now exists (`REQUIREMENTS.md § 9.1.`). The control opens the composer's own `MediaPickerSheet` with its 파일 row, so both rows of that sheet are reachable and a photo picked here lands on 사진 with a toast saying so.
+
+**The audio row.** A `audio/*` attachment is played where it sits, and it is still a file on this shelf — the row is the ordinary card with a transport in front of it.
+
+| Element      | Rule                                                                                                                                                                                                                                                           |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Play control | § 6.6.'s 36px `primary` disc inside a 44 target, with the filled `Play` / `Pause` glyph `VoicePlayer` uses. **A sibling before the card, never inside it** — `FileCard` is a `<button>`, so nesting would be invalid markup and would cost one of the two taps |
+| Card tap     | Unchanged: still 저장. The two controls are peers and neither swallows the other, which is § 7.10.2.'s arrangement for the selection mark                                                                                                                      |
+| Progress     | A 2px `primary` rule along the card's **bottom edge**, scaled from the left. Inside the card because the row is a fixed 56 the § 8.3. estimate depends on; a bar beside it would change a bubble's measured height                                             |
+| Meta line    | The size is replaced by `0:07 / 1:24` while this row is the active track, and only then. An untouched row still says how big the file is, which is what a 저장 tap is judged on                                                                                |
+| No waveform  | Deliberate, and the reason the row stays on this shelf at all (`REQUIREMENTS.md § 9.1.`). Peaks cost a full decode, which § 9.3. can afford only because a recording is capped at two minutes                                                                  |
+
+Progress is absent until the first tap, because nothing knows the clip's length before the element has loaded its metadata — there is no stored `duration_ms` on a file.
 
 iOS is **not** branched on this segment. 저장 is a download everywhere, so the merged `저장/공유` row of § 7.10. never appears and the selection keeps its full cap (`REQUIREMENTS.md § 9.1.`).
+
+### 7.10.2. The 음성 segment.
+
+The 파일 list again — same month sections, one column, `2xs` gutters — with `VoicePlayer` (§ 6.5.) as the row. That component is drawn identically here and in a chat bubble, so its 56px height, 220px width, disc, waveform and clock are stated there and not repeated.
+
+| Element        | Rule                                                                                                                                                                                                                             |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fill           | `bubble-theirs` on **every** row. § 6.2.'s two colours answer "who said this" inside a thread; a month section does not ask, and alternating fills down a list read as a conversation replayed out of order                      |
+| Selection mark | § 7.10.1.'s circle, in a 44 target **beside** the player rather than wrapped around it. The player owns a play control and a seek slider of its own, and a row that swallowed their taps would leave both looking live and inert |
+| Selection bar  | § 7.10.'s bar with **two** rows, 저장 / 삭제. 공유 is absent, not disabled — `REQUIREMENTS.md § 9.3.` gives the reason, and a control that is never available on a screen does not belong on it                                  |
+| Tap            | Plays, and one clip at a time across the whole page — the shared element of `REQUIREMENTS.md § 13.6.` is what guarantees that, at no cost here                                                                                   |
+| Empty state    | § 7.6., on `AudioLines`, reading `아직 주고받은 음성이 없어요`                                                                                                                                                                   |
+
+The header carries 녹음, on `Mic` — **not** a file picker. An audio file has no waveform, so picking one here would file it on 파일 and leave this screen unchanged; recording is the only way to put a row on this shelf (`REQUIREMENTS.md § 9.3.`). The tap mounts `VoiceRecorderBar` (§ 6.6.1.) through `ShellOverlay`, standing above the tab bar at `--bottom-inset`, and mounting is what opens the microphone — so it must remain a plain click handler. A finished recording stages into the tray rather than sending, because the two 갈래 have still to be chosen between; `MediaTray`'s voice tile is a `Mic` glyph over the clock, in the same 64px square, with no edit control.
+
+A drop is accepted here as on the other two shelves, and **nothing dropped can ever appear on this one** — only a recording carries peaks. The item lands on 파일 or 사진 and a toast says which (`REQUIREMENTS.md § 10.`).
+
+**Leaving the screen stops playback**, exactly as leaving the room does (`REQUIREMENTS.md § 9.3.`). A clip runs for minutes and no other screen draws a transport, so a row left playing behind a tab switch cannot be reached to pause.
 
 ## 7.11. Settings Row.
 

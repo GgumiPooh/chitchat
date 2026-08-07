@@ -1,4 +1,4 @@
-import type { GalleryMedia } from "@/entities/media";
+import type { ArchiveMedia } from "@/entities/media";
 import { MEDIA_COPY_PATH } from "@/shared/config";
 
 /**
@@ -7,13 +7,13 @@ import { MEDIA_COPY_PATH } from "@/shared/config";
  *
  * INFO: A copy rather than a reference. Pointing a background column at a `chat/`
  * object would put § 12.'s replacement cleanup in front of a photo a bubble still
- * renders, and would make deleting that photo from the gallery silently strip the
+ * renders, and would make deleting that photo from the library silently strip the
  * background too — the copy is what makes a background survive its source.
  */
 export async function copyToBackground(
   sourceId: string,
   slot: "profile" | "chat",
-): Promise<GalleryMedia> {
+): Promise<ArchiveMedia> {
   const response = await fetch(MEDIA_COPY_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -24,7 +24,7 @@ export async function copyToBackground(
     throw new Error(`POST ${MEDIA_COPY_PATH} responded ${response.status}`);
   }
 
-  const { media } = (await response.json()) as { media: GalleryMedia };
+  const { media } = (await response.json()) as { media: ArchiveMedia };
 
   return media;
 }

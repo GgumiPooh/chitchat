@@ -17,8 +17,8 @@ import { getDb, media } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
 import { headAcceptableObject, toThumbKey, type StoredObject } from "@/shared/storage";
 import { and, eq } from "drizzle-orm";
-import { toGalleryMedia } from "../model/to-gallery-media";
-import type { GalleryMedia } from "../model/types";
+import { toArchiveMedia } from "../model/to-archive-media";
+import type { ArchiveMedia } from "../model/types";
 
 export type RegisterMediaParams = {
   ownerId: string;
@@ -30,7 +30,7 @@ export type RegisterMediaParams = {
   filename?: Nullable<string>;
   /** REQUIREMENTS.md § 9.3. The waveform extracted while recording, and the thing that makes this row a voice message rather than an attached audio file. */
   waveformPeaks?: Nullable<number[]>;
-  // INFO: REQUIREMENTS.md § 10. Set by an upload that starts in the Gallery tab. A chat attachment leaves it false and reaches the grid through the message it is sent in.
+  // INFO: REQUIREMENTS.md § 10. Set by an upload that starts in the 보관함 tab. A chat attachment leaves it false and reaches the grid through the message it is sent in.
   addToGallery?: boolean;
   /** WARN: REQUIREMENTS.md § 12.1. Read from the key rather than trusted from the caller, and it narrows the size ceiling — a `background` video is bounded far below `MAX_VIDEO_SIZE`. */
   scope: MediaUploadScope;
@@ -47,14 +47,14 @@ export type RegisterMediaParams = {
  * WARN: § 9.1. Whether this is a file attachment is decided **here**, from the
  * stored mime, and never from the caller's `filename`. The column is the
  * discriminator every other reader branches on, so letting a client set it would
- * let it file a JPEG out of the gallery, or claim a `.zip` was a photo and put an
+ * let it file a JPEG out of the library, or claim a `.zip` was a photo and put an
  * undrawable row in the grid.
  *
  * WARN: § 9.3. A voice message is the one row whose discriminator the client does
  * supply, because the server never sees the bytes and cannot extract a waveform
  * (§ 9.). What is enforced here instead is that peaks may only ride a mime this app
  * actually records into, and only in the shape the recorder produces — otherwise a
- * JPEG could be filed as a voice message and would vanish from the gallery.
+ * JPEG could be filed as a voice message and would vanish from the library.
  */
 export async function registerMedia({
   ownerId,
@@ -66,7 +66,7 @@ export async function registerMedia({
   waveformPeaks,
   addToGallery = false,
   scope,
-}: RegisterMediaParams): Promise<Nullable<GalleryMedia>> {
+}: RegisterMediaParams): Promise<Nullable<ArchiveMedia>> {
   // WARN: Both HEADs still go out together, including the one a file will not need. Deciding first would put the two round trips in series on the send path, and a miss on a key R2 holds nothing at costs a request rather than a correctness problem.
   const [object, thumbnail] = await Promise.all([
     headAcceptableObject(r2Key, isAcceptableObject(scope)),
@@ -96,13 +96,14 @@ export async function registerMedia({
   const isFile = !isVoice && isFileMime(object.mime);
   const storedName = isFile && filename ? toSafeFilename(filename) : null;
 
-  // INFO: § 9.1. A file has no drawn box and no gallery tile, so the two things the gallery pipelines depend on are exactly what it must not claim: an avatar or a background cannot be one, and neither can a row filed straight into the grid.
-  if (isFile && (scope !== "chat" || addToGallery || !storedName)) {
+  // WARN: § 9.1. `addToGallery` used to be refused here too, and that half is gone: the old reason was that a file carried by no message had nowhere in the app to be found again, not anything about files. § 10.'s 파일 shelf is that place, so a row filed straight into it is now reachable exactly as a photo is.
+  // INFO: § 9.1. `scope !== "chat"` stays, and it is the durable half — an avatar or a background is drawn from its own object, and a file has neither a box nor a tile to be drawn as.
+  if (isFile && (scope !== "chat" || !storedName)) {
     return null;
   }
 
-  // INFO: § 9.3. The same rule, for the same reasons: a recording is a chat attachment and nothing else. It is excluded from the library by `isOfKind` rather than by a filename it does not have (§ 10.).
-  if (isVoice && (scope !== "chat" || addToGallery)) {
+  // WARN: § 9.3. Likewise. The 음성 shelf now holds a recording that rides no bubble, so 보관함에만 추가 is a real choice on that screen and the row it writes is listed by `isOfKind`'s voice branch (§ 10.).
+  if (isVoice && scope !== "chat") {
     return null;
   }
 
@@ -145,7 +146,7 @@ export async function registerMedia({
     .returning();
 
   if (row) {
-    return toGalleryMedia(row);
+    return toArchiveMedia(row);
   }
 
   return getMediaByKey(r2Key, ownerId);
@@ -171,7 +172,7 @@ function isAcceptableObject(scope: MediaUploadScope) {
   };
 }
 
-async function getMediaByKey(r2Key: string, ownerId: string): Promise<Nullable<GalleryMedia>> {
+async function getMediaByKey(r2Key: string, ownerId: string): Promise<Nullable<ArchiveMedia>> {
   const [existing] = await getDb()
     .select()
     .from(media)
@@ -179,5 +180,5 @@ async function getMediaByKey(r2Key: string, ownerId: string): Promise<Nullable<G
     .where(and(eq(media.r2Key, r2Key), eq(media.ownerId, ownerId)))
     .limit(1);
 
-  return existing ? toGalleryMedia(existing) : null;
+  return existing ? toArchiveMedia(existing) : null;
 }

@@ -9,26 +9,49 @@ export const MEDIA_PATH = "/api/media";
 export const MEDIA_COPY_PATH = `${MEDIA_PATH}/copy`;
 
 /** REQUIREMENTS.md § 10. Lists the library and takes rows back out of it. */
-export const GALLERY_PATH = "/api/gallery";
+export const ARCHIVE_PATH = "/api/archive";
 
 /**
  * Which shelf of the library (REQUIREMENTS.md § 10.) a listing asks for — the
- * 사진 / 파일 segments, and the `kind` `GET /api/gallery` takes.
+ * 사진 / 파일 / 음성 segments, and the `kind` `GET /api/archive` takes.
  *
- * WARN: A union and never an `isFile` boolean. 음성 is the third member this is
- * waiting for, and a boolean would have to be replaced in the predicate, the API,
- * the fetch, the hook and the URL alike rather than gaining one literal here.
+ * WARN: A union and never an `isFile` boolean. 음성 arrived as one literal here
+ * and one clause in `isOfKind`, where a boolean would have had to be replaced in
+ * the predicate, the API, the fetch, the hook and the URL alike.
  *
- * WARN: § 9.3. A voice message is **not** a member and must not become one here —
- * it is excluded from every shelf by `isOfKind`. The 음성 segment is a later
- * change, and adding the literal without the query behind it puts recordings in
- * the 사진 grid.
+ * WARN: A member here is only half of a shelf — `isOfKind` is the other half, and
+ * a literal added without the clause behind it does not open an empty segment, it
+ * spills that kind into 사진, whose branch is "neither of the others".
  *
- * INFO: Derived from `mime` and `filename`, so no column stores it (§ 6.).
+ * INFO: Derived from `filename` and `waveform_peaks`, so no column stores it (§ 6.).
  */
-export const LIBRARY_KINDS = ["photo", "file"] as const;
+export const LIBRARY_KINDS = ["photo", "file", "voice"] as const;
 
 export type LibraryKind = (typeof LIBRARY_KINDS)[number];
+
+/**
+ * What each shelf is called on screen — the chips of DESIGN.md § 7.10., and the
+ * only names a user has for these three sets.
+ *
+ * WARN: One table, read by the segment chips **and** by the copy that says an upload
+ * landed on a different shelf than the one it was dropped on (REQUIREMENTS.md § 10.).
+ * Written out twice, a renamed chip leaves the toast naming a shelf that is not there.
+ */
+export const LIBRARY_KIND_LABELS: Record<LibraryKind, string> = {
+  photo: "사진",
+  file: "파일",
+  voice: "음성",
+};
+
+/**
+ * The counter a shelf counts its rows in — 사진 in 장, everything else in 개.
+ *
+ * INFO: AGENTS.md § 0.4. The particle that follows is chosen by `josa` at the call
+ * site, because `3장을` and `3개를` are the same sentence with different 받침.
+ */
+export function toLibraryCountUnit(kind: LibraryKind): string {
+  return kind === "photo" ? "장" : "개";
+}
 
 /**
  * The key prefixes `POST /api/media/upload-url` will sign for, and the set
@@ -36,7 +59,7 @@ export type LibraryKind = (typeof LIBRARY_KINDS)[number];
  *
  * WARN: A subset of `StorageScope`, not a copy of it. `emoticon` is deliberately
  * absent — REQUIREMENTS.md § 13.3. keeps those objects out of `media` entirely and
- * registers them through their own route, because a `media` row is a gallery row.
+ * registers them through their own route, because a `media` row is a library row.
  */
 export const MEDIA_UPLOAD_SCOPES = ["chat", "avatar", "background"] as const;
 
@@ -66,22 +89,22 @@ export const MAX_BACKGROUND_VIDEO_SIZE = 20 * A_MEGABYTE;
 export const MAX_BACKGROUND_VIDEO_DURATION = 30 * A_SECOND;
 
 // INFO: A 3-column grid, so a page is 20 rows — roughly two screens of scrolling before the next request.
-export const GALLERY_PAGE_SIZE = 60;
+export const ARCHIVE_PAGE_SIZE = 60;
 
 // WARN: Caps what a caller may ask for; the request-side limit is clamped to it rather than rejected, as `MAX_MESSAGE_PAGE_SIZE` is.
-export const MAX_GALLERY_PAGE_SIZE = 120;
+export const MAX_ARCHIVE_PAGE_SIZE = 120;
 
 // INFO: One selection's worth. Deletion is a single statement per id, and a body longer than this is a script rather than a thumb.
-export const MAX_GALLERY_SELECTION = 200;
+export const MAX_ARCHIVE_SELECTION = 200;
 
 // WARN: REQUIREMENTS.md § 10. Saving several files is several top-level navigations that each resolve into a download, and a browser drops the ones that arrive in the same tick as the previous — this is the gap that keeps them apart.
-export const GALLERY_DOWNLOAD_STAGGER = 0.4 * A_SECOND;
+export const ARCHIVE_DOWNLOAD_STAGGER = 0.4 * A_SECOND;
 
 // WARN: REQUIREMENTS.md § 10. The share sheet takes the whole selection at once, so every file is in memory before it can open — this is a memory ceiling, not a preference. Past it the save falls back to the download path.
-export const MAX_GALLERY_SHARE_FILES = 20;
+export const MAX_ARCHIVE_SHARE_FILES = 20;
 
 // WARN: Read from `Content-Length` before a body is buffered, so the ceiling holds even when the count does not — twenty 4K videos are not twenty photos.
-export const MAX_GALLERY_SHARE_BYTES = 200 * A_MEGABYTE;
+export const MAX_ARCHIVE_SHARE_BYTES = 200 * A_MEGABYTE;
 
 // INFO: REQUIREMENTS.md § 14. iPhone ProRAW tops out around 50MB and a panorama around 15MB, so nothing from the camera roll is refused.
 export const MAX_IMAGE_SIZE = 50 * A_MEGABYTE;
@@ -169,6 +192,19 @@ export function isImageMime(mime: string): mime is AllowedImageMime {
 
 export function isAllowedMediaMime(mime: string): mime is AllowedMediaMime {
   return isImageMime(mime) || isVideoMime(mime);
+}
+
+/**
+ * Whether a § 9.1. file attachment is something a media element can play, which is
+ * the one kind of file 보관함 offers more than 저장 for.
+ *
+ * WARN: Not `isVoiceMime`, and the two must not be conflated. That one is the short
+ * list this app **records** into and is half of what makes a row a voice message
+ * (§ 9.3.); this is every audio type a browser might have been handed, and a row
+ * matching it is still a file on the 파일 shelf.
+ */
+export function isAudioMime(mime: string): boolean {
+  return mime.startsWith("audio/");
 }
 
 /**

@@ -37,10 +37,10 @@ export type ChatMedia = {
 };
 
 /**
- * A gallery tile (REQUIREMENTS.md § 10.). The same object as `ChatMedia` plus the
+ * A library tile (REQUIREMENTS.md § 10.). The same object as `ChatMedia` plus the
  * instant it was taken in, which is both the month section header and the second
  * half of the keyset cursor (§ 6.).
  */
-export type GalleryMedia = ChatMedia & {
+export type ArchiveMedia = ChatMedia & {
   createdAt: string;
 };

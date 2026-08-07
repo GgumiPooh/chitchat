@@ -19,7 +19,7 @@ export type SetBackgroundSheetProps = {
 
 /**
  * REQUIREMENTS.md § 12.1., § 12.2. 배경으로 설정, offered over a photo in the
- * gallery or in a chat bubble.
+ * library or in a chat bubble.
  *
  * INFO: Two rows rather than one, because there are two backgrounds and they do not
  * mean the same thing — a profile cover is published to the other participant and a

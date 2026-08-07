@@ -1,4 +1,4 @@
-import { GALLERY_DOWNLOAD_STAGGER, toMediaDownloadUrl } from "@/shared/config";
+import { ARCHIVE_DOWNLOAD_STAGGER, toMediaDownloadUrl } from "@/shared/config";
 
 /**
  * Saves the given originals to disk (REQUIREMENTS.md § 10.).
@@ -16,7 +16,7 @@ import { GALLERY_DOWNLOAD_STAGGER, toMediaDownloadUrl } from "@/shared/config";
 export async function downloadMedia(ids: string[]): Promise<void> {
   for (const [index, id] of ids.entries()) {
     if (index > 0) {
-      await delay(GALLERY_DOWNLOAD_STAGGER);
+      await delay(ARCHIVE_DOWNLOAD_STAGGER);
     }
 
     saveOne(id);

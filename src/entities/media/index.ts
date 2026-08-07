@@ -2,12 +2,12 @@ export { copyMediaIntoScope, type CopyMediaIntoScopeParams } from "./api/copy-me
 export { discardScopedMedia } from "./api/discard-scoped-media";
 export { canReadMedia, getMediaRow, ownsAllMedia, toVariantKey } from "./api/get-media-object";
 export {
-  listGalleryMedia,
-  type GalleryCursor,
-  type ListGalleryMediaParams,
-} from "./api/list-gallery-media";
+  listArchiveMedia,
+  type ArchiveCursor,
+  type ListArchiveMediaParams,
+} from "./api/list-archive-media";
 export { registerMedia, type RegisterMediaParams } from "./api/register-media";
-export { removeGalleryMedia, type GalleryRemoval } from "./api/remove-gallery-media";
+export { removeArchiveMedia, type ArchiveRemoval } from "./api/remove-archive-media";
 // WARN: Everything above touches the database. A client module may import from this barrel with `import type` only — a value import drags `server-only` into its bundle, which is why `toMediaUrl` lives in `@/shared/config` instead.
 export type { MediaDraft } from "./model/draft";
-export type { ChatMedia, GalleryMedia } from "./model/types";
+export type { ArchiveMedia, ChatMedia } from "./model/types";

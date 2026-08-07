@@ -2,9 +2,9 @@
 
 import type { MediaDraft } from "@/entities/media";
 import { isVideoMime } from "@/shared/config";
-import { cn } from "@/shared/lib";
+import { cn, formatDuration } from "@/shared/lib";
 import { Skeleton } from "@/shared/ui";
-import { FileText, Pencil, Play, Scissors, X } from "lucide-react";
+import { FileText, Mic, Pencil, Play, Scissors, X } from "lucide-react";
 
 export type MediaTrayProps = {
   className?: string;
@@ -35,8 +35,8 @@ export function MediaTray({ className, drafts, isReading, onEdit, onRemove }: Me
     >
       {drafts.map((draft) => (
         <div key={draft.id} className="relative shrink-0">
-          {/* INFO: REQUIREMENTS.md § 9.1. Branched on `filename`, the one discriminator — a preview that failed to mint is a broken photo, not a file, and the two must not swap tiles over it. */}
-          {draft.filename ? renderFileTile(draft) : renderMediaTile(draft)}
+          {/* INFO: REQUIREMENTS.md § 9.1., § 9.3. Branched on the two discriminators in `toDraftKind`'s order — a preview that failed to mint is a broken photo, not a file, and a recording carries no filename, so testing that first would draw it as one. */}
+          {renderTile(draft)}
           {/* INFO: DESIGN.md § 3.2. The glyph stays small while the button keeps a finger-sized hit area through its negative inset. */}
           <button
             className="absolute -top-1 -right-1 inline-flex size-6 cursor-pointer items-center justify-center rounded-full border border-hairline bg-canvas text-meta transition-colors outline-none hover:bg-surface-strong hover:text-ink focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-pressed"
@@ -52,6 +52,33 @@ export function MediaTray({ className, drafts, isReading, onEdit, onRemove }: Me
       {isReading && <Skeleton className="size-16 shrink-0 rounded-sm" />}
     </div>
   );
+
+  function renderTile(draft: MediaDraft) {
+    if (draft.waveformPeaks) {
+      return renderVoiceTile(draft);
+    }
+
+    return draft.filename ? renderFileTile(draft) : renderMediaTile(draft);
+  }
+
+  /**
+   * REQUIREMENTS.md § 9.3. A staged recording, which only 보관함's 음성 shelf
+   * produces — the composer sends one outright rather than staging it, because a
+   * recording beside photos would compete for a § 6. row it cannot share.
+   *
+   * INFO: No edit control. Neither editor takes audio, and trimming a recording is
+   * `MAX_VOICE_DURATION`'s job rather than a gesture.
+   */
+  function renderVoiceTile(draft: MediaDraft) {
+    return (
+      <span className="flex size-16 flex-col items-center justify-center gap-2xs rounded-sm bg-surface-soft px-1 ring-1 ring-hairline ring-inset">
+        <Mic className="size-5 shrink-0 text-meta" strokeWidth={1.75} />
+        <span className="text-micro text-meta tabular-nums">
+          {formatDuration(draft.durationMs ?? 0)}
+        </span>
+      </span>
+    );
+  }
 
   // INFO: REQUIREMENTS.md § 9.1. Nothing to draw, so the tile is the name — in the same 64px square, since a tray of mixed attachments has to stay one row of one height.
   function renderFileTile(draft: MediaDraft) {

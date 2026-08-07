@@ -15,7 +15,7 @@ export type VideoTrimmerProps = {
    *
    * INFO: Given, the window is a fixed width and the user chooses only where it
    * sits — a second handle would offer a length that is already decided. Omitted
-   * (§ 9.'s chat and gallery attachments, which have no length cap), both ends
+   * (§ 9.'s chat and library attachments, which have no length cap), both ends
    * move and trimming is an edit rather than a requirement.
    */
   maxDurationMs?: number;

@@ -15,7 +15,7 @@ export type AttachmentEditing = {
   /** True while a trimmed file is being decoded back into a draft. */
   isApplying: boolean;
   /**
-   * Whether either editor is up — the § 9.2. drop gate, and the gallery's staging
+   * Whether either editor is up — the § 9.2. drop gate, and the library's staging
    * sheet, both hang off this.
    *
    * WARN: Derived here rather than tested at the call sites. Written out, the pair

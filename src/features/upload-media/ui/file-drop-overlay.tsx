@@ -7,7 +7,7 @@ export type FileDropOverlayProps = {
   className?: string;
   labelClassName?: string;
   isActive: boolean;
-  /** What the drop lands in, said in the screen's own words — the composer attaches, the gallery adds. Required, so a new drop surface cannot silently inherit another screen's copy. */
+  /** What the drop lands in, said in the screen's own words — the composer attaches, the library adds. Required, so a new drop surface cannot silently inherit another screen's copy. */
   label: string;
 };
 

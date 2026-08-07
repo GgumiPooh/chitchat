@@ -1,6 +1,6 @@
 import { ensure } from "@/shared/lib";
 
-// INFO: REQUIREMENTS.md § 9. The thumbnail every chat cell and gallery tile loads. 720 covers a 220px bubble (DESIGN.md § 6.5.) and a 3-column grid cell at 3× density.
+// INFO: REQUIREMENTS.md § 9. The thumbnail every chat cell and library tile loads. 720 covers a 220px bubble (DESIGN.md § 6.5.) and a 3-column grid cell at 3× density.
 export const THUMBNAIL_MAX_EDGE = 720;
 
 // WARN: iOS Safari refuses to allocate a canvas past roughly 16.7M pixels and silently hands back a blank one, and a modern iPhone photo is larger than that. Deliberately under 4096 — a square crop at that edge is 16.78M and lands the wrong side of the ceiling. Only edited images are re-encoded, so an untouched original never meets it.

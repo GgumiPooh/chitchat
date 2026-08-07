@@ -30,10 +30,25 @@ export type VoiceSnapshot = {
   isActive: boolean;
   isPlaying: boolean;
   positionMs: number;
+  /**
+   * What the element itself resolved the track's length to, or `0` before
+   * `loadedmetadata` and for a container that never reports one.
+   *
+   * INFO: REQUIREMENTS.md § 9.1. For a recording this is redundant — `media.duration_ms`
+   * is stored and is the figure § 9.3. draws against. It exists for an **attached**
+   * audio file, which has no stored duration at all: `registerMedia` nulls it for a
+   * file, and extracting one would mean decoding a clip with no § 9.3. length cap.
+   */
+  elementDurationMs: number;
 };
 
 // INFO: One frozen object for every bubble that is not the active one, so a snapshot compared by identity never re-renders the rest of the list while one of them plays.
-const IDLE: VoiceSnapshot = { isActive: false, isPlaying: false, positionMs: 0 };
+const IDLE: VoiceSnapshot = {
+  isActive: false,
+  isPlaying: false,
+  positionMs: 0,
+  elementDurationMs: 0,
+};
 
 let snapshot: VoiceSnapshot = IDLE;
 
@@ -41,8 +56,10 @@ let snapshot: VoiceSnapshot = IDLE;
 const POSITION_STEP = A_SECOND / 20;
 
 export type VoicePlayback = VoiceSnapshot & {
-  /** `0`–`1`, against the **stored** duration rather than the element's. */
+  /** `0`–`1`, against whichever length `resolvedDurationMs` settled on. */
   progress: number;
+  /** The stored duration where there is one, and the element's own otherwise. */
+  resolvedDurationMs: number;
   toggle: () => void;
   seekToRatio: (ratio: number) => void;
 };
@@ -52,6 +69,11 @@ export type VoicePlayback = VoiceSnapshot & {
  *
  * `durationMs` is the stored figure and not `audio.duration`, which a
  * `MediaRecorder` webm reports as `Infinity` until it has been played to the end.
+ *
+ * WARN: Pass `0` **only** where nothing is stored — an attached audio file (§ 9.1.),
+ * which has no `duration_ms` at all. The element's own figure is then used, and it is
+ * unavailable until the track has been adopted and its metadata has loaded, so the
+ * row draws no progress before its first tap.
  */
 export function useVoicePlayback(src: Nullable<string>, durationMs: number): VoicePlayback {
   const state = useSyncExternalStore(
@@ -59,6 +81,7 @@ export function useVoicePlayback(src: Nullable<string>, durationMs: number): Voi
     () => readSnapshot(src),
     () => IDLE,
   );
+  const resolvedDurationMs = durationMs > 0 ? durationMs : state.elementDurationMs;
 
   const toggle = useCallback(() => {
     if (src) {
@@ -69,15 +92,16 @@ export function useVoicePlayback(src: Nullable<string>, durationMs: number): Voi
   const seekToRatio = useCallback(
     (ratio: number) => {
       if (src) {
-        seekVoice(src, clamp(ratio) * durationMs);
+        seekVoice(src, clamp(ratio) * resolvedDurationMs);
       }
     },
-    [src, durationMs],
+    [src, resolvedDurationMs],
   );
 
   return {
     ...state,
-    progress: durationMs > 0 ? clamp(state.positionMs / durationMs) : 0,
+    progress: resolvedDurationMs > 0 ? clamp(state.positionMs / resolvedDurationMs) : 0,
+    resolvedDurationMs,
     toggle,
     seekToRatio,
   };
@@ -112,7 +136,7 @@ export function seekVoice(src: string, positionMs: number): void {
   // INFO: `currentTime` is ignored before the element knows how long it is, so a seek made on the first tap of a message is held for `loadedmetadata` — and published anyway, or the waveform would not answer the tap until the file arrived.
   if (audio.readyState < 1) {
     pendingSeekMs = positionMs;
-    publish({ isActive: true, isPlaying: !audio.paused, positionMs });
+    publish({ isActive: true, isPlaying: !audio.paused, positionMs, elementDurationMs: 0 });
   } else {
     audio.currentTime = positionMs / A_SECOND;
     syncPosition();
@@ -183,7 +207,7 @@ function adopt(src: string): void {
   audio.src = src;
   activeSrc = src;
   pendingSeekMs = null;
-  publish({ isActive: true, isPlaying: false, positionMs: 0 });
+  publish({ isActive: true, isPlaying: false, positionMs: 0, elementDurationMs: 0 });
 }
 
 function play(audio: HTMLAudioElement): void {
@@ -206,7 +230,7 @@ function getPlayer(): HTMLAudioElement {
   audio.addEventListener("pause", syncPlayState);
   audio.addEventListener("ended", handleEnded);
   audio.addEventListener("timeupdate", syncPosition);
-  audio.addEventListener("loadedmetadata", applyPendingSeek);
+  audio.addEventListener("loadedmetadata", handleLoadedMetadata);
   element = audio;
 
   return audio;
@@ -219,7 +243,12 @@ function syncPlayState(): void {
     return;
   }
 
-  publish({ isActive: true, isPlaying: !audio.paused, positionMs: toPositionMs(audio) });
+  publish({
+    isActive: true,
+    isPlaying: !audio.paused,
+    positionMs: toPositionMs(audio),
+    elementDurationMs: toElementDurationMs(audio),
+  });
 
   if (audio.paused) {
     stopTicking();
@@ -241,29 +270,53 @@ function syncPosition(): void {
     return;
   }
 
-  publish({ isActive: true, isPlaying: !audio.paused, positionMs });
+  publish({
+    isActive: true,
+    isPlaying: !audio.paused,
+    positionMs,
+    elementDurationMs: toElementDurationMs(audio),
+  });
 }
 
 // INFO: The track stays adopted rather than released, so the bubble that just finished keeps its own controls instead of handing them back to a row the user is no longer looking at.
 function handleEnded(): void {
   stopTicking();
-  publish({ isActive: true, isPlaying: false, positionMs: 0 });
+  publish({
+    isActive: true,
+    isPlaying: false,
+    positionMs: 0,
+    elementDurationMs: snapshot.elementDurationMs,
+  });
 
   if (element) {
     element.currentTime = 0;
   }
 }
 
-function applyPendingSeek(): void {
+/**
+ * WARN: REQUIREMENTS.md § 9.1. It publishes whether or not a seek was waiting. This
+ * is the first moment `audio.duration` is readable, and an attached audio file has
+ * no stored duration to fall back on — returning early here left such a row's
+ * progress pinned at zero until the position happened to cross a `POSITION_STEP`.
+ */
+function handleLoadedMetadata(): void {
   const audio = element;
 
-  if (!audio || pendingSeekMs === null) {
+  if (!audio) {
     return;
   }
 
-  audio.currentTime = pendingSeekMs / A_SECOND;
-  pendingSeekMs = null;
-  syncPosition();
+  if (pendingSeekMs !== null) {
+    audio.currentTime = pendingSeekMs / A_SECOND;
+    pendingSeekMs = null;
+  }
+
+  publish({
+    isActive: true,
+    isPlaying: !audio.paused,
+    positionMs: toPositionMs(audio),
+    elementDurationMs: toElementDurationMs(audio),
+  });
 }
 
 // WARN: `timeupdate` alone fires about four times a second, which reads as a waveform filling in steps. The frame loop runs only while something is playing, and `syncPosition` still quantises what it publishes.
@@ -283,6 +336,11 @@ function tick(): void {
 function stopTicking(): void {
   cancelAnimationFrame(frame);
   frame = 0;
+}
+
+// WARN: REQUIREMENTS.md § 9.1. A `MediaRecorder` WebM reports `Infinity` here until it has played to its end, and a container with no duration at all reports `NaN` — both have to read as "unknown" rather than reaching a progress bar.
+function toElementDurationMs(audio: HTMLAudioElement): number {
+  return Number.isFinite(audio.duration) ? audio.duration * A_SECOND : 0;
 }
 
 function toPositionMs(audio: HTMLAudioElement): number {

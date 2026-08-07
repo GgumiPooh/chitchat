@@ -1,4 +1,4 @@
-import type { GalleryMedia, MediaDraft } from "@/entities/media";
+import type { ArchiveMedia, MediaDraft } from "@/entities/media";
 import { MEDIA_PATH, MEDIA_UPLOAD_URL_PATH, type MediaUploadScope } from "@/shared/config";
 import type { Nullable } from "@/shared/lib";
 
@@ -13,7 +13,7 @@ type UploadTicket = {
 export type UploadProgress = (loadedBytes: number) => void;
 
 export type UploadDraftOptions = {
-  // INFO: REQUIREMENTS.md § 10. What puts a photo in the gallery without a message behind it. A chat attachment leaves this alone and earns its place there through `message_media`.
+  // INFO: REQUIREMENTS.md § 10. What puts a photo in the library without a message behind it. A chat attachment leaves this alone and earns its place there through `message_media`.
   addToGallery?: boolean;
   // INFO: REQUIREMENTS.md § 12. The key prefix the object lands under, which is also what its registration is authorized against.
   scope?: MediaUploadScope;
@@ -32,7 +32,7 @@ const NO_PROGRESS: UploadProgress = () => {};
 export async function uploadDraft(
   draft: MediaDraft,
   { addToGallery = false, scope = "chat", onProgress = NO_PROGRESS }: UploadDraftOptions = {},
-): Promise<GalleryMedia> {
+): Promise<ArchiveMedia> {
   const ticket = await requestTicket(draft, scope);
 
   await putWithProgress(ticket.uploadUrl, draft.file, draft.mime, onProgress);
@@ -68,7 +68,7 @@ async function registerUpload(
   draft: MediaDraft,
   r2Key: string,
   addToGallery: boolean,
-): Promise<GalleryMedia> {
+): Promise<ArchiveMedia> {
   const response = await fetch(MEDIA_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -88,7 +88,7 @@ async function registerUpload(
     throw new Error(`POST ${MEDIA_PATH} responded ${response.status}`);
   }
 
-  const { media } = (await response.json()) as { media: GalleryMedia };
+  const { media } = (await response.json()) as { media: ArchiveMedia };
 
   return media;
 }

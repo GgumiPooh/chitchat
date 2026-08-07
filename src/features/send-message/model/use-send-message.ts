@@ -4,14 +4,11 @@ import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import { revokePreview, uploadDraft } from "@/features/upload-media/@x/send-message";
-import {
-  MAX_MEDIA_PER_MESSAGE,
-  MAX_UPLOAD_INFLIGHT_BYTES,
-  UPLOAD_CONCURRENCY,
-} from "@/shared/config";
+import { MAX_UPLOAD_INFLIGHT_BYTES, UPLOAD_CONCURRENCY } from "@/shared/config";
 import { isVoiceActive, mapPooled, randomId, stopVoice, type Nullable } from "@/shared/lib";
 import { useCallback, useRef, useState } from "react";
 import { postMessage, type PostMessageParams } from "../api/post-message";
+import { toBubbles, toDraftKind } from "./to-bubbles";
 
 /** An outgoing message the server has not echoed back yet (REQUIREMENTS.md § 8.5.). */
 export type PendingMessage = {
@@ -198,7 +195,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
   const sendMedia = useCallback(
     (drafts: MediaDraft[], replyTo: Nullable<ReplyPreview> = null) => {
       // WARN: REQUIREMENTS.md § 8.10. The quote goes on the first bubble alone. A pick of twenty photos is three bubbles, and repeating the quote on each would draw the same sentence three times in a row.
-      const bubbles = toBubbles(drafts).map((media, index) => ({
+      const bubbles = toBubbles(drafts, toDraftKind).map((media, index) => ({
         ...createPending(null, media),
         replyTo: index === 0 ? replyTo : null,
       }));
@@ -273,63 +270,6 @@ async function toPostParams(
   }
 
   return { clientMsgId, replyToId, text: message.text };
-}
-
-/**
- * The bubbles a pick becomes (REQUIREMENTS.md § 18. #10., § 9.1.).
- *
- * WARN: A bubble is photos **or** files, never both — the two are drawn by
- * different layouts at different heights, and § 6. gives one `messages` row one of
- * them. The split walks consecutive runs rather than partitioning by kind, so a
- * pick of photo, file, photo stays in the order it was made instead of being sorted
- * into two blocks the sender never asked for.
- */
-function toBubbles(drafts: MediaDraft[]): MediaDraft[][] {
-  return groupConsecutive(drafts, toDraftKind).flatMap((run) =>
-    // INFO: REQUIREMENTS.md § 9.3. A voice bubble is one clip. There is no layout for two, and `ownsAllMedia` refuses a longer set at the server anyway.
-    chunk(run, toDraftKind(run[0]) === "voice" ? 1 : MAX_MEDIA_PER_MESSAGE),
-  );
-}
-
-/**
- * WARN: REQUIREMENTS.md § 9.3. Three kinds, not the two `filename` used to answer.
- * A recording carries no filename, so a two-way split grouped it with the photos
- * either side of it — one bubble whose first cell decides the layout for all of
- * them, which draws a voice card through the photo grid.
- */
-function toDraftKind(draft: MediaDraft): "voice" | "file" | "media" {
-  if (draft.waveformPeaks) {
-    return "voice";
-  }
-
-  return draft.filename ? "file" : "media";
-}
-
-function groupConsecutive<T, K>(items: T[], toKey: (item: T) => K): T[][] {
-  const runs: T[][] = [];
-
-  for (const item of items) {
-    const run = runs.at(-1);
-
-    if (run && toKey(run[0]) === toKey(item)) {
-      run.push(item);
-      continue;
-    }
-
-    runs.push([item]);
-  }
-
-  return runs;
-}
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
-  }
-
-  return chunks;
 }
 
 function sum(values: number[]): number {

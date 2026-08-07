@@ -13,10 +13,10 @@ export type VoiceTrack = {
 
 /**
  * One attachment as the grid and the viewer render it — a stored `media` row, a
- * draft still uploading, or a gallery tile.
+ * draft still uploading, or a library tile.
  *
  * WARN: Lives in `shared/ui` rather than beside either caller. `widgets/chat-room`
- * and `widgets/gallery-grid` both render it and a widget cannot import a sibling
+ * and `widgets/archive-shelves` both render it and a widget cannot import a sibling
  * widget (REQUIREMENTS.md § 2.), so this and `MediaViewer` are what the two share.
  */
 export type MediaCell = {

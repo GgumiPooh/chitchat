@@ -1,7 +1,8 @@
 "use client";
 
 import { APP_SHELL_ID } from "@/shared/config";
-import { useState, type PropsWithChildren } from "react";
+import type { Nullable } from "@/shared/lib";
+import { useSyncExternalStore, type PropsWithChildren } from "react";
 import { createPortal } from "react-dom";
 
 export type ShellOverlayProps = PropsWithChildren;
@@ -16,10 +17,31 @@ export type ShellOverlayProps = PropsWithChildren;
  * AGENTS.md § 4.4. rules out.
  */
 export function ShellOverlay({ children }: ShellOverlayProps) {
-  // WARN: Resolved on the first render, never from an effect. An effect would mount the children a render late, and anything inside that measures itself on mount — a cropper, a scroll-snap track — would run against a box that does not exist yet.
-  const [shell] = useState(() =>
-    typeof document === "undefined" ? null : document.getElementById(APP_SHELL_ID),
-  );
+  const shell = useSyncExternalStore(subscribe, readShell, readServerShell);
 
   return shell ? createPortal(children, shell) : null;
+}
+
+// INFO: The shell is rendered by the `(main)` layout and outlives every overlay, so there is nothing to subscribe to.
+const subscribe = () => () => {};
+
+// INFO: The same element every call, so the snapshot is referentially stable and `useSyncExternalStore` will not loop.
+function readShell(): Nullable<HTMLElement> {
+  return document.getElementById(APP_SHELL_ID);
+}
+
+/**
+ * WARN: The whole point of this hook, and why it is not `useState`. A lazy
+ * `useState` reads the DOM on the **hydration** render, so the client mounts the
+ * portal where the server rendered nothing and React throws a mismatch for the
+ * whole tree (it fired on 보관함, whose drop overlay renders on first paint).
+ * `useSyncExternalStore` renders the server's answer while hydrating and re-renders
+ * with the real one immediately after, before paint.
+ *
+ * WARN: Still not an effect. An effect would mount the children a render late and
+ * after paint, and anything inside that measures itself on mount — a cropper, a
+ * scroll-snap track — would run against a box that does not exist yet.
+ */
+function readServerShell(): Nullable<HTMLElement> {
+  return null;
 }
