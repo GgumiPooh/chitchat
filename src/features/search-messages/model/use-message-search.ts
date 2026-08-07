@@ -130,18 +130,19 @@ export function useMessageSearch() {
   }, [hasMore, isLoadingMore, isLoading, submitted]);
 
   /**
-   * WARN: Deferred by a microtask, and `DESIGN.md § 7.15.3.` is the whole reason.
-   * Closed synchronously, the row's `keepsScroll` overlay is detached before the
-   * click it is answering finishes dispatching, and a detached `<label>` has no
-   * labelled control left to activate — every result tap was silent.
+   * WARN: Deferred out of the tap's own task, and `DESIGN.md § 7.15.3.` is the whole
+   * reason. Closed synchronously, the row's `keepsScroll` overlay is detached before
+   * the click it is answering reaches its default action, and a detached `<label>`
+   * has no labelled control left to activate — every result tap was silent.
    *
-   * INFO: A microtask rather than a task: it drains after the dispatch, so the tick
-   * has run, but still inside the tap's own task, so nothing else in the app can
-   * observe the list as open across a frame.
+   * WARN: A task, never a microtask. A microtask checkpoint runs whenever the script
+   * stack empties, which is after **each listener** rather than after the dispatch —
+   * so `queueMicrotask` still lands ahead of the activation behaviour that ticks.
    */
   const select = useCallback(
     (index: number) => {
-      queueMicrotask(() => {
+      // INFO: AGENTS.md § 8.1. No delay argument at all rather than a bare `0` — the point is the next task, not a duration.
+      setTimeout(() => {
         setIsListOpen(false);
         jumpTo(index, resultsRef.current);
       });
