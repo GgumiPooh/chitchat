@@ -903,6 +903,8 @@ Every remote image also carries one while it loads: `PreloadImage` (`@/shared/ui
 
 **A skeleton stands in for a shape; a spinner stands in for a wait.** Use a skeleton only where the placeholder can take the geometry of the thing arriving — a bubble, a tile, a month cell. Where there is no shape to borrow, or where the wait has no bound the user can see, use a `LoaderCircle` at `size-4` in `meta-soft`, `animate-spin`. § 8.3.'s upward paging is the second case twice over: its indicator lives in a 40px header that no message could fill, and it outlasts its own fetch, because the page is held until the scroller goes still. The one place neither belongs is an optimistic message — that dims to 60% and shows nothing (§ 6.5.).
 
+**And it takes the geometry of the screen it is actually on, which means a `loading.tsx` shared by routes of different shapes has to be split.** 보관함 had one at `/archive` covering all three shelves, drawing 파일's 56px rows on every one of them; opening 사진 filled the screen with tall bars that were then replaced wholesale by a 3-column grid, which is a worse wait than a blank screen — the eye settles on a layout and then has it taken away. Each shelf now has its own fallback (`LibraryFallback`, keyed by `LibraryKind`): the grid's square `2xs` cells for 사진, 56px `rounded-md` rows for 파일, 56px `rounded-bubble` rows for 음성, each under a placeholder for the § 7.10. month header every shelf opens on. The header and the § 7.10. chips are drawn in all three — `loading` replaces the whole page subtree, and a fallback of bare rows takes the segment control off screen for exactly the moment the user is looking at it.
+
 ## 7.9. Calendar.
 
 The calendar screen opens with a D-day header, then the month grid.
