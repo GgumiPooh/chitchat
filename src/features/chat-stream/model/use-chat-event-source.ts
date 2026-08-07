@@ -31,6 +31,9 @@ export type ChatEventSourceHandlers = {
 
 const buildSchema = z.object({ id: z.string().min(1) });
 
+// INFO: REQUIREMENTS.md § 8.4.1. Keys that are never a keystroke on their own — pressing one is the first half of a shortcut, not typing.
+const MODIFIER_KEYS = new Set(["Meta", "Control", "Alt", "Shift", "CapsLock"]);
+
 export type ChatEventSourceState = {
   /** REQUIREMENTS.md § 8.4.1. The stream was dropped for idleness and only `wake` brings it back. */
   isDormant: boolean;
@@ -325,14 +328,26 @@ export function useChatEventSource({
     }
 
     // INFO: § 8.4.1. A key wakes as a tap does. Focus is usually still in the composer when the overlay arrives, so without this the keystrokes that follow go into a field the user can no longer see and nothing reconnects.
-    function handleKeyDown() {
+    function handleKeyDown(event: KeyboardEvent) {
       if (isSleeping) {
-        awaken();
+        if (isTypingKey(event)) {
+          awaken();
+        }
 
         return;
       }
 
+      // INFO: Unfiltered here. `Cmd+C` in the composer is a user plainly at the keyboard, and the blur below covers the shortcut that is a departure.
       noteInteraction();
+    }
+
+    /**
+     * WARN: § 8.4.1. `Cmd` reaches the page before focus leaves it, so waking on
+     * any key at all meant `Cmd+Tab` — a departure — opened a connection on the way
+     * out. Only a keystroke that would have put a character on screen counts.
+     */
+    function isTypingKey(event: KeyboardEvent) {
+      return !MODIFIER_KEYS.has(event.key) && !event.metaKey && !event.ctrlKey && !event.altKey;
     }
 
     open();
