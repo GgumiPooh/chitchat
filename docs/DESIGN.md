@@ -563,15 +563,7 @@ A group is consecutive messages from one sender within the same clock minute.
 
 Centered `chat-pill` pill, `caption` in `chat-pill-ink`, padding `4px 12px`, `rounded-full`. Copy: `오늘`, `어제`, then `2026년 8월 3일 월요일`.
 
-**The sticky day indicator is the same pill, floating.** It names the day the topmost visible row belongs to and sits `2xs` below the § 7.12. header, centered, with `shadow-raised` — the divider in the list has none, but this one stands over bubbles and a wallpaper rather than between rows. It is `pointer-events-none`: it covers the top of the message column, which is the § 6.10. swipe target and the § 8.11. hold target alike.
-
-| Property             | Rule                                                                                                                                                                                                                                     |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Shown                | While the list is moving and the reader is away from the newest message — the § 6.7. pill's own test, not the at-bottom flag alone: a window parked around a jump sits at the bottom of its own range with the newest message pages away |
-| Hidden               | At rest, and at the live edge — a pin after a send scrolls too, and the newest message needs no `오늘`                                                                                                                                   |
-| Which day            | The first row below the **top fade**, never the first below the scroller's own edge — a row dissolving under the header is not one the reader is reading, and at a date boundary that is exactly the row whose day would be announced    |
-| Transition           | Opacity over 150ms, both directions                                                                                                                                                                                                      |
-| Relationship to rows | An overlay, never `position: sticky` — the rows are absolutely positioned and a divider that scrolled out is not in the DOM (`REQUIREMENTS.md § 8.3.`)                                                                                   |
+**The divider is a list row and nothing else — there is no floating day indicator.** One shipped: the same pill as an overlay under the § 7.12. header, naming the day of the topmost visible row while the list moved. It was removed because it reads as a label stuck to the screen rather than to the conversation, and it stands over the top of the message column, which is the § 6.10. swipe target and the § 8.11. hold target alike. Which day the reader is in is what the dividers themselves say, and scrolling past one is how the reader gets there. Do not reintroduce it.
 
 ## 6.5. Non-Text Messages.
 

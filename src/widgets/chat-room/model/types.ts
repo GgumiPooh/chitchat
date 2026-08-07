@@ -1,7 +1,7 @@
 import type { ChatMessage } from "@/entities/message";
 import type { PendingMessage } from "@/features/send-message";
 
-// INFO: DESIGN.md § 6.1. One row is one virtualized item, dividers included — the sticky day indicator is a separate overlay.
+// INFO: DESIGN.md § 6.1. One row is one virtualized item, dividers included.
 export type ChatRow =
   | { key: string; kind: "date"; dayKey: string }
   | { key: string; kind: "system"; message: ChatMessage }

@@ -360,7 +360,7 @@ Offscreen message nodes **must not stay in the DOM** — after years of history,
 
 **The date indicator**
 
-- Date dividers are list items, and the **sticky top indicator is a separate overlay** computed from the visible range. It cannot be `position: sticky` — every row here is absolutely positioned, and a divider that has scrolled out is not in the DOM to pin. The day is read from the **first visible** row, not the first rendered one (`overscan` renders a screenful above the fold), and "visible" is measured from the scroll offset **plus `TOP_FADE_LENGTH`**: the top of the scroller runs under the § 7.12. header and is dissolved by the mask, and at a date boundary that band holds exactly the row whose day would otherwise be announced over a screenful of the next one. Derived during render rather than into state, since the virtualizer already re-renders on every scroll. Shown while the list moves, faded out at rest, and withheld at the live edge — a pin after a send scrolls too, and the newest message needs no label saying 오늘. That last test is § 6.7.'s own (`!isAtBottom || hasNewer`) and never the flag alone, because a window parked around a § 8.6.1. jump sits at the bottom of its own scroll range with the newest message pages away — deep history with no surrounding context, which is where this is worth most
+- **Date dividers are list items and that is the whole of it — there is no floating day indicator, and one must not be added back.** A `DayIndicator` overlay shipped and was removed: it read the day off the first row below the top fade and floated it under the § 7.12. header while the list moved. It is gone because a label pinned to the screen rather than to the conversation is chrome the reader did not ask for, and it covered the top of the message column — the § 8.10. swipe target and the § 8.11. hold target. The dividers say which day a message belongs to, and scrolling to one is how the reader asks
 - Native `Ctrl+F` cannot find offscreen messages — in-app search (§ 8.6.) is the deliberate replacement, and it has landed
 
 ### 8.4. Realtime (SSE) ✅
@@ -1247,7 +1247,7 @@ The order the work was taken in, kept as a record. **Every step has landed** —
 2. ✅ Auth + session (§ 5.) — highest-risk area, so it went first
 3. ✅ Database schema + migrations (§ 6.)
 4. ✅ Layout + tab bar + PWA manifest (§ 7.)
-5. ✅ Chat tab (§ 8.) — text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies, the jump machinery, the typing indicator (§ 8.12.), search (§ 8.6.), the sticky date indicator (§ 8.3.), scroll-to-bottom marking read (§ 8.1.), viewer pinch zoom, and the expired-thumbnail rule (§ 8.9.)
+5. ✅ Chat tab (§ 8.) — text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies, the jump machinery, the typing indicator (§ 8.12.), search (§ 8.6.), the date dividers and scroll-to-bottom marking read (§ 8.1.), viewer pinch zoom, and the expired-thumbnail rule (§ 8.9.)
 6. ✅ R2 media pipeline + sending photos and videos in chat (§ 9.)
 7. ✅ Library tab (§ 10.), all three shelves — the jump-to-message link included
 8. ✅ Emoticons (§ 13.)
