@@ -1,5 +1,6 @@
 export { isDormant, setDormant } from "./activity/dormancy";
 export { hasUnsentWork, holdUnsentWork, useUnsentWork } from "./activity/unsent-work";
+export { markZoneDeparture, takeZoneDeparture } from "./activity/zone-departure";
 export { AssertionError, assert, ensure } from "./assert";
 export {
   declareAudioSession,
@@ -61,6 +62,7 @@ export {
 export { hasDataTransferFiles, isBrowser, isEditableElement } from "./dom";
 export { buildFadeMask, type FadeMaskOptions } from "./fade-mask";
 export { GESTURE_SLOP } from "./gesture";
+export { useBfcacheRestore } from "./hooks/use-bfcache-restore";
 export { useHydrated } from "./hooks/use-hydrated";
 export { useIsCoarsePointer } from "./hooks/use-is-coarse-pointer";
 export { isIos, useIsIos } from "./hooks/use-is-ios";

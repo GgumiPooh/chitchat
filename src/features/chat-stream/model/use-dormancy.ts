@@ -5,7 +5,7 @@ import {
   SSE_BUSY_RECHECK_INTERVAL,
   SSE_IDLE_TIMEOUT,
 } from "@/shared/config";
-import { isBusy, setDormant, type Optional } from "@/shared/lib";
+import { isBusy, setDormant, takeZoneDeparture, type Optional } from "@/shared/lib";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // INFO: REQUIREMENTS.md § 8.4.1. Keys that are never a keystroke on their own — pressing one is the first half of a shortcut, not typing.
@@ -146,11 +146,35 @@ export function useDormancy(): DormancyState {
      * INFO: This does not wake. `noteInteraction` writes the deadline but leaves
      * `isSleeping` alone, so returning focus still fails to dismiss the overlay —
      * which is the § 8.4.1. rule it would otherwise break.
+     *
+     * WARN: Returning from § 13.7.'s zone is the one exception, and it is narrowed
+     * to a departure this app announced rather than to bfcache at large. Leaving
+     * for `/emoticons/import` blurs the window and goes dormant on the way out, so
+     * the return put 절전 모드 over a screen the user never felt they had left. The
+     * event alone could not carry this: an iOS resume fires `pageshow` too
+     * (§ 8.4.), and waking on that is the app-switch dismissal § 8.4.1. refuses.
+     *
+     * INFO: The note is the whole test, with no `persisted` beside it. It is
+     * written once and taken by the first `pageshow` after — which *is* the return
+     * — so a restore finds the overlay and wakes, while a return that reloaded
+     * instead finds `awaken` a no-op on a document that was never sleeping.
+     *
+     * WARN: The read-and-clear runs on **every** `pageshow`, including the ones
+     * that go on to do nothing with it, or a note left by a departure whose
+     * navigation never committed would arm the next resume.
      */
-    function handleReturn() {
-      if (document.visibilityState === "visible") {
-        noteInteraction();
+    function handleReturn(event: Event) {
+      const isZoneReturn = event.type === "pageshow" && takeZoneDeparture();
+
+      if (document.visibilityState !== "visible") {
+        return;
       }
+      if (isZoneReturn) {
+        awaken();
+      }
+
+      // INFO: Not an `else`. `awaken` notes an interaction of its own, and `noteInteraction` is idempotent within a tick — so a zone return that found nothing to wake still re-arms the countdown.
+      noteInteraction();
     }
 
     /**

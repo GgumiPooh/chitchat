@@ -4,7 +4,7 @@ import type { EmoticonPackSummary } from "@/entities/emoticon";
 import { CreatePackSheet, RenamePackSheet, deleteEmoticonPack } from "@/features/author-emoticon";
 import { EmoticonPackManager } from "@/features/emoticon-prefs";
 import { EMOTICON_IMPORT_ROUTE, EMOTICON_SETTINGS_ROUTE, SETTINGS_ROUTE } from "@/shared/config";
-import { cn, type Nullable } from "@/shared/lib";
+import { cn, markZoneDeparture, useBfcacheRestore, type Nullable } from "@/shared/lib";
 import { ActionSheet, AppHeader, IconButton, toast } from "@/shared/ui";
 import { ChevronLeft, Link2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -26,11 +26,21 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [known, setKnown] = useState(packs);
+  const [seeded, setSeeded] = useState(packs);
   const [managedId, setManagedId] = useState<Nullable<string>>(null);
   const [renamingId, setRenamingId] = useState<Nullable<string>>(null);
   const router = useRouter();
   const managed = known.find((pack) => pack.id === managedId);
   const renaming = known.find((pack) => pack.id === renamingId) ?? null;
+
+  // WARN: § 13.7. `router.refresh()` alone would change nothing — `known` is seeded from `packs` once and every edit since has been its own, so a screen returning from the import would re-render against state it never re-read.
+  if (seeded !== packs) {
+    setSeeded(packs);
+    setKnown(packs);
+  }
+
+  // INFO: § 13.7. Returning from URL로 추가 is a bfcache restore, so the list comes back exactly as it was left — one import older than the packs it is drawing.
+  useBfcacheRestore(router.refresh);
 
   return (
     <div className={cn("flex flex-1 flex-col", className)}>
@@ -111,6 +121,8 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
    * RSC payload that does not exist.
    */
   function openImport() {
+    // WARN: § 8.4.1. Before the navigation, not after — the assign below blurs the window, which is what takes the app dormant, and the note has to already be there for the return to be told apart from an app-switch.
+    markZoneDeparture();
     window.location.assign(EMOTICON_IMPORT_ROUTE);
   }
 
