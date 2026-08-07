@@ -1,7 +1,11 @@
 "use client";
 
 import type { MediaDraft } from "@/entities/media";
-import { toEmoticonImageDraft } from "@/features/upload-media/@x/author-emoticon";
+import {
+  releasePreview,
+  retainPreview,
+  toEmoticonImageDraft,
+} from "@/features/upload-media/@x/author-emoticon";
 import {
   allowedMimesForEmoticonSlot,
   maxSizeForEmoticonSlot,
@@ -39,21 +43,9 @@ export function useEmoticonDraft() {
     };
   }, []);
 
-  // INFO: REQUIREMENTS.md § 9.1. Takes a `Maybe` because `MediaDraft.previewUrl` is nullable for a chat file attachment; an emoticon image always has one.
-  const track = useCallback((url: Maybe<string>) => {
-    if (url) {
-      urlsRef.current.add(url);
-    }
-
-    return url;
-  }, []);
-
-  const release = useCallback((url: Maybe<string>) => {
-    if (url) {
-      URL.revokeObjectURL(url);
-      urlsRef.current.delete(url);
-    }
-  }, []);
+  // INFO: REQUIREMENTS.md § 9.1. Both take a `Maybe` because `MediaDraft.previewUrl` is nullable for a chat file attachment; an emoticon image always has one.
+  const track = useCallback((url: Maybe<string>) => retainPreview(urlsRef.current, url), []);
+  const release = useCallback((url: Maybe<string>) => releasePreview(urlsRef.current, url), []);
 
   const pickImage = useCallback(
     async (file: File) => {

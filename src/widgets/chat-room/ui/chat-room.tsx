@@ -231,8 +231,9 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 8.6. The composer's whole stack is put away for the length of a search, and everything it drives has to go with it.
   const isSearching = bottomBar !== undefined;
   // INFO: REQUIREMENTS.md § 9.2. Refused for the length of a search — the composer and its tray are put away there, so a drop would stage attachments the screen offers no way to send.
+  // WARN: REQUIREMENTS.md § 9.2. Refused under an editor or the viewer too. React bubbles a drop through the *component* tree, so those overlays deliver one here however they are portalled — and a drop landing behind the crop editor stages into a tray the overlay is covering.
   const fileDrop = useFileDrop({
-    isEnabled: !isSearching,
+    isEnabled: !isSearching && editing.cropping === null && editing.trimming === null && !viewer,
     onDrop: (files) => void stageMedia(files),
   });
   // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
@@ -855,7 +856,7 @@ export function ChatRoom({
       {/* INFO: REQUIREMENTS.md § 12.1. Mounted outside the viewer conditional above, so dismissing the viewer cannot unmount the sheet mid-write — `useSetBackground` returns the two halves separately for exactly this. */}
       {setBackground.sheet}
       {/* INFO: REQUIREMENTS.md § 9.2. Last in the tree, so it covers the composer and the pill as well as the history — a drag reads as being over the conversation, not over whichever strip it happens to be crossing. */}
-      <FileDropOverlay isActive={fileDrop.isDropping} />
+      <FileDropOverlay isActive={fileDrop.isDropping} label="여기에 놓으면 첨부돼요" />
     </div>
   );
 
@@ -1125,6 +1126,8 @@ export function ChatRoom({
 
     if (cell?.filename) {
       void downloadMedia([cell.id]);
+      // INFO: The same acknowledgement § 10.'s 저장 gives, for the same reason — `downloadMedia` resolves whatever the navigation does, so a 404 or a swallowed download would otherwise be a tap that did nothing.
+      toast.success("파일을 저장하고 있어요");
 
       return;
     }

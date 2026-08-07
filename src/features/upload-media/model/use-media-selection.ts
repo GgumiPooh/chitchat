@@ -4,7 +4,7 @@ import type { MediaDraft } from "@/entities/media";
 import { isAllowedMediaMime } from "@/shared/config";
 import { toast } from "@/shared/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toMediaDraft, validateFile } from "./read-draft";
+import { toMediaDraft, toStoredMime, validateFile } from "./read-draft";
 import { revokePreview } from "./revoke-preview";
 
 export type UseMediaSelectionParams = {
@@ -54,8 +54,9 @@ export function useMediaSelection({ acceptsFiles = false }: UseMediaSelectionPar
         const rejections = new Set<string>();
 
         for (const file of files) {
+          // WARN: `toStoredMime`, never a raw `file.type`. An empty type is routine, and everything downstream resolves it to `FALLBACK_FILE_MIME` — reading it raw here let the same typeless JPEG stage as a file card in the composer and be refused outright in the gallery.
           const rejection =
-            acceptsFiles || isAllowedMediaMime(file.type)
+            acceptsFiles || isAllowedMediaMime(toStoredMime(file))
               ? validateFile(file)
               : "사진과 동영상만 올릴 수 있어요";
 

@@ -40,7 +40,7 @@ export {
   toTimeField,
   toWeekday,
 } from "./date/time";
-export { isBrowser, isEditableElement } from "./dom";
+export { hasDataTransferFiles, isBrowser, isEditableElement } from "./dom";
 export { buildFadeMask, type FadeMaskOptions } from "./fade-mask";
 export { GESTURE_SLOP } from "./gesture";
 export { useHydrated } from "./hooks/use-hydrated";

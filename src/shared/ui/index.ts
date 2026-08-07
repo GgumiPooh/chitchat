@@ -10,6 +10,7 @@ export { Button, type ButtonProps } from "./button";
 export { Chip, type ChipProps } from "./chip";
 export { Container, type ContainerProps } from "./container";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
+export { FileDropGuard } from "./file-drop-guard";
 // INFO: Exported for controls that cannot be a `Button` — anything that can takes the `haptic` prop instead, so the overlay's invariants stay inside the primitive.
 export { HapticTap, type HapticTapProps } from "./haptic-tap";
 export { HapticTarget, type HapticTargetProps } from "./haptic-target";

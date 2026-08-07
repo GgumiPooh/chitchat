@@ -25,6 +25,11 @@ export function validateFile(file: File): Nullable<string> {
     return "지원하지 않는 형식이에요";
   }
 
+  // WARN: REQUIREMENTS.md § 9.1. Refused here or never — `/api/media/upload-url` takes a `positive` size, so a zero-byte pick stages fine and then fails the send with a 400 no 재전송 can clear. Media never reached that, because a zero-byte image or video fails to decode and is refused at the pick.
+  if (file.size === 0) {
+    return "빈 파일은 보낼 수 없어요";
+  }
+
   if (file.size > maxSizeForMime(mime)) {
     return `${formatSize(maxSizeForMime(mime))}까지 보낼 수 있어요`;
   }

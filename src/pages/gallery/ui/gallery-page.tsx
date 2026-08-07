@@ -3,10 +3,12 @@
 import type { GalleryMedia, MediaDraft } from "@/entities/media";
 import { useSetBackground } from "@/features/set-background";
 import {
+  FileDropOverlay,
   MediaEditor,
   MediaPickerSheet,
   MediaTray,
   useAttachmentEditing,
+  useFileDrop,
   useMediaSelection,
   VideoTrimmer,
 } from "@/features/upload-media";
@@ -25,6 +27,7 @@ import {
   IconButton,
   MediaViewer,
   Modal,
+  ShellOverlay,
   toast,
   type MediaCell,
 } from "@/shared/ui";
@@ -61,10 +64,18 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
   const setBackground = useSetBackground();
   const saving = useMediaShare();
   const { remainingCount, isBusy: isUploading, upload } = useGalleryUpload(prepend);
+  // INFO: REQUIREMENTS.md § 9.2. Refused while a selection is up — a drop would upload into the grid the bar is about to delete from, which is the very window § 10. closes by withholding selection during an upload.
+  // WARN: REQUIREMENTS.md § 9.2. Refused under an editor or the viewer too. React bubbles a drop through the *component* tree, so those overlays deliver one here however they are portalled — and the staging sheet is suppressed for exactly their duration, so the drop would land in a tray the user cannot see.
+  const fileDrop = useFileDrop({
+    isEnabled:
+      !selection.isSelecting && editing.cropping === null && editing.trimming === null && !viewer,
+    onDrop: handlePick,
+  });
   const selectedCount = selection.selectedIds.length;
 
   return (
-    <div className={cn("flex flex-1 flex-col", className)}>
+    // INFO: REQUIREMENTS.md § 9.2. The drop target is the whole screen, so photos dragged anywhere over the grid stage rather than having to find the 사진 추가 control.
+    <div className={cn("flex flex-1 flex-col", className)} {...fileDrop.handlers}>
       <AppHeader
         title={selection.isSelecting ? `${selectedCount}장 선택` : "갤러리"}
         // INFO: DESIGN.md § 7.12. Every header control is an `icon-button-floating` — the header itself has no surface, so a bare text button would sit on whatever tile scrolled under it.
@@ -237,6 +248,10 @@ export function GalleryPage({ className, initialMedia }: GalleryPageProps) {
       )}
       {/* INFO: REQUIREMENTS.md § 12.1. Mounted outside the viewer conditional above, so dismissing the viewer cannot unmount the sheet mid-write — `useSetBackground` returns the two halves separately for exactly this. */}
       {setBackground.sheet}
+      {/* WARN: REQUIREMENTS.md § 9.2. Portalled, unlike the chat room's. This screen *is* the scroller's content, so an `absolute inset-0` left inside it spans every month ever loaded and centres the label somewhere far below the fold; the shell box is the one element sized to what the user can see. */}
+      <ShellOverlay>
+        <FileDropOverlay isActive={fileDrop.isDropping} label="여기에 놓으면 추가돼요" />
+      </ShellOverlay>
     </div>
   );
 

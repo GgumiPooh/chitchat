@@ -7,6 +7,8 @@ export type FileDropOverlayProps = {
   className?: string;
   labelClassName?: string;
   isActive: boolean;
+  /** What the drop lands in, said in the screen's own words — the composer attaches, the gallery adds. Required, so a new drop surface cannot silently inherit another screen's copy. */
+  label: string;
 };
 
 /**
@@ -18,7 +20,12 @@ export type FileDropOverlayProps = {
  * unmounts, the pointer is over the target again, and the whole thing flickers at
  * frame rate while the drop never lands.
  */
-export function FileDropOverlay({ className, labelClassName, isActive }: FileDropOverlayProps) {
+export function FileDropOverlay({
+  className,
+  labelClassName,
+  isActive,
+  label,
+}: FileDropOverlayProps) {
   return (
     <div
       className={cn(
@@ -37,7 +44,7 @@ export function FileDropOverlay({ className, labelClassName, isActive }: FileDro
         )}
       >
         <Upload className="size-4 text-primary" strokeWidth={1.75} />
-        여기에 놓으면 첨부돼요
+        {label}
       </span>
     </div>
   );

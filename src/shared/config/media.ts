@@ -82,6 +82,9 @@ export const FALLBACK_FILE_MIME = "application/octet-stream";
 // WARN: REQUIREMENTS.md § 9.1. A file attachment's type is whatever the browser claimed and R2 stored, so this is the only thing bounding what reaches `media.mime` — it is a shape check, never an allow-list.
 const MIME_PATTERN = /^[\w.+-]+\/[\w.+-]+$/;
 
+// WARN: REQUIREMENTS.md § 9.1. The pattern above bounds the shape and not the length, and the file branch takes any string that matches it — so without this a client can sign a megabyte-long `Content-Type` into the PUT and have it stored on the row and echoed by every download. RFC 6838 caps each half at 127.
+const MAX_MIME_LENGTH = 255;
+
 // INFO: REQUIREMENTS.md § 18. #10. Selection is unlimited; a send longer than this is split across consecutive messages so the grid never needs a `+N` overflow cell.
 export const MAX_MEDIA_PER_MESSAGE = 9;
 
@@ -159,7 +162,7 @@ export function isAllowedMediaMime(mime: string): mime is AllowedMediaMime {
  * one type from ever being both.
  */
 export function isFileMime(mime: string): boolean {
-  return MIME_PATTERN.test(mime) && !isAllowedMediaMime(mime);
+  return mime.length <= MAX_MIME_LENGTH && MIME_PATTERN.test(mime) && !isAllowedMediaMime(mime);
 }
 
 /**

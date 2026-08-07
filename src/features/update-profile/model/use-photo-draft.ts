@@ -1,14 +1,19 @@
 "use client";
 
 import type { MediaDraft } from "@/entities/media";
-import { toMediaDraft, validateFile } from "@/features/upload-media/@x/update-profile";
+import {
+  releasePreview,
+  retainPreview,
+  toMediaDraft,
+  validateFile,
+} from "@/features/upload-media/@x/update-profile";
 import {
   MAX_BACKGROUND_VIDEO_SIZE,
   isImageMime,
   isVideoMime,
   type MediaUploadScope,
 } from "@/shared/config";
-import { formatSize, type Maybe, type Nullable } from "@/shared/lib";
+import { formatSize, type Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -60,7 +65,7 @@ export function usePhotoDraft(scope: MediaUploadScope = "avatar") {
       try {
         const draft = await toMediaDraft(file);
 
-        retain(urlsRef.current, draft.previewUrl);
+        retainPreview(urlsRef.current, draft.previewUrl);
 
         return draft;
       } catch {
@@ -75,10 +80,10 @@ export function usePhotoDraft(scope: MediaUploadScope = "avatar") {
   );
 
   const stage = useCallback((draft: MediaDraft) => {
-    retain(urlsRef.current, draft.previewUrl);
+    retainPreview(urlsRef.current, draft.previewUrl);
     setIsCleared(false);
     setStaged((previous) => {
-      release(urlsRef.current, previous?.previewUrl);
+      releasePreview(urlsRef.current, previous?.previewUrl);
 
       return draft;
     });
@@ -87,7 +92,7 @@ export function usePhotoDraft(scope: MediaUploadScope = "avatar") {
   const clear = useCallback(() => {
     setIsCleared(true);
     setStaged((previous) => {
-      release(urlsRef.current, previous?.previewUrl);
+      releasePreview(urlsRef.current, previous?.previewUrl);
 
       return null;
     });
@@ -132,18 +137,4 @@ function rejectFile(file: File, canTakeVideo: boolean): Nullable<string> {
   }
 
   return validateFile(file);
-}
-
-// INFO: REQUIREMENTS.md § 9.1. `previewUrl` is nullable because a chat file attachment has none; every draft reaching this hook is an image and always does.
-function retain(urls: Set<string>, url: Maybe<string>) {
-  if (url) {
-    urls.add(url);
-  }
-}
-
-function release(urls: Set<string>, url: Maybe<string>) {
-  if (url) {
-    URL.revokeObjectURL(url);
-    urls.delete(url);
-  }
 }

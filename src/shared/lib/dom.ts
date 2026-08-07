@@ -2,6 +2,16 @@ export function isBrowser(): boolean {
   return typeof window === "object";
 }
 
+/**
+ * Whether a drag carries files, as opposed to a dragged text selection.
+ *
+ * WARN: REQUIREMENTS.md § 9.2. `types`, never `files` — `DataTransfer.files` is empty
+ * on `dragover` for security, so a guard reading it would never arm.
+ */
+export function hasDataTransferFiles(event: DragEvent): boolean {
+  return event.dataTransfer?.types.includes("Files") ?? false;
+}
+
 export function isEditableElement(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;

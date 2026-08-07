@@ -9,6 +9,7 @@ import { APP_SCROLL_ID, APP_SHELL_ID } from "@/shared/config";
 import {
   BottomOverlay,
   Container,
+  FileDropGuard,
   RouteTransition,
   ScrollMemory,
   VisualViewportSync,
@@ -60,6 +61,8 @@ export default async function MainLayout({ children }: PropsWithChildren) {
             </BottomOverlay>
           </Container>
           <VisualViewportSync />
+          {/* INFO: REQUIREMENTS.md § 9.2. Shell-level, because a stray drop navigates the PWA away from every screen — not only from the two that take one. */}
+          <FileDropGuard />
           <ScrollMemory />
           <PushSync />
         </div>

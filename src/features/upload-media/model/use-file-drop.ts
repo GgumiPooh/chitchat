@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type DragEvent } from "react";
+import { hasDataTransferFiles } from "@/shared/lib";
+import { useState, type DragEvent } from "react";
 
 /** The handlers the drop target spreads onto its own outermost element. */
 export type FileDropHandlers = {
@@ -11,7 +12,7 @@ export type FileDropHandlers = {
 };
 
 export type UseFileDropParams = {
-  /** Refuses every drop while false — the composer is put away during a § 8.6. search, and a drop then would stage into a tray nothing can send. */
+  /** Refuses every drop while false. Each caller passes whatever hides the tray a drop would land in — a § 8.6. search, a selection, an editor or the viewer over it (§ 9.2.). */
   isEnabled?: boolean;
   onDrop: (files: File[]) => void;
 };
@@ -23,33 +24,16 @@ export type UseFileDropParams = {
  * drag events at all, so this needs no pointer or user-agent test to stay off
  * there — which is what keeps `AGENTS.md § 4.2.`'s one sanctioned UA branch the
  * only one.
+ *
+ * WARN: Counts a drag over one target and nothing more. The window guard that stops
+ * a stray drop navigating the app away is `FileDropGuard`, mounted once on the shell
+ * — it has to cover the screens that take no drop at all (§ 9.2.).
  */
 export function useFileDrop({ isEnabled = true, onDrop }: UseFileDropParams) {
   // WARN: A counter, not a boolean. `dragenter` fires again for every child the cursor crosses and the matching `dragleave` arrives *after* it, so a boolean flickers off over every bubble the pointer passes.
   // WARN: State rather than a ref, and every write below is a functional update. The depth has to survive being adjusted during render (below), which a ref may not be.
   const [depth, setDepth] = useState(0);
   const isDropping = depth > 0;
-
-  /**
-   * WARN: The window guard, and it is not optional. A drop that misses the target
-   * is a navigation the browser performs by default — in a standalone PWA that
-   * replaces the app with a bare asset view and no way back.
-   */
-  useEffect(() => {
-    const swallow = (event: Event) => {
-      if (hasFiles(event as unknown as DragEvent)) {
-        event.preventDefault();
-      }
-    };
-
-    window.addEventListener("dragover", swallow);
-    window.addEventListener("drop", swallow);
-
-    return () => {
-      window.removeEventListener("dragover", swallow);
-      window.removeEventListener("drop", swallow);
-    };
-  }, []);
 
   /**
    * WARN: Adjusted during render rather than from an effect, and it is not
@@ -65,7 +49,7 @@ export function useFileDrop({ isEnabled = true, onDrop }: UseFileDropParams) {
 
   const handlers: FileDropHandlers = {
     onDragEnter: (event) => {
-      if (!isEnabled || !hasFiles(event)) {
+      if (!isEnabled || !hasDataTransferFiles(event.nativeEvent)) {
         return;
       }
 
@@ -74,7 +58,7 @@ export function useFileDrop({ isEnabled = true, onDrop }: UseFileDropParams) {
     },
     // WARN: `dragover` has to `preventDefault` on every single event, not only the first. The drop is refused outright otherwise — the default action is what the browser reads as "this target does not take drops".
     onDragOver: (event) => {
-      if (!isEnabled || !hasFiles(event)) {
+      if (!isEnabled || !hasDataTransferFiles(event.nativeEvent)) {
         return;
       }
 
@@ -82,14 +66,14 @@ export function useFileDrop({ isEnabled = true, onDrop }: UseFileDropParams) {
       event.dataTransfer.dropEffect = "copy";
     },
     onDragLeave: (event) => {
-      if (!isEnabled || !hasFiles(event)) {
+      if (!isEnabled || !hasDataTransferFiles(event.nativeEvent)) {
         return;
       }
 
       setDepth((current) => Math.max(0, current - 1));
     },
     onDrop: (event) => {
-      if (!isEnabled || !hasFiles(event)) {
+      if (!isEnabled || !hasDataTransferFiles(event.nativeEvent)) {
         return;
       }
 
@@ -105,11 +89,6 @@ export function useFileDrop({ isEnabled = true, onDrop }: UseFileDropParams) {
   };
 
   return { isDropping, handlers };
-}
-
-// WARN: `types`, never `files` — `DataTransfer.files` is empty on `dragover` for security, so a guard reading it would never arm. This is also what keeps a dragged selection of text from lighting the overlay up.
-function hasFiles(event: DragEvent): boolean {
-  return event.dataTransfer?.types.includes("Files") ?? false;
 }
 
 /**

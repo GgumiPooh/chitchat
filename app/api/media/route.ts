@@ -13,7 +13,12 @@ const bodySchema = z.object({
   height: z.number().int().nonnegative(),
   durationMs: z.number().int().nonnegative().nullish(),
   // INFO: REQUIREMENTS.md § 9.1. The name the file was picked under. Sanitized and accepted only for a stored type the app cannot draw — `registerMedia` decides that from R2, not from here.
-  filename: z.string().min(1).max(MAX_FILENAME_LENGTH).nullish(),
+  // WARN: Bounded by **code point**, never `.max()`. `toSafeFilename` truncates that way on purpose, so a name of emoji or astral ideographs is well under the cap and twice it in UTF-16 units — a `.max()` here would 400 exactly those names, after the bytes had already landed in R2 with no row able to name them.
+  filename: z
+    .string()
+    .min(1)
+    .refine((name) => Array.from(name).length <= MAX_FILENAME_LENGTH)
+    .nullish(),
   // INFO: REQUIREMENTS.md § 10. An upload started in the Gallery tab that is not being posted to the conversation. It needs a marker of its own, because the grid's other source is the `message_media` join.
   addToGallery: z.boolean().optional(),
 });
