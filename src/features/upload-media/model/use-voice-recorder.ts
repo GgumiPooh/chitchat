@@ -78,6 +78,8 @@ export function useVoiceRecorder({ onDone }: UseVoiceRecorderParams) {
   const isCancelledRef = useRef(false);
   // WARN: Distinct from `isCancelledRef`, which only reaches a recorder that exists. This one covers the window before one does, while `getUserMedia` is still pending.
   const isAbandonedRef = useRef(false);
+  // WARN: `sessionRef` cannot stand in for this — it is assigned only after the `await`, so the whole permission window reads as "nothing running" to a second `start`.
+  const isRequestingRef = useRef(false);
   const onDoneRef = useRef(onDone);
 
   // INFO: REQUIREMENTS.md § 8.4.1. Recording is hands-off and `MAX_VOICE_DURATION` is twice the idle allowance, so without this the 절전 모드 overlay lands over a clip still being recorded and takes the stop control with it.
@@ -172,7 +174,11 @@ export function useVoiceRecorder({ onDone }: UseVoiceRecorderParams) {
 
   /** Whether the microphone was actually asked for — `false` is a refusal that never reached `requesting`. */
   const start = useCallback(async (): Promise<boolean> => {
-    if (sessionRef.current) {
+    // WARN: Ahead of the guard below, and that order is what makes StrictMode's setup → cleanup → setup survivable — the teardown abandons the request the second setup then rejoins, and a flag left set closes the microphone the bar had just opened.
+    isAbandonedRef.current = false;
+
+    // WARN: The pending request counts, not just an open session. Without it a second `start` inside the permission window opened a stream `sessionRef` then forgot, whose sample loop went on writing `elapsedSeconds` off its own `startedAt` — the clock flickering between two times, over a microphone nothing was left to close.
+    if (sessionRef.current || isRequestingRef.current) {
       return true;
     }
 
@@ -186,13 +192,16 @@ export function useVoiceRecorder({ onDone }: UseVoiceRecorderParams) {
     }
 
     setState("requesting");
-    isAbandonedRef.current = false;
 
     let stream: Nullable<MediaStream> = null;
-    // WARN: Minted before the `await`, inside the gesture. WebKit starts an `AudioContext` constructed off a gesture stack `suspended`, and a suspended graph renders nothing through the analyser — every sample reads as silence and the stored waveform is a flat line under audible speech.
-    const audio = new AudioContext();
+    let audio: Nullable<AudioContext> = null;
 
     try {
+      // WARN: Raised inside the `try`, so the `finally` below is what always lowers it. Set outside, a throw from the line under it would latch the guard and refuse every later 녹음 for the life of the bar.
+      isRequestingRef.current = true;
+      // WARN: Minted before the `await`, inside the gesture. WebKit starts an `AudioContext` constructed off a gesture stack `suspended`, and a suspended graph renders nothing through the analyser — every sample reads as silence and the stored waveform is a flat line under audible speech.
+      // INFO: Inside the `try` because the constructor is a refusal like any other — WebKit throws once a page holds too many un-closed contexts, and `REFUSALS.failed` is what that means to the user.
+      audio = new AudioContext();
       // WARN: REQUIREMENTS.md § 13.6. declared the page's session `transient`, which is a *playback* category — capture has to move it and put it back, or the microphone runs under a session sized for a two-second emoticon ping.
       declareAudioSession("play-and-record");
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -216,10 +225,12 @@ export function useVoiceRecorder({ onDone }: UseVoiceRecorderParams) {
       setState("recording");
     } catch (error) {
       stream?.getTracks().forEach((track) => track.stop());
-      void audio.close().catch(() => undefined);
+      void audio?.close().catch(() => undefined);
       leaveCapture();
       setState("idle");
       toast.error(toRefusal(error));
+    } finally {
+      isRequestingRef.current = false;
     }
 
     return true;
