@@ -31,6 +31,7 @@ import {
   type MessageArrival,
 } from "@/shared/config";
 import {
+  GESTURE_SLOP,
   buildFadeMask,
   cn,
   composeEventNotice,
@@ -669,7 +670,9 @@ export function ChatRoom({
    * REQUIREMENTS.md § 13.6. Reaching for the history puts the panel away, the same
    * way reaching for the field does.
    *
-   * WARN: Real gestures only, never the `scroll` event. Opening the panel scrolls the history itself — every frame of the strip's growth re-pins it — so a `scroll` listener would close the panel on the frame it opened.
+   * WARN: A tap, and specifically not a scroll. Dismissing on `pointerdown` runs the whole collapse — strip, clearance and re-pin — underneath a finger that was only reaching for the history, which is why § 13.6. rejected this rule the first time. The press is therefore only *armed* here and settled on `pointerup`: a gesture that moved past `GESTURE_SLOP`, or that moved the scroller at all, was a scroll and closes nothing.
+   *
+   * WARN: There is no `wheel` listener for the same reason — a wheel **is** the scroll. It is also why the `scroll` event cannot be the signal either: opening the panel scrolls the history itself, re-pinning it every frame of the strip's growth, so the panel would close on the frame it opened.
    *
    * WARN: On the room, never on the scroller. An empty room renders no scroller at all (§ 8.12.), and that is the room where the panel covers the most nothing — bound to the scroller the rule simply does not hold there, and the toggle is the only way out.
    *
@@ -682,20 +685,47 @@ export function ChatRoom({
       return;
     }
 
-    const dismiss = ({ target }: Event) => {
-      if (target instanceof Node && composerRef.current?.contains(target)) {
+    let press: Nullable<{ x: number; y: number; scrollTop: number }> = null;
+
+    const arm = ({ target, clientX, clientY }: PointerEvent) => {
+      press =
+        target instanceof Node && composerRef.current?.contains(target)
+          ? null
+          : { x: clientX, y: clientY, scrollTop: scrollerRef.current?.scrollTop ?? 0 };
+    };
+
+    const settle = ({ clientX, clientY }: PointerEvent) => {
+      const origin = press;
+
+      press = null;
+
+      if (!origin) {
         return;
       }
 
-      setIsEmoticonPickerOpen(false);
+      // INFO: A finger laid on a scroller that is still coasting arrests it, which moves the offset by a few pixels and is a scroll by any reading — so the offset is compared exactly rather than within a tolerance.
+      const hasScrolled = (scrollerRef.current?.scrollTop ?? 0) !== origin.scrollTop;
+      const hasMoved =
+        Math.abs(clientX - origin.x) > GESTURE_SLOP || Math.abs(clientY - origin.y) > GESTURE_SLOP;
+
+      if (!hasScrolled && !hasMoved) {
+        setIsEmoticonPickerOpen(false);
+      }
     };
 
-    container.addEventListener("pointerdown", dismiss, { passive: true });
-    container.addEventListener("wheel", dismiss, { passive: true });
+    // WARN: `pointercancel` is what a touch that becomes a scroll usually ends on, and it must disarm rather than settle — engines differ on whether a `pointerup` follows it at all, and the scroll test is what covers the ones that send one.
+    const disarm = () => {
+      press = null;
+    };
+
+    container.addEventListener("pointerdown", arm, { passive: true });
+    container.addEventListener("pointerup", settle, { passive: true });
+    container.addEventListener("pointercancel", disarm, { passive: true });
 
     return () => {
-      container.removeEventListener("pointerdown", dismiss);
-      container.removeEventListener("wheel", dismiss);
+      container.removeEventListener("pointerdown", arm);
+      container.removeEventListener("pointerup", settle);
+      container.removeEventListener("pointercancel", disarm);
     };
   }, [isEmoticonPanelOpen]);
 
