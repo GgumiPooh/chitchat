@@ -41,6 +41,7 @@ import {
   cn,
   composeEventNotice,
   stopVoice,
+  toDayKey,
   useIsVirtualKeyboardOpen,
   useIsomorphicLayoutEffect,
   useSoundUnlock,
@@ -67,7 +68,11 @@ import {
   type MediaCell,
 } from "@/shared/ui";
 import { useQueryClient } from "@tanstack/react-query";
-import { measureElement as measureRenderedElement, useVirtualizer } from "@tanstack/react-virtual";
+import {
+  measureElement as measureRenderedElement,
+  useVirtualizer,
+  type VirtualItem,
+} from "@tanstack/react-virtual";
 import { Copy, CornerUpLeft, LoaderCircle, MessageCircle, Share, Trash2 } from "lucide-react";
 import {
   useCallback,
@@ -96,6 +101,7 @@ import { useMessageHistory } from "../model/use-message-history";
 import { useSettledCommit } from "../model/use-settled-commit";
 import { ChatBackdrop } from "./chat-backdrop";
 import { DateDivider } from "./date-divider";
+import { DayIndicator } from "./day-indicator";
 import { MessageRow } from "./message-row";
 import { ReplyBar } from "./reply-bar";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
@@ -154,7 +160,8 @@ const OVERSCAN_ROWS = 8;
 const LOAD_OLDER_THRESHOLD = 600;
 
 // INFO: DESIGN.md § 7.12. Deep enough that a bubble dissolves under the floating header rather than being clipped by it.
-const TOP_FADE_LENGTH = "3rem";
+// WARN: In pixels rather than the `rem` it is authored as, because § 8.3.'s day indicator reads it as a number — the band is where a row stops being legible, which is where "the topmost visible row" has to be measured from. The app sets no root font size, so the two are the same length.
+const TOP_FADE_LENGTH = 48;
 
 // WARN: Short on purpose — it dissolves the sliver leaving the shell below the tab bar, not the strip behind the bars. Fading that strip would leave the glass with nothing to blur (DESIGN.md § 3.5.).
 const BOTTOM_FADE_LENGTH = "2rem";
@@ -365,6 +372,13 @@ export function ChatRoom({
   if (isEmoticonPanelOpen && !hasOpenedEmoticonPanel) {
     setHasOpenedEmoticonPanel(true);
   }
+
+  // INFO: REQUIREMENTS.md § 8.3. Derived during render rather than kept in state — the virtualizer already re-renders this component on every scroll, and a state write here would buy a second render for the same frame.
+  const visibleDayKey = toVisibleDayKey(
+    rows,
+    virtualizer.getVirtualItems(),
+    (virtualizer.scrollOffset ?? 0) + TOP_FADE_LENGTH,
+  );
 
   // INFO: My own send is not a new message to me — counting it flashes `새 메시지 1` on the pill for my own bubble.
   // WARN: REQUIREMENTS.md § 8.6.1. Silent while the window is parked away from the live edge. `messages` is then a slice of history rather than the newest page, and every row in it that happens to outrank `seenId` would be counted as an arrival — stepping from an older search hit to a newer one replaces the window with 30 such rows and the pill announces `새 메시지 30` for messages from last month. Nothing in a jumped window is news, and the pill is already visible there for the other reason: it is the way back.
@@ -841,6 +855,14 @@ export function ChatRoom({
               <ListFooter slotRef={typingSlotRef} typist={typist} />
             </div>
           </div>
+          {/* INFO: REQUIREMENTS.md § 8.3. Cleared of the § 7.12. floating header, which it would otherwise sit behind. */}
+          {/* WARN: Shown while the list is moving and hidden at rest, so it never stands over a bubble the reader has stopped on. It is withheld at the live edge as well — a pin after a send scrolls too, and the newest message needs no label saying 오늘. */}
+          {/* WARN: `!isAtBottom || hasNewer`, the § 6.7. pill's own test and never the flag alone. A window parked around a § 8.6.1. jump sits at the bottom of its own scroll range while the newest message is pages away — which is deep history with no surrounding context, and the one place this indicator is most worth having. */}
+          <DayIndicator
+            className="absolute inset-x-0 top-[calc(var(--app-header-inset)+var(--spacing-2xs))]"
+            dayKey={visibleDayKey}
+            isVisible={virtualizer.isScrolling && (!isAtBottom || hasNewer)}
+          />
           <ScrollToBottomPill
             className="absolute inset-x-0 bottom-[calc(var(--chat-bottom-gap)+var(--spacing-md))] mx-auto"
             // WARN: § 8.6.1. A window parked around a jump target can sit at the bottom of its own scroll range while the newest message is still pages away, so the pill has to answer to the window too.
@@ -1210,7 +1232,7 @@ export function ChatRoom({
       direction: "to bottom",
       fadeStart: !isAtTop,
       fadeEnd: true,
-      startLength: TOP_FADE_LENGTH,
+      startLength: `${TOP_FADE_LENGTH}px`,
       endLength: BOTTOM_FADE_LENGTH,
     });
   }
@@ -1509,6 +1531,47 @@ export function ChatRoom({
     if (!atBottom && !hasNewer) {
       setSeenId(messages.at(-1)?.id ?? 0);
     }
+  }
+}
+
+/**
+ * REQUIREMENTS.md § 8.3. The day the topmost visible row belongs to, which is what
+ * the sticky indicator names.
+ *
+ * WARN: `item.start` is comparable to `scrollTop` as it stands. The rows are offset
+ * by `-scrollMargin` inside a box that follows a header of exactly that height, so
+ * the two cancel — subtracting the margin again here would put the indicator a
+ * loading header ahead of the reader.
+ *
+ * WARN: The first *visible* row, not the first rendered one. `overscan` renders a
+ * screenful above the fold, and reading their day would name the previous one for
+ * the whole of a long day's scroll.
+ *
+ * WARN: `legibleFrom` is the scroll offset plus `TOP_FADE_LENGTH`, never the offset
+ * itself. The top of the scroller runs under the § 7.12. floating header and is
+ * dissolved by the mask, so a row there is not one the reader is looking at — and
+ * at a date boundary that is exactly the row whose day the pill would announce,
+ * naming yesterday over a screen showing today.
+ */
+function toVisibleDayKey(
+  rows: ChatRow[],
+  items: VirtualItem[],
+  legibleFrom: number,
+): Nullable<string> {
+  const row = rows[items.find((item) => item.end > legibleFrom)?.index ?? -1];
+
+  if (!row) {
+    return null;
+  }
+
+  switch (row.kind) {
+    case "date":
+      return row.dayKey;
+    case "system":
+    case "message":
+      return toDayKey(row.message.createdAt);
+    case "pending":
+      return toDayKey(row.pending.createdAt);
   }
 }
 

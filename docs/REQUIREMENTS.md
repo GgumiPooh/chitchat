@@ -28,7 +28,7 @@ Every open item in this document, so an agent can read one table and then only t
 
 | Area                      | Open                                                                            | §               |
 | ------------------------- | ------------------------------------------------------------------------------- | --------------- |
-| **Chat — scroll polish**  | Sticky date indicator; scroll-to-bottom marking read                            | § 8.3., § 8.1.  |
+| **Chat — scroll polish**  | Scroll-to-bottom marking read                                                   | § 8.1.          |
 | **Chat — viewer**         | Pinch zoom, tuned on a real device                                              | § 8.1.          |
 | **Chat — link previews**  | Withhold a thumbnail whose signed URL has expired                               | § 8.9.          |
 | **Library**               | Jump-to-message link — the § 8.6.1. machinery it waited on is built             | § 10.           |
@@ -353,7 +353,7 @@ Offscreen message nodes **must not stay in the DOM** — after years of history,
 
 Remaining:
 
-- [ ] Date dividers are list items (done), but the **sticky top indicator is a separate overlay** computed from the visible range — not built
+- [x] Date dividers are list items, and the **sticky top indicator is a separate overlay** computed from the visible range. It cannot be `position: sticky` — every row here is absolutely positioned, and a divider that has scrolled out is not in the DOM to pin. The day is read from the **first visible** row, not the first rendered one (`overscan` renders a screenful above the fold), and "visible" is measured from the scroll offset **plus `TOP_FADE_LENGTH`**: the top of the scroller runs under the § 7.12. header and is dissolved by the mask, and at a date boundary that band holds exactly the row whose day would otherwise be announced over a screenful of the next one. Derived during render rather than into state, since the virtualizer already re-renders on every scroll. Shown while the list moves, faded out at rest, and withheld at the live edge — a pin after a send scrolls too, and the newest message needs no label saying 오늘. That last test is § 6.7.'s own (`!isAtBottom || hasNewer`) and never the flag alone, because a window parked around a § 8.6.1. jump sits at the bottom of its own scroll range with the newest message pages away — deep history with no surrounding context, which is where this is worth most
 - [x] Native `Ctrl+F` cannot find offscreen messages — in-app search (§ 8.6.) is the deliberate replacement, and it has landed
 
 ### 8.4. Realtime (SSE) ✅
@@ -1223,7 +1223,7 @@ An installed iOS PWA is not reloaded when the user reopens it — the system res
 2. ✅ Auth + session (§ 5.) — highest-risk area, so it went first
 3. ✅ Database schema + migrations (§ 6.)
 4. ✅ Layout + tab bar + PWA manifest (§ 7.)
-5. **Chat tab (§ 8.) — in progress.** Text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies, the jump machinery, the typing indicator (§ 8.12.) and search (§ 8.6.) all landed. **Open: the sticky date indicator, scroll-to-bottom marking read (§ 8.3., § 8.1.), pinch zoom, and the expired-thumbnail rule (§ 8.9.)**
+5. **Chat tab (§ 8.) — in progress.** Text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies, the jump machinery, the typing indicator (§ 8.12.), search (§ 8.6.) and the sticky date indicator (§ 8.3.) all landed. **Open: scroll-to-bottom marking read (§ 8.1.), pinch zoom, and the expired-thumbnail rule (§ 8.9.)**
 6. ✅ R2 media pipeline + sending photos and videos in chat (§ 9.)
 7. ✅ Library tab (§ 10.), both segments — open: the jump-to-message link, now unblocked by § 8.6.1.
 8. ✅ Emoticons (§ 13.)
