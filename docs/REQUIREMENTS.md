@@ -26,22 +26,21 @@ Precedence on conflict: visuals → `DESIGN.md`; code-authoring rules → `AGENT
 
 Every open item in this document, so an agent can read one table and then only the section it needs. Nothing else is outstanding.
 
-| Area                         | Open                                                                                                | §              |
-| ---------------------------- | --------------------------------------------------------------------------------------------------- | -------------- |
-| **Chat — unread marks**      | The `1` marker beside a bubble, and the unread divider. Cursor is written; only the drawing is left | § 8.8., § 8.1. |
-| **Chat — scroll polish**     | Sticky date indicator, tab-return scroll restore, scroll-to-bottom marking read                     | § 8.3., § 8.1. |
-| **Chat — link previews**     | Four polish/hardening items on an otherwise finished feature                                        | § 8.9.         |
-| **Library**                  | Jump-to-message link — the § 8.6.1. machinery it waited on is built                                 | § 10.          |
-| **Calendar**                 | "Jump to today" control                                                                             | § 11.3.        |
-| **Settings**                 | Device list + revocation, app info. Theme row stays hidden                                          | § 12., § 16.1. |
-| **Overlays**                 | A focus trap shared by the profile screen and the § 7.10. viewer                                    | § 12.3.        |
-| **Media**                    | Blurhash placeholder; re-PUT window; orphaned avatar and background objects                         | § 9., § 12.    |
-| **Emoticons**                | Preload enabled packs' images                                                                       | § 13.6.        |
-| **Security**                 | Session check audit, login rate limit, error-detail leaks                                           | § 14.          |
-| **Deployment**               | Vercel project, domain, env vars, steiger in build, Neon branches, Skew Protection                  | § 15.          |
-| **Real-device verification** | iOS PWA keyboard geometry, cookie survival across days, the audio session across a recording        | § 4.3., § 5.3. |
-| **Undecided — ask first**    | Emoticon grid density (#3), pinch-zoom bounds (#6), dark palette (#7)                               | § 18.          |
-| **Later**                    | Dark theme, offline caching, backup/export                                                          | § 16.          |
+| Area                      | Open                                                                            | §               |
+| ------------------------- | ------------------------------------------------------------------------------- | --------------- |
+| **Chat — scroll polish**  | Sticky date indicator; scroll-to-bottom marking read                            | § 8.3., § 8.1.  |
+| **Chat — viewer**         | Pinch zoom, tuned on a real device                                              | § 8.1.          |
+| **Chat — link previews**  | Withhold a thumbnail whose signed URL has expired                               | § 8.9.          |
+| **Library**               | Jump-to-message link — the § 8.6.1. machinery it waited on is built             | § 10.           |
+| **Calendar**              | "Jump to today" control                                                         | § 11.3.         |
+| **Settings**              | Device list + revocation (`sessions`). Theme row stays hidden until § 16. ships | § 12.           |
+| **Overlays**              | A focus trap shared by the profile screen and the § 7.10. viewer                | § 12.3.         |
+| **Emoticons**             | Preload enabled packs' images                                                   | § 13.6.         |
+| **Security**              | Session check audit, error-detail leaks                                         | § 14.           |
+| **Deployment**            | Skew Protection                                                                 | § 15.1.         |
+| **iOS audio**             | Discard the shared voice element after a capture, then verify on a device       | § 5.3., § 13.6. |
+| **Undecided — ask first** | Emoticon grid density (#3), pinch-zoom bounds (#6), dark palette (#7)           | § 18.           |
+| **Later**                 | Dark theme, offline caching                                                     | § 16.           |
 
 ---
 
@@ -130,7 +129,7 @@ Read `src/shared/lib/index.ts` for the inventory (nullish types, `safely*`, `map
 
 App shell max width **`576px`** (`--container-app`), so the four-item tab bar cannot stretch across a desktop screen. `Container`: `md` (default) = app width, `sm` = `448px`, padding `px-md`. Outside the shell the page uses `backdrop`. `--tab-bar-height` and `--app-header-height` live in `theme.css` outside `@theme`. Screens never restate a viewport height — the `(main)` layout owns the column height, screens are `flex-1` inside it, and full-height screens honour `env(safe-area-inset-*)`.
 
-### 4.3. Visual Viewport and the Keyboard
+### 4.3. Visual Viewport and the Keyboard ✅
 
 Landed; full rules in `AGENTS.md § 4.4.` and `DESIGN.md § 3.4.`–`§ 3.5.` What a new screen must respect:
 
@@ -138,8 +137,6 @@ Landed; full rules in `AGENTS.md § 4.4.` and `DESIGN.md § 3.4.`–`§ 3.5.` Wh
 - The document must never scroll (`html, body` are `h-full overflow-hidden overscroll-none`) — a document taller than the visual viewport lets WebKit pan the header off-screen. Screens scroll inside `#app-scroll` (`APP_SCROLL_ID`) or their own container, and `ScrollMemory` / `ScrollReset` address that container, never `window`
 - Header and bars **float over** content: `sticky` header, absolute `BottomOverlay` whose measured height becomes the `--bottom-inset` spacer `RouteTransition` trails below the screen (never the scroller's end padding — `DESIGN.md § 3.5.`). Both use the single `glass` utility; every floating strip is `pointer-events-none` at its root, re-enabled only on the visible surface
 - **Nothing may depend on `interactiveWidget: "resizes-content"`** (Chromium/Firefox only, ignored by iOS), and `env(safe-area-inset-bottom)` is **not** a keyboard inset — it reports the home indicator and never moves for the keyboard
-
-- [ ] Real-device pass (§ 5.3.) — keyboard-open geometry is reasoned through but unverified on an iPhone
 
 ### 4.4. Base Components (`src/shared/ui`) ✅
 
@@ -172,8 +169,7 @@ A 32-byte token is stored **hashed** in `sessions.token_hash`; only the raw toke
 
 - [x] Verify **on a real device** that the Google login redirect from a home-screen standalone PWA returns to the app correctly
 - [x] Verify **what iOS actually hands a file input for a video** — it transcodes HEIC to JPEG, so § 9.'s "store whatever arrives" costs nothing and the viewer's download fallback never fires
-- [ ] Verify the session cookie survives days of non-use (re-check after several days)
-- [ ] Verify the **audio session survives a recording**, on the one sequence that can fail: play a voice message, record one, then play another. § 13.6.'s resting category is a page-**wide** switch that capture moves to `play-and-record` and moves back, while WebKit fixes an `<audio>` element's own category at its first playback — so the third step is where a player minted before the switch would mint a Now Playing entry or stop the user's music instead of ducking it. Neither of the first two steps shows anything on its own, and a session that never plays a voice message never mints that element at all
+- [ ] **Discard `voice-playback.ts`'s shared element when a recording ends**, then verify the one sequence that fails: play a voice message, record one, play another. § 13.6.'s resting category is page-**wide** and capture moves it to `play-and-record` and back, while WebKit fixes an `<audio>` element's own category at its first playback — so the third step is where a player minted before the switch mints a Now Playing entry or stops the user's music instead of ducking it. Restoring the resting category is **not** enough on an element already fixed; dropping it is what makes the next playback mint a fresh one under `transient`. Neither of the first two steps shows anything alone
 
 ### 5.4. Development Login ✅
 
@@ -309,7 +305,6 @@ The `(main)` layout is the app shell (max `576px`, centered) holding a per-scree
 
 Remaining:
 
-- [ ] Unread marker — a `1` beside my message, in the `unread` token (DESIGN § 4.1.4.)
 - [ ] Pinch zoom in the viewer — § 18. #6, still open and meant to be tuned on a real device
 - [ ] Tapping the scroll-to-bottom button scrolls smoothly to the bottom **and marks messages read**
 - [x] The same button returns the user to the newest messages after a search jump (§ 8.6.1.)
@@ -360,7 +355,6 @@ Offscreen message nodes **must not stay in the DOM** — after years of history,
 Remaining:
 
 - [ ] Date dividers are list items (done), but the **sticky top indicator is a separate overlay** computed from the visible range — not built
-- [ ] Restore scroll position when returning to the tab — `takeSnapshot` on the way out, `initialMeasurementsCache` and `initialOffset` on the way back in. `ScrollMemory` cannot do it: it remembers a `scrollTop`, and here that number means nothing until the rows are measured
 - [x] Native `Ctrl+F` cannot find offscreen messages — in-app search (§ 8.6.) is the deliberate replacement, and it has landed
 
 ### 8.4. Realtime (SSE) ✅
@@ -501,7 +495,7 @@ The client generates `client_msg_id` (uuid) and renders optimistically; `POST /a
 - Empty-nickname fallback is the email local part, applied in `toParticipant` (§ 8.4.); no-avatar fallback is an initial-letter avatar (DESIGN § 7.7.)
 - The chat avatar reads `GET /api/media/{avatarMediaId}`, resolved from the participant set at render time like the name beside it (§ 12.)
 
-### 8.8. Read / Unread
+### 8.8. Read / Unread ✅
 
 **Landed:** the cursor lives in `users.last_read_at` (no per-message `read_at`, no members table), `countUnreadMessages` joins `users` on the requesting id so the badge stays one round trip, and `POST /api/chat/read` writes the cursor while the chat screen is mounted (`ChatRoom` declares this with `setIsReading`). `읽음` shows on the newest of my messages the other participant has read, beside its timestamp — nothing marks an unread one, since silence is the resting state and the newest already implies every message under it.
 
@@ -509,13 +503,13 @@ The client generates `client_msg_id` (uuid) and renders optimistically; `POST /a
 - The UPDATE **must** carry `WHERE last_read_at < $new`. The same person can have two devices open, and a late stale request would move the cursor backwards — the unread divider jumps back into read history and the other side's `1` markers reappear after clearing. The guard is also what makes a no-op UPDATE silent
 - The client sends **no timestamp**; the server stamps `now()`, so a skewed device clock cannot push the cursor into the future
 - `GET /api/chat/unread` — the count for the tab-bar badge and the § 16.1. push payload. The shell's running total is optimistic and blind to what landed while the stream was closed, so a resume **replaces** it rather than adding to it
-- Clearing the sender's `1` markers needs no new plumbing: the write touches `users`, so the § 6. trigger fires `user_changed`
+- The cursor reaches the other device with no new plumbing: the write touches `users`, so the § 6. trigger fires `user_changed`
 
-- [ ] A message is unread when `message.created_at > otherUser.last_read_at` — a **boolean**, correct only for two participants (§ 6.). The cursor is written; the `1` marker beside a bubble and the unread divider are still to draw (`DESIGN.md § 7.`)
+- Unread is `message.created_at > otherUser.last_read_at` — a **boolean**, correct only for two participants (§ 6.). It feeds the badge and the § 16.1. payload alone: **nothing marks an unread message in the room**, since `읽음` on the newest read message already carries the state
 
 ### 8.9. Link Previews
 
-A text message containing a link renders a card above its text — thumbnail, title, and the site it came from (`DESIGN.md § 6.9.`). The link stays in the bubble as a tappable anchor. **Landed** in full; four polish/hardening items are open at the end.
+A text message containing a link renders a card above its text — thumbnail, title, and the site it came from (`DESIGN.md § 6.9.`). The link stays in the bubble as a tappable anchor. **Landed** in full; one hardening item is open at the end.
 
 - **One card per bubble, from the first URL in the text.** A message pasted out of a share sheet routinely carries several, and a stack of cards buries the sentence
 - `GET /api/link-preview?url=` answers `{ preview }`, where `null` is the normal case rather than an error. **Signed-in only** — the handler makes an outbound request to a caller-chosen URL
@@ -534,10 +528,8 @@ A text message containing a link renders a card above its text — thumbnail, ti
 
 Remaining:
 
-- [ ] A card is **not** shown while the scrape is in flight, so a bubble that turns out to have one grows once after it lands. Reserving the box instead would be a placeholder that usually collapses again, which is the worse jolt (§ 8.3.) — revisit if the cache hit rate ever makes the wait rare enough to bet on
 - [x] **The vetted address is what gets dialled, never the hostname again.** Checking the name and handing that same name to `fetch` resolves it a second time, and the two answers need not agree: a record with a zero TTL can answer a public address to the check and `169.254.169.254` to the connection, which is DNS rebinding and walks straight past a guard that only ever sees the first answer. `vetHost` returns the address and the request goes out on an undici `Agent({ connect: { lookup } })` pinned to it — **not** a rewritten URL, which would have put the IP in front of TLS and broken SNI and certificate validation. The dispatcher is per-request and destroyed with the response, since a pool keyed to one pinned address cannot be shared
-- [ ] A signed `og:image` URL (GitHub mints one that expires in five minutes) is stale long before the row is. The tile hides itself when the host refuses it, so the card degrades to text rather than breaking — a real fix is the proxy below, or a shorter TTL for a URL that carries an expiry
-- [ ] Proxying the thumbnail through the app, which would keep the two users' IPs off the publisher's server. Not worth a route while this is a two-person app
+- [ ] A signed `og:image` URL (GitHub mints one that expires in five minutes) goes stale long before the row does, so a card whole yesterday loses its tile on the scroll back. **Read the expiry out of the URL at scrape time onto the row** (`X-Amz-Expires` against `X-Amz-Date`, or a bare `exp` / `se` / `Expires`) and withhold `imageUrl` once it passes — the card is then consistently text rather than decaying, and needs no refetch since the title did not expire with the signature. Shortening the row's whole TTL instead would re-scrape what the row got right
 
 ### 8.10. Replying to a Message ✅
 
@@ -639,9 +631,7 @@ Tapping a quote runs the machinery § 8.6.1. will reuse unchanged:
 
 ---
 
-## 9. Media Storage (R2)
-
-**Landed** apart from the blurhash placeholder and two accepted-risk items.
+## 9. Media Storage (R2) ✅
 
 - `POST /api/media/upload-url` issues a **pair** of presigned PUTs — the object and its `{key}_thumb` sibling — and `POST /api/media` registers the result. The upload goes **client → R2 directly**, which gets a full-resolution iPhone photo past Vercel's 4.5MB request body limit and makes `XMLHttpRequest`'s `upload.onprogress` a real byte count
 - **The key is built server-side from the uploader's id** (`{scope}/{userId}/{uuid}`, `toScopePrefix`) and never read off the request — a signature the browser could aim is a signature that overwrites any object in the bucket. `POST /api/media` re-checks the prefix and matches the **scope** as well as the id. `MEDIA_UPLOAD_SCOPES` is `chat`, `avatar` (§ 12.) and `background` (§ 12.1.), deliberately **not** `emoticon`, or a § 13.3. object could be claimed as a `media` row and would then be a library row
@@ -655,11 +645,7 @@ Tapping a quote runs the machinery § 8.6.1. will reuse unchanged:
 - Read path for chat: the `message_media` rows for a whole page arrive in **one** query, ordered by `sort_order`, and only when the page actually holds an attachment
 - Deleting media also deletes the R2 objects — the library's delete does it for a photo no message carries (§ 10.)
 - **R2 bucket configuration is a deploy step, not code** (§ 15.): private with public access fully disabled, and a CORS policy allowing `PUT` **and `GET`** from the app origin — without `PUT` every upload fails preflight, without `GET` the § 10. share route cannot read the bytes it hands to the share sheet. `AllowedHeaders` needs **`Content-Type` only**, and no upload may add a second header without this line changing first: the live policy names headers one by one. That is not hypothetical — § 13.3. once sent a `Cache-Control` on the emoticon PUT and every emoticon upload failed until the header moved to the download side
-
-Remaining:
-
-- [ ] Use `media.blurhash` as the pre-load placeholder for grid and bubble images. Box reservation (§ 8.3.) is done and works without it, so this is polish
-- [ ] An upload that is registered and then re-PUT before its URL expires would swap the bytes under a validated row. Harmless with two trusted users, and the fix — invalidating the ticket at registration — is only worth it if this ever stops being a two-person app
+- **`media.blurhash` is never written and nothing reads it.** A loading tile is an empty box held open by § 8.3.'s reservation, which is the whole of the intended behaviour
 
 ### 9.1. File Attachments ✅
 
@@ -1015,11 +1001,9 @@ Tapping an avatar opens a full-screen profile, KakaoTalk-style: the § 12.1. cov
 
 Remaining:
 
-- [ ] An upload that lands and is then followed by a failed `PATCH` leaves one registered object nothing points at — and § 12.1.'s copy has the same window. It is unreachable and costs bucket space alone, which is the trade § 9. already takes on a re-PUT; a discard endpoint like § 13.3.'s is what would close it
-- [ ] List of logged-in devices, with per-session revocation
+- [ ] List of logged-in devices, with per-session revocation. Reads `sessions` (`device_label`, `last_seen_at`, `created_at` are written and nothing renders them), **not** the § 16.1. push subscriptions — a different set, and not revocable. A § 12. row opens the screen; the caller's own session is marked rather than revocable
 - [x] Log out
 - [ ] The theme setting stays **hidden until the dark theme ships**
-- [ ] App info / version
 
 ---
 
@@ -1166,13 +1150,12 @@ Emoticon objects ride § 9.'s presigned-PUT pipeline — client → R2 directly,
 
 - Upload MIME/extension allow-list and a size cap, enforced at registration against **both** objects of the § 9. pair. **§ 9.1. widens the type rule deliberately and only for a file attachment**: anything shaped like a mime is stored, and the compensating control is that such a row is served only as a `Content-Disposition: attachment` download, from R2's own origin, with the name sanitized into the header. The `_thumb` sibling is checked as strictly as the original (`image/jpeg`, `MAX_THUMBNAIL_SIZE`): it is what every chat cell, grid tile and video poster loads, so leaving it unchecked is the same hole by another name
 - `POST /api/messages` verifies that every `mediaId` is a registered object **owned by the sender and uploaded under the `chat` scope**. `message_media.media_id` is a foreign key, so an unregistered id would surface as a 500 rather than a 400; nothing else stopped one user hanging the other's objects off their own bubble; and the scope half is what keeps an avatar out of a message (§ 12.)
+- **No endpoint is rate-limited, and none needs to be while `ALLOWED_EMAILS` admits two people.** Widening it is what puts limiting back on the table
 
 Remaining:
 
 - [ ] Every API route validates the session (401 when unauthenticated)
-- [ ] Rate-limit the login callback endpoint
-- [ ] Rate-limit `POST /api/media/copy` (§ 12.1.), or cap the unworn `background/` objects one user may hold. It is the cheapest expensive endpoint in the app: one authenticated POST runs two server-side R2 `CopyObject`s over a full-resolution original, and it needs no upload and no follow-up `PATCH` to do it. The rows it mints are invisible to § 10.'s library (`galleryAddedAt` null, no `message_media`) and unreachable through `canReadMedia` once nothing wears them, so nothing surfaces them for deletion — § 12.'s accepted one-object orphan window is behind a _failed upload_, and this reaches the same state deliberately and at volume. § 14.'s size caps do not apply, because a copy uploads no bytes to check
-- [ ] Error responses must not leak internal details
+- [ ] Error responses must not leak internal details — no stack, no driver message, no key or path. One helper the routes answer through, applied over the same sweep as the item above
 
 ---
 
@@ -1180,11 +1163,9 @@ Remaining:
 
 **Landed:** `maxDuration = 300` on the SSE route segment (§ 8.4.), and the **R2 bucket setup** — private with public access disabled, plus a CORS policy allowing `PUT` and `GET` from the app origin. Without `PUT` every § 9. upload fails preflight; without `GET` the § 10. share route cannot buffer an original; no code change can fix either. `AllowedHeaders` is `Content-Type` only, so no upload may send a second header without this policy changing first (§ 9.).
 
-- [ ] Connect the Vercel project to the private GitHub repository
-- [ ] Custom domain `jandh.jeheecheon.com` + DNS CNAME + automatic HTTPS
-- [ ] Environment variables — `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `RELATIONSHIP_START_DATE` (ISO `YYYY-MM-DD`), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `APP_URL`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
-- [ ] Include `lint:steiger` in `pnpm build` so architecture violations fail the deploy
-- [ ] Separate dev and production databases using Neon branches
+- [x] The Vercel project is connected to the GitHub repository, the custom domain `jandh.jeheecheon.com` resolves over automatic HTTPS, and every environment variable below is set on it — `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `RELATIONSHIP_START_DATE` (ISO `YYYY-MM-DD`), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `APP_URL`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. This list is the one to check against when a new variable is introduced
+- [x] `pnpm build` runs `lint:steiger` ahead of `next build`, so an architecture violation fails the deploy
+- **One deployed database.** Local work runs against the § 1. docker compose Postgres, so it has a single writer
 
 ### 15.1. Refreshing a client across a deploy
 
@@ -1209,11 +1190,10 @@ An installed iOS PWA is not reloaded when the user reopens it — the system res
 
 - [ ] Dark theme — fill in the `.dark` block in `theme.css`, remove `forcedTheme`, reveal the Settings toggle
 - [ ] Offline caching (the caching role of a service worker — separate from push)
-- [ ] Data backup / export
 
-### 16.1. Push Notifications
+### 16.1. Push Notifications ✅
 
-**Landed** apart from the device list. This reverses the "no service worker" decision in § 7.
+**Landed.** This reverses the "no service worker" decision in § 7.
 
 - **Every push produces a banner. No exceptions.** `userVisibleOnly` is a promise the platform audits: WebKit revokes the subscription after **three** pushes whose worker showed nothing, and Chrome substitutes its own "site updated in the background" banner before doing the same. The symptom is not an error anywhere — it is the Settings toggle found empty on the next launch, push dead until the user re-subscribes, and a fresh `push_subscriptions` row each time they do. `sw.js` therefore **MUST** call `showNotification` on every `push` event, and **MUST NOT** test window visibility to decide whether to
 - **One alerting channel, not two.** The obvious way to keep the banner from duplicating an on-screen message is to give the app its own in-app notice and let the worker stand down while a window is visible. That is the shape that lost the subscription, and **no variant of it is safe** — closing the banner from inside the push event reads to the platform as never having shown one. So the in-app channel is gone instead: no toast, no chime, no `shared/sound` alert. SSE (§ 8.4.) delivers the message and moves the badge; alerting is the OS notification's job alone. **A message that arrives while the recipient is looking at the conversation still raises a banner** — that is the cost of keeping push alive
@@ -1231,24 +1211,23 @@ An installed iOS PWA is not reloaded when the user reopens it — the system res
 - A subscription the server failed to store reports the toggle as **off**
 - **The launch sync and the toggle write the same status, and the later write is not the newer intent.** `serviceWorker.register()` can take seconds, so a toggle can grant permission, subscribe and store the row while the launch sync is still resolving against a permission that was `default` when it sampled it. The hook settles this **by request id** — only the newest claim may write — because the losing order is silent: a stored subscription with the switch showing off and no failure to report
 - A refused or dismissed permission prompt **resolves** (`blocked` / `off`) instead of throwing, so turning the toggle on and landing anywhere but `on` raises the `알림을 켜지 못했어요` toast. The toast states only the failure; the recovery step (`브라우저 설정에서 이 사이트의 알림을 허용해 주세요`) belongs to the row description for `blocked` and MUST NOT be duplicated into the toast
-
-- [ ] A device list in Settings (`user_agent` and `last_success_at` are stored for it and nothing reads them yet) — step 10 of § 17.
+- `user_agent` and `last_success_at` are stored for diagnostics and nothing reads them. § 12.'s device list is the `sessions` one, not this set — a subscription cannot be revoked
 
 ---
 
 ## 17. Implementation Order
 
 1. ✅ Project setup + FSD scaffolding + design tokens + base components (§ 1.–§ 4.)
-2. ✅ Auth + session (§ 5.) — highest-risk area, so it went first. **The real-device cookie check (§ 5.3.) is still open**
+2. ✅ Auth + session (§ 5.) — highest-risk area, so it went first
 3. ✅ Database schema + migrations (§ 6.)
 4. ✅ Layout + tab bar + PWA manifest (§ 7.)
-5. **Chat tab (§ 8.) — in progress.** Text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies, the jump machinery, the typing indicator (§ 8.12.) and search (§ 8.6.) all landed. **Open: the `1` marker and unread divider (§ 8.8.)**
+5. **Chat tab (§ 8.) — in progress.** Text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies, the jump machinery, the typing indicator (§ 8.12.) and search (§ 8.6.) all landed. **Open: the sticky date indicator, scroll-to-bottom marking read (§ 8.3., § 8.1.), pinch zoom, and the expired-thumbnail rule (§ 8.9.)**
 6. ✅ R2 media pipeline + sending photos and videos in chat (§ 9.)
 7. ✅ Library tab (§ 10.), both segments — open: the jump-to-message link, now unblocked by § 8.6.1.
 8. ✅ Emoticons (§ 13.) — open: the picker's image preloading
 9. ✅ Calendar tab (§ 11.) — open: the "jump to today" control (§ 11.3.)
-10. **Settings tab (§ 12.) — in progress.** Profile editor, tap-to-enlarge avatar, the 입력 중 표시 switch (§ 8.12.), 로그아웃, both backgrounds (§ 12.1., § 12.2.) and the profile screen (§ 12.3.) landed. **Open: the device list and app info**
-11. Security hardening + deployment (§ 14., § 15.)
+10. **Settings tab (§ 12.) — in progress.** Profile editor, tap-to-enlarge avatar, the 입력 중 표시 switch (§ 8.12.), 로그아웃, both backgrounds (§ 12.1., § 12.2.) and the profile screen (§ 12.3.) landed. **Open: the device list, and the § 12.3. focus trap**
+11. Security hardening + deployment (§ 14., § 15.) — open: the session-check and error-detail sweep, and Skew Protection (§ 15.1.)
 
 ---
 
