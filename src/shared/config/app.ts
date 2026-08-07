@@ -286,6 +286,10 @@ export const HOME_ROUTE = CHAT_ROUTE;
 
 export const LOGIN_ROUTE = "/login";
 
+/** REQUIREMENTS.md § 16. What the service worker answers a failed navigation with. */
+// WARN: Must stay out of `proxy.ts`'s matcher and hold no user data — it is served from the cache to whoever asks, including a signed-out browser and the next account to use it.
+export const OFFLINE_ROUTE = "/offline";
+
 /** Clears a cookie whose session no longer validates, then lands on `LOGIN_ROUTE`. REQUIREMENTS.md § 5.2. */
 export const SESSION_EXPIRE_ROUTE = "/api/auth/session/expire";
 
