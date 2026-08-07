@@ -5,7 +5,7 @@ import {
   BACKFILL_EVENT,
   CHAT_STREAM_PATH,
   IS_SSE_IDLE_SLEEP_ENABLED,
-  SSE_BLUR_IDLE_TIMEOUT,
+  SSE_BUSY_RECHECK_INTERVAL,
   SSE_IDLE_TIMEOUT,
   SSE_RETRY_DELAY,
   SSE_STALE_AFTER,
@@ -82,8 +82,6 @@ export function useChatEventSource({
     let lastSyncAt = 0;
     let lastActivityAt = 0;
     let lastInteractionAt = Date.now();
-    // WARN: § 8.4.1. A floor the countdown may not undercut, pushed out by a blur. Without it a window idle past the blur allowance sleeps on the same tick it loses focus, and the grace the allowance exists to give is never served.
-    let sleepNotBefore = 0;
     let isSleeping = false;
 
     function open() {
@@ -226,11 +224,6 @@ export function useChatEventSource({
       return source !== null && Date.now() - lastActivityAt > SSE_STALE_AFTER;
     }
 
-    /** REQUIREMENTS.md § 8.4.1. A blurred window runs the shorter countdown — nobody is reading it. */
-    function idleAllowance() {
-      return document.hasFocus() ? SSE_IDLE_TIMEOUT : SSE_BLUR_IDLE_TIMEOUT;
-    }
-
     function noteInteraction() {
       lastInteractionAt = Date.now();
 
@@ -239,19 +232,14 @@ export function useChatEventSource({
       }
     }
 
-    // INFO: § 8.4.1. Every path into dormancy — the first arm, an interaction, a blur, a resume — goes through here, so the kill switch only has to be honoured once.
-    function armIdleTimer() {
+    // INFO: § 8.4.1. Every path into dormancy — the first arm, an interaction, a departure, a resume — goes through here, so the kill switch only has to be honoured once.
+    function armIdleTimer(delay = Math.max(lastInteractionAt + SSE_IDLE_TIMEOUT - Date.now(), 0)) {
       if (!IS_SSE_IDLE_SLEEP_ENABLED) {
         return;
       }
 
       clearTimeout(idleTimer);
-      idleTimer = setTimeout(sleep, Math.max(sleepAt() - Date.now(), 0));
-    }
-
-    // WARN: § 8.4.1. The remaining allowance, not a fresh one — a blur re-arms without being an interaction, and a full countdown handed to it would let a window idle for 50 seconds and then leave the screen buy itself another 30.
-    function sleepAt() {
-      return Math.max(lastInteractionAt + idleAllowance(), sleepNotBefore);
+      idleTimer = setTimeout(sleep, delay);
     }
 
     /**
@@ -261,7 +249,7 @@ export function useChatEventSource({
      * overlay in front of a user who has just this moment come back.
      */
     function sleep() {
-      const remaining = sleepAt() - Date.now();
+      const remaining = lastInteractionAt + SSE_IDLE_TIMEOUT - Date.now();
 
       if (remaining > 0) {
         idleTimer = setTimeout(sleep, remaining);
@@ -269,7 +257,7 @@ export function useChatEventSource({
         return;
       }
 
-      // WARN: § 8.4.1. A tab opened in the background starts `hidden` and fires no `visibilitychange` until it is first looked at, so the disarm below never runs for it — checked here too, or the first thing that tab ever shows is the overlay.
+      // WARN: § 8.4.1. This is also what tells an app-switch apart from a window-switch, since the two are indistinguishable at `blur` and only one of them should end here. A tab opened in the background starts `hidden` and fires no `visibilitychange` either, so the disarm in the visibility handler never runs for it.
       if (document.visibilityState !== "visible") {
         idleTimer = undefined;
 
@@ -278,8 +266,25 @@ export function useChatEventSource({
 
       // INFO: § 8.4.1. A recording, a playing clip or an open sheet is a task in flight, and the overlay would cover its controls — so the countdown simply runs again.
       if (isBusy()) {
-        idleTimer = setTimeout(sleep, idleAllowance());
+        armIdleTimer(SSE_BUSY_RECHECK_INTERVAL);
 
+        return;
+      }
+
+      enterDormancy();
+    }
+
+    /**
+     * REQUIREMENTS.md § 8.4.1. The one transition into 절전 모드, whatever led here —
+     * an idle stretch, a window left, or the app backgrounded.
+     *
+     * WARN: Every close that is not a teardown comes through here, because the
+     * overlay's meaning is exactly "the stream is not connected". A path that closed
+     * without it would leave the app silently disconnected behind a screen still
+     * claiming to be live.
+     */
+    function enterDormancy() {
+      if (isSleeping) {
         return;
       }
 
@@ -305,10 +310,8 @@ export function useChatEventSource({
 
     function handleVisibilityChange() {
       if (document.visibilityState === "hidden") {
-        // WARN: § 8.4.1. Disarmed, never left to expire. A backgrounded app has already dropped the stream and costs nothing, so letting the countdown finish underneath would put the overlay in front of every app switch longer than a minute and buy nothing at all.
-        clearTimeout(idleTimer);
-        idleTimer = undefined;
-        close();
+        // INFO: § 8.4.1. Backgrounding closes the stream, so it raises the overlay like any other close — the alternative is an app that reconnects behind the user's back and never says it had stopped.
+        leave();
 
         return;
       }
@@ -316,15 +319,31 @@ export function useChatEventSource({
       resume();
     }
 
-    // INFO: § 8.4.1. `blur` has no counterpart in § 8.4. — a desktop PWA behind another window stays `visible`, so this is the only event that sees it go away.
+    /**
+     * REQUIREMENTS.md § 8.4.1. `blur` has no counterpart in § 8.4. — a desktop PWA
+     * behind another window stays `visible`, so this is the only event that sees
+     * that one go away.
+     */
     function handleBlur() {
-      if (isSleeping) {
+      leave();
+    }
+
+    /**
+     * WARN: § 8.4.1. A task in flight closes the stream without going dormant. The
+     * overlay would cover the controls of a recording or an open sheet, and on iOS
+     * a file picker and the share sheet both take focus away mid-task — so those
+     * keep the ordinary § 8.4. resume rather than demanding a tap to come back.
+     */
+    function leave() {
+      if (isBusy()) {
+        clearTimeout(idleTimer);
+        idleTimer = undefined;
+        close();
+
         return;
       }
 
-      // WARN: § 8.4.1. A floor, not a reset. Reading a message is not an interaction here, so a window already idle past the blur allowance would otherwise sleep on the very tick it loses focus — the grace this allowance exists to give has to survive that.
-      sleepNotBefore = Date.now() + SSE_BLUR_IDLE_TIMEOUT;
-      armIdleTimer();
+      enterDormancy();
     }
 
     // INFO: § 8.4.1. A key wakes as a tap does. Focus is usually still in the composer when the overlay arrives, so without this the keystrokes that follow go into a field the user can no longer see and nothing reconnects.
@@ -337,7 +356,7 @@ export function useChatEventSource({
         return;
       }
 
-      // INFO: Unfiltered here. `Cmd+C` in the composer is a user plainly at the keyboard, and the blur below covers the shortcut that is a departure.
+      // INFO: Unfiltered here. `Cmd+C` in the composer is a user plainly at the keyboard, and a shortcut that is a departure is caught by the `blur` above instead.
       noteInteraction();
     }
 

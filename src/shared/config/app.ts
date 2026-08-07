@@ -204,8 +204,8 @@ export const IS_SSE_IDLE_SLEEP_ENABLED = !["false", "0", "off"].includes(
 // INFO: REQUIREMENTS.md § 8.4.1. How long a focused window may go untouched before the stream is dropped. § 8.4.'s background close fires only when the app goes away, which a desktop PWA left open behind another window never does.
 export const SSE_IDLE_TIMEOUT = A_MINUTE;
 
-// WARN: REQUIREMENTS.md § 8.4.1. The same countdown for a window that has lost focus — shorter, since nobody is reading it, but deliberately not zero: a file picker, a share sheet and the emoticon uploader all blur the window in the middle of a task the user is still doing.
-export const SSE_BLUR_IDLE_TIMEOUT = 30 * A_SECOND;
+// INFO: REQUIREMENTS.md § 8.4.1. How often a deadline that has come due re-asks whether the recording, clip or open sheet holding it off has finished.
+export const SSE_BUSY_RECHECK_INTERVAL = 30 * A_SECOND;
 
 /**
  * REQUIREMENTS.md § 15.1. Identifies the running deployment, so a client that has
