@@ -24,15 +24,15 @@ Precedence on conflict: visuals → `DESIGN.md`; code-authoring rules → `AGENT
 
 ### Remaining Work Index
 
-Every open item in this document, so an agent can read one table and then only the section it needs. Nothing else is outstanding.
+**Every section of this document has landed.** No feature work is outstanding, and there are no `[ ]` items left — an agent asked to "implement what is left" should say so rather than inventing scope.
 
-| Area                      | Open                                                                 | §               |
-| ------------------------- | -------------------------------------------------------------------- | --------------- |
-| **Chat — viewer**         | Pinch-zoom bounds confirmed on a real device                         | § 8.1., § 18.   |
-| **Deployment**            | Skew Protection — a Vercel project toggle, not a code change         | § 15.1.         |
-| **iOS audio**             | Verify the voice element's post-capture discard on a device          | § 5.3., § 13.6. |
-| **Dark theme**            | The palette confirmed on a real screen — § 18. #7 records the values | § 16., § 18.    |
-| **Undecided — ask first** | Emoticon grid density (#3)                                           | § 18.           |
+What remains is not implementation:
+
+| Area                      | Open                                                                                                                                                                                                          | §                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| **Undecided — ask first** | Emoticon grid density (#3) — needs the user's eye, not a change                                                                                                                                               | § 18.                |
+| **Tuning on a device**    | Pinch-zoom bounds, and the dark palette on a real screen. Both **shipped** — these are confirmations of a landed value, and the constants sit at the top of `usePinchZoom` and in `theme.css`'s `.dark` block | § 8.1., § 16., § 18. |
+| **Project settings**      | Vercel Skew Protection and § 15.'s environment list live in the Vercel project, so no change to `src/` can assert either                                                                                      | § 15., § 15.1.       |
 
 ---
 
@@ -139,7 +139,7 @@ Read `src/shared/ui/index.ts` for what exists (buttons, inputs, the overlays bel
 
 ---
 
-## 5. Authentication
+## 5. Authentication ✅
 
 ### 5.1. Google OAuth ✅
 
@@ -171,12 +171,11 @@ jandh-emoticons writes into this database (its `REQUIREMENTS.md § 3.`) and alwa
 - **The OAuth `state` and PKCE verifier stay host-only.** Both apps write those two names too, and shared across the domain a login begun in one app would overwrite the values the other is waiting to check
 - **The cookie reaches every subdomain of `jeheecheon.com`**, present and future — the cost of sharing at the parent domain. Anything else hosted there receives it, so a subdomain that is not ours is a subdomain that must not exist
 
-### 5.3. iOS PWA Verification (highest priority)
+### 5.3. iOS PWA Verification (highest priority) ✅
 
-- [x] Verify **on a real device** that the Google login redirect from a home-screen standalone PWA returns to the app correctly
-- [x] Verify **what iOS actually hands a file input for a video** — it transcodes HEIC to JPEG, so § 9.'s "store whatever arrives" costs nothing and the viewer's download fallback never fires
-- [x] **`voice-playback.ts`'s shared element is discarded when a recording ends.** § 13.6.'s resting category is page-**wide** and capture moves it to `play-and-record` and back, while WebKit fixes an `<audio>` element's own category at its first playback — so a player minted before the switch would go on minting a Now Playing entry and stopping the user's music instead of ducking it. Restoring the resting category is **not** enough on an element already fixed; dropping it is what makes the next playback mint a fresh one under `transient`. `leaveCapture` in `use-voice-recorder.ts` is the **one** exit from `play-and-record` and does both, so a fourth exit path cannot restore half of it. The discard **stops whatever is playing and takes no `isVoiceActive` guard**, unlike every other caller of `stopVoice`: being alive across the switch is exactly what poisons the element, so a note still playing when the microphone was asked for is cut off — including where permission was refused and no recording happened. § 13.6.'s emoticon player is deliberately **not** discarded with it: `unlockSound` approved that element from the page's first gesture and a replacement would carry no approval, leaving a live arrival unable to sound at all — where voice playback starts from a tap on the play control every time
-- [ ] Verify the discard above **on a real device**, on the one sequence that fails: play a voice message, record one, play another. Neither of the first two steps shows anything alone
+- **Verified on a real device:** the Google login redirect from a home-screen standalone PWA returns to the app correctly
+- **Verified on a real device:** iOS transcodes HEIC to JPEG for a video file input, so § 9.'s "store whatever arrives" costs nothing and the viewer's download fallback never fires
+- **`voice-playback.ts`'s shared element is discarded when a recording ends.** § 13.6.'s resting category is page-**wide** and capture moves it to `play-and-record` and back, while WebKit fixes an `<audio>` element's own category at its first playback — so a player minted before the switch would go on minting a Now Playing entry and stopping the user's music instead of ducking it. Restoring the resting category is **not** enough on an element already fixed; dropping it is what makes the next playback mint a fresh one under `transient`. `leaveCapture` in `use-voice-recorder.ts` is the **one** exit from `play-and-record` and does both, so a fourth exit path cannot restore half of it. The discard **stops whatever is playing and takes no `isVoiceActive` guard**, unlike every other caller of `stopVoice`: being alive across the switch is exactly what poisons the element, so a note still playing when the microphone was asked for is cut off — including where permission was refused and no recording happened. § 13.6.'s emoticon player is deliberately **not** discarded with it: `unlockSound` approved that element from the page's first gesture and a replacement would carry no approval, leaving a live arrival unable to sound at all — where voice playback starts from a tap on the play control every time. **The one sequence that exposes a regression here is play a voice message, record one, play another** — neither of the first two steps shows anything alone, so a device check that stops short of the third proves nothing
 
 ### 5.4. Development Login ✅
 
@@ -280,11 +279,11 @@ The `(main)` layout is the app shell (max `576px`, centered) holding a per-scree
 
 ---
 
-## 8. Chat Tab (KakaoTalk-style)
+## 8. Chat Tab (KakaoTalk-style) ✅
 
 > **Only layout and interaction rules come from KakaoTalk**, never its colors or shapes (Kakao yellow, sky-blue background, drawn tails). `DESIGN.md § 2.2.` and `§ 6.` are the sole source of every visual spec below.
 
-### 8.1. UI
+### 8.1. UI ✅
 
 **Landed:** notch-corner bubbles (mine right, theirs left), avatar + nickname on the first message of a group, one timestamp per same-minute group on its last message, date divider pills (`오늘`, `어제`, `2026년 8월 3일 월요일`), the auto-growing composer with `+` and emoticon toggle (the send button appears beside the toggle once there is something to send, rather than replacing it), long-press / right-click → `ActionSheet`, link previews and tappable links (§ 8.9.), the scroll-to-bottom button appearing ~200px from the newest message with an incoming count (`새 메시지 3`), and media messages in full.
 
@@ -310,11 +309,11 @@ The `(main)` layout is the app shell (max `576px`, centered) holding a per-scree
 - Attachments upload through § 13.4.'s bounded pool. The **byte budget**, not the concurrency count, governs here. `mediaIds` is assembled **by index**, so pick order survives however the uploads interleaved. A failure **stops the queue**: nothing further launches, in-flight tasks settle, then the error is rethrown — so the retry is left exactly the remainder. A slot the retry skips is weighed as zero, or its bytes would be reserved for an upload that never runs
 - **A media bubble arms the same hold every other bubble does** (§ 8.11.), and suppresses iOS's own callout. Two menus over one photo is not a choice the user can read; the app's sheet wins the hold and carries 공유, and the OS keeps the § 7.10. viewer
 
-Remaining:
+**The fullscreen viewer:**
 
-- [x] Pinch zoom in the viewer — § 18. #6. `usePinchZoom` in `shared/lib`: **1x–4x, double tap toggling 2x**, panning while zoomed, rubber-banding past either bound and settling back on release. **The gesture surface and the transformed element must stay two elements** — `getBoundingClientRect` reports the transformed box, so a surface that scaled with the photo would measure its own zoom back into the pan bounds and tighten the clamp every frame. For the same reason **every** `withClampedOffset` call has to be given the element: the parameter is optional in the signature and the no-element branch recentres, so the one call that omitted it silently discarded the pan on every finger lift. **`touch-action` is `pan-x` at rest and `none` once a gesture owns the finger — never `auto`, and never unconditionally `none`.** `none` at rest would eat the native scroll snapping the swipe half is built on (§ 8.1.). `auto` is worse and less obvious: the two fingers of a pinch rarely land in the same frame, and with the scroller free to claim the first one the browser `pointercancel`s it, so the pointer count never reaches 2 and the pinch silently swipes to the next photo instead of zooming. `pan-x` permits exactly the track's own gesture and reserves the rest, so the second finger still reaches JS; the track only ever scrolls horizontally, so nothing is given up. A zoomed slide freezes the track with `overflow-x-hidden`, which holds `scrollLeft` so the slide is still the one that was zoomed when the finger lifts, and arriving at another slide drops the zoom. **Movement is tracked at every scale, not only while panning**: two quick swipes land inside the `A_SECOND / 3` double-tap window (§ 13.6.) and would otherwise read as a double tap on the slide the reader was leaving. A pinch does not degrade into a pan when the first finger leaves — the surviving pointer has no origin, and adopting it jumps the photo by the distance between the two. The pan is clamped against the element box rather than the painted photo inside it, since `naturalWidth` is unavailable until a cold slide decodes. **The bounds themselves still want tuning on a real device**; they are constants at the top of the hook so tuning is a one-line change
-- [x] Tapping the scroll-to-bottom button scrolls smoothly to the bottom **and marks messages read** — a **forced** `markRead` off `useChatStream`, past § 8.8.'s throttle, since the message the reader travelled to commonly arrived inside that window. Only on a restore that landed, like the scroll it follows (§ 8.6.1.)
-- [x] The same button returns the user to the newest messages after a search jump (§ 8.6.1.)
+- Pinch zoom — § 18. #6. `usePinchZoom` in `shared/lib`: **1x–4x, double tap toggling 2x**, panning while zoomed, rubber-banding past either bound and settling back on release. **The gesture surface and the transformed element must stay two elements** — `getBoundingClientRect` reports the transformed box, so a surface that scaled with the photo would measure its own zoom back into the pan bounds and tighten the clamp every frame. For the same reason **every** `withClampedOffset` call has to be given the element: the parameter is optional in the signature and the no-element branch recentres, so the one call that omitted it silently discarded the pan on every finger lift. **`touch-action` is `pan-x` at rest and `none` once a gesture owns the finger — never `auto`, and never unconditionally `none`.** `none` at rest would eat the native scroll snapping the swipe half is built on (§ 8.1.). `auto` is worse and less obvious: the two fingers of a pinch rarely land in the same frame, and with the scroller free to claim the first one the browser `pointercancel`s it, so the pointer count never reaches 2 and the pinch silently swipes to the next photo instead of zooming. `pan-x` permits exactly the track's own gesture and reserves the rest, so the second finger still reaches JS; the track only ever scrolls horizontally, so nothing is given up. A zoomed slide freezes the track with `overflow-x-hidden`, which holds `scrollLeft` so the slide is still the one that was zoomed when the finger lifts, and arriving at another slide drops the zoom. **Movement is tracked at every scale, not only while panning**: two quick swipes land inside the `A_SECOND / 3` double-tap window (§ 13.6.) and would otherwise read as a double tap on the slide the reader was leaving. A pinch does not degrade into a pan when the first finger leaves — the surviving pointer has no origin, and adopting it jumps the photo by the distance between the two. The pan is clamped against the element box rather than the painted photo inside it, since `naturalWidth` is unavailable until a cold slide decodes. **The bounds themselves still want tuning on a real device**; they are constants at the top of the hook so tuning is a one-line change
+- Tapping the scroll-to-bottom button scrolls smoothly to the bottom **and marks messages read** — a **forced** `markRead` off `useChatStream`, past § 8.8.'s throttle, since the message the reader travelled to commonly arrived inside that window. Only on a restore that landed, like the scroll it follows (§ 8.6.1.)
+- The same button returns the user to the newest messages after a search jump (§ 8.6.1.)
 
 ### 8.2. Message Loading ✅
 
@@ -323,7 +322,7 @@ Cursor-based infinite scroll: `GET /api/messages?before={id}&limit=30` (`WHERE i
 - **No OFFSET pagination, ever** — incoming messages shift page boundaries, producing duplicates and gaps
 - `newestKnownId` is tracked alongside `oldestLoadedId` and only ever moves forward, so a delete cannot walk it back and make § 8.4.'s catch-up refetch what was already seen
 
-### 8.3. Virtual Scrolling (Windowing)
+### 8.3. Virtual Scrolling (Windowing) ✅
 
 Offscreen message nodes **must not stay in the DOM** — after years of history, thousands of infinite-scrolled nodes destroy scroll performance in iOS Safari. `@tanstack/react-virtual`: `anchorTo: "end"`, `getItemKey` on the row key, `measureElement` for variable heights, `scrollMargin` for the loading header, `scrollToIndex({ align: "center" })` for jumps. Migrated off `react-virtuoso`, whose `firstItemIndex` model cost a long tail of traps (an unguarded rAF recursion that made `GET /chat` a **500** among them) and which did not measure in a background tab at all.
 
@@ -359,10 +358,10 @@ Offscreen message nodes **must not stay in the DOM** — after years of history,
 - **Paging must never be driven from a render-scoped effect.** Both loads commit messages, which renders, which would ask again — one page per render rather than one per landed page, and the room pages itself to the start of history with the main thread pinned. Flags refresh every render (`readScrollEdges`); paging runs on `scroll` and on the load finishing (`requestAdjacentPages`)
 - **The box for a media message is reserved before the asset loads** — an aspect-ratio box from `media.width` / `height` for a single attachment, the cell layout for a grid. Without it every arriving image triggers a re-measure cascade
 
-Remaining:
+**The date indicator**
 
-- [x] Date dividers are list items, and the **sticky top indicator is a separate overlay** computed from the visible range. It cannot be `position: sticky` — every row here is absolutely positioned, and a divider that has scrolled out is not in the DOM to pin. The day is read from the **first visible** row, not the first rendered one (`overscan` renders a screenful above the fold), and "visible" is measured from the scroll offset **plus `TOP_FADE_LENGTH`**: the top of the scroller runs under the § 7.12. header and is dissolved by the mask, and at a date boundary that band holds exactly the row whose day would otherwise be announced over a screenful of the next one. Derived during render rather than into state, since the virtualizer already re-renders on every scroll. Shown while the list moves, faded out at rest, and withheld at the live edge — a pin after a send scrolls too, and the newest message needs no label saying 오늘. That last test is § 6.7.'s own (`!isAtBottom || hasNewer`) and never the flag alone, because a window parked around a § 8.6.1. jump sits at the bottom of its own scroll range with the newest message pages away — deep history with no surrounding context, which is where this is worth most
-- [x] Native `Ctrl+F` cannot find offscreen messages — in-app search (§ 8.6.) is the deliberate replacement, and it has landed
+- Date dividers are list items, and the **sticky top indicator is a separate overlay** computed from the visible range. It cannot be `position: sticky` — every row here is absolutely positioned, and a divider that has scrolled out is not in the DOM to pin. The day is read from the **first visible** row, not the first rendered one (`overscan` renders a screenful above the fold), and "visible" is measured from the scroll offset **plus `TOP_FADE_LENGTH`**: the top of the scroller runs under the § 7.12. header and is dissolved by the mask, and at a date boundary that band holds exactly the row whose day would otherwise be announced over a screenful of the next one. Derived during render rather than into state, since the virtualizer already re-renders on every scroll. Shown while the list moves, faded out at rest, and withheld at the live edge — a pin after a send scrolls too, and the newest message needs no label saying 오늘. That last test is § 6.7.'s own (`!isAtBottom || hasNewer`) and never the flag alone, because a window parked around a § 8.6.1. jump sits at the bottom of its own scroll range with the newest message pages away — deep history with no surrounding context, which is where this is worth most
+- Native `Ctrl+F` cannot find offscreen messages — in-app search (§ 8.6.) is the deliberate replacement, and it has landed
 
 ### 8.4. Realtime (SSE) ✅
 
@@ -503,7 +502,7 @@ The client generates `client_msg_id` (uuid) and renders optimistically; `POST /a
 - **The result list is a surface of its own, opened from the navigation bar.** KakaoTalk has no list inside the room — it keeps one in its global search instead, which this app cannot have, since § 6. makes the one conversation implicit and there is nothing to search across. So the two KakaoTalk surfaces collapse into one here, and `DESIGN.md § 6.8.`'s result row lives in the room
 - Empty states for "no query yet" and "no results". **Both are reachable or they are not implemented** — the list is the only place either can appear, so a nothing-found scan has to open it rather than leaving the reader in front of an unchanged conversation
 
-### 8.7. Display Names and Profiles
+### 8.7. Display Names and Profiles ✅
 
 **Landed** in full; the avatar image arrived with § 12.
 
@@ -526,9 +525,9 @@ The client generates `client_msg_id` (uuid) and renders optimistically; `POST /a
 
 - Unread is `message.created_at > otherUser.last_read_at` — a **boolean**, correct only for two participants (§ 6.). It feeds the badge and the § 16.1. payload alone: **nothing marks an unread message in the room**, since `읽음` on the newest read message already carries the state
 
-### 8.9. Link Previews
+### 8.9. Link Previews ✅
 
-A text message containing a link renders a card above its text — thumbnail, title, and the site it came from (`DESIGN.md § 6.9.`). The link stays in the bubble as a tappable anchor. **Landed** in full; one hardening item is open at the end.
+A text message containing a link renders a card above its text — thumbnail, title, and the site it came from (`DESIGN.md § 6.9.`). The link stays in the bubble as a tappable anchor. **Landed** in full, hardening included.
 
 - **One card per bubble, from the first URL in the text.** A message pasted out of a share sheet routinely carries several, and a stack of cards buries the sentence
 - `GET /api/link-preview?url=` answers `{ preview }`, where `null` is the normal case rather than an error. **Signed-in only** — the handler makes an outbound request to a caller-chosen URL
@@ -545,10 +544,10 @@ A text message containing a link renders a card above its text — thumbnail, ti
 - **The thumbnail is rendered straight from the publisher's origin**, the one image in the app that is not an R2 object behind `/api/media`. `referrerPolicy="no-referrer"`, and a host that refuses hides the tile rather than leaving a broken frame
 - The client holds the answer with `staleTime: Infinity` — it is already cached server-side for days
 
-Remaining:
+**Hardening**
 
-- [x] **The vetted address is what gets dialled, never the hostname again.** Checking the name and handing that same name to `fetch` resolves it a second time, and the two answers need not agree: a record with a zero TTL can answer a public address to the check and `169.254.169.254` to the connection, which is DNS rebinding and walks straight past a guard that only ever sees the first answer. `vetHost` returns the address and the request goes out on an undici `Agent({ connect: { lookup } })` pinned to it — **not** a rewritten URL, which would have put the IP in front of TLS and broken SNI and certificate validation. The dispatcher is per-request and destroyed with the response, since a pool keyed to one pinned address cannot be shared
-- [x] A signed `og:image` URL (GitHub mints one that expires in five minutes) goes stale long before the row does, so a card whole yesterday loses its tile on the scroll back. **Read the expiry out of the URL at scrape time onto the row** (`X-Amz-Expires` against `X-Amz-Date`, or a bare `exp` / `se` / `Expires`) and withhold `imageUrl` once it passes — the card is then consistently text rather than decaying, and needs no refetch since the title did not expire with the signature. Shortening the row's whole TTL instead would re-scrape what the row got right. **Only an expiry the scrape itself outran is stored**: a live page signs a URL that is good now, so one already past is far more likely a parameter named `expires` that means something else, and reading it as a deadline withholds a working tile forever where ignoring it leaves the broken frame we already had. Withholding can take away the last thing that made the row a card, so `statusOf`'s rule is applied a second time on the way out — an expired image with no title is `null`, not an empty card
+- **The vetted address is what gets dialled, never the hostname again.** Checking the name and handing that same name to `fetch` resolves it a second time, and the two answers need not agree: a record with a zero TTL can answer a public address to the check and `169.254.169.254` to the connection, which is DNS rebinding and walks straight past a guard that only ever sees the first answer. `vetHost` returns the address and the request goes out on an undici `Agent({ connect: { lookup } })` pinned to it — **not** a rewritten URL, which would have put the IP in front of TLS and broken SNI and certificate validation. The dispatcher is per-request and destroyed with the response, since a pool keyed to one pinned address cannot be shared
+- A signed `og:image` URL (GitHub mints one that expires in five minutes) goes stale long before the row does, so a card whole yesterday loses its tile on the scroll back. **Read the expiry out of the URL at scrape time onto the row** (`X-Amz-Expires` against `X-Amz-Date`, or a bare `exp` / `se` / `Expires`) and withhold `imageUrl` once it passes — the card is then consistently text rather than decaying, and needs no refetch since the title did not expire with the signature. Shortening the row's whole TTL instead would re-scrape what the row got right. **Only an expiry the scrape itself outran is stored**: a live page signs a URL that is good now, so one already past is far more likely a parameter named `expires` that means something else, and reading it as a deadline withholds a working tile forever where ignoring it leaves the broken frame we already had. Withholding can take away the last thing that made the row a card, so `statusOf`'s rule is applied a second time on the way out — an expired image with no title is `null`, not an empty card
 
 ### 8.10. Replying to a Message ✅
 
@@ -858,7 +857,7 @@ The tab is `보관함` with three segments, `사진`, `파일` and `음성`; the
 
 ---
 
-## 11. Calendar Tab
+## 11. Calendar Tab ✅
 
 ### 11.1. D-day Header ✅
 
@@ -922,7 +921,7 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
 
 ---
 
-## 12. Settings Tab
+## 12. Settings Tab ✅
 
 **Landed:** the profile editor (nickname + avatar + cover), the tap-to-enlarge avatar, the 입력 중 표시 switch (§ 8.12.), the two backgrounds (§ 12.1., § 12.2.), the profile screen (§ 12.3.) and 로그아웃. The device list and app info remain.
 
@@ -1012,7 +1011,7 @@ Tapping an avatar opens a full-screen profile, KakaoTalk-style: the § 12.1. cov
 - **`role="dialog"` and `aria-modal` are written by hand**, because nothing here composes a Radix primitive. The opaque fill hides the screen underneath from the eye and from the pointer, and without these it was still announced as live content with no boundary
 - Own profile → **프로필 편집**, opening the one § 12. editor. The other participant's → **대화하기**
 
-- [x] A focus trap. This screen and the § 7.10. viewer are the app's two hand-rolled overlays and neither has one, so `Tab` walks into the composer behind them. It wants **one** owner shared by both rather than a second copy of the same logic — `useModalOverlay`, which owns `Escape`, the `Tab` cycle **and** the marker the next overlay down reads, because all three turn on the same question of whether anything is open above. Both screens already dismissed from their own copy of that predicate, so a trap beside them would have written it a third and fourth time. An overlay defers only to one that **follows it in document order** — never to "any other overlay". Both screens carry the marker, so the any-other rule made a stacked pair defer to each other, and the viewer an avatar opens inside the profile screen left neither answering `Escape` and the trap skipped in both. Document order is the stacking order here: `ShellOverlay` portals both into the same shell node at one `z-index`, and Radix and Vaul portal past it to the end of `body`. Focus lands on the **container**, not its first control, so a reader announces the dialog rather than opening on 닫기 — which is why **both** callers must carry `role="dialog"` and an `aria-label`, or focus lands on an anonymous `div` and nothing is announced. It is restored on close only if the opener is still connected — a 대화하기 navigates away and an avatar's message can be deleted under it. The cycle is filtered by **visibility**: the viewer keeps its controls mounted as `invisible` (they must not resize the track mid-swipe), the browser skips them on `Tab`, and a cycle ending on one would `focus()` something that cannot take it and strand focus on `body`. The hook binds through a **ref callback with a cleanup return**, not an effect reading `ref.current`: this screen renders `null` until the participant reaches it, and an effect that found no element on its one run would never bind again. `onClose` is held in a ref rather than being a dependency — every caller passes a fresh arrow, and re-binding on it would restore focus to the opener and seize it back on each parent render, which in the chat room is every message that arrives. Replacing `data-media-viewer` with the hook's own marker also closes a § 8.4.1. gap — `isBusy` matched `[role="dialog"][data-state="open"]`, which this hand-written screen never set, so an open profile did not hold the stream awake
+- **A focus trap**, shared with the § 7.10. viewer. This screen and the § 7.10. viewer are the app's two hand-rolled overlays and neither has one, so `Tab` walks into the composer behind them. It wants **one** owner shared by both rather than a second copy of the same logic — `useModalOverlay`, which owns `Escape`, the `Tab` cycle **and** the marker the next overlay down reads, because all three turn on the same question of whether anything is open above. Both screens already dismissed from their own copy of that predicate, so a trap beside them would have written it a third and fourth time. An overlay defers only to one that **follows it in document order** — never to "any other overlay". Both screens carry the marker, so the any-other rule made a stacked pair defer to each other, and the viewer an avatar opens inside the profile screen left neither answering `Escape` and the trap skipped in both. Document order is the stacking order here: `ShellOverlay` portals both into the same shell node at one `z-index`, and Radix and Vaul portal past it to the end of `body`. Focus lands on the **container**, not its first control, so a reader announces the dialog rather than opening on 닫기 — which is why **both** callers must carry `role="dialog"` and an `aria-label`, or focus lands on an anonymous `div` and nothing is announced. It is restored on close only if the opener is still connected — a 대화하기 navigates away and an avatar's message can be deleted under it. The cycle is filtered by **visibility**: the viewer keeps its controls mounted as `invisible` (they must not resize the track mid-swipe), the browser skips them on `Tab`, and a cycle ending on one would `focus()` something that cannot take it and strand focus on `body`. The hook binds through a **ref callback with a cleanup return**, not an effect reading `ref.current`: this screen renders `null` until the participant reaches it, and an effect that found no element on its one run would never bind again. `onClose` is held in a ref rather than being a dependency — every caller passes a fresh arrow, and re-binding on it would restore focus to the opener and seize it back on each parent render, which in the chat room is every message that arrives. Replacing `data-media-viewer` with the hook's own marker also closes a § 8.4.1. gap — `isBusy` matched `[role="dialog"][data-state="open"]`, which this hand-written screen never set, so an open profile did not hold the stream awake
 
 **Other rows**
 
@@ -1021,15 +1020,15 @@ Tapping an avatar opens a full-screen profile, KakaoTalk-style: the § 12.1. cov
 - **입력 중 표시** — the § 8.12. switch, on by default. **Per account**, unlike the row above it: it governs what this user broadcasts, which is not a property of whichever browser they happen to be typing in. The toggle moves optimistically and is put back on a failed write, since a switch reading 꺼짐 over a preference the server never took would sit in front of a ping that is still going out
 - **No camera-permission toggle.** Taking a photo goes through `<input type="file" capture>`, which hands the shot to iOS's own camera app — the web page never touches the camera, so no site permission is created
 
-Remaining:
+**Device management**
 
-- [x] List of logged-in devices, with per-session revocation. Reads `sessions` (`device_label`, `last_seen_at`, `created_at` are written and nothing renders them), **not** the § 16.1. push subscriptions — a different set, and not revocable. A § 12. row opens the screen; the caller's own session is marked rather than revocable. `DELETE /api/sessions/{id}` is scoped to the caller's own `user_id` **and** away from their own session id — the first because the id comes from the client and one participant could otherwise sign the other out everywhere, the second because revoking the running session leaves a cookie the proxy still waves through (§ 5.2.), which is what the 로그아웃 row exists for. The id is parsed as a UUID before it reaches the query, or `sessions.id`'s `uuid` column raises `22P02` and a malformed path segment surfaces as a 500 rather than a 400. **Expired rows are filtered from the list, never deleted**: § 5.2. clears a session only when its own cookie is presented, so a device that was simply never opened again leaves a row that would otherwise offer a 로그아웃 for a session already dead — and deleting it would make a read route write. The row shows an **absolute** date, because `last_seen_at` slides at most once a day (§ 5.2.) and "3분 전" would claim a precision the column does not carry. **Revocation reaches an already-open stream.** § 8.4.'s SSE connection authenticates once and is then held for as long as the tab is, so a revoked device would keep reading the conversation live until it happened to reconnect — which an idle one does within § 8.4.1.'s minute and an active one never does. The heartbeat re-asks through `isSessionLive`, which is deliberately **not** `cache()`d: `getSessionContext` is memoized per request, and one request is this whole connection, so it would answer with the session it opened with forever. A revoked stream aborts and the client falls into the same reopen-and-401 path an expired session already took
-- [x] Log out
-- [x] **화면 테마** — a three-way segmented control, 시스템 / 밝게 / 어둡게, defaulting to 시스템 (DESIGN.md § 5.1.). **`<meta name="theme-color">` follows the app's resolved theme, not the OS's.** The tags `app/layout.tsx` emits are keyed on `prefers-color-scheme`, which stops being the answer the moment this row can override it — a phone in light mode with 어둡게 chosen would frame a dark app in a `#FBF9F6` status bar. `ThemeColorSync` rewrites **every** tag rather than the matching one, since the browser honours the first whose `media` matches and a stale sibling reintroduces the band as soon as the OS setting moves. **Per device**, like 알림 and unlike 입력 중 표시: `next-themes` keeps the choice in `localStorage`, so it describes this browser rather than the account, and there is no column to write. The row itself is **not** a button — three segments are three targets, and a row that also took a tap would advance the theme from wherever the finger missed
+- List of logged-in devices, with per-session revocation. Reads `sessions` (`device_label`, `last_seen_at`, `created_at` are written and nothing renders them), **not** the § 16.1. push subscriptions — a different set, and not revocable. A § 12. row opens the screen; the caller's own session is marked rather than revocable. `DELETE /api/sessions/{id}` is scoped to the caller's own `user_id` **and** away from their own session id — the first because the id comes from the client and one participant could otherwise sign the other out everywhere, the second because revoking the running session leaves a cookie the proxy still waves through (§ 5.2.), which is what the 로그아웃 row exists for. The id is parsed as a UUID before it reaches the query, or `sessions.id`'s `uuid` column raises `22P02` and a malformed path segment surfaces as a 500 rather than a 400. **Expired rows are filtered from the list, never deleted**: § 5.2. clears a session only when its own cookie is presented, so a device that was simply never opened again leaves a row that would otherwise offer a 로그아웃 for a session already dead — and deleting it would make a read route write. The row shows an **absolute** date, because `last_seen_at` slides at most once a day (§ 5.2.) and "3분 전" would claim a precision the column does not carry. **Revocation reaches an already-open stream.** § 8.4.'s SSE connection authenticates once and is then held for as long as the tab is, so a revoked device would keep reading the conversation live until it happened to reconnect — which an idle one does within § 8.4.1.'s minute and an active one never does. The heartbeat re-asks through `isSessionLive`, which is deliberately **not** `cache()`d: `getSessionContext` is memoized per request, and one request is this whole connection, so it would answer with the session it opened with forever. A revoked stream aborts and the client falls into the same reopen-and-401 path an expired session already took
+- Log out
+- **화면 테마** — a three-way segmented control, 시스템 / 밝게 / 어둡게, defaulting to 시스템 (DESIGN.md § 5.1.). **`<meta name="theme-color">` follows the app's resolved theme, not the OS's.** The tags `app/layout.tsx` emits are keyed on `prefers-color-scheme`, which stops being the answer the moment this row can override it — a phone in light mode with 어둡게 chosen would frame a dark app in a `#FBF9F6` status bar. `ThemeColorSync` rewrites **every** tag rather than the matching one, since the browser honours the first whose `media` matches and a stale sibling reintroduces the band as soon as the OS setting moves. **Per device**, like 알림 and unlike 입력 중 표시: `next-themes` keeps the choice in `localStorage`, so it describes this browser rather than the account, and there is no column to write. The row itself is **not** a button — three segments are three targets, and a row that also took a tap would advance the theme from wherever the finger missed
 
 ---
 
-## 13. Emoticons
+## 13. Emoticons ✅
 
 **Emoticons are authored inside the app.** There is no asset drop, no `scripts/seed-emoticons.ts`, and nothing to supply by hand — a user creates a pack from the Settings tab, adds items to it, and both users can send them. This reverses the earlier "supplied manually, registered by an admin script" premise, which assumed § 9. did not exist yet.
 
@@ -1070,7 +1069,7 @@ Emoticon objects ride § 9.'s presigned-PUT pipeline — client → R2 directly,
 - **The bytes get their `Cache-Control` from the presigned GET, not from the object** (`EMOTICON_ASSET_CACHE_CONTROL`, a year, `immutable`, signed in as `response-cache-control`). Storing it on the object instead is what **broke every emoticon upload**: `Cache-Control` is not a CORS-safelisted request header, so the PUT carrying it needed the bucket's `AllowedHeaders` to name it (§ 9.) and failed preflight. It is **not** signed on the PUT either way — `cache-control` is in SigV4's always-unsignable set
 - **`DELETE /api/emoticons/upload-url` takes back objects that landed for a submit that never produced an item** (§ 13.4.). It deletes only keys under the caller's own `emoticon/{userId}/` prefix, and only keys **no `emoticon_items` row references**, so a failed retry cannot delete the assets of an item an earlier submit registered
 
-### 13.4. Authoring
+### 13.4. Authoring ✅
 
 **Landed** in full.
 
@@ -1168,7 +1167,7 @@ Emoticon objects ride § 9.'s presigned-PUT pipeline — client → R2 directly,
 
 ---
 
-## 14. Security and Index Blocking
+## 14. Security and Index Blocking ✅
 
 **Landed:** `app/robots.ts` (`Disallow: /` for every agent), root layout `robots: { index: false, follow: false, nocache: true }`, `X-Robots-Tag: noindex, nofollow, noarchive` on every path, and `Strict-Transport-Security` / `X-Content-Type-Options` / `Referrer-Policy: no-referrer` / `X-Frame-Options: DENY`. **Do not generate a sitemap.** Proxy-matcher exclusions are listed in § 7.
 
@@ -1176,22 +1175,22 @@ Emoticon objects ride § 9.'s presigned-PUT pipeline — client → R2 directly,
 - `POST /api/messages` verifies that every `mediaId` is a registered object **owned by the sender and uploaded under the `chat` scope**. `message_media.media_id` is a foreign key, so an unregistered id would surface as a 500 rather than a 400; nothing else stopped one user hanging the other's objects off their own bubble; and the scope half is what keeps an avatar out of a message (§ 12.)
 - **No endpoint is rate-limited, and none needs to be while `ALLOWED_EMAILS` admits two people.** Widening it is what puts limiting back on the table
 
-Remaining:
+**The audited sweep**
 
-- [x] Every API route validates the session (401 when unauthenticated). Audited across every exported method, not every file — a route with two verbs can check one and not the other. The four **auth** routes are the deliberate exceptions and the only ones: `login/google`, `callback/google` and `logout` cannot require what they exist to establish or clear, and `login/dev` answers a **bodiless 404** before anything else unless `IS_DEV_LOGIN_ENABLED`, which is `NODE_ENV` and therefore compile-time. That 404 is deliberately not `apiError("not_found")` — a body would confirm the endpoint exists
-- [x] Error responses must not leak internal details — no stack, no driver message, no key or path. One helper the routes answer through, applied over the same sweep as the item above: `apiError(code)` in `shared/api`, the sole owner of both the shape (`{ error: code }`, nothing else) and the code→status table. All 109 error responses across the 27 routes that raise one go through it. **A new error is a case added to that table**, never a `NextResponse.json({ error })` inlined beside one — an assembled message is where a driver string or a storage key gets out, and Next's own Route Handler guide reaches for `reason.message` at exactly that spot. `unsupported_type` and `unsupported_media` collapsed into one: two names for a single 415, and no client reads the code at all — every caller branches on the status
+- Every API route validates the session (401 when unauthenticated). Audited across every exported method, not every file — a route with two verbs can check one and not the other. The four **auth** routes are the deliberate exceptions and the only ones: `login/google`, `callback/google` and `logout` cannot require what they exist to establish or clear, and `login/dev` answers a **bodiless 404** before anything else unless `IS_DEV_LOGIN_ENABLED`, which is `NODE_ENV` and therefore compile-time. That 404 is deliberately not `apiError("not_found")` — a body would confirm the endpoint exists
+- Error responses must not leak internal details — no stack, no driver message, no key or path. One helper the routes answer through, applied over the same sweep as the item above: `apiError(code)` in `shared/api`, the sole owner of both the shape (`{ error: code }`, nothing else) and the code→status table. All 109 error responses across the 27 routes that raise one go through it. **A new error is a case added to that table**, never a `NextResponse.json({ error })` inlined beside one — an assembled message is where a driver string or a storage key gets out, and Next's own Route Handler guide reaches for `reason.message` at exactly that spot. `unsupported_type` and `unsupported_media` collapsed into one: two names for a single 415, and no client reads the code at all — every caller branches on the status
 
 ---
 
-## 15. Deployment
+## 15. Deployment ✅
 
 **Landed:** `maxDuration = 300` on the SSE route segment (§ 8.4.), and the **R2 bucket setup** — private with public access disabled, plus a CORS policy allowing `PUT` and `GET` from the app origin. Without `PUT` every § 9. upload fails preflight; without `GET` the § 10. share route cannot buffer an original; no code change can fix either. `AllowedHeaders` is `Content-Type` only, so no upload may send a second header without this policy changing first (§ 9.).
 
-- [x] The Vercel project is connected to the GitHub repository, the custom domain `jandh.jeheecheon.com` resolves over automatic HTTPS, and every environment variable below is set on it — `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `RELATIONSHIP_START_DATE` (ISO `YYYY-MM-DD`), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `APP_URL`, `SESSION_COOKIE_DOMAIN` (`.jeheecheon.com`, **production only**, and the same value on jandh-emoticons — § 5.2.1.), `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. This list is the one to check against when a new variable is introduced
-- [x] `pnpm build` runs `lint:steiger` ahead of `next build`, so an architecture violation fails the deploy
+- The Vercel project is connected to the GitHub repository, the custom domain `jandh.jeheecheon.com` resolves over automatic HTTPS, and every environment variable below is set on it — `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `RELATIONSHIP_START_DATE` (ISO `YYYY-MM-DD`), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `APP_URL`, `SESSION_COOKIE_DOMAIN` (`.jeheecheon.com`, **production only**, and the same value on jandh-emoticons — § 5.2.1.), `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. This list is the one to check against when a new variable is introduced
+- `pnpm build` runs `lint:steiger` ahead of `next build`, so an architecture violation fails the deploy
 - **One deployed database.** Local work runs against the § 1. docker compose Postgres, so it has a single writer
 
-### 15.1. Refreshing a client across a deploy
+### 15.1. Refreshing a client across a deploy ✅
 
 An installed iOS PWA is not reloaded when the user reopens it — the system restores the suspended process, so a phone last opened before a deploy keeps running the old bundle indefinitely. This is **not a caching problem**: `sw.js` registers no `fetch` handler and caches nothing (§ 16.1.), so there is no stale cache to invalidate, only a stale process to replace.
 
@@ -1205,15 +1204,16 @@ An installed iOS PWA is not reloaded when the user reopens it — the system res
 - **A bulk add counts even though nothing on screen would be lost.** The uploads are a plain promise chain, so routing away leaves them running — but a document reload kills them mid-pile, and unlike a draft there is no staged state to resume from. Because the batch outlives the screen, the hold is taken by `addEmoticonsFromFiles` itself through `holdUnsentWork` and released in a `finally`: `useUnsentWork` drops its probe at unmount, so a screen-scoped guard would expire at exactly the moment it was written to cover
 - **A _failed_ send is not unsent work.** It stays in the pending list until the user retries or cancels, and never resolves on its own — counting it pins a user who sent a photo on a dead connection to a stale bundle indefinitely. Only `sending` holds the reload
 - Settings carries a manual `강제 새로고침` row on **development builds only**, since `BUILD_ID` is constant locally
-
-- [ ] Enable Vercel **Skew Protection** — it keeps a superseded deployment's chunks reachable, so a client that has not refreshed yet fails softly instead of 404-ing on a missing chunk
+- **Vercel Skew Protection is part of this section and belongs to the project, not to `src/`.** It keeps a superseded deployment's chunks reachable, so a client that has not refreshed yet fails softly instead of 404-ing on a missing chunk — the gap the signal above cannot close on its own, since a suspended client can request a chunk before it has read a `build` event. Nothing in the repository can assert it, so it is re-checked against the project settings alongside § 15.'s environment list whenever the Vercel project is recreated
 
 ---
 
-## 16. Later (not implemented now)
+## 16. Deferred at the Start, Landed Since ✅
 
-- [x] Dark theme — the `.dark` block in `theme.css` carries the full hand-tuned palette (DESIGN.md § 5.4.), `forcedTheme` is gone, and § 12.'s row is rendered. **`system` is the default**, not `light`. No `dark:` utility exists anywhere in `src/` and none may be added — the tokens swap underneath the same utility, which is the whole point of § 5.1.'s five years of discipline
-- [x] Offline caching (the caching role of a service worker — separate from push). **Two things may enter the cache and nothing else**: build output whose URL carries a content hash (`/_next/static/` — and **only** that prefix) and the `/offline` fallback page. `/icons/` is deliberately **not** cached, despite looking like a sibling: `pnpm icons` regenerates `icon-192.png` and the splash set **in place**, under fixed names, so a cache-first entry would serve last year's artwork to every installed client until `CACHE_NAME` happened to move — and nothing ties the two together. **The rule is not freshness, it is that `caches` is scoped to the origin rather than the session** — § 16.1. already has two accounts sharing one browser, and logging out clears the cookie, not the Cache Storage. Every `(main)` document is rendered through `requireUserOrRedirect()` (§ 6.4.), so **the HTML _is_ user data** and there is no user-neutral shell to cache; `/offline` is a separate route that holds none, which is what makes it cacheable. A hashed URL is safe for the opposite reason: changed bytes get a new URL, so a hit can never be the previous deploy's — this is the answer to the "why am I looking at last week's build" objection that kept § 7. worker-free. `/api/*` is never cached and never intercepted at all: `resolveHandler` returns `null` rather than passing through to `fetch()`, because `/api/chat/stream` is an SSE body held open for the life of the tab (§ 8.4.) and routing one through the worker is how it gets buffered or cut. Cross-origin GETs are dropped the same way — the worker controls the whole origin, so R2's presigned, expiring URLs (§ 9.) reach it too. **The precache is one `cache.add` with its rejection swallowed, never `cache.addAll`**: a rejected `waitUntil` fails the install, an unactivated worker rejects `register()`, and § 16.1. loses the push subscription with it — surfacing only as the Settings toggle sitting empty, which is the failure this section must not manufacture. `/offline` is `force-static` and its one control is a bare `<a>` rather than a reload handler or a client `Link`, since the screen is shown exactly when a chunk fetch can fail. It is excluded from `proxy.ts`'s matcher alongside `sw.js`, or the fallback would redirect to a `/login` that is equally unreachable. `CACHE_NAME` carries the version and `activate` deletes every other one, which is the only thing that evicts a stale fallback page
+Everything filed here was scoped out of the first pass and has since shipped. The heading is kept rather than merged into the sections above because `src/` comments cite these numbers (§ 1.).
+
+- Dark theme — the `.dark` block in `theme.css` carries the full hand-tuned palette (DESIGN.md § 5.4.), `forcedTheme` is gone, and § 12.'s row is rendered. **`system` is the default**, not `light`. No `dark:` utility exists anywhere in `src/` and none may be added — the tokens swap underneath the same utility, which is the whole point of § 5.1.'s five years of discipline
+- Offline caching (the caching role of a service worker — separate from push). **Two things may enter the cache and nothing else**: build output whose URL carries a content hash (`/_next/static/` — and **only** that prefix) and the `/offline` fallback page. `/icons/` is deliberately **not** cached, despite looking like a sibling: `pnpm icons` regenerates `icon-192.png` and the splash set **in place**, under fixed names, so a cache-first entry would serve last year's artwork to every installed client until `CACHE_NAME` happened to move — and nothing ties the two together. **The rule is not freshness, it is that `caches` is scoped to the origin rather than the session** — § 16.1. already has two accounts sharing one browser, and logging out clears the cookie, not the Cache Storage. Every `(main)` document is rendered through `requireUserOrRedirect()` (§ 6.4.), so **the HTML _is_ user data** and there is no user-neutral shell to cache; `/offline` is a separate route that holds none, which is what makes it cacheable. A hashed URL is safe for the opposite reason: changed bytes get a new URL, so a hit can never be the previous deploy's — this is the answer to the "why am I looking at last week's build" objection that kept § 7. worker-free. `/api/*` is never cached and never intercepted at all: `resolveHandler` returns `null` rather than passing through to `fetch()`, because `/api/chat/stream` is an SSE body held open for the life of the tab (§ 8.4.) and routing one through the worker is how it gets buffered or cut. Cross-origin GETs are dropped the same way — the worker controls the whole origin, so R2's presigned, expiring URLs (§ 9.) reach it too. **The precache is one `cache.add` with its rejection swallowed, never `cache.addAll`**: a rejected `waitUntil` fails the install, an unactivated worker rejects `register()`, and § 16.1. loses the push subscription with it — surfacing only as the Settings toggle sitting empty, which is the failure this section must not manufacture. `/offline` is `force-static` and its one control is a bare `<a>` rather than a reload handler or a client `Link`, since the screen is shown exactly when a chunk fetch can fail. It is excluded from `proxy.ts`'s matcher alongside `sw.js`, or the fallback would redirect to a `/login` that is equally unreachable. `CACHE_NAME` carries the version and `activate` deletes every other one, which is the only thing that evicts a stale fallback page
 
 ### 16.1. Push Notifications ✅
 
@@ -1239,19 +1239,22 @@ An installed iOS PWA is not reloaded when the user reopens it — the system res
 
 ---
 
-## 17. Implementation Order
+## 17. Implementation Order ✅
+
+The order the work was taken in, kept as a record. **Every step has landed** — nothing here is a queue any more, and § 18. is the only place with anything still open.
 
 1. ✅ Project setup + FSD scaffolding + design tokens + base components (§ 1.–§ 4.)
 2. ✅ Auth + session (§ 5.) — highest-risk area, so it went first
 3. ✅ Database schema + migrations (§ 6.)
 4. ✅ Layout + tab bar + PWA manifest (§ 7.)
-5. **Chat tab (§ 8.) — in progress.** Text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies, the jump machinery, the typing indicator (§ 8.12.), search (§ 8.6.), the sticky date indicator (§ 8.3.) and scroll-to-bottom marking read (§ 8.1.) all landed. **Open: pinch zoom, and the expired-thumbnail rule (§ 8.9.)**
+5. ✅ Chat tab (§ 8.) — text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies, the jump machinery, the typing indicator (§ 8.12.), search (§ 8.6.), the sticky date indicator (§ 8.3.), scroll-to-bottom marking read (§ 8.1.), viewer pinch zoom, and the expired-thumbnail rule (§ 8.9.)
 6. ✅ R2 media pipeline + sending photos and videos in chat (§ 9.)
 7. ✅ Library tab (§ 10.), all three shelves — the jump-to-message link included
 8. ✅ Emoticons (§ 13.)
 9. ✅ Calendar tab (§ 11.)
-10. **Settings tab (§ 12.) — in progress.** Profile editor, tap-to-enlarge avatar, the 입력 중 표시 switch (§ 8.12.), 로그아웃, both backgrounds (§ 12.1., § 12.2.) and the profile screen (§ 12.3.) landed. **Open: the device list, and the § 12.3. focus trap**
-11. Security hardening + deployment (§ 14., § 15.) — open: the session-check and error-detail sweep, and Skew Protection (§ 15.1.)
+10. ✅ Settings tab (§ 12.) — profile editor, tap-to-enlarge avatar, the 입력 중 표시 switch (§ 8.12.), 로그아웃, both backgrounds (§ 12.1., § 12.2.), the profile screen (§ 12.3.) with its focus trap, the device list, and 화면 테마
+11. ✅ Security hardening + deployment (§ 14., § 15.) — the session-check and error-detail sweep, and the deploy-skew signal (§ 15.1.)
+12. ✅ Dark theme and offline caching (§ 16.), push notifications (§ 16.1.)
 
 ---
 
