@@ -39,19 +39,19 @@ Every open item in this document, so an agent can read one table and then only t
 
 ## 0. Settled Technical Decisions ✅
 
-| Item          | Decision                                              | Rationale                                                           |
-| ------------- | ----------------------------------------------------- | ------------------------------------------------------------------- |
-| Framework     | Next.js 16.2.12 (App Router) + React 19.2.4           | All server functionality lives in the single Next app               |
-| Hosting       | Vercel (serverless)                                   | Free, `git push` deploys, automatic HTTPS                           |
-| Database      | Neon Postgres + Drizzle ORM                           | Free tier, serverless-friendly                                      |
-| Auth          | Google OAuth (allow-listed emails) → our own session  | No password stored, so no brute-force surface                       |
-| Session       | `sessions` table + opaque token in an httpOnly cookie | Per-device revocation, instant profile changes, survives iOS ITP    |
-| Realtime      | SSE + Postgres `LISTEN`/`NOTIFY`                      | WebSockets conflict with one-Next-app; SSE gets cookie auth + retry |
-| Notifications | Web Push (VAPID) + a push-only service worker         | Covers the app being closed, which SSE cannot (§ 16.1.)             |
-| Images        | Cloudflare R2 (private bucket + presigned URLs)       | Free egress; a UUID in a URL is obscurity, not access control       |
-| Architecture  | Feature-Sliced Design, enforced by steiger            | Inherited from `everytldr`                                          |
-| Styling       | Tailwind v4 + semantic tokens (`theme.css`)           | Dark theme becomes a value swap, not a refactor                     |
-| Indexing      | Fully blocked (robots + meta + header)                | Private app                                                         |
+| Item          | Decision                                                         | Rationale                                                                                               |
+| ------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Framework     | Next.js 16.2.12 (App Router) + React 19.2.4                      | All server functionality lives in the single Next app                                                   |
+| Hosting       | Vercel (serverless)                                              | Free, `git push` deploys, automatic HTTPS                                                               |
+| Database      | Neon Postgres + Drizzle ORM                                      | Free tier, serverless-friendly                                                                          |
+| Auth          | Google OAuth (allow-listed emails) → our own session             | No password stored, so no brute-force surface                                                           |
+| Session       | `sessions` table + opaque token in a domain-wide httpOnly cookie | Per-device revocation, instant profile changes, survives iOS ITP, one login across both apps (§ 5.2.1.) |
+| Realtime      | SSE + Postgres `LISTEN`/`NOTIFY`                                 | WebSockets conflict with one-Next-app; SSE gets cookie auth + retry                                     |
+| Notifications | Web Push (VAPID) + a push-only service worker                    | Covers the app being closed, which SSE cannot (§ 16.1.)                                                 |
+| Images        | Cloudflare R2 (private bucket + presigned URLs)                  | Free egress; a UUID in a URL is obscurity, not access control                                           |
+| Architecture  | Feature-Sliced Design, enforced by steiger                       | Inherited from `everytldr`                                                                              |
+| Styling       | Tailwind v4 + semantic tokens (`theme.css`)                      | Dark theme becomes a value swap, not a refactor                                                         |
+| Indexing      | Fully blocked (robots + meta + header)                           | Private app                                                                                             |
 
 ---
 
@@ -151,12 +151,25 @@ Read `src/shared/ui/index.ts` for what exists (buttons, inputs, the overlays bel
 
 ### 5.2. Session ✅
 
-A 32-byte token is stored **hashed** in `sessions.token_hash`; only the raw token goes in the cookie (`httpOnly; Secure; SameSite=Lax; Path=/; Max-Age=180 days`). Sliding renewal updates `last_seen_at` and extends expiry at most once a day per device. The lookup is memoized per request with React `cache()`.
+A 32-byte token is stored **hashed** in `sessions.token_hash`; only the raw token goes in the cookie (`jeheecheon_session`, `httpOnly; Secure; SameSite=Lax; Path=/; Domain=.jeheecheon.com; Max-Age=180 days`). Sliding renewal updates `last_seen_at` and extends expiry at most once a day per device. The lookup is memoized per request with React `cache()`.
 
 - The proxy re-issues the cookie with a fresh `Max-Age` on every page request — otherwise the row's new expiry is invisible to the browser, which drops the cookie 180 days after login however active the user was
 - **Never use localStorage for auth state** — iOS ITP can evict script-written storage after 7 days of non-use; a server-set cookie is exempt
 - `proxy.ts` (Next 16 renamed Middleware to Proxy: repo root, exports `proxy`) checks **only whether the cookie exists**; real DB validation happens in Server Components / Route Handlers. Unauthenticated → `/login`; authenticated on `/login` → `/chat`
 - A cookie that exists but no longer validates is unwound through `GET /api/auth/session/expire`, which clears it and lands on `/login` — a Server Component cannot write cookies, so redirecting it straight to `/login` bounces off the proxy forever. That route re-checks the session and refuses to clear a valid one, since a cross-site `<img src>` reaches it with the cookie attached
+
+#### 5.2.1. One session across both apps
+
+jandh-emoticons writes into this database (its `REQUIREMENTS.md § 3.`) and always resolved its logins against **this** `sessions` table. What used to differ was only the cookie: a separate name on a separate origin, so the same person signed in twice and carried two rows per device. The cookie is now issued over the shared parent domain under one name, so **one row serves both apps** — there is nothing to distinguish in the schema and there never was.
+
+- **`SESSION_COOKIE_DOMAIN` carries the domain**, unset outside production. `localhost` accepts no `Domain` at all, and `jandh-dev.jeheecheon.com` sits under the production domain — a shared cookie on the tunnel would overwrite the production session with a token only the local database can resolve. Develop through the tunnel in a browser profile that is not signed in to production
+- **Both deployments must set the same value.** A cookie issued to a different parent domain is simply a second cookie, and the apps fall back to two logins with no error anywhere
+- **The name changed to `jeheecheon_session`**, retiring `jandh_session` and `jandh_emoticons_session`. Those were issued host-only, and a host-only cookie survives beside a domain-scoped one of the same name: the browser sends both, a read picks between two values, and `clearSessionCookie` can only expire the scoped one — which is the `/login` bounce above, permanently. Both apps therefore ignore the old names and the pair signs in once more
+- **Clearing carries `Domain` and `Path`.** A delete by name alone expires a host-only cookie that no longer exists and leaves the real one in place
+- **Logging out anywhere logs out everywhere**, because there is one row. That is the intent: it is one person on one device with one login
+- **§ 12.'s device list is now the list for both apps**, and one row per device rather than two. A 로그아웃 there revokes the session jandh-emoticons is also holding, which is what per-device revocation should have meant all along. It is also why an emoticons login carries no app prefix in its `device_label`: the row it names is a jandh login too, and a prefix would mislabel a live one
+- **The OAuth `state` and PKCE verifier stay host-only.** Both apps write those two names too, and shared across the domain a login begun in one app would overwrite the values the other is waiting to check
+- **The cookie reaches every subdomain of `jeheecheon.com`**, present and future — the cost of sharing at the parent domain. Anything else hosted there receives it, so a subdomain that is not ours is a subdomain that must not exist
 
 ### 5.3. iOS PWA Verification (highest priority)
 
@@ -1174,7 +1187,7 @@ Remaining:
 
 **Landed:** `maxDuration = 300` on the SSE route segment (§ 8.4.), and the **R2 bucket setup** — private with public access disabled, plus a CORS policy allowing `PUT` and `GET` from the app origin. Without `PUT` every § 9. upload fails preflight; without `GET` the § 10. share route cannot buffer an original; no code change can fix either. `AllowedHeaders` is `Content-Type` only, so no upload may send a second header without this policy changing first (§ 9.).
 
-- [x] The Vercel project is connected to the GitHub repository, the custom domain `jandh.jeheecheon.com` resolves over automatic HTTPS, and every environment variable below is set on it — `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `RELATIONSHIP_START_DATE` (ISO `YYYY-MM-DD`), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `APP_URL`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. This list is the one to check against when a new variable is introduced
+- [x] The Vercel project is connected to the GitHub repository, the custom domain `jandh.jeheecheon.com` resolves over automatic HTTPS, and every environment variable below is set on it — `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `RELATIONSHIP_START_DATE` (ISO `YYYY-MM-DD`), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `APP_URL`, `SESSION_COOKIE_DOMAIN` (`.jeheecheon.com`, **production only**, and the same value on jandh-emoticons — § 5.2.1.), `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. This list is the one to check against when a new variable is introduced
 - [x] `pnpm build` runs `lint:steiger` ahead of `next build`, so an architecture violation fails the deploy
 - **One deployed database.** Local work runs against the § 1. docker compose Postgres, so it has a single writer
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  SESSION_COOKIE_DOMAIN,
   SESSION_COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
   SESSION_DURATION,
@@ -167,5 +168,10 @@ export async function setSessionCookie(token: string): Promise<void> {
 }
 
 export async function clearSessionCookie(): Promise<void> {
-  (await cookies()).delete(SESSION_COOKIE_NAME);
+  // WARN: The name alone clears a host-only cookie, and the session cookie is issued over a parent domain (REQUIREMENTS.md § 5.2.) — a delete that omits `Domain` leaves it in place, and the proxy then bounces off `SESSION_EXPIRE_ROUTE` forever.
+  (await cookies()).delete({
+    name: SESSION_COOKIE_NAME,
+    domain: SESSION_COOKIE_DOMAIN,
+    path: SESSION_COOKIE_OPTIONS.path,
+  });
 }

@@ -298,8 +298,36 @@ export const IS_DEV_LOGIN_ENABLED = process.env.NODE_ENV === "development";
 // WARN: Same compile-time guarantee as `IS_DEV_LOGIN_ENABLED`. Kept separate because it gates developer tooling rather than an auth path, and the two must be free to diverge.
 export const IS_DEV = process.env.NODE_ENV === "development";
 
-/** Name of the httpOnly cookie holding the opaque session token. */
-export const SESSION_COOKIE_NAME = "jandh_session";
+/**
+ * Name of the httpOnly cookie holding the opaque session token.
+ *
+ * WARN: REQUIREMENTS.md § 5.2. jandh-emoticons issues this same name over the
+ * same parent domain, so one login covers both apps — renaming it on one side
+ * only signs the user out of the other.
+ *
+ * WARN: Deliberately not the `jandh_session` this app used to issue. That one is
+ * host-only in browsers that already hold it, and a host-only cookie survives
+ * beside a domain-scoped one of the same name: reads would pick between two
+ * values, and a logout could clear only one of the two and bounce off the proxy
+ * forever.
+ */
+export const SESSION_COOKIE_NAME = "jeheecheon_session";
+
+/**
+ * Parent domain the session cookie is issued to — `.jeheecheon.com` in
+ * production, which is what makes a login here a login at jandh-emoticons too
+ * (REQUIREMENTS.md § 5.2.).
+ *
+ * WARN: Unset means a host-only cookie, and that is what development wants:
+ * `localhost` accepts no `Domain` at all, and the tunnel origin sits under the
+ * production domain, so a shared cookie there would overwrite the production
+ * session with one no deployed database can resolve.
+ *
+ * WARN: Server-only, like `BUILD_ID` — a browser bundle reads a
+ * non-`NEXT_PUBLIC_` variable as `undefined`, which would silently make the
+ * cookie host-only rather than fail.
+ */
+export const SESSION_COOKIE_DOMAIN = process.env.SESSION_COOKIE_DOMAIN?.trim() || undefined;
 
 // INFO: REQUIREMENTS.md § 5.2. Long-lived by design — the pair opens this app in bursts, not daily.
 export const SESSION_DURATION = 180 * A_DAY;
@@ -310,5 +338,6 @@ export const SESSION_COOKIE_OPTIONS = {
   secure: process.env.NODE_ENV === "production",
   sameSite: "lax",
   path: "/",
+  domain: SESSION_COOKIE_DOMAIN,
   maxAge: SESSION_DURATION / A_SECOND,
 } as const;

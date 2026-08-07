@@ -9,6 +9,7 @@ const CODE_VERIFIER_COOKIE_NAME = "jandh_oauth_verifier";
 // INFO: Only has to outlive the Google consent screen; a long-lived value would widen the replay window.
 const OAUTH_COOKIE_MAX_AGE = 10 * A_MINUTE;
 
+// WARN: No `domain`, unlike the session cookie (REQUIREMENTS.md § 5.2.). jandh-emoticons writes these same two names, and shared over the parent domain a login started in one app would overwrite the `state` and verifier of a login started in the other.
 const OAUTH_COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
