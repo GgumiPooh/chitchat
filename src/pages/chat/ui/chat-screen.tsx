@@ -62,6 +62,7 @@ export function ChatScreen({
             <IconButton
               Icon={Search}
               variant="floating"
+              haptic
               aria-label="메시지 검색"
               onClick={search.open}
             />

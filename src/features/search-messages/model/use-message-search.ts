@@ -129,10 +129,22 @@ export function useMessageSearch() {
     }
   }, [hasMore, isLoadingMore, isLoading, submitted]);
 
+  /**
+   * WARN: Deferred by a microtask, and `DESIGN.md § 7.15.3.` is the whole reason.
+   * Closed synchronously, the row's `keepsScroll` overlay is detached before the
+   * click it is answering finishes dispatching, and a detached `<label>` has no
+   * labelled control left to activate — every result tap was silent.
+   *
+   * INFO: A microtask rather than a task: it drains after the dispatch, so the tick
+   * has run, but still inside the tap's own task, so nothing else in the app can
+   * observe the list as open across a frame.
+   */
   const select = useCallback(
     (index: number) => {
-      setIsListOpen(false);
-      jumpTo(index, resultsRef.current);
+      queueMicrotask(() => {
+        setIsListOpen(false);
+        jumpTo(index, resultsRef.current);
+      });
     },
     [jumpTo],
   );

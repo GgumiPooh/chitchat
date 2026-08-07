@@ -2,7 +2,7 @@
 
 import { MAX_SEARCH_QUERY_LENGTH } from "@/shared/config";
 import { cn } from "@/shared/lib";
-import { AppHeader, IconButton } from "@/shared/ui";
+import { AppHeader, HapticTarget, IconButton } from "@/shared/ui";
 import { LoaderCircle, Search, X } from "lucide-react";
 import { useRef } from "react";
 
@@ -85,29 +85,36 @@ export function MessageSearchBar({
           onChange={(event) => onQueryChange(event.target.value)}
         />
         {/* INFO: Clears the query without closing the search — 취소 beside it is the one that leaves. */}
-        {/* WARN: `className`, not `buttonClassName` — `IconButton` only diverts the latter onto the button when `haptic` moves `className` to the wrapper. Left on `buttonClassName` the size is silently dropped, and the default 44 circle is what grew the pill. */}
+        {/* WARN: `buttonClassName`, not `className` — `haptic` moves the latter onto the wrapper, and the size left there is a size the button never gets, which is what grew the pill to the default 44 circle. */}
+        {/* WARN: `keepsFocus` — the overlay takes the tap the button would have taken, so without it the field blurs and iOS drops the keyboard on a clear that is meant to leave the user typing. */}
         {query.length > 0 && (
           <IconButton
-            className="size-8"
+            buttonClassName="size-8"
             iconClassName="size-4"
             Icon={X}
+            haptic
+            keepsFocus
             aria-label="검색어 지우기"
             onClick={clear}
           />
         )}
         {/* INFO: DESIGN.md § 6.6. The composer's send disc, in the composer's position. The keyboard's search key does the same thing; this is what a pointer has instead (AGENTS.md § 4.2.). */}
-        <button
-          className="inline-flex size-9 shrink-0 press-bloom cursor-pointer items-center justify-center rounded-full bg-primary text-on-primary outline-none hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary active:bg-primary-pressed disabled:cursor-not-allowed disabled:bg-primary-disabled"
-          disabled={!canSubmit || isLoading}
-          type="submit"
-          aria-label="검색"
-        >
-          {isLoading ? (
-            <LoaderCircle className="size-4 animate-spin" />
-          ) : (
-            <Search className="size-4" strokeWidth={2} />
-          )}
-        </button>
+        {/* WARN: `keepsFocus`, exactly as the composer's send disc carries it — the overlay takes the tap, and a blurred field drops the keyboard the next query would be typed into. */}
+        {/* WARN: Gated on `canSubmit` alone. `isLoading` is set inside `submit` before its first `await`, so folding it in here tears the overlay out mid-click and the first submit of every new query goes silent (DESIGN.md § 7.15.3.). What the field holds does not change under its own tap. */}
+        <HapticTarget className="inline-flex shrink-0" isTicking={canSubmit} keepsFocus>
+          <button
+            className="inline-flex size-9 shrink-0 press-bloom cursor-pointer items-center justify-center rounded-full bg-primary text-on-primary outline-none group-active:bg-primary-pressed hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary active:bg-primary-pressed disabled:cursor-not-allowed disabled:bg-primary-disabled"
+            disabled={!canSubmit || isLoading}
+            type="submit"
+            aria-label="검색"
+          >
+            {isLoading ? (
+              <LoaderCircle className="size-4 animate-spin" />
+            ) : (
+              <Search className="size-4" strokeWidth={2} />
+            )}
+          </button>
+        </HapticTarget>
       </form>
     );
   }
@@ -115,13 +122,15 @@ export function MessageSearchBar({
   // INFO: A word rather than a back arrow — it dismisses a mode rather than navigating anywhere, and 취소 is what iOS puts beside a search field.
   function renderCancel() {
     return (
-      <button
-        className="shrink-0 cursor-pointer rounded-md px-2xs py-xs text-body-md text-meta outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-primary active:text-ink"
-        type="button"
-        onClick={onClose}
-      >
-        취소
-      </button>
+      <HapticTarget className="inline-flex shrink-0">
+        <button
+          className="shrink-0 cursor-pointer rounded-md px-2xs py-xs text-body-md text-meta outline-none group-active:text-ink hover:text-ink focus-visible:ring-2 focus-visible:ring-primary active:text-ink"
+          type="button"
+          onClick={onClose}
+        >
+          취소
+        </button>
+      </HapticTarget>
     );
   }
 

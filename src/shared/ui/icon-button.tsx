@@ -11,6 +11,8 @@ export type IconButtonProps = Omit<ComponentProps<"button">, "aria-label"> & {
   variant?: "plain" | "floating";
   /** Ticks the Taptic engine when a finger lands on the button. */
   haptic?: boolean;
+  /** WARN: Only does anything alongside `haptic`, since it is the overlay it configures — the button alone never moves focus. Beside a focused field it is required, or the overlay takes the tap, the field blurs, and iOS drops the keyboard. */
+  keepsFocus?: boolean;
   "aria-label": string;
 };
 
@@ -31,6 +33,7 @@ export function IconButton({
   Icon,
   variant = "plain",
   haptic = false,
+  keepsFocus = false,
   disabled,
   type = "button",
   ...props
@@ -59,7 +62,11 @@ export function IconButton({
   }
 
   return (
-    <HapticTarget className={cn("inline-flex shrink-0", className)} isTicking={isTicking}>
+    <HapticTarget
+      className={cn("inline-flex shrink-0", className)}
+      isTicking={isTicking}
+      keepsFocus={keepsFocus}
+    >
       {button}
     </HapticTarget>
   );

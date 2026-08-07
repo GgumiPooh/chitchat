@@ -996,10 +996,11 @@ The two remaining hand-rolled wrappers are `<li>` rows (the day sheet, the upcom
 
 Where it fires is a product decision, not a technical one: **a committed change of state, and a selection among peers.** Saving, sending, deleting, toggling, switching tab or pack, picking a chip or a swatch, opening a sheet, stepping the calendar to the next month, discarding a staged attachment. Never dismissing a surface, cancelling out of one, or going back — a tick that fires on everything stops meaning anything.
 
-Two boundaries that are easy to read the wrong way:
+Three boundaries that are easy to read the wrong way:
 
 - The month stepper is **in**. It commits the same change the month swipe does, and the swipe itself is a drag threshold that can never tick — so without it the gesture the chevrons exist to replace (`§ 4.1.`) is the only way to turn the month silently.
 - Removing a staged emoticon or photo is **in**, despite reading as a cancel. What it cancels is content already committed to the outgoing message, not a surface the user opened — the same act as deleting, which ticks.
+- The search bar's 취소 is **in**, and it is the one dismissal that is. It does not only close the strip: it discards the query, the submitted term and the parked position with it (`REQUIREMENTS.md § 8.6.1.`), which is the same act as removing a staged attachment. The result list's 목록 닫기 beside it is **out** and is the boundary — that one hands the reader back to the arrows and destroys nothing.
 
 ### 7.15.1. `keepsScroll`, and why it is opt-in rather than the default.
 
@@ -1036,6 +1037,8 @@ One thing it does give up: **sliding a `Switch` no longer toggles it.** The visi
 The tick is the overlay's **default action**, and a default action runs after the click has finished dispatching. So the overlay has to still be in the document at that moment — not merely at the moment it was tapped.
 
 That is a live distinction wherever the tap is what turns the gate off. `Link` survives it because the route change is a round trip: the anchor is still standing when the switch toggles, and `haptic={!isActive}` on the tab bar (§ 7.3.) drops the overlay a render later. The emoticon pack tabs are the opposite case — `useStorageState` writes and broadcasts inside the handler, React flushes a discrete update before returning from it, and `isTicking={!isActive}` therefore tore the just-selected tab's `<label>` out of the tree mid-click. A detached label has no labelled control to find, so nothing toggled: the previously active tab could not tick because it had no overlay, and the newly active one could not tick because it no longer had one. **Every pack tap was silent** — on the one strip whose tick is most of its feedback, since the fill it moves sits under the finger.
+
+**Only `keepsScroll` is actually fragile here, and that was measured rather than reasoned.** The search bar puts a tick on four controls that each unmount their own overlay inside the click — 돋보기 and 취소 flip the header ternary, ✕ 지우기 is rendered behind a non-empty query, and a result row closes the list. On device, the first three tick perfectly and only the result row is silent. The difference is the overlay's shape: a bare `<input switch>` toggles _itself_, and WebKit still ticks it after it has been detached, whereas a `keepsScroll` `<label>` has to find its control through `htmlFor` and a detached one finds nothing. So the rule is narrower than "the overlay must survive the dispatch" — it is **a `keepsScroll` overlay must survive the dispatch**. `useMessageSearch.select` therefore defers its state change by a microtask, which drains after the dispatch and still inside the tap's own task.
 
 So the pack tabs tick unconditionally, re-taps on the open pack included. That reads as the narrower rule of § 7.15. rather than a break from it: a finger that lands on a tab and lifts has selected that pack, whether or not the panel had to change. Where a state gate is genuinely wanted (`Chip`, the colour swatches, the composer's send disc), it is safe exactly when the state does not settle in the same tick as the tap.
 
