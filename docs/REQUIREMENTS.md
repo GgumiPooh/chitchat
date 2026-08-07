@@ -28,7 +28,6 @@ Every open item in this document, so an agent can read one table and then only t
 
 | Area                      | Open                                                                            | §               |
 | ------------------------- | ------------------------------------------------------------------------------- | --------------- |
-| **Chat — scroll polish**  | Scroll-to-bottom marking read                                                   | § 8.1.          |
 | **Chat — viewer**         | Pinch zoom, tuned on a real device                                              | § 8.1.          |
 | **Chat — link previews**  | Withhold a thumbnail whose signed URL has expired                               | § 8.9.          |
 | **Library**               | Jump-to-message link — the § 8.6.1. machinery it waited on is built             | § 10.           |
@@ -305,7 +304,7 @@ The `(main)` layout is the app shell (max `576px`, centered) holding a per-scree
 Remaining:
 
 - [ ] Pinch zoom in the viewer — § 18. #6, still open and meant to be tuned on a real device
-- [ ] Tapping the scroll-to-bottom button scrolls smoothly to the bottom **and marks messages read**
+- [x] Tapping the scroll-to-bottom button scrolls smoothly to the bottom **and marks messages read** — a **forced** `markRead` off `useChatStream`, past § 8.8.'s throttle, since the message the reader travelled to commonly arrived inside that window. Only on a restore that landed, like the scroll it follows (§ 8.6.1.)
 - [x] The same button returns the user to the newest messages after a search jump (§ 8.6.1.)
 
 ### 8.2. Message Loading ✅
@@ -1223,7 +1222,7 @@ An installed iOS PWA is not reloaded when the user reopens it — the system res
 2. ✅ Auth + session (§ 5.) — highest-risk area, so it went first
 3. ✅ Database schema + migrations (§ 6.)
 4. ✅ Layout + tab bar + PWA manifest (§ 7.)
-5. **Chat tab (§ 8.) — in progress.** Text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies, the jump machinery, the typing indicator (§ 8.12.), search (§ 8.6.) and the sticky date indicator (§ 8.3.) all landed. **Open: scroll-to-bottom marking read (§ 8.1.), pinch zoom, and the expired-thumbnail rule (§ 8.9.)**
+5. **Chat tab (§ 8.) — in progress.** Text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies, the jump machinery, the typing indicator (§ 8.12.), search (§ 8.6.), the sticky date indicator (§ 8.3.) and scroll-to-bottom marking read (§ 8.1.) all landed. **Open: pinch zoom, and the expired-thumbnail rule (§ 8.9.)**
 6. ✅ R2 media pipeline + sending photos and videos in chat (§ 9.)
 7. ✅ Library tab (§ 10.), both segments — open: the jump-to-message link, now unblocked by § 8.6.1.
 8. ✅ Emoticons (§ 13.)

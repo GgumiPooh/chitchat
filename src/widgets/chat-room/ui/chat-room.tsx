@@ -275,7 +275,7 @@ export function ChatRoom({
       setIsRecording(false);
     }
   }, [isSearching]);
-  const { participants, typingUserIds, setIsReading } = useChatStream();
+  const { participants, typingUserIds, setIsReading, markRead } = useChatStream();
   // WARN: REQUIREMENTS.md § 8.12. Only the two *sustained* sources are passed; typing arrives as edit pulses through the returned callback, because a field holding a draft is not somebody typing. Sending is not a trigger either way — it clears both of these and produces no edit.
   // WARN: REQUIREMENTS.md § 8.12. Silent for the length of a search. A staged emoticon is state that outlives the hidden composer, so left connected it holds the signal up and re-POSTs every `TYPING_PING_INTERVAL` — the other participant reads 입력 중 from a composer that is not even on screen, which is exactly the parked-draft failure § 8.12. exists to have removed.
   const signalEdit = useTypingSignal(
@@ -564,8 +564,10 @@ export function ChatRoom({
   const goToNewest = useCallback(async () => {
     if (await returnToLive()) {
       scrollToBottom();
+      // INFO: REQUIREMENTS.md § 8.1. The tap is the reader saying they have caught up, so the cursor moves on it rather than waiting for the next throttled write.
+      markRead();
     }
-  }, [returnToLive, scrollToBottom]);
+  }, [returnToLive, scrollToBottom, markRead]);
 
   // WARN: Scrolling inside the send handler resolves against the pre-send data, so a message sent from deep in history lands below the fold. The row only exists from this commit onward.
   // WARN: REQUIREMENTS.md § 13.6. A pin and never `scrollToBottom` — a smooth scroll started here outlives the emoticon panel's collapse and steers the history back to the offset the open panel implied.

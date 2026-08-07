@@ -38,6 +38,15 @@ export type ChatStreamValue = {
   subscribe: (listener: ChatStreamListener) => () => void;
   /** Declared by whichever screen is showing the conversation — it suppresses the badge and drives the read cursor. */
   setIsReading: (isReading: boolean) => void;
+  /**
+   * REQUIREMENTS.md § 8.1., § 8.8. Moves the cursor now, past the throttle.
+   *
+   * INFO: For the deliberate arrival at the newest message — the § 6.7. pill. The
+   * throttled write covers a reader who is simply sitting in the room, but that tap
+   * is the one moment the reader states they have caught up, and leaving it a
+   * throttle window behind turns the message they are looking at into a push.
+   */
+  markRead: () => void;
 };
 
 export type ChatStreamProviderProps = PropsWithChildren<{
@@ -111,6 +120,9 @@ export function ChatStreamProvider({
     // INFO: REQUIREMENTS.md § 8.8. Both edges are forced — entering the conversation is a read event too, and a throttled entry parks the cursor behind a message that is already on screen.
     void markRead(true);
   }, []);
+
+  // WARN: Forced, like the edges above. A tap that lands inside the throttle window would otherwise report nothing, which is exactly the case this exists for — the reader has just travelled to a message that arrived seconds ago.
+  const markReadNow = useCallback(() => void markRead(true), []);
 
   // WARN: Lazy initial state rather than a ref — the identity has to be stable *and* readable during render, and a ref read here is what React Compiler rejects. A fresh object would re-render the connection on every message that lands.
   const [handlers] = useState<ChatEventSourceHandlers>(() => ({
@@ -187,7 +199,14 @@ export function ChatStreamProvider({
 
   return (
     <ChatStreamContext.Provider
-      value={{ participants, unreadCount, typingUserIds, subscribe, setIsReading }}
+      value={{
+        participants,
+        unreadCount,
+        typingUserIds,
+        subscribe,
+        setIsReading,
+        markRead: markReadNow,
+      }}
     >
       <ChatStreamHandlersContext.Provider value={handlers}>
         {children}
