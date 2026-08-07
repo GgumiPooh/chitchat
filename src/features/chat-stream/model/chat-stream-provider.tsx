@@ -85,6 +85,8 @@ export function ChatStreamProvider({
   const typingSweep = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
   const listeners = useRef(new Set<ChatStreamListener>());
   const isReadingRef = useRef(false);
+  // INFO: REQUIREMENTS.md § 8.4.1. Reported by `ChatStreamConnection`, because "the conversation is mounted" and "the conversation is live" stopped being the same thing when the overlay arrived.
+  const isDormantRef = useRef(false);
   const lastReadPostAt = useRef(0);
   const hasMessageDuringSync = useRef(false);
   // INFO: REQUIREMENTS.md § 15.1. Lives beside the stream because that is what carries the signal, not because refreshing is a chat concern.
@@ -117,6 +119,9 @@ export function ChatStreamProvider({
     onResume: () => handleResume(),
     onTyping: (userId, isTyping) => handleTyping(userId, isTyping),
     onBuild: (id) => handleBuild(id),
+    onDormancyChange: (isDormant) => {
+      isDormantRef.current = isDormant;
+    },
   }));
 
   // INFO: The provider outlives every screen, so this only ever runs on a full teardown — but a timer left armed past it would call `setTypingUserIds` on an unmounted tree.
@@ -142,8 +147,8 @@ export function ChatStreamProvider({
     function handleWorkerMessage(event: MessageEvent<unknown>) {
       const message = unreadCountMessageSchema.safeParse(event.data);
 
-      // INFO: § 8.8. A reader is looking at the conversation, so the count it would raise is one the read cursor is about to clear.
-      if (message.success && !isReadingRef.current) {
+      // WARN: § 8.4.1. Dormant beats reading. The gate exists because a reader's cursor is about to clear the count anyway — but under the 절전 모드 overlay the conversation is covered and the stream that would have delivered the message is closed, so the reader is not reading and the count is real.
+      if (message.success && (!isReadingRef.current || isDormantRef.current)) {
         setUnreadCount(message.data.unreadCount);
       }
     }
@@ -167,7 +172,8 @@ export function ChatStreamProvider({
       }
 
       // WARN: REQUIREMENTS.md § 8.4.2. The badge's only other mover is the § 16.1. push, and that has three states where it never arrives — denied, unsupported, and in flight. Without this a client in one of them shows the count it was rendered with until it next walks into 채팅.
-      if (!isReadingRef.current) {
+      // INFO: § 8.4.1. Dormant beats reading here for the same reason it does in the worker message above — the overlay is up and no stream is delivering anything.
+      if (!isReadingRef.current || isDormantRef.current) {
         void syncUnreadCount();
       }
     }

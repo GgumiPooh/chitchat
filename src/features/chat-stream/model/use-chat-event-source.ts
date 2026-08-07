@@ -25,6 +25,8 @@ export type ChatEventSourceHandlers = {
   onTyping: (userId: string, isTyping: boolean) => void;
   /** The deployment serving this connection. REQUIREMENTS.md § 15.1. */
   onBuild: (id: string) => void;
+  /** The stream went dormant, or came back. REQUIREMENTS.md § 8.4.1. */
+  onDormancyChange: (isDormant: boolean) => void;
 };
 
 const buildSchema = z.object({ id: z.string().min(1) });
@@ -50,16 +52,24 @@ export function useChatEventSource({
   onResume,
   onTyping,
   onBuild,
+  onDormancyChange,
 }: ChatEventSourceHandlers): ChatEventSourceState {
   // WARN: Read through a ref so a new handler identity cannot tear the connection down and reconnect it on every render.
-  const handlers = useRef({ onMessage, onUserChanged, onResume, onTyping, onBuild });
+  const handlers = useRef({
+    onMessage,
+    onUserChanged,
+    onResume,
+    onTyping,
+    onBuild,
+    onDormancyChange,
+  });
   const [isDormant, setIsDormant] = useState(false);
   // WARN: The effect below runs once and owns the connection, so the only way out of dormancy is a function it publishes here. Rebuilding the effect to expose one would tear the stream down on every wake.
   const leaveDormancy = useRef(() => undefined as void);
   const wake = useCallback(() => leaveDormancy.current(), []);
 
   useEffect(() => {
-    handlers.current = { onMessage, onUserChanged, onResume, onTyping, onBuild };
+    handlers.current = { onMessage, onUserChanged, onResume, onTyping, onBuild, onDormancyChange };
   });
 
   useEffect(() => {
@@ -275,6 +285,7 @@ export function useChatEventSource({
       idleTimer = undefined;
       close();
       setIsDormant(true);
+      handlers.current.onDormancyChange(true);
     }
 
     // INFO: § 8.4.1. The one way out, and it is always a deliberate act — returning focus does not qualify, or the overlay would be dismissed by the very switch that is meant to reveal it.
@@ -285,6 +296,7 @@ export function useChatEventSource({
 
       isSleeping = false;
       setIsDormant(false);
+      handlers.current.onDormancyChange(false);
       resume();
     }
 
@@ -346,6 +358,8 @@ export function useChatEventSource({
       document.removeEventListener("keydown", handleKeyDown);
       clearTimeout(idleTimer);
       close();
+      // WARN: § 8.4.1. The provider outlives this hook, so a dormancy left standing here is one nothing ever takes back down — leaving 채팅 while the overlay is up would strand it believing the conversation is still asleep.
+      handlers.current.onDormancyChange(false);
     };
   }, []);
 
