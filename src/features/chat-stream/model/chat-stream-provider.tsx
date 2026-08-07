@@ -3,7 +3,12 @@
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { updateAppBadge } from "@/shared/badge";
-import { READ_CURSOR_THROTTLE, TYPING_TIMEOUT, type MessageArrival } from "@/shared/config";
+import {
+  READ_CURSOR_THROTTLE,
+  TYPING_TIMEOUT,
+  unreadCountMessageSchema,
+  type MessageArrival,
+} from "@/shared/config";
 import { safelyGetAsync, safelyRunAsync, type Nullable, type Optional } from "@/shared/lib";
 import {
   createContext,
@@ -17,9 +22,8 @@ import {
 import { fetchParticipants } from "../api/fetch-participants";
 import { fetchUnreadCount } from "../api/fetch-unread-count";
 import { postRead } from "../api/post-read";
-import { DormantOverlay } from "../ui/dormant-overlay";
 import { useAppRefresh } from "./use-app-refresh";
-import { useChatEventSource } from "./use-chat-event-source";
+import { type ChatEventSourceHandlers } from "./use-chat-event-source";
 
 export type ChatStreamListener = {
   onMessage?: (message: ChatMessage, arrival: MessageArrival) => void;
@@ -44,18 +48,28 @@ export type ChatStreamProviderProps = PropsWithChildren<{
 
 const ChatStreamContext = createContext<Nullable<ChatStreamValue>>(null);
 
+/**
+ * REQUIREMENTS.md § 8.4. The provider's own handlers, handed to whichever screen
+ * is holding the socket open.
+ *
+ * WARN: A context of its own, not a field on `ChatStreamValue`. It is stable for
+ * the life of the provider, so putting it on the value every screen reads would
+ * re-render all of them whenever the participant set or the unread count moved.
+ */
+const ChatStreamHandlersContext = createContext<Nullable<ChatEventSourceHandlers>>(null);
+
 // INFO: One retry is enough to close the resume race below; a second would only chase a message the next resume corrects anyway.
 const UNREAD_SYNC_PASSES = 2;
 
 /**
- * Holds the app's one `EventSource` (REQUIREMENTS.md § 8.4.).
+ * Holds the conversation's shared state — the participant set, the unread count,
+ * who is typing (REQUIREMENTS.md § 8.4.).
  *
- * WARN: It lives in the shell, not in the chat screen. Scoped to the screen the
- * stream would drop on every tab switch, and the other three tabs would never
- * move the badge — a message would surface only once the user happened to walk
- * back into the conversation. The § 8.4. background close is untouched
- * and is still what lets Neon's compute autosuspend: the stream ends when the app
- * goes away, not when the user opens the calendar.
+ * WARN: It does **not** hold the socket. The state lives in the shell because
+ * `participants` is read from the calendar and the profile screen, and the badge
+ * is drawn by the tab bar; the `EventSource` lives in the chat screen, mounted by
+ * `ChatStreamConnection` (§ 8.4.2.). Moving this provider down with it would
+ * strand every one of those consumers.
  */
 export function ChatStreamProvider({
   currentUserId,
@@ -96,13 +110,14 @@ export function ChatStreamProvider({
     void markRead(true);
   }, []);
 
-  const { isDormant, wake } = useChatEventSource({
-    onMessage: handleMessage,
-    onUserChanged: refreshParticipants,
-    onResume: handleResume,
-    onTyping: handleTyping,
-    onBuild: handleBuild,
-  });
+  // WARN: Lazy initial state rather than a ref — the identity has to be stable *and* readable during render, and a ref read here is what React Compiler rejects. A fresh object would re-render the connection on every message that lands.
+  const [handlers] = useState<ChatEventSourceHandlers>(() => ({
+    onMessage: (message, arrival) => handleMessage(message, arrival),
+    onUserChanged: () => void refreshParticipants(),
+    onResume: () => handleResume(),
+    onTyping: (userId, isTyping) => handleTyping(userId, isTyping),
+    onBuild: (id) => handleBuild(id),
+  }));
 
   // INFO: The provider outlives every screen, so this only ever runs on a full teardown — but a timer left armed past it would call `setTypingUserIds` on an unmounted tree.
   useEffect(() => () => clearTimeout(typingSweep.current), []);
@@ -110,6 +125,29 @@ export function ChatStreamProvider({
   useEffect(() => {
     updateAppBadge(unreadCount);
   }, [unreadCount]);
+
+  /**
+   * REQUIREMENTS.md § 8.4.2. The badge on the three tabs that hold no stream.
+   *
+   * WARN: The server's own count, so it replaces rather than increments — a client
+   * that has been off 채팅 has missed every arrival and has nothing to add to.
+   */
+  useEffect(() => {
+    const worker = navigator.serviceWorker;
+
+    worker?.addEventListener("message", handleWorkerMessage);
+
+    return () => worker?.removeEventListener("message", handleWorkerMessage);
+
+    function handleWorkerMessage(event: MessageEvent<unknown>) {
+      const message = unreadCountMessageSchema.safeParse(event.data);
+
+      // INFO: § 8.8. A reader is looking at the conversation, so the count it would raise is one the read cursor is about to clear.
+      if (message.success && !isReadingRef.current) {
+        setUnreadCount(message.data.unreadCount);
+      }
+    }
+  }, []);
 
   // INFO: REQUIREMENTS.md § 8.8. Backgrounding is not an unmount, so without this the exit flush never runs on the one path that matters most — the app going away with the last message read.
   useEffect(() => {
@@ -138,8 +176,9 @@ export function ChatStreamProvider({
     <ChatStreamContext.Provider
       value={{ participants, unreadCount, typingUserIds, subscribe, setIsReading }}
     >
-      {children}
-      {isDormant && <DormantOverlay onWake={wake} />}
+      <ChatStreamHandlersContext.Provider value={handlers}>
+        {children}
+      </ChatStreamHandlersContext.Provider>
     </ChatStreamContext.Provider>
   );
 
@@ -300,6 +339,20 @@ export function useChatStream(): ChatStreamValue {
   }
 
   return value;
+}
+
+/**
+ * REQUIREMENTS.md § 8.4.2. The provider's handlers, for the one screen that holds
+ * the socket. Nothing else has any business calling this.
+ */
+export function useChatStreamHandlers(): ChatEventSourceHandlers {
+  const handlers = useContext(ChatStreamHandlersContext);
+
+  if (!handlers) {
+    throw new Error("useChatStreamHandlers must be used inside ChatStreamProvider");
+  }
+
+  return handlers;
 }
 
 /**

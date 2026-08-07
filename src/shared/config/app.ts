@@ -150,6 +150,21 @@ export const SSE_REPLAY_LIMIT = 200;
 export const SSE_RETRY_DELAY = 5 * A_SECOND;
 
 /**
+ * REQUIREMENTS.md § 8.4.2. What `sw.js` posts to open windows on a push, so the
+ * tab-bar badge still moves on the three tabs that hold no stream.
+ *
+ * WARN: Duplicated as a literal in `public/sw.js` — a worker is served raw from
+ * `public/`, outside the bundle, and cannot import this. The two have to move
+ * together.
+ */
+export const UNREAD_COUNT_MESSAGE = "unread-count";
+
+export const unreadCountMessageSchema = z.object({
+  type: z.literal(UNREAD_COUNT_MESSAGE),
+  unreadCount: z.number().int().min(0),
+});
+
+/**
  * REQUIREMENTS.md § 8.4.1. The kill switch for the idle close and its overlay.
  *
  * WARN: Default **on** — absent, blank, or anything but an explicit off leaves it

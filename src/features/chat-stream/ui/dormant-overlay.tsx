@@ -22,9 +22,11 @@ export function DormantOverlay({ className, bodyClassName, onWake }: DormantOver
     <ShellOverlay>
       <button
         className={cn(
-          "absolute inset-0 z-50 flex flex-col items-center justify-center glass px-lg text-center",
+          "absolute inset-0 z-50 flex flex-col items-center justify-center px-lg text-center",
+          // WARN: DESIGN.md § 7.17. Its own surface, deliberately thinner than the `glass` of § 3.5.1. That utility is for floating chrome sitting on content; this covers the content, and at `glass` weight the screen behind it is gone rather than merely paused.
+          "bg-canvas/45 backdrop-blur-md",
           // INFO: DESIGN.md § 3.2. No `hover:` — the surface is the whole screen, so a state change on entry would fire wherever the pointer happened to be.
-          "outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-canvas/85",
+          "outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-canvas/60",
           className,
         )}
         type="button"

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChatMessage } from "@/entities/message";
-import { useChatStream } from "@/features/chat-stream";
+import { ChatStreamConnection, useChatStream } from "@/features/chat-stream";
 import {
   MessageSearchBar,
   MessageSearchNav,
@@ -46,6 +46,8 @@ export function ChatScreen({
         className,
       )}
     >
+      {/* INFO: REQUIREMENTS.md § 8.4.2. The app's one `EventSource`, open only while the conversation is. It renders nothing but the § 8.4.1. overlay. */}
+      <ChatStreamConnection />
       {search.isOpen ? (
         <MessageSearchBar
           query={search.query}

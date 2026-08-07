@@ -381,10 +381,10 @@ Remaining:
 
 **Client**
 
-- **The subscription belongs to the `(main)` shell, not the chat screen.** `ChatStreamProvider` owns the one `EventSource`, the participant set, and the unread count; screens attach with `useChatStreamListener`. Scoped to the chat screen the stream would drop on every tab switch and the other tabs would never badge
+- **The state belongs to the `(main)` shell; the socket does not.** `ChatStreamProvider` owns the participant set, the unread count and the typing set, because the calendar, the profile screen and the tab bar all read them. The `EventSource` is mounted by `ChatStreamConnection` on the chat screen alone (§ 8.4.2.); screens attach to the delivered events with `useChatStreamListener`
 - The provider delivers the message and moves the counters (tab-bar badge, `navigator.setAppBadge`). It **alerts nobody** — § 16.1.'s OS notification is the app's one alerting channel. A message that is mine moves nothing at all, since the stream echoes my own send back (§ 8.5.)
 - `EventSource` auto-reconnects only for drops it notices. A fatal error (a 401, or a body that is not `text/event-stream`) leaves `readyState === CLOSED` permanently, so `onerror` reopens by hand after `SSE_RETRY_DELAY` and the open path treats a `CLOSED` source as no source. Guarding on "a source object exists" instead kills live delivery for the life of the page after one expired session. Handlers are read through a ref, so a new handler identity cannot rebuild the connection every render
-- The stream closes when the tab backgrounds, so Neon compute can autosuspend. **A backgrounding is not the only close** — § 8.4.1. drops it for idleness too, which is the only thing that reaches a window that never backgrounds
+- The stream closes when the tab backgrounds, so Neon compute can autosuspend. **A backgrounding is not the only close** — § 8.4.1. drops it for idleness and § 8.4.2. drops it on leaving 채팅, which between them are what reach a window that never backgrounds at all
 - **Resume is the normal sync path, not an error path.** The stream is closed on purpose, and an iOS home-screen PWA restores the frozen page rather than navigating, so the Server Component render does not re-run
   - The catch-up hangs off **`onopen` _and_ the resume events**, and is plain `fetch` either way — never gated on the socket. Hanging it off `onopen` **alone** was the iOS PWA bug: the screen stays stale as long as the reconnect takes, forever if it never lands
   - **Resume observes `visibilitychange`, `pageshow`, `focus`; background observes `visibilitychange` and `pagehide`.** iOS is inconsistent about which a standalone-PWA app-switch produces and one resume commonly fires several, so the catch-up is coalesced inside `SSE_SYNC_COALESCE_WINDOW`
@@ -416,6 +416,20 @@ Remaining:
 - **Push is what makes this safe.** § 16.1.'s OS notification is the app's one alerting channel and owes nothing to the stream, and `sw.js` writes the app badge from the server's own count — so a dormant client still alerts, and still badges, exactly as an open one does
 
 **Neon bills this only if the gaps outlast its autosuspend delay.** Compute suspends after a configured idle stretch; a client that wakes more often than that keeps it up regardless of how diligently the stream is closed. The Vercel saving is unconditional, the Neon one is not — the console's autosuspend setting is half of this change and lives outside the repository.
+
+### 8.4.2. The socket is scoped to 채팅 ✅
+
+The stream is open only while the conversation is on screen. Leaving the tab closes it; returning opens it and catches up through the ordinary § 8.4. resume.
+
+**Why it moved down.** § 8.4.1. closes an idle window, but a window parked on 캘린더 is not idle — the user is using the app, and the stream was held for a screen showing nothing it feeds. Scoping is what removes that case, and it removes it without waiting out a countdown.
+
+- **The provider stays in the shell; only the socket moves.** `participants` is read by the calendar and § 12.3.'s profile screen, and the badge is drawn by the tab bar — all three outlive the chat screen, so `ChatStreamProvider` has to as well. It hands its handlers down through a context of its own, and `ChatStreamConnection` is the one component that consumes them
+- **A second mount would open a second stream.** The connection component is mounted by the chat screen and by nothing else; two of them means two unpooled Neon connections for one client
+- **The handlers object is lazy initial state, not a ref.** It has to be stable _and_ readable during render, and React Compiler rejects a ref read there
+- **The three losses, and what covers them:**
+  - **The in-app tab-bar badge** is the only one with real weight, and `sw.js` now covers it: every § 16.1. push posts the server's `unreadCount` to open windows, which the provider applies. It **replaces** rather than increments — a client that has been off 채팅 missed every arrival and has nothing to add to — and it is ignored while the reader is in the conversation, where § 8.8.'s cursor is about to clear it anyway. The worker still shows its banner unconditionally; informing the page is additive, and standing the notification down is the shape that lost the subscription
+  - **A nickname or avatar change** no longer reaches an open calendar the instant it happens. It is picked up on the next chat visit or the next load, and § 5.'s token is resolved against `users` on every request, so nothing is stale for long
+  - **The § 15.1. build signal** now arrives on the chat tab rather than any tab. The check also runs on every backgrounding, which is what usually collects it first
 
 ### 8.5. Sending ✅
 

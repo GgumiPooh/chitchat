@@ -21,7 +21,7 @@ import { type PropsWithChildren } from "react";
 // INFO: The proxy only saw that a cookie exists (REQUIREMENTS.md § 5.2.); this is the real check, and it covers every screen below.
 export default async function MainLayout({ children }: PropsWithChildren) {
   const user = await requireUserOrRedirect();
-  // INFO: REQUIREMENTS.md § 8.4. Both seed the shell's stream, so every tab starts from the same participant set and unread count the chat screen would have.
+  // INFO: REQUIREMENTS.md § 8.4.2. Both seed the shell's state, which outlives the chat screen the socket itself is scoped to.
   // INFO: REQUIREMENTS.md § 11.5. The calendar dot rides the same render — it is conversation-wide, so it needs no per-user query.
   const [participants, unreadCount, hasTodayEvent] = await Promise.all([
     listUsers(),

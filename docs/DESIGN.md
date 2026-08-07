@@ -1163,7 +1163,7 @@ Shown while the realtime stream is dropped for idleness (`REQUIREMENTS.md § 8.4
 | Property         | Value                                                                                                                       |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | Position         | `absolute inset-0` through `ShellOverlay` (§ 3.5.1.), so it covers the floating header and the tab bar                      |
-| Surface          | `glass` — the floating material of § 3.5., here at full-screen size                                                         |
+| Surface          | `bg-canvas/45` over `backdrop-blur-md` — **not** the `glass` of § 3.5.1.                                                    |
 | Content          | 32px `meta` moon glyph, `display-sm` `ink` `절전 모드`, `body-sm` `meta` reason, `caption` `meta` dismissal hint            |
 | Element          | A real `<button>` filling the overlay, not a click handler on a backdrop                                                    |
 | `:active`        | `bg-canvas/85` — the surface darkens under the press that dismisses it                                                      |
@@ -1178,13 +1178,15 @@ Shown while the realtime stream is dropped for idleness (`REQUIREMENTS.md § 8.4
 
 **No `aria-label`.** A label on the button would override the whole accessible name computation and reduce it to that one string — the reason and the hint below would then never be announced, which is the opposite of what a screen that has covered itself owes a screen-reader user. The visible copy _is_ the name.
 
+**It does not wear `glass`, and that is the one place § 3.5.1. is not followed.** That utility exists for floating chrome sitting _on_ content — the bars, the install banner, the floating icon buttons — where hiding what is underneath is the point. This covers the content instead, and at `canvas/75` the screen behind is gone rather than merely paused, which reads as a page that failed to load. `canvas/45` over a lighter blur keeps the conversation legible underneath, so the state is obviously temporary. It is spelled out at the call site precisely because it must not drift into the shared utility every bar reads.
+
 **Nothing behind it is made `inert`.** The content underneath stays focusable, which a modal would not allow — but this is not a modal: it is a state the app is in, any keystroke leaves it, and taking focus on mount already puts the one control first in line. A trap here would have to be released on wake and would fight the composer for focus on the way back.
 
 **No `:hover`.** The surface is the entire screen, so a hover state would fire wherever the pointer already happened to be resting when the overlay appeared — it would read as the overlay reacting to nothing.
 
 **The reason is written out, not implied by the glyph alone.** A screen that has covered itself with no explanation reads as a fault; `한동안 쓰지 않아 실시간 연결을 잠시 끊었어요.` says the app chose this, and the `caption` line below says how to leave.
 
-**It covers all four tabs, deliberately.** The stream belongs to the shell rather than the chat screen (`REQUIREMENTS.md § 8.4.`), so what is dormant is the app's one connection and not a screen — an overlay confined to 채팅 would leave the other three tabs silently stale with nothing on screen saying so.
+**It appears on 채팅 and nowhere else.** The socket is scoped to that screen (`REQUIREMENTS.md § 8.4.2.`), so it is the only screen that can be dormant — the other three hold no stream to drop and have nothing to announce. An earlier revision put this over all four tabs, which covered a calendar the user was actively reading to report a connection that screen never had.
 
 # 8. Rules.
 

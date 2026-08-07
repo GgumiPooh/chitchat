@@ -13,6 +13,9 @@ const NOTIFICATION_ICON = "/icons/icon-192.png";
 
 const FALLBACK_URL = "/chat";
 
+// WARN: Duplicates `UNREAD_COUNT_MESSAGE` in `shared/config`, for the reason above — a worker cannot import it. The two names have to move together.
+const UNREAD_COUNT_MESSAGE = "unread-count";
+
 self.addEventListener("install", () => {
   // INFO: There is no cache to warm and no old worker whose state matters, so a new build takes over on the next launch rather than the one after it.
   self.skipWaiting();
@@ -35,6 +38,7 @@ async function handlePush(data) {
   const payload = readPayload(data);
 
   updateBadge(payload.unreadCount);
+  await postUnreadCount(payload.unreadCount);
 
   // WARN: REQUIREMENTS.md § 16.1. Every push MUST end in a banner, with no exception for a visible window — WebKit revokes the subscription after three that do not, which reads as the Settings toggle emptying itself and push dying for good.
   await self.registration.showNotification(payload.title, {
@@ -46,6 +50,14 @@ async function handlePush(data) {
     renotify: true,
     data: { url: payload.url },
   });
+}
+
+// INFO: REQUIREMENTS.md § 8.4.2. The tab-bar badge is driven by the stream, which is only open on 채팅 — this is what moves it while the user is on one of the other three tabs.
+// WARN: It informs the page, it never replaces the banner. § 16.1. revokes the subscription after three pushes that show nothing, and standing the notification down because a window is open is exactly the shape that lost it.
+async function postUnreadCount(unreadCount) {
+  const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+
+  windows.forEach((client) => client.postMessage({ type: UNREAD_COUNT_MESSAGE, unreadCount }));
 }
 
 async function openConversation(url) {
