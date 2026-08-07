@@ -6,8 +6,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { toEnabledPacksQuery } from "./enabled-packs-query";
 
-// INFO: REQUIREMENTS.md § 13.6. Wide enough that a pack is warm in a few round trips, narrow enough that the conversation's own images (§ 8.3.) still get connections while this runs.
+// INFO: REQUIREMENTS.md § 13.6. Wide enough that a pack is warm in a few round trips, narrow enough that the § 13.3. route is not handed the whole library at once — each hit is a session check, an item read and a presign.
+// WARN: This is not what keeps the conversation's own images ahead of the warm. Over HTTP/2 there is one connection and no queue to be at the front of; `fetchPriority` is the mechanism, and `warmImage` is where it is set.
 const PRELOAD_CONCURRENCY = 4;
+
+// INFO: § 13.5. puts no ceiling on packs or on items per pack, so this is the one the warm imposes — past it a tab is loaded by being opened, which is exactly what every tab did before this existed.
+const MAX_PRELOADED_EMOTICONS = 120;
 
 // INFO: The ceiling the idle callback is given, and the whole delay where there is none — iOS Safari only shipped `requestIdleCallback` in 17, and the packs may as well warm a second late there as never.
 const PRELOAD_IDLE_DELAY = 2 * A_SECOND;
@@ -60,9 +64,11 @@ export function useEmoticonPreload(): void {
         return;
       }
 
-      const urls = packs.flatMap((pack) =>
-        pack.items.map((item) => toEmoticonAssetUrl(item.id, "image", item.version)),
-      );
+      const urls = packs
+        .flatMap((pack) =>
+          pack.items.map((item) => toEmoticonAssetUrl(item.id, "image", item.version)),
+        )
+        .slice(0, MAX_PRELOADED_EMOTICONS);
 
       // INFO: Every task resolves (`warmImage`), so one asset the § 13.3. route refuses cannot stop the queue on the rest of the pack.
       await mapPooled(urls, (url) => (isCancelled ? Promise.resolve() : warmImage(url)), {
@@ -76,6 +82,8 @@ export function useEmoticonPreload(): void {
  * WARN: Never rejects, for `mapPooled`'s reason — and never clears `src` on the way
  * out either. An empty source resolves against the document URL and the element
  * fetches the page itself as an image, which is the trap `stopSound` documents.
+ *
+ * WARN: `fetchPriority` is what actually keeps this behind the conversation. The whole app is one HTTP/2 connection, so a narrow pool only limits how many requests are outstanding — it does not put the room's own images in front of them. An out-of-DOM `new Image()` is dispatched at default priority without this.
  */
 function warmImage(url: string): Promise<void> {
   return new Promise((resolve) => {
@@ -84,6 +92,7 @@ function warmImage(url: string): Promise<void> {
     image.onload = () => resolve();
     image.onerror = () => resolve();
     image.decoding = "async";
+    image.fetchPriority = "low";
     image.src = url;
   });
 }
