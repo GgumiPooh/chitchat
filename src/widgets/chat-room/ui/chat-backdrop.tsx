@@ -31,17 +31,20 @@ export type ChatBackdropProps = {
  */
 export function ChatBackdrop({ className, mediaId }: ChatBackdropProps) {
   return (
-    <div className={cn("pointer-events-none absolute inset-0", className)}>
+    // WARN: `overflow-hidden` is what lets the photo below stand taller than this box without extending `#app-scroll`'s scroll range — a phantom scroll on the one screen that must not have one.
+    <div className={cn("pointer-events-none absolute inset-0 overflow-hidden", className)}>
       {/* INFO: `original`, not the thumbnail. This is drawn across the whole screen, where § 9.'s 720px long edge would be visibly soft. */}
       {/* WARN: No skeleton. The flat `chat-canvas` *is* the room's own floor, so a load that has not landed reads as a wallpaper that was never set; a pulsing plate the size of the screen behind the conversation is louder than the swap it covers. */}
+      {/* WARN: DESIGN.md § 3.4. The **layout** viewport, and top-anchored — the one thing in the shell that must not follow the keyboard. Sized to the shell it is `object-cover` over a box that loses a third of its height, so every frame of the keyboard sliding re-crops and rescales the wallpaper behind the conversation. Held at its resting height it is simply clipped by the box above, and the photo does not move at all. */}
       <PreloadImage
-        className="size-full"
+        className="absolute inset-x-0 top-0 h-[var(--layout-viewport-height,100dvh)]"
         imgClassName="size-full object-cover"
         placeholderClassName="bg-chat-canvas"
         src={toMediaUrl(mediaId, "original")}
         hasSkeleton={false}
         alt=""
       />
+      {/* INFO: The wash stays on the visible box rather than on the photo — it is answering for the contrast of what is on screen (DESIGN.md § 4.1.), not for the part of the wallpaper the keyboard has covered. */}
       <div className="absolute inset-0 bg-chat-scrim/45" />
     </div>
   );

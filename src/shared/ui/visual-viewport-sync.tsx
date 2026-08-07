@@ -5,6 +5,7 @@ import { useEffect } from "react";
 const HEIGHT_PROPERTY = "--viewport-height";
 const TOP_PROPERTY = "--viewport-top";
 const BOTTOM_PROPERTY = "--viewport-bottom";
+const LAYOUT_HEIGHT_PROPERTY = "--layout-viewport-height";
 
 /**
  * Mirrors the visual viewport onto the root element so the app shell can size
@@ -35,6 +36,7 @@ export function VisualViewportSync() {
       root.style.removeProperty(HEIGHT_PROPERTY);
       root.style.removeProperty(TOP_PROPERTY);
       root.style.removeProperty(BOTTOM_PROPERTY);
+      root.style.removeProperty(LAYOUT_HEIGHT_PROPERTY);
     };
 
     // INFO: The keyboard animates open over several frames, and each one fires both events — coalescing keeps the shell to one resize per frame.
@@ -45,14 +47,17 @@ export function VisualViewportSync() {
 
     function write() {
       const { height, offsetTop } = viewport as VisualViewport;
+      const layoutHeight = root.clientHeight;
 
       root.style.setProperty(HEIGHT_PROPERTY, `${height}px`);
       root.style.setProperty(TOP_PROPERTY, `${offsetTop}px`);
       // INFO: DESIGN.md § 3.4. What a portalled overlay needs: a `fixed` box outside the shell resolves `bottom` against the layout viewport, which the keyboard never shrinks.
       root.style.setProperty(
         BOTTOM_PROPERTY,
-        `${Math.max(root.clientHeight - offsetTop - height, 0)}px`,
+        `${Math.max(layoutHeight - offsetTop - height, 0)}px`,
       );
+      // INFO: DESIGN.md § 3.4. The same layout viewport, published for what must *not* follow the keyboard — a full-bleed photo behind the shell's content, which would otherwise re-crop itself every frame the keyboard slides (REQUIREMENTS.md § 12.2.).
+      root.style.setProperty(LAYOUT_HEIGHT_PROPERTY, `${layoutHeight}px`);
 
       // WARN: WebKit pans the document to reveal the focused field before the shell has resized; left in place that pan carries the header out of the visual viewport, which is the bug this component exists to fix.
       if (window.scrollY !== 0) {

@@ -3,7 +3,7 @@
 import type { MessageSearchResult } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { cn, formatDate, type Nullable } from "@/shared/lib";
-import { EmptyState, ShellOverlay, Skeleton } from "@/shared/ui";
+import { EmptyState, HapticTarget, ShellOverlay, Skeleton } from "@/shared/ui";
 import { LoaderCircle, Search, SearchX } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { SearchHighlight } from "./search-highlight";
@@ -122,31 +122,35 @@ export function MessageSearchResults({
     return (
       <>
         {results.map((result, index) => (
-          <button
-            key={result.id}
-            // INFO: DESIGN.md § 6.8. `canvas` rows on the `surface-soft` list, so a row reads as a card rather than as a band of the background.
-            className={cn(
-              "flex cursor-pointer flex-col gap-2xs rounded-md border border-hairline-soft bg-canvas p-sm text-left outline-none hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-strong",
-              index === activeIndex && "border-primary",
-            )}
-            type="button"
-            onClick={() => onSelect(index)}
-          >
-            <div className="flex items-baseline gap-xs">
-              {/* INFO: REQUIREMENTS.md § 8.7. Resolved against the participant set at render time, exactly as the bubble's own name is — never carried on the result. */}
-              <span className="min-w-0 flex-1 truncate text-title-sm text-ink">
-                {nameById.get(result.senderId) ?? ""}
-              </span>
-              <span className="shrink-0 text-caption text-meta">
-                {formatDate(result.createdAt)}
-              </span>
-            </div>
-            <SearchHighlight
-              className="line-clamp-2 text-body-sm text-body"
-              text={result.excerpt}
-              query={query}
-            />
-          </button>
+          // INFO: DESIGN.md § 7.15. Picking a result is a selection among peers, which is one of the two things that tick — and the § 8.6.1. arrows beside this list already do, so the list was the one surface in the search flow that answered a tap with nothing.
+          // WARN: `keepsScroll`, because the rows tile the scroller. Without it the switch keeps the drag a finger began on a row and ends it as a tap, which jumps the room to a result the reader was only scrolling past (§ 7.15.1.).
+          <HapticTarget key={result.id} className="flex" overlayClassName="touch-pan-y" keepsScroll>
+            <button
+              // INFO: DESIGN.md § 6.8. `canvas` rows on the `surface-soft` list, so a row reads as a card rather than as a band of the background.
+              // WARN: DESIGN.md § 7.15. `group-active:` beside the `active:`, or the row goes flat under a finger — the tap lands on the overlay, so `:active` matches the wrapper and never this.
+              className={cn(
+                "flex w-full cursor-pointer flex-col gap-2xs rounded-md border border-hairline-soft bg-canvas p-sm text-left outline-none group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-strong",
+                index === activeIndex && "border-primary",
+              )}
+              type="button"
+              onClick={() => onSelect(index)}
+            >
+              <div className="flex items-baseline gap-xs">
+                {/* INFO: REQUIREMENTS.md § 8.7. Resolved against the participant set at render time, exactly as the bubble's own name is — never carried on the result. */}
+                <span className="min-w-0 flex-1 truncate text-title-sm text-ink">
+                  {nameById.get(result.senderId) ?? ""}
+                </span>
+                <span className="shrink-0 text-caption text-meta">
+                  {formatDate(result.createdAt)}
+                </span>
+              </div>
+              <SearchHighlight
+                className="line-clamp-2 text-body-sm text-body"
+                text={result.excerpt}
+                query={query}
+              />
+            </button>
+          </HapticTarget>
         ))}
         {/* INFO: DESIGN.md § 7.8. A spinner here rather than more skeletons — the wait is unbounded and there is already a list of the real shape above it. */}
         <div ref={sentinelRef} className="flex h-10 items-center justify-center">
