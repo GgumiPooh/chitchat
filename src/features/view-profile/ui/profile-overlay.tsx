@@ -74,11 +74,16 @@ export function ProfileOverlay({ className, userId, currentUserId, onClose }: Pr
         aria-label={`${participant.name} 프로필`}
       >
         {participant.profileBackgroundMediaId && (
-          <BackgroundMedia
-            className="absolute inset-0"
-            mediaId={participant.profileBackgroundMediaId}
-            isVideo={participant.isProfileBackgroundVideo}
-          />
+          // WARN: DESIGN.md § 3.4. The photo is held at the *layout* viewport height and anchored to the top, because the § 12.1. editor sheet raises the keyboard over this screen — and this box follows it, so an `inset-0` cover would re-crop and rescale the photo on every frame of the slide. The clipping wrapper keeps the taller box from painting past the shell.
+          <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute inset-x-0 top-0 h-[var(--layout-viewport-height,100dvh)]">
+              <BackgroundMedia
+                className="size-full"
+                mediaId={participant.profileBackgroundMediaId}
+                isVideo={participant.isProfileBackgroundVideo}
+              />
+            </div>
+          </div>
         )}
         {/* INFO: Two stops, not one. The top darkens the strip the close control sits in and the bottom darkens the name; a flat wash over the whole photo would dim the part the user came to look at. */}
         <div className="absolute inset-0 bg-gradient-to-b from-scrim/60 via-transparent to-scrim/85" />

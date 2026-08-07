@@ -14,6 +14,13 @@ export type ProfileCoverProps = {
   isProfileBackgroundVideo: boolean;
 };
 
+// INFO: DESIGN.md § 7.16. The band's own layout, which follows the keyboard as the rest of the screen's content does.
+// WARN: `--viewport-height`, never `50vh` (DESIGN.md § 3.4.). `vh` is the *layout* viewport on WebKit, so it neither shrinks for the keyboard nor accounts for the browser chrome the shell is already sized around.
+const BAND_HEIGHT = "calc(var(--viewport-height, 100dvh) * 0.5)";
+
+// WARN: DESIGN.md § 3.4. The same half against the *layout* viewport, which is the one thing here that must not follow the keyboard. The photo is `object-cover`, so a box losing height re-crops and rescales it on every frame the keyboard slides — held at the band's resting height it is clipped by the band instead, and the image does not move at all.
+const COVER_HEIGHT = "calc(var(--layout-viewport-height, 100dvh) * 0.5)";
+
 /**
  * DESIGN.md § 7.16. The Settings screen's own header — half the visual viewport,
  * with the § 12.1. profile cover behind the avatar and the name.
@@ -21,10 +28,6 @@ export type ProfileCoverProps = {
  * INFO: REQUIREMENTS.md § 12.3. Tapping the avatar opens the profile screen, which
  * is where enlarging the photo now lives. The two used to be the same tap here, and
  * only one of them can be.
- *
- * WARN: Measured against `--viewport-height`, never `50vh` (DESIGN.md § 3.4.). `vh`
- * is the *layout* viewport on WebKit, so it does not shrink for the keyboard and
- * ignores the browser chrome the shell is already sized around.
  */
 export function ProfileCover({
   className,
@@ -46,14 +49,17 @@ export function ProfileCover({
         hasCover ? "bg-scrim" : "bg-surface-soft",
         className,
       )}
-      style={{ height: "calc(var(--viewport-height, 100dvh) * 0.5)" }}
+      style={{ height: BAND_HEIGHT }}
     >
       {profileBackgroundMediaId && (
-        <BackgroundMedia
-          className="absolute inset-0"
-          mediaId={profileBackgroundMediaId}
-          isVideo={isProfileBackgroundVideo}
-        />
+        // INFO: The band's own `overflow-hidden` is what crops this once the keyboard has shortened it.
+        <div className="absolute inset-x-0 top-0" style={{ height: COVER_HEIGHT }}>
+          <BackgroundMedia
+            className="size-full"
+            mediaId={profileBackgroundMediaId}
+            isVideo={isProfileBackgroundVideo}
+          />
+        </div>
       )}
       {/* INFO: Two stops for `ProfileOverlay`'s reason — the top darkens the strip the floating 설정 header sits in, the bottom darkens the name, and the middle is left alone. */}
       {/* WARN: No `pointer-events-none`. Nothing under the tint takes a press — the avatar and the name are later `relative` siblings and hit-test above it — so letting presses through only reaches the cover's own `<img>`/`<video>` and opens the OS "이미지 저장" callout on the Settings screen. */}
