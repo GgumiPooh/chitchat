@@ -2,6 +2,7 @@ import { pretendard } from "@/app/fonts";
 import { GlobalProvider } from "@/app/providers";
 import "@/app/styles";
 import { APPLE_SPLASH_DIR, APPLE_SPLASH_LINKS, APP_NAME } from "@/shared/config";
+import { THEME_COLOR } from "@/shared/theme";
 import type { Metadata, Viewport } from "next";
 import type { PropsWithChildren } from "react";
 
@@ -38,7 +39,11 @@ export const viewport: Viewport = {
   viewportFit: "cover",
   // INFO: DESIGN.md § 3.4. Kept as the Chromium-side belt to `VisualViewportSync`'s braces — WebKit ignores it, so it is never the only thing holding the shell together.
   interactiveWidget: "resizes-content",
-  themeColor: "#fbf9f6",
+  // INFO: DESIGN.md § 5. The pre-hydration answer only. `ThemeColorSync` rewrites both tags once the app resolves its own theme, which `prefers-color-scheme` stops predicting the moment § 12. can override it.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: THEME_COLOR.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLOR.dark },
+  ],
 };
 
 export default function RootLayout({ children }: PropsWithChildren) {

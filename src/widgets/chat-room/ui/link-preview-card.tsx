@@ -62,7 +62,7 @@ export function LinkPreviewCard({ className, url }: LinkPreviewCardProps) {
           {kind === "video" && (
             <span className="absolute inset-0 flex items-center justify-center">
               <span className="flex size-10 items-center justify-center rounded-full bg-scrim/60">
-                <Play className="size-5 translate-x-[1px] fill-on-primary text-on-primary" />
+                <Play className="size-5 translate-x-[1px] fill-on-scrim text-on-scrim" />
               </span>
             </span>
           )}

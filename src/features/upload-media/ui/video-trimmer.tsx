@@ -85,12 +85,12 @@ export function VideoTrimmer({
       <div className={cn("absolute inset-0 z-50 flex flex-col bg-scrim", className)}>
         <div className="flex items-center justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
           <IconButton
-            className="text-on-primary hover:bg-canvas/15 hover:text-on-primary"
+            className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
             Icon={X}
             aria-label="자르기 취소"
             onClick={onCancel}
           />
-          <span className="text-caption text-on-primary">
+          <span className="text-caption text-on-scrim">
             {isFixedWindow ? `${Math.round(windowSeconds)}초만 쓸 수 있어요` : "영상 자르기"}
           </span>
           <Button
@@ -107,7 +107,7 @@ export function VideoTrimmer({
         <div className="flex min-h-0 flex-1 items-center justify-center px-md">
           {/* INFO: The one failure the user can act on, named rather than drawn — `PreloadVideo`'s glyph says a load ended and this says the pick is unusable, which is what 취소 is the answer to. The § 7.10. viewer carries the same sentence. */}
           {sourceUrl && hasFailed && (
-            <p className="text-center text-body-md text-on-primary">
+            <p className="text-center text-body-md text-on-scrim">
               이 기기에서는 재생할 수 없는 형식이에요
             </p>
           )}
@@ -133,7 +133,7 @@ export function VideoTrimmer({
           )}
         </div>
         <div className="space-y-xs p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))]">
-          <label className="block text-body-sm text-on-primary" htmlFor="trim-start">
+          <label className="block text-body-sm text-on-scrim" htmlFor="trim-start">
             {isFixedWindow ? "시작 지점" : "시작"}
           </label>
           {/* INFO: Range inputs rather than a filmstrip. Decoding a strip of thumbnails is a second pass over the file for an affordance the handles already give, and the preview above already shows the frame under the one being dragged. */}
@@ -150,7 +150,7 @@ export function VideoTrimmer({
           />
           {!isFixedWindow && (
             <>
-              <label className="block text-body-sm text-on-primary" htmlFor="trim-end">
+              <label className="block text-body-sm text-on-scrim" htmlFor="trim-end">
                 끝
               </label>
               <input
@@ -166,7 +166,7 @@ export function VideoTrimmer({
               />
             </>
           )}
-          <p className="text-center text-caption text-on-primary/80">
+          <p className="text-center text-caption text-on-scrim/80">
             {`${formatSeconds(start)} ~ ${formatSeconds(resolvedEnd)} · ${formatSeconds(resolvedEnd - start)}`}
           </p>
         </div>

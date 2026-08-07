@@ -12,6 +12,7 @@ import { DevRefreshRow } from "./dev-refresh-row";
 import { DeviceSettingsRow } from "./device-settings-row";
 import { EmoticonSettingsRow } from "./emoticon-settings-row";
 import { ProfileCover } from "./profile-cover";
+import { ThemeSettingsRow } from "./theme-settings-row";
 
 export type SettingsPageProps = {
   className?: string;
@@ -25,9 +26,9 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
 
   return (
     <div className={cn("flex flex-1 flex-col", className)}>
-      {/* WARN: DESIGN.md § 7.16. The title follows the band underneath it, exactly as `ProfileCover`'s name does. The top scrim darkens the strip this sits in, so `text-ink` left over a cover is near-black on near-black — the scrim only makes a title legible if the title is `on-primary`. */}
+      {/* WARN: DESIGN.md § 7.16. The title follows the band underneath it, exactly as `ProfileCover`'s name does. The top scrim darkens the strip this sits in, so `text-ink` left over a cover is near-black on near-black — the scrim only makes a title legible if the title is `on-scrim`. */}
       <AppHeader
-        titleClassName={user.profileBackgroundMediaId ? "text-on-primary" : undefined}
+        titleClassName={user.profileBackgroundMediaId ? "text-on-scrim" : undefined}
         title="설정"
       />
       {/* INFO: DESIGN.md § 7.16. The cover runs full-bleed from the top of the screen, so it deliberately does *not* clear the floating header — its own top scrim is what keeps the 설정 title legible over a photo. */}
@@ -51,6 +52,8 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
       {/* INFO: REQUIREMENTS.md § 12.2. The wallpaper this user sees behind the conversation, which the other participant never does. */}
       <ChatBackgroundRow chatBackgroundMediaId={user.chatBackgroundMediaId} />
       <EmoticonSettingsRow />
+      {/* INFO: DESIGN.md § 5.1. Per device, like 알림 — the choice lives in `localStorage`, so it describes this browser rather than the account. */}
+      <ThemeSettingsRow />
       {/* INFO: REQUIREMENTS.md § 12. Reads `sessions` — the push subscriptions beside it in the 알림 row are a different set, and not revocable. */}
       <DeviceSettingsRow />
       {/* INFO: REQUIREMENTS.md § 15.1. Dev only — a production client is refreshed by the stream's `build` event and never needs to be told by hand. */}

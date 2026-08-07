@@ -78,7 +78,7 @@ export function MediaEditor({
       <div className={cn("absolute inset-0 z-50 flex flex-col bg-scrim", className)}>
         <div className="flex items-center justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
           <IconButton
-            className="text-on-primary hover:bg-canvas/15 hover:text-on-primary"
+            className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
             Icon={X}
             aria-label="편집 취소"
             onClick={onCancel}

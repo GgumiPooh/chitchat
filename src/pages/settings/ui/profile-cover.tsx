@@ -66,7 +66,8 @@ export function ProfileCover({
         size="profile"
         onClick={() => openProfile(userId)}
       />
-      <p className={cn("relative text-title-md", hasCover ? "text-on-primary" : "text-ink")}>
+      {/* INFO: DESIGN.md § 5.3. `on-scrim` over a cover, since the surface under it is the user's photograph and does not follow the theme; `ink` when there is no cover and the page floor does. */}
+      <p className={cn("relative text-title-md", hasCover ? "text-on-scrim" : "text-ink")}>
         {name}
       </p>
     </div>

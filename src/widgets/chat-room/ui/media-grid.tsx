@@ -135,11 +135,11 @@ export function MediaGrid({
       <>
         <span className="absolute inset-0 flex items-center justify-center">
           <span className="inline-flex size-8 items-center justify-center rounded-full bg-scrim/45">
-            <Play className="size-4 text-on-primary" strokeWidth={2} />
+            <Play className="size-4 text-on-scrim" strokeWidth={2} />
           </span>
         </span>
         {cell.durationMs !== null && (
-          <span className="absolute right-1 bottom-1 rounded-xs bg-scrim/45 px-1 py-0.5 text-micro text-on-primary">
+          <span className="absolute right-1 bottom-1 rounded-xs bg-scrim/45 px-1 py-0.5 text-micro text-on-scrim">
             {formatDuration(cell.durationMs)}
           </span>
         )}

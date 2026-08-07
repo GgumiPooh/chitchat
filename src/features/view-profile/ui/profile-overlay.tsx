@@ -75,14 +75,14 @@ export function ProfileOverlay({ className, userId, currentUserId, onClose }: Pr
         <div className="absolute inset-0 bg-gradient-to-b from-scrim/60 via-transparent to-scrim/85" />
         <div className="relative flex items-start justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
           <IconButton
-            className="text-on-primary hover:bg-canvas/15 hover:text-on-primary"
+            className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
             Icon={X}
             aria-label="닫기"
             onClick={onClose}
           />
           {isMine && (
             <IconButton
-              className="text-on-primary hover:bg-canvas/15 hover:text-on-primary"
+              className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
               Icon={Pencil}
               haptic
               aria-label="프로필 편집"
@@ -99,12 +99,12 @@ export function ProfileOverlay({ className, userId, currentUserId, onClose }: Pr
             size="profile"
             canEnlarge
           />
-          <p className="text-title-md text-on-primary">{participant.name}</p>
+          <p className="text-title-md text-on-scrim">{participant.name}</p>
           {!isMine && (
             // INFO: REQUIREMENTS.md § 7. A raw button, so the haptic overlay is composed by hand rather than riding a `haptic` prop.
             <HapticTarget className="mt-xs flex rounded-full">
               <button
-                className="inline-flex min-h-11 cursor-pointer items-center gap-xs rounded-full bg-canvas/15 px-md text-button-md text-on-primary transition-colors outline-none group-active:bg-canvas/25 hover:bg-canvas/25 focus-visible:ring-2 focus-visible:ring-primary active:bg-canvas/25"
+                className="inline-flex min-h-11 cursor-pointer items-center gap-xs rounded-full bg-on-scrim/15 px-md text-button-md text-on-scrim transition-colors outline-none group-active:bg-on-scrim/25 hover:bg-on-scrim/25 focus-visible:ring-2 focus-visible:ring-primary active:bg-on-scrim/25"
                 type="button"
                 onClick={openConversation}
               >

@@ -225,6 +225,9 @@ One accent. A muted terracotta rose — warm enough to belong to a personal app,
 | `primary-disabled` | #E8CFC9 | Disabled CTA                                             |
 | `primary-tint`     | #F7E7E2 | Selected-day fill, highlight flash, low-emphasis accent  |
 | `on-primary`       | #FFFFFF | Text/icon on `primary`                                   |
+| `on-scrim`         | #FFFFFF | Text/icon over `scrim` or over a photograph              |
+
+**`on-primary` and `on-scrim` are the same white and must never be conflated.** `on-primary` is the foreground of a `primary` fill and inverts to near-black on dark (§ 5.4.); `on-scrim` is the **one colour token that does not change between themes**, because what sits under it is a fixed scrim or the user's own photograph, neither of which follows the theme. While the app was light-only the two were indistinguishable, so viewer chrome, the trimmer, the profile overlay and the cover title all borrowed `on-primary` — and every one of them turned black-on-black the moment dark shipped. The same applies to their companions: a wash over a scrim is `bg-on-scrim/15`, never `bg-canvas/15`.
 
 ### 4.1.4. Chat.
 
@@ -464,11 +467,13 @@ Where it applies: the tab bar's glyph stack (§ 7.3.), every `icon-button` (§ 7
 
 ## 5.1. State Model.
 
-v1 ships light only. `ThemeProvider` wraps `next-themes` with `forcedTheme="light"`; the settings toggle is not rendered. Enabling dark later is: populate the `.dark` block, delete `forcedTheme`, render the toggle.
+Three states — `system`, `light`, `dark` — and **`system` is the default**. A theme setting that ignores the phone's own until it is touched is a setting the user has to find in order to get what they already asked the OS for. `ThemeProvider` wraps `next-themes` with `attribute="class"` and `enableSystem`; `ThemeSettingsRow` (§ 12.) is the segmented control. The choice is **per device**, like the 알림 row and unlike 입력 중 표시 — `next-themes` keeps it in `localStorage`, so it describes this browser rather than the account.
+
+`next-themes` injects a blocking inline script that writes the class before first paint, which is what keeps a dark launch from flashing the light canvas. That script is also why `<html>` carries `suppressHydrationWarning`; removing either reintroduces the flash.
 
 ## 5.2. CSS Mechanism.
 
-`@custom-variant dark (&:where(.dark, .dark *))` in `globals.css`. Dark values rebind the **same** custom property names inside `.dark` — there is no `bg-canvas-dark` utility, `bg-canvas` swaps automatically. The `.dark` block exists in `theme.css` today with no declarations.
+`@custom-variant dark (&:where(.dark, .dark *))` in `globals.css`. Dark values rebind the **same** custom property names inside `.dark` — there is no `bg-canvas-dark` utility, `bg-canvas` swaps automatically. The `.dark` block in `theme.css` carries the full palette; no `dark:` utility appears anywhere in `src/`, and none should.
 
 ## 5.3. Dark Readiness Rules.
 
@@ -479,12 +484,27 @@ These are binding now, even though no dark value exists yet.
 | Never hardcode a hex or a raw Tailwind colour utility — always a semantic token            | Every such site becomes a manual `dark:` override later                    |
 | Never assume a token is light or dark (e.g. `text-ink` over `bg-canvas`, not `text-black`) | Pairs stay valid across themes only if expressed as token pairs            |
 | `bubble-ink` is a single token shared by both bubble fills                                 | On dark, both fills darken together; a per-fill text colour would fork     |
-| Shadows are authored as `rgb(ink / α)`-derived values                                      | Dark drops shadows entirely (they read as smudge); one token set to `none` |
+| Shadows are authored as `rgb(ink / α)`-derived values                                      | Dark drops shadows entirely (they read as smudge) — see § 5.4. for how     |
 | No light tint may be reused directly on a dark canvas                                      | Tints are re-derived, not inverted                                         |
+| A foreground over `scrim` or a photo takes `on-scrim`, never `on-primary` (§ 4.1.3.)       | The surface under it does not follow the theme, so the foreground must not |
 
-## 5.4. Deferred.
+## 5.4. Dark Palette.
 
-Dark hex values, the settings toggle, and the pre-paint `.dark` class injection from cookie are out of v1 scope. When implemented, dark MUST be hand-tuned, not arithmetically inverted, and `canvas-dark` MUST retain the warm bias (never `#000000`).
+Hand-tuned, never arithmetically inverted. **No neutral is `#000000`** — every one keeps the warm bias, which is what makes this the same product with the lights off. `scrim` in particular stays off black: it is used at an opacity over content, and a pure black scrim on a warm dark canvas reads as a hole rather than a dimming.
+
+| Group    | What moved, and why                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Surfaces | The § 4.1.6. ladder still ascends, it just ascends towards light. `chat-canvas` stays one step deeper than `canvas` — the direction reverses, the relationship does not. `backdrop` alone goes the other way: it is what the shell is an object _on_                                                                                                                                                                  |
+| Accent   | `primary` lifts to `#D2795F` and **`on-primary` inverts to dark**. The light value fails AA as a link on a dark canvas, and lifting it far enough to pass then fails white text on its own fill. One of the two had to move, and the fill is the smaller surface                                                                                                                                                      |
+| Chat     | `bubble-ink` inverts **once, for both fills**, as § 5.3. requires. `bubble-theirs` has no dark counterpart to "the one pure white" — what carries over is that it is the neutral fill and `bubble-mine` the chromatic one. **`chat-sender` is now lighter than `chat-meta`**, where light made it darker: the split exists so the sender name clears AA (§ 4.1.4.), and on this floor that means moving the other way |
+| Tints    | `primary-tint` and `search-hit` are re-derived against the dark canvas, never the light tints reused. A light tint on a dark floor is a bright plate, not a low-emphasis accent                                                                                                                                                                                                                                       |
+| Shadows  | Dropped entirely — see below. Elevation is carried by the surface ladder alone: a shadow derived from `ink` is a light smear on a dark floor, and one derived from black is invisible on it                                                                                                                                                                                                                           |
+
+**Shadows cannot be dropped the way every colour is swapped, and the obvious attempt fails silently.** Tailwind v4 **inlines** a `@theme` shadow into the utility it generates — `.shadow-raised` emits `--tw-shadow: 0 1px 2px #1f1b170a`, not `var(--shadow-raised)` — where a colour emits `var(--color-*)`. Rebinding `--shadow-raised` inside `.dark` therefore changes nothing at all and the light shadow keeps painting, with no error anywhere. The removal is a utility override instead, `.dark .shadow-raised, .dark .shadow-floating { --tw-shadow: 0 0 #0000 }`, using the value `shadow-none` itself compiles to. **Any new `--shadow-*` token needs its own line there**; the `.dark` block will not do it.
+
+Every foreground/background pair in use clears **WCAG AA** — the tightest are `on-primary` on `primary` at 5.55:1 and `error` on `canvas` at 5.56:1, and `chat-sender` on `chat-canvas` reaches 9.87:1 against the 4.5 floor § 4.1.4. was written for.
+
+**One platform limit, deliberately unfixed:** `app/manifest.ts` carries a single `background_color` / `theme_color` with no media variant, so the PWA launch splash is light even for a dark install. `themeColor` in `app/layout.tsx` _is_ media-matched and covers the iOS status bar and Android chrome.
 
 # 6. Chat Surface.
 

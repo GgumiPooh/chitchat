@@ -106,12 +106,12 @@ export function MediaTray({ className, drafts, isReading, onEdit, onRemove }: Me
         {/* INFO: The play glyph marks the tile as a video; it is not a control, so it takes no pointer events and the edit strip below it stays reachable. */}
         {isVideo && (
           <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <Play className="size-5 text-on-primary drop-shadow-sm" strokeWidth={1.75} />
+            <Play className="size-5 text-on-scrim drop-shadow-sm" strokeWidth={1.75} />
           </span>
         )}
         {/* INFO: Both kinds are editable — a photo crops and filters (§ 9.), a video trims (§ 12.1.'s trimmer, with no length cap here). */}
         <button
-          className="absolute inset-x-0 bottom-0 flex h-6 cursor-pointer items-center justify-center rounded-b-sm bg-scrim/45 text-on-primary transition-colors outline-none hover:bg-scrim/60 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+          className="absolute inset-x-0 bottom-0 flex h-6 cursor-pointer items-center justify-center rounded-b-sm bg-scrim/45 text-on-scrim transition-colors outline-none hover:bg-scrim/60 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
           type="button"
           aria-label={isVideo ? "영상 자르기" : "사진 편집"}
           onClick={() => onEdit(draft)}
