@@ -9,6 +9,9 @@ const SECURITY_HEADERS = [
   { key: "X-Frame-Options", value: "DENY" },
 ];
 
+// INFO: The origin jandh-emoticons is deployed to, proxied in as a multi-zone. Set per environment; the default is that repo's dev server, so a local `pnpm dev` in both needs no configuration.
+const EMOTICONS_ORIGIN = process.env.EMOTICONS_ORIGIN ?? "http://localhost:3001";
+
 const SERVICE_WORKER_HEADERS = [
   { key: "Content-Type", value: "application/javascript; charset=utf-8" },
   { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
@@ -56,5 +59,11 @@ export default {
       // WARN: REQUIREMENTS.md § 16.1. A cached worker is a worker that never updates — the browser keeps serving the old script and the push handler silently stays on the previous build.
       { source: "/sw.js", headers: SERVICE_WORKER_HEADERS },
     ];
+  },
+  // INFO: jandh-emoticons is served from this origin under `/emoticons`, so its URL 임포트 screen is same-origin with this app rather than a subdomain an installed iOS PWA would hand to Safari View Controller.
+  // WARN: One prefix covers pages, route handlers and `_next` assets alike, because that repo sets `basePath: "/emoticons"`. Nothing here may narrow the match to page paths — the assets would then 404 against this app's own `_next`.
+  // WARN: `:path*` matches zero segments, so this one rule also serves a bare `/emoticons`. Next's own multi-zones guide pairs its wildcard with a second constant rule only because it writes `:path+`, which does not.
+  async rewrites() {
+    return [{ source: "/emoticons/:path*", destination: `${EMOTICONS_ORIGIN}/emoticons/:path*` }];
   },
 } satisfies NextConfig;

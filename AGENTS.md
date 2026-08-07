@@ -79,6 +79,12 @@ Desktop users see the mobile UI but MUST get proper pointer behaviour: mouse `cl
 
 **One exception, and it is a platform capability rather than a pointer or a viewport:** where an OS cannot perform an action at all, the control offering it may be withheld or merged, through `useIsIos` from `@/shared/lib` — never through `useIsCoarsePointer`, and never through a width. `REQUIREMENTS.md § 10.`'s 저장 is the only instance: a download cannot reach the iOS photo library, so iOS merges 저장 into the share sheet's row while Android and desktop keep both controls. Rendering a different control set is otherwise still forbidden, and this exception does not extend to layout, sizing, or component choice. `useIsIos` reads the user agent because no feature detects "will this download be findable"; do not add a second UA branch without a comparable argument in `docs/`.
 
+## 4.2.1. `/emoticons/*` is another app
+
+jandh-emoticons is served from this origin under `/emoticons`, through a rewrite in `next.config.ts` (`REQUIREMENTS.md § 13.7.`). It is same-origin but a **separate repository and a separate deployment**, so nothing in this app's route tree answers those paths.
+
+Cross that boundary with a document navigation — `window.location`, or an `<a href>` — never `<Link>` or `router.push`. The client router would ask for an RSC payload that does not exist. Do not narrow the rewrite or the `proxy.ts` matcher exclusions without reading § 13.7. first; both are load-bearing in ways that fail as 404s on assets rather than as errors.
+
 ## 4.3. App shell width
 
 All screen content, including the bottom tab bar, is constrained to the app shell max width and horizontally centered. Use `Container` from `@/shared/ui`; do not hardcode `max-w-*` values in screens.

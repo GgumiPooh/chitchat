@@ -89,6 +89,20 @@ export const EMOTICON_SETTINGS_ROUTE = "/settings/emoticons";
 export const DEVICE_SETTINGS_ROUTE = "/settings/devices";
 
 /**
+ * jandh-emoticons' URL 임포트 screen, served from this origin as a multi-zone
+ * (`next.config.ts`'s rewrite).
+ *
+ * WARN: Same origin but **another app**, so this is reached with a document
+ * navigation — never `<Link>` or `router.push`. Next would try to fetch an RSC
+ * payload for a route this app's tree does not contain.
+ *
+ * WARN: Not built from `EMOTICON_SETTINGS_ROUTE`. That one is 설정's own screen at
+ * `/settings/emoticons`; this prefix is the zone's, and it is fixed by
+ * `basePath` in the other repo rather than chosen here.
+ */
+export const EMOTICON_IMPORT_ROUTE = "/emoticons/import";
+
+/**
  * The tab routes in bar order — the single source of that order.
  *
  * DESIGN.md § 4.7.1. Which way a screen slides is read from this, so the bar's
