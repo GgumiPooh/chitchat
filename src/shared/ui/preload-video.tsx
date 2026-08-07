@@ -1,11 +1,9 @@
 "use client";
 
-import { cn, type Nullable } from "@/shared/lib";
+import type { Nullable } from "@/shared/lib";
 import { VideoOff } from "lucide-react";
-import { useState, type ComponentProps, type CSSProperties, type SyntheticEvent } from "react";
-import { Skeleton } from "./skeleton";
-
-type LoadStatus = "loading" | "loaded" | "failed";
+import type { ComponentProps, CSSProperties, SyntheticEvent } from "react";
+import { PreloadFrame, toMediaElementClassName, useLoadStatus } from "./preload-media";
 
 export type PreloadVideoProps = Omit<ComponentProps<"video">, "style" | "src" | "poster"> & {
   className?: string;
@@ -34,16 +32,13 @@ export type PreloadVideoProps = Omit<ComponentProps<"video">, "style" | "src" | 
 /**
  * A `<video>` that shows a DESIGN.md § 7.8. skeleton until it has something to
  * paint, and a static glyph if nothing ever arrives — `PreloadImage`'s contract for
- * the one element that cannot use it.
+ * the one element that cannot use it, over the same `PreloadFrame`.
  *
  * WARN: A `<video>` with no decoded frame paints **black**, not nothing. That is
  * the whole reason this exists: an unwrapped element is a black rectangle for the
  * length of the download, which reads as a broken asset rather than a pending one.
  *
- * TODO: This and `PreloadImage` are the same shell around two elements. The gaps
- * this file has had to be patched for — `hasSkeleton`, the poster, the reveal event
- * — were all props the copy dropped, so the two want one `useLoadStatus` and one
- * placeholder between them rather than a third chance to diverge.
+ * INFO: No retry, unlike `PreloadImage` — every source here is a `blob:` URL or a § 12.1. cover under an id a replacement never reuses, so there is no cached redirect to get past.
  */
 export function PreloadVideo({
   className,
@@ -60,47 +55,25 @@ export function PreloadVideo({
   onError,
   ...props
 }: PreloadVideoProps) {
-  const [status, setStatus] = useState<LoadStatus>("loading");
-  const [trackedSrc, setTrackedSrc] = useState(src);
-  // INFO: A poster is the placeholder once there is one, so the element is revealed at once and paints it while the video data is still arriving.
-  const isRevealed = status === "loaded" || (status === "loading" && poster !== undefined);
-
-  if (trackedSrc !== src) {
-    setTrackedSrc(src);
-    setStatus("loading");
-  }
+  const { status, isRevealed, markLoaded, markFailed } = useLoadStatus({
+    src,
+    canRetry: false,
+    hasPoster: poster !== undefined,
+  });
 
   return (
-    <span className={cn("grid", className)} style={style}>
-      {!isRevealed && hasSkeleton && (
-        <span
-          className={cn(
-            "col-start-1 row-start-1 size-full overflow-hidden rounded-[inherit]",
-            placeholderClassName,
-          )}
-        >
-          <Skeleton className="size-full rounded-[inherit]" />
-        </span>
-      )}
-      {status === "failed" && (
-        <span
-          className={cn(
-            "col-start-1 row-start-1 flex size-full items-center justify-center overflow-hidden rounded-[inherit] bg-surface-strong",
-            placeholderClassName,
-          )}
-        >
-          <VideoOff className="size-4 text-meta-soft" strokeWidth={1.75} />
-        </span>
-      )}
+    <PreloadFrame
+      className={className}
+      placeholderClassName={placeholderClassName}
+      style={style}
+      status={status}
+      isRevealed={isRevealed}
+      hasSkeleton={hasSkeleton}
+      failureIcon={VideoOff}
+    >
       <video
         {...props}
-        // WARN: `min-h-0 min-w-0` is load-bearing — as a grid item the element's automatic minimum size is its aspect ratio's transferred suggestion, which beats `height: 100%` and pushes a portrait asset out of the box.
-        className={cn(
-          "col-start-1 row-start-1 min-h-0 min-w-0 transition-opacity duration-200 ease-out",
-          !isRevealed && "opacity-0",
-          status === "failed" && "opacity-0",
-          videoClassName,
-        )}
+        className={toMediaElementClassName(isRevealed, videoClassName)}
         src={src}
         poster={poster}
         autoPlay={autoPlay}
@@ -110,22 +83,22 @@ export function PreloadVideo({
         onLoadedData={handleLoadedData}
         onError={handleError}
       />
-    </span>
+    </PreloadFrame>
   );
 
   function handleLoadedMetadata(event: SyntheticEvent<HTMLVideoElement>) {
-    setStatus("loaded");
+    markLoaded();
     onLoadedMetadata?.(event);
   }
 
   function handleLoadedData(event: SyntheticEvent<HTMLVideoElement>) {
-    setStatus("loaded");
+    markLoaded();
     startPlayback(event.currentTarget);
     onLoadedData?.(event);
   }
 
   function handleError(event: SyntheticEvent<HTMLVideoElement>) {
-    setStatus("failed");
+    markFailed();
     onError?.(event);
   }
 

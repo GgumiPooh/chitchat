@@ -1,18 +1,9 @@
 "use client";
 
-import { cn, type Nullable, type Optional } from "@/shared/lib";
+import type { Nullable } from "@/shared/lib";
 import { ImageOff } from "lucide-react";
-import { useState, type ComponentProps, type CSSProperties, type SyntheticEvent } from "react";
-import { Skeleton } from "./skeleton";
-
-type LoadStatus = "loading" | "loaded" | "failed";
-
-/**
- * INFO: One is enough for what this is for. The retry's whole job is to reach the
- * network past a cached redirect, and a second attempt at the same live origin
- * would fail for the same reason the first did.
- */
-const MAX_RETRIES = 1;
+import type { ComponentProps, CSSProperties, SyntheticEvent } from "react";
+import { PreloadFrame, toMediaElementClassName, useLoadStatus } from "./preload-media";
 
 export type PreloadImageProps = Omit<ComponentProps<"img">, "placeholder" | "style" | "src"> & {
   className?: string;
@@ -36,16 +27,8 @@ export type PreloadImageProps = Omit<ComponentProps<"img">, "placeholder" | "sty
 
 /**
  * An `<img>` that shows a DESIGN.md § 7.8. skeleton until its asset paints, and a
- * static glyph if the asset never arrives.
- *
- * The wrapper reserves the box, so a caller that already knows the size (chat's
- * emoticons and media, REQUIREMENTS.md § 8.3.) keeps giving it the same geometry it
- * gave the bare image — the skeleton fills it and nothing re-measures on load.
- *
- * WARN: A failed load is retried once against a cache-busted URL, and § 13.3.'s
- * multi-day asset cache depends on it: a redirect cached that long outlives the
- * object an edit replaced (§ 13.4.), and this is the only thing that reaches the
- * new one without waiting for the cache to expire.
+ * static glyph if the asset never arrives. The box, the skeleton and the retry are
+ * `PreloadFrame` and `useLoadStatus`, shared with `PreloadVideo`.
  */
 export function PreloadImage({
   className,
@@ -59,53 +42,34 @@ export function PreloadImage({
   onError,
   ...props
 }: PreloadImageProps) {
-  const [status, setStatus] = useState<LoadStatus>("loading");
-  const source = src ?? undefined;
-  const [trackedSrc, setTrackedSrc] = useState(source);
-  const [retryCount, setRetryCount] = useState(0);
-  const resolvedSrc = toAttemptUrl(source, retryCount);
-
-  if (trackedSrc !== source) {
-    setTrackedSrc(source);
-    setStatus("loading");
-    setRetryCount(0);
-  }
+  // INFO: Null is coerced here rather than inside the shell, so the shared hook keeps one absent-source notion instead of two.
+  const { status, isRevealed, attemptSrc, markLoaded, markFailed } = useLoadStatus({
+    src: src ?? undefined,
+    canRetry,
+  });
 
   return (
-    <span className={cn("grid", className)} style={style}>
-      {status !== "loaded" && (
-        <span
-          className={cn(
-            "col-start-1 row-start-1 size-full overflow-hidden rounded-[inherit]",
-            placeholderClassName,
-          )}
-        >
-          {status === "failed" ? (
-            <span className="flex size-full items-center justify-center bg-surface-strong">
-              <ImageOff className="size-4 text-meta-soft" strokeWidth={1.75} />
-            </span>
-          ) : (
-            hasSkeleton && <Skeleton className="size-full rounded-[inherit]" />
-          )}
-        </span>
-      )}
+    <PreloadFrame
+      className={className}
+      placeholderClassName={placeholderClassName}
+      style={style}
+      status={status}
+      isRevealed={isRevealed}
+      hasSkeleton={hasSkeleton}
+      failureIcon={ImageOff}
+    >
       {/* eslint-disable-next-line @next/next/no-img-element -- The asset routes of REQUIREMENTS.md § 9. and § 13.3. answer a 302 to a presigned R2 URL, which `next/image` cannot take as a loader source. */}
       <img
         {...props}
         // WARN: Keyed by the attempt URL so a swap — or a retry — remounts the element. The ref below only re-reads the cache on mount, and an animated emoticon only restarts its loop on a fresh element (REQUIREMENTS.md § 13.2.).
-        key={resolvedSrc}
+        key={attemptSrc}
         ref={syncCachedStatus}
-        // WARN: `min-h-0 min-w-0` is load-bearing — as a grid item the image's automatic minimum size is its aspect ratio's transferred suggestion, which beats `height: 100%` and pushes a portrait asset out of a square cell.
-        className={cn(
-          "col-start-1 row-start-1 min-h-0 min-w-0 transition-opacity duration-200 ease-out",
-          status !== "loaded" && "opacity-0",
-          imgClassName,
-        )}
-        src={resolvedSrc}
+        className={toMediaElementClassName(isRevealed, imgClassName)}
+        src={attemptSrc}
         onLoad={handleLoad}
         onError={handleError}
       />
-    </span>
+    </PreloadFrame>
   );
 
   // WARN: A cached image finishes before React attaches `onLoad`, so the status has to be read back off the element. `complete` alone is not the answer — it is also true for a failed load and for an empty `src`, which is what the natural size separates.
@@ -115,55 +79,23 @@ export function PreloadImage({
     }
 
     if (node.naturalWidth > 0) {
-      setStatus("loaded");
+      markLoaded();
 
       return;
     }
 
     // WARN: Not a straight `failed`. This is the remount path — a tab switch and back — so a *cached* failure lands here rather than in `handleError`, and skipping the retry is what left the image broken until the cache expired.
-    fail();
+    markFailed();
   }
 
   function handleLoad(event: SyntheticEvent<HTMLImageElement>) {
-    setStatus("loaded");
+    markLoaded();
     onLoad?.(event);
   }
 
   function handleError(event: SyntheticEvent<HTMLImageElement>) {
-    if (!fail()) {
+    if (!markFailed()) {
       onError?.(event);
     }
   }
-
-  /** Whether a retry was scheduled; `false` means the load is finally failed. */
-  function fail(): boolean {
-    if (!canRetry || retryCount >= MAX_RETRIES || !isRetryable(source)) {
-      setStatus("failed");
-
-      return false;
-    }
-
-    setRetryCount(retryCount + 1);
-    setStatus("loading");
-
-    return true;
-  }
-}
-
-/**
- * WARN: A new URL, not a reload. `<img>` has no cache mode, so the query parameter
- * is the only way to make the browser skip a cached response — which is the entire
- * point, since a cached 302 to a deleted object is what this recovers from.
- */
-function toAttemptUrl(src: Optional<string>, attempt: number): Optional<string> {
-  if (!src || attempt === 0) {
-    return src;
-  }
-
-  return `${src}${src.includes("?") ? "&" : "?"}retry=${attempt}`;
-}
-
-// INFO: A `blob:` or `data:` source has no cache to get past, and a query parameter on either is an unresolvable URL rather than a second attempt.
-function isRetryable(src: Optional<string>): boolean {
-  return src !== undefined && !src.startsWith("blob:") && !src.startsWith("data:");
 }
