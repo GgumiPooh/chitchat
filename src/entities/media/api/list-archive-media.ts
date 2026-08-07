@@ -3,7 +3,7 @@ import "server-only";
 import { ARCHIVE_PAGE_SIZE, type LibraryKind } from "@/shared/config";
 import { getDb, media, messageMedia, messages } from "@/shared/db";
 import type { Optional } from "@/shared/lib";
-import { and, desc, eq, exists, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, exists, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import { toArchiveMedia } from "../model/to-archive-media";
 import type { ArchiveMedia } from "../model/types";
 
@@ -40,8 +40,35 @@ export async function listArchiveMedia({
     .where(before ? and(shelf, isOlderThan(before)) : shelf)
     .orderBy(desc(media.createdAt), desc(media.id))
     .limit(limit);
+  const sentIn = await findSendingMessages(rows.map((row) => row.id));
 
-  return rows.map(toArchiveMedia);
+  return rows.map((row) => toArchiveMedia(row, sentIn.get(row.id) ?? null));
+}
+
+/**
+ * REQUIREMENTS.md § 10. Which message carries each tile, for 대화에서 보기.
+ *
+ * WARN: A second query rather than a join on the listing above. `message_media`
+ * has no unique index on `media_id`, so a joined row set can be longer than the
+ * page it was limited to — which would both repeat a tile and spend a slot of the
+ * page on the repeat, with the keyset cursor none the wiser.
+ *
+ * INFO: A row with no answer here is the ordinary library-only upload (§ 10.), or
+ * one whose message was deleted; both leave the control off the viewer rather than
+ * offering a jump into nothing.
+ */
+async function findSendingMessages(mediaIds: string[]): Promise<Map<string, number>> {
+  if (mediaIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = await getDb()
+    .select({ mediaId: messageMedia.mediaId, messageId: messages.id })
+    .from(messageMedia)
+    .innerJoin(messages, eq(messages.id, messageMedia.messageId))
+    .where(and(inArray(messageMedia.mediaId, mediaIds), isNull(messages.deletedAt)));
+
+  return new Map(rows.map(({ mediaId, messageId }) => [mediaId, messageId]));
 }
 
 /**

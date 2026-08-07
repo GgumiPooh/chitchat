@@ -47,6 +47,7 @@ import {
   useSoundUnlock,
   useUnsentWork,
   warmLineHeights,
+  type Maybe,
   type Nullable,
   type Optional,
 } from "@/shared/lib";
@@ -108,18 +109,34 @@ import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
 import { SystemNotice } from "./system-notice";
 import { TypingIndicator } from "./typing-indicator";
 
+/**
+ * REQUIREMENTS.md § 8.6.1. A message the § 8.6. search is telling the room to move
+ * to.
+ *
+ * WARN: The token is what makes a repeat of the same id a fresh instruction rather
+ * than no change at all. § 10.'s link does **not** come through here: it names its
+ * message once, at mount, and a target that could fall back to it would re-jump
+ * every time a search closed.
+ */
+export type ChatJumpTarget = {
+  token: number;
+  id: number;
+};
+
 export type ChatRoomProps = {
   className?: string;
   currentUserId: string;
   initialMessages: ChatMessage[];
   /** REQUIREMENTS.md § 12.2. This user's own wallpaper; `null` leaves the room on the flat `chat-canvas`. */
   backgroundMediaId: Nullable<string>;
+  /** @see ChatJumpTarget */
+  jumpTarget?: Nullable<ChatJumpTarget>;
   /**
-   * REQUIREMENTS.md § 8.6.1. A message the room is being told to move to, from
-   * outside it. The token is what makes a repeat of the same id a fresh
-   * instruction rather than no change at all.
+   * REQUIREMENTS.md § 10. The message the screen was opened on by 보관함's
+   * 대화에서 보기, taken **once, at mount** — it is the URL the room was reached
+   * through and not a target that can be named again.
    */
-  jumpTarget?: Nullable<{ token: number; id: number }>;
+  initialJumpMessageId?: Maybe<number>;
   /**
    * REQUIREMENTS.md § 8.6.1. The open search's query, lit inside every bubble
    * that contains it — which is what marks a search jump, in place of the
@@ -177,6 +194,7 @@ export function ChatRoom({
   initialMessages,
   backgroundMediaId,
   jumpTarget,
+  initialJumpMessageId,
   searchQuery,
   bottomBar,
 }: ChatRoomProps) {
@@ -772,8 +790,8 @@ export function ChatRoom({
   }, [isEmoticonPanelOpen]);
 
   /**
-   * REQUIREMENTS.md § 8.6.1. A result the § 8.6. search picked, run through the
-   * same jump a quote takes.
+   * REQUIREMENTS.md § 8.6.1. A target named from outside the room — a § 8.6.
+   * search result or § 10.'s 대화에서 보기 — run through the same jump a quote takes.
    *
    * WARN: Keyed on the token, never on the id. Re-picking the row the room is
    * already parked on has to flash it again — keyed on the id that would be no
@@ -786,6 +804,21 @@ export function ChatRoom({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpTarget?.token]);
+
+  /**
+   * REQUIREMENTS.md § 10. The message 보관함's 대화에서 보기 opened this screen on,
+   * taken on mount and never again — the URL is not an instruction that can repeat.
+   *
+   * WARN: It flashes where the search jump above does not (DESIGN.md § 6.8.). There
+   * is no query lit inside the bubble here to say which row the tap arrived on, and
+   * that is exactly the case the flash exists for.
+   */
+  useEffect(() => {
+    if (initialJumpMessageId) {
+      void jumpToMessage(initialJumpMessageId, { flash: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // INFO: DESIGN.md § 6.8. The flash is a moment, not a selection — nothing dismisses it but time.
   useEffect(() => {

@@ -1,1 +1,1 @@
-export { ChatRoom, type ChatRoomProps } from "./ui/chat-room";
+export { ChatRoom, type ChatJumpTarget, type ChatRoomProps } from "./ui/chat-room";

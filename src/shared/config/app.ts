@@ -31,6 +31,16 @@ export const APP_SHELL_ID = "app-shell";
 /** The four tab routes, in tab-bar order. REQUIREMENTS.md § 7. */
 export const CHAT_ROUTE = "/chat";
 
+/**
+ * REQUIREMENTS.md § 10. A message the conversation is to open on, carried by
+ * 보관함's 대화에서 보기 — the id, where § 11.5.'s calendar link carries a day.
+ *
+ * INFO: An id is right here and wrong there. A tile's message is the whole
+ * destination and is still on the row when the link is drawn, while a delete
+ * notice outlives the `events` row it would have named.
+ */
+export const CHAT_MESSAGE_PARAM = "message";
+
 export const CALENDAR_ROUTE = "/calendar";
 
 /**

@@ -3,6 +3,7 @@
 import type { ArchiveMedia } from "@/entities/media";
 import { useSetBackground } from "@/features/set-background";
 import { MediaPickerSheet } from "@/features/upload-media";
+import { CHAT_MESSAGE_PARAM, CHAT_ROUTE } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
 import {
   isShareableSelection,
@@ -29,6 +30,7 @@ import {
   useShelfStaging,
 } from "@/widgets/archive-shelves";
 import { ImagePlus, Images, ListChecks, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LibrarySegments } from "./library-segments";
 
@@ -43,6 +45,7 @@ export type ArchivePageProps = {
  * of a chat row.
  */
 export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
+  const router = useRouter();
   const [viewer, setViewer] = useState<Nullable<{ cells: MediaCell[]; index: number }>>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -188,6 +191,7 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
           onShare={(mediaId) => void saving.share([mediaId])}
           onSave={(mediaId) => void saving.save([mediaId])}
           onSetBackground={setBackground.open}
+          onOpenMessage={openInChat}
         />
       )}
       {/* INFO: REQUIREMENTS.md § 12.1. Mounted outside the viewer conditional above, so dismissing the viewer cannot unmount the sheet mid-write — `useSetBackground` returns the two halves separately for exactly this. */}
@@ -195,6 +199,21 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
       {staging.overlay}
     </div>
   );
+
+  /**
+   * REQUIREMENTS.md § 10. Hands the room a target and lets § 8.6.1.'s jump do the
+   * rest — it already loads a window around a message that is off the loaded page.
+   *
+   * WARN: The viewer is dismissed first. It is a `ShellOverlay` and the shell
+   * outlives the route change, so left open it would cover the conversation it
+   * just travelled to until the transition happened to unmount it.
+   */
+  function openInChat(messageId: number) {
+    setViewer(null);
+    router.push(
+      `${CHAT_ROUTE}?${new URLSearchParams({ [CHAT_MESSAGE_PARAM]: String(messageId) })}`,
+    );
+  }
 
   function handlePick(files: File[]) {
     setIsPickerOpen(false);

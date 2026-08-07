@@ -43,4 +43,13 @@ export type ChatMedia = {
  */
 export type ArchiveMedia = ChatMedia & {
   createdAt: string;
+  /**
+   * REQUIREMENTS.md § 10. The message this tile was sent in, which 대화에서 보기
+   * jumps to (§ 8.6.1.).
+   *
+   * WARN: `null` is ordinary, not an error — a row uploaded straight into the
+   * library hangs off no message at all, and so does one whose message has since
+   * been deleted. The control is withheld there rather than jumping to nothing.
+   */
+  messageId: Nullable<number>;
 };

@@ -16,6 +16,8 @@ export function toArchiveCells(media: ArchiveMedia[]): MediaCell[] {
     // WARN: The grid draws a thumbnail unconditionally, so `isInLibrary`'s `filename IS NULL` is the only thing keeping a file attachment out of it. Relaxing that predicate needs the § 6.5. card here first; a file reaching a tile is a broken image, not a fallback.
     filename: item.filename,
     sizeBytes: item.size,
+    // INFO: REQUIREMENTS.md § 10. What 대화에서 보기 needs; null for a row uploaded straight into the library, which was never sent (§ 10.).
+    messageId: item.messageId,
     id: item.id,
   }));
 }

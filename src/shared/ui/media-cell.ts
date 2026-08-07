@@ -50,5 +50,13 @@ export type MediaCell = {
    * `toCellsFromDrafts` are what fill it once the column exists.
    */
   voice?: Nullable<VoiceTrack>;
+  /**
+   * REQUIREMENTS.md § 10. The message this attachment was sent in, which the
+   * viewer's 대화에서 보기 jumps to.
+   *
+   * INFO: Filled by the library alone. A chat bubble's own cells leave it unset,
+   * because the reader is already looking at the message it would jump to.
+   */
+  messageId?: Nullable<number>;
   id: string;
 };

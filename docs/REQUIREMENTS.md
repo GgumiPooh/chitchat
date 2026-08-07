@@ -30,7 +30,6 @@ Every open item in this document, so an agent can read one table and then only t
 | ------------------------- | ------------------------------------------------------------------------------- | --------------- |
 | **Chat — viewer**         | Pinch zoom, tuned on a real device                                              | § 8.1.          |
 | **Chat — link previews**  | Withhold a thumbnail whose signed URL has expired                               | § 8.9.          |
-| **Library**               | Jump-to-message link — the § 8.6.1. machinery it waited on is built             | § 10.           |
 | **Settings**              | Device list + revocation (`sessions`). Theme row stays hidden until § 16. ships | § 12.           |
 | **Overlays**              | A focus trap shared by the profile screen and the § 7.10. viewer                | § 12.3.         |
 | **Security**              | Session check audit, error-detail leaks                                         | § 14.           |
@@ -769,9 +768,9 @@ A recording made in the composer, sent as its own bubble and played inline. It r
 
 ---
 
-## 10. Library Tab (`보관함`)
+## 10. Library Tab (`보관함`) ✅
 
-**Landed** apart from the jump-to-message link, which waits on § 8.6.1.
+**Landed** in full, the jump-to-message link included.
 
 The tab is `보관함` with three segments, `사진`, `파일` and `음성`; the prefix is `/archive`, renamed from `/gallery` when the third segment made the old path assert something false (§ 7.). Each shelf is a route of its own (`/archive/gallery`, `/archive/files`, `/archive/voice`) and the bare prefix redirects to the first, so the back button walks between them and the chips are links rather than a control that changes nothing in the URL.
 
@@ -826,14 +825,14 @@ The tab is `보관함` with three segments, `사진`, `파일` and `음성`; the
 - **A second pick while the first batch is running is ordinary**, so the progress counter is written **relatively, never absolutely**. It is claimed before decoding rather than after — reading forty photos' real dimensions takes seconds, and an absolute write would let the first batch finishing zero the counter under the second and flip the screen to its empty state mid-upload
 - **Read authorization admits a library-only object.** `canReadMedia` would otherwise refuse the other participant a photo that hangs off no message; the library is shared
 - **The viewer carries 배경으로 설정** (§ 12.1.), here and in a chat bubble's viewer alike. It is hidden on a video, which has no still frame to wear, and on a draft, which has no stored object for the server-side copy to read. The sheet is mounted **outside** the viewer's own conditional, so dismissing the viewer over it cannot unmount it mid-write
+- **The viewer also carries `대화에서 보기`, which opens the conversation at the message the slide was sent in** — under the slide track, never in the header row, which is already at its width (`DESIGN.md § 7.10.`). It keeps its box on a slide that has no message, exactly as the header's controls do: unmounted, it would resize the track and move the photo under a swiping finger. The tap navigates to `CHAT_MESSAGE_PARAM`, which the chat route shape-checks the way § 11.5.'s `?day=` is checked, and § 8.6.1.'s jump does the rest. It **flashes** on arrival (`DESIGN.md § 6.8.`) where a search jump does not — there is no query lit inside the bubble to say where the tap landed — so the room takes it as a prop of its own, consumed once at mount, rather than as a `jumpTarget` that closing a search would fall back to and re-fire. The viewer is dismissed **before** the navigation: it is a `ShellOverlay` and the shell outlives the route change. 사진 alone offers it; 파일's tap downloads and mounts no viewer (§ 7.10.1.)
+- **The message a tile was sent in rides on `ArchiveMedia.messageId`, resolved by a second query and never a join.** `message_media` has no unique index on `media_id`, so a joined row set can outrun the `LIMIT` it was paged with — which both repeats a tile and spends a slot of the page on the repeat, with the keyset cursor none the wiser. `null` is ordinary rather than an error: a row uploaded straight into the library was never sent, and neither, any longer, is one whose message has been deleted
 
 **Routing and the API**
 
 - **Three routes, one tab.** `/archive/gallery` is 사진, `/archive/files` is 파일 and `/archive/voice` is 음성, with the bare `/archive` redirecting to the first. Nested under `ARCHIVE_ROUTE`, so `isUnderRoute`'s prefix rule keeps the tab bar's fill on 보관함 and `RouteTransition` resolves all three to the same tab index — which makes `directionBetween` return `none`, so **a segment switch does not slide** (`DESIGN.md § 4.7.1.`). That is the correct outcome and it needed no code: a segment is not a sideways move between tabs
 - **The segments are three `Chip`s wrapping `Link`s, not an underlined segmented control** (`DESIGN.md § 7.10.`). Links, so the back button walks between them and each is announced as navigation; chips, for the reason `DESIGN.md § 7.3.` gives about two travelling indicators one strip apart. They are withheld in selection mode, as the header's own controls are — a segment tap there is a navigation that would drop the selection with nothing having said so
 - **One endpoint, not two.** `GET /api/archive` takes `kind`, defaulting to `photo`; an unknown value is a **400** rather than a silent fallback, so a client asking for a shelf this build has never heard of is not handed photos instead. `DELETE /api/archive` takes no `kind` at all and reaches every segment — `removeArchiveMedia` narrows on `isInLibrary()` alone, so one 삭제 serves all three
-
-- [ ] A link that jumps to where the image was sent in the conversation. **The machinery it was waiting on is built** (§ 8.6.1.) — what is left is finding the message a `media` row hangs off, and reaching the chat tab with a target the room will take
 
 ---
 
@@ -1224,7 +1223,7 @@ An installed iOS PWA is not reloaded when the user reopens it — the system res
 4. ✅ Layout + tab bar + PWA manifest (§ 7.)
 5. **Chat tab (§ 8.) — in progress.** Text and media bubbles, paging, virtualization, optimistic send, SSE, read cursor, replies, the jump machinery, the typing indicator (§ 8.12.), search (§ 8.6.), the sticky date indicator (§ 8.3.) and scroll-to-bottom marking read (§ 8.1.) all landed. **Open: pinch zoom, and the expired-thumbnail rule (§ 8.9.)**
 6. ✅ R2 media pipeline + sending photos and videos in chat (§ 9.)
-7. ✅ Library tab (§ 10.), both segments — open: the jump-to-message link, now unblocked by § 8.6.1.
+7. ✅ Library tab (§ 10.), all three shelves — the jump-to-message link included
 8. ✅ Emoticons (§ 13.)
 9. ✅ Calendar tab (§ 11.)
 10. **Settings tab (§ 12.) — in progress.** Profile editor, tap-to-enlarge avatar, the 입력 중 표시 switch (§ 8.12.), 로그아웃, both backgrounds (§ 12.1., § 12.2.) and the profile screen (§ 12.3.) landed. **Open: the device list, and the § 12.3. focus trap**

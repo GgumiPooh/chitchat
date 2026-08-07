@@ -1,7 +1,7 @@
 "use client";
 
 import { cn, useIsIos } from "@/shared/lib";
-import { Download, Share, Trash2, Wallpaper, X } from "lucide-react";
+import { Download, MessageCircle, Share, Trash2, Wallpaper, X } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { IconButton } from "./icon-button";
 import type { MediaCell } from "./media-cell";
@@ -29,6 +29,13 @@ export type MediaViewerProps = {
    * control, so the id has to be read at the tap rather than captured at mount.
    */
   onSetBackground?: (mediaId: string) => void;
+  /**
+   * REQUIREMENTS.md § 10. Opens the conversation at the message the slide on
+   * screen was sent in. Given the message id, since the slide moves under the
+   * control — and withheld outright by the chat room, where the reader is already
+   * on the message it would travel to.
+   */
+  onOpenMessage?: (messageId: number) => void;
 };
 
 /**
@@ -58,6 +65,7 @@ export function MediaViewer({
   onShare,
   onSave,
   onSetBackground,
+  onOpenMessage,
 }: MediaViewerProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(initialIndex);
@@ -66,6 +74,8 @@ export function MediaViewer({
   const downloadUrl = current?.downloadUrl;
   // INFO: REQUIREMENTS.md § 8.11. Picks which save routes this platform is offered, by the same rule the § 10. selection bar follows.
   const isIosDevice = useIsIos();
+  // INFO: REQUIREMENTS.md § 10. Null for a library row that was uploaded rather than sent, and for one whose message has since been deleted — neither has a conversation to open.
+  const sentMessageId = current?.messageId ?? null;
   // WARN: REQUIREMENTS.md § 8.11. The same sheet either way, but not the same intent — on iOS this control *is* 저장, and asking for it as 공유 would word the buffering wait and the re-tap dialog for a share the user never asked for.
   const handleSheet = isIosDevice ? onSave : onShare;
 
@@ -180,6 +190,24 @@ export function MediaViewer({
             </div>
           ))}
         </div>
+        {/* INFO: REQUIREMENTS.md § 10. Below the track rather than over it, so it never covers the photograph the viewer exists to show whole. */}
+        {/* WARN: The row keeps its box on a slide that cannot jump, for the reason the header's controls do — a control that unmounts mid-swipe resizes the track and moves the photo under a finger that is already travelling. */}
+        {onOpenMessage && (
+          <div className="flex justify-center px-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))]">
+            <button
+              className={cn(
+                "inline-flex min-h-11 cursor-pointer items-center gap-xs rounded-full border border-canvas/25 px-md text-button-sm text-on-primary transition-colors outline-none hover:bg-canvas/15 focus-visible:ring-2 focus-visible:ring-primary active:bg-canvas/15",
+                sentMessageId === null && "invisible",
+              )}
+              type="button"
+              tabIndex={sentMessageId === null ? -1 : undefined}
+              onClick={() => sentMessageId !== null && onOpenMessage(sentMessageId)}
+            >
+              <MessageCircle className="size-4" strokeWidth={1.75} />
+              대화에서 보기
+            </button>
+          </div>
+        )}
       </div>
     </ShellOverlay>
   );
