@@ -17,6 +17,7 @@ import {
 import { fetchParticipants } from "../api/fetch-participants";
 import { fetchUnreadCount } from "../api/fetch-unread-count";
 import { postRead } from "../api/post-read";
+import { DormantOverlay } from "../ui/dormant-overlay";
 import { useAppRefresh } from "./use-app-refresh";
 import { useChatEventSource } from "./use-chat-event-source";
 
@@ -95,7 +96,7 @@ export function ChatStreamProvider({
     void markRead(true);
   }, []);
 
-  useChatEventSource({
+  const { isDormant, wake } = useChatEventSource({
     onMessage: handleMessage,
     onUserChanged: refreshParticipants,
     onResume: handleResume,
@@ -138,6 +139,7 @@ export function ChatStreamProvider({
       value={{ participants, unreadCount, typingUserIds, subscribe, setIsReading }}
     >
       {children}
+      {isDormant && <DormantOverlay onWake={wake} />}
     </ChatStreamContext.Provider>
   );
 

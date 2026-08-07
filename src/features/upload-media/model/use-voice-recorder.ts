@@ -14,6 +14,7 @@ import {
   A_SECOND,
   declareAudioSession,
   declareRestingAudioSession,
+  useKeepAwake,
   type Nullable,
 } from "@/shared/lib";
 import { toast } from "@/shared/ui";
@@ -77,6 +78,9 @@ export function useVoiceRecorder({ onDone }: UseVoiceRecorderParams) {
   // WARN: Distinct from `isCancelledRef`, which only reaches a recorder that exists. This one covers the window before one does, while `getUserMedia` is still pending.
   const isAbandonedRef = useRef(false);
   const onDoneRef = useRef(onDone);
+
+  // INFO: REQUIREMENTS.md § 8.4.1. Recording is hands-off and `MAX_VOICE_DURATION` is twice the idle allowance, so without this the 절전 모드 overlay lands over a clip still being recorded and takes the stop control with it.
+  useKeepAwake(state !== "idle");
 
   // INFO: Read through a ref, so a caller passing a fresh closure every render cannot rebuild the callbacks the running session was opened with.
   useEffect(() => {

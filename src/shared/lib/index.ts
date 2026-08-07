@@ -63,6 +63,7 @@ export { useIsCoarsePointer } from "./hooks/use-is-coarse-pointer";
 export { isIos, useIsIos } from "./hooks/use-is-ios";
 export { useIsVirtualKeyboardOpen } from "./hooks/use-is-virtual-keyboard-open";
 export { useIsomorphicLayoutEffect } from "./hooks/use-isomorphic-layout-effect";
+export { isBusy, useKeepAwake } from "./hooks/use-keep-awake";
 export {
   LONG_PRESS_TARGET_CLASS,
   useLongPress,

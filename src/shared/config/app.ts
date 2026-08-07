@@ -1,4 +1,4 @@
-import { A_DAY, A_SECOND, type Maybe } from "@/shared/lib";
+import { A_DAY, A_MINUTE, A_SECOND, type Maybe } from "@/shared/lib";
 import { z } from "zod";
 
 export const APP_NAME = "J&H";
@@ -148,6 +148,27 @@ export const SSE_REPLAY_LIMIT = 200;
 
 // INFO: REQUIREMENTS.md § 8.4. `EventSource` stops retrying after a fatal error (a 401, a body that is not `text/event-stream`), so the client reopens by hand this long after one.
 export const SSE_RETRY_DELAY = 5 * A_SECOND;
+
+/**
+ * REQUIREMENTS.md § 8.4.1. The kill switch for the idle close and its overlay.
+ *
+ * WARN: Default **on** — absent, blank, or anything but an explicit off leaves it
+ * enabled, so the cost control cannot be lost by forgetting a variable in a new
+ * environment. Only `false`, `0` or `off` turn it off.
+ *
+ * WARN: `NEXT_PUBLIC_` and read as a literal member access. Next inlines these at
+ * build time, so a computed lookup resolves to `undefined` in the browser bundle
+ * and the switch would silently read as on everywhere.
+ */
+export const IS_SSE_IDLE_SLEEP_ENABLED = !["false", "0", "off"].includes(
+  (process.env.NEXT_PUBLIC_SSE_IDLE_SLEEP ?? "").trim().toLowerCase(),
+);
+
+// INFO: REQUIREMENTS.md § 8.4.1. How long a focused window may go untouched before the stream is dropped. § 8.4.'s background close fires only when the app goes away, which a desktop PWA left open behind another window never does.
+export const SSE_IDLE_TIMEOUT = A_MINUTE;
+
+// WARN: REQUIREMENTS.md § 8.4.1. The same countdown for a window that has lost focus — shorter, since nobody is reading it, but deliberately not zero: a file picker, a share sheet and the emoticon uploader all blur the window in the middle of a task the user is still doing.
+export const SSE_BLUR_IDLE_TIMEOUT = 30 * A_SECOND;
 
 /**
  * REQUIREMENTS.md § 15.1. Identifies the running deployment, so a client that has
