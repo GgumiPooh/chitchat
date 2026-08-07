@@ -1,6 +1,6 @@
 "use client";
 
-import { cn, useIsIos, useModalOverlay } from "@/shared/lib";
+import { cn, useIsIos, useModalOverlay, usePinchZoom } from "@/shared/lib";
 import { Download, MessageCircle, Share, Trash2, Wallpaper, X } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { IconButton } from "./icon-button";
@@ -44,9 +44,8 @@ export type MediaViewerProps = {
  * chat room, the box this fills: staying inside the scroller leaves it under the
  * header and the tab bar.
  *
- * TODO: Pinch zoom is REQUIREMENTS.md § 18. #6, still undecided and meant to be
- * tuned on a real device. Swiping between attachments is native scroll snapping,
- * which needs no gesture parameters at all.
+ * INFO: REQUIREMENTS.md § 18. #6. Pinch zoom is `usePinchZoom`; swiping between
+ * attachments stays native scroll snapping, which needs no gesture parameters at all.
  *
  * WARN: REQUIREMENTS.md § 8.11. This is the one surface that suppresses none of the
  * OS's own hold gestures — a slide is the whole screen with nothing of the app's
@@ -68,6 +67,8 @@ export function MediaViewer({
   // INFO: REQUIREMENTS.md § 12.3. `Escape`, the focus trap and the marker the profile screen underneath reads, from the one owner the profile screen shares.
   const overlayRef = useModalOverlay<HTMLDivElement>(onClose);
   const [index, setIndex] = useState(initialIndex);
+  // INFO: REQUIREMENTS.md § 18. #6. One zoom for the viewer rather than one per slide — only the slide on screen can be gestured, and a stale scale on a neighbour would be restored by a swipe back to it.
+  const zoom = usePinchZoom();
   const current = cells[index];
   // INFO: A draft has no stored object yet, so there is nothing for either control to reach.
   const downloadUrl = current?.downloadUrl;
@@ -96,19 +97,19 @@ export function MediaViewer({
       >
         <div className="flex items-center justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
           <IconButton
-            className="text-on-primary hover:bg-canvas/15 hover:text-on-primary"
+            className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
             Icon={X}
             aria-label="닫기"
             onClick={onClose}
           />
           {cells.length > 1 && (
-            <span className="text-caption text-on-primary">{`${index + 1} / ${cells.length}`}</span>
+            <span className="text-caption text-on-scrim">{`${index + 1} / ${cells.length}`}</span>
           )}
           <div className="flex items-center">
             {onDelete && (
               // INFO: DESIGN.md § 7.10. Deleting one's own attachment, confirmed — the same delete the § 8.11. action sheet reaches.
               <IconButton
-                className="text-semantic-error hover:bg-canvas/15 hover:text-semantic-error-hover"
+                className="text-semantic-error hover:bg-on-scrim/15 hover:text-semantic-error-hover"
                 Icon={Trash2}
                 aria-label="메시지 삭제"
                 onClick={onDelete}
@@ -119,7 +120,7 @@ export function MediaViewer({
               // WARN: `invisible`, never unmounted — the controls beside it keep their box for the same reason. Removing a 44px slot from this right-aligned row mid-swipe slides the save control under a finger already travelling towards it.
               <IconButton
                 className={cn(
-                  "text-on-primary hover:bg-canvas/15 hover:text-on-primary",
+                  "text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim",
                   (!downloadUrl || current.isVideo) && "invisible",
                 )}
                 Icon={Wallpaper}
@@ -130,7 +131,7 @@ export function MediaViewer({
             {handleSheet && current && (
               <IconButton
                 className={cn(
-                  "text-on-primary hover:bg-canvas/15 hover:text-on-primary",
+                  "text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim",
                   !downloadUrl && "invisible",
                 )}
                 Icon={isIosDevice ? Download : Share}
@@ -143,7 +144,7 @@ export function MediaViewer({
             {!isIosDevice && (
               <a
                 className={cn(
-                  "inline-flex size-11 items-center justify-center rounded-full text-on-primary transition-colors outline-none hover:bg-canvas/15 focus-visible:ring-2 focus-visible:ring-primary",
+                  "inline-flex size-11 items-center justify-center rounded-full text-on-scrim transition-colors outline-none hover:bg-on-scrim/15 focus-visible:ring-2 focus-visible:ring-primary",
                   !downloadUrl && "invisible",
                 )}
                 href={downloadUrl ?? undefined}
@@ -155,9 +156,13 @@ export function MediaViewer({
           </div>
         </div>
         {/* INFO: Native scroll snapping is the horizontal swipe of REQUIREMENTS.md § 8.1. — it costs no gesture code and matches the platform's own momentum. */}
+        {/* WARN: REQUIREMENTS.md § 18. #6. A zoomed slide freezes the track, or the pan competes with the swipe for the same finger and the photo changes under it. `overflow-x-hidden` holds `scrollLeft` where it is, so the slide is still the one the reader zoomed when it lifts. */}
         <div
           ref={trackRef}
-          className="scrollbar-hidden flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
+          className={cn(
+            "scrollbar-hidden flex min-h-0 flex-1 snap-x snap-mandatory overscroll-x-contain",
+            zoom.isZoomed ? "overflow-x-hidden" : "overflow-x-auto",
+          )}
           onClick={handleBackdropClick}
           onScroll={handleScroll}
         >
@@ -173,7 +178,8 @@ export function MediaViewer({
               ) : cell.isVideo ? (
                 <VideoSlide cell={cell} />
               ) : (
-                <ImageSlide cell={cell} />
+                // WARN: REQUIREMENTS.md § 18. #6. Only the slide on screen takes the gesture. A neighbour is half a swipe away and mounted, so handlers on it would answer a pinch that started over the photo the reader can see.
+                <ImageSlide cell={cell} zoom={slideIndex === index ? zoom : undefined} />
               )}
             </div>
           ))}
@@ -184,7 +190,7 @@ export function MediaViewer({
           <div className="flex justify-center px-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))]">
             <button
               className={cn(
-                "inline-flex min-h-11 cursor-pointer items-center gap-xs rounded-full border border-canvas/25 px-md text-button-sm text-on-primary transition-colors outline-none hover:bg-canvas/15 focus-visible:ring-2 focus-visible:ring-primary active:bg-canvas/15",
+                "inline-flex min-h-11 cursor-pointer items-center gap-xs rounded-full border border-on-scrim/25 px-md text-button-sm text-on-scrim transition-colors outline-none hover:bg-on-scrim/15 focus-visible:ring-2 focus-visible:ring-primary active:bg-on-scrim/15",
                 sentMessageId === null && "invisible",
               )}
               type="button"
@@ -203,8 +209,16 @@ export function MediaViewer({
   function handleScroll() {
     const track = trackRef.current;
 
-    if (track) {
-      setIndex(Math.round(track.scrollLeft / track.clientWidth));
+    if (!track) {
+      return;
+    }
+
+    const next = Math.round(track.scrollLeft / track.clientWidth);
+
+    // WARN: REQUIREMENTS.md § 18. #6. The zoom belongs to the slide it was applied to, so arriving at another one drops it. Unconditional, because `scroll` fires for every frame of the swipe and resetting on each would fight a pinch that is still in progress.
+    if (next !== index) {
+      zoom.reset();
+      setIndex(next);
     }
   }
 
@@ -266,23 +280,28 @@ function isOnPaintedArea(image: HTMLImageElement, x: number, y: number): boolean
 function SlidePlaceholder({ cell }: { cell: MediaCell }) {
   return (
     <div
-      className="max-h-full w-full rounded-md bg-canvas/10"
+      className="max-h-full w-full rounded-md bg-on-scrim/10"
       style={{ aspectRatio: `${cell.width} / ${cell.height}` }}
     />
   );
 }
 
-function ImageSlide({ cell }: { cell: MediaCell }) {
+function ImageSlide({ cell, zoom }: { cell: MediaCell; zoom?: ReturnType<typeof usePinchZoom> }) {
   return (
-    // INFO: The stored ratio gives the skeleton a box to fill while the original downloads — the grid tile the user tapped came from a thumbnail, so this request starts cold.
-    <PreloadImage
-      className="max-h-full w-full"
-      imgClassName="size-full object-contain"
-      placeholderClassName="rounded-md"
-      style={{ aspectRatio: `${cell.width} / ${cell.height}` }}
-      src={cell.originalUrl ?? cell.previewUrl}
-      alt=""
-    />
+    // WARN: REQUIREMENTS.md § 18. #6. The gesture surface, and it never scales — the hook measures its box for the pan bounds, so the transform belongs to the element inside it.
+    <div className="flex max-h-full w-full items-center justify-center" {...zoom?.surfaceProps}>
+      <div className="max-h-full w-full" style={zoom?.contentStyle}>
+        {/* INFO: The stored ratio gives the skeleton a box to fill while the original downloads — the grid tile the user tapped came from a thumbnail, so this request starts cold. */}
+        <PreloadImage
+          className="max-h-full w-full"
+          imgClassName="size-full object-contain"
+          placeholderClassName="rounded-md"
+          style={{ aspectRatio: `${cell.width} / ${cell.height}` }}
+          src={cell.originalUrl ?? cell.previewUrl}
+          alt=""
+        />
+      </div>
+    </div>
   );
 }
 
@@ -298,7 +317,7 @@ function VideoSlide({ cell }: { cell: MediaCell }) {
   if (hasFailed) {
     return (
       <div className="flex flex-col items-center gap-sm text-center">
-        <p className="text-body-md text-on-primary">이 기기에서는 재생할 수 없는 형식이에요</p>
+        <p className="text-body-md text-on-scrim">이 기기에서는 재생할 수 없는 형식이에요</p>
         <a
           className="inline-flex min-h-11 items-center gap-xs rounded-md bg-canvas px-md text-button-md text-ink transition-colors hover:bg-surface-soft"
           href={cell.downloadUrl ?? undefined}

@@ -74,6 +74,12 @@ export {
   type LongPressPoint,
 } from "./hooks/use-long-press";
 export { OPEN_OVERLAY_SELECTOR, useModalOverlay } from "./hooks/use-modal-overlay";
+export {
+  DOUBLE_TAP_ZOOM_SCALE,
+  MAX_ZOOM_SCALE,
+  MIN_ZOOM_SCALE,
+  usePinchZoom,
+} from "./hooks/use-pinch-zoom";
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
 export type { Maybe, Nullable, Optional } from "./nullish";
 export { randomId } from "./random";

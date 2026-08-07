@@ -1,0 +1,344 @@
+"use client";
+
+import { useCallback, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { A_SECOND } from "../date/time";
+import { GESTURE_SLOP } from "../gesture";
+import type { Nullable } from "../nullish";
+
+/** REQUIREMENTS.md § 18. #6. Tuned on a real device; every other number here follows from these three. */
+export const MIN_ZOOM_SCALE = 1;
+
+export const MAX_ZOOM_SCALE = 4;
+
+export const DOUBLE_TAP_ZOOM_SCALE = 2;
+
+// INFO: REQUIREMENTS.md § 13.6. The same window the emoticon double tap counts on, and for the same reason — `dblclick` never arrives on touch.
+const DOUBLE_TAP_WINDOW = A_SECOND / 3;
+
+// INFO: How much of the overshoot past a bound survives as movement. Low enough that the bound is felt, high enough that the pinch does not read as jammed.
+const RUBBER_BAND_FACTOR = 0.3;
+
+type Point = { x: number; y: number };
+
+type Transform = { scale: number; x: number; y: number };
+
+const IDENTITY: Transform = { scale: MIN_ZOOM_SCALE, x: 0, y: 0 };
+
+type PinchOrigin = {
+  distance: number;
+  midpoint: Point;
+  transform: Transform;
+};
+
+/**
+ * REQUIREMENTS.md § 8.1., § 18. #6. Pinch to zoom a viewer slide, pan while zoomed,
+ * double tap to toggle. The horizontal swipe between slides stays native scroll
+ * snapping — this hook only reports `isZoomed` so the track can be frozen while it is.
+ *
+ * WARN: `touch-action: none` belongs on the element taking these handlers, but only
+ * once a gesture owns it. Applied unconditionally it would eat the track's swipe at
+ * rest, which is the one half of § 18. #6 that was already settled.
+ */
+export function usePinchZoom() {
+  const [transform, setTransform] = useState<Transform>(IDENTITY);
+  const [isGesturing, setIsGesturing] = useState(false);
+  const pointersRef = useRef(new Map<number, Point>());
+  const pinchOriginRef = useRef<Nullable<PinchOrigin>>(null);
+  const panOriginRef = useRef<Nullable<{ point: Point; transform: Transform }>>(null);
+  const lastTapRef = useRef(0);
+  // WARN: A pan and a double tap both end in a `click`, and the viewer closes on one that misses the photo. This is what tells the two apart from a tap that really was aimed past it.
+  const hasMovedRef = useRef(false);
+  // WARN: Movement is tracked at every scale, not only while panning. At rest the finger is swiping the track, and two quick swipes land inside the double-tap window — untracked, they read as a double tap and zoom the slide the reader was leaving.
+  const startPointRef = useRef<Nullable<Point>>(null);
+  const elementRef = useRef<Nullable<HTMLElement>>(null);
+
+  const isZoomed = transform.scale > MIN_ZOOM_SCALE;
+
+  const reset = useCallback(() => {
+    setTransform(IDENTITY);
+    setIsGesturing(false);
+    pointersRef.current.clear();
+    pinchOriginRef.current = null;
+    panOriginRef.current = null;
+  }, []);
+
+  const settle = useCallback(() => {
+    setIsGesturing(false);
+    setTransform((current) => {
+      const scale = clamp(current.scale, MIN_ZOOM_SCALE, MAX_ZOOM_SCALE);
+
+      // WARN: The element is not optional here. Without it `withClampedOffset` has no box to clamp against and recentres instead, so every release threw away the region the reader had just pinched into.
+      return scale === MIN_ZOOM_SCALE
+        ? IDENTITY
+        : withClampedOffset({ ...current, scale }, elementRef.current);
+    });
+  }, []);
+
+  return {
+    isZoomed,
+    reset,
+    /**
+     * The transform, for an element **inside** the one taking `surfaceProps`.
+     *
+     * WARN: The two must not be the same element. `getBoundingClientRect` reports the
+     * transformed box, so a surface that scales with the photo would measure its own
+     * zoom back into the pan bounds and the clamp would tighten on every frame.
+     */
+    contentStyle: {
+      transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})`,
+      // INFO: A settled scale eases; a moving one must not, or every pinch frame is animated against the last and the photo lags the fingers.
+      transition: isGesturing ? undefined : "transform var(--duration-state) var(--ease-press)",
+    },
+    surfaceProps: {
+      /**
+       * WARN: `pan-x` at rest, never `auto` and never `pinch-zoom`. `auto` lets the
+       * browser claim the pinch itself, and it then stops dispatching the pointers this
+       * hook counts — the gesture reads as nothing happening. `pinch-zoom` hands it over
+       * even more explicitly. `pan-x` permits exactly the track's own swipe (§ 8.1.) and
+       * reserves everything else, so the second finger still reaches JS. The track only
+       * ever scrolls horizontally, so nothing else is given up.
+       */
+      style: { touchAction: isZoomed || isGesturing ? ("none" as const) : ("pan-x" as const) },
+      onPointerDown: (event: PointerEvent<HTMLElement>) => {
+        elementRef.current = event.currentTarget;
+
+        const pointers = pointersRef.current;
+
+        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+        if (pointers.size === 2) {
+          event.currentTarget.setPointerCapture(event.pointerId);
+          setIsGesturing(true);
+          hasMovedRef.current = true;
+          panOriginRef.current = null;
+          pinchOriginRef.current = readPinchOrigin(pointers, transform);
+
+          return;
+        }
+        if (pointers.size === 1) {
+          hasMovedRef.current = false;
+          startPointRef.current = { x: event.clientX, y: event.clientY };
+
+          if (isZoomed) {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            setIsGesturing(true);
+            panOriginRef.current = { point: { x: event.clientX, y: event.clientY }, transform };
+          }
+        }
+      },
+
+      onPointerMove: (event: PointerEvent<HTMLElement>) => {
+        const pointers = pointersRef.current;
+
+        if (!pointers.has(event.pointerId)) {
+          return;
+        }
+
+        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+        const pinchOrigin = pinchOriginRef.current;
+
+        if (pointers.size >= 2 && pinchOrigin) {
+          setTransform(readPinchTransform(pointers, pinchOrigin, elementRef.current));
+
+          return;
+        }
+
+        const start = startPointRef.current;
+
+        if (start && hasTravelled(start, event)) {
+          hasMovedRef.current = true;
+        }
+
+        const panOrigin = panOriginRef.current;
+
+        if (!panOrigin) {
+          return;
+        }
+
+        const dx = event.clientX - panOrigin.point.x;
+        const dy = event.clientY - panOrigin.point.y;
+
+        setTransform(
+          withClampedOffset(
+            {
+              ...panOrigin.transform,
+              x: panOrigin.transform.x + dx,
+              y: panOrigin.transform.y + dy,
+            },
+            elementRef.current,
+          ),
+        );
+      },
+
+      onPointerUp: (event: PointerEvent<HTMLElement>) => {
+        const pointers = pointersRef.current;
+
+        pointers.delete(event.pointerId);
+
+        // WARN: A pinch does not become a pan when the first finger leaves — the surviving pointer has no origin of its own, and adopting it would jump the photo by the whole distance between the two.
+        if (pointers.size < 2) {
+          pinchOriginRef.current = null;
+        }
+        if (pointers.size === 0) {
+          panOriginRef.current = null;
+          settle();
+          handleTap(event);
+        }
+      },
+
+      onPointerCancel: (event: PointerEvent<HTMLElement>) => {
+        pointersRef.current.delete(event.pointerId);
+
+        if (pointersRef.current.size === 0) {
+          pinchOriginRef.current = null;
+          panOriginRef.current = null;
+          settle();
+        }
+      },
+
+      // WARN: Suppresses the `click` a pan or a double tap ends in, so the viewer's own backdrop handler never reads one as a tap past the photo.
+      onClickCapture: (event: MouseEvent<HTMLElement>) => {
+        if (hasMovedRef.current) {
+          event.stopPropagation();
+          hasMovedRef.current = false;
+        }
+      },
+    },
+  };
+
+  function handleTap(event: PointerEvent<HTMLElement>) {
+    if (hasMovedRef.current) {
+      return;
+    }
+
+    const now = Date.now();
+
+    if (now - lastTapRef.current > DOUBLE_TAP_WINDOW) {
+      lastTapRef.current = now;
+
+      return;
+    }
+
+    lastTapRef.current = 0;
+    hasMovedRef.current = true;
+
+    setTransform((current) =>
+      current.scale > MIN_ZOOM_SCALE
+        ? IDENTITY
+        : withClampedOffset(
+            zoomAround(IDENTITY, DOUBLE_TAP_ZOOM_SCALE, readLocalPoint(event, elementRef.current)),
+            elementRef.current,
+          ),
+    );
+  }
+}
+
+function readPinchOrigin(pointers: Map<number, Point>, transform: Transform): PinchOrigin {
+  const [first, second] = [...pointers.values()];
+
+  return {
+    distance: Math.max(distanceBetween(first, second), 1),
+    midpoint: midpointOf(first, second),
+    transform,
+  };
+}
+
+function readPinchTransform(
+  pointers: Map<number, Point>,
+  origin: PinchOrigin,
+  element: Nullable<HTMLElement>,
+): Transform {
+  const [first, second] = [...pointers.values()];
+  const ratio = distanceBetween(first, second) / origin.distance;
+  const scale = rubberBand(origin.transform.scale * ratio);
+  const midpoint = midpointOf(first, second);
+  const zoomed = zoomAround(origin.transform, scale, toLocalPoint(origin.midpoint, element));
+
+  // INFO: The midpoint travelling is a two-finger drag, so the photo follows it — this is what makes a pinch that lands off-centre reachable without a second pan.
+  return {
+    ...zoomed,
+    x: zoomed.x + (midpoint.x - origin.midpoint.x),
+    y: zoomed.y + (midpoint.y - origin.midpoint.y),
+  };
+}
+
+/** Keeps `focus` — a point in the element's own coordinates — under the same pixel as the scale changes. */
+function zoomAround(transform: Transform, scale: number, focus: Point): Transform {
+  const ratio = scale / transform.scale;
+
+  return {
+    scale,
+    x: focus.x - (focus.x - transform.x) * ratio,
+    y: focus.y - (focus.y - transform.y) * ratio,
+  };
+}
+
+// INFO: REQUIREMENTS.md § 18. #6. Past either bound the pinch keeps moving but gives ground, so the limit is felt rather than hit. `settle` is what puts it back.
+function rubberBand(scale: number): number {
+  if (scale > MAX_ZOOM_SCALE) {
+    return MAX_ZOOM_SCALE + (scale - MAX_ZOOM_SCALE) * RUBBER_BAND_FACTOR;
+  }
+  if (scale < MIN_ZOOM_SCALE) {
+    return MIN_ZOOM_SCALE - (MIN_ZOOM_SCALE - scale) * RUBBER_BAND_FACTOR;
+  }
+
+  return scale;
+}
+
+/**
+ * WARN: Clamped against the element's box rather than the painted photo inside it.
+ * `object-contain` letterboxes the asset, so a portrait slide's own gutters are pannable
+ * — the alternative is reading `naturalWidth` here, which is unavailable until the
+ * original decodes and would leave the bounds wrong for the first frames of a cold slide.
+ */
+function withClampedOffset(transform: Transform, element?: Nullable<HTMLElement>): Transform {
+  const rect = element?.getBoundingClientRect();
+
+  if (!rect || transform.scale <= MIN_ZOOM_SCALE) {
+    return { ...transform, x: 0, y: 0 };
+  }
+
+  const overflowX = (rect.width * (transform.scale - 1)) / 2;
+  const overflowY = (rect.height * (transform.scale - 1)) / 2;
+
+  return {
+    ...transform,
+    x: clamp(transform.x, -overflowX, overflowX),
+    y: clamp(transform.y, -overflowY, overflowY),
+  };
+}
+
+function readLocalPoint(event: PointerEvent<HTMLElement>, element: Nullable<HTMLElement>): Point {
+  return toLocalPoint({ x: event.clientX, y: event.clientY }, element);
+}
+
+/** Client coordinates relative to the element's centre, which is where a `scale` transform grows from. */
+function toLocalPoint(point: Point, element: Nullable<HTMLElement>): Point {
+  const rect = element?.getBoundingClientRect();
+
+  if (!rect) {
+    return { x: 0, y: 0 };
+  }
+
+  return { x: point.x - (rect.left + rect.width / 2), y: point.y - (rect.top + rect.height / 2) };
+}
+
+function hasTravelled(start: Point, event: PointerEvent<HTMLElement>): boolean {
+  return (
+    Math.abs(event.clientX - start.x) > GESTURE_SLOP ||
+    Math.abs(event.clientY - start.y) > GESTURE_SLOP
+  );
+}
+
+function distanceBetween(first: Point, second: Point): number {
+  return Math.hypot(first.x - second.x, first.y - second.y);
+}
+
+function midpointOf(first: Point, second: Point): Point {
+  return { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
