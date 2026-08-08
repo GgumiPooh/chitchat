@@ -66,5 +66,7 @@ export type ChatMessage = {
   // INFO: REQUIREMENTS.md § 8.10. Orthogonal to `type` — a reply may be text, attachments or an emoticon, so this rides beside the payload rather than inside it.
   replyTo: Nullable<ReplyPreview>;
   createdAt: string;
+  // INFO: REQUIREMENTS.md § 8.13. Null until the sender corrects the text; the 수정됨 label is this being non-null, and the § 8.13.1. reconciliation compares it to decide whether a loaded row is stale.
+  editedAt: Nullable<string>;
   id: number;
 };

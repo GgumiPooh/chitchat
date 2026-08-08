@@ -30,6 +30,10 @@ import { useDormancy } from "./use-dormancy";
 export type ChatStreamListener = {
   onMessage?: (message: ChatMessage, arrival: MessageArrival) => void;
   onResume?: () => void;
+  /** REQUIREMENTS.md § 8.13. Soft-deleted by its sender; the screen drops the row and retires every quote of it. */
+  onDelete?: (id: number) => void;
+  /** REQUIREMENTS.md § 8.13. The corrected row, whole. */
+  onEdit?: (message: ChatMessage) => void;
 };
 
 export type ChatStreamValue = {
@@ -136,6 +140,8 @@ export function ChatStreamProvider({
     onUserChanged: () => void refreshParticipants(),
     onResume: () => handleResume(),
     onTyping: (userId, isTyping) => handleTyping(userId, isTyping),
+    onDelete: (id) => handleDelete(id),
+    onEdit: (message) => handleEdit(message),
     onBuild: (id) => handleBuild(id),
   }));
 
@@ -315,6 +321,32 @@ export function ChatStreamProvider({
     setUnreadCount((previous) => previous + 1);
   }
 
+  /**
+   * REQUIREMENTS.md § 8.13. A deletion the other participant made.
+   *
+   * WARN: The badge is resynced rather than decremented. `countUnreadMessages`
+   * excludes deleted rows, so a delete of something this client counted leaves the
+   * number one high — and nothing here can tell whether the removed row was one of
+   * the unread ones, which is exactly what `syncUnreadCount` replaces wholesale.
+   */
+  function handleDelete(id: number) {
+    listeners.current.forEach((listener) => listener.onDelete?.(id));
+
+    // INFO: A reader's cursor is about to clear the count anyway, and § 8.8.'s write is what moves it.
+    if (!isReadingRef.current) {
+      void syncUnreadCount();
+    }
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.13. A correction, which moves no count and raises no
+   * notification — the row was already delivered, and the reader has already been
+   * told about it once.
+   */
+  function handleEdit(message: ChatMessage) {
+    listeners.current.forEach((listener) => listener.onEdit?.(message));
+  }
+
   function handleResume() {
     listeners.current.forEach((listener) => listener.onResume?.());
 
@@ -426,11 +458,14 @@ export function useChatStreamListener(listener: ChatStreamListener) {
     current.current = listener;
   });
 
+  // WARN: Every field of `ChatStreamListener` has to be forwarded by hand here. Spreading the ref would capture the mount-time closures, which is what the ref exists to avoid — so a handler added to the type and not to this object type-checks and silently never fires.
   useEffect(
     () =>
       subscribe({
         onMessage: (message, arrival) => current.current.onMessage?.(message, arrival),
         onResume: () => current.current.onResume?.(),
+        onDelete: (id) => current.current.onDelete?.(id),
+        onEdit: (message) => current.current.onEdit?.(message),
       }),
     [subscribe],
   );

@@ -7,8 +7,10 @@ export { createMediaMessage, type CreateMediaMessageParams } from "./api/create-
 export { createSystemMessage, type CreateSystemMessageParams } from "./api/create-system-message";
 export { createTextMessage, type CreateTextMessageParams } from "./api/create-text-message";
 export { deleteMessage } from "./api/delete-message";
+export { editMessage } from "./api/edit-message";
 export { getMessage } from "./api/get-message";
 export { isQuotable } from "./api/is-quotable";
+export { listChangedMessages, type MessageChanges } from "./api/list-changed-messages";
 export { listMessages, type ListMessagesParams } from "./api/list-messages";
 export {
   countMatchingMessages,

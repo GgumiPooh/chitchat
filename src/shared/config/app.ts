@@ -147,6 +147,12 @@ export const MAX_MESSAGE_PAGE_SIZE = 50;
 
 export const MAX_MESSAGE_LENGTH = 2_000;
 
+/** REQUIREMENTS.md § 8.13.1. Which of a resuming client's loaded rows have been edited or deleted since it last saw them. */
+export const CHANGED_MESSAGES_PATH = "/api/messages/changed";
+
+// INFO: REQUIREMENTS.md § 8.13.1. A safety valve rather than a page size. The answer is newest-first, so a truncation drops the oldest changes — the ones furthest from the viewport, and the ones `loadOlder` refetches from the server anyway.
+export const CHANGED_MESSAGES_LIMIT = 200;
+
 /** REQUIREMENTS.md § 8.6. Substring search over `messages.text`, newest first. */
 export const MESSAGE_SEARCH_PATH = "/api/messages/search";
 
@@ -182,6 +188,22 @@ export const CHAT_STREAM_PATH = "/api/chat/stream";
 export type MessageArrival = "live" | "backfill";
 
 export const BACKFILL_EVENT = "backfill";
+
+/**
+ * REQUIREMENTS.md § 8.13. The two mutation events, on names of their own rather
+ * than on `message`.
+ *
+ * WARN: An arrival carries side effects a mutation must not fire — the unread
+ * count moves, § 13.6.'s emoticon sound plays, and § 8.8.'s cursor is written.
+ * None of that is true of a row the reader is already looking at.
+ *
+ * WARN: Neither event carries an `id:` field. That is the reconnect cursor
+ * (§ 8.4.), and both name a row that may be arbitrarily old — stamping one would
+ * walk the cursor backwards and buy every reconnect a replay it already has.
+ */
+export const DELETE_EVENT = "delete";
+
+export const EDIT_EVENT = "edit";
 
 // INFO: A ping often enough that no proxy between Vercel and the browser reads an idle conversation as a dead connection.
 export const SSE_HEARTBEAT_INTERVAL = 25 * A_SECOND;

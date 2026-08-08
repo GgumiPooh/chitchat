@@ -74,6 +74,7 @@ import {
   CornerUpLeft,
   LoaderCircle,
   MessageCircle,
+  Pencil,
   Share,
   Smile,
   Trash2,
@@ -89,6 +90,7 @@ import {
   type TransitionEvent,
 } from "react";
 import { requestMessageDeletion } from "../api/request-message-deletion";
+import { requestMessageEdit } from "../api/request-message-edit";
 import { buildChatRows } from "../model/build-chat-rows";
 import {
   ROW_LINE_CLASSES,
@@ -105,6 +107,7 @@ import { useMessageHistory } from "../model/use-message-history";
 import { useSettledCommit } from "../model/use-settled-commit";
 import { ChatBackdrop } from "./chat-backdrop";
 import { DateDivider } from "./date-divider";
+import { EditBar } from "./edit-bar";
 import { MessageRow } from "./message-row";
 import { ReplyBar } from "./reply-bar";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
@@ -258,6 +261,12 @@ export function ChatRoom({
   // INFO: DESIGN.md § 6.8. The bubble a jump landed on, until its flash expires.
   const [highlightedId, setHighlightedId] = useState<Nullable<number>>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<Nullable<number>>(null);
+  // INFO: REQUIREMENTS.md § 8.13. The message the composer is correcting rather than replying to. Null is the ordinary composing mode.
+  const [editingId, setEditingId] = useState<Nullable<number>>(null);
+  // WARN: § 8.13. The composer owns its draft, so text only reaches it through this. A token rather than the string alone — cancelling an edit seeds `""`, and so does cancelling the next one, which as a bare value is no instruction at all.
+  const [seededDraft, setSeededDraft] =
+    useState<Optional<{ text: string; token: number }>>(undefined);
+  const seedTokenRef = useRef(0);
   // INFO: `deletableMessageId` is null for the other participant's attachments — mine carry the § 7.10. delete control, which is the same confirmed delete the § 8.11. sheet reaches.
   const [viewer, setViewer] =
     useState<Nullable<{ cells: MediaCell[]; index: number; deletableMessageId: Nullable<number> }>>(
@@ -277,7 +286,9 @@ export function ChatRoom({
     returnToLive,
     appendMessage,
     removeMessage,
+    replaceMessage,
     catchUp,
+    reconcile,
   } = useMessageHistory(initialMessages);
   const { pending, send, sendMedia, sendEmoticon, retry, cancel, resolve } = useSendMessage({
     onSent: appendMessage,
@@ -581,7 +592,16 @@ export function ChatRoom({
   useSoundUnlock();
 
   // INFO: REQUIREMENTS.md § 8.4. The connection belongs to the shell; this screen only asks to hear from it.
-  useChatStreamListener({ onMessage: receiveMessage, onResume: catchUp });
+  // WARN: REQUIREMENTS.md § 8.13.1. A resume runs both. `catchUp` pages forward from the newest id this client knows and so can never see a mutation landing on a row it already holds; `reconcile` asks about exactly those and nothing else.
+  useChatStreamListener({
+    onMessage: receiveMessage,
+    onResume: () => {
+      void catchUp();
+      void reconcile();
+    },
+    onDelete: handleRemoteDelete,
+    onEdit: replaceMessage,
+  });
 
   // INFO: REQUIREMENTS.md § 8.8. The conversation is on screen for as long as this is mounted, which is what suppresses the badge and moves the read cursor.
   useEffect(() => {
@@ -939,13 +959,19 @@ export function ChatRoom({
           <>
             {/* INFO: REQUIREMENTS.md § 8.10. Above the tray and the pill, and in the flow — the quote belongs to the send the whole stack is composing, so it reads as the header of it. */}
             {/* WARN: DESIGN.md § 6.6. `mt-xs` matches the emoticon panel's, which is the gap this stack is measured against — without it the bar butts straight into the bubble above. It is safe to carry unconditionally because this renders nothing when there is no reply, so the clearance only grows while the bar is up. */}
-            {replyTarget && (
-              <ReplyBar
-                className="mx-md mt-xs mb-2xs"
-                replyTo={replyTarget}
-                name={participantById.get(replyTarget.senderId)?.name}
-                onCancel={() => setReplyTarget(null)}
-              />
+            {/* INFO: REQUIREMENTS.md § 8.13. Stands exactly where the staged quote does, and never beside it — a correction composes no new message, so there is nothing for a quote to be the header of. */}
+            {/* WARN: § 8.13. The quote is hidden rather than cleared, and comes back on cancel. Entering the mode must cost the user nothing they had already staged. */}
+            {editingId !== null ? (
+              <EditBar className="mx-md mt-xs mb-2xs" onCancel={cancelEdit} />
+            ) : (
+              replyTarget && (
+                <ReplyBar
+                  className="mx-md mt-xs mb-2xs"
+                  replyTo={replyTarget}
+                  name={participantById.get(replyTarget.senderId)?.name}
+                  onCancel={() => setReplyTarget(null)}
+                />
+              )
             )}
             {/* INFO: REQUIREMENTS.md § 9.3. Tops the composer stack while it is up, clearing the history by the same `xs` every other row in this position does (DESIGN.md § 6.6.). It replaces nothing — a recording is sent outright, so there is no tray for it to compete with. */}
             {isRecording && (
@@ -956,16 +982,20 @@ export function ChatRoom({
               />
             )}
             {/* INFO: DESIGN.md § 6.6. Same gap as the bar above and the panel below; `MediaTray` renders nothing with an empty selection, so this costs the resting composer no height. */}
-            <MediaTray
-              className="mx-md mt-xs mb-2xs"
-              drafts={selection.drafts}
-              isReading={selection.isReading}
-              onEdit={editing.open}
-              onRemove={selection.remove}
-            />
+            {/* WARN: REQUIREMENTS.md § 8.13. Hidden while a message is being corrected, never emptied — the drafts live in `useMediaSelection` and are still there when the edit is cancelled. An edit is text-only, and `canSend` refuses to arm on a tray the mode cannot send. */}
+            {editingId === null && (
+              <MediaTray
+                className="mx-md mt-xs mb-2xs"
+                drafts={selection.drafts}
+                isReading={selection.isReading}
+                onEdit={editing.open}
+                onRemove={selection.remove}
+              />
+            )}
             {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
             {/* WARN: § 13.6. wants the preview above the open panel, but the panel is half the shell — `bottom-full` alone puts it behind the floating header on a short viewport and off the top of the screen below ~604px, which is the panel not appearing to stage at all. The `min()` stops it at the header and lets it overlap the panel's top rows instead, which only happens where something has to give. */}
-            {stagedEmoticon && (
+            {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, for the reason the tray above is — it is still staged and it returns on cancel. */}
+            {stagedEmoticon && editingId === null && (
               <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--viewport-height,100dvh)_-_var(--bottom-inset)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))]">
                 <EmoticonPreview
                   className="mx-md mb-2xs"
@@ -1011,6 +1041,8 @@ export function ChatRoom({
               hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
               isEmoticonPickerOpen={isEmoticonPanelOpen}
               keywordConsumeToken={keywordConsumeToken}
+              seededDraft={seededDraft}
+              isEditing={editingId !== null}
               // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
               onToggleEmoticons={() =>
                 isEmoticonPanelOpen ? closeEmoticonPanel() : setIsEmoticonPickerOpen(true)
@@ -1176,6 +1208,13 @@ export function ChatRoom({
    * WARN: The order survives because `useSendMessage` delivers on one promise chain. Firing these in parallel would let the text win the race for `messages.id` and land above them on every other client and every reload.
    */
   function submit(text: string) {
+    // WARN: REQUIREMENTS.md § 8.13. Ahead of everything below, and it returns. A correction sends nothing — the staged quote, the tray and the emoticon all belong to a message that is not being composed, and falling through would post them beside the edit.
+    if (editingId !== null) {
+      void applyEdit(editingId, text);
+
+      return;
+    }
+
     void goLiveForSend();
 
     // WARN: REQUIREMENTS.md § 8.10. Consumed by the first bubble only. Emoticon, then attachments, then text is the order they are queued in, and a quote repeated over three of them says the same thing three times.
@@ -1404,6 +1443,7 @@ export function ChatRoom({
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
             isRead={row.message.id === lastReadMineId}
+            isEdited={row.message.editedAt !== null}
             isHighlighted={row.message.id === highlightedId}
             searchQuery={searchQuery}
             status="sent"
@@ -1490,6 +1530,11 @@ export function ChatRoom({
 
     if (canShareMessage(target)) {
       items.push({ label: "공유", Icon: Share, onSelect: () => void shareMessage(target) });
+    }
+
+    // INFO: REQUIREMENTS.md § 8.13. Text only, which `messages_edited_is_text_check` says again at the database — an attachment or an emoticon has no prose to correct, and a system notice is nobody's to touch.
+    if (target.senderId === currentUserId && target.type === "text") {
+      items.push({ label: "수정", Icon: Pencil, onSelect: () => startEdit(target) });
     }
 
     if (target.senderId === currentUserId) {
@@ -1650,6 +1695,84 @@ export function ChatRoom({
     } catch {
       toast.error("메시지를 삭제하지 못했어요");
     }
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.13. A delete that arrived over the stream. It can name a
+   * message this screen is composing against: the same account signs in on more
+   * than one device (§ 12.), so my own message can go while I hold it open here.
+   *
+   * WARN: Clearing `editingId` breaks a loop rather than merely tidying up.
+   * `editMessage` narrows on `deleted_at IS NULL`, so submitting the correction
+   * 404s and `applyEdit`'s catch re-enters the mode and re-seeds it — leaving the
+   * cancel control as the only way out of a bar that will never succeed.
+   */
+  function handleRemoteDelete(id: number) {
+    removeMessage(id);
+
+    if (id === editingId) {
+      cancelEdit();
+    }
+
+    // INFO: REQUIREMENTS.md § 8.10. `POST /api/messages` refuses a soft-deleted parent with a 400, so a quote left staged here is a send that cannot land.
+    if (id === replyTarget?.id) {
+      setReplyTarget(null);
+    }
+  }
+
+  /** REQUIREMENTS.md § 8.13. Hands the message's current text to the composer and puts it in the correcting mode. */
+  function startEdit(message: ChatMessage) {
+    setEditingId(message.id);
+    seedDraft(message.text ?? "");
+  }
+
+  // INFO: REQUIREMENTS.md § 8.13. Leaves the field empty rather than restoring whatever was half-typed before the edit — the draft the composer held is the one that has just been abandoned.
+  function cancelEdit() {
+    setEditingId(null);
+    seedDraft("");
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.13. The correction, applied locally the way a delete is
+   * (§ 8.10.) rather than waited on — the PATCH answers 204 and carries no row.
+   *
+   * WARN: `text.trim()`, because the route's schema trims before it writes. Storing
+   * one string and drawing another is a bubble that changes under the reader the
+   * moment the § 8.13. echo of the real row arrives.
+   *
+   * INFO: The `editedAt` written here is this device's clock and the server's is the
+   * database's, so the echo corrects it a moment later — one extra key revision
+   * (§ 8.3.) and nothing else, since the label only ever asks whether it is null.
+   */
+  async function applyEdit(id: number, text: string) {
+    const current = messages.find((entry) => entry.id === id);
+    const edited = text.trim();
+
+    setEditingId(null);
+
+    // INFO: REQUIREMENTS.md § 8.13. Reopening the field and submitting it untouched is not a correction — stamping `edited_at` for it would put 수정됨 on a message nobody changed.
+    if (edited === current?.text) {
+      return;
+    }
+
+    try {
+      await requestMessageEdit(id, edited);
+
+      if (current) {
+        replaceMessage({ ...current, text: edited, editedAt: new Date().toISOString() });
+      }
+    } catch {
+      toast.error("메시지를 수정하지 못했어요");
+      // WARN: The composer clears the field on submit, so a failure has to hand the correction back — otherwise the user's rewrite is gone and the only recovery is to type it again.
+      setEditingId(id);
+      seedDraft(edited);
+    }
+  }
+
+  // WARN: The token is what makes a repeat an instruction. Two cancels both seed `""`, and a bare value would make the second one no change at all.
+  function seedDraft(text: string) {
+    seedTokenRef.current += 1;
+    setSeededDraft({ text, token: seedTokenRef.current });
   }
 
   function handleAtBottomChange(atBottom: boolean) {

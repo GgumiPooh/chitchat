@@ -33,6 +33,7 @@ What remains is not implementation:
 | **Undecided — ask first** | Emoticon grid density (#3) — needs the user's eye, not a change                                                                                                                                               | § 18.                |
 | **Tuning on a device**    | Pinch-zoom bounds, and the dark palette on a real screen. Both **shipped** — these are confirmations of a landed value, and the constants sit at the top of `usePinchZoom` and in `theme.css`'s `.dark` block | § 8.1., § 16., § 18. |
 | **Project settings**      | Vercel Skew Protection and § 15.'s environment list live in the Vercel project, so no change to `src/` can assert either                                                                                      | § 15., § 15.1.       |
+| **Verify on a device**    | That `anchorTo: "end"` holds the viewport when a row is **removed** above the fold. § 8.13. deletes rows live for the first time, and item removal is a different path from the size change § 8.3. tuned for  | § 8.3., § 8.13.      |
 
 ---
 
@@ -202,7 +203,8 @@ Schema, migrations, and triggers have landed. **Columns are not listed here — 
 
 **Messages**
 
-- `messages` is **append-only** — marking messages read must never UPDATE it
+- `messages` is **append-only** — marking messages read must never UPDATE it. The rule is about the read cursor, and the two columns that do write here say so by name: `deleted_at` (§ 8.10.) and `edited_at` (§ 8.13.). No third one joins them without an argument of the same kind
+- `messages.edited_at` is nullable and `NULL` means "never edited", which is the entire `수정됨` test (§ 8.13.). `messages_edited_is_text_check` keeps it on `type = 'text'`, and `messages_notify_changed` fires on it and `deleted_at` together — narrowed by `AFTER UPDATE OF` and guarded by `IS DISTINCT FROM`, because `<>` answers `NULL` on a nullable column and a `WHEN` clause reads that as false
 - A CHECK pins which columns each `messages.type` may fill (a `text` row carries no `emoticon_item_id` or event; a `system` row carries no text). The CHECK cannot reach `message_media`, so "a non-`media` message must not acquire media children" is a `BEFORE INSERT OR UPDATE` **trigger** there. The reverse (a `media` message with zero media rows) is deliberately **not** enforced — it would need a `DEFERRABLE` constraint trigger, and § 8.5. writes both in one transaction
 - **One bubble is one `messages` row regardless of attachment count**: 3 photos = 1 message row + 3 `message_media` rows, which is why there is no `messages.media_id`. `sort_order` preserves the sender's order. `media_id` **must not** cascade, and carries its own index
 - The `media` enum value was `image` until `0008_media_message_type`. It is `media` because one bubble may carry photos **and** videos, discriminated by `media.mime` — renamed with `ALTER TYPE … RENAME VALUE`, never a drop-and-recreate, which fails on existing rows and breaks the trigger function whose `DECLARE` names the type
@@ -289,7 +291,7 @@ The `(main)` layout is the app shell (max `576px`, centered) holding a per-scree
 
 - A hardware keyboard sends on Enter and breaks the line on Shift+Enter; on a coarse pointer Enter stays a newline, since the iOS keyboard has no send key (`useIsCoarsePointer`)
 - Tapping send keeps the keyboard open: the button cancels `pointerdown` so the tap never blurs the field, and `submit` refocuses inside the click gesture
-- `DELETE /api/messages/{id}` soft-deletes, scoped to the sender, and answers **404** for someone else's message and for one that never existed alike, so the endpoint cannot probe ids (§ 14.)
+- `DELETE /api/messages/{id}` soft-deletes and `PATCH /api/messages/{id}` rewrites the text (§ 8.13.), both scoped to the sender and both answering **404** for someone else's message and for one that never existed alike, so neither can probe ids (§ 14.)
 - The tab bar and install banner leave while the keyboard is up. `useIsVirtualKeyboardOpen` requires both a drop below the tallest height seen at the current width **and** an editable `activeElement` — height alone misreads a collapsing address bar, focus alone survives Android's back button. They leave by **collapsing `BottomOverlay`, not unmounting**, and the shell eases its height over the same 200ms, so `--bottom-inset` carries the composer up on one timeline
 - **The two 200ms eases do not end together, and the follow must not assume they do.** The bar collapse runs once, from the frame `useIsVirtualKeyboardOpen` flips; the shell restarts its ease on every step WebKit reports the height in (`DESIGN.md § 3.4.`), so it finishes last. Through that tail the history keeps shortening while the clearance is already at rest — so `useComposerClearance` re-pins on a **scroller that changed height** as well as on a clearance that did — and the two branches answer differently, because a height change is not always a keyboard. The clearance branch keeps the `AT_BOTTOM_THRESHOLD`-wide flag; the height branch subtracts the frame's own shrink and demands the reader was at the true bottom before it, so a rotation or a desktop window resize cannot throw someone re-reading 150px up to the live edge. Left to the clearance alone the room settles a few pixels above the true bottom, which is invisible until a message arrives: the pre-paint follow in `ChatRoom` requires `distance ≤ growth + 1` and those pixels fail it, so the follow falls through to the post-paint `pinToBottom()` and the conversation lurches by the residual on the frame after the bubble is drawn
 
@@ -370,10 +372,10 @@ Offscreen message nodes **must not stay in the DOM** — after years of history,
 **`GET /api/chat/stream`** — `text/event-stream`, `runtime = "nodejs"`, `maxDuration = 300`
 
 - The connection comes from the **direct (unpooled)** string via `listenToChannels` (`shared/db`) and is released in a `finally`. A transaction-mode pooler hands the connection to another client between transactions, silently dropping the `LISTEN`
-- **One endpoint, one `EventSource`, three channels.** `LISTEN user_changed` and `LISTEN typing` (§ 8.12.) ride the same connection; they are told apart by the SSE `event:` field (`message`, `user`, `typing`)
+- **One endpoint, one `EventSource`, four channels.** `LISTEN user_changed`, `LISTEN typing` (§ 8.12.) and `LISTEN message_changed` (§ 8.13.) ride the same connection; they are told apart by the SSE `event:` field (`message`, `user`, `typing`, `delete`, `edit`)
 - `LISTEN` is registered **before** the replay query. Reversed, a message committing between the two is missed by both
 - **`id > cursor` alone loses messages**: `bigserial` ids are handed out at INSERT but become visible at COMMIT, so they can commit out of order. Replay starts at `cursor - SSE_REPLAY_MARGIN` and lets id-deduplication drop the overlap
-- `id:` goes on **message events only** — it is the reconnect cursor, a `messages` bigserial with no counterpart on `user`, `build` or `ping`
+- `id:` goes on **message events only** — it is the reconnect cursor, a `messages` bigserial with no counterpart on `user`, `build` or `ping`. § 8.13.'s `delete` and `edit` name a real id and still carry none: theirs may be arbitrarily old, and the cursor may only ever advance
 - **A replayed row is `event: backfill`, a live one is `event: message`.** Same payload, same `id:`, same client-side deduplication — the split exists because § 13.6.'s emoticon sound must tell them apart. Every reconnect replays, so without it a resume plays the sounds of messages already seen
 - Notifications resolve **one at a time behind a promise chain** — each costs a `getMessage` query, and interleaving emits rows out of id order
 - `event: ping` at `SSE_HEARTBEAT_INTERVAL`. A **named event, not a `:ping` comment**: a comment keeps proxies awake but `EventSource` never surfaces it, and the client's resume path must observe the heartbeat to tell a live socket from a frozen one
@@ -566,7 +568,7 @@ One nullable self-FK, `messages.reply_to_id`, and the rest is reuse.
 - **A pointer gets a hover button** beside the bubble on its outer side, positioned **out of flow** — in flow its appearance would shove the bubble sideways under the cursor aiming at it. `hover:` already resolves under `@media (hover: hover)`, so a touch device never reveals it
 - **Touch pulls the row sideways**, as in Instagram. It engages only after 8px and only when the gesture leads horizontally, so the § 8.3. scroll keeps every ambiguous drag; once engaged it captures the pointer, which is why the hold disarms on movement and why the release suppresses the `click` it would otherwise end in — a pull that started on a photo must not also open the viewer
 - A staged quote is **unsent work** (§ 15.1.), like a staged emoticon
-- Deleting a message also retires the quotes of it **in the deleter's own window** — every other client's next fetch already resolves `isDeleted` from the row
+- Deleting a message also retires the quotes of it **in the deleter's own window**; § 8.13. carries the same retirement to every connected client, and § 8.13.1. to one that was away. An edit rewrites those quotes the same way, sliced to `REPLY_PREVIEW_MAX_LENGTH` exactly as `listReplyPreviews` slices it — the two describe one row and a quote that disagreed would rewrite itself under the reader
 
 #### 8.10.1. Jumping to the Quoted Message ✅
 
@@ -647,6 +649,56 @@ Tapping a quote runs the machinery § 8.6.1. will reuse unchanged:
 - **It never reaches `toParticipant`**, and must not. Shipping it would tell the other participant that this person turned the indicator off, which is precisely what turning it off withholds
 - **Not reciprocal.** Turning it off changes what this account sends and nothing about what it receives; read-receipt-style trading buys nothing between two people
 - **Rate limiting is still open** (§ 14.), and this is now the endpoint most exposed to it — one authenticated POST costs a session lookup, a `pg_notify`, and a frame on every open stream
+
+---
+
+### 8.13. Editing and Deleting Reach Every Client ✅
+
+A soft delete and an edit are the same event to the wire: an UPDATE on a row somebody already has. One channel carries both.
+
+**The column** — `messages.edited_at`, nullable, beside `deleted_at`
+
+- **`edited_at`, never `updated_at`.** `NULL` is "never edited", which is the whole `수정됨` test. A generic `updated_at` is bumped by the soft delete beside it, and the label would then light on a row nobody edited
+- **`messages_edited_is_text_check`** — `edited_at IS NULL OR type = 'text'`. An attachment and an emoticon carry no prose to correct, and a system notice is timeline furniture (`DESIGN.md § 6.5.`). `editMessage` narrows on `type` as well, so a non-text target is the **404** every other miss is rather than the 500 a CHECK violation would surface as
+- **No time limit and no history.** An edit is allowed for as long as the row lives, and the previous wording is not kept — one column was the whole budget, and a version table buys nothing two people asked for
+- **§ 6.'s append-only rule is scoped to the read cursor** ("marking messages read must never UPDATE it") and is not a ban on this. `deleted_at` already writes here
+- **`0024` is a migrate-first migration** (§ 6. rule 2), and it is the widest one yet: Drizzle's `select()` names every column, so a build that knows `edited_at` cannot read `messages` **at all** until the column exists (`42703`) — which is the chat page's server render, `GET /api/messages`, the § 8.4. stream, § 8.6.'s search, and every § 10. query that joins `messages` to hide a deleted row's attachments. Run `pnpm db:migrate` **before** deploying; it is manual and decoupled from the deploy (§ 6.). The reverse order is the only unsafe one — a nullable column the previous build neither reads nor writes is invisible to it
+
+**The channel** — `message_changed`, one trigger, both mutations
+
+- **`AFTER UPDATE OF edited_at, deleted_at`, with a `WHEN` clause on `IS DISTINCT FROM`.** `<>` answers `NULL` on a nullable column and the `WHEN` reads that as false, so the trigger would never fire. The narrow `OF` list plus the guard is what keeps this off any UPDATE a later feature adds
+- **A trigger, not `notifyChannel`.** `deleteMessage` and `editMessage` are single statements outside a transaction, so an app-level publish opens a window where the write commits and the notification does not. A trigger is delivered at COMMIT
+- **No discriminator rides the payload.** The stream resolves the id through `getMessage`, which already filters `deleted_at` — so a `null` row **is** the deletion. `event: delete` carries `{ id }`; a row that came back is `event: edit`, carrying the whole `ChatMessage`
+- **Both ride the same serialized pipeline the arrival channel does.** The two channels can fire for one row within a millisecond, and a delete written past a `getMessage` an insert already had in flight is a bubble the reader watches come back
+- **Neither event carries `id:`.** That is the reconnect cursor (§ 8.4.), and a mutation names a row of any age — stamping it walks `Last-Event-ID` backwards and buys every reconnect a replay it already has
+- **Their own event names, never `message`.** An arrival has side effects a correction must not fire: the unread count moves, § 13.6.'s sound plays, § 8.8.'s cursor is written. A delete instead **resyncs** the count from the server, since nothing on the client can tell whether the removed row was one of the unread ones
+- **`ChatEventSourceHandlers` and `ChatStreamListener` are forwarded by hand** in `useChatStreamListener`. A handler added to the type and not to that object type-checks and silently never fires
+
+**The screen**
+
+- `수정` sits above `삭제` in the action sheet, on **my own text messages** only. `수정됨` renders **beside** the bubble, in the `flex-col` that already stacks § 8.8.'s `읽음` over the timestamp — `LINE.time()` prices it and `수정됨` clears `TIME_SLOT`'s 56px, so neither the row height nor the width the text wraps in has to be re-derived. Inside the bubble it would have to share `countTextLines`' single font with the body, which that function cannot express
+- **The composer is seeded through a token**, as § 13.8.'s consume is. The draft never leaves `MessageComposer`, and cancelling twice seeds `""` twice — as a bare value the second is no instruction at all
+- **`ActionSheet` suppresses Radix's restore-on-close for a chosen row**, and only for a chosen one. The drawer unmounts at the end of its exit animation and hands focus back to the opener, which would blur the field 수정 had just focused — on every platform, not only iOS. A **dismissal** still restores focus, or a keyboard user backing out is left on `body`
+- **A `delete` arriving over the stream clears the mode if it names the message being corrected**, and drops a staged quote of it. The same account signs in on more than one device (§ 12.), so this is reachable. It breaks a loop rather than tidying up: `editMessage` narrows on `deleted_at IS NULL`, so the correction 404s and the failure path re-enters the mode and re-seeds it
+- **Every mutation reaches the § 8.3. held page too.** `loadOlder` parks a fetched page outside the window until the scroller settles; a delete that skipped it puts the bubble back on screen the moment the page is spliced in, and an edit that skipped it commits the wording the correction replaced
+- **Entering the mode costs the user nothing already staged.** The quote, the tray and the emoticon are hidden, not cleared, and return on cancel; `canSend` refuses to arm on a tray an edit cannot send
+- **A correction is applied locally** the way § 8.10.'s delete is, since `PATCH` answers 204. The text is `trim()`ed to match what the route wrote, and the `editedAt` written here is this device's clock — the echo corrects it a moment later, which costs one § 8.3. key revision and nothing else
+- **Submitting the text unchanged sends nothing.** Stamping `edited_at` for it would put 수정됨 on a message nobody changed
+- **A failed `PATCH` hands the correction back** — the mode reopens and the field is re-seeded with what was typed. The composer clears itself on submit, so without this the rewrite is gone and the only recovery is to type it again
+- **The row key carries a revision** (§ 8.3.): `m{id}:{editedAt}:{quote thumbnail}`. The virtualizer caches one measured height per key and never re-estimates a key it holds, so a row whose content changed under an unchanged key keeps the stale height — invisible while it is mounted and the `ResizeObserver` covers it, a jump when the reader scrolls back to one that was not. Only what moves the **height** belongs in it: a key change remounts the row, and § 6.10.'s quote is two fixed lines whatever it says, so its text is deliberately absent while its thumbnail is not
+
+#### 8.13.1. Reconciling on Resume ✅
+
+The SSE event only reaches a client that is connected. A backgrounded tab holds no stream by design (§ 8.4.1.), and `catchUp` pages **forward** from the newest id it knows — so a mutation landing on a row already in the window is structurally invisible to it.
+
+- **`GET /api/messages/changed?from=&to=`** — every row in `[from, to]` with `deleted_at` or `edited_at` set. Run on every resume, **beside** `catchUp` and not inside it: the two answer different questions and neither subsumes the other
+- **The range is the client's loaded window, not a span of days.** That is exactly what the screen can be wrong about. A time window is both too much (a fresh mount holds `MESSAGE_PAGE_SIZE` rows, well under a day) and too little — § 8.6.1.'s jump parks the window years back, where any window measured in days covers none of it
+- **Both ends, and both inclusive.** Either loaded row can itself have been edited since it was read, so an exclusive bound is a row the client could never hear about. **The upper bound is what makes the limit below safe**: a jumped-away window sits under a conversation that keeps moving, so an open-ended range spends the whole limit on changes to rows the client does not hold and drops every change inside the window it asked about. An inverted range is a **400**, not an empty answer
+- **`from` comes from the § 8.3. held page when there is one.** Those rows are about to be spliced into the window, and a reconcile that skipped them leaves the one page that is already stale on arrival
+- **Deletions cost an id; edits carry the whole row.** A deletion is acted on from the id alone, and resolving an edit through a second round trip buys nothing when `messages_edited_is_text_check` makes every edited row text — there is no attachment or emoticon to join, only § 8.10.'s quote
+- **Newest-first, and `CHANGED_MESSAGES_LIMIT` is what truncates.** Ascending would spend the limit on the oldest changes and drop the recent ones, which are the changes most likely to be on screen; what is dropped is refetched by `loadOlder` from the server anyway
+- **`messages_changed_id_idx`** is a partial index over exactly this predicate, and stays tiny — a mutation is rare beside the rows it is indexed out of
+- **The § 385 rejection of a "changed since" cursor does not apply.** That one is about a small mutable set where a rename produces no new row and an `updated_at` cursor still misses a deletion. This asks about a bounded id range and reads the deletion directly
 
 ---
 

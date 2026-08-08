@@ -1,5 +1,6 @@
 export { getDb } from "./client";
 export {
+  MESSAGE_CHANGED_CHANNEL,
   NEW_MESSAGE_CHANNEL,
   TYPING_CHANNEL,
   USER_CHANGED_CHANNEL,

@@ -4,6 +4,8 @@ import { getSessionContext, isSessionLive } from "@/shared/auth";
 import {
   BACKFILL_EVENT,
   BUILD_ID,
+  DELETE_EVENT,
+  EDIT_EVENT,
   SSE_HEARTBEAT_INTERVAL,
   SSE_REPLAY_LIMIT,
   SSE_REPLAY_MARGIN,
@@ -12,6 +14,7 @@ import {
 } from "@/shared/config";
 import {
   listenToChannels,
+  MESSAGE_CHANGED_CHANNEL,
   NEW_MESSAGE_CHANNEL,
   TYPING_CHANNEL,
   USER_CHANGED_CHANNEL,
@@ -41,9 +44,9 @@ const newMessageSchema = z.object({
 });
 
 /**
- * REQUIREMENTS.md § 8.4. One endpoint, one `EventSource`, three channels — the
- * `user_changed` and `typing` `LISTEN`s ride the connection this stream already
- * holds rather than opening a stream each.
+ * REQUIREMENTS.md § 8.4. One endpoint, one `EventSource`, four channels — the
+ * `user_changed`, `typing` and `message_changed` `LISTEN`s ride the connection
+ * this stream already holds rather than opening a stream each.
  */
 export async function GET(request: Request) {
   // INFO: The session row, not just the user — this connection outlives its own authentication, and the heartbeat below re-asks whether it is still valid (REQUIREMENTS.md § 12.).
@@ -74,7 +77,7 @@ export async function GET(request: Request) {
       try {
         // WARN: Registered before the replay query runs. In the other order a message committing between the two would be missed by both — the query does not see it yet and nothing is listening for it.
         release = await listenToChannels(
-          [NEW_MESSAGE_CHANNEL, USER_CHANGED_CHANNEL, TYPING_CHANNEL],
+          [NEW_MESSAGE_CHANNEL, USER_CHANGED_CHANNEL, TYPING_CHANNEL, MESSAGE_CHANGED_CHANNEL],
           handleNotification,
         );
 
@@ -144,17 +147,31 @@ export async function GET(request: Request) {
           return;
         }
 
-        enqueue(notification.data.id);
+        enqueue(notification.data.id, channel === MESSAGE_CHANGED_CHANNEL);
       }
 
-      function enqueue(id: number) {
+      /**
+       * WARN: REQUIREMENTS.md § 8.13. A mutation rides the same serialized chain an
+       * arrival does, never beside it. Both channels can fire for one row within a
+       * millisecond of each other, and a delete written ahead of the `getMessage` an
+       * insert already had in flight is a bubble the reader watches come back.
+       */
+      function enqueue(id: number, isMutation: boolean) {
         // WARN: The `catch` keeps the chain alive — a rejection left on it would silence every later notification on this stream.
         pipeline = pipeline
           .then(async () => {
             const message = await getMessage(id);
 
             if (message) {
-              write(toMessageEvent(message, "live"));
+              write(isMutation ? toEditEvent(message) : toMessageEvent(message, "live"));
+
+              return;
+            }
+
+            // INFO: REQUIREMENTS.md § 8.13. `getMessage` filters `deleted_at`, so a missing row on the change channel *is* the deletion and no discriminator has to ride the payload.
+            // INFO: On the arrival channel the same miss is a message deleted before it was ever delivered, which is nothing to report.
+            if (isMutation) {
+              write(`event: ${DELETE_EVENT}\ndata: ${JSON.stringify({ id })}\n\n`);
             }
           })
           .catch(() => undefined);
@@ -179,6 +196,21 @@ function toMessageEvent(message: ChatMessage, arrival: MessageArrival): string {
   const event = arrival === "live" ? "message" : BACKFILL_EVENT;
 
   return `event: ${event}\nid: ${message.id}\ndata: ${JSON.stringify(message)}\n\n`;
+}
+
+/**
+ * REQUIREMENTS.md § 8.13. The corrected row, carrying the same payload an arrival
+ * does — the client replaces what it holds rather than reading a patch.
+ *
+ * WARN: Its own event name, so none of an arrival's side effects fire: the row is
+ * already on screen, so the unread count must not move, § 13.6.'s sound must not
+ * play, and § 8.8.'s cursor must not be written for it.
+ *
+ * WARN: No `id:`. An edit names a row of any age, and stamping the cursor with it
+ * would walk `Last-Event-ID` backwards into a replay the client already has.
+ */
+function toEditEvent(message: ChatMessage): string {
+  return `event: ${EDIT_EVENT}\ndata: ${JSON.stringify(message)}\n\n`;
 }
 
 async function replayFrom(cursor: Nullable<number>): Promise<ChatMessage[]> {

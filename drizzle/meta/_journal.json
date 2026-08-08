@@ -169,6 +169,13 @@
       "when": 1786157705487,
       "tag": "0023_emoticon_keywords",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786178423556,
+      "tag": "0024_message_changed_notify",
+      "breakpoints": true
     }
   ]
 }

@@ -556,8 +556,11 @@ A group is consecutive messages from one sender within the same clock minute.
 | Sender name | `theirs` only, `chat-name` in **`chat-sender`** (§ 4.1.4. — never `chat-meta`), above the first bubble                                                                                                                                                                                                                                                                                      |
 | Timestamp   | `chat-time` in `chat-meta`, on the **last** bubble of the group, on the outer side (left of `mine`, right of `theirs`), bottom-aligned, in a **fixed 56px slot** — it is in flow beside the bubble, so its width is width the text does not get to wrap in, and a slot that sized itself to `오후 12:34` or `오전 9:05` would move the wrap point with the clock (`REQUIREMENTS.md § 8.3.`) |
 | 읽음        | `mine` only, `chat-time` in `chat-meta`, directly above the timestamp — on the **newest** message the other participant has read, and on that one alone. Nothing marks an unread message (`REQUIREMENTS.md § 8.8.`)                                                                                                                                                                         |
+| 수정됨      | `chat-time` in `chat-meta`, **above 읽음**, on any message whose sender has corrected it (`REQUIREMENTS.md § 8.13.`). Either sender's, unlike the two rules above it                                                                                                                                                                                                                        |
 
 `mine` groups render no avatar and no name — in a two-person conversation, right-alignment is unambiguous identity.
+
+The three rows above share **one** `flex-col` in the fixed 56px slot, bottom-aligned, and a bubble may carry any combination of them — the column appears for `수정됨` alone on a bubble that is neither its group's last nor the read mark. Keeping them in one stack is what lets `estimateRowHeight` price the lot as `n × chat-time` without measuring a string it cannot see.
 
 ## 6.4. Date Divider.
 
@@ -757,6 +760,19 @@ The staged quote pushes the history up, where the staged emoticon of § 6.6. flo
 | Position         | Out of the row's flow (`absolute`, vertically centered). In flow its appearance on hover would shove the bubble sideways under the cursor                                                                                                                                                                                                                   |
 | Highlight        | A jump target flashes `primary-tint` on the **row**, not the bubble fill — media and emoticon messages have no fill and must highlight too                                                                                                                                                                                                                  |
 
+## 6.10.1. Edit Bar.
+
+The bar that says the composer is correcting a message rather than composing one (`REQUIREMENTS.md § 8.13.`).
+
+| Property | Value                                                                                                                                                           |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shape    | The § 6.10. staged-quote treatment exactly — `rounded-lg`, `glass`, `hairline`, `shadow-raised`, `2xs` gap, 32px `X` to cancel                                  |
+| Contents | A 16px `Pencil` in `meta-soft`, then `메시지 수정` in `chat-name` / `meta`. It names the mode and nothing else — the text being corrected is in the field below |
+| Position | Where the staged quote stands, and **never beside it**. A correction composes no new message, so there is nothing for a quote to be the header of               |
+| Composer | `+` and the emoticon toggle are withheld for the length of the mode; an edit is text-only. The send disc keeps its shape and reads `수정 완료`                  |
+
+Everything already staged — the quote, the tray, the emoticon — is hidden rather than cleared, and returns when the edit is cancelled. Entering a mode must not cost the user work they had done before it.
+
 # 7. Components.
 
 Components are compositions of Tailwind utilities. No component stylesheets, no inline hex or px (§ 8.).
@@ -870,16 +886,17 @@ No size beyond `md`: the shell is 576px, so anything larger is a screen, not a m
 
 The default overlay for anything originating from a bottom-anchored or list interaction. Bottom-anchored **floating card**, inset `sm` (12px) from the screen edges, `rounded-xl`, `canvas` fill, 1px `hairline`, `shadow-floating`, `overflow-hidden`.
 
-| Rule                                                                                 | Reason                                                  |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------- |
-| Drag handle at top: 48×6, `rounded-full`, `hairline-strong`                          | The dismissal affordance                                |
-| No close `X` alongside the handle                                                    | Two redundant dismiss controls on the same edge         |
-| Centered `title-md` `ink` header; optional `body-sm` `meta` description              | Matches the reference implementation                    |
-| A sheet whose rows already say what it is may hide the header                        | A title over `사진/영상` only restates it               |
-| Body scrolls internally past `70dvh`; max height `90% - 12px` of `--viewport-height` | Sheet must never push past the visual viewport (§ 3.4.) |
-| Bottom edge sits at `--viewport-bottom`, not `0`                                     | The keyboard would otherwise cover it (§ 3.4.)          |
-| Focus ring inside the sheet is `ring-2 ring-primary ring-inset`                      | `overflow-hidden` would crop an outward offset ring     |
-| Never swapped for a `Modal` at any width                                             | § 3.1.                                                  |
+| Rule                                                                                 | Reason                                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Drag handle at top: 48×6, `rounded-full`, `hairline-strong`                          | The dismissal affordance                                                                                                                                                                                                                          |
+| No close `X` alongside the handle                                                    | Two redundant dismiss controls on the same edge                                                                                                                                                                                                   |
+| Centered `title-md` `ink` header; optional `body-sm` `meta` description              | Matches the reference implementation                                                                                                                                                                                                              |
+| A sheet whose rows already say what it is may hide the header                        | A title over `사진/영상` only restates it                                                                                                                                                                                                         |
+| Body scrolls internally past `70dvh`; max height `90% - 12px` of `--viewport-height` | Sheet must never push past the visual viewport (§ 3.4.)                                                                                                                                                                                           |
+| Bottom edge sits at `--viewport-bottom`, not `0`                                     | The keyboard would otherwise cover it (§ 3.4.)                                                                                                                                                                                                    |
+| Focus ring inside the sheet is `ring-2 ring-primary ring-inset`                      | `overflow-hidden` would crop an outward offset ring                                                                                                                                                                                               |
+| Closing restores focus to whatever opened the sheet — **except after a chosen row**  | The sheet unmounts at the end of its exit animation, so the restore lands well after the action ran and would blur anything it focused on purpose (`REQUIREMENTS.md § 8.13.`). A dismissal still restores, or the keyboard user is left on `body` |
+| Never swapped for a `Modal` at any width                                             | § 3.1.                                                                                                                                                                                                                                            |
 
 `ActionSheet` is a bottom sheet whose body is a list of full-width `surface-soft` rows, `rounded-md`, `button-md` centered label with optional leading icon, following the chip ladder for states. Destructive rows use `semantic-error` text.
 

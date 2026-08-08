@@ -126,7 +126,7 @@ type Payload = {
 
 type RowFlags = {
   isFirstOfGroup: boolean;
-  /** DESIGN.md § 6.3. How many lines stand in the column beside the bubble: the timestamp, § 8.8.'s 읽음, or both stacked. Zero when neither is there. */
+  /** DESIGN.md § 6.3. How many lines stand in the column beside the bubble: the timestamp, § 8.8.'s 읽음, § 8.13.'s 수정됨, or any of them stacked. Zero when none is there. */
   besideLines: number;
 };
 
@@ -152,7 +152,11 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
       return estimateMessageRow(row.message, row.isMine, context, {
         isFirstOfGroup: row.isFirstOfGroup,
         // INFO: REQUIREMENTS.md § 8.8. 읽음 and the timestamp stack in one `flex-col`, so the newest read message of mine is two lines rather than one — and 읽음 alone puts the column beside a bubble that is not its group's last.
-        besideLines: Number(row.isLastOfGroup) + Number(context.isRead(row.message)),
+        // INFO: REQUIREMENTS.md § 8.13. 수정됨 is a third line in the same stack, which is the whole reason it was put there: `LINE.time()` already prices it, and `수정됨` clears `TIME_SLOT`'s 56px with room to spare so the width the text wraps in does not move.
+        besideLines:
+          Number(row.isLastOfGroup) +
+          Number(context.isRead(row.message)) +
+          Number(row.message.editedAt !== null),
       });
     case "pending":
       // INFO: An optimistic bubble is always mine, so it never carries the avatar column or a sender name — nor 읽음, since it has not been sent.

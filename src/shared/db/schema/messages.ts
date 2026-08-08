@@ -57,9 +57,15 @@ export const messages = pgTable(
     // INFO: REQUIREMENTS.md § 8.5. Client-generated, so a retried send collides instead of inserting a duplicate.
     clientMsgId: uuid("client_msg_id").notNull().unique(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // INFO: REQUIREMENTS.md § 8.13. NULL is "never edited", which is the whole 수정됨 test — an `updated_at` bumped by the soft delete beside it would light the label on a row nobody edited.
+    editedAt: timestamp("edited_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
-  () => [
+  (table) => [
+    // INFO: REQUIREMENTS.md § 8.13. The resume reconciliation reads exactly this predicate, and a partial index over it stays tiny — an edit or a delete is rare beside the rows they are indexed out of.
+    index("messages_changed_id_idx")
+      .on(table.id)
+      .where(sql`"deleted_at" IS NOT NULL OR "edited_at" IS NOT NULL`),
     // INFO: REQUIREMENTS.md § 6. Without this a `type = 'text'` row can silently acquire an emoticon or an event.
     check(
       "messages_type_payload_check",
@@ -72,6 +78,8 @@ export const messages = pgTable(
     ),
     // INFO: REQUIREMENTS.md § 8.10. A system notice is timeline furniture rather than someone speaking (DESIGN.md § 6.5.), so nothing may quote from it. Its own column is left out of the CASE above deliberately — `reply_to_id` is legal on all three of the other types, so folding it in would have meant restating each branch.
     check("messages_system_no_reply_check", sql`"type" <> 'system' OR "reply_to_id" IS NULL`),
+    // INFO: REQUIREMENTS.md § 8.13. Only text is editable — an attachment and an emoticon carry no prose to correct, and a system notice is timeline furniture (DESIGN.md § 6.5.).
+    check("messages_edited_is_text_check", sql`"edited_at" IS NULL OR "type" = 'text'`),
   ],
 );
 

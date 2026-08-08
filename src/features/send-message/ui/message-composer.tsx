@@ -44,6 +44,17 @@ export type MessageComposerProps = {
    * instructions, and a boolean's second one would be no change at all.
    */
   keywordConsumeToken?: number;
+  /**
+   * REQUIREMENTS.md § 8.13. Text pushed into the field from outside — the room
+   * handing over a message the user asked to correct.
+   *
+   * WARN: A token beside the text, for the reason `keywordConsumeToken` carries
+   * one. Correcting the same message twice is two instructions, and comparing the
+   * text alone would make the second one no change at all.
+   */
+  seededDraft?: { text: string; token: number };
+  /** REQUIREMENTS.md § 8.13. The field is correcting a message rather than composing one, so the controls that stage a *new* payload have nothing to act on. */
+  isEditing?: boolean;
   onAttach: () => void;
   /** REQUIREMENTS.md § 13.6. Reaching for the field is a request for the keyboard, which the picker would then be buried under. */
   onFieldFocus?: () => void;
@@ -62,6 +73,8 @@ export function MessageComposer({
   hasAttachments = false,
   isEmoticonPickerOpen = false,
   keywordConsumeToken,
+  seededDraft,
+  isEditing = false,
   onAttach,
   onFieldFocus,
   onEdit,
@@ -72,11 +85,14 @@ export function MessageComposer({
   const fieldRef = useRef<Nullable<HTMLTextAreaElement>>(null);
   const layerRef = useRef<Nullable<HTMLDivElement>>(null);
   const [text, setText] = useState("");
+  // INFO: REQUIREMENTS.md § 8.13. The last seed this component has taken, so the render-phase adjustment below fires once per instruction rather than on every render.
+  const [seenSeedToken, setSeenSeedToken] = useState(seededDraft?.token);
   // INFO: § 13.8. What the last tap searched for, so a send can tell whether the field still holds only that.
   const tappedQueryRef = useRef<Nullable<string>>(null);
   const isCoarsePointer = useIsCoarsePointer();
   const hasDraft = text.trim().length > 0;
-  const canSend = hasDraft || hasAttachments;
+  // INFO: REQUIREMENTS.md § 8.13. An edit sends text and only text, so a tray left staged behind the mode cannot arm the button — emptying the field has to disable it, or the correction would submit nothing.
+  const canSend = hasDraft || (hasAttachments && !isEditing);
   // INFO: § 13.6. The list the picker already warmed, read through the same descriptor so this costs no request of its own.
   // INFO: § 13.8. Hidden packs count here, exactly as they do in the panel's search — the underline offers a word the search can answer, and the search looks across the whole library.
   const { data: packs = NO_PACKS } = useQuery(toEmoticonPacksQuery());
@@ -115,12 +131,53 @@ export function MessageComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keywordConsumeToken]);
 
+  /**
+   * REQUIREMENTS.md § 8.13. The room seeding the field with a message being
+   * corrected, and clearing it again when that correction ends.
+   *
+   * WARN: Adjusted during render, not in an effect — React's own "adjusting state
+   * when a prop changes". In an effect it is a second pass, and the field paints
+   * the previous draft for the frame in between.
+   *
+   * WARN: Compared on the token alone. Comparing the text would re-seed the
+   * original wording over every keystroke typed since, which is the correction
+   * being undone as it is made.
+   */
+  if (seededDraft !== undefined && seededDraft.token !== seenSeedToken) {
+    setSeenSeedToken(seededDraft.token);
+    setText(seededDraft.text);
+  }
+
+  /**
+   * WARN: REQUIREMENTS.md § 8.12. The seed never goes through `onChange`, so the
+   * broadcast has to be raised — and retracted on the empty seed that ends an edit
+   * — by hand, exactly as the send below does it.
+   *
+   * WARN: The focus only survives because `ActionSheet` suppresses Radix's
+   * restore-on-close for a chosen row. Without that the drawer unmounts at the end
+   * of its exit animation and hands focus back to the opener, blurring this field —
+   * on every platform, not only iOS.
+   *
+   * INFO: The keyboard is still best effort. iOS re-opens it only for a `focus()` a
+   * user activation covers, and the sheet's close animation has outlived this one.
+   */
+  useEffect(() => {
+    if (seededDraft === undefined) {
+      return;
+    }
+
+    onEdit?.(seededDraft.text.trim().length > 0);
+    fieldRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seededDraft?.token]);
+
   return (
     // WARN: DESIGN.md § 3.5. Transparent to the pointer so the messages underneath stay tappable; only the pill itself takes taps.
     <div className={cn("pointer-events-none px-md pt-xs pb-xs", className)}>
       {/* INFO: DESIGN.md § 6.6. The tab bar's floating surface (§ 7.3.). One row, bottom-aligned — the field grows upward and the controls stay on the last line. */}
       <div className="pointer-events-auto flex items-end gap-2xs rounded-[calc(var(--tab-bar-height)/2)] border border-hairline glass p-2xs shadow-floating">
-        <IconButton Icon={Plus} haptic aria-label="첨부" onClick={onAttach} />
+        {/* INFO: REQUIREMENTS.md § 8.13. Both staging controls go while a message is being corrected — `messages_edited_is_text_check` makes an edit text-only, so an attachment or an emoticon staged here would have nowhere to land. */}
+        {!isEditing && <IconButton Icon={Plus} haptic aria-label="첨부" onClick={onAttach} />}
         {/* INFO: § 13.8. The field and its keyword layer are one stacking context, so the mark can be positioned against the field's own box rather than the pill's. */}
         <div className="relative min-w-0 flex-1">
           <Textarea
@@ -153,14 +210,16 @@ export function MessageComposer({
           )}
         </div>
         {/* INFO: DESIGN.md § 6.6. The toggle stays put once text is typed — an emoticon is staged beside a line of text now (REQUIREMENTS.md § 13.6.), so replacing it with send would put the panel out of reach exactly when it is wanted. */}
-        <IconButton
-          buttonClassName={cn(isEmoticonPickerOpen && "bg-primary-tint text-primary")}
-          Icon={Smile}
-          haptic
-          aria-label="이모티콘"
-          aria-pressed={isEmoticonPickerOpen}
-          onClick={toggleEmoticons}
-        />
+        {!isEditing && (
+          <IconButton
+            buttonClassName={cn(isEmoticonPickerOpen && "bg-primary-tint text-primary")}
+            Icon={Smile}
+            haptic
+            aria-label="이모티콘"
+            aria-pressed={isEmoticonPickerOpen}
+            onClick={toggleEmoticons}
+          />
+        )}
         {/* WARN: `keepsFocus` repeats `keepFieldFocused` on the overlay. It takes the tap the button would have taken, so without it the textarea blurs and iOS drops the keyboard on every send. */}
         <HapticTarget className="inline-flex shrink-0" isTicking={canSend} keepsFocus>
           {/* WARN: Disabled rather than unmounted when there is nothing to send — WebKit leaves a control inserted into this row unpainted until a hover forces the invalidation, and staging an emoticon touches nothing else inside the pill that would have forced one. */}
@@ -168,7 +227,7 @@ export function MessageComposer({
             className="group inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed"
             type="button"
             disabled={!canSend}
-            aria-label="보내기"
+            aria-label={isEditing ? "수정 완료" : "보내기"}
             onPointerDown={keepFieldFocused}
             onClick={submit}
           >

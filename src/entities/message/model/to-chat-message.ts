@@ -23,6 +23,7 @@ export function toChatMessage(
     eventStartsAt: row.eventStartsAt?.toISOString() ?? null,
     replyTo,
     createdAt: row.createdAt.toISOString(),
+    editedAt: row.editedAt?.toISOString() ?? null,
     id: row.id,
   };
 }

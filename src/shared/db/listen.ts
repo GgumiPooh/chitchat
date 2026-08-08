@@ -9,6 +9,13 @@ export const NEW_MESSAGE_CHANNEL = "new_message";
 export const USER_CHANGED_CHANNEL = "user_changed";
 
 /**
+ * REQUIREMENTS.md § 8.13. An edit and a soft delete both, on one channel — the
+ * stream reads the row back either way, and `getMessage` answering `null` is
+ * what tells the two apart.
+ */
+export const MESSAGE_CHANGED_CHANNEL = "message_changed";
+
+/**
  * REQUIREMENTS.md § 8.12. 입력 중, and the one channel with no trigger behind it —
  * nothing is written, so there is no row for a trigger to fire on.
  */

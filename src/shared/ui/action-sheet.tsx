@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/shared/lib";
-import type { ComponentProps, FC } from "react";
+import { useRef, type ComponentProps, type FC } from "react";
 import { BottomSheet, type BottomSheetProps } from "./bottom-sheet";
 import { HapticTap } from "./haptic-tap";
 
@@ -22,8 +22,17 @@ export type ActionSheetProps = {
 
 // INFO: DESIGN.md § 7.5. Rows follow the chip ladder; destructive rows recolour the label only.
 export function ActionSheet({ className, isOpen, header, items, onClose }: ActionSheetProps) {
+  // INFO: Whether this close is a chosen row rather than a dismissal — read by `handleCloseAutoFocus` below.
+  const hasSelected = useRef(false);
+
   return (
-    <BottomSheet className={className} isOpen={isOpen} header={header} onClose={onClose}>
+    <BottomSheet
+      className={className}
+      isOpen={isOpen}
+      header={header}
+      onClose={onClose}
+      onCloseAutoFocus={handleCloseAutoFocus}
+    >
       <ul className="flex flex-col gap-2xs">
         {items.map((item) => (
           <li key={item.label} className="group relative flex">
@@ -50,7 +59,25 @@ export function ActionSheet({ className, isOpen, header, items, onClose }: Actio
   );
 
   function handleSelect(item: ActionSheetItem) {
+    hasSelected.current = true;
     item.onSelect();
     onClose();
+  }
+
+  /**
+   * WARN: A chosen row may have moved focus on purpose — `REQUIREMENTS.md § 8.13.`'s
+   * 수정 focuses the composer — and the sheet unmounts a few hundred ms later, at the
+   * end of its exit animation. Radix restores focus to the opener there, which blurs
+   * whatever the action had just focused, on every platform.
+   *
+   * WARN: Only for a selection. A dismissal must still restore focus, or a keyboard
+   * user who backs out of the sheet is left on `body` with the tab order restarted.
+   */
+  function handleCloseAutoFocus(event: Event) {
+    if (hasSelected.current) {
+      event.preventDefault();
+    }
+
+    hasSelected.current = false;
   }
 }

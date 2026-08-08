@@ -4,6 +4,8 @@ import type { ChatMessage } from "@/entities/message";
 import {
   BACKFILL_EVENT,
   CHAT_STREAM_PATH,
+  DELETE_EVENT,
+  EDIT_EVENT,
   SSE_RETRY_DELAY,
   SSE_STALE_AFTER,
   SSE_SYNC_COALESCE_WINDOW,
@@ -20,11 +22,17 @@ export type ChatEventSourceHandlers = {
   onResume: () => void;
   /** Someone started or stopped composing. REQUIREMENTS.md § 8.12. */
   onTyping: (userId: string, isTyping: boolean) => void;
+  /** REQUIREMENTS.md § 8.13. Soft-deleted by its sender, and gone from every read path from now on. */
+  onDelete: (id: number) => void;
+  /** REQUIREMENTS.md § 8.13. The corrected row, whole — the client replaces what it holds rather than patching it. */
+  onEdit: (message: ChatMessage) => void;
   /** The deployment serving this connection. REQUIREMENTS.md § 15.1. */
   onBuild: (id: string) => void;
 };
 
 const buildSchema = z.object({ id: z.string().min(1) });
+
+const deleteSchema = z.object({ id: z.number().int().positive() });
 
 /**
  * The single `EventSource` of REQUIREMENTS.md § 8.4. — one connection carrying
@@ -92,6 +100,26 @@ export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: b
 
         if (typing.success) {
           handlers.current.onTyping(typing.data.userId, typing.data.isTyping);
+        }
+      });
+      // INFO: REQUIREMENTS.md § 8.13. Its own event name for the same reason `user` has one — none of an arrival's side effects may fire for a row that is already on screen.
+      opened.addEventListener(DELETE_EVENT, (event) => {
+        markAlive();
+
+        const deleted = deleteSchema.safeParse(safelyGet(() => JSON.parse(event.data)));
+
+        if (deleted.success) {
+          handlers.current.onDelete(deleted.data.id);
+        }
+      });
+      // INFO: REQUIREMENTS.md § 8.13. The whole corrected row, so the window replaces rather than patches — the quote and the emoticon are resolved server-side and a patch would have to redo both.
+      opened.addEventListener(EDIT_EVENT, (event) => {
+        markAlive();
+
+        const message = safelyGet(() => JSON.parse(event.data) as ChatMessage);
+
+        if (message) {
+          handlers.current.onEdit(message);
         }
       });
       // INFO: REQUIREMENTS.md § 8.4. The heartbeat is a named event rather than a `:ping` comment so it lands here — this is the client's only evidence that the socket underneath is still real.

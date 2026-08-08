@@ -15,10 +15,27 @@ export type BottomSheetProps = PropsWithChildren<{
     isHidden?: boolean;
   };
   onClose: () => void;
+  /**
+   * Runs as the sheet closes, before focus is restored to whatever opened it.
+   * Calling `preventDefault()` keeps focus wherever it now is — for a caller whose
+   * own action moved it deliberately (`REQUIREMENTS.md § 8.13.`).
+   *
+   * WARN: Restoring focus is the default and the accessible behaviour. Suppress it
+   * only when something else has taken focus, never unconditionally, or dismissing
+   * the sheet drops the keyboard user at the top of the document.
+   */
+  onCloseAutoFocus?: (event: Event) => void;
 }>;
 
 // INFO: DESIGN.md § 7.5. Inset floating card, not a full-bleed sheet. The grab handle is the only dismiss control.
-export function BottomSheet({ className, isOpen, header, children, onClose }: BottomSheetProps) {
+export function BottomSheet({
+  className,
+  isOpen,
+  header,
+  children,
+  onClose,
+  onCloseAutoFocus,
+}: BottomSheetProps) {
   return (
     <Drawer open={isOpen} direction="bottom" onOpenChange={handleOpenChange}>
       <DrawerContent
@@ -26,6 +43,7 @@ export function BottomSheet({ className, isOpen, header, children, onClose }: Bo
           "mx-sm mb-sm flex h-auto! max-h-[calc(var(--viewport-height,100dvh)_*_0.9_-_var(--spacing-sm))] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
           className,
         )}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <div className="mx-auto block h-1.5 w-12 shrink-0 rounded-full bg-hairline-strong" />
         <div className="scrollbar-hidden overflow-y-auto overscroll-contain">

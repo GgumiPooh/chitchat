@@ -1,10 +1,11 @@
 "use client";
 
-import type { ChatMessage } from "@/entities/message";
-import { MESSAGE_PAGE_SIZE } from "@/shared/config";
+import type { ChatMessage, ReplyPreview } from "@/entities/message";
+import { MESSAGE_PAGE_SIZE, REPLY_PREVIEW_MAX_LENGTH } from "@/shared/config";
 import { safelyRunAsync } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useRef, useState } from "react";
+import { fetchChangedMessages } from "../api/fetch-changed-messages";
 import { fetchMessages } from "../api/fetch-messages";
 
 /**
@@ -42,6 +43,22 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
   const commit = useCallback((update: (previous: ChatMessage[]) => ChatMessage[]) => {
     messagesRef.current = update(messagesRef.current);
     setMessages(messagesRef.current);
+  }, []);
+
+  /**
+   * WARN: REQUIREMENTS.md § 8.13. The held page of § 8.3. is a **second** list, and
+   * every mutation of the window has to reach it too. Its rows are not in
+   * `messagesRef` yet, so a delete that skipped it puts the bubble back on screen
+   * the moment `commitPendingOlder` splices the page in — and an edit that skipped
+   * it commits the wording the correction replaced.
+   */
+  const commitPending = useCallback((update: (previous: ChatMessage[]) => ChatMessage[]) => {
+    if (pendingOlderRef.current.length === 0) {
+      return;
+    }
+
+    pendingOlderRef.current = update(pendingOlderRef.current);
+    setPendingOlder(pendingOlderRef.current);
   }, []);
 
   // WARN: The lock is released only by the load that still owns the window. A superseded pager clearing it would hand it back while the replacement is still fetching.
@@ -179,11 +196,37 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
    * the text it just removed, until a reload.
    */
   const removeMessage = useCallback(
-    (id: number) =>
-      commit((previous) =>
-        previous.filter((entry) => entry.id !== id).map((entry) => withDeletedQuote(entry, id)),
-      ),
-    [commit],
+    (id: number) => {
+      const update = (previous: ChatMessage[]) =>
+        previous.filter((entry) => entry.id !== id).map((entry) => withDeletedQuote(entry, id));
+
+      commit(update);
+      commitPending(update);
+    },
+    [commit, commitPending],
+  );
+
+  /**
+   * REQUIREMENTS.md § 8.13. The corrected row, in place of the one the window holds
+   * — and the quotes pointing at it rewritten, exactly as `removeMessage` retires
+   * them.
+   *
+   * WARN: `map`, which is what makes this incapable of inserting. An edit is not an
+   * arrival, and a § 8.6.1. jump makes "the window does not hold this row" the
+   * common case — but the quotes of it may still be on screen when the parent is
+   * not, so the pass runs either way rather than bailing out on a missing row.
+   */
+  const replaceMessage = useCallback(
+    (message: ChatMessage) => {
+      const update = (previous: ChatMessage[]) =>
+        previous.map((entry) =>
+          entry.id === message.id ? message : withEditedQuote(entry, message),
+        );
+
+      commit(update);
+      commitPending(update);
+    },
+    [commit, commitPending],
   );
 
   /**
@@ -359,6 +402,62 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     [receiveMessages],
   );
 
+  /**
+   * REQUIREMENTS.md § 8.13.1. The half of a resume `catchUp` structurally cannot
+   * cover. It pages *forward* from the newest id this client knows, so an edit or a
+   * delete that landed on a row already in the window is invisible to it — and the
+   * § 8.4. replay does not help either, since it is bounded by the same cursor.
+   *
+   * INFO: Bounded by the rows on the client rather than by a span of days. That is
+   * the range the screen can actually be wrong about, and § 8.6.1.'s jump can park
+   * it years back, where any window measured in days covers nothing.
+   *
+   * WARN: Bounded **above** as well, and that bound is what makes the server's
+   * newest-first limit safe. A jumped-away window sits under a conversation that
+   * keeps moving, so an open-ended range spends the whole limit on changes to rows
+   * this client does not hold and drops every change inside the window it asked
+   * about.
+   *
+   * WARN: The lower bound comes from the held page when there is one — those rows
+   * are about to be spliced into the window, and reconciling without them leaves
+   * the one page that is already stale on arrival.
+   *
+   * WARN: Runs on every resume, beside `catchUp` and not inside it. The two answer
+   * different questions and neither subsumes the other.
+   */
+  const reconcile = useCallback(
+    () =>
+      safelyRunAsync(async () => {
+        const oldest = pendingOlderRef.current[0] ?? messagesRef.current[0];
+        const newest = messagesRef.current.at(-1);
+
+        // INFO: A window holding nothing has nothing to be wrong about, and asking would bound the query at zero.
+        if (!oldest || !newest) {
+          return;
+        }
+
+        const { deletedIds, edited } = await fetchChangedMessages(oldest.id, newest.id);
+
+        if (deletedIds.length === 0 && edited.length === 0) {
+          return;
+        }
+
+        const deleted = new Set(deletedIds);
+        const editedById = new Map(edited.map((message) => [message.id, message]));
+        // WARN: The two passes in this order. A quote is rewritten from the *parent's* verdict, so resolving the rows first and the quotes second is what lets a reply to an edited message be corrected in the same pass that corrects its parent.
+        const update = (previous: ChatMessage[]) =>
+          previous
+            .filter((entry) => !deleted.has(entry.id))
+            .map((entry) =>
+              withChangedQuote(editedById.get(entry.id) ?? entry, deleted, editedById),
+            );
+
+        commit(update);
+        commitPending(update);
+      }),
+    [commit, commitPending],
+  );
+
   return {
     messages,
     isLoadingOlder,
@@ -371,7 +470,9 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     returnToLive,
     appendMessage,
     removeMessage,
+    replaceMessage,
     catchUp,
+    reconcile,
   };
 }
 
@@ -382,8 +483,45 @@ function withDeletedQuote(message: ChatMessage, deletedId: number): ChatMessage 
     return message;
   }
 
-  return {
-    ...message,
-    replyTo: { ...replyTo, text: null, thumbnailMediaId: null, isDeleted: true },
-  };
+  return { ...message, replyTo: toDeletedQuote(replyTo) };
+}
+
+function withEditedQuote(message: ChatMessage, parent: ChatMessage): ChatMessage {
+  const { replyTo } = message;
+
+  if (!replyTo || replyTo.id !== parent.id) {
+    return message;
+  }
+
+  return { ...message, replyTo: toEditedQuote(replyTo, parent) };
+}
+
+/** REQUIREMENTS.md § 8.13.1. Both verdicts at once, for the one pass a reconcile makes over the window. */
+function withChangedQuote(
+  message: ChatMessage,
+  deleted: Set<number>,
+  editedById: Map<number, ChatMessage>,
+): ChatMessage {
+  const { replyTo } = message;
+
+  if (!replyTo) {
+    return message;
+  }
+
+  if (deleted.has(replyTo.id)) {
+    return { ...message, replyTo: toDeletedQuote(replyTo) };
+  }
+
+  const parent = editedById.get(replyTo.id);
+
+  return parent ? { ...message, replyTo: toEditedQuote(replyTo, parent) } : message;
+}
+
+function toDeletedQuote(replyTo: ReplyPreview): ReplyPreview {
+  return { ...replyTo, text: null, thumbnailMediaId: null, isDeleted: true };
+}
+
+// WARN: The same slice `listReplyPreviews` takes on the server. The two describe one row, and a quote that disagreed between the live correction and the next fetch would rewrite itself under the reader.
+function toEditedQuote(replyTo: ReplyPreview, parent: ChatMessage): ReplyPreview {
+  return { ...replyTo, text: parent.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null };
 }
