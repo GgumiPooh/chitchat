@@ -30,7 +30,9 @@ const patchSchema = z
       (body.imageKey === undefined) === (body.width === undefined) &&
       (body.width === undefined) === (body.height === undefined),
     { message: "image requires its measurements" },
-  );
+  )
+  // WARN: Every key is optional, so `{}` parses — and drizzle throws `No values to set` on the empty `.set()` that follows, which surfaces as a 500 for what is a malformed request. § 13.8. made `updated_at` conditional, which removed the one field that had always kept that object non-empty.
+  .refine((body) => Object.values(body).some((value) => value !== undefined), "empty patch");
 
 /**
  * Replaces an item's assets in place (REQUIREMENTS.md § 13.4.).
