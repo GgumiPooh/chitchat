@@ -300,7 +300,8 @@ export function EmoticonPicker({
         >
           <Clock className="size-5 text-meta" strokeWidth={1.75} />
         </TabButton>
-        {packs.map((pack) => {
+        {/* WARN: § 13.1. `visiblePacks` and never `packs` — the list carries hidden packs so § 13.8. can search them, and a hidden pack drawn here is a tab `activeTab` resolves away from, so the tap does nothing but overwrite the remembered pack with an id that can never be restored. */}
+        {visiblePacks.map((pack) => {
           const tabItem = toTabItem(pack);
 
           return (
