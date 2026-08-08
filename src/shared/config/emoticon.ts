@@ -295,10 +295,24 @@ function toTermRelevance(keywords: string[], term: string): number {
     return RELEVANCE.hangulShape;
   }
 
-  // INFO: § 13.9.1. The IME slip, last: `rhals` is `고민` typed with the keyboard still in English. It re-enters the literal rungs rather than getting a test of its own, so a conversion that lands on nothing costs nothing.
+  // INFO: § 13.9.1. The IME slip, last: `rhals` is `고민` typed with the keyboard still in English.
   const converted = toHangulFromQwerty(term);
 
-  return converted && toLiteralRelevance(keywords, converted) > 0 ? RELEVANCE.qwerty : 0;
+  return converted && holdsTerm(keywords, converted) ? RELEVANCE.qwerty : 0;
+}
+
+/**
+ * WARN: § 13.9.1. The qwerty rung tests **this direction only**, never the particle
+ * one `toLiteralRelevance` also carries. A conversion is a reconstruction of what
+ * the user meant to type, not a drafted Korean word with a suffix on it — and read
+ * the other way round, the gibberish an ordinary English word converts to answers to
+ * any short keyword it happens to contain, which is a false hit on plain English.
+ *
+ * INFO: `includes` covers equality, so the two literal rungs above collapse to one
+ * test here.
+ */
+function holdsTerm(keywords: string[], foldedTerm: string): boolean {
+  return keywords.some((keyword) => keyword.toLowerCase().includes(foldedTerm));
 }
 
 function toLiteralRelevance(keywords: string[], foldedTerm: string): number {
@@ -351,15 +365,29 @@ function isChoseongOnly(term: string): boolean {
   return term.length > 0 && [...term].every((letter) => canBeChoseong(letter));
 }
 
-// INFO: § 13.9.1. Only a run of Latin letters is a plausible IME slip; anything else converts to noise that could still collide with a keyword.
+/**
+ * INFO: § 13.9.1. Only a run of Latin letters is a plausible IME slip; anything else
+ * converts to noise that could still collide with a keyword.
+ *
+ * WARN: `convertQwertyToHangul` **throws** on a sequence it cannot assemble into
+ * syllables — `photo` is one, and so is `phot` on the way to it. This is reached from
+ * `toShownItems`, which the picker calls **during render**, so an unguarded throw
+ * takes the whole room to the error boundary on a keystroke in the search field.
+ */
 function toHangulFromQwerty(term: string): Nullable<string> {
   if (term.length < MIN_JAMO_QUERY_LENGTH || !/^[a-z]+$/i.test(term)) {
     return null;
   }
 
-  const converted = convertQwertyToHangul(term.toLowerCase());
+  const folded = term.toLowerCase();
 
-  return converted === term.toLowerCase() ? null : converted;
+  try {
+    const converted = convertQwertyToHangul(folded);
+
+    return converted === folded ? null : converted;
+  } catch {
+    return null;
+  }
 }
 
 /**
