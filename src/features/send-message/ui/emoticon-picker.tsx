@@ -3,7 +3,8 @@
 import type { Emoticon, EmoticonPackWithItems } from "@/entities/emoticon";
 import {
   matchesKeywordQuery,
-  MAX_EMOTICON_KEYWORD_LENGTH,
+  MAX_KEYWORD_QUERY_LENGTH,
+  splitKeywordQuery,
   toEmoticonAssetUrl,
 } from "@/shared/config";
 import { A_SECOND, cn, type Nullable, type Optional } from "@/shared/lib";
@@ -20,7 +21,7 @@ import {
   type Ref,
 } from "react";
 import { useStorageState } from "synced-storage/react";
-import { toEnabledPacksQuery } from "../model/enabled-packs-query";
+import { toEmoticonPacksQuery } from "../model/packs-query";
 import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
 
@@ -34,6 +35,9 @@ const ACTIVE_TAB_KEY = "jandh:emoticon-tab";
 
 // INFO: A sliver of the neighbouring tab stays visible past the revealed one, so the strip still reads as scrollable where it stops.
 const TAB_REVEAL_MARGIN = 8;
+
+// INFO: REQUIREMENTS.md § 13.9. The same idea one axis over — a row of the grid stays visible past the revealed cell, so it does not land against the panel's edge looking like the end of the list.
+const CELL_REVEAL_MARGIN = 12;
 
 // INFO: REQUIREMENTS.md § 13.6. Two taps on the same cell inside this window are the shortcut past the preview.
 const DOUBLE_TAP_WINDOW = A_SECOND / 3;
@@ -58,6 +62,19 @@ export type EmoticonPickerProps = {
    * keyed on the string alone the second one is no change for the effect to see.
    */
   searchRequest?: Nullable<{ query: string; token: number }>;
+  /**
+   * REQUIREMENTS.md § 13.9. An emoticon tapped in the conversation, which opens the
+   * panel where that emoticon is: its own pack's tab, scrolled to the cell.
+   *
+   * WARN: Where it lands is decided **here** rather than by the room, because the
+   * pack list is what settles it — an item whose pack this user has hidden has no
+   * tab to be scrolled to, and goes to § 13.8.'s search under its own keywords
+   * instead. The room holds no pack list and cannot tell the two apart.
+   *
+   * WARN: Carries a token for `searchRequest`'s reason — tapping the same emoticon
+   * twice is two requests, and keyed on the item alone the second one is no change.
+   */
+  revealRequest?: Nullable<{ emoticon: Emoticon; token: number }>;
   /** REQUIREMENTS.md § 13.8. Whether the search tab is the one on screen — the room exempts it from § 13.6.'s keyboard gate. */
   onSearchTabChange?: (isOnSearchTab: boolean) => void;
   onSelect: (emoticon: Emoticon) => void;
@@ -77,6 +94,7 @@ export function EmoticonPicker({
   className,
   isOpen,
   searchRequest,
+  revealRequest,
   onSearchTabChange,
   onSelect,
   onQuickSend,
@@ -91,12 +109,26 @@ export function EmoticonPicker({
   // WARN: State and not a ref, though it is only ever compared. The adjustment below runs during render, where a ref may not be read at all — this is React's own "adjusting state when a prop changes", and the previous token has to be readable there.
   // WARN: Seeded `undefined`, never from `searchRequest`. The panel does not exist until the tap that asks for it, so it mounts with the request already in hand — seeding from it marks that request as applied before anything applies it, and the tap opens the panel on the remembered pack with an empty field. That was the bug, and it is invisible on every later tap because by then the component is mounted.
   const [appliedSearchToken, setAppliedSearchToken] = useState<Optional<number>>(undefined);
+  // WARN: § 13.9. Seeded `undefined` for `appliedSearchToken`'s reason — the panel does not exist until the tap that asks for it, so it mounts with the request already in hand.
+  const [appliedRevealToken, setAppliedRevealToken] = useState<Optional<number>>(undefined);
+  /**
+   * INFO: § 13.9. The item 따라하기 named, which is scrolled to, ringed, and put
+   * first among search results until the user takes the panel somewhere else.
+   *
+   * WARN: The whole item and not its id, because the tap holds one the loaded list
+   * may not: the other participant can have authored it since this list was fetched,
+   * and the panel never unmounts to re-ask. Kept here, the search row can show an
+   * emoticon the search itself cannot yet find.
+   */
+  const [revealed, setRevealed] = useState<Nullable<Emoticon>>(null);
 
   // WARN: § 13.8. Adjusted during render rather than in an effect. An effect lands a frame later, so the panel would open on the remembered tab, paint a grid of the wrong pack, and only then swap to the search row — which reads as the wrong panel flashing up. It is also why the forced tab is component state rather than the stored one: writing `localStorage` during a render is a side effect, and comparing tokens is not.
   if (searchRequest && searchRequest.token !== appliedSearchToken) {
     setAppliedSearchToken(searchRequest.token);
     setQuery(searchRequest.query);
     setForcedTab(SEARCH_TAB);
+    // WARN: § 13.9. A word tapped in the composer ends any standing 따라하기, as `selectTab` and typing do. The panel can be open on a revealed cell when that tap lands — left standing, the search pins and rings an emoticon its own query never matched, and `hasReveal` withholds the keyboard from a tap that is a request to type.
+    setRevealed(null);
   }
 
   /**
@@ -111,46 +143,89 @@ export function EmoticonPicker({
   if (!searchRequest && appliedSearchToken !== undefined) {
     setAppliedSearchToken(undefined);
     setQuery("");
-    setForcedTab(null);
+    // WARN: § 13.9. The search tab and nothing else. A 따라하기 lands on a pack tab and reports itself off the search tab in the same commit, which is what withdraws the room's request — clearing unconditionally here would take the panel straight back off the tab that tap just asked for.
+    setForcedTab((current) => (current === SEARCH_TAB ? null : current));
   }
 
   // WARN: § 13.8. The second release, and the one above cannot stand in for it. `selectTab` also forces 검색 with no request behind it — a tap on the tab, or a swipe from 최근 사용 — so `appliedSearchToken` is never set and that branch never fires: the forced tab outlived every close, the toggle reopened onto a finished search, and `onSearchTabChange(true)` stayed latched for the rest of the session with § 13.6.'s keyboard gate out of the room's condition behind it.
-  if (!isOpen && !searchRequest && forcedTab !== null) {
+  // INFO: § 13.9. The reveal is released the same way and at the same moment, so a panel reopened by the toggle draws the remembered tab rather than the ring left over from a 따라하기.
+  // WARN: § 13.9. `!revealRequest` is as load-bearing as `!searchRequest` beside it. A tap made while the keyboard is up opens nothing for the length of its retraction (§ 13.6.), so the reveal is applied over several renders where `isOpen` is still false — released on those, the panel finishes opening on the remembered tab and the tap reads as having done nothing.
+  if (!isOpen && !searchRequest && !revealRequest && (forcedTab !== null || revealed !== null)) {
     setQuery("");
     setForcedTab(null);
+    setRevealed(null);
   }
 
   const requestedTab = forcedTab ?? (typeof storedTab === "string" ? storedTab : RECENTS_TAB);
   const tabStripRef = useRef<Nullable<HTMLDivElement>>(null);
   const activeTabRef = useRef<Nullable<HTMLSpanElement>>(null);
+  const gridRef = useRef<Nullable<HTMLDivElement>>(null);
+  const revealedCellRef = useRef<Nullable<HTMLSpanElement>>(null);
   const [slideFrom, setSlideFrom] = useState<SwipeDirection>(1);
   const lastTapRef = useRef<Nullable<{ at: number; id: string }>>(null);
   const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
   // WARN: § 13.6. Read only. `remember` belongs to the send, not to the tap — recording it here re-sorts 최근 사용 between the two taps of a double tap, moving the cell out from under the second one.
   const { recentIds } = useRecentEmoticons();
   // INFO: § 13.6. The same descriptor `useEmoticonPreload` warmed, so the panel opens on the cached list rather than on `isPending`.
-  const { data: packs = NO_PACKS, isPending } = useQuery(toEnabledPacksQuery());
+  // WARN: § 13.8. Every pack, hidden ones included. Only the tabs and 최근 사용 are filtered — search reads the whole list, which is what makes an emoticon from a pack this user hid findable at all.
+  const { data: packs = NO_PACKS, isPending } = useQuery(toEmoticonPacksQuery());
+  const visiblePacks = packs.filter((pack) => pack.isEnabled);
+
+  /**
+   * WARN: § 13.9. Applied during render, for the reason `searchRequest` is: an
+   * effect lands a frame later, so the panel would open on the remembered tab, paint
+   * a grid of the wrong pack, and only then move — which reads as the wrong panel
+   * flashing up.
+   *
+   * WARN: And only once the list has landed. Which of the two branches below a tap
+   * takes is decided by the item being in it, so applying the token while the query
+   * is still pending sends every reveal to the search tab.
+   */
+  if (revealRequest && revealRequest.token !== appliedRevealToken && !isPending) {
+    const { emoticon } = revealRequest;
+
+    setAppliedRevealToken(revealRequest.token);
+    setRevealed(emoticon);
+
+    // WARN: § 13.9. The **item** in a drawn tab, not merely its pack. A pack this user has hidden draws no tab, and a pack that has gained an item since this list was fetched draws one without the cell in it — both are a tab there is nothing to scroll to, and telling them apart would buy the second one nothing.
+    if (findPack(visiblePacks, emoticon.packId)?.items.some((item) => item.id === emoticon.id)) {
+      setForcedTab(emoticon.packId);
+      setQuery("");
+    } else {
+      // INFO: § 13.9. So it goes to § 13.8.'s search under its own words, where it is shown first whether or not the search can find it, and where its relatives are.
+      setForcedTab(SEARCH_TAB);
+      setQuery(emoticon.keywords.join(", "));
+    }
+  }
+
+  const revealedId = revealed?.id ?? null;
 
   // INFO: The remembered pack can be gone or hidden (§ 13.1.) by the time the panel reopens, so it only holds while the loaded list still has it.
   const activeTab =
     requestedTab === RECENTS_TAB ||
     requestedTab === SEARCH_TAB ||
     isPending ||
-    findPack(packs, requestedTab)
+    findPack(visiblePacks, requestedTab)
       ? requestedTab
       : RECENTS_TAB;
   const isSearching = activeTab === SEARCH_TAB;
 
   const byId = new Map(packs.flatMap((pack) => pack.items.map((item) => [item.id, item] as const)));
+  // INFO: § 13.1. 최근 사용 is a tab like any other, so hiding a pack takes its items out of this list too — an emoticon sent through § 13.9. from a hidden pack is remembered and simply not drawn here.
+  const visiblePackIds = new Set(visiblePacks.map((pack) => pack.id));
   const recents = recentIds
     .map((id) => byId.get(id))
-    .filter((item): item is Emoticon => item !== undefined);
+    .filter((item): item is Emoticon => item !== undefined && visiblePackIds.has(item.packId));
   const shown = toShownItems();
-  const tabIds = [SEARCH_TAB, RECENTS_TAB, ...packs.map((pack) => pack.id)];
+  const tabIds = [SEARCH_TAB, RECENTS_TAB, ...visiblePacks.map((pack) => pack.id)];
   const activeIndex = tabIds.indexOf(activeTab);
 
   // INFO: § 13.6. The swipe moves the tab without the finger ever touching the strip, and the remembered tab can reopen the panel on a pack that is already past its right edge — either way the strip has to follow the selection or the active tab is unreachable to the eye.
   useEffect(revealActiveTab, [activeTab, packs]);
+
+  // WARN: § 13.9. A layout effect, so the grid is already at the cell on the frame the panel is first painted — from a passive effect the pack's first row paints and then jumps.
+  // WARN: § 13.9. Keyed on the token as well as the cell, never on the cell alone — the same note `chat-room.tsx`'s jump carries. Tapping one emoticon, scrolling the grid away and tapping it again moves neither the id nor the tab, so on the id alone the second tap scrolls nowhere.
+  useLayoutEffect(revealTargetCell, [appliedRevealToken, revealedId, activeTab]);
 
   // WARN: § 13.8. The room exempts this tab from § 13.6.'s keyboard gate, so it has to be told on every change — reported off the tab rather than off the field's focus, or the frame between a blur and the keyboard actually retracting closes the panel underneath the user.
   useEffect(() => {
@@ -173,7 +248,10 @@ export function EmoticonPicker({
           isOpen={isOpen}
           query={query}
           results={shown}
-          onQueryChange={setQuery}
+          revealedId={revealedId}
+          revealedRef={revealedCellRef}
+          hasReveal={revealed !== null}
+          onQueryChange={changeQuery}
           onSelect={handleSelect}
           onSwipe={goToAdjacentTab}
         />
@@ -181,6 +259,7 @@ export function EmoticonPicker({
         // WARN: `overflow-x-hidden` is what keeps the § 13.6. slide inside the panel — a vertical-only scroller still resolves its horizontal axis to `auto`.
         // WARN: `touch-pan-y` leaves the vertical scroll native while denying the browser the horizontal axis, which it would otherwise consume before the § 13.6. swipe ever sees it.
         <div
+          ref={gridRef}
           className="scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain p-xs"
           {...swipeHandlers}
         >
@@ -208,9 +287,11 @@ export function EmoticonPicker({
                   {shown.map((item) => (
                     <EmoticonCell
                       key={item.id}
+                      ref={item.id === revealedId ? revealedCellRef : undefined}
                       className="flex"
                       buttonClassName="aspect-square w-full"
                       item={item}
+                      isRevealed={item.id === revealedId}
                       onSelect={handleSelect}
                     />
                   ))}
@@ -272,29 +353,29 @@ export function EmoticonPicker({
   );
 
   /**
-   * INFO: § 13.8. The search tab looks across every enabled pack at once — a word is
-   * a property of the item, and which pack it happens to sit in is not what the user
-   * is answering.
+   * INFO: § 13.8. The search tab looks across every pack at once, hidden ones
+   * included — a word is a property of the item, and which pack it happens to sit in,
+   * or whether that pack draws a tab, is not what the user is answering.
    */
   function toShownItems(): Emoticon[] {
     if (isSearching) {
-      const trimmed = query.trim();
-
-      // WARN: § 13.8. An empty field, not a length floor. `matchesKeywordQuery` prefix-matches, and every keyword starts with `""` — an unguarded blank query returns the entire library rather than nothing.
-      return trimmed === ""
-        ? []
-        : packs.flatMap((pack) =>
-            pack.items.filter((item) =>
-              item.keywords.some((keyword) => matchesKeywordQuery(keyword, trimmed)),
-            ),
-          );
+      // WARN: § 13.8. An empty field yields no terms, and that is what guards the blank query — `matchesKeywordQuery` prefix-matches and every keyword starts with `""`, so a query passed through unsplit would return the entire library rather than nothing.
+      const terms = splitKeywordQuery(query);
+      // WARN: § 13.8. `packs` and not `visiblePacks`. Searching is how an emoticon from a hidden pack is reached, and filtering here is what used to make § 13.9. undeliverable for exactly the item that needs it.
+      const matches = packs.flatMap((pack) =>
+        pack.items.filter((item) =>
+          item.keywords.some((keyword) => terms.some((term) => matchesKeywordQuery(keyword, term))),
+        ),
+      );
+      // INFO: § 13.9. The item the tap named is first and is shown whether or not it matches — an item carrying no keywords at all is the case that needs it, and the whole point of the tap is that this one is already in hand.
+      return revealed ? [revealed, ...matches.filter((item) => item.id !== revealed.id)] : matches;
     }
 
     if (activeTab === RECENTS_TAB) {
       return recents;
     }
 
-    return findPack(packs, activeTab)?.items ?? [];
+    return findPack(visiblePacks, activeTab)?.items ?? [];
   }
 
   /**
@@ -343,6 +424,41 @@ export function EmoticonPicker({
     strip.scrollBy({ left: clippedLeft > 0 ? -clippedLeft : clippedRight, behavior: "smooth" });
   }
 
+  /**
+   * INFO: REQUIREMENTS.md § 13.9. Brings the cell 따라하기 named into the grid's own
+   * scroller, by hand and for `revealActiveTab`'s reason — `scrollIntoView` walks
+   * every scrollable ancestor, and the § 13.6. strip clipping this panel is one.
+   *
+   * WARN: Instant, never `behavior: "smooth"`. This runs on the frame the panel is
+   * asked to open in, and § 13.6. records what a smooth scroll does against a strip
+   * whose height is still animating.
+   */
+  function revealTargetCell() {
+    const grid = gridRef.current;
+    const cell = revealedCellRef.current;
+
+    if (!grid || !cell) {
+      return;
+    }
+
+    const gridBox = grid.getBoundingClientRect();
+    const cellBox = cell.getBoundingClientRect();
+    const clippedTop = gridBox.top + CELL_REVEAL_MARGIN - cellBox.top;
+    const clippedBottom = cellBox.bottom + CELL_REVEAL_MARGIN - gridBox.bottom;
+
+    if (clippedTop <= 0 && clippedBottom <= 0) {
+      return;
+    }
+
+    grid.scrollBy({ top: clippedTop > 0 ? -clippedTop : clippedBottom });
+  }
+
+  // INFO: § 13.9. Typing is the user taking the search over, so the item 따라하기 pinned to the front of the row stops being pinned.
+  function changeQuery(next: string) {
+    setQuery(next);
+    setRevealed(null);
+  }
+
   function selectTab(id: string) {
     // WARN: Not merely a wasted render — `setRequestedTab` writes `localStorage` and broadcasts to every hook instance and tab, on every tap of the pack that is already open.
     if (id === activeTab) {
@@ -351,6 +467,8 @@ export function EmoticonPicker({
 
     setSlideFrom(tabIds.indexOf(id) < activeIndex ? -1 : 1);
     setForcedTab(id === SEARCH_TAB ? SEARCH_TAB : null);
+    // INFO: § 13.9. Walking to another tab ends the reveal — the ring belongs to the tap that asked for it, not to the panel.
+    setRevealed(null);
 
     // WARN: § 13.8. The search tab is deliberately never remembered. It is a place the user passes through with a word in hand, so reopening the panel onto an empty search — days later, over the pack they actually use — would be answering a question nobody asked twice.
     if (id !== SEARCH_TAB) {
@@ -374,22 +492,35 @@ export function EmoticonPicker({
 }
 
 type EmoticonCellProps = {
+  /** REQUIREMENTS.md § 13.9. The scroll that reveals a cell measures it, which needs the element rather than an index. */
+  ref?: Ref<HTMLSpanElement>;
   className?: string;
   buttonClassName?: string;
   item: Emoticon;
+  /** REQUIREMENTS.md § 13.9. Whether this is the cell 따라하기 named, which is ringed until the panel is taken somewhere else. */
+  isRevealed?: boolean;
   onSelect: (item: Emoticon) => void;
 };
 
 /** INFO: § 13.6. The grid and § 13.8.'s row draw the same cell — only the box around it differs. */
-function EmoticonCell({ className, buttonClassName, item, onSelect }: EmoticonCellProps) {
+function EmoticonCell({
+  ref,
+  className,
+  buttonClassName,
+  item,
+  isRevealed = false,
+  onSelect,
+}: EmoticonCellProps) {
   return (
     // WARN: `touch-pan-y` is repeated on the overlay, not inherited — `touch-action` applies to the element a gesture starts on, and the overlay is now that element.
     // WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the panel would stop scrolling (`DESIGN.md § 7.15.`).
-    <HapticTarget className={className} overlayClassName="touch-pan-y" keepsScroll>
+    <HapticTarget ref={ref} className={className} overlayClassName="touch-pan-y" keepsScroll>
       {/* WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it. */}
       <button
         className={cn(
           "touch-pan-y rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong",
+          // INFO: § 13.9. A ring rather than the tabs' `bg-primary-tint` fill, which in this panel means "selected" — this cell is not selected, it is the one the tap was about.
+          isRevealed && "ring-2 ring-primary",
           buttonClassName,
         )}
         type="button"
@@ -416,6 +547,11 @@ type SearchPaneProps = {
   isOpen: boolean;
   query: string;
   results: Emoticon[];
+  /** REQUIREMENTS.md § 13.9. The item 따라하기 named, which is already first in `results`. */
+  revealedId: Nullable<string>;
+  revealedRef: Ref<HTMLSpanElement>;
+  /** REQUIREMENTS.md § 13.9. Whether a 따라하기 is what put this tab on screen, which is the one way in that does not ask for the keyboard. */
+  hasReveal: boolean;
   onQueryChange: (query: string) => void;
   onSelect: (item: Emoticon) => void;
   onSwipe: (direction: SwipeDirection) => void;
@@ -439,6 +575,9 @@ function SearchPane({
   isOpen,
   query,
   results,
+  revealedId,
+  revealedRef,
+  hasReveal,
   onQueryChange,
   onSelect,
   onSwipe,
@@ -449,10 +588,13 @@ function SearchPane({
 
   // INFO: § 13.8. Keyed on the panel rather than on this pane's mount, which covers only one of the two ways in — the picker never unmounts, so reopening onto 검색 is a prop change with no mount to hang a focus on.
   // WARN: A layout effect and never the passive one. React flushes this inside the commit the tap renders, and WebKit raises the keyboard only for a `focus()` the user activation still covers — a frame later the field comes up focused with no keyboard, exactly as `message-search-bar.tsx` records.
+  // WARN: § 13.9. And not when 따라하기 is what brought the tab up. Every other way onto this tab is a request to type; that one is a request to *look*, at an emoticon already sitting first in the row — raising the keyboard there puts the panel behind it and the thumb has further to travel than before the tap.
   useLayoutEffect(() => {
-    if (isOpen) {
+    if (isOpen && !hasReveal) {
       fieldRef.current?.focus();
     }
+    // WARN: § 13.9. `hasReveal` is deliberately not a dependency. It is cleared by the user typing, which is a keystroke the field already has focus for — listed here it would re-fire the focus on the frame the reveal is released and fight an IME mid-composition.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   return (
@@ -469,7 +611,7 @@ function SearchPane({
           // WARN: The two insets are the icon's own (`left-sm` plus its `size-4`, plus a `2xs` gap) and its mirror on the right. Left at `Input`'s defaults the text ran under the icon; trimmed to `2xs` on the right it ran into the pill's cap.
           className="h-(--emoticon-search-field) min-h-0 shrink-0 rounded-full py-0 pr-sm pl-8 text-body-sm"
           value={query}
-          maxLength={MAX_EMOTICON_KEYWORD_LENGTH}
+          maxLength={MAX_KEYWORD_QUERY_LENGTH}
           placeholder="이모티콘 검색"
           // INFO: A word, not a sentence — the keyboard's return key has nothing to submit, since the row filters as it is typed.
           enterKeyHint="done"
@@ -491,9 +633,11 @@ function SearchPane({
           {results.map((item) => (
             <EmoticonCell
               key={item.id}
+              ref={item.id === revealedId ? revealedRef : undefined}
               className="flex shrink-0"
               buttonClassName="size-(--emoticon-search-cell)"
               item={item}
+              isRevealed={item.id === revealedId}
               onSelect={onSelect}
             />
           ))}

@@ -8,7 +8,7 @@ export {
 export {
   getEmoticonPack,
   listEmoticonPacks,
-  listEnabledEmoticonPacks,
+  listEmoticonPacksWithItems,
 } from "./api/get-emoticon-packs";
 export {
   registerEmoticon,

@@ -47,6 +47,8 @@ export type MessageRowProps = {
   searchQuery?: string;
   status: "sent" | "sending" | "failed";
   onLongPress?: () => void;
+  /** REQUIREMENTS.md § 13.9. A tap on the emoticon, which opens the picker where that emoticon is. */
+  onFollowEmoticon?: () => void;
   onOpenMedia?: (index: number) => void;
   /** REQUIREMENTS.md § 8.10. The pointer affordance; touch reaches the same action through `onLongPress`. */
   onReply?: () => void;
@@ -77,6 +79,7 @@ export function MessageRow({
   searchQuery,
   status,
   onLongPress,
+  onFollowEmoticon,
   onOpenMedia,
   onReply,
   onShare,
@@ -161,11 +164,13 @@ export function MessageRow({
         <div className={cn("flex items-end gap-2xs", isMine && "flex-row-reverse")}>
           {emoticon ? (
             // INFO: DESIGN.md § 6.5. An emoticon renders without a bubble, border or background, for the same reason an attachment does.
+            // WARN: REQUIREMENTS.md § 13.9. The marker the room's panel dismissal looks for. A tap on the history closes the emoticon panel (§ 13.6.), and this tap re-aims it — without the exclusion the `pointerup` closes it a frame before the `click` opens it again.
             <div
               className={cn(LONG_PRESS_TARGET_CLASS, status !== "sent" && "opacity-60")}
+              data-emoticon-bubble
               {...longPressHandlers}
             >
-              <EmoticonBubble emoticon={emoticon} />
+              <EmoticonBubble emoticon={emoticon} onFollow={onFollowEmoticon} />
             </div>
           ) : voiceCell ? (
             // INFO: REQUIREMENTS.md § 9.3. `VoicePlayer` draws its own fill, so the row hands it only the notch corner the group rule asks for (DESIGN.md § 6.2.).

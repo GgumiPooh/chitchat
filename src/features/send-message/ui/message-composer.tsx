@@ -15,7 +15,7 @@ import {
   type PointerEvent,
   type Ref,
 } from "react";
-import { toEnabledPacksQuery } from "../model/enabled-packs-query";
+import { toEmoticonPacksQuery } from "../model/packs-query";
 
 /**
  * The box the field and its keyword layer must both be drawn in.
@@ -78,7 +78,8 @@ export function MessageComposer({
   const hasDraft = text.trim().length > 0;
   const canSend = hasDraft || hasAttachments;
   // INFO: § 13.6. The list the picker already warmed, read through the same descriptor so this costs no request of its own.
-  const { data: packs = NO_PACKS } = useQuery(toEnabledPacksQuery());
+  // INFO: § 13.8. Hidden packs count here, exactly as they do in the panel's search — the underline offers a word the search can answer, and the search looks across the whole library.
+  const { data: packs = NO_PACKS } = useQuery(toEmoticonPacksQuery());
   const keywords = useMemo(
     () => new Set(packs.flatMap((pack) => pack.items.flatMap((item) => item.keywords))),
     [packs],

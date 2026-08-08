@@ -69,7 +69,15 @@ import {
 } from "@/shared/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { measureElement as measureRenderedElement, useVirtualizer } from "@tanstack/react-virtual";
-import { Copy, CornerUpLeft, LoaderCircle, MessageCircle, Share, Trash2 } from "lucide-react";
+import {
+  Copy,
+  CornerUpLeft,
+  LoaderCircle,
+  MessageCircle,
+  Share,
+  Smile,
+  Trash2,
+} from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -227,6 +235,9 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 13.8. A word tapped in the composer, handed to the picker's search tab.
   const [emoticonSearch, setEmoticonSearch] =
     useState<Nullable<{ query: string; token: number }>>(null);
+  // INFO: REQUIREMENTS.md § 13.9. An emoticon tapped in the conversation. Where the panel opens is the picker's decision, since the pack list is what settles it.
+  const [emoticonReveal, setEmoticonReveal] =
+    useState<Nullable<{ emoticon: Emoticon; token: number }>>(null);
   // INFO: § 13.8. The one tab exempt from § 13.6.'s keyboard gate, reported by the picker because the tab is its own state.
   const [isEmoticonSearchTab, setIsEmoticonSearchTab] = useState(false);
   // INFO: § 13.8. The same exemption, held open for as long as the keyboard that tab raised takes to leave.
@@ -758,11 +769,16 @@ export function ChatRoom({
 
     let press: Nullable<{ x: number; y: number; scrollTop: number }> = null;
 
+    // WARN: § 13.9. An emoticon bubble is excluded alongside the composer, and for the same reason turned inside out: that tap re-aims this panel rather than reaching past it, and `pointerup` runs a frame before the `click` — left armed, the panel collapses and reopens on every 따라하기.
     const arm = ({ target, clientX, clientY }: PointerEvent) => {
-      press =
-        target instanceof Node && composerRef.current?.contains(target)
-          ? null
-          : { x: clientX, y: clientY, scrollTop: scrollerRef.current?.scrollTop ?? 0 };
+      const isExcluded =
+        target instanceof Node &&
+        (composerRef.current?.contains(target) ||
+          (target instanceof Element && target.closest("[data-emoticon-bubble]") !== null));
+
+      press = isExcluded
+        ? null
+        : { x: clientX, y: clientY, scrollTop: scrollerRef.current?.scrollTop ?? 0 };
     };
 
     const settle = ({ clientX, clientY }: PointerEvent) => {
@@ -984,6 +1000,7 @@ export function ChatRoom({
                   className="mx-md mt-xs mb-2xs shrink-0 will-change-transform"
                   isOpen={isEmoticonPanelOpen}
                   searchRequest={emoticonSearch}
+                  revealRequest={emoticonReveal}
                   onSearchTabChange={reportEmoticonSearchTab}
                   onSelect={stageEmoticon}
                   onQuickSend={sendStagedEmoticon}
@@ -1209,6 +1226,25 @@ export function ChatRoom({
   function closeEmoticonPanel() {
     setIsEmoticonPickerOpen(false);
     setEmoticonSearch(null);
+    setEmoticonReveal(null);
+  }
+
+  /**
+   * REQUIREMENTS.md § 13.9. 따라하기 — a tap on an emoticon in the conversation opens
+   * the picker where that emoticon is, ready to be sent back.
+   *
+   * WARN: The field is blurred here, for the reason § 13.6.'s toggle blurs it: the
+   * panel is gated on the keyboard being down, and iOS lowers the keyboard for a
+   * blur alone — a tap on a `<button>` is not one, so a tap made while typing would
+   * otherwise read as doing nothing at all.
+   */
+  function followEmoticon(emoticon: Emoticon) {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    setEmoticonReveal({ emoticon, token: Date.now() });
+    setIsEmoticonPickerOpen(true);
   }
 
   /** REQUIREMENTS.md § 13.8. A word tapped in the composer opens the picker on its search tab, already holding it. */
@@ -1344,6 +1380,7 @@ export function ChatRoom({
                 ? participantById.get(row.pending.replyTo.senderId)?.name
                 : undefined
             }
+            onFollowEmoticon={toFollowEmoticon(row.pending.emoticon)}
             onRetry={() => retry(row.pending.clientMsgId)}
             onCancel={() => cancel(row.pending.clientMsgId)}
           />
@@ -1381,12 +1418,18 @@ export function ChatRoom({
             onShare={
               canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
             }
+            onFollowEmoticon={toFollowEmoticon(row.message.emoticon)}
             onLongPress={() => setActionTarget(row.message)}
             onReply={() => stageReply(row.message)}
           />
         );
       }
     }
+  }
+
+  // INFO: REQUIREMENTS.md § 13.9. A row with no emoticon in it hands the bubble nothing, so a text row's tap is unchanged.
+  function toFollowEmoticon(emoticon: Optional<Nullable<Emoticon>>) {
+    return emoticon ? () => followEmoticon(emoticon) : undefined;
   }
 
   // INFO: REQUIREMENTS.md § 9.1. A file bubble carries no photos to warn about losing, and § 6. keeps a bubble's attachments all of one kind — so the first one names them all.
@@ -1430,6 +1473,16 @@ export function ChatRoom({
     const items: ActionSheetItem[] = [
       { label: "답장", Icon: CornerUpLeft, onSelect: () => stageReply(target) },
     ];
+    const emoticon = target.emoticon;
+
+    // INFO: REQUIREMENTS.md § 13.9. The same action the bubble's own tap performs, offered here because a mouse reaches this sheet by right-click (`DESIGN.md § 3.2.`) — and because a tap that also replays a sound is not the only way anyone should have to ask for it.
+    if (emoticon) {
+      items.push({
+        label: "이모티콘 따라하기",
+        Icon: Smile,
+        onSelect: () => followEmoticon(emoticon),
+      });
+    }
 
     if (target.text) {
       items.push({ label: "복사", Icon: Copy, onSelect: () => void copyText(target.text ?? "") });

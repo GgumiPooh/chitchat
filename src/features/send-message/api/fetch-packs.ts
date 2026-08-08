@@ -2,8 +2,14 @@ import type { EmoticonPackWithItems } from "@/entities/emoticon";
 import { request } from "@/shared/api";
 import { EMOTICON_PACKS_PATH } from "@/shared/config";
 
-export async function fetchEnabledPacks(): Promise<EmoticonPackWithItems[]> {
-  const response = await request(`${EMOTICON_PACKS_PATH}?enabled=1`);
+/**
+ * Every pack with its items, hidden packs included (REQUIREMENTS.md § 13.8.).
+ *
+ * WARN: The hidden ones are the caller's to filter, and only out of what draws a
+ * tab. Search reads the whole answer.
+ */
+export async function fetchPacksWithItems(): Promise<EmoticonPackWithItems[]> {
+  const response = await request(`${EMOTICON_PACKS_PATH}?items=1`);
 
   if (!response.ok) {
     throw new Error(`GET ${EMOTICON_PACKS_PATH} responded ${response.status}`);

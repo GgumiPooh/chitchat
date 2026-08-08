@@ -64,9 +64,18 @@ export async function listEmoticonPacks(userId: string): Promise<EmoticonPackSum
   }));
 }
 
-/** The picker's source: enabled packs only, each with its items in authoring order (§ 13.6.). */
-export async function listEnabledEmoticonPacks(userId: string): Promise<EmoticonPackWithItems[]> {
-  const packs = (await listEmoticonPacks(userId)).filter((pack) => pack.isEnabled);
+/**
+ * The picker's source: **every** pack, hidden ones included, each with its items in
+ * authoring order (§ 13.6.).
+ *
+ * WARN: § 13.8. Deliberately not filtered to `isEnabled`. Hiding a pack takes it out
+ * of the picker's *tabs*, and search looks across the whole library — an emoticon
+ * the other participant sends from a pack this user has hidden has to be findable by
+ * its own words, or § 13.9.'s 따라하기 has nothing to land on. The caller filters
+ * for anything that draws a tab.
+ */
+export async function listEmoticonPacksWithItems(userId: string): Promise<EmoticonPackWithItems[]> {
+  const packs = await listEmoticonPacks(userId);
 
   if (packs.length === 0) {
     return [];

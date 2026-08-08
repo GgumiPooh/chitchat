@@ -11,6 +11,8 @@ import { toEmoticonBox } from "../model/to-emoticon-box";
 export type EmoticonBubbleProps = {
   className?: string;
   emoticon: Emoticon;
+  /** REQUIREMENTS.md § 13.9. 따라하기 — the same tap that replays this also opens the picker where this emoticon is. */
+  onFollow?: () => void;
 };
 
 /**
@@ -21,8 +23,13 @@ export type EmoticonBubbleProps = {
  * restarts it and replays the sound; the sound a newly arrived emoticon makes by
  * itself is the room's business, not the bubble's (§ 13.6.), so scrolling past
  * four of them still plays nothing.
+ *
+ * INFO: REQUIREMENTS.md § 13.9. That one tap now also opens the picker on this
+ * emoticon. The replay and the sound are kept rather than traded away — they are two
+ * of § 13.6.'s four moments, and a tap that stopped sounding to open a panel would
+ * be answering a different question than the one that was asked.
  */
-export function EmoticonBubble({ className, emoticon }: EmoticonBubbleProps) {
+export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubbleProps) {
   const [replayToken, setReplayToken] = useState(0);
   const box = toEmoticonBox(emoticon);
 
@@ -53,5 +60,6 @@ export function EmoticonBubble({ className, emoticon }: EmoticonBubbleProps) {
     setReplayToken((current) => current + 1);
     // WARN: Inside the click handler with nothing awaited before it — iOS grants the gesture's audio permission to this call stack alone, so any `await` first loses it.
     playEmoticonSound(emoticon);
+    onFollow?.();
   }
 }

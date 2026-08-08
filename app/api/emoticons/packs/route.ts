@@ -1,7 +1,7 @@
 import {
   createEmoticonPack,
   listEmoticonPacks,
-  listEnabledEmoticonPacks,
+  listEmoticonPacksWithItems,
 } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
@@ -16,10 +16,15 @@ const bodySchema = z.object({
 /**
  * Every pack in this user's own order (REQUIREMENTS.md § 13.1.).
  *
- * INFO: `?enabled=1` is what the § 13.6. picker asks for — the enabled packs *with
- * their items*, since the picker needs both and a second round trip per pack would
- * be one request per tab. The management screen (§ 13.5.) takes the default, which
- * includes hidden packs and carries no items.
+ * INFO: `?items=1` is what the § 13.6. picker asks for — every pack *with its
+ * items*, since the picker needs both and a second round trip per pack would be one
+ * request per tab. The management screen (§ 13.5.) takes the default, which carries
+ * no items.
+ *
+ * WARN: § 13.8. Both answers carry hidden packs, and the picker is what filters them
+ * out of its tabs. This used to be `?enabled=1` and the filter was here — which made
+ * a hidden pack's items unreachable by search as well as by tab, and § 13.9.'s
+ * 따라하기 undeliverable for exactly the emoticon that needs it most.
  */
 export async function GET(request: Request) {
   const user = await getCurrentUser();
@@ -28,12 +33,10 @@ export async function GET(request: Request) {
     return apiError("unauthorized");
   }
 
-  const isEnabledOnly = new URL(request.url).searchParams.get("enabled") === "1";
+  const hasItems = new URL(request.url).searchParams.get("items") === "1";
 
   return NextResponse.json({
-    packs: isEnabledOnly
-      ? await listEnabledEmoticonPacks(user.id)
-      : await listEmoticonPacks(user.id),
+    packs: hasItems ? await listEmoticonPacksWithItems(user.id) : await listEmoticonPacks(user.id),
   });
 }
 

@@ -4,7 +4,7 @@ import { toEmoticonAssetUrl } from "@/shared/config";
 import { A_MINUTE, A_SECOND, mapPooled, type Nullable } from "@/shared/lib";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { toEnabledPacksQuery } from "./enabled-packs-query";
+import { toEmoticonPacksQuery } from "./packs-query";
 
 // INFO: REQUIREMENTS.md § 13.6. Wide enough that a pack is warm in a few round trips, narrow enough that the § 13.3. route is not handed the whole library at once — each hit is a session check, an item read and a presign.
 // WARN: This is not what keeps the conversation's own images ahead of the warm. Over HTTP/2 there is one connection and no queue to be at the front of; `fetchPriority` is the mechanism, and `warmImage` is where it is set.
@@ -20,8 +20,8 @@ const PRELOAD_IDLE_DELAY = 2 * A_SECOND;
 const PRELOAD_STALE_TIME = A_MINUTE;
 
 /**
- * REQUIREMENTS.md § 13.6. Warms the enabled packs — the list, then every item's
- * image — so the panel's first open draws a full grid instead of assembling one.
+ * REQUIREMENTS.md § 13.6. Warms the packs — the list, then every item's image — so
+ * the panel's first open draws a full grid instead of assembling one.
  *
  * WARN: § 8.3. Deferred to an idle callback rather than started on mount. Both halves compete with the conversation for exactly the wrong frames otherwise: the list is one more round trip against a room already making several, and a pack of images is decode work landing while the first screenful of bubbles is still being measured.
  * WARN: This is what withdrew "a user who never opens the panel never fetches the packs". The cost is one list request and one pack of images per visit to the room, spent on an affordance one tap from the composer — against a first open that showed an empty panel for a round trip and then filled in cell by cell.
@@ -57,14 +57,16 @@ export function useEmoticonPreload(): void {
       // INFO: `fetchQuery` rather than `prefetchQuery` — the items are what the image URLs are read off, and a prefetch answers nothing.
       // WARN: The `staleTime` is the preload's alone and must not move onto the descriptor. Leaving the room and coming back remounts this, and at the descriptor's own `0` every return would re-ask for a list nothing has changed; the panel keeps that `0` deliberately, since its mount is the moment § 13.5. edits have to land.
       const packs = await queryClient
-        .fetchQuery({ ...toEnabledPacksQuery(), staleTime: PRELOAD_STALE_TIME })
+        .fetchQuery({ ...toEmoticonPacksQuery(), staleTime: PRELOAD_STALE_TIME })
         .catch(() => []);
 
       if (isCancelled) {
         return;
       }
 
-      const urls = packs
+      // WARN: § 13.8. Visible packs first, because the cap below is what the order is for. The list now carries hidden packs too — they are reachable by search and by § 13.9.'s 따라하기 — and left in list order a hidden pack sitting early would spend the budget on cells no tab draws.
+      const urls = [...packs]
+        .sort((left, right) => Number(right.isEnabled) - Number(left.isEnabled))
         .flatMap((pack) =>
           pack.items.map((item) => toEmoticonAssetUrl(item.id, "image", item.version)),
         )

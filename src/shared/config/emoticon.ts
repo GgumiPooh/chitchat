@@ -163,7 +163,7 @@ export function normalizeKeywords(input: readonly string[]): string[] {
   const kept: string[] = [];
 
   for (const raw of input) {
-    // WARN: `trimEnd` *after* the slice, or a multi-word entry cut at a space is stored with a trailing one — `matchesKeywordQuery` never trims, so `query.startsWith(keyword)` would then need the user to type that space too.
+    // WARN: `trimEnd` *after* the slice, or a multi-word entry cut at a space is stored with a trailing one — `matchesKeywordQuery` never trims, so `query.includes(keyword)` would then need the user to type that space too.
     const keyword = raw
       .trim()
       .replace(/\s+/gu, " ")
@@ -171,7 +171,7 @@ export function normalizeKeywords(input: readonly string[]): string[] {
       .trimEnd();
     const folded = keyword.toLowerCase();
 
-    // WARN: § 13.8. A floor on the stored *keyword*, and deliberately not one on the typed query — a one-character query is the useful direction and is allowed. This is the other direction: `matchesKeywordQuery` runs `query.startsWith(keyword)` for Korean particles, so a keyword of `아` underlines every drafted word beginning with that syllable.
+    // WARN: § 13.8. A floor on the stored *keyword*, and deliberately not one on the typed query — a one-character query is the useful direction and is allowed. This is the other direction: `matchesKeywordQuery` runs `query.includes(keyword)` for Korean particles, so a keyword of `아` underlines every drafted word carrying that syllable anywhere.
     if (keyword.length < MIN_KEYWORD_LENGTH || seen.has(folded)) {
       continue;
     }
@@ -209,25 +209,61 @@ export type KeywordMatch = {
 /**
  * Whether a stored keyword answers to a typed word.
  *
- * WARN: REQUIREMENTS.md § 13.8. Prefixes count **in both directions**, and each
- * direction pays for a different case. `keyword.startsWith(query)` is the one the
- * user asked for: an item tagged `고민되는군` has to be reachable by typing `고민`,
- * because nobody types a whole sentence to find a picture of it. `query.startsWith
- * (keyword)` is Korean grammar — a particle attaches to the word (`우와가`,
- * `고민되는군요`), so the typed token is the keyword plus a suffix that is not part
- * of it. Dropping either half loses half the feature.
+ * WARN: REQUIREMENTS.md § 13.8. Containment **in both directions**, and each
+ * direction pays for a different case. `keyword.includes(query)` is the one the user
+ * asked for: an item tagged `고민되는군` has to be reachable by typing `고민`, because
+ * nobody types a whole sentence to find a picture of it. `query.includes(keyword)` is
+ * Korean grammar — a particle attaches to the word (`우와가`, `고민되는군요`), so the
+ * typed token is the keyword plus an affix that is not part of it. Dropping either
+ * half loses half the feature.
  *
- * WARN: The two directions are why `MIN_KEYWORD_LENGTH` guards the keyword and
- * nothing guards the query. A one-character query can only ever reach the first
- * direction — the second needs a keyword shorter still, and there are none — so it
- * costs a wider result set and no false matches at all.
+ * WARN: § 13.8. These were `startsWith`, and an anchored match cannot answer a Korean
+ * interjection. `와` is what somebody types and `우와` is what the item is tagged —
+ * neither is a prefix of the other, so the one word the user reaches for found nothing
+ * at all. `와아` against `와!` fails the same way in both directions at once.
+ *
+ * WARN: § 13.8. Unanchoring is safe **because Korean writes a syllable per code
+ * point**, which is what makes this a different trade than it would be in English:
+ * `와` matches the syllable 와 and nothing else, where a one-letter Latin substring
+ * would match half the library. Measured over the real column before the change —
+ * every query but two returned an identical item set, `와` went from 0 items to 2,
+ * and the broadest query reached 14% of the tagged items.
+ *
+ * WARN: `MIN_KEYWORD_LENGTH` guards the keyword and nothing guards the query, and
+ * containment makes that floor **more** load-bearing rather than less: a stored `아`
+ * would now answer every drafted word containing that syllable anywhere, not only the
+ * ones starting with it.
  */
 export function matchesKeywordQuery(keyword: string, query: string): boolean {
   const foldedKeyword = keyword.toLowerCase();
   const foldedQuery = query.toLowerCase();
 
-  return foldedKeyword.startsWith(foldedQuery) || foldedQuery.startsWith(foldedKeyword);
+  return foldedKeyword.includes(foldedQuery) || foldedQuery.includes(foldedKeyword);
 }
+
+/**
+ * REQUIREMENTS.md § 13.9. A search field may hold several words at once, separated
+ * by commas, and matches an item that answers **any** of them.
+ *
+ * INFO: A comma because § 13.4.'s keyword field already commits a chip on one, so
+ * this is the separator the app has already taught. A field with no comma in it
+ * splits to the single term it always was.
+ */
+export function splitKeywordQuery(query: string): string[] {
+  return query
+    .split(",")
+    .map((term) => term.trim())
+    .filter((term) => term !== "");
+}
+
+/**
+ * How long the picker's search field may get.
+ *
+ * WARN: REQUIREMENTS.md § 13.9. Not `MAX_EMOTICON_KEYWORD_LENGTH`, which is the cap
+ * on one stored word — 따라하기 fills this field with an item's whole keyword list,
+ * so a field capped at one word's length is one the user cannot then edit.
+ */
+export const MAX_KEYWORD_QUERY_LENGTH = MAX_EMOTICON_KEYWORDS * (MAX_EMOTICON_KEYWORD_LENGTH + 2);
 
 /**
  * The word a typed draft should offer emoticons for, or `null` when it offers none.
