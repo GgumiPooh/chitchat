@@ -29,6 +29,7 @@ import {
   useArchiveSelection,
   useShelfStaging,
 } from "@/widgets/archive-shelves";
+import { josa } from "es-hangul";
 import { ImagePlus, Images, ListChecks, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -49,6 +50,9 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
   const [viewer, setViewer] = useState<Nullable<{ cells: MediaCell[]; index: number }>>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  // INFO: What one confirmation answers for — the whole selection, or the single slide the viewer's 삭제 was tapped on. The two reach the same endpoint and differ only in the nouns their sentences take.
+  // WARN: Openness is the boolean beside it and never this, which outlives a dismissal on purpose. `DialogContent` stays mounted through its 200ms exit (`DESIGN.md § 7.4.`), so clearing the subject on close empties the heading and the modal fades out with no title in it.
+  const [pendingDelete, setPendingDelete] = useState<Nullable<PendingDelete>>(null);
   const [isRemoving, setIsRemoving] = useState(false);
   const { media, isLoadingMore, loadMore, prepend, remove } = useArchiveMedia(initialMedia);
   const selection = useArchiveSelection();
@@ -135,9 +139,9 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
         <ArchiveSelectionBar
           selectedCount={selectedCount}
           isBusy={isRemoving}
+          onDelete={askToDeleteSelection}
           onSave={startSave}
           onShare={startShare}
-          onDelete={() => setIsConfirmingDelete(true)}
         />
       )}
       <MediaShareDialog
@@ -157,9 +161,8 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
       <Modal
         isOpen={isConfirmingDelete}
         header={{
-          title: `${selectedCount}장을 삭제할까요?`,
-          // INFO: REQUIREMENTS.md § 18. #1. The one thing a user cannot tell from the button — the photo leaves the library and stays in the conversation.
-          description: "대화에 보낸 사진은 말풍선에 그대로 남아요",
+          title: toDeleteTitle(pendingDelete),
+          description: toDeleteWarning(pendingDelete),
         }}
         onClose={() => setIsConfirmingDelete(false)}
       >
@@ -187,6 +190,12 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
         <MediaViewer
           cells={viewer.cells}
           initialIndex={viewer.index}
+          // WARN: REQUIREMENTS.md § 10. Withheld while an upload is in flight, for the reason the 선택 control is disabled — a row whose `postMessage` has not settled would be deleted out from under the send.
+          deletion={
+            staging.isUploading
+              ? undefined
+              : { label: "보관함에서 삭제", onSelect: askToDeleteSlide }
+          }
           onClose={() => setViewer(null)}
           onShare={(mediaId) => void saving.share([mediaId])}
           onSave={(mediaId) => void saving.save([mediaId])}
@@ -255,8 +264,32 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
     void saving.share(ids);
   }
 
+  // INFO: REQUIREMENTS.md § 10. Counted rather than named, and 사진 whatever the selection holds — the shelf's own counter says 장 of a video as readily, so only a single named slide is specific enough to be wrong.
+  function askToDeleteSelection() {
+    askToDelete({ ids: selection.selectedIds, subject: `${selectedCount}장`, noun: "사진" });
+  }
+
+  /**
+   * REQUIREMENTS.md § 10. The viewer's 삭제, which removes the library row alone —
+   * the message the photo was sent in keeps it, which is what the confirmation says.
+   */
+  function askToDeleteSlide(mediaId: string) {
+    const noun = viewer?.cells.find((item) => item.id === mediaId)?.isVideo ? "동영상" : "사진";
+
+    askToDelete({ ids: [mediaId], subject: `이 ${noun}`, noun });
+  }
+
+  function askToDelete(pending: PendingDelete) {
+    setPendingDelete(pending);
+    setIsConfirmingDelete(true);
+  }
+
   async function confirmDelete() {
-    const ids = selection.selectedIds;
+    if (pendingDelete === null) {
+      return;
+    }
+
+    const { ids, noun } = pendingDelete;
 
     setIsRemoving(true);
 
@@ -265,10 +298,25 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
       remove(ids);
       selection.cancel();
       setIsConfirmingDelete(false);
+      // WARN: The viewer closes with it. `cells` is the snapshot taken at open, so the deleted slide would otherwise stay on screen and swipe back into view.
+      setViewer(null);
     } catch {
-      toast.error("사진을 삭제하지 못했어요");
+      toast.error(`${josa(noun, "을/를")} 삭제하지 못했어요`);
     } finally {
       setIsRemoving(false);
     }
   }
+}
+
+/** The rows one confirmation is for, the subject naming them in its title, and the noun every sentence under it takes. */
+type PendingDelete = { ids: string[]; subject: string; noun: string };
+
+// INFO: AGENTS.md § 0.4. The subject varies (`3장`, `이 동영상`), so the particle is chosen rather than written into a sentence two of them reach.
+function toDeleteTitle(pending: Nullable<PendingDelete>): string {
+  return pending === null ? "" : `${josa(pending.subject, "을/를")} 삭제할까요?`;
+}
+
+// INFO: REQUIREMENTS.md § 18. #1. The one thing a user cannot tell from the button — what is deleted leaves the library and stays in the conversation.
+function toDeleteWarning(pending: Nullable<PendingDelete>): string {
+  return `대화에 보낸 ${josa(pending?.noun ?? "사진", "은/는")} 말풍선에 그대로 남아요`;
 }

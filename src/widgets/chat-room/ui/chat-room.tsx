@@ -1111,8 +1111,8 @@ export function ChatRoom({
         <MediaViewer
           cells={viewer.cells}
           initialIndex={viewer.index}
+          deletion={buildViewerDelete(viewer.isMine ? viewer.messageId : null)}
           onClose={() => setViewer(null)}
-          onDelete={buildViewerDelete(viewer.isMine ? viewer.messageId : null)}
           onShare={(mediaId) => void sharing.share([mediaId])}
           onSave={(mediaId) => void sharing.save([mediaId])}
           onSetBackground={setBackground.open}
@@ -1689,8 +1689,10 @@ export function ChatRoom({
   }
 
   function buildViewerDelete(messageId: Nullable<number>) {
-    // INFO: DESIGN.md § 7.10. The control sits beside a per-slide 원본 저장, so the reach of one tap is not obvious from where it is.
-    return messageId === null ? undefined : () => setConfirmingDeleteId(messageId);
+    // INFO: DESIGN.md § 7.10. The control sits beside a per-slide 원본 저장, so the reach of one tap is not obvious from where it is — 메시지 is the label's whole job, and 보관함's viewer renders the same trash over a row-only delete.
+    return messageId === null
+      ? undefined
+      : { label: "메시지 삭제", onSelect: () => setConfirmingDeleteId(messageId) };
   }
 
   // WARN: Closes the viewer unconditionally. The same confirmation answers for the § 8.11. sheet, where there is no viewer open to close.

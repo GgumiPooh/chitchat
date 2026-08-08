@@ -12,9 +12,17 @@ export type MediaViewerProps = {
   className?: string;
   cells: MediaCell[];
   initialIndex: number;
+  /**
+   * REQUIREMENTS.md § 10. The 삭제 for the slide on screen, and the label saying how
+   * far it reaches — a chat bubble's takes the whole message with it (`메시지 삭제`),
+   * 보관함's takes the library row alone (`보관함에서 삭제`). Omitted where the reader
+   * has nothing to remove.
+   *
+   * INFO: The label rides with the handler rather than standing beside it as a second prop, because DESIGN.md § 7.10. is that the reach is not readable from where the control sits — a handler that could arrive without one would draw the same trash over two different consequences.
+   * INFO: `onSelect` is given the media id for `onShare`'s reason, the slide moving under the control. A chat bubble's viewer ignores it and removes the message its cells came from.
+   */
+  deletion?: { label: string; onSelect: (mediaId: string) => void };
   onClose: () => void;
-  /** Removes the message the attachments belong to, not the slide on screen. Omitted when they are not the current user's to remove. */
-  onDelete?: () => void;
   /** REQUIREMENTS.md § 8.11. Hands the slide on screen to the OS share sheet. Given the media id, since the slide moves under the control. */
   onShare?: (mediaId: string) => void;
   /** REQUIREMENTS.md § 8.11. The 저장 route for the slide on screen. Used on iOS only, where the download beside it cannot reach the photo library. */
@@ -56,8 +64,8 @@ export function MediaViewer({
   className,
   cells,
   initialIndex,
+  deletion,
   onClose,
-  onDelete,
   onShare,
   onSave,
   onSetBackground,
@@ -106,13 +114,13 @@ export function MediaViewer({
             <span className="text-caption text-on-scrim">{`${index + 1} / ${cells.length}`}</span>
           )}
           <div className="flex items-center">
-            {onDelete && (
-              // INFO: DESIGN.md § 7.10. Deleting one's own attachment, confirmed — the same delete the § 8.11. action sheet reaches.
+            {deletion && current && (
+              // INFO: DESIGN.md § 7.10. Confirmed wherever it renders, since a control beside a per-slide save does not say its own reach — in a chat bubble it is the same delete the § 8.11. action sheet reaches.
               <IconButton
                 className="text-semantic-error hover:bg-on-scrim/15 hover:text-semantic-error-hover"
                 Icon={Trash2}
-                aria-label="메시지 삭제"
-                onClick={onDelete}
+                aria-label={deletion.label}
+                onClick={() => deletion.onSelect(current.id)}
               />
             )}
             {onSetBackground && current && (
