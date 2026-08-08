@@ -1,5 +1,5 @@
 import type { PushSubscriptionInput } from "@/entities/push-subscription";
-import { SERVICE_WORKER_PATH, VAPID_PUBLIC_KEY } from "@/shared/config";
+import { IS_DEV, SERVICE_WORKER_PATH, VAPID_PUBLIC_KEY } from "@/shared/config";
 import { safelyGetAsync } from "@/shared/lib";
 import { deleteSubscription } from "../api/delete-subscription";
 import { saveSubscription } from "../api/save-subscription";
@@ -89,9 +89,21 @@ export async function unsubscribeFromPush(): Promise<PushStatus> {
   return "off";
 }
 
+/**
+ * WARN: REQUIREMENTS.md § 16. `?nocache=1` outside production, which is how the
+ * worker is told to cache nothing — it is served raw from `public/` and can read no
+ * environment of its own, so the flag has to ride on the URL. `sw.js` reads exactly
+ * this parameter and the two have to move together.
+ *
+ * WARN: This makes the script URL differ between dev and production, and therefore
+ * the registration. That is the intended effect rather than a side one: a worker
+ * carrying a development bundle can never be the one an installed app is running.
+ */
 function registerPushWorker(): Promise<ServiceWorkerRegistration> {
+  const path = IS_DEV ? `${SERVICE_WORKER_PATH}?nocache=1` : SERVICE_WORKER_PATH;
+
   // INFO: `updateViaCache: "none"` on top of the no-store header — the browser has its own worker cache that HTTP headers alone do not reach.
-  return navigator.serviceWorker.register(SERVICE_WORKER_PATH, {
+  return navigator.serviceWorker.register(path, {
     scope: "/",
     updateViaCache: "none",
   });

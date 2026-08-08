@@ -27,8 +27,28 @@ const CACHE_NAME = "jandh-v1";
 // WARN: `/icons/` is deliberately absent. `pnpm icons` regenerates `icon-192.png` and the splash set **in place**, under fixed names, so a cache-first entry would serve the old artwork on every installed client until `CACHE_NAME` moved — and nothing ties the two together.
 const IMMUTABLE_PREFIXES = ["/_next/static/"];
 
+/**
+ * Whether this worker may cache anything at all (REQUIREMENTS.md § 16.).
+ *
+ * WARN: Off outside production, and the whole of caching goes with it — not just
+ * `IMMUTABLE_PREFIXES`. The comment above that list is the reason: caching is safe
+ * *because* a changed file gets a new URL. `next dev` reuses stable chunk names, so
+ * the premise is simply false there — the worker pins the first bundle it ever saw
+ * and serves it back over every edit, which reads as HMR having stopped working.
+ *
+ * WARN: Read off the registration URL because a worker is served raw from `public/`
+ * and can reach neither `process.env` nor `@/shared/config`. `push-registration.ts`
+ * is what appends it, and the two have to move together. A different script URL is a
+ * different registration, which is the intended effect: a dev worker and a
+ * production one never share a state.
+ */
+const IS_CACHING_ENABLED = new URL(self.location.href).searchParams.get("nocache") !== "1";
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(precacheOfflinePage());
+  if (IS_CACHING_ENABLED) {
+    event.waitUntil(precacheOfflinePage());
+  }
+
   // INFO: A new build takes over on the next launch rather than the one after it.
   self.skipWaiting();
 });
@@ -57,14 +77,23 @@ async function precacheOfflinePage() {
   }
 }
 
+/**
+ * WARN: With caching off this takes `CACHE_NAME` too, so the fix is self-healing —
+ * a browser that already holds a dev bundle from before this flag existed is emptied
+ * on the next activation rather than needing Settings' 강제 새로고침 pressed by hand.
+ */
 async function evictOtherVersions() {
   const names = await caches.keys();
+  const kept = IS_CACHING_ENABLED ? [CACHE_NAME] : [];
 
-  await Promise.all(names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name)));
+  await Promise.all(
+    names.filter((name) => !kept.includes(name)).map((name) => caches.delete(name)),
+  );
 }
 
 function resolveHandler(request) {
-  if (request.method !== "GET") {
+  // WARN: Before every other test. Off, the worker answers no `fetch` at all and every request goes to the network untouched — which is exactly what `next dev` needs, and leaves push (§ 16.1.) working, since that never touches the cache.
+  if (!IS_CACHING_ENABLED || request.method !== "GET") {
     return null;
   }
 
