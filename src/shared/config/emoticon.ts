@@ -1,4 +1,6 @@
 import { A_DAY, A_MEGABYTE, A_SECOND, type Nullable } from "@/shared/lib";
+// INFO: REQUIREMENTS.md § 13.9.1. The same dependency `josa` comes from (`CLAUDE.md § 0.4.`) — the Hangul decompositions a Korean search needs are shipped with it, and no ranking library has them.
+import { canBeChoseong, convertQwertyToHangul, disassemble, getChoseong } from "es-hangul";
 
 /** REQUIREMENTS.md § 13.3. Presigned PUT then registration, exactly as § 9. does — but no `_thumb` sibling and no `media` row. */
 export const EMOTICON_UPLOAD_URL_PATH = "/api/emoticons/upload-url";
@@ -244,47 +246,152 @@ export function matchesKeywordQuery(keyword: string, query: string): boolean {
 }
 
 /**
+ * The relevance ladder (REQUIREMENTS.md § 13.9.1.). The literal rungs are
+ * `matchesKeywordQuery`'s two directions told apart with equality above them; the
+ * two below are Hangul-shaped aids, and they sit under every literal match because
+ * a word the user actually typed beats a shape it could have meant.
+ */
+const RELEVANCE = {
+  exact: 6,
+  keywordHoldsTerm: 4,
+  termHoldsKeyword: 3,
+  hangulShape: 2,
+  qwerty: 1,
+} as const;
+
+// INFO: § 13.9.1. Two jamo, so a bare `ㅁ` reaches the 초성 rung (where a single consonant is the whole point) rather than matching every keyword with that letter anywhere inside a syllable.
+const MIN_JAMO_QUERY_LENGTH = 2;
+
+/**
  * How well an item answers a set of query terms (REQUIREMENTS.md § 13.9.).
  *
  * INFO: Summed over the terms, so an item that answers several of them outranks one
  * that answers a single term very well — 따라하기 hands over a whole keyword list,
  * and the emoticons worth showing first are the ones that share most of it.
  *
- * INFO: The three tiers are `matchesKeywordQuery`'s two directions told apart, plus
- * equality above them. A keyword that *contains* the term is the item the user meant
- * (`고민` → `고민되는군`); a term that contains the keyword is the looser direction
- * Korean particles need, and it matches far more widely, so it ranks below.
- *
- * WARN: Zero means no match, and callers filter on it. It must stay in step with
- * `matchesKeywordQuery` — a pair that disagrees either drops matched items or ranks
- * unmatched ones.
+ * WARN: Zero means no match, and callers filter on it. This is deliberately **wider
+ * than `matchesKeywordQuery`**, which stays literal: § 13.8.'s underline is an offer
+ * made over ordinary prose, and 초성 or a qwerty slip would mark half a Korean
+ * sentence. A search field is the one place the aids belong (§ 13.9.1.).
  */
 export function toKeywordRelevance(keywords: string[], terms: string[]): number {
   return terms.reduce((total, term) => total + toTermRelevance(keywords, term), 0);
 }
 
+/**
+ * INFO: § 13.9.1. A cascade, not a maximum. Each rung is only reached when the one
+ * above found nothing at all, which is what keeps the aids off the common query —
+ * and keeps their cost off it too, since the decompositions below never run for a
+ * term the letters already answered.
+ */
 function toTermRelevance(keywords: string[], term: string): number {
-  const foldedTerm = term.toLowerCase();
+  const literal = toLiteralRelevance(keywords, term.toLowerCase());
+
+  if (literal > 0) {
+    return literal;
+  }
+
+  if (toHangulShapeRelevance(keywords, term) > 0) {
+    return RELEVANCE.hangulShape;
+  }
+
+  // INFO: § 13.9.1. The IME slip, last: `rhals` is `고민` typed with the keyboard still in English. It re-enters the literal rungs rather than getting a test of its own, so a conversion that lands on nothing costs nothing.
+  const converted = toHangulFromQwerty(term);
+
+  return converted && toLiteralRelevance(keywords, converted) > 0 ? RELEVANCE.qwerty : 0;
+}
+
+function toLiteralRelevance(keywords: string[], foldedTerm: string): number {
   let best = 0;
 
   for (const keyword of keywords) {
     const foldedKeyword = keyword.toLowerCase();
 
     if (foldedKeyword === foldedTerm) {
-      return 3;
+      return RELEVANCE.exact;
     }
 
     if (foldedKeyword.includes(foldedTerm)) {
-      best = Math.max(best, 2);
+      best = Math.max(best, RELEVANCE.keywordHoldsTerm);
       continue;
     }
 
     if (foldedTerm.includes(foldedKeyword)) {
-      best = Math.max(best, 1);
+      best = Math.max(best, RELEVANCE.termHoldsKeyword);
     }
   }
 
   return best;
+}
+
+/**
+ * REQUIREMENTS.md § 13.9.1. The two ways a Korean query is a *shape* of the word
+ * rather than the word: its 초성 (`ㄱㅁ` → `고민`), and a syllable left half-typed
+ * (`고ㅁ` → `고민`).
+ *
+ * WARN: The two are separate tests and neither covers the other — `disassemble`
+ * spells a syllable out in full (`고민` is `ㄱㅗㅁㅣㄴ`), which a 초성 string is not a
+ * substring of.
+ */
+function toHangulShapeRelevance(keywords: string[], term: string): number {
+  if (isChoseongOnly(term)) {
+    return keywords.some((keyword) => toChoseong(keyword).includes(term)) ? 1 : 0;
+  }
+
+  const termJamo = disassemble(term);
+
+  if (termJamo.length < MIN_JAMO_QUERY_LENGTH) {
+    return 0;
+  }
+
+  return keywords.some((keyword) => toJamo(keyword).includes(termJamo)) ? 1 : 0;
+}
+
+function isChoseongOnly(term: string): boolean {
+  return term.length > 0 && [...term].every((letter) => canBeChoseong(letter));
+}
+
+// INFO: § 13.9.1. Only a run of Latin letters is a plausible IME slip; anything else converts to noise that could still collide with a keyword.
+function toHangulFromQwerty(term: string): Nullable<string> {
+  if (term.length < MIN_JAMO_QUERY_LENGTH || !/^[a-z]+$/i.test(term)) {
+    return null;
+  }
+
+  const converted = convertQwertyToHangul(term.toLowerCase());
+
+  return converted === term.toLowerCase() ? null : converted;
+}
+
+/**
+ * WARN: § 13.9.1. Memoized on the keyword, and it is not a micro-optimisation. These
+ * run per keyword per term on a field being typed into, and 따라하기 fills that field
+ * with a whole keyword list — the un-memoized product is the library times a dozen
+ * terms on every keystroke. The set they are keyed by is the authored keywords,
+ * which is bounded by what the two participants have written.
+ */
+const choseongCache = new Map<string, string>();
+const jamoCache = new Map<string, string>();
+
+function toChoseong(keyword: string): string {
+  return toCached(choseongCache, keyword, getChoseong);
+}
+
+function toJamo(keyword: string): string {
+  return toCached(jamoCache, keyword, disassemble);
+}
+
+function toCached(cache: Map<string, string>, key: string, derive: (value: string) => string) {
+  const cached = cache.get(key);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const derived = derive(key);
+
+  cache.set(key, derived);
+
+  return derived;
 }
 
 /**
