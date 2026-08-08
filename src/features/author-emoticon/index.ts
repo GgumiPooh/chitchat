@@ -1,5 +1,6 @@
 export { discardEmoticonAssets, uploadEmoticonAsset } from "./api/upload-emoticon-asset";
 export {
+  KeywordRateLimitError,
   createEmoticon,
   createEmoticonPack,
   deleteEmoticon,
@@ -8,6 +9,7 @@ export {
   updateEmoticon,
   updateEmoticonPack,
   type CreateEmoticonBody,
+  type KeywordRateLimit,
   type UpdateEmoticonBody,
 } from "./api/write-emoticon";
 export {

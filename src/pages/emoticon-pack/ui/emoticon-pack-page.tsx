@@ -9,6 +9,7 @@ import {
   fillEmoticonKeywords,
   updateEmoticonPack,
   type BulkAddFailure,
+  type KeywordRateLimit,
 } from "@/features/author-emoticon";
 import { MediaPickerSheet } from "@/features/upload-media";
 import { EMOTICON_SETTINGS_ROUTE } from "@/shared/config";
@@ -18,6 +19,12 @@ import { josa } from "es-hangul";
 import { ChevronLeft, Images, Pencil, Plus, Smile, Sparkles, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+
+/** REQUIREMENTS.md § 13.8.1. What a 429 from Google is told to the user as. */
+const RATE_LIMIT_MESSAGES: Record<KeywordRateLimit, string> = {
+  minute: "요청이 몰렸어요. 1분 후에 다시 눌러 주세요",
+  day: "오늘 쓸 수 있는 양을 다 썼어요. 내일 다시 시도해 주세요",
+};
 
 export type EmoticonPackPageProps = {
   className?: string;
@@ -254,11 +261,21 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
     setTagging({ done: 0, total: untagged.length });
 
     try {
-      const { filled, failed } = await fillEmoticonKeywords(untagged, ({ saved, remaining }) => {
-        // INFO: § 13.8.1. Applied per batch rather than at the end, so the grid fills in while the run continues — which is what the count beside it is counting down against.
-        saved.forEach(handleSaved);
-        setTagging({ done: untagged.length - remaining, total: untagged.length });
-      });
+      const { filled, failed, rateLimit } = await fillEmoticonKeywords(
+        untagged,
+        ({ saved, remaining }) => {
+          // INFO: § 13.8.1. Applied per batch rather than at the end, so the grid fills in while the run continues — which is what the count beside it is counting down against.
+          saved.forEach(handleSaved);
+          setTagging({ done: untagged.length - remaining, total: untagged.length });
+        },
+      );
+
+      // WARN: § 13.8.1. Named before the counts, because it is the only outcome that says *when* to press again — and § 6.7.'s rule applies to somebody else's quota too: a minute is worth waiting out and a day is not, so the two may not share a sentence.
+      if (rateLimit) {
+        toast.error(RATE_LIMIT_MESSAGES[rateLimit]);
+
+        return;
+      }
 
       if (filled === 0) {
         toast.error("검색 키워드를 만들지 못했어요");

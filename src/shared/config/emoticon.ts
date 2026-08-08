@@ -9,24 +9,34 @@ export const EMOTICON_ITEMS_PATH = "/api/emoticons/items";
 
 export const EMOTICON_PREFS_PATH = "/api/emoticons/prefs";
 
+// WARN: REQUIREMENTS.md § 13.7. The same value `next.config.ts` rewrites to, and the same trailing slash stripped off it — the two cannot import one another, since that file is loaded before the path aliases exist.
+const EMOTICONS_ORIGIN = (
+  process.env.NEXT_PUBLIC_EMOTICONS_ORIGIN ?? "http://localhost:3001"
+).replace(/\/+$/, "");
+
 /**
  * The keyword suggester, which is **jandh-emoticons' route rather than this app's**
  * (REQUIREMENTS.md § 13.8.1.).
  *
- * WARN: The one path here that names a route this app does not serve. It carries the
- * `/emoticons` prefix because that is the zone (§ 13.7.), and `next.config.ts`'s
- * existing rewrite already carries it across in development as well as production —
- * no second rewrite exists for this, and none is needed.
+ * WARN: An absolute URL where everything else here is a path, and the only one: it
+ * is called at jandh-emoticons' **own** origin rather than through § 13.7.'s zone,
+ * so the rewrite and the Vercel proxy hop it costs are both out of the way. Callers
+ * MUST send it `credentials: "include"` — `fetch` defaults to `same-origin` and
+ * would otherwise carry no session at all.
  *
- * WARN: `proxy.ts` excludes `emoticons/api` from the session gate, so this request
- * is authorized by the zone's own `getCurrentUser`, not by the gate here. Adding it
- * back to the matcher would answer this call with a redirect to `/login`.
+ * WARN: The `/emoticons` segment stays. It is that app's `basePath`, which is its
+ * own setting rather than an artifact of the rewrite — dropping the rewrite does
+ * not drop the prefix.
+ *
+ * WARN: `proxy.ts`'s `emoticons/api` exclusion is **not** this call's and must not
+ * be removed with it. That zone's own import screen posts to the same handler at
+ * this origin, where the path is relative (§ 13.7.).
  *
  * WARN: Do not move the route back. The model call is the expensive part of this
  * feature and it is deliberately hosted where the emoticon work already is, so
  * jandh's own function budget pays for the conversation rather than for tagging.
  */
-export const EMOTICON_KEYWORDS_PATH = "/emoticons/api/emoticons/keywords";
+export const EMOTICON_KEYWORDS_URL = `${EMOTICONS_ORIGIN}/emoticons/api/emoticons/keywords`;
 
 /** REQUIREMENTS.md § 13.2. One required image, one optional audio companion, each its own object. */
 export const EMOTICON_SLOTS = ["image", "audio"] as const;
@@ -88,15 +98,23 @@ export const MAX_EMOTICON_KEYWORD_LENGTH = 20;
  * § 13.8.1.).
  *
  * WARN: This is the route's cap **and** the caller's chunk size, deliberately the
- * same number so one request is provably one model call. Sixteen 210×210 images
- * answer in about five seconds; a route that accepted a whole pack would run four
- * of those back to back and be killed by the platform before it answered, which is
- * the failure jandh-emoticons' § 6.3.1. already exists to have removed.
+ * same number so one request is provably one model call. A route that accepted a
+ * whole pack would run several of those back to back and be killed by the platform
+ * before it answered, which is the failure jandh-emoticons' § 6.3.1. already exists
+ * to have removed.
+ *
+ * WARN: Four, down from sixteen, and the reason is **answer quality rather than
+ * time** (§ 13.8.1.). Sixteen fitted the latency budget; what it did not fit was a
+ * lite model's ability to keep sixteen inline images apart while reading the Korean
+ * line off each one. The whole feature rests on `index` naming the right picture.
  *
  * WARN: Callers MUST chunk to this. It is also what makes the screen able to say how
  * far along it is — a single request can only ever report "not yet".
+ *
+ * WARN: jandh-emoticons declares this number too and owns the route. The two MUST
+ * agree: chunking larger here is refused there.
  */
-export const KEYWORD_SUGGESTION_BATCH = 16;
+export const KEYWORD_SUGGESTION_BATCH = 4;
 
 /**
  * How long an emoticon's presigned GET stays valid, and how long the 302 in front

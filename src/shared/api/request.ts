@@ -17,8 +17,10 @@ export class DormantRequestError extends Error {
  * 절전 모드 is one gate rather than a check each caller has to remember — and a
  * fetcher added later is covered by having been written the ordinary way.
  *
- * INFO: Our origin only. R2's presigned PUT and § 8.9.'s oEmbed lookup never reach
- * our server, so they cost Neon nothing and stay on plain `fetch`.
+ * INFO: The gate is "does this wake Neon", not "is this same-origin". R2's presigned
+ * PUT and § 8.9.'s oEmbed lookup reach no server of ours and stay on plain `fetch`;
+ * § 13.8.1.'s suggester is cross-origin and belongs here anyway, since it reads the
+ * items out of the same database.
  */
 export function request(path: string, init?: RequestInit): Promise<Response> {
   if (isDormant()) {

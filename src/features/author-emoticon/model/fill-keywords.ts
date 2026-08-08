@@ -1,6 +1,11 @@
 import type { Emoticon } from "@/entities/emoticon";
 import { KEYWORD_SUGGESTION_BATCH } from "@/shared/config";
-import { suggestEmoticonKeywords, updateEmoticon } from "../api/write-emoticon";
+import {
+  KeywordRateLimitError,
+  suggestEmoticonKeywords,
+  updateEmoticon,
+  type KeywordRateLimit,
+} from "../api/write-emoticon";
 
 export type KeywordFillBatch = {
   /** The items this batch saved, ready to be folded back into the screen's list. */
@@ -13,6 +18,8 @@ export type KeywordFillResult = {
   filled: number;
   /** Items the run reached but could not describe or could not save. */
   failed: number;
+  /** REQUIREMENTS.md § 13.8.1. Set when a quota ended the run early; the items it never reached are untouched. */
+  rateLimit?: KeywordRateLimit;
 };
 
 /**
@@ -34,6 +41,10 @@ export type KeywordFillResult = {
  * field the user can always type into, so one refused chunk costs those items their
  * words and nothing else — and pressing again retries exactly them, since the pack
  * screen only ever offers the items that still have none.
+ *
+ * WARN: A **quota** refusal is the one exception and does end it. Every batch behind
+ * it would be another request against the limit that just refused this one, which
+ * answers nothing and lengthens the wait. What was already filled stays filled.
  */
 export async function fillEmoticonKeywords(
   items: Emoticon[],
@@ -44,7 +55,17 @@ export async function fillEmoticonKeywords(
 
   for (let start = 0; start < items.length; start += KEYWORD_SUGGESTION_BATCH) {
     const batch = items.slice(start, start + KEYWORD_SUGGESTION_BATCH);
-    const saved = await fillBatch(batch);
+    let saved: Emoticon[];
+
+    try {
+      saved = await fillBatch(batch);
+    } catch (cause) {
+      if (cause instanceof KeywordRateLimitError) {
+        return { filled, failed, rateLimit: cause.rateLimit };
+      }
+
+      throw cause;
+    }
 
     filled += saved.length;
     failed += batch.length - saved.length;
@@ -57,7 +78,16 @@ export async function fillEmoticonKeywords(
 
 /** INFO: The saves are parallel where the suggestion is not — they are ordinary writes, and `sort_order` is untouched by them. */
 async function fillBatch(batch: Emoticon[]): Promise<Emoticon[]> {
-  const suggested = await suggestEmoticonKeywords(batch.map((item) => item.id)).catch(() => null);
+  // WARN: § 13.8.1. Everything is swallowed except the quota refusal, which the caller has to act on — `fillEmoticonKeywords` stops the run on it rather than queueing more requests against a limit that has already said no.
+  const suggested = await suggestEmoticonKeywords(batch.map((item) => item.id)).catch(
+    (cause: unknown) => {
+      if (cause instanceof KeywordRateLimitError) {
+        throw cause;
+      }
+
+      return null;
+    },
+  );
 
   if (!suggested) {
     return [];

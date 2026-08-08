@@ -85,6 +85,8 @@ jandh-emoticons is served from this origin under `/emoticons`, through a rewrite
 
 Cross that boundary with a document navigation — `window.location`, or an `<a href>` — never `<Link>` or `router.push`. The client router would ask for an RSC payload that does not exist. Do not narrow the rewrite or the `proxy.ts` matcher exclusions without reading § 13.7. first; both are load-bearing in ways that fail as 404s on assets rather than as errors.
 
+**Exactly one call skips the rewrite**, and it is `EMOTICON_KEYWORDS_URL` (`REQUIREMENTS.md § 13.8.1.`) — an absolute URL at `jandh-emoticons.jeheecheon.com`, sent with `credentials: "include"` and answered with CORS by that repo. It is an exception, not a pattern to copy: a `fetch` can leave the origin because it can be given credentials and a preflight, and a navigation cannot. Sharing `jeheecheon.com` makes the two same-**site**, which settles the cookie and nothing else — SOP compares scheme, host and port, so anything else moved off the rewrite needs CORS in the other repository before it works at all.
+
 ## 4.3. App shell width
 
 All screen content, including the bottom tab bar, is constrained to the app shell max width and horizontally centered. Use `Container` from `@/shared/ui`; do not hardcode `max-w-*` values in screens.

@@ -11,10 +11,10 @@ const SECURITY_HEADERS = [
 
 // INFO: The origin jandh-emoticons is deployed to, proxied in as a multi-zone. Set per environment; the default is that repo's dev server, so a local `pnpm dev` in both needs no configuration.
 // WARN: REQUIREMENTS.md § 13.7. The trailing slash is stripped rather than merely forbidden, because a value that carries one rewrites to `//emoticons/:path*` — which the zone answers, so nothing reports it, and the far origin then sees every request at a path that reads as protocol-relative wherever it is resolved against a base rather than matched.
-const EMOTICONS_ORIGIN = (process.env.EMOTICONS_ORIGIN ?? "http://localhost:3001").replace(
-  /\/+$/,
-  "",
-);
+// WARN: `NEXT_PUBLIC_`, and read again in `shared/config/emoticon.ts` — § 13.8.1.'s suggester is called at that origin from the browser, which cannot see a server-only variable. One variable rather than two, since two holding the same origin is a pair that drifts; this file cannot import the other copy, because it is loaded before the path aliases exist.
+const EMOTICONS_ORIGIN = (
+  process.env.NEXT_PUBLIC_EMOTICONS_ORIGIN ?? "http://localhost:3001"
+).replace(/\/+$/, "");
 
 const SERVICE_WORKER_HEADERS = [
   { key: "Content-Type", value: "application/javascript; charset=utf-8" },

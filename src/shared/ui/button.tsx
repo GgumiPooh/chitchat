@@ -65,7 +65,13 @@ export function Button({
   return (
     // WARN: The wrapper stands whether or not the button is disabled — dropping it there would hand `className` back to the button, and a disabled `삭제` would take the wrapper's `flex-1` as its own styling.
     // INFO: A disabled button confirms nothing, and the overlay would still take the tap and tick.
-    <HapticTarget className={cn("flex w-full", className)} isTicking={!disabled}>
+    // WARN: `keepsScroll` — a full-width button is a large piece of a scrolling screen, and the bare switch overlay is a native control that keeps a drag of its own. Without it a finger that lands on 추가하기 and pulls scrolls nothing at all, which reads as a frozen page rather than as a button (`jandh DESIGN.md § 7.15.1.`).
+    <HapticTarget
+      className={cn("flex w-full", className)}
+      overlayClassName="touch-pan-y"
+      isTicking={!disabled}
+      keepsScroll
+    >
       {button}
     </HapticTarget>
   );
