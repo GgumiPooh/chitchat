@@ -1,5 +1,6 @@
 "use client";
 
+import { useChatStream } from "@/features/chat-stream/@x/set-background";
 import { updateProfile } from "@/features/update-profile/@x/set-background";
 import type { Nullable } from "@/shared/lib";
 import { ActionSheet, toast } from "@/shared/ui";
@@ -39,13 +40,14 @@ export type SetBackgroundSheetProps = {
 export function SetBackgroundSheet({ className, sourceId, onClose }: SetBackgroundSheetProps) {
   // WARN: A ref, not state, and it is the only thing standing between a slow connection and a leaked object. `ActionSheet` closes itself in the same tick it fires `onSelect`, so this component is already unmounted-in-effect before the first `await` resolves and no `isBusy` state it holds can gate a second tap. The viewer underneath stays up, 배경으로 설정 is still there, and each tap mints another `background/` copy that only the last write is reachable through.
   const isApplyingRef = useRef(false);
+  const { setChatBackgroundMediaId } = useChatStream();
   const router = useRouter();
 
   return (
     <ActionSheet
       className={className}
       isOpen={sourceId !== null}
-      header={{ title: "배경으로 설정", description: "채팅방 배경은 상대방 화면에서도 바뀌어요" }}
+      header={{ title: "배경으로 설정", description: "채팅방 배경은 상대방 화면에도 같이 깔려요" }}
       items={[
         { label: "프로필 배경으로", Icon: ImageIcon, onSelect: () => void apply("profile") },
         { label: "채팅방 배경으로", Icon: MessageSquare, onSelect: () => void apply("chat") },
@@ -72,7 +74,8 @@ export function SetBackgroundSheet({ className, sourceId, onClose }: SetBackgrou
 
     toast.promise(applied, {
       loading: "배경으로 설정하는 중이에요",
-      success: slot === "profile" ? "프로필 배경으로 설정했어요" : "둘 다 이 배경으로 바뀌었어요",
+      success:
+        slot === "profile" ? "프로필 배경으로 설정했어요" : "상대방 화면에도 이 배경이 깔렸어요",
       error: "배경으로 설정하지 못했어요",
     });
 
@@ -99,6 +102,7 @@ export function SetBackgroundSheet({ className, sourceId, onClose }: SetBackgrou
       return;
     }
 
-    await setChatBackground(media.id);
+    // WARN: REQUIREMENTS.md § 12.2. Pushed into the stream state, exactly as the 설정 row does and for the same reason: this sheet is reached from 보관함 as well as 채팅, and § 8.4.2. mounts the socket in 채팅 alone — so on the library screen the write's own `user_changed` arrives nowhere.
+    setChatBackgroundMediaId(await setChatBackground(media.id));
   }
 }

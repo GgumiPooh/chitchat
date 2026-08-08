@@ -47,6 +47,18 @@ export type ChatStreamValue = {
    * (§ 8.4.) for free.
    */
   chatBackgroundMediaId: Nullable<string>;
+  /**
+   * REQUIREMENTS.md § 12.2. Declared by whoever just wrote the wallpaper, with the id
+   * the server answered.
+   *
+   * WARN: Not a convenience over the `user_changed` refetch — it is the only update
+   * path the screens that write this have. § 8.4.2. mounts `ChatStreamConnection` in
+   * 채팅 alone, so 설정 and 보관함 hold **no socket at all** and the event never
+   * arrives there; the 채팅방 배경 row lives on the first of those and 배경으로 설정
+   * is reached from the second. Left to the stream, the row's own thumbnail kept
+   * showing the photo it replaced until the next full load.
+   */
+  setChatBackgroundMediaId: (mediaId: Nullable<string>) => void;
   unreadCount: number;
   /** Everyone but me who is composing right now. REQUIREMENTS.md § 8.12. */
   typingUserIds: string[];
@@ -243,6 +255,7 @@ export function ChatStreamProvider({
       value={{
         participants,
         chatBackgroundMediaId,
+        setChatBackgroundMediaId,
         unreadCount,
         typingUserIds,
         isDormant,

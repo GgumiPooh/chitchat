@@ -32,14 +32,14 @@ export type ChatBackgroundRowProps = {
  * WARN: The id comes from the stream, not from a prop, for the reason the room's does
  * (§ 12.2.) and one sharper still. A server-rendered prop goes stale the moment the
  * other participant changes the wallpaper — and that change *deletes* the object this
- * row draws a thumbnail of, so the row would show a broken image, claim 둘 다 이
- * 사진을 보고 있어요, and offer 기본 배경으로 for a photo that no longer exists.
+ * row draws a thumbnail of, so the row would show a broken image over a description
+ * claiming the photo is up, and offer 기본 배경으로 for one that no longer exists.
  */
 export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
-  const { chatBackgroundMediaId } = useChatStream();
+  const { chatBackgroundMediaId, setChatBackgroundMediaId } = useChatStream();
   const photo = usePickedPhoto();
 
   return (
@@ -66,7 +66,7 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
       <ActionSheet
         isOpen={isActionsOpen && !isBusy}
         // INFO: REQUIREMENTS.md § 12.2. The last surface before the change lands, and the only one that can say what the change reaches. The row below states the shared *state*; this states the shared *consequence*.
-        header={{ title: "채팅방 배경", description: "바꾸면 상대방 화면에서도 함께 바뀌어요" }}
+        header={{ title: "채팅방 배경", description: "상대방 화면의 배경도 같이 바뀌어요" }}
         items={[
           { label: "사진 고르기", Icon: ImageIcon, onSelect: () => setIsPickerOpen(true) },
           ...(chatBackgroundMediaId
@@ -115,10 +115,11 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
       return "배경으로 설정하는 중이에요";
     }
 
-    // INFO: REQUIREMENTS.md § 12.2. Both branches say 둘 다, because the sharing is the fact a reader of this screen cannot otherwise get at — the thumbnail beside the row already says a photo is set.
+    // INFO: REQUIREMENTS.md § 12.2. Both branches name 상대방 화면, because the sharing is the fact a reader of this screen cannot otherwise get at — the thumbnail beside the row already says a photo is set.
+    // WARN: 깔리다 is the verb the row has always used for a wallpaper and it is the one that reads naturally here. An earlier revision said 둘 다 … 보고 있어요, which is not how Korean describes a picture behind something.
     return chatBackgroundMediaId
-      ? "둘 다 이 사진을 대화 뒤에서 보고 있어요"
-      : "둘 다 기본 배경을 쓰고 있어요";
+      ? "상대방 화면에도 이 배경이 깔려요"
+      : "바꾸면 상대방 화면에도 같이 깔려요";
   }
 
   async function upload(draft: MediaDraft) {
@@ -152,10 +153,12 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
   }
 
   async function save(mediaId: Nullable<string>) {
-    await setChatBackground(mediaId);
-    // INFO: REQUIREMENTS.md § 12.2. No `router.refresh()`. This row and the room both read the live value out of the stream, and the write's own `user_changed` is what moves it — on this device exactly as on the other one.
+    // WARN: REQUIREMENTS.md § 12.2. The id the server answered, pushed into the stream state by hand — and a `router.refresh()` would not do instead. 설정 mounts no `ChatStreamConnection` (§ 8.4.2.), so the write's own `user_changed` never reaches this screen, and the provider is seeded by the `(main)` shell, which a tab change does not re-render. Without this the thumbnail beside the row goes on showing the photo that was just replaced.
+    setChatBackgroundMediaId(await setChatBackground(mediaId));
     setIsActionsOpen(false);
     // INFO: § 12.2. Named for what actually happened. 되돌렸어요 alone would read as undoing a change this user made, when clearing it takes the wallpaper off the other participant's screen too.
-    toast.success(mediaId ? "둘 다 이 배경으로 바뀌었어요" : "둘 다 기본 배경으로 돌아갔어요");
+    toast.success(
+      mediaId ? "상대방 화면에도 이 배경이 깔렸어요" : "상대방 화면도 기본 배경으로 돌아갔어요",
+    );
   }
 }
