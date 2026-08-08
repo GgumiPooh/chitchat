@@ -9,9 +9,13 @@ export const NEW_MESSAGE_CHANNEL = "new_message";
 export const USER_CHANGED_CHANNEL = "user_changed";
 
 /**
- * REQUIREMENTS.md § 8.13. An edit and a soft delete both, on one channel — the
- * stream reads the row back either way, and `getMessage` answering `null` is
- * what tells the two apart.
+ * REQUIREMENTS.md § 8.13. An edit and a soft delete both, on one channel and one
+ * `change` event — the stream reads the row back either way and the row's own
+ * `isDeleted` tells the two apart.
+ *
+ * WARN: A deleted row still resolves. `getMessage` answering `null` means the id
+ * names no row and nothing else; it used to mean "deleted" as well, which is what
+ * this channel once read a deletion off, and a tombstone ended that.
  */
 export const MESSAGE_CHANGED_CHANNEL = "message_changed";
 

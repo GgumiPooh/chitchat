@@ -267,9 +267,10 @@ export function ChatRoom({
   const [seededDraft, setSeededDraft] =
     useState<Optional<{ text: string; token: number }>>(undefined);
   const seedTokenRef = useRef(0);
-  // INFO: `deletableMessageId` is null for the other participant's attachments — mine carry the § 7.10. delete control, which is the same confirmed delete the § 8.11. sheet reaches.
+  // INFO: `isMine` is what gates the § 7.10. delete control — only my own attachments carry it, and it is the same confirmed delete the § 8.11. sheet reaches.
+  // WARN: REQUIREMENTS.md § 8.13. The message id is held **unconditionally**, not folded into a nullable "deletable" id. The viewer has to close when the message behind it is withdrawn, and that reaches the other participant's attachments — where a deletable-only id is null and the check could never match.
   const [viewer, setViewer] =
-    useState<Nullable<{ cells: MediaCell[]; index: number; deletableMessageId: Nullable<number> }>>(
+    useState<Nullable<{ cells: MediaCell[]; index: number; messageId: number; isMine: boolean }>>(
       null,
     );
   // INFO: The newest id the user had in view when they last left the bottom — everything past it is what the § 6.7. pill counts.
@@ -1112,7 +1113,7 @@ export function ChatRoom({
           cells={viewer.cells}
           initialIndex={viewer.index}
           onClose={() => setViewer(null)}
-          onDelete={buildViewerDelete(viewer.deletableMessageId)}
+          onDelete={buildViewerDelete(viewer.isMine ? viewer.messageId : null)}
           onShare={(mediaId) => void sharing.share([mediaId])}
           onSave={(mediaId) => void sharing.save([mediaId])}
           onSetBackground={setBackground.open}
@@ -1462,12 +1463,10 @@ export function ChatRoom({
             isHighlighted={row.message.id === highlightedId}
             searchQuery={searchQuery}
             status="sent"
-            onOpenMedia={(index) =>
-              openAttachment(cells, index, row.isMine ? row.message.id : null)
-            }
             onShare={
               canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
             }
+            onOpenMedia={(index) => openAttachment(cells, index, row.message.id, row.isMine)}
             onOpenReply={quoted ? () => void jumpToMessage(quoted.id, { flash: true }) : undefined}
             onFollowEmoticon={toFollowEmoticon(row.message.emoticon)}
             onLongPress={() => setActionTarget(row.message)}
@@ -1500,7 +1499,7 @@ export function ChatRoom({
    * no thumbnail and no inline representation, so the § 7.10. viewer would open on
    * an empty slide it could neither draw nor swipe out of.
    */
-  function openAttachment(cells: MediaCell[], index: number, deletableMessageId: Nullable<number>) {
+  function openAttachment(cells: MediaCell[], index: number, messageId: number, isMine: boolean) {
     const cell = cells[index];
 
     if (cell?.filename) {
@@ -1511,7 +1510,7 @@ export function ChatRoom({
       return;
     }
 
-    setViewer({ cells, index, deletableMessageId });
+    setViewer({ cells, index, messageId, isMine });
   }
 
   function buildActionItems(): ActionSheetItem[] {
@@ -1545,7 +1544,13 @@ export function ChatRoom({
 
     // INFO: REQUIREMENTS.md § 8.13. Text only, which `messages_edited_is_text_check` says again at the database — an attachment or an emoticon has no prose to correct, and a system notice is nobody's to touch.
     if (target.senderId === currentUserId && target.type === "text") {
-      items.push({ label: "수정", Icon: Pencil, onSelect: () => startEdit(target) });
+      // INFO: REQUIREMENTS.md § 8.13. The one row in the app that declares `keepsFocus` — it hands the field the message being corrected, and the sheet's close would otherwise take that focus straight back.
+      items.push({
+        label: "수정",
+        Icon: Pencil,
+        keepsFocus: true,
+        onSelect: () => startEdit(target),
+      });
     }
 
     if (target.senderId === currentUserId) {
@@ -1759,8 +1764,8 @@ export function ChatRoom({
       setReplyTarget(null);
     }
 
-    // INFO: § 7.10. The viewer and the confirmation both name attachments the tombstone no longer has.
-    if (message.id === viewer?.deletableMessageId || message.id === confirmingDeleteId) {
+    // INFO: § 7.10. The viewer and the confirmation both name attachments the tombstone no longer has, and this reaches the other participant's photos as much as my own.
+    if (message.id === viewer?.messageId || message.id === confirmingDeleteId) {
       setViewer(null);
       setConfirmingDeleteId(null);
     }

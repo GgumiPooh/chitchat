@@ -162,7 +162,7 @@ export const DELETED_MESSAGE_TEXT = "삭제된 메시지예요";
 /** REQUIREMENTS.md § 8.13.1. Which of a resuming client's loaded rows have been edited or deleted since it last saw them. */
 export const CHANGED_MESSAGES_PATH = "/api/messages/changed";
 
-// INFO: REQUIREMENTS.md § 8.13.1. A safety valve rather than a page size. The answer is newest-first, so a truncation drops the oldest changes — the ones furthest from the viewport, and the ones `loadOlder` refetches from the server anyway.
+// INFO: REQUIREMENTS.md § 8.13.1. A page size, and the client walks its upper bound down until a short page comes back. It cannot be a bare cap: what a truncation drops is the *oldest* changes inside the loaded window, and nothing else recovers those — `loadOlder` only ever fetches rows older than that window's start.
 export const CHANGED_MESSAGES_LIMIT = 200;
 
 /** REQUIREMENTS.md § 8.6. Substring search over `messages.text`, newest first. */

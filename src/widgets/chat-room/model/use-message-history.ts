@@ -1,7 +1,11 @@
 "use client";
 
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
-import { MESSAGE_PAGE_SIZE, REPLY_PREVIEW_MAX_LENGTH } from "@/shared/config";
+import {
+  CHANGED_MESSAGES_LIMIT,
+  MESSAGE_PAGE_SIZE,
+  REPLY_PREVIEW_MAX_LENGTH,
+} from "@/shared/config";
 import { safelyRunAsync } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useRef, useState } from "react";
@@ -409,6 +413,11 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
    * are about to be spliced into the window, and reconciling without them leaves
    * the one page that is already stale on arrival.
    *
+   * WARN: It **pages**, walking the upper bound down. The server answers newest-first
+   * and truncates at `CHANGED_MESSAGES_LIMIT`, and what a single request would drop
+   * is the oldest changes *inside the window* — which nothing else recovers, since
+   * `loadOlder` only ever fetches rows older than the window's own start.
+   *
    * WARN: Runs on every resume, beside `catchUp` and not inside it. The two answer
    * different questions and neither subsumes the other.
    */
@@ -423,7 +432,23 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
           return;
         }
 
-        const changed = await fetchChangedMessages(oldest.id, newest.id);
+        const changed: ChatMessage[] = [];
+        // WARN: A local bound, walked down by what this loop actually received. Re-reading the window each round would let an arrival landing mid-loop move it and skip the range in between.
+        let to = newest.id;
+
+        for (;;) {
+          const page = await fetchChangedMessages(oldest.id, to);
+          // INFO: Newest-first, so the last row of a page is the oldest change it carried.
+          const last = page.at(-1);
+
+          changed.push(...page);
+
+          if (!last || page.length < CHANGED_MESSAGES_LIMIT) {
+            break;
+          }
+
+          to = last.id - 1;
+        }
 
         if (changed.length === 0) {
           return;

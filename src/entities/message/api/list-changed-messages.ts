@@ -45,7 +45,7 @@ export async function listChangedMessages(
         or(isNotNull(messages.deletedAt), isNotNull(messages.editedAt)),
       ),
     )
-    // WARN: Newest-first, and the limit is what truncates. Ascending would spend the limit on the oldest changes and drop the recent ones — the changes most likely to be on screen.
+    // WARN: Newest-first, which is what makes the limit a **page** rather than a loss: the caller walks `to` down past the oldest row it received and asks again. Ascending, the same loop would have to walk `from` up, and `from` is the bound the window's own start defines.
     .orderBy(desc(messages.id))
     .limit(limit);
 

@@ -205,7 +205,8 @@ export function MessageComposer({
             onKeyDown={handleKeyDown}
             onScroll={syncKeywordLayer}
           />
-          {match && onKeywordTap && (
+          {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, like the two staging controls. The tap opens § 13.8.'s picker, whose staging clears the attachment tray this mode deliberately preserved and arms a quick-send that would post a **new** emoticon message beside the pending correction — and the emoticon it staged is invisible and unsendable here anyway. A correction is very likely to contain the keyword, since it is the text the user already typed. */}
+          {match && onKeywordTap && !isEditing && (
             <KeywordLayer ref={layerRef} text={text} match={match} onTap={handleKeywordTap} />
           )}
         </div>

@@ -9,6 +9,16 @@ export type ActionSheetItem = {
   label: string;
   Icon?: FC<ComponentProps<"svg">>;
   variant?: "default" | "destructive";
+  /**
+   * This row's action moves focus on purpose, so the sheet must not take it back
+   * as it closes (`REQUIREMENTS.md § 8.13.`'s 수정 focuses the composer).
+   *
+   * WARN: Opt-in per row, and it must stay that way. Every other row leaves focus
+   * where it was, and suppressing the restore for all of them drops a keyboard user
+   * on `body` with the tab order restarted — on all nine sheets in the app, for the
+   * sake of the one action that needed it.
+   */
+  keepsFocus?: boolean;
   onSelect: () => void;
 };
 
@@ -22,8 +32,8 @@ export type ActionSheetProps = {
 
 // INFO: DESIGN.md § 7.5. Rows follow the chip ladder; destructive rows recolour the label only.
 export function ActionSheet({ className, isOpen, header, items, onClose }: ActionSheetProps) {
-  // INFO: Whether this close is a chosen row rather than a dismissal — read by `handleCloseAutoFocus` below.
-  const hasSelected = useRef(false);
+  // INFO: Whether the row that closed this sheet asked to keep focus — read by `handleCloseAutoFocus` below.
+  const keepsFocus = useRef(false);
 
   return (
     <BottomSheet
@@ -59,25 +69,26 @@ export function ActionSheet({ className, isOpen, header, items, onClose }: Actio
   );
 
   function handleSelect(item: ActionSheetItem) {
-    hasSelected.current = true;
+    keepsFocus.current = item.keepsFocus ?? false;
     item.onSelect();
     onClose();
   }
 
   /**
-   * WARN: A chosen row may have moved focus on purpose — `REQUIREMENTS.md § 8.13.`'s
-   * 수정 focuses the composer — and the sheet unmounts a few hundred ms later, at the
-   * end of its exit animation. Radix restores focus to the opener there, which blurs
-   * whatever the action had just focused, on every platform.
+   * WARN: A row that declares `keepsFocus` has moved focus on purpose, and the sheet
+   * unmounts a few hundred ms later at the end of its exit animation. Radix restores
+   * focus to the opener there, which blurs whatever the action had just focused — on
+   * every platform, not only iOS.
    *
-   * WARN: Only for a selection. A dismissal must still restore focus, or a keyboard
-   * user who backs out of the sheet is left on `body` with the tab order restarted.
+   * WARN: Restoring is the default and the accessible behaviour, and every row that
+   * has not asked keeps it. A dismissal keeps it too, or a keyboard user who backs
+   * out of the sheet is left on `body` with the tab order restarted.
    */
   function handleCloseAutoFocus(event: Event) {
-    if (hasSelected.current) {
+    if (keepsFocus.current) {
       event.preventDefault();
     }
 
-    hasSelected.current = false;
+    keepsFocus.current = false;
   }
 }
