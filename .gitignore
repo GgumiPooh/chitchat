@@ -43,3 +43,6 @@ next-env.d.ts
 
 # INFO: steiger transpiles its config beside itself, under a per-run uuid.
 steiger.config.ts.*.mjs
+
+# Claude Code scratch — agent worktrees are clones of this repo, never content of it.
+.claude/
