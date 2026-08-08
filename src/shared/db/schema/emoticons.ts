@@ -44,6 +44,8 @@ export const emoticonItems = pgTable(
     // WARN: REQUIREMENTS.md § 13.2. The image's own size, read in the browser — an animated file is measured from its first frame, which is the box every frame shares (§ 8.3.).
     width: integer("width").notNull(),
     height: integer("height").notNull(),
+    // INFO: REQUIREMENTS.md § 13.8. What the composer matches a typed word against. Shared like `sort_order`, and empty for an item nobody has described yet.
+    keywords: text("keywords").array().notNull().default([]),
     // INFO: REQUIREMENTS.md § 13.1. Authoring order, shared by both users — item order is deliberately not per-user.
     sortOrder: smallint("sort_order").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

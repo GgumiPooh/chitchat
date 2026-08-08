@@ -224,6 +224,13 @@ export function ChatRoom({
   const [hasOpenedEmoticonPanel, setHasOpenedEmoticonPanel] = useState(false);
   // INFO: REQUIREMENTS.md § 13.6. Staged rather than sent on selection, so it can be sent with a line of text the way an attachment can.
   const [stagedEmoticon, setStagedEmoticon] = useState<Nullable<Emoticon>>(null);
+  // INFO: REQUIREMENTS.md § 13.8. A word tapped in the composer, handed to the picker's search tab.
+  const [emoticonSearch, setEmoticonSearch] =
+    useState<Nullable<{ query: string; token: number }>>(null);
+  // INFO: § 13.8. The one tab exempt from § 13.6.'s keyboard gate, reported by the picker because the tab is its own state.
+  const [isEmoticonSearchTab, setIsEmoticonSearchTab] = useState(false);
+  // INFO: § 13.8. Bumped when a send should take the searched word out of the field; the composer owns the draft and decides whether it still holds only that word.
+  const [keywordConsumeToken, setKeywordConsumeToken] = useState(0);
   // INFO: REQUIREMENTS.md § 8.10. Not mutually exclusive with the two above — a quote is an attribute of the send, not a payload competing for the § 6. row.
   const [replyTarget, setReplyTarget] = useState<Nullable<ReplyPreview>>(null);
   // INFO: DESIGN.md § 6.8. The bubble a jump landed on, until its flash expires.
@@ -277,7 +284,9 @@ export function ChatRoom({
   });
   // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
   // WARN: `!isSearching` is load-bearing beyond the drawing. The panel being open is one of § 8.12.'s two sustained typing sources, so a panel left open behind the search goes on announcing 입력 중 — and it would pop back open on 취소.
-  const isEmoticonPanelOpen = isEmoticonPickerOpen && !isKeyboardOpen && !isSearching;
+  // WARN: REQUIREMENTS.md § 13.8. The search tab is the one exemption from the keyboard gate, because its field is the keyboard's reason for being up — it is drawn one row tall precisely so it fits in what the keyboard leaves. Keyed on the tab and never on that field's focus: a blur and the keyboard's retraction are separate frames, and between them the unexempted panel closes underneath the user.
+  const isEmoticonPanelOpen =
+    isEmoticonPickerOpen && (!isKeyboardOpen || isEmoticonSearchTab) && !isSearching;
   // WARN: REQUIREMENTS.md § 9.3. The shared element outlives every bubble that addresses it, so leaving the room has to stop it. Unlike § 13.6.'s two-second ping a recording runs for minutes, and no screen outside this one draws a transport that could pause it.
   useEffect(() => stopVoice, []);
   // WARN: REQUIREMENTS.md § 9.3. The recorder is closed by the search rather than hidden with the rest of the stack. `hidden` + `inert` leaves the microphone open with both 취소 and 완료 unreachable, and `MAX_VOICE_DURATION` then sends a recording the user walked away from two minutes earlier.
@@ -755,7 +764,7 @@ export function ChatRoom({
         Math.abs(clientX - origin.x) > GESTURE_SLOP || Math.abs(clientY - origin.y) > GESTURE_SLOP;
 
       if (!hasScrolled && !hasMoved) {
-        setIsEmoticonPickerOpen(false);
+        closeEmoticonPanel();
       }
     };
 
@@ -939,10 +948,13 @@ export function ChatRoom({
             <div
               className={cn(
                 "flex flex-col justify-end overflow-hidden transition-[height] duration-200 ease-out",
-                isEmoticonPanelOpen
-                  ? // WARN: The underscores are the spaces `calc()` requires around `+`. Written closed up the declaration is invalid, and the strip resolves to `0px` — the panel opens to nothing and no cell can be tapped.
-                    "h-[calc(var(--emoticon-panel-height)_+_var(--spacing-xs)_+_var(--spacing-2xs))]"
-                  : "h-0",
+                // WARN: The underscores are the spaces `calc()` requires around `+`. Written closed up the declaration is invalid, and the strip resolves to `0px` — the panel opens to nothing and no cell can be tapped.
+                // INFO: § 13.8. The search tab is drawn shorter, so the strip that clips it has to be told which of the two heights it is holding.
+                isEmoticonPanelOpen && isEmoticonSearchTab
+                  ? "h-[calc(var(--emoticon-search-panel-height)_+_var(--spacing-xs)_+_var(--spacing-2xs))]"
+                  : isEmoticonPanelOpen
+                    ? "h-[calc(var(--emoticon-panel-height)_+_var(--spacing-xs)_+_var(--spacing-2xs))]"
+                    : "h-0",
               )}
               // WARN: The panel stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until this takes them back out.
               inert={!isEmoticonPanelOpen}
@@ -954,6 +966,8 @@ export function ChatRoom({
                 // INFO: § 13.6. Promoted to its own layer so the strip's growing clip is a compositor crop — unpromoted, every frame of the 200ms repaints a grid of animated images against a moving clip rect, which is what the open stutters on.
                 <EmoticonPicker
                   className="mx-md mt-xs mb-2xs shrink-0 will-change-transform"
+                  searchRequest={emoticonSearch}
+                  onSearchTabChange={setIsEmoticonSearchTab}
                   onSelect={stageEmoticon}
                   onQuickSend={sendStagedEmoticon}
                 />
@@ -962,11 +976,15 @@ export function ChatRoom({
             <MessageComposer
               hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
               isEmoticonPickerOpen={isEmoticonPanelOpen}
+              keywordConsumeToken={keywordConsumeToken}
+              // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
+              onToggleEmoticons={() =>
+                isEmoticonPanelOpen ? closeEmoticonPanel() : setIsEmoticonPickerOpen(true)
+              }
               onAttach={() => setIsPickerOpen(true)}
               onEdit={signalEdit}
-              onFieldFocus={() => setIsEmoticonPickerOpen(false)}
-              // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
-              onToggleEmoticons={() => setIsEmoticonPickerOpen(!isEmoticonPanelOpen)}
+              onKeywordTap={openEmoticonSearch}
+              onFieldFocus={closeEmoticonPanel}
               onSend={submit}
             />
           </>
@@ -1087,6 +1105,9 @@ export function ChatRoom({
     playEmoticonSound(emoticon);
     rememberEmoticon(emoticon.id);
     sendEmoticon(emoticon, replyTarget);
+    // INFO: § 13.8. This path never goes through `submit`, so the field is still holding the word that found this emoticon — the composer clears it if that is all it holds.
+    setKeywordConsumeToken((token) => token + 1);
+    setEmoticonSearch(null);
     setReplyTarget(null);
   }
 
@@ -1147,11 +1168,38 @@ export function ChatRoom({
       sendMedia(selection.takeAll(), take());
     }
 
-    if (text.trim()) {
+    // WARN: REQUIREMENTS.md § 13.8. A draft that is nothing but the word the emoticon was found by was a search term, not a message — sending it would put 고민 in the conversation beside the picture it was only ever used to reach. Anything else keeps § 13.6.'s second bubble.
+    if (text.trim() && !isConsumedByEmoticonSearch(text)) {
       send(text, take());
     }
 
+    setEmoticonSearch(null);
     setReplyTarget(null);
+  }
+
+  /** INFO: REQUIREMENTS.md § 13.8. Only ever true beside an emoticon — on its own the word is the message the user typed. */
+  function isConsumedByEmoticonSearch(text: string): boolean {
+    return stagedEmoticon !== null && text.trim() === emoticonSearch?.query;
+  }
+
+  /**
+   * WARN: REQUIREMENTS.md § 13.8. Closing the panel is what releases the search, and
+   * every route out of it has to come through here. The picker never unmounts
+   * (`hasOpenedEmoticonPanel` is one-way), so a request left standing keeps it forced
+   * onto the search tab — which reopens on a finished search and, worse, latches the
+   * § 13.6. keyboard exemption on for good.
+   */
+  function closeEmoticonPanel() {
+    setIsEmoticonPickerOpen(false);
+    setEmoticonSearch(null);
+  }
+
+  /** REQUIREMENTS.md § 13.8. A word tapped in the composer opens the picker on its search tab, already holding it. */
+  function openEmoticonSearch(query: string) {
+    setEmoticonSearch({ query, token: Date.now() });
+    // WARN: Set here as well as reported back by the picker's own effect. The gate above reads it in the same commit the panel is asked to open in, and waiting for the effect leaves one frame where the panel is open, the keyboard is still retracting and the exemption is not in yet — which closes it again.
+    setIsEmoticonSearchTab(true);
+    setIsEmoticonPickerOpen(true);
   }
 
   // INFO: The draft is bound here rather than read back inside the callback — `applyTrim` clears `editing.trimming`, so a callback reading it again would be handed `null`.

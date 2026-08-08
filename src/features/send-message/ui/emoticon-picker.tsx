@@ -1,11 +1,16 @@
 "use client";
 
 import type { Emoticon, EmoticonPackWithItems } from "@/entities/emoticon";
-import { toEmoticonAssetUrl } from "@/shared/config";
-import { A_SECOND, cn, type Nullable } from "@/shared/lib";
-import { EmptyState, HapticTarget, PreloadImage } from "@/shared/ui";
+import {
+  matchesKeywordQuery,
+  MAX_EMOTICON_KEYWORD_LENGTH,
+  MIN_KEYWORD_QUERY_LENGTH,
+  toEmoticonAssetUrl,
+} from "@/shared/config";
+import { A_SECOND, cn, type Nullable, type Optional } from "@/shared/lib";
+import { EmptyState, HapticTarget, Input, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, Smile } from "lucide-react";
+import { Clock, Search, Smile } from "lucide-react";
 import { useEffect, useRef, useState, type PropsWithChildren, type Ref } from "react";
 import { useStorageState } from "synced-storage/react";
 import { toEnabledPacksQuery } from "../model/enabled-packs-query";
@@ -14,6 +19,9 @@ import { useRecentEmoticons } from "../model/use-recent-emoticons";
 
 // INFO: DESIGN.md § 9. Assets are user-authored, so their aspect ratios are arbitrary — the cell is a fixed square and the still is `object-contain` inside it.
 const RECENTS_TAB = "recents";
+
+// INFO: REQUIREMENTS.md § 13.8. Where a tap on the composer's underlined word lands, and the one tab reachable without the panel already being open.
+const SEARCH_TAB = "search";
 
 const ACTIVE_TAB_KEY = "jandh:emoticon-tab";
 
@@ -28,6 +36,16 @@ const NO_PACKS: EmoticonPackWithItems[] = [];
 
 export type EmoticonPickerProps = {
   className?: string;
+  /**
+   * REQUIREMENTS.md § 13.8. A word tapped in the composer, which opens the search
+   * tab with the field already holding it.
+   *
+   * WARN: Carries a token because tapping the same word twice is two requests, and
+   * keyed on the string alone the second one is no change for the effect to see.
+   */
+  searchRequest?: Nullable<{ query: string; token: number }>;
+  /** REQUIREMENTS.md § 13.8. Whether the search tab is the one on screen — the room exempts it from § 13.6.'s keyboard gate. */
+  onSearchTabChange?: (isOnSearchTab: boolean) => void;
   onSelect: (emoticon: Emoticon) => void;
   onQuickSend: (emoticon: Emoticon) => void;
 };
@@ -41,12 +59,47 @@ export type EmoticonPickerProps = {
  * in `--emoticon-panel-height` (`theme.css`) — the chat room animates the strip
  * open against the same value, and the two cannot drift apart.
  */
-export function EmoticonPicker({ className, onSelect, onQuickSend }: EmoticonPickerProps) {
+export function EmoticonPicker({
+  className,
+  searchRequest,
+  onSearchTabChange,
+  onSelect,
+  onQuickSend,
+}: EmoticonPickerProps) {
   // WARN: Read straight from storage rather than seeded into `useState` — the panel can mount during hydration, where the first snapshot is still the fallback and a seeded state would never pick the stored tab up.
   const [storedTab, setRequestedTab] = useStorageState<string>(ACTIVE_TAB_KEY, RECENTS_TAB, {
     strategy: "localStorage",
   });
-  const requestedTab = typeof storedTab === "string" ? storedTab : RECENTS_TAB;
+  // INFO: § 13.8. The search tab is reached by a tap in the composer rather than chosen, so it stands beside the remembered tab instead of replacing it — the panel reopens on the pack the user last picked, not on a search they have since finished.
+  const [forcedTab, setForcedTab] = useState<Nullable<string>>(null);
+  const [query, setQuery] = useState("");
+  // WARN: State and not a ref, though it is only ever compared. The adjustment below runs during render, where a ref may not be read at all — this is React's own "adjusting state when a prop changes", and the previous token has to be readable there.
+  // WARN: Seeded `undefined`, never from `searchRequest`. The panel does not exist until the tap that asks for it, so it mounts with the request already in hand — seeding from it marks that request as applied before anything applies it, and the tap opens the panel on the remembered pack with an empty field. That was the bug, and it is invisible on every later tap because by then the component is mounted.
+  const [appliedSearchToken, setAppliedSearchToken] = useState<Optional<number>>(undefined);
+
+  // WARN: § 13.8. Adjusted during render rather than in an effect. An effect lands a frame later, so the panel would open on the remembered tab, paint a grid of the wrong pack, and only then swap to the search row — which reads as the wrong panel flashing up. It is also why the forced tab is component state rather than the stored one: writing `localStorage` during a render is a side effect, and comparing tokens is not.
+  if (searchRequest && searchRequest.token !== appliedSearchToken) {
+    setAppliedSearchToken(searchRequest.token);
+    setQuery(searchRequest.query);
+    setForcedTab(SEARCH_TAB);
+  }
+
+  /**
+   * WARN: The release, and it is not optional. `chat-room.tsx` gates the panel's
+   * existence on a one-way `hasOpenedEmoticonPanel`, so this component never
+   * unmounts — without a reset the forced tab outlives the search forever. Two
+   * things broke: the toggle reopened onto a finished search instead of the
+   * remembered pack, and `onSearchTabChange(true)` stayed latched, which took
+   * § 13.6.'s `!isKeyboardOpen` gate out of the room's condition permanently —
+   * including for the Android case that gate is derived rather than an effect for.
+   */
+  if (!searchRequest && appliedSearchToken !== undefined) {
+    setAppliedSearchToken(undefined);
+    setQuery("");
+    setForcedTab(null);
+  }
+
+  const requestedTab = forcedTab ?? (typeof storedTab === "string" ? storedTab : RECENTS_TAB);
   const tabStripRef = useRef<Nullable<HTMLDivElement>>(null);
   const activeTabRef = useRef<Nullable<HTMLSpanElement>>(null);
   const [slideFrom, setSlideFrom] = useState<SwipeDirection>(1);
@@ -59,93 +112,105 @@ export function EmoticonPicker({ className, onSelect, onQuickSend }: EmoticonPic
 
   // INFO: The remembered pack can be gone or hidden (§ 13.1.) by the time the panel reopens, so it only holds while the loaded list still has it.
   const activeTab =
-    requestedTab === RECENTS_TAB || isPending || findPack(packs, requestedTab)
+    requestedTab === RECENTS_TAB ||
+    requestedTab === SEARCH_TAB ||
+    isPending ||
+    findPack(packs, requestedTab)
       ? requestedTab
       : RECENTS_TAB;
+  const isSearching = activeTab === SEARCH_TAB;
 
   const byId = new Map(packs.flatMap((pack) => pack.items.map((item) => [item.id, item] as const)));
   const recents = recentIds
     .map((id) => byId.get(id))
     .filter((item): item is Emoticon => item !== undefined);
-  const shown = activeTab === RECENTS_TAB ? recents : (findPack(packs, activeTab)?.items ?? []);
-  const tabIds = [RECENTS_TAB, ...packs.map((pack) => pack.id)];
+  const shown = toShownItems();
+  const tabIds = [SEARCH_TAB, RECENTS_TAB, ...packs.map((pack) => pack.id)];
   const activeIndex = tabIds.indexOf(activeTab);
 
   // INFO: § 13.6. The swipe moves the tab without the finger ever touching the strip, and the remembered tab can reopen the panel on a pack that is already past its right edge — either way the strip has to follow the selection or the active tab is unreachable to the eye.
   useEffect(revealActiveTab, [activeTab, packs]);
 
+  // WARN: § 13.8. The room exempts this tab from § 13.6.'s keyboard gate, so it has to be told on every change — reported off the tab rather than off the field's focus, or the frame between a blur and the keyboard actually retracting closes the panel underneath the user.
+  useEffect(() => {
+    onSearchTabChange?.(isSearching);
+  }, [isSearching, onSearchTabChange]);
+
   return (
     <div
       className={cn(
-        "pointer-events-auto flex h-(--emoticon-panel-height) flex-col rounded-lg border border-hairline bg-canvas",
+        "pointer-events-auto flex flex-col rounded-lg border border-hairline bg-canvas",
+        // INFO: § 13.8. The search tab is the one tab that may share the screen with the keyboard, so it is drawn at a height that fits in what the keyboard leaves.
+        // WARN: The same 200ms `ease-out` the § 13.6. clipping strip animates its own height with, and the two MUST stay identical. Left instant here the asymmetry was visible only one way: growing, the taller panel is clipped by the strip and revealed as it opens, so it reads as smooth — shrinking, the panel collapses in one frame inside a strip that is still catching up.
+        "transition-[height] duration-200 ease-out",
+        isSearching ? "h-(--emoticon-search-panel-height)" : "h-(--emoticon-panel-height)",
         className,
       )}
     >
-      {/* WARN: `overflow-x-hidden` is what keeps the § 13.6. slide inside the panel — a vertical-only scroller still resolves its horizontal axis to `auto`. */}
-      {/* WARN: `touch-pan-y` leaves the vertical scroll native while denying the browser the horizontal axis, which it would otherwise consume before the § 13.6. swipe ever sees it. */}
-      <div
-        className="scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain p-xs"
-        {...swipeHandlers}
-      >
-        {isPending ? null : (
-          // WARN: Keyed by the tab so each pack mounts fresh — an enter animation on an updated subtree never replays.
-          <div
-            key={activeTab}
-            className={cn(
-              "animate-in duration-200",
-              slideFrom === 1 ? "slide-in-from-right-6" : "slide-in-from-left-6",
-            )}
-          >
-            {shown.length === 0 ? (
-              <EmptyState
-                className="border-0 bg-transparent"
-                Icon={Smile}
-                description={
-                  activeTab === RECENTS_TAB
-                    ? "최근 사용한 이모티콘이 여기에 보여요"
-                    : "이 그룹에는 이모티콘이 없어요"
-                }
-              />
-            ) : (
-              <div className="grid grid-cols-4 gap-2xs">
-                {shown.map((item) => (
-                  // WARN: `touch-pan-y` is repeated on the overlay, not inherited — `touch-action` applies to the element a gesture starts on, and the overlay is now that element.
-                  // WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the panel would stop scrolling (`DESIGN.md § 7.15.`).
-                  <HapticTarget
-                    key={item.id}
-                    className="flex"
-                    overlayClassName="touch-pan-y"
-                    keepsScroll
-                  >
-                    {/* WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it. */}
-                    <button
-                      className="aspect-square w-full touch-pan-y rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong"
-                      type="button"
-                      aria-label="이모티콘"
-                      onClick={() => handleSelect(item)}
-                    >
-                      <PreloadImage
-                        className="size-full"
-                        imgClassName="size-full object-contain"
-                        placeholderClassName="rounded-sm"
-                        src={toEmoticonAssetUrl(item.id, "image", item.version)}
-                        alt=""
-                        loading="lazy"
-                        draggable={false}
-                      />
-                    </button>
-                  </HapticTarget>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {isSearching ? (
+        <SearchPane
+          query={query}
+          results={shown}
+          onQueryChange={setQuery}
+          onSelect={handleSelect}
+        />
+      ) : (
+        // WARN: `overflow-x-hidden` is what keeps the § 13.6. slide inside the panel — a vertical-only scroller still resolves its horizontal axis to `auto`.
+        // WARN: `touch-pan-y` leaves the vertical scroll native while denying the browser the horizontal axis, which it would otherwise consume before the § 13.6. swipe ever sees it.
+        <div
+          className="scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain p-xs"
+          {...swipeHandlers}
+        >
+          {isPending ? null : (
+            // WARN: Keyed by the tab so each pack mounts fresh — an enter animation on an updated subtree never replays.
+            <div
+              key={activeTab}
+              className={cn(
+                "animate-in duration-200",
+                slideFrom === 1 ? "slide-in-from-right-6" : "slide-in-from-left-6",
+              )}
+            >
+              {shown.length === 0 ? (
+                <EmptyState
+                  className="border-0 bg-transparent"
+                  Icon={Smile}
+                  description={
+                    activeTab === RECENTS_TAB
+                      ? "최근 사용한 이모티콘이 여기에 보여요"
+                      : "이 그룹에는 이모티콘이 없어요"
+                  }
+                />
+              ) : (
+                <div className="grid grid-cols-4 gap-2xs">
+                  {shown.map((item) => (
+                    <EmoticonCell
+                      key={item.id}
+                      className="flex"
+                      buttonClassName="aspect-square w-full"
+                      item={item}
+                      onSelect={handleSelect}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {/* INFO: § 13.6. Pack tabs along the bottom, matching where the thumb already is. */}
       <div
         ref={tabStripRef}
         className="scrollbar-hidden flex shrink-0 gap-2xs overflow-x-auto border-t border-hairline-soft p-2xs"
       >
+        {/* INFO: § 13.8. First, so a swipe left from 최근 사용 reaches it and the tap target sits where the thumb starts. */}
+        <TabButton
+          ref={isSearching ? activeTabRef : undefined}
+          isActive={isSearching}
+          label="이모티콘 검색"
+          onClick={() => selectTab(SEARCH_TAB)}
+        >
+          <Search className="size-5 text-meta" strokeWidth={1.75} />
+        </TabButton>
         <TabButton
           ref={activeTab === RECENTS_TAB ? activeTabRef : undefined}
           isActive={activeTab === RECENTS_TAB}
@@ -182,6 +247,31 @@ export function EmoticonPicker({ className, onSelect, onQuickSend }: EmoticonPic
       </div>
     </div>
   );
+
+  /**
+   * INFO: § 13.8. The search tab looks across every enabled pack at once — a word is
+   * a property of the item, and which pack it happens to sit in is not what the user
+   * is answering.
+   */
+  function toShownItems(): Emoticon[] {
+    if (isSearching) {
+      const trimmed = query.trim();
+
+      return trimmed.length < MIN_KEYWORD_QUERY_LENGTH
+        ? []
+        : packs.flatMap((pack) =>
+            pack.items.filter((item) =>
+              item.keywords.some((keyword) => matchesKeywordQuery(keyword, trimmed)),
+            ),
+          );
+    }
+
+    if (activeTab === RECENTS_TAB) {
+      return recents;
+    }
+
+    return findPack(packs, activeTab)?.items ?? [];
+  }
 
   /**
    * INFO: REQUIREMENTS.md § 13.6. The second tap of a double tap sends what the first one staged.
@@ -236,7 +326,12 @@ export function EmoticonPicker({ className, onSelect, onQuickSend }: EmoticonPic
     }
 
     setSlideFrom(tabIds.indexOf(id) < activeIndex ? -1 : 1);
-    setRequestedTab(id);
+    setForcedTab(id === SEARCH_TAB ? SEARCH_TAB : null);
+
+    // WARN: § 13.8. The search tab is deliberately never remembered. It is a place the user passes through with a word in hand, so reopening the panel onto an empty search — days later, over the pack they actually use — would be answering a question nobody asked twice.
+    if (id !== SEARCH_TAB) {
+      setRequestedTab(id);
+    }
   }
 
   // INFO: REQUIREMENTS.md § 13.6. The ends do not wrap — 최근 사용 and the last pack are where the gesture stops, so a swipe never rotates past what the tabs show.
@@ -252,6 +347,108 @@ export function EmoticonPicker({ className, onSelect, onQuickSend }: EmoticonPic
       selectTab(next);
     }
   }
+}
+
+type EmoticonCellProps = {
+  className?: string;
+  buttonClassName?: string;
+  item: Emoticon;
+  onSelect: (item: Emoticon) => void;
+};
+
+/** INFO: § 13.6. The grid and § 13.8.'s row draw the same cell — only the box around it differs. */
+function EmoticonCell({ className, buttonClassName, item, onSelect }: EmoticonCellProps) {
+  return (
+    // WARN: `touch-pan-y` is repeated on the overlay, not inherited — `touch-action` applies to the element a gesture starts on, and the overlay is now that element.
+    // WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the panel would stop scrolling (`DESIGN.md § 7.15.`).
+    <HapticTarget className={className} overlayClassName="touch-pan-y" keepsScroll>
+      {/* WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it. */}
+      <button
+        className={cn(
+          "touch-pan-y rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong",
+          buttonClassName,
+        )}
+        type="button"
+        aria-label="이모티콘"
+        onClick={() => onSelect(item)}
+      >
+        <PreloadImage
+          className="size-full"
+          imgClassName="size-full object-contain"
+          placeholderClassName="rounded-sm"
+          src={toEmoticonAssetUrl(item.id, "image", item.version)}
+          alt=""
+          loading="lazy"
+          draggable={false}
+        />
+      </button>
+    </HapticTarget>
+  );
+}
+
+type SearchPaneProps = {
+  className?: string;
+  query: string;
+  results: Emoticon[];
+  onQueryChange: (query: string) => void;
+  onSelect: (item: Emoticon) => void;
+};
+
+/**
+ * REQUIREMENTS.md § 13.8. The search tab: a field, then one row of results that
+ * scrolls sideways.
+ *
+ * WARN: One row and never a grid, and that is what pays for the keyboard exemption
+ * (§ 13.6.). This is the only tab that can be on screen with the keyboard up, so it
+ * has to fit in what the keyboard leaves rather than claiming half the shell.
+ *
+ * WARN: The row keeps its own horizontal scroll, so § 13.6.'s tab swipe is
+ * deliberately **not** attached here — the two gestures share an axis and the swipe
+ * would take every drag meant to reach the results further along the row.
+ */
+function SearchPane({ className, query, results, onQueryChange, onSelect }: SearchPaneProps) {
+  const trimmed = query.trim();
+
+  return (
+    <div className={cn("flex min-h-0 flex-1 flex-col gap-2xs p-xs", className)}>
+      <div className="relative shrink-0">
+        <Search
+          className="pointer-events-none absolute top-1/2 left-2xs size-4 -translate-y-1/2 text-meta"
+          strokeWidth={1.75}
+        />
+        <Input
+          className="h-(--emoticon-search-field) min-h-0 shrink-0 rounded-full py-0 pr-2xs pl-7 text-body-sm"
+          value={query}
+          maxLength={MAX_EMOTICON_KEYWORD_LENGTH}
+          placeholder="이모티콘 검색"
+          // INFO: A word, not a sentence — the keyboard's return key has nothing to submit, since the row filters as it is typed.
+          enterKeyHint="done"
+          aria-label="이모티콘 검색"
+          onChange={(event) => onQueryChange(event.target.value)}
+        />
+      </div>
+      {results.length === 0 ? (
+        <p className="flex flex-1 items-center justify-center text-body-sm text-meta">
+          {trimmed.length < MIN_KEYWORD_QUERY_LENGTH
+            ? "두 글자부터 찾을 수 있어요"
+            : "찾는 이모티콘이 없어요"}
+        </p>
+      ) : (
+        // WARN: `touch-pan-x` is the mirror of the grid's `touch-pan-y` — this scroller runs on the horizontal axis, so that is the one the browser must keep.
+        <div className="scrollbar-hidden flex min-h-0 flex-1 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain">
+          {results.map((item) => (
+            <EmoticonCell
+              key={item.id}
+              className="flex shrink-0"
+              buttonClassName="size-(--emoticon-search-cell)"
+              item={item}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 type TabButtonProps = PropsWithChildren<{

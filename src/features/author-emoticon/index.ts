@@ -4,6 +4,7 @@ export {
   createEmoticonPack,
   deleteEmoticon,
   deleteEmoticonPack,
+  suggestEmoticonKeywords,
   updateEmoticon,
   updateEmoticonPack,
   type CreateEmoticonBody,
@@ -14,6 +15,11 @@ export {
   type BulkAddFailure,
   type BulkAddResult,
 } from "./model/add-emoticons";
+export {
+  fillEmoticonKeywords,
+  type KeywordFillBatch,
+  type KeywordFillResult,
+} from "./model/fill-keywords";
 export { useEmoticonDraft, type CompanionDraft } from "./model/use-emoticon-draft";
 export { CreatePackSheet, type CreatePackSheetProps } from "./ui/create-pack-sheet";
 export { EmoticonFormSheet, type EmoticonFormSheetProps } from "./ui/emoticon-form-sheet";

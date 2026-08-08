@@ -6,14 +6,16 @@ import {
   EmoticonItemGrid,
   addEmoticonsFromFiles,
   deleteEmoticon,
+  fillEmoticonKeywords,
   updateEmoticonPack,
   type BulkAddFailure,
 } from "@/features/author-emoticon";
 import { MediaPickerSheet } from "@/features/upload-media";
 import { EMOTICON_SETTINGS_ROUTE } from "@/shared/config";
 import { cn, type Maybe, type Nullable } from "@/shared/lib";
-import { ActionSheet, AppHeader, EmptyState, IconButton, Modal, toast } from "@/shared/ui";
-import { ChevronLeft, Images, Pencil, Plus, Smile, Trash2 } from "lucide-react";
+import { ActionSheet, AppHeader, Button, EmptyState, IconButton, Modal, toast } from "@/shared/ui";
+import { josa } from "es-hangul";
+import { ChevronLeft, Images, Pencil, Plus, Smile, Sparkles, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -40,8 +42,12 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   const [addingCount, setAddingCount] = useState(0);
   const [failures, setFailures] = useState<BulkAddFailure[]>([]);
   const [selectedId, setSelectedId] = useState<Nullable<string>>(null);
+  // WARN: § 13.8.1. A fraction, deliberately **not** § 13.4.'s countdown. That convention counts what is left because its grid gains rows as files land, so a fixed total would contradict them — here the items already exist and only their keywords are filling in, so the total is settled before the first batch and saying it is the more useful half.
+  const [tagging, setTagging] = useState<Nullable<{ done: number; total: number }>>(null);
   const router = useRouter();
   const selected = items.find((item) => item.id === selectedId);
+  // INFO: § 13.8. Only the items nobody has described. Suggestions never overwrite a keyword somebody typed — the model is filling gaps, not revising work.
+  const untagged = items.filter((item) => item.keywords.length === 0);
 
   return (
     <div className={cn("flex flex-1 flex-col", className)}>
@@ -62,7 +68,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
             variant="floating"
             Icon={Plus}
             haptic
-            disabled={addingCount > 0}
+            disabled={addingCount > 0 || tagging !== null}
             aria-label="이모티콘 추가"
             onClick={() => setIsAddMenuOpen(true)}
           />
@@ -77,12 +83,34 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
             <EmoticonItemGrid
               items={items}
               thumbnailItemId={thumbnailItemId}
-              onSelect={setSelectedId}
+              onSelect={openItemActions}
             />
             {addingCount > 0 && (
               <p className="text-center text-body-sm text-meta">
                 {addingCount}개를 더 올리는 중이에요
               </p>
+            )}
+            {/* INFO: REQUIREMENTS.md § 13.8.1. Withheld once every item has words, since the only thing it would offer then is overwriting them. */}
+            {(tagging !== null || untagged.length > 0) && addingCount === 0 && (
+              <div className="space-y-2xs">
+                <Button
+                  variant="secondary"
+                  disabled={tagging !== null}
+                  haptic
+                  onClick={() => void fillKeywords()}
+                >
+                  <Sparkles className="size-4" strokeWidth={1.75} />
+                  {tagging
+                    ? `${tagging.done}/${tagging.total}개 채웠어요`
+                    : `검색 키워드 자동으로 채우기 (${untagged.length}개)`}
+                </Button>
+                {/* INFO: § 13.8.1. The reason to press an optional button, which the label alone does not give — an item with no keywords is one § 13.8.'s composer search can never reach. */}
+                {!tagging && (
+                  <p className="text-center text-caption text-meta">
+                    키워드를 넣어두면 대화 중에 단어로 찾을 수 있어요
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -210,6 +238,52 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
     setIsFormOpen(false);
     setPendingFile(null);
     setEditing(null);
+  }
+
+  /**
+   * REQUIREMENTS.md § 13.8. Asks the model for words for every item that has none,
+   * then saves each through § 13.4.'s own write.
+   *
+   * WARN: Saved item by item rather than in one call, because there is no bulk
+   * write and inventing one would be a second path into `emoticon_items` that
+   * § 13.4.'s asset rules do not cover. A save that fails leaves that item untagged
+   * and the rest tagged, which is the same state a second press repairs.
+   */
+  async function fillKeywords() {
+    // WARN: Set before the first batch and cleared after the last, so the `+` and this button are both closed for the whole run — the same reason § 13.4.'s bulk add closes them, since a second run would re-tag the items the first is still saving.
+    setTagging({ done: 0, total: untagged.length });
+
+    try {
+      const { filled, failed } = await fillEmoticonKeywords(untagged, ({ saved, remaining }) => {
+        // INFO: § 13.8.1. Applied per batch rather than at the end, so the grid fills in while the run continues — which is what the count beside it is counting down against.
+        saved.forEach(handleSaved);
+        setTagging({ done: untagged.length - remaining, total: untagged.length });
+      });
+
+      if (filled === 0) {
+        toast.error("검색 키워드를 만들지 못했어요");
+
+        return;
+      }
+
+      // INFO: A partly-finished run says so. The button stays, offering exactly the items that still have none, so the number is an invitation rather than an apology.
+      toast.success(
+        failed === 0
+          ? `${josa(`${filled}개`, "이/가")} 채워졌어요`
+          : `${filled}개를 채웠어요. ${josa(`${failed}개`, "은/는")} 다시 시도해 주세요`,
+      );
+    } catch {
+      toast.error("검색 키워드를 만들지 못했어요");
+    } finally {
+      setTagging(null);
+    }
+  }
+
+  /** WARN: § 13.8. Ignored while a keyword run is writing. The edit sheet saves the whole list, so a user typing chips into an item the run reaches a moment later loses them to last-write-wins. */
+  function openItemActions(itemId: string) {
+    if (tagging === null) {
+      setSelectedId(itemId);
+    }
   }
 
   function handleSaved(emoticon: Emoticon) {

@@ -1,10 +1,34 @@
 "use client";
 
-import { MAX_MESSAGE_LENGTH } from "@/shared/config";
+import type { EmoticonPackWithItems } from "@/entities/emoticon";
+import { findKeywordMatch, MAX_MESSAGE_LENGTH, type KeywordMatch } from "@/shared/config";
 import { cn, useIsCoarsePointer, useUnsentWork, type Nullable } from "@/shared/lib";
 import { HapticTarget, IconButton, Textarea } from "@/shared/ui";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowUp, Plus, Smile } from "lucide-react";
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type Ref,
+} from "react";
+import { toEnabledPacksQuery } from "../model/enabled-packs-query";
+
+/**
+ * The box the field and its keyword layer must both be drawn in.
+ *
+ * WARN: REQUIREMENTS.md § 13.8. Shared between the two on purpose. The layer paints
+ * an underline that has to land under a word the *textarea* laid out, so any
+ * padding, font or wrapping rule that reaches one and not the other slides the mark
+ * off the word it belongs to.
+ */
+const FIELD_BOX = "px-2xs py-xs text-body-md leading-normal";
+
+// WARN: Hoisted so the pending query answers one array identity — an inline `= []` re-derives the keyword set on every render of a field being typed into.
+const NO_PACKS: EmoticonPackWithItems[] = [];
 
 export type MessageComposerProps = {
   className?: string;
@@ -12,12 +36,22 @@ export type MessageComposerProps = {
   /** Attachments and a staged emoticon both sit above the composer, so send stays available on an empty field. */
   hasAttachments?: boolean;
   isEmoticonPickerOpen?: boolean;
+  /**
+   * REQUIREMENTS.md § 13.8. Bumped by the room when an emoticon found this way is
+   * sent, which is the moment the searched word leaves the field.
+   *
+   * WARN: A token rather than a boolean — two sends of the same query are two
+   * instructions, and a boolean's second one would be no change at all.
+   */
+  keywordConsumeToken?: number;
   onAttach: () => void;
   /** REQUIREMENTS.md § 13.6. Reaching for the field is a request for the keyboard, which the picker would then be buried under. */
   onFieldFocus?: () => void;
   /** REQUIREMENTS.md § 8.12. Each edit, carrying whether the field still holds anything — `false` is the end of composing, not a quieter form of it. */
   onEdit?: (isComposing: boolean) => void;
   onToggleEmoticons?: () => void;
+  /** REQUIREMENTS.md § 13.8. A tap on the underlined word, carrying what was typed rather than the keyword it hit. */
+  onKeywordTap?: (query: string) => void;
   onSend: (text: string) => void;
 };
 
@@ -27,20 +61,58 @@ export function MessageComposer({
   fieldClassName,
   hasAttachments = false,
   isEmoticonPickerOpen = false,
+  keywordConsumeToken,
   onAttach,
   onFieldFocus,
   onEdit,
   onToggleEmoticons,
+  onKeywordTap,
   onSend,
 }: MessageComposerProps) {
   const fieldRef = useRef<Nullable<HTMLTextAreaElement>>(null);
+  const layerRef = useRef<Nullable<HTMLDivElement>>(null);
   const [text, setText] = useState("");
+  // INFO: § 13.8. What the last tap searched for, so a send can tell whether the field still holds only that.
+  const tappedQueryRef = useRef<Nullable<string>>(null);
   const isCoarsePointer = useIsCoarsePointer();
   const hasDraft = text.trim().length > 0;
   const canSend = hasDraft || hasAttachments;
+  // INFO: § 13.6. The list the picker already warmed, read through the same descriptor so this costs no request of its own.
+  const { data: packs = NO_PACKS } = useQuery(toEnabledPacksQuery());
+  const keywords = useMemo(
+    () => new Set(packs.flatMap((pack) => pack.items.flatMap((item) => item.keywords))),
+    [packs],
+  );
+  const match = useMemo(() => findKeywordMatch(text, keywords), [text, keywords]);
 
   // INFO: REQUIREMENTS.md § 15.1. Declared here rather than lifted to the screen — the draft never leaves this component, and a forced refresh must not discard it.
   useUnsentWork(hasDraft);
+
+  // WARN: § 13.8. The word goes only when it was the whole draft. `오늘 고민 많다` keeps its sentence and sends as § 13.6.'s second message; `고민` alone was a search term and leaves with the emoticon it found.
+  useEffect(() => {
+    if (keywordConsumeToken === undefined) {
+      return;
+    }
+
+    const tapped = tappedQueryRef.current;
+
+    // WARN: Spent on use, and that is what stops it deleting a message nobody searched for. The room bumps this token on **every** quick send, so a ref left holding `고민` from a search minutes ago would silently swallow a later draft that happened to read `고민` — typed as an actual message — the next time any emoticon was double-tapped.
+    tappedQueryRef.current = null;
+
+    if (tapped === null) {
+      return;
+    }
+
+    // WARN: Read outside the updater. A `setText` callback must be pure, and StrictMode double-invokes it — the § 8.12. retraction fired twice per consume from in there.
+    setText((current) => (current.trim() === tapped ? "" : current));
+
+    if (text.trim() === tapped) {
+      // WARN: The clear never goes through `onChange`, so the § 8.12. broadcast has to be retracted by hand or 입력 중 outlives the send.
+      onEdit?.(false);
+    }
+    // WARN: Keyed on the token alone. Adding `onEdit` or `text` re-runs the clear whenever the room re-renders it, which wipes a draft typed after the send.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keywordConsumeToken]);
 
   return (
     // WARN: DESIGN.md § 3.5. Transparent to the pointer so the messages underneath stay tappable; only the pill itself takes taps.
@@ -48,27 +120,37 @@ export function MessageComposer({
       {/* INFO: DESIGN.md § 6.6. The tab bar's floating surface (§ 7.3.). One row, bottom-aligned — the field grows upward and the controls stay on the last line. */}
       <div className="pointer-events-auto flex items-end gap-2xs rounded-[calc(var(--tab-bar-height)/2)] border border-hairline glass p-2xs shadow-floating">
         <IconButton Icon={Plus} haptic aria-label="첨부" onClick={onAttach} />
-        <Textarea
-          ref={fieldRef}
-          className={cn(
-            // INFO: DESIGN.md § 6.6. No shape of its own — the pill is the field's surface, so no border, no radius, and no focus ring.
-            // WARN: `min-w-0` is what keeps the round controls round. A flex item's default `min-width: auto` refuses to shrink below its content, so on a browser without `field-sizing-content` (WebKit) the field pushes and the 44×44 buttons absorb the overflow as ovals.
-            "max-h-34 min-h-11 min-w-0 resize-none rounded-none border-transparent bg-transparent px-2xs py-xs hover:border-transparent focus-visible:border-transparent focus-visible:ring-0",
-            fieldClassName,
+        {/* INFO: § 13.8. The field and its keyword layer are one stacking context, so the mark can be positioned against the field's own box rather than the pill's. */}
+        <div className="relative min-w-0 flex-1">
+          <Textarea
+            ref={fieldRef}
+            className={cn(
+              // INFO: DESIGN.md § 6.6. No shape of its own — the pill is the field's surface, so no border, no radius, and no focus ring.
+              // WARN: `min-w-0` is what keeps the round controls round. A flex item's default `min-width: auto` refuses to shrink below its content, so on a browser without `field-sizing-content` (WebKit) the field pushes and the 44×44 buttons absorb the overflow as ovals.
+              "max-h-34 min-h-11 w-full min-w-0 resize-none rounded-none border-transparent bg-transparent hover:border-transparent focus-visible:border-transparent focus-visible:ring-0",
+              FIELD_BOX,
+              fieldClassName,
+            )}
+            maxLength={MAX_MESSAGE_LENGTH}
+            rows={1}
+            value={text}
+            placeholder="메시지 입력"
+            aria-label="메시지 입력"
+            // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
+            onChange={(event) => {
+              setText(event.target.value);
+              // WARN: § 13.8. Any edit ends the search the tap started. The tap blurs the field, so nothing is typed between it and the send it belongs to — a keystroke after it means the draft is a message now, and consuming it would delete what the user wrote.
+              tappedQueryRef.current = null;
+              onEdit?.(event.target.value.trim().length > 0);
+            }}
+            onFocus={onFieldFocus}
+            onKeyDown={handleKeyDown}
+            onScroll={syncKeywordLayer}
+          />
+          {match && onKeywordTap && (
+            <KeywordLayer ref={layerRef} text={text} match={match} onTap={handleKeywordTap} />
           )}
-          maxLength={MAX_MESSAGE_LENGTH}
-          rows={1}
-          value={text}
-          placeholder="메시지 입력"
-          aria-label="메시지 입력"
-          // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
-          onChange={(event) => {
-            setText(event.target.value);
-            onEdit?.(event.target.value.trim().length > 0);
-          }}
-          onFocus={onFieldFocus}
-          onKeyDown={handleKeyDown}
-        />
+        </div>
         {/* INFO: DESIGN.md § 6.6. The toggle stays put once text is typed — an emoticon is staged beside a line of text now (REQUIREMENTS.md § 13.6.), so replacing it with send would put the panel out of reach exactly when it is wanted. */}
         <IconButton
           buttonClassName={cn(isEmoticonPickerOpen && "bg-primary-tint text-primary")}
@@ -137,6 +219,30 @@ export function MessageComposer({
     onToggleEmoticons?.();
   }
 
+  /** WARN: § 13.6. Blurs for the same reason the toggle does — the panel this opens cannot share the screen with the keyboard. */
+  function handleKeywordTap() {
+    if (!match) {
+      return;
+    }
+
+    tappedQueryRef.current = match.query;
+    fieldRef.current?.blur();
+    onKeywordTap?.(match.query);
+  }
+
+  /**
+   * WARN: § 13.8. The field scrolls internally past five lines and the layer is
+   * positioned against the field's box, not its content — without this the mark
+   * stays where the word used to be as soon as the draft is taller than the field.
+   */
+  function syncKeywordLayer() {
+    const layer = layerRef.current;
+
+    if (layer && fieldRef.current) {
+      layer.scrollTop = fieldRef.current.scrollTop;
+    }
+  }
+
   // WARN: Cancelling `pointerdown` is what stops the tap from blurring the field; `click` still fires, so `submit` is untouched.
   function keepFieldFocused(event: PointerEvent<HTMLButtonElement>) {
     event.preventDefault();
@@ -156,4 +262,58 @@ export function MessageComposer({
     event.preventDefault();
     submit();
   }
+}
+
+type KeywordLayerProps = {
+  ref?: Ref<HTMLDivElement>;
+  className?: string;
+  text: string;
+  match: KeywordMatch;
+  onTap: () => void;
+};
+
+/**
+ * REQUIREMENTS.md § 13.8. The underline under the word that has emoticons behind
+ * it, and the only part of the field that answers a tap with something other than a
+ * caret.
+ *
+ * WARN: A mirror of the textarea rather than anything inside it — a `<textarea>`
+ * renders no elements, so there is nowhere to hang a mark or a tap target. It is
+ * laid out with the field's own box (`FIELD_BOX`) and wraps by the same rules, so
+ * the runs measure identically and the mark lands on the word.
+ *
+ * WARN: Every character is transparent and only the decoration is painted. The real
+ * text belongs to the textarea *underneath*; drawing it here too would double every
+ * glyph at one pixel of anti-aliasing offset.
+ *
+ * WARN: `pointer-events-none` on the layer and `auto` on the one span. Inverted, the
+ * layer would swallow every tap meant to place a caret and the field would stop
+ * being editable.
+ */
+function KeywordLayer({ ref, className, text, match, onTap }: KeywordLayerProps) {
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "pointer-events-none absolute inset-0 overflow-hidden text-transparent select-none",
+        // WARN: `whitespace-pre-wrap break-words` is the textarea's own wrapping. Anything else re-flows the runs and the mark drifts a word further off with every line.
+        "break-words whitespace-pre-wrap",
+        FIELD_BOX,
+        className,
+      )}
+      aria-hidden
+    >
+      {text.slice(0, match.start)}
+      {/* INFO: DESIGN.md § 3.2. A pointer affordance on a span that is not a control by shape — the underline is what says it can be pressed. */}
+      <span
+        className="pointer-events-auto cursor-pointer underline decoration-primary decoration-2 underline-offset-4"
+        role="button"
+        tabIndex={-1}
+        onClick={onTap}
+      >
+        {text.slice(match.start, match.end)}
+      </span>
+      {text.slice(match.end)}
+    </div>
+  );
 }

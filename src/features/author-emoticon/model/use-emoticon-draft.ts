@@ -28,6 +28,8 @@ export type CompanionDraft = {
 export function useEmoticonDraft() {
   const [image, setImage] = useState<Nullable<MediaDraft>>(null);
   const [audio, setAudio] = useState<Nullable<CompanionDraft>>(null);
+  // WARN: REQUIREMENTS.md § 13.8. Held as the whole list rather than as a diff, and seeded by the sheet on open — the item being edited already has keywords, and this is the only slot where "unchanged" is a value rather than an absence.
+  const [keywords, setKeywords] = useState<string[]>([]);
   // INFO: REQUIREMENTS.md § 13.4. Only the edit flow can tell these apart: no draft means "keep whatever the item has", this means "take the sound away".
   const [isAudioCleared, setIsAudioCleared] = useState(false);
   const [isReading, setIsReading] = useState(false);
@@ -123,17 +125,20 @@ export function useEmoticonDraft() {
     setImage(null);
     setAudio(null);
     setIsAudioCleared(false);
+    setKeywords([]);
   }, []);
 
   return {
     image,
     audio,
+    keywords,
     isAudioCleared,
     isReading,
     pickImage,
     replaceImage,
     pickAudio,
     clearAudio,
+    setKeywords,
     reset,
   };
 }

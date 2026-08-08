@@ -245,6 +245,18 @@
   /* INFO: REQUIREMENTS.md § 13.6. The emoticon panel's own height, shared so the chat room can animate the strip open against the same value the panel is drawn at. */
   /* WARN: The cap is `px` and never `rem`. A reader's enlarged default font size scales `rem` but not `--viewport-height`, so a `rem` cap wins the `min()` on exactly the devices that can least afford it and the panel overruns the shell. */
   --emoticon-panel-height: min(352px, calc(var(--viewport-height, 100dvh) * 0.5));
+  /* INFO: REQUIREMENTS.md § 13.8. The search tab's own height: the field, then a single row of cells that scrolls sideways. */
+  /* WARN: A fixed height rather than a share of the viewport, and that is the point — the search tab is the one tab allowed on screen with the keyboard, so it must fit in what the keyboard leaves rather than claiming half of it. */
+  /* WARN: Every part of the panel is named here, the tab strip included. Leaving that term out is what clipped the result row to a sliver: the strip is a sibling of the pane, not something the pane's own padding covers. The field is pinned to `--emoticon-search-field` rather than left to `Input`'s default for the same reason — a height this box is computed from must not be free to change underneath it. */
+  --emoticon-search-panel-height: calc(
+    2px + var(--emoticon-search-field) + var(--emoticon-search-cell) + var(--spacing-xs) * 2 +
+      var(--spacing-2xs) + var(--emoticon-search-tabs)
+  );
+  /* INFO: One cell of the § 13.8. row. Smaller than the grid's, since a row that scrolls sideways shows more of itself by being shorter. */
+  --emoticon-search-cell: 64px;
+  --emoticon-search-field: 44px;
+  /* INFO: The bottom tab strip: a 44px `TabButton` plus its `p-2xs` and the hairline above it. */
+  --emoticon-search-tabs: calc(44px + var(--spacing-2xs) * 2 + 1px);
   /* INFO: REQUIREMENTS.md § 13.6. The staged preview at its tallest — the § 13.6. clamp needs the box's height before the emoticon that fills it is known. */
   --emoticon-preview-height: calc(96px + var(--spacing-2xs) * 2 + 2px);
   /* INFO: REQUIREMENTS.md § 8.12. The 입력 중 row's open height, which the chat list animates the slot between. */

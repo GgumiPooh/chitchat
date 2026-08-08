@@ -1,6 +1,7 @@
 import { getEmoticonPack, registerEmoticon, setEmoticonItemOrder } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
+import { MAX_EMOTICON_KEYWORDS, MAX_EMOTICON_KEYWORD_LENGTH } from "@/shared/config";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -14,6 +15,11 @@ const bodySchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   audioKey: z.string().min(1).nullish(),
+  // INFO: REQUIREMENTS.md § 13.8. Bounded here so an oversized body is refused; `normalizeKeywords` is what trims, folds and deduplicates what gets through.
+  keywords: z
+    .array(z.string().max(MAX_EMOTICON_KEYWORD_LENGTH))
+    .max(MAX_EMOTICON_KEYWORDS)
+    .optional(),
 });
 
 /**

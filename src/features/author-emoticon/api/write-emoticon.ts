@@ -1,6 +1,6 @@
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import { request } from "@/shared/api";
-import { EMOTICON_ITEMS_PATH, EMOTICON_PACKS_PATH } from "@/shared/config";
+import { EMOTICON_ITEMS_PATH, EMOTICON_KEYWORDS_PATH, EMOTICON_PACKS_PATH } from "@/shared/config";
 import type { Maybe, Nullable } from "@/shared/lib";
 
 export type CreateEmoticonBody = {
@@ -8,15 +8,41 @@ export type CreateEmoticonBody = {
   width: number;
   height: number;
   audioKey?: Maybe<string>;
+  keywords?: string[];
 };
 
-/** REQUIREMENTS.md § 13.4. An absent `audioKey` keeps the item's current sound; `null` removes it. */
+/**
+ * REQUIREMENTS.md § 13.4. An absent `audioKey` keeps the item's current sound;
+ * `null` removes it.
+ *
+ * INFO: § 13.8. `keywords` is absent-or-whole for the same reason: an edit that
+ * only replaces the image must leave the words the item answers to alone.
+ */
 export type UpdateEmoticonBody = {
   imageKey?: string;
   width?: number;
   height?: number;
   audioKey?: Nullable<string>;
+  keywords?: string[];
 };
+
+/**
+ * REQUIREMENTS.md § 13.8. Words the model would give these items, keyed by item id.
+ *
+ * WARN: Suggestions only — nothing is saved by asking. The caller puts them in the
+ * field the user is already editing, and § 13.4.'s own write is what commits them.
+ */
+export async function suggestEmoticonKeywords(
+  itemIds: string[],
+): Promise<Record<string, string[]>> {
+  const { keywords } = await send<{ keywords: Record<string, string[]> }>(
+    EMOTICON_KEYWORDS_PATH,
+    "POST",
+    { itemIds },
+  );
+
+  return keywords;
+}
 
 export async function createEmoticonPack(name: string): Promise<EmoticonPackSummary> {
   const { pack } = await send<{ pack: EmoticonPackSummary }>(EMOTICON_PACKS_PATH, "POST", { name });

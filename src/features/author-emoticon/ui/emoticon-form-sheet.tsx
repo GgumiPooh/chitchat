@@ -12,7 +12,15 @@ import {
   toEmoticonAssetUrl,
 } from "@/shared/config";
 import { cn, playSound, stopSound, type Maybe, type Nullable, type Optional } from "@/shared/lib";
-import { BottomSheet, Button, HapticTarget, IconButton, PreloadImage, toast } from "@/shared/ui";
+import {
+  BottomSheet,
+  Button,
+  HapticTarget,
+  IconButton,
+  KeywordField,
+  PreloadImage,
+  toast,
+} from "@/shared/ui";
 import { ImagePlus, Music, Pencil, Play, X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
@@ -57,11 +65,13 @@ export function EmoticonFormSheet({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const audioRef = useRef<Nullable<HTMLInputElement>>(null);
   const draft = useEmoticonDraft();
-  const { pickImage } = draft;
+  const { pickImage, setKeywords } = draft;
   const previewUrl = draft.image?.previewUrl ?? toExistingImageUrl(emoticon);
   const audioUrl = draft.audio?.previewUrl ?? toExistingAudioUrl(emoticon, draft.isAudioCleared);
   const isCroppable = draft.image !== null && !isAnimatableEmoticonMime(draft.image.mime);
-  const hasChange = draft.image !== null || draft.audio !== null || draft.isAudioCleared;
+  const hasKeywordChange = !isSameKeywords(draft.keywords, emoticon?.keywords ?? []);
+  const hasChange =
+    draft.image !== null || draft.audio !== null || draft.isAudioCleared || hasKeywordChange;
   const canSubmit = !isSubmitting && hasChange && (emoticon != null || draft.image !== null);
 
   // INFO: The pack screen picks the image before this opens (§ 13.4.), so the file it holds is staged as though the sheet's own picker had produced it.
@@ -70,6 +80,15 @@ export function EmoticonFormSheet({
       void pickImage(initialFile);
     }
   }, [isOpen, initialFile, pickImage]);
+
+  // WARN: § 13.8. The sheet stays mounted between items, so the list has to be re-seeded on every open — without this, editing a second item shows the first one's keywords.
+  // WARN: Keyed on the item's **id**, never the object. The pack screen rebuilds item objects on every save, so an identity dependency re-seeded the field from the server mid-edit and discarded chips the user had just typed.
+  useEffect(() => {
+    if (isOpen) {
+      setKeywords(emoticon?.keywords ?? []);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, emoticon?.id, setKeywords]);
 
   return (
     <>
@@ -127,6 +146,12 @@ export function EmoticonFormSheet({
             onPlay={playAudio}
             onPick={() => audioRef.current?.click()}
             onClear={draft.clearAudio}
+          />
+          <KeywordField
+            className="rounded-md bg-surface-soft p-sm"
+            keywords={draft.keywords}
+            isDisabled={isSubmitting}
+            onChange={draft.setKeywords}
           />
           <Button disabled={!canSubmit} haptic onClick={() => void submit()}>
             {isSubmitting ? "올리는 중이에요" : emoticon ? "저장" : "추가"}
@@ -223,6 +248,7 @@ export function EmoticonFormSheet({
       width: draft.image.width,
       height: draft.image.height,
       audioKey: keys.audioKey,
+      keywords: draft.keywords,
     });
   }
 
@@ -234,8 +260,15 @@ export function EmoticonFormSheet({
         : {}),
       ...(keys.audioKey ? { audioKey: keys.audioKey } : {}),
       ...(draft.isAudioCleared && !keys.audioKey ? { audioKey: null } : {}),
+      // INFO: § 13.8. Sent only when it actually changed, so an image-only edit leaves the column untouched rather than rewriting it to the same value.
+      ...(hasKeywordChange ? { keywords: draft.keywords } : {}),
     });
   }
+}
+
+/** INFO: § 13.8. Order is part of the value — the chips render in the order they were entered, so a reorder is a change worth saving. */
+function isSameKeywords(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((keyword, index) => keyword === b[index]);
 }
 
 type SlotFiles = {

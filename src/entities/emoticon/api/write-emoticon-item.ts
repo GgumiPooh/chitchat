@@ -1,6 +1,6 @@
 import "server-only";
 
-import { isAllowedEmoticonAsset, type EmoticonSlot } from "@/shared/config";
+import { isAllowedEmoticonAsset, normalizeKeywords, type EmoticonSlot } from "@/shared/config";
 import { emoticonItems, getDb } from "@/shared/db";
 import type { Maybe, Nullable } from "@/shared/lib";
 import { headAcceptableObject } from "@/shared/storage";
@@ -16,6 +16,8 @@ export type RegisterEmoticonParams = {
   width: number;
   height: number;
   audioKey?: Maybe<string>;
+  // INFO: REQUIREMENTS.md § 13.8. Absent for an item nobody has described — the column defaults to an empty array rather than being nullable.
+  keywords?: Maybe<readonly string[]>;
 };
 
 /**
@@ -33,6 +35,7 @@ export async function registerEmoticon({
   width,
   height,
   audioKey,
+  keywords,
 }: RegisterEmoticonParams): Promise<Nullable<Emoticon>> {
   const [image, audio] = await Promise.all([
     verifyAsset("image", imageKey, uploaderId),
@@ -54,6 +57,8 @@ export async function registerEmoticon({
       audioMime: audio?.mime ?? null,
       width,
       height,
+      // WARN: Normalized here as well as at the route, because § 13.7.'s import writes through this function without passing a request body through that schema.
+      keywords: normalizeKeywords(keywords ?? []),
       sortOrder: sql`(
         select coalesce(max(${emoticonItems.sortOrder}), -1) + 1
         from ${emoticonItems}
@@ -84,6 +89,8 @@ export type UpdateEmoticonParams = {
   image?: { key: string; width: number; height: number };
   // WARN: `undefined` keeps the audio the item already has and `null` removes it. Collapsing the two would make every image-only edit silently drop the sound.
   audioKey?: Nullable<string>;
+  // WARN: § 13.8. Absent keeps the item's keywords, exactly as `audioKey` does; an empty array is the explicit "take them all away". An edit that only replaces the image must not clear them.
+  keywords?: Maybe<readonly string[]>;
 };
 
 export type UpdateEmoticonResult =
@@ -107,6 +114,7 @@ export async function updateEmoticonItem({
   uploaderId,
   image,
   audioKey,
+  keywords,
 }: UpdateEmoticonParams): Promise<UpdateEmoticonResult> {
   const [current] = await getDb()
     .select()
@@ -136,7 +144,9 @@ export async function updateEmoticonItem({
       ...(audioKey === undefined
         ? {}
         : { audioKey, audioMime: audioKey === null ? null : (verifiedAudio?.mime ?? null) }),
-      updatedAt: new Date(),
+      ...(keywords ? { keywords: normalizeKeywords(keywords) } : {}),
+      // WARN: § 13.4. Only when an *asset* changed. `updated_at` is `Emoticon.version` and rides on every asset URL, so bumping it for a keywords-only write invalidates the cached 302 and its presigned GET for that item — and § 13.8.1. writes one per item, which would re-download a whole pack, chat history included, to record some text.
+      ...(image || audioKey !== undefined ? { updatedAt: new Date() } : {}),
     })
     .where(eq(emoticonItems.id, itemId))
     .returning();

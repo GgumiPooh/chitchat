@@ -17,6 +17,7 @@ export { HapticTap, type HapticTapProps } from "./haptic-tap";
 export { HapticTarget, type HapticTargetProps } from "./haptic-target";
 export { IconButton, type IconButtonProps } from "./icon-button";
 export { Input, type InputProps } from "./input";
+export { KeywordField, type KeywordFieldProps } from "./keyword-field";
 export { Link, type LinkProps } from "./link";
 export type { MediaCell, VoiceTrack } from "./media-cell";
 export { MediaViewer, type MediaViewerProps } from "./media-viewer";

@@ -75,7 +75,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
           onPacksChange={setKnown}
         />
       </div>
-      {/* INFO: REQUIREMENTS.md § 13.5. Two ways to make a pack — name one and fill it by hand, or hand a Kakao address to jandh-emoticons and have it filled. */}
+      {/* INFO: REQUIREMENTS.md § 13.5. Two ways to make a pack — name one and fill it by hand, or hand it off to jandh-emoticons, which imports one whole. */}
       <ActionSheet
         isOpen={isAddMenuOpen}
         header={{ title: "이모티콘 그룹 추가" }}

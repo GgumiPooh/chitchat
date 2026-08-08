@@ -1,4 +1,4 @@
-import { A_DAY, A_MEGABYTE, A_SECOND } from "@/shared/lib";
+import { A_DAY, A_MEGABYTE, A_SECOND, type Nullable } from "@/shared/lib";
 
 /** REQUIREMENTS.md § 13.3. Presigned PUT then registration, exactly as § 9. does — but no `_thumb` sibling and no `media` row. */
 export const EMOTICON_UPLOAD_URL_PATH = "/api/emoticons/upload-url";
@@ -8,6 +8,25 @@ export const EMOTICON_PACKS_PATH = "/api/emoticons/packs";
 export const EMOTICON_ITEMS_PATH = "/api/emoticons/items";
 
 export const EMOTICON_PREFS_PATH = "/api/emoticons/prefs";
+
+/**
+ * The keyword suggester, which is **jandh-emoticons' route rather than this app's**
+ * (REQUIREMENTS.md § 13.8.1.).
+ *
+ * WARN: The one path here that names a route this app does not serve. It carries the
+ * `/emoticons` prefix because that is the zone (§ 13.7.), and `next.config.ts`'s
+ * existing rewrite already carries it across in development as well as production —
+ * no second rewrite exists for this, and none is needed.
+ *
+ * WARN: `proxy.ts` excludes `emoticons/api` from the session gate, so this request
+ * is authorized by the zone's own `getCurrentUser`, not by the gate here. Adding it
+ * back to the matcher would answer this call with a redirect to `/login`.
+ *
+ * WARN: Do not move the route back. The model call is the expensive part of this
+ * feature and it is deliberately hosted where the emoticon work already is, so
+ * jandh's own function budget pays for the conversation rather than for tagging.
+ */
+export const EMOTICON_KEYWORDS_PATH = "/emoticons/api/emoticons/keywords";
 
 /** REQUIREMENTS.md § 13.2. One required image, one optional audio companion, each its own object. */
 export const EMOTICON_SLOTS = ["image", "audio"] as const;
@@ -53,6 +72,33 @@ export const EMOTICON_MAX_EDGE = 420;
 export const MAX_EMOTICON_PACK_NAME_LENGTH = 40;
 
 /**
+ * REQUIREMENTS.md § 13.8. How many search keywords one item may carry, and how
+ * long each may be.
+ *
+ * INFO: The cap exists because the whole keyword set is shipped to the browser
+ * with the pack list (§ 13.6.'s preload) and matched there — it is the composer's
+ * per-keystroke working set, not a column somebody queries.
+ */
+export const MAX_EMOTICON_KEYWORDS = 12;
+
+export const MAX_EMOTICON_KEYWORD_LENGTH = 20;
+
+/**
+ * How many emoticons one keyword-suggestion request may carry (REQUIREMENTS.md
+ * § 13.8.1.).
+ *
+ * WARN: This is the route's cap **and** the caller's chunk size, deliberately the
+ * same number so one request is provably one model call. Sixteen 210×210 images
+ * answer in about five seconds; a route that accepted a whole pack would run four
+ * of those back to back and be killed by the platform before it answered, which is
+ * the failure jandh-emoticons' § 6.3.1. already exists to have removed.
+ *
+ * WARN: Callers MUST chunk to this. It is also what makes the screen able to say how
+ * far along it is — a single request can only ever report "not yet".
+ */
+export const KEYWORD_SUGGESTION_BATCH = 16;
+
+/**
  * How long an emoticon's presigned GET stays valid, and how long the 302 in front
  * of it may be cached.
  *
@@ -81,6 +127,103 @@ export const EMOTICON_CACHE_MAX_AGE = 6 * A_DAY;
  * `EMOTICON_URL_EXPIRY`, which is the ceiling the signature exists to impose.
  */
 export const EMOTICON_ASSET_CACHE_CONTROL = `private, max-age=${(365 * A_DAY) / A_SECOND}, immutable`;
+
+/**
+ * The stored form of a keyword list: trimmed, whitespace-collapsed, deduplicated
+ * case-insensitively, and capped (REQUIREMENTS.md § 13.8.).
+ *
+ * WARN: Lives here rather than in `entities/emoticon` for the reason
+ * `toEmoticonAssetUrl` does — that barrel re-exports a `server-only` api segment,
+ * and the composer matches keywords in the browser.
+ *
+ * WARN: Keywords keep the case they were typed in and are compared folded. Storing
+ * them folded would render `OK` back as `ok` in the sheet that authored it, and
+ * comparing them unfolded would let one item carry `OK` and `ok` as two keywords.
+ */
+export function normalizeKeywords(input: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const kept: string[] = [];
+
+  for (const raw of input) {
+    const keyword = raw.trim().replace(/\s+/gu, " ").slice(0, MAX_EMOTICON_KEYWORD_LENGTH);
+    const folded = keyword.toLowerCase();
+
+    // WARN: The same floor the composer applies to a typed word, enforced here so the two cannot disagree. A one-character keyword was storable and then unsearchable — and worse than unsearchable: `matchesKeywordQuery` also runs `query.startsWith(keyword)`, so `아` underlined every draft word beginning with that syllable.
+    if (keyword.length < MIN_KEYWORD_QUERY_LENGTH || seen.has(folded)) {
+      continue;
+    }
+
+    seen.add(folded);
+    kept.push(keyword);
+
+    if (kept.length === MAX_EMOTICON_KEYWORDS) {
+      break;
+    }
+  }
+
+  return kept;
+}
+
+/**
+ * The shortest typed word that may offer emoticons.
+ *
+ * INFO: REQUIREMENTS.md § 13.8. One character prefix-matches most of a pack, so
+ * the offer would appear on the first keystroke of nearly every word.
+ */
+export const MIN_KEYWORD_QUERY_LENGTH = 2;
+
+/** The word in a typed draft that has emoticons behind it (REQUIREMENTS.md § 13.8.). */
+export type KeywordMatch = {
+  /** What the user actually typed — the panel filters on this, not on the keyword it hit. */
+  query: string;
+  start: number;
+  end: number;
+};
+
+/**
+ * Whether a stored keyword answers to a typed word.
+ *
+ * WARN: REQUIREMENTS.md § 13.8. Prefixes count **in both directions**, and each
+ * direction pays for a different case. `keyword.startsWith(query)` is the one the
+ * user asked for: an item tagged `고민되는군` has to be reachable by typing `고민`,
+ * because nobody types a whole sentence to find a picture of it. `query.startsWith
+ * (keyword)` is Korean grammar — a particle attaches to the word (`우와가`,
+ * `고민되는군요`), so the typed token is the keyword plus a suffix that is not part
+ * of it. Dropping either half loses half the feature.
+ */
+export function matchesKeywordQuery(keyword: string, query: string): boolean {
+  const foldedKeyword = keyword.toLowerCase();
+  const foldedQuery = query.toLowerCase();
+
+  return foldedKeyword.startsWith(foldedQuery) || foldedQuery.startsWith(foldedKeyword);
+}
+
+/**
+ * The word a typed draft should offer emoticons for, or `null` when it offers none.
+ *
+ * INFO: § 13.8. Split on whitespace, and the span reported is the whole word — the
+ * underline has to sit under something the reader recognises as a word, and
+ * `고민` inside `고민되는군` is not one.
+ *
+ * WARN: The **last** matching word wins, not the first or the longest. The offer
+ * follows the caret, which is where the user is looking; keyed on the first match a
+ * word typed later would silently underline something at the far left of the field.
+ */
+export function findKeywordMatch(text: string, keywords: Iterable<string>): Nullable<KeywordMatch> {
+  let match: Nullable<KeywordMatch> = null;
+
+  for (const token of text.matchAll(/\S+/gu)) {
+    const query = token[0];
+
+    if (query.length < MIN_KEYWORD_QUERY_LENGTH || !hasMatch(keywords, query)) {
+      continue;
+    }
+
+    match = { query, start: token.index, end: token.index + query.length };
+  }
+
+  return match;
+}
 
 export type AllowedEmoticonImageMime = (typeof ALLOWED_EMOTICON_IMAGE_MIMES)[number];
 
@@ -140,4 +283,20 @@ export function toEmoticonAssetUrl(
   const versionParam = version === undefined ? "" : `&v=${version}`;
 
   return `${EMOTICON_ITEMS_PATH}/${itemId}/asset?slot=${slot}${versionParam}`;
+}
+
+/**
+ * WARN: Iterates the collection rather than copying it. This runs once per token per
+ * keystroke on the composer's field, and the caller holds a `Set` of every keyword in
+ * every enabled pack — spreading it to reach `some` allocated that whole set again on
+ * each character typed, on the app's hottest input path.
+ */
+function hasMatch(keywords: Iterable<string>, query: string): boolean {
+  for (const keyword of keywords) {
+    if (matchesKeywordQuery(keyword, query)) {
+      return true;
+    }
+  }
+
+  return false;
 }

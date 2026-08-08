@@ -10,6 +10,8 @@ export type Emoticon = {
   width: number;
   height: number;
   hasAudio: boolean;
+  // INFO: REQUIREMENTS.md § 13.8. The words the composer matches a typed draft against. Empty for an item nobody has described.
+  keywords: string[];
   // INFO: REQUIREMENTS.md § 13.4. `updated_at` in milliseconds, appended to the asset URL — an edited item keeps its id, so nothing else would tell the cached redirect apart from the new one.
   version: number;
   id: string;

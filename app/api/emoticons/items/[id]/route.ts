@@ -1,6 +1,7 @@
 import { deleteEmoticonItem, updateEmoticonItem } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
+import { MAX_EMOTICON_KEYWORDS, MAX_EMOTICON_KEYWORD_LENGTH } from "@/shared/config";
 import { deleteObjects } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -17,6 +18,11 @@ const patchSchema = z
     width: z.number().int().positive().optional(),
     height: z.number().int().positive().optional(),
     audioKey: z.string().min(1).nullish(),
+    // INFO: REQUIREMENTS.md § 13.8. Absent keeps the item's keywords; `[]` is the explicit "remove them all", so an image-only edit cannot wipe them by omission.
+    keywords: z
+      .array(z.string().max(MAX_EMOTICON_KEYWORD_LENGTH))
+      .max(MAX_EMOTICON_KEYWORDS)
+      .optional(),
   })
   // WARN: § 8.3. reserves the bubble's box from the stored size, so new bytes without their measurements would leave the row describing the image it replaced.
   .refine(
@@ -48,13 +54,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return apiError("invalid_request");
   }
 
-  const { imageKey, width, height, audioKey } = body.data;
+  const { imageKey, width, height, audioKey, keywords } = body.data;
 
   const result = await updateEmoticonItem({
     itemId: params.data.id,
     uploaderId: user.id,
     image: imageKey && width && height ? { key: imageKey, width, height } : undefined,
     audioKey,
+    keywords,
   });
 
   if (result.status === "not_found") {

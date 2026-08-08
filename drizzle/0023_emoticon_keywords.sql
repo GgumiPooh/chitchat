@@ -1,0 +1,1 @@
+ALTER TABLE "emoticon_items" ADD COLUMN "keywords" text[] DEFAULT '{}' NOT NULL;
