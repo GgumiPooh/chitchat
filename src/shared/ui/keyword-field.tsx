@@ -41,7 +41,7 @@ export function KeywordField({
 }: KeywordFieldProps) {
   const [draft, setDraft] = useState("");
   const isFull = keywords.length >= MAX_EMOTICON_KEYWORDS;
-  // INFO: `normalizeKeywords` drops anything shorter, so the field says why rather than swallowing the entry — one character is unsearchable by § 13.8.'s own floor.
+  // INFO: `MIN_KEYWORD_LENGTH`, said out loud rather than swallowing the entry. It is a floor on the stored word alone — typing one character in the composer searches fine (§ 13.8.), so the copy must not read as "one character cannot be searched".
   const isTooShort = draft.trim().length === 1;
 
   return (

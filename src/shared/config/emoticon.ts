@@ -171,8 +171,8 @@ export function normalizeKeywords(input: readonly string[]): string[] {
       .trimEnd();
     const folded = keyword.toLowerCase();
 
-    // WARN: The same floor the composer applies to a typed word, enforced here so the two cannot disagree. A one-character keyword was storable and then unsearchable — and worse than unsearchable: `matchesKeywordQuery` also runs `query.startsWith(keyword)`, so `아` underlined every draft word beginning with that syllable.
-    if (keyword.length < MIN_KEYWORD_QUERY_LENGTH || seen.has(folded)) {
+    // WARN: § 13.8. A floor on the stored *keyword*, and deliberately not one on the typed query — a one-character query is the useful direction and is allowed. This is the other direction: `matchesKeywordQuery` runs `query.startsWith(keyword)` for Korean particles, so a keyword of `아` underlines every drafted word beginning with that syllable.
+    if (keyword.length < MIN_KEYWORD_LENGTH || seen.has(folded)) {
       continue;
     }
 
@@ -188,12 +188,15 @@ export function normalizeKeywords(input: readonly string[]): string[] {
 }
 
 /**
- * The shortest typed word that may offer emoticons.
+ * The shortest keyword an item may carry.
  *
- * INFO: REQUIREMENTS.md § 13.8. One character prefix-matches most of a pack, so
- * the offer would appear on the first keystroke of nearly every word.
+ * WARN: REQUIREMENTS.md § 13.8. A floor on what is **stored**, and there is no
+ * matching floor on what is typed — the two used to be one constant, which read as
+ * one rule and was three. A one-character *query* is fine and is what KakaoTalk
+ * offers; a one-character *keyword* is not, because `matchesKeywordQuery`'s
+ * particle direction makes `아` answer to every drafted word starting with it.
  */
-export const MIN_KEYWORD_QUERY_LENGTH = 2;
+export const MIN_KEYWORD_LENGTH = 2;
 
 /** The word in a typed draft that has emoticons behind it (REQUIREMENTS.md § 13.8.). */
 export type KeywordMatch = {
@@ -213,6 +216,11 @@ export type KeywordMatch = {
  * (keyword)` is Korean grammar — a particle attaches to the word (`우와가`,
  * `고민되는군요`), so the typed token is the keyword plus a suffix that is not part
  * of it. Dropping either half loses half the feature.
+ *
+ * WARN: The two directions are why `MIN_KEYWORD_LENGTH` guards the keyword and
+ * nothing guards the query. A one-character query can only ever reach the first
+ * direction — the second needs a keyword shorter still, and there are none — so it
+ * costs a wider result set and no false matches at all.
  */
 export function matchesKeywordQuery(keyword: string, query: string): boolean {
   const foldedKeyword = keyword.toLowerCase();
@@ -231,6 +239,11 @@ export function matchesKeywordQuery(keyword: string, query: string): boolean {
  * WARN: The **last** matching word wins, not the first or the longest. The offer
  * follows the caret, which is where the user is looking; keyed on the first match a
  * word typed later would silently underline something at the far left of the field.
+ *
+ * WARN: § 13.8. No minimum length, deliberately. A one-character token offers
+ * whatever it prefixes, which is KakaoTalk's own behaviour and the point of the
+ * feature — `왈` has to reach the item tagged `왈?`. The floor that remains is
+ * `MIN_KEYWORD_LENGTH`, on the stored word rather than on the typed one.
  */
 export function findKeywordMatch(text: string, keywords: Iterable<string>): Nullable<KeywordMatch> {
   let match: Nullable<KeywordMatch> = null;
@@ -238,7 +251,7 @@ export function findKeywordMatch(text: string, keywords: Iterable<string>): Null
   for (const token of text.matchAll(/\S+/gu)) {
     const query = token[0];
 
-    if (query.length < MIN_KEYWORD_QUERY_LENGTH || !hasMatch(keywords, query)) {
+    if (!hasMatch(keywords, query)) {
       continue;
     }
 

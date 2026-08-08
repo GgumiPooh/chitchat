@@ -4,7 +4,6 @@ import type { Emoticon, EmoticonPackWithItems } from "@/entities/emoticon";
 import {
   matchesKeywordQuery,
   MAX_EMOTICON_KEYWORD_LENGTH,
-  MIN_KEYWORD_QUERY_LENGTH,
   toEmoticonAssetUrl,
 } from "@/shared/config";
 import { A_SECOND, cn, type Nullable, type Optional } from "@/shared/lib";
@@ -281,7 +280,8 @@ export function EmoticonPicker({
     if (isSearching) {
       const trimmed = query.trim();
 
-      return trimmed.length < MIN_KEYWORD_QUERY_LENGTH
+      // WARN: § 13.8. An empty field, not a length floor. `matchesKeywordQuery` prefix-matches, and every keyword starts with `""` — an unguarded blank query returns the entire library rather than nothing.
+      return trimmed === ""
         ? []
         : packs.flatMap((pack) =>
             pack.items.filter((item) =>
@@ -480,9 +480,7 @@ function SearchPane({
       {results.length === 0 ? (
         // INFO: § 13.8. The whole pane below the field, and with no row to scroll it is where the tab swipe has the most room to be made.
         <p className="flex flex-1 touch-pan-y items-center justify-center text-body-sm text-meta">
-          {trimmed.length < MIN_KEYWORD_QUERY_LENGTH
-            ? "두 글자부터 찾을 수 있어요"
-            : "찾는 이모티콘이 없어요"}
+          {trimmed === "" ? "단어를 입력해 보세요" : "찾는 이모티콘이 없어요"}
         </p>
       ) : (
         // WARN: `touch-pan-x` is the mirror of the grid's `touch-pan-y` — this scroller runs on the horizontal axis, so that is the one the browser must keep.

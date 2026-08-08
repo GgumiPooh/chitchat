@@ -110,7 +110,7 @@ export {
   MAX_EMOTICON_KEYWORDS,
   MAX_EMOTICON_KEYWORD_LENGTH,
   MAX_EMOTICON_PACK_NAME_LENGTH,
-  MIN_KEYWORD_QUERY_LENGTH,
+  MIN_KEYWORD_LENGTH,
   allowedMimesForEmoticonSlot,
   findKeywordMatch,
   isAllowedEmoticonAsset,
