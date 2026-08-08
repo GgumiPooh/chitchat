@@ -7,7 +7,13 @@ import { ChatScreen } from "./chat-screen";
 export type ChatPageProps = {
   className?: string;
   currentUserId: string;
-  /** REQUIREMENTS.md § 12.2. The signed-in user's own wallpaper, read from `users` by the route. */
+  /**
+   * REQUIREMENTS.md § 12.2. The room's shared wallpaper, for the preload alone.
+   *
+   * WARN: It is deliberately not handed further down. `ChatRoom` reads the live
+   * value out of the stream provider, because either participant can change it and a
+   * prop from this render would only move on a navigation.
+   */
   backgroundMediaId: Nullable<string>;
   /** REQUIREMENTS.md § 10. A message the screen was opened on, validated by the route. */
   jumpMessageId?: Maybe<number>;
@@ -33,7 +39,6 @@ export async function ChatPage({
       className={className}
       currentUserId={currentUserId}
       initialMessages={initialMessages}
-      backgroundMediaId={backgroundMediaId}
       jumpMessageId={jumpMessageId}
     />
   );

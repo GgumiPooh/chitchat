@@ -1196,7 +1196,7 @@ So the pack tabs tick unconditionally, re-taps on the open pack included. That r
 
 ## 7.16. Backgrounds — the profile cover, the chat wallpaper, and the Settings header.
 
-Two user-chosen photos, drawn in three places. `REQUIREMENTS.md § 12.1.`–`§ 12.3.` own what they are and who may see them; this section owns how they look.
+Two chosen photos, drawn in three places — **the cover is one person's and the wallpaper is the room's** (`REQUIREMENTS.md § 12.2.`), so either participant sets the wallpaper and both see it change. `REQUIREMENTS.md § 12.1.`–`§ 12.3.` own what they are and who may see them; this section owns how they look.
 
 **The Settings header** is a cover band of a **fixed 480px** (`h-120`) — no longer `--viewport-height`, and no longer a fraction of any viewport either. Two things must not reach it, and a fixed height is what settles both: the keyboard, because the band is a background (§ 3.4.), and the device, because a cover is a composition and half a viewport is a different composition on every phone.
 
@@ -1208,7 +1208,7 @@ The band arrived at that value through two earlier ones, and the record of both 
 
 Both put the cover under a **two-stop** gradient — `from-scrim/55…60 via-transparent to-scrim/80…85`. One flat wash would dim the middle of the photo, which is the part the user chose it for; the two stops darken only the strip the controls are in and the strip the name is on. The base under a missing cover differs between the two on purpose: the profile screen falls back to `scrim`, because its text is `on-primary` either way and a colour that followed the photo would have to be sampled from it; the Settings band falls back to `surface-soft` with `ink` text, because half a screen of near-black on a settings list reads as a broken image rather than as a profile nobody has decorated yet.
 
-**The chat wallpaper** is the room's backdrop under a **fixed** `chat-scrim/45` wash. That wash is not decoration and it is not adjustable. Every meta colour in the room — `chat-meta`, the date pill, `읽음` (§ 4.1., § 6.) — was chosen for contrast against `chat-canvas`, and a photograph underneath them is an arbitrary colour; the wash is what puts them back on the surface they were designed against. A brightness slider would have a setting at which the timestamps are unreadable, which is why `chat-scrim` is a token the dark theme moves rather than a value the user does.
+**The chat wallpaper** is the room's backdrop under a **fixed** `chat-scrim/45` wash. That wash is not decoration and it is not adjustable. Every meta colour in the room — `chat-meta`, the date pill, `읽음` (§ 4.1., § 6.) — was chosen for contrast against `chat-canvas`, and a photograph underneath them is an arbitrary colour; the wash is what puts them back on the surface they were designed against. A brightness slider would have a setting at which the timestamps are unreadable, which is why `chat-scrim` is a token the dark theme moves rather than a value the user does. **Sharing the wallpaper (`REQUIREMENTS.md § 12.2.`) makes that stricter rather than looser**: a slider would now be one person choosing how legible the other person's timestamps are.
 
 The token's hex is `chat-canvas`'s own, and that is the point rather than an oversight: the wash is a partial application of the surface the room would otherwise have had. It is a separate token because the dark theme has to be able to move the two independently — a dark room wants a deeper floor **and** a lighter wash, or a photo behind it disappears.
 

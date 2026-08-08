@@ -11,5 +11,6 @@ export default async function Page() {
     ? await getMediaRow(user.profileBackgroundMediaId)
     : null;
 
+  // INFO: REQUIREMENTS.md § 12.2. The 채팅방 배경 row reads its own id off the stream, so this screen deliberately does not fetch one.
   return <SettingsPage user={user} isProfileBackgroundVideo={isVideoMime(cover?.mime ?? "")} />;
 }

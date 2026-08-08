@@ -19,7 +19,7 @@ export async function listUsers(): Promise<Participant[]> {
       email: users.email,
       nickname: users.nickname,
       avatarMediaId: users.avatarMediaId,
-      // INFO: REQUIREMENTS.md § 12.1. The profile cover the other participant sees when they open this person's profile. `chat_background_media_id` is deliberately not projected (§ 12.2.).
+      // INFO: REQUIREMENTS.md § 12.1. The profile cover the other participant sees when they open this person's profile. The § 12.2. wallpaper is not projected here because it belongs to no user — `chat_settings` holds it.
       profileBackgroundMediaId: users.profileBackgroundMediaId,
       // INFO: REQUIREMENTS.md § 12.1. A cover may be a video, so the renderer has to know which element to reach for before it fetches anything — and a `media` id says nothing about that on its own.
       profileBackgroundMime: media.mime,

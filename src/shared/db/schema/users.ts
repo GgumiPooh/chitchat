@@ -17,7 +17,7 @@ export const users = pgTable("users", {
     (): AnyPgColumn => media.id,
     { onDelete: "set null" },
   ),
-  // WARN: REQUIREMENTS.md § 12.2. Private to its owner and must stay out of `toParticipant`, exactly as `typing_indicator_enabled` does — it decorates this person's own screen and says nothing the other participant is entitled to.
+  // TODO: REQUIREMENTS.md § 12.2. Dead — the wallpaper moved to `chat_settings` in `0025` and nothing reads or writes this any more. It stays **declared** only so the schema matches the database until `0026` drops it: the drop is a § 6. rule 1 migration that must not run until this build is live, and `pnpm db:migrate` applies every pending file in one go, so shipping the drop beside `0025` is the one sequence that takes the site down. Delete these four lines, `pnpm db:generate`, then migrate.
   chatBackgroundMediaId: uuid("chat_background_media_id").references((): AnyPgColumn => media.id, {
     onDelete: "set null",
   }),

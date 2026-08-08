@@ -132,8 +132,6 @@ export type ChatRoomProps = {
   className?: string;
   currentUserId: string;
   initialMessages: ChatMessage[];
-  /** REQUIREMENTS.md § 12.2. This user's own wallpaper; `null` leaves the room on the flat `chat-canvas`. */
-  backgroundMediaId: Nullable<string>;
   /** @see ChatJumpTarget */
   jumpTarget?: Nullable<ChatJumpTarget>;
   /**
@@ -196,7 +194,6 @@ export function ChatRoom({
   className,
   currentUserId,
   initialMessages,
-  backgroundMediaId,
   jumpTarget,
   initialJumpMessageId,
   searchQuery,
@@ -333,7 +330,9 @@ export function ChatRoom({
       setIsRecording(false);
     }
   }, [isSearching]);
-  const { participants, typingUserIds, setIsReading, markRead } = useChatStream();
+  // INFO: REQUIREMENTS.md § 12.2. The wallpaper comes from here rather than from a prop, because either participant can change it and the other one must see it without leaving the room.
+  const { participants, chatBackgroundMediaId, typingUserIds, setIsReading, markRead } =
+    useChatStream();
   // WARN: REQUIREMENTS.md § 8.12. Only the two *sustained* sources are passed; typing arrives as edit pulses through the returned callback, because a field holding a draft is not somebody typing. Sending is not a trigger either way — it clears both of these and produces no edit.
   // WARN: REQUIREMENTS.md § 8.12. Silent for the length of a search. A staged emoticon is state that outlives the hidden composer, so left connected it holds the signal up and re-POSTs every `TYPING_PING_INTERVAL` — the other participant reads 입력 중 from a composer that is not even on screen, which is exactly the parked-draft failure § 8.12. exists to have removed.
   const signalEdit = useTypingSignal(
@@ -885,7 +884,7 @@ export function ChatRoom({
       className={cn("relative min-h-0 flex-1 bg-chat-canvas", className)}
       {...fileDrop.handlers}
     >
-      {backgroundMediaId && <ChatBackdrop mediaId={backgroundMediaId} />}
+      {chatBackgroundMediaId && <ChatBackdrop mediaId={chatBackgroundMediaId} />}
       {rows.length === 0 ? (
         <>
           <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">

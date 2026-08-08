@@ -176,6 +176,13 @@
       "when": 1786178423556,
       "tag": "0024_message_changed_notify",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786203692583,
+      "tag": "0025_chat_settings",
+      "breakpoints": true
     }
   ]
 }

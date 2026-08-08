@@ -1,8 +1,8 @@
-import { discardScopedMedia, getMediaRow, ownsAllMedia } from "@/entities/media";
+import { discardScopedMedia, discardUnwornScopedMedia, ownsAllMedia } from "@/entities/media";
 import { updateUserProfile, type ReplacedMedia } from "@/entities/user";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { isImageMime, MAX_NICKNAME_LENGTH } from "@/shared/config";
+import { MAX_NICKNAME_LENGTH } from "@/shared/config";
 import { safelyRunAsync, type Maybe } from "@/shared/lib";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
@@ -15,8 +15,6 @@ const bodySchema = z
     avatarMediaId: z.uuid().nullish(),
     // INFO: REQUIREMENTS.md § 12.1. The profile cover, published to the other participant.
     profileBackgroundMediaId: z.uuid().nullish(),
-    // INFO: REQUIREMENTS.md § 12.2. The chat wallpaper, drawn on its owner's screen alone.
-    chatBackgroundMediaId: z.uuid().nullish(),
     // INFO: REQUIREMENTS.md § 8.12. The 입력 중 switch. It is a `users` column the owner may write, so it rides this patch rather than an endpoint of its own.
     typingIndicatorEnabled: z.boolean().optional(),
   })
@@ -24,9 +22,12 @@ const bodySchema = z
   .refine((body) => Object.values(body).some((value) => value !== undefined), "empty patch");
 
 /**
- * REQUIREMENTS.md § 12. The nickname, avatar and backgrounds, all owned by the user
- * they belong to. There is no path to editing the other participant's row — § 8.7.
- * deliberately has no KakaoTalk-style per-contact rename.
+ * REQUIREMENTS.md § 12. The nickname, avatar and profile cover, all owned by the
+ * user they belong to. There is no path to editing the other participant's row —
+ * § 8.7. deliberately has no KakaoTalk-style per-contact rename.
+ *
+ * INFO: § 12.2. The chat wallpaper is not patched here. It stopped being a property
+ * of a user when it became shared, and `PATCH /api/chat/background` owns it.
  */
 export async function PATCH(request: Request) {
   const user = await getCurrentUser();
@@ -41,15 +42,12 @@ export async function PATCH(request: Request) {
     return apiError("invalid_request");
   }
 
-  const { avatarMediaId, profileBackgroundMediaId, chatBackgroundMediaId } = body.data;
+  const { avatarMediaId, profileBackgroundMediaId } = body.data;
 
   // WARN: REQUIREMENTS.md § 14. The same check `POST /api/messages` runs on `mediaIds`, scoped per column. Each of these is a foreign key, so an id that is only a well-formed UUID is a 500 rather than a 400; the ownership half stops one participant wearing the other's photograph, and the scope half stops a chat photo becoming an avatar or a background that `discardScopedMedia` would later delete out from under its bubble.
   const isScoped = await Promise.all([
     isOwnedInScope(avatarMediaId, user.id, "avatar"),
     isOwnedInScope(profileBackgroundMediaId, user.id, "background"),
-    isOwnedInScope(chatBackgroundMediaId, user.id, "background"),
-    // WARN: REQUIREMENTS.md § 12.1. The copy route already refuses a video for the chat slot, but this column is writable with any `background/` object its owner holds — including one copied a moment earlier for the profile. Without this, aiming that id here puts a video behind § 8.3.'s list, where an `<img>` draws it.
-    isStillImage(chatBackgroundMediaId),
   ]);
 
   if (isScoped.includes(false)) {
@@ -75,37 +73,34 @@ async function isOwnedInScope(
   return !mediaId || ownsAllMedia([mediaId], userId, scope);
 }
 
-async function isStillImage(mediaId: Maybe<string>): Promise<boolean> {
-  if (!mediaId) {
-    return true;
-  }
-
-  const row = await getMediaRow(mediaId);
-
-  return Boolean(row && isImageMime(row.mime));
-}
-
 /**
  * WARN: Cleanup behind a write that already committed, so it runs after the
  * response and cannot fail it. Awaited inline, a transient pool error here answered
  * 500 for a save that landed — the sheet stayed open on 프로필을 저장하지 못했어요
  * and a retry uploaded a second photo.
+ *
+ * WARN: REQUIREMENTS.md § 12.2. The cover goes through `discardUnwornScopedMedia`,
+ * which carries the guard inside its DELETE. `ownsAllMedia` admits any `background/`
+ * object its owner holds, so a crafted patch can aim this column at the shared
+ * wallpaper — and taking the replaced id at face value would then delete the photo
+ * the room is still drawn from. The avatar needs no such guard: its scope is
+ * `avatar/`, which no other column will accept.
+ *
+ * INFO: Concurrent, because the two touch different rows and different key prefixes.
+ * Only the background leg pays for the guard, and it pays inside its own leg.
  */
 function discardReplaced(replaced: ReplacedMedia, userId: string): void {
-  const discards: ScopedDiscard[] = [
-    ...(replaced.avatar ? [{ id: replaced.avatar, scope: "avatar" as const }] : []),
-    ...replaced.background.map((id) => ({ id, scope: "background" as const })),
-  ];
+  const { avatar, background } = replaced;
 
-  if (discards.length === 0) {
+  if (!avatar && !background) {
     return;
   }
 
   after(() =>
-    Promise.all(
-      discards.map(({ scope, id }) => safelyRunAsync(() => discardScopedMedia(id, userId, scope))),
-    ),
+    Promise.all([
+      avatar && safelyRunAsync(() => discardScopedMedia(avatar, userId, "avatar")),
+      background &&
+        safelyRunAsync(() => discardUnwornScopedMedia(background, userId, "background")),
+    ]),
   );
 }
-
-type ScopedDiscard = { scope: "avatar" | "background"; id: string };

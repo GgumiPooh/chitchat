@@ -9,6 +9,7 @@ export {
 } from "./listen";
 export { notifyChannel } from "./notify";
 export {
+  chatSettings,
   emoticonItems,
   emoticonPacks,
   eventRecurrenceEnum,
@@ -26,6 +27,7 @@ export {
   systemActionEnum,
   userEmoticonPrefs,
   users,
+  type ChatSettings,
   type EmoticonItem,
   type EmoticonPack,
   type Event,

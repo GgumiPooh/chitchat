@@ -48,8 +48,8 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
         profileBackgroundMediaId={user.profileBackgroundMediaId}
       />
       <EmoticonSettingsRow />
-      {/* INFO: REQUIREMENTS.md § 12.2. The wallpaper this user sees behind the conversation, which the other participant never does. */}
-      <ChatBackgroundRow chatBackgroundMediaId={user.chatBackgroundMediaId} />
+      {/* INFO: REQUIREMENTS.md § 12.2. The wallpaper behind the conversation, and the one setting on this screen that changes what the *other* participant sees — the row says so, since nothing else on it does. It takes no id: the value is shared and live, so it comes from the stream rather than from this render. */}
+      <ChatBackgroundRow />
       {/* INFO: DESIGN.md § 5.1. Per device, like 알림 — the choice lives in `localStorage`, so it describes this browser rather than the account. */}
       <ThemeSettingsRow />
       <PushNotificationRow />

@@ -17,6 +17,7 @@ import { z } from "zod";
 
 export type ChatEventSourceHandlers = {
   onMessage: (message: ChatMessage, arrival: MessageArrival) => void;
+  /** REQUIREMENTS.md § 8.4. Named for its channel, but it invalidates the whole payload behind it — the participant set and the § 12.2. shared wallpaper alike, since `chat_settings` publishes on the same channel. */
   onUserChanged: () => void;
   onResume: () => void;
   /** Someone started or stopped composing. REQUIREMENTS.md § 8.12. */

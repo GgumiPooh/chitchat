@@ -19,7 +19,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import { fetchParticipants } from "../api/fetch-participants";
+import { fetchChatContext } from "../api/fetch-chat-context";
 import { fetchUnreadCount } from "../api/fetch-unread-count";
 import { postRead } from "../api/post-read";
 import { DormantOverlay } from "../ui/dormant-overlay";
@@ -36,6 +36,17 @@ export type ChatStreamListener = {
 
 export type ChatStreamValue = {
   participants: Participant[];
+  /**
+   * REQUIREMENTS.md § 12.2. The wallpaper behind the conversation, shared by both
+   * participants.
+   *
+   * WARN: Held here rather than passed down from the chat screen's server render,
+   * because either participant can change it and the other one must see it without
+   * navigating. It rides the same `user_changed` refetch the participant set does, so
+   * the resume catch-up covers the change that landed while the tab was backgrounded
+   * (§ 8.4.) for free.
+   */
+  chatBackgroundMediaId: Nullable<string>;
   unreadCount: number;
   /** Everyone but me who is composing right now. REQUIREMENTS.md § 8.12. */
   typingUserIds: string[];
@@ -58,6 +69,8 @@ export type ChatStreamValue = {
 export type ChatStreamProviderProps = PropsWithChildren<{
   currentUserId: string;
   initialParticipants: Participant[];
+  /** REQUIREMENTS.md § 12.2. Seeded by the shell's render, so the room paints its wallpaper before any request is made. */
+  initialChatBackgroundMediaId: Nullable<string>;
   initialUnreadCount: number;
 }>;
 
@@ -89,10 +102,12 @@ const UNREAD_SYNC_PASSES = 2;
 export function ChatStreamProvider({
   currentUserId,
   initialParticipants,
+  initialChatBackgroundMediaId,
   initialUnreadCount,
   children,
 }: ChatStreamProviderProps) {
   const [participants, setParticipants] = useState(initialParticipants);
+  const [chatBackgroundMediaId, setChatBackgroundMediaId] = useState(initialChatBackgroundMediaId);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   // INFO: REQUIREMENTS.md § 8.12. When each signal stops counting, by this device's clock. Nothing seeds it — 입력 중 is never replayed, so a fresh mount knows nothing until a live event arrives.
   const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
@@ -135,7 +150,7 @@ export function ChatStreamProvider({
   // WARN: Lazy initial state rather than a ref — the identity has to be stable *and* readable during render, and a ref read here is what React Compiler rejects. A fresh object would re-render the connection on every message that lands.
   const [handlers] = useState<ChatEventSourceHandlers>(() => ({
     onMessage: (message, arrival) => handleMessage(message, arrival),
-    onUserChanged: () => void refreshParticipants(),
+    onUserChanged: () => void refreshChatContext(),
     onResume: () => handleResume(),
     onTyping: (userId, isTyping) => handleTyping(userId, isTyping),
     onChange: (message) => handleChange(message),
@@ -227,6 +242,7 @@ export function ChatStreamProvider({
     <ChatStreamContext.Provider
       value={{
         participants,
+        chatBackgroundMediaId,
         unreadCount,
         typingUserIds,
         isDormant,
@@ -356,12 +372,14 @@ export function ChatStreamProvider({
     void syncUnreadCount();
   }
 
-  async function refreshParticipants() {
+  async function refreshChatContext() {
     // INFO: A failed refresh keeps the names already on screen; the next event or resume retries, and the payload is idempotent.
-    const next = await safelyGetAsync(fetchParticipants);
+    const next = await safelyGetAsync(fetchChatContext);
 
     if (next) {
-      setParticipants(next);
+      setParticipants(next.participants);
+      // INFO: REQUIREMENTS.md § 12.2. Set unconditionally, `null` included — this is how 기본 배경으로 reaches the other participant.
+      setChatBackgroundMediaId(next.chatBackgroundMediaId);
     }
   }
 

@@ -1,3 +1,4 @@
+export { chatSettings, type ChatSettings } from "./chat-settings";
 export {
   emoticonItems,
   emoticonPacks,

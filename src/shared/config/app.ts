@@ -297,6 +297,9 @@ export const READ_CURSOR_THROTTLE = 5 * A_SECOND;
 /** REQUIREMENTS.md § 8.12. 입력 중 — a broadcast with no row behind it. */
 export const CHAT_TYPING_PATH = "/api/chat/typing";
 
+/** REQUIREMENTS.md § 12.2. The wallpaper both participants see. Under `/api/chat` rather than `/api/users/me`, because it belongs to the room and not to whoever set it. */
+export const CHAT_BACKGROUND_PATH = "/api/chat/background";
+
 /**
  * The `typing` payload, on the `pg_notify` hop and on the wire alike.
  *

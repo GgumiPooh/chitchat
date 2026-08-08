@@ -1,10 +1,10 @@
 import "server-only";
 
 import type { MediaUploadScope, MediaVariant } from "@/shared/config";
-import { getDb, media, messageMedia, messages, users, type Media } from "@/shared/db";
+import { chatSettings, getDb, media, messageMedia, messages, users, type Media } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
 import { toScopePrefix, toThumbKey } from "@/shared/storage";
-import { and, eq, inArray, isNull, like, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, like, sql, type SQL } from "drizzle-orm";
 
 export async function getMediaRow(id: string): Promise<Nullable<Media>> {
   const [row] = await getDb().select().from(media).where(eq(media.id, id)).limit(1);
@@ -103,25 +103,59 @@ export async function canReadMedia(row: Media, userId: string): Promise<boolean>
   }
 
   // INFO: REQUIREMENTS.md § 12. A profile photo is worn in front of the other participant by definition — it names every bubble the wearer sends (§ 8.7.). An avatar object the owner has since replaced falls back through here and stops being readable, which is what makes the swap a real one.
-  return isWornOnAProfile(row.id);
+  return isMediaWorn(row.id);
 }
 
 /**
- * WARN: REQUIREMENTS.md § 12.2. `chat_background_media_id` is deliberately not one
- * of these columns. A profile cover is published to the other participant (§ 12.1.)
- * and an avatar names every bubble its wearer sends, but a chat wallpaper is only
- * ever drawn on its owner's own screen — the owner check above is the whole of its
- * authorization, and admitting it here would hand the other participant a photo
- * they were never shown.
+ * Whether anything is currently drawing this object — an avatar (REQUIREMENTS.md
+ * § 12.), a profile cover (§ 12.1.) or the shared chat wallpaper (§ 12.2.).
+ *
+ * WARN: § 12.2. The wallpaper belongs here now, and used not to. It was private to
+ * its owner, so the owner check in `canReadMedia` was the whole of its
+ * authorization; shared, the other participant has to be able to read the object
+ * whoever set it uploaded, and without this clause they 404 on the photo behind
+ * every bubble in front of them.
+ *
+ * WARN: One statement across both tables, not a `users` read followed by a
+ * `chat_settings` one. This is `canReadMedia`'s fallthrough, which every avatar and
+ * every cover the other participant fetches walks through on a cache miss — a second
+ * serial round trip there is paid by each of them.
+ *
+ * INFO: `discardUnwornScopedMedia` expresses the same test as a `NOT EXISTS` inside
+ * its DELETE rather than calling this, because a cleanup cannot afford to ask and
+ * then act (§ 12.2.).
  */
-async function isWornOnAProfile(mediaId: string): Promise<boolean> {
-  const [worn] = await getDb()
-    .select({ id: users.id })
-    .from(users)
-    .where(or(eq(users.avatarMediaId, mediaId), eq(users.profileBackgroundMediaId, mediaId)))
-    .limit(1);
+export async function isMediaWorn(mediaId: string): Promise<boolean> {
+  const [row] = await getDb().execute<{ worn: boolean }>(
+    sql`SELECT (${isWornAnywhere(mediaId)}) AS worn`,
+  );
 
-  return Boolean(worn);
+  return Boolean(row?.worn);
+}
+
+/**
+ * WARN: REQUIREMENTS.md § 12.1., § 12.2. The two `background/` slots accept the same
+ * object — `ownsAllMedia` checks owner and scope, and both share that scope — so
+ * neither cleanup may delete a replaced id without asking whether the *other* slot
+ * has since taken it. Kept as a `SQL` fragment rather than a boolean so
+ * `discardUnwornScopedMedia` can put it **inside** its DELETE: asking and then acting
+ * is two statements, and between them the other slot can take the object this one is
+ * about to delete.
+ *
+ * WARN: The outer parentheses are load-bearing and there is no safe way to drop them.
+ * This is a top-level `OR`, and every caller composes it — `not()` renders `not <frag>`
+ * and `and()` joins with `AND`, both of which bind tighter than `OR`. Unparenthesized
+ * inside `discardUnwornScopedMedia`'s qual it reassociated to
+ * `(id AND owner AND prefix AND NOT EXISTS…) OR EXISTS…`, so discarding an object that
+ * *was* still worn matched **every row in `media`** and deleted the table.
+ */
+export function isWornAnywhere(mediaId: string): SQL {
+  return sql`(EXISTS (
+    SELECT 1 FROM ${users}
+    WHERE ${users.avatarMediaId} = ${mediaId} OR ${users.profileBackgroundMediaId} = ${mediaId}
+  ) OR EXISTS (
+    SELECT 1 FROM ${chatSettings} WHERE ${chatSettings.backgroundMediaId} = ${mediaId}
+  ))`;
 }
 
 export function toVariantKey(row: Media, variant: MediaVariant): string {
