@@ -146,6 +146,7 @@ export function CalendarPage({
         title="캘린더"
         trailing={
           <IconButton
+            variant="floating"
             Icon={Plus}
             haptic
             aria-label="일정 추가"
