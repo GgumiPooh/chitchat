@@ -52,6 +52,47 @@ export function holdAwake(): () => void {
 }
 
 /**
+ * REQUIREMENTS.md § 8.4.1. Opens an OS file picker with the app held awake across
+ * it, and releases the hold on the way back.
+ *
+ * The picker blurs the window exactly as a departure does, and `isBusy` cannot see
+ * it: `ActionSheet` fires the row's action and closes in the same tick, so by the
+ * time the OS panel is up there is no open dialog left in the DOM to find. The
+ * 절전 모드 overlay was raised behind the picker, and was still standing when the
+ * user came back with a photo.
+ *
+ * INFO: The three events are `useDormancy`'s own definition of a user who is here,
+ * and borrowing that definition is the point — each of them re-arms the idle
+ * countdown as it passes, so the hold is never dropped onto a deadline that expired
+ * while the picker was up.
+ *
+ * WARN: Deliberately not `change` or `cancel`, which look like the obvious answers
+ * and are the wrong ones. Neither tells the countdown anything, and `sleep` has been
+ * re-arming at `SSE_BUSY_RECHECK_INTERVAL` against a deadline long past — so a pick
+ * that outlasted `SSE_IDLE_TIMEOUT` released the hold into 절전 모드 seconds after
+ * the user came back with a photo, which is the bug this exists to prevent.
+ *
+ * WARN: A hold therefore outlives a picker the user walked away from, until they
+ * next touch the app. That is the safe direction of the two — an app awake longer
+ * than it should be, rather than one that never sleeps again (`holdAwake`).
+ */
+export function openFilePicker(input: HTMLInputElement): void {
+  const release = holdAwake();
+
+  function finish() {
+    window.removeEventListener("focus", finish);
+    document.removeEventListener("pointerdown", finish);
+    document.removeEventListener("keydown", finish);
+    release();
+  }
+
+  window.addEventListener("focus", finish);
+  document.addEventListener("pointerdown", finish);
+  document.addEventListener("keydown", finish);
+  input.click();
+}
+
+/**
  * REQUIREMENTS.md § 8.4.1. Whether something on screen is mid-task and must not be
  * covered.
  *

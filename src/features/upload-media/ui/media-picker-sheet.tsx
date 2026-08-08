@@ -1,9 +1,9 @@
 "use client";
 
-import type { Nullable } from "@/shared/lib";
+import { openFilePicker, type Nullable } from "@/shared/lib";
 import { ActionSheet, type ActionSheetItem } from "@/shared/ui";
 import { FileUp, Images, Mic } from "lucide-react";
-import { useRef, type ChangeEvent } from "react";
+import { useRef, type ChangeEvent, type RefObject } from "react";
 
 // INFO: The wildcard, not the § 14. allow-list — iOS narrows its own picker from this and a long explicit list makes it hide formats it would happily have transcoded. `validateFile` rejects what slips through.
 const MEDIA_ACCEPT = "image/*,video/*";
@@ -85,11 +85,11 @@ export function MediaPickerSheet({
 
   function buildItems(): ActionSheetItem[] {
     const items: ActionSheetItem[] = [
-      { label: "사진/영상", Icon: Images, onSelect: () => albumRef.current?.click() },
+      { label: "사진/영상", Icon: Images, onSelect: () => openPicker(albumRef) },
     ];
 
     if (hasFileRow) {
-      items.push({ label: "파일", Icon: FileUp, onSelect: () => fileRef.current?.click() });
+      items.push({ label: "파일", Icon: FileUp, onSelect: () => openPicker(fileRef) });
     }
 
     // INFO: REQUIREMENTS.md § 9.3. Last, because the two above open a picker and this one opens the microphone — the odd one out belongs at the end rather than between them.
@@ -98,6 +98,13 @@ export function MediaPickerSheet({
     }
 
     return items;
+  }
+
+  // WARN: REQUIREMENTS.md § 8.4.1. Never a bare `.click()` — the sheet has closed by the time the OS panel is up, so nothing else holds 절전 모드 off the picker.
+  function openPicker(ref: RefObject<Nullable<HTMLInputElement>>) {
+    if (ref.current) {
+      openFilePicker(ref.current);
+    }
   }
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {

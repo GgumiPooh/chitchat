@@ -11,7 +11,15 @@ import {
   isAnimatableEmoticonMime,
   toEmoticonAssetUrl,
 } from "@/shared/config";
-import { cn, playSound, stopSound, type Maybe, type Nullable, type Optional } from "@/shared/lib";
+import {
+  cn,
+  openFilePicker,
+  playSound,
+  stopSound,
+  type Maybe,
+  type Nullable,
+  type Optional,
+} from "@/shared/lib";
 import {
   BottomSheet,
   Button,
@@ -144,7 +152,7 @@ export function EmoticonFormSheet({
               draft.audio?.file.name ?? toExistingAudioLabel(emoticon, draft.isAudioCleared)
             }
             onPlay={playAudio}
-            onPick={() => audioRef.current?.click()}
+            onPick={() => audioRef.current && openFilePicker(audioRef.current)}
             onClear={draft.clearAudio}
           />
           <KeywordField
