@@ -103,10 +103,12 @@ export const MAX_EMOTICON_KEYWORD_LENGTH = 20;
  * before it answered, which is the failure jandh-emoticons' § 6.3.1. already exists
  * to have removed.
  *
- * WARN: Four, down from sixteen, and the reason is **answer quality rather than
- * time** (§ 13.8.1.). Sixteen fitted the latency budget; what it did not fit was a
- * lite model's ability to keep sixteen inline images apart while reading the Korean
- * line off each one. The whole feature rests on `index` naming the right picture.
+ * WARN: Three, reached from sixteen by way of four, and the reason is **answer
+ * quality rather than time** (§ 13.8.1.). Sixteen fitted the latency budget; what it
+ * did not fit was a lite model's ability to keep sixteen inline images apart while
+ * reading the Korean line off each one. The whole feature rests on `id` naming the
+ * right picture, and that is the first thing to degrade as the count grows — so this
+ * moves down freely and upward only against a fresh measurement.
  *
  * WARN: Callers MUST chunk to this. It is also what makes the screen able to say how
  * far along it is — a single request can only ever report "not yet".
@@ -114,7 +116,7 @@ export const MAX_EMOTICON_KEYWORD_LENGTH = 20;
  * WARN: jandh-emoticons declares this number too and owns the route. The two MUST
  * agree: chunking larger here is refused there.
  */
-export const KEYWORD_SUGGESTION_BATCH = 4;
+export const KEYWORD_SUGGESTION_BATCH = 3;
 
 /**
  * How long an emoticon's presigned GET stays valid, and how long the 302 in front
