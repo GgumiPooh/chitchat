@@ -147,6 +147,18 @@ export const MAX_MESSAGE_PAGE_SIZE = 50;
 
 export const MAX_MESSAGE_LENGTH = 2_000;
 
+/**
+ * REQUIREMENTS.md § 8.13. What a withdrawn message reads in the place it keeps.
+ *
+ * WARN: Shared between the bubble and the § 8.3. row estimate on purpose. The
+ * estimate measures this exact string, so a copy edit that reached only one of the
+ * two would be drift the reader watches accumulate rather than a wording change.
+ *
+ * INFO: 해요체, matching the quote's `삭제된 메시지예요` (§ 8.10.). KakaoTalk's
+ * `삭제된 메시지입니다` would be the one 합쇼체 string in the app.
+ */
+export const DELETED_MESSAGE_TEXT = "삭제된 메시지예요";
+
 /** REQUIREMENTS.md § 8.13.1. Which of a resuming client's loaded rows have been edited or deleted since it last saw them. */
 export const CHANGED_MESSAGES_PATH = "/api/messages/changed";
 
@@ -190,20 +202,21 @@ export type MessageArrival = "live" | "backfill";
 export const BACKFILL_EVENT = "backfill";
 
 /**
- * REQUIREMENTS.md § 8.13. The two mutation events, on names of their own rather
- * than on `message`.
+ * REQUIREMENTS.md § 8.13. A row the reader already holds, changed — corrected by
+ * its sender, or withdrawn by them and now a tombstone. **One** event for both:
+ * either way the payload is the whole row and the client replaces what it has, so
+ * a second event name would only be a verdict the row already carries in
+ * `isDeleted`.
  *
- * WARN: An arrival carries side effects a mutation must not fire — the unread
- * count moves, § 13.6.'s emoticon sound plays, and § 8.8.'s cursor is written.
- * None of that is true of a row the reader is already looking at.
+ * WARN: Its own name, never `message`. An arrival carries side effects a change
+ * must not fire — the unread count moves, § 13.6.'s emoticon sound plays, and
+ * § 8.8.'s cursor is written. None of that is true of a row already on screen.
  *
- * WARN: Neither event carries an `id:` field. That is the reconnect cursor
- * (§ 8.4.), and both name a row that may be arbitrarily old — stamping one would
- * walk the cursor backwards and buy every reconnect a replay it already has.
+ * WARN: It carries no `id:` field. That is the reconnect cursor (§ 8.4.), and a
+ * change names a row of any age — stamping it would walk the cursor backwards and
+ * buy every reconnect a replay it already has.
  */
-export const DELETE_EVENT = "delete";
-
-export const EDIT_EVENT = "edit";
+export const CHANGE_EVENT = "change";
 
 // INFO: A ping often enough that no proxy between Vercel and the browser reads an idle conversation as a dead connection.
 export const SSE_HEARTBEAT_INTERVAL = 25 * A_SECOND;

@@ -546,6 +546,21 @@ Virtualization constrains the visual spec in two places, and both are binding:
 
 The notch corner replaces a drawn tail (§ 2.1.). It carries direction, survives grouping without extra geometry, and cannot misalign against the bubble edge the way an absolutely-positioned triangle does.
 
+## 6.2.1. Withdrawn Bubble.
+
+A message its sender deleted keeps its place in the timeline and reads `삭제된 메시지예요` (`REQUIREMENTS.md § 8.13.`). Both participants see it, the deleter included.
+
+| Property   | Value                                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Shape      | The § 6.2. bubble, unchanged — same fill, same side, same notch. The timeline still has to read as a conversation         |
+| Typography | `chat-body` at `bubble-ink/55`, italic, `select-none`. It is a note _about_ a message rather than one, so it gives up ink |
+| Contents   | The line and nothing else — no quote, no attachment, no emoticon, no link card. The server sends none of them             |
+| Beside it  | The § 6.3. timestamp only. Never 읽음 (it says nothing that could have been read) and never 수정됨                        |
+| Gestures   | None. No action sheet, no reply pull, no hover controls — there is nothing left to reply to, copy, share, edit or delete  |
+| Reachable  | A quote of it still jumps here, and the § 6.8. flash still lands — the tombstone is where the message was                 |
+
+The copy is `해요체`, matching the § 6.10. quote's. KakaoTalk's `삭제된 메시지입니다` would be the one `합쇼체` string in the app.
+
 ## 6.3. Grouping.
 
 A group is consecutive messages from one sender within the same clock minute.
@@ -739,16 +754,16 @@ Neither the card nor a link in the text is a dead spot for the row's own gesture
 
 The message a reply points at, in one line (`REQUIREMENTS.md § 8.10.`).
 
-| Property     | Value                                                                                                                                             |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Shape        | `rounded-sm`, 2px `primary` left bar, padding `4px 8px`, `xs` gap between thumbnail and text                                                      |
-| Lines        | Sender name (`chat-name` in `chat-meta`) over the summary (`body-sm` in `meta`). **Both `truncate`, always one line each**                        |
-| Summary copy | The text itself; `사진` / `동영상` for attachments, `이모티콘` for an emoticon, `삭제된 메시지예요` for a parent that has been deleted            |
-| Thumbnail    | The bubble's **first** attachment only, 32×32 `rounded-xs` with a 1px `hairline` inset ring. Box fixed, never derived from the image (§ 6.1.)     |
-| In a bubble  | Inside the text bubble at its top, `2xs` above the text, fill `chat-canvas` — recessed against both bubble fills, which `surface-soft` is not     |
-| Standalone   | Media and emoticon messages have no bubble (§ 6.5.), so the quote is a `bubble-theirs` card above them, capped at the 220px attachment width      |
-| Tap          | Jumps to the original. `:hover` `bg-surface-strong`, `:active` `bg-surface-pressed`. A deleted parent is not tappable — there is nothing to reach |
-| Staged       | Above the composer stack, in flow, in the § 6.6. pill treatment (`glass`, `hairline`, `shadow-floating`) with a 36px `X` to cancel                |
+| Property     | Value                                                                                                                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shape        | `rounded-sm`, 2px `primary` left bar, padding `4px 8px`, `xs` gap between thumbnail and text                                                                                           |
+| Lines        | Sender name (`chat-name` in `chat-meta`) over the summary (`body-sm` in `meta`). **Both `truncate`, always one line each**                                                             |
+| Summary copy | The text itself; `사진` / `동영상` for attachments, `이모티콘` for an emoticon, `삭제된 메시지예요` for a parent that has been deleted                                                 |
+| Thumbnail    | The bubble's **first** attachment only, 32×32 `rounded-xs` with a 1px `hairline` inset ring. Box fixed, never derived from the image (§ 6.1.)                                          |
+| In a bubble  | Inside the text bubble at its top, `2xs` above the text, fill `chat-canvas` — recessed against both bubble fills, which `surface-soft` is not                                          |
+| Standalone   | Media and emoticon messages have no bubble (§ 6.5.), so the quote is a `bubble-theirs` card above them, capped at the 220px attachment width                                           |
+| Tap          | Jumps to the original. `:hover` `bg-surface-strong`, `:active` `bg-surface-pressed`. A withdrawn parent is tappable too — § 6.2.1. keeps its place, so the jump lands on the tombstone |
+| Staged       | Above the composer stack, in flow, in the § 6.6. pill treatment (`glass`, `hairline`, `shadow-floating`) with a 36px `X` to cancel                                                     |
 
 The staged quote pushes the history up, where the staged emoticon of § 6.6. floats over it. The emoticon is one object standing where its own bubble will land; this is a bar, like the media tray, and a bar that floated would hide the messages the user is quoting from.
 

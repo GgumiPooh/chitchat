@@ -4,6 +4,7 @@ import type { Emoticon } from "@/entities/emoticon";
 import type { ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { useProfileViewer } from "@/features/view-profile";
+import { DELETED_MESSAGE_TEXT } from "@/shared/config";
 import {
   LONG_PRESS_TARGET_CLASS,
   cn,
@@ -43,6 +44,8 @@ export type MessageRowProps = {
   isRead?: boolean;
   /** REQUIREMENTS.md § 8.13. The sender has corrected the text since sending it. */
   isEdited?: boolean;
+  /** REQUIREMENTS.md § 8.13. Withdrawn by its sender. The bubble keeps its place and reads `삭제된 메시지예요`; every other prop but `createdAt` and the grouping flags is ignored. */
+  isDeleted?: boolean;
   /** DESIGN.md § 6.8. Flashes behind the row on arrival from a quote (§ 8.10.1.), which has no substring to mark instead. */
   isHighlighted?: boolean;
   /** REQUIREMENTS.md § 8.6.1. The open search's query, lit inside the bubble. */
@@ -78,6 +81,7 @@ export function MessageRow({
   isLastOfGroup,
   isRead = false,
   isEdited = false,
+  isDeleted = false,
   isHighlighted = false,
   searchQuery,
   status,
@@ -211,19 +215,28 @@ export function MessageRow({
                 isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
                 // INFO: DESIGN.md § 6.5. Optimistic and failed bubbles dim instead of showing a spinner.
                 status !== "sent" && "opacity-60",
+                // INFO: DESIGN.md § 6.2.1. A tombstone keeps the bubble's shape and side so the timeline still reads as a conversation, and gives up its ink — it is a note about a message rather than one.
+                isDeleted && "text-bubble-ink/55 italic select-none",
                 bubbleClassName,
               )}
               {...longPressHandlers}
             >
-              {replyTo && (
-                <ReplyQuote
-                  className="mb-2xs"
-                  replyTo={replyTo}
-                  name={replyToName}
-                  onOpen={onOpenReply}
-                />
+              {/* WARN: REQUIREMENTS.md § 8.13. Ahead of everything else in the bubble, and it returns nothing else. A withdrawn row carries no text, no quote and no attachment, so every branch below it would render empty — but the estimate in `estimateRowHeight` prices exactly this one line, and a stray sibling here is height it cannot see. */}
+              {isDeleted ? (
+                DELETED_MESSAGE_TEXT
+              ) : (
+                <>
+                  {replyTo && (
+                    <ReplyQuote
+                      className="mb-2xs"
+                      replyTo={replyTo}
+                      name={replyToName}
+                      onOpen={onOpenReply}
+                    />
+                  )}
+                  {text && <MessageText text={text} query={searchQuery} />}
+                </>
               )}
-              {text && <MessageText text={text} query={searchQuery} />}
             </div>
           )}
           {status === "failed" ? (

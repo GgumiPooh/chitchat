@@ -1,6 +1,7 @@
 import type { Emoticon } from "@/entities/emoticon";
 import type { LinkPreview } from "@/entities/link-preview";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
+import { DELETED_MESSAGE_TEXT } from "@/shared/config";
 import {
   countTextLines,
   findFirstUrl,
@@ -124,6 +125,22 @@ type Payload = {
   }[];
 };
 
+/**
+ * REQUIREMENTS.md § 8.13. A tombstone measures as the one-line text bubble it is —
+ * same padding, same hairline, same avatar floor — so it goes through the ordinary
+ * arithmetic rather than a constant of its own.
+ *
+ * WARN: The copy is `DELETED_MESSAGE_TEXT` itself, never a literal repeated here.
+ * `MessageRow` renders that same constant, and two spellings would be drift the
+ * § 8.3. estimate has no way to notice.
+ */
+const TOMBSTONE_PAYLOAD: Payload = {
+  text: DELETED_MESSAGE_TEXT,
+  emoticon: null,
+  replyTo: null,
+  media: [],
+};
+
 type RowFlags = {
   isFirstOfGroup: boolean;
   /** DESIGN.md § 6.3. How many lines stand in the column beside the bubble: the timestamp, § 8.8.'s 읽음, § 8.13.'s 수정됨, or any of them stacked. Zero when none is there. */
@@ -149,6 +166,21 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
     case "system":
       return SPACING_SM * 2 + PILL_PADDING + toNoticeHeight(row.message, context);
     case "message":
+      /**
+       * WARN: REQUIREMENTS.md § 8.13. Ahead of everything the payload could say. A
+       * withdrawn photo message keeps none of its box and a withdrawn emoticon none
+       * of its art, so falling through would price a grid the tombstone does not
+       * draw — the largest miss this file can make, and one that only surfaces when
+       * the reader scrolls back onto it.
+       */
+      if (row.message.isDeleted) {
+        return estimateMessageRow(TOMBSTONE_PAYLOAD, row.isMine, context, {
+          isFirstOfGroup: row.isFirstOfGroup,
+          // INFO: § 8.13. The timestamp and nothing else — a tombstone carries neither 읽음 nor 수정됨.
+          besideLines: Number(row.isLastOfGroup),
+        });
+      }
+
       return estimateMessageRow(row.message, row.isMine, context, {
         isFirstOfGroup: row.isFirstOfGroup,
         // INFO: REQUIREMENTS.md § 8.8. 읽음 and the timestamp stack in one `flex-col`, so the newest read message of mine is two lines rather than one — and 읽음 alone puts the column beside a bubble that is not its group's last.

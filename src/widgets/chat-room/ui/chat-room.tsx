@@ -285,7 +285,6 @@ export function ChatRoom({
     loadAround,
     returnToLive,
     appendMessage,
-    removeMessage,
     replaceMessage,
     catchUp,
     reconcile,
@@ -599,8 +598,7 @@ export function ChatRoom({
       void catchUp();
       void reconcile();
     },
-    onDelete: handleRemoteDelete,
-    onEdit: replaceMessage,
+    onChange: handleRemoteChange,
   });
 
   // INFO: REQUIREMENTS.md § 8.8. The conversation is on screen for as long as this is mounted, which is what suppresses the badge and moves the read cursor.
@@ -1426,8 +1424,25 @@ export function ChatRoom({
         );
       }
       case "message": {
+        // WARN: REQUIREMENTS.md § 8.13. A withdrawn message is a tombstone and nothing else — no payload to draw, no quote to follow, and not one of the affordances below. It is deliberately an early return rather than a pile of conditions on the row that follows.
+        if (row.message.isDeleted) {
+          return (
+            <MessageRow
+              text={null}
+              createdAt={row.message.createdAt}
+              sender={participantById.get(row.message.senderId)}
+              isMine={row.isMine}
+              isFirstOfGroup={row.isFirstOfGroup}
+              isLastOfGroup={row.isLastOfGroup}
+              isDeleted
+              isHighlighted={row.message.id === highlightedId}
+              status="sent"
+            />
+          );
+        }
+
         const cells = toCellsFromMedia(row.message.media);
-        // INFO: REQUIREMENTS.md § 8.10. A deleted parent is still quoted, but there is nothing left to jump to — the row it named is out of every page.
+        // INFO: REQUIREMENTS.md § 8.13. A withdrawn parent is still reachable — it keeps its place as a tombstone, so the jump lands on where the message was instead of failing.
         const quoted = row.message.replyTo;
 
         return (
@@ -1447,17 +1462,13 @@ export function ChatRoom({
             isHighlighted={row.message.id === highlightedId}
             searchQuery={searchQuery}
             status="sent"
-            onOpenReply={
-              quoted && !quoted.isDeleted
-                ? () => void jumpToMessage(quoted.id, { flash: true })
-                : undefined
-            }
             onOpenMedia={(index) =>
               openAttachment(cells, index, row.isMine ? row.message.id : null)
             }
             onShare={
               canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
             }
+            onOpenReply={quoted ? () => void jumpToMessage(quoted.id, { flash: true }) : undefined}
             onFollowEmoticon={toFollowEmoticon(row.message.emoticon)}
             onLongPress={() => setActionTarget(row.message)}
             onReply={() => stageReply(row.message)}
@@ -1688,35 +1699,70 @@ export function ChatRoom({
     setViewer(null);
   }
 
+  /**
+   * REQUIREMENTS.md § 8.13. The row stays and becomes a tombstone; it is not taken
+   * out of the window.
+   *
+   * WARN: The local copy is stripped to exactly what the server will echo back —
+   * no text, no attachments, no emoticon, no quote. Leaving any of them on would
+   * draw a bubble here that no other client can see, until the echo replaced it.
+   */
   async function deleteMessage(id: number) {
+    const current = messages.find((entry) => entry.id === id);
+
     try {
       await requestMessageDeletion(id);
-      removeMessage(id);
+
+      if (current) {
+        replaceMessage({
+          ...current,
+          text: null,
+          media: [],
+          emoticon: null,
+          replyTo: null,
+          isDeleted: true,
+        });
+      }
+
+      if (id === editingId) {
+        cancelEdit();
+      }
     } catch {
       toast.error("메시지를 삭제하지 못했어요");
     }
   }
 
   /**
-   * REQUIREMENTS.md § 8.13. A delete that arrived over the stream. It can name a
-   * message this screen is composing against: the same account signs in on more
-   * than one device (§ 12.), so my own message can go while I hold it open here.
+   * REQUIREMENTS.md § 8.13. A change that arrived over the stream. A **withdrawal**
+   * can name a message this screen is composing against: the same account signs in
+   * on more than one device (§ 12.), so my own message can go while I hold it open
+   * here.
    *
    * WARN: Clearing `editingId` breaks a loop rather than merely tidying up.
    * `editMessage` narrows on `deleted_at IS NULL`, so submitting the correction
    * 404s and `applyEdit`'s catch re-enters the mode and re-seeds it — leaving the
    * cancel control as the only way out of a bar that will never succeed.
    */
-  function handleRemoteDelete(id: number) {
-    removeMessage(id);
+  function handleRemoteChange(message: ChatMessage) {
+    replaceMessage(message);
 
-    if (id === editingId) {
+    if (!message.isDeleted) {
+      return;
+    }
+
+    if (message.id === editingId) {
       cancelEdit();
     }
 
-    // INFO: REQUIREMENTS.md § 8.10. `POST /api/messages` refuses a soft-deleted parent with a 400, so a quote left staged here is a send that cannot land.
-    if (id === replyTarget?.id) {
+    // INFO: REQUIREMENTS.md § 8.10. `POST /api/messages` refuses a withdrawn parent with a 400, so a quote left staged here is a send that cannot land.
+    if (message.id === replyTarget?.id) {
       setReplyTarget(null);
+    }
+
+    // INFO: § 7.10. The viewer and the confirmation both name attachments the tombstone no longer has.
+    if (message.id === viewer?.deletableMessageId || message.id === confirmingDeleteId) {
+      setViewer(null);
+      setConfirmingDeleteId(null);
     }
   }
 
@@ -1806,8 +1852,12 @@ function findLastReadMineId(
   }
 
   const readAt = Date.parse(other.lastReadAt);
+  // INFO: REQUIREMENTS.md § 8.13. A tombstone never carries 읽음 — it says nothing that could have been read — so the mark falls back to the newest of my messages that still does.
   const read = messages.filter(
-    (message) => message.senderId === currentUserId && Date.parse(message.createdAt) <= readAt,
+    (message) =>
+      message.senderId === currentUserId &&
+      !message.isDeleted &&
+      Date.parse(message.createdAt) <= readAt,
   );
 
   return read.at(-1)?.id ?? null;

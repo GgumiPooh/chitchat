@@ -190,28 +190,15 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
   );
 
   /**
-   * WARN: REQUIREMENTS.md § 8.10. Also retires the quotes pointing at it. The quote is
-   * resolved from the parent row (§ 8.10.), so every other client's next fetch already
-   * reads 삭제된 메시지예요 — only the deleter's own loaded window would go on showing
-   * the text it just removed, until a reload.
-   */
-  const removeMessage = useCallback(
-    (id: number) => {
-      const update = (previous: ChatMessage[]) =>
-        previous.filter((entry) => entry.id !== id).map((entry) => withDeletedQuote(entry, id));
-
-      commit(update);
-      commitPending(update);
-    },
-    [commit, commitPending],
-  );
-
-  /**
-   * REQUIREMENTS.md § 8.13. The corrected row, in place of the one the window holds
-   * — and the quotes pointing at it rewritten, exactly as `removeMessage` retires
-   * them.
+   * REQUIREMENTS.md § 8.13. The changed row in place of the one the window holds —
+   * corrected, or withdrawn and now a tombstone — and the quotes pointing at it
+   * rewritten from its own verdict.
    *
-   * WARN: `map`, which is what makes this incapable of inserting. An edit is not an
+   * WARN: The row is **replaced, never removed**. A deleted message keeps its place
+   * in the timeline as 삭제된 메시지예요, so filtering it out here would take the
+   * tombstone off screen on the one client that watched the delete happen.
+   *
+   * WARN: `map`, which is what makes this incapable of inserting. A change is not an
    * arrival, and a § 8.6.1. jump makes "the window does not hold this row" the
    * common case — but the quotes of it may still be on screen when the parent is
    * not, so the pass runs either way rather than bailing out on a missing row.
@@ -220,7 +207,7 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     (message: ChatMessage) => {
       const update = (previous: ChatMessage[]) =>
         previous.map((entry) =>
-          entry.id === message.id ? message : withEditedQuote(entry, message),
+          entry.id === message.id ? message : withChangedQuote(entry, message),
         );
 
       commit(update);
@@ -436,21 +423,26 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
           return;
         }
 
-        const { deletedIds, edited } = await fetchChangedMessages(oldest.id, newest.id);
+        const changed = await fetchChangedMessages(oldest.id, newest.id);
 
-        if (deletedIds.length === 0 && edited.length === 0) {
+        if (changed.length === 0) {
           return;
         }
 
-        const deleted = new Set(deletedIds);
-        const editedById = new Map(edited.map((message) => [message.id, message]));
-        // WARN: The two passes in this order. A quote is rewritten from the *parent's* verdict, so resolving the rows first and the quotes second is what lets a reply to an edited message be corrected in the same pass that corrects its parent.
+        const changedById = new Map(changed.map((message) => [message.id, message]));
         const update = (previous: ChatMessage[]) =>
-          previous
-            .filter((entry) => !deleted.has(entry.id))
-            .map((entry) =>
-              withChangedQuote(editedById.get(entry.id) ?? entry, deleted, editedById),
-            );
+          previous.map((entry) => {
+            const replacement = changedById.get(entry.id);
+
+            // INFO: The server resolved this row's own quote against the database, which is more authoritative than anything patched from the same batch.
+            if (replacement) {
+              return replacement;
+            }
+
+            const parent = entry.replyTo ? changedById.get(entry.replyTo.id) : undefined;
+
+            return parent ? withChangedQuote(entry, parent) : entry;
+          });
 
         commit(update);
         commitPending(update);
@@ -469,56 +461,29 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     loadAround,
     returnToLive,
     appendMessage,
-    removeMessage,
     replaceMessage,
     catchUp,
     reconcile,
   };
 }
 
-function withDeletedQuote(message: ChatMessage, deletedId: number): ChatMessage {
-  const { replyTo } = message;
-
-  if (!replyTo || replyTo.id !== deletedId) {
-    return message;
-  }
-
-  return { ...message, replyTo: toDeletedQuote(replyTo) };
-}
-
-function withEditedQuote(message: ChatMessage, parent: ChatMessage): ChatMessage {
+/** REQUIREMENTS.md § 8.13. Rewrites one reply's quote from the parent's own new state, whichever way it changed. */
+function withChangedQuote(message: ChatMessage, parent: ChatMessage): ChatMessage {
   const { replyTo } = message;
 
   if (!replyTo || replyTo.id !== parent.id) {
     return message;
   }
 
+  // INFO: § 8.10. A withdrawn parent surrenders its content and keeps only its identity, exactly as `listReplyPreviews` renders it on the next fetch.
+  if (parent.isDeleted) {
+    return {
+      ...message,
+      replyTo: { ...replyTo, text: null, thumbnailMediaId: null, isDeleted: true },
+    };
+  }
+
   return { ...message, replyTo: toEditedQuote(replyTo, parent) };
-}
-
-/** REQUIREMENTS.md § 8.13.1. Both verdicts at once, for the one pass a reconcile makes over the window. */
-function withChangedQuote(
-  message: ChatMessage,
-  deleted: Set<number>,
-  editedById: Map<number, ChatMessage>,
-): ChatMessage {
-  const { replyTo } = message;
-
-  if (!replyTo) {
-    return message;
-  }
-
-  if (deleted.has(replyTo.id)) {
-    return { ...message, replyTo: toDeletedQuote(replyTo) };
-  }
-
-  const parent = editedById.get(replyTo.id);
-
-  return parent ? { ...message, replyTo: toEditedQuote(replyTo, parent) } : message;
-}
-
-function toDeletedQuote(replyTo: ReplyPreview): ReplyPreview {
-  return { ...replyTo, text: null, thumbnailMediaId: null, isDeleted: true };
 }
 
 // WARN: The same slice `listReplyPreviews` takes on the server. The two describe one row, and a quote that disagreed between the live correction and the next fetch would rewrite itself under the reader.

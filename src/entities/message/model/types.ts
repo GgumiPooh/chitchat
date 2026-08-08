@@ -68,5 +68,14 @@ export type ChatMessage = {
   createdAt: string;
   // INFO: REQUIREMENTS.md § 8.13. Null until the sender corrects the text; the 수정됨 label is this being non-null, and the § 8.13.1. reconciliation compares it to decide whether a loaded row is stale.
   editedAt: Nullable<string>;
+  /**
+   * REQUIREMENTS.md § 8.13. Withdrawn by its sender, and drawn as 삭제된 메시지예요
+   * in the place it still holds in the timeline.
+   *
+   * WARN: A row this is true of carries **no** payload at all — `text` is nulled on
+   * the way out and `media`, `emoticon` and `replyTo` are never resolved. Read this
+   * before any of them; there is nothing behind it to fall back on.
+   */
+  isDeleted: boolean;
   id: number;
 };

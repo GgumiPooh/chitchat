@@ -2,7 +2,7 @@ import "server-only";
 
 import { getDb, messages } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 import { listMessageEmoticons } from "./list-message-emoticons";
@@ -10,19 +10,26 @@ import { listMessageMedia } from "./list-message-media";
 import { listReplyPreviews } from "./list-reply-previews";
 
 /**
- * One message by id — what the SSE stream resolves a `new_message` notification
- * into (REQUIREMENTS.md § 8.4.). The payload carries the id and nothing else, so
- * the row is read here rather than trusted from the wire.
+ * One message by id — what the SSE stream resolves a `new_message` or
+ * `message_changed` notification into (REQUIREMENTS.md § 8.4., § 8.13.). The
+ * payload carries the id and nothing else, so the row is read here rather than
+ * trusted from the wire.
+ *
+ * WARN: `null` means the id names no row, and **nothing else**. It used to mean
+ * "deleted" as well, which is what § 8.13.'s stream once read a deletion off —
+ * a tombstone is a row the reader still sees, so the deletion now rides the
+ * `isDeleted` flag on a message that resolves normally.
  */
 export async function getMessage(id: number): Promise<Nullable<ChatMessage>> {
-  const [row] = await getDb()
-    .select()
-    .from(messages)
-    .where(and(eq(messages.id, id), isNull(messages.deletedAt)))
-    .limit(1);
+  const [row] = await getDb().select().from(messages).where(eq(messages.id, id)).limit(1);
 
   if (!row) {
     return null;
+  }
+
+  // WARN: REQUIREMENTS.md § 8.13. Ahead of the three joins below, which a tombstone renders none of — and `listMessageMedia` on a deleted photo message would put back exactly what the delete withdrew.
+  if (row.deletedAt !== null) {
+    return toChatMessage(row);
   }
 
   // WARN: The emoticon and the quote must be resolved here too, not only in `listMessages`. This is the path every *live* message takes (§ 8.4.), so leaving either out renders an empty bubble until the reader reloads.

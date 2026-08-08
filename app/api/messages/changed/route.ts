@@ -38,6 +38,6 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
-    changes: await listChangedMessages(query.data.from, query.data.to),
+    messages: await listChangedMessages(query.data.from, query.data.to),
   });
 }

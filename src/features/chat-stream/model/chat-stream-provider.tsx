@@ -30,10 +30,8 @@ import { useDormancy } from "./use-dormancy";
 export type ChatStreamListener = {
   onMessage?: (message: ChatMessage, arrival: MessageArrival) => void;
   onResume?: () => void;
-  /** REQUIREMENTS.md § 8.13. Soft-deleted by its sender; the screen drops the row and retires every quote of it. */
-  onDelete?: (id: number) => void;
-  /** REQUIREMENTS.md § 8.13. The corrected row, whole. */
-  onEdit?: (message: ChatMessage) => void;
+  /** REQUIREMENTS.md § 8.13. A row already on screen, changed — corrected, or withdrawn and now a tombstone. */
+  onChange?: (message: ChatMessage) => void;
 };
 
 export type ChatStreamValue = {
@@ -140,8 +138,7 @@ export function ChatStreamProvider({
     onUserChanged: () => void refreshParticipants(),
     onResume: () => handleResume(),
     onTyping: (userId, isTyping) => handleTyping(userId, isTyping),
-    onDelete: (id) => handleDelete(id),
-    onEdit: (message) => handleEdit(message),
+    onChange: (message) => handleChange(message),
     onBuild: (id) => handleBuild(id),
   }));
 
@@ -322,29 +319,23 @@ export function ChatStreamProvider({
   }
 
   /**
-   * REQUIREMENTS.md § 8.13. A deletion the other participant made.
+   * REQUIREMENTS.md § 8.13. A row already delivered, changed. It moves no count and
+   * raises no notification of its own — the reader has been told about this message
+   * once already.
    *
-   * WARN: The badge is resynced rather than decremented. `countUnreadMessages`
-   * excludes deleted rows, so a delete of something this client counted leaves the
-   * number one high — and nothing here can tell whether the removed row was one of
-   * the unread ones, which is exactly what `syncUnreadCount` replaces wholesale.
+   * WARN: A **deletion** is the one exception, and the badge is resynced rather
+   * than decremented. `countUnreadMessages` excludes deleted rows, so a delete of
+   * something this client counted leaves the number one high — and nothing here can
+   * tell whether the withdrawn row was one of the unread ones, which is exactly what
+   * `syncUnreadCount` replaces wholesale.
    */
-  function handleDelete(id: number) {
-    listeners.current.forEach((listener) => listener.onDelete?.(id));
+  function handleChange(message: ChatMessage) {
+    listeners.current.forEach((listener) => listener.onChange?.(message));
 
     // INFO: A reader's cursor is about to clear the count anyway, and § 8.8.'s write is what moves it.
-    if (!isReadingRef.current) {
+    if (message.isDeleted && !isReadingRef.current) {
       void syncUnreadCount();
     }
-  }
-
-  /**
-   * REQUIREMENTS.md § 8.13. A correction, which moves no count and raises no
-   * notification — the row was already delivered, and the reader has already been
-   * told about it once.
-   */
-  function handleEdit(message: ChatMessage) {
-    listeners.current.forEach((listener) => listener.onEdit?.(message));
   }
 
   function handleResume() {
@@ -464,8 +455,7 @@ export function useChatStreamListener(listener: ChatStreamListener) {
       subscribe({
         onMessage: (message, arrival) => current.current.onMessage?.(message, arrival),
         onResume: () => current.current.onResume?.(),
-        onDelete: (id) => current.current.onDelete?.(id),
-        onEdit: (message) => current.current.onEdit?.(message),
+        onChange: (message) => current.current.onChange?.(message),
       }),
     [subscribe],
   );

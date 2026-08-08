@@ -2,7 +2,7 @@ import "server-only";
 
 import { MESSAGE_PAGE_SIZE } from "@/shared/config";
 import { getDb, messages, type Message } from "@/shared/db";
-import { and, asc, desc, gt, isNull, lt, lte } from "drizzle-orm";
+import { asc, desc, gt, lt, lte } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 import { listMessageEmoticons } from "./list-message-emoticons";
@@ -19,11 +19,14 @@ export type ListMessagesParams = {
   limit?: number;
 };
 
-const IS_VISIBLE = isNull(messages.deletedAt);
-
 /**
  * One cursor page, always oldest-first. Never OFFSET — an arriving message shifts
  * every boundary and the page would repeat or skip rows (REQUIREMENTS.md § 8.2.).
+ *
+ * WARN: REQUIREMENTS.md § 8.13. Deliberately does **not** filter `deleted_at`. A
+ * deleted message keeps its place in the timeline as 삭제된 메시지예요, so removing
+ * the row here would take the tombstone with it — and the page would come back
+ * short of `MESSAGE_PAGE_SIZE`, which `hasOlder` reads as the end of history.
  */
 export async function listMessages({
   before,
@@ -41,7 +44,7 @@ export async function listMessages({
     const rows = await db
       .select()
       .from(messages)
-      .where(and(IS_VISIBLE, gt(messages.id, after)))
+      .where(gt(messages.id, after))
       .orderBy(asc(messages.id))
       .limit(limit);
 
@@ -51,7 +54,7 @@ export async function listMessages({
   const rows = await db
     .select()
     .from(messages)
-    .where(before === undefined ? IS_VISIBLE : and(IS_VISIBLE, lt(messages.id, before)))
+    .where(before === undefined ? undefined : lt(messages.id, before))
     .orderBy(desc(messages.id))
     .limit(limit);
 
@@ -65,13 +68,13 @@ async function listAround(target: number, limit: number): Promise<ChatMessage[]>
     db
       .select()
       .from(messages)
-      .where(and(IS_VISIBLE, lte(messages.id, target)))
+      .where(lte(messages.id, target))
       .orderBy(desc(messages.id))
       .limit(olderCount),
     db
       .select()
       .from(messages)
-      .where(and(IS_VISIBLE, gt(messages.id, target)))
+      .where(gt(messages.id, target))
       .orderBy(asc(messages.id))
       .limit(limit - olderCount),
   ]);
@@ -83,13 +86,19 @@ async function listAround(target: number, limit: number): Promise<ChatMessage[]>
  * INFO: REQUIREMENTS.md § 9., § 13.6., § 8.10. A few extra queries for the whole page
  * at most, and each only when the page actually holds that kind of row — a text-only
  * conversation with no replies in it pays nothing.
+ *
+ * WARN: REQUIREMENTS.md § 8.13. A deleted row is resolved for none of the three. The
+ * tombstone draws no attachment, no emoticon and no quote, so joining them is work
+ * nothing renders — and it would put the media ids of a deleted photo on the wire,
+ * which is the one thing deleting it was meant to take back.
  */
 async function withMedia(rows: Message[]): Promise<ChatMessage[]> {
-  const mediaIds = rows.filter((row) => row.type === "media").map((row) => row.id);
-  const emoticonIds = rows
+  const live = rows.filter((row) => row.deletedAt === null);
+  const mediaIds = live.filter((row) => row.type === "media").map((row) => row.id);
+  const emoticonIds = live
     .map((row) => row.emoticonItemId)
     .filter((id): id is string => id !== null);
-  const parentIds = rows.map((row) => row.replyToId).filter((id): id is number => id !== null);
+  const parentIds = live.map((row) => row.replyToId).filter((id): id is number => id !== null);
   const [byMessage, byEmoticonId, byParentId] = await Promise.all([
     listMessageMedia(mediaIds),
     listMessageEmoticons(emoticonIds),

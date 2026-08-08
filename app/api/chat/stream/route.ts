@@ -4,8 +4,7 @@ import { getSessionContext, isSessionLive } from "@/shared/auth";
 import {
   BACKFILL_EVENT,
   BUILD_ID,
-  DELETE_EVENT,
-  EDIT_EVENT,
+  CHANGE_EVENT,
   SSE_HEARTBEAT_INTERVAL,
   SSE_REPLAY_LIMIT,
   SSE_REPLAY_MARGIN,
@@ -162,16 +161,9 @@ export async function GET(request: Request) {
           .then(async () => {
             const message = await getMessage(id);
 
+            // INFO: REQUIREMENTS.md § 8.13. `null` now means the id names no row at all, which is nothing to report on either channel — a deletion resolves normally and arrives as a row whose `isDeleted` is set.
             if (message) {
-              write(isMutation ? toEditEvent(message) : toMessageEvent(message, "live"));
-
-              return;
-            }
-
-            // INFO: REQUIREMENTS.md § 8.13. `getMessage` filters `deleted_at`, so a missing row on the change channel *is* the deletion and no discriminator has to ride the payload.
-            // INFO: On the arrival channel the same miss is a message deleted before it was ever delivered, which is nothing to report.
-            if (isMutation) {
-              write(`event: ${DELETE_EVENT}\ndata: ${JSON.stringify({ id })}\n\n`);
+              write(isMutation ? toChangeEvent(message) : toMessageEvent(message, "live"));
             }
           })
           .catch(() => undefined);
@@ -199,18 +191,20 @@ function toMessageEvent(message: ChatMessage, arrival: MessageArrival): string {
 }
 
 /**
- * REQUIREMENTS.md § 8.13. The corrected row, carrying the same payload an arrival
- * does — the client replaces what it holds rather than reading a patch.
+ * REQUIREMENTS.md § 8.13. The changed row — corrected, or withdrawn and now a
+ * tombstone — carrying the same payload an arrival does, so the client replaces
+ * what it holds rather than reading a patch. Which of the two it is rides on the
+ * row's own `isDeleted`.
  *
  * WARN: Its own event name, so none of an arrival's side effects fire: the row is
  * already on screen, so the unread count must not move, § 13.6.'s sound must not
  * play, and § 8.8.'s cursor must not be written for it.
  *
- * WARN: No `id:`. An edit names a row of any age, and stamping the cursor with it
+ * WARN: No `id:`. A change names a row of any age, and stamping the cursor with it
  * would walk `Last-Event-ID` backwards into a replay the client already has.
  */
-function toEditEvent(message: ChatMessage): string {
-  return `event: ${EDIT_EVENT}\ndata: ${JSON.stringify(message)}\n\n`;
+function toChangeEvent(message: ChatMessage): string {
+  return `event: ${CHANGE_EVENT}\ndata: ${JSON.stringify(message)}\n\n`;
 }
 
 async function replayFrom(cursor: Nullable<number>): Promise<ChatMessage[]> {

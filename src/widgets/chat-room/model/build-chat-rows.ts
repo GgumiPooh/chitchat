@@ -110,7 +110,8 @@ function toGroupKey(senderId: string, createdAt: string): string {
  * quote's own text is deliberately absent, since § 6.10.'s box is two fixed lines
  * whatever it says.
  */
-function toRowRevision({ editedAt, replyTo }: ChatMessage): string {
+function toRowRevision({ editedAt, isDeleted, replyTo }: ChatMessage): string {
+  // WARN: REQUIREMENTS.md § 8.13. First, and the widest swing of the three. A withdrawn photo message drops a whole media box for one line, so a row that kept its key here would sit on a cached height hundreds of pixels wrong until it next mounted.
   // INFO: DESIGN.md § 6.10. The quote is `max(thumbnail, two lines)`, so losing the thumbnail to a § 8.10. delete is a real change of height rather than only of wording.
-  return `${editedAt ?? ""}:${replyTo?.thumbnailMediaId ?? ""}`;
+  return `${isDeleted ? "d" : ""}:${editedAt ?? ""}:${replyTo?.thumbnailMediaId ?? ""}`;
 }

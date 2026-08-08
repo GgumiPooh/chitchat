@@ -1,5 +1,5 @@
 import type { ReplyPreview } from "@/entities/message";
-import { toMediaLabel } from "@/shared/config";
+import { DELETED_MESSAGE_TEXT, toMediaLabel } from "@/shared/config";
 
 /**
  * The one line a quote shows for the message it points at (DESIGN.md § 6.10.).
@@ -8,8 +8,9 @@ import { toMediaLabel } from "@/shared/config";
  * so an emoticon or a nine-photo grid has nowhere to render itself.
  */
 export function toReplySummary(replyTo: ReplyPreview): string {
+  // INFO: REQUIREMENTS.md § 8.13. The same constant the tombstone bubble reads, so the quote and the row it points at cannot drift apart in wording.
   if (replyTo.isDeleted) {
-    return "삭제된 메시지예요";
+    return DELETED_MESSAGE_TEXT;
   }
 
   switch (replyTo.kind) {
