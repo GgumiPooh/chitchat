@@ -163,7 +163,12 @@ export function normalizeKeywords(input: readonly string[]): string[] {
   const kept: string[] = [];
 
   for (const raw of input) {
-    const keyword = raw.trim().replace(/\s+/gu, " ").slice(0, MAX_EMOTICON_KEYWORD_LENGTH);
+    // WARN: `trimEnd` *after* the slice, or a multi-word entry cut at a space is stored with a trailing one — `matchesKeywordQuery` never trims, so `query.startsWith(keyword)` would then need the user to type that space too.
+    const keyword = raw
+      .trim()
+      .replace(/\s+/gu, " ")
+      .slice(0, MAX_EMOTICON_KEYWORD_LENGTH)
+      .trimEnd();
     const folded = keyword.toLowerCase();
 
     // WARN: The same floor the composer applies to a typed word, enforced here so the two cannot disagree. A one-character keyword was storable and then unsearchable — and worse than unsearchable: `matchesKeywordQuery` also runs `query.startsWith(keyword)`, so `아` underlined every draft word beginning with that syllable.
