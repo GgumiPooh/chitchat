@@ -2,10 +2,10 @@
 
 import type { Emoticon, EmoticonPackWithItems } from "@/entities/emoticon";
 import {
-  matchesKeywordQuery,
   MAX_KEYWORD_QUERY_LENGTH,
   splitKeywordQuery,
   toEmoticonAssetUrl,
+  toKeywordRelevance,
 } from "@/shared/config";
 import { A_SECOND, cn, type Nullable, type Optional } from "@/shared/lib";
 import { EmptyState, HapticTarget, Input, PreloadImage } from "@/shared/ui";
@@ -336,38 +336,36 @@ export function EmoticonPicker({
    */
   function toShownItems(): Emoticon[] {
     if (isSearching) {
-      // WARN: § 13.8. An empty field yields no terms, and that is what guards the blank query — `matchesKeywordQuery` prefix-matches and every keyword starts with `""`, so a query passed through unsplit would return the entire library rather than nothing.
+      // WARN: § 13.8. An empty field yields no terms, and that is what guards the blank query — `matchesKeywordQuery` matches by containment and every keyword contains `""`, so a query passed through unsplit would return the entire library rather than nothing.
       const terms = splitKeywordQuery(query);
       // WARN: § 13.8. `packs` and not `visiblePacks`. Searching is how an emoticon from a hidden pack is reached, and filtering here is what used to make § 13.9. undeliverable for exactly the item that needs it.
-      const matches = packs.flatMap((pack) =>
-        pack.items.filter((item) =>
-          item.keywords.some((keyword) => terms.some((term) => matchesKeywordQuery(keyword, term))),
-        ),
-      );
+      // INFO: § 13.9. Ranked rather than left in pack order, and that is what makes the answer read as *related* rather than as one shelf — the emoticons sharing most of the tapped item's words come first, wherever they were authored.
+      const matches = packs
+        .flatMap((pack) => pack.items)
+        .map((item) => ({ item, relevance: toKeywordRelevance(item.keywords, terms) }))
+        .filter((scored) => scored.relevance > 0)
+        // WARN: A stable sort, so pack order still decides inside one relevance step — an item must not change places with an equally relevant one between keystrokes.
+        .sort((left, right) => right.relevance - left.relevance)
+        .map((scored) => scored.item);
+
       if (!revealed) {
         return matches;
       }
 
+      const found = matches.filter((item) => item.id !== revealed.id);
       /**
-       * INFO: § 13.9. 따라하기 asks for the emoticons *related* to the one tapped,
-       * and its keywords cannot be the only thing that answers: an item nobody has
-       * described has none, and the row would then hold the tapped emoticon alone.
-       * Its own pack is the relation that always exists, so the matches are followed
-       * by its siblings.
+       * INFO: § 13.9. The tapped item first, then everything its words reached, best
+       * first.
        *
-       * WARN: A `Map` for the order as much as for the dedupe — the tapped item
-       * first whether or not it matches, then what the words found, then the rest of
-       * its pack, and an item reached twice keeps the earlier place.
+       * WARN: Its own pack is the fallback and **only** the fallback. Appended to
+       * every answer it buried the cross-pack matches under one pack's shelf, which
+       * is what made the feature read as "this set only" — the exact thing the
+       * ranking above exists to undo. It is still needed, because an item nobody has
+       * described answers to nothing and would otherwise stand in the row alone.
        */
-      const related = new Map<string, Emoticon>([[revealed.id, revealed]]);
+      const related = found.length > 0 ? found : (findPack(packs, revealed.packId)?.items ?? []);
 
-      for (const item of [...matches, ...(findPack(packs, revealed.packId)?.items ?? [])]) {
-        if (!related.has(item.id)) {
-          related.set(item.id, item);
-        }
-      }
-
-      return [...related.values()];
+      return [revealed, ...related.filter((item) => item.id !== revealed.id)];
     }
 
     if (activeTab === RECENTS_TAB) {
@@ -465,27 +463,42 @@ type EmoticonCellProps = {
   className?: string;
   buttonClassName?: string;
   item: Emoticon;
+  /**
+   * The axis the scroller **around** this cell runs on, which is the axis
+   * `touch-action` has to leave to the browser (`DESIGN.md § 7.15.1.`).
+   *
+   * WARN: Not a detail with a safe default — a cell tiles its scroller, so every
+   * drag meant for it starts here, and a browser intersects `touch-action` down the
+   * whole ancestor chain. Declaring `pan-y` inside § 13.8.'s `pan-x` row resolves to
+   * `none` and the row cannot be dragged at all, which is exactly how it shipped.
+   */
+  scrollAxis?: "x" | "y";
   /** REQUIREMENTS.md § 13.9. Whether this is the cell 따라하기 named, which is ringed until the panel is taken somewhere else. */
   isRevealed?: boolean;
   onSelect: (item: Emoticon) => void;
 };
 
-/** INFO: § 13.6. The grid and § 13.8.'s row draw the same cell — only the box around it differs. */
+/** INFO: § 13.6. The grid and § 13.8.'s row draw the same cell — only the box around it, and the axis it scrolls on, differ. */
 function EmoticonCell({
   className,
   buttonClassName,
   item,
+  scrollAxis = "y",
   isRevealed = false,
   onSelect,
 }: EmoticonCellProps) {
+  // WARN: One value for both boxes below, never two spellings — they are intersected, so a pair that disagrees is `touch-action: none` and neither scroller moves.
+  const panAxis = scrollAxis === "x" ? "touch-pan-x" : "touch-pan-y";
+
   return (
-    // WARN: `touch-pan-y` is repeated on the overlay, not inherited — `touch-action` applies to the element a gesture starts on, and the overlay is now that element.
+    // WARN: The axis is repeated on the overlay, not inherited — `touch-action` applies to the element a gesture starts on, and the overlay is now that element.
     // WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the panel would stop scrolling (`DESIGN.md § 7.15.`).
-    <HapticTarget className={className} overlayClassName="touch-pan-y" keepsScroll>
+    <HapticTarget className={className} overlayClassName={panAxis} keepsScroll>
       {/* WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it. */}
       <button
         className={cn(
-          "touch-pan-y rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong",
+          panAxis,
+          "rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong",
           // INFO: § 13.9. A ring rather than the tabs' `bg-primary-tint` fill, which in this panel means "selected" — this cell is not selected, it is the one the tap was about.
           // WARN: § 13.9. `ring-inset`, or § 13.8.'s results row clips it. That row is `overflow-y-hidden` and its cells fill its height exactly, so an outset ring loses its top and bottom edges and reads as a broken box.
           isRevealed && "ring-2 ring-primary ring-inset",
@@ -609,6 +622,7 @@ function SearchPane({
               className="flex shrink-0"
               buttonClassName="size-(--emoticon-search-cell)"
               item={item}
+              scrollAxis="x"
               isRevealed={item.id === revealedId}
               onSelect={onSelect}
             />

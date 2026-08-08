@@ -125,6 +125,7 @@ export {
   normalizeKeywords,
   splitKeywordQuery,
   toEmoticonAssetUrl,
+  toKeywordRelevance,
   type AllowedEmoticonAudioMime,
   type AllowedEmoticonImageMime,
   type EmoticonSlot,

@@ -49,11 +49,21 @@ export function useHorizontalSwipe(onSwipe: (direction: SwipeDirection) => void)
     onClickCapture: swallowTapAfterSwipe,
   };
 
-  // WARN: The first pointer down owns the gesture. Overwriting it on a second finger would measure the distance *between* two fingers, which a two-finger rest on the grid turns into a swipe nobody made.
+  /**
+   * WARN: A second finger must not take the gesture over — measuring from its
+   * origin turns a two-finger rest on the grid into a swipe nobody made — but the
+   * test for that is `isPrimary`, **never** "a gesture is already standing".
+   *
+   * A gesture only ends on a release this element sees, and there are ways for that
+   * release never to arrive: the § 13.6. panel going `inert` under a finger, or an
+   * ancestor taking pointer capture mid-press. Refusing every later `pointerdown`
+   * on the strength of that leftover is how the swipe stops working for the rest of
+   * the session — the picker never unmounts, so nothing clears it.
+   */
   function begin(event: PointerEvent) {
     swipedAt.current = 0;
 
-    if (gesture.current) {
+    if (!event.isPrimary) {
       return;
     }
 

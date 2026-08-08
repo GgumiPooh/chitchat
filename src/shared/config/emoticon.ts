@@ -244,6 +244,50 @@ export function matchesKeywordQuery(keyword: string, query: string): boolean {
 }
 
 /**
+ * How well an item answers a set of query terms (REQUIREMENTS.md § 13.9.).
+ *
+ * INFO: Summed over the terms, so an item that answers several of them outranks one
+ * that answers a single term very well — 따라하기 hands over a whole keyword list,
+ * and the emoticons worth showing first are the ones that share most of it.
+ *
+ * INFO: The three tiers are `matchesKeywordQuery`'s two directions told apart, plus
+ * equality above them. A keyword that *contains* the term is the item the user meant
+ * (`고민` → `고민되는군`); a term that contains the keyword is the looser direction
+ * Korean particles need, and it matches far more widely, so it ranks below.
+ *
+ * WARN: Zero means no match, and callers filter on it. It must stay in step with
+ * `matchesKeywordQuery` — a pair that disagrees either drops matched items or ranks
+ * unmatched ones.
+ */
+export function toKeywordRelevance(keywords: string[], terms: string[]): number {
+  return terms.reduce((total, term) => total + toTermRelevance(keywords, term), 0);
+}
+
+function toTermRelevance(keywords: string[], term: string): number {
+  const foldedTerm = term.toLowerCase();
+  let best = 0;
+
+  for (const keyword of keywords) {
+    const foldedKeyword = keyword.toLowerCase();
+
+    if (foldedKeyword === foldedTerm) {
+      return 3;
+    }
+
+    if (foldedKeyword.includes(foldedTerm)) {
+      best = Math.max(best, 2);
+      continue;
+    }
+
+    if (foldedTerm.includes(foldedKeyword)) {
+      best = Math.max(best, 1);
+    }
+  }
+
+  return best;
+}
+
+/**
  * REQUIREMENTS.md § 13.9. A search field may hold several words at once, separated
  * by commas, and matches an item that answers **any** of them.
  *
