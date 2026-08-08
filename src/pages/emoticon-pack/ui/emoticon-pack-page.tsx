@@ -16,7 +16,16 @@ import { EMOTICON_SETTINGS_ROUTE } from "@/shared/config";
 import { cn, type Maybe, type Nullable } from "@/shared/lib";
 import { ActionSheet, AppHeader, Button, EmptyState, IconButton, Modal, toast } from "@/shared/ui";
 import { josa } from "es-hangul";
-import { ChevronLeft, Images, Pencil, Plus, Smile, Sparkles, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  Images,
+  LoaderCircle,
+  Pencil,
+  Plus,
+  Smile,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -25,6 +34,17 @@ const RATE_LIMIT_MESSAGES: Record<KeywordRateLimit, string> = {
   minute: "요청이 몰렸어요. 1분 후에 다시 눌러 주세요",
   day: "오늘 쓸 수 있는 양을 다 썼어요. 내일 다시 시도해 주세요",
 };
+
+/** REQUIREMENTS.md § 13.8.1. The three things 자동으로 채우기 can be saying: what it does, that it is doing it, and how far along. */
+function toFillLabel(tagging: Nullable<{ done: number; total: number }>, untagged: number): string {
+  if (!tagging) {
+    return `검색 키워드 자동으로 채우기 (${untagged}개)`;
+  }
+
+  return tagging.done === 0
+    ? "검색 키워드를 만들고 있어요"
+    : `${tagging.done}/${tagging.total}개 채웠어요`;
+}
 
 export type EmoticonPackPageProps = {
   className?: string;
@@ -100,16 +120,20 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
             {/* INFO: REQUIREMENTS.md § 13.8.1. Withheld once every item has words, since the only thing it would offer then is overwriting them. */}
             {(tagging !== null || untagged.length > 0) && addingCount === 0 && (
               <div className="space-y-2xs">
+                {/* WARN: § 13.8.1. No count until the first batch lands. `0/12개 채웠어요` is a completive sentence about nothing having happened, which reads as a failed press rather than as one still running — and at four images per request that frame is on screen for a couple of seconds every time. */}
                 <Button
                   variant="secondary"
                   disabled={tagging !== null}
                   haptic
                   onClick={() => void fillKeywords()}
                 >
-                  <Sparkles className="size-4" strokeWidth={1.75} />
-                  {tagging
-                    ? `${tagging.done}/${tagging.total}개 채웠어요`
-                    : `검색 키워드 자동으로 채우기 (${untagged.length}개)`}
+                  {tagging ? (
+                    // INFO: The icon carries the wait on its own, so the label never has to say 기다려 주세요 — the same swap § 8.'s message search bar makes.
+                    <LoaderCircle className="size-4 animate-spin" strokeWidth={1.75} />
+                  ) : (
+                    <Sparkles className="size-4" strokeWidth={1.75} />
+                  )}
+                  {toFillLabel(tagging, untagged.length)}
                 </Button>
                 {/* INFO: § 13.8.1. The reason to press an optional button, which the label alone does not give — an item with no keywords is one § 13.8.'s composer search can never reach. */}
                 {!tagging && (
