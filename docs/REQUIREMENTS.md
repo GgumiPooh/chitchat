@@ -929,6 +929,8 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
 
 The screen opens on a **fixed-height cover header** (`DESIGN.md § 7.16.`) rather than the old padded avatar block — the § 12.1. background is drawn behind the avatar and the name, and tapping the avatar opens § 12.3.
 
+**The rows run 나 → 대화 → 앱 → 계정**, and that order is a decision rather than the sequence the features landed in: 프로필, then 이모티콘 and 채팅방 배경, then 화면 테마, then 알림 and 입력 중 표시, then 로그인된 기기 and 로그아웃. What a user opens this screen for sits at the top and what they touch once sits at the bottom; the two switches end up adjacent and the account rows end up beside the exit, so the shapes group as the topics do. 입력 중 표시 must stay directly under 알림 — it is the per-account counterpart to a per-device row, and the code says so by pointing at "the row above."
+
 **Profile** — `PATCH /api/users/me`, reached from a 프로필 row or § 12.3.'s 프로필 편집; `features/update-profile` owns the sheet and reuses § 9.'s picker, editor and upload through `@x/update-profile`.
 
 - The nickname set here is exactly what appears as the sender name in chat and inside system sentences (§ 8.7.), initialized from the Google account name at first login. `MAX_NICKNAME_LENGTH` bounds it, and the body is trimmed **before** the length check — twenty spaces would otherwise pass and § 8.7. would fall back to the email local part for a name the user believes they set

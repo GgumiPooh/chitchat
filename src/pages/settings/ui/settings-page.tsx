@@ -40,21 +40,22 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
         isProfileBackgroundVideo={isProfileBackgroundVideo}
       />
       {/* INFO: DESIGN.md § 7.11. Rows run edge to edge. */}
+      {/* INFO: REQUIREMENTS.md § 12. The order is 나 → 대화 → 앱 → 계정, and it is a decision rather than the sequence these features happened to land in. */}
       {/* WARN: The resolved name, not the raw column. An empty nickname is legal (REQUIREMENTS.md § 8.7. falls back to the email local part), and seeding the editor from the column would open it on a blank field under a screen showing that fallback — with 저장 dead until the user typed. */}
       <ProfileSettingsRow
         nickname={displayName}
         avatarMediaId={user.avatarMediaId}
         profileBackgroundMediaId={user.profileBackgroundMediaId}
       />
+      <EmoticonSettingsRow />
+      {/* INFO: REQUIREMENTS.md § 12.2. The wallpaper this user sees behind the conversation, which the other participant never does. */}
+      <ChatBackgroundRow chatBackgroundMediaId={user.chatBackgroundMediaId} />
+      {/* INFO: DESIGN.md § 5.1. Per device, like 알림 — the choice lives in `localStorage`, so it describes this browser rather than the account. */}
+      <ThemeSettingsRow />
       <PushNotificationRow />
       {/* INFO: REQUIREMENTS.md § 8.12. Per account, not per device like the row above — it governs what this user broadcasts, which is not a property of the browser they happen to be typing in. */}
       <TypingSettingsRow isEnabled={user.typingIndicatorEnabled} />
-      {/* INFO: REQUIREMENTS.md § 12.2. The wallpaper this user sees behind the conversation, which the other participant never does. */}
-      <ChatBackgroundRow chatBackgroundMediaId={user.chatBackgroundMediaId} />
-      <EmoticonSettingsRow />
-      {/* INFO: DESIGN.md § 5.1. Per device, like 알림 — the choice lives in `localStorage`, so it describes this browser rather than the account. */}
-      <ThemeSettingsRow />
-      {/* INFO: REQUIREMENTS.md § 12. Reads `sessions` — the push subscriptions beside it in the 알림 row are a different set, and not revocable. */}
+      {/* INFO: REQUIREMENTS.md § 12. Reads `sessions` — the push subscriptions in the 알림 row above are a different set, and not revocable. */}
       <DeviceSettingsRow />
       {/* INFO: REQUIREMENTS.md § 15.1. Dev only — a production client is refreshed by the stream's `build` event and never needs to be told by hand. */}
       {IS_DEV && <DevRefreshRow />}
