@@ -11,7 +11,15 @@ import { A_SECOND, cn, type Nullable, type Optional } from "@/shared/lib";
 import { EmptyState, HapticTarget, Input, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Search, Smile } from "lucide-react";
-import { useEffect, useRef, useState, type PropsWithChildren, type Ref } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type PropsWithChildren,
+  type Ref,
+} from "react";
 import { useStorageState } from "synced-storage/react";
 import { toEnabledPacksQuery } from "../model/enabled-packs-query";
 import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
@@ -37,6 +45,13 @@ const NO_PACKS: EmoticonPackWithItems[] = [];
 export type EmoticonPickerProps = {
   className?: string;
   /**
+   * REQUIREMENTS.md § 13.6. Whether the strip clipping this panel is open. The panel
+   * outlives every close, so it cannot read its own visibility — and § 13.8.'s field
+   * takes the keyboard the moment it is on screen, which is a thing a closed panel
+   * must never do.
+   */
+  isOpen: boolean;
+  /**
    * REQUIREMENTS.md § 13.8. A word tapped in the composer, which opens the search
    * tab with the field already holding it.
    *
@@ -61,6 +76,7 @@ export type EmoticonPickerProps = {
  */
 export function EmoticonPicker({
   className,
+  isOpen,
   searchRequest,
   onSearchTabChange,
   onSelect,
@@ -95,6 +111,12 @@ export function EmoticonPicker({
    */
   if (!searchRequest && appliedSearchToken !== undefined) {
     setAppliedSearchToken(undefined);
+    setQuery("");
+    setForcedTab(null);
+  }
+
+  // WARN: § 13.8. The second release, and the one above cannot stand in for it. `selectTab` also forces 검색 with no request behind it — a tap on the tab, or a swipe from 최근 사용 — so `appliedSearchToken` is never set and that branch never fires: the forced tab outlived every close, the toggle reopened onto a finished search, and `onSearchTabChange(true)` stayed latched for the rest of the session with § 13.6.'s keyboard gate out of the room's condition behind it.
+  if (!isOpen && !searchRequest && forcedTab !== null) {
     setQuery("");
     setForcedTab(null);
   }
@@ -149,10 +171,12 @@ export function EmoticonPicker({
     >
       {isSearching ? (
         <SearchPane
+          isOpen={isOpen}
           query={query}
           results={shown}
           onQueryChange={setQuery}
           onSelect={handleSelect}
+          onSwipe={goToAdjacentTab}
         />
       ) : (
         // WARN: `overflow-x-hidden` is what keeps the § 13.6. slide inside the panel — a vertical-only scroller still resolves its horizontal axis to `auto`.
@@ -388,10 +412,13 @@ function EmoticonCell({ className, buttonClassName, item, onSelect }: EmoticonCe
 
 type SearchPaneProps = {
   className?: string;
+  /** REQUIREMENTS.md § 13.8. Whether this pane is on screen, which is what the field's focus is keyed on. */
+  isOpen: boolean;
   query: string;
   results: Emoticon[];
   onQueryChange: (query: string) => void;
   onSelect: (item: Emoticon) => void;
+  onSwipe: (direction: SwipeDirection) => void;
 };
 
 /**
@@ -402,22 +429,45 @@ type SearchPaneProps = {
  * (§ 13.6.). This is the only tab that can be on screen with the keyboard up, so it
  * has to fit in what the keyboard leaves rather than claiming half the shell.
  *
- * WARN: The row keeps its own horizontal scroll, so § 13.6.'s tab swipe is
- * deliberately **not** attached here — the two gestures share an axis and the swipe
- * would take every drag meant to reach the results further along the row.
+ * WARN: § 13.6.'s tab swipe is attached here too, but the results row is carved out
+ * of it: the two gestures share an axis, so a swipe over a row that still has
+ * somewhere to scroll would take every drag meant to reach the results further along
+ * it. The row gives the axis up only once it has nothing left to scroll.
  */
-function SearchPane({ className, query, results, onQueryChange, onSelect }: SearchPaneProps) {
+function SearchPane({
+  className,
+  isOpen,
+  query,
+  results,
+  onQueryChange,
+  onSelect,
+  onSwipe,
+}: SearchPaneProps) {
+  const fieldRef = useRef<Nullable<HTMLInputElement>>(null);
+  const swipeHandlers = useHorizontalSwipe(onSwipe);
   const trimmed = query.trim();
 
+  // INFO: § 13.8. Keyed on the panel rather than on this pane's mount, which covers only one of the two ways in — the picker never unmounts, so reopening onto 검색 is a prop change with no mount to hang a focus on.
+  // WARN: A layout effect and never the passive one. React flushes this inside the commit the tap renders, and WebKit raises the keyboard only for a `focus()` the user activation still covers — a frame later the field comes up focused with no keyboard, exactly as `message-search-bar.tsx` records.
+  useLayoutEffect(() => {
+    if (isOpen) {
+      fieldRef.current?.focus();
+    }
+  }, [isOpen]);
+
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col gap-2xs p-xs", className)}>
-      <div className="relative shrink-0">
+    // WARN: The swipe is taken here but `touch-pan-y` is **not** — a browser intersects `touch-action` down the whole ancestor chain, so reserving the horizontal axis on this box would meet the results row's `touch-pan-x` as `none` and that row would stop scrolling at all. Each child below declares its own axis instead.
+    <div className={cn("flex min-h-0 flex-1 flex-col gap-2xs p-xs", className)} {...swipeHandlers}>
+      <div className="relative shrink-0 touch-pan-y">
+        {/* WARN: The icon is inset by the field's own padding rather than sat against its edge — the pill's radius is half its height, so a glyph at `2xs` is inside the curve rather than beside the text. */}
         <Search
-          className="pointer-events-none absolute top-1/2 left-2xs size-4 -translate-y-1/2 text-meta"
+          className="pointer-events-none absolute top-1/2 left-sm size-4 -translate-y-1/2 text-meta"
           strokeWidth={1.75}
         />
         <Input
-          className="h-(--emoticon-search-field) min-h-0 shrink-0 rounded-full py-0 pr-2xs pl-7 text-body-sm"
+          ref={fieldRef}
+          // WARN: The two insets are the icon's own (`left-sm` plus its `size-4`, plus a `2xs` gap) and its mirror on the right. Left at `Input`'s defaults the text ran under the icon; trimmed to `2xs` on the right it ran into the pill's cap.
+          className="h-(--emoticon-search-field) min-h-0 shrink-0 rounded-full py-0 pr-sm pl-8 text-body-sm"
           value={query}
           maxLength={MAX_EMOTICON_KEYWORD_LENGTH}
           placeholder="이모티콘 검색"
@@ -428,14 +478,18 @@ function SearchPane({ className, query, results, onQueryChange, onSelect }: Sear
         />
       </div>
       {results.length === 0 ? (
-        <p className="flex flex-1 items-center justify-center text-body-sm text-meta">
+        // INFO: § 13.8. The whole pane below the field, and with no row to scroll it is where the tab swipe has the most room to be made.
+        <p className="flex flex-1 touch-pan-y items-center justify-center text-body-sm text-meta">
           {trimmed.length < MIN_KEYWORD_QUERY_LENGTH
             ? "두 글자부터 찾을 수 있어요"
             : "찾는 이모티콘이 없어요"}
         </p>
       ) : (
         // WARN: `touch-pan-x` is the mirror of the grid's `touch-pan-y` — this scroller runs on the horizontal axis, so that is the one the browser must keep.
-        <div className="scrollbar-hidden flex min-h-0 flex-1 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain">
+        <div
+          className="scrollbar-hidden flex min-h-0 flex-1 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain"
+          onPointerDownCapture={keepAxisWhileScrollable}
+        >
           {results.map((item) => (
             <EmoticonCell
               key={item.id}
@@ -449,6 +503,19 @@ function SearchPane({ className, query, results, onQueryChange, onSelect }: Sear
       )}
     </div>
   );
+
+  /**
+   * INFO: § 13.8. The row has first claim on the axis it scrolls, so the pane's swipe
+   * only ever sees a drag that started somewhere the row is not — or on a row short
+   * enough to have nothing to scroll, which is most searches.
+   */
+  function keepAxisWhileScrollable(event: PointerEvent<HTMLDivElement>) {
+    const row = event.currentTarget;
+
+    if (row.scrollWidth > row.clientWidth) {
+      event.stopPropagation();
+    }
+  }
 }
 
 type TabButtonProps = PropsWithChildren<{

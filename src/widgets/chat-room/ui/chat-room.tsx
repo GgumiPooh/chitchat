@@ -229,6 +229,17 @@ export function ChatRoom({
     useState<Nullable<{ query: string; token: number }>>(null);
   // INFO: § 13.8. The one tab exempt from § 13.6.'s keyboard gate, reported by the picker because the tab is its own state.
   const [isEmoticonSearchTab, setIsEmoticonSearchTab] = useState(false);
+  // INFO: § 13.8. The same exemption, held open for as long as the keyboard that tab raised takes to leave.
+  const [isEmoticonSearchExempt, setIsEmoticonSearchExempt] = useState(false);
+  // WARN: § 13.8. Memoized because the picker's own effect depends on it — a fresh identity every render re-runs that effect on every render of this room.
+  const reportEmoticonSearchTab = useCallback((isOnSearchTab: boolean) => {
+    setIsEmoticonSearchTab(isOnSearchTab);
+
+    // WARN: § 13.8. Leaving 검색 ends the search, exactly as closing the panel does. `emoticonSearch` is what `isConsumedByEmoticonSearch` matches the draft against, so a request left standing swallows a typed word that merely equals it — beside an emoticon the user went and staged from some other pack, which the word never found.
+    if (!isOnSearchTab) {
+      setEmoticonSearch(null);
+    }
+  }, []);
   // INFO: § 13.8. Bumped when a send should take the searched word out of the field; the composer owns the draft and decides whether it still holds only that word.
   const [keywordConsumeToken, setKeywordConsumeToken] = useState(0);
   // INFO: REQUIREMENTS.md § 8.10. Not mutually exclusive with the two above — a quote is an attribute of the send, not a payload competing for the § 6. row.
@@ -282,11 +293,16 @@ export function ChatRoom({
     isEnabled: canStageAttachments,
     onPaste: (files) => void stageMedia(files),
   });
+  // WARN: REQUIREMENTS.md § 13.8. The exemption outlives the tab by the length of the keyboard's retraction, which is what this latch holds. Leaving 검색 unmounts the field the panel had focused and the keyboard is only reported down some 250ms later — released with the tab, those frames are an unexempted panel that collapses to nothing and reopens by itself once the keys finish sliding.
+  if (isEmoticonSearchExempt !== isEmoticonSearchTab && (isEmoticonSearchTab || !isKeyboardOpen)) {
+    setIsEmoticonSearchExempt(isEmoticonSearchTab);
+  }
+
   // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
   // WARN: `!isSearching` is load-bearing beyond the drawing. The panel being open is one of § 8.12.'s two sustained typing sources, so a panel left open behind the search goes on announcing 입력 중 — and it would pop back open on 취소.
   // WARN: REQUIREMENTS.md § 13.8. The search tab is the one exemption from the keyboard gate, because its field is the keyboard's reason for being up — it is drawn one row tall precisely so it fits in what the keyboard leaves. Keyed on the tab and never on that field's focus: a blur and the keyboard's retraction are separate frames, and between them the unexempted panel closes underneath the user.
   const isEmoticonPanelOpen =
-    isEmoticonPickerOpen && (!isKeyboardOpen || isEmoticonSearchTab) && !isSearching;
+    isEmoticonPickerOpen && (!isKeyboardOpen || isEmoticonSearchExempt) && !isSearching;
   // WARN: REQUIREMENTS.md § 9.3. The shared element outlives every bubble that addresses it, so leaving the room has to stop it. Unlike § 13.6.'s two-second ping a recording runs for minutes, and no screen outside this one draws a transport that could pause it.
   useEffect(() => stopVoice, []);
   // WARN: REQUIREMENTS.md § 9.3. The recorder is closed by the search rather than hidden with the rest of the stack. `hidden` + `inert` leaves the microphone open with both 취소 and 완료 unreachable, and `MAX_VOICE_DURATION` then sends a recording the user walked away from two minutes earlier.
@@ -966,8 +982,9 @@ export function ChatRoom({
                 // INFO: § 13.6. Promoted to its own layer so the strip's growing clip is a compositor crop — unpromoted, every frame of the 200ms repaints a grid of animated images against a moving clip rect, which is what the open stutters on.
                 <EmoticonPicker
                   className="mx-md mt-xs mb-2xs shrink-0 will-change-transform"
+                  isOpen={isEmoticonPanelOpen}
                   searchRequest={emoticonSearch}
-                  onSearchTabChange={setIsEmoticonSearchTab}
+                  onSearchTabChange={reportEmoticonSearchTab}
                   onSelect={stageEmoticon}
                   onQuickSend={sendStagedEmoticon}
                 />
