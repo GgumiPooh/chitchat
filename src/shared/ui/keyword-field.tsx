@@ -52,12 +52,14 @@ export function KeywordField({
   return (
     <div className={cn("space-y-2xs", className)}>
       <p className={cn("text-title-sm text-ink", labelClassName)}>{label}</p>
-      {/* INFO: `role="alert"` on the warning alone. The line it replaces is the answer to a `+` that has just refused, and a screen reader is otherwise told only that nothing happened. */}
+      {/* INFO: Announced at all because the line it replaces is the answer to a `+` that has just refused, and a screen reader is otherwise told only that nothing happened. */}
+      {/* WARN: Live from the first render, never a `role` toggled on with the text. A region is registered when its node is inserted, so one appearing in the same commit as the change it describes is commonly announced by nothing — the single case it exists for. */}
+      {/* WARN: `polite`, never `role="alert"`. Every Hangul word passes through a one-character draft as the IME settles its first syllable, so an assertive region cuts the reader off once per word in a run of keywords. */}
       {/* WARN: Never `aria-invalid` on the field with it. That is what DESIGN.md § 7.2. keys the error styling off, and this is a warning the user is mid-way through resolving rather than a value that was rejected. */}
       <p
         className={cn("text-body-sm", isTooShort ? "text-semantic-warning" : "text-meta")}
-        role={isTooShort ? "alert" : undefined}
         id={descriptionId}
+        aria-live="polite"
       >
         {isTooShort ? "두 글자부터 넣을 수 있어요" : description}
       </p>
@@ -123,9 +125,18 @@ export function KeywordField({
     }
 
     const parts = value.split(",");
+    const head = parts.slice(0, -1).join(",");
+    const tail = parts[parts.length - 1]?.trim() ?? "";
 
-    commit(parts.slice(0, -1).join(","));
-    setDraft(parts[parts.length - 1]?.trim() ?? "");
+    // WARN: § 13.8. The floor has to hold on this path too, or `commit`'s own guard is undone by the very next statement — `아` then a comma refused the commit and the box was cleared anyway, taking `두 글자부터 넣을 수 있어요` with it and leaving no signal at all.
+    // INFO: Only where the comma ends the value, which is the user typing one. A paste carrying a word after it has a caret to put somewhere, and one refused segment among several is the drop `normalizeKeywords` performs everywhere else.
+    if (!commit(head) && tail === "") {
+      setDraft(head);
+
+      return;
+    }
+
+    setDraft(tail);
   }
 
   // WARN: Cancelling `pointerdown` is what stops the tap from blurring the field; `click` still fires, so the commit is untouched.
@@ -157,12 +168,13 @@ export function KeywordField({
     }
   }
 
-  function commit(value: string) {
+  /** @returns Whether the box was consumed — `false` where the floor refused the value, which is the one outcome that has to leave it standing. */
+  function commit(value: string): boolean {
     const entered = normalizeKeywords(value.split(","));
 
     // WARN: A word `normalizeKeywords` refuses stays in the box. Clearing it deletes the very text `두 글자부터 넣을 수 있어요` is asking the user to finish, and the blur behind a tap on `+` is the commit that would do it.
     if (entered.length === 0 && value.trim().length > 0) {
-      return;
+      return false;
     }
 
     const next = normalizeKeywords([...keywords, ...entered]);
@@ -173,6 +185,8 @@ export function KeywordField({
     if (next.length !== keywords.length) {
       onChange(next);
     }
+
+    return true;
   }
 
   function remove(keyword: string) {
