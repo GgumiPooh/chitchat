@@ -85,11 +85,12 @@ export function KeywordField({
       {/* INFO: Withheld at the cap rather than disabled — a field that takes no more text reads as broken, where its absence beside a full row reads as the limit it is. */}
       {!isFull && (
         <div className="flex gap-2xs">
+          {/* WARN: § 13.8. The placeholder is bounded at about 13 Korean characters — the narrowest shell leaves this field some 200px of text once the sheet's padding and the 44px `+` are taken out, and a longer line truncates rather than wrapping. */}
           <Input
             className="min-h-11 flex-1"
             value={draft}
             maxLength={MAX_EMOTICON_KEYWORD_LENGTH}
-            placeholder="우와, 놀람"
+            placeholder="대화에서 찾을 단어를 넣어 보세요"
             disabled={isDisabled}
             enterKeyHint="done"
             aria-label={label}
