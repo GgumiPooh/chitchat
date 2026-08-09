@@ -50,8 +50,8 @@ export function ChatScreen({
     // INFO: `ChatRoom` is this box's only in-flow child and it paints an opaque `chat-canvas` over the whole of it, which changes nothing: what is sampled is this element's computed `background-color`, not whichever pixel survives to the screen. The two agree anyway — the strip at the top edge is the wallpaper under the § 12.2. wash, which is exactly what the tint is an average of, and with no wallpaper both are `chat-canvas`.
     <Container
       className={cn(
-        // WARN: DESIGN.md § 3.3. `border-x`, matching the shell's own — this box covers the column's edges, so without it the hairline that separates the app from the desktop gutter stops at the chat route.
-        "fixed inset-x-0 top-(--keyboard-pan) flex h-[var(--viewport-height,100dvh)] flex-col border-x border-hairline bg-[var(--chat-chrome-tint,var(--color-chat-canvas))] px-0 transition-[height] duration-200 ease-out",
+        // WARN: DESIGN.md § 3.3. `shell-edge`, matching the shell's own — this box covers the column's edges, so without it the hairline that separates the app from the desktop gutter stops at the chat route.
+        "fixed inset-x-0 top-(--keyboard-pan) flex h-[var(--viewport-height,100dvh)] flex-col bg-[var(--chat-chrome-tint,var(--color-chat-canvas))] px-0 shell-edge transition-[height] duration-200 ease-out",
         className,
       )}
     >
