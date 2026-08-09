@@ -17,11 +17,22 @@ const querySchema = z
     kind: z.enum(LIBRARY_KINDS).optional(),
     beforeCreatedAt: z.iso.datetime({ offset: true }).optional(),
     beforeId: z.uuid().optional(),
+    // INFO: REQUIREMENTS.md § 10. The window's first tile, for paging upward out of a jumped window — the mirror of the pair above, and refused half-given for the same reason.
+    afterCreatedAt: z.iso.datetime({ offset: true }).optional(),
+    afterId: z.uuid().optional(),
+    // INFO: REQUIREMENTS.md § 10. The photo 보관함 is to open on, for the position jump — a single id rather than a cursor pair, because the row it names is what the pair is then resolved from.
+    around: z.uuid().optional(),
     limit: z.coerce.number().int().positive().optional(),
   })
   .refine(
     ({ beforeCreatedAt, beforeId }) => (beforeCreatedAt === undefined) === (beforeId === undefined),
     { message: "cursor_incomplete" },
+  )
+  .refine(
+    ({ afterCreatedAt, afterId }) => (afterCreatedAt === undefined) === (afterId === undefined),
+    {
+      message: "cursor_incomplete",
+    },
   );
 
 const bodySchema = z.object({
@@ -44,13 +55,15 @@ export async function GET(request: Request) {
     return apiError("invalid_request");
   }
 
-  const { kind, beforeCreatedAt, beforeId, limit } = query.data;
+  const { kind, beforeCreatedAt, beforeId, afterCreatedAt, afterId, around, limit } = query.data;
 
   return NextResponse.json({
     media: await listArchiveMedia({
       kind,
       before:
         beforeCreatedAt && beforeId ? { createdAt: beforeCreatedAt, id: beforeId } : undefined,
+      after: afterCreatedAt && afterId ? { createdAt: afterCreatedAt, id: afterId } : undefined,
+      around,
       limit: Math.min(limit ?? ARCHIVE_PAGE_SIZE, MAX_ARCHIVE_PAGE_SIZE),
     }),
   });

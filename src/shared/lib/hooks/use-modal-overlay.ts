@@ -33,14 +33,25 @@ const FOCUSABLE_SELECTOR = [
  * WARN: One owner, deliberately (§ 12.3.). Both screens dismissed on `Escape` from
  * their own copy of this before the trap existed, and a trap beside those copies
  * would have been the same predicate written a third and fourth time.
+ *
+ * @param onKeyDown Keys this hook does **not** own, forwarded to the caller — the
+ * § 7.10. viewer's `ArrowLeft` / `ArrowRight`. It routes through here rather than
+ * through a listener of the caller's own for the reason above: "is anything open over
+ * me" is the same predicate, and a second copy of it would answer a share dialog's
+ * arrow keys by swiping the track behind it.
  */
-export function useModalOverlay<T extends HTMLElement>(onClose: () => void): RefCallback<T> {
+export function useModalOverlay<T extends HTMLElement>(
+  onClose: () => void,
+  onKeyDown?: (event: KeyboardEvent) => void,
+): RefCallback<T> {
   const close = useRef(onClose);
+  const keyDown = useRef(onKeyDown);
 
   // INFO: Held in a ref so the ref callback can be bound once. Every caller passes a fresh arrow, and re-binding on it would restore focus to the opener and seize it back on each parent render — in the chat room, on every message that arrives.
   useEffect(() => {
     close.current = onClose;
-  }, [onClose]);
+    keyDown.current = onKeyDown;
+  }, [onClose, onKeyDown]);
 
   // WARN: A ref callback with a cleanup return, not a `useRef` read from an effect. `ProfileOverlay` renders `null` until the participant reaches it (§ 8.4.), and an effect that found no element on its one run would never bind again — leaving that instance untrapped and invisible to `isBusy`. React calls this on every attach and detach instead.
   return useCallback((container: T) => {
@@ -63,6 +74,8 @@ export function useModalOverlay<T extends HTMLElement>(onClose: () => void): Ref
         close.current();
       } else if (event.key === "Tab") {
         cycleFocus(event, container);
+      } else {
+        keyDown.current?.(event);
       }
     };
 
@@ -129,9 +142,12 @@ function cycleFocus(event: KeyboardEvent, container: HTMLElement): void {
  * be shared still has the share button in the DOM — the browser skips it on `Tab`,
  * and a cycle that ended on it would call `focus()` on something that cannot take it
  * and strand focus on `body`.
+ *
+ * WARN: `opacityProperty` is the second half and it is not optional. `visibilityProperty` alone answers for `invisible` only, and DESIGN.md § 7.10.'s chrome hides by fading to `opacity-0` so the fade can run — which this filter reads as perfectly focusable. `cycleFocus` then calls `focus()` **directly**, so a `tabIndex={-1}` on the control is no defence inside a hand-rolled trap: `Shift+Tab` would land on an invisible 공유 and `Enter` would fire it.
  */
 function readFocusable(container: HTMLElement): HTMLElement[] {
   return [...container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)].filter(
-    (element) => element.checkVisibility?.({ visibilityProperty: true }) ?? true,
+    (element) =>
+      element.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) ?? true,
   );
 }

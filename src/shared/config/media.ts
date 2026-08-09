@@ -11,6 +11,37 @@ export const MEDIA_COPY_PATH = `${MEDIA_PATH}/copy`;
 /** REQUIREMENTS.md § 10. Lists the library and takes rows back out of it. */
 export const ARCHIVE_PATH = "/api/archive";
 
+/** REQUIREMENTS.md § 8.1. The conversation's own photos and videos, in the order they were sent — the § 7.10. viewer's track in 채팅. */
+export const CHAT_MEDIA_PATH = "/api/chat/media";
+
+/**
+ * REQUIREMENTS.md § 8.1. One page of the chat viewer's track — how far the opening
+ * window reaches on either side of the tapped slide, and how much each later page
+ * adds at whichever edge the reader is nearing.
+ *
+ * INFO: One number for both because they are the same reach measured twice: the window is the first page in each direction, and `useViewerTrack` reads "is there more behind this" off a page having filled — which only holds while every page is the same size.
+ * INFO: Small on purpose, and it is paging that makes it affordable. `MediaViewer` mounts a slide element per cell, so the DOM cost is per slide in the track rather than per slide on screen — at 500 a side, a thousand slides made the snap track a thousand viewport-widths re-diffed on every crossing, for every open. Now that reach is only paid by a reader who actually travels it.
+ * WARN: Still a ceiling and not the whole conversation, because the query is otherwise unbounded and a long history would answer in megabytes. What changed is that reaching it is no longer a dead end (`ChatTrackEdge`).
+ */
+export const CHAT_MEDIA_TRACK_SPAN = 30;
+
+/**
+ * REQUIREMENTS.md § 8.1. How near an edge of the track the reader has to come before
+ * the stretch beyond it is asked for.
+ *
+ * WARN: The runway has to cover a round trip **and** `useSettledCommit`'s wait for a still track, since a page is held until the swipe stops (§ 8.3.). Too small and the reader arrives at the edge before the page can be committed, which is the dead end paging exists to remove; too large and every open spends a request it may not need.
+ */
+export const CHAT_MEDIA_PAGE_MARGIN = 8;
+
+/**
+ * Which end of the chat viewer's track a page extends (REQUIREMENTS.md § 8.1.) —
+ * `older` is the front of it and `newer` the back, since the track runs in send
+ * order.
+ *
+ * WARN: Only `older` is a **prepend**, and that is the whole asymmetry. Slides inserted at the front move every slide after them, so the reader's `scrollLeft` no longer names the photo they were on; `newer` lands past them and moves nothing. Both are still held until the track is still, because `MediaViewer` re-asserts the offset on any change of length.
+ */
+export type ChatTrackEdge = "older" | "newer";
+
 /**
  * Which shelf of the library (REQUIREMENTS.md § 10.) a listing asks for — the
  * 사진 / 파일 / 음성 segments, and the `kind` `GET /api/archive` takes.
@@ -44,12 +75,14 @@ export const LIBRARY_KIND_LABELS: Record<LibraryKind, string> = {
 };
 
 /**
- * The counter a shelf counts its rows in — 사진 in 장, everything else in 개.
+ * The counter a set of media is counted in — 사진 in 장, everything else in 개.
  *
  * INFO: AGENTS.md § 0.4. The particle that follows is chosen by `josa` at the call
  * site, because `3장을` and `3개를` are the same sentence with different 받침.
+ *
+ * INFO: Takes a `MediaKind` rather than the `LibraryKind` it began as, so a set that is *all* video can be counted too — `toMediaKind` calls a mixed set `photo`, which is the same rule the 사진 shelf follows when it counts a selection carrying both in 장.
  */
-export function toLibraryCountUnit(kind: LibraryKind): string {
+export function toMediaCountUnit(kind: Nullable<MediaKind>): string {
   return kind === "photo" ? "장" : "개";
 }
 
@@ -354,6 +387,26 @@ export function maxSizeForScope(mime: string, scope: MediaUploadScope): number {
   }
 
   return maxSizeForMime(mime);
+}
+
+/**
+ * REQUIREMENTS.md § 12.1. Whether a stored video may be worn as a profile cover —
+ * the size and duration caps above, plus a duration that was actually readable.
+ *
+ * WARN: Lives here so the viewer's control and `copyMediaIntoScope`'s refusal are
+ * one rule. They cannot share a module otherwise: the check is needed in the browser
+ * and in a `server-only` entity, and the two had already been written twice.
+ * INFO: A missing duration is refused rather than admitted. It is what the cap is read from, and a copy is the one path where the bytes never pass through a client that could measure one.
+ */
+export function isWearableBackgroundVideo(video: {
+  sizeBytes: number;
+  durationMs: Nullable<number>;
+}): boolean {
+  return (
+    video.sizeBytes <= MAX_BACKGROUND_VIDEO_SIZE &&
+    video.durationMs !== null &&
+    video.durationMs <= MAX_BACKGROUND_VIDEO_DURATION
+  );
 }
 
 /** REQUIREMENTS.md § 9. `thumb` for grid and chat cells, `original` for the viewer. */

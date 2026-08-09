@@ -1,10 +1,9 @@
 import "server-only";
 
 import {
-  MAX_BACKGROUND_VIDEO_DURATION,
-  MAX_BACKGROUND_VIDEO_SIZE,
   isImageMime,
   isVideoMime,
+  isWearableBackgroundVideo,
   type MediaUploadScope,
 } from "@/shared/config";
 import type { Media } from "@/shared/db";
@@ -78,7 +77,7 @@ export async function copyMediaIntoScope({
   }
 
   // WARN: § 12.1.'s duration and size caps are checked against the *source row*, before anything is copied. `registerMedia` re-checks the size of what actually landed, but it cannot see a duration — and a copy is the one path where the bytes never pass through a client that could measure one.
-  if (isVideoMime(source.mime) && !isWearableVideo(source)) {
+  if (isVideoMime(source.mime) && !isWearableSource(source)) {
     return { status: "unsupported" };
   }
 
@@ -102,15 +101,12 @@ export async function copyMediaIntoScope({
 /**
  * INFO: REQUIREMENTS.md § 12.1. A library video reaches the caps by being trimmed
  * on the way in; one already in the conversation was never bounded by them, so a
- * copy is refused rather than silently worn. A row with no `duration_ms` is refused
- * too — it is what the cap is read from.
+ * copy is refused rather than silently worn.
+ *
+ * WARN: The rule itself is `isWearableBackgroundVideo` in `shared/config`, shared with the § 7.10. viewer — the control there is drawn from the same caps and the two used to state them separately.
  */
-function isWearableVideo(source: Media): boolean {
-  return (
-    source.size <= MAX_BACKGROUND_VIDEO_SIZE &&
-    source.durationMs !== null &&
-    source.durationMs <= MAX_BACKGROUND_VIDEO_DURATION
-  );
+function isWearableSource(source: Media): boolean {
+  return isWearableBackgroundVideo({ sizeBytes: source.size, durationMs: source.durationMs });
 }
 
 /**

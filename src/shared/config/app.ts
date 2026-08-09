@@ -41,6 +41,14 @@ export const CHAT_ROUTE = "/chat";
  */
 export const CHAT_MESSAGE_PARAM = "message";
 
+/**
+ * REQUIREMENTS.md § 10. A photo 보관함 is to open on, carried by 채팅's own viewer —
+ * the mirror of `CHAT_MESSAGE_PARAM` above, and the whole contract between the two.
+ *
+ * INFO: A `media` id, so the grid can load the page that photo is actually on. The library keyset-pages from the newest (§ 10.), so an older photo is not merely off screen — it is not loaded, and a scroll cannot reach what was never fetched.
+ */
+export const ARCHIVE_TARGET_PARAM = "target";
+
 export const CALENDAR_ROUTE = "/calendar";
 
 /**

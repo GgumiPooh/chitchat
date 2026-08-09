@@ -82,6 +82,7 @@ export {
   MIN_ZOOM_SCALE,
   usePinchZoom,
 } from "./hooks/use-pinch-zoom";
+export { useSettledCommit, type SettledCommitOptions } from "./hooks/use-settled-commit";
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
 export type { Maybe, Nullable, Optional } from "./nullish";
 export { randomId } from "./random";

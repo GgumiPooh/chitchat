@@ -6,6 +6,7 @@ import { MediaPickerSheet } from "@/features/upload-media";
 import { CHAT_MESSAGE_PARAM, CHAT_ROUTE } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
 import {
+  downloadMedia,
   isShareableSelection,
   MediaShareDialog,
   toShareCapMessage,
@@ -30,7 +31,7 @@ import {
   useShelfStaging,
 } from "@/widgets/archive-shelves";
 import { josa } from "es-hangul";
-import { ImagePlus, Images, ListChecks, X } from "lucide-react";
+import { ImagePlus, Images, ListChecks, MessageCircle, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LibrarySegments } from "./library-segments";
@@ -38,6 +39,8 @@ import { LibrarySegments } from "./library-segments";
 export type ArchivePageProps = {
   className?: string;
   initialMedia: ArchiveMedia[];
+  /** REQUIREMENTS.md § 10. The photo 채팅's viewer sent the reader here to see, from `?target=`; the window above already came back centred on it. */
+  targetId?: string;
 };
 
 /**
@@ -45,7 +48,7 @@ export type ArchivePageProps = {
  * exchanged, newest first. `media` is the single source, so nothing here is a copy
  * of a chat row.
  */
-export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
+export function ArchivePage({ className, initialMedia, targetId }: ArchivePageProps) {
   const router = useRouter();
   const [viewer, setViewer] = useState<Nullable<{ cells: MediaCell[]; index: number }>>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -54,7 +57,17 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
   // WARN: Openness is the boolean beside it and never this, which outlives a dismissal on purpose. `DialogContent` stays mounted through its 200ms exit (`DESIGN.md § 7.4.`), so clearing the subject on close empties the heading and the modal fades out with no title in it.
   const [pendingDelete, setPendingDelete] = useState<Nullable<PendingDelete>>(null);
   const [isRemoving, setIsRemoving] = useState(false);
-  const { media, isLoadingMore, loadMore, prepend, remove } = useArchiveMedia(initialMedia);
+  const {
+    media,
+    isLoadingMore,
+    isLoadingNewer,
+    hasHeldNewer,
+    loadMore,
+    loadNewer,
+    insertNewer,
+    prepend,
+    remove,
+  } = useArchiveMedia(initialMedia, "photo", targetId);
   const selection = useArchiveSelection();
   const setBackground = useSetBackground();
   const saving = useMediaShare();
@@ -118,14 +131,19 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
             <ArchiveGrid
               media={media}
               isLoadingMore={isLoadingMore}
+              isLoadingNewer={isLoadingNewer}
+              hasHeldNewer={hasHeldNewer}
               isSelecting={selection.isSelecting}
               selected={selection.selected}
+              targetId={targetId}
               onOpen={(cells, index) => setViewer({ cells, index })}
               onToggle={selection.toggle}
               onSweepTo={selection.sweepTo}
               // WARN: REQUIREMENTS.md § 10. Withheld while an upload is in flight for the same reason the header control is disabled — a row with no message attached yet cannot be deleted out from under the send.
               onSweepStart={staging.isUploading ? undefined : selection.startSweep}
               onLoadMore={loadMore}
+              onLoadNewer={loadNewer}
+              onInsertNewer={insertNewer}
             />
             {staging.remainingCount > 0 && (
               <p className="text-center text-body-sm text-meta">
@@ -190,6 +208,8 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
         <MediaViewer
           cells={viewer.cells}
           initialIndex={viewer.index}
+          // INFO: DESIGN.md § 7.10. 채팅's own glyph, the one the tab bar and 대화하기 already use — the jump is named by where it lands, and this one lands on a message.
+          jump={{ label: "대화에서 보기", Icon: MessageCircle, onSelect: openInChat }}
           // WARN: REQUIREMENTS.md § 10. Withheld while an upload is in flight, for the reason the 선택 control is disabled — a row whose `postMessage` has not settled would be deleted out from under the send.
           deletion={
             staging.isUploading
@@ -197,10 +217,11 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
               : { label: "보관함에서 삭제", onSelect: askToDeleteSlide }
           }
           onClose={() => setViewer(null)}
+          // WARN: REQUIREMENTS.md § 18. #1. Given for the probe, not for a question — a flat library has no bundle to ask about. The `<a href>` this replaces navigated straight at the object, and the other participant's 삭제 reaches rows on this screen with nothing publishing it, so a slide can name an object that is gone: the anchor took a standalone PWA to a JSON 404 with no way back, where `downloadMedia` says so and stays put.
+          onDownload={(mediaId) => void downloadMedia([mediaId])}
           onShare={(mediaId) => void saving.share([mediaId])}
           onSave={(mediaId) => void saving.save([mediaId])}
           onSetBackground={setBackground.open}
-          onOpenMessage={openInChat}
         />
       )}
       {/* INFO: REQUIREMENTS.md § 12.1. Mounted outside the viewer conditional above, so dismissing the viewer cannot unmount the sheet mid-write — `useSetBackground` returns the two halves separately for exactly this. */}
@@ -217,10 +238,17 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
    * outlives the route change, so left open it would cover the conversation it
    * just travelled to until the transition happened to unmount it.
    */
-  function openInChat(messageId: number) {
+  function openInChat(cell: MediaCell) {
+    // INFO: REQUIREMENTS.md § 10. A row uploaded straight into the library hangs off no message, and neither does one whose message was withdrawn. The control stays where it is and says so — withheld per slide it would be a hole opening and closing in the bar as the reader swipes (`DESIGN.md § 7.10.`).
+    if (cell.messageId === null || cell.messageId === undefined) {
+      toast.error("이동할 대화가 없어요");
+
+      return;
+    }
+
     setViewer(null);
     router.push(
-      `${CHAT_ROUTE}?${new URLSearchParams({ [CHAT_MESSAGE_PARAM]: String(messageId) })}`,
+      `${CHAT_ROUTE}?${new URLSearchParams({ [CHAT_MESSAGE_PARAM]: String(cell.messageId) })}`,
     );
   }
 
@@ -289,7 +317,7 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
    * dismissing it — `cells` is the snapshot taken when the tile was tapped, so a
    * viewer left alone keeps showing an object that no longer resolves.
    *
-   * WARN: `index` is deliberately left where it stood. It is `MediaViewer`'s `initialIndex` and moving it re-runs the mount scroll; the track keeps its own offset, and scroll snapping re-snaps to the nearest position once the removed slide's box is gone — which is the next photo, already under the reader.
+   * WARN: `index` is deliberately left where it stood — it is `MediaViewer`'s `initialIndex`, the offset the viewer *opened* at, and nothing here reopens it. The reader's real position is the held slide's id, and the viewer re-asserts the offset from that once the removed slide's box is gone — which is the next photo, already under them.
    */
   function dropFromViewer(ids: string[]) {
     const removed = new Set(ids);

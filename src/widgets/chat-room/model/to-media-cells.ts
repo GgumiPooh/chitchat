@@ -1,6 +1,13 @@
-import type { ChatMedia, MediaDraft } from "@/entities/media";
+import type { ChatMedia, ChatTrackMedia, MediaDraft } from "@/entities/media";
 import { isVideoMime, toMediaDownloadUrl, toMediaUrl, toVoiceTrack } from "@/shared/config";
+import type { Optional } from "@/shared/lib";
 import type { MediaCell } from "@/shared/ui";
+
+/**
+ * REQUIREMENTS.md § 8.1. Which bubble carries one slide of the § 7.10. viewer's
+ * track, and who sent it.
+ */
+export type TrackOwner = { messageId: number; senderId: string };
 
 export function toCellsFromMedia(media: ChatMedia[]): MediaCell[] {
   return media.map((item) => ({
@@ -18,6 +25,49 @@ export function toCellsFromMedia(media: ChatMedia[]): MediaCell[] {
     sizeBytes: item.size,
     id: item.id,
   }));
+}
+
+/**
+ * REQUIREMENTS.md § 8.1. The conversation-wide track as the viewer renders it.
+ *
+ * INFO: `toCellsFromMedia` does the whole mapping — a track row *is* a `ChatMedia` plus the columns below.
+ * INFO: DESIGN.md § 7.10. `toSenderName` rather than a name on the row. The wire carries `senderId`, and the room already holds the participants it resolves against (§ 8.7.) — a name projected per slide would be the same string repeated a thousand times and stale the moment either person renames.
+ */
+export function toCellsFromTrack(
+  track: ChatTrackMedia[],
+  toSenderName: (senderId: string) => Optional<string>,
+): MediaCell[] {
+  return toCellsFromMedia(track).map((cell, index) => {
+    const row = track[index];
+
+    return {
+      ...cell,
+      messageId: row?.messageId ?? null,
+      sentAt: row?.createdAt ?? null,
+      senderName: row ? (toSenderName(row.senderId) ?? null) : null,
+    };
+  });
+}
+
+/** REQUIREMENTS.md § 8.1. Which bubble each slide of the conversation-wide track belongs to. */
+export function toTrackOwners(track: ChatTrackMedia[]): Map<string, TrackOwner> {
+  return new Map(
+    track.map(({ messageId, senderId, id }) => [id, { messageId, senderId }] as const),
+  );
+}
+
+/**
+ * REQUIREMENTS.md § 8.1. The same map for the bubble the viewer opened on, before
+ * the conversation-wide track arrives.
+ *
+ * INFO: One bubble is one sender and one message (§ 6.), so every cell in it shares the same owner.
+ */
+export function toBubbleOwners(
+  cells: MediaCell[],
+  messageId: number,
+  senderId: string,
+): Map<string, TrackOwner> {
+  return new Map(cells.map((cell) => [cell.id, { messageId, senderId }] as const));
 }
 
 export function toCellsFromDrafts(drafts: MediaDraft[]): MediaCell[] {

@@ -37,6 +37,24 @@ export type ChatMedia = {
 };
 
 /**
+ * One slide of the chat viewer's track (REQUIREMENTS.md § 8.1.) — the conversation's
+ * photos and videos in send order.
+ *
+ * WARN: `messageId` is **not** nullable here, unlike `ArchiveMedia`'s. This track is
+ * defined by the conversation rather than by the library, so a row reaches it only
+ * by being carried by a message that is still visible — a library-only upload is not
+ * in the conversation and has no slide.
+ *
+ * INFO: `senderId` rather than an `isMine` the server resolved. The room already holds `currentUserId` and decides every other bubble's side with it (§ 6.), and a second answer to the same question is a second thing to keep true.
+ */
+export type ChatTrackMedia = ChatMedia & {
+  /** DESIGN.md § 7.10. When the slide was sent, for the viewer's caption — the same instant `ArchiveMedia` carries, and read off the same column. */
+  createdAt: string;
+  messageId: number;
+  senderId: string;
+};
+
+/**
  * A library tile (REQUIREMENTS.md § 10.). The same object as `ChatMedia` plus the
  * instant it was taken in, which is both the month section header and the second
  * half of the keyset cursor (§ 6.).
@@ -52,4 +70,15 @@ export type ArchiveMedia = ChatMedia & {
    * been deleted. The control is withheld there rather than jumping to nothing.
    */
   messageId: Nullable<number>;
+  /**
+   * DESIGN.md § 7.10. Who sent the tile, for the viewer's top bar.
+   *
+   * WARN: Resolved from `users` on every read, never projected onto the row
+   * (REQUIREMENTS.md § 8.7.) — a copied name goes stale the moment either person
+   * renames, and § 8.7. makes a rename retroactive across the whole history.
+   *
+   * WARN: `null` wherever `messageId` is, and for the same reason: a row uploaded
+   * straight into the library was never sent, so there is nobody to name.
+   */
+  senderName: Nullable<string>;
 };

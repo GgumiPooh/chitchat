@@ -3,7 +3,7 @@
 import { useChatStream } from "@/features/chat-stream/@x/set-background";
 import { updateProfile } from "@/features/update-profile/@x/set-background";
 import type { Nullable } from "@/shared/lib";
-import { ActionSheet, toast } from "@/shared/ui";
+import { ActionSheet, toast, type ActionSheetItem } from "@/shared/ui";
 import { ImageIcon, MessageSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef } from "react";
@@ -12,10 +12,17 @@ import { setChatBackground } from "../api/set-chat-background";
 
 type BackgroundSlot = "profile" | "chat";
 
+/**
+ * The `media` row 배경으로 설정 was opened over.
+ *
+ * INFO: `isVideo` rather than the whole cell, because it is the only property the sheet branches on — the two backgrounds take different kinds (§ 12.2.).
+ */
+export type BackgroundSource = { isVideo: boolean; id: string };
+
 export type SetBackgroundSheetProps = {
   className?: string;
   /** The `media` row the user is looking at, or `null` while the sheet is closed. */
-  sourceId: Nullable<string>;
+  source: Nullable<BackgroundSource>;
   onClose: () => void;
 };
 
@@ -28,6 +35,8 @@ export type SetBackgroundSheetProps = {
  * room both of them sit in (§ 12.2.). A single 배경으로 설정 would have to pick one
  * of those on the user's behalf, and either choice is a surprise half the time.
  *
+ * INFO: § 12.2. A video is the one source that gets one row — the wallpaper is image-only, and the caps that make a cover video affordable are checked before the control is even drawn (`isWearableBackgroundVideo`).
+ *
  * WARN: The two rows used to differ in who could *see* the result, and no longer do.
  * Both are visible to the other participant now, so the header says which one also
  * changes their screen — the labels alone cannot, and this sheet is reached from a
@@ -37,7 +46,7 @@ export type SetBackgroundSheetProps = {
  * both leaves the two columns pointing at two objects, which is what lets either be
  * replaced later without `discardScopedMedia` deleting the other's bytes (§ 12.).
  */
-export function SetBackgroundSheet({ className, sourceId, onClose }: SetBackgroundSheetProps) {
+export function SetBackgroundSheet({ className, source, onClose }: SetBackgroundSheetProps) {
   // WARN: A ref, not state, and it is the only thing standing between a slow connection and a leaked object. `ActionSheet` closes itself in the same tick it fires `onSelect`, so this component is already unmounted-in-effect before the first `await` resolves and no `isBusy` state it holds can gate a second tap. The viewer underneath stays up, 배경으로 설정 is still there, and each tap mints another `background/` copy that only the last write is reachable through.
   const isApplyingRef = useRef(false);
   const { setChatBackgroundMediaId } = useChatStream();
@@ -46,18 +55,43 @@ export function SetBackgroundSheet({ className, sourceId, onClose }: SetBackgrou
   return (
     <ActionSheet
       className={className}
-      isOpen={sourceId !== null}
-      header={{ title: "배경으로 설정", description: "채팅방 배경은 상대방 화면에도 같이 깔려요" }}
-      items={[
-        { label: "프로필 배경으로", Icon: ImageIcon, onSelect: () => void apply("profile") },
-        { label: "채팅방 배경으로", Icon: MessageSquare, onSelect: () => void apply("chat") },
-      ]}
+      isOpen={source !== null}
+      header={{ title: "배경으로 설정", description: toDescription() }}
+      items={buildItems()}
       onClose={onClose}
     />
   );
 
+  /**
+   * INFO: REQUIREMENTS.md § 12.2. A video reaches the profile cover alone, so the sheet drops the row rather than disabling it — § 7.10.2.'s rule for a control that is never available.
+   * WARN: The dropped row is the one the description was written for, so the sentence has to move with it. Left as it was, a single-row sheet would explain a 채팅방 배경 the user is not being offered.
+   */
+  function buildItems(): ActionSheetItem[] {
+    const profile: ActionSheetItem = {
+      label: "프로필 배경으로",
+      Icon: ImageIcon,
+      onSelect: () => void apply("profile"),
+    };
+
+    if (source?.isVideo) {
+      return [profile];
+    }
+
+    return [
+      profile,
+      { label: "채팅방 배경으로", Icon: MessageSquare, onSelect: () => void apply("chat") },
+    ];
+  }
+
+  // INFO: § 12.2. The sharing is stated wherever the wallpaper is offered; on a video there is no wallpaper row, so the sentence says why the one row is alone instead.
+  function toDescription(): string {
+    return source?.isVideo
+      ? "동영상은 프로필 배경에만 쓸 수 있어요"
+      : "채팅방 배경은 상대방 화면에도 같이 깔려요";
+  }
+
   async function apply(slot: BackgroundSlot) {
-    if (!sourceId) {
+    if (!source) {
       return;
     }
 
@@ -70,7 +104,7 @@ export function SetBackgroundSheet({ className, sourceId, onClose }: SetBackgrou
 
     isApplyingRef.current = true;
     // INFO: The sheet is already closing and the copy is a full-resolution R2 duplicate, so without this the user taps and watches nothing happen for several seconds. `toast.promise` is the only surface still on screen to say so.
-    const applied = copyAndWear(sourceId, slot);
+    const applied = copyAndWear(source.id, slot);
 
     toast.promise(applied, {
       loading: "배경으로 설정하는 중이에요",

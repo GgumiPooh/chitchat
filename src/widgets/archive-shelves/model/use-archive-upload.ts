@@ -7,7 +7,7 @@ import {
   LIBRARY_KIND_LABELS,
   MAX_UPLOAD_INFLIGHT_BYTES,
   UPLOAD_CONCURRENCY,
-  toLibraryCountUnit,
+  toMediaCountUnit,
   type LibraryKind,
 } from "@/shared/config";
 import { mapPooled, randomId } from "@/shared/lib";
@@ -95,7 +95,7 @@ export function useArchiveUpload(kind: LibraryKind, onAdded: (media: ArchiveMedi
         if (failedCount > 0) {
           // INFO: AGENTS.md § 0.4. `3장을` and `3개를` are the same sentence, so the particle is picked rather than written.
           toast.error(
-            `${josa(`${failedCount}${toLibraryCountUnit(kind)}`, "을/를")} 올리지 못했어요`,
+            `${josa(`${failedCount}${toMediaCountUnit(kind)}`, "을/를")} 올리지 못했어요`,
           );
         }
       } finally {

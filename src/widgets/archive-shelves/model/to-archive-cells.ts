@@ -18,6 +18,10 @@ export function toArchiveCells(media: ArchiveMedia[]): MediaCell[] {
     sizeBytes: item.size,
     // INFO: REQUIREMENTS.md § 10. What 대화에서 보기 needs; null for a row uploaded straight into the library, which was never sent (§ 10.).
     messageId: item.messageId,
+    // INFO: DESIGN.md § 7.10. The viewer's caption.
+    sentAt: item.createdAt,
+    // INFO: DESIGN.md § 7.10. The name above that caption. It rides the query that already resolves `messageId` (REQUIREMENTS.md § 10.), so naming the sender costs a primary-key lookup rather than a listing of its own — and it is `null` on exactly the rows `messageId` is, a library-only upload having nobody to name.
+    senderName: item.senderName,
     id: item.id,
   }));
 }

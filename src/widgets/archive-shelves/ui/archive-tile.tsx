@@ -16,6 +16,8 @@ export type ArchiveTileProps = {
   cell: MediaCell;
   isSelecting: boolean;
   isSelected: boolean;
+  /** DESIGN.md § 6.8., § 7.10. This is the tile a § 10. position jump landed on, for as long as the flash runs. */
+  isFlashing?: boolean;
   onActivate: () => void;
   /** REQUIREMENTS.md § 10. Picks this tile and anchors the sweep where the hold fired; the header control is the pointer equivalent. */
   onLongPress?: (point: LongPressPoint) => void;
@@ -27,6 +29,7 @@ export function ArchiveTile({
   cell,
   isSelecting,
   isSelected,
+  isFlashing,
   onActivate,
   onLongPress,
 }: ArchiveTileProps) {
@@ -59,6 +62,15 @@ export function ArchiveTile({
           alt=""
           // WARN: DESIGN.md § 3.2. Without it the hold starts iOS's own image drag and the selection never arms.
           draggable={false}
+        />
+        {/* INFO: DESIGN.md § 6.8. A ring rather than the bubble flash's `primary-tint` wash — a photograph fills the cell, so nothing behind it is visible, and DESIGN.md § 7.10. rules out dimming one. */}
+        {/* WARN: A sibling **above** the image, and mounted whether or not it is lit. An inset ring on the button paints under its own children, so the photograph covers it outright; and unmounting it on expiry would cut the fade rather than run it. */}
+        <span
+          className={cn(
+            "pointer-events-none absolute inset-0 rounded-sm opacity-0 ring-2 ring-primary transition-opacity duration-300 ring-inset",
+            isFlashing && "opacity-100",
+          )}
+          aria-hidden
         />
         {cell.isVideo && (
           <>

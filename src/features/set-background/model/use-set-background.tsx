@@ -2,11 +2,11 @@
 
 import type { Nullable } from "@/shared/lib";
 import { useCallback, useState, type ReactNode } from "react";
-import { SetBackgroundSheet } from "../ui/set-background-sheet";
+import { SetBackgroundSheet, type BackgroundSource } from "../ui/set-background-sheet";
 
 export type SetBackgroundControl = {
   /** Hand this to `MediaViewer`'s `onSetBackground`. */
-  open: (mediaId: string) => void;
+  open: (mediaId: string, isVideo: boolean) => void;
   /** Render this beside the viewer, never inside its conditional. */
   sheet: ReactNode;
 };
@@ -25,12 +25,14 @@ export type SetBackgroundControl = {
  * sheet mid-write and the copy is left orphaned in R2.
  */
 export function useSetBackground(): SetBackgroundControl {
-  const [sourceId, setSourceId] = useState<Nullable<string>>(null);
-  const open = useCallback((mediaId: string) => setSourceId(mediaId), []);
-  const close = useCallback(() => setSourceId(null), []);
+  const [source, setSource] = useState<Nullable<BackgroundSource>>(null);
+  const open = useCallback((mediaId: string, isVideo: boolean) => {
+    setSource({ id: mediaId, isVideo });
+  }, []);
+  const close = useCallback(() => setSource(null), []);
 
   return {
     open,
-    sheet: <SetBackgroundSheet sourceId={sourceId} onClose={close} />,
+    sheet: <SetBackgroundSheet source={source} onClose={close} />,
   };
 }

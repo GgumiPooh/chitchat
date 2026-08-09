@@ -30,9 +30,14 @@ import {
   type VoiceRecording,
 } from "@/features/upload-media";
 import {
+  ARCHIVE_GALLERY_ROUTE,
+  ARCHIVE_TARGET_PARAM,
   MESSAGE_FLASH_DURATION,
   REPLY_PREVIEW_MAX_LENGTH,
+  toMediaCountUnit,
   toMediaKind,
+  toMediaLabel,
+  type MediaKind,
   type MessageArrival,
 } from "@/shared/config";
 import {
@@ -43,6 +48,7 @@ import {
   stopVoice,
   useIsVirtualKeyboardOpen,
   useIsomorphicLayoutEffect,
+  useSettledCommit,
   useSoundUnlock,
   useUnsentWork,
   warmLineHeights,
@@ -69,7 +75,9 @@ import {
 } from "@/shared/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { measureElement as measureRenderedElement, useVirtualizer } from "@tanstack/react-virtual";
+import { josa } from "es-hangul";
 import {
+  Archive,
   Copy,
   CornerUpLeft,
   LoaderCircle,
@@ -79,6 +87,7 @@ import {
   Smile,
   Trash2,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -99,12 +108,12 @@ import {
 } from "../model/estimate-row-height";
 import { toLinkPreviewQuery } from "../model/link-preview-query";
 import { playEmoticonSound } from "../model/play-emoticon-sound";
-import { toCellsFromDrafts, toCellsFromMedia } from "../model/to-media-cells";
+import { toCellsFromDrafts, toCellsFromMedia, type TrackOwner } from "../model/to-media-cells";
 import type { ChatRow } from "../model/types";
 import { useComposerClearance } from "../model/use-composer-clearance";
 import { useLinkPreviewPrefetch } from "../model/use-link-preview-prefetch";
 import { useMessageHistory } from "../model/use-message-history";
-import { useSettledCommit } from "../model/use-settled-commit";
+import { useViewerTrack } from "../model/use-viewer-track";
 import { ChatBackdrop } from "./chat-backdrop";
 import { DateDivider } from "./date-divider";
 import { EditBar } from "./edit-bar";
@@ -258,18 +267,21 @@ export function ChatRoom({
   // INFO: DESIGN.md § 6.8. The bubble a jump landed on, until its flash expires.
   const [highlightedId, setHighlightedId] = useState<Nullable<number>>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<Nullable<number>>(null);
+  // INFO: REQUIREMENTS.md § 8.1. The slide 원본 저장 was tapped on, and every attachment of its bubble — held together so the two buttons cannot disagree about which is which.
+  // WARN: REQUIREMENTS.md § 10. The nouns are carried on the pending bundle rather than decided in the heading, because the description, both buttons and the toast all take them — hardcoded, they read 사진 over a bubble of videos.
+  // WARN: REQUIREMENTS.md § 8.1. **Two** kinds, and they answer different questions: `kind` is the bundle's, for every sentence about 모두, and `slideNoun` is the tapped slide's, for the one control that saves it alone. One noun served both until a mixed bubble (§ 6.) showed it offering to save 동영상 and saving the photos with it.
+  // WARN: REQUIREMENTS.md § 10. Openness is the boolean below and never this, which outlives a dismissal on purpose — `DialogContent` stays mounted through its 200ms exit (`DESIGN.md § 7.4.`), so cleared here every answer fades out with no title, no description and a blank 이 사진만.
+  const [pendingBundle, setPendingBundle] =
+    useState<
+      Nullable<{ mediaId: string; ids: string[]; slideNoun: string; kind: Nullable<MediaKind> }>
+    >(null);
+  const [isChoosingBundle, setIsChoosingBundle] = useState(false);
   // INFO: REQUIREMENTS.md § 8.13. The message the composer is correcting rather than replying to. Null is the ordinary composing mode.
   const [editingId, setEditingId] = useState<Nullable<number>>(null);
   // WARN: § 8.13. The composer owns its draft, so text only reaches it through this. A token rather than the string alone — cancelling an edit seeds `""`, and so does cancelling the next one, which as a bare value is no instruction at all.
   const [seededDraft, setSeededDraft] =
     useState<Optional<{ text: string; token: number }>>(undefined);
   const seedTokenRef = useRef(0);
-  // INFO: `isMine` is what gates the § 7.10. delete control — only my own attachments carry it, and it is the same confirmed delete the § 8.11. sheet reaches.
-  // WARN: REQUIREMENTS.md § 8.13. The message id is held **unconditionally**, not folded into a nullable "deletable" id. The viewer has to close when the message behind it is withdrawn, and that reaches the other participant's attachments — where a deletable-only id is null and the check could never match.
-  const [viewer, setViewer] =
-    useState<Nullable<{ cells: MediaCell[]; index: number; messageId: number; isMine: boolean }>>(
-      null,
-    );
   // INFO: The newest id the user had in view when they last left the bottom — everything past it is what the § 6.7. pill counts.
   const [seenId, setSeenId] = useState(initialMessages.at(-1)?.id ?? 0);
   const {
@@ -290,6 +302,18 @@ export function ChatRoom({
   const { pending, send, sendMedia, sendEmoticon, retry, cancel, resolve } = useSendMessage({
     onSent: appendMessage,
   });
+  // INFO: DESIGN.md § 7.10. The viewer's jump into 보관함 is a route change, and the only one this widget makes.
+  const router = useRouter();
+  // INFO: § 8.1. Derived rather than stored, so one subject writes all three sentences — the empty branch is reached only before the first tap, since the subject outlives the dismissal (see `pendingBundle`).
+  const bundleCopy = pendingBundle
+    ? {
+        // WARN: AGENTS.md § 0.4. `josa`, not a literal `을` — 사진 and 동영상 both reach this sentence, which is the case that rule names verbatim.
+        title: `이 말풍선의 ${josa(toMediaLabel(pendingBundle.kind), "을/를")} 모두 저장할까요?`,
+        description: `이 말풍선에 ${josa(toBundleCount(pendingBundle.ids.length, pendingBundle.kind), "이/가")} 담겨 있어요`,
+        // INFO: The slide's own noun, since this button saves that one slide — the only sentence here that is not about the bundle.
+        only: `이 ${pendingBundle.slideNoun}만`,
+      }
+    : { title: "", description: "", only: "" };
   // INFO: REQUIREMENTS.md § 9.1. The one surface that takes a file attachment — the library stages the same way but shows tiles, so it keeps the default.
   const selection = useMediaSelection({ acceptsFiles: true });
   const editing = useAttachmentEditing(selection.replace);
@@ -298,20 +322,6 @@ export function ChatRoom({
   const isKeyboardOpen = useIsVirtualKeyboardOpen();
   // INFO: REQUIREMENTS.md § 8.6. The composer's whole stack is put away for the length of a search, and everything it drives has to go with it.
   const isSearching = bottomBar !== undefined;
-  // INFO: REQUIREMENTS.md § 9.2. Refused for the length of a search — the composer and its tray are put away there, so a drop or a paste would stage attachments the screen offers no way to send.
-  // WARN: REQUIREMENTS.md § 9.2. Refused under an editor or the viewer too. React bubbles a drop through the *component* tree, so those overlays deliver one here however they are portalled — and one landing behind the crop editor stages into a tray the overlay is covering.
-  const canStageAttachments = !isSearching && !editing.isEditing && !viewer;
-  const fileDrop = useFileDrop({
-    isEnabled: canStageAttachments,
-    onDrop: (files) => void stageMedia(files),
-  });
-  // INFO: REQUIREMENTS.md § 9.2. The clipboard reaches the same tray a drop does, which is why it takes the same guard rather than one of its own.
-  // WARN: § 9.2. The room's own box is the fourth cover, and only this route needs one — a `window` listener has no tree position, so § 8.4.1.'s overlay (a sibling of this widget, which takes focus on mount) would otherwise have its paste staged behind it.
-  useFilePaste({
-    containerRef,
-    isEnabled: canStageAttachments,
-    onPaste: (files) => void stageMedia(files),
-  });
   // WARN: REQUIREMENTS.md § 13.8. The exemption outlives the tab by the length of the keyboard's retraction, which is what this latch holds. Leaving 검색 unmounts the field the panel had focused and the keyboard is only reported down some 250ms later — released with the tab, those frames are an unexempted panel that collapses to nothing and reopens by itself once the keys finish sliding.
   if (isEmoticonSearchExempt !== isEmoticonSearchTab && (isEmoticonSearchTab || !isKeyboardOpen)) {
     setIsEmoticonSearchExempt(isEmoticonSearchTab);
@@ -342,6 +352,28 @@ export function ChatRoom({
     () => new Map(participants.map((participant) => [participant.id, participant])),
     [participants],
   );
+  // INFO: DESIGN.md § 7.10. The name the viewer's caption shows, from the same participant set every bubble's nickname is resolved through (§ 8.7.).
+  // WARN: Memoized, because `useViewerTrack` carries this identity into every callback it hands the viewer — and one of them is what `useSettledCommit` measures its wait from (§ 8.3.).
+  const toSenderName = useCallback(
+    (senderId: string) => participantById.get(senderId)?.name,
+    [participantById],
+  );
+  // INFO: REQUIREMENTS.md § 8.1. The § 7.10. viewer's track, which reaches the whole conversation rather than the bubble that opened it, and pages at both of its edges.
+  const mediaTrack = useViewerTrack(toSenderName);
+  // INFO: REQUIREMENTS.md § 9.2. Refused for the length of a search — the composer and its tray are put away there, so a drop or a paste would stage attachments the screen offers no way to send.
+  // WARN: REQUIREMENTS.md § 9.2. Refused under an editor or the viewer too. React bubbles a drop through the *component* tree, so those overlays deliver one here however they are portalled — and one landing behind the crop editor stages into a tray the overlay is covering.
+  const canStageAttachments = !isSearching && !editing.isEditing && !mediaTrack.viewer;
+  const fileDrop = useFileDrop({
+    isEnabled: canStageAttachments,
+    onDrop: (files) => void stageMedia(files),
+  });
+  // INFO: REQUIREMENTS.md § 9.2. The clipboard reaches the same tray a drop does, which is why it takes the same guard rather than one of its own.
+  // WARN: § 9.2. The room's own box is the fourth cover, and only this route needs one — a `window` listener has no tree position, so § 8.4.1.'s overlay (a sibling of this widget, which takes focus on mount) would otherwise have its paste staged behind it.
+  useFilePaste({
+    containerRef,
+    isEnabled: canStageAttachments,
+    onPaste: (files) => void stageMedia(files),
+  });
   // INFO: REQUIREMENTS.md § 1. Exactly two people, so the first id is the only id — a list of names would be answering a question this app cannot ask.
   const typist = typingUserIds.length > 0 ? (participantById.get(typingUserIds[0]) ?? null) : null;
   const rows = useMemo(
@@ -1090,6 +1122,21 @@ export function ChatRoom({
           </Button>
         </div>
       </Modal>
+      {/* INFO: REQUIREMENTS.md § 8.1. Neither answer is destructive, so both buttons are ordinary — the § 7.4. modal is used here for the choice it frames, not for a warning. */}
+      <Modal
+        isOpen={isChoosingBundle}
+        header={{ title: bundleCopy.title, description: bundleCopy.description }}
+        onClose={() => setIsChoosingBundle(false)}
+      >
+        <div className="flex gap-xs">
+          <Button className="flex-1" variant="secondary" onClick={() => saveBundle(false)}>
+            {bundleCopy.only}
+          </Button>
+          <Button className="flex-1" haptic onClick={() => saveBundle(true)}>
+            모두 저장
+          </Button>
+        </div>
+      </Modal>
       <MediaPickerSheet
         isOpen={isPickerOpen}
         hasFileRow
@@ -1107,12 +1154,18 @@ export function ChatRoom({
         />
       )}
       {editing.trimming && renderTrimmer(editing.trimming)}
-      {viewer && (
+      {mediaTrack.viewer && (
         <MediaViewer
-          cells={viewer.cells}
-          initialIndex={viewer.index}
-          deletion={buildViewerDelete(viewer.isMine ? viewer.messageId : null)}
-          onClose={() => setViewer(null)}
+          cells={mediaTrack.viewer.cells}
+          initialIndex={mediaTrack.viewer.index}
+          deletion={buildViewerDelete(mediaTrack.viewer.owners)}
+          // INFO: DESIGN.md § 7.10. 보관함's own glyph, the one its tab carries — the mirror of 대화에서 보기's `MessageCircle`, and neither is a grid.
+          jump={{ label: "보관함에서 보기", Icon: Archive, onSelect: openInArchive }}
+          // INFO: REQUIREMENTS.md § 8.1. 채팅's track is a window and this is what extends it; 보관함 leaves the prop unset (§ 10.).
+          paging={mediaTrack.paging}
+          onOpenMessage={openBubble}
+          onDownload={askToSaveBundle}
+          onClose={mediaTrack.close}
           onShare={(mediaId) => void sharing.share([mediaId])}
           onSave={(mediaId) => void sharing.save([mediaId])}
           onSetBackground={setBackground.open}
@@ -1465,7 +1518,9 @@ export function ChatRoom({
             onShare={
               canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
             }
-            onOpenMedia={(index) => openAttachment(cells, index, row.message.id, row.isMine)}
+            onOpenMedia={(index) =>
+              openAttachment(cells, index, row.message.id, row.message.senderId)
+            }
             onOpenReply={quoted ? () => void jumpToMessage(quoted.id, { flash: true }) : undefined}
             onFollowEmoticon={toFollowEmoticon(row.message.emoticon)}
             onLongPress={() => setActionTarget(row.message)}
@@ -1498,7 +1553,7 @@ export function ChatRoom({
    * no thumbnail and no inline representation, so the § 7.10. viewer would open on
    * an empty slide it could neither draw nor swipe out of.
    */
-  function openAttachment(cells: MediaCell[], index: number, messageId: number, isMine: boolean) {
+  function openAttachment(cells: MediaCell[], index: number, messageId: number, senderId: string) {
     const cell = cells[index];
 
     if (cell?.filename) {
@@ -1509,7 +1564,104 @@ export function ChatRoom({
       return;
     }
 
-    setViewer({ cells, index, messageId, isMine });
+    mediaTrack.open(cells, index, messageId, senderId);
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.1. 원본 저장 on a slide whose bubble carries more than one
+   * attachment offers the rest of them first.
+   *
+   * WARN: The bundle is the **bubble**, never the track. The track spans the conversation now, so "모두" over it would be hundreds of files; the sender picked these together and § 6. sent them as one row, which is the only grouping the reader ever saw.
+   * INFO: A single attachment saves on the one tap it always did. A question with one answer is a question not worth asking.
+   */
+  /**
+   * WARN: AGENTS.md § 0.4. The particle after the count comes from `josa`, not from a
+   * literal. It reads as `3장을` here and would read wrongly the moment this sentence
+   * counted anything else — and the unit itself is § 10.'s, so 사진 and 파일 already
+   * disagree about which noun precedes it.
+   */
+  function saveBundle(wantsAll: boolean) {
+    // WARN: Gated on the openness flag as well as the subject, which now outlives the dismissal. `DialogContent` is mounted and still clickable through its 200ms exit (`DESIGN.md § 7.4.`), so the second half of a double tap would otherwise start the same download twice.
+    if (!pendingBundle || !isChoosingBundle) {
+      return;
+    }
+
+    const ids = wantsAll ? pendingBundle.ids : [pendingBundle.mediaId];
+
+    setIsChoosingBundle(false);
+    void downloadMedia(ids);
+    // INFO: 이 사진만 saves the slide, so it is named the way the single-attachment path names it — a count of one is not worth a counter, and the bundle's kind is not this slide's.
+    toast.success(
+      wantsAll
+        ? `${josa(toBundleCount(ids.length, pendingBundle.kind), "을/를")} 저장하고 있어요`
+        : `${josa(pendingBundle.slideNoun, "을/를")} 저장하고 있어요`,
+    );
+  }
+
+  function askToSaveBundle(mediaId: string) {
+    const siblings = toBundleItems(mediaId);
+    // INFO: REQUIREMENTS.md § 10. The slide's own kind, which names the one control that acts on the slide alone — 이 사진만 / 이 동영상만, and the toast that answers it.
+    const isVideo = mediaTrack.viewer?.cells.find((cell) => cell.id === mediaId)?.isVideo ?? false;
+    const slideNoun = toMediaLabel(isVideo ? "video" : "photo");
+
+    if (siblings.length < 2) {
+      void downloadMedia([mediaId]);
+      toast.success(`${josa(slideNoun, "을/를")} 저장하고 있어요`);
+
+      return;
+    }
+
+    setPendingBundle({
+      mediaId,
+      ids: siblings.map((item) => item.id),
+      slideNoun,
+      // WARN: REQUIREMENTS.md § 8.1. The **bundle's** kind, not the tapped slide's, because 모두 저장 acts on the bundle. § 6. lets one bubble carry photos and videos together, so a slide-named heading offered to save 동영상 and then saved the photos beside it too — it misdescribed the action rather than merely labelling it. `toMediaKind` calls a mixed set `photo`, which is the 사진 shelf's own rule for a selection carrying both.
+      kind: toMediaKind(siblings),
+    });
+    setIsChoosingBundle(true);
+  }
+
+  /**
+   * INFO: REQUIREMENTS.md § 8.1. The attachments of the bubble the slide belongs to, in the order they were sent — read off the loaded message rather than off the track, which carries no bubble boundaries.
+   * WARN: Empty when that message is no longer in the loaded window, which the conversation-wide track makes ordinary: the reader can swipe to a photo whose bubble has been paged out. The caller then saves the one slide, since the bundle it cannot see is a bundle it must not claim to know the size of.
+   * WARN: The rows rather than their ids, because the bundle's own kind is read off them (§ 6.) — an id cannot say whether it is a photo.
+   */
+  function toBundleItems(mediaId: string) {
+    const messageId = mediaTrack.viewer?.owners.get(mediaId)?.messageId;
+    const message = messageId === undefined ? undefined : messages.find((m) => m.id === messageId);
+
+    return (message?.media ?? []).filter((item) => !item.filename && !item.voice);
+  }
+
+  // INFO: REQUIREMENTS.md § 10. The unit follows the kind of the set being counted — 장 for photos and for a mixed bubble, 개 for one that is all video. § 9.1.'s files never reach the viewer at all.
+  function toBundleCount(count: number, kind: Nullable<MediaKind>): string {
+    return `${count}${toMediaCountUnit(kind)}`;
+  }
+
+  /**
+   * DESIGN.md § 7.10. The viewer's identity block travels to the bubble the slide was
+   * sent in — § 8.6.1.'s own jump, reached from the viewer.
+   *
+   * WARN: This exists only because § 8.1.'s track leaves the bubble. While the viewer showed one message's attachments the destination was the message the reader was already on, which is why 보관함's viewer had this journey and 채팅's had none.
+   * WARN: The viewer is dismissed first, or it would cover the bubble the jump flashes — the same reason both route-changing jumps close it.
+   */
+  function openBubble(messageId: number) {
+    mediaTrack.close();
+    void jumpToMessage(messageId, { flash: true });
+  }
+
+  /**
+   * DESIGN.md § 7.10. 채팅's own top-right jump, the mirror of 보관함's 대화에서 보기 —
+   * it travels to the library rather than to the conversation the reader is already in.
+   *
+   * WARN: Keyed by the media id, not the message id. The library is a grid of photos and this lands on the tile (`ARCHIVE_TARGET_PARAM`), where the § 10. viewer's jump lands on a bubble — the two directions genuinely travel by different keys.
+   * WARN: The viewer is dismissed first, for the reason 보관함's is: it is a `ShellOverlay` and the shell outlives the route change, so left open it would cover the grid it just travelled to.
+   */
+  function openInArchive(cell: MediaCell) {
+    mediaTrack.close();
+    router.push(
+      `${ARCHIVE_GALLERY_ROUTE}?${new URLSearchParams({ [ARCHIVE_TARGET_PARAM]: cell.id })}`,
+    );
   }
 
   function buildActionItems(): ActionSheetItem[] {
@@ -1688,21 +1840,44 @@ export function ChatRoom({
     }
   }
 
-  function buildViewerDelete(messageId: Nullable<number>) {
-    // INFO: DESIGN.md § 7.10. The control sits beside a per-slide 원본 저장, so the reach of one tap is not obvious from where it is — 메시지 is the label's whole job, and 보관함's viewer renders the same trash over a row-only delete.
-    return messageId === null
-      ? undefined
-      : { label: "메시지 삭제", onSelect: () => setConfirmingDeleteId(messageId) };
+  /**
+   * DESIGN.md § 7.10. The control sits beside a per-slide 원본 저장, so the reach of
+   * one tap is not obvious from where it is — 메시지 is the label's whole job, and
+   * 보관함's viewer renders the same trash over a row-only delete.
+   *
+   * WARN: REQUIREMENTS.md § 8.1. Resolved per slide, never once per open. The track
+   * crosses bubbles, so the reach of this trash changes with every swipe — and
+   * § 8.13. withdraws my own messages only, which is what `isAvailable` answers.
+   */
+  function buildViewerDelete(owners: Map<string, TrackOwner>) {
+    return {
+      label: "메시지 삭제",
+      isAvailable: (mediaId: string) => owners.get(mediaId)?.senderId === currentUserId,
+      onSelect: (mediaId: string) => {
+        const messageId = owners.get(mediaId)?.messageId;
+
+        if (messageId !== undefined) {
+          setConfirmingDeleteId(messageId);
+        }
+      },
+    };
   }
 
-  // WARN: Closes the viewer unconditionally. The same confirmation answers for the § 8.11. sheet, where there is no viewer open to close.
+  /**
+   * WARN: REQUIREMENTS.md § 8.1. The viewer is **narrowed**, not closed. It used to
+   * be closed, and that was right while the track was the one bubble being deleted —
+   * there was nothing left to look at. The track now spans the conversation, so
+   * closing it would throw the reader out of a photo stream over one bubble leaving
+   * it; the slides go and the next photo is already under them (`DESIGN.md § 7.10.`).
+   *
+   * INFO: A no-op when nothing is open, which is the § 8.11. action sheet's path into the same confirmation.
+   */
   function confirmMediaDelete() {
     if (confirmingDeleteId !== null) {
       void deleteMessage(confirmingDeleteId);
     }
 
     setConfirmingDeleteId(null);
-    setViewer(null);
   }
 
   /**
@@ -1729,6 +1904,9 @@ export function ChatRoom({
           isDeleted: true,
         });
       }
+
+      // WARN: REQUIREMENTS.md § 8.1. The open track is narrowed **here**, after the server has accepted, and never beside the confirmation. Dropped optimistically, a refused delete left the slides gone from a viewer the reader is still holding — closing it outright when that bubble was the only one in the track — while the bubble itself stayed, since the local row is only rewritten on success. There is nothing to roll back if nothing was removed.
+      mediaTrack.drop(id);
 
       if (id === editingId) {
         cancelEdit();
@@ -1765,11 +1943,12 @@ export function ChatRoom({
       setReplyTarget(null);
     }
 
-    // INFO: § 7.10. The viewer and the confirmation both name attachments the tombstone no longer has, and this reaches the other participant's photos as much as my own.
-    if (message.id === viewer?.messageId || message.id === confirmingDeleteId) {
-      setViewer(null);
+    // INFO: § 7.10. The confirmation names attachments the tombstone no longer has, and this reaches the other participant's photos as much as my own.
+    if (message.id === confirmingDeleteId) {
       setConfirmingDeleteId(null);
     }
+
+    mediaTrack.drop(message.id);
   }
 
   /** REQUIREMENTS.md § 8.13. Hands the message's current text to the composer and puts it in the correcting mode. */

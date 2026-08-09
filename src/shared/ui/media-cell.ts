@@ -52,11 +52,18 @@ export type MediaCell = {
   voice?: Nullable<VoiceTrack>;
   /**
    * REQUIREMENTS.md § 10. The message this attachment was sent in, which the
-   * viewer's 대화에서 보기 jumps to.
+   * viewer's top-right jump travels to.
    *
-   * INFO: Filled by the library alone. A chat bubble's own cells leave it unset,
-   * because the reader is already looking at the message it would jump to.
+   * INFO: Left unset by a bubble's own cells, which is the state the viewer opens in before § 8.1.'s conversation-wide track replaces them — the reader is on that message either way, so nothing is lost in the gap.
    */
   messageId?: Nullable<number>;
+  /**
+   * DESIGN.md § 7.10. When the slide was sent, for the viewer's caption.
+   *
+   * INFO: An ISO string rather than a formatted one. The viewer is the only reader and it formats to Korean itself, so a preformatted value would be one more thing for a caller to get wrong.
+   */
+  sentAt?: Nullable<string>;
+  /** DESIGN.md § 7.10. Who sent the slide, shown above the caption. Unset where the viewer has no sender to name — a draft, or a profile photo (§ 7.7.). */
+  senderName?: Nullable<string>;
   id: string;
 };
