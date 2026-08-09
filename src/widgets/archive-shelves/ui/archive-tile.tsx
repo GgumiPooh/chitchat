@@ -59,6 +59,9 @@ export function ArchiveTile({
             isSelected && "scale-90",
           )}
           src={cell.previewUrl}
+          blurhash={cell.blurhash}
+          // WARN: DESIGN.md § 7.8. The tile is square and the photo rarely is, so without the stored ratio the blur paints the whole picture squashed into the cell and the reveal re-frames it. The `object-cover` above is the rule this hands the placeholder.
+          blurhashRatio={cell.width / cell.height}
           alt=""
           // WARN: DESIGN.md § 3.2. Without it the hold starts iOS's own image drag and the selection never arms.
           draggable={false}

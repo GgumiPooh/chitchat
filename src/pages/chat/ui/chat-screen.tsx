@@ -10,7 +10,7 @@ import {
 } from "@/features/search-messages";
 import { cn, type Maybe } from "@/shared/lib";
 import { AppHeader, Container, IconButton } from "@/shared/ui";
-import { ChatRoom } from "@/widgets/chat-room";
+import { ChatRoom, useChromeTint } from "@/widgets/chat-room";
 import { Search } from "lucide-react";
 
 export type ChatScreenProps = {
@@ -36,13 +36,18 @@ export function ChatScreen({
   jumpMessageId,
 }: ChatScreenProps) {
   const search = useMessageSearch();
-  const { participants } = useChatStream();
+  const { participants, chatBackgroundBlurhash } = useChatStream();
+
+  // INFO: REQUIREMENTS.md § 12.2. Published here rather than by the backdrop that draws the photo: the tint is *this* box's own background, so its lifetime is this component's and the property cannot outlive the element that reads it.
+  // WARN: It goes on the root and is read back through `var()` because `Container` takes no `style` — every `fixed` screen owes its shell width to it (DESIGN.md § 3.3.), so this box cannot be given an inline background of its own.
+  useChromeTint(chatBackgroundBlurhash);
 
   return (
     // WARN: DESIGN.md § 3.4. The one screen that is not in the document's flow, and the reason is the keyboard rather than the layout. WebKit pans the visual viewport to reveal a focused field, and it can only do that to a document there is something to scroll — a `fixed` box sized to the visual viewport leaves it nothing, so `offsetTop` stays `0` and no chrome has to chase it from script. Every other screen keeps the document scroller, and Safari's collapsing toolbar with it (§ 3.3.).
     // WARN: `Container`, because a `fixed` box has left the shell column and inherits neither its max width nor its centring — the same re-application `AppHeader` and `BottomOverlay` make.
     // WARN: DESIGN.md § 3.4. The height eases and `top` never does. WebKit reports `visualViewport.height` in a couple of coarse steps while the keys slide, so a raw height lands the composer in its new place in one jump — the keyboard glides, the input bar teleports. `top` is the opposite case: it corrects a pan the user can already see, so easing it would draw the wrong position out instead of hiding it.
-    // WARN: REQUIREMENTS.md § 12.2. The background carries `--chat-chrome-tint`, exactly as `body` does for every other screen. This box is `fixed` and borders both obscured content insets, so on iOS 26 it is what Safari samples its status bar and toolbar from (§ 3.3.) — `body` is behind it and never reached, and `useBackdropTint`'s wallpaper colour would have nowhere to land.
+    // WARN: REQUIREMENTS.md § 12.2. The background carries `--chat-chrome-tint`, exactly as `body` does for every other screen. This box is `fixed` and borders both obscured content insets, so on iOS 26 it is what Safari samples its status bar and toolbar from (§ 3.3.) — `body` is behind it and never reached, and the wallpaper's colour would have nowhere to land.
+    // INFO: `ChatRoom` is this box's only in-flow child and it paints an opaque `chat-canvas` over the whole of it, which changes nothing: what is sampled is this element's computed `background-color`, not whichever pixel survives to the screen. The two agree anyway — the strip at the top edge is the wallpaper under the § 12.2. wash, which is exactly what the tint is an average of, and with no wallpaper both are `chat-canvas`.
     <Container
       className={cn(
         // WARN: DESIGN.md § 3.3. `border-x`, matching the shell's own — this box covers the column's edges, so without it the hairline that separates the app from the desktop gutter stops at the chat route.

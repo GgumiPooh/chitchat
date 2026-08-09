@@ -1,7 +1,7 @@
 "use client";
 
 import { toMediaUrl } from "@/shared/config";
-import { cn } from "@/shared/lib";
+import { cn, type Nullable } from "@/shared/lib";
 import { PreloadImage } from "./preload-image";
 import { PreloadVideo } from "./preload-video";
 
@@ -10,6 +10,18 @@ export type BackgroundMediaProps = {
   mediaId: string;
   /** REQUIREMENTS.md § 12.1. A profile cover may be a video; a chat wallpaper never is (§ 12.2.). */
   isVideo?: boolean;
+  /**
+   * REQUIREMENTS.md § 9. The stored hash, painted over the whole box while the photo
+   * downloads. This is the largest asset any screen loads, so it is the one placeholder
+   * a reader spends real time looking at.
+   *
+   * WARN: The video branch below takes none, and that is `PreloadVideo`'s own decision
+   * rather than an omission here — a postered element is revealed on its first render,
+   * so the frame would never paint the blur at all.
+   *
+   * WARN: No `blurhashRatio` goes with it, so the hash decodes square (DESIGN.md § 7.8.). This is drawn from a media **id**: the § 7.16. cover's `Participant` carries the id and the video flag and no `media` row, so there is nothing here that knows the photo's shape.
+   */
+  blurhash?: Nullable<string>;
 };
 
 /**
@@ -26,7 +38,12 @@ export type BackgroundMediaProps = {
  * at all on iOS, and `playsInline` additionally stops the element demanding
  * fullscreen the moment it starts. `loop` is what the feature is for.
  */
-export function BackgroundMedia({ className, mediaId, isVideo = false }: BackgroundMediaProps) {
+export function BackgroundMedia({
+  className,
+  mediaId,
+  isVideo = false,
+  blurhash,
+}: BackgroundMediaProps) {
   if (isVideo) {
     return (
       <PreloadVideo
@@ -53,6 +70,7 @@ export function BackgroundMedia({ className, mediaId, isVideo = false }: Backgro
       placeholderClassName="bg-scrim"
       src={toMediaUrl(mediaId, "original")}
       hasSkeleton={false}
+      blurhash={blurhash}
       alt=""
     />
   );

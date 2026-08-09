@@ -85,6 +85,8 @@ async function registerUpload(
       width: draft.width,
       height: draft.height,
       durationMs: draft.durationMs,
+      // INFO: REQUIREMENTS.md § 9. Encoded from the very thumbnail the PUT above uploaded, so the placeholder and the object it stands in for cannot disagree.
+      blurhash: draft.blurhash,
       filename: draft.filename,
       // INFO: REQUIREMENTS.md § 9.3. Already in the wire form the column stores — a draft carries integers, and only what renders converts to `0`–`1`.
       waveformPeaks: draft.waveformPeaks,

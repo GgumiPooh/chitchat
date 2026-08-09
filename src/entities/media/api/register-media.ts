@@ -26,6 +26,8 @@ export type RegisterMediaParams = {
   width: number;
   height: number;
   durationMs?: Nullable<number>;
+  /** REQUIREMENTS.md § 9. The placeholder for the `_thumb` object, encoded in the browser from the pixels it uploaded — the server never sees them, so it cannot produce one. */
+  blurhash?: Nullable<string>;
   /** REQUIREMENTS.md § 9.1. What the file was picked as. Required of a file attachment and ignored for a photo or video, which are named by their type. */
   filename?: Nullable<string>;
   /** REQUIREMENTS.md § 9.3. The waveform extracted while recording, and the thing that makes this row a voice message rather than an attached audio file. */
@@ -62,6 +64,7 @@ export async function registerMedia({
   width,
   height,
   durationMs,
+  blurhash,
   filename,
   waveformPeaks,
   addToGallery = false,
@@ -137,6 +140,9 @@ export async function registerMedia({
       height: hasNoBox ? 0 : height,
       // WARN: § 9.3. A voice message **keeps** its duration where a file drops one. It is not decoration: the player draws its progress against this figure rather than against `audio.duration`, which a `MediaRecorder` WebM reports as `Infinity`. Nulling it here is what left the waveform frozen at `0:00`.
       durationMs: isFile ? null : (durationMs ?? null),
+      // INFO: § 9.1., § 9.3. Nulled across `hasNoBox` for one reason, not two: neither kind uploaded a `_thumb` object for a placeholder to stand in for, and neither is drawn in a box one could be painted into.
+      // WARN: Accepted as sent for everything else, and shape is all that was checked (`POST /api/media`). A forged hash blurs to a colour the thumbnail then replaces — the same bounded consequence § 9.3. accepts for client-supplied peaks, and unlike them this is not a discriminator, so nothing branches on it.
+      blurhash: hasNoBox ? null : (blurhash ?? null),
       filename: storedName,
       waveformPeaks: isVoice ? waveformPeaks : null,
       galleryAddedAt: addToGallery ? new Date() : null,

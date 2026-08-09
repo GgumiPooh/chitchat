@@ -91,6 +91,8 @@ export async function copyMediaIntoScope({
     width: source.width,
     height: source.height,
     durationMs: source.durationMs,
+    // WARN: Carried across, and this is the one path that has to. `copySourceObjects` duplicates the `_thumb` object byte for byte, so the source's placeholder describes the copy exactly — and the bytes never pass through a client that could encode a replacement (§ 9.), so dropping it leaves a background with no placeholder forever.
+    blurhash: source.blurhash,
     scope,
   });
 

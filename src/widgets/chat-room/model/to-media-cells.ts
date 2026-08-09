@@ -13,6 +13,7 @@ export function toCellsFromMedia(media: ChatMedia[]): MediaCell[] {
   return media.map((item) => ({
     // INFO: REQUIREMENTS.md § 9.1., § 9.3. Neither a file nor a recording has a `_thumb` object, so both are given no URL to load rather than one that answers 404 behind every card.
     previewUrl: item.filename || item.voice ? null : toMediaUrl(item.id),
+    blurhash: item.blurhash,
     originalUrl: toMediaUrl(item.id, "original"),
     downloadUrl: toMediaDownloadUrl(item.id),
     width: item.width,
@@ -73,6 +74,8 @@ export function toBubbleOwners(
 export function toCellsFromDrafts(drafts: MediaDraft[]): MediaCell[] {
   return drafts.map((draft) => ({
     previewUrl: draft.previewUrl,
+    // INFO: Null although the draft holds one — the preview above is a local blob, so a hash would be decoded, upscaled and handed to the compositor to race an image that reaches the screen without a network at all.
+    blurhash: null,
     // WARN: REQUIREMENTS.md § 9.3. A recording is the one draft that hands over an original, because a voice bubble is playable while it uploads and the local blob is the only source there is. Everything else has no full-size object until the upload registers, and a photo's own preview is a thumbnail rather than one.
     originalUrl: draft.waveformPeaks ? draft.previewUrl : null,
     downloadUrl: null,

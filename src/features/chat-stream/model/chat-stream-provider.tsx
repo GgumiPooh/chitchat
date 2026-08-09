@@ -48,6 +48,16 @@ export type ChatStreamValue = {
    */
   chatBackgroundMediaId: Nullable<string>;
   /**
+   * REQUIREMENTS.md § 12.2. The wallpaper's stored hash, whose DC term is the photo's
+   * average colour — what the chat route's chrome is tinted with (`useChromeTint`).
+   *
+   * WARN: It rides beside the id rather than being derived from it, because the only
+   * other way to the average is downloading the photo and reading a canvas — which is
+   * what this replaced (§ 9.'s media route answers a 302 into R2, so that read was
+   * subject to a CORS check and landed only after the full-size decode).
+   */
+  chatBackgroundBlurhash: Nullable<string>;
+  /**
    * REQUIREMENTS.md § 12.2. Declared by whoever just wrote the wallpaper, with the id
    * the server answered.
    *
@@ -57,6 +67,12 @@ export type ChatStreamValue = {
    * arrives there; the 채팅방 배경 row lives on the first of those and 배경으로 설정
    * is reached from the second. Left to the stream, the row's own thumbnail kept
    * showing the photo it replaced until the next full load.
+   *
+   * WARN: It **clears** the hash above, since a writer names an id and knows nothing
+   * of the hash. Kept, that is the previous wallpaper's colour on the chrome of the
+   * room the new one is behind; cleared, the chrome falls back to `chat-canvas` until
+   * the write's own `user_changed` — or the room's `onopen` catch-up (§ 8.4.) —
+   * refetches the payload it belongs to.
    */
   setChatBackgroundMediaId: (mediaId: Nullable<string>) => void;
   unreadCount: number;
@@ -83,6 +99,8 @@ export type ChatStreamProviderProps = PropsWithChildren<{
   initialParticipants: Participant[];
   /** REQUIREMENTS.md § 12.2. Seeded by the shell's render, so the room paints its wallpaper before any request is made. */
   initialChatBackgroundMediaId: Nullable<string>;
+  /** REQUIREMENTS.md § 12.2. Seeded with it, so the chrome is tinted on the chat route's first paint rather than a request later. */
+  initialChatBackgroundBlurhash: Nullable<string>;
   initialUnreadCount: number;
 }>;
 
@@ -115,11 +133,16 @@ export function ChatStreamProvider({
   currentUserId,
   initialParticipants,
   initialChatBackgroundMediaId,
+  initialChatBackgroundBlurhash,
   initialUnreadCount,
   children,
 }: ChatStreamProviderProps) {
   const [participants, setParticipants] = useState(initialParticipants);
-  const [chatBackgroundMediaId, setChatBackgroundMediaId] = useState(initialChatBackgroundMediaId);
+  // INFO: REQUIREMENTS.md § 12.2. One value, because the id and the hash describe the same photo and every writer of either has both or neither.
+  const [chatBackground, setChatBackground] = useState({
+    mediaId: initialChatBackgroundMediaId,
+    blurhash: initialChatBackgroundBlurhash,
+  });
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   // INFO: REQUIREMENTS.md § 8.12. When each signal stops counting, by this device's clock. Nothing seeds it — 입력 중 is never replayed, so a fresh mount knows nothing until a live event arrives.
   const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
@@ -143,6 +166,11 @@ export function ChatStreamProvider({
     return () => {
       listeners.current.delete(listener);
     };
+  }, []);
+
+  // WARN: @see ChatStreamValue.setChatBackgroundMediaId — the hash is dropped rather than carried over, because it belongs to the photo being replaced.
+  const setChatBackgroundMediaId = useCallback((mediaId: Nullable<string>) => {
+    setChatBackground({ mediaId, blurhash: null });
   }, []);
 
   const setIsReading = useCallback((isReading: boolean) => {
@@ -254,7 +282,8 @@ export function ChatStreamProvider({
     <ChatStreamContext.Provider
       value={{
         participants,
-        chatBackgroundMediaId,
+        chatBackgroundMediaId: chatBackground.mediaId,
+        chatBackgroundBlurhash: chatBackground.blurhash,
         setChatBackgroundMediaId,
         unreadCount,
         typingUserIds,
@@ -392,7 +421,11 @@ export function ChatStreamProvider({
     if (next) {
       setParticipants(next.participants);
       // INFO: REQUIREMENTS.md § 12.2. Set unconditionally, `null` included — this is how 기본 배경으로 reaches the other participant.
-      setChatBackgroundMediaId(next.chatBackgroundMediaId);
+      // WARN: The state setter, never `setChatBackgroundMediaId` above — that one deliberately drops the hash, and this payload is the one place the real hash arrives.
+      setChatBackground({
+        mediaId: next.chatBackgroundMediaId,
+        blurhash: next.chatBackgroundBlurhash,
+      });
     }
   }
 

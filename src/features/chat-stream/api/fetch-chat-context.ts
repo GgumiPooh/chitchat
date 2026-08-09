@@ -11,6 +11,8 @@ import type { Nullable } from "@/shared/lib";
 export type ChatContext = {
   participants: Participant[];
   chatBackgroundMediaId: Nullable<string>;
+  /** REQUIREMENTS.md § 12.2. The wallpaper's own hash, which the chat route's chrome takes its colour from. */
+  chatBackgroundBlurhash: Nullable<string>;
 };
 
 export async function fetchChatContext(): Promise<ChatContext> {
@@ -20,10 +22,11 @@ export async function fetchChatContext(): Promise<ChatContext> {
     throw new Error(`GET ${USERS_PATH} responded ${response.status}`);
   }
 
-  const { users, chatBackgroundMediaId } = (await response.json()) as {
+  const { users, chatBackgroundMediaId, chatBackgroundBlurhash } = (await response.json()) as {
     users: Participant[];
     chatBackgroundMediaId: Nullable<string>;
+    chatBackgroundBlurhash: Nullable<string>;
   };
 
-  return { participants: users, chatBackgroundMediaId };
+  return { participants: users, chatBackgroundMediaId, chatBackgroundBlurhash };
 }

@@ -353,8 +353,14 @@ export function ChatRoom({
     }
   }, [isSearching]);
   // INFO: REQUIREMENTS.md § 12.2. The wallpaper comes from here rather than from a prop, because either participant can change it and the other one must see it without leaving the room.
-  const { participants, chatBackgroundMediaId, typingUserIds, setIsReading, markRead } =
-    useChatStream();
+  const {
+    participants,
+    chatBackgroundMediaId,
+    chatBackgroundBlurhash,
+    typingUserIds,
+    setIsReading,
+    markRead,
+  } = useChatStream();
   // WARN: REQUIREMENTS.md § 8.12. Only the two *sustained* sources are passed; typing arrives as edit pulses through the returned callback, because a field holding a draft is not somebody typing. Sending is not a trigger either way — it clears both of these and produces no edit.
   // WARN: REQUIREMENTS.md § 8.12. Silent for the length of a search. A staged emoticon is state that outlives the hidden composer, so left connected it holds the signal up and re-POSTs every `TYPING_PING_INTERVAL` — the other participant reads 입력 중 from a composer that is not even on screen, which is exactly the parked-draft failure § 8.12. exists to have removed.
   const signalEdit = useTypingSignal(
@@ -923,12 +929,15 @@ export function ChatRoom({
   return (
     // INFO: DESIGN.md § 3.5. One scroll region spanning the whole screen; the composer and the tab bar float over its bottom edge rather than shortening it.
     // INFO: REQUIREMENTS.md § 9.2. The drop target is the whole room, so a file dragged anywhere over the conversation stages rather than having to find the composer.
+    // INFO: REQUIREMENTS.md § 12.2. `bg-chat-canvas` covers `ChatScreen`'s `--chat-chrome-tint` completely and is meant to — that box is sampled for its computed `background-color`, not for what is visible, so the room's own floor is free to be the flat surface every colour in it was designed against.
     <div
       ref={containerRef}
       className={cn("relative min-h-0 flex-1 bg-chat-canvas", className)}
       {...fileDrop.handlers}
     >
-      {chatBackgroundMediaId && <ChatBackdrop mediaId={chatBackgroundMediaId} />}
+      {chatBackgroundMediaId && (
+        <ChatBackdrop mediaId={chatBackgroundMediaId} blurhash={chatBackgroundBlurhash} />
+      )}
       {rows.length === 0 ? (
         <>
           <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">

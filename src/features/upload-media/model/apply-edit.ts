@@ -70,7 +70,12 @@ export async function applyEdit(
     );
 
     const blob = await toBlob(canvas, false, outputMime);
-    const thumbnail = await renderThumbnail(canvas, size.width, size.height, outputMime);
+    const { blob: thumbnail, blurhash } = await renderThumbnail(
+      canvas,
+      size.width,
+      size.height,
+      outputMime,
+    );
 
     return {
       id: draft.id,
@@ -81,6 +86,8 @@ export async function applyEdit(
       width: size.width,
       height: size.height,
       durationMs: null,
+      // WARN: Re-derived with the rest, never carried over from `draft`. A crop or a filter is a different picture, and a stale hash blurs to the one the user edited away from.
+      blurhash,
       filename: null,
       waveformPeaks: null,
     };

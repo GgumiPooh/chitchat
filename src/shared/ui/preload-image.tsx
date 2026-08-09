@@ -3,6 +3,7 @@
 import type { Nullable } from "@/shared/lib";
 import { ImageOff } from "lucide-react";
 import type { ComponentProps, CSSProperties, SyntheticEvent } from "react";
+import type { BlurhashFit } from "./blur-placeholder";
 import { PreloadFrame, toMediaElementClassName, useLoadStatus } from "./preload-media";
 
 export type PreloadImageProps = Omit<ComponentProps<"img">, "placeholder" | "style" | "src"> & {
@@ -23,12 +24,30 @@ export type PreloadImageProps = Omit<ComponentProps<"img">, "placeholder" | "sty
   canRetry?: boolean;
   /** WARN: DESIGN.md § 7.8. Off for a full-bleed backdrop, where `placeholderClassName` is the flat surface the load is meant to hide behind — `Skeleton` is opaque `surface-strong` and would paint straight over it, turning the whole screen into a pulsing plate. */
   hasSkeleton?: boolean;
+  /**
+   * The asset's stored hash, decoded and painted while it loads.
+   *
+   * WARN: It **replaces** the skeleton wherever there is one, so `hasSkeleton` stops
+   * deciding anything — an opaque `surface-strong` pulse over a blur hides it, which
+   * is the argument `ChatBackdrop` already carries for a flat floor. A row that has
+   * no hash is unchanged and still pulses.
+   */
+  blurhash?: Nullable<string>;
+  /**
+   * The asset's own width ÷ height, which is the shape the hash is decoded at.
+   *
+   * WARN: DESIGN.md § 7.8. A caller that knows its geometry SHOULD pass it, whatever shape the box is. A decode is the whole picture resampled rather than a crop of it, so without the ratio the blur is square and `object-cover`'s crop has nothing to agree with — a 4:3 photo in 보관함's square tile showed the strips the loaded image cuts away, horizontally squashed, and re-framed the moment it revealed.
+   */
+  blurhashRatio?: number;
+  /** How `imgClassName` fits the image, since the blur has to be framed by the same rule. `cover` unless the image carries `object-contain`. */
+  blurhashFit?: BlurhashFit;
 };
 
 /**
- * An `<img>` that shows a DESIGN.md § 7.8. skeleton until its asset paints, and a
- * static glyph if the asset never arrives. The box, the skeleton and the retry are
- * `PreloadFrame` and `useLoadStatus`, shared with `PreloadVideo`.
+ * An `<img>` that stands in for its asset until it paints — a decoded `blurhash`
+ * where the row carries one, a DESIGN.md § 7.8. skeleton where it does not — and
+ * ends on a static glyph if the asset never arrives. The box, the placeholder and
+ * the retry are `PreloadFrame` and `useLoadStatus`, shared with `PreloadVideo`.
  */
 export function PreloadImage({
   className,
@@ -38,6 +57,9 @@ export function PreloadImage({
   src,
   canRetry = true,
   hasSkeleton = true,
+  blurhash,
+  blurhashRatio,
+  blurhashFit,
   onLoad,
   onError,
   ...props
@@ -56,6 +78,9 @@ export function PreloadImage({
       status={status}
       isRevealed={isRevealed}
       hasSkeleton={hasSkeleton}
+      blurhash={blurhash}
+      blurhashRatio={blurhashRatio}
+      blurhashFit={blurhashFit}
       failureIcon={ImageOff}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- The asset routes of REQUIREMENTS.md § 9. and § 13.3. answer a 302 to a presigned R2 URL, which `next/image` cannot take as a loader source. */}

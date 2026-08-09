@@ -91,6 +91,8 @@ export function MediaGrid({
             className="size-full"
             imgClassName="size-full object-cover"
             src={cell.previewUrl}
+            blurhash={cell.blurhash}
+            blurhashRatio={cell.width / cell.height}
             alt=""
             // WARN: DESIGN.md § 3.2. Without it the hold on a bubble starts iOS's own image drag before the § 8.11. sheet can open.
             draggable={false}
@@ -116,6 +118,9 @@ export function MediaGrid({
               className="size-full"
               imgClassName="size-full object-cover ring-1 ring-hairline ring-inset"
               src={cell.previewUrl}
+              blurhash={cell.blurhash}
+              // WARN: DESIGN.md § 7.8. As 보관함's tile — these cells are square whatever shape the attachment is, so the blur needs the ratio to be cropped where the photo is.
+              blurhashRatio={cell.width / cell.height}
               alt=""
               draggable={false}
             />
