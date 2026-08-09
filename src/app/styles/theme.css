@@ -278,6 +278,12 @@
   );
 }
 
+/* WARN: DESIGN.md § 3.4. `env(safe-area-inset-bottom)` never moves for the keyboard, so with the keys up the lift is paying for a home indicator the keyboard already covers — 34px of dead space the composer floated above the keys on. */
+/* INFO: DESIGN.md § 7.3. A flag from `BottomOverlay` rather than arithmetic on `--viewport-bottom`, which WebKit's pan moves on every frame of a scroll and would jitter the clearance with it. */
+:root[data-keyboard-open] {
+  --bar-lift: var(--bar-float-gap);
+}
+
 /* INFO: DESIGN.md § 5.2. Rebinds the same names `@theme` declared, so `bg-canvas` swaps without a `dark:` utility existing anywhere. */
 /* WARN: DESIGN.md § 5.4. Hand-tuned, never arithmetically inverted, and no neutral is `#000000` — the warm bias is what makes this the same product with the lights off. */
 .dark {

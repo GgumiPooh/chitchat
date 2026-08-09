@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type PropsWithChildren } from "react";
 import { Container } from "./container";
 
 const INSET_PROPERTY = "--bottom-inset";
+const KEYBOARD_ATTRIBUTE = "data-keyboard-open";
 
 export type BottomOverlayProps = PropsWithChildren<{
   className?: string;
@@ -51,6 +52,21 @@ export function BottomOverlay({ className, children }: BottomOverlayProps) {
       document.documentElement.style.removeProperty(INSET_PROPERTY);
     };
   }, []);
+
+  // INFO: DESIGN.md § 3.5. Published from here because this is already the one place the keyboard is decided (§ 7.3.); `theme.css` reads it back to drop the home-indicator inset from `--bar-lift`.
+  useEffect(() => {
+    if (!isKeyboardOpen) {
+      return;
+    }
+
+    const root = document.documentElement;
+
+    root.setAttribute(KEYBOARD_ATTRIBUTE, "");
+
+    return () => {
+      root.removeAttribute(KEYBOARD_ATTRIBUTE);
+    };
+  }, [isKeyboardOpen]);
 
   return (
     // WARN: Transparent to the pointer, so content scrolling underneath stays tappable. Every bar inside re-enables it on its own visible surface.
