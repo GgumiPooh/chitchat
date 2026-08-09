@@ -317,7 +317,7 @@ export function MediaViewer({
       {/* WARN: `role`/`aria-modal` by hand, because this composes no Radix primitive (§ 12.3.) — and required, not decoration: the hook focuses this element on open, so without them focus lands on an anonymous `div` and a reader is told nothing while the conversation behind stays exposed to it. */}
       <div
         ref={overlayRef}
-        className={cn("absolute inset-0 z-40 flex flex-col bg-scrim/90", className)}
+        className={cn("absolute inset-0 z-40 flex flex-col bg-scrim", className)}
         role="dialog"
         aria-modal="true"
         aria-label="첨부 크게 보기"

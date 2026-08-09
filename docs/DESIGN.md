@@ -974,7 +974,7 @@ The chips are withheld in selection mode, in the same swap that replaces the hea
 
 Everything below this paragraph describes the **사진** segment, which is what this section covered before 파일 existed; the 파일 and 음성 segments are § 7.10.1. and § 7.10.2.
 
-3-column grid, `2xs` (4px) gutters, square `object-cover` cells, `rounded-sm`. Month section header is `title-sm` `meta` and **scrolls with the grid**. Viewer is full-bleed on `scrim` at 90% opacity; slides carry vertical padding only, since a side gutter reads as a frame around a photo the viewer exists to show whole.
+3-column grid, `2xs` (4px) gutters, square `object-cover` cells, `rounded-sm`. Month section header is `title-sm` `meta` and **scrolls with the grid**. Viewer is full-bleed on **opaque** `scrim`; slides carry vertical padding only, since a side gutter reads as a frame around a photo the viewer exists to show whole. It was 90% and the grid showed through, which read as a screen not fully committed to rather than as depth — every other full-screen overlay here (`ProfileOverlay`, the § 9.2. editors) is already flat `scrim`, and this one is the surface most in need of nothing competing with the photo. A translucent scrim belongs to a sheet, which is partial by definition (§ 3.5.1.).
 
 **The chrome is two bars and a pair of step arrows, and identity is separated from action.** The top bar holds the close `icon-button`, the sender and a caption beneath it, and one jump control at the far right. The bottom bar holds every action: `원본 저장` alone on the left, a pill carrying `삭제` and `배경으로 설정`, and `공유` alone on the right — collapsing on iOS to `저장/공유` in the share slot, by the same rule the § 7.10. selection bar follows (`REQUIREMENTS.md § 8.11.`).
 
