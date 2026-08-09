@@ -51,7 +51,7 @@ export function ChatScreen({
     <Container
       className={cn(
         // WARN: DESIGN.md § 3.3. `border-x`, matching the shell's own — this box covers the column's edges, so without it the hairline that separates the app from the desktop gutter stops at the chat route.
-        "fixed inset-x-0 top-[var(--viewport-top,0px)] flex h-[var(--viewport-height,100dvh)] flex-col border-x border-hairline bg-[var(--chat-chrome-tint,var(--color-chat-canvas))] px-0 transition-[height] duration-200 ease-out",
+        "fixed inset-x-0 top-(--keyboard-pan) flex h-[var(--viewport-height,100dvh)] flex-col border-x border-hairline bg-[var(--chat-chrome-tint,var(--color-chat-canvas))] px-0 transition-[height] duration-200 ease-out",
         className,
       )}
     >
