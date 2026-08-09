@@ -9,6 +9,8 @@ import { MAX_EMOTICON_PACK_NAME_LENGTH } from "@/shared/config";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+// WARN: REQUIREMENTS.md § 13.7.1. jandh-emoticons mirrors this handler, and the browser reaches whichever copy the switch names. Both sides change together — a fix landed here alone is one this app stops running the moment the switch is on.
+
 const bodySchema = z.object({
   name: z.string().trim().min(1).max(MAX_EMOTICON_PACK_NAME_LENGTH),
 });

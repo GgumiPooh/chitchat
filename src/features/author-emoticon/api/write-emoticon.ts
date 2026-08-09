@@ -1,6 +1,6 @@
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import { request } from "@/shared/api";
-import { EMOTICON_ITEMS_PATH, EMOTICON_KEYWORDS_URL, EMOTICON_PACKS_PATH } from "@/shared/config";
+import { EMOTICON_ITEMS_URL, EMOTICON_KEYWORDS_URL, EMOTICON_PACKS_URL } from "@/shared/config";
 import type { Maybe, Nullable } from "@/shared/lib";
 
 export type CreateEmoticonBody = {
@@ -48,11 +48,12 @@ export class KeywordRateLimitError extends Error {
  * WARN: Suggestions only — nothing is saved by asking. The caller puts them in the
  * field the user is already editing, and § 13.4.'s own write is what commits them.
  *
- * WARN: § 13.8.1. The one request in this app that leaves its origin, so it is the
- * one that names `credentials` — `fetch` defaults to `same-origin` and would send
- * the session cookie nowhere. Sharing `jeheecheon.com` makes the two same-**site**,
- * which is what stops `SameSite=Lax` refusing the cookie; it does nothing about SOP,
- * and the far route answers that with CORS.
+ * WARN: § 13.8.1. Cross-origin, and the session rides on `request`'s own
+ * `credentials: "include"` rather than on a line here — § 13.7.1. made every emoticon
+ * call a candidate for leaving the origin, so naming it per caller was one more thing
+ * to forget. Sharing `jeheecheon.com` makes the two same-**site**, which is what stops
+ * `SameSite=Lax` refusing the cookie; it does nothing about SOP, and the far route
+ * answers that with CORS.
  */
 export async function suggestEmoticonKeywords(
   itemIds: string[],
@@ -61,7 +62,6 @@ export async function suggestEmoticonKeywords(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ itemIds }),
-    credentials: "include",
   });
 
   if (response.status === 429) {
@@ -80,14 +80,14 @@ export async function suggestEmoticonKeywords(
 }
 
 export async function createEmoticonPack(name: string): Promise<EmoticonPackSummary> {
-  const { pack } = await send<{ pack: EmoticonPackSummary }>(EMOTICON_PACKS_PATH, "POST", { name });
+  const { pack } = await send<{ pack: EmoticonPackSummary }>(EMOTICON_PACKS_URL, "POST", { name });
 
   return pack;
 }
 
 export async function createEmoticon(packId: string, body: CreateEmoticonBody): Promise<Emoticon> {
   const { emoticon } = await send<{ emoticon: Emoticon }>(
-    `${EMOTICON_PACKS_PATH}/${packId}/items`,
+    `${EMOTICON_PACKS_URL}/${packId}/items`,
     "POST",
     body,
   );
@@ -97,7 +97,7 @@ export async function createEmoticon(packId: string, body: CreateEmoticonBody): 
 
 export async function updateEmoticon(itemId: string, body: UpdateEmoticonBody): Promise<Emoticon> {
   const { emoticon } = await send<{ emoticon: Emoticon }>(
-    `${EMOTICON_ITEMS_PATH}/${itemId}`,
+    `${EMOTICON_ITEMS_URL}/${itemId}`,
     "PATCH",
     body,
   );
@@ -109,15 +109,15 @@ export async function updateEmoticonPack(
   packId: string,
   body: { name?: string; thumbnailItemId?: Nullable<string> },
 ): Promise<void> {
-  await send(`${EMOTICON_PACKS_PATH}/${packId}`, "PATCH", body);
+  await send(`${EMOTICON_PACKS_URL}/${packId}`, "PATCH", body);
 }
 
 export async function deleteEmoticonPack(packId: string): Promise<void> {
-  await send(`${EMOTICON_PACKS_PATH}/${packId}`, "DELETE");
+  await send(`${EMOTICON_PACKS_URL}/${packId}`, "DELETE");
 }
 
 export async function deleteEmoticon(itemId: string): Promise<void> {
-  await send(`${EMOTICON_ITEMS_PATH}/${itemId}`, "DELETE");
+  await send(`${EMOTICON_ITEMS_URL}/${itemId}`, "DELETE");
 }
 
 /**

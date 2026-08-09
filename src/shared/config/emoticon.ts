@@ -2,33 +2,68 @@ import { A_DAY, A_MEGABYTE, A_SECOND, type Nullable } from "@/shared/lib";
 // INFO: REQUIREMENTS.md § 13.9.1. The same dependency `josa` comes from (`CLAUDE.md § 0.4.`) — the Hangul decompositions a Korean search needs are shipped with it, and no ranking library has them.
 import { canBeChoseong, convertQwertyToHangul, disassemble, getChoseong } from "es-hangul";
 
-/** REQUIREMENTS.md § 13.3. Presigned PUT then registration, exactly as § 9. does — but no `_thumb` sibling and no `media` row. */
-export const EMOTICON_UPLOAD_URL_PATH = "/api/emoticons/upload-url";
-
-export const EMOTICON_PACKS_PATH = "/api/emoticons/packs";
-
-export const EMOTICON_ITEMS_PATH = "/api/emoticons/items";
-
-export const EMOTICON_PREFS_PATH = "/api/emoticons/prefs";
+// WARN: REQUIREMENTS.md § 13.7.1. Held apart from the fallback below, because the switch has to be able to tell a configured origin from a defaulted one.
+const EMOTICONS_ORIGIN_SETTING = (process.env.NEXT_PUBLIC_EMOTICONS_ORIGIN ?? "").trim();
 
 // WARN: REQUIREMENTS.md § 13.7. The same value `next.config.ts` rewrites to, and the same trailing slash stripped off it — the two cannot import one another, since that file is loaded before the path aliases exist.
-const EMOTICONS_ORIGIN = (
-  process.env.NEXT_PUBLIC_EMOTICONS_ORIGIN ?? "http://localhost:3001"
-).replace(/\/+$/, "");
+const EMOTICONS_ORIGIN = (EMOTICONS_ORIGIN_SETTING || "http://localhost:3001").replace(/\/+$/, "");
+
+// WARN: REQUIREMENTS.md § 13.7. The `/emoticons` segment is jandh-emoticons' own `basePath` rather than an artifact of the rewrite, so it survives a call that skips the rewrite entirely.
+const EMOTICONS_API_ORIGIN = `${EMOTICONS_ORIGIN}/emoticons`;
+
+/**
+ * Whether the emoticon API below is jandh-emoticons' copy of it rather than this
+ * app's own (REQUIREMENTS.md § 13.7.1.).
+ *
+ * WARN: Default **off**, and deliberately the opposite polarity to
+ * `IS_SSE_IDLE_SLEEP_ENABLED` — a variable forgotten in a new environment has to
+ * fall back to the routes this app always deploys, never to an origin that may not
+ * be answering.
+ *
+ * WARN: A switch and not a second origin. § 13.7. keeps
+ * `NEXT_PUBLIC_EMOTICONS_ORIGIN` as the one address every reader shares, because two
+ * names holding the same origin is a pair that drifts invisibly.
+ *
+ * WARN: It takes **both** variables, and an unset origin wins over a set switch. The
+ * default origin is a dev server, so honouring the switch without one would build
+ * every emoticon URL against `localhost:3001` — mixed content a production browser
+ * blocks, with the whole feature down and nothing naming the cause. Ignoring the
+ * switch instead leaves § 13.7.1.'s fallback answering, which is the failure the
+ * default-off polarity above was chosen for.
+ *
+ * WARN: `NEXT_PUBLIC_` and read as a literal member access. Next inlines these at
+ * build time, so a computed lookup resolves to `undefined` in the browser bundle —
+ * and flipping this therefore needs a redeploy rather than an environment edit.
+ */
+const IS_EMOTICON_API_REMOTE =
+  EMOTICONS_ORIGIN_SETTING !== "" &&
+  ["true", "1", "on"].includes(
+    (process.env.NEXT_PUBLIC_EMOTICON_API_REMOTE ?? "").trim().toLowerCase(),
+  );
+
+/**
+ * WARN: § 13.7.1. Empty means this app's own origin, which leaves every constant
+ * below the relative path it has always been — the off state is not a code path of
+ * its own, it is the string that shipped before the switch existed.
+ */
+const EMOTICON_API_BASE = IS_EMOTICON_API_REMOTE ? EMOTICONS_API_ORIGIN : "";
+
+/** REQUIREMENTS.md § 13.3. Presigned PUT then registration, exactly as § 9. does — but no `_thumb` sibling and no `media` row. */
+export const EMOTICON_UPLOAD_URL = `${EMOTICON_API_BASE}/api/emoticons/upload-url`;
+
+export const EMOTICON_PACKS_URL = `${EMOTICON_API_BASE}/api/emoticons/packs`;
+
+export const EMOTICON_ITEMS_URL = `${EMOTICON_API_BASE}/api/emoticons/items`;
+
+export const EMOTICON_PREFS_URL = `${EMOTICON_API_BASE}/api/emoticons/prefs`;
 
 /**
  * The keyword suggester, which is **jandh-emoticons' route rather than this app's**
  * (REQUIREMENTS.md § 13.8.1.).
  *
- * WARN: An absolute URL where everything else here is a path, and the only one: it
- * is called at jandh-emoticons' **own** origin rather than through § 13.7.'s zone,
- * so the rewrite and the Vercel proxy hop it costs are both out of the way. Callers
- * MUST send it `credentials: "include"` — `fetch` defaults to `same-origin` and
- * would otherwise carry no session at all.
- *
- * WARN: The `/emoticons` segment stays. It is that app's `basePath`, which is its
- * own setting rather than an artifact of the rewrite — dropping the rewrite does
- * not drop the prefix.
+ * WARN: Unconditional, where the four above follow § 13.7.1.'s switch. This route
+ * has no copy on this side to fall back to — `GEMINI_API_KEY` is deliberately not an
+ * environment variable here — so it is absolute whatever the switch says.
  *
  * WARN: `proxy.ts`'s `emoticons/api` exclusion is **not** this call's and must not
  * be removed with it. That zone's own import screen posts to the same handler at
@@ -38,7 +73,7 @@ const EMOTICONS_ORIGIN = (
  * feature and it is deliberately hosted where the emoticon work already is, so
  * jandh's own function budget pays for the conversation rather than for tagging.
  */
-export const EMOTICON_KEYWORDS_URL = `${EMOTICONS_ORIGIN}/emoticons/api/emoticons/keywords`;
+export const EMOTICON_KEYWORDS_URL = `${EMOTICONS_API_ORIGIN}/api/emoticons/keywords`;
 
 /** REQUIREMENTS.md § 13.2. One required image, one optional audio companion, each its own object. */
 export const EMOTICON_SLOTS = ["image", "audio"] as const;
@@ -517,12 +552,25 @@ export function allowedMimesForEmoticonSlot(slot: EmoticonSlot): readonly string
 }
 
 /**
+ * WARN: REQUIREMENTS.md § 13.7.1. Written out rather than built from
+ * `EMOTICON_ITEMS_URL`, and the duplication is the point: the asset route is the one
+ * the switch must never move. It is reached by an `<img>`, an `<audio>` and a bare
+ * `new Image()`, which jandh-emoticons answers without CORS on purpose — and § 13.6.
+ * warms a whole pack over this app's single HTTP/2 connection, which a second origin
+ * would split in two.
+ */
+const EMOTICON_ASSET_ITEMS_PATH = "/api/emoticons/items";
+
+/**
  * The same-origin URL an `<img>` or `<audio>` points at.
  *
  * WARN: A route, not an R2 URL — the request carries the session cookie and the
  * handler redirects to a presigned GET (REQUIREMENTS.md § 13.3.). Lives in
  * `shared/config` for the reason `toMediaUrl` does: `entities/emoticon`'s barrel
  * also exports a `server-only` api segment.
+ *
+ * WARN: Same-origin whatever § 13.7.1.'s switch is set to, and this app's own asset
+ * route is therefore the one emoticon handler that is never dead code.
  *
  * WARN: `version` is `Emoticon.version` and callers that hold the item MUST pass
  * it. Editing an item (§ 13.4.) swaps the object behind an unchanged id, and this
@@ -535,7 +583,7 @@ export function toEmoticonAssetUrl(
 ): string {
   const versionParam = version === undefined ? "" : `&v=${version}`;
 
-  return `${EMOTICON_ITEMS_PATH}/${itemId}/asset?slot=${slot}${versionParam}`;
+  return `${EMOTICON_ASSET_ITEMS_PATH}/${itemId}/asset?slot=${slot}${versionParam}`;
 }
 
 /**

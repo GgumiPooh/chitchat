@@ -1,5 +1,5 @@
 import { request } from "@/shared/api";
-import { EMOTICON_UPLOAD_URL_PATH, type EmoticonSlot } from "@/shared/config";
+import { EMOTICON_UPLOAD_URL, type EmoticonSlot } from "@/shared/config";
 import { holdAwake } from "@/shared/lib";
 
 type UploadTicket = {
@@ -51,7 +51,7 @@ export async function discardEmoticonAssets(r2Keys: string[]): Promise<void> {
     return;
   }
 
-  await request(EMOTICON_UPLOAD_URL_PATH, {
+  await request(EMOTICON_UPLOAD_URL, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ r2Keys }),
@@ -59,14 +59,14 @@ export async function discardEmoticonAssets(r2Keys: string[]): Promise<void> {
 }
 
 async function requestTicket(slot: EmoticonSlot, file: Blob): Promise<UploadTicket> {
-  const response = await request(EMOTICON_UPLOAD_URL_PATH, {
+  const response = await request(EMOTICON_UPLOAD_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ slot, mime: file.type, size: file.size }),
   });
 
   if (!response.ok) {
-    throw new Error(`POST ${EMOTICON_UPLOAD_URL_PATH} responded ${response.status}`);
+    throw new Error(`POST ${EMOTICON_UPLOAD_URL} responded ${response.status}`);
   }
 
   return response.json() as Promise<UploadTicket>;
