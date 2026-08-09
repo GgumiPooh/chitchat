@@ -99,9 +99,19 @@ Two things use that permission and there is no third. `EMOTICON_KEYWORDS_URL` (`
 
 All screen content, including the bottom tab bar, is constrained to the app shell max width and horizontally centered. Use `Container` from `@/shared/ui`; do not hardcode `max-w-*` values in screens.
 
-## 4.4. Nothing else is `fixed`
+## 4.4. The document is the scroller, and `fixed` is rationed
 
-The `(main)` shell is the one `fixed` element in the app, and it is sized to the visual viewport (`DESIGN.md § 3.4.`). The floating header and tab bar are positioned inside it — `sticky` for the header, an absolute `BottomOverlay` for the bars (`DESIGN.md § 3.5.`). Do not reintroduce a `fixed` bar: it would have to re-apply the shell width and would drift against the keyboard on WebKit. The document itself never scrolls; screens scroll inside `#app-scroll` (`APP_SCROLL_ID`) or inside their own container.
+**The document scrolls, and chat does not** (`DESIGN.md § 3.3.`, `§ 3.4.`). The `(main)` column is in flow at `min-h-dvh` and screens grow it, which is what lets iOS Safari collapse its bottom toolbar: Safari only does that for the root scroller, never for a nested one. Do not reintroduce `overflow: hidden` on `html`/`body`, and do not give the layout's `<main>` slot a scroller of its own — it is a plain flow container with no id, precisely so nothing can look it up and scroll it, and everything that reads a scroll position on those screens reads `window`.
+
+**Chat is the exception, and the keyboard is the whole of the reason.** `ChatScreen` is a `fixed` box at `--viewport-top` of `--viewport-height` with its own `overflow-y-auto` inside it. A scrollable document is exactly what lets WebKit pan the page to reveal a focused field, and that pan is performed on the compositor and reported to script afterwards — so every `fixed` box has to chase `offsetTop` a frame or more late, which the composer shows as a wobble under the finger through a momentum scroll. A viewport-sized screen leaves the document nothing to pan. Chat pays Safari's toolbar for it, and does not get it back: do not move the room onto the document scroller to reclaim those 100px, and do not make anything inside the room `fixed` — the screen bounding it already _is_ the visible area, so `absolute` is both correct and stationary.
+
+**Four elements are `fixed`, and all four earn it.** `AppHeader` and `BottomOverlay` hold the bars on screen and therefore re-apply the shell width through `Container` — unavoidable once the document moves under them. The header carries `--viewport-top` as a term (through `--header-lift`), because a field on a non-chat screen can still take focus and WebKit pans the visible viewport down inside the layout one to reveal it; `BottomOverlay` does not, and does not need to — it collapses to zero height for the whole time a keyboard is up (`DESIGN.md § 7.3.`). `ChatScreen` is the paragraph above. `ShellOverlay`'s layer is the fourth: `#app-shell` (`APP_SHELL_ID`) is an in-flow column that grows with the screen, so the `absolute inset-0` every full-screen overlay is written as would span every month 보관함 ever loaded rather than the screen. The layer re-establishes that box against the visual viewport, once, so no overlay has to go `fixed` on its own.
+
+**A fifth one needs the same argument.** "It should stay on screen" is not enough; say what breaks without it, and prefer `sticky` inside the flow, or a `ShellOverlay` if the thing to escape is the column's height.
+
+An overlay portalled through `ShellOverlay` inherits `pointer-events: none` from that layer, because a bar-shaped one (`REQUIREMENTS.md § 10.`'s selection bar) has to leave the grid behind it tappable. A child that covers the screen re-enables it on its own root.
+
+**That layer also owns the z-index, and a child's cannot substitute for it.** `position: fixed` establishes a stacking context whatever its own z-index is, so every `z-` inside `ShellOverlay` is resolved against its siblings there and nowhere else. Left at `z-auto` the whole layer painted beneath the `z-30` bars, and a `z-50` on the overlay itself changed nothing — the media viewer and 절전 모드 both sat behind the header and the tab bar. It carries `z-40`: above the bars, below the `z-50` the `body`-level sheets are portalled at. Raise the layer if something has to go higher, never a child.
 
 # 5. Styling
 

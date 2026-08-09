@@ -10,9 +10,9 @@ export type OfflinePageProps = {
 // WARN: REQUIREMENTS.md § 16. Nothing here may read the session or render user data — the service worker serves this page from the cache, which is shared by every account that has used this browser.
 export function OfflinePage({ className }: OfflinePageProps) {
   return (
-    // INFO: DESIGN.md § 3.4. The document cannot scroll, so this screen owns its own scroller the way the `(main)` shell does.
-    <main className={cn("h-full overflow-y-auto bg-canvas", className)}>
-      <Container className="flex min-h-full flex-col justify-between py-2xl" size="sm">
+    // INFO: DESIGN.md § 3.3. The document is the scroller here too, so the column is in flow at `min-h-dvh` rather than a percentage of a body that no longer has a height.
+    <main className={cn("flex min-h-dvh flex-col bg-canvas", className)}>
+      <Container className="flex flex-1 flex-col justify-between py-2xl" size="sm">
         <div className="flex flex-1 flex-col items-center justify-center gap-sm text-center">
           <WifiOff className="size-8 text-meta-soft" strokeWidth={1.5} />
           <h1 className="text-display-md text-ink">인터넷에 연결되어 있지 않아요</h1>

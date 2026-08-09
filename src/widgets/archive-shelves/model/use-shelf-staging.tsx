@@ -70,17 +70,17 @@ export function useShelfStaging({ kind, acceptsFiles, isBlocked, onAdded }: Shel
 
   /**
    * WARN: REQUIREMENTS.md § 9.2. Portalled into the shell box, unlike the chat
-   * room's. A shelf *is* the shell scroller's content, so an `absolute inset-0`
+   * room's. A shelf *is* the document scroller's content, so an `absolute inset-0`
    * overlay left inside it spans every month ever loaded and centres its label far
-   * below the fold — and going `fixed` to reach the visible box is what
-   * AGENTS.md § 4.4. rules out.
+   * below the fold. `ShellOverlay` is the box that stays on screen (DESIGN.md § 3.3.).
    */
+  // WARN: Mounted only while a drag is over the shelf, never left up at `isActive={false}`. `ShellOverlay` is a `fixed` box on both viewport edges, and iOS 26 Safari paints its status bar and toolbar opaque for as long as one is there — an always-mounted overlay cost 보관함 the transparent chrome every other tab has (DESIGN.md § 3.3.).
   function renderOverlay() {
-    return (
+    return drop.isDropping ? (
       <ShellOverlay>
-        <FileDropOverlay isActive={drop.isDropping} label="여기에 놓으면 추가돼요" />
+        <FileDropOverlay isActive label="여기에 놓으면 추가돼요" />
       </ShellOverlay>
-    );
+    ) : null;
   }
 
   /**

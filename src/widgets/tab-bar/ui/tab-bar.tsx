@@ -43,11 +43,12 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
   // INFO: DESIGN.md § 7.3. Leaving for the keyboard is `BottomOverlay`'s job — unmounting here would step `--bottom-inset` on its own timeline and tear the composer's motion in two.
   return (
     <nav
-      // INFO: DESIGN.md § 7.3. A floating pill, inset from the shell's bottom edge by `--bar-float-gap` on top of the home-indicator area.
-      className={cn("px-md pb-[calc(env(safe-area-inset-bottom)+var(--bar-float-gap))]", className)}
+      // INFO: DESIGN.md § 7.3. The lift off the bottom edge is `BottomOverlay`'s `bottom`, not padding here — see the WARN there.
+      className={cn("px-md", className)}
       aria-label="주요 화면"
     >
-      <div className="pointer-events-auto flex h-(--tab-bar-height) items-stretch rounded-full border border-hairline glass p-2xs shadow-floating">
+      {/* WARN: No `shadow-floating`. The pill sits over the obscured content inset, and iOS 26 Safari blurs whatever is behind its toolbar — the shadow bled through as a dark wash across the bar. The hairline carries the lift on its own. */}
+      <div className="pointer-events-auto flex h-(--tab-bar-height) items-stretch rounded-full border border-hairline glass p-2xs">
         {/* INFO: DESIGN.md § 7.3. The fill's own track, so it measures against the padded row of items rather than the pill's border box. */}
         <div className="relative flex flex-1 items-stretch">
           {activeIndex >= 0 && (

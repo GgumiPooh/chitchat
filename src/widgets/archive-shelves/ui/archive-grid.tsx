@@ -1,7 +1,7 @@
 "use client";
 
 import type { ArchiveMedia } from "@/entities/media";
-import { APP_SCROLL_ID, MESSAGE_FLASH_DURATION } from "@/shared/config";
+import { MESSAGE_FLASH_DURATION } from "@/shared/config";
 import {
   cn,
   useSettledCommit,
@@ -11,8 +11,16 @@ import {
   type Optional,
 } from "@/shared/lib";
 import { Skeleton, toast, type MediaCell } from "@/shared/ui";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useInView } from "react-intersection-observer";
 import { toArchiveCells } from "../model/to-archive-cells";
 import { ARCHIVE_GRID_COLUMNS, toArchiveRows, type ArchiveGridRow } from "../model/to-archive-rows";
@@ -77,6 +85,9 @@ export function ArchiveGrid({
   onLoadNewer,
   onInsertNewer,
 }: ArchiveGridProps) {
+  // WARN: Explicit, and it replaces a bailout this component used to get for free. The React Compiler skips any component calling `useVirtualizer`, because TanStack Virtual returns functions that go stale the moment they are memoized — but its list is keyed on that one name, and `useWindowVirtualizer` is not on it. Compiled, this grid memoizes `getVirtualItems` and stops re-windowing as the reader scrolls. `ChatRoom` still gets the implicit bailout; this one has to say so.
+  "use no memo";
+
   const startSweep = useArchiveSweep({
     onEnter: sweepTo,
     onEnd: () => {
@@ -91,8 +102,9 @@ export function ArchiveGrid({
   const contentRef = useRef<Nullable<HTMLDivElement>>(null);
   // INFO: REQUIREMENTS.md § 10. Where the reader was, and how tall the list was, at the moment a held page was committed — the two numbers the scroll correction below is the difference of.
   const correctionRef = useRef<Nullable<{ top: number; total: number }>>(null);
-  // INFO: AGENTS.md § 4.4. The grid scrolls inside the shell's one scroller, which is not an ancestor this component renders — so it is looked up rather than captured by a ref.
-  const [scroller, setScroller] = useState<Nullable<HTMLElement>>(null);
+  // INFO: DESIGN.md § 3.3. The document is the scroller, so there is no element to capture — this is `documentElement`, held only because `useSettledCommit` takes an element and tells a document scroller from an element one by identity.
+  // WARN: `useSyncExternalStore` rather than state written from an effect, exactly as `ShellOverlay` reads the shell. The server snapshot is what keeps `document` out of the render, and the `null` frame it yields is also what holds the skeleton up until the geometry below has been measured.
+  const scroller = useSyncExternalStore(subscribeToScroller, readScroller, readServerScroller);
   const [geometry, setGeometry] = useState(INITIAL_GEOMETRY);
   // INFO: DESIGN.md § 6.8. The tile a § 10. jump landed on, until its flash expires.
   const [flashingId, setFlashingId] = useState<Nullable<string>>(null);
@@ -103,31 +115,28 @@ export function ArchiveGrid({
   // WARN: REQUIREMENTS.md § 8.3. `getItemKey` has to be one stable function — virtual-core memoizes the whole measurement pass on its identity — and it has to see *this* render's rows, so they are written to a ref during render rather than in an effect, which is a commit behind.
   const rowsRef = useRef(rows);
 
+  // eslint-disable-next-line react-hooks/refs -- the WARN above: the virtualizer reads `getItemKey` during render, so a layout effect lands a commit too late.
   rowsRef.current = rows;
 
   const getItemKey = useCallback((index: number) => rowsRef.current[index]?.key ?? index, []);
-  const virtualizer = useVirtualizer({
+  // WARN: DESIGN.md § 3.3. The **window** virtualizer, because the document is what scrolls this shelf. Pointed at the `(main)` screen slot instead it reads `scrollTop` off a plain flow container — permanently `0`, with an `offsetHeight` equal to the whole list — so the range comes back as every row and the windowing is silently off rather than visibly broken.
+  const virtualizer = useWindowVirtualizer({
     count: rows.length,
-    getScrollElement: () => scroller,
     // WARN: REQUIREMENTS.md § 8.3. Per row, never one flat guess — a month label and a line of tiles are nothing like the same height, and every offset in the list is summed from these.
     estimateSize: (index) => toRowHeight(rowsRef.current[index], index, geometry.tileSize),
     getItemKey,
-    // WARN: The grid does not start at the top of the scroller — the floating header's clearance and the § 7.10. chips are above it, and without this every row resolves that much too high.
+    // WARN: The grid does not start at the top of the document — the floating header's clearance and the § 7.10. chips are above it, and without this every row resolves that much too high.
     scrollMargin: geometry.scrollMargin,
     // WARN: REQUIREMENTS.md § 10. Load-bearing for the sweep, not a scrolling nicety. The drag hit-tests the document with `elementsFromPoint`, so a tile the edge auto-scroll is about to bring under the finger needs a node before it gets there — the overscan is the only thing that guarantees one.
     overscan: OVERSCAN_ROWS,
     // WARN: No `anchorTo`, where chat holds the end. A prepend here is an upload the reader just made (§ 10.), and anchoring would hold the row they were looking at and push their own new photo off the top instead.
   });
 
-  useLayoutEffect(() => {
-    setScroller(document.getElementById(APP_SCROLL_ID));
-  }, []);
-
   /**
    * INFO: Two triggers, and they are the only two that move this element. The § 7.10.
    * chips unmount in selection mode, which lifts the grid by their height; everything
-   * else that moves or resizes it is a resize of the scroller, which the observer
-   * below hears.
+   * else that moves or resizes it resizes the root element too — a rotation changes
+   * its width, a page changes its height — which the observer below hears.
    *
    * WARN: Not a dependency-less effect, which is what this was. Each run forces layout
    * three times, and a render this component does **not** veto is the common case
@@ -189,7 +198,7 @@ export function ArchiveGrid({
       return;
     }
 
-    correctionRef.current = { top: scroller.scrollTop, total: virtualizer.getTotalSize() };
+    correctionRef.current = { top: window.scrollY, total: virtualizer.getTotalSize() };
     onInsertNewer();
   }, [hasHeldNewer, scroller, virtualizer, onInsertNewer]);
 
@@ -222,7 +231,8 @@ export function ArchiveGrid({
     }
 
     correctionRef.current = null;
-    scroller.scrollTop = correction.top + (virtualizer.getTotalSize() - correction.total);
+    // INFO: DESIGN.md § 3.3. The document's own scroll. A prepend does not move this shelf down the page, so `scrollMargin` is unchanged and the growth is entirely the list's — which makes the delta the whole correction.
+    window.scrollTo(0, correction.top + (virtualizer.getTotalSize() - correction.total));
   });
 
   /**
@@ -356,15 +366,21 @@ export function ArchiveGrid({
   }
 
   /**
-   * INFO: The grid's own width, and its distance from the top of the scroller's
-   * content — every row offset the virtualizer computes is built on the two.
+   * INFO: The grid's own width, and its distance from the top of the document —
+   * every row offset the virtualizer computes is built on the two.
    *
-   * WARN: `scrollTop` is added back, so this is the same number at every scroll
-   * position. Left as the raw viewport delta it would fall by however far the reader
+   * WARN: `window.scrollY` is added back, so this is the same number at every scroll
+   * position. Left as the raw viewport rect it would fall by however far the reader
    * has scrolled, and the whole window would resolve one screenful too high.
    *
+   * WARN: And `scrollY` **alone** — never a delta against `documentElement`'s own
+   * rect on top of it. That rect's `top` already *is* `-scrollY`, so subtracting it
+   * and adding the scroll back counts the same offset twice, and the window drifts
+   * a further screenful off with every screen the reader passes. It is the trap the
+   * element-scroller spelling turns into when the document becomes the scroller.
+   *
    * WARN: And rounded, because that sum is only invariant in exact arithmetic — a
-   * rect snapped to a layout unit against a fractional `scrollTop` jitters in the
+   * rect snapped to a layout unit against a fractional `scrollY` jitters in the
    * last bits, and the guard below reads every jitter as a new geometry to render.
    */
   function syncGeometry() {
@@ -377,11 +393,7 @@ export function ArchiveGrid({
     const width = content.clientWidth;
     const next = {
       tileSize: width > 0 ? toTileSize(width) : INITIAL_GEOMETRY.tileSize,
-      scrollMargin: Math.round(
-        content.getBoundingClientRect().top -
-          scroller.getBoundingClientRect().top +
-          scroller.scrollTop,
-      ),
+      scrollMargin: Math.round(content.getBoundingClientRect().top + window.scrollY),
     };
 
     setGeometry((previous) =>
@@ -445,6 +457,11 @@ const MONTH_LABEL_GAP = 8;
 
 // INFO: REQUIREMENTS.md § 8.3. `title-sm` at `1.45` is 20.3px, which WebKit floors and Chrome does not — the label is bottom-aligned in a box of this height, so the fraction is absorbed into the section gap above it rather than accumulating down the list.
 const MONTH_LABEL_HEIGHT = 20;
+
+// INFO: DESIGN.md § 3.3. The document is the app's scroller and outlives every shelf, so there is nothing to subscribe to.
+const subscribeToScroller = () => () => {};
+const readScroller = (): Nullable<HTMLElement> => document.documentElement;
+const readServerScroller = (): Nullable<HTMLElement> => null;
 
 // INFO: Only ever read before the first layout, where no row is rendered yet — a 3-column tile in a shell at its narrowest.
 const INITIAL_GEOMETRY = { tileSize: 120, scrollMargin: 0 };

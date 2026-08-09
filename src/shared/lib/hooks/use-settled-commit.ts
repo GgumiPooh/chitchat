@@ -54,18 +54,21 @@ export function useSettledCommit({ scroller, isPending, onSettled }: SettledComm
       schedule();
     };
 
-    scroller.addEventListener("scroll", schedule, { passive: true });
-    scroller.addEventListener("touchstart", holdTouch, { passive: true });
-    scroller.addEventListener("touchend", releaseTouch, { passive: true });
+    // WARN: DESIGN.md § 3.3. `window` where the scroller is the document, because that `scroll` is dispatched at `document` and `documentElement` is not on its propagation path. Every other scroller has to be listened to directly — an element's own `scroll` does not bubble at all, so routing those through `window` hears nothing.
+    const target: EventTarget = scroller === document.documentElement ? window : scroller;
+
+    target.addEventListener("scroll", schedule, { passive: true });
+    target.addEventListener("touchstart", holdTouch, { passive: true });
+    target.addEventListener("touchend", releaseTouch, { passive: true });
     // INFO: A cancelled pointer is the browser taking the gesture over as a scroll; the finger is gone either way.
-    scroller.addEventListener("touchcancel", releaseTouch, { passive: true });
+    target.addEventListener("touchcancel", releaseTouch, { passive: true });
 
     return () => {
       clearTimeout(timerRef.current);
-      scroller.removeEventListener("scroll", schedule);
-      scroller.removeEventListener("touchstart", holdTouch);
-      scroller.removeEventListener("touchend", releaseTouch);
-      scroller.removeEventListener("touchcancel", releaseTouch);
+      target.removeEventListener("scroll", schedule);
+      target.removeEventListener("touchstart", holdTouch);
+      target.removeEventListener("touchend", releaseTouch);
+      target.removeEventListener("touchcancel", releaseTouch);
     };
   }, [scroller, schedule]);
 

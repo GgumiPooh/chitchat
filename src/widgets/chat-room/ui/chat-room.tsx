@@ -950,7 +950,8 @@ export function ChatRoom({
               ref={captureScroller}
               // INFO: The fade edges are the scroll affordance here (§ 6.1.); a bar on top of them would sit over the bubbles and cut through the floating composer.
               // WARN: `overflow-x: clip`, not `hidden` — the § 8.10. pull translates a row past the shell edge on a narrow screen, and `hidden` on a scroller that already scrolls vertically would make that a real horizontal scroll offset.
-              className="scrollbar-hidden h-full overflow-x-clip overflow-y-auto"
+              // WARN: DESIGN.md § 3.4. `overscroll-contain`, and it is load-bearing rather than polish. This box no longer sits in a document that cannot scroll, so a pull it cannot consume — the top of the loaded history, or a conversation shorter than the screen — chains straight to the root scroller, which is parked at `0` on this route and answers it with pull-to-refresh. The gesture reads as the list refusing to move and the app reloading instead.
+              className="scrollbar-hidden h-full overflow-x-clip overflow-y-auto overscroll-contain"
               style={{ maskImage: buildScrollFadeMask() }}
               onScroll={syncScrollEdges}
             >

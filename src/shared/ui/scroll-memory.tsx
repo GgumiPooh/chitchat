@@ -1,6 +1,6 @@
 "use client";
 
-import { APP_SCROLL_ID } from "@/shared/config";
+import { CHAT_ROUTE, isUnderRoute } from "@/shared/config";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
@@ -8,19 +8,22 @@ import { useEffect } from "react";
 const scrollPositions = new Map<string, number>();
 
 /**
- * Restores the scroll position of the shell's scroll container per route
- * (`REQUIREMENTS.md § 7.`). It is not the document: the document cannot scroll
- * (DESIGN.md § 3.4.). The chat screen is not restored here at all — it scrolls
- * inside its own virtualized list, whose offsets mean nothing until the rows are
- * measured, and it opens at the newest message anyway (`REQUIREMENTS.md § 8.3.`).
+ * Restores the document's scroll position per route (`REQUIREMENTS.md § 7.`).
+ * The chat screen is excluded: it parks itself on the newest message
+ * (`REQUIREMENTS.md § 8.3.`) and its offsets mean nothing until the rows are
+ * measured.
+ *
+ * WARN: DESIGN.md § 3.3. The exclusion is load-bearing now that the document is
+ * chat's scroller too. Restoring here lands a frame after mount, in the middle of
+ * the measurement pass the room re-parks itself through — the two write
+ * `window.scrollY` against each other for as long as the rows take to settle, and
+ * the room shudders its way to the bottom instead of opening there.
  */
 export function ScrollMemory() {
   const pathname = usePathname();
 
   useEffect(() => {
-    const scroller = document.getElementById(APP_SCROLL_ID);
-
-    if (!pathname || !scroller) {
+    if (!pathname || isUnderRoute(pathname, CHAT_ROUTE)) {
       return;
     }
 
@@ -28,23 +31,23 @@ export function ScrollMemory() {
 
     // WARN: The App Router scrolls to top on navigation, so restoring has to wait a frame or it is immediately overwritten.
     const frame = requestAnimationFrame(() => {
-      scroller.scrollTop = scrollPositions.get(pathname) ?? 0;
+      window.scrollTo(0, scrollPositions.get(pathname) ?? 0);
       isRestored = true;
     });
 
     // WARN: That scroll-to-top dispatches a `scroll` event of its own, so recording before the restore would overwrite the saved position with 0.
     const remember = () => {
       if (isRestored) {
-        scrollPositions.set(pathname, scroller.scrollTop);
+        scrollPositions.set(pathname, window.scrollY);
       }
     };
 
-    scroller.addEventListener("scroll", remember, { passive: true });
+    window.addEventListener("scroll", remember, { passive: true });
 
-    // WARN: Never record on cleanup — it runs in the passive phase, after the App Router has already scrolled the container to top.
+    // WARN: Never record on cleanup — it runs in the passive phase, after the App Router has already scrolled the document to top.
     return () => {
       cancelAnimationFrame(frame);
-      scroller.removeEventListener("scroll", remember);
+      window.removeEventListener("scroll", remember);
     };
   }, [pathname]);
 

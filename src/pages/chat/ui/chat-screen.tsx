@@ -9,7 +9,7 @@ import {
   useMessageSearch,
 } from "@/features/search-messages";
 import { cn, type Maybe } from "@/shared/lib";
-import { AppHeader, IconButton } from "@/shared/ui";
+import { AppHeader, Container, IconButton } from "@/shared/ui";
 import { ChatRoom } from "@/widgets/chat-room";
 import { Search } from "lucide-react";
 
@@ -39,10 +39,14 @@ export function ChatScreen({
   const { participants } = useChatStream();
 
   return (
-    // WARN: DESIGN.md § 3.5. Cancels `RouteTransition`'s `--bottom-inset` spacer rather than honouring it — chat is the one screen whose messages run all the way under the floating bars, and the composer reserves that room inside the list instead (§ 6.6.).
-    <div
+    // WARN: DESIGN.md § 3.4. The one screen that is not in the document's flow, and the reason is the keyboard rather than the layout. WebKit pans the visual viewport to reveal a focused field, and it can only do that to a document there is something to scroll — a `fixed` box sized to the visual viewport leaves it nothing, so `offsetTop` stays `0` and no chrome has to chase it from script. Every other screen keeps the document scroller, and Safari's collapsing toolbar with it (§ 3.3.).
+    // WARN: `Container`, because a `fixed` box has left the shell column and inherits neither its max width nor its centring — the same re-application `AppHeader` and `BottomOverlay` make.
+    // WARN: DESIGN.md § 3.4. The height eases and `top` never does. WebKit reports `visualViewport.height` in a couple of coarse steps while the keys slide, so a raw height lands the composer in its new place in one jump — the keyboard glides, the input bar teleports. `top` is the opposite case: it corrects a pan the user can already see, so easing it would draw the wrong position out instead of hiding it.
+    // WARN: REQUIREMENTS.md § 12.2. The background carries `--chat-chrome-tint`, exactly as `body` does for every other screen. This box is `fixed` and borders both obscured content insets, so on iOS 26 it is what Safari samples its status bar and toolbar from (§ 3.3.) — `body` is behind it and never reached, and `useBackdropTint`'s wallpaper colour would have nowhere to land.
+    <Container
       className={cn(
-        "mb-[calc(var(--bottom-inset,0px)*-1)] flex min-h-0 flex-1 flex-col bg-chat-canvas",
+        // WARN: DESIGN.md § 3.3. `border-x`, matching the shell's own — this box covers the column's edges, so without it the hairline that separates the app from the desktop gutter stops at the chat route.
+        "fixed inset-x-0 top-[var(--viewport-top,0px)] flex h-[var(--viewport-height,100dvh)] flex-col border-x border-hairline bg-[var(--chat-chrome-tint,var(--color-chat-canvas))] px-0 transition-[height] duration-200 ease-out",
         className,
       )}
     >
@@ -107,6 +111,6 @@ export function ChatScreen({
           onSelect={search.select}
         />
       )}
-    </div>
+    </Container>
   );
 }

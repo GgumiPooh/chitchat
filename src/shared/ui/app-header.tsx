@@ -1,8 +1,8 @@
 "use client";
 
-import { APP_SCROLL_ID } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { useEffect, useState, type ReactNode } from "react";
+import { Container } from "./container";
 
 // INFO: A few pixels of WebKit rubber-banding should not count as having scrolled.
 const SCROLLED_THRESHOLD = 8;
@@ -25,14 +25,16 @@ export function AppHeader({ className, titleClassName, title, leading, trailing 
 
   return (
     <header
-      // INFO: DESIGN.md § 7.12. The negative margin cancels its own height, so it takes no room in the column and the screen below starts at the top of the shell.
       // WARN: `pointer-events-none` belongs on the root, not the row inside it — on the row the header's own box still swallows every tap on the content passing beneath it. Each control re-enables it for itself.
       className={cn(
-        "pointer-events-none sticky top-0 z-30 -mb-(--app-header-inset) pt-[env(safe-area-inset-top)]",
+        // WARN: DESIGN.md § 3.4. `fixed`, and it is the AGENTS.md § 4.4. argument `BottomOverlay` already carries — measured on the device, not chosen. A `sticky` strip pins to the top of the *layout* viewport, and WebKit pans that above the visual one to reveal a focused field: `offsetTop` 137 put this box at client −131, taking REQUIREMENTS.md § 8.6.'s search field off screen the moment its own keyboard opened. A `fixed` box lands inside the visual viewport instead, which is why the composer and the bars have always been right where this one was not.
+        // WARN: The safe area and the float gap are this box's `top`, never padding inside it — padding still leaves the box bordering the obscured content inset, and iOS 26 Safari then paints a solid status bar instead of showing the page through it. Same reason `BottomOverlay` carries its lift on `bottom`.
+        "pointer-events-none fixed inset-x-0 top-(--header-lift) z-30",
         className,
       )}
     >
-      <div className="flex h-(--app-header-height) items-center gap-2xs px-sm [&>*]:pointer-events-auto">
+      {/* INFO: DESIGN.md § 3.3. The shell width, re-applied for the same reason `BottomOverlay` re-applies it — the document moves under a `fixed` box, so it cannot inherit the column's centring. */}
+      <Container className="flex h-(--app-header-height) items-center gap-2xs px-sm [&>*]:pointer-events-auto">
         {leading}
         {title ? (
           <h1
@@ -51,28 +53,22 @@ export function AppHeader({ className, titleClassName, title, leading, trailing 
           !leading && <div className="flex-1" />
         )}
         {trailing}
-      </div>
+      </Container>
     </header>
   );
 }
 
-// INFO: The shell's scroller (DESIGN.md § 3.4.), never the document — it cannot scroll. A screen with its own scroller (chat) therefore never reports scrolled, which is what its run-under-the-controls layout wants.
+// INFO: DESIGN.md § 3.4. The document is the scroller. A screen with its own scroller (chat) therefore never reports scrolled, which is what its run-under-the-controls layout wants.
 function useIsScrolled(): boolean {
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
-    const scroller = document.getElementById(APP_SCROLL_ID);
+    const sync = () => setIsScrolled(window.scrollY > SCROLLED_THRESHOLD);
 
-    if (!scroller) {
-      return;
-    }
+    // WARN: No sync on mount — arriving from a scrolled screen the router has not reset the document yet, so the fresh title would fade in and back out again. Its scroll-to-top and `ScrollMemory`'s restore both dispatch `scroll`.
+    window.addEventListener("scroll", sync, { passive: true });
 
-    const sync = () => setIsScrolled(scroller.scrollTop > SCROLLED_THRESHOLD);
-
-    // WARN: No sync on mount — arriving from a scrolled screen the router has not reset the scroller yet, so the fresh title would fade in and back out again. Its scroll-to-top and `ScrollMemory`'s restore both dispatch `scroll`.
-    scroller.addEventListener("scroll", sync, { passive: true });
-
-    return () => scroller.removeEventListener("scroll", sync);
+    return () => window.removeEventListener("scroll", sync);
   }, []);
 
   return isScrolled;

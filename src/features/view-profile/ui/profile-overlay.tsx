@@ -20,9 +20,9 @@ export type ProfileOverlayProps = {
  * REQUIREMENTS.md § 12.3. The profile screen, reached by tapping an avatar anywhere
  * the tap is wired — the Settings header and a chat bubble's avatar (§ 12.).
  *
- * WARN: `absolute`, never `fixed` — AGENTS.md § 4.4. keeps the app shell as the
- * app's one fixed element. `ShellOverlay` is what puts this over the floating header
- * and the tab bar rather than under them.
+ * WARN: `absolute`, never `fixed` — `ShellOverlay` owns the viewport-sized box this
+ * fills (DESIGN.md § 3.3.), and it is what puts this over the floating header and the
+ * tab bar rather than under them.
  *
  * INFO: The cover is drawn under a two-stop scrim and the base is `scrim` itself, so
  * the name and the controls are `on-primary` whether or not a photo is set. A
@@ -53,7 +53,10 @@ export function ProfileOverlay({ className, userId, currentUserId, onClose }: Pr
       {/* WARN: `role`/`aria-modal` by hand, because this composes no Radix primitive (§ 12.3.). Without them a screen reader announces the chat screen underneath as live content with no boundary — the opaque fill hides it from the eye and from the pointer, and nothing else was telling assistive tech that it is gone. */}
       <div
         ref={overlayRef}
-        className={cn("absolute inset-0 z-40 flex flex-col bg-scrim", className)}
+        className={cn(
+          "pointer-events-auto absolute inset-0 z-40 flex flex-col bg-scrim",
+          className,
+        )}
         role="dialog"
         aria-modal="true"
         aria-label={`${participant.name} 프로필`}

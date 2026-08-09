@@ -3,6 +3,7 @@
 import { BOTTOM_OVERLAY_ID } from "@/shared/config";
 import { cn, useIsVirtualKeyboardOpen, type Nullable } from "@/shared/lib";
 import { useEffect, useRef, useState, type PropsWithChildren } from "react";
+import { Container } from "./container";
 
 const INSET_PROPERTY = "--bottom-inset";
 
@@ -35,7 +36,11 @@ export function BottomOverlay({ className, children }: BottomOverlayProps) {
     // WARN: The inset comes off the collapsing box and the resting height off the bars inside it. Read the other way round the clearance would hold at full height while the bars are already on their way out, and the collapse would drive its own target to zero.
     const observer = new ResizeObserver(() => {
       setContentHeight(content.offsetHeight);
-      document.documentElement.style.setProperty(INSET_PROPERTY, `${overlay.offsetHeight}px`);
+      // INFO: The lift is the box's `bottom` rather than padding inside it, so the clearance is the height plus that offset — carried through as `--bar-lift` rather than read back, since resolving it here would force a layout inside the observer and freeze `env(safe-area-inset-bottom)` at the moment it ran.
+      document.documentElement.style.setProperty(
+        INSET_PROPERTY,
+        `calc(${overlay.offsetHeight}px + var(--bar-lift))`,
+      );
     });
 
     observer.observe(overlay);
@@ -53,9 +58,11 @@ export function BottomOverlay({ className, children }: BottomOverlayProps) {
     <div
       ref={overlayRef}
       className={cn(
-        // INFO: DESIGN.md § 4.7.1. A route change never touches this element — the screen animates inside the scroller and the bars simply stay put, blurring whatever slides underneath.
-        "pointer-events-none absolute inset-x-0 bottom-0 z-30 transition-[height] ease-out",
-        // WARN: DESIGN.md § 7.3. The bars only come back once the shell has finished easing to its resting height. Rising on the same frame the keyboard starts leaving draws them at the shell's bottom edge while that edge is still halfway up the screen, which reads as the tab bar appearing in mid-air.
+        // INFO: DESIGN.md § 4.7.1. A route change never touches this element — the screen animates underneath and the bars simply stay put, blurring whatever slides past.
+        // WARN: DESIGN.md § 3.3. `fixed`, and it re-applies the shell width itself — the document is the scroller now, so an `absolute` bar would ride to the bottom of the page instead of staying on screen.
+        // WARN: The float gap and the home-indicator inset are this box's `bottom`, never padding inside it — padding still leaves the box itself bordering the obscured content inset, which is what makes iOS 26 Safari paint its toolbar opaque instead of showing the page through it.
+        "pointer-events-none fixed inset-x-0 bottom-(--bar-lift) z-30 transition-[height] ease-out",
+        // WARN: DESIGN.md § 7.3. The bars wait the keyboard out rather than growing back with it. This box is `fixed` to the layout viewport, which Chromium's `interactive-widget=resizes-content` is still expanding for the whole of that animation — rising on the same frame draws the tab bar partway up the screen, which reads as it appearing in mid-air.
         isKeyboardOpen ? "duration-200" : "delay-200 duration-150",
         className,
       )}
@@ -65,8 +72,10 @@ export function BottomOverlay({ className, children }: BottomOverlayProps) {
       inert={isKeyboardOpen}
       id={BOTTOM_OVERLAY_ID}
     >
-      {/* WARN: Deliberately not clipped — the bars slide down past the shell's bottom edge, which is where the keyboard already is. Clipping would buy nothing and cut the pill's `shadow-floating` off at the collapsing edge. */}
-      <div ref={contentRef}>{children}</div>
+      {/* WARN: Deliberately not clipped — the bars slide down past this box's own bottom edge, which is where the keyboard already is. Clipping would buy nothing and cut the install banner's `shadow-floating` off at the collapsing edge. */}
+      <Container className="px-0">
+        <div ref={contentRef}>{children}</div>
+      </Container>
     </div>
   );
 }

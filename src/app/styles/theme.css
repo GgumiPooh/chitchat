@@ -8,7 +8,6 @@
   --color-*: initial;
 
   /* INFO: Surfaces — DESIGN.md § 4.1.1. */
-  --color-backdrop: #e4ded4;
   --color-canvas: #fbf9f6;
   --color-chat-canvas: #efeae2;
   /* WARN: REQUIREMENTS.md § 12.2. The wash over a chat wallpaper, and it is a token rather than a `chat-canvas/50` at the call site so the dark theme can move it. Every meta colour in the room — `chat-meta`, the date pill, 읽음 — was chosen against `chat-canvas`, and this is what keeps them on it. */
@@ -234,12 +233,21 @@
   /* INFO: DESIGN.md § 7.12. Matches the tab bar so a screen can offset content by the header. */
   --app-header-height: 56px;
   /* INFO: DESIGN.md § 7.12. What the floating header covers — screens whose content starts at the top offset by this. */
-  --app-header-inset: calc(var(--app-header-height) + env(safe-area-inset-top));
+  /* WARN: DESIGN.md § 3.3. `--chrome-edge-gap` is a term because the header is lifted by it (`--header-lift`); left out, every screen padded by this starts exactly that far *under* the strip. */
+  --app-header-inset: calc(
+    var(--app-header-height) + var(--chrome-edge-gap) + env(safe-area-inset-top)
+  );
   /* INFO: DESIGN.md § 3.5. `BottomOverlay` measures the floating bars into this; the value here is only what the server render has to go on until it does. */
-  /* WARN: DESIGN.md § 3.5. Seeded at the tab bar's resting height and never `0px` — the chat composer is anchored to this, so a `0` seed paints it flush with the shell's bottom edge and jumps it up a bar's worth the frame the first measurement lands. */
+  /* WARN: DESIGN.md § 3.5. Seeded at the tab bar's resting height and never `0px` — the chat composer is anchored to this, so a `0` seed paints it flush with the chat screen's bottom edge and jumps it up a bar's worth the frame the first measurement lands. */
   --bottom-inset: calc(var(--tab-bar-height) + var(--bar-float-gap) + env(safe-area-inset-bottom));
-  /* INFO: DESIGN.md § 3.5. How far the floating bars sit from the shell's edges. */
-  --bar-float-gap: 12px;
+  /* WARN: DESIGN.md § 3.3. How far the floating bars clear the bottom edge, and not a visual choice — a `fixed` box flush against iOS 26 Safari's toolbar is what makes it paint opaque instead of showing the page through it. Measured at the bottom edge, where 4px is enough; the top needs `--chrome-edge-gap`. */
+  --bar-float-gap: 4px;
+  /* WARN: DESIGN.md § 3.3. The same clearance at the **top** edge, where the status bar needs more of it than the toolbar does below. Not a visual choice either, and lowering it puts the opaque bars back. */
+  --chrome-edge-gap: 6px;
+  /* INFO: DESIGN.md § 3.3. The two lifts every `fixed` bar is held at, so the clearance cannot drift between the header and the bars. `ChatScreen` reads neither — it is deliberately flush to both edges (§ 3.4.), and pays for the keyboard with chrome Safari tints from `--chat-chrome-tint` instead. */
+  /* WARN: DESIGN.md § 3.4. `--viewport-top` is a term because a `fixed` box resolves against the *layout* viewport, and WebKit pans the visual one down inside it to reveal a focused field. Measured on the device: `offsetTop` 385 with the keyboard up, which puts an uncorrected header that far above anything on screen. It is `0` whenever there is no keyboard, so this costs the resting layout nothing. */
+  --header-lift: calc(env(safe-area-inset-top) + var(--chrome-edge-gap) + var(--viewport-top, 0px));
+  --bar-lift: calc(env(safe-area-inset-bottom) + var(--bar-float-gap));
   /* WARN: DESIGN.md § 6.6. `useComposerClearance` overwrites this on the chat container one frame after mount; without the default here the list's trailing spacer is invalid until then and the first bottom-anchored paint parks the newest message behind the composer. */
   --chat-bottom-gap: 0px;
   /* INFO: REQUIREMENTS.md § 13.6. The emoticon panel's own height, shared so the chat room can animate the strip open against the same value the panel is drawn at. */
@@ -273,8 +281,7 @@
 /* INFO: DESIGN.md § 5.2. Rebinds the same names `@theme` declared, so `bg-canvas` swaps without a `dark:` utility existing anywhere. */
 /* WARN: DESIGN.md § 5.4. Hand-tuned, never arithmetically inverted, and no neutral is `#000000` — the warm bias is what makes this the same product with the lights off. */
 .dark {
-  /* INFO: DESIGN.md § 4.1.1. The ladder still ascends, it just ascends towards light. `backdrop` alone goes the other way: it is what the shell is an object on. */
-  --color-backdrop: #0d0b09;
+  /* INFO: DESIGN.md § 4.1.1. The ladder still ascends, it just ascends towards light. */
   --color-canvas: #16130f;
   /* INFO: DESIGN.md § 4.1.1. One step deeper than `canvas` on both themes — the direction reverses, the relationship does not. */
   --color-chat-canvas: #100e0b;

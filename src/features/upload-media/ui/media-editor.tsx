@@ -40,10 +40,9 @@ export type MediaEditorProps = {
  * Crop and filter, over the chat surface. The crop box is resizable by its own
  * handles, so `자유` is a real free-form crop rather than another fixed ratio.
  *
- * WARN: `absolute`, never `fixed` — AGENTS.md § 4.4. keeps the app shell as the
- * one fixed element, because a second one drifts against the keyboard on WebKit.
- * `ShellOverlay` is what makes the shell, rather than the chat room, the box this
- * fills: staying inside the scroller leaves it under the header and the tab bar.
+ * WARN: `absolute`, never `fixed` — `ShellOverlay` owns the viewport-sized box this
+ * fills (DESIGN.md § 3.3.), rather than the chat room: staying inside the screen
+ * leaves it under the floating header and the tab bar.
  */
 export function MediaEditor({
   className,
@@ -75,7 +74,12 @@ export function MediaEditor({
 
   return (
     <ShellOverlay>
-      <div className={cn("absolute inset-0 z-50 flex flex-col bg-scrim", className)}>
+      <div
+        className={cn(
+          "pointer-events-auto absolute inset-0 z-50 flex flex-col bg-scrim",
+          className,
+        )}
+      >
         <div className="flex items-center justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
           <IconButton
             className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"

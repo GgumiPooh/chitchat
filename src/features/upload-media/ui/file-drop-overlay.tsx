@@ -30,7 +30,7 @@ export function FileDropOverlay({
     <div
       className={cn(
         "pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-md transition-opacity duration-150",
-        // WARN: Never unmounted. The transition needs both ends of the fade in the tree, and a node mounting under a live drag is the same flicker the note above describes.
+        // WARN: Kept mounted wherever the fade is wanted — the transition needs both ends of it in the tree. A shelf is the exception and mounts this only while the drag is over it, because its `ShellOverlay` costs 보관함 the translucent chrome for as long as one is up (DESIGN.md § 3.3.); it arrives at `opacity-100` with no fade, which is the price of that.
         isActive ? "opacity-100" : "opacity-0",
         className,
       )}

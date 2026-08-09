@@ -29,8 +29,8 @@ const SKELETON_ROW_COUNT = 6;
 
 /**
  * The result list of DESIGN.md § 6.8. Portalled into the shell so it covers the
- * tab bar and the composer's stack, which are siblings of the screen's scroller
- * rather than children of it (AGENTS.md § 4.4.).
+ * tab bar and the composer's stack, which are siblings of this screen rather than
+ * children of it (§ 3.5.).
  */
 export function MessageSearchResults({
   className,
@@ -74,7 +74,7 @@ export function MessageSearchResults({
       {/* WARN: DESIGN.md § 7.12. Padded below the header rather than under it — this is the one surface the floating strip must not be transparent over. A row sliding beneath the search field would put message text behind 취소, and unlike the conversation there is no fade mask to dissolve it. */}
       <div
         className={cn(
-          "absolute inset-0 z-20 flex flex-col bg-surface-soft pt-(--app-header-inset)",
+          "pointer-events-auto absolute inset-0 z-20 flex flex-col bg-surface-soft pt-(--app-header-inset)",
           className,
         )}
       >

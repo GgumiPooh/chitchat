@@ -111,10 +111,9 @@ export type MediaViewerProps = {
  * DESIGN.md § 7.10. Full-bleed on `scrim`, no chrome but a close control and the
  * position counter.
  *
- * WARN: `absolute`, never `fixed` — AGENTS.md § 4.4. keeps the app shell as the
- * app's one fixed element. `ShellOverlay` is what makes the shell, rather than the
- * chat room, the box this fills: staying inside the scroller leaves it under the
- * header and the tab bar.
+ * WARN: `absolute`, never `fixed` — `ShellOverlay` owns the viewport-sized box this
+ * fills (DESIGN.md § 3.3.), rather than the chat room: staying inside the screen
+ * leaves it under the floating header and the tab bar.
  *
  * INFO: REQUIREMENTS.md § 18. #6. Pinch zoom is `usePinchZoom`; swiping between
  * attachments stays native scroll snapping, which needs no gesture parameters at all.
@@ -317,7 +316,10 @@ export function MediaViewer({
       {/* WARN: `role`/`aria-modal` by hand, because this composes no Radix primitive (§ 12.3.) — and required, not decoration: the hook focuses this element on open, so without them focus lands on an anonymous `div` and a reader is told nothing while the conversation behind stays exposed to it. */}
       <div
         ref={overlayRef}
-        className={cn("absolute inset-0 z-40 flex flex-col bg-scrim", className)}
+        className={cn(
+          "pointer-events-auto absolute inset-0 z-40 flex flex-col bg-scrim",
+          className,
+        )}
         role="dialog"
         aria-modal="true"
         aria-label="첨부 크게 보기"

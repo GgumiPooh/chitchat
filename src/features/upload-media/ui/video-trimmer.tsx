@@ -31,9 +31,8 @@ const MIN_TRIM_DURATION = A_SECOND / 2;
  * Cuts a video down, over the app shell — the § 12.1. background's 30s window, or
  * a free range for an attachment.
  *
- * WARN: `absolute`, never `fixed` — AGENTS.md § 4.4. keeps the app shell as the one
- * fixed element. `ShellOverlay` is what makes the shell the box this fills, exactly
- * as `MediaEditor` does.
+ * WARN: `absolute`, never `fixed` — `ShellOverlay` owns the viewport-sized box this
+ * fills (DESIGN.md § 3.3.), exactly as `MediaEditor` does.
  */
 export function VideoTrimmer({
   className,
@@ -82,7 +81,12 @@ export function VideoTrimmer({
 
   return (
     <ShellOverlay>
-      <div className={cn("absolute inset-0 z-50 flex flex-col bg-scrim", className)}>
+      <div
+        className={cn(
+          "pointer-events-auto absolute inset-0 z-50 flex flex-col bg-scrim",
+          className,
+        )}
+      >
         <div className="flex items-center justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
           <IconButton
             className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"

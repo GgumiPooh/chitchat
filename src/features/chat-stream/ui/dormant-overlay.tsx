@@ -14,19 +14,22 @@ export type DormantOverlayProps = {
  * REQUIREMENTS.md § 8.4.1. Shown on every tab while the app is dormant, and
  * dismissed by touching it anywhere — the touch is what reopens the request gate.
  *
- * WARN: `absolute`, never `fixed` (AGENTS.md § 4.4.). `ShellOverlay` is what puts
- * it over the floating header and the tab bar (DESIGN.md § 3.5.1.).
+ * WARN: `absolute`, never `fixed` — `ShellOverlay` owns the viewport-sized box this
+ * fills (DESIGN.md § 3.3.), and it is what puts this over the floating header and the
+ * tab bar (§ 3.5.1.).
  */
 export function DormantOverlay({ className, bodyClassName, onWake }: DormantOverlayProps) {
   return (
-    <ShellOverlay>
+    // WARN: DESIGN.md § 3.5.1. The raise belongs on the layer, never on the button. `ShellOverlay` is `fixed` and seals its children into a stacking context of their own, so a `z-` inside it is resolved against nothing — this has to outrank the other overlays' layers, and it can only do that from here. Still under the `z-50` the `body`-level sheets are portalled at.
+    <ShellOverlay className="z-[45]">
       <button
         className={cn(
-          "absolute inset-0 z-50 flex flex-col items-center justify-center px-lg text-center",
+          "pointer-events-auto absolute inset-0 flex flex-col items-center justify-center px-lg text-center",
           // WARN: DESIGN.md § 7.17. Its own surface, deliberately thinner than the `glass` of § 3.5.1. That utility is for floating chrome sitting on content; this covers the content, and at `glass` weight the screen behind it is gone rather than merely paused.
           "bg-canvas/45 backdrop-blur-md",
           // INFO: DESIGN.md § 3.2. No `hover:` — the surface is the whole screen, so a state change on entry would fire wherever the pointer happened to be.
-          "outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-canvas/60",
+          // WARN: DESIGN.md § 3.2. And no focus ring either, which is the one place that exception is right. This takes focus on mount, so the inset ring drew a primary border around the entire viewport the moment 절전 모드 arrived — a frame around the app rather than an affordance on a control. 화면을 누르면 다시 이어져요 is what says it is pressable.
+          "outline-none active:bg-canvas/60",
           className,
         )}
         type="button"

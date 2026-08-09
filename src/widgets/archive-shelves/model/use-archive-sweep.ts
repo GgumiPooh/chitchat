@@ -1,13 +1,12 @@
 "use client";
 
-import { APP_SCROLL_ID } from "@/shared/config";
 import { GESTURE_SLOP, type LongPressPoint, type Nullable } from "@/shared/lib";
 import { useCallback, useEffect, useRef } from "react";
 
 /** REQUIREMENTS.md § 10. The sweep hit-tests the document rather than hearing an event per tile, so the id has to be readable off the DOM. */
 export const ARCHIVE_TILE_ID_ATTRIBUTE = "data-archive-tile-id";
 
-// INFO: How close to the scroller's edge the finger has to come before the grid starts moving under it, and the per-frame travel at the very edge.
+// INFO: How close to the viewport's edge the finger has to come before the grid starts moving under it, and the per-frame travel at the very edge.
 const EDGE_ZONE = 96;
 const MAX_SCROLL_STEP = 18;
 
@@ -133,25 +132,25 @@ export function useArchiveSweep({ onEnter, onEnd }: ArchiveSweepHandlers) {
     function step() {
       frame = requestAnimationFrame(step);
 
-      const scroller = document.getElementById(APP_SCROLL_ID);
-
-      if (!scroller || !point) {
+      if (!point) {
         return;
       }
 
-      const { top, bottom } = scroller.getBoundingClientRect();
-      const intoTop = top + EDGE_ZONE - point.y;
-      const intoBottom = point.y - bottom + EDGE_ZONE;
-      const before = scroller.scrollTop;
+      // INFO: DESIGN.md § 3.3. The document is the scroller, so the edge zones are the viewport's own top and bottom — `point` is already a client coordinate.
+      // WARN: The **visual** viewport's height, never `window.innerHeight`. iOS Safari keeps the layout viewport at its toolbar-collapsed height, so the bottom zone measured from `innerHeight` starts below the glass and the finger can never reach the far end of it.
+      const visibleHeight = window.visualViewport?.height ?? window.innerHeight;
+      const intoTop = EDGE_ZONE - point.y;
+      const intoBottom = point.y - visibleHeight + EDGE_ZONE;
+      const before = window.scrollY;
 
       if (intoTop > 0) {
-        scroller.scrollTop -= travel(intoTop);
+        window.scrollBy(0, -travel(intoTop));
       } else if (intoBottom > 0) {
-        scroller.scrollTop += travel(intoBottom);
+        window.scrollBy(0, travel(intoBottom));
       }
 
       // WARN: Re-tested every frame the grid actually moved, not only on `touchmove`. A finger parked at the edge sends no move at all, and there the tiles are what travels.
-      if (scroller.scrollTop !== before) {
+      if (window.scrollY !== before) {
         enterAt(point);
       }
     }

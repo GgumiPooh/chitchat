@@ -19,9 +19,9 @@ export function LoginPage({ className, error }: LoginPageProps) {
   const message = error ? (ERROR_MESSAGE[error] ?? ERROR_MESSAGE.failed) : null;
 
   return (
-    // INFO: DESIGN.md § 3.4. The document cannot scroll, so this screen owns its own scroller the way the `(main)` shell does.
-    <main className={cn("h-full overflow-y-auto bg-canvas", className)}>
-      <Container className="flex min-h-full flex-col justify-between py-2xl" size="sm">
+    // INFO: DESIGN.md § 3.3. The document is the scroller here too, so the column is in flow at `min-h-dvh` rather than a percentage of a body that no longer has a height.
+    <main className={cn("flex min-h-dvh flex-col bg-canvas", className)}>
+      <Container className="flex flex-1 flex-col justify-between py-2xl" size="sm">
         <div className="flex flex-1 flex-col items-center justify-center gap-xs">
           <h1 className="text-display-lg text-ink">{APP_NAME}</h1>
           <p className="text-body-md text-meta">우리 둘만의 공간</p>

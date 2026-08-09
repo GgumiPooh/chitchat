@@ -156,7 +156,7 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
           </Button>
         </div>
       </Modal>
-      {/* WARN: AGENTS.md § 4.4. Portalled into the shell box rather than positioned in this screen. The bar has to stand above the tab bar over whatever is scrolled, and this screen *is* the scroller's content — an absolute strip left inside it would sit at the bottom of every month ever loaded. */}
+      {/* WARN: DESIGN.md § 3.3. Portalled into the shell box rather than positioned in this screen. The bar has to stand above the tab bar over whatever is scrolled, and this screen *is* the document scroller's content — an absolute strip left inside it would sit at the bottom of every month ever loaded. */}
       {isRecording && (
         <ShellOverlay>
           <div className="pointer-events-none absolute inset-x-0 bottom-0 p-md pb-[calc(var(--bottom-inset,0px)+var(--spacing-md))]">

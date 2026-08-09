@@ -26,21 +26,39 @@ export function VisualViewportSync() {
 
     sync();
     viewport.addEventListener("resize", sync);
-    viewport.addEventListener("scroll", sync);
+    viewport.addEventListener("scroll", syncPan);
 
     return () => {
       cancelAnimationFrame(frame);
       viewport.removeEventListener("resize", sync);
-      viewport.removeEventListener("scroll", sync);
+      viewport.removeEventListener("scroll", syncPan);
       root.style.removeProperty(HEIGHT_PROPERTY);
       root.style.removeProperty(TOP_PROPERTY);
       root.style.removeProperty(BOTTOM_PROPERTY);
     };
 
-    // INFO: The keyboard animates open over several frames, and each one fires both events — coalescing keeps the shell to one resize per frame.
+    // INFO: The keyboard animates open over several frames, and each one fires the event — coalescing keeps the shell to one resize per frame.
     function sync() {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(write);
+    }
+
+    /**
+     * WARN: DESIGN.md § 3.4. Written straight out of the handler, never through the
+     * `rAF` above. WebKit pans the visual viewport on the compositor and reports it
+     * here afterwards, so every frame this write is deferred by is a frame the
+     * `fixed` chrome spends at the wrong offset — which is what the composer wobbles
+     * with while the reader scrolls with the keyboard up. The height keeps its
+     * coalescing: it moves in a handful of coarse steps, not per frame.
+     *
+     * WARN: The `sync()` below still runs, because `--viewport-bottom` is derived from
+     * `offsetTop` too and would go stale through a pan. It stays in the `rAF` rather
+     * than being written here: it reads `root.clientHeight`, and coalescing is what
+     * holds that forced layout to one per frame where a pan fires several.
+     */
+    function syncPan() {
+      root.style.setProperty(TOP_PROPERTY, `${(viewport as VisualViewport).offsetTop}px`);
+      sync();
     }
 
     function write() {
@@ -54,11 +72,6 @@ export function VisualViewportSync() {
         BOTTOM_PROPERTY,
         `${Math.max(root.clientHeight - offsetTop - height, 0)}px`,
       );
-
-      // WARN: WebKit pans the document to reveal the focused field before the shell has resized; left in place that pan carries the header out of the visual viewport, which is the bug this component exists to fix.
-      if (window.scrollY !== 0) {
-        window.scrollTo(0, 0);
-      }
     }
   }, []);
 

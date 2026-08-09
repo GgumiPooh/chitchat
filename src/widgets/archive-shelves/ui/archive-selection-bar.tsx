@@ -37,9 +37,9 @@ export type ArchiveSelectionBarProps = {
  * language of DESIGN.md § 3.5. On iOS the first two collapse into one row, since
  * there is only one route there for either to take.
  *
- * WARN: Portalled into the shell rather than left in the screen. It has to sit
- * over the tab bar, which is a sibling of the scroller this screen lives in — and
- * going `fixed` to reach it is what AGENTS.md § 4.4. rules out.
+ * WARN: Portalled into the shell rather than left in the screen. It has to sit over
+ * the tab bar, which is a sibling of this screen — and an `absolute` strip left in a
+ * shelf would ride to the bottom of every month ever loaded (DESIGN.md § 3.3.).
  */
 export function ArchiveSelectionBar({
   className,
@@ -60,7 +60,8 @@ export function ArchiveSelectionBar({
     <ShellOverlay>
       <div
         className={cn(
-          "pointer-events-none absolute inset-x-0 bottom-0 z-30 px-md pb-[calc(env(safe-area-inset-bottom)+var(--bar-float-gap))]",
+          // INFO: DESIGN.md § 3.5. `--bar-lift`, the same clearance `BottomOverlay` holds the tab bar at — this bar stands in its place, so the two cannot be allowed to drift apart.
+          "pointer-events-none absolute inset-x-0 bottom-0 z-30 px-md pb-(--bar-lift)",
           className,
         )}
       >

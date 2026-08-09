@@ -60,7 +60,8 @@ export function RouteTransition({ className, children }: RouteTransitionProps) {
     <div
       key={arrival.run}
       className={cn(
-        "flex min-h-0 flex-1 flex-col",
+        // WARN: No `min-h-0`. It clamped this box to the viewport while the shell was a fixed scroller; with the document scrolling it would clamp it again, and a `sticky` header inside a box the content overflows has no range to stick in — it scrolls away on the first pixel (DESIGN.md § 3.3.).
+        "flex flex-1 flex-col",
         arrival.direction === "forward" && "route-enter-forward",
         arrival.direction === "back" && "route-enter-back",
         className,
