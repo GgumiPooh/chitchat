@@ -289,7 +289,7 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
    * dismissing it — `cells` is the snapshot taken when the tile was tapped, so a
    * viewer left alone keeps showing an object that no longer resolves.
    *
-   * WARN: `index` is deliberately left where it stood. It is `MediaViewer`'s `initialIndex` and moving it re-runs the mount scroll; the track keeps its own offset, and scroll snapping re-snaps to the nearest position once the removed slide's box is gone — which is the next photo, already under the reader.
+   * WARN: `index` is deliberately left where it stood — it is `MediaViewer`'s `initialIndex`, and moving it re-runs the mount scroll. Where the reader ends up is the viewer's own decision, taken against the ids in this new list rather than left to scroll snapping.
    */
   function dropFromViewer(ids: string[]) {
     const removed = new Set(ids);

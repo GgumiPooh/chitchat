@@ -72,7 +72,8 @@ export function MediaViewer({
   onOpenMessage,
 }: MediaViewerProps) {
   const trackRef = useRef<HTMLDivElement>(null);
-  const lengthRef = useRef(cells.length);
+  // WARN: REQUIREMENTS.md § 10. The slides as they stood when `swipedTo` was last written, which is what turns a position into a *photo* — a delete below resolves against the id, and an index alone cannot say whether the row that left was before the reader or under them.
+  const shownCellsRef = useRef(cells);
   // INFO: REQUIREMENTS.md § 12.3. `Escape`, the focus trap and the marker the profile screen underneath reads, from the one owner the profile screen shares.
   const overlayRef = useModalOverlay<HTMLDivElement>(onClose);
   const [swipedTo, setSwipedTo] = useState(initialIndex);
@@ -98,24 +99,32 @@ export function MediaViewer({
 
   /**
    * REQUIREMENTS.md § 10. What a slide being deleted out of the track costs: the
-   * offset it leaves behind is the next photo's, and the zoom belonged to the one
-   * that left.
+   * reader keeps the photo they were on, and the zoom belonged to whichever slide
+   * left.
    *
-   * WARN: The offset is re-asserted rather than trusted to scroll snapping. Removing the snapped element leaves re-snapping to pick the closest position, which is the right one — but this is a `snap-mandatory` track on WebKit, and the app's own history with that combination (§ 8.3.) is that the correction is where engines differ. Written out, the reader lands on the next photo on all of them.
-   * WARN: Guarded on the length itself, because `index` has to be read here and cannot be a dependency — the effect would then fire on every swipe and force-snap a scroll that is still in flight.
+   * WARN: Resolved by id, never by holding the position still. 보관함's 삭제 usually takes the slide on screen, but its confirmation can be dismissed while the request is in flight and the reader can swipe on — so the row that leaves may sit *before* them, and every slide after it shifts down one.
+   * WARN: The offset is re-asserted rather than trusted to scroll snapping. Removing the snapped element leaves re-snapping to pick the closest position, which is the right one — but this is a `snap-mandatory` track on WebKit, and the app's own history with that combination (§ 8.3.) is that the correction is where engines differ. Written out, the reader lands on the right photo on all of them.
+   * WARN: Guarded on the length, which is what keeps a swipe's own `swipedTo` write off the scroll below — re-asserting an offset mid-gesture force-snaps a scroll that is still in flight.
    */
   useEffect(() => {
-    if (lengthRef.current === cells.length) {
+    const shownCells = shownCellsRef.current;
+
+    if (shownCells.length === cells.length) {
       return;
     }
 
-    lengthRef.current = cells.length;
+    shownCellsRef.current = cells;
 
+    // INFO: § 10. Gone exactly when the deleted row was the one on screen, where the position it leaves behind is already the next photo's.
+    const shownId = shownCells[swipedTo]?.id;
+    const found = cells.findIndex((cell) => cell.id === shownId);
+    const target = found < 0 ? Math.min(swipedTo, cells.length - 1) : found;
     const track = trackRef.current;
 
-    track?.scrollTo({ left: track.clientWidth * index });
+    setSwipedTo(target);
+    track?.scrollTo({ left: track.clientWidth * target });
     zoom.reset();
-  }, [cells.length, index, zoom.reset]);
+  }, [cells, swipedTo, zoom]);
 
   return (
     <ShellOverlay>
