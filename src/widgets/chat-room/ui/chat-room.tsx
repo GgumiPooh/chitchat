@@ -235,6 +235,17 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 13.8. A word tapped in the composer, handed to the picker's search tab.
   const [emoticonSearch, setEmoticonSearch] =
     useState<Nullable<{ query: string; token: number }>>(null);
+  /**
+   * INFO: REQUIREMENTS.md § 13.8. The word a send takes out of the draft, held apart
+   * from the request above because a send spends **this** and leaves that standing —
+   * the panel stays on the search the emoticon came from, ready for the next one.
+   *
+   * WARN: A one-shot, and that is the whole reason it is not read off
+   * `emoticonSearch` any more. Left armed across a send, a draft that merely reads
+   * `고민` again — typed as an actual message this time — is swallowed by the next
+   * emoticon staged from the same still-open results.
+   */
+  const searchedWordRef = useRef<Nullable<string>>(null);
   // INFO: REQUIREMENTS.md § 13.9. An emoticon tapped in the conversation. Where the panel opens is the picker's decision, since the pack list is what settles it.
   const [emoticonReveal, setEmoticonReveal] =
     useState<Nullable<{ emoticon: Emoticon; token: number }>>(null);
@@ -246,9 +257,10 @@ export function ChatRoom({
   const reportEmoticonSearchTab = useCallback((isOnSearchTab: boolean) => {
     setIsEmoticonSearchTab(isOnSearchTab);
 
-    // WARN: § 13.8. Leaving 검색 ends the search, exactly as closing the panel does. `emoticonSearch` is what `isConsumedByEmoticonSearch` matches the draft against, so a request left standing swallows a typed word that merely equals it — beside an emoticon the user went and staged from some other pack, which the word never found.
+    // WARN: § 13.8. Leaving 검색 ends the search, exactly as closing the panel does. The word is only consumed beside an emoticon the search itself produced, so a request surviving a walk to another pack swallows a typed word that merely equals it.
     if (!isOnSearchTab) {
       setEmoticonSearch(null);
+      searchedWordRef.current = null;
     }
   }, []);
   // INFO: § 13.8. Bumped when a send should take the searched word out of the field; the composer owns the draft and decides whether it still holds only that word.
@@ -1171,7 +1183,8 @@ export function ChatRoom({
     sendEmoticon(emoticon, replyTarget);
     // INFO: § 13.8. This path never goes through `submit`, so the field is still holding the word that found this emoticon — the composer clears it if that is all it holds.
     setKeywordConsumeToken((token) => token + 1);
-    setEmoticonSearch(null);
+    // WARN: § 13.8. The word is spent, the search is not. `emoticonSearch` deliberately stands, so the panel is still on the results this emoticon came from — sending one of a row of related pictures is the reason to have searched at all, and dropping back to the remembered pack means finding the word again for every one after the first.
+    searchedWordRef.current = null;
     setReplyTarget(null);
   }
 
@@ -1244,13 +1257,14 @@ export function ChatRoom({
       send(text, take());
     }
 
-    setEmoticonSearch(null);
+    // WARN: § 13.8. The word is spent here, and the search is left standing — see `sendStagedEmoticon`.
+    searchedWordRef.current = null;
     setReplyTarget(null);
   }
 
   /** INFO: REQUIREMENTS.md § 13.8. Only ever true beside an emoticon — on its own the word is the message the user typed. */
   function isConsumedByEmoticonSearch(text: string): boolean {
-    return stagedEmoticon !== null && text.trim() === emoticonSearch?.query;
+    return stagedEmoticon !== null && text.trim() === searchedWordRef.current;
   }
 
   /**
@@ -1263,6 +1277,7 @@ export function ChatRoom({
   function closeEmoticonPanel() {
     setIsEmoticonPickerOpen(false);
     setEmoticonSearch(null);
+    searchedWordRef.current = null;
     setEmoticonReveal(null);
   }
 
@@ -1287,6 +1302,7 @@ export function ChatRoom({
   /** REQUIREMENTS.md § 13.8. A word tapped in the composer opens the picker on its search tab, already holding it. */
   function openEmoticonSearch(query: string) {
     setEmoticonSearch({ query, token: Date.now() });
+    searchedWordRef.current = query;
     // WARN: Set here as well as reported back by the picker's own effect. The gate above reads it in the same commit the panel is asked to open in, and waiting for the effect leaves one frame where the panel is open, the keyboard is still retracting and the exemption is not in yet — which closes it again.
     setIsEmoticonSearchTab(true);
     setIsEmoticonPickerOpen(true);
