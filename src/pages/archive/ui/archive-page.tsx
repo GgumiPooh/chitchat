@@ -284,6 +284,28 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
     setIsConfirmingDelete(true);
   }
 
+  /**
+   * REQUIREMENTS.md § 10. Takes the deleted rows out of the open viewer rather than
+   * dismissing it — `cells` is the snapshot taken when the tile was tapped, so a
+   * viewer left alone keeps showing an object that no longer resolves.
+   *
+   * WARN: `index` is deliberately left where it stood. It is `MediaViewer`'s `initialIndex` and moving it re-runs the mount scroll; the track keeps its own offset, and scroll snapping re-snaps to the nearest position once the removed slide's box is gone — which is the next photo, already under the reader.
+   */
+  function dropFromViewer(ids: string[]) {
+    const removed = new Set(ids);
+
+    setViewer((previous) => {
+      if (previous === null) {
+        return null;
+      }
+
+      const remaining = previous.cells.filter((cell) => !removed.has(cell.id));
+
+      // INFO: The last row on the shelf has no next photo to fall to, so there is nothing left for the viewer to show.
+      return remaining.length === 0 ? null : { ...previous, cells: remaining };
+    });
+  }
+
   async function confirmDelete() {
     if (pendingDelete === null) {
       return;
@@ -298,8 +320,7 @@ export function ArchivePage({ className, initialMedia }: ArchivePageProps) {
       remove(ids);
       selection.cancel();
       setIsConfirmingDelete(false);
-      // WARN: The viewer closes with it. `cells` is the snapshot taken at open, so the deleted slide would otherwise stay on screen and swipe back into view.
-      setViewer(null);
+      dropFromViewer(ids);
     } catch {
       toast.error(`${josa(noun, "을/를")} 삭제하지 못했어요`);
     } finally {

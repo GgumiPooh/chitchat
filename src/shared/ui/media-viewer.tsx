@@ -72,11 +72,14 @@ export function MediaViewer({
   onOpenMessage,
 }: MediaViewerProps) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const lengthRef = useRef(cells.length);
   // INFO: REQUIREMENTS.md § 12.3. `Escape`, the focus trap and the marker the profile screen underneath reads, from the one owner the profile screen shares.
   const overlayRef = useModalOverlay<HTMLDivElement>(onClose);
-  const [index, setIndex] = useState(initialIndex);
+  const [swipedTo, setSwipedTo] = useState(initialIndex);
   // INFO: REQUIREMENTS.md § 18. #6. One zoom for the viewer rather than one per slide — only the slide on screen can be gestured, and a stale scale on a neighbour would be restored by a swipe back to it.
   const zoom = usePinchZoom();
+  // WARN: REQUIREMENTS.md § 10. `cells` shrinks under the viewer, since 보관함's 삭제 takes the slide on screen and leaves the reader on the track. Held to the slides that still exist: deleting the last one leaves the swiped-to position past the end, which renders no slide and no controls at all.
+  const index = Math.min(swipedTo, cells.length - 1);
   const current = cells[index];
   // INFO: A draft has no stored object yet, so there is nothing for either control to reach.
   const downloadUrl = current?.downloadUrl;
@@ -92,6 +95,27 @@ export function MediaViewer({
 
     track?.scrollTo({ left: track.clientWidth * initialIndex });
   }, [initialIndex]);
+
+  /**
+   * REQUIREMENTS.md § 10. What a slide being deleted out of the track costs: the
+   * offset it leaves behind is the next photo's, and the zoom belonged to the one
+   * that left.
+   *
+   * WARN: The offset is re-asserted rather than trusted to scroll snapping. Removing the snapped element leaves re-snapping to pick the closest position, which is the right one — but this is a `snap-mandatory` track on WebKit, and the app's own history with that combination (§ 8.3.) is that the correction is where engines differ. Written out, the reader lands on the next photo on all of them.
+   * WARN: Guarded on the length itself, because `index` has to be read here and cannot be a dependency — the effect would then fire on every swipe and force-snap a scroll that is still in flight.
+   */
+  useEffect(() => {
+    if (lengthRef.current === cells.length) {
+      return;
+    }
+
+    lengthRef.current = cells.length;
+
+    const track = trackRef.current;
+
+    track?.scrollTo({ left: track.clientWidth * index });
+    zoom.reset();
+  }, [cells.length, index, zoom.reset]);
 
   return (
     <ShellOverlay>
@@ -226,7 +250,7 @@ export function MediaViewer({
     // WARN: REQUIREMENTS.md § 18. #6. The zoom belongs to the slide it was applied to, so arriving at another one drops it. Unconditional, because `scroll` fires for every frame of the swipe and resetting on each would fight a pinch that is still in progress.
     if (next !== index) {
       zoom.reset();
-      setIndex(next);
+      setSwipedTo(next);
     }
   }
 
