@@ -8,6 +8,8 @@ import { getCurrentUser } from "@/shared/auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+// WARN: REQUIREMENTS.md § 13.7.1. jandh-emoticons mirrors this handler, and the browser reaches whichever copy the switch names. Both sides change together — a fix landed here alone is one this app stops running the moment the switch is on.
+
 const orderSchema = z.object({ packIds: z.array(z.uuid()).min(1) });
 
 const enabledSchema = z.object({ packId: z.uuid(), enabled: z.boolean() });

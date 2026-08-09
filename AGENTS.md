@@ -85,7 +85,15 @@ jandh-emoticons is served from this origin under `/emoticons`, through a rewrite
 
 Cross that boundary with a document navigation — `window.location`, or an `<a href>` — never `<Link>` or `router.push`. The client router would ask for an RSC payload that does not exist. Do not narrow the rewrite or the `proxy.ts` matcher exclusions without reading § 13.7. first; both are load-bearing in ways that fail as 404s on assets rather than as errors.
 
-**Exactly one call skips the rewrite**, and it is `EMOTICON_KEYWORDS_URL` (`REQUIREMENTS.md § 13.8.1.`) — an absolute URL at `jandh-emoticons.jeheecheon.com`, sent with `credentials: "include"` and answered with CORS by that repo. It is an exception, not a pattern to copy: a `fetch` can leave the origin because it can be given credentials and a preflight, and a navigation cannot. Sharing `jeheecheon.com` makes the two same-**site**, which settles the cookie and nothing else — SOP compares scheme, host and port, so anything else moved off the rewrite needs CORS in the other repository before it works at all.
+**`fetch` calls may skip the rewrite; nothing else may.** A `fetch` can leave the origin because it can be given credentials and a preflight, and a navigation cannot. Sharing `jeheecheon.com` makes the two same-**site**, which settles the cookie and nothing else — SOP compares scheme, host and port, so anything moved off the rewrite needs CORS in the other repository before it works at all.
+
+Two things use that permission and there is no third. `EMOTICON_KEYWORDS_URL` (`REQUIREMENTS.md § 13.8.1.`) is absolute unconditionally. The emoticon API — packs, items, prefs, upload URLs — follows `NEXT_PUBLIC_EMOTICON_API_REMOTE` (`§ 13.7.1.`), which is **off by default**, is ignored unless `NEXT_PUBLIC_EMOTICONS_ORIGIN` is set too, and leaves those constants as the relative paths they have always been.
+
+`request` adds `credentials: "include"` when the URL is absolute, and never otherwise. Do **not** make it unconditional: credentials mode applies to the whole fetch, so a same-origin request that 302s off-origin becomes a credentialed CORS request at the destination — and `/api/media/{id}` redirects into R2, which cannot answer `Access-Control-Allow-Credentials`. That takes 보관함's 공유 down, on a path with no emoticons in it.
+
+`toEmoticonAssetUrl` is the one that must never follow the switch, and it is written out separately so it cannot: an `<img>` / `<audio>` / `new Image()` load is not a `fetch`, and jandh-emoticons answers that route without CORS on purpose.
+
+**Every route under `app/api/emoticons/` exists twice — here and in jandh-emoticons — and both copies MUST be changed in the same piece of work.** All seven: `packs`, `packs/{id}`, `packs/{id}/items`, `items/{id}`, `prefs`, `upload-url` and `items/{id}/asset`. For the first six the browser reaches whichever copy `NEXT_PUBLIC_EMOTICON_API_REMOTE` names, so a one-sided edit is not a change that half works — it works until a variable moves, then silently stops. `items/{id}/asset` is the exception to the _switch_ and not to this rule: each app always serves its own, so a one-sided edit there simply leaves the other app's screens rendering the old behaviour forever. Read `REQUIREMENTS.md § 13.7.1.` before touching any of them.
 
 ## 4.3. App shell width
 

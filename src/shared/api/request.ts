@@ -21,11 +21,29 @@ export class DormantRequestError extends Error {
  * PUT and § 8.9.'s oEmbed lookup reach no server of ours and stay on plain `fetch`;
  * § 13.8.1.'s suggester is cross-origin and belongs here anyway, since it reads the
  * items out of the same database.
+ *
+ * WARN: `credentials: "include"` is added for a caller whose URL has left this origin
+ * on purpose, and for that caller alone (§ 13.7.1.). It removes the one thing that
+ * switch could otherwise break quietly — a fetcher reaching the far origin with no
+ * session, which is answered `401` rather than by an error naming the omission. An
+ * `init` that names its own `credentials` still wins.
+ *
+ * WARN: Setting it for **every** caller is wrong, and wrong somewhere else entirely.
+ * Credentials mode belongs to the whole fetch rather than to its first hop, so a
+ * same-origin request that 302s off-origin becomes a *credentialed* CORS request at
+ * the destination — and § 9.'s media download redirects into R2, whose S3-compatible
+ * CORS cannot answer `Access-Control-Allow-Credentials`. `collectShareFiles` reads
+ * exactly that redirect, so 보관함's 공유 would fail as an opaque network error.
  */
 export function request(path: string, init?: RequestInit): Promise<Response> {
   if (isDormant()) {
     return Promise.reject(new DormantRequestError(path));
   }
 
-  return fetch(path, init);
+  return fetch(path, isCrossOrigin(path) ? { credentials: "include", ...init } : init);
+}
+
+// WARN: § 13.7.1. An absolute URL is the signal, because every path this app writes is relative — so only a constant deliberately pointed at another origin reaches the credentialed branch, and it cannot be reached by a route of ours that merely redirects.
+function isCrossOrigin(path: string): boolean {
+  return /^https?:\/\//i.test(path);
 }
