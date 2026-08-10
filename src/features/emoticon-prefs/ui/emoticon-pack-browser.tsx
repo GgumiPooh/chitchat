@@ -107,8 +107,8 @@ export function EmoticonPackBrowser({
 
   return (
     <div className={cn("flex flex-col", className)}>
-      {/* INFO: Sticky rather than in flow above the list: ten thousand rows put the field a very long way behind the reader, and the tab it belongs to is the one place a query can be changed. */}
-      <div className="sticky top-(--app-header-inset) z-10 bg-canvas px-md pb-xs">
+      {/* WARN: In flow, never `sticky`. Pinned it sat below a transparent app header with the rows passing between the two, and `DESIGN.md § 3.4.` rations what may leave the flow at all. */}
+      <div className="px-md pb-xs">
         <div className="flex h-11 items-center gap-2xs rounded-full border border-hairline bg-surface-soft px-sm">
           <Search className="size-4 shrink-0 text-meta-soft" strokeWidth={1.75} aria-hidden />
           <input
