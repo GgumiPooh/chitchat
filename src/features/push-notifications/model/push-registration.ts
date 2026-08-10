@@ -1,6 +1,6 @@
 import type { PushSubscriptionInput } from "@/entities/push-subscription";
 import { IS_DEV, SERVICE_WORKER_PATH, VAPID_PUBLIC_KEY } from "@/shared/config";
-import { safelyGetAsync } from "@/shared/lib";
+import { safelyGetAsync, safelyRunAsync } from "@/shared/lib";
 import { deleteSubscription } from "../api/delete-subscription";
 import { saveSubscription } from "../api/save-subscription";
 import { updateSubscriptionSound } from "../api/update-subscription-sound";
@@ -63,6 +63,30 @@ export async function syncPushSubscription(): Promise<PushState> {
   const saved = await safelyGetAsync(() => saveSubscription(toSubscriptionInput(subscription)));
 
   return saved ? { status: "on", soundEnabled: saved.soundEnabled } : offState("off");
+}
+
+/**
+ * Clears the banners this origin has already delivered (REQUIREMENTS.md § 16.1.).
+ *
+ * INFO: § 16.1. shows a banner on every push, the ones a visible window received included, and the OS keeps each one until it is dismissed by hand — so a reader who catches up in the app still finds them waiting in Notification Center.
+ *
+ * WARN: Called from the page, and only on entering it. § 16.1. is explicit that closing a banner from inside the worker's `push` event reads to WebKit as never having shown one, which is what costs the subscription.
+ *
+ * WARN: Unfiltered rather than by `sw.js`'s tag (§ 16.1.) — the tag lives in the worker alone, and a mirrored copy here would be a second source of truth nothing checks. A registration is per-origin, so everything it holds is ours anyway.
+ */
+export async function dismissDeliveredNotifications(): Promise<void> {
+  // INFO: Looser than `isPushSupported` on purpose — clearing a banner needs neither `PushManager` nor the VAPID key, and a device whose subscription has since been retired is still holding the banners it was sent.
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+
+  await safelyRunAsync(async () => {
+    // WARN: `getRegistration`, never `registerPushWorker` — a browser holding no banners has none to clear, and installing § 16.'s worker as a side effect of a sweep would start caching for a user who never subscribed.
+    const registration = await navigator.serviceWorker.getRegistration();
+    const delivered = await registration?.getNotifications();
+
+    delivered?.forEach((notification) => notification.close());
+  });
 }
 
 /** WARN: Must be called from inside a user gesture — every browser drops a permission prompt that is not. */
