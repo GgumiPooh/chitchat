@@ -212,6 +212,14 @@ The blur is **conditional on nothing being captured** (§ 4.7.1.). A captured gr
 
 It is composed from Tailwind's own `backdrop-*` utilities and never from a hand-written `backdrop-filter` declaration — a raw one is dropped from the build, and the surface ships as a thin tint with no blur at all.
 
+## 3.6. Horizontal scrollers.
+
+**A horizontal scroller MUST NOT carry `padding-inline`.** Where a row of tiles needs breathing room at its ends, that inset is the **first and last child's margin** — `[&>*:first-child]:ml-*` and `[&>*:last-child]:mr-*` — and never padding on the box that scrolls. Vertical padding is unaffected and stays where it is.
+
+The reason is a WebKit defect and it is invisible in the browser most testing happens in. **WebKit reports `scrollWidth === clientWidth` for as long as the content fits _without counting_ `padding-right`, and only starts including that padding once the box already overflows.** That leaves a dead band exactly as wide as the padding, at every step of the content's growth, in which the strip is genuinely over-full, reports zero overflow, and cannot be scrolled at all — not by a finger, not by a wheel, and not by the § 13.6. code that scrolls the selected tab back into view, which has nothing to scroll into. Measured in WKWebView on the emoticon picker's 44px tabs at `2xs` gaps: a `clientWidth` of 336 gave `scrollWidth` 336 with `scrollLeft` pinned at 0, while 335 gave 340 and scrolled normally. **Chrome does not have the defect** — it reported 340 at every width — which is why a strip padded this way shipped and survived: it can only be reproduced on the engine the app is actually used on.
+
+Both scrollers the app has were moved to margins and verified in WKWebView at and around every threshold, with no over-correction when the row is genuinely under-full and no change in Chrome: the picker's pack tab strip (`REQUIREMENTS.md § 13.6.`) and the composer's media tray (§ 6.6.).
+
 # 4. Tokens.
 
 Color tokens live in the `@theme` block of `src/app/styles/theme.css`. Each `--color-{token}` generates `bg-{token}`, `text-{token}`, `border-{token}`, `ring-{token}`. `--color-*: initial` is declared first, removing Tailwind's default palette from the build — raw utilities like `bg-white` do not exist and MUST NOT be reintroduced.
@@ -1240,7 +1248,7 @@ Three boundaries that are easy to read the wrong way:
 
 A switch is thrown by sliding it, so WebKit tracks a drag on the control and claims that gesture before the scroller is consulted. Where the overlay has space around it nobody notices. Where the targets **tile** a surface — the day cells of the month grid, the cells of the emoticon grid, the pack tabs under it, a `SettingsRow` or the name of a 이모티콘 관리 row, both of which fill the row they sit in, a 다가오는 일정 row, and the rows of a sheet (`ActionSheet`, the day's events), which are the whole surface a finger has to pull to dismiss it — the overlay is what every scrolling finger lands on: the emoticon panel would not scroll at all, the month grid, the settings list, the pack list and the upcoming list turned a drag into a tap, and the sheets could not be dragged shut from their own rows.
 
-The pack tabs are the one host where the scroller is **horizontal**, and they are the reason this is stated as "tiles a scroller" rather than "tiles a list": a 44px target with a `2xs` gap either side leaves a finger nowhere else to land, whichever way the surface moves. They also pass no `overlayClassName` beside `keepsScroll`, where every other host repeats the control's `touch-pan-y` — the axis the overlay must leave to the browser is the axis its own scroller runs on.
+The pack tabs are the one host where the scroller is **horizontal**, and they are the reason this is stated as "tiles a scroller" rather than "tiles a list": a 44px target with a `2xs` gap either side leaves a finger nowhere else to land, whichever way the surface moves. They also pass no `overlayClassName` beside `keepsScroll`, where every other host repeats the control's `touch-pan-y` — the axis the overlay must leave to the browser is the axis its own scroller runs on. That strip carries the second rule a horizontal scroller has here: its end inset is the first and last tab's margin, never the strip's own `padding-inline` (§ 3.6.).
 
 Two things that look like they should fix that and do not, both measured on device:
 
@@ -1401,6 +1409,7 @@ Shown while the app is dormant (`REQUIREMENTS.md § 8.4.1.`), and dismissed by p
 - No stock illustrations or mascot art in empty states (§ 7.6.).
 - No `:focus` rings on mouse click — `:focus-visible` only (§ 3.2.).
 - No hardcoded `max-w-*` in screen code (§ 3.3.).
+- No `padding-inline` on a horizontally scrolling box — the end inset is the first and last child's margin (§ 3.6.).
 
 # 9. Known Gaps.
 
