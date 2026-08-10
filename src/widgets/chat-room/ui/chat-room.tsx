@@ -192,6 +192,9 @@ const OVERSCAN_ROWS = 8;
 // INFO: REQUIREMENTS.md § 8.3. Upward paging fires once the scroller is this close to the top — far enough out that the fetch and the wait for a still scroller both fit before the reader arrives.
 const LOAD_OLDER_THRESHOLD = 600;
 
+// INFO: REQUIREMENTS.md § 8.14. How far `⌥↑`/`⌥↓` moves, as a share of what is on screen rather than a pixel count — a step that reads the same on a phone and on a desktop, and that leaves most of the last screenful in view to read against.
+const HISTORY_SCROLL_STEP = 0.4;
+
 // INFO: DESIGN.md § 7.12. Deep enough that a bubble dissolves under the floating header rather than being clipped by it.
 const TOP_FADE_LENGTH = "3rem";
 
@@ -239,6 +242,8 @@ export function ChatRoom({
   const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
   // INFO: REQUIREMENTS.md § 8.14. Bumped to put the caret back in the composer; `0` is the resting value the composer skips, so mounting the room focuses nothing.
   const [composerFocusRequest, setComposerFocusRequest] = useState(0);
+  // INFO: REQUIREMENTS.md § 8.14. The same token for the panel, bumped by ⌘E — an opened panel nothing has focused is one the arrow keys cannot reach.
+  const [pickerFocusRequest, setPickerFocusRequest] = useState(0);
   const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
   const { remember: rememberEmoticon } = useRecentEmoticons();
   const setBackground = useSetBackground();
@@ -687,11 +692,14 @@ export function ChatRoom({
   // WARN: REQUIREMENTS.md § 8.14. Every full-screen thing this room raises is a plain `ShellOverlay` with no dialog marker on it, so the hook's own `OPEN_OVERLAY_SELECTOR` check sees none of them — the crop editor, the trimmer, and § 8.6.'s results list all have to be named here or `Escape` pulls the caret into a composer nobody can see and ⌘↓ moves the conversation underneath the reader.
   useChatShortcuts({
     isCovered: isSearching || editing.isEditing,
-    onReturnToComposer: returnToComposer,
+    onEscape: peelComposerStack,
+    onFocusComposer: focusComposer,
     onGoToNewest: () => void goToNewest(),
     onShowShortcuts: () => setIsShortcutHelpOpen(true),
+    onToggleEmoticonPanel: toggleEmoticonPanel,
     // INFO: § 8.14. No word to seed it with — the composer owns the draft (§ 8.6.), and it is not the thing focused here.
     onOpenEmoticonSearch: () => openEmoticonSearch(""),
+    onScrollHistory: scrollHistory,
   });
 
   // WARN: Scrolling inside the send handler resolves against the pre-send data, so a message sent from deep in history lands below the fold. The row only exists from this commit onward.
@@ -1098,6 +1106,7 @@ export function ChatRoom({
                 <EmoticonPicker
                   className="mx-md mt-xs mb-2xs shrink-0 will-change-transform"
                   isOpen={isEmoticonPanelOpen}
+                  focusRequest={pickerFocusRequest}
                   searchRequest={emoticonSearch}
                   revealRequest={emoticonReveal}
                   onSearchTabChange={reportEmoticonSearchTab}
@@ -1371,13 +1380,89 @@ export function ChatRoom({
    * `hidden` and `inert` for the length of a § 8.6. search, and `focus()` on an inert
    * field silently does nothing at all rather than failing.
    */
-  function returnToComposer() {
+  function focusComposer() {
     if (isSearching) {
       return;
     }
 
-    closeEmoticonPanel();
     setComposerFocusRequest((token) => token + 1);
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.14. `Escape` — one layer off the composer's stack, and the
+   * caret back in the field either way.
+   *
+   * INFO: The panel first and the staged emoticon second, because that is the order
+   * they were put there in. One press undoes one thing, which is the only reading of
+   * `Escape` that stays predictable once a screen has more than one layer.
+   *
+   * WARN: § 13.6. This is not a route `Enter` may share, although both end with the
+   * caret in the field. Someone pressing `Enter` wants to start typing, and would lose
+   * the emoticon they had just staged to say it.
+   */
+  function peelComposerStack() {
+    if (isSearching) {
+      return;
+    }
+
+    if (isEmoticonPanelOpen) {
+      closeEmoticonPanel();
+    } else if (stagedEmoticon) {
+      setStagedEmoticon(null);
+    }
+
+    setComposerFocusRequest((token) => token + 1);
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.14. `⌘E` — REQUIREMENTS.md § 13.6.'s panel, on the tab it was
+   * last left on, and focus moved into it so the arrows have something to move.
+   *
+   * WARN: § 13.6. The blur is the same one the toggle button makes and for the same
+   * reason: the panel is gated on the keyboard being down, and iOS lowers it for a blur
+   * alone — a key press is not one, so without this the flag flips and the panel never
+   * gets to act on it.
+   */
+  function toggleEmoticonPanel() {
+    if (isSearching || editingId !== null) {
+      return;
+    }
+
+    if (isEmoticonPanelOpen) {
+      peelComposerStack();
+
+      return;
+    }
+
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    setIsEmoticonPickerOpen(true);
+    setPickerFocusRequest((token) => token + 1);
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.14. `⌥↑` / `⌥↓` — the conversation, a step at a time.
+   *
+   * WARN: `hasTakenScrollRef` is set by hand here. § 8.3.'s park is released by a real
+   * gesture, and the listener that hears one is on the scroller — which a key pressed
+   * with focus in the composer never reaches. Left unset, the next arrival would drag
+   * the reader back to the live edge they had just scrolled away from.
+   *
+   * WARN: Instant, not smooth. This key repeats while it is held, and a smooth scroll
+   * per repeat compounds into a lurch that outlives the press — which is § 13.6.'s
+   * argument against `behavior: "smooth"` in this room, arriving by a second route.
+   */
+  function scrollHistory(direction: -1 | 1) {
+    const scroller = scrollerRef.current;
+
+    if (!scroller) {
+      return;
+    }
+
+    hasTakenScrollRef.current = true;
+    scroller.scrollBy({ top: scroller.clientHeight * HISTORY_SCROLL_STEP * direction });
   }
 
   /**

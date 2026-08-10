@@ -2,8 +2,10 @@
 
 import {
   OPEN_OVERLAY_SELECTOR,
+  isAltKey,
   isBareKey,
   isCommandKey,
+  isCommandShiftKey,
   isDormant,
   isLetterKey,
 } from "@/shared/lib";
@@ -20,14 +22,27 @@ export type ChatShortcuts = {
    * behind the crop editor and raises the keyboard into a field nobody can see.
    */
   isCovered: boolean;
-  /** `Escape`, and `Enter` off any control — the way back to the composer from anywhere in the conversation. */
-  onReturnToComposer: () => void;
+  /**
+   * `Escape` — one layer off the composer's stack, and the caret back in it.
+   *
+   * WARN: REQUIREMENTS.md § 8.14. Held apart from `onFocusComposer` although both end
+   * with the caret in the field. `Escape` **discards** something on the way — an open
+   * panel, then a staged emoticon — and `Enter` must never do that: it is pressed by
+   * someone who wants to start typing, not to throw away what they staged.
+   */
+  onEscape: () => void;
+  /** `Enter` off any control — the caret to the composer, and nothing else. */
+  onFocusComposer: () => void;
   /** `⌘↓` — REQUIREMENTS.md § 6.7.'s pill, as a key. */
   onGoToNewest: () => void;
   /** `⌘/` — the sheet that says what the other keys are. */
   onShowShortcuts: () => void;
-  /** `⌘E` with focus on neither the composer nor the picker, both of which answer it themselves. */
+  /** `⌘E` — REQUIREMENTS.md § 13.6.'s panel, opened on the tab it was last left on, or closed. */
+  onToggleEmoticonPanel: () => void;
+  /** `⌘⇧E` with focus on neither the composer nor the picker, both of which answer it themselves. */
   onOpenEmoticonSearch: () => void;
+  /** `⌥↑` / `⌥↓` — the conversation, a step at a time. `-1` is towards older messages. */
+  onScrollHistory: (direction: -1 | 1) => void;
 };
 
 /**
@@ -35,12 +50,15 @@ export type ChatShortcuts = {
  * control inside it, so they answer wherever focus happens to be — including nowhere,
  * which is where a click on a bubble leaves it.
  *
- * WARN: `⌘E` is here **last**, behind both of the handlers that mean something more
+ * WARN: `⌘⇧E` is here **last**, behind both of the handlers that mean something more
  * specific by it: the composer seeds the search with the word it has underlined, and
  * the picker asks for its own 검색 tab. Answered here first, from the panel's own
  * field, it would wipe whatever the user had typed into it — so this is the fallback
  * for the case neither of them is focused, and it depends on both calling
  * `preventDefault`.
+ *
+ * INFO: `⌘E` has no such split. It opens the panel on the tab § 13.6. remembers, or
+ * closes it, and means exactly that from everywhere — so it is answered here alone.
  */
 export function useChatShortcuts(shortcuts: ChatShortcuts) {
   const handlers = useRef(shortcuts);
@@ -67,25 +85,27 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
         return;
       }
 
-      if (event.key === "Escape" || event.key === "Enter") {
-        // WARN: § 8.14. Prevented for `Enter` alone, and it is not belt-and-braces. The focus lands a microtask later, and the default action of this keydown is still pending — unprevented it puts a newline into the field the moment it arrives.
-        if (event.key === "Enter") {
-          event.preventDefault();
-        }
-
-        handlers.current.onReturnToComposer();
+      if (event.key === "Escape") {
+        handlers.current.onEscape();
 
         return;
       }
 
+      // WARN: § 8.14. Prevented, and it is not belt-and-braces. The focus lands a microtask later, and the default action of this keydown is still pending — unprevented it puts a newline into the field the moment it arrives.
       event.preventDefault();
 
-      if (event.key === "ArrowDown") {
+      if (isAltKey(event)) {
+        handlers.current.onScrollHistory(event.key === "ArrowDown" ? 1 : -1);
+      } else if (event.key === "Enter") {
+        handlers.current.onFocusComposer();
+      } else if (event.key === "ArrowDown") {
         handlers.current.onGoToNewest();
       } else if (event.key === "/") {
         handlers.current.onShowShortcuts();
+      } else if (isCommandKey(event)) {
+        handlers.current.onToggleEmoticonPanel();
       } else {
-        // WARN: § 8.14. Only reached where neither the composer nor the picker answered `⌘E` first. Both `preventDefault` when they do, and both are React handlers on the root container — which is inside `document`, so they have already run by the time this listener sees the event.
+        // WARN: § 8.14. Only reached where neither the composer nor the picker answered `⌘⇧E` first. Both `preventDefault` when they do, and both are React handlers on the root container — which is inside `document`, so they have already run by the time this listener sees the event.
         handlers.current.onOpenEmoticonSearch();
       }
     }
@@ -122,10 +142,21 @@ function isOwnedKey(event: KeyboardEvent): boolean {
     return isBareKey(event) && !hasFocusedControl();
   }
 
-  return (
-    isCommandKey(event) &&
-    (event.key === "ArrowDown" || event.key === "/" || isLetterKey(event, "e"))
-  );
+  // INFO: § 8.14. `⌘E` opens the panel and `⌘⇧E` opens its search — the `⌘F`/`⌘⇧F` idiom, where `Shift` spells the more specific of the pair.
+  if (isLetterKey(event, "e")) {
+    return isCommandKey(event) || isCommandShiftKey(event);
+  }
+
+  // INFO: § 8.14. `⌥`/`Alt` is the one modifier that needs no platform branch — the same physical key and the same flag on both — so the scroll is one binding rather than a pair.
+  if (event.key === "ArrowUp") {
+    return isAltKey(event);
+  }
+
+  if (event.key === "ArrowDown") {
+    return isAltKey(event) || isCommandKey(event);
+  }
+
+  return isCommandKey(event) && event.key === "/";
 }
 
 // INFO: § 8.14. `<body>` is where focus sits after a click on a bubble, on the wallpaper, or on anything else the conversation is made of.

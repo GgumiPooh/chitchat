@@ -3,9 +3,11 @@
 import { findKeywordMatch, MAX_MESSAGE_LENGTH, type KeywordMatch } from "@/shared/config";
 import {
   cn,
-  isCommandKey,
+  isCommandShiftKey,
   isLetterKey,
+  toCommandKeyLabel,
   useIsCoarsePointer,
+  useIsFinePointer,
   useUnsentWork,
   type Nullable,
 } from "@/shared/lib";
@@ -107,6 +109,8 @@ export function MessageComposer({
   // INFO: § 13.8. What the last tap searched for, so a send can tell whether the field still holds only that.
   const tappedQueryRef = useRef<Nullable<string>>(null);
   const isCoarsePointer = useIsCoarsePointer();
+  // INFO: REQUIREMENTS.md § 8.14. The shortcuts appear nowhere else on screen, so the one field every reader already looks at carries the one key that lists the rest.
+  const isFinePointer = useIsFinePointer();
   const hasDraft = text.trim().length > 0;
   // INFO: REQUIREMENTS.md § 8.13. An edit sends text and only text, so a tray left staged behind the mode cannot arm the button — emptying the field has to disable it, or the correction would submit nothing.
   const canSend = hasDraft || (hasAttachments && !isEditing);
@@ -222,8 +226,11 @@ export function MessageComposer({
             maxLength={MAX_MESSAGE_LENGTH}
             rows={1}
             value={text}
-            placeholder="메시지 입력"
             aria-label="메시지 입력"
+            // INFO: § 8.14. Only where a mouse is driving, since a phone has no key to press — and the ternary is also what keeps `toCommandKeyLabel` out of the server's HTML, where its answer would be a guess at a platform it cannot see.
+            placeholder={
+              isFinePointer ? `메시지 입력 · ${toCommandKeyLabel()}/ 단축키 보기` : "메시지 입력"
+            }
             // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
             onChange={(event) => {
               setText(event.target.value);
@@ -322,7 +329,7 @@ export function MessageComposer({
   }
 
   /**
-   * REQUIREMENTS.md § 8.14. ⌘E is the underlined word's tap, for a keyboard — and it
+   * REQUIREMENTS.md § 8.14. ⌘⇧E is the underlined word's tap, for a keyboard — and it
    * works with no word underlined too, opening § 13.8.'s search on an empty field.
    *
    * INFO: Unconditional on purpose. Offered only where a word happens to match, the
@@ -365,7 +372,7 @@ export function MessageComposer({
     }
 
     // WARN: REQUIREMENTS.md § 8.14. Withheld while correcting, exactly as the underline is — the panel this opens stages a payload § 8.13.'s edit has no row for.
-    if (isCommandKey(event) && isLetterKey(event, "e") && !isEditing) {
+    if (isCommandShiftKey(event) && isLetterKey(event, "e") && !isEditing) {
       event.preventDefault();
       openEmoticonSearch(match?.query ?? null);
 

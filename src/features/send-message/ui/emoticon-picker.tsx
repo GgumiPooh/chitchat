@@ -7,6 +7,7 @@ import {
   cn,
   isBareKey,
   isCommandKey,
+  isCommandShiftKey,
   isLetterKey,
   type Nullable,
   type Optional,
@@ -86,6 +87,12 @@ export type EmoticonPickerProps = {
    */
   isOpen: boolean;
   /**
+   * REQUIREMENTS.md § 8.14. Bumped by the room's `⌘E` to put focus inside this panel —
+   * one opened by a key is one nothing has focused, and the arrows cannot reach it.
+   * `0` is the resting value and asks for nothing.
+   */
+  focusRequest?: number;
+  /**
    * REQUIREMENTS.md § 13.8. A word tapped in the composer, which opens the search
    * tab with the field already holding it.
    *
@@ -124,6 +131,7 @@ export type EmoticonPickerProps = {
 export function EmoticonPicker({
   className,
   isOpen,
+  focusRequest = 0,
   searchRequest,
   revealRequest,
   onSearchTabChange,
@@ -206,6 +214,8 @@ export function EmoticonPicker({
   // INFO: § 8.14. Whichever scroller currently holds the cells — the grid, or § 13.8.'s results row. One ref because the two are branches of the same ternary and never coexist.
   const cellScrollerRef = useRef<Nullable<HTMLDivElement>>(null);
   const searchFieldRef = useRef<Nullable<HTMLInputElement>>(null);
+  // INFO: § 8.14. The last `focusRequest` something actually took the focus for, so a request still waiting on a cold pack's cells is told apart from one already answered.
+  const satisfiedFocusRequestRef = useRef(0);
   const [slideFrom, setSlideFrom] = useState<SwipeDirection>(1);
   const lastTapRef = useRef<Nullable<{ at: number; id: string }>>(null);
   const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
@@ -317,6 +327,32 @@ export function EmoticonPicker({
 
   // INFO: § 13.6. The swipe moves the tab without the finger ever touching the strip, and the remembered tab can reopen the panel on a pack that is already past its right edge — either way the strip has to follow the selection or the active tab is unreachable to the eye.
   useEffect(revealActiveTab, [activeTab, packs]);
+
+  /**
+   * REQUIREMENTS.md § 8.14. Focus into the panel when `⌘E` opened it, since a key that
+   * opens a panel and leaves focus behind has opened one the arrows cannot reach.
+   *
+   * WARN: Keyed on the item count as well, because a cold pack is a round trip from
+   * having a cell to focus (§ 13.6.). The request is only marked as satisfied once
+   * something actually took the focus, so it survives that wait — and it is dropped
+   * when the panel is not open, or a pack landing after the panel closed would pull
+   * the caret back out of the field.
+   */
+  useLayoutEffect(() => {
+    if (focusRequest === 0 || focusRequest === satisfiedFocusRequestRef.current) {
+      return;
+    }
+
+    if (!isOpen) {
+      return;
+    }
+
+    if (focusTabContent()) {
+      satisfiedFocusRequestRef.current = focusRequest;
+    }
+    // WARN: `focusTabContent` is deliberately not a dependency. It closes over this render's tab and list, which is exactly what the deps below already state — listed, it would re-run the focus on every render of an open panel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest, isOpen, shown.length]);
 
   // WARN: § 13.8. The room exempts this tab from § 13.6.'s keyboard gate, so it has to be told on every change — reported off the tab rather than off the field's focus, or the frame between a blur and the keyboard actually retracting closes the panel underneath the user.
   useEffect(() => {
@@ -593,16 +629,17 @@ export function EmoticonPicker({
    * REQUIREMENTS.md § 8.14. The one shortcut that belongs to the panel as a whole,
    * wherever inside it focus happens to be.
    *
-   * WARN: `⌘E` is deliberately **not** the composer's. There it seeds the field with
+   * WARN: `⌘⇧E` is deliberately **not** the composer's. There it seeds the field with
    * the underlined word (§ 13.8.); here the field is already the thing the user is
-   * looking at, and re-seeding would wipe whatever they had typed into it.
+   * looking at, and re-seeding would wipe whatever they had typed into it. `⌘E` is not
+   * here at all — opening and closing this panel is the room's, from everywhere.
    */
   function handlePanelKeys(event: KeyboardEvent<HTMLDivElement>) {
     // INFO: § 8.14. Before every branch below and independent of them — `keydown` bubbles here from the whole panel, so this is the one place that hears the keyboard take over whatever a pointer had been doing.
     setIsKeyboardDriven(true);
 
     // WARN: § 8.14. `isComposing` on every one of these. A Hangul IME owns the keystrokes that settle a syllable, and an `e` typed into 검색 arrives mid-composition.
-    if (event.defaultPrevented || event.nativeEvent.isComposing || !isCommandKey(event)) {
+    if (event.defaultPrevented || event.nativeEvent.isComposing || !isCommandShiftKey(event)) {
       return;
     }
 
@@ -716,18 +753,17 @@ export function EmoticonPicker({
    * REQUIREMENTS.md § 8.14. Out of the strip and back into what the tab holds, which
    * is the other half of the `ArrowDown` that reached it.
    */
-  function focusTabContent() {
-    if (isSearching && shown.length === 0) {
-      searchFieldRef.current?.focus();
-
-      return;
-    }
-
+  function focusTabContent(): boolean {
     const scroller = cellScrollerRef.current;
 
-    if (scroller && !focusItem(scroller, Math.max(focusableIndex, 0))) {
-      searchFieldRef.current?.focus();
+    if (scroller && shown.length > 0 && focusItem(scroller, Math.max(focusableIndex, 0))) {
+      return true;
     }
+
+    searchFieldRef.current?.focus();
+
+    // INFO: § 8.14. A pack tab with nothing drawn yet has nowhere to put focus, and says so — `focusRequest` waits for its cells rather than settling for `<body>`.
+    return isSearching;
   }
 
   /**

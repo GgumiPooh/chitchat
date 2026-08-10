@@ -38,14 +38,38 @@ type Modifiers = Pick<KeyboardEvent, "altKey" | "ctrlKey" | "metaKey" | "shiftKe
  * loosely, the shortcut answers both and the field loses a selection it was extending.
  */
 export function isCommandKey(event: Modifiers): boolean {
-  const command = usesMetaKey() ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+  return hasCommandModifier(event) && !event.altKey && !event.shiftKey;
+}
 
-  return command && !event.altKey && !event.shiftKey;
+/**
+ * Whether this event carries the platform's shortcut modifier **and `Shift`**, which is
+ * how a binding spells the more specific form of the one beside it.
+ *
+ * INFO: REQUIREMENTS.md § 8.14. `⌘E` opens the emoticon panel and `⌘⇧E` opens its
+ * search, on the idiom `⌘F`/`⌘⇧F` and `⌘Z`/`⌘⇧Z` already use.
+ */
+export function isCommandShiftKey(event: Modifiers): boolean {
+  return hasCommandModifier(event) && event.shiftKey && !event.altKey;
+}
+
+function hasCommandModifier(event: Modifiers): boolean {
+  return usesMetaKey() ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
 }
 
 /** Whether this event carries no modifier at all, which is what an unmodified binding means. */
 export function isBareKey(event: Modifiers): boolean {
   return !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+}
+
+/**
+ * Whether this event carries `⌥`/`Alt` and nothing else.
+ *
+ * INFO: REQUIREMENTS.md § 8.14. The one modifier that needs no platform branch — `⌥`
+ * and `Alt` are the same physical key and the same `altKey` flag, so a binding on it
+ * is one binding rather than a pair.
+ */
+export function isAltKey(event: Modifiers): boolean {
+  return event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
 }
 
 /**
@@ -65,4 +89,9 @@ export function isLetterKey(event: Pick<KeyboardEvent, "code" | "key">, letter: 
 /** How this platform's shortcut modifier is written. */
 export function toCommandKeyLabel(): CommandKeyLabel {
   return usesMetaKey() ? "⌘" : "Ctrl";
+}
+
+/** How this platform writes the key `isAltKey` reads — one key, two names. */
+export function toAltKeyLabel(): "⌥" | "Alt" {
+  return usesMetaKey() ? "⌥" : "Alt";
 }
