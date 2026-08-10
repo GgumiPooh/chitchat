@@ -19,8 +19,8 @@ export type AvatarProps = {
   /**
    * Makes the avatar a button that opens the photo full screen.
    *
-   * WARN: Off by default, and it must stay off inside another interactive element
-   * — the calendar day sheet renders one inside the row button that opens an event
+   * WARN: Off by default, and it must stay off inside another interactive element —
+   * the calendar's day agenda renders one inside the row button that opens an event
    * (§ 11.4.), where a nested `button` is invalid markup and swallows that tap.
    */
   canEnlarge?: boolean;
@@ -33,7 +33,7 @@ export type AvatarProps = {
    * mean one thing per screen (§ 12.).
    *
    * WARN: `shared/ui` cannot reach the provider that owns the profile screen (§ 2.),
-   * so the tap is wired by whoever renders the avatar. The calendar day sheet
+   * so the tap is wired by whoever renders the avatar. The calendar's day agenda
    * deliberately wires neither this nor `canEnlarge` (§ 12.).
    */
   onClick?: () => void;
@@ -67,7 +67,7 @@ export function Avatar({
     <AvatarPrimitive.Root
       className={cn(
         "relative flex shrink-0 overflow-hidden rounded-full ring-1 ring-hairline select-none ring-inset",
-        // WARN: The button below takes over sizing when it wraps this, or a caller's `size-*` would size the wrapper while the circle kept its own — the calendar day sheet passes exactly that (§ 11.4.).
+        // WARN: The button below takes over sizing when it wraps this, or a caller's `size-*` would size the wrapper while the circle kept its own — the calendar's day agenda passes exactly that (§ 11.4.).
         isTappable ? "size-full" : cn(SIZE_CLASS_NAME[size], className),
       )}
     >

@@ -33,12 +33,15 @@ export {
   type MilestoneKind,
   type UpcomingMilestone,
 } from "./date/calendar";
+export { findHoliday, formatHolidayName, type Holiday } from "./date/holidays";
 export {
   AN_HOUR,
   A_DAY,
   A_MINUTE,
   A_SECOND,
   LOCALE,
+  SATURDAY,
+  SUNDAY,
   TIME_ZONE,
   TIME_ZONE_OFFSET,
   countDays,

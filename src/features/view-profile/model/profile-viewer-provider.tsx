@@ -28,14 +28,14 @@ const ProfileViewerContext = createContext<Nullable<ProfileViewerValue>>(null);
  *
  * WARN: It lives in the shell for `ChatStreamProvider`'s reason (§ 8.4.) and one of
  * its own. An avatar is rendered by `widgets/chat-room`, by the Settings screen and
- * by the calendar day sheet, and a widget may not import a sibling widget (§ 2.) —
+ * by the calendar's day agenda, and a widget may not import a sibling widget (§ 2.) —
  * so an overlay mounted beside any one of them would have to be mounted beside all
  * of them, with a copy of this state per screen and two of them able to be open at
  * once.
  *
  * WARN: `Avatar` itself does not reach this hook and must not. It is `shared/ui`
  * (§ 2.), which sits below every layer this reads from — so the tap is wired by
- * whoever renders the avatar, and the calendar day sheet deliberately wires none
+ * whoever renders the avatar, and the calendar's day agenda deliberately wires none
  * (§ 12.).
  */
 export function ProfileViewerProvider({ children, currentUserId }: ProfileViewerProviderProps) {
@@ -58,7 +58,7 @@ export function ProfileViewerProvider({ children, currentUserId }: ProfileViewer
 /**
  * WARN: Throws outside the provider rather than answering a no-op. An avatar whose
  * tap silently does nothing is indistinguishable from one that is not meant to open
- * a profile, and the calendar day sheet is exactly that case (§ 12.) — so the two
+ * a profile, and the calendar's day agenda is exactly that case (§ 12.) — so the two
  * must not be able to look the same.
  */
 export function useProfileViewer(): ProfileViewerValue {

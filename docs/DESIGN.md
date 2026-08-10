@@ -977,7 +977,7 @@ The default overlay for anything originating from a bottom-anchored or list inte
 
 The photo is stored **square** (`REQUIREMENTS.md § 12.`), because the circle crops anything else and the § 7.10. viewer would then show a framing the circle never did.
 
-Where it is enlargeable, the avatar is a button: `opacity-80` on hover, `opacity-70` on active, `focus-visible` ring on the circle itself rather than on the image inside it. Tapping opens the § 7.10. viewer on that one photo, with the save control hidden — a profile photo is the person, not an attachment they shared. It is **not** enlargeable inside another interactive element (the § 7.9. day sheet's authorship avatar), where a nested button would swallow the tap.
+Where it is enlargeable, the avatar is a button: `opacity-80` on hover, `opacity-70` on active, `focus-visible` ring on the circle itself rather than on the image inside it. Tapping opens the § 7.10. viewer on that one photo, with the save control hidden — a profile photo is the person, not an attachment they shared. It is **not** enlargeable inside another interactive element (the § 7.9. day agenda's authorship avatar, which sits inside the row button that opens the event), where a nested button would swallow the tap.
 
 ## 7.8. Skeleton.
 
@@ -1003,30 +1003,34 @@ Every remote image also carries a stand-in while it loads, and **which** one dep
 
 ## 7.9. Calendar.
 
-The calendar screen opens with a D-day header, then the month grid.
+The calendar screen opens with a D-day header, then the month grid, then the selected day's agenda.
 
-| Element        | Rule                                                                                                                                                                                                 |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D-day header   | Full-width band on `surface-soft`, `rounded-lg`, padding `lg`, `md` bottom margin. Day count in `display-lg` `primary` with the unit in `title-md` `meta`; label line in `body-sm` `meta` beneath    |
-| Next milestone | `caption` `meta` line inside the same band — e.g. `500일까지 12일`. Hidden if none within a year                                                                                                     |
-| Upcoming card  | `canvas` fill, 1px `hairline`, `rounded-md`, padding `md`. Up to two entries: `title-sm` `ink` title, `caption` `meta` relative date. Hidden entirely when empty — never renders an empty-state here |
+| Element        | Rule                                                                                                                                                                                                                                                      |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-day header   | Full-width band on `surface-soft`, `rounded-lg`, padding `lg`, `md` bottom margin. Day count in `display-lg` `primary` with the unit in `title-md` `meta`; label line in `body-sm` `meta` beneath                                                         |
+| Next milestone | `caption` `meta` line inside the same band — e.g. `500일까지 12일`. Hidden if none within a year                                                                                                                                                          |
+| Upcoming card  | `canvas` fill, 1px `hairline`, `rounded-md`, padding `md`, under a `title-sm` `meta` `다가오는 일정` heading. Up to three entries: `title-sm` `ink` title, `caption` `meta` relative date. Hidden entirely when empty — never renders an empty-state here |
 
 The D-day band is the only place `display-lg` appears in the app. It is the screen's single focal point, so nothing else on the calendar competes at that size.
 
-| Element          | Rule                                                                                                                                                                     |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Month label      | `display-md` `ink`, centered, chevron `icon-button` either side                                                                                                          |
-| 오늘 chip        | `chip`, `2xs` left of the next-month chevron; rendered only while the grid is off today's month                                                                          |
-| Weekday header   | `caption` `meta`; Sunday `semantic-error`, Saturday `primary`                                                                                                            |
-| Day cell         | Square, `body-md`; current month `ink`, adjacent months `meta-soft`                                                                                                      |
-| Today            | `chat-badge`-weight numeral in `primary`, no fill                                                                                                                        |
-| Selected         | `primary` fill, `on-primary` numeral, `rounded-full`                                                                                                                     |
-| Event marker     | Up to 3 dots (4px, `rounded-full`) below the numeral, in the event's colour                                                                                              |
-| Marker by scope  | `shared` events use a filled dot; `mine` events use a 1px ring dot of the same colour. Shape, not colour, carries scope — colour is already spent on the event's own hue |
-| Milestone marker | Derived anniversaries (100일, 주년) render a 4px `primary` diamond, distinct from every event dot                                                                        |
-| Event colours    | Drawn from the tint family only; never raw hues                                                                                                                          |
+| Element          | Rule                                                                                                                                                                                                  |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Month label      | `display-md` `ink`, centered, chevron `icon-button` either side                                                                                                                                       |
+| 오늘 chip        | `chip`, `2xs` left of the next-month chevron; withheld only once it would move nothing — today's month with today already selected                                                                    |
+| Weekday header   | `caption` `meta`; Sunday `semantic-error`, Saturday `primary`                                                                                                                                         |
+| Day cell         | Square, `body-md`; current month `ink`, adjacent months `meta-soft`. Seven tile one shell width, so this is the one control exempt from § 8.1.'s 44px floor — 7 × 44 overflows a 320px viewport       |
+| 빨간 날          | A 공휴일 (`REQUIREMENTS.md § 11.7.`) or a Sunday takes `semantic-error` on the numeral; muted to `semantic-error/45` in an adjacent month                                                             |
+| Today            | `chat-badge`-weight numeral in `primary`, no fill — weight alone once the numeral is already red                                                                                                      |
+| Selected         | `primary` fill, `on-primary` numeral, `rounded-full`                                                                                                                                                  |
+| Event marker     | Up to 3 dots (4px, `rounded-full`) below the numeral, in the event's colour. Past three, the last dot gives way to `+N` in `micro` `meta` — the row is one cell wide and cannot carry both            |
+| Marker by scope  | `shared` events use a filled dot; `mine` events use a 1px ring dot of the same colour. Shape, not colour, carries scope — colour is already spent on the event's own hue                              |
+| Milestone marker | Derived anniversaries (100일, 주년) render a 4px `primary` diamond, distinct from every event dot                                                                                                     |
+| Event colours    | Drawn from the tint family only; never raw hues                                                                                                                                                       |
+| Colour swatch    | Selection is a 2px `ink` ring **outside** the swatch, on a `canvas` offset — never a glyph drawn on the fill, which no single token clears AA against across six hues plus `meta-soft` in both themes |
 
-The day sheet leads with that day's milestones, above its events: the diamond again, the label in `title-sm` `ink`, `기념일` in `caption` `meta`. They take the upcoming card's static treatment — 1px `hairline` on `canvas`, no hover or active state — where an event row is `surface-soft` and tappable, because a derived anniversary opens nothing.
+`semantic-error` on a date numeral is a **date** semantic and not an error one — the weekday header has always drawn Sunday in it, and a Korean calendar is read by which days are red. It stays out of the event colour set for the same reason `primary` does. Saturday is deliberately **not** extended from the header to the numeral: `primary` there would collide with today's own numeral.
+
+The day agenda sits under the grid rather than in a sheet, so the month and the selected day are readable at once. It leads with that day's 공휴일, then its milestones, then its events: the holiday takes a 4px `semantic-error` dot with `공휴일` (or `대체공휴일`) in `caption` `meta`, the milestone the `primary` diamond with `기념일`. Both take the upcoming card's static treatment — 1px `hairline` on `canvas`, no hover or active state — where an event row is `surface-soft` and tappable, because neither opens anything.
 
 ## 7.10. Library (`보관함`).
 
@@ -1235,7 +1239,7 @@ It renders on a coarse pointer only (`AGENTS.md § 4.2.`): a mouse gains nothing
 
 Every rule in that table about the **wrapper** — `relative`, `group`, the overlay as a sibling, gating the tick and not the wrapper — is held by `HapticTarget`, and screens compose that rather than reassembling it. Six copies of the contract had already drifted apart on where `className` goes before it was extracted, which is the argument for the component: `Button` routed it to the wrapper while `Chip`, `IconButton` and `SettingsRow` routed it to the control, so a positioned caller could not ask for `haptic` at all. `HapticTarget` is the outermost element, so `className` is its (`AGENTS.md § 1.2.`) and a primitive that takes `haptic` exposes a second prop — `buttonClassName`, `chipClassName`, `rowClassName` — for the control's own box.
 
-The two remaining hand-rolled wrappers are `<li>` rows (the day sheet, the upcoming card). They are list items before they are haptic wrappers, and a polymorphic `as` on `HapticTarget` would cost more than the duplication it removes.
+The two remaining hand-rolled wrappers are `<li>` rows (the § 7.9. day agenda, the upcoming card). They are list items before they are haptic wrappers, and a polymorphic `as` on `HapticTarget` would cost more than the duplication it removes.
 
 Where it fires is a product decision, not a technical one: **a committed change of state, and a selection among peers.** Saving, sending, deleting, toggling, switching tab or pack, picking a chip or a swatch, opening a sheet, stepping the calendar to the next month, discarding a staged attachment. Never dismissing a surface, cancelling out of one, or going back — a tick that fires on everything stops meaning anything.
 
@@ -1247,7 +1251,7 @@ Three boundaries that are easy to read the wrong way:
 
 ### 7.15.1. `keepsScroll`, and why it is opt-in rather than the default.
 
-A switch is thrown by sliding it, so WebKit tracks a drag on the control and claims that gesture before the scroller is consulted. Where the overlay has space around it nobody notices. Where the targets **tile** a surface — the day cells of the month grid, the cells of the emoticon grid, the pack tabs under it, a `SettingsRow` or the name of a 이모티콘 관리 row, both of which fill the row they sit in, a 다가오는 일정 row, and the rows of a sheet (`ActionSheet`, the day's events), which are the whole surface a finger has to pull to dismiss it — the overlay is what every scrolling finger lands on: the emoticon panel would not scroll at all, the month grid, the settings list, the pack list and the upcoming list turned a drag into a tap, and the sheets could not be dragged shut from their own rows.
+A switch is thrown by sliding it, so WebKit tracks a drag on the control and claims that gesture before the scroller is consulted. Where the overlay has space around it nobody notices. Where the targets **tile** a surface — the day cells of the month grid, the cells of the emoticon grid, the pack tabs under it, a `SettingsRow` or the name of a 이모티콘 관리 row, both of which fill the row they sit in, a 다가오는 일정 row and a § 7.9. day agenda row, both of which run the width of the shell on the document scroller, and the rows of an `ActionSheet`, which are the whole surface a finger has to pull to dismiss it — the overlay is what every scrolling finger lands on: the emoticon panel would not scroll at all, the month grid, the settings list, the pack list, the upcoming list and the agenda turned a drag into a tap, and the sheet could not be dragged shut from its own rows.
 
 The pack tabs are the one host where the scroller is **horizontal**, and they are the reason this is stated as "tiles a scroller" rather than "tiles a list": a 44px target with a `2xs` gap either side leaves a finger nowhere else to land, whichever way the surface moves. They also pass no `overlayClassName` beside `keepsScroll`, where every other host repeats the control's `touch-pan-y` — the axis the overlay must leave to the browser is the axis its own scroller runs on. That strip carries the second rule a horizontal scroller has here: its end inset is the first and last tab's margin, never the strip's own `padding-inline` (§ 3.6.).
 

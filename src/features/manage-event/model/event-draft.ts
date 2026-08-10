@@ -1,7 +1,7 @@
 import type { EventOccurrence } from "@/entities/event";
 import type { EventColor } from "@/shared/config";
 import type { EventRecurrence, EventScope } from "@/shared/db";
-import { toDayKey, toInstant, toTimeField, type Maybe, type Nullable } from "@/shared/lib";
+import { AN_HOUR, toDayKey, toInstant, toTimeField, type Maybe, type Nullable } from "@/shared/lib";
 import type { EventBody } from "../api/write-event";
 
 /**
@@ -22,29 +22,63 @@ export type EventDraft = {
   scope: EventScope;
 };
 
-const DEFAULT_START_TIME = "12:00";
+// INFO: A half-hour grid rather than the hour: at 14:05 the next hour boundary is 55 minutes out, which is never the thing being added right now.
+const DEFAULT_SLOT = AN_HOUR / 2;
 
-const DEFAULT_END_TIME = "13:00";
+// INFO: The seed for every day the clock cannot speak for — another date entirely, or a rounding that would run the hour past midnight.
+const FALLBACK_START_TIME = "12:00";
+
+const FALLBACK_END_TIME = "13:00";
 
 // INFO: REQUIREMENTS.md § 6. `ends_at` is NOT NULL, so a new event is given an end rather than being allowed to be open-ended.
 const ALL_DAY_START = "00:00";
 
 const ALL_DAY_END = "23:59";
 
-/** A blank draft anchored on the day the user tapped. */
-export function toNewDraft(dayKey: string): EventDraft {
+/**
+ * REQUIREMENTS.md § 11.4. A blank draft on the day the user tapped, seeded from the
+ * clock when that day is the one the clock is on.
+ *
+ * WARN: `now` is a parameter rather than a `Date.now()` in here. The one caller
+ * runs this inside a `useState` initializer, where the read is a mount-time
+ * constant; taken in the module it would be an impure render hidden behind a
+ * helper (`entities/event/api/list-events.ts`).
+ */
+export function toNewDraft(dayKey: string, now: number): EventDraft {
+  const { startTime, endTime } = toSeedTimes(dayKey, now);
+
   return {
     title: "",
     description: "",
     startDayKey: dayKey,
-    startTime: DEFAULT_START_TIME,
+    startTime,
+    // INFO: The seed never leaves the tapped day (`toSeedTimes`), so the two ends always share it.
     endDayKey: dayKey,
-    endTime: DEFAULT_END_TIME,
+    endTime,
     allDay: false,
     color: null,
     recurrence: "none",
     scope: "shared",
   };
+}
+
+/**
+ * WARN: Both ends are checked against `dayKey`, not merely against each other. The
+ * clock is only ever a useful default for the day it is telling the time of, and
+ * rounding it up at 23:45 lands the hour on the *next* day — seeding a wall-clock
+ * time the form's own date field does not show, which read as an event a full day
+ * in the past.
+ */
+function toSeedTimes(dayKey: string, now: number): { startTime: string; endTime: string } {
+  // WARN: The grid is epoch-aligned, and it lands on a `TIME_ZONE` half hour only because that zone's offset is whole hours (`TIME_ZONE_OFFSET`).
+  const startsAt = Math.ceil(now / DEFAULT_SLOT) * DEFAULT_SLOT;
+  const endsAt = startsAt + AN_HOUR;
+
+  if (toDayKey(startsAt) !== dayKey || toDayKey(endsAt) !== dayKey) {
+    return { startTime: FALLBACK_START_TIME, endTime: FALLBACK_END_TIME };
+  }
+
+  return { startTime: toTimeField(startsAt), endTime: toTimeField(endsAt) };
 }
 
 /**
@@ -108,4 +142,21 @@ export function isDraftSubmittable(draft: Maybe<EventDraft>): boolean {
   const body = toEventBody(draft);
 
   return body !== null && body.startsAt <= body.endsAt;
+}
+
+/**
+ * Why the submit button is dead, or `null` when it is not.
+ *
+ * INFO: A missing title is deliberately **not** a message — the field is right
+ * there, empty, under its own placeholder. Only the two states a filled-in form can
+ * reach without being able to say why say anything.
+ */
+export function toDraftIssue(draft: EventDraft): Nullable<string> {
+  const body = toEventBody(draft);
+
+  if (!body) {
+    return draft.title.trim() ? "날짜와 시간을 채워 주세요" : null;
+  }
+
+  return body.startsAt > body.endsAt ? "종료가 시작보다 빨라요" : null;
 }

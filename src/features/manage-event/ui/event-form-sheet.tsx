@@ -8,6 +8,7 @@ import { useState, type PropsWithChildren } from "react";
 import { createEvent, updateEvent } from "../api/write-event";
 import {
   isDraftSubmittable,
+  toDraftIssue,
   toEditDraft,
   toEventBody,
   toNewDraft,
@@ -33,6 +34,10 @@ export type EventFormSheetProps = {
  * `key` that changes per opening; without one the sheet reopens holding whatever
  * the previous event left in it, and a background refetch of the occurrence would
  * be free to overwrite what is being typed.
+ *
+ * WARN: Which is also the only place the clock may be read. `toNewDraft` seeds a
+ * new event from the current time, and the same read in the component body would
+ * re-run on every keystroke and move the default under whoever is typing.
  */
 export function EventFormSheet({
   className,
@@ -43,9 +48,10 @@ export function EventFormSheet({
   onSaved,
 }: EventFormSheetProps) {
   const [draft, setDraft] = useState<EventDraft>(() =>
-    occurrence ? toEditDraft(occurrence) : toNewDraft(dayKey),
+    occurrence ? toEditDraft(occurrence) : toNewDraft(dayKey, Date.now()),
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const issue = toDraftIssue(draft);
 
   return (
     <BottomSheet
@@ -148,13 +154,21 @@ export function EventFormSheet({
           onChange={(event) => update({ description: event.target.value })}
         />
 
-        <Button
-          disabled={!isDraftSubmittable(draft) || isSubmitting}
-          haptic
-          onClick={() => void submit()}
-        >
-          {occurrence ? "저장" : "추가"}
-        </Button>
+        <div className="space-y-xs">
+          {/* INFO: DESIGN.md § 8.1. A disabled button that will not say why is the form's worst moment — the two states a filled-in draft can be stuck in are named here rather than left to be guessed at. */}
+          {issue && (
+            <p className="text-body-sm text-semantic-error" role="alert">
+              {issue}
+            </p>
+          )}
+          <Button
+            disabled={!isDraftSubmittable(draft) || isSubmitting}
+            haptic
+            onClick={() => void submit()}
+          >
+            {occurrence ? "저장" : "추가"}
+          </Button>
+        </div>
       </div>
     </BottomSheet>
   );

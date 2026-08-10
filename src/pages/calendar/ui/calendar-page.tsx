@@ -11,10 +11,12 @@ import {
 import { SSE_SYNC_COALESCE_WINDOW } from "@/shared/config";
 import {
   cn,
+  findHoliday,
   isDormant as isAppDormant,
   listMilestonesInRange,
   toDayKey,
   toMonthKey,
+  toMonthStart,
   type Maybe,
   type Nullable,
 } from "@/shared/lib";
@@ -23,7 +25,7 @@ import { CalendarMonth, toGridRange } from "@/widgets/calendar-month";
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DDayBand } from "./d-day-band";
-import { DayEventsSheet } from "./day-events-sheet";
+import { DayAgenda } from "./day-agenda";
 import { UpcomingCard } from "./upcoming-card";
 
 export type CalendarPageProps = {
@@ -53,7 +55,10 @@ export function CalendarPage({
   const [summary, setSummary] = useState(initialSummary);
   const [monthKey, setMonthKey] = useState(initialMonthKey);
   const [occurrences, setOccurrences] = useState(initialOccurrences);
-  const [selectedDayKey, setSelectedDayKey] = useState<Nullable<string>>(initialDayKey ?? null);
+  // INFO: § 11.3. A day is always selected, because the agenda under the grid always has one to show — `null` used to mean "no sheet up" and there is no sheet any more.
+  const [selectedDayKey, setSelectedDayKey] = useState(initialDayKey ?? initialSummary.todayKey);
+  // INFO: The agenda asserts `이 날은 일정이 없어요`, so it must be able to say "not yet" instead — a month still in flight is not an empty day.
+  const [isLoadingMonth, setIsLoadingMonth] = useState(false);
   const [actioned, setActioned] = useState<Nullable<EventOccurrence>>(null);
   const [form, setForm] = useState<Nullable<FormState>>(null);
   // WARN: The month the server already rendered. Without this the mount effect refetches it immediately, replacing correct data with identical data and flashing the grid.
@@ -69,18 +74,28 @@ export function CalendarPage({
 
     const id = requestId.current;
     const { from, to } = toGridRange(nextMonthKey);
-    const [nextOccurrences, nextSummary] = await Promise.all([
-      fetchOccurrences(from, to),
-      fetchCalendarSummary(),
-    ]);
 
-    if (id !== requestId.current) {
-      return;
+    setIsLoadingMonth(true);
+
+    try {
+      const [nextOccurrences, nextSummary] = await Promise.all([
+        fetchOccurrences(from, to),
+        fetchCalendarSummary(),
+      ]);
+
+      if (id !== requestId.current) {
+        return;
+      }
+
+      loadedMonthKey.current = nextMonthKey;
+      setOccurrences(nextOccurrences);
+      setSummary(nextSummary);
+    } finally {
+      // WARN: Only the newest request may clear the flag, or a slow first fetch landing after a fast second one uncovers the agenda while the month it is showing is still in flight.
+      if (id === requestId.current) {
+        setIsLoadingMonth(false);
+      }
     }
-
-    loadedMonthKey.current = nextMonthKey;
-    setOccurrences(nextOccurrences);
-    setSummary(nextSummary);
   }, []);
 
   useEffect(() => {
@@ -150,7 +165,7 @@ export function CalendarPage({
             Icon={Plus}
             haptic
             aria-label="일정 추가"
-            onClick={() => openForm(selectedDayKey ?? summary.todayKey, null)}
+            onClick={() => openForm(selectedDayKey, null)}
           />
         }
       />
@@ -166,27 +181,22 @@ export function CalendarPage({
           monthKey={monthKey}
           startDate={summary.startDate}
           todayKey={summary.todayKey}
-          selectedDayKey={selectedDayKey ?? ""}
+          selectedDayKey={selectedDayKey}
           occurrences={occurrences}
-          onMonthChange={setMonthKey}
+          onMonthChange={changeMonth}
           onSelectDay={selectDay}
         />
+        <DayAgenda
+          dayKey={selectedDayKey}
+          isLoading={isLoadingMonth}
+          holiday={findHoliday(selectedDayKey)}
+          milestones={listMilestonesInRange(summary.startDate, selectedDayKey, selectedDayKey)}
+          occurrences={occurrencesOn(occurrences, selectedDayKey)}
+          participants={participants}
+          onCreate={() => openForm(selectedDayKey, null)}
+          onSelect={openActions}
+        />
       </Container>
-
-      <DayEventsSheet
-        isOpen={selectedDayKey !== null}
-        dayKey={selectedDayKey ?? summary.todayKey}
-        occurrences={selectedDayKey ? occurrencesOn(occurrences, selectedDayKey) : []}
-        participants={participants}
-        milestones={
-          selectedDayKey
-            ? listMilestonesInRange(summary.startDate, selectedDayKey, selectedDayKey)
-            : []
-        }
-        onClose={() => setSelectedDayKey(null)}
-        onCreate={() => openForm(selectedDayKey ?? summary.todayKey, null)}
-        onSelect={openActions}
-      />
 
       {/* INFO: REQUIREMENTS.md § 11.4. No permission tier — 수정 and 삭제 are offered on every event, whoever created it. */}
       <ActionSheet
@@ -218,7 +228,7 @@ export function CalendarPage({
   /**
    * WARN: The month follows the day. The upcoming card reaches a year ahead and an
    * adjacent-month cell reaches one month either way, while `occurrencesOn` can only
-   * see the grid range currently loaded — selecting outside it would open the sheet
+   * see the grid range currently loaded — selecting outside it would leave the agenda
    * on `이 날은 일정이 없어요` for a day the card just said had an event.
    */
   function selectDay(dayKey: string) {
@@ -227,20 +237,35 @@ export function CalendarPage({
   }
 
   /**
-   * WARN: The day sheet closes first. Both are modal `Drawer`s portalled to `body`
-   * and neither is declared nested, so leaving it up means two focus traps and two
-   * overlays — and dismissing the top one restores `pointer-events` in a way that
-   * can leave the one underneath inert.
+   * WARN: The selection follows the month, and it is the **grid's** range that
+   * decides — not the month's. The grid's edge rows carry a week either side and
+   * their markers are fetched with it, so a selection there is still on screen and
+   * still loaded; dropping it on `toMonthKey` alone discarded 8월 31일 for 9월 1일
+   * while 8월 31일 was sitting in the row above.
    */
+  function changeMonth(nextMonthKey: string) {
+    const { from, to } = toGridRange(nextMonthKey);
+
+    setMonthKey(nextMonthKey);
+    setSelectedDayKey((current) => {
+      if (current >= from && current <= to) {
+        return current;
+      }
+
+      // INFO: Today rather than the 1st when the swipe lands on this month, so coming back selects the day the screen opened on.
+      return nextMonthKey === toMonthKey(summary.todayKey)
+        ? summary.todayKey
+        : toMonthStart(nextMonthKey);
+    });
+  }
+
   function openActions(occurrence: EventOccurrence) {
-    setSelectedDayKey(null);
     setActioned(occurrence);
   }
 
-  // WARN: Both sheets are closed first, for the reason `openActions` gives.
+  // WARN: The action sheet closes first. Both are modal `Drawer`s portalled to `body` and neither is declared nested, so leaving it up means two focus traps — and dismissing the top one can leave the one underneath inert.
   function openForm(dayKey: string, occurrence: Nullable<EventOccurrence>) {
     setActioned(null);
-    setSelectedDayKey(null);
     setForm((previous) => ({ dayKey, occurrence, token: (previous?.token ?? 0) + 1 }));
   }
 

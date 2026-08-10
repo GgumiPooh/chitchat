@@ -1076,33 +1076,36 @@ The tab is `보관함` with three segments, `사진`, `파일` and `음성`; the
 
 ### 11.3. Month View ✅
 
-Event markers in day cells (capped at three dots), swipe left/right to change month with the header's chevrons as the pointer equivalent, tapping a day opens that day's list in a `BottomSheet`, timezone pinned to `Asia/Seoul` on both server and client.
+Event markers in day cells (three dots then a `+N` count), swipe left/right to change month with the header's chevrons as the pointer equivalent, tapping a day shows that day's list in the agenda under the grid, timezone pinned to `Asia/Seoul` on both server and client.
 
+- **The day's list is a section under the grid, not a `BottomSheet`.** A day is therefore _always_ selected — today on arrival, or the `?day=` a § 11.5. notice tapped through with — and the month and the day are legible at the same time. The sheet cost a dismiss and a tap to reach tomorrow, hid the grid behind a scrim to answer a question about the grid, and made selecting a day an interruption. The document already scrolls (`AGENTS.md § 4.4.`), so the column simply grows and nothing had to become `fixed` to pay for it
 - The swipe requires horizontal **intent** (|Δx| > |Δy|), or a diagonal drag would change month while the user was scrolling the shell
 - **A drag over the grid never selects a day.** A finger that scrolls the shell or swipes the month from inside a cell still releases into a `click` on it, so the grid's own `onClickCapture` swallows the tap once the pointer has moved past `GESTURE_SLOP`
 - The grid is **always six rows** — a height that changed with the month would reflow the screen under the thumb on every swipe
 - The month's fetch asks for the **grid's** range, not the month's, so the adjacent-month days in the first and last rows carry their markers too
-- **Selecting a day moves the month with it.** The upcoming card reaches a year ahead and the grid's edge rows reach into neighbouring months, while the day sheet can only see the range currently loaded — without it the sheet opens on `이 날은 일정이 없어요` for a day the card just said had an event
+- **Selecting a day moves the month with it.** The upcoming card reaches a year ahead and the grid's edge rows reach into neighbouring months, while the agenda can only see the range currently loaded — without it it reads `이 날은 일정이 없어요` for a day the card just said had an event
 - Month fetches are **request-id guarded** — two quick swipes leave two in flight, and the slower one landing last would leave the grid showing the wrong month's dots with nothing left to re-trigger the fetch
-- Opening an event's actions **closes the day sheet first.** Both are modal `Drawer`s portalled to `body` and neither is declared nested, so leaving both up means two focus traps — and dismissing the top one can leave the one underneath inert
-- **"Jump to today" is a `오늘` chip beside the month label**, not a control above the grid — the D-day band and the upcoming card both navigate already. It is **withheld while the grid is on today's month**, where the cell is on screen and marked and a control that moves nothing reads as broken. It moves the month and **does not select the day**: selecting opens the day sheet, and a sheet is not what a tap meaning "take me back" asked for
+- Opening the event form **closes the action sheet first.** Both are modal `Drawer`s portalled to `body` and neither is declared nested, so leaving both up means two focus traps — and dismissing the top one can leave the one underneath inert
+- **"Jump to today" is a `오늘` chip beside the month label**, not a control above the grid — the D-day band and the upcoming card both navigate already. It **selects** today rather than only moving the month: selecting no longer opens anything, so the reason to withhold it is gone and a chip meaning "take me back" that left the agenda on another day would only half arrive. It is withheld only once the tap would move nothing — today's month with today already selected
 - The month header is a **`1fr auto 1fr` grid, not `justify-between`** — the centre column holds `DESIGN.md § 7.9.`'s centered label against the middle of the row however wide the sides get. Under `justify-between` the chip appearing would push the label off centre and shift it back on every return to this month
 
 ### 11.4. Event CRUD ✅
 
 - Create / edit / delete — title, description, start and end time, all-day flag, color, recurrence (`none` | `yearly`). Create and edit are **one form**; the fields are identical
-- Both users can **view and edit every event**; there are no permission tiers. No write path is scoped to `created_by`, so a missing row is the only 404. Authorship shows via `events.created_by` — the avatar, in the day sheet's row
+- Both users can **view and edit every event**; there are no permission tiers. No write path is scoped to `created_by`, so a missing row is the only 404. Authorship shows via `events.created_by` — the avatar, in the agenda's row
 - The form works in **wall-clock fields** (`<input type="date">` / `type="time"`, which iOS renders as its own wheel picker) and converts once, at submit. `TIME_ZONE_OFFSET` is a literal `+09:00` and is sound **only** because Korea observes no daylight saving
 - **An edit seeds from the occurrence's anchor, never its projection.** A `yearly` event edited while looking at a later year would otherwise be saved into that year and stop recurring from where it started
 - `PATCH` sends only what changed. The ordering check runs against the stored row when a patch moves one end alone, since the body schema can only compare two ends it was given both of
 - **The patch schema is built on an undefaulted shape.** `zod`'s `.partial()` makes a key optional but does **not** strip its `.default()`, so a schema shared with the create path would resolve `PATCH {"title":…}` into a body carrying every default and the UPDATE would wipe description, colour, recurrence and scope. Defaults belong to `eventBodySchema` alone
 - **The form's date and time fields are clearable**, so `toInstant` is nullable rather than throwing. `isDraftSubmittable` runs during render, where a `RangeError` out of `toISOString` is a blank screen rather than a disabled button
+- **A dead submit button says why.** `toDraftIssue` names the two states a filled-in draft can be stuck in — an unparsable date or time, and an end before its start. A missing title is deliberately silent: the field is on screen, empty, under its own placeholder, and a form that scolds you for not having typed yet is worse than one that waits
+- **A new event starts at the next half hour, not at a fixed 12:00**, and runs an hour. The clock is read in the `useState` initializer — the sheet already remounts per opening (`key`), so that is a mount-time constant, where the same read in the component body would move the default under whoever is typing
 
 ### 11.5. Sharing Features ✅
 
 Include only what pays off for exactly two users. Invitations, RSVP, permissions, and external calendar sync are **not adopted** — with two mutually trusting users they are pure complexity.
 
-- **Event `scope`** — `shared` (ours) or `mine` (my personal schedule), defaulting to `shared`. `mine` events are still **visible** to the other user, **title included** (§ 18. #9) — this is a distinction, not a privacy control; the point is to communicate "I'm busy that day". They are told apart in the month grid by marker **shape** (filled dot for `shared`, ring dot for `mine`), not colour, which is already spent on the event's own hue
+- **Event `scope`** — `shared` (ours) or `mine` (my personal schedule), defaulting to `shared`. `mine` events are still **visible** to the other user, **title included** (§ 18. #9) — this is a distinction, not a privacy control; the point is to communicate "I'm busy that day". They are told apart in the month grid by marker **shape** (filled dot for `shared`, ring dot for `mine`), not colour, which is already spent on the event's own hue. In the agenda, where there is room for a word, a `mine` row says `개인 일정` outright — a 4px ring is a 2px hole and nobody reads it. The word is `개인` and never `내`: both users see the row, so `내` would be wrong for whichever of them did not write it
 - **A `type = 'system'` message posts to Chat when an event changes** — e.g. `지희님이 8월 10일 '영화 보기' 일정을 추가했어요`
   - **Do not bake the name into the stored text.** Store `sender_id`, `system_action`, and the `event_title` / `event_starts_at` snapshot, then **compose the sentence at render time from `users.nickname`** (§ 8.7.). The event snapshot is deliberate, not a violation: a delete notice must still say which event it was, and its `events` row is gone. Only the _user_ name must never be copied
   - Post on create, time change, and delete. **Do not post** when only the title or description changed
@@ -1110,13 +1113,26 @@ Include only what pays off for exactly two users. Invitations, RSVP, permissions
   - It also raises the § 16.1. **push** banner through the same `notifyMessageRecipients` the chat send uses. `features/notify-chat` exists so there is literally one fan-out: § 16.1. permits exactly one alerting channel, and a second copy written beside the event routes is how that stops being true. The banner's body is the notice **without** its actor, since the banner's title is already the sender
   - Rendered as a centered pill with no bubble (same treatment as the date divider — DESIGN § 6.4., § 6.5.); tapping navigates to the event's **day** (`?day=`). The day, not the event id, is deliberately the whole destination: a delete notice outlives its `events` row, so half of these notices have no id to carry
   - The `day` parameter is **shape- and value-checked** before it reaches a date helper (`isDayKey`). `?day=` or `?day=2026-13-45` otherwise arrives as an Invalid Date, and `Intl.DateTimeFormat.format` throws on one — a 500 on a URL anybody can type
-- **Upcoming-events card** directly under the D-day header, summarizing the next one or two events; hidden entirely when there are none
+- **Upcoming-events card** directly under the D-day header, summarizing up to the next three events; hidden entirely when there are none. It is titled on screen, because the § 11.3. agenda is a second list of event rows on the same screen and two unlabelled stacks read as one
+- **"Upcoming" is measured against the clock, not the calendar day.** A timed event is retired at its end instant, an all-day one at the end of its day, and one already under way reads `진행 중` rather than announcing the date it started — a breakfast that ended at 09:00 used to hold a slot until midnight, and a trip that began last week used to head the card with a date in the past
 - **A dot on the Calendar tab-bar icon when there is an event today** (a single dot, not a count). Resolved by the shell's server render, not over the stream — `user_changed` carries `users` rows, and this changes at most once a day
 - **Empty state** for a day with no events (DESIGN § 7.6.)
 
 ### 11.6. Notifications ✅
 
 Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messages on the same pipeline; **there is no calendar-specific notification and no scheduler.**
+
+### 11.7. Korean Public Holidays ✅
+
+관공서의 공휴일 are drawn as 빨간 날 — the numeral in `semantic-error`, the same colour the weekday header has always given Sunday (DESIGN § 7.9.) — and named in the § 11.3. agenda above the day's milestones.
+
+- **A static table in `shared/lib/date/holidays.ts`, not a request and not a derivation.** It sits beside § 11.2.'s milestone arithmetic for the same reason that does: the grid resolves markers for every month it is swiped to, so a holiday source that is `async` or reaches the network breaks the swipe. `findHoliday` is an O(1) day-key lookup, and the whole 2024–2030 table is under 1 KB gzipped
+- **It cannot be computed, which is why it is a table.** 설날 · 추석 · 부처님오신날 are lunisolar; 대체공휴일 follows from wherever those land; and an 임시공휴일 is a cabinet decree with no rule behind it at all (2024-10-01 국군의 날, 2025-01-27). A rule engine would render the _old_ statute after every amendment — and there were two in 2026: **노동절 (5월 1일) and 제헌절 (7월 17일) became 공휴일**, both subject to 대체공휴일. Third-party holiday packages had not ingested either at the time of writing
+- **It degrades by disappearing.** Past the table's last year every day answers `null` and the grid renders exactly as it did before this section existed. That is the trade being bought: a missing 빨간 날 is a non-event, where a Wednesday painted red on an assumed decree, or a `RangeError` thrown inside render on a swipe into an uncovered year, are not
+- **Data through 2027 is authoritative** (한국천문연구원 월력요항); 2028–2030 is computed from the lunisolar calendar and cross-checked against two independent sources. Regenerate when 우주항공청 publishes the next 월력요항, which it does around mid-year for the year following
+- Election days are 공휴일 only for **임기만료 선거 already held or officially scheduled**; a future one is politically contingent (the 2025 조기 대선 is the proof) and is added when 선관위 confirms it, never projected
+- **A holiday is not an event and takes no dot.** It rides its own field on the grid cell, so it can never consume one of § 11.3.'s three marker slots, and the agenda's holiday row is static like a milestone's — it opens nothing. `대체공휴일` is labelled as such rather than shown as a second copy of the same name
+- **`primary` stays out of it.** The milestone diamond is `primary` (§ 11.2.) and Saturday's header letter is too; extending Saturday's colour to its numeral would collide with today's, so the grid colours Sunday and holidays only
 
 ---
 
@@ -1146,8 +1162,8 @@ The screen opens on a **fixed-height cover header** (`DESIGN.md § 7.16.`) rathe
 
 **Avatar enlargement** — tapping an avatar opens the photo full screen in the § 7.10. viewer. A single square cell with **no save control**: a profile photo is the person, not an attachment they shared. `Avatar` owns both halves behind `mediaId` and `canEnlarge`, and lives in `shared/ui` (§ 2.).
 
-- **`canEnlarge` is off by default and stays off in the calendar day sheet** — that avatar sits inside the row button that opens the event (§ 11.4.), where a nested `button` is invalid markup and swallows the tap the row exists for
-- **The button takes over sizing when it wraps the circle**, which keeps `className` meaning one thing either way. Left on the circle, a caller's `size-*` would size the wrapper while the circle kept its own — and the day sheet passes exactly that
+- **`canEnlarge` is off by default and stays off in the § 11.3. day agenda** — that avatar sits inside the row button that opens the event (§ 11.4.), where a nested `button` is invalid markup and swallows the tap the row exists for
+- **The button takes over sizing when it wraps the circle**, which keeps `className` meaning one thing either way. Left on the circle, a caller's `size-*` would size the wrapper while the circle kept its own — and the agenda's event row passes exactly that
 - **The enlargement moved one level in when § 12.3. landed.** An avatar in chat or on the Settings cover now opens the **profile screen**, and it is that screen's own avatar that enlarges. `Avatar` carries both affordances and `onClick` wins over `canEnlarge`, because one avatar can only mean one thing per screen
 
 ### 12.1. Profile Background ✅
@@ -1225,8 +1241,8 @@ The screen opens on a **fixed-height cover header** (`DESIGN.md § 7.16.`) rathe
 Tapping an avatar opens a full-screen profile, KakaoTalk-style: the § 12.1. cover, the avatar, the name, and one action.
 
 - **A `ShellOverlay`, not a route.** It has to cover the tab bar, which a screen under `(main)` cannot — and `absolute`, never `fixed` (`AGENTS.md § 4.4.`)
-- **`ProfileViewerProvider` lives in the shell**, for `ChatStreamProvider`'s reason and one of its own: an avatar is rendered by `widgets/chat-room`, by the Settings cover and by the calendar day sheet, and a widget may not import a sibling widget (§ 2.) — so an overlay mounted beside any one of them would need a copy per screen, with two able to be open at once
-- **`Avatar` does not reach the provider and must not.** It is `shared/ui`, below every layer the provider reads from, so the tap is wired by whoever renders the avatar — and the calendar day sheet deliberately wires none (§ 12.)
+- **`ProfileViewerProvider` lives in the shell**, for `ChatStreamProvider`'s reason and one of its own: an avatar is rendered by `widgets/chat-room`, by the Settings cover and by the § 11.3. day agenda, and a widget may not import a sibling widget (§ 2.) — so an overlay mounted beside any one of them would need a copy per screen, with two able to be open at once
+- **`Avatar` does not reach the provider and must not.** It is `shared/ui`, below every layer the provider reads from, so the tap is wired by whoever renders the avatar — and the § 11.3. day agenda deliberately wires none (§ 12.)
 - **The person is resolved live against the participant set**, so a rename or a new cover reaches a profile that is already open (§ 8.7.). A `userId` the set does not hold closes the screen rather than drawing an empty one
 - **The base is `scrim` and the text is `on-primary` whether or not a cover is set.** A colour that followed the photo would have to be derived from it, and the § 9. hash that makes that cheap for § 12.2.'s wallpaper is not in reach here — `Participant` carries the cover's id and `isProfileBackgroundVideo`, not its `media` row. The cover sits under a **two-stop** gradient — the top darkens the strip the close control is in, the bottom darkens the name, and the middle is left alone rather than dimming what the user came to look at
 - **`Escape` is guarded on nothing being open above it.** The avatar's own § 7.10. viewer composes no `Dialog`, so it marks itself with `data-media-viewer` and this screen tests for that alongside `OPEN_DIALOG_SELECTOR`

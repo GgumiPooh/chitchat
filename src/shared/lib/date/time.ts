@@ -165,6 +165,11 @@ export function toWeekday(dayKey: string): number {
   return parseDayKey(dayKey).getUTCDay();
 }
 
+// WARN: `toWeekday`'s own index domain, and they live here so they cannot drift from it — the two are one fact, and a Monday-first day would have to move both together.
+export const SUNDAY = 0;
+
+export const SATURDAY = 6;
+
 /** The day-of-month of a day key, for the numeral in a calendar cell. */
 export function toDayOfMonth(dayKey: string): number {
   return parseDayKey(dayKey).getUTCDate();

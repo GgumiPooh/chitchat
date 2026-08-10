@@ -13,7 +13,7 @@ type PageProps = {
  * both users see the same number whatever their device clock says.
  */
 export default async function Page({ searchParams }: PageProps) {
-  // INFO: § 11.5. A chat system notice taps through carrying the event's day, so the screen opens on that month with the day's sheet already up.
+  // INFO: § 11.5. A chat system notice taps through carrying the event's day, so the screen opens on that month with that day selected in the agenda instead of today (§ 11.3.).
   // WARN: Shape-checked, not merely typed. `?day=` or `?day=abc` reaches every date helper below as an Invalid Date, and `Intl.DateTimeFormat.format` throws on one — an unvalidated param is a 500 on a URL anybody can type.
   const dayParam = (await searchParams)[CALENDAR_DAY_PARAM];
   const dayKey = isDayKey(dayParam) ? dayParam : undefined;

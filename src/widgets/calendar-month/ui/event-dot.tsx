@@ -37,6 +37,15 @@ export function EventDot({ className, color, scope }: EventDotProps) {
   );
 }
 
+export type HolidayDotProps = {
+  className?: string;
+};
+
+// INFO: REQUIREMENTS.md § 11.7. `semantic-error` is outside the event colour set (DESIGN.md § 4.1.7.), so a red dot cannot be read as somebody's event.
+export function HolidayDot({ className }: HolidayDotProps) {
+  return <span className={cn("size-1 rounded-full bg-semantic-error", className)} />;
+}
+
 export type MilestoneDotProps = {
   className?: string;
 };

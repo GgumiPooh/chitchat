@@ -38,8 +38,8 @@ export function SystemNotice({ className, message, sender }: SystemNoticeProps) 
  * WARN: The day is the whole destination — the event id is deliberately **not** in
  * the URL. A delete notice outlives its `events` row (§ 6.), so half of these
  * notices have no id to carry and the calendar would need a second way in anyway.
- * The day's sheet lists the event, which is what "navigates to the event" means
- * here (§ 11.5.).
+ * The calendar arrives with that day selected and its agenda lists the event, which
+ * is what "navigates to the event" means here (§ 11.3.).
  */
 function toCalendarHref(message: ChatMessage): string {
   if (!message.eventStartsAt) {

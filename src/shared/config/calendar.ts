@@ -66,8 +66,11 @@ export function isEventColor(value: unknown): value is EventColor {
 /** DESIGN.md § 7.9. A day cell shows at most this many dots however many events fall on it. */
 export const MAX_DAY_EVENT_DOTS = 3;
 
+// INFO: DESIGN.md § 7.9. Indexed by `toWeekday`, whose `SUNDAY`/`SATURDAY` live beside it in `shared/lib` — this is the copy, not the index.
+export const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+
 /** DESIGN.md § 7.9. The upcoming card summarises at most this many events. */
-export const MAX_UPCOMING_EVENTS = 2;
+export const MAX_UPCOMING_EVENTS = 3;
 
 /**
  * REQUIREMENTS.md § 11.5. The one query parameter a chat system notice taps

@@ -3,7 +3,7 @@ import "server-only";
 import { events, getDb } from "@/shared/db";
 import { parseDayKey, shiftDayKey, toDayKey } from "@/shared/lib";
 import { and, eq, gte, lte, or } from "drizzle-orm";
-import { toOccurrencesInRange } from "../model/occurrences";
+import { isOccurrenceUnfinished, toOccurrencesInRange } from "../model/occurrences";
 import { toCalendarEvent } from "../model/to-calendar-event";
 import type { EventOccurrence } from "../model/types";
 
@@ -42,14 +42,22 @@ export async function listEventOccurrences(
  *
  * INFO: The horizon is a year because that is the furthest `findNextMilestone`
  * looks, and a card summarising an event further out than that would be noise.
+ *
+ * WARN: The day range alone is not the answer — it keeps a breakfast that ended at
+ * 09:00 "upcoming" until midnight, holding one of the card's two slots (`DESIGN.md
+ * § 7.9.`). `isOccurrenceUnfinished` is what narrows it to what is genuinely left.
  */
 export async function listUpcomingOccurrences(
   todayKey: string,
   limit: number,
 ): Promise<EventOccurrence[]> {
   const occurrences = await listEventOccurrences(todayKey, shiftDayKey(todayKey, 365));
+  // INFO: Read here for the reason `hasEventToday` gives below — the card renders on the client, where a `Date.now()` in the body would be an impure render.
+  const now = Date.now();
 
-  return occurrences.slice(0, limit);
+  return occurrences
+    .filter((occurrence) => isOccurrenceUnfinished(occurrence, todayKey, now))
+    .slice(0, limit);
 }
 
 /** REQUIREMENTS.md § 11.5. Whether anything falls on a day — the tab-bar dot asks nothing more. */

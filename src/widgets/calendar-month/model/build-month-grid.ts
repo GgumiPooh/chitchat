@@ -1,5 +1,6 @@
 import type { EventOccurrence } from "@/entities/event";
 import {
+  findHoliday,
   listDayKeysBetween,
   listMilestonesInRange,
   shiftDayKey,
@@ -7,7 +8,9 @@ import {
   toMonthKey,
   toMonthStart,
   toWeekday,
+  type Holiday,
   type Milestone,
+  type Nullable,
 } from "@/shared/lib";
 
 const DAYS_IN_WEEK = 7;
@@ -15,7 +18,10 @@ const DAYS_IN_WEEK = 7;
 export type MonthCell = {
   dayKey: string;
   dayOfMonth: number;
+  weekday: number;
   isCurrentMonth: boolean;
+  /** REQUIREMENTS.md § 11.7. Never an occurrence — a holiday takes no event dot and no slot. */
+  holiday: Nullable<Holiday>;
   occurrences: EventOccurrence[];
   milestones: Milestone[];
 };
@@ -42,7 +48,9 @@ export function buildMonthGrid(
   return dayKeys.map((dayKey) => ({
     dayKey,
     dayOfMonth: toDayOfMonth(dayKey),
+    weekday: toWeekday(dayKey),
     isCurrentMonth: toMonthKey(dayKey) === monthKey,
+    holiday: findHoliday(dayKey),
     occurrences: occurrencesByDay.get(dayKey) ?? [],
     milestones: milestonesByDay.get(dayKey) ?? [],
   }));

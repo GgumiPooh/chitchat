@@ -1,15 +1,21 @@
 "use client";
 
 import type { EventOccurrence } from "@/entities/event";
-import { cn, formatYearMonth, shiftMonthKey, toMonthKey, toMonthStart } from "@/shared/lib";
+import { WEEKDAY_LABELS } from "@/shared/config";
+import {
+  cn,
+  formatYearMonth,
+  SATURDAY,
+  shiftMonthKey,
+  SUNDAY,
+  toMonthKey,
+  toMonthStart,
+} from "@/shared/lib";
 import { Chip, IconButton } from "@/shared/ui";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { buildMonthGrid } from "../model/build-month-grid";
 import { useMonthSwipe } from "../model/use-month-swipe";
 import { DayCell } from "./day-cell";
-
-// INFO: DESIGN.md § 7.9. Sunday `semantic-error`, Saturday `primary`; the rest `meta`.
-const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 export type CalendarMonthProps = {
   className?: string;
@@ -50,13 +56,14 @@ export function CalendarMonth({
           aria-label="이전 달"
           onClick={() => onMonthChange(shiftMonthKey(monthKey, -1))}
         />
+        {/* WARN: Not a live region. Changing the month always moves the selection with it, and the agenda's heading announces the whole date — two live headings mutating in one commit is two announcements for one tap. */}
         <h2 className="text-display-md whitespace-nowrap text-ink">
           {formatYearMonth(toMonthStart(monthKey))}
         </h2>
         <div className="flex items-center gap-2xs justify-self-end">
-          {/* INFO: REQUIREMENTS.md § 11.3. Withheld on today's own month, where the cell is already on screen and marked — a control that moves nothing reads as broken rather than as reassurance. */}
-          {monthKey !== todayMonthKey && (
-            <Chip haptic onClick={() => onMonthChange(todayMonthKey)}>
+          {/* INFO: REQUIREMENTS.md § 11.3. Withheld only once the tap would move nothing — today's own month with today already selected. */}
+          {!(monthKey === todayMonthKey && selectedDayKey === todayKey) && (
+            <Chip haptic onClick={() => onSelectDay(todayKey)}>
               오늘
             </Chip>
           )}
@@ -70,7 +77,7 @@ export function CalendarMonth({
       </header>
 
       <div className="grid grid-cols-7">
-        {WEEKDAYS.map((label, index) => (
+        {WEEKDAY_LABELS.map((label, index) => (
           <span
             key={label}
             className={cn("py-2xs text-center text-caption", toWeekdayClassName(index))}
@@ -96,10 +103,11 @@ export function CalendarMonth({
   );
 }
 
+// INFO: DESIGN.md § 7.9. Sunday `semantic-error`, Saturday `primary`; the rest `meta`.
 function toWeekdayClassName(index: number): string {
-  if (index === 0) {
+  if (index === SUNDAY) {
     return "text-semantic-error";
   }
 
-  return index === 6 ? "text-primary" : "text-meta";
+  return index === SATURDAY ? "text-primary" : "text-meta";
 }

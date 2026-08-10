@@ -92,6 +92,7 @@ export {
   MAX_EVENT_DESCRIPTION_LENGTH,
   MAX_EVENT_TITLE_LENGTH,
   MAX_UPCOMING_EVENTS,
+  WEEKDAY_LABELS,
   isEventColor,
   type EventColor,
 } from "./calendar";
