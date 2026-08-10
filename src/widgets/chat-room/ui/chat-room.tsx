@@ -1,8 +1,8 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
-import type { ChatMedia, MediaDraft } from "@/entities/media";
-import type { ChatMessage, ReplyPreview } from "@/entities/message";
+import type { MediaDraft } from "@/entities/media";
+import type { ChatMessage, QuoteThumbnail, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { useChatStream, useChatStreamListener } from "@/features/chat-stream";
 import {
@@ -152,7 +152,7 @@ export type ChatRoomProps = {
   /**
    * REQUIREMENTS.md § 8.6.1. The open search's query, lit inside every bubble
    * that contains it — which is what marks a search jump, in place of the
-   * quote jump's flash. A whole row washed in `primary-tint` says "here" and
+   * quote jump's flash. A whole row washed in `message-flash` says "here" and
    * nothing else; the mark says which words were matched, and it stays up
    * while the reader steps through the other hits.
    */
@@ -1758,8 +1758,9 @@ export function ChatRoom({
       text: message.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null,
       // INFO: REQUIREMENTS.md § 9.1., § 9.3. Neither a file attachment nor a recording has a `_thumb` object, so the quote takes its label alone rather than a tile that would 404.
       // WARN: Must stay in step with `listReplyPreviews`, which answers the same question on the server — the optimistic quote and the echoed one are the same row and may not disagree about whether it has a tile.
-      thumbnailMediaId: toQuoteThumbnailId(message.media[0]),
+      thumbnail: toQuoteThumbnail(message),
       mediaKind: toMediaKind(message.media),
+      mediaCount: message.media.length,
       isDeleted: false,
       id: message.id,
     });
@@ -1829,12 +1830,19 @@ export function ChatRoom({
    * the same row — a quote that disagrees between the optimistic bubble and the echo
    * would swap a tile in or out under the reader.
    */
-  function toQuoteThumbnailId(attachment: Optional<ChatMedia>): Nullable<string> {
+  function toQuoteThumbnail(message: ChatMessage): Nullable<QuoteThumbnail> {
+    // INFO: REQUIREMENTS.md § 13.4. The version the server reads off `emoticon_items.updated_at`, which is what `Emoticon.version` already carries.
+    if (message.emoticon) {
+      return { kind: "emoticon", itemId: message.emoticon.id, version: message.emoticon.version };
+    }
+
+    const [attachment] = message.media;
+
     if (!attachment || attachment.filename || attachment.voice) {
       return null;
     }
 
-    return attachment.id;
+    return { kind: "media", mediaId: attachment.id };
   }
 
   /**

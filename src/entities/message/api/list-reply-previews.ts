@@ -1,10 +1,10 @@
 import "server-only";
 
 import { REPLY_PREVIEW_MAX_LENGTH, toMediaKind } from "@/shared/config";
-import { getDb, messages } from "@/shared/db";
+import { emoticonItems, getDb, messages } from "@/shared/db";
 import type { Nullable, Optional } from "@/shared/lib";
-import { inArray } from "drizzle-orm";
-import type { ReplyPreview } from "../model/types";
+import { eq, inArray } from "drizzle-orm";
+import type { QuoteThumbnail, ReplyPreview } from "../model/types";
 import { listMessageMedia } from "./list-message-media";
 
 /** The quote for one reply — what the create paths resolve before they echo the row back. */
@@ -43,11 +43,15 @@ export async function listReplyPreviews(parentIds: number[]): Promise<Map<number
       type: messages.type,
       text: messages.text,
       deletedAt: messages.deletedAt,
+      emoticonItemId: messages.emoticonItemId,
+      // INFO: REQUIREMENTS.md § 13.4. Joined for this column alone — the tile's URL is versioned by it, and the join is what keeps the quote showing an edited emoticon's correction (§ 8.10.).
+      emoticonUpdatedAt: emoticonItems.updatedAt,
     })
     .from(messages)
+    .leftJoin(emoticonItems, eq(messages.emoticonItemId, emoticonItems.id))
     .where(inArray(messages.id, parentIds));
 
-  // INFO: DESIGN.md § 6.10. The quote shows the bubble's first attachment as a 32px tile; the rest of a nine-photo grid has nowhere to go on one line.
+  // INFO: DESIGN.md § 6.10. The quote draws the bubble's first attachment as a 32px tile and counts the rest, which have nowhere to go on one line.
   const byMessage = await listMessageMedia(
     rows.filter((row) => row.type === "media" && !row.deletedAt).map((row) => row.id),
   );
@@ -61,9 +65,12 @@ export async function listReplyPreviews(parentIds: number[]): Promise<Map<number
       // INFO: A deleted parent surrenders its content and keeps only its identity — the quote replaces both with 삭제된 메시지예요.
       text: row.deletedAt ? null : (row.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null),
       // INFO: REQUIREMENTS.md § 9.1., § 9.3. Neither a file attachment nor a recording has a `_thumb` object, so the quote is left with the label alone rather than a tile that 404s.
-      thumbnailMediaId: toQuoteThumbnailId(attachments[0]),
+      // WARN: The deletion is tested here rather than left to the helper, because only the media half gets it for free — `listMessageMedia` is never asked about a deleted row, where the emoticon join above is on `messages` itself and answers for one.
+      thumbnail: row.deletedAt ? null : toQuoteThumbnail(row, attachments[0]),
       // INFO: The same rule the § 16.1. push body applies — 동영상 only when there is no photo in the bubble to contradict it.
       mediaKind: toMediaKind(attachments),
+      // INFO: DESIGN.md § 6.10. The summary counts what the tile cannot show — it is the first attachment alone, however many were sent.
+      mediaCount: attachments.length,
       isDeleted: row.deletedAt !== null,
       id: row.id,
     });
@@ -75,16 +82,27 @@ export async function listReplyPreviews(parentIds: number[]): Promise<Map<number
 // WARN: Structural, not `ChatMedia`. `entities/message` may not import `entities/media` (FSD forbids a cross-import between slices of one layer), and the two fields below are the whole of what this question needs.
 type QuotedAttachment = { filename: Nullable<string>; voice: Nullable<unknown>; id: string };
 
+/** The emoticon half of the row above — its id, and the `updated_at` § 13.4. versions the asset by. */
+type QuotedEmoticon = { emoticonItemId: Nullable<string>; emoticonUpdatedAt: Nullable<Date> };
+
 /**
- * WARN: Both kinds, never `filename` alone. A recording carries no filename either,
+ * WARN: Both fields, never `filename` alone. A recording carries no filename either,
  * so testing that one field pointed the quote's `<img>` at an audio object — which
  * `GET /api/media/{id}` now serves as the original — and reserved `QUOTE_THUMBNAIL`
  * in the § 8.3. estimate for a tile that can never draw.
  */
-function toQuoteThumbnailId(attachment: Optional<QuotedAttachment>): Nullable<string> {
+function toQuoteThumbnail(
+  { emoticonItemId, emoticonUpdatedAt }: QuotedEmoticon,
+  attachment: Optional<QuotedAttachment>,
+): Nullable<QuoteThumbnail> {
+  // INFO: § 6. A row carries one payload or the other, so the order settles nothing — an emoticon message has no attachments to reach the branch below.
+  if (emoticonItemId && emoticonUpdatedAt) {
+    return { kind: "emoticon", itemId: emoticonItemId, version: emoticonUpdatedAt.getTime() };
+  }
+
   if (!attachment || attachment.filename || attachment.voice) {
     return null;
   }
 
-  return attachment.id;
+  return { kind: "media", mediaId: attachment.id };
 }

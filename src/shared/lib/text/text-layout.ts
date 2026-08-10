@@ -42,6 +42,7 @@ export function countTextLines(
 
   const font = `${weight} ${size}px ${family}`;
   // WARN: The separator stays an escape. Written as a literal NUL byte it makes git read this whole file as binary — no line diff, no blame, no three-way merge.
+  // WARN: `wordBreak` is absent only because it is fixed below. The day it becomes a parameter it MUST join this key, or a string measured once answers in whichever mode reached it first.
   const key = `${font}\u0000${whiteSpace}\u0000${maxWidth}\u0000${text}`;
   const cached = lineCounts.get(key);
 
@@ -51,8 +52,12 @@ export function countTextLines(
 
   configure();
 
-  // INFO: `word-break: normal`, the bubble's own — which is what lets Hangul break between syllables rather than only at spaces (DESIGN.md § 6.2.).
-  const { lineCount } = layout(prepare(text, font, { whiteSpace }), maxWidth, 1);
+  // WARN: Never pretext's own default of `normal`. `word-break: keep-all` is app-wide (DESIGN.md § 4.2.3.), and under it a long 어절 is pushed down whole where `normal` splits it between syllables — a whole line of REQUIREMENTS.md § 8.3. drift, always in the same direction.
+  const { lineCount } = layout(
+    prepare(text, font, { whiteSpace, wordBreak: "keep-all" }),
+    maxWidth,
+    1,
+  );
 
   if (lineCounts.size >= CACHE_LIMIT) {
     // INFO: A `Map` iterates in insertion order, so the first half is the oldest half.
@@ -66,6 +71,7 @@ export function countTextLines(
   return lineCount;
 }
 
+// INFO: Arithmetic rather than line breaking, so it models neither mode — the whole-어절 pushes DESIGN.md § 4.2.3. produces are invisible to it, and the count above replaces them the moment a family resolves.
 function approximateLines(text: string, size: number, maxWidth: number): number {
   return text.split("\n").reduce((total, line) => {
     let width = 0;

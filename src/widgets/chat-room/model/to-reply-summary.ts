@@ -1,5 +1,5 @@
 import type { ReplyPreview } from "@/entities/message";
-import { DELETED_MESSAGE_TEXT, toMediaLabel } from "@/shared/config";
+import { DELETED_MESSAGE_TEXT, toMediaCountUnit, toMediaLabel } from "@/shared/config";
 
 /**
  * The one line a quote shows for the message it points at (DESIGN.md § 6.10.).
@@ -15,10 +15,25 @@ export function toReplySummary(replyTo: ReplyPreview): string {
 
   switch (replyTo.kind) {
     case "media":
-      return toMediaLabel(replyTo.mediaKind);
+      return toMediaSummary(replyTo);
     case "emoticon":
       return "이모티콘";
     default:
       return replyTo.text ?? "";
   }
+}
+
+/**
+ * INFO: DESIGN.md § 6.10. Counted only past one, as KakaoTalk counts it — `사진 1장`
+ * tells the reader nothing the tile beside it has not already shown.
+ *
+ * INFO: AGENTS.md § 0.4. `toMediaCountUnit` rather than a literal 장, and no `josa`:
+ * the counter ends the line, so no particle follows it.
+ */
+function toMediaSummary({ mediaKind, mediaCount }: ReplyPreview): string {
+  // WARN: One kind for both helpers, never the raw field twice — `toMediaLabel` reads a null as 사진 and `toMediaCountUnit` reads it as 개, so a preview that lost its kind would be counted `사진 3개`.
+  const kind = mediaKind ?? "photo";
+  const label = toMediaLabel(kind);
+
+  return mediaCount > 1 ? `${label} ${mediaCount}${toMediaCountUnit(kind)}` : label;
 }

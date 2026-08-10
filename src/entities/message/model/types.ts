@@ -5,6 +5,18 @@ import type { MessageType, SystemAction } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
 
 /**
+ * The 32px tile a quote draws beside its summary (DESIGN.md § 6.10.).
+ *
+ * INFO: One discriminated field rather than a nullable id per kind, so `toQuoteHeight`
+ * answers "is there a tile?" with a single test — two parallel ids are a pair that can
+ * disagree, and the § 8.3. estimate would be reading whichever one it was written against.
+ */
+export type QuoteThumbnail =
+  | { kind: "media"; mediaId: string }
+  // WARN: REQUIREMENTS.md § 13.4. The version travels with the id, because `toEmoticonAssetUrl` cannot address an edited item without it — the edit swaps the object behind an unchanged id and the redirect in front of it is cached.
+  | { kind: "emoticon"; itemId: string; version: number };
+
+/**
  * The message a reply quotes, as the quote renders it (REQUIREMENTS.md § 8.10.).
  *
  * INFO: Resolved from the parent row at read time rather than snapshotted onto the
@@ -20,10 +32,12 @@ export type ReplyPreview = {
   kind: MessageType;
   /** Already sliced to `REPLY_PREVIEW_MAX_LENGTH` — the quote clamps to one line. */
   text: Nullable<string>;
-  /** The first attachment, for the quote's thumbnail; null for every other kind, and for a file attachment, which has no thumbnail object (§ 9.1.). */
-  thumbnailMediaId: Nullable<string>;
+  /** The bubble's first attachment, or the emoticon it was; null for a file attachment and a recording, which have no thumbnail object (§ 9.1., § 9.3.), and for a deleted parent. */
+  thumbnail: Nullable<QuoteThumbnail>;
   // INFO: Names the bubble the way the § 16.1. push body does — 사진 covers a mixed send of photos and videos, since listing both would read as a manifest in a line with room for neither. A file bubble is its own kind, and § 6. never mixes it with the other two.
   mediaKind: Nullable<MediaKind>;
+  // INFO: DESIGN.md § 6.10. What the summary counts, `0` for every kind that has no attachments. Deliberately not derived from `thumbnail`, which is the *first* attachment and says nothing about how many stood behind it.
+  mediaCount: number;
   // INFO: § 6. is append-only and a delete is a soft one, so the parent row outlives its content and the quote says 삭제된 메시지예요 instead of going blank.
   isDeleted: boolean;
   id: number;

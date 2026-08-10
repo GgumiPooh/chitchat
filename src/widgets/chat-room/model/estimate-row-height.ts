@@ -65,7 +65,7 @@ const FAILED_SLOT = AVATAR_SIZE + SPACING_2XS;
 const PILL = { size: 12, weight: 500 };
 const PILL_PADDING = SPACING_2XS * 2;
 
-// INFO: `size-8` on the quote's thumbnail, and the two lines beside it — whichever is taller is the quote's content (`items-center`).
+// INFO: `size-8` on the quote's thumbnail — one box for an attachment and an emoticon alike (DESIGN.md § 6.10.) — and the two lines beside it; whichever is taller is the quote's content (`items-center`).
 const QUOTE_THUMBNAIL = 32;
 
 // INFO: DESIGN.md § 3.3. `--container-app`. Only a fallback: the room passes the scroller's real width once it has one, and this is what the very first render estimates against.
@@ -362,7 +362,7 @@ function toNoticeHeight(
 
 function toQuoteHeight(replyTo: ReplyPreview, variant: "rule" | "card"): number {
   const content = Math.max(
-    replyTo.thumbnailMediaId ? QUOTE_THUMBNAIL : 0,
+    replyTo.thumbnail ? QUOTE_THUMBNAIL : 0,
     LINE.time() + LINE.quoteSummary(),
   );
 

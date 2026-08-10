@@ -113,5 +113,6 @@ function toGroupKey(senderId: string, createdAt: string): string {
 function toRowRevision({ editedAt, isDeleted, replyTo }: ChatMessage): string {
   // WARN: REQUIREMENTS.md § 8.13. First, and the widest swing of the three. A withdrawn photo message drops a whole media box for one line, so a row that kept its key here would sit on a cached height hundreds of pixels wrong until it next mounted.
   // INFO: DESIGN.md § 6.10. The quote is `max(thumbnail, two lines)`, so losing the thumbnail to a § 8.10. delete is a real change of height rather than only of wording.
-  return `${isDeleted ? "d" : ""}:${editedAt ?? ""}:${replyTo?.thumbnailMediaId ?? ""}`;
+  // WARN: Presence and not the asset's identity, because that is all the box is `max`ed against — an attachment tile and an emoticon tile are the same 32px, and the § 8.10. count beside them rides on a `truncate`d line that cannot grow.
+  return `${isDeleted ? "d" : ""}:${editedAt ?? ""}:${replyTo?.thumbnail ? "t" : ""}`;
 }
