@@ -2,6 +2,7 @@
 
 import { toAltKeyLabel, toCommandKeyLabel, toShiftKeyLabel } from "@/shared/lib";
 import { Modal } from "@/shared/ui";
+import { Fragment } from "react";
 
 export type ShortcutHelpProps = {
   className?: string;
@@ -10,8 +11,25 @@ export type ShortcutHelpProps = {
 };
 
 /**
+ * REQUIREMENTS.md § 8.14. One line of the sheet: the keys held together, then the one
+ * or more keys any of which finishes the shortcut.
+ *
+ * INFO: The two are separate because they are joined differently — `+` says "at the
+ * same time" and `or` says "either" — and a flat list of chips says neither. `⌥ + ↑ or
+ * ↓` is one line where `⌥` `↑` `↓` was three glyphs a reader had to guess the grammar
+ * of.
+ */
+type ShortcutRow = {
+  /** Held down together. Empty for a shortcut that takes no modifier. */
+  chord?: string[];
+  keys: string[];
+  label: string;
+};
+
+/**
  * REQUIREMENTS.md § 8.14. What `⌘/` opens: the conversation's keyboard shortcuts,
- * which are otherwise discoverable from nothing on screen.
+ * which are otherwise discoverable from nothing on screen but the composer's
+ * placeholder.
  *
  * INFO: A `Modal` rather than DESIGN.md § 7.5.'s sheet, which is the app's default
  * overlay. A sheet is for something that started at the bottom of the screen or in a
@@ -35,17 +53,17 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
       onClose={onClose}
     >
       <div className="flex flex-col gap-md">
+        {/* INFO: § 8.14. `⌘/` is not listed. Anyone reading this has already pressed it, so the row taught nothing and cost a line of the few this has. */}
         {renderGroup("대화", [
-          { keys: [alt, "↑", "↓"], label: "대화 스크롤" },
-          { keys: [command, "↓"], label: "최신 메시지로" },
+          { chord: [alt], keys: ["↑", "↓"], label: "대화 스크롤" },
+          { chord: [command], keys: ["↓"], label: "최신 메시지로" },
           { keys: ["Esc"], label: "메시지 입력창으로" },
           { keys: ["Enter"], label: "메시지 입력창으로 (아무것도 선택하지 않았을 때)" },
-          { keys: [command, "/"], label: "단축키 보기" },
         ])}
-        {/* INFO: § 8.14. The strip, the grid and the field are one surface to the reader, so the sheet says 방향키 once rather than naming each edge between them — the edges are what the arrows do, not something to be learnt separately. */}
+        {/* INFO: § 8.14. The strip, the grid and the field are one surface to the reader, so the sheet names the arrows once rather than each edge between them — the edges are what the arrows do, not something to be learnt separately. */}
         {renderGroup("이모티콘", [
-          { keys: [command, "E"], label: "이모티콘 패널 열기 / 닫기" },
-          { keys: [command, shift, "E"], label: "이모티콘 검색" },
+          { chord: [command], keys: ["E"], label: "이모티콘 패널 열기 / 닫기" },
+          { chord: [command, shift], keys: ["E"], label: "이모티콘 검색" },
           { keys: ["←", "→", "↑", "↓"], label: "패널 안에서 이동" },
           { keys: ["Enter"], label: "담기, 두 번 누르면 보내기" },
           { keys: ["Esc"], label: "닫기, 담은 이모티콘 취소" },
@@ -54,7 +72,7 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
     </Modal>
   );
 
-  function renderGroup(title: string, rows: { keys: string[]; label: string }[]) {
+  function renderGroup(title: string, rows: ShortcutRow[]) {
     return (
       <section className="space-y-2xs">
         <h3 className="text-caption text-meta-soft">{title}</h3>
@@ -63,13 +81,17 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
             // INFO: The keys lead and the sentence follows, so the column of caps reads as a list a user scans for the key they half-remember.
             <li key={row.label} className="flex items-center gap-xs">
               <span className="flex shrink-0 items-center gap-2xs">
-                {row.keys.map((key) => (
-                  <kbd
-                    key={key}
-                    className="inline-flex min-w-7 items-center justify-center rounded-sm border border-hairline bg-surface-soft px-2xs py-0.5 text-caption text-meta"
-                  >
-                    {key}
-                  </kbd>
+                {row.chord?.map((key) => (
+                  <Fragment key={key}>
+                    {renderKey(key)}
+                    {renderJoiner("+")}
+                  </Fragment>
+                ))}
+                {row.keys.map((key, index) => (
+                  <Fragment key={key}>
+                    {index > 0 && renderJoiner("or")}
+                    {renderKey(key)}
+                  </Fragment>
                 ))}
               </span>
               <span className="min-w-0 text-body-sm text-body">{row.label}</span>
@@ -78,5 +100,18 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
         </ul>
       </section>
     );
+  }
+
+  function renderKey(key: string) {
+    return (
+      <kbd className="inline-flex min-w-7 items-center justify-center rounded-sm border border-hairline bg-surface-soft px-2xs py-0.5 text-caption text-meta">
+        {key}
+      </kbd>
+    );
+  }
+
+  // INFO: Plain text and never a `kbd`, or the grammar between the keys reads as one more key to press.
+  function renderJoiner(joiner: "+" | "or") {
+    return <span className="text-caption text-meta-soft">{joiner}</span>;
   }
 }

@@ -229,7 +229,7 @@ export function MessageComposer({
             aria-label="메시지 입력"
             // INFO: § 8.14. Only where a mouse is driving, since a phone has no key to press — and the ternary is also what keeps `toCommandKeyLabel` out of the server's HTML, where its answer would be a guess at a platform it cannot see.
             placeholder={
-              isFinePointer ? `메시지 입력 · ${toCommandKeyLabel()}/ 단축키 보기` : "메시지 입력"
+              isFinePointer ? `메시지 입력 · ${toCommandKeyLabel()} + / 단축키 보기` : "메시지 입력"
             }
             // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
             onChange={(event) => {
