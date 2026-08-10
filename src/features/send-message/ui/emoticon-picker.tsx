@@ -52,8 +52,8 @@ const SEARCH_FAILED_MESSAGE = "검색하지 못했어요";
 /** REQUIREMENTS.md § 8.14. A tab, the cell focus is to land on in it, and the offset to read it at. */
 type TabEntry = {
   tab: string;
-  /** `"last"` for the entries that arrive from below, where the end of the list is the nearest cell. */
-  index: number | "last";
+  /** Clamped to the list on arrival, since the pack turned to may be shorter than the one turned from. */
+  index: number;
   /**
    * The offset the previous tab was read at, restored before the focus lands.
    *
@@ -360,7 +360,7 @@ export function EmoticonPicker({
   useLayoutEffect(() => {
     if (focusRequest !== 0 && focusRequest !== satisfiedFocusRequestRef.current) {
       satisfiedFocusRequestRef.current = focusRequest;
-      pendingEntryRef.current = { tab: activeTab, index: "last" };
+      pendingEntryRef.current = { tab: activeTab, index: 0 };
     }
 
     const entry = pendingEntryRef.current;
@@ -751,6 +751,7 @@ export function EmoticonPicker({
       tab: moved,
       index: toCrossingIndex({
         index,
+        count: shown.length,
         columns: isSearching ? 1 : EMOTICON_GRID_COLUMNS,
         direction,
       }),
@@ -791,18 +792,17 @@ export function EmoticonPicker({
 
   /** REQUIREMENTS.md § 8.14. `ArrowUp` off the strip, back into what the tab holds. */
   function focusTabContent() {
-    enterTab({ tab: activeTab, index: "last" });
+    enterTab({ tab: activeTab, index: 0 });
   }
 
   /**
    * REQUIREMENTS.md § 8.14. Puts focus where a `TabEntry` asked for it, and reports
    * whether it landed.
    *
-   * INFO: § 8.14. `"last"` is every way in that arrives from **below** — the `ArrowUp`
-   * off the strip, and the `⌘E` that opened the panel — because the strip is the
-   * bottom of the panel and the composer is below the panel, so the cell nearest the
-   * eye is the one at the end. Landing at the head meant entering a grid by jumping
-   * over all of it.
+   * INFO: § 8.14. The head of the list is where every way *in* lands — the `ArrowUp`
+   * off the strip and the `⌘E` that opened the panel both pass `0`. Only a page turn
+   * (`crossToAdjacentTab`) names a cell of its own, because that one is continuing a
+   * row rather than starting a list.
    *
    * WARN: § 8.14. Clamped, which is what answers a pack shorter than the one turned
    * away from: the row `→` was on may not exist here, so focus takes the nearest cell
@@ -816,9 +816,7 @@ export function EmoticonPicker({
         scroller.scrollTop = entry.scrollTop;
       }
 
-      const last = shown.length - 1;
-
-      return focusItem(scroller, entry.index === "last" ? last : Math.min(entry.index, last));
+      return focusItem(scroller, Math.min(entry.index, shown.length - 1));
     }
 
     searchFieldRef.current?.focus();

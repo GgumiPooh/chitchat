@@ -94,15 +94,17 @@ function isRowEnd({
  */
 export function toCrossingIndex({
   index,
+  count,
   columns,
   direction,
 }: {
   index: number;
+  count: number;
   columns: number;
   direction: 1 | -1;
-}): number | "last" {
+}): number {
   if (columns === 1) {
-    return direction === 1 ? 0 : "last";
+    return direction === 1 ? 0 : count - 1;
   }
 
   const rowStart = index - (index % columns);
