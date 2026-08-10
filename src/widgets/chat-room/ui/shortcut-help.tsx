@@ -38,14 +38,11 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
           { keys: [command, "↓"], label: "최신 메시지로" },
           { keys: [command, "/"], label: "단축키 보기" },
         ])}
+        {/* INFO: § 8.14. The strip, the grid and the field are one surface to the reader, so the sheet says 방향키 once rather than naming each edge between them — the edges are what the arrows do, not something to be learnt separately. */}
         {renderGroup("이모티콘", [
           { keys: [command, "E"], label: "이모티콘 검색 열기" },
-          { keys: ["←", "→", "↑", "↓"], label: "이모티콘 사이 이동" },
-          { keys: ["↓"], label: "맨 아래에서 한 번 더 누르면 묶음 탭으로" },
-          { keys: ["←", "→"], label: "묶음 탭에서 이전 / 다음 묶음" },
-          { keys: ["↑"], label: "묶음 탭에서 다시 이모티콘으로" },
-          { keys: ["Enter"], label: "담기" },
-          { keys: [command, "Enter"], label: "바로 보내기" },
+          { keys: ["←", "→", "↑", "↓"], label: "패널 안에서 이동" },
+          { keys: ["Enter"], label: "담기, 두 번 누르면 보내기" },
           { keys: ["Esc"], label: "닫기" },
         ])}
       </div>

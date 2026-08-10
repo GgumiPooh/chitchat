@@ -21,6 +21,7 @@ import {
   useState,
   type FocusEvent,
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent,
   type PropsWithChildren,
   type Ref,
@@ -327,6 +328,7 @@ export function EmoticonPicker({
           rowRef={cellScrollerRef}
           onQueryChange={changeQuery}
           onSelect={handleSelect}
+          onFieldKeys={handleFieldKeys}
           onCellKeys={handleCellKeys}
           onCellFocus={trackCellFocus}
           onSwipe={goToAdjacentTab}
@@ -647,6 +649,28 @@ export function EmoticonPicker({
     }
   }
 
+  /**
+   * REQUIREMENTS.md § 8.14. `↓` out of § 13.8.'s field and into what it filled — the
+   * results row where the words found something, and the tabs where they did not, so
+   * the key navigates on an empty search as readily as on a full one.
+   *
+   * WARN: `isComposing` and the bare key only. A Hangul IME steers its candidate list
+   * with this key, and ⌘↓ is the room's jump to the live edge.
+   */
+  function handleFieldKeys(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "ArrowDown" || isCommandKey(event) || event.nativeEvent.isComposing) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const row = cellScrollerRef.current;
+
+    if (!row || !focusItem(row, Math.max(focusableIndex, 0))) {
+      focusActiveTab();
+    }
+  }
+
   /** REQUIREMENTS.md § 8.14. Into the strip from the list above it. */
   function focusActiveTab() {
     const strip = tabStripRef.current;
@@ -675,17 +699,19 @@ export function EmoticonPicker({
   }
 
   /**
-   * INFO: REQUIREMENTS.md § 8.14. `Enter` stages and `⌘Enter` sends outright, which is
-   * what the two taps of § 13.6.'s pair do between them.
+   * INFO: REQUIREMENTS.md § 8.14. `Enter` is § 13.6.'s tap: once stages a preview, and
+   * twice inside `DOUBLE_TAP_WINDOW` sends. `⌘Enter` is the same send in one press,
+   * kept because it is what every other app spells it with.
    *
-   * WARN: § 8.14. `Enter` is taken off the native click and staged directly, and that
-   * is the whole point rather than an optimisation. Left to the click it lands in
-   * `handleSelect`, which cannot tell a keyboard from a thumb — so two deliberate
-   * presses inside `DOUBLE_TAP_WINDOW` **send**, from the one key the sheet labels
-   * 담기. The keyboard has its own send and needs no pair counted for it.
+   * WARN: The pair goes through `handleSelect`, so the keyboard and the thumb count
+   * against **one** window rather than two — which is what makes the rule one rule.
    *
-   * WARN: The repeat guard is separate and still necessary: a held key fires this over
-   * and over, and staging on each one re-plays § 13.6.'s sound at the repeat rate.
+   * WARN: § 8.14. The repeat guard is what keeps a *held* key out of that pair. The
+   * browser fires this per repeat, so without it a key left down stages, sends, and
+   * goes on sending at the repeat rate.
+   *
+   * WARN: The native `click` is prevented, or it would land in `handleSelect` a second
+   * time and every single press would read as a pair.
    */
   function activateCell(event: KeyboardEvent<HTMLDivElement>, item: Optional<Emoticon>) {
     event.preventDefault();
@@ -694,14 +720,15 @@ export function EmoticonPicker({
       return;
     }
 
-    // WARN: § 13.6. The pointer's own pair is cleared either way, or a tap landing after this would pair with a press it never saw.
-    lastTapRef.current = null;
-
     if (isCommandKey(event)) {
+      // WARN: § 13.6. The standing pair is cleared, or a press landing after this send would pair with one the send already spent.
+      lastTapRef.current = null;
       onQuickSend(item);
-    } else {
-      onSelect(item);
+
+      return;
     }
+
+    handleSelect(item);
   }
 
   // INFO: § 8.14. `onFocus` rather than a handler per cell: React's is `focusin`, which bubbles where the DOM's `focus` does not.
@@ -859,7 +886,10 @@ function EmoticonCell({
         // INFO: § 8.14. The item's own words, so a reader stepping the grid hears which picture each cell is rather than 이모티콘 forty times. Falls back where nobody has described it (§ 13.8.).
         aria-label={item.keywords.length > 0 ? item.keywords.join(", ") : "이모티콘"}
         {...{ [FOCUS_INDEX_ATTRIBUTE]: index }}
-        onClick={() => onSelect(item)}
+        onClick={(event) => {
+          takeFocus(event);
+          onSelect(item);
+        }}
       >
         <PreloadImage
           className="size-full"
@@ -899,6 +929,8 @@ type SearchPaneProps = {
   rowRef: RefObject<Nullable<HTMLDivElement>>;
   onQueryChange: (query: string) => void;
   onSelect: (item: Emoticon) => void;
+  /** REQUIREMENTS.md § 8.14. `↓` out of the field, which the panel owns because where it lands depends on what the search found. */
+  onFieldKeys: (event: KeyboardEvent<HTMLInputElement>) => void;
   onCellKeys: (event: KeyboardEvent<HTMLDivElement>) => void;
   onCellFocus: (event: FocusEvent<HTMLDivElement>) => void;
   onSwipe: (direction: SwipeDirection) => void;
@@ -932,6 +964,7 @@ function SearchPane({
   rowRef,
   onQueryChange,
   onSelect,
+  onFieldKeys,
   onCellKeys,
   onCellFocus,
   onSwipe,
@@ -977,7 +1010,7 @@ function SearchPane({
           enterKeyHint="done"
           aria-label="이모티콘 검색"
           onChange={(event) => onQueryChange(event.target.value)}
-          onKeyDown={enterRow}
+          onKeyDown={onFieldKeys}
         />
       </div>
       {results.length === 0 ? (
@@ -1046,31 +1079,6 @@ function SearchPane({
   }
 
   /**
-   * REQUIREMENTS.md § 8.14. `ArrowDown` out of the field and into the row it filled,
-   * which is the mirror of the row's own `ArrowUp`.
-   *
-   * WARN: `isComposing` — a Hangul IME steers its candidate list with the same key,
-   * and taking it away would make the field unable to settle a syllable.
-   */
-  function enterRow(event: KeyboardEvent<HTMLInputElement>) {
-    // WARN: § 8.14. The bare key only. ⌘↓ is the room's jump to the live edge, and swallowing it here would answer it with a focus move inside a panel instead.
-    if (event.key !== "ArrowDown" || isCommandKey(event) || event.nativeEvent.isComposing) {
-      return;
-    }
-
-    if (results.length === 0) {
-      return;
-    }
-
-    const row = rowRef.current;
-
-    if (row) {
-      event.preventDefault();
-      focusItem(row, focusableIndex);
-    }
-  }
-
-  /**
    * INFO: § 13.8. The row has first claim on the axis it scrolls, so the pane's swipe
    * only ever sees a drag that started somewhere the row is not — or on a row short
    * enough to have nothing to scroll, which is most searches.
@@ -1125,7 +1133,10 @@ function TabButton({
         aria-label={label}
         aria-pressed={isActive}
         {...{ [FOCUS_INDEX_ATTRIBUTE]: index }}
-        onClick={onClick}
+        onClick={(event) => {
+          takeFocus(event);
+          onClick();
+        }}
       >
         {children}
       </button>
@@ -1135,4 +1146,22 @@ function TabButton({
 
 function findPack(packs: EmoticonPackSummary[], id: string) {
   return packs.find((pack) => pack.id === id);
+}
+
+/**
+ * REQUIREMENTS.md § 8.14. Puts focus on the control that was pressed, which a pointer
+ * otherwise never does here.
+ *
+ * WARN: `HapticTap` takes the tap on its own overlay and replays it as a scripted
+ * `control.click()` (`DESIGN.md § 7.15.`), and a scripted click moves no focus — while
+ * the real `pointerdown` landed on a `<span>` nothing can focus, so it dropped focus to
+ * `<body>`. One click anywhere in this panel therefore ended keyboard navigation
+ * outright: every handler below reads the key off the focused item, and there was no
+ * longer one.
+ *
+ * WARN: `preventScroll`, for `focusItem`'s reason — the strip clipping this panel is
+ * `overflow: hidden`, and `focus()` scrolls every scrollable ancestor it finds.
+ */
+function takeFocus(event: MouseEvent<HTMLButtonElement>): void {
+  event.currentTarget.focus({ preventScroll: true });
 }
