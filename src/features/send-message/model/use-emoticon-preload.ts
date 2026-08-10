@@ -1,39 +1,64 @@
 "use client";
 
+import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import { A_MINUTE, A_SECOND, mapPooled, type Nullable } from "@/shared/lib";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useStorageState } from "synced-storage/react";
+import { ACTIVE_TAB_KEY, RECENTS_TAB } from "./emoticon-tabs";
+import { toEmoticonsByIdsQuery } from "./emoticons-query";
+import { toEmoticonKeywordsQuery } from "./keywords-query";
+import { toEmoticonPackItemsQuery } from "./pack-items-query";
 import { toEmoticonPacksQuery } from "./packs-query";
+import { useRecentEmoticons } from "./use-recent-emoticons";
 
 // INFO: REQUIREMENTS.md § 13.6. Wide enough that a pack is warm in a few round trips, narrow enough that the § 13.3. route is not handed the whole library at once — each hit is a session check, an item read and a presign.
 // WARN: This is not what keeps the conversation's own images ahead of the warm. Over HTTP/2 there is one connection and no queue to be at the front of; `fetchPriority` is the mechanism, and `warmImage` is where it is set.
 const PRELOAD_CONCURRENCY = 4;
 
-// INFO: § 13.5. puts no ceiling on packs or on items per pack, so this is the one the warm imposes — past it a tab is loaded by being opened, which is exactly what every tab did before this existed.
+// INFO: § 13.6. The warm covers the one tab that will open rather than the library, so this is a guard against an unusually large pack rather than the ceiling it used to be — a hand-authored pack is a few dozen items and never reaches it. Past it a cell is loaded by being scrolled to, which is what every cell did before the warm existed.
 const MAX_PRELOADED_EMOTICONS = 120;
 
 // INFO: The ceiling the idle callback is given, and the whole delay where there is none — iOS Safari only shipped `requestIdleCallback` in 17, and the packs may as well warm a second late there as never.
 const PRELOAD_IDLE_DELAY = 2 * A_SECOND;
 
-// INFO: How long a warmed list is taken on trust, so walking between tabs does not re-ask for it on every return to the room.
-const PRELOAD_STALE_TIME = A_MINUTE;
+// INFO: How long a warmed list is taken on trust, so walking between tabs does not re-ask for it on every return to the room. Longer than it was, because the list is summaries now — an edit to a pack's items does not change it, only § 13.5.'s own screens do.
+const PRELOAD_STALE_TIME = 5 * A_MINUTE;
 
 /**
- * REQUIREMENTS.md § 13.6. Warms the packs — the list, then every item's image — so
- * the panel's first open draws a full grid instead of assembling one.
+ * REQUIREMENTS.md § 13.6. Warms the panel's first open — the pack list, then the
+ * items and images of the one tab that open will land on.
  *
  * WARN: § 8.3. Deferred to an idle callback rather than started on mount. Both halves compete with the conversation for exactly the wrong frames otherwise: the list is one more round trip against a room already making several, and a pack of images is decode work landing while the first screenful of bubbles is still being measured.
- * WARN: This is what withdrew "a user who never opens the panel never fetches the packs". The cost is one list request and one pack of images per visit to the room, spent on an affordance one tap from the composer — against a first open that showed an empty panel for a round trip and then filled in cell by cell.
+ * WARN: This is what withdrew "a user who never opens the panel never fetches the packs". The cost is one list request, one tab's items and one tab's images per visit to the room, spent on an affordance one tap from the composer — against a first open that showed an empty panel for a round trip and then filled in cell by cell.
  */
 export function useEmoticonPreload(): void {
   const queryClient = useQueryClient();
+  // INFO: § 13.6. The same storage the panel reopens on, so the warm heats the tab that will actually be drawn rather than a guess at it.
+  const [storedTab] = useStorageState<string>(ACTIVE_TAB_KEY, RECENTS_TAB, {
+    strategy: "localStorage",
+  });
+  const { recentIds } = useRecentEmoticons();
+  /**
+   * WARN: Held in a ref rather than listed as a dependency, and both halves of that
+   * matter. `recentIds` is a fresh array every render, so a dependency would
+   * re-schedule the warm on each one; and read at *setup* instead of inside the
+   * callback, `storedTab` is still the hydration fallback — the trap the panel
+   * documents on its own `useStorageState`. The idle callback lands well after both
+   * have settled.
+   */
+  const openingTabRef = useRef({ storedTab, recentIds });
+
+  useEffect(() => {
+    openingTabRef.current = { storedTab, recentIds };
+  });
 
   useEffect(() => {
     let isCancelled = false;
     let idleHandle: Nullable<number> = null;
     let timeoutHandle: Nullable<ReturnType<typeof setTimeout>> = null;
-    const start = () => void warmEnabledPacks();
+    const start = () => void warmOpeningTab();
 
     if (typeof window.requestIdleCallback === "function") {
       idleHandle = window.requestIdleCallback(start, { timeout: PRELOAD_IDLE_DELAY });
@@ -53,9 +78,13 @@ export function useEmoticonPreload(): void {
       }
     };
 
-    async function warmEnabledPacks() {
-      // INFO: `fetchQuery` rather than `prefetchQuery` — the items are what the image URLs are read off, and a prefetch answers nothing.
-      // WARN: The `staleTime` is the preload's alone and must not move onto the descriptor. Leaving the room and coming back remounts this, and at the descriptor's own `0` every return would re-ask for a list nothing has changed; the panel keeps that `0` deliberately, since its mount is the moment § 13.5. edits have to land.
+    async function warmOpeningTab() {
+      // WARN: § 13.8. The composer's underline is fed from here rather than from a query of its own, and this callback is the whole reason. `MessageComposer` mounts with the room, so asking there put `?keywords=1` on every room entry — the moment this hook exists to keep clear.
+      // INFO: `prefetchQuery`, unlike the list below — nothing here is chosen against the answer, and the composer reads it out of the cache whenever it lands.
+      void queryClient.prefetchQuery(toEmoticonKeywordsQuery());
+
+      // INFO: `fetchQuery` rather than `prefetchQuery` — the tab below is chosen against this answer, and a prefetch answers nothing.
+      // WARN: The `staleTime` is the preload's alone and must not move onto the descriptor. Leaving the room and coming back remounts this, and at the descriptor's own `0` — declared explicitly there, against `getQueryClient`'s minute — every return would re-ask for a list nothing has changed; the panel keeps that `0` deliberately, since its mount is the moment § 13.5. edits have to land.
       const packs = await queryClient
         .fetchQuery({ ...toEmoticonPacksQuery(), staleTime: PRELOAD_STALE_TIME })
         .catch(() => []);
@@ -64,18 +93,41 @@ export function useEmoticonPreload(): void {
         return;
       }
 
-      // WARN: § 13.8. Visible packs first, because the cap below is what the order is for. The list now carries hidden packs too — they are reachable by search and by § 13.9.'s 따라하기 — and left in list order a hidden pack sitting early would spend the budget on cells no tab draws.
-      const urls = [...packs]
-        .sort((left, right) => Number(right.isEnabled) - Number(left.isEnabled))
-        .flatMap((pack) =>
-          pack.items.map((item) => toEmoticonAssetUrl(item.id, "image", item.version)),
-        )
-        .slice(0, MAX_PRELOADED_EMOTICONS);
+      const items = await fetchOpeningTabItems(packs);
 
-      // INFO: Every task resolves (`warmImage`), so one asset the § 13.3. route refuses cannot stop the queue on the rest of the pack.
+      if (isCancelled) {
+        return;
+      }
+
+      const urls = items
+        .slice(0, MAX_PRELOADED_EMOTICONS)
+        .map((item) => toEmoticonAssetUrl(item.id, "image", item.version));
+
+      // INFO: Every task resolves (`warmImage`), so one asset the § 13.3. route refuses cannot stop the queue on the rest of the tab.
       await mapPooled(urls, (url) => (isCancelled ? Promise.resolve() : warmImage(url)), {
         limit: PRELOAD_CONCURRENCY,
       });
+    }
+
+    /**
+     * INFO: § 13.6. The panel falls back to 최근 사용 when the remembered pack has
+     * been deleted or hidden since, and this has to make the same choice — warming
+     * the pack the panel resolves away from heats a tab that never opens and leaves
+     * the one that does cold.
+     */
+    async function fetchOpeningTabItems(packs: EmoticonPackSummary[]): Promise<Emoticon[]> {
+      const { storedTab: tab, recentIds: ids } = openingTabRef.current;
+
+      if (packs.some((pack) => pack.id === tab && pack.isEnabled)) {
+        return queryClient.fetchQuery(toEmoticonPackItemsQuery(tab)).catch(() => []);
+      }
+
+      // INFO: § 13.8. The search tab is never remembered, so it is not a case here — an empty 최근 사용 is, and it has nothing to ask for.
+      if (ids.length === 0) {
+        return [];
+      }
+
+      return queryClient.fetchQuery(toEmoticonsByIdsQuery(ids)).catch(() => []);
     }
   }, [queryClient]);
 }

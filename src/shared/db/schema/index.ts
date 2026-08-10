@@ -1,9 +1,11 @@
 export { chatSettings, type ChatSettings } from "./chat-settings";
 export {
   emoticonItems,
+  emoticonKeywords,
   emoticonPacks,
   userEmoticonPrefs,
   type EmoticonItem,
+  type EmoticonKeyword,
   type EmoticonPack,
   type UserEmoticonPref,
 } from "./emoticons";

@@ -1,5 +1,5 @@
 import {
-  listEmoticonPacks,
+  findKnownPackIds,
   setEmoticonPackEnabled,
   setEmoticonPackOrder,
 } from "@/entities/emoticon";
@@ -10,13 +10,16 @@ import { z } from "zod";
 
 // WARN: REQUIREMENTS.md § 13.7.1. jandh-emoticons mirrors this handler, and the browser reaches whichever copy the switch names. Both sides change together — a fix landed here alone is one this app stops running the moment the switch is on.
 
-const orderSchema = z.object({ packIds: z.array(z.uuid()).min(1) });
+const orderSchema = z
+  .object({ packId: z.uuid(), after: z.uuid().nullable() })
+  // INFO: A pack cannot land behind itself — the midpoint would be bisected against its own position and the move would answer 204 having changed nothing.
+  .refine((body) => body.after !== body.packId);
 
 const enabledSchema = z.object({ packId: z.uuid(), enabled: z.boolean() });
 
 /**
- * REQUIREMENTS.md § 13.5. The whole ordered list, because `sort_order` is
- * positional — moving one pack renumbers every pack after it.
+ * REQUIREMENTS.md § 13.5. One move, not the list: the pack that moved and the pack
+ * it landed behind, `null` for the front.
  *
  * INFO: This writes `user_emoticon_prefs`, not `users`, so it deliberately raises
  * no `user_changed` event (§ 8.4.). The preference is per-user by definition; the
@@ -35,14 +38,16 @@ export async function PUT(request: Request) {
     return apiError("invalid_request");
   }
 
-  const known = new Set((await listEmoticonPacks(user.id)).map((pack) => pack.id));
+  const { packId, after } = body.data;
+  // INFO: § 13.5. The two ids this move names and nothing else — the write is one row, so reading the library to validate it is the O(library) request the sparse key exists to have removed.
+  const known = await findKnownPackIds(after === null ? [packId] : [packId, after]);
 
-  // WARN: Every id must be a real pack. `user_emoticon_prefs.pack_id` is a foreign key, so an unknown one would surface as a 500 rather than a 400.
-  if (body.data.packIds.some((packId) => !known.has(packId))) {
+  // WARN: Both ids must be a real pack. `user_emoticon_prefs.pack_id` is a foreign key, so an unknown one would surface as a 500 rather than a 400 — and an unknown neighbour would silently read as the front of the list.
+  if (!known.has(packId) || (after !== null && !known.has(after))) {
     return apiError("invalid_request");
   }
 
-  await setEmoticonPackOrder(user.id, body.data.packIds);
+  await setEmoticonPackOrder(user.id, packId, after);
 
   return new NextResponse(null, { status: 204 });
 }
@@ -61,19 +66,13 @@ export async function PATCH(request: Request) {
     return apiError("invalid_request");
   }
 
-  const packs = await listEmoticonPacks(user.id);
+  const known = await findKnownPackIds([body.data.packId]);
 
-  if (!packs.some((pack) => pack.id === body.data.packId)) {
+  if (!known.has(body.data.packId)) {
     return apiError("not_found");
   }
 
-  // INFO: § 13.1. The list as this user currently sees it, so hiding a pack records the order it already had rather than inventing one.
-  await setEmoticonPackEnabled(
-    user.id,
-    body.data.packId,
-    body.data.enabled,
-    packs.map((pack) => pack.id),
-  );
+  await setEmoticonPackEnabled(user.id, body.data.packId, body.data.enabled);
 
   return new NextResponse(null, { status: 204 });
 }

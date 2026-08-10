@@ -1,0 +1,6 @@
+-- INFO: REQUIREMENTS.md § 13.5. Nullable on purpose. A pack the user has never moved keeps no row, and `effectivePackPosition` falls it back onto its creation time in this same numeric space — which is what lets a moved pack and an untouched one interleave instead of forming two blocks.
+ALTER TABLE "user_emoticon_prefs" ADD COLUMN "position" numeric;--> statement-breakpoint
+-- INFO: The old positional values carry over unchanged. They are indexes from zero and the fallback is epoch millis (~1.7e12), so every row that had an opinion still sorts ahead of every row that had none, exactly as the `32767` fallback used to arrange them.
+UPDATE "user_emoticon_prefs" SET "position" = "sort_order";--> statement-breakpoint
+-- WARN: REQUIREMENTS.md § 13.7. This is what lets the two apps share the table while only one of them is deployed. jandh's new code writes `position` and never `sort_order`, so a NOT NULL column with no default refuses its very first insert; jandh-emoticons' deployed code still writes `sort_order` and reads it through `coalesce(sort_order, 32767)`, which already tolerates the NULL this leaves. Dropping the column outright is `0028`, and it waits for that app to deploy.
+ALTER TABLE "user_emoticon_prefs" ALTER COLUMN "sort_order" DROP NOT NULL;

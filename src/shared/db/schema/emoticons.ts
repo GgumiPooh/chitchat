@@ -2,6 +2,7 @@ import {
   boolean,
   index,
   integer,
+  numeric,
   pgTable,
   primaryKey,
   smallint,
@@ -55,6 +56,35 @@ export const emoticonItems = pgTable(
   (table) => [index("emoticon_items_pack_id_sort_order_idx").on(table.packId, table.sortOrder)],
 );
 
+/**
+ * REQUIREMENTS.md § 13.9.1. The search index behind `emoticon_items.keywords`, one
+ * row per lowercased keyword.
+ *
+ * WARN: A projection, never a source. The array on the item stays the authored,
+ * case-preserving list every screen renders (§ 13.8.), and a trigger is what keeps
+ * these rows level with it — `write-emoticon-item.ts` exists in both repositories,
+ * so app-side maintenance would be two copies of the same write and an index that
+ * silently drifts the moment one of them is fixed alone.
+ *
+ * WARN: Nothing here is a `Nullable` column and nothing is renumbered — this table
+ * may be dropped and rebuilt from `emoticon_items` at any time.
+ */
+export const emoticonKeywords = pgTable(
+  "emoticon_keywords",
+  {
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => emoticonItems.id, { onDelete: "cascade" }),
+    // INFO: § 13.9.1. Stored folded, because both directions of the match are case-insensitive and a folded column lets the btree below answer the reverse one with an equality probe.
+    keyword: text("keyword").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.itemId, table.keyword] }),
+    // WARN: § 13.9.1. The **reverse** direction's index — `term LIKE '%keyword%'` inverted into `keyword = ANY(substrings of term)`. The trigram GIN beside it (hand-written in the migration, as `messages_text_trgm_idx` is) answers the forward direction and cannot answer this one.
+    index("emoticon_keywords_keyword_idx").on(table.keyword),
+  ],
+);
+
 // INFO: REQUIREMENTS.md § 13.1. Per-user and pack-level. An absent row means enabled, so creating a pack fans out no rows.
 export const userEmoticonPrefs = pgTable(
   "user_emoticon_prefs",
@@ -66,10 +96,13 @@ export const userEmoticonPrefs = pgTable(
       .notNull()
       .references(() => emoticonPacks.id, { onDelete: "cascade" }),
     enabled: boolean("enabled").notNull().default(true),
-    sortOrder: smallint("sort_order").notNull(),
+    // WARN: REQUIREMENTS.md § 13.5. A sparse key, not an index — nullable on purpose, because `effectivePackPosition` falls a pack that has never been moved back onto its creation time in this same numeric space. A NOT NULL default would put every untouched pack on one value and reinstate the reshuffle the sparse key exists to remove.
+    position: numeric("position"),
   },
   (table) => [primaryKey({ columns: [table.userId, table.packId] })],
 );
+
+export type EmoticonKeyword = typeof emoticonKeywords.$inferSelect;
 
 export type EmoticonItem = typeof emoticonItems.$inferSelect;
 

@@ -11,6 +11,7 @@ export { notifyChannel } from "./notify";
 export {
   chatSettings,
   emoticonItems,
+  emoticonKeywords,
   emoticonPacks,
   eventRecurrenceEnum,
   eventScopeEnum,
@@ -29,6 +30,7 @@ export {
   users,
   type ChatSettings,
   type EmoticonItem,
+  type EmoticonKeyword,
   type EmoticonPack,
   type Event,
   type EventRecurrence,

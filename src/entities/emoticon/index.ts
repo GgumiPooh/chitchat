@@ -6,10 +6,14 @@ export {
   type DeleteEmoticonResult,
 } from "./api/get-emoticon-asset";
 export {
+  findKnownPackIds,
   getEmoticonPack,
+  listEmoticonPackItems,
   listEmoticonPacks,
-  listEmoticonPacksWithItems,
 } from "./api/get-emoticon-packs";
+export { listEmoticonKeywords } from "./api/list-emoticon-keywords";
+export { listEmoticonsByIds } from "./api/list-emoticons-by-ids";
+export { searchEmoticons } from "./api/search-emoticons";
 export {
   registerEmoticon,
   updateEmoticonItem,

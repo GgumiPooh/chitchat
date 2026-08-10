@@ -1,12 +1,7 @@
 "use client";
 
-import type { Emoticon, EmoticonPackWithItems } from "@/entities/emoticon";
-import {
-  MAX_KEYWORD_QUERY_LENGTH,
-  splitKeywordQuery,
-  toEmoticonAssetUrl,
-  toKeywordRelevance,
-} from "@/shared/config";
+import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
+import { MAX_KEYWORD_QUERY_LENGTH, toEmoticonAssetUrl } from "@/shared/config";
 import { A_SECOND, cn, type Nullable, type Optional } from "@/shared/lib";
 import { EmptyState, HapticTarget, Input, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
@@ -21,17 +16,13 @@ import {
   type Ref,
 } from "react";
 import { useStorageState } from "synced-storage/react";
+import { ACTIVE_TAB_KEY, RECENTS_TAB, SEARCH_TAB, isPackTabId } from "../model/emoticon-tabs";
+import { toEmoticonsByIdsQuery } from "../model/emoticons-query";
+import { toEmoticonPackItemsQuery } from "../model/pack-items-query";
 import { toEmoticonPacksQuery } from "../model/packs-query";
+import { useEmoticonSearch } from "../model/use-emoticon-search";
 import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
-
-// INFO: DESIGN.md § 9. Assets are user-authored, so their aspect ratios are arbitrary — the cell is a fixed square and the still is `object-contain` inside it.
-const RECENTS_TAB = "recents";
-
-// INFO: REQUIREMENTS.md § 13.8. Where a tap on the composer's underlined word lands, and the one tab reachable without the panel already being open.
-const SEARCH_TAB = "search";
-
-const ACTIVE_TAB_KEY = "jandh:emoticon-tab";
 
 // INFO: A sliver of the neighbouring tab stays visible past the revealed one, so the strip still reads as scrollable where it stops.
 const TAB_REVEAL_MARGIN = 8;
@@ -40,7 +31,13 @@ const TAB_REVEAL_MARGIN = 8;
 const DOUBLE_TAP_WINDOW = A_SECOND / 3;
 
 // WARN: Hoisted so the pending query answers the same array every render — an inline `= []` mints a new identity, and the effect keyed on `packs` then re-runs its two `getBoundingClientRect` reads on every frame of the § 13.6. open animation.
-const NO_PACKS: EmoticonPackWithItems[] = [];
+const NO_PACKS: EmoticonPackSummary[] = [];
+
+// WARN: Hoisted for `NO_PACKS`' reason — three queries below fall back to it, and an inline `= []` would hand a fresh identity to every render of the grid and of § 13.8.'s row.
+const NO_ITEMS: Emoticon[] = [];
+
+// INFO: § 13.9.1. One sentence for the two places a failed search is said — an empty pane, and the caption under a § 13.9. row that holds the tapped item and nothing the words found.
+const SEARCH_FAILED_MESSAGE = "검색하지 못했어요";
 
 export type EmoticonPickerProps = {
   className?: string;
@@ -162,7 +159,7 @@ export function EmoticonPicker({
   // WARN: § 13.6. Read only. `remember` belongs to the send, not to the tap — recording it here re-sorts 최근 사용 between the two taps of a double tap, moving the cell out from under the second one.
   const { recentIds } = useRecentEmoticons();
   // INFO: § 13.6. The same descriptor `useEmoticonPreload` warmed, so the panel opens on the cached list rather than on `isPending`.
-  // WARN: § 13.8. Every pack, hidden ones included. Only the tabs and 최근 사용 are filtered — search reads the whole list, which is what makes an emoticon from a pack this user hid findable at all.
+  // WARN: § 13.8. Every pack, hidden ones included, and summaries only. The hidden ones are here because § 13.9.'s 따라하기 needs to name a pack this user has taken out of the strip; what makes such a pack's emoticons *findable* is that the server's search applies no `enabled` filter either.
   const { data: packs = NO_PACKS, isPending } = useQuery(toEmoticonPacksQuery());
   const visiblePacks = packs.filter((pack) => pack.isEnabled);
 
@@ -186,16 +183,55 @@ export function EmoticonPicker({
   const revealedId = revealed?.id ?? null;
 
   // INFO: The remembered pack can be gone or hidden (§ 13.1.) by the time the panel reopens, so it only holds while the loaded list still has it.
+  // WARN: `isPackTabId` gates the pending branch, and it is the only thing that does. The stored tab is an unvalidated `localStorage` string, and while the list is in flight this expression is what hands it to `fetchPackItems` as a path segment.
   const activeTab =
     requestedTab === RECENTS_TAB ||
     requestedTab === SEARCH_TAB ||
-    isPending ||
-    findPack(visiblePacks, requestedTab)
+    (isPackTabId(requestedTab) && (isPending || findPack(visiblePacks, requestedTab)))
       ? requestedTab
       : RECENTS_TAB;
   const isSearching = activeTab === SEARCH_TAB;
+  // WARN: § 13.9.1. The results are the server's, ranked there — this component may filter the revealed item out of them but must never re-sort them.
+  const {
+    results: searchResults,
+    isPending: isSearchPending,
+    hasFailed: hasSearchFailed,
+    // WARN: § 13.9. The reveal is handed over so the hook can drop the previous query's answer for it — a 따라하기 is a jump to an unrelated query, not a keystroke, and the row it lands in frames whatever is behind the tapped item as related to it.
+  } = useEmoticonSearch(query, isSearching, revealed !== null);
+  // INFO: § 13.6. The open tab's own items, which is what the summaries above no longer carry. 최근 사용 and 검색 are not packs and ask for nothing.
+  const activePackId = activeTab === RECENTS_TAB || isSearching ? null : activeTab;
+  const {
+    data: activePackItems = NO_ITEMS,
+    isPending: isPackPending,
+    isError: hasPackFailed,
+  } = useQuery(toEmoticonPackItemsQuery(activePackId));
+  /**
+   * WARN: § 13.9. Computed out here and not inside `toShownItems`, because the
+   * fallback it feeds is a query and a hook cannot be called from there.
+   *
+   * WARN: The condition MUST stay identical to the one `toShownItems` applies. Asked
+   * for eagerly it is a request per 따라하기 that almost every one of them throws
+   * away; asked for on a wider condition than the row's, the pack arrives for a case
+   * the row does not use it in.
+   */
+  const revealedRelated =
+    isSearching && revealed ? searchResults.filter((item) => item.id !== revealed.id) : NO_ITEMS;
+  // WARN: § 13.9.1. `!hasSearchFailed` is as load-bearing as `!isSearchPending` beside it. A failure unlatches pending, so without it the pack shelf arrived on the error path — silently, since a non-empty row never reaches `toEmptyMessage` — and the fallback asserted "these are related" for a question nothing had answered.
+  const fallbackPackId =
+    isSearching && revealed && revealedRelated.length === 0 && !isSearchPending && !hasSearchFailed
+      ? revealed.packId
+      : null;
+  const { data: fallbackPackItems = NO_ITEMS } = useQuery(toEmoticonPackItemsQuery(fallbackPackId));
+  // INFO: § 13.6. 최근 사용 stores ids alone, so the items behind them are resolved here rather than found in a list the panel no longer holds.
+  const {
+    data: recentItems = NO_ITEMS,
+    isPending: isRecentsQueryPending,
+    isError: hasRecentsFailed,
+  } = useQuery(toEmoticonsByIdsQuery(recentIds));
+  // WARN: § 13.6. `skipToken` leaves a query pending for as long as it is skipped, so an empty 최근 사용 — which has nothing to ask — must not be read as an answer still in flight, or its tab would never draw its own placeholder.
+  const isRecentsPending = recentIds.length > 0 && isRecentsQueryPending;
 
-  const byId = new Map(packs.flatMap((pack) => pack.items.map((item) => [item.id, item] as const)));
+  const byId = new Map(recentItems.map((item) => [item.id, item] as const));
   // INFO: § 13.1. 최근 사용 is a tab like any other, so hiding a pack takes its items out of this list too — an emoticon sent through § 13.9. from a hidden pack is remembered and simply not drawn here.
   const visiblePackIds = new Set(visiblePacks.map((pack) => pack.id));
   const recents = recentIds
@@ -229,6 +265,8 @@ export function EmoticonPicker({
           isOpen={isOpen}
           query={query}
           results={shown}
+          isPending={isSearchPending}
+          hasFailed={hasSearchFailed}
           revealedId={revealedId}
           revealToken={appliedRevealToken}
           onQueryChange={changeQuery}
@@ -242,7 +280,13 @@ export function EmoticonPicker({
           className="scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain p-xs"
           {...swipeHandlers}
         >
-          {isPending ? null : (
+          {/* WARN: § 13.6. The tab's own items are a request now, so the grid waits for them as it waits for the list. Drawn before they land, a pack tab paints `이 그룹에는 이모티콘이 없어요` over a pack that has plenty — the verdict-before-the-answer § 13.9.1. removed from the search pane. */}
+          {/* WARN: § 13.6. 최근 사용 is the default tab and its ids resolve through a request of their own, so it needs the same guard — without it the panel flashes `최근 사용한 이모티콘이 여기에 보여요` every time it opens ahead of the preload. Every send used to do it too, a new id being a cold key; `emoticons-query.ts` holds the previous answer over for exactly that. */}
+          {/* INFO: § 13.6. A pack tab holds nothing over, deliberately, where 최근 사용 does. The key there is the same list plus one item; here it is a **different pack**, and what would slide in under the new tab is another pack's shelf, swapped out a round trip later. */}
+          {/* INFO: § 13.6. So the animation below decorates the arrival rather than the gesture — a warm tab slides at once, a cold one is blank for a round trip and slides after. Recorded and not fixed: waiting is still better than painting `이 그룹에는 이모티콘이 없어요` over a pack that is full. */}
+          {isPending ||
+          (activePackId !== null && isPackPending) ||
+          (activeTab === RECENTS_TAB && isRecentsPending) ? null : (
             // WARN: Keyed by the tab so each pack mounts fresh — an enter animation on an updated subtree never replays.
             <div
               key={activeTab}
@@ -255,13 +299,10 @@ export function EmoticonPicker({
                 <EmptyState
                   className="border-0 bg-transparent"
                   Icon={Smile}
-                  description={
-                    activeTab === RECENTS_TAB
-                      ? "최근 사용한 이모티콘이 여기에 보여요"
-                      : "이 그룹에는 이모티콘이 없어요"
-                  }
+                  description={toGridEmptyMessage()}
                 />
               ) : (
+                // INFO: DESIGN.md § 9. Assets are user-authored, so their aspect ratios are arbitrary — the cell is a fixed square and the still is `object-contain` inside it.
                 <div className="grid grid-cols-4 gap-2xs">
                   {shown.map((item) => (
                     <EmoticonCell
@@ -301,31 +342,34 @@ export function EmoticonPicker({
           <Clock className="size-5 text-meta" strokeWidth={1.75} />
         </TabButton>
         {/* WARN: § 13.1. `visiblePacks` and never `packs` — the list carries hidden packs so § 13.8. can search them, and a hidden pack drawn here is a tab `activeTab` resolves away from, so the tap does nothing but overwrite the remembered pack with an id that can never be restored. */}
-        {visiblePacks.map((pack) => {
-          const tabItem = toTabItem(pack);
-
-          return (
-            <TabButton
-              key={pack.id}
-              ref={activeTab === pack.id ? activeTabRef : undefined}
-              isActive={activeTab === pack.id}
-              label={pack.name}
-              onClick={() => selectTab(pack.id)}
-            >
-              {tabItem ? (
-                <PreloadImage
-                  className="size-full"
-                  imgClassName="size-full object-contain"
-                  placeholderClassName="rounded-sm"
-                  src={toEmoticonAssetUrl(tabItem.id, "image", tabItem.version)}
-                  alt=""
-                />
-              ) : (
-                <Smile className="size-5 text-meta" strokeWidth={1.75} />
-              )}
-            </TabButton>
-          );
-        })}
+        {visiblePacks.map((pack) => (
+          <TabButton
+            key={pack.id}
+            ref={activeTab === pack.id ? activeTabRef : undefined}
+            isActive={activeTab === pack.id}
+            label={pack.name}
+            onClick={() => selectTab(pack.id)}
+          >
+            {/* INFO: § 13.2. Already the item the pack is drawn with — the server resolves the fallback now, since this strip holds no items to look through. */}
+            {pack.thumbnailItemId ? (
+              <PreloadImage
+                className="size-full"
+                imgClassName="size-full object-contain"
+                placeholderClassName="rounded-sm"
+                alt=""
+                // WARN: § 13.3. Each of these is a session check, a row read and a presign, and the strip scrolls — without this every pack in the library spends one on the frame the panel first opens.
+                loading="lazy"
+                src={toEmoticonAssetUrl(
+                  pack.thumbnailItemId,
+                  "image",
+                  pack.thumbnailVersion ?? undefined,
+                )}
+              />
+            ) : (
+              <Smile className="size-5 text-meta" strokeWidth={1.75} />
+            )}
+          </TabButton>
+        ))}
       </div>
     </div>
   );
@@ -337,23 +381,10 @@ export function EmoticonPicker({
    */
   function toShownItems(): Emoticon[] {
     if (isSearching) {
-      // WARN: § 13.8. An empty field yields no terms, and that is what guards the blank query — `matchesKeywordQuery` matches by containment and every keyword contains `""`, so a query passed through unsplit would return the entire library rather than nothing.
-      const terms = splitKeywordQuery(query);
-      // WARN: § 13.8. `packs` and not `visiblePacks`. Searching is how an emoticon from a hidden pack is reached, and filtering here is what used to make § 13.9. undeliverable for exactly the item that needs it.
-      // INFO: § 13.9. Ranked rather than left in pack order, and that is what makes the answer read as *related* rather than as one shelf — the emoticons sharing most of the tapped item's words come first, wherever they were authored.
-      const matches = packs
-        .flatMap((pack) => pack.items)
-        .map((item) => ({ item, relevance: toKeywordRelevance(item.keywords, terms) }))
-        .filter((scored) => scored.relevance > 0)
-        // WARN: A stable sort, so pack order still decides inside one relevance step — an item must not change places with an equally relevant one between keystrokes.
-        .sort((left, right) => right.relevance - left.relevance)
-        .map((scored) => scored.item);
-
       if (!revealed) {
-        return matches;
+        return searchResults;
       }
 
-      const found = matches.filter((item) => item.id !== revealed.id);
       /**
        * INFO: § 13.9. The tapped item first, then everything its words reached, best
        * first.
@@ -361,10 +392,27 @@ export function EmoticonPicker({
        * WARN: Its own pack is the fallback and **only** the fallback. Appended to
        * every answer it buried the cross-pack matches under one pack's shelf, which
        * is what made the feature read as "this set only" — the exact thing the
-       * ranking above exists to undo. It is still needed, because an item nobody has
+       * ranking exists to undo. It is still needed, because an item nobody has
        * described answers to nothing and would otherwise stand in the row alone.
+       *
+       * WARN: `isSearchPending` guards it, and that guard is new with the server
+       * search. Reached while the answer is still in flight, every 따라하기 would
+       * paint one pack's shelf for a frame and then swap it for the ranked row —
+       * which is the "this set only" reading arriving anyway, just briefly.
+       *
+       * WARN: § 13.9.1. A failed search is not a fallback either, and it reached one
+       * by the back door: an error unlatches pending, so the shelf appeared with
+       * nothing saying the words had never been answered. `fallbackPackId` withholds
+       * the request and `SearchPane` says so under the row instead.
+       *
+       * WARN: § 13.6. The pack is a request of its own now, so it lands a round trip
+       * after the reveal rather than being in hand. The row shows the tapped item
+       * alone until it does, which is the honest intermediate state — and it is only
+       * honest because the hook drops the previous query's answer for a reveal, which
+       * is what used to fill this row with the last search's results.
        */
-      const related = found.length > 0 ? found : (findPack(packs, revealed.packId)?.items ?? []);
+      const related =
+        revealedRelated.length > 0 || isSearchPending ? revealedRelated : fallbackPackItems;
 
       return [revealed, ...related.filter((item) => item.id !== revealed.id)];
     }
@@ -373,7 +421,25 @@ export function EmoticonPicker({
       return recents;
     }
 
-    return findPack(visiblePacks, activeTab)?.items ?? [];
+    return activePackItems;
+  }
+
+  /**
+   * INFO: § 13.6. What an empty grid says, which depends on why it is empty.
+   *
+   * WARN: A failed request is not an empty pack, and saying so was the bug. The items
+   * behind both tabs are requests now, and `isPending` goes false on an error as
+   * readily as on an answer — so the grid asserted `이 그룹에는 이모티콘이 없어요` over
+   * a pack that had plenty and the user had no way to tell.
+   */
+  function toGridEmptyMessage(): string {
+    if (activeTab === RECENTS_TAB) {
+      return hasRecentsFailed
+        ? "이모티콘을 불러오지 못했어요"
+        : "최근 사용한 이모티콘이 여기에 보여요";
+    }
+
+    return hasPackFailed ? "이모티콘을 불러오지 못했어요" : "이 그룹에는 이모티콘이 없어요";
   }
 
   /**
@@ -529,6 +595,10 @@ type SearchPaneProps = {
   isOpen: boolean;
   query: string;
   results: Emoticon[];
+  /** REQUIREMENTS.md § 13.9. Whether the field has asked something the results do not yet answer. */
+  isPending: boolean;
+  /** REQUIREMENTS.md § 13.9.1. Whether what the field asked came back an error, which is neither pending nor a verdict. */
+  hasFailed: boolean;
   /** REQUIREMENTS.md § 13.9. The item 따라하기 named, which is already first in `results`. */
   revealedId: Nullable<string>;
   /** REQUIREMENTS.md § 13.9. The reveal this pane is showing, which the row is scrolled back to the head of — and the one way onto this tab that does not ask for the keyboard. */
@@ -556,6 +626,8 @@ function SearchPane({
   isOpen,
   query,
   results,
+  isPending,
+  hasFailed,
   revealedId,
   revealToken,
   onQueryChange,
@@ -608,30 +680,61 @@ function SearchPane({
       {results.length === 0 ? (
         // INFO: § 13.8. The whole pane below the field, and with no row to scroll it is where the tab swipe has the most room to be made.
         <p className="flex flex-1 touch-pan-y items-center justify-center text-body-sm text-meta">
-          {trimmed === "" ? "단어를 입력해 보세요" : "찾는 이모티콘이 없어요"}
+          {toEmptyMessage()}
         </p>
       ) : (
-        // WARN: `touch-pan-x` is the mirror of the grid's `touch-pan-y` — this scroller runs on the horizontal axis, so that is the one the browser must keep.
-        <div
-          ref={rowRef}
-          className="scrollbar-hidden flex min-h-0 flex-1 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain"
-          onPointerDownCapture={keepAxisWhileScrollable}
-        >
-          {results.map((item) => (
-            <EmoticonCell
-              key={item.id}
-              className="flex shrink-0"
-              buttonClassName="size-(--emoticon-search-cell)"
-              item={item}
-              scrollAxis="x"
-              isRevealed={item.id === revealedId}
-              onSelect={onSelect}
-            />
-          ))}
-        </div>
+        <>
+          {/* WARN: `touch-pan-x` is the mirror of the grid's `touch-pan-y` — this scroller runs on the horizontal axis, so that is the one the browser must keep. */}
+          <div
+            ref={rowRef}
+            className="scrollbar-hidden flex min-h-0 flex-1 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain"
+            onPointerDownCapture={keepAxisWhileScrollable}
+          >
+            {results.map((item) => (
+              <EmoticonCell
+                key={item.id}
+                className="flex shrink-0"
+                buttonClassName="size-(--emoticon-search-cell)"
+                item={item}
+                scrollAxis="x"
+                isRevealed={item.id === revealedId}
+                onSelect={onSelect}
+              />
+            ))}
+          </div>
+          {/* WARN: § 13.9.1. A failed search still has a row when § 13.9. put the tapped item in it, and `toEmptyMessage` is only ever reached by an empty one — so without this the reveal was the one path where a failure said nothing at all. It costs the cells a line of height, and only while the sentence is up. */}
+          {hasFailed && (
+            <p className="shrink-0 touch-pan-y text-center text-body-sm text-meta">
+              {SEARCH_FAILED_MESSAGE}
+            </p>
+          )}
+        </>
       )}
     </div>
   );
+
+  /**
+   * WARN: § 13.9.1. Blank while the answer is still coming, and that is what the
+   * pending flag is for. `찾는 이모티콘이 없어요` is a verdict, and the search is a
+   * request now — delivered before it lands, every first search reads as having
+   * failed for the couple of hundred milliseconds before its row appears.
+   *
+   * WARN: § 13.9.1. A request that failed gets a sentence of its own, and the blank
+   * is what it used to get instead. `isPending` stayed latched on an error, so the
+   * pane sat empty with no verdict and nothing naming why — indefinitely, since
+   * nothing retries a query nobody re-types.
+   */
+  function toEmptyMessage(): string {
+    if (hasFailed) {
+      return SEARCH_FAILED_MESSAGE;
+    }
+
+    if (trimmed === "") {
+      return "단어를 입력해 보세요";
+    }
+
+    return isPending ? "" : "찾는 이모티콘이 없어요";
+  }
 
   /**
    * INFO: § 13.8. The row has first claim on the axis it scrolls, so the pane's swipe
@@ -680,12 +783,6 @@ function TabButton({ ref, className, isActive, label, children, onClick }: TabBu
   );
 }
 
-/** INFO: REQUIREMENTS.md § 13.2. Null `thumbnail_item_id` falls back to the pack's first item. */
-// INFO: The item itself rather than its id — the tab's asset URL needs its version too (§ 13.4.).
-function toTabItem(pack: EmoticonPackWithItems): Nullable<Emoticon> {
-  return pack.items.find((item) => item.id === pack.thumbnailItemId) ?? pack.items[0] ?? null;
-}
-
-function findPack(packs: EmoticonPackWithItems[], id: string) {
+function findPack(packs: EmoticonPackSummary[], id: string) {
   return packs.find((pack) => pack.id === id);
 }

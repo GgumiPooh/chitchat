@@ -1,12 +1,16 @@
 import { request } from "@/shared/api";
 import { EMOTICON_PREFS_URL } from "@/shared/config";
+import type { Nullable } from "@/shared/lib";
 
-/** REQUIREMENTS.md § 13.5. The whole ordered list — `sort_order` is positional, so one move renumbers everything after it. */
-export async function saveEmoticonPackOrder(packIds: string[]): Promise<void> {
+/** REQUIREMENTS.md § 13.5. One move — the pack that moved and the pack it landed behind, `null` for the front of the list. */
+export async function saveEmoticonPackOrder(
+  packId: string,
+  after: Nullable<string>,
+): Promise<void> {
   const response = await request(EMOTICON_PREFS_URL, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ packIds }),
+    body: JSON.stringify({ packId, after }),
   });
 
   if (!response.ok) {

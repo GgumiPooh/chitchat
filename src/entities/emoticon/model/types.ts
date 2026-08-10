@@ -19,9 +19,9 @@ export type Emoticon = {
 
 export type EmoticonPackSummary = {
   name: string;
-  // INFO: REQUIREMENTS.md § 13.2. Null until an item is chosen as the tab icon, and again if that item is deleted — the picker falls back to the first item.
+  // INFO: REQUIREMENTS.md § 13.2. The item the pack is **drawn with** — its chosen tab icon, or its first item where nothing was chosen — resolved by `listEmoticonPacks`, since § 13.6.'s picker holds no items to fall back through. Null only for a pack that holds none.
   thumbnailItemId: Nullable<string>;
-  // INFO: REQUIREMENTS.md § 13.2. The thumbnail item's own `Emoticon.version`, carried so a row that holds no items can still build a versioned asset URL — without it the management row's cached redirect outlives the edit that replaced the object, and points at one that is gone (§ 13.4.).
+  // INFO: REQUIREMENTS.md § 13.2. That item's own `Emoticon.version`, carried so a row holding no items can still build a versioned asset URL — without it the cached redirect outlives the edit that replaced the object, and points at one that is gone (§ 13.4.).
   thumbnailVersion: Nullable<number>;
   itemCount: number;
   // INFO: REQUIREMENTS.md § 13.1. This user's own view of the pack. An absent `user_emoticon_prefs` row reads as enabled.
@@ -29,7 +29,13 @@ export type EmoticonPackSummary = {
   id: string;
 };
 
-/** A pack with its items, as the picker and the pack detail screen read it. */
+/**
+ * A pack with its items, as § 13.4.'s pack screen reads it.
+ *
+ * WARN: `thumbnailItemId` is the pack's **stored** choice in this shape and the
+ * resolved one in the summary above — `getEmoticonPack` says why. § 13.6.'s picker no
+ * longer takes this shape at all; it asks for one pack's items at a time.
+ */
 export type EmoticonPackWithItems = EmoticonPackSummary & {
   items: Emoticon[];
 };

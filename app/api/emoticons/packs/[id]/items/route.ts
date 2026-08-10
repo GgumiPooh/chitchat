@@ -1,4 +1,9 @@
-import { getEmoticonPack, registerEmoticon, setEmoticonItemOrder } from "@/entities/emoticon";
+import {
+  findKnownPackIds,
+  listEmoticonPackItems,
+  registerEmoticon,
+  setEmoticonItemOrder,
+} from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { MAX_EMOTICON_KEYWORDS, MAX_EMOTICON_KEYWORD_LENGTH } from "@/shared/config";
@@ -25,6 +30,34 @@ const bodySchema = z.object({
 });
 
 /**
+ * The pack's items in the shared authoring order (REQUIREMENTS.md § 13.1.).
+ *
+ * INFO: § 13.6. One tab's worth, which is what replaced `packs?items=1` — the picker
+ * asks for the pack it is opening rather than for the library.
+ *
+ * INFO: § 13.1. A pack belongs to the conversation, so a signed-in user may read any
+ * of them and the only check here is that there is one. An unknown id answers an
+ * empty list rather than a `404`: this is the panel's per-tab call, and a pack read
+ * to distinguish the two would be a second query on it for a case the strip cannot
+ * reach.
+ */
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return apiError("unauthorized");
+  }
+
+  const params = paramsSchema.safeParse(await context.params);
+
+  if (!params.success) {
+    return apiError("invalid_request");
+  }
+
+  return NextResponse.json({ items: await listEmoticonPackItems(params.data.id) });
+}
+
+/**
  * Registers an item whose objects the browser has already uploaded (§ 13.3.).
  * Until this succeeds they are unreachable — nothing in the app addresses R2 by
  * key, only through `GET /api/emoticons/items/{id}/asset`.
@@ -43,7 +76,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return apiError("invalid_request");
   }
 
-  if (!(await getEmoticonPack(params.data.id, user.id))) {
+  if (!(await isKnownPack(params.data.id))) {
     return apiError("not_found");
   }
 
@@ -83,7 +116,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     return apiError("invalid_request");
   }
 
-  if (!(await getEmoticonPack(params.data.id, user.id))) {
+  if (!(await isKnownPack(params.data.id))) {
     return apiError("not_found");
   }
 
@@ -93,4 +126,15 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   }
 
   return new NextResponse(null, { status: 204 });
+}
+
+/**
+ * WARN: § 13.1. `findKnownPackIds` and deliberately not `getEmoticonPack`, which the
+ * two writes above used to ask. That function is the pack **screen's** read — a
+ * lateral join and a `GROUP BY` for the thumbnail and the count, plus a second query
+ * for every item in the pack — and all either write needs of it is that the id names
+ * a row. § 13.5.'s prefs handlers were moved off the same pattern.
+ */
+async function isKnownPack(packId: string): Promise<boolean> {
+  return (await findKnownPackIds([packId])).has(packId);
 }

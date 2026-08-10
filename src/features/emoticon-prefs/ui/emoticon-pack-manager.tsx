@@ -1,12 +1,13 @@
 "use client";
 
 import type { EmoticonPackSummary } from "@/entities/emoticon";
-import { cn, useSortableSensors } from "@/shared/lib";
+import { cn, useSortableSensors, type Nullable } from "@/shared/lib";
 import { EmptyState, toast } from "@/shared/ui";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Smile } from "lucide-react";
+import { useRef } from "react";
 import { saveEmoticonPackEnabled, saveEmoticonPackOrder } from "../api/write-prefs";
 import { EmoticonPackRow } from "./emoticon-pack-row";
 
@@ -38,6 +39,25 @@ export function EmoticonPackManager({
   onPacksChange,
 }: EmoticonPackManagerProps) {
   const sensors = useSortableSensors();
+  /**
+   * REQUIREMENTS.md § 13.5. The chain every move is written on, and the generation
+   * that abandons whatever is still queued on it.
+   *
+   * WARN: § 13.5. Serialized, and that is correctness rather than politeness. The
+   * server bisects the moved pack's two neighbours **as the request finds them**, so
+   * two moves in flight at once both compute against a list the other has not landed
+   * in — the screen is right and a reload shows an order nobody asked for. The
+   * whole-list `PUT` this replaced survived the same race because every request
+   * carried a complete order; a one-row write does not.
+   *
+   * WARN: § 13.5. A failure ends the chain rather than pausing it. The rollback
+   * restores the list as it stood before the move that failed, so every write still
+   * queued behind it names a neighbour out of a list that no longer exists — sent
+   * anyway, it would persist an order off a screen the user is no longer looking at.
+   * The generation is bumped there, which drops those; a drag made afterwards is
+   * against the restored list and starts a fresh chain.
+   */
+  const orderWritesRef = useRef({ tail: Promise.resolve(), generation: 0 });
 
   if (packs.length === 0) {
     return (
@@ -93,9 +113,33 @@ export function EmoticonPackManager({
 
     onPacksChange(next);
 
-    void saveEmoticonPackOrder(next.map((pack) => pack.id)).catch(() => {
-      onPacksChange(previous);
-      toast.error("순서를 저장하지 못했어요");
+    // INFO: § 13.5. The moved pack lands at `to`, so the pack it now sits behind is the one before it — and none at all when it landed at the front.
+    const after = to === 0 ? null : next[to - 1].id;
+
+    queueOrderWrite(next[to].id, after, previous);
+  }
+
+  function queueOrderWrite(
+    packId: string,
+    after: Nullable<string>,
+    previous: EmoticonPackSummary[],
+  ) {
+    const writes = orderWritesRef.current;
+    const { generation } = writes;
+
+    // WARN: The chain itself never rejects — the failure is handled inside, so a rejected write cannot leave an unhandled rejection behind or stop the moves the user makes after it.
+    writes.tail = writes.tail.then(async () => {
+      if (writes.generation !== generation) {
+        return;
+      }
+
+      try {
+        await saveEmoticonPackOrder(packId, after);
+      } catch {
+        writes.generation += 1;
+        onPacksChange(previous);
+        toast.error("순서를 저장하지 못했어요");
+      }
     });
   }
 

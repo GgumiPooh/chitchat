@@ -1,6 +1,4 @@
 import { A_DAY, A_MEGABYTE, A_SECOND, type Nullable } from "@/shared/lib";
-// INFO: REQUIREMENTS.md § 13.9.1. The same dependency `josa` comes from (`CLAUDE.md § 0.4.`) — the Hangul decompositions a Korean search needs are shipped with it, and no ranking library has them.
-import { canBeChoseong, convertQwertyToHangul, disassemble, getChoseong } from "es-hangul";
 
 // WARN: REQUIREMENTS.md § 13.7.1. Held apart from the fallback below, because the switch has to be able to tell a configured origin from a defaulted one.
 const EMOTICONS_ORIGIN_SETTING = (process.env.NEXT_PUBLIC_EMOTICONS_ORIGIN ?? "").trim();
@@ -122,9 +120,9 @@ export const MAX_EMOTICON_PACK_NAME_LENGTH = 40;
  * REQUIREMENTS.md § 13.8. How many search keywords one item may carry, and how
  * long each may be.
  *
- * INFO: The cap exists because the whole keyword set is shipped to the browser
- * with the pack list (§ 13.6.'s preload) and matched there — it is the composer's
- * per-keystroke working set, not a column somebody queries.
+ * INFO: § 13.9.1. The per-item cap now bounds the reverse probe rather than a
+ * payload — a term is enumerated into substrings up to `MAX_EMOTICON_KEYWORD_LENGTH`,
+ * and this is how many stored words one item can put in front of them.
  */
 export const MAX_EMOTICON_KEYWORDS = 12;
 
@@ -281,21 +279,21 @@ export function matchesKeywordQuery(keyword: string, query: string): boolean {
 }
 
 /**
- * The relevance ladder (REQUIREMENTS.md § 13.9.1.). The literal rungs are
- * `matchesKeywordQuery`'s two directions told apart with equality above them; the
- * two below are Hangul-shaped aids, and they sit under every literal match because
- * a word the user actually typed beats a shape it could have meant.
+ * The relevance ladder (REQUIREMENTS.md § 13.9.1.) — `matchesKeywordQuery`'s two
+ * directions, told apart with equality above them.
+ *
+ * WARN: § 13.9.1. There used to be two rungs below these, a Hangul shape and a
+ * qwerty slip, and they went with the move to a server-side search. Both were
+ * decompositions of the *keyword*, which is a thing only an in-memory library can
+ * afford — neither survives translation into an indexable predicate, and running
+ * them over a candidate page instead would rank on a rung the page was not selected
+ * by. Restoring either means an index that stores the decomposition.
  */
 const RELEVANCE = {
   exact: 6,
   keywordHoldsTerm: 4,
   termHoldsKeyword: 3,
-  hangulShape: 2,
-  qwerty: 1,
 } as const;
-
-// INFO: § 13.9.1. Two jamo, so a bare `ㅁ` reaches the 초성 rung (where a single consonant is the whole point) rather than matching every keyword with that letter anywhere inside a syllable.
-const MIN_JAMO_QUERY_LENGTH = 2;
 
 /**
  * How well an item answers a set of query terms (REQUIREMENTS.md § 13.9.).
@@ -304,58 +302,28 @@ const MIN_JAMO_QUERY_LENGTH = 2;
  * that answers a single term very well — 따라하기 hands over a whole keyword list,
  * and the emoticons worth showing first are the ones that share most of it.
  *
- * WARN: Zero means no match, and callers filter on it. This is deliberately **wider
- * than `matchesKeywordQuery`**, which stays literal: § 13.8.'s underline is an offer
- * made over ordinary prose, and 초성 or a qwerty slip would mark half a Korean
- * sentence. A search field is the one place the aids belong (§ 13.9.1.).
+ * WARN: § 13.9.1. The single definition of relevance, and it is called on the
+ * **server** now that `search-emoticons.ts` selects the candidates. The ladder is
+ * deliberately not reimplemented in SQL: two definitions of "related" that drift is
+ * the expensive failure, where a JS pass over a bounded candidate page is not.
+ *
+ * WARN: Zero means no match, and callers filter on it — which is also the check that
+ * the SQL candidate set and this ladder still agree.
  */
 export function toKeywordRelevance(keywords: string[], terms: string[]): number {
-  return terms.reduce((total, term) => total + toTermRelevance(keywords, term), 0);
+  // WARN: Folded once here rather than inside the loop below, which is per term. `searchEmoticons` ranks up to `EMOTICON_SEARCH_CANDIDATE_LIMIT` items against up to `MAX_EMOTICON_KEYWORDS` terms, so folding per term repeated the same conversion twelve times over every keyword of every candidate.
+  const foldedKeywords = keywords.map((keyword) => keyword.toLowerCase());
+
+  return terms.reduce(
+    (total, term) => total + toLiteralRelevance(foldedKeywords, term.toLowerCase()),
+    0,
+  );
 }
 
-/**
- * INFO: § 13.9.1. A cascade, not a maximum. Each rung is only reached when the one
- * above found nothing at all, which is what keeps the aids off the common query —
- * and keeps their cost off it too, since the decompositions below never run for a
- * term the letters already answered.
- */
-function toTermRelevance(keywords: string[], term: string): number {
-  const literal = toLiteralRelevance(keywords, term.toLowerCase());
-
-  if (literal > 0) {
-    return literal;
-  }
-
-  if (toHangulShapeRelevance(keywords, term) > 0) {
-    return RELEVANCE.hangulShape;
-  }
-
-  // INFO: § 13.9.1. The IME slip, last: `rhals` is `고민` typed with the keyboard still in English.
-  const converted = toHangulFromQwerty(term);
-
-  return converted && holdsTerm(keywords, converted) ? RELEVANCE.qwerty : 0;
-}
-
-/**
- * WARN: § 13.9.1. The qwerty rung tests **this direction only**, never the particle
- * one `toLiteralRelevance` also carries. A conversion is a reconstruction of what
- * the user meant to type, not a drafted Korean word with a suffix on it — and read
- * the other way round, the gibberish an ordinary English word converts to answers to
- * any short keyword it happens to contain, which is a false hit on plain English.
- *
- * INFO: `includes` covers equality, so the two literal rungs above collapse to one
- * test here.
- */
-function holdsTerm(keywords: string[], foldedTerm: string): boolean {
-  return keywords.some((keyword) => keyword.toLowerCase().includes(foldedTerm));
-}
-
-function toLiteralRelevance(keywords: string[], foldedTerm: string): number {
+function toLiteralRelevance(foldedKeywords: string[], foldedTerm: string): number {
   let best = 0;
 
-  for (const keyword of keywords) {
-    const foldedKeyword = keyword.toLowerCase();
-
+  for (const foldedKeyword of foldedKeywords) {
     if (foldedKeyword === foldedTerm) {
       return RELEVANCE.exact;
     }
@@ -371,90 +339,6 @@ function toLiteralRelevance(keywords: string[], foldedTerm: string): number {
   }
 
   return best;
-}
-
-/**
- * REQUIREMENTS.md § 13.9.1. The two ways a Korean query is a *shape* of the word
- * rather than the word: its 초성 (`ㄱㅁ` → `고민`), and a syllable left half-typed
- * (`고ㅁ` → `고민`).
- *
- * WARN: The two are separate tests and neither covers the other — `disassemble`
- * spells a syllable out in full (`고민` is `ㄱㅗㅁㅣㄴ`), which a 초성 string is not a
- * substring of.
- */
-function toHangulShapeRelevance(keywords: string[], term: string): number {
-  if (isChoseongOnly(term)) {
-    return keywords.some((keyword) => toChoseong(keyword).includes(term)) ? 1 : 0;
-  }
-
-  const termJamo = disassemble(term);
-
-  if (termJamo.length < MIN_JAMO_QUERY_LENGTH) {
-    return 0;
-  }
-
-  return keywords.some((keyword) => toJamo(keyword).includes(termJamo)) ? 1 : 0;
-}
-
-function isChoseongOnly(term: string): boolean {
-  return term.length > 0 && [...term].every((letter) => canBeChoseong(letter));
-}
-
-/**
- * INFO: § 13.9.1. Only a run of Latin letters is a plausible IME slip; anything else
- * converts to noise that could still collide with a keyword.
- *
- * WARN: `convertQwertyToHangul` **throws** on a sequence it cannot assemble into
- * syllables — `photo` is one, and so is `phot` on the way to it. This is reached from
- * `toShownItems`, which the picker calls **during render**, so an unguarded throw
- * takes the whole room to the error boundary on a keystroke in the search field.
- */
-function toHangulFromQwerty(term: string): Nullable<string> {
-  if (term.length < MIN_JAMO_QUERY_LENGTH || !/^[a-z]+$/i.test(term)) {
-    return null;
-  }
-
-  const folded = term.toLowerCase();
-
-  try {
-    const converted = convertQwertyToHangul(folded);
-
-    return converted === folded ? null : converted;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * WARN: § 13.9.1. Memoized on the keyword, and it is not a micro-optimisation. These
- * run per keyword per term on a field being typed into, and 따라하기 fills that field
- * with a whole keyword list — the un-memoized product is the library times a dozen
- * terms on every keystroke. The set they are keyed by is the authored keywords,
- * which is bounded by what the two participants have written.
- */
-const choseongCache = new Map<string, string>();
-const jamoCache = new Map<string, string>();
-
-function toChoseong(keyword: string): string {
-  return toCached(choseongCache, keyword, getChoseong);
-}
-
-function toJamo(keyword: string): string {
-  return toCached(jamoCache, keyword, disassemble);
-}
-
-function toCached(cache: Map<string, string>, key: string, derive: (value: string) => string) {
-  const cached = cache.get(key);
-
-  if (cached !== undefined) {
-    return cached;
-  }
-
-  const derived = derive(key);
-
-  cache.set(key, derived);
-
-  return derived;
 }
 
 /**
@@ -480,6 +364,65 @@ export function splitKeywordQuery(query: string): string[] {
  * so a field capped at one word's length is one the user cannot then edit.
  */
 export const MAX_KEYWORD_QUERY_LENGTH = MAX_EMOTICON_KEYWORDS * (MAX_EMOTICON_KEYWORD_LENGTH + 2);
+
+/**
+ * How many matching items `searchEmoticons` reads out of the database before
+ * `toKeywordRelevance` ranks them (REQUIREMENTS.md § 13.9.1.).
+ *
+ * WARN: A cut applied **before** the ranking, and that is a known compromise rather
+ * than an oversight. It falls on the candidate select, in `item_id` order — which has
+ * nothing to do with relevance, so a query matching more than this can lose a highly
+ * relevant item to one that merely sorts earlier. Unreachable at the few hundred packs
+ * this ships with — it is the ceiling that keeps the query bounded at ten thousand,
+ * where the answer is an approximate sort in SQL rather than a bigger number here.
+ *
+ * WARN: Not `EMOTICON_SEARCH_PAGE_SIZE`, and the two must not be confused. This
+ * number never leaves the server; sending candidates to the browser would restore
+ * the payload the whole change exists to remove.
+ */
+export const EMOTICON_SEARCH_CANDIDATE_LIMIT = 5000;
+
+/**
+ * How many ranked results one search answers with (REQUIREMENTS.md § 13.9.1.).
+ *
+ * INFO: § 13.8. draws them as a single row that scrolls sideways, so this is a
+ * scroll's worth rather than a page anybody reaches the end of — a search whose best
+ * answer is past the thirtieth cell is a search the user retypes instead.
+ */
+export const EMOTICON_SEARCH_PAGE_SIZE = 30;
+
+/**
+ * How many distinct keywords `GET /api/emoticons/items?keywords=1` may answer with
+ * (REQUIREMENTS.md § 13.8.).
+ *
+ * WARN: § 13.8. A ceiling on a **payload**, and it is here so that outgrowing the
+ * list is visible rather than silent. The composer's underline set is one row per
+ * distinct word in the whole library — a few thousand at the packs this ships with
+ * (30–80KB), but measured at 36,741 words and 490KB over a synthetic five hundred,
+ * which is a megabyte of JSON pulled on the way into a room with nothing naming the
+ * cause. Truncated instead, the words the cut drops stop underlining and say plainly
+ * that § 13.8.'s ceiling has been reached.
+ *
+ * WARN: The cut falls on a sorted list, so what it drops is the tail of the
+ * collation rather than an arbitrary set — which is what makes the symptom
+ * reproducible instead of a word that sometimes works.
+ */
+export const MAX_EMOTICON_KEYWORD_LIST = 10_000;
+
+/**
+ * How many ids one `GET /api/emoticons/items?ids=` may name (REQUIREMENTS.md
+ * § 13.6.).
+ *
+ * INFO: § 13.6. 최근 사용 is the only caller and stores sixteen, so this is headroom
+ * rather than a limit the app reaches — what it bounds is a hand-written query
+ * asking for the library one id list at a time.
+ *
+ * WARN: `listEmoticonsByIds` truncates to it rather than refusing, so a caller that
+ * grows past it loses the tail of its list instead of the whole answer — and that is
+ * the **one** place the cut is made. The route used to slice as well, which is two
+ * readings of one constant and only one of them ever being corrected.
+ */
+export const MAX_EMOTICON_ID_LOOKUP = 64;
 
 /**
  * The word a typed draft should offer emoticons for, or `null` when it offers none.

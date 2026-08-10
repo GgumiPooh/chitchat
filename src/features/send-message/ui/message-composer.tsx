@@ -1,6 +1,5 @@
 "use client";
 
-import type { EmoticonPackWithItems } from "@/entities/emoticon";
 import { findKeywordMatch, MAX_MESSAGE_LENGTH, type KeywordMatch } from "@/shared/config";
 import { cn, useIsCoarsePointer, useUnsentWork, type Nullable } from "@/shared/lib";
 import { HapticTarget, IconButton, Textarea } from "@/shared/ui";
@@ -15,7 +14,7 @@ import {
   type PointerEvent,
   type Ref,
 } from "react";
-import { toEmoticonPacksQuery } from "../model/packs-query";
+import { toEmoticonKeywordsQuery } from "../model/keywords-query";
 
 /**
  * The box the field and its keyword layer must both be drawn in.
@@ -27,8 +26,8 @@ import { toEmoticonPacksQuery } from "../model/packs-query";
  */
 const FIELD_BOX = "px-2xs py-xs text-body-md leading-normal";
 
-// WARN: Hoisted so the pending query answers one array identity — an inline `= []` re-derives the keyword set on every render of a field being typed into.
-const NO_PACKS: EmoticonPackWithItems[] = [];
+// WARN: Hoisted so the pending query answers one array identity — an inline `= []` re-runs the match on every render of a field being typed into.
+const NO_KEYWORDS: string[] = [];
 
 export type MessageComposerProps = {
   className?: string;
@@ -93,13 +92,13 @@ export function MessageComposer({
   const hasDraft = text.trim().length > 0;
   // INFO: REQUIREMENTS.md § 8.13. An edit sends text and only text, so a tray left staged behind the mode cannot arm the button — emptying the field has to disable it, or the correction would submit nothing.
   const canSend = hasDraft || (hasAttachments && !isEditing);
-  // INFO: § 13.6. The list the picker already warmed, read through the same descriptor so this costs no request of its own.
   // INFO: § 13.8. Hidden packs count here, exactly as they do in the panel's search — the underline offers a word the search can answer, and the search looks across the whole library.
-  const { data: packs = NO_PACKS } = useQuery(toEmoticonPacksQuery());
-  const keywords = useMemo(
-    () => new Set(packs.flatMap((pack) => pack.items.flatMap((item) => item.keywords))),
-    [packs],
-  );
+  // INFO: § 13.8. Deduplicated by the `DISTINCT` that produced it, so there is no `Set` to build — `findKeywordMatch` only ever iterates what it is given.
+  // WARN: § 13.6. A cache read and never a fetch. This component mounts with the room, so an enabled query put `?keywords=1` on every room entry — the path `useEmoticonPreload` was written to keep clear; that hook warms this same descriptor from its idle callback and the underline appears when it lands.
+  const { data: keywords = NO_KEYWORDS } = useQuery({
+    ...toEmoticonKeywordsQuery(),
+    enabled: false,
+  });
   const match = useMemo(() => findKeywordMatch(text, keywords), [text, keywords]);
 
   // INFO: REQUIREMENTS.md § 15.1. Declared here rather than lifted to the screen — the draft never leaves this component, and a forced refresh must not discard it.

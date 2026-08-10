@@ -6,122 +6,170 @@ import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon, EmoticonPackSummary, EmoticonPackWithItems } from "../model/types";
+import { effectivePackPosition } from "./effective-pack-position";
 
 /**
- * Every pack, in this user's order (REQUIREMENTS.md § 13.1.).
+ * Every pack, in this user's order (REQUIREMENTS.md § 13.1.), each carrying the
+ * thumbnail it is actually drawn with (§ 13.2.).
  *
- * WARN: A `LEFT JOIN`, not an inner one. A user who has never reordered anything
- * has no `user_emoticon_prefs` rows at all, and an inner join would show them an
- * empty list rather than every pack — the absent row is the default, not a gap.
- * `sort_order` falls back to a value past every real one, so packs with no
- * opinion recorded sort after those with one, then by creation.
+ * WARN: § 13.6. The resolution is the server's now and cannot move back. The picker
+ * used to fall back to `pack.items[0]` in the browser; it holds summaries and no
+ * items, so a pack whose `thumbnail_item_id` is null would simply lose its tab icon.
  */
 export async function listEmoticonPacks(userId: string): Promise<EmoticonPackSummary[]> {
-  // INFO: A second alias of the same table — the join below counts the pack's items, this one reads the single item the pack points at (§ 13.2.).
-  const thumbnailItems = alias(emoticonItems, "thumbnail_items");
-
-  const rows = await getDb()
-    .select({
-      id: emoticonPacks.id,
-      name: emoticonPacks.name,
-      thumbnailItemId: emoticonPacks.thumbnailItemId,
-      thumbnailUpdatedAt: thumbnailItems.updatedAt,
-      createdAt: emoticonPacks.createdAt,
-      itemCount: count(emoticonItems.id),
-      enabled: userEmoticonPrefs.enabled,
-      sortOrder: userEmoticonPrefs.sortOrder,
-    })
-    .from(emoticonPacks)
-    .leftJoin(
-      userEmoticonPrefs,
-      and(eq(userEmoticonPrefs.packId, emoticonPacks.id), eq(userEmoticonPrefs.userId, userId)),
-    )
-    .leftJoin(emoticonItems, eq(emoticonItems.packId, emoticonPacks.id))
-    .leftJoin(thumbnailItems, eq(thumbnailItems.id, emoticonPacks.thumbnailItemId))
-    .groupBy(
-      emoticonPacks.id,
-      emoticonPacks.name,
-      emoticonPacks.thumbnailItemId,
-      thumbnailItems.updatedAt,
-      emoticonPacks.createdAt,
-      userEmoticonPrefs.enabled,
-      userEmoticonPrefs.sortOrder,
-    )
-    .orderBy(
-      sql`coalesce(${userEmoticonPrefs.sortOrder}, 32767)`,
-      asc(emoticonPacks.createdAt),
-      asc(emoticonPacks.id),
-    );
-
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    thumbnailItemId: row.thumbnailItemId,
-    thumbnailVersion: row.thumbnailUpdatedAt?.getTime() ?? null,
-    itemCount: row.itemCount,
-    // INFO: REQUIREMENTS.md § 13.1. No row means enabled, so creating a pack fans out no rows per user.
-    isEnabled: row.enabled ?? true,
-  }));
+  return (await selectPackRows(userId)).map(toDrawnSummary);
 }
 
 /**
- * The picker's source: **every** pack, hidden ones included, each with its items in
- * authoring order (§ 13.6.).
+ * One pack with its items, as § 13.4.'s pack screen reads it.
  *
- * WARN: § 13.8. Deliberately not filtered to `isEnabled`. Hiding a pack takes it out
- * of the picker's *tabs*, and search looks across the whole library — an emoticon
- * the other participant sends from a pack this user has hidden has to be findable by
- * its own words, or § 13.9.'s 따라하기 has nothing to land on. The caller filters
- * for anything that draws a tab.
+ * WARN: § 13.2. `thumbnailItemId` is the pack's **stored** choice here, where
+ * `listEmoticonPacks` resolves it. This is the screen the choice is made on, and it
+ * marks the chosen cell — resolved, it would mark an item nobody picked as 대표 and
+ * offer 대표로 지정 on a pack that has none.
  */
-export async function listEmoticonPacksWithItems(userId: string): Promise<EmoticonPackWithItems[]> {
-  const packs = await listEmoticonPacks(userId);
-
-  if (packs.length === 0) {
-    return [];
-  }
-
-  const items = await listEmoticonsByPacks(packs.map((pack) => pack.id));
-
-  return packs.map((pack) => ({ ...pack, items: items.get(pack.id) ?? [] }));
-}
-
 export async function getEmoticonPack(
   packId: string,
   userId: string,
 ): Promise<Nullable<EmoticonPackWithItems>> {
-  const pack = (await listEmoticonPacks(userId)).find((candidate) => candidate.id === packId);
+  const [row] = await selectPackRows(userId, packId);
 
-  if (!pack) {
+  if (!row) {
     return null;
   }
 
-  const items = await listEmoticonsByPacks([packId]);
-
-  return { ...pack, items: items.get(packId) ?? [] };
+  return { ...toSummary(row), items: await listEmoticonPackItems(packId) };
 }
 
-// INFO: One query for every pack on the screen, rather than one per pack — the § 9. read path takes the same shape for a page of chat media.
-async function listEmoticonsByPacks(packIds: string[]): Promise<Map<string, Emoticon[]>> {
+/**
+ * Which of the given ids name a pack that exists (REQUIREMENTS.md § 13.5.).
+ *
+ * WARN: § 13.5. What the prefs handlers validate against, and deliberately **not**
+ * `listEmoticonPacks`. A move writes one row; answering "is this a real pack" with a
+ * list that fans out every item of every pack to count them, resolves a thumbnail
+ * through a lateral join and groups the result put the request back on the library's
+ * size that the sparse key had just taken the write off.
+ *
+ * INFO: § 13.1. No `userId` — a pack has no owner, and the per-user part is the prefs
+ * row the caller is about to write rather than the pack it names.
+ */
+export async function findKnownPackIds(packIds: string[]): Promise<Set<string>> {
+  if (packIds.length === 0) {
+    return new Set();
+  }
+
+  const rows = await getDb()
+    .select({ id: emoticonPacks.id })
+    .from(emoticonPacks)
+    .where(inArray(emoticonPacks.id, packIds));
+
+  return new Set(rows.map((row) => row.id));
+}
+
+/**
+ * One pack's items in the shared authoring order (§ 13.1.).
+ *
+ * INFO: § 13.6. What a picker tab is filled from, one pack at a time — the panel used
+ * to be handed every pack's items at once, which is the payload this replaced.
+ */
+export async function listEmoticonPackItems(packId: string): Promise<Emoticon[]> {
   const rows = await getDb()
     .select()
     .from(emoticonItems)
-    .where(inArray(emoticonItems.packId, packIds))
-    .orderBy(asc(emoticonItems.packId), asc(emoticonItems.sortOrder), asc(emoticonItems.createdAt));
+    .where(eq(emoticonItems.packId, packId))
+    .orderBy(asc(emoticonItems.sortOrder), asc(emoticonItems.createdAt));
 
-  const grouped = new Map<string, Emoticon[]>();
+  return rows.map(toEmoticon);
+}
 
-  for (const row of rows) {
-    const bucket = grouped.get(row.packId);
-    const emoticon = toEmoticon(row);
+/**
+ * WARN: A `LEFT JOIN` onto the prefs, not an inner one. A user who has never
+ * reordered anything has no `user_emoticon_prefs` rows at all, and an inner join
+ * would show them an empty list rather than every pack — the absent row is the
+ * default, not a gap. `effectivePackPosition` is what orders the two kinds together.
+ */
+function selectPackRows(userId: string, packId?: string) {
+  // INFO: A second alias of the same table — the join below counts the pack's items, this one reads the single item the pack points at (§ 13.2.).
+  const chosenThumbnails = alias(emoticonItems, "chosen_thumbnails");
+  const firstItems = alias(emoticonItems, "first_items");
+  // INFO: § 13.2. The fallback thumbnail, taken by the `(pack_id, sort_order)` index one row at a time rather than by grouping every item of every pack.
+  const firstItem = getDb()
+    .select({ id: firstItems.id, updatedAt: firstItems.updatedAt })
+    .from(firstItems)
+    .where(eq(firstItems.packId, emoticonPacks.id))
+    // WARN: The same order `listEmoticonPackItems` returns, or the tab icon is not the cell the grid draws first.
+    .orderBy(asc(firstItems.sortOrder), asc(firstItems.createdAt))
+    .limit(1)
+    .as("first_item");
 
-    if (bucket) {
-      bucket.push(emoticon);
-      continue;
-    }
+  return (
+    getDb()
+      .select({
+        id: emoticonPacks.id,
+        name: emoticonPacks.name,
+        thumbnailItemId: emoticonPacks.thumbnailItemId,
+        thumbnailUpdatedAt: chosenThumbnails.updatedAt,
+        firstItemId: firstItem.id,
+        firstItemUpdatedAt: firstItem.updatedAt,
+        itemCount: count(emoticonItems.id),
+        enabled: userEmoticonPrefs.enabled,
+      })
+      .from(emoticonPacks)
+      .leftJoin(
+        userEmoticonPrefs,
+        and(eq(userEmoticonPrefs.packId, emoticonPacks.id), eq(userEmoticonPrefs.userId, userId)),
+      )
+      .leftJoin(emoticonItems, eq(emoticonItems.packId, emoticonPacks.id))
+      .leftJoin(chosenThumbnails, eq(chosenThumbnails.id, emoticonPacks.thumbnailItemId))
+      // WARN: `LATERAL` is what lets the subquery name `emoticon_packs.id`, and the `on true` is the join's whole condition — the correlation is inside it.
+      .leftJoinLateral(firstItem, sql`true`)
+      .where(packId === undefined ? undefined : eq(emoticonPacks.id, packId))
+      .groupBy(
+        emoticonPacks.id,
+        emoticonPacks.name,
+        emoticonPacks.thumbnailItemId,
+        chosenThumbnails.updatedAt,
+        firstItem.id,
+        firstItem.updatedAt,
+        emoticonPacks.createdAt,
+        userEmoticonPrefs.enabled,
+        userEmoticonPrefs.position,
+      )
+      // INFO: § 13.5. `created_at` needs no tiebreaker of its own — it is already inside the fallback half of `effectivePackPosition`.
+      .orderBy(effectivePackPosition(), asc(emoticonPacks.id))
+  );
+}
 
-    grouped.set(row.packId, [emoticon]);
+type PackRow = Awaited<ReturnType<typeof selectPackRows>>[number];
+
+function toSummary(row: PackRow): EmoticonPackSummary {
+  return {
+    id: row.id,
+    name: row.name,
+    thumbnailItemId: row.thumbnailItemId,
+    thumbnailVersion: toVersion(row.thumbnailUpdatedAt),
+    itemCount: row.itemCount,
+    // INFO: REQUIREMENTS.md § 13.1. No row means enabled, so creating a pack fans out no rows per user.
+    isEnabled: row.enabled ?? true,
+  };
+}
+
+// INFO: § 13.2. Null survives only for a pack with no items at all, which is the one case that still draws a glyph.
+function toDrawnSummary(row: PackRow): EmoticonPackSummary {
+  const summary = toSummary(row);
+
+  if (summary.thumbnailItemId !== null) {
+    return summary;
   }
 
-  return grouped;
+  return {
+    ...summary,
+    thumbnailItemId: row.firstItemId,
+    thumbnailVersion: toVersion(row.firstItemUpdatedAt),
+  };
+}
+
+// INFO: REQUIREMENTS.md § 13.4. `updated_at` in milliseconds, which is what versions the asset URL a thumbnail is fetched by.
+function toVersion(updatedAt: Nullable<Date>): Nullable<number> {
+  return updatedAt?.getTime() ?? null;
 }
