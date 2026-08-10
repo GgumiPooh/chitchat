@@ -33,7 +33,14 @@ export {
   type MilestoneKind,
   type UpcomingMilestone,
 } from "./date/calendar";
-export { findHoliday, formatHolidayName, type Holiday } from "./date/holidays";
+export {
+  FALLBACK_HOLIDAYS,
+  findHoliday,
+  formatHolidayName,
+  type Holiday,
+  type HolidayEntry,
+  type HolidayTable,
+} from "./date/holidays";
 export {
   AN_HOUR,
   A_DAY,

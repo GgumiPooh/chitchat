@@ -5,9 +5,7 @@ import { MAX_LINK_PREVIEW_URL_LENGTH } from "@/shared/config";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-// WARN: `node:dns` and streamed response bodies (§ 8.9.) — this handler cannot run on the edge runtime.
-export const runtime = "nodejs";
-
+// WARN: `node:dns` and streamed response bodies (§ 8.9.) — this handler cannot run on the edge runtime, and `cacheComponents` forbids `runtime = "edge"` anywhere, so the declaration that said so is redundant rather than wrong.
 const querySchema = z.object({
   url: z.url({ protocol: /^https?$/ }).max(MAX_LINK_PREVIEW_URL_LENGTH),
 });

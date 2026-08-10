@@ -1,23 +1,23 @@
 import { DevLoginForm, GoogleLoginButton } from "@/features/session";
 import { APP_NAME, IS_DEV_LOGIN_ENABLED } from "@/shared/config";
-import { cn, type Maybe } from "@/shared/lib";
+import { cn } from "@/shared/lib";
 import { Container } from "@/shared/ui";
+import type { ReactNode } from "react";
 
 export type LoginPageProps = {
   className?: string;
-  error?: Maybe<string>;
-};
-
-const ERROR_MESSAGE: Record<string, string> = {
-  denied: "로그인을 취소했어요",
-  failed: "로그인에 실패했어요. 다시 시도해 주세요",
-  not_allowed: "허용된 계정이 아니에요",
-  unverified: "이메일 인증이 완료된 구글 계정만 사용할 수 있어요",
+  /**
+   * `LoginError`, wrapped in the route's own `<Suspense>`.
+   *
+   * WARN: A slot rather than the `?error=` code itself, and that is what keeps this
+   * screen in the prerendered shell. Reading `searchParams` here would put the whole
+   * login screen behind a boundary for the sake of one line that is absent on every
+   * successful visit.
+   */
+  error?: ReactNode;
 };
 
 export function LoginPage({ className, error }: LoginPageProps) {
-  const message = error ? (ERROR_MESSAGE[error] ?? ERROR_MESSAGE.failed) : null;
-
   return (
     // INFO: DESIGN.md § 3.3. The document is the scroller here too, so the column is in flow at `min-h-dvh` rather than a percentage of a body that no longer has a height.
     <main className={cn("flex min-h-dvh flex-col bg-canvas", className)}>
@@ -28,11 +28,7 @@ export function LoginPage({ className, error }: LoginPageProps) {
         </div>
 
         <div className="flex flex-col gap-sm">
-          {message && (
-            <p className="text-center text-body-sm text-semantic-error" role="alert">
-              {message}
-            </p>
-          )}
+          {error}
           <GoogleLoginButton />
           <p className="text-center text-caption text-meta-soft">
             초대된 계정만 로그인할 수 있어요

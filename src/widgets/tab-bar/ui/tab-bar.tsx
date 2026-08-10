@@ -1,6 +1,5 @@
 "use client";
 
-import { useChatStream } from "@/features/chat-stream";
 import { CALENDAR_ROUTE, CHAT_ROUTE, isUnderRoute } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
 import { Badge, Link } from "@/shared/ui";
@@ -21,12 +20,19 @@ export type TabBarProps = {
    * `user_changed` (§ 8.4.) carries `users` rows — not events.
    */
   hasEventToday?: boolean;
+  /**
+   * REQUIREMENTS.md § 8.8. The 채팅 badge.
+   *
+   * WARN: A prop rather than a `useChatStream()` read, and that is what lets this bar
+   * into the shell's prerendered fallback — the provider is seeded from the session
+   * and cannot exist there. `LiveTabBar` is the wrapper that reads the stream, so the
+   * two renders differ by an absolutely-positioned badge and nothing that has a box.
+   */
+  unreadCount?: number;
 };
 
 // INFO: DESIGN.md § 7.3. The glyphs stay outlined in both states — lucide ships no filled variant for these four.
-export function TabBar({ className, hasEventToday = false }: TabBarProps) {
-  // INFO: REQUIREMENTS.md § 8.8. Live off the shell's stream rather than resolved once per page load — the badge has to move while the user is standing on another tab.
-  const { unreadCount } = useChatStream();
+export function TabBar({ className, hasEventToday = false, unreadCount = 0 }: TabBarProps) {
   const pathname = usePathname();
   // INFO: DESIGN.md § 7.3. Every tab screen is dynamic, so the click is held for a server round trip; the fill moves on the tap instead of when the route commits.
   const [pendingTab, setPendingTab] = useState<Nullable<PendingTab>>(null);

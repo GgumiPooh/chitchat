@@ -355,6 +355,9 @@ export const HOME_ROUTE = CHAT_ROUTE;
 
 export const LOGIN_ROUTE = "/login";
 
+/** A prefix with no screen — `proxy.ts` sends it to `HOME_ROUTE` before it can render. REQUIREMENTS.md § 5.2. */
+export const ROOT_ROUTE = "/";
+
 /** REQUIREMENTS.md § 16. What the service worker answers a failed navigation with. */
 // WARN: Must stay out of `proxy.ts`'s matcher and hold no user data — it is served from the cache to whoever asks, including a signed-out browser and the next account to use it.
 export const OFFLINE_ROUTE = "/offline";

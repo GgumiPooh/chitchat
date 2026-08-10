@@ -8,3 +8,4 @@ export {
   type HolidayDotProps,
   type MilestoneDotProps,
 } from "./ui/event-dot";
+export { WeekdayHeader, type WeekdayHeaderProps } from "./ui/weekday-header";

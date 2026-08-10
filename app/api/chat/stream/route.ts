@@ -21,11 +21,8 @@ import {
 import { safelyGet, safelyRun, type Nullable, type Optional } from "@/shared/lib";
 import { z } from "zod";
 
-// WARN: The stream holds a `LISTEN` connection open, which the edge runtime cannot do.
-export const runtime = "nodejs";
-
-export const dynamic = "force-dynamic";
-
+// WARN: The stream holds a `LISTEN` connection open, which the edge runtime cannot do — `cacheComponents` forbids `runtime = "edge"` outright, so nothing may reintroduce it here.
+// INFO: `dynamic = "force-dynamic"` is gone with the same flag. `getSessionContext()` below reads the cookie, which bails this handler out of prerendering by throwing, and no `try` in this file wraps it.
 // INFO: REQUIREMENTS.md § 15. The client's `EventSource` reconnects on its own when the platform ends the invocation, and `Last-Event-ID` makes that reconnect lossless.
 export const maxDuration = 300;
 

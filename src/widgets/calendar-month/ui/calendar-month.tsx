@@ -1,21 +1,20 @@
 "use client";
 
 import type { EventOccurrence } from "@/entities/event";
-import { WEEKDAY_LABELS } from "@/shared/config";
 import {
   cn,
   formatYearMonth,
-  SATURDAY,
   shiftMonthKey,
-  SUNDAY,
   toMonthKey,
   toMonthStart,
+  type HolidayTable,
 } from "@/shared/lib";
 import { Chip, IconButton } from "@/shared/ui";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { buildMonthGrid } from "../model/build-month-grid";
 import { useMonthSwipe } from "../model/use-month-swipe";
 import { DayCell } from "./day-cell";
+import { WeekdayHeader } from "./weekday-header";
 
 export type CalendarMonthProps = {
   className?: string;
@@ -24,6 +23,8 @@ export type CalendarMonthProps = {
   todayKey: string;
   selectedDayKey: string;
   occurrences: EventOccurrence[];
+  /** REQUIREMENTS.md § 11.7. Resolved on the server and handed down whole, so a swipe reads it without a request. */
+  holidays: HolidayTable;
   onMonthChange: (monthKey: string) => void;
   onSelectDay: (dayKey: string) => void;
 };
@@ -36,10 +37,11 @@ export function CalendarMonth({
   todayKey,
   selectedDayKey,
   occurrences,
+  holidays,
   onMonthChange,
   onSelectDay,
 }: CalendarMonthProps) {
-  const cells = buildMonthGrid(monthKey, startDate, occurrences);
+  const cells = buildMonthGrid(monthKey, startDate, occurrences, holidays);
   const todayMonthKey = toMonthKey(todayKey);
   const swipeHandlers = useMonthSwipe((direction) =>
     onMonthChange(shiftMonthKey(monthKey, direction)),
@@ -76,16 +78,7 @@ export function CalendarMonth({
         </div>
       </header>
 
-      <div className="grid grid-cols-7">
-        {WEEKDAY_LABELS.map((label, index) => (
-          <span
-            key={label}
-            className={cn("py-2xs text-center text-caption", toWeekdayClassName(index))}
-          >
-            {label}
-          </span>
-        ))}
-      </div>
+      <WeekdayHeader />
 
       {/* WARN: `touch-action: pan-y` — without it WebKit claims the horizontal gesture for its own back-navigation swipe and the pointer events below never complete. */}
       <div className="grid touch-pan-y grid-cols-7 gap-0.5" {...swipeHandlers}>
@@ -101,13 +94,4 @@ export function CalendarMonth({
       </div>
     </section>
   );
-}
-
-// INFO: DESIGN.md § 7.9. Sunday `semantic-error`, Saturday `primary`; the rest `meta`.
-function toWeekdayClassName(index: number): string {
-  if (index === SUNDAY) {
-    return "text-semantic-error";
-  }
-
-  return index === SATURDAY ? "text-primary" : "text-meta";
 }

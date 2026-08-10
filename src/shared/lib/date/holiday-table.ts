@@ -15,6 +15,10 @@ export type HolidayEntry = readonly [name: string, isSubstitute?: true];
 /**
  * REQUIREMENTS.md § 11.7. 2024 – 2030, as a table rather than a derivation.
  *
+ * WARN: The fallback rather than the source — the server reads 특일 정보 at runtime and
+ * lays its answer for the mutable years over this, so what is written here is what a
+ * reader sees only when that request does not arrive.
+ *
  * WARN: 설날 · 추석 · 부처님오신날 are lunisolar, 대체공휴일 follows from wherever they
  * land, and an 임시공휴일 is a cabinet decree — so no arithmetic here can carry this
  * past the last year written out below, and a day outside it answers `null`.

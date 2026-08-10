@@ -1,6 +1,7 @@
 import {
   HOME_ROUTE,
   LOGIN_ROUTE,
+  ROOT_ROUTE,
   SESSION_COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
 } from "@/shared/config";
@@ -21,6 +22,20 @@ export function proxy(request: NextRequest) {
       : NextResponse.redirect(new URL(LOGIN_ROUTE, request.url));
   }
   if (isLoginRoute) {
+    return NextResponse.redirect(new URL(HOME_ROUTE, request.url));
+  }
+  /**
+   * REQUIREMENTS.md § 5.2. `/` is a prefix with no screen, and the hop belongs here
+   * rather than in a Server Component.
+   *
+   * WARN: It was `app/page.tsx` calling `redirect()` after `requireUserOrRedirect()`.
+   * Under § 1.1.'s flag that route is `◐` — a 200 document with a painted spinner and
+   * then a client navigation, where it used to be one 307. The cookie is already
+   * proven present above, and `HOME_ROUTE`'s own layout still validates the session
+   * against the database, so nothing is weakened by answering here: an invalid session
+   * lands on `SESSION_EXPIRE_ROUTE` one hop later exactly as it did before.
+   */
+  if (request.nextUrl.pathname === ROOT_ROUTE) {
     return NextResponse.redirect(new URL(HOME_ROUTE, request.url));
   }
 

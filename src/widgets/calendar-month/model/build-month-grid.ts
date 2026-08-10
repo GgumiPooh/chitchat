@@ -9,6 +9,7 @@ import {
   toMonthStart,
   toWeekday,
   type Holiday,
+  type HolidayTable,
   type Milestone,
   type Nullable,
 } from "@/shared/lib";
@@ -38,6 +39,7 @@ export function buildMonthGrid(
   monthKey: string,
   startDate: string,
   occurrences: EventOccurrence[],
+  holidays: HolidayTable,
 ): MonthCell[] {
   const dayKeys = listGridDayKeys(monthKey);
   const occurrencesByDay = groupByDay(occurrences);
@@ -50,7 +52,7 @@ export function buildMonthGrid(
     dayOfMonth: toDayOfMonth(dayKey),
     weekday: toWeekday(dayKey),
     isCurrentMonth: toMonthKey(dayKey) === monthKey,
-    holiday: findHoliday(dayKey),
+    holiday: findHoliday(dayKey, holidays),
     occurrences: occurrencesByDay.get(dayKey) ?? [],
     milestones: milestonesByDay.get(dayKey) ?? [],
   }));

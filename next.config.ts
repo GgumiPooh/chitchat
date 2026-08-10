@@ -24,6 +24,8 @@ const SERVICE_WORKER_HEADERS = [
 
 export default {
   allowedDevOrigins: ["localhost", "192.168.*.*", "jandh-dev.jeheecheon.com"],
+  // INFO: Partial Prerendering. Every screen streams its runtime data behind a `<Suspense>` fallback sized to the content it stands in for (DESIGN.md § 7.8.).
+  cacheComponents: true,
   experimental: {
     // WARN: `es-hangul` declares no `sideEffects: false`, so a bare `import { josa }` pulls its romanisation and standard-pronunciation tables into the bundle with it. Only the modules actually used survive this.
     // INFO: `lucide-react` and `lodash-es` are on Next's own default list and do not need naming here.

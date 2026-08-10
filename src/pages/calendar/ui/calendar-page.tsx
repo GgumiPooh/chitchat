@@ -17,6 +17,7 @@ import {
   toDayKey,
   toMonthKey,
   toMonthStart,
+  type HolidayTable,
   type Maybe,
   type Nullable,
 } from "@/shared/lib";
@@ -33,6 +34,8 @@ export type CalendarPageProps = {
   initialSummary: CalendarSummary;
   initialMonthKey: string;
   initialOccurrences: EventOccurrence[];
+  /** REQUIREMENTS.md § 11.7. Every year at once, because a swipe resolves its 빨간 날 without asking for anything. */
+  holidays: HolidayTable;
   /** REQUIREMENTS.md § 11.5. The day a chat system notice tapped through to, if any. */
   initialDayKey: Maybe<string>;
 };
@@ -49,6 +52,7 @@ export function CalendarPage({
   initialSummary,
   initialMonthKey,
   initialOccurrences,
+  holidays,
   initialDayKey,
 }: CalendarPageProps) {
   const { participants, isDormant } = useChatStream();
@@ -183,13 +187,14 @@ export function CalendarPage({
           todayKey={summary.todayKey}
           selectedDayKey={selectedDayKey}
           occurrences={occurrences}
+          holidays={holidays}
           onMonthChange={changeMonth}
           onSelectDay={selectDay}
         />
         <DayAgenda
           dayKey={selectedDayKey}
           isLoading={isLoadingMonth}
-          holiday={findHoliday(selectedDayKey)}
+          holiday={findHoliday(selectedDayKey, holidays)}
           milestones={listMilestonesInRange(summary.startDate, selectedDayKey, selectedDayKey)}
           occurrences={occurrencesOn(occurrences, selectedDayKey)}
           participants={participants}
