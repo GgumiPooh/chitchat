@@ -56,6 +56,26 @@ const NO_ITEMS: Emoticon[] = [];
 // INFO: § 13.9.1. One sentence for the two places a failed search is said — an empty pane, and the caption under a § 13.9. row that holds the tapped item and nothing the words found.
 const SEARCH_FAILED_MESSAGE = "검색하지 못했어요";
 
+/**
+ * REQUIREMENTS.md § 8.14. The focus ring, on plain `:focus`, for as long as this panel
+ * is being driven by the keyboard.
+ *
+ * WARN: DESIGN.md § 3.2. says `:focus-visible` and never `:focus`, and this is the
+ * third recorded exception rather than a permission. `:focus-visible` is decided by a
+ * heuristic this panel breaks: a click focuses a cell **without** it, and a programmatic
+ * `focus()` — which is every arrow key here — is judged by whether the *previously*
+ * focused element had it. So one click made every later arrow move invisible, with the
+ * navigation itself still working, which is worse than no ring at all.
+ *
+ * WARN: The classes are written out twice rather than composed, because Tailwind reads
+ * literals — a variant prefixed at runtime is a class that was never generated.
+ */
+const CELL_KEYBOARD_RING =
+  "focus:bg-primary-tint focus:ring-2 focus:ring-primary focus:ring-inset focus:outline-none";
+
+/** REQUIREMENTS.md § 8.14. `CELL_KEYBOARD_RING` for the tabs, which carry no fill of their own — the selected one already has `bg-primary-tint`. */
+const TAB_KEYBOARD_RING = "focus:ring-2 focus:ring-primary focus:outline-none";
+
 export type EmoticonPickerProps = {
   className?: string;
   /**
@@ -139,6 +159,8 @@ export function EmoticonPicker({
   const [focusedTab, setFocusedTab] = useState<Nullable<string>>(null);
   // INFO: REQUIREMENTS.md § 8.14. Whether § 13.8.'s field may take the keyboard as its tab arrives. False only for a walk along the strip, which that focus would end.
   const [fieldClaimsFocus, setFieldClaimsFocus] = useState(true);
+  // INFO: REQUIREMENTS.md § 8.14. Whether the panel is being driven by the keyboard, which is what paints `CELL_KEYBOARD_RING`. A pointer press anywhere in it ends that, and the next key begins it again.
+  const [isKeyboardDriven, setIsKeyboardDriven] = useState(false);
 
   // WARN: § 13.8. Adjusted during render rather than in an effect. An effect lands a frame later, so the panel would open on the remembered tab, paint a grid of the wrong pack, and only then swap to the search row — which reads as the wrong panel flashing up. It is also why the forced tab is component state rather than the stored one: writing `localStorage` during a render is a side effect, and comparing tokens is not.
   if (searchRequest && searchRequest.token !== appliedSearchToken) {
@@ -312,6 +334,8 @@ export function EmoticonPicker({
         className,
       )}
       onKeyDown={handlePanelKeys}
+      // WARN: § 8.14. Capture, because the results row stops `pointerdown` propagating while it still has somewhere to scroll (`keepAxisWhileScrollable`) — bubbled, the one scroller a drag most often starts in would never report the pointer taking over.
+      onPointerDownCapture={() => setIsKeyboardDriven(false)}
     >
       {isSearching ? (
         <SearchPane
@@ -324,6 +348,7 @@ export function EmoticonPicker({
           revealToken={appliedRevealToken}
           takesFocus={fieldClaimsFocus}
           focusableIndex={focusableIndex}
+          isKeyboardDriven={isKeyboardDriven}
           fieldRef={searchFieldRef}
           rowRef={cellScrollerRef}
           onQueryChange={changeQuery}
@@ -377,6 +402,7 @@ export function EmoticonPicker({
                       item={item}
                       index={index}
                       isFocusable={index === focusableIndex}
+                      isKeyboardDriven={isKeyboardDriven}
                       onSelect={handleSelect}
                     />
                   ))}
@@ -402,6 +428,7 @@ export function EmoticonPicker({
           index={0}
           isActive={isSearching}
           isFocusable={focusableTabId === SEARCH_TAB}
+          isKeyboardDriven={isKeyboardDriven}
           label="이모티콘 검색"
           onClick={() => selectTab(SEARCH_TAB)}
         >
@@ -412,6 +439,7 @@ export function EmoticonPicker({
           index={1}
           isActive={activeTab === RECENTS_TAB}
           isFocusable={focusableTabId === RECENTS_TAB}
+          isKeyboardDriven={isKeyboardDriven}
           label="최근 사용"
           onClick={() => selectTab(RECENTS_TAB)}
         >
@@ -426,6 +454,7 @@ export function EmoticonPicker({
             index={index + 2}
             isActive={activeTab === pack.id}
             isFocusable={focusableTabId === pack.id}
+            isKeyboardDriven={isKeyboardDriven}
             label={pack.name}
             onClick={() => selectTab(pack.id)}
           >
@@ -569,6 +598,9 @@ export function EmoticonPicker({
    * looking at, and re-seeding would wipe whatever they had typed into it.
    */
   function handlePanelKeys(event: KeyboardEvent<HTMLDivElement>) {
+    // INFO: § 8.14. Before every branch below and independent of them — `keydown` bubbles here from the whole panel, so this is the one place that hears the keyboard take over whatever a pointer had been doing.
+    setIsKeyboardDriven(true);
+
     // WARN: § 8.14. `isComposing` on every one of these. A Hangul IME owns the keystrokes that settle a syllable, and an `e` typed into 검색 arrives mid-composition.
     if (event.defaultPrevented || event.nativeEvent.isComposing || !isCommandKey(event)) {
       return;
@@ -846,6 +878,8 @@ type EmoticonCellProps = {
   index: number;
   /** REQUIREMENTS.md § 8.14. Whether this is the one cell of the list in the tab sequence (ARIA's roving tabindex). */
   isFocusable: boolean;
+  /** REQUIREMENTS.md § 8.14. Whether the panel is being driven by the keyboard, which is what puts the ring on plain `:focus` (`CELL_KEYBOARD_RING`). */
+  isKeyboardDriven: boolean;
   /** REQUIREMENTS.md § 13.9. Whether this is the cell 따라하기 named, which is ringed until the panel is taken somewhere else. */
   isRevealed?: boolean;
   onSelect: (item: Emoticon) => void;
@@ -859,6 +893,7 @@ function EmoticonCell({
   scrollAxis = "y",
   index,
   isFocusable,
+  isKeyboardDriven,
   isRevealed = false,
   onSelect,
 }: EmoticonCellProps) {
@@ -875,6 +910,8 @@ function EmoticonCell({
           panAxis,
           // WARN: REQUIREMENTS.md § 8.14. `ring-inset`, and a `primary-tint` fill under it. DESIGN.md § 3.2.'s offset ring is unreadable here for two reasons at once: the cells tile their scroller, which is `overflow-x-hidden` in the grid and `overflow-y-hidden` in § 13.8.'s row, so an outward ring is clipped away on every edge cell — the same trap § 7.5. records — and 2px of `primary` over an arbitrary user-authored picture is not a contrast anyone can rely on. The fill is what makes it legible; the ring is what makes it a focus ring.
           "rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] group-active:bg-surface-strong hover:bg-surface-soft focus-visible:bg-primary-tint focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-inset active:bg-surface-strong",
+          // INFO: § 8.14. Additive to the `focus-visible` set above, which still answers a `Tab` arriving from outside the panel before any arrow has been pressed.
+          isKeyboardDriven && CELL_KEYBOARD_RING,
           // INFO: § 13.9. A ring rather than the tabs' `bg-primary-tint` fill, which in this panel means "selected" — this cell is not selected, it is the one the tap was about.
           // WARN: § 13.9. `ring-inset`, or § 13.8.'s results row clips it. That row is `overflow-y-hidden` and its cells fill its height exactly, so an outset ring loses its top and bottom edges and reads as a broken box.
           isRevealed && "ring-2 ring-primary ring-inset",
@@ -923,6 +960,8 @@ type SearchPaneProps = {
   takesFocus: boolean;
   /** REQUIREMENTS.md § 8.14. Which cell of the row is the one in the tab sequence. */
   focusableIndex: number;
+  /** REQUIREMENTS.md § 8.14. Whether the panel is being driven by the keyboard, which is what paints the cells' focus ring. */
+  isKeyboardDriven: boolean;
   /** REQUIREMENTS.md § 8.14. Held by the panel, which focuses it for ⌘E and for the row's `ArrowUp`. */
   fieldRef: RefObject<Nullable<HTMLInputElement>>;
   /** REQUIREMENTS.md § 8.14. The row is also the scroller the panel moves cell focus inside, so the ref is the panel's rather than this pane's. */
@@ -960,6 +999,7 @@ function SearchPane({
   revealToken,
   takesFocus,
   focusableIndex,
+  isKeyboardDriven,
   fieldRef,
   rowRef,
   onQueryChange,
@@ -1039,6 +1079,7 @@ function SearchPane({
                 scrollAxis="x"
                 index={index}
                 isFocusable={index === focusableIndex}
+                isKeyboardDriven={isKeyboardDriven}
                 isRevealed={item.id === revealedId}
                 onSelect={onSelect}
               />
@@ -1101,6 +1142,8 @@ type TabButtonProps = PropsWithChildren<{
   isActive: boolean;
   /** REQUIREMENTS.md § 8.14. Whether this is the strip's one tab stop (ARIA's roving tabindex). */
   isFocusable: boolean;
+  /** REQUIREMENTS.md § 8.14. Whether the panel is being driven by the keyboard, which is what puts the ring on plain `:focus` (`TAB_KEYBOARD_RING`). */
+  isKeyboardDriven: boolean;
   label: string;
   onClick: () => void;
 }>;
@@ -1111,6 +1154,7 @@ function TabButton({
   index,
   isActive,
   isFocusable,
+  isKeyboardDriven,
   label,
   children,
   onClick,
@@ -1123,6 +1167,8 @@ function TabButton({
       <button
         className={cn(
           "flex size-11 shrink-0 items-center justify-center rounded-md p-2xs transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
+          // INFO: § 8.14. Additive, for the reason the cells' is.
+          isKeyboardDriven && TAB_KEYBOARD_RING,
           isActive
             ? "bg-primary-tint"
             : "group-active:bg-surface-strong hover:bg-surface-soft active:bg-surface-strong",
