@@ -50,7 +50,8 @@ function toAttachmentThumbnail(attachment: Optional<QuotedAttachment>): Nullable
 }
 
 // WARN: Structural, and that is what lets one copy serve both callers — the server holds database rows and the browser holds a `ChatMessage`, and `shared` may name neither.
-type QuotedAttachment = { filename: Nullable<string>; voice?: Nullable<unknown>; id: string };
+// WARN: `voice` is **required**, which is the whole of what keeps a `MediaDraft[]` out of here — REQUIREMENTS.md § 9.3. flags a draft recording as `waveformPeaks` and never as `voice`, so an optional field would take one, read `undefined`, and hand the tile an audio object.
+type QuotedAttachment = { filename: Nullable<string>; voice: Nullable<unknown>; id: string };
 
 /** @see QuotedAttachment — the emoticon half, whose `version` is `emoticon_items.updated_at` in milliseconds (§ 13.4.). */
 type QuotedEmoticon = { version: number; id: string };

@@ -99,6 +99,7 @@ import {
   type RefObject,
   type TransitionEvent,
 } from "react";
+import { flushSync } from "react-dom";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { requestMessageEdit } from "../api/request-message-edit";
 import { buildChatRows } from "../model/build-chat-rows";
@@ -1758,10 +1759,11 @@ export function ChatRoom({
       kind: message.type,
       text: message.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null,
       // INFO: REQUIREMENTS.md § 8.10. The same call `listReplyPreviews` makes on the server, so the optimistic quote and the echoed one cannot disagree about whether the row has a tile.
-      thumbnail: toQuoteThumbnail(message.emoticon, message.media),
-      mediaKind: toMediaKind(message.media),
-      mediaCount: message.media.length,
-      isDeleted: false,
+      thumbnail: message.isDeleted ? null : toQuoteThumbnail(message.emoticon, message.media),
+      // WARN: REQUIREMENTS.md § 8.13. A withdrawn parent surrenders its payload here too. Nothing routes 답장 onto a tombstone today, but that is the row it is rendered on rather than a property of this function — and `listReplyPreviews` nulls all four, so staging them live would be the optimistic/echo disagreement `toQuoteThumbnail` exists to rule out.
+      mediaKind: message.isDeleted ? null : toMediaKind(message.media),
+      mediaCount: message.isDeleted ? 0 : message.media.length,
+      isDeleted: message.isDeleted,
       id: message.id,
     });
   }
@@ -1804,8 +1806,10 @@ export function ChatRoom({
       // WARN: Not `behavior: "smooth"`. A jump crosses an arbitrary distance, so smooth animates through history the user did not ask to see, and the window it is animating over was replaced a frame ago.
       virtualizer.scrollToIndex(index, { align: "center" });
 
-      // WARN: DESIGN.md § 6.8. A property of the jump, never of whether a search happens to be open. The flash is for a jump with nothing else to point at — a quote, whose parent need not contain the query, so keying this on the search being open leaves such a jump marked by nothing at all.
+      // WARN: DESIGN.md § 6.10. A property of the jump, never of whether a search happens to be open. The flash is for a jump with nothing else to point at — a quote, whose parent need not contain the query, so keying this on the search being open leaves such a jump marked by nothing at all.
       if (flash) {
+        // WARN: `flushSync`, and after the bail-out above. A CSS animation restarts only when the class is applied, so a second jump to the row already flashing has to commit its removal *before* re-adding it — batched, the two updates collapse into a render whose state never changed and the wash never plays again. A jump that found no row keeps the flash it has rather than clearing one it cannot replace.
+        flushSync(() => setHighlightedId(null));
         setHighlightedId(id);
       }
     });

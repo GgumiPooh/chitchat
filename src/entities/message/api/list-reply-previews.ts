@@ -83,6 +83,8 @@ export async function listReplyPreviews(parentIds: number[]): Promise<Map<number
  * never the rule itself, which `@/shared/config` owns for both callers.
  *
  * INFO: REQUIREMENTS.md § 13.4. `updated_at` in milliseconds is what `Emoticon.version` is, so a quote and a bubble address the same edited asset by the same URL.
+ *
+ * INFO: Both fields are tested because the left join makes both nullable, not because they are two states — `updated_at` is `NOT NULL`, so the pair is null together exactly when the row carries no emoticon.
  */
 function toQuotedEmoticon({
   emoticonItemId,

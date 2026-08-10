@@ -59,18 +59,19 @@
   }
 }
 
-/* INFO: DESIGN.md § 6.8. Where a quote jump lands — in fast enough to catch the eye arriving, held while it reads the row, then dissolved. */
+/* INFO: DESIGN.md § 6.10. Where a quote jump lands — in fast enough to catch the eye arriving, held while it reads the row, then dissolved. */
 /* WARN: The three stops are not symmetric and must not be evened out. Equal edges are a blink, which is the one thing a locator cannot be: the reader looks up *after* the room has stopped moving, so the fade out is what has to be long. */
+/* WARN: The ends are `message-flash-out`, never the keyword `transparent` — that is `rgba(0,0,0,0)` and fades the row through black wherever an engine interpolates un-premultiplied. */
 @keyframes message-flash {
   from {
-    background-color: transparent;
+    background-color: var(--color-message-flash-out);
   }
   12%,
   52% {
     background-color: var(--color-message-flash);
   }
   to {
-    background-color: transparent;
+    background-color: var(--color-message-flash-out);
   }
 }
 

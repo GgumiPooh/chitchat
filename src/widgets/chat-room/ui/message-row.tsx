@@ -112,7 +112,7 @@ export function MessageRow({
   const previewUrl = emoticon || hasMedia ? undefined : findFirstUrl(text);
 
   return (
-    // INFO: DESIGN.md § 6.8. The flash is on the row rather than on the bubble's own fill, so a media or emoticon message — which has no fill — highlights the same way a text one does.
+    // INFO: DESIGN.md § 6.10. The flash is on the row rather than on the bubble's own fill, so a media or emoticon message — which has no fill — highlights the same way a text one does.
     // WARN: `message-flash` paints and times itself, and it is the row's *background* — nothing here may become a border, a ring or a spacer, since REQUIREMENTS.md § 8.3.'s estimate prices this box without ever seeing the flash.
     // WARN: The class and the variable travel together. `message-flash` reads its length from `--message-flash-duration` alone, and an unresolved `var()` there is an animation that never plays rather than an error.
     <div

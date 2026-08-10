@@ -53,10 +53,12 @@
   --color-chat-pill-ink: #6b6153;
   --color-unread: #b65c4e;
   --color-search-hit: #f9e9c8;
-  /* INFO: DESIGN.md § 6.8. The wash a quote jump lands in, and its own token rather than `primary-tint` — that one is an opaque plate *lighter* than `chat-canvas`, so a full-width band of it lifted the row above the bubbles standing on it. */
+  /* INFO: DESIGN.md § 6.10. The wash a quote jump lands in, and its own token rather than `primary-tint` — that one is an opaque plate *lighter* than `chat-canvas`, so a full-width band of it lifted the row above the bubbles standing on it. */
   /* WARN: `primary`'s channels at an alpha, and the transparency is load-bearing rather than a shade: § 7.16.'s wallpaper is under this row, and an opaque fill blots it out for the length of the flash. */
   /* WARN: The channels are written out rather than mixed off `var(--color-primary)`. Tailwind rewrites a `var()` inside `color-mix` into an `@supports` pair and inlines the **light** primary as the fallback — in the `.dark` copy as well, which is a light wash on the dark floor wherever that test fails. Moving `primary` moves both copies by hand. */
   --color-message-flash: rgb(182 92 78 / 0.1);
+  /* WARN: The same hue at zero alpha, which is what the animation fades from and to — never the keyword `transparent`, which computes to `rgba(0,0,0,0)` so an engine interpolating un-premultiplied walks both ramps through black. § 4.1. keeps every neutral off `#000000` precisely because a black wash reads as a hole. */
+  --color-message-flash-out: rgb(182 92 78 / 0);
 
   /* INFO: Event colours — DESIGN.md § 4.1.7. A closed set; `primary` is deliberately not in it. */
   --color-event-clay: #c97b5a;
@@ -342,9 +344,11 @@
   --color-unread: #d2795f;
   /* INFO: DESIGN.md § 4.1.4. A dark amber rather than the light one — the hit sits behind `ink`, so the fill has to stay below the text it marks. */
   --color-search-hit: #4a3a18;
-  /* INFO: DESIGN.md § 6.8. This theme's `primary` channels at the same alpha, not a re-derived tint. 10% lands at a 1.12 contrast ratio against the floor on both themes — the flare term dominates that close to black — so the wash keeps its weight without being re-measured. */
+  /* INFO: DESIGN.md § 6.10. This theme's `primary` channels at the same alpha, not a re-derived tint. 10% lands at a 1.12 contrast ratio against the floor on both themes — the flare term dominates that close to black — so the wash keeps its weight without being re-measured. */
   /* WARN: Alpha and not an opaque hex, unlike `primary-tint` and `search-hit` above. § 7.16.'s wallpaper shows through this row, so the one thing this token may never become is a plate. */
   --color-message-flash: rgb(210 121 95 / 0.1);
+  /* WARN: This theme's channels at zero alpha, for the reason the light entry gives — the keyword `transparent` would fade both ends through black. */
+  --color-message-flash-out: rgb(210 121 95 / 0);
 
   /* INFO: DESIGN.md § 4.1.7. Lifted as a set, so the six stay distinguishable from each other as well as from the canvas. */
   --color-event-clay: #d98f6e;
