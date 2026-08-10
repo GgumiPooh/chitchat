@@ -250,7 +250,7 @@
   --bar-float-gap: 4px;
   /* WARN: DESIGN.md § 3.3. The same clearance at the **top** edge, where the status bar needs more of it than the toolbar does below. Not a visual choice either, and lowering it puts the opaque bars back. */
   --chrome-edge-gap: 6px;
-  /* INFO: DESIGN.md § 3.3. The two lifts every `fixed` bar is held at, so the clearance cannot drift between the header and the bars. `ChatScreen` reads neither — it is deliberately flush to both edges (§ 3.4.), and pays for the keyboard with chrome Safari tints from `--chat-chrome-tint` instead. */
+  /* INFO: DESIGN.md § 3.3. The two lifts every `fixed` bar is held at, so the clearance cannot drift between the header and the bars. `ChatScreen` reads neither — it is deliberately flush to both edges (§ 3.4.), and pays for the keyboard with chrome Safari tints from its own wallpaper tint instead. */
   /* WARN: DESIGN.md § 3.4. The pan WebKit performs to reveal a focused field, and `0px` at every other moment — which is **not** what `--viewport-top` is, so nothing may substitute the raw property for this one. */
   --keyboard-pan: 0px;
   --header-lift: calc(env(safe-area-inset-top) + var(--chrome-edge-gap) + var(--keyboard-pan));

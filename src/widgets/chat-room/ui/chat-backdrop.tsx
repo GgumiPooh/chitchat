@@ -11,7 +11,7 @@ export type ChatBackdropProps = {
    * REQUIREMENTS.md § 9. The wallpaper's stored hash, and the largest asset any
    * screen loads — so it is the one placeholder a reader spends real time on.
    *
-   * WARN: § 12.2. It is also the hash `useChromeTint` has already published a colour
+   * WARN: § 12.2. It is also the hash `toChromeTint` has already drawn a colour
    * from. Withheld here, the two bars are tinted with the photo while the screen they
    * border is still flat `chat-canvas` — the shade-off-the-room failure DESIGN.md
    * § 3.3. exists to prevent, for the whole of the download.
@@ -50,7 +50,7 @@ export function ChatBackdrop({ className, mediaId, blurhash }: ChatBackdropProps
       {/* WARN: No skeleton. The flat `chat-canvas` *is* the room's own floor, so a load that has not landed reads as a wallpaper that was never set; a pulsing plate the size of the screen behind the conversation is louder than the swap it covers. The hash below is the opposite case and replaces it outright (DESIGN.md § 7.8.) — it is the photo rather than a plate over it. */}
       {/* WARN: DESIGN.md § 3.4. The **large** viewport, and top-anchored — the one thing in the shell that must not follow the keyboard. Sized to the shell it is `object-cover` over a box that loses a third of its height, so every frame of the keyboard sliding re-crops and rescales the wallpaper behind the conversation. Held at its resting height it is simply clipped by the box above, and the photo does not move at all. */}
       {/* WARN: `lvh` and not the visual viewport, `dvh`, or `documentElement.clientHeight` — a keyboard moves every one of those on one engine or the other, `dvh` and the layout viewport under Chromium's `interactive-widget=resizes-content` (which this app sets). */}
-      {/* WARN: No `crossOrigin`, and never again. It existed only to feed a canvas read of this photo's average colour, which `useChromeTint` now takes off the § 9. blurhash instead — and in CORS mode a bucket whose rules do not name this origin turns a lost tint into a lost *wallpaper*, because the image errors and `PreloadImage` falls to its failure state. It also cost the § 12.2. preload, which asks for the plain response: the two are cached separately, so the room downloaded the full-size photo twice. */}
+      {/* WARN: No `crossOrigin`, and never again. It existed only to feed a canvas read of this photo's average colour, which `toChromeTint` now takes off the § 9. blurhash instead — and in CORS mode a bucket whose rules do not name this origin turns a lost tint into a lost *wallpaper*, because the image errors and `PreloadImage` falls to its failure state. It also cost the § 12.2. preload, which asks for the plain response: the two are cached separately, so the room downloaded the full-size photo twice. */}
       <PreloadImage
         className="absolute inset-x-0 top-0 h-[100lvh]"
         imgClassName="size-full object-cover"
@@ -61,7 +61,7 @@ export function ChatBackdrop({ className, mediaId, blurhash }: ChatBackdropProps
         alt=""
       />
       {/* INFO: The wash stays on the visible box rather than on the photo — it is answering for the contrast of what is on screen (DESIGN.md § 4.1.), not for the part of the wallpaper the keyboard has covered. */}
-      {/* WARN: `useChromeTint` carries this same 45%, because the colour bordering iOS 26's chrome is the photo under this wash and not the photo. Changing it here alone leaves the status bar a shade off the room it is meant to disappear into. */}
+      {/* WARN: `toChromeTint` carries this same 45%, because the colour bordering iOS 26's chrome is the photo under this wash and not the photo. Changing it here alone leaves the status bar a shade off the room it is meant to disappear into. */}
       <div className="absolute inset-0 bg-chat-scrim/45" />
     </div>
   );

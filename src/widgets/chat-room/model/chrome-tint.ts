@@ -1,8 +1,4 @@
-"use client";
-
-import { useIsomorphicLayoutEffect, type Maybe, type Optional } from "@/shared/lib";
-
-const TINT_PROPERTY = "--chat-chrome-tint";
+import type { Maybe, Optional } from "@/shared/lib";
 
 // INFO: The wire format. A blurhash is `[size flag][max value][4 chars of DC][2 chars per AC component]`, so the average colour is characters 2–5 and nothing after them is read here.
 const DC_START = 2;
@@ -17,47 +13,18 @@ const BYTE_MASK = 0xff;
 const WASH_AMOUNT = "45%";
 
 /**
- * REQUIREMENTS.md § 12.2. Publishes the wallpaper's own colour as
- * `--chat-chrome-tint`, which `ChatScreen` paints itself with — that box is the one
+ * REQUIREMENTS.md § 12.2. The wallpaper's own colour, composited under the wash it is
+ * seen through, for `ChatScreen` to wear as its own background — that box is the one
  * iOS 26 Safari samples its status bar and toolbar from while the room is on screen
  * (DESIGN.md § 3.3.), since it covers `body` entirely.
  *
- * INFO: The hash, never the photo. A blurhash's DC term *is* the image's average
- * colour, so this is string arithmetic on a value the shell was already seeded with.
- * The canvas read it replaced cost a second full-size download, published nothing
- * until that download had decoded — the chrome visibly changed colour under the
- * reader — and was subject to a CORS check `/api/media/{id}`'s redirect into R2
- * answers differently cold and warm, so it failed on a refresh and worked after a
- * route change.
- */
-export function useChromeTint(blurhash: Maybe<string>) {
-  const tint = toWashedAverage(blurhash);
-
-  // WARN: A layout effect, so the tint is in place for the frame the room first paints. Passive, it lands after it, which on a route change into 채팅 is the flat `chat-canvas` chrome flashing before the wallpaper's colour.
-  useIsomorphicLayoutEffect(() => {
-    if (!tint) {
-      return;
-    }
-
-    document.documentElement.style.setProperty(TINT_PROPERTY, tint);
-
-    // WARN: Cleared on the way out, not left standing. The property lives on the root, so unsetting the wallpaper without leaving the room — or leaving the room at all — would otherwise keep every other screen's chrome tinted with a photo that is behind nothing.
-    return () => {
-      document.documentElement.style.removeProperty(TINT_PROPERTY);
-    };
-  }, [tint]);
-}
-
-/**
- * The photo's average colour, composited under the wash it is seen through.
+ * INFO: The hash, never the photo. A blurhash's DC term *is* the image's average colour, so this is string arithmetic on a value the shell was already seeded with.
  *
- * WARN: A `color-mix` against the live token rather than three numbers, and that is
- * the whole reason the composite is expressed in CSS. `--color-chat-scrim` moves
- * with the theme (DESIGN.md § 5.2.), so a value resolved here is baked against
- * whichever theme was up when the wallpaper landed — and a theme swapped while the
- * room is on screen fires no signal this could recompute on.
+ * WARN: A plain function called during the render, never an effect, and that is what makes a cold launch right. iOS 26 samples the chrome at the first paint and re-samples for nothing afterwards (DESIGN.md § 3.3.), so a tint published after hydration reaches an element Safari has already read — the status bar keeps the untinted colour for the whole session.
+ *
+ * WARN: A `color-mix` against the live token rather than three resolved numbers. `--color-chat-scrim` moves with the theme (DESIGN.md § 5.2.), so a value resolved here is baked against whichever theme was up when the wallpaper landed — and a theme swapped while the room is on screen fires no signal this could recompute on.
  */
-function toWashedAverage(blurhash: Maybe<string>): Optional<string> {
+export function toChromeTint(blurhash: Maybe<string>): Optional<string> {
   const average = toAverageColor(blurhash);
 
   if (!average) {

@@ -11,7 +11,7 @@ export type ChatBackground = {
   /**
    * REQUIREMENTS.md § 9. The object's stored hash, carried beside the id because its
    * DC term is the photo's average colour — which is what the chat route's chrome is
-   * tinted with (§ 12.2., `useChromeTint`) without downloading anything.
+   * tinted with (§ 12.2., `toChromeTint`) without downloading anything.
    */
   blurhash: Nullable<string>;
 };

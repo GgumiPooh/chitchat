@@ -49,7 +49,7 @@ export type ChatStreamValue = {
   chatBackgroundMediaId: Nullable<string>;
   /**
    * REQUIREMENTS.md § 12.2. The wallpaper's stored hash, whose DC term is the photo's
-   * average colour — what the chat route's chrome is tinted with (`useChromeTint`).
+   * average colour — what the chat route's chrome is tinted with (`toChromeTint`).
    *
    * WARN: It rides beside the id rather than being derived from it, because the only
    * other way to the average is downloading the photo and reading a canvas — which is

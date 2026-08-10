@@ -931,7 +931,7 @@ export function ChatRoom({
   return (
     // INFO: DESIGN.md § 3.5. One scroll region spanning the whole screen; the composer and the tab bar float over its bottom edge rather than shortening it.
     // INFO: REQUIREMENTS.md § 9.2. The drop target is the whole room, so a file dragged anywhere over the conversation stages rather than having to find the composer.
-    // INFO: REQUIREMENTS.md § 12.2. `bg-chat-canvas` covers `ChatScreen`'s `--chat-chrome-tint` completely and is meant to — that box is sampled for its computed `background-color`, not for what is visible, so the room's own floor is free to be the flat surface every colour in it was designed against.
+    // INFO: REQUIREMENTS.md § 12.2. `bg-chat-canvas` covers `ChatScreen`'s wallpaper tint completely and is meant to — that box is sampled for its computed `background-color`, not for what is visible, so the room's own floor is free to be the flat surface every colour in it was designed against.
     <div
       ref={containerRef}
       className={cn("relative min-h-0 flex-1 bg-chat-canvas", className)}
