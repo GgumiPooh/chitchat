@@ -1,0 +1,161 @@
+# INFO: The only workflow in this repository, and a data refresh rather than a PR gate (REQUIREMENTS.md § 11.7.).
+name: Refresh the 공휴일 table
+
+on:
+  schedule:
+    # INFO: 00:20 UTC = 09:20 KST on the 1st; monthly because an 임시공휴일 is decreed with weeks of notice (REQUIREMENTS.md § 11.7.).
+    - cron: "20 0 1 * *"
+  workflow_dispatch:
+
+# INFO: Empty here so a job added later starts with nothing; the one job below takes only what it pushes with.
+permissions: {}
+
+concurrency:
+  group: holidays
+  cancel-in-progress: false
+
+env:
+  TABLE: src/shared/lib/date/holiday-table.ts
+
+jobs:
+  refresh:
+    name: Regenerate and propose
+    # INFO: A fork inherits the schedule but not the secret, so it would fail every month for its owner.
+    if: github.repository == 'GgumiPooh/jandh'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # INFO: contents to push the branch, pull-requests to open the PR; nothing else is reachable from GITHUB_TOKEN.
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Require the service key
+        env:
+          DATA_GO_KR_SERVICE_KEY: ${{ secrets.DATA_GO_KR_SERVICE_KEY }}
+        run: |
+          if [ -z "$DATA_GO_KR_SERVICE_KEY" ]; then
+            echo "::error::DATA_GO_KR_SERVICE_KEY is not set. Add the 공공데이터포털 특일 정보 (한국천문연구원) 일반 인증키 under Settings -> Secrets and variables -> Actions. Either copy works — the script decodes an encoded key itself."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      # WARN: pnpm must be installed before setup-node, or `cache: pnpm` cannot find the store.
+      # INFO: No version input, so the action takes the pin from package.json's packageManager field.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Regenerate the table
+        env:
+          DATA_GO_KR_SERVICE_KEY: ${{ secrets.DATA_GO_KR_SERVICE_KEY }}
+        run: pnpm holidays
+
+      - name: Summarise the change
+        id: summary
+        run: |
+          set -euo pipefail
+
+          if [ -z "$(git status --porcelain -- "$TABLE")" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "특일 정보 agrees with the committed table. Nothing to propose." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+          # INFO: Staged under the pathspec, so an untracked table still reaches the diff and nothing else can ride into the PR.
+          git add -- "$TABLE"
+
+          work="$RUNNER_TEMP/holidays"
+          mkdir -p "$work"
+          git diff --cached -U0 -- "$TABLE" > "$work/table.diff"
+
+          # INFO: One entry is one line, so the day key on each side of the diff is the whole classification.
+          entry='"\([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\)":[[:space:]]*\(.*\)$'
+          sed -n "s/^+[[:space:]]*$entry/\1 \2/p" "$work/table.diff" | sed 's/,$//' | sort > "$work/new.txt"
+          sed -n "s/^-[[:space:]]*$entry/\1 \2/p" "$work/table.diff" | sed 's/,$//' | sort > "$work/old.txt"
+          cut -d' ' -f1 "$work/new.txt" > "$work/new.keys"
+          cut -d' ' -f1 "$work/old.txt" > "$work/old.keys"
+          comm -23 "$work/new.keys" "$work/old.keys" > "$work/added.keys"
+          comm -13 "$work/new.keys" "$work/old.keys" > "$work/removed.keys"
+          comm -12 "$work/new.keys" "$work/old.keys" > "$work/changed.keys"
+
+          body="$work/pr-body.md"
+          {
+            echo "\`pnpm holidays\` regenerated \`$TABLE\` from 공공데이터포털 특일 정보 (한국천문연구원)."
+            echo
+            echo "**Read the dates before merging.** An added one is either a real 임시공휴일 or a bad response, and the 대체공휴일 back-inference is only checkable by a reader (REQUIREMENTS.md § 11.7.)."
+            echo
+          } > "$body"
+
+          value() { awk -v key="$1" '$1 == key { sub(/^[^ ]* /, ""); print; exit }' "$2"; }
+
+          section() {
+            local heading="$1" keys="$2" from="$3" to="$4" day
+            [ -s "$keys" ] || return 0
+            printf '### %s (%s)\n\n' "$heading" "$(wc -l < "$keys" | tr -d ' ')" >> "$body"
+            while IFS= read -r day; do
+              if [ -n "$from" ]; then
+                printf -- "- \`%s\` %s → %s\n" "$day" "$(value "$day" "$from")" "$(value "$day" "$to")" >> "$body"
+              else
+                printf -- "- \`%s\` %s\n" "$day" "$(value "$day" "$to")" >> "$body"
+              fi
+            done < "$keys"
+            echo >> "$body"
+          }
+
+          section "Added" "$work/added.keys" "" "$work/new.txt"
+          section "Removed" "$work/removed.keys" "" "$work/old.txt"
+          section "Changed" "$work/changed.keys" "$work/old.txt" "$work/new.txt"
+
+          # INFO: The PR's own Files tab carries the diff, so the body states only what the day keys cannot.
+          {
+            echo '```'
+            git diff --cached --stat
+            echo '```'
+          } >> "$body"
+
+          cat "$body" >> "$GITHUB_STEP_SUMMARY"
+
+      # WARN: gh needs "Allow GitHub Actions to create and approve pull requests" enabled under Settings -> Actions -> General, or pr create 403s.
+      - name: Open a pull request
+        if: steps.summary.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          title="chore: refresh the 공휴일 table from 특일 정보"
+          branch="chore/holidays-$(TZ=Asia/Seoul date +%Y-%m)"
+          body="$RUNNER_TEMP/holidays/pr-body.md"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "$title" -m "Generated by .github/workflows/holidays.yml (REQUIREMENTS.md § 11.7.)."
+
+          # WARN: The force-push below is only ever safe over this bot's own commit — a reviewer's correction on the branch would vanish silently.
+          if [ -n "$(git ls-remote --heads origin "$branch")" ]; then
+            git fetch --depth=1 origin "$branch"
+            author=$(git log -1 --format='%an' FETCH_HEAD)
+            if [ "$author" != "github-actions[bot]" ]; then
+              pr=$(gh pr view "$branch" --json url --jq .url 2>/dev/null || true)
+              echo "::error::$branch has a commit by $author on top, so this run will not force-push over it. Land or drop that commit, then re-run.${pr:+ It is on $pr.}"
+              exit 1
+            fi
+          fi
+          git push --force origin "HEAD:refs/heads/$branch"
+
+          # INFO: Two runs in one month share the branch, so the second refreshes the open PR rather than failing on a duplicate.
+          if [ -z "$(gh pr list --head "$branch" --state open --json number --jq '.[].number')" ]; then
+            url=$(gh pr create --base "$BASE" --head "$branch" --title "$title" --body-file "$body")
+          else
+            gh pr edit "$branch" --title "$title" --body-file "$body"
+            url=$(gh pr view "$branch" --json url --jq .url)
+          fi
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
