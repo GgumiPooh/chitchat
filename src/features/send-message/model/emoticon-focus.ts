@@ -16,14 +16,19 @@ export const FOCUS_INDEX_ATTRIBUTE = "data-emoticon-focus";
 const REVEAL_MARGIN = 8;
 
 /**
- * REQUIREMENTS.md § 8.14. Where an arrow key takes focus next, or `undefined` where
- * the key is not one this scroller owns.
+ * REQUIREMENTS.md § 8.14. Where an arrow key takes focus next **inside this list**, or
+ * `undefined` where the key leads out of it and the caller has to say where to.
  *
  * INFO: ARIA's grid pattern — focus **stops** at the edges rather than wrapping, so a
  * partial last row does not swallow `ArrowDown` into the row above it.
  *
+ * WARN: § 8.14. A horizontal step never leaves its **row**, which is the stricter of
+ * the two readings the grid pattern allows and the one the panel needs: `→` off the
+ * fourth cell means the next pack, not the fifth cell, so the row's end has to be a
+ * refusal here rather than a wrap into the row below.
+ *
  * @param columns `1` for a single row — § 13.8.'s results and the tab strip — where
- * the vertical arrows have nowhere to go and are left to the caller.
+ * the whole list is one row and the vertical arrows are left to the caller.
  */
 export function toNextFocusIndex(
   key: string,
@@ -44,9 +49,9 @@ function toCandidateIndex(
 ): Optional<number> {
   switch (key) {
     case "ArrowRight":
-      return index + 1;
+      return isRowEnd({ index, count, columns }) ? undefined : index + 1;
     case "ArrowLeft":
-      return index - 1;
+      return isRowStart({ index, columns }) ? undefined : index - 1;
     case "ArrowDown":
       return columns > 1 ? index + columns : undefined;
     case "ArrowUp":
@@ -58,6 +63,51 @@ function toCandidateIndex(
     default:
       return undefined;
   }
+}
+
+/**
+ * INFO: § 8.14. `columns === 1` is a single **row**, not a column of one-cell rows —
+ * § 13.8.'s results and the tab strip — so its row runs the whole length of the list.
+ */
+function isRowStart({ index, columns }: { index: number; columns: number }): boolean {
+  return columns === 1 ? index === 0 : index % columns === 0;
+}
+
+function isRowEnd({
+  index,
+  count,
+  columns,
+}: {
+  index: number;
+  count: number;
+  columns: number;
+}): boolean {
+  return columns === 1 ? index === count - 1 : (index + 1) % columns === 0;
+}
+
+/**
+ * REQUIREMENTS.md § 8.14. Where `←`/`→` off the end of a row lands in the pack it
+ * turns to: the **same row, opposite edge**, so the offset and the eye both stay put.
+ *
+ * INFO: A single row turns to the opposite end of the whole list instead, since that
+ * row *is* the list.
+ */
+export function toCrossingIndex({
+  index,
+  columns,
+  direction,
+}: {
+  index: number;
+  columns: number;
+  direction: 1 | -1;
+}): number | "last" {
+  if (columns === 1) {
+    return direction === 1 ? 0 : "last";
+  }
+
+  const rowStart = index - (index % columns);
+
+  return direction === 1 ? rowStart : rowStart + columns - 1;
 }
 
 /** Which item an event started on, or `undefined` for one that started somewhere else. */

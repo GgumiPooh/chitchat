@@ -95,3 +95,8 @@ export function toCommandKeyLabel(): CommandKeyLabel {
 export function toAltKeyLabel(): "⌥" | "Alt" {
   return usesMetaKey() ? "⌥" : "Alt";
 }
+
+/** How this platform writes `Shift`, which only `⌘⇧E` spells out (`REQUIREMENTS.md § 8.14.`). */
+export function toShiftKeyLabel(): "⇧" | "Shift" {
+  return usesMetaKey() ? "⇧" : "Shift";
+}

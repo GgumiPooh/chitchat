@@ -46,7 +46,9 @@ import {
   buildFadeMask,
   cn,
   composeEventNotice,
+  isDormant,
   stopVoice,
+  subscribeDormancy,
   useIsVirtualKeyboardOpen,
   useIsomorphicLayoutEffect,
   useSettledCommit,
@@ -95,6 +97,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
   type RefObject,
   type TransitionEvent,
@@ -244,6 +247,9 @@ export function ChatRoom({
   const [composerFocusRequest, setComposerFocusRequest] = useState(0);
   // INFO: REQUIREMENTS.md § 8.14. The same token for the panel, bumped by ⌘E — an opened panel nothing has focused is one the arrow keys cannot reach.
   const [pickerFocusRequest, setPickerFocusRequest] = useState(0);
+  // INFO: REQUIREMENTS.md § 8.14. Whether § 8.4.1.'s overlay is up, so waking from it can put focus back where it took it from.
+  const isSleeping = useSyncExternalStore(subscribeDormancy, isDormant, () => false);
+  const wasSleepingRef = useRef(false);
   const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
   const { remember: rememberEmoticon } = useRecentEmoticons();
   const setBackground = useSetBackground();
@@ -697,8 +703,7 @@ export function ChatRoom({
     onGoToNewest: () => void goToNewest(),
     onShowShortcuts: () => setIsShortcutHelpOpen(true),
     onToggleEmoticonPanel: toggleEmoticonPanel,
-    // INFO: § 8.14. No word to seed it with — the composer owns the draft (§ 8.6.), and it is not the thing focused here.
-    onOpenEmoticonSearch: () => openEmoticonSearch(""),
+    onOpenEmoticonSearch: toggleEmoticonSearch,
     onScrollHistory: scrollHistory,
   });
 
@@ -939,6 +944,41 @@ export function ChatRoom({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /**
+   * REQUIREMENTS.md § 8.14. Puts focus back where 절전 모드 took it from.
+   *
+   * WARN: § 8.4.1. The overlay takes focus on mount precisely so keystrokes cannot
+   * reach the composer behind it, and it restores nothing on the way out — so waking
+   * left focus on `<body>`, where every shortcut this room owns is refused and the
+   * panel's arrows reach nothing. The panel wins when it is open, because that is the
+   * thing the reader was in the middle of.
+   *
+   * INFO: Keyed on the wake rather than on every change, so a room that was never
+   * asleep never moves focus. `useSyncExternalStore` because the flag is module state
+   * `shared/api`'s request gate reads without a hook (§ 8.4.1.).
+   */
+  useEffect(() => {
+    if (isSleeping) {
+      wasSleepingRef.current = true;
+
+      return;
+    }
+
+    if (!wasSleepingRef.current) {
+      return;
+    }
+
+    wasSleepingRef.current = false;
+
+    if (isEmoticonPanelOpen) {
+      setPickerFocusRequest((token) => token + 1);
+    } else {
+      focusComposer();
+    }
+    // WARN: Keyed on the wake alone. `focusComposer` and the panel flag change on their own account all the time, and re-running on either would seize focus from whatever the reader had reached for since.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSleeping]);
 
   // INFO: DESIGN.md § 6.8. The flash is a moment, not a selection — nothing dismisses it but time.
   useEffect(() => {
@@ -1443,6 +1483,27 @@ export function ChatRoom({
   }
 
   /**
+   * REQUIREMENTS.md § 8.14. `⌘⇧E` — § 13.8.'s search, or away again if it is what is
+   * already on screen.
+   *
+   * WARN: The toggle is here rather than in the panel, and that is why the panel no
+   * longer answers this key at all. Whether 검색 is the tab on screen is this room's
+   * state, so a copy inside `EmoticonPicker` could only ever open and never close.
+   *
+   * INFO: § 8.6. No word to seed it with — the composer owns the draft and is not what
+   * is focused when this fallback is reached.
+   */
+  function toggleEmoticonSearch() {
+    if (isEmoticonPanelOpen && isEmoticonSearchTab) {
+      peelComposerStack();
+
+      return;
+    }
+
+    openEmoticonSearch("");
+  }
+
+  /**
    * REQUIREMENTS.md § 8.14. `⌥↑` / `⌥↓` — the conversation, a step at a time.
    *
    * WARN: `hasTakenScrollRef` is set by hand here. § 8.3.'s park is released by a real
@@ -1450,9 +1511,16 @@ export function ChatRoom({
    * with focus in the composer never reaches. Left unset, the next arrival would drag
    * the reader back to the live edge they had just scrolled away from.
    *
-   * WARN: Instant, not smooth. This key repeats while it is held, and a smooth scroll
-   * per repeat compounds into a lurch that outlives the press — which is § 13.6.'s
-   * argument against `behavior: "smooth"` in this room, arriving by a second route.
+   * INFO: Smooth, and § 13.6.'s refusal of `behavior: "smooth"` does not reach here.
+   * That one is about an animation running **across** the emoticon panel's collapse,
+   * which changes the content size underneath it; this runs across nothing, and § 8.3.'s
+   * prepend is held back until the scroller has been still for `SETTLE_DELAY` — so the
+   * page that would change the content size lands after the animation rather than under
+   * it.
+   *
+   * INFO: A repeat aborts the animation in flight and starts a new one from wherever it
+   * had reached, so a held key reads as one glide rather than a queue of jumps that
+   * outlives the press.
    */
   function scrollHistory(direction: -1 | 1) {
     const scroller = scrollerRef.current;
@@ -1462,7 +1530,10 @@ export function ChatRoom({
     }
 
     hasTakenScrollRef.current = true;
-    scroller.scrollBy({ top: scroller.clientHeight * HISTORY_SCROLL_STEP * direction });
+    scroller.scrollBy({
+      top: scroller.clientHeight * HISTORY_SCROLL_STEP * direction,
+      behavior: "smooth",
+    });
   }
 
   /**

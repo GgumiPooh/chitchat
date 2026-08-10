@@ -1,6 +1,6 @@
 "use client";
 
-import { toAltKeyLabel, toCommandKeyLabel } from "@/shared/lib";
+import { toAltKeyLabel, toCommandKeyLabel, toShiftKeyLabel } from "@/shared/lib";
 import { Modal } from "@/shared/ui";
 
 export type ShortcutHelpProps = {
@@ -22,8 +22,9 @@ export type ShortcutHelpProps = {
 export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) {
   // INFO: § 8.14. Read in the render rather than through a hook, because a closed `Modal` renders nothing at all — there is no server HTML for the label to disagree with.
   const command = toCommandKeyLabel();
-  // INFO: § 8.14. One physical key, two names — `⌥` on a Mac and `Alt` everywhere else.
+  // INFO: § 8.14. One physical key, two names — `⌥` on a Mac and `Alt` everywhere else. `⇧`/`Shift` is the same, and a glyph nobody outside macOS reads is worse than no sheet at all.
   const alt = toAltKeyLabel();
+  const shift = toShiftKeyLabel();
 
   return (
     <Modal
@@ -44,7 +45,7 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
         {/* INFO: § 8.14. The strip, the grid and the field are one surface to the reader, so the sheet says 방향키 once rather than naming each edge between them — the edges are what the arrows do, not something to be learnt separately. */}
         {renderGroup("이모티콘", [
           { keys: [command, "E"], label: "이모티콘 패널 열기 / 닫기" },
-          { keys: [command, "⇧", "E"], label: "이모티콘 검색" },
+          { keys: [command, shift, "E"], label: "이모티콘 검색" },
           { keys: ["←", "→", "↑", "↓"], label: "패널 안에서 이동" },
           { keys: ["Enter"], label: "담기, 두 번 누르면 보내기" },
           { keys: ["Esc"], label: "닫기, 담은 이모티콘 취소" },

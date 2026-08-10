@@ -1,4 +1,4 @@
-export { isDormant, setDormant } from "./activity/dormancy";
+export { isDormant, setDormant, subscribeDormancy } from "./activity/dormancy";
 export { hasUnsentWork, holdUnsentWork, useUnsentWork } from "./activity/unsent-work";
 export { markZoneDeparture, takeZoneDeparture } from "./activity/zone-departure";
 export { AssertionError, assert, ensure } from "./assert";
@@ -95,6 +95,7 @@ export {
   isLetterKey,
   toAltKeyLabel,
   toCommandKeyLabel,
+  toShiftKeyLabel,
   type CommandKeyLabel,
 } from "./input/keyboard";
 export type { Maybe, Nullable, Optional } from "./nullish";

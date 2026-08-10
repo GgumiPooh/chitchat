@@ -372,7 +372,13 @@ export function MessageComposer({
     }
 
     // WARN: REQUIREMENTS.md § 8.14. Withheld while correcting, exactly as the underline is — the panel this opens stages a payload § 8.13.'s edit has no row for.
-    if (isCommandShiftKey(event) && isLetterKey(event, "e") && !isEditing) {
+    // WARN: § 8.14. And withheld while the panel is up, so the room's copy answers instead and the key **closes**. Seeding a search from here is only ever the way *in*; there is nothing about a panel already on screen for this field to say.
+    if (
+      isCommandShiftKey(event) &&
+      isLetterKey(event, "e") &&
+      !isEditing &&
+      !isEmoticonPickerOpen
+    ) {
       event.preventDefault();
       openEmoticonSearch(match?.query ?? null);
 

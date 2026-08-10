@@ -2,16 +2,7 @@
 
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import { MAX_KEYWORD_QUERY_LENGTH, toEmoticonAssetUrl } from "@/shared/config";
-import {
-  A_SECOND,
-  cn,
-  isBareKey,
-  isCommandKey,
-  isCommandShiftKey,
-  isLetterKey,
-  type Nullable,
-  type Optional,
-} from "@/shared/lib";
+import { A_SECOND, cn, isBareKey, isCommandKey, type Nullable, type Optional } from "@/shared/lib";
 import { EmptyState, HapticTarget, Input, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Search, Smile } from "lucide-react";
@@ -35,6 +26,7 @@ import {
   focusItem,
   readFocusIndex,
   revealWithin,
+  toCrossingIndex,
   toNextFocusIndex,
 } from "../model/emoticon-focus";
 import { ACTIVE_TAB_KEY, RECENTS_TAB, SEARCH_TAB, isPackTabId } from "../model/emoticon-tabs";
@@ -56,6 +48,23 @@ const NO_ITEMS: Emoticon[] = [];
 
 // INFO: § 13.9.1. One sentence for the two places a failed search is said — an empty pane, and the caption under a § 13.9. row that holds the tapped item and nothing the words found.
 const SEARCH_FAILED_MESSAGE = "검색하지 못했어요";
+
+/** REQUIREMENTS.md § 8.14. A tab, the cell focus is to land on in it, and the offset to read it at. */
+type TabEntry = {
+  tab: string;
+  /** `"last"` for the entries that arrive from below, where the end of the list is the nearest cell. */
+  index: number | "last";
+  /**
+   * The offset the previous tab was read at, restored before the focus lands.
+   *
+   * WARN: § 8.14. Restored by hand rather than left to the scroller, which keeps its
+   * own offset only while it has something to hold it up: a cold pack draws nothing
+   * for a round trip (§ 13.6.), and the browser clamps the offset to a content height
+   * that is briefly zero. Absent for the entries that arrive from below, which are
+   * about to be scrolled to the end anyway.
+   */
+  scrollTop?: number;
+};
 
 /**
  * REQUIREMENTS.md § 8.14. The focus ring, on plain `:focus`, for as long as this panel
@@ -214,8 +223,18 @@ export function EmoticonPicker({
   // INFO: § 8.14. Whichever scroller currently holds the cells — the grid, or § 13.8.'s results row. One ref because the two are branches of the same ternary and never coexist.
   const cellScrollerRef = useRef<Nullable<HTMLDivElement>>(null);
   const searchFieldRef = useRef<Nullable<HTMLInputElement>>(null);
-  // INFO: § 8.14. The last `focusRequest` something actually took the focus for, so a request still waiting on a cold pack's cells is told apart from one already answered.
+  // INFO: § 8.14. The last `focusRequest` that has been turned into a `pendingEntryRef`, so one already acted on is told apart from a new one.
   const satisfiedFocusRequestRef = useRef(0);
+  /**
+   * REQUIREMENTS.md § 8.14. Where focus is to land once the tab it names has cells to
+   * land on, and the offset that tab is to be read at.
+   *
+   * WARN: A request that outlives the render that made it, because a pack is a round
+   * trip from being drawn (§ 13.6.) — and it names its tab, so one still waiting when
+   * the user has moved on is dropped rather than taking focus on a tab they did not
+   * ask for.
+   */
+  const pendingEntryRef = useRef<Nullable<TabEntry>>(null);
   const [slideFrom, setSlideFrom] = useState<SwipeDirection>(1);
   const lastTapRef = useRef<Nullable<{ at: number; id: string }>>(null);
   const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
@@ -339,20 +358,30 @@ export function EmoticonPicker({
    * the caret back out of the field.
    */
   useLayoutEffect(() => {
-    if (focusRequest === 0 || focusRequest === satisfiedFocusRequestRef.current) {
-      return;
-    }
-
-    if (!isOpen) {
-      return;
-    }
-
-    if (focusTabContent()) {
+    if (focusRequest !== 0 && focusRequest !== satisfiedFocusRequestRef.current) {
       satisfiedFocusRequestRef.current = focusRequest;
+      pendingEntryRef.current = { tab: activeTab, index: "last" };
     }
-    // WARN: `focusTabContent` is deliberately not a dependency. It closes over this render's tab and list, which is exactly what the deps below already state — listed, it would re-run the focus on every render of an open panel.
+
+    const entry = pendingEntryRef.current;
+
+    if (!entry) {
+      return;
+    }
+
+    // WARN: § 8.14. Dropped on a tab that is no longer the one asked for, and on a closed panel — reaching for the composer closes it (§ 13.6.), and a pack landing after that would pull the caret back out of the field.
+    if (!isOpen || entry.tab !== activeTab) {
+      pendingEntryRef.current = null;
+
+      return;
+    }
+
+    if (enterTab(entry)) {
+      pendingEntryRef.current = null;
+    }
+    // WARN: `enterTab` is deliberately not a dependency. It closes over this render's tab and list, which is exactly what the deps below already state — listed, it would re-run the focus on every render of an open panel.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusRequest, isOpen, shown.length]);
+  }, [activeTab, focusRequest, isOpen, shown.length]);
 
   // WARN: § 13.8. The room exempts this tab from § 13.6.'s keyboard gate, so it has to be told on every change — reported off the tab rather than off the field's focus, or the frame between a blur and the keyboard actually retracting closes the panel underneath the user.
   useEffect(() => {
@@ -369,7 +398,7 @@ export function EmoticonPicker({
         isSearching ? "h-(--emoticon-search-panel-height)" : "h-(--emoticon-panel-height)",
         className,
       )}
-      onKeyDown={handlePanelKeys}
+      onKeyDown={noteKeyboardUse}
       // WARN: § 8.14. Capture, because the results row stops `pointerdown` propagating while it still has somewhere to scroll (`keepAxisWhileScrollable`) — bubbled, the one scroller a drag most often starts in would never report the pointer taking over.
       onPointerDownCapture={() => setIsKeyboardDriven(false)}
     >
@@ -626,39 +655,16 @@ export function EmoticonPicker({
   }
 
   /**
-   * REQUIREMENTS.md § 8.14. The one shortcut that belongs to the panel as a whole,
-   * wherever inside it focus happens to be.
+   * REQUIREMENTS.md § 8.14. What the panel hears from every key pressed anywhere
+   * inside it, and the only thing it does with one.
    *
-   * WARN: `⌘⇧E` is deliberately **not** the composer's. There it seeds the field with
-   * the underlined word (§ 13.8.); here the field is already the thing the user is
-   * looking at, and re-seeding would wipe whatever they had typed into it. `⌘E` is not
-   * here at all — opening and closing this panel is the room's, from everywhere.
+   * INFO: § 8.14. Neither `⌘E` nor `⌘⇧E` is answered here, and both used to be. Both
+   * **toggle** now, and what each of them toggles — whether the panel is open, and
+   * whether 검색 is the tab on screen — is the room's state, so a copy in here could
+   * only ever open and never close.
    */
-  function handlePanelKeys(event: KeyboardEvent<HTMLDivElement>) {
-    // INFO: § 8.14. Before every branch below and independent of them — `keydown` bubbles here from the whole panel, so this is the one place that hears the keyboard take over whatever a pointer had been doing.
+  function noteKeyboardUse() {
     setIsKeyboardDriven(true);
-
-    // WARN: § 8.14. `isComposing` on every one of these. A Hangul IME owns the keystrokes that settle a syllable, and an `e` typed into 검색 arrives mid-composition.
-    if (event.defaultPrevented || event.nativeEvent.isComposing || !isCommandShiftKey(event)) {
-      return;
-    }
-
-    if (isLetterKey(event, "e")) {
-      event.preventDefault();
-      openSearchTab();
-    }
-  }
-
-  /** REQUIREMENTS.md § 8.14. ⌘E from inside the panel: the search tab, with the field ready to type into. */
-  function openSearchTab() {
-    // INFO: § 13.8. The pane focuses its own field as it mounts, so only the tab that is already up has one to reach for — which is the case ⌘E answers after a 따라하기, where that focus is deliberately withheld.
-    if (isSearching) {
-      searchFieldRef.current?.focus();
-
-      return;
-    }
-
-    selectTab(SEARCH_TAB);
   }
 
   /**
@@ -715,7 +721,41 @@ export function EmoticonPicker({
     if (event.key === "ArrowDown") {
       event.preventDefault();
       focusActiveTab();
+
+      return;
     }
+
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      crossToAdjacentTab(index, event.key === "ArrowRight" ? 1 : -1);
+    }
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.14. `←`/`→` off the end of a row turns the page: the pack
+   * beside this one, entered on the **same row at the opposite edge** and read at the
+   * same offset, so neither the eye nor the scroller moves for the turn.
+   *
+   * WARN: § 13.8. Not armed towards 검색, which claims the keyboard for its own field
+   * as it mounts — an entry would take that focus back out a moment later.
+   */
+  function crossToAdjacentTab(index: number, direction: SwipeDirection) {
+    const scrollTop = cellScrollerRef.current?.scrollTop;
+    const moved = goToAdjacentTab(direction);
+
+    if (moved === undefined || moved === SEARCH_TAB) {
+      return;
+    }
+
+    pendingEntryRef.current = {
+      tab: moved,
+      index: toCrossingIndex({
+        index,
+        columns: isSearching ? 1 : EMOTICON_GRID_COLUMNS,
+        direction,
+      }),
+      scrollTop,
+    };
   }
 
   /**
@@ -749,20 +789,41 @@ export function EmoticonPicker({
     }
   }
 
+  /** REQUIREMENTS.md § 8.14. `ArrowUp` off the strip, back into what the tab holds. */
+  function focusTabContent() {
+    enterTab({ tab: activeTab, index: "last" });
+  }
+
   /**
-   * REQUIREMENTS.md § 8.14. Out of the strip and back into what the tab holds, which
-   * is the other half of the `ArrowDown` that reached it.
+   * REQUIREMENTS.md § 8.14. Puts focus where a `TabEntry` asked for it, and reports
+   * whether it landed.
+   *
+   * INFO: § 8.14. `"last"` is every way in that arrives from **below** — the `ArrowUp`
+   * off the strip, and the `⌘E` that opened the panel — because the strip is the
+   * bottom of the panel and the composer is below the panel, so the cell nearest the
+   * eye is the one at the end. Landing at the head meant entering a grid by jumping
+   * over all of it.
+   *
+   * WARN: § 8.14. Clamped, which is what answers a pack shorter than the one turned
+   * away from: the row `→` was on may not exist here, so focus takes the nearest cell
+   * to it rather than nothing at all.
    */
-  function focusTabContent(): boolean {
+  function enterTab(entry: TabEntry): boolean {
     const scroller = cellScrollerRef.current;
 
-    if (scroller && shown.length > 0 && focusItem(scroller, Math.max(focusableIndex, 0))) {
-      return true;
+    if (scroller && shown.length > 0) {
+      if (entry.scrollTop !== undefined) {
+        scroller.scrollTop = entry.scrollTop;
+      }
+
+      const last = shown.length - 1;
+
+      return focusItem(scroller, entry.index === "last" ? last : Math.min(entry.index, last));
     }
 
     searchFieldRef.current?.focus();
 
-    // INFO: § 8.14. A pack tab with nothing drawn yet has nowhere to put focus, and says so — `focusRequest` waits for its cells rather than settling for `<body>`.
+    // INFO: § 8.14. A pack tab with nothing drawn yet has nowhere to put focus, and says so — the entry waits for its cells rather than settling for `<body>`.
     return isSearching;
   }
 
@@ -882,17 +943,21 @@ export function EmoticonPicker({
   }
 
   // INFO: REQUIREMENTS.md § 13.6. The ends do not wrap — 최근 사용 and the last pack are where the gesture stops, so a swipe never rotates past what the tabs show.
-  function goToAdjacentTab(direction: SwipeDirection) {
+  function goToAdjacentTab(direction: SwipeDirection): Optional<string> {
     // WARN: The remembered tab survives the pending state (see `activeTab`) while `tabIds` does not, so until the packs land it is in no list and every neighbour of it is the wrong one.
     if (activeIndex < 0) {
-      return;
+      return undefined;
     }
 
     const next = tabIds[activeIndex + direction];
 
-    if (next) {
-      selectTab(next);
+    if (!next) {
+      return undefined;
     }
+
+    selectTab(next);
+
+    return next;
   }
 }
 
