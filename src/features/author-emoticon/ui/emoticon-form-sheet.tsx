@@ -4,22 +4,14 @@ import type { Emoticon } from "@/entities/emoticon";
 import {
   EMOTICON_IMAGE_EDIT_OPTIONS,
   MediaEditor,
-  MediaPickerSheet,
+  useMediaPicker,
 } from "@/features/upload-media/@x/author-emoticon";
 import {
   ALLOWED_EMOTICON_AUDIO_MIMES,
   isAnimatableEmoticonMime,
   toEmoticonAssetUrl,
 } from "@/shared/config";
-import {
-  cn,
-  openFilePicker,
-  playSound,
-  stopSound,
-  type Maybe,
-  type Nullable,
-  type Optional,
-} from "@/shared/lib";
+import { cn, playSound, stopSound, type Maybe, type Nullable, type Optional } from "@/shared/lib";
 import {
   BottomSheet,
   Button,
@@ -30,7 +22,7 @@ import {
   toast,
 } from "@/shared/ui";
 import { ImagePlus, Music, Pencil, Play, X } from "lucide-react";
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useState } from "react";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
 import { createEmoticon, updateEmoticon } from "../api/write-emoticon";
 import { useEmoticonDraft } from "../model/use-emoticon-draft";
@@ -68,12 +60,19 @@ export function EmoticonFormSheet({
   onClose,
   onSaved,
 }: EmoticonFormSheetProps) {
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const audioRef = useRef<Nullable<HTMLInputElement>>(null);
   const draft = useEmoticonDraft();
   const { pickImage, setKeywords } = draft;
+  // INFO: REQUIREMENTS.md § 13.4. An item is one image and one sound, so each slot opens its own picker directly — neither has a second kind of file to offer a choice between.
+  const imagePicker = useMediaPicker({
+    accept: "image/*",
+    onSelect: (files) => files[0] && void draft.pickImage(files[0]),
+  });
+  const audioPicker = useMediaPicker({
+    accept: AUDIO_ACCEPT,
+    onSelect: (files) => files[0] && draft.pickAudio(files[0]),
+  });
   const previewUrl = draft.image?.previewUrl ?? toExistingImageUrl(emoticon);
   const audioUrl = draft.audio?.previewUrl ?? toExistingAudioUrl(emoticon, draft.isAudioCleared);
   const isCroppable = draft.image !== null && !isAnimatableEmoticonMime(draft.image.mime);
@@ -114,7 +113,7 @@ export function EmoticonFormSheet({
                 className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-hairline-strong bg-surface-soft text-meta group-active:bg-surface-pressed hover:bg-surface-strong hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-pressed"
                 type="button"
                 aria-label="이모티콘 이미지 선택"
-                onClick={() => setIsPickerOpen(true)}
+                onClick={imagePicker.open}
               >
                 {previewUrl ? (
                   <PreloadImage
@@ -152,7 +151,7 @@ export function EmoticonFormSheet({
               draft.audio?.file.name ?? toExistingAudioLabel(emoticon, draft.isAudioCleared)
             }
             onPlay={playAudio}
-            onPick={() => audioRef.current && openFilePicker(audioRef.current)}
+            onPick={audioPicker.open}
             onClear={draft.clearAudio}
           />
           <KeywordField
@@ -166,13 +165,8 @@ export function EmoticonFormSheet({
           </Button>
         </div>
       </BottomSheet>
-      <MediaPickerSheet
-        accept="image/*"
-        isOpen={isPickerOpen}
-        isMultiple={false}
-        onClose={() => setIsPickerOpen(false)}
-        onSelect={(files) => files[0] && void draft.pickImage(files[0])}
-      />
+      {imagePicker.input}
+      {audioPicker.input}
       {isEditing && draft.image && (
         // WARN: Keyed by draft — `MediaEditor` mints its source object URL once per mount, so editing a replaced image must be a second mount.
         <MediaEditor
@@ -186,26 +180,8 @@ export function EmoticonFormSheet({
           onCancel={() => setIsEditing(false)}
         />
       )}
-      <input
-        ref={audioRef}
-        className="hidden"
-        type="file"
-        accept={AUDIO_ACCEPT}
-        onChange={handlePickAudio}
-      />
     </>
   );
-
-  function handlePickAudio(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-
-    // WARN: Cleared so picking the same file twice still fires `change`; the value survives the selection otherwise and the second pick is silent.
-    event.target.value = "";
-
-    if (file) {
-      draft.pickAudio(file);
-    }
-  }
 
   /** INFO: The picked file plays off its object URL and a kept one off R2, so the button auditions whatever the submit would actually save. */
   function playAudio() {

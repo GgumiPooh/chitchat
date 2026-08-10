@@ -11,7 +11,7 @@ import {
   type BulkAddFailure,
   type KeywordRateLimit,
 } from "@/features/author-emoticon";
-import { MediaPickerSheet } from "@/features/upload-media";
+import { useMediaPicker } from "@/features/upload-media";
 import { EMOTICON_SETTINGS_ROUTE } from "@/shared/config";
 import { cn, type Maybe, type Nullable } from "@/shared/lib";
 import { ActionSheet, AppHeader, Button, EmptyState, IconButton, Modal, toast } from "@/shared/ui";
@@ -62,7 +62,6 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   const [items, setItems] = useState(pack.items);
   const [thumbnailItemId, setThumbnailItemId] = useState(pack.thumbnailItemId);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<Nullable<File>>(null);
   const [editing, setEditing] = useState<Nullable<Emoticon>>(null);
@@ -72,6 +71,8 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   // WARN: § 13.8.1. A fraction, deliberately **not** § 13.4.'s countdown. That convention counts what is left because its grid gains rows as files land, so a fixed total would contradict them — here the items already exist and only their keywords are filling in, so the total is settled before the first batch and saying it is the more useful half.
   const [tagging, setTagging] = useState<Nullable<{ done: number; total: number }>>(null);
   const router = useRouter();
+  // INFO: § 13.4. 여러 장 한 번에 추가 already names what it takes, so the row opens the album picker itself rather than a second sheet with one row in it.
+  const picker = useMediaPicker({ accept: "image/*", isMultiple: true, onSelect: handlePick });
   const selected = items.find((item) => item.id === selectedId);
   // INFO: § 13.8. Only the items nobody has described. Suggestions never overwrite a keyword somebody typed — the model is filling gaps, not revising work.
   const untagged = items.filter((item) => item.keywords.length === 0);
@@ -152,17 +153,11 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
         header={{ title: "이모티콘 추가" }}
         items={[
           { label: "하나씩 추가", Icon: Plus, onSelect: () => setIsFormOpen(true) },
-          { label: "여러 장 한 번에 추가", Icon: Images, onSelect: () => setIsPickerOpen(true) },
+          { label: "여러 장 한 번에 추가", Icon: Images, onSelect: picker.open },
         ]}
         onClose={() => setIsAddMenuOpen(false)}
       />
-      <MediaPickerSheet
-        accept="image/*"
-        isOpen={isPickerOpen}
-        isMultiple
-        onClose={() => setIsPickerOpen(false)}
-        onSelect={handlePick}
-      />
+      {picker.input}
       <EmoticonFormSheet
         packId={pack.id}
         isOpen={isFormOpen}
@@ -221,8 +216,6 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   // INFO: A single file from the bulk picker still opens the authoring sheet — one image is one item either way, and there it can be cropped and given a sound.
   function handlePick(files: File[]) {
     const [first, ...rest] = files;
-
-    setIsPickerOpen(false);
 
     if (!first) {
       return;

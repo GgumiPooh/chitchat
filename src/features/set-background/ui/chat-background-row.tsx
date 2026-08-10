@@ -4,8 +4,8 @@ import type { MediaDraft } from "@/entities/media";
 import { useChatStream } from "@/features/chat-stream/@x/set-background";
 import {
   MediaEditor,
-  MediaPickerSheet,
   uploadDraft,
+  useMediaPicker,
 } from "@/features/upload-media/@x/set-background";
 import { BACKGROUND_MAX_EDGE, toMediaUrl } from "@/shared/config";
 import type { Nullable } from "@/shared/lib";
@@ -37,10 +37,14 @@ export type ChatBackgroundRowProps = {
  */
 export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
   const [isActionsOpen, setIsActionsOpen] = useState(false);
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const { chatBackgroundMediaId, setChatBackgroundMediaId } = useChatStream();
   const photo = usePickedPhoto();
+  // INFO: REQUIREMENTS.md § 12.2. 사진 고르기 already names one kind of file, so the row opens the OS picker itself rather than a second sheet offering the same thing again.
+  const picker = useMediaPicker({
+    accept: "image/*",
+    onSelect: (files) => files[0] && void photo.read(files[0]),
+  });
 
   return (
     <>
@@ -49,7 +53,7 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
         label="채팅방 배경"
         Icon={Wallpaper}
         haptic
-        // INFO: The row is the only surface still on screen while a photo is read and uploaded — the picker closed itself at the tap and the editor comes down at 완료 — so it says so rather than sitting unchanged for several seconds.
+        // INFO: The row is the only surface still on screen while a photo is read and uploaded — the sheet closed itself at the tap and the editor comes down at 완료 — so it says so rather than sitting unchanged for several seconds.
         description={toDescription()}
         trailing={
           chatBackgroundMediaId && (
@@ -68,7 +72,7 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
         // INFO: REQUIREMENTS.md § 12.2. The last surface before the change lands, and the only one that can say what the change reaches. The row below states the shared *state*; this states the shared *consequence*.
         header={{ title: "채팅방 배경", description: "상대방 화면의 배경도 같이 바뀌어요" }}
         items={[
-          { label: "사진 고르기", Icon: ImageIcon, onSelect: () => setIsPickerOpen(true) },
+          { label: "사진 고르기", Icon: ImageIcon, onSelect: picker.open },
           ...(chatBackgroundMediaId
             ? [
                 {
@@ -82,13 +86,7 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
         ]}
         onClose={() => setIsActionsOpen(false)}
       />
-      <MediaPickerSheet
-        accept="image/*"
-        isOpen={isPickerOpen && photo.cropping === null}
-        isMultiple={false}
-        onClose={() => setIsPickerOpen(false)}
-        onSelect={(files) => files[0] && void photo.read(files[0])}
-      />
+      {picker.input}
       {photo.cropping && (
         // WARN: Keyed by the draft — `MediaEditor` mints its source object URL once per mount, so re-cropping a replaced photo has to be a second mount.
         <MediaEditor
@@ -124,8 +122,6 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
 
   async function upload(draft: MediaDraft) {
     setIsBusy(true);
-    // WARN: Here and not in the `finally` below. `commit` clears `cropping` in the same batch, and this sheet is open on `isPickerOpen && photo.cropping === null` — left set, the picker would spring back open for the length of the upload.
-    setIsPickerOpen(false);
 
     try {
       const media = await uploadDraft(draft, { scope: "background" });

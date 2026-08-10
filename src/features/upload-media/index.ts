@@ -7,6 +7,11 @@ export { isWithinDuration, trimVideo, type TrimRange } from "./model/trim-video"
 export { useAttachmentEditing, type AttachmentEditing } from "./model/use-attachment-editing";
 export { useFileDrop, type FileDropHandlers } from "./model/use-file-drop";
 export { useFilePaste, type UseFilePasteParams } from "./model/use-file-paste";
+export {
+  useMediaPicker,
+  type MediaPicker,
+  type UseMediaPickerParams,
+} from "./model/use-media-picker";
 export { useMediaSelection } from "./model/use-media-selection";
 export {
   useVoiceRecorder,

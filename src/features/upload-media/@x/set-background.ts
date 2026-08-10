@@ -2,5 +2,5 @@
 export { uploadDraft } from "../api/upload-draft";
 export { toMediaDraft, validateFile } from "../model/read-draft";
 export { retainPreview } from "../model/revoke-preview";
+export { useMediaPicker } from "../model/use-media-picker";
 export { MediaEditor } from "../ui/media-editor";
-export { MediaPickerSheet } from "../ui/media-picker-sheet";

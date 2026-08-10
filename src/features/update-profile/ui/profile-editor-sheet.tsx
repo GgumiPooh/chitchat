@@ -4,10 +4,10 @@ import type { MediaDraft } from "@/entities/media";
 import {
   DraftPreview,
   MediaEditor,
-  MediaPickerSheet,
   VideoTrimmer,
   isWithinDuration,
   uploadDraft,
+  useMediaPicker,
 } from "@/features/upload-media/@x/update-profile";
 import {
   AVATAR_MAX_EDGE,
@@ -65,15 +65,24 @@ export function ProfileEditorSheet({
   const [name, setName] = useState(nickname);
   // INFO: The photo the crop is running on. It is not staged until the editor completes — backing out of a crop is backing out of the pick (§ 12.).
   const [cropping, setCropping] = useState<Nullable<MediaDraft>>(null);
-  // WARN: The slot identity is separate from the picker's open flag, and merging the two is a real bug rather than a tidiness question. `MediaPickerSheet` is an `ActionSheet`, which fires `onSelect` and then closes itself in the same tick — the OS file dialog opens asynchronously, so a slot held in the open flag is already `null` by the time a file arrives, and every pick lands in whichever slot the fallthrough names.
+  // INFO: Which slot the editor below is working for. It is written by the pick itself (REQUIREMENTS.md § 12.1.), never by the tap that opened a picker — the OS dialog answers asynchronously and the two slots must not be able to cross.
   const [slot, setSlot] = useState<PhotoSlot>("avatar");
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // INFO: REQUIREMENTS.md § 12.1. Only the cover takes a video; the avatar is drawn in an `<img>` everywhere in the app.
   const [trimming, setTrimming] = useState<Nullable<MediaDraft>>(null);
   const avatar = usePhotoDraft("avatar");
   const background = usePhotoDraft("background");
   const picking = slot === "avatar" ? avatar : background;
+  // INFO: An input per slot rather than one with a computed `accept`. A tap has to open the OS picker on its own call stack, so an `accept` derived from state would still be the previous slot's when the dialog is already up.
+  const avatarPicker = useMediaPicker({
+    accept: "image/*",
+    onSelect: (files) => files[0] && void pick("avatar", files[0]),
+  });
+  // INFO: REQUIREMENTS.md § 12.1. The cover takes a video; the avatar does not. `usePhotoDraft` re-checks either way, since a desktop file dialog hands over whatever the user names.
+  const backgroundPicker = useMediaPicker({
+    accept: "image/*,video/*",
+    onSelect: (files) => files[0] && void pick("background", files[0]),
+  });
   const trimmed = name.trim();
   const hasNameChange = trimmed.length > 0 && trimmed !== nickname;
   const hasPhotoChange =
@@ -105,7 +114,7 @@ export function ProfileEditorSheet({
                 style={{ aspectRatio: "3 / 2" }}
                 type="button"
                 aria-label="프로필 배경 바꾸기"
-                onClick={() => openPicker("background")}
+                onClick={backgroundPicker.open}
               >
                 {backgroundUrl || background.staged ? (
                   // INFO: A staged video previews as itself, playing — a still of a clip chosen for its motion reads as a failed load (§ 12.1.).
@@ -137,7 +146,7 @@ export function ProfileEditorSheet({
                 className="cursor-pointer rounded-full transition-opacity outline-none group-active:opacity-70 hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary active:opacity-70"
                 type="button"
                 aria-label="프로필 사진 바꾸기"
-                onClick={() => openPicker("avatar")}
+                onClick={avatarPicker.open}
               >
                 <Avatar name={trimmed || nickname} size="profile" src={avatarUrl} />
               </button>
@@ -148,7 +157,7 @@ export function ProfileEditorSheet({
                 buttonClassName="h-9 min-h-9 w-auto px-sm"
                 variant="secondary"
                 haptic
-                onClick={() => openPicker("avatar")}
+                onClick={avatarPicker.open}
               >
                 {isReading ? "읽는 중이에요" : "사진 바꾸기"}
               </Button>
@@ -182,14 +191,8 @@ export function ProfileEditorSheet({
           </Button>
         </div>
       </BottomSheet>
-      <MediaPickerSheet
-        // INFO: REQUIREMENTS.md § 12.1. The cover takes a video; the avatar does not. `usePhotoDraft` re-checks either way, since a desktop file dialog hands over whatever the user names.
-        accept={slot === "background" ? "image/*,video/*" : "image/*"}
-        isOpen={isPickerOpen && cropping === null && trimming === null}
-        isMultiple={false}
-        onClose={() => setIsPickerOpen(false)}
-        onSelect={(files) => files[0] && void pick(files[0])}
-      />
+      {avatarPicker.input}
+      {backgroundPicker.input}
       {trimming && (
         // INFO: REQUIREMENTS.md § 12.1. The cap is only handed over when the clip actually exceeds it. Inside the window there is nothing to enforce, so both handles move and the trimmer is an ordinary edit — a clip that needs no cut is finished by tapping 완료.
         // WARN: A container with no readable duration is capped. A missing duration is exactly the case that would otherwise walk past the ceiling that makes a background video affordable at all.
@@ -217,7 +220,6 @@ export function ProfileEditorSheet({
           onDone={(edited) => {
             picking.stage(edited);
             setCropping(null);
-            setIsPickerOpen(false);
           }}
           onCancel={() => setCropping(null)}
         />
@@ -244,13 +246,11 @@ export function ProfileEditorSheet({
       : toMediaUrl(profileBackgroundMediaId);
   }
 
-  function openPicker(next: PhotoSlot) {
-    setSlot(next);
-    setIsPickerOpen(true);
-  }
+  // WARN: The slot is taken from the input that fired, never read off `slot`. The state write below only settles in time for the editor this schedules — the draft has to come from the picker's own identity.
+  async function pick(target: PhotoSlot, file: File) {
+    setSlot(target);
 
-  async function pick(file: File) {
-    const draft = await picking.read(file);
+    const draft = await (target === "avatar" ? avatar : background).read(file);
 
     if (!draft) {
       return;
@@ -275,7 +275,6 @@ export function ProfileEditorSheet({
 
     if (draft) {
       background.stage(draft);
-      setIsPickerOpen(false);
     }
   }
 
@@ -283,7 +282,6 @@ export function ProfileEditorSheet({
     setName(nickname);
     avatar.reset();
     background.reset();
-    setIsPickerOpen(false);
     onClose();
   }
 

@@ -1,15 +1,8 @@
 "use client";
 
-import { openFilePicker, type Nullable } from "@/shared/lib";
 import { ActionSheet, type ActionSheetItem } from "@/shared/ui";
 import { FileUp, Images, Mic } from "lucide-react";
-import { useRef, type ChangeEvent, type RefObject } from "react";
-
-// INFO: The wildcard, not the § 14. allow-list — iOS narrows its own picker from this and a long explicit list makes it hide formats it would happily have transcoded. `validateFile` rejects what slips through.
-const MEDIA_ACCEPT = "image/*,video/*";
-
-// INFO: REQUIREMENTS.md § 9.1. Everything, because a file attachment is defined by what the app *cannot* draw — narrowing here would be a second allow-list to keep in step with that one.
-const FILE_ACCEPT = "*/*";
+import { FILE_ACCEPT, MEDIA_ACCEPT, useMediaPicker } from "../model/use-media-picker";
 
 export type MediaPickerSheetProps = {
   className?: string;
@@ -36,6 +29,11 @@ export type MediaPickerSheetProps = {
 /**
  * The KakaoTalk-style attachment sheet behind the composer's `+`.
  *
+ * WARN: REQUIREMENTS.md § 9.1. Only for a control that genuinely offers a choice —
+ * the composer's `+` and 파일's add control are the two left. A slot that takes one
+ * kind of file uses `useMediaPicker` and opens the OS picker outright; a sheet with
+ * a single row in it is a tap the user has to spend before the tap they meant.
+ *
  * INFO: No `카메라` row, deliberately. A `capture` input cannot also be `multiple`,
  * and iOS already offers the camera from inside the picker the album row opens.
  */
@@ -49,8 +47,9 @@ export function MediaPickerSheet({
   onClose,
   onSelect,
 }: MediaPickerSheetProps) {
-  const albumRef = useRef<Nullable<HTMLInputElement>>(null);
-  const fileRef = useRef<Nullable<HTMLInputElement>>(null);
+  const album = useMediaPicker({ accept, isMultiple, onSelect });
+  // WARN: REQUIREMENTS.md § 9.1. A second input rather than a wider `accept` on the first — an album input that accepts everything costs iOS its photo picker entirely and opens Files, where the camera roll is not what the user came for.
+  const file = useMediaPicker({ accept: FILE_ACCEPT, isMultiple, onSelect });
 
   return (
     <>
@@ -61,35 +60,16 @@ export function MediaPickerSheet({
         items={buildItems()}
         onClose={onClose}
       />
-      <input
-        ref={albumRef}
-        className="hidden"
-        type="file"
-        accept={accept}
-        multiple={isMultiple}
-        onChange={handleChange}
-      />
-      {/* WARN: REQUIREMENTS.md § 9.1. A second input rather than a wider `accept` on the first — an album input that accepts everything costs iOS its photo picker entirely and opens Files, where the camera roll is not what the user came for. */}
-      {hasFileRow && (
-        <input
-          ref={fileRef}
-          className="hidden"
-          type="file"
-          accept={FILE_ACCEPT}
-          multiple={isMultiple}
-          onChange={handleChange}
-        />
-      )}
+      {album.input}
+      {hasFileRow && file.input}
     </>
   );
 
   function buildItems(): ActionSheetItem[] {
-    const items: ActionSheetItem[] = [
-      { label: "사진/영상", Icon: Images, onSelect: () => openPicker(albumRef) },
-    ];
+    const items: ActionSheetItem[] = [{ label: "사진/영상", Icon: Images, onSelect: album.open }];
 
     if (hasFileRow) {
-      items.push({ label: "파일", Icon: FileUp, onSelect: () => openPicker(fileRef) });
+      items.push({ label: "파일", Icon: FileUp, onSelect: file.open });
     }
 
     // INFO: REQUIREMENTS.md § 9.3. Last, because the two above open a picker and this one opens the microphone — the odd one out belongs at the end rather than between them.
@@ -98,23 +78,5 @@ export function MediaPickerSheet({
     }
 
     return items;
-  }
-
-  // WARN: REQUIREMENTS.md § 8.4.1. Never a bare `.click()` — the sheet has closed by the time the OS panel is up, so nothing else holds 절전 모드 off the picker.
-  function openPicker(ref: RefObject<Nullable<HTMLInputElement>>) {
-    if (ref.current) {
-      openFilePicker(ref.current);
-    }
-  }
-
-  function handleChange(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-
-    // WARN: Cleared so picking the same file twice still fires `change`; the value survives the selection otherwise and the second pick is silent.
-    event.target.value = "";
-
-    if (files.length > 0) {
-      onSelect(files);
-    }
   }
 }

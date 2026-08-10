@@ -2,7 +2,7 @@
 
 import type { ArchiveMedia } from "@/entities/media";
 import { useSetBackground } from "@/features/set-background";
-import { MediaPickerSheet } from "@/features/upload-media";
+import { useMediaPicker } from "@/features/upload-media";
 import { CHAT_MESSAGE_PARAM, CHAT_ROUTE } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
 import {
@@ -51,7 +51,6 @@ export type ArchivePageProps = {
 export function ArchivePage({ className, initialMedia, targetId }: ArchivePageProps) {
   const router = useRouter();
   const [viewer, setViewer] = useState<Nullable<{ cells: MediaCell[]; index: number }>>(null);
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   // INFO: What one confirmation answers for — the whole selection, or the single slide the viewer's 삭제 was tapped on. The two reach the same endpoint and differ only in the nouns their sentences take.
   // WARN: Openness is the boolean beside it and never this, which outlives a dismissal on purpose. `DialogContent` stays mounted through its 200ms exit (`DESIGN.md § 7.4.`), so clearing the subject on close empties the heading and the modal fades out with no title in it.
@@ -79,6 +78,8 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
     isBlocked: selection.isSelecting || viewer !== null,
     onAdded: prepend,
   });
+  // INFO: REQUIREMENTS.md § 10. 사진 추가 opens the album picker outright — this shelf takes photos and videos and nothing else, so there was never a choice for a sheet to offer.
+  const picker = useMediaPicker({ isMultiple: true, onSelect: staging.add });
   const selectedCount = selection.selectedIds.length;
 
   return (
@@ -103,7 +104,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
                 Icon={ImagePlus}
                 haptic
                 aria-label="사진 추가"
-                onClick={() => setIsPickerOpen(true)}
+                onClick={picker.open}
               />
               {/* WARN: Unavailable while an upload is in flight. A photo being posted is in the grid with no message attached yet, which is exactly what `removeArchiveMedia` reads as "delete it outright" — deleting it there would take the row out from under the `postMessage` that was about to reference it. */}
               <IconButton
@@ -169,11 +170,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
         onRetry={() => void saving.retryBlocked()}
         onDismiss={saving.dismissBlocked}
       />
-      <MediaPickerSheet
-        isOpen={isPickerOpen}
-        onClose={() => setIsPickerOpen(false)}
-        onSelect={handlePick}
-      />
+      {picker.input}
       {staging.sheet}
       {staging.editors}
       <Modal
@@ -250,11 +247,6 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
     router.push(
       `${CHAT_ROUTE}?${new URLSearchParams({ [CHAT_MESSAGE_PARAM]: String(cell.messageId) })}`,
     );
-  }
-
-  function handlePick(files: File[]) {
-    setIsPickerOpen(false);
-    staging.add(files);
   }
 
   /**
