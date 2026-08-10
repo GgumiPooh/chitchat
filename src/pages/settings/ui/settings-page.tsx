@@ -1,5 +1,9 @@
 import { resolveDisplayName } from "@/entities/user";
-import { PushNotificationRow } from "@/features/push-notifications";
+import {
+  PushNotificationRow,
+  PushSettingsProvider,
+  PushSoundRow,
+} from "@/features/push-notifications";
 import { LogoutButton } from "@/features/session";
 import { ChatBackgroundRow } from "@/features/set-background";
 import { TypingSettingsRow } from "@/features/typing-indicator";
@@ -52,7 +56,11 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
       <ChatBackgroundRow />
       {/* INFO: DESIGN.md § 5.1. Per device, like 알림 — the choice lives in `localStorage`, so it describes this browser rather than the account. */}
       <ThemeSettingsRow />
-      <PushNotificationRow />
+      {/* INFO: REQUIREMENTS.md § 16.1. Both rows describe the same installation and settle from one launch sync, so they share a provider rather than each holding their own copy of the push state. */}
+      <PushSettingsProvider>
+        <PushNotificationRow />
+        <PushSoundRow />
+      </PushSettingsProvider>
       {/* INFO: REQUIREMENTS.md § 8.12. Per account, not per device like the row above — it governs what this user broadcasts, which is not a property of the browser they happen to be typing in. */}
       <TypingSettingsRow isEnabled={user.typingIndicatorEnabled} />
       {/* INFO: REQUIREMENTS.md § 12. Reads `sessions` — the push subscriptions in the 알림 row above are a different set, and not revocable. */}

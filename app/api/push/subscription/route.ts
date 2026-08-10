@@ -1,4 +1,8 @@
-import { deletePushSubscription, savePushSubscription } from "@/entities/push-subscription";
+import {
+  deletePushSubscription,
+  savePushSubscription,
+  updatePushSubscriptionSound,
+} from "@/entities/push-subscription";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { NextResponse } from "next/server";
@@ -14,7 +18,15 @@ const subscriptionSchema = z.object({
 
 const removalSchema = z.object({ endpoint: z.url() });
 
-/** REQUIREMENTS.md § 16.1. Idempotent — the client re-registers on every launch. */
+const soundSchema = z.object({ endpoint: z.url(), soundEnabled: z.boolean() });
+
+/**
+ * REQUIREMENTS.md § 16.1. Idempotent — the client re-registers on every launch.
+ *
+ * INFO: Answers `200 { soundEnabled }` rather than the `204` it used to. 알림 소리 is
+ * per installation, so the settings screen's server render cannot know it — the launch
+ * re-registration is the one exchange that already identifies this device.
+ */
 export async function POST(request: Request) {
   const user = await getCurrentUser();
 
@@ -28,11 +40,35 @@ export async function POST(request: Request) {
     return apiError("invalid_request");
   }
 
-  await savePushSubscription({
+  const saved = await savePushSubscription({
     userId: user.id,
     ...body.data,
     userAgent: body.data.userAgent ?? null,
   });
+
+  return NextResponse.json(saved);
+}
+
+/** REQUIREMENTS.md § 16.1. 알림 소리 for this installation alone. */
+export async function PATCH(request: Request) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return apiError("unauthorized");
+  }
+
+  const body = soundSchema.safeParse(await request.json().catch(() => null));
+
+  if (!body.success) {
+    return apiError("invalid_request");
+  }
+
+  const isStored = await updatePushSubscriptionSound({ userId: user.id, ...body.data });
+
+  // INFO: REQUIREMENTS.md § 16.1. A preference with no subscription row has nowhere to live, and the switch is disabled for exactly that state — so a miss here is a stale client rather than a legal no-op.
+  if (!isStored) {
+    return apiError("not_found");
+  }
 
   return new NextResponse(null, { status: 204 });
 }

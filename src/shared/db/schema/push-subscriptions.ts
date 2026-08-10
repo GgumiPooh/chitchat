@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 // INFO: REQUIREMENTS.md § 16.1. One row per browser installation, not per user — the same person carries a phone and a laptop.
@@ -14,6 +14,8 @@ export const pushSubscriptions = pgTable(
     p256dh: text("p256dh").notNull(),
     auth: text("auth").notNull(),
     userAgent: text("user_agent"),
+    // INFO: REQUIREMENTS.md § 16.1. 알림 소리 is a property of the installation, so it belongs on this row rather than on `users` — one person silences the laptop and keeps the phone audible.
+    soundEnabled: boolean("sound_enabled").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     // INFO: Null until the first successful send — a subscription that never delivers is what a stale-device cleanup would look for.
     lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),

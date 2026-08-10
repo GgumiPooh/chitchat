@@ -3,19 +3,32 @@
 import { toast } from "@/shared/ui";
 import { useEffect, useRef, useState } from "react";
 import {
+  setPushSoundEnabled,
   subscribeToPush,
   syncPushSubscription,
   unsubscribeFromPush,
+  type PushState,
   type PushStatus,
 } from "./push-registration";
 
 const FAILED_ON_MESSAGE = "알림을 켜지 못했어요";
 const FAILED_OFF_MESSAGE = "알림을 끄지 못했어요";
+const FAILED_SAVE_MESSAGE = "설정을 저장하지 못했어요";
 
-/** Drives the Settings toggle of REQUIREMENTS.md § 16.1. */
-export function usePushNotifications() {
-  const [status, setStatus] = useState<PushStatus>("unsupported");
+export type PushNotificationsValue = {
+  status: PushStatus;
+  isBusy: boolean;
+  soundEnabled: boolean;
+  isSoundBusy: boolean;
+  toggle: (isOn: boolean) => void;
+  toggleSound: (isOn: boolean) => void;
+};
+
+/** Drives the Settings toggles of REQUIREMENTS.md § 16.1. */
+export function usePushNotifications(): PushNotificationsValue {
+  const [state, setState] = useState<PushState>({ status: "unsupported", soundEnabled: true });
   const [isBusy, setIsBusy] = useState(true);
+  const [isSoundBusy, setIsSoundBusy] = useState(false);
   // WARN: The launch sync and a toggle both write `status`, and the first one started is not the first one to finish — `serviceWorker.register()` can take seconds on a first visit, long enough for the user to grant permission and subscribe meanwhile. Without a claim the stale `off` lands last and snaps the switch back over a subscription the server already stored.
   const latestRequestRef = useRef(0);
 
@@ -24,7 +37,7 @@ export function usePushNotifications() {
 
     void syncPushSubscription().then((next) => {
       if (isLatestRequest(requestId)) {
-        setStatus(next);
+        setState(next);
         setIsBusy(false);
       }
     });
@@ -34,7 +47,7 @@ export function usePushNotifications() {
     };
   }, []);
 
-  return { status, isBusy, toggle };
+  return { ...state, isBusy, isSoundBusy, toggle, toggleSound };
 
   // WARN: Not `async` all the way up. The click handler must reach `Notification.requestPermission` inside the gesture that produced it, so nothing may be awaited before `subscribeToPush`.
   function toggle(isOn: boolean) {
@@ -50,10 +63,10 @@ export function usePushNotifications() {
           return;
         }
 
-        setStatus(next);
+        setState(next);
 
         // INFO: A refused permission prompt resolves rather than rejects, so the switch would otherwise just snap back unexplained. The `blocked` row description carries the recovery step, so the toast must not repeat it.
-        if (isOn && next !== "on") {
+        if (isOn && next.status !== "on") {
           toast.error(FAILED_ON_MESSAGE);
         }
       })
@@ -63,6 +76,19 @@ export function usePushNotifications() {
           setIsBusy(false);
         }
       });
+  }
+
+  // INFO: REQUIREMENTS.md § 16.1. Moved optimistically like § 8.12.'s 입력 중 표시 switch, and put back on failure — left where the tap moved it, the row would report a preference the server never took.
+  function toggleSound(isOn: boolean) {
+    setState((current) => ({ ...current, soundEnabled: isOn }));
+    setIsSoundBusy(true);
+
+    void setPushSoundEnabled(isOn)
+      .catch(() => {
+        setState((current) => ({ ...current, soundEnabled: !isOn }));
+        toast.error(FAILED_SAVE_MESSAGE);
+      })
+      .finally(() => setIsSoundBusy(false));
   }
 
   function claimRequest(): number {

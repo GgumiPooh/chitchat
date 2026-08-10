@@ -175,6 +175,8 @@ async function handlePush(data) {
     // INFO: REQUIREMENTS.md § 6. One conversation, so a second message replaces the first banner where the platform honours a tag; `renotify` is what still alerts on the replacement, and the close above is what covers iOS, which does not.
     tag: NOTIFICATION_TAG,
     renotify: true,
+    // WARN: REQUIREMENTS.md § 16.1. Always an explicit boolean, never omitted. WebKit's `platformShouldPlaySound` reads an absent `silent` opposite ways per platform — `silent == nullopt || !*silent` on iOS, `silent != nullopt && !*silent` on macOS — so leaving it out means sound on the phone and silence on the desktop for the same push.
+    silent: payload.silent === true,
     data: { url: payload.url },
   });
 
@@ -216,7 +218,13 @@ async function openConversation(url) {
 }
 
 function readPayload(data) {
-  const fallback = { title: "새 메시지", body: "", unreadCount: 0, url: FALLBACK_URL };
+  const fallback = {
+    title: "새 메시지",
+    body: "",
+    unreadCount: 0,
+    url: FALLBACK_URL,
+    silent: false,
+  };
 
   if (!data) {
     return fallback;

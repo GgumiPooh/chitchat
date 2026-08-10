@@ -19,6 +19,7 @@ export async function pushToUser(userId: string, payload: PushPayload): Promise<
       endpoint: pushSubscriptions.endpoint,
       p256dh: pushSubscriptions.p256dh,
       auth: pushSubscriptions.auth,
+      soundEnabled: pushSubscriptions.soundEnabled,
     })
     .from(pushSubscriptions)
     .where(eq(pushSubscriptions.userId, userId));
@@ -27,8 +28,16 @@ export async function pushToUser(userId: string, payload: PushPayload): Promise<
     return;
   }
 
-  const body = JSON.stringify(payload);
-  const results = await Promise.all(targets.map((target) => sendPush(target, body)));
+  // INFO: REQUIREMENTS.md § 16.1. Serialized per row rather than once, because 알림 소리 belongs to the installation — the same message can sound on the phone and land silently on the laptop.
+  // WARN: An explicit `silent` on the payload wins over the row. A retraction banner is silent wherever it is delivered, and this is the hook it takes.
+  const results = await Promise.all(
+    targets.map((target) =>
+      sendPush(
+        target,
+        JSON.stringify({ ...payload, silent: payload.silent ?? !target.soundEnabled }),
+      ),
+    ),
+  );
   const retired = targets
     .filter((_, index) => results[index] === "gone")
     .map((target) => target.endpoint);

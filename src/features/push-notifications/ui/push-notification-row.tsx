@@ -3,7 +3,7 @@
 import { cn } from "@/shared/lib";
 import { SettingsRow, Switch } from "@/shared/ui";
 import { Bell } from "lucide-react";
-import { usePushNotifications } from "../model/use-push-notifications";
+import { usePushSettings } from "../model/push-settings-provider";
 
 export type PushNotificationRowProps = {
   className?: string;
@@ -21,7 +21,7 @@ const BUSY_DESCRIPTION = "알림 설정을 확인하고 있어요";
 
 /** REQUIREMENTS.md § 16.1. The one place push is turned on, and it is per device. */
 export function PushNotificationRow({ className }: PushNotificationRowProps) {
-  const { status, isBusy, toggle } = usePushNotifications();
+  const { status, isBusy, toggle } = usePushSettings();
   const isActionable = status === "on" || status === "off";
 
   return (

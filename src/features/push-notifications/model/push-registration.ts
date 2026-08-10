@@ -3,9 +3,22 @@ import { IS_DEV, SERVICE_WORKER_PATH, VAPID_PUBLIC_KEY } from "@/shared/config";
 import { safelyGetAsync, safelyRunAsync } from "@/shared/lib";
 import { deleteSubscription } from "../api/delete-subscription";
 import { saveSubscription } from "../api/save-subscription";
+import { updateSubscriptionSound } from "../api/update-subscription-sound";
 
 /** `blocked` is terminal from inside the page — only the browser's own site settings can undo it. */
 export type PushStatus = "unsupported" | "blocked" | "off" | "on";
+
+/**
+ * What the Settings rows read: the toggle's state and this installation's 알림 소리
+ * (`REQUIREMENTS.md § 16.1.`), which only the server holds.
+ */
+export type PushState = {
+  status: PushStatus;
+  soundEnabled: boolean;
+};
+
+// INFO: REQUIREMENTS.md § 16.1. The column default, and what a device with no row of its own reports — 알림 소리 is only actionable once one exists.
+const DEFAULT_SOUND_ENABLED = true;
 
 /**
  * REQUIREMENTS.md § 16.1. iOS exposes `PushManager` only to a home-screen PWA, so
@@ -28,12 +41,12 @@ export function isPushSupported(): boolean {
  * the server, and a `410` prune on the send path can retire a row the browser
  * still believes in — this is the only thing that reconciles all three.
  */
-export async function syncPushSubscription(): Promise<PushStatus> {
+export async function syncPushSubscription(): Promise<PushState> {
   if (!isPushSupported()) {
-    return "unsupported";
+    return offState("unsupported");
   }
   if (Notification.permission === "denied") {
-    return "blocked";
+    return offState("blocked");
   }
 
   const subscription = await safelyGetAsync(async () => {
@@ -43,17 +56,13 @@ export async function syncPushSubscription(): Promise<PushStatus> {
   });
 
   if (!subscription) {
-    return "off";
+    return offState("off");
   }
 
   // INFO: A subscription the server does not hold delivers nothing, so a failed save reports `off` rather than a switch that lies — turning it back on re-saves the same subscription.
-  const isSaved = await safelyGetAsync(async () => {
-    await saveSubscription(toSubscriptionInput(subscription));
+  const saved = await safelyGetAsync(() => saveSubscription(toSubscriptionInput(subscription)));
 
-    return true;
-  });
-
-  return isSaved ? "on" : "off";
+  return saved ? { status: "on", soundEnabled: saved.soundEnabled } : offState("off");
 }
 
 /**
@@ -81,11 +90,11 @@ export async function dismissDeliveredNotifications(): Promise<void> {
 }
 
 /** WARN: Must be called from inside a user gesture — every browser drops a permission prompt that is not. */
-export async function subscribeToPush(): Promise<PushStatus> {
+export async function subscribeToPush(): Promise<PushState> {
   const permission = await Notification.requestPermission();
 
   if (permission !== "granted") {
-    return permission === "denied" ? "blocked" : "off";
+    return offState(permission === "denied" ? "blocked" : "off");
   }
 
   const registration = await registerPushWorker();
@@ -95,12 +104,13 @@ export async function subscribeToPush(): Promise<PushStatus> {
     applicationServerKey: toApplicationServerKey(VAPID_PUBLIC_KEY),
   });
 
-  await saveSubscription(toSubscriptionInput(subscription));
+  const saved = await saveSubscription(toSubscriptionInput(subscription));
 
-  return "on";
+  // INFO: REQUIREMENTS.md § 16.1. A re-subscribing device keeps the 알림 소리 it had — the upsert leaves the column alone, so the answer is whatever the row already said.
+  return { status: "on", soundEnabled: saved.soundEnabled };
 }
 
-export async function unsubscribeFromPush(): Promise<PushStatus> {
+export async function unsubscribeFromPush(): Promise<PushState> {
   const registration = await registerPushWorker();
   const subscription = await registration.pushManager.getSubscription();
 
@@ -110,7 +120,25 @@ export async function unsubscribeFromPush(): Promise<PushStatus> {
     await subscription.unsubscribe();
   }
 
-  return "off";
+  return offState("off");
+}
+
+/**
+ * Stores 알림 소리 for this installation (`REQUIREMENTS.md § 16.1.`).
+ *
+ * WARN: The endpoint is read here rather than held by the row. It is the server's
+ * key for this device, it rotates without notice, and a copy carried in React state
+ * would silence — or fail to silence — whichever device the page was opened on last.
+ */
+export async function setPushSoundEnabled(soundEnabled: boolean): Promise<void> {
+  const registration = await registerPushWorker();
+  const subscription = await registration.pushManager.getSubscription();
+
+  if (!subscription) {
+    throw new Error("no push subscription on this device to store the preference on");
+  }
+
+  await updateSubscriptionSound(subscription.endpoint, soundEnabled);
 }
 
 /**
@@ -131,6 +159,10 @@ function registerPushWorker(): Promise<ServiceWorkerRegistration> {
     scope: "/",
     updateViaCache: "none",
   });
+}
+
+function offState(status: PushStatus): PushState {
+  return { status, soundEnabled: DEFAULT_SOUND_ENABLED };
 }
 
 function toSubscriptionInput(subscription: PushSubscription): PushSubscriptionInput {
