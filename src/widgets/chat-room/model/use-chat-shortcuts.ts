@@ -1,6 +1,12 @@
 "use client";
 
-import { OPEN_OVERLAY_SELECTOR, isBareKey, isCommandKey, isDormant } from "@/shared/lib";
+import {
+  OPEN_OVERLAY_SELECTOR,
+  isBareKey,
+  isCommandKey,
+  isDormant,
+  isLetterKey,
+} from "@/shared/lib";
 import { useEffect, useRef } from "react";
 
 export type ChatShortcuts = {
@@ -14,23 +20,27 @@ export type ChatShortcuts = {
    * behind the crop editor and raises the keyboard into a field nobody can see.
    */
   isCovered: boolean;
-  /** `Escape` — the way back to the composer from anywhere in the conversation. */
+  /** `Escape`, and `Enter` off any control — the way back to the composer from anywhere in the conversation. */
   onReturnToComposer: () => void;
   /** `⌘↓` — REQUIREMENTS.md § 6.7.'s pill, as a key. */
   onGoToNewest: () => void;
   /** `⌘/` — the sheet that says what the other keys are. */
   onShowShortcuts: () => void;
+  /** `⌘E` with focus on neither the composer nor the picker, both of which answer it themselves. */
+  onOpenEmoticonSearch: () => void;
 };
 
 /**
- * REQUIREMENTS.md § 8.14. The three shortcuts that belong to the room rather than to
- * one control inside it, so they answer wherever focus happens to be — including
- * nowhere, which is where a tap on a bubble leaves it.
+ * REQUIREMENTS.md § 8.14. The shortcuts that belong to the room rather than to one
+ * control inside it, so they answer wherever focus happens to be — including nowhere,
+ * which is where a click on a bubble leaves it.
  *
- * WARN: `⌘E` is deliberately **not** here. It means "search these emoticons" inside
- * the picker and "search for the word I typed" in the composer, and a room-level
- * listener could only pick one — which, from the picker's own field, would wipe what
- * the user had typed into it.
+ * WARN: `⌘E` is here **last**, behind both of the handlers that mean something more
+ * specific by it: the composer seeds the search with the word it has underlined, and
+ * the picker asks for its own 검색 tab. Answered here first, from the panel's own
+ * field, it would wipe whatever the user had typed into it — so this is the fallback
+ * for the case neither of them is focused, and it depends on both calling
+ * `preventDefault`.
  */
 export function useChatShortcuts(shortcuts: ChatShortcuts) {
   const handlers = useRef(shortcuts);
@@ -57,7 +67,12 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
         return;
       }
 
-      if (event.key === "Escape") {
+      if (event.key === "Escape" || event.key === "Enter") {
+        // WARN: § 8.14. Prevented for `Enter` alone, and it is not belt-and-braces. The focus lands a microtask later, and the default action of this keydown is still pending — unprevented it puts a newline into the field the moment it arrives.
+        if (event.key === "Enter") {
+          event.preventDefault();
+        }
+
         handlers.current.onReturnToComposer();
 
         return;
@@ -67,8 +82,11 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
 
       if (event.key === "ArrowDown") {
         handlers.current.onGoToNewest();
-      } else {
+      } else if (event.key === "/") {
         handlers.current.onShowShortcuts();
+      } else {
+        // WARN: § 8.14. Only reached where neither the composer nor the picker answered `⌘E` first. Both `preventDefault` when they do, and both are React handlers on the root container — which is inside `document`, so they have already run by the time this listener sees the event.
+        handlers.current.onOpenEmoticonSearch();
       }
     }
 
@@ -79,10 +97,17 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
 }
 
 /**
- * INFO: `Escape` is the one binding here a text field has no use for, which is why it
- * is the one that takes no modifier — and `isBareKey` is what holds it to that. `⌥Esc`
- * and `Ctrl+Esc` are OS chords, and answering one closes the panel on the way out of
- * the app, which is the class of thing § 8.4.1.'s `isTypingKey` filters modifiers for.
+ * INFO: `Escape` and `Enter` are the two bindings a text field has no use for from
+ * *outside* one, which is why they are the two that take no modifier — and `isBareKey`
+ * is what holds them to that. `⌥Esc` and `Ctrl+Esc` are OS chords, and answering one
+ * closes the panel on the way out of the app, which is the class of thing § 8.4.1.'s
+ * `isTypingKey` filters modifiers for.
+ *
+ * WARN: § 8.14. `Enter` is claimed **only where nothing has focus**. A focused control
+ * spends it activating itself — a cell stages an emoticon (§ 13.6.), a tab opens, the
+ * send disc sends — and a field that already has the caret has no use for a shortcut
+ * that would fetch it. What is left is a conversation the reader clicked into, which
+ * is exactly the case this answers.
  *
  * WARN: § 8.14. `⌘↓` is claimed **inside** the composer too, where WebKit spends it
  * moving the caret to the end of the draft. That is a near-nothing in a field capped
@@ -93,5 +118,19 @@ function isOwnedKey(event: KeyboardEvent): boolean {
     return isBareKey(event);
   }
 
-  return isCommandKey(event) && (event.key === "ArrowDown" || event.key === "/");
+  if (event.key === "Enter") {
+    return isBareKey(event) && !hasFocusedControl();
+  }
+
+  return (
+    isCommandKey(event) &&
+    (event.key === "ArrowDown" || event.key === "/" || isLetterKey(event, "e"))
+  );
+}
+
+// INFO: § 8.14. `<body>` is where focus sits after a click on a bubble, on the wallpaper, or on anything else the conversation is made of.
+function hasFocusedControl(): boolean {
+  const active = document.activeElement;
+
+  return active !== null && active !== document.body && active !== document.documentElement;
 }

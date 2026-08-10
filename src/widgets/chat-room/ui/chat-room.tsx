@@ -690,6 +690,8 @@ export function ChatRoom({
     onReturnToComposer: returnToComposer,
     onGoToNewest: () => void goToNewest(),
     onShowShortcuts: () => setIsShortcutHelpOpen(true),
+    // INFO: § 8.14. No word to seed it with — the composer owns the draft (§ 8.6.), and it is not the thing focused here.
+    onOpenEmoticonSearch: () => openEmoticonSearch(""),
   });
 
   // WARN: Scrolling inside the send handler resolves against the pre-send data, so a message sent from deep in history lands below the fold. The row only exists from this commit onward.

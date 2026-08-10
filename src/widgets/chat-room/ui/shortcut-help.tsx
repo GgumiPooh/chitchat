@@ -34,13 +34,16 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
       <div className="flex flex-col gap-md">
         {renderGroup("대화", [
           { keys: ["Esc"], label: "메시지 입력창으로" },
+          { keys: ["Enter"], label: "메시지 입력창으로 (아무것도 선택하지 않았을 때)" },
           { keys: [command, "↓"], label: "최신 메시지로" },
           { keys: [command, "/"], label: "단축키 보기" },
         ])}
         {renderGroup("이모티콘", [
           { keys: [command, "E"], label: "이모티콘 검색 열기" },
           { keys: ["←", "→", "↑", "↓"], label: "이모티콘 사이 이동" },
-          { keys: [command, "←/→"], label: "이전 / 다음 묶음" },
+          { keys: ["↓"], label: "맨 아래에서 한 번 더 누르면 묶음 탭으로" },
+          { keys: ["←", "→"], label: "묶음 탭에서 이전 / 다음 묶음" },
+          { keys: ["↑"], label: "묶음 탭에서 다시 이모티콘으로" },
           { keys: ["Enter"], label: "담기" },
           { keys: [command, "Enter"], label: "바로 보내기" },
           { keys: ["Esc"], label: "닫기" },
