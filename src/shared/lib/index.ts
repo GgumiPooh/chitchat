@@ -84,7 +84,13 @@ export {
 export { useSettledCommit, type SettledCommitOptions } from "./hooks/use-settled-commit";
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
 export { GESTURE_SLOP } from "./input/gesture";
-export { isCommandKey, toCommandKeyLabel, type CommandKeyLabel } from "./input/keyboard";
+export {
+  isBareKey,
+  isCommandKey,
+  isLetterKey,
+  toCommandKeyLabel,
+  type CommandKeyLabel,
+} from "./input/keyboard";
 export type { Maybe, Nullable, Optional } from "./nullish";
 export { randomId } from "./random";
 export { mapPooled, type PoolOptions } from "./run/pool";

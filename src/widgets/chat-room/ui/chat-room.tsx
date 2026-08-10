@@ -684,14 +684,11 @@ export function ChatRoom({
     }
   }, [returnToLive, scrollToBottom, markRead]);
 
-  // WARN: REQUIREMENTS.md § 8.14. Both room shortcuts stand down while § 8.6.'s search is up, and the reason is not the same as the overlay check inside the hook: `MessageSearchResults` is a `ShellOverlay` and carries no dialog marker, so nothing there would have stopped ⌘↓ jumping the conversation underneath a list the reader is still in. Only ⌘/ survives, being a sheet to read rather than an act on the room.
+  // WARN: REQUIREMENTS.md § 8.14. Every full-screen thing this room raises is a plain `ShellOverlay` with no dialog marker on it, so the hook's own `OPEN_OVERLAY_SELECTOR` check sees none of them — the crop editor, the trimmer, and § 8.6.'s results list all have to be named here or `Escape` pulls the caret into a composer nobody can see and ⌘↓ moves the conversation underneath the reader.
   useChatShortcuts({
+    isCovered: isSearching || editing.isEditing,
     onReturnToComposer: returnToComposer,
-    onGoToNewest: () => {
-      if (!isSearching) {
-        void goToNewest();
-      }
-    },
+    onGoToNewest: () => void goToNewest(),
     onShowShortcuts: () => setIsShortcutHelpOpen(true),
   });
 
@@ -1368,9 +1365,9 @@ export function ChatRoom({
    * REQUIREMENTS.md § 8.14. `Escape` — the panel away and the caret back in the
    * field, which is the only exit a keyboard has from the picker.
    *
-   * WARN: Nothing while § 8.6.'s search is up. The whole composer stack is `hidden`
-   * and `inert` for the length of one, so the focus would land on nothing and simply
-   * be lost — and closing the search is the header's to offer, not this widget's.
+   * WARN: The field's own invariant, beside the hook's `isCovered`: this stack is
+   * `hidden` and `inert` for the length of a § 8.6. search, and `focus()` on an inert
+   * field silently does nothing at all rather than failing.
    */
   function returnToComposer() {
     if (isSearching) {

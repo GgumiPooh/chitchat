@@ -7,6 +7,7 @@ import {
   cn,
   isCommandKey,
   isEditableElement,
+  isLetterKey,
   type Nullable,
   type Optional,
 } from "@/shared/lib";
@@ -31,6 +32,7 @@ import {
   FOCUS_INDEX_ATTRIBUTE,
   focusItem,
   readFocusIndex,
+  revealWithin,
   toNextFocusIndex,
 } from "../model/emoticon-focus";
 import { ACTIVE_TAB_KEY, RECENTS_TAB, SEARCH_TAB, isPackTabId } from "../model/emoticon-tabs";
@@ -40,9 +42,6 @@ import { toEmoticonPacksQuery } from "../model/packs-query";
 import { useEmoticonSearch } from "../model/use-emoticon-search";
 import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
-
-// INFO: A sliver of the neighbouring tab stays visible past the revealed one, so the strip still reads as scrollable where it stops.
-const TAB_REVEAL_MARGIN = 8;
 
 // INFO: REQUIREMENTS.md § 13.6. Two taps on the same cell inside this window are the shortcut past the preview.
 const DOUBLE_TAP_WINDOW = A_SECOND / 3;
@@ -132,6 +131,13 @@ export function EmoticonPicker({
    * emoticon the search itself cannot yet find.
    */
   const [revealed, setRevealed] = useState<Nullable<Emoticon>>(null);
+  // INFO: REQUIREMENTS.md § 8.14. The one cell in the tab sequence, which the arrow keys move (ARIA's roving tabindex) — without it a pack of forty is forty tab stops between the composer and the send button.
+  // WARN: Declared up here with the tokens rather than beside the other focus state below, because the render-phase adjustments that replace the list all reset it and a `useState` after them is in its own temporal dead zone.
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  // WARN: State and not a ref, for `appliedSearchToken`'s reason — the reset below runs during render, where a ref may not be read at all.
+  const [focusedTab, setFocusedTab] = useState<Nullable<string>>(null);
+  // INFO: § 8.14. The strip's own roving stop, which follows focus along it. Null while nothing there has been focused, where the selected tab is the stop.
+  const [rovingTabId, setRovingTabId] = useState<Nullable<string>>(null);
 
   // WARN: § 13.8. Adjusted during render rather than in an effect. An effect lands a frame later, so the panel would open on the remembered tab, paint a grid of the wrong pack, and only then swap to the search row — which reads as the wrong panel flashing up. It is also why the forced tab is component state rather than the stored one: writing `localStorage` during a render is a side effect, and comparing tokens is not.
   if (searchRequest && searchRequest.token !== appliedSearchToken) {
@@ -140,6 +146,8 @@ export function EmoticonPicker({
     setForcedTab(SEARCH_TAB);
     // WARN: § 13.9. A word tapped in the composer ends any standing 따라하기, as `selectTab` and typing do. The panel can be open on a revealed cell when that tap lands — left standing, the search pins and rings an emoticon its own query never matched, and `hasReveal` withholds the keyboard from a tap that is a request to type.
     setRevealed(null);
+    // WARN: § 8.14. The row is about to be a different list, and the tab has not changed — so the reset keyed on the tab does not fire here. Left alone the one `tabIndex={0}` cell is wherever the previous search's stop was, which `SearchPane` has just scrolled off the right edge.
+    setFocusedIndex(0);
   }
 
   /**
@@ -173,12 +181,21 @@ export function EmoticonPicker({
   // INFO: § 8.14. Whichever scroller currently holds the cells — the grid, or § 13.8.'s results row. One ref because the two are branches of the same ternary and never coexist.
   const cellScrollerRef = useRef<Nullable<HTMLDivElement>>(null);
   const searchFieldRef = useRef<Nullable<HTMLInputElement>>(null);
-  // INFO: REQUIREMENTS.md § 8.14. The one cell in the tab sequence, which the arrow keys move (ARIA's roving tabindex) — without it a pack of forty is forty tab stops between the composer and the send button.
-  const [focusedIndex, setFocusedIndex] = useState(0);
-  // WARN: State and not a ref, for `appliedSearchToken`'s reason — the reset below runs during render, where a ref may not be read at all.
-  const [focusedTab, setFocusedTab] = useState<Nullable<string>>(null);
-  // INFO: § 8.14. The strip's own roving stop, which follows focus along it. Null while nothing there has been focused, where the selected tab is the stop.
-  const [rovingTabId, setRovingTabId] = useState<Nullable<string>>(null);
+  /**
+   * REQUIREMENTS.md § 8.14. The tab a keyboard tab-switch is waiting to put focus
+   * into, or null when nothing is.
+   *
+   * WARN: The grid subtree is `key={activeTab}`, so switching tabs destroys the cell
+   * focus was on and drops it to `<body>` — from where nothing inside this panel is
+   * on the event's path any more. Every following arrow key was dead, and the next
+   * ⌘← was no longer `preventDefault`ed, so the browser took it as Back and left the
+   * conversation altogether.
+   *
+   * WARN: The tab id and not a boolean, so the request expires. A pack is one round
+   * trip from being drawn, and the focus has to wait for its cells — held as a flag,
+   * an arrival on some *later* tab would take the focus the user has since moved.
+   */
+  const pendingFocusTabRef = useRef<Nullable<string>>(null);
   const [slideFrom, setSlideFrom] = useState<SwipeDirection>(1);
   const lastTapRef = useRef<Nullable<{ at: number; id: string }>>(null);
   const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
@@ -204,6 +221,8 @@ export function EmoticonPicker({
     setRevealed(revealRequest.emoticon);
     setForcedTab(SEARCH_TAB);
     setQuery(revealRequest.emoticon.keywords.join(", "));
+    // WARN: § 8.14. As the search request above resets it, and here the head of the row is the tapped item itself — a stop left mid-row is the one cell 따라하기 exists to put first not being the one a `Tab` reaches.
+    setFocusedIndex(0);
   }
 
   const revealedId = revealed?.id ?? null;
@@ -275,12 +294,56 @@ export function EmoticonPicker({
 
   // WARN: § 8.14. Clamped rather than reset by every change to the list. A search narrows its results on each keystroke while focus stays in the field, and a stop past the end would leave the row with no tab stop at all.
   const focusableIndex = Math.min(focusedIndex, shown.length - 1);
-  // INFO: § 8.14. The strip's stop follows focus, and falls back to the selection — which is where a tab chosen by a swipe or by ⌘←/→ leaves it.
+  /**
+   * INFO: § 8.14. The strip's stop follows focus, and falls back to the selection —
+   * which is where a tab chosen by a swipe or by ⌘←/→ leaves it.
+   *
+   * WARN: And falls through **again**, to the first tab. `activeTab` is allowed to
+   * hold a stored pack id the list has not answered for yet (see above), and that id
+   * is in no `tabIds` — left as the last fallback, the strip carries no tab stop at
+   * all for the length of that request, which is also exactly when the grid has no
+   * cell to carry one either.
+   */
   const focusableTabId =
-    rovingTabId !== null && tabIds.includes(rovingTabId) ? rovingTabId : activeTab;
+    rovingTabId !== null && tabIds.includes(rovingTabId)
+      ? rovingTabId
+      : tabIds.includes(activeTab)
+        ? activeTab
+        : tabIds[0];
 
   // INFO: § 13.6. The swipe moves the tab without the finger ever touching the strip, and the remembered tab can reopen the panel on a pack that is already past its right edge — either way the strip has to follow the selection or the active tab is unreachable to the eye.
   useEffect(revealActiveTab, [activeTab, packs]);
+
+  /**
+   * REQUIREMENTS.md § 8.14. Puts focus back in the grid after a ⌘←/→ that destroyed
+   * the cell it was on (`pendingFocusTabRef`).
+   *
+   * WARN: A layout effect, so the focus is restored inside the commit that drew the
+   * new tab — from a passive one there is a painted frame with focus on `<body>`, and
+   * a key pressed in it reaches the document rather than this panel.
+   *
+   * WARN: Keyed on the item count as well as the tab, because a cold pack is a round
+   * trip away from having a cell to focus (§ 13.6.). The request stands until its own
+   * tab draws one, and is dropped the moment the panel has moved on from that tab.
+   */
+  useLayoutEffect(() => {
+    const target = pendingFocusTabRef.current;
+
+    if (target === null) {
+      return;
+    }
+
+    // WARN: § 8.14. `!isOpen` drops it as firmly as a tab change does. Reaching for the composer closes the panel (§ 13.6.), and a request still standing when the pack finally lands would take that focus back out of the field the user had just asked for.
+    if (target !== activeTab || !isOpen || !cellScrollerRef.current) {
+      pendingFocusTabRef.current = null;
+
+      return;
+    }
+
+    if (focusItem(cellScrollerRef.current, 0)) {
+      pendingFocusTabRef.current = null;
+    }
+  }, [activeTab, isOpen, shown.length]);
 
   // WARN: § 13.8. The room exempts this tab from § 13.6.'s keyboard gate, so it has to be told on every change — reported off the tab rather than off the field's focus, or the frame between a blur and the keyboard actually retracting closes the panel underneath the user.
   useEffect(() => {
@@ -351,7 +414,8 @@ export function EmoticonPicker({
               ) : (
                 // INFO: DESIGN.md § 9. Assets are user-authored, so their aspect ratios are arbitrary — the cell is a fixed square and the still is `object-contain` inside it.
                 // WARN: § 8.14. The column count is `EMOTICON_GRID_COLUMNS` as well as this class, and the two MUST agree — the vertical arrows step by that number, and a grid drawn at a different width moves focus to the wrong row.
-                <div className="grid grid-cols-4 gap-2xs">
+                // INFO: § 8.14. `group` and not `grid`. ARIA's grid role requires `row` elements this layout has nowhere to put — a `display: contents` wrapper is the only place, and that is the property browsers spent years dropping from the accessibility tree. The **keys** follow the grid pattern; the roles say what is true, which is a labelled group of buttons.
+                <div className="grid grid-cols-4 gap-2xs" role="group" aria-label="이모티콘">
                   {shown.map((item, index) => (
                     <EmoticonCell
                       key={item.id}
@@ -530,25 +594,18 @@ export function EmoticonPicker({
    * INFO: Scrolled by hand rather than with `scrollIntoView`, which walks every
    * scrollable ancestor — the § 13.6. strip the panel is clipped by is
    * `overflow: hidden`, and mid-collapse that counts as one.
+   *
+   * INFO: § 8.14. Shares `revealWithin` with the arrow keys, which are written against
+   * the same trap. The strip has only a horizontal axis to be clipped on, so the
+   * vertical term that call computes resolves to `0` here.
    */
   function revealActiveTab() {
     const strip = tabStripRef.current;
     const tab = activeTabRef.current;
 
-    if (!strip || !tab) {
-      return;
+    if (strip && tab) {
+      revealWithin(strip, tab, "smooth");
     }
-
-    const stripBox = strip.getBoundingClientRect();
-    const tabBox = tab.getBoundingClientRect();
-    const clippedLeft = stripBox.left + TAB_REVEAL_MARGIN - tabBox.left;
-    const clippedRight = tabBox.right + TAB_REVEAL_MARGIN - stripBox.right;
-
-    if (clippedLeft <= 0 && clippedRight <= 0) {
-      return;
-    }
-
-    strip.scrollBy({ left: clippedLeft > 0 ? -clippedLeft : clippedRight, behavior: "smooth" });
   }
 
   /**
@@ -565,8 +622,7 @@ export function EmoticonPicker({
       return;
     }
 
-    // INFO: `toLowerCase`, since Caps Lock reports `E` for the same physical key.
-    if (event.key.toLowerCase() === "e") {
+    if (isLetterKey(event, "e")) {
       event.preventDefault();
       openSearchTab();
 
@@ -580,8 +636,19 @@ export function EmoticonPicker({
 
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
-      goToAdjacentTab(event.key === "ArrowRight" ? 1 : -1);
+
+      const moved = goToAdjacentTab(event.key === "ArrowRight" ? 1 : -1);
+
+      // WARN: § 8.14. Only where the key came from a cell — pressed on the strip, focus is already somewhere the switch does not destroy — and only towards a tab that draws cells, since 검색 focuses its own field as it mounts (§ 13.8.) and the restore would take that away a moment later.
+      if (moved !== undefined && moved !== SEARCH_TAB && isInCellScroller(event.target)) {
+        pendingFocusTabRef.current = moved;
+      }
     }
+  }
+
+  // INFO: § 8.14. The strip's buttons carry the same index attribute as the cells, so "which list is this key from" cannot be answered by reading it — only by asking which scroller the target is in.
+  function isInCellScroller(target: EventTarget): boolean {
+    return target instanceof Node && (cellScrollerRef.current?.contains(target) ?? false);
   }
 
   /** REQUIREMENTS.md § 8.14. ⌘E from inside the panel: the search tab, with the field ready to type into. */
@@ -613,8 +680,9 @@ export function EmoticonPicker({
       return;
     }
 
-    if (event.key === "Enter") {
-      handleEnterOnCell(event, shown[index]);
+    // WARN: § 8.14. `Space` as well as `Enter`. It activates on `keyup` rather than repeating, so it needs no guard of its own — but left to the native click it reaches `handleSelect` and two presses inside `DOUBLE_TAP_WINDOW` send, which is the pair this route exists to keep out of the keyboard.
+    if (event.key === "Enter" || event.key === " ") {
+      activateCell(event, shown[index]);
 
       return;
     }
@@ -647,31 +715,33 @@ export function EmoticonPicker({
   }
 
   /**
-   * INFO: REQUIREMENTS.md § 8.14. `Enter` stages, as one tap does; `⌘Enter` sends
-   * outright, which is what the second tap of § 13.6.'s pair does.
+   * INFO: REQUIREMENTS.md § 8.14. `Enter` stages and `⌘Enter` sends outright, which is
+   * what the two taps of § 13.6.'s pair do between them.
    *
-   * WARN: A held `Enter` is what the repeat guard is for, and it is not defensive
-   * tidying. The browser fires a `click` per repeat, and two of them inside
-   * `DOUBLE_TAP_WINDOW` are a **send** — so a key left down posts the emoticon it was
-   * only ever staging. `Space` needs no guard: it fires on `keyup`.
+   * WARN: § 8.14. `Enter` is taken off the native click and staged directly, and that
+   * is the whole point rather than an optimisation. Left to the click it lands in
+   * `handleSelect`, which cannot tell a keyboard from a thumb — so two deliberate
+   * presses inside `DOUBLE_TAP_WINDOW` **send**, from the one key the sheet labels
+   * 담기. The keyboard has its own send and needs no pair counted for it.
+   *
+   * WARN: The repeat guard is separate and still necessary: a held key fires this over
+   * and over, and staging on each one re-plays § 13.6.'s sound at the repeat rate.
    */
-  function handleEnterOnCell(event: KeyboardEvent<HTMLDivElement>, item: Optional<Emoticon>) {
-    if (event.repeat) {
-      event.preventDefault();
+  function activateCell(event: KeyboardEvent<HTMLDivElement>, item: Optional<Emoticon>) {
+    event.preventDefault();
 
+    if (event.repeat || !item) {
       return;
     }
 
-    if (item && isCommandKey(event)) {
-      event.preventDefault();
-      quickSend(item);
-    }
-  }
-
-  /** WARN: § 13.6. The pointer's own pair is cleared, or a tap landing after this send would pair with it and send a second time. */
-  function quickSend(item: Emoticon) {
+    // WARN: § 13.6. The pointer's own pair is cleared either way, or a tap landing after this would pair with a press it never saw.
     lastTapRef.current = null;
-    onQuickSend(item);
+
+    if (isCommandKey(event)) {
+      onQuickSend(item);
+    } else {
+      onSelect(item);
+    }
   }
 
   // INFO: § 8.14. `onFocus` rather than a handler per cell: React's is `focusin`, which bubbles where the DOM's `focus` does not.
@@ -747,18 +817,28 @@ export function EmoticonPicker({
     }
   }
 
-  // INFO: REQUIREMENTS.md § 13.6. The ends do not wrap — 최근 사용 and the last pack are where the gesture stops, so a swipe never rotates past what the tabs show.
-  function goToAdjacentTab(direction: SwipeDirection) {
+  /**
+   * INFO: REQUIREMENTS.md § 13.6. The ends do not wrap — 최근 사용 and the last pack
+   * are where the gesture stops, so a swipe never rotates past what the tabs show.
+   *
+   * @returns The tab it moved to, which § 8.14.'s ⌘←/→ needs in order to know where
+   * to put focus back; `undefined` where the strip had nowhere left to go.
+   */
+  function goToAdjacentTab(direction: SwipeDirection): Optional<string> {
     // WARN: The remembered tab survives the pending state (see `activeTab`) while `tabIds` does not, so until the packs land it is in no list and every neighbour of it is the wrong one.
     if (activeIndex < 0) {
-      return;
+      return undefined;
     }
 
     const next = tabIds[activeIndex + direction];
 
-    if (next) {
-      selectTab(next);
+    if (!next) {
+      return undefined;
     }
+
+    selectTab(next);
+
+    return next;
   }
 }
 
@@ -908,9 +988,10 @@ function SearchPane({
   }, [isOpen]);
 
   // WARN: § 13.9. Keyed on the token, not on the item — the row keeps whatever offset a previous search left it at, so a second 따라하기 would put its emoticon at the head of a row still scrolled somewhere else. Instant, for the reason § 13.6. gives against a smooth scroll while the strip is animating.
+  // INFO: § 8.14. `rowRef` is listed because it is the panel's ref now rather than this pane's own, and a prop is a dependency the rule cannot see through. Its identity is stable, so it never re-runs on it.
   useLayoutEffect(() => {
     rowRef.current?.scrollTo({ left: 0 });
-  }, [revealToken]);
+  }, [revealToken, rowRef]);
 
   return (
     // WARN: The swipe is taken here but `touch-pan-y` is **not** — a browser intersects `touch-action` down the whole ancestor chain, so reserving the horizontal axis on this box would meet the results row's `touch-pan-x` as `none` and that row would stop scrolling at all. Each child below declares its own axis instead.
@@ -946,6 +1027,8 @@ function SearchPane({
           <div
             ref={rowRef}
             className="scrollbar-hidden flex min-h-0 flex-1 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain"
+            role="group"
+            aria-label="검색 결과"
             onPointerDownCapture={keepAxisWhileScrollable}
             onKeyDown={onCellKeys}
             onFocus={onCellFocus}

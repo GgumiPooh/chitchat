@@ -1,7 +1,14 @@
 "use client";
 
 import { findKeywordMatch, MAX_MESSAGE_LENGTH, type KeywordMatch } from "@/shared/config";
-import { cn, isCommandKey, useIsCoarsePointer, useUnsentWork, type Nullable } from "@/shared/lib";
+import {
+  cn,
+  isCommandKey,
+  isLetterKey,
+  useIsCoarsePointer,
+  useUnsentWork,
+  type Nullable,
+} from "@/shared/lib";
 import { HapticTarget, IconButton, Textarea } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUp, Plus, Smile } from "lucide-react";
@@ -309,8 +316,9 @@ export function MessageComposer({
       return;
     }
 
-    openEmoticonSearch(match.query);
+    // WARN: § 13.6. Before the request and not after, which is the order this has always been in — the blur is what lowers the keyboard, and the panel is asked to open against a viewport that is already on its way back.
     fieldRef.current?.blur();
+    openEmoticonSearch(match.query);
   }
 
   /**
@@ -357,8 +365,7 @@ export function MessageComposer({
     }
 
     // WARN: REQUIREMENTS.md § 8.14. Withheld while correcting, exactly as the underline is — the panel this opens stages a payload § 8.13.'s edit has no row for.
-    // INFO: `toLowerCase`, since Caps Lock reports `E` for the same physical key.
-    if (isCommandKey(event) && event.key.toLowerCase() === "e" && !isEditing) {
+    if (isCommandKey(event) && isLetterKey(event, "e") && !isEditing) {
       event.preventDefault();
       openEmoticonSearch(match?.query ?? null);
 

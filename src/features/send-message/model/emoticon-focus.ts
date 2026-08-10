@@ -12,7 +12,7 @@ export const EMOTICON_GRID_COLUMNS = 4;
  */
 export const FOCUS_INDEX_ATTRIBUTE = "data-emoticon-focus";
 
-// INFO: § 13.6. A sliver past the revealed item, matching `TAB_REVEAL_MARGIN` — it says the scroller has more in that direction.
+// INFO: § 13.6. A sliver of whatever is past the revealed item stays visible, so the scroller still reads as having more in that direction.
 const REVEAL_MARGIN = 8;
 
 /**
@@ -85,22 +85,36 @@ export function readFocusIndex(target: Nullable<EventTarget>): Optional<number> 
  * strip clipping this panel is `overflow: hidden`, which mid-collapse counts as one.
  * That is the same trap `revealActiveTab` is written by hand for.
  */
-export function focusItem(scroller: HTMLElement, index: number): void {
+export function focusItem(scroller: HTMLElement, index: number): boolean {
   const item = scroller.querySelector<HTMLElement>(`[${FOCUS_INDEX_ATTRIBUTE}="${index}"]`);
 
   if (!item) {
-    return;
+    return false;
   }
 
   item.focus({ preventScroll: true });
-  reveal(scroller, item);
+  revealWithin(scroller, item);
+
+  return true;
 }
 
-function reveal(scroller: HTMLElement, item: HTMLElement): void {
+/**
+ * Scrolls `item` into view inside `scroller`, on whichever axes it is clipped on.
+ *
+ * INFO: § 13.6. Also what the tab strip's own reveal is built on — one copy of the
+ * `overflow: hidden` workaround above, and one margin, rather than a pair per
+ * scroller that a later change would have to find both of.
+ */
+export function revealWithin(
+  scroller: HTMLElement,
+  item: HTMLElement,
+  behavior: ScrollBehavior = "auto",
+): void {
   const scrollerBox = scroller.getBoundingClientRect();
   const itemBox = item.getBoundingClientRect();
 
   scroller.scrollBy({
+    behavior,
     top: toScrollStep(
       scrollerBox.top + REVEAL_MARGIN - itemBox.top,
       itemBox.bottom + REVEAL_MARGIN - scrollerBox.bottom,
