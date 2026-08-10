@@ -931,10 +931,10 @@ export function ChatRoom({
   return (
     // INFO: DESIGN.md § 3.5. One scroll region spanning the whole screen; the composer and the tab bar float over its bottom edge rather than shortening it.
     // INFO: REQUIREMENTS.md § 9.2. The drop target is the whole room, so a file dragged anywhere over the conversation stages rather than having to find the composer.
-    // INFO: REQUIREMENTS.md § 12.2. `bg-chat-canvas` covers `ChatScreen`'s wallpaper tint completely and is meant to — that box is sampled for its computed `background-color`, not for what is visible, so the room's own floor is free to be the flat surface every colour in it was designed against.
+    // WARN: REQUIREMENTS.md § 12.2. No floor of its own, and it MUST NOT get one back. `ChatScreen` is `bg-chat-canvas` already, so an opaque copy here changes nothing a reader sees — but iOS 26 samples the **pixels** at the top edge rather than the `fixed` box's declared colour, and a flat `chat-canvas` covering the wallpaper's tint is what the status bar then wears for the whole session.
     <div
       ref={containerRef}
-      className={cn("relative min-h-0 flex-1 bg-chat-canvas", className)}
+      className={cn("relative min-h-0 flex-1", className)}
       {...fileDrop.handlers}
     >
       {chatBackgroundMediaId && (
