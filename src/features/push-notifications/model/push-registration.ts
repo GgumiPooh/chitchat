@@ -106,7 +106,7 @@ export async function subscribeToPush(): Promise<PushState> {
 
   const saved = await saveSubscription(toSubscriptionInput(subscription));
 
-  // INFO: REQUIREMENTS.md § 16.1. A re-subscribing device keeps the 알림 소리 it had — the upsert leaves the column alone, so the answer is whatever the row already said.
+  // WARN: REQUIREMENTS.md § 16.1. The launch upsert preserves 알림 소리, but 알림 off deletes the row and mints a new endpoint — so off-then-on lands on the `true` default, and this reports it rather than the value the deleted row held.
   return { status: "on", soundEnabled: saved.soundEnabled };
 }
 

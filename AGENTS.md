@@ -31,6 +31,8 @@ Hand-rolled syllable arithmetic works only while every value ends in a Hangul sy
 
 Every UI component MUST declare a TypeScript `type` alias named `{ComponentName}Props` and use it as the component's parameter type. `{ComponentName}Props` MUST include `className?: string`.
 
+**A component that renders no DOM element of its own is exempt from the `className` half, and only that half.** A context provider returning a bare `<Context value>` around `children`, or a shell component returning `null`, has nothing for § 1.2. to name — `ChatStreamProvider`, `ProfileViewerProvider` and `PushSettingsProvider` are the instances. The `{ComponentName}Props` alias itself is still required.
+
 ## 1.2. Outer className
 
 Apply the `className` field of `{ComponentName}Props` (§ 1.1.) to the component's outermost rendered element (the root wrapping `<div>` or equivalent tag). Do not forward it to any inner child.

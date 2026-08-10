@@ -164,34 +164,34 @@ async function handlePush(data) {
   updateBadge(payload.unreadCount);
   await postUnreadCount(payload.unreadCount);
 
-  // WARN: REQUIREMENTS.md § 16.1. Captured before the banner below and closed after it, never around it — these carry the same tag, so a sweep that ran later would take the new one with them.
-  const superseded = await listOwnNotifications();
+  // WARN: REQUIREMENTS.md § 16.1. Strictly before the banner below, never after it. Chromium derives a persistent notification's id from origin and tag, so the replacement reuses the id the captured handle holds and closing that handle afterwards dismisses the banner this push just showed.
+  await dismissOwnNotifications();
 
   // WARN: REQUIREMENTS.md § 16.1. Every push MUST end in a banner, with no exception for a visible window — WebKit revokes the subscription after three that do not, which reads as the Settings toggle emptying itself and push dying for good.
   await self.registration.showNotification(payload.title, {
     body: payload.body,
     icon: NOTIFICATION_ICON,
     badge: NOTIFICATION_ICON,
-    // INFO: REQUIREMENTS.md § 6. One conversation, so a second message replaces the first banner where the platform honours a tag; `renotify` is what still alerts on the replacement, and the close above is what covers iOS, which does not.
+    // INFO: REQUIREMENTS.md § 6. One conversation, so a second message replaces the first banner where the platform honours a tag; `renotify` is what still alerts on the replacement, and the dismissal above is what covers iOS, which does not.
     tag: NOTIFICATION_TAG,
     renotify: true,
     // WARN: REQUIREMENTS.md § 16.1. Always an explicit boolean, never omitted. WebKit's `platformShouldPlaySound` reads an absent `silent` opposite ways per platform — `silent == nullopt || !*silent` on iOS, `silent != nullopt && !*silent` on macOS — so leaving it out means sound on the phone and silence on the desktop for the same push.
     silent: payload.silent === true,
     data: { url: payload.url },
   });
-
-  superseded.forEach((notification) => notification.close());
 }
 
 /**
  * WARN: REQUIREMENTS.md § 16.1. This is what `tag` alone was believed to do, and does not on iOS — `webpushd` identifies a `UNNotificationRequest` by the notification's own generated UUID and performs no replace-by-tag step, so every push stacked another banner in Notification Center.
  * WARN: Swallowed and never rethrown. It runs on the path § 16.1. requires to end in a banner, so a failure here must cost the collapse and never the `showNotification` after it.
  */
-async function listOwnNotifications() {
+async function dismissOwnNotifications() {
   try {
-    return await self.registration.getNotifications({ tag: NOTIFICATION_TAG });
+    const shown = await self.registration.getNotifications({ tag: NOTIFICATION_TAG });
+
+    shown.forEach((notification) => notification.close());
   } catch {
-    return [];
+    // INFO: A miss costs the collapse for one push; the § 16.1. page sweep still clears the pile on the next entry.
   }
 }
 
