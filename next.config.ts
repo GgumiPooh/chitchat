@@ -24,8 +24,7 @@ const SERVICE_WORKER_HEADERS = [
 
 export default {
   allowedDevOrigins: ["localhost", "192.168.*.*", "jandh-dev.jeheecheon.com"],
-  // INFO: Partial Prerendering. Every screen streams its runtime data behind a `<Suspense>` fallback sized to the content it stands in for (DESIGN.md § 7.8.).
-  cacheComponents: true,
+  // WARN: No `cacheComponents`. It was on and was reversed — REQUIREMENTS.md § 1.1. has the whole account, and the short version is that it is project-wide, that `fetch`'s own `next.revalidate` never needed it, and that it costs the § 12.2. wallpaper its place in the first paint.
   experimental: {
     // WARN: `es-hangul` declares no `sideEffects: false`, so a bare `import { josa }` pulls its romanisation and standard-pronunciation tables into the bundle with it. Only the modules actually used survive this.
     // INFO: `lucide-react` and `lodash-es` are on Next's own default list and do not need naming here.

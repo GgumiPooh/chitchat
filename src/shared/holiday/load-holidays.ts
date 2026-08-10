@@ -13,7 +13,6 @@ import {
   type Nullable,
   type Optional,
 } from "@/shared/lib";
-import { connection } from "next/server";
 import { cache } from "react";
 import { findMissingLunisolar, toHolidayEntries } from "./resolve";
 import {
@@ -141,15 +140,11 @@ async function readYear(
  * REQUIREMENTS.md § 11.7. Every 공휴일 the calendar draws — the committed table with
  * 특일 정보's answer for the mutable years laid over it.
  *
- * WARN: Request-time by construction. `connection()` declares the clock read below,
- * so every caller is excluded from the prerender and belongs inside a `<Suspense>`
- * boundary — the contract is this module's rather than a caller's statement order,
- * which is the shape `connection`'s own reference gives a data function. The requests
- * underneath are cached (`CACHE_LIFETIME`); the year they are asked about is not.
+ * INFO: The requests underneath are cached (`CACHE_LIFETIME`) through `fetch`'s own
+ * `next.revalidate`, which is a layer of its own and needs no configuration flag. The
+ * year they are asked about is read from the clock and is not cached with them.
  */
 export const loadHolidays = cache(async (): Promise<HolidayTable> => {
-  await connection();
-
   const table: HolidayTable = { ...FALLBACK_HOLIDAYS };
   const serviceKey = readServiceKey();
 

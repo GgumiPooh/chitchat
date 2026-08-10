@@ -2,7 +2,6 @@ import "server-only";
 
 import { ensureEnv, MAX_UPCOMING_EVENTS } from "@/shared/config";
 import { countDays, findNextMilestone, MILESTONE_HORIZON_DAYS, toDayKey } from "@/shared/lib";
-import { connection } from "next/server";
 import type { CalendarSummary } from "../model/types";
 import { listUpcomingOccurrences } from "./list-events";
 
@@ -21,15 +20,8 @@ export function getRelationshipStartDate(): string {
  * WARN: `todayKey` is resolved **here**, on the server, and shipped to the client
  * rather than recomputed there. A device whose clock or timezone is off would
  * otherwise show the two users different day counts for the same day.
- *
- * WARN: `connection()` declares that clock read, so this is request-time by
- * construction and every caller is excluded from the prerender. Without it the build
- * fails on whichever caller reaches `Date.now()` before touching request data, and
- * the error names the caller rather than this function.
  */
 export async function getCalendarSummary(): Promise<CalendarSummary> {
-  await connection();
-
   const startDate = getRelationshipStartDate();
   const todayKey = toDayKey(Date.now());
 
