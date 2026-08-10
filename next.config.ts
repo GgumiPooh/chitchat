@@ -23,6 +23,8 @@ const SERVICE_WORKER_HEADERS = [
 ];
 
 export default {
+  // INFO: Only the container image wants a self-hosted server; Vercel and Netlify build through their own adapters, which a standalone output would cut out from under them.
+  output: process.env.NEXT_OUTPUT_STANDALONE === "true" ? "standalone" : undefined,
   allowedDevOrigins: ["localhost", "192.168.*.*", "jandh-dev.jeheecheon.com"],
   // WARN: No `cacheComponents`. It was on and was reversed — REQUIREMENTS.md § 1.1. has the whole account, and the short version is that it is project-wide, that `fetch`'s own `next.revalidate` never needed it, and that it costs the § 12.2. wallpaper its place in the first paint.
   experimental: {

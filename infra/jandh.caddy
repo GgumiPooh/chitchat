@@ -1,0 +1,21 @@
+jandh.jeheecheon.com {
+	handle /_next/static/* {
+		root * /srv/www/jandh
+
+		# WARN: `route` preserves the order written here. Caddy's own directive order runs
+		# reverse_proxy before file_server, so inside a bare handle block the proxy answers
+		# every request and the disk copy is never consulted.
+		route {
+			file_server {
+				pass_thru
+			}
+			reverse_proxy jandh-app:3000
+		}
+	}
+
+	handle {
+		reverse_proxy jandh-app:3000 {
+			flush_interval -1
+		}
+	}
+}
