@@ -1,10 +1,10 @@
 import "server-only";
 
-import { REPLY_PREVIEW_MAX_LENGTH, toMediaKind } from "@/shared/config";
+import { REPLY_PREVIEW_MAX_LENGTH, toMediaKind, toQuoteThumbnail } from "@/shared/config";
 import { emoticonItems, getDb, messages } from "@/shared/db";
-import type { Nullable, Optional } from "@/shared/lib";
+import type { Nullable } from "@/shared/lib";
 import { eq, inArray } from "drizzle-orm";
-import type { QuoteThumbnail, ReplyPreview } from "../model/types";
+import type { ReplyPreview } from "../model/types";
 import { listMessageMedia } from "./list-message-media";
 
 /** The quote for one reply — what the create paths resolve before they echo the row back. */
@@ -64,9 +64,8 @@ export async function listReplyPreviews(parentIds: number[]): Promise<Map<number
       kind: row.type,
       // INFO: A deleted parent surrenders its content and keeps only its identity — the quote replaces both with 삭제된 메시지예요.
       text: row.deletedAt ? null : (row.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null),
-      // INFO: REQUIREMENTS.md § 9.1., § 9.3. Neither a file attachment nor a recording has a `_thumb` object, so the quote is left with the label alone rather than a tile that 404s.
       // WARN: The deletion is tested here rather than left to the helper, because only the media half gets it for free — `listMessageMedia` is never asked about a deleted row, where the emoticon join above is on `messages` itself and answers for one.
-      thumbnail: row.deletedAt ? null : toQuoteThumbnail(row, attachments[0]),
+      thumbnail: row.deletedAt ? null : toQuoteThumbnail(toQuotedEmoticon(row), attachments),
       // INFO: The same rule the § 16.1. push body applies — 동영상 only when there is no photo in the bubble to contradict it.
       mediaKind: toMediaKind(attachments),
       // INFO: DESIGN.md § 6.10. The summary counts what the tile cannot show — it is the first attachment alone, however many were sent.
@@ -79,30 +78,22 @@ export async function listReplyPreviews(parentIds: number[]): Promise<Map<number
   return byId;
 }
 
-// WARN: Structural, not `ChatMedia`. `entities/message` may not import `entities/media` (FSD forbids a cross-import between slices of one layer), and the two fields below are the whole of what this question needs.
-type QuotedAttachment = { filename: Nullable<string>; voice: Nullable<unknown>; id: string };
-
-/** The emoticon half of the row above — its id, and the `updated_at` § 13.4. versions the asset by. */
-type QuotedEmoticon = { emoticonItemId: Nullable<string>; emoticonUpdatedAt: Nullable<Date> };
-
 /**
- * WARN: Both fields, never `filename` alone. A recording carries no filename either,
- * so testing that one field pointed the quote's `<img>` at an audio object — which
- * `GET /api/media/{id}` now serves as the original — and reserved `QUOTE_THUMBNAIL`
- * in the § 8.3. estimate for a tile that can never draw.
+ * The joined columns as `toQuoteThumbnail` names them — plumbing for the left join,
+ * never the rule itself, which `@/shared/config` owns for both callers.
+ *
+ * INFO: REQUIREMENTS.md § 13.4. `updated_at` in milliseconds is what `Emoticon.version` is, so a quote and a bubble address the same edited asset by the same URL.
  */
-function toQuoteThumbnail(
-  { emoticonItemId, emoticonUpdatedAt }: QuotedEmoticon,
-  attachment: Optional<QuotedAttachment>,
-): Nullable<QuoteThumbnail> {
-  // INFO: § 6. A row carries one payload or the other, so the order settles nothing — an emoticon message has no attachments to reach the branch below.
-  if (emoticonItemId && emoticonUpdatedAt) {
-    return { kind: "emoticon", itemId: emoticonItemId, version: emoticonUpdatedAt.getTime() };
-  }
-
-  if (!attachment || attachment.filename || attachment.voice) {
+function toQuotedEmoticon({
+  emoticonItemId,
+  emoticonUpdatedAt,
+}: {
+  emoticonItemId: Nullable<string>;
+  emoticonUpdatedAt: Nullable<Date>;
+}): Nullable<{ version: number; id: string }> {
+  if (!emoticonItemId || !emoticonUpdatedAt) {
     return null;
   }
 
-  return { kind: "media", mediaId: attachment.id };
+  return { id: emoticonItemId, version: emoticonUpdatedAt.getTime() };
 }

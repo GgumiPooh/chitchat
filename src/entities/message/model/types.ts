@@ -1,20 +1,8 @@
 import type { Emoticon } from "@/entities/emoticon/@x/message";
 import type { ChatMedia } from "@/entities/media/@x/message";
-import type { MediaKind } from "@/shared/config";
+import type { MediaKind, QuoteThumbnail } from "@/shared/config";
 import type { MessageType, SystemAction } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
-
-/**
- * The 32px tile a quote draws beside its summary (DESIGN.md § 6.10.).
- *
- * INFO: One discriminated field rather than a nullable id per kind, so `toQuoteHeight`
- * answers "is there a tile?" with a single test — two parallel ids are a pair that can
- * disagree, and the § 8.3. estimate would be reading whichever one it was written against.
- */
-export type QuoteThumbnail =
-  | { kind: "media"; mediaId: string }
-  // WARN: REQUIREMENTS.md § 13.4. The version travels with the id, because `toEmoticonAssetUrl` cannot address an edited item without it — the edit swaps the object behind an unchanged id and the redirect in front of it is cached.
-  | { kind: "emoticon"; itemId: string; version: number };
 
 /**
  * The message a reply quotes, as the quote renders it (REQUIREMENTS.md § 8.10.).

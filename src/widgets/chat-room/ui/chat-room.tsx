@@ -2,7 +2,7 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
-import type { ChatMessage, QuoteThumbnail, ReplyPreview } from "@/entities/message";
+import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { useChatStream, useChatStreamListener } from "@/features/chat-stream";
 import {
@@ -37,6 +37,7 @@ import {
   toMediaCountUnit,
   toMediaKind,
   toMediaLabel,
+  toQuoteThumbnail,
   type MediaKind,
   type MessageArrival,
 } from "@/shared/config";
@@ -1756,9 +1757,8 @@ export function ChatRoom({
       senderId: message.senderId,
       kind: message.type,
       text: message.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null,
-      // INFO: REQUIREMENTS.md § 9.1., § 9.3. Neither a file attachment nor a recording has a `_thumb` object, so the quote takes its label alone rather than a tile that would 404.
-      // WARN: Must stay in step with `listReplyPreviews`, which answers the same question on the server — the optimistic quote and the echoed one are the same row and may not disagree about whether it has a tile.
-      thumbnail: toQuoteThumbnail(message),
+      // INFO: REQUIREMENTS.md § 8.10. The same call `listReplyPreviews` makes on the server, so the optimistic quote and the echoed one cannot disagree about whether the row has a tile.
+      thumbnail: toQuoteThumbnail(message.emoticon, message.media),
       mediaKind: toMediaKind(message.media),
       mediaCount: message.media.length,
       isDeleted: false,
@@ -1823,26 +1823,6 @@ export function ChatRoom({
     const hasShareableMedia = first !== undefined && !first.filename && !first.voice;
 
     return hasShareableMedia || (message.text !== null && message.text.length > 0);
-  }
-
-  /**
-   * WARN: The same test `listReplyPreviews` runs on the server, and the two answer for
-   * the same row — a quote that disagrees between the optimistic bubble and the echo
-   * would swap a tile in or out under the reader.
-   */
-  function toQuoteThumbnail(message: ChatMessage): Nullable<QuoteThumbnail> {
-    // INFO: REQUIREMENTS.md § 13.4. The version the server reads off `emoticon_items.updated_at`, which is what `Emoticon.version` already carries.
-    if (message.emoticon) {
-      return { kind: "emoticon", itemId: message.emoticon.id, version: message.emoticon.version };
-    }
-
-    const [attachment] = message.media;
-
-    if (!attachment || attachment.filename || attachment.voice) {
-      return null;
-    }
-
-    return { kind: "media", mediaId: attachment.id };
   }
 
   /**

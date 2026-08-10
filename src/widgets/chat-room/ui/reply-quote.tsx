@@ -1,7 +1,7 @@
 "use client";
 
-import type { QuoteThumbnail, ReplyPreview } from "@/entities/message";
-import { toEmoticonAssetUrl, toMediaUrl } from "@/shared/config";
+import type { ReplyPreview } from "@/entities/message";
+import { toEmoticonAssetUrl, toMediaUrl, type QuoteThumbnail } from "@/shared/config";
 import { cn, type Optional } from "@/shared/lib";
 import { PreloadImage } from "@/shared/ui";
 import { toReplySummary } from "../model/to-reply-summary";

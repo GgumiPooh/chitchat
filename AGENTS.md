@@ -121,7 +121,9 @@ Use only the semantic color tokens defined in `src/app/styles/theme.css` (`canva
 
 ## 5.2. Dark theme readiness
 
-The `.dark` block in `theme.css` is intentionally unpopulated. Never hardcode a light-mode value that would need a `dark:` override later; express it as a token instead.
+The `.dark` block in `theme.css` rebinds the same token names against the dark canvas, and **a new token needs its entry there in the same change** — a colour stated once is a light value sitting on a dark floor. Never hardcode a light-mode value that would need a `dark:` override later; express it as a token instead.
+
+A dark value is **re-derived against that canvas, never the light one reused** (`DESIGN.md § 5.4.`). One token departs from that and says so: `message-flash` is `primary`'s own channels at a fixed alpha, so its dark entry swaps the channels and keeps the alpha. **Do not express a theme-following token with `color-mix(… var(--color-primary) …)`** — Tailwind rewrites the `var()` into an `@supports` pair and inlines the resolved **light** value as the fallback, inside the `.dark` block too. Write the channels out per theme.
 
 ## 5.3. A colour taken from an image comes from its stored hash
 
