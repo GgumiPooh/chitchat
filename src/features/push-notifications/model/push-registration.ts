@@ -66,6 +66,7 @@ export async function syncPushSubscription(): Promise<PushStatus> {
  * WARN: Unfiltered rather than by `sw.js`'s tag (§ 16.1.) — the tag lives in the worker alone, and a mirrored copy here would be a second source of truth nothing checks. A registration is per-origin, so everything it holds is ours anyway.
  */
 export async function dismissDeliveredNotifications(): Promise<void> {
+  // INFO: Looser than `isPushSupported` on purpose — clearing a banner needs neither `PushManager` nor the VAPID key, and a device whose subscription has since been retired is still holding the banners it was sent.
   if (!("serviceWorker" in navigator)) {
     return;
   }
