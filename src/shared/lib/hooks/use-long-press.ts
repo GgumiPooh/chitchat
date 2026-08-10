@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, type MouseEvent, type PointerEvent } from "react";
 import { A_SECOND } from "../date/time";
-import { GESTURE_SLOP } from "../gesture";
+import { GESTURE_SLOP } from "../input/gesture";
 import type { Nullable, Optional } from "../nullish";
 
 const LONG_PRESS_DELAY = A_SECOND / 2;

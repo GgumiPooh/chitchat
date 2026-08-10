@@ -61,7 +61,6 @@ export {
 } from "./date/time";
 export { hasDataTransferFiles, isBrowser, isEditableElement } from "./dom";
 export { buildFadeMask, type FadeMaskOptions } from "./fade-mask";
-export { GESTURE_SLOP } from "./gesture";
 export { useBfcacheRestore } from "./hooks/use-bfcache-restore";
 export { useHydrated } from "./hooks/use-hydrated";
 export { useIsCoarsePointer } from "./hooks/use-is-coarse-pointer";
@@ -84,6 +83,8 @@ export {
 } from "./hooks/use-pinch-zoom";
 export { useSettledCommit, type SettledCommitOptions } from "./hooks/use-settled-commit";
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
+export { GESTURE_SLOP } from "./input/gesture";
+export { isCommandKey, toCommandKeyLabel, type CommandKeyLabel } from "./input/keyboard";
 export type { Maybe, Nullable, Optional } from "./nullish";
 export { randomId } from "./random";
 export { mapPooled, type PoolOptions } from "./run/pool";

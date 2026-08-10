@@ -38,9 +38,11 @@ export function BottomSheet({
 }: BottomSheetProps) {
   return (
     <Drawer open={isOpen} direction="bottom" onOpenChange={handleOpenChange}>
+      {/* WARN: AGENTS.md § 4.3. The shell width, re-applied — the same thing `AppHeader` and `BottomOverlay` do and for the same reason. Vaul portals this outside `#app-shell`, so its `fixed` box is laid out against the whole layout viewport, and on a desktop the sheet spanned the window while every other pixel of the app sat in a 576px column. */}
+      {/* INFO: DESIGN.md § 7.5.'s `sm` inset is subtracted from the cap rather than left as a margin, so the narrow screen this was written on keeps the exact width it had — `mx-auto` and `mx-sm` cannot both hold, and the gutter is the one expressible as a width. */}
       <DrawerContent
         className={cn(
-          "mx-sm mb-sm flex h-auto! max-h-[calc(var(--viewport-height,100dvh)_*_0.9_-_var(--spacing-sm))] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+          "mx-auto mb-sm flex h-auto! max-h-[calc(var(--viewport-height,100dvh)_*_0.9_-_var(--spacing-sm))] w-[calc(100%_-_var(--spacing-sm)*2)] max-w-[calc(var(--container-app)_-_var(--spacing-sm)*2)] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
           className,
         )}
         onCloseAutoFocus={onCloseAutoFocus}

@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { A_SECOND } from "../date/time";
-import { GESTURE_SLOP } from "../gesture";
+import { GESTURE_SLOP } from "../input/gesture";
 import type { Nullable } from "../nullish";
 
 /** REQUIREMENTS.md § 18. #6. Tuned on a real device; every other number here follows from these three. */

@@ -1,7 +1,7 @@
 "use client";
 
 import { findKeywordMatch, MAX_MESSAGE_LENGTH, type KeywordMatch } from "@/shared/config";
-import { cn, useIsCoarsePointer, useUnsentWork, type Nullable } from "@/shared/lib";
+import { cn, isCommandKey, useIsCoarsePointer, useUnsentWork, type Nullable } from "@/shared/lib";
 import { HapticTarget, IconButton, Textarea } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUp, Plus, Smile } from "lucide-react";
@@ -54,6 +54,16 @@ export type MessageComposerProps = {
   seededDraft?: { text: string; token: number };
   /** REQUIREMENTS.md § 8.13. The field is correcting a message rather than composing one, so the controls that stage a *new* payload have nothing to act on. */
   isEditing?: boolean;
+  /**
+   * REQUIREMENTS.md § 8.14. Bumped by the room to put the caret back in this field —
+   * `Escape` from anywhere in the conversation.
+   *
+   * WARN: A token rather than a ref handed down, for the reason `seededDraft` carries
+   * one: two returns to the field are two instructions, and there is nothing about the
+   * second one for a boolean to report. `0` is the resting value and asks for nothing,
+   * so a mounting composer does not steal focus from the screen it mounted with.
+   */
+  focusRequest?: number;
   onAttach: () => void;
   /** REQUIREMENTS.md § 13.6. Reaching for the field is a request for the keyboard, which the picker would then be buried under. */
   onFieldFocus?: () => void;
@@ -74,6 +84,7 @@ export function MessageComposer({
   keywordConsumeToken,
   seededDraft,
   isEditing = false,
+  focusRequest = 0,
   onAttach,
   onFieldFocus,
   onEdit,
@@ -169,6 +180,19 @@ export function MessageComposer({
     fieldRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seededDraft?.token]);
+
+  /**
+   * REQUIREMENTS.md § 8.14. The room asking for the caret back.
+   *
+   * WARN: The resting `0` is skipped rather than compared against a remembered token.
+   * Anything that fires on mount would take focus off whatever the screen opened on —
+   * and on iOS raise the keyboard over a conversation nobody has touched yet.
+   */
+  useEffect(() => {
+    if (focusRequest > 0) {
+      fieldRef.current?.focus();
+    }
+  }, [focusRequest]);
 
   return (
     // WARN: DESIGN.md § 3.5. Transparent to the pointer so the messages underneath stay tappable; only the pill itself takes taps.
@@ -285,9 +309,27 @@ export function MessageComposer({
       return;
     }
 
-    tappedQueryRef.current = match.query;
+    openEmoticonSearch(match.query);
     fieldRef.current?.blur();
-    onKeywordTap?.(match.query);
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.14. ⌘E is the underlined word's tap, for a keyboard — and it
+   * works with no word underlined too, opening § 13.8.'s search on an empty field.
+   *
+   * INFO: Unconditional on purpose. Offered only where a word happens to match, the
+   * shortcut answers on one draft in ten and reads as broken on the rest, so there is
+   * nothing to learn from it; the word is a *seed* it carries when there is one.
+   *
+   * WARN: No `blur()`, unlike the tap above. That exists so iOS lowers the keyboard
+   * the panel may not share the screen with (§ 13.6.), and a hardware keyboard raises
+   * none — blurring here would only take the caret off the field a frame before
+   * § 13.8.'s own pane claims it.
+   */
+  function openEmoticonSearch(query: Nullable<string>) {
+    // WARN: § 13.8. Only a real word is armed for the send to spend. Left set to `""`, a draft the user then typed would be matched by the empty string this shortcut opened with.
+    tappedQueryRef.current = query;
+    onKeywordTap?.(query ?? "");
   }
 
   /**
@@ -308,14 +350,23 @@ export function MessageComposer({
     event.preventDefault();
   }
 
-  // INFO: AGENTS.md § 4.2. A hardware keyboard sends on Enter; on touch the same key has to stay a newline, since the iOS keyboard offers no send key.
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (
-      isCoarsePointer ||
-      event.key !== "Enter" ||
-      event.shiftKey ||
-      event.nativeEvent.isComposing
-    ) {
+    // WARN: § 8.14. First, and it covers every branch below. A Hangul IME fires `keydown` for the keystrokes that settle a syllable — including the Enter that closes a composition, which is the trap `KeywordField` records.
+    if (event.nativeEvent.isComposing) {
+      return;
+    }
+
+    // WARN: REQUIREMENTS.md § 8.14. Withheld while correcting, exactly as the underline is — the panel this opens stages a payload § 8.13.'s edit has no row for.
+    // INFO: `toLowerCase`, since Caps Lock reports `E` for the same physical key.
+    if (isCommandKey(event) && event.key.toLowerCase() === "e" && !isEditing) {
+      event.preventDefault();
+      openEmoticonSearch(match?.query ?? null);
+
+      return;
+    }
+
+    // INFO: AGENTS.md § 4.2. A hardware keyboard sends on Enter; on touch the same key has to stay a newline, since the iOS keyboard offers no send key.
+    if (isCoarsePointer || event.key !== "Enter" || event.shiftKey) {
       return;
     }
 

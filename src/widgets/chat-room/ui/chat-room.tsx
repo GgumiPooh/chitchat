@@ -112,6 +112,7 @@ import { toLinkPreviewQuery } from "../model/link-preview-query";
 import { playEmoticonSound } from "../model/play-emoticon-sound";
 import { toCellsFromDrafts, toCellsFromMedia, type TrackOwner } from "../model/to-media-cells";
 import type { ChatRow } from "../model/types";
+import { useChatShortcuts } from "../model/use-chat-shortcuts";
 import { useComposerClearance } from "../model/use-composer-clearance";
 import { useLinkPreviewPrefetch } from "../model/use-link-preview-prefetch";
 import { useMessageHistory } from "../model/use-message-history";
@@ -122,6 +123,7 @@ import { EditBar } from "./edit-bar";
 import { MessageRow } from "./message-row";
 import { ReplyBar } from "./reply-bar";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
+import { ShortcutHelp } from "./shortcut-help";
 import { SystemNotice } from "./system-notice";
 import { TypingIndicator } from "./typing-indicator";
 
@@ -235,6 +237,9 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 9.3. The recorder bar stands in the composer stack while it is true. Mounting is what starts the microphone, so this is only ever set from the tap that asked for it.
   const [isRecording, setIsRecording] = useState(false);
   const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
+  // INFO: REQUIREMENTS.md § 8.14. Bumped to put the caret back in the composer; `0` is the resting value the composer skips, so mounting the room focuses nothing.
+  const [composerFocusRequest, setComposerFocusRequest] = useState(0);
+  const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
   const { remember: rememberEmoticon } = useRecentEmoticons();
   const setBackground = useSetBackground();
   // INFO: REQUIREMENTS.md § 13.6. The panel's list and images are warmed from here, because the panel itself does not exist until the tap this exists to make cheap.
@@ -679,6 +684,17 @@ export function ChatRoom({
     }
   }, [returnToLive, scrollToBottom, markRead]);
 
+  // WARN: REQUIREMENTS.md § 8.14. Both room shortcuts stand down while § 8.6.'s search is up, and the reason is not the same as the overlay check inside the hook: `MessageSearchResults` is a `ShellOverlay` and carries no dialog marker, so nothing there would have stopped ⌘↓ jumping the conversation underneath a list the reader is still in. Only ⌘/ survives, being a sheet to read rather than an act on the room.
+  useChatShortcuts({
+    onReturnToComposer: returnToComposer,
+    onGoToNewest: () => {
+      if (!isSearching) {
+        void goToNewest();
+      }
+    },
+    onShowShortcuts: () => setIsShortcutHelpOpen(true),
+  });
+
   // WARN: Scrolling inside the send handler resolves against the pre-send data, so a message sent from deep in history lands below the fold. The row only exists from this commit onward.
   // WARN: REQUIREMENTS.md § 13.6. A pin and never `scrollToBottom` — a smooth scroll started here outlives the emoticon panel's collapse and steers the history back to the offset the open panel implied.
   useEffect(() => {
@@ -1097,6 +1113,7 @@ export function ChatRoom({
               keywordConsumeToken={keywordConsumeToken}
               seededDraft={seededDraft}
               isEditing={editingId !== null}
+              focusRequest={composerFocusRequest}
               // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
               onToggleEmoticons={() =>
                 isEmoticonPanelOpen ? closeEmoticonPanel() : setIsEmoticonPickerOpen(true)
@@ -1116,6 +1133,7 @@ export function ChatRoom({
         header={{ title: "메시지" }}
         onClose={() => setActionTarget(null)}
       />
+      <ShortcutHelp isOpen={isShortcutHelpOpen} onClose={() => setIsShortcutHelpOpen(false)} />
       <MediaShareDialog
         progress={sharing.progress}
         blockedCount={sharing.blockedCount}
@@ -1347,6 +1365,23 @@ export function ChatRoom({
   }
 
   /**
+   * REQUIREMENTS.md § 8.14. `Escape` — the panel away and the caret back in the
+   * field, which is the only exit a keyboard has from the picker.
+   *
+   * WARN: Nothing while § 8.6.'s search is up. The whole composer stack is `hidden`
+   * and `inert` for the length of one, so the focus would land on nothing and simply
+   * be lost — and closing the search is the header's to offer, not this widget's.
+   */
+  function returnToComposer() {
+    if (isSearching) {
+      return;
+    }
+
+    closeEmoticonPanel();
+    setComposerFocusRequest((token) => token + 1);
+  }
+
+  /**
    * REQUIREMENTS.md § 13.9. 따라하기 — a tap on an emoticon in the conversation opens
    * the picker where that emoticon is, ready to be sent back.
    *
@@ -1364,10 +1399,18 @@ export function ChatRoom({
     setIsEmoticonPickerOpen(true);
   }
 
-  /** REQUIREMENTS.md § 13.8. A word tapped in the composer opens the picker on its search tab, already holding it. */
+  /**
+   * REQUIREMENTS.md § 13.8. A word tapped in the composer opens the picker on its
+   * search tab, already holding it.
+   *
+   * WARN: § 8.14. `⌘E` reaches this with an empty query where no word is underlined,
+   * and an empty `searchedWordRef` is not a word the send may spend — `""` is what a
+   * cleared draft trims to, so the next quick send would swallow whatever had been
+   * typed since.
+   */
   function openEmoticonSearch(query: string) {
     setEmoticonSearch({ query, token: Date.now() });
-    searchedWordRef.current = query;
+    searchedWordRef.current = query === "" ? null : query;
     // WARN: Set here as well as reported back by the picker's own effect. The gate above reads it in the same commit the panel is asked to open in, and waiting for the effect leaves one frame where the panel is open, the keyboard is still retracting and the exemption is not in yet — which closes it again.
     setIsEmoticonSearchTab(true);
     setIsEmoticonPickerOpen(true);

@@ -766,6 +766,42 @@ The SSE event only reaches a client that is connected. A backgrounded tab holds 
 
 ---
 
+### 8.14. Keyboard navigation ✅
+
+**A desktop user sees the mobile UI and must be able to drive it from the keyboard** (`AGENTS.md § 4.2.`). That rule covered pointer affordances only, and this section is the keyboard half of it. Nothing here is a second way to lay the screen out — the controls are the same ones a thumb uses, and none of these keys exists on a device that has no keyboard to press them.
+
+| Key                | Does                                              | Owned by                            |
+| ------------------ | ------------------------------------------------- | ----------------------------------- |
+| `Esc`              | Panel away, caret back in the composer            | `useChatShortcuts`                  |
+| `⌘↓`               | § 6.7.'s pill — jump to the newest row            | `useChatShortcuts`                  |
+| `⌘/`               | The sheet that lists these keys                   | `useChatShortcuts` → `ShortcutHelp` |
+| `⌘E`               | § 13.8.'s search, seeded with the underlined word | `MessageComposer`                   |
+| `⌘E` (panel open)  | The 검색 tab, field ready to type into            | `EmoticonPicker`                    |
+| `⌘←` / `⌘→`        | Previous / next tab                               | `EmoticonPicker`                    |
+| `←` `→` `↑` `↓`    | Move focus between emoticons                      | `EmoticonPicker`                    |
+| `Enter` / `⌘Enter` | Stage / send outright                             | `EmoticonPicker`                    |
+
+- **One modifier per platform, never `metaKey || ctrlKey`.** `isCommandKey` reads `⌘` on Apple platforms and `Ctrl` everywhere else. Accepting both looks harmless and is not: WebKit honours Cocoa's emacs bindings inside a text field, so a `Ctrl` taken on a Mac takes `Ctrl+E` (line end) and `Ctrl+A` (line start) away from the composer. It is a user-agent read for `useIsIos`' reason — nothing exposes which key an OS spells its shortcuts with
+- **`Ctrl+Tab` was chosen for the tab switch and then found to be unimplementable.** Chrome, Safari and Edge do not dispatch it to the page at all, and Firefox dispatches it while ignoring `defaultPrevented` — it is reserved so that a page cannot trap a keyboard user inside itself. `⌘←/→` replaces it, and **yields inside a text field**, where those are the OS's own line-start and line-end. The bare arrows still walk the tab strip, which is where a binding that needs no modifier belongs
+- **Every handler guards on `isComposing`.** A Hangul IME fires `keydown` for the keystrokes that settle a syllable — the arrows that steer its candidate list, and the Enter that closes a composition. This is the same trap `KeywordField` records for § 13.4.'s chips, one layer up
+- **`⌘E` is offered with no word underlined too**, opening the search on an empty field. Offered only where a word happens to match, it answers on one draft in ten and reads as broken on the rest, so there is nothing to learn from it — the underlined word is a **seed** it carries when there is one, not its precondition. It is withheld while § 8.13.'s correction is open, exactly as the underline is
+- **`⌘E` means two different things and is therefore bound in two places, never at the room.** From the composer it seeds the field with the typed word; from inside the panel it is a request for the 검색 tab. A single room-level listener could only pick one, and picking the composer's would wipe whatever the user had typed into the panel's own field
+- **The seed is only armed when it is a real word.** § 13.8.'s send spends the searched word out of the draft by comparing it against `text.trim()`, and `""` is what a cleared draft trims to — left armed on an empty `⌘E`, the next quick send would swallow a message typed after it
+- **Roving tabindex over the grid, the results row and the tab strip** (ARIA's own mechanism): one item of each list carries `tabIndex={0}` and the arrows move both the focus and the stop. Every cell is a `<button>`, so without it a pack of forty is forty tab stops between the composer and its send control, and a library of two hundred packs is two hundred more
+- **Focus stops at the edges rather than wrapping**, which is ARIA's grid pattern — a partial last row would otherwise swallow `ArrowDown` into the row above it. `EMOTICON_GRID_COLUMNS` is the vertical step and the `grid-cols-4` the panel draws, and the two MUST agree
+- **The focus move scrolls by hand, with `preventScroll` on the `focus()` itself.** `focus()`'s own scroll and `scrollIntoView` both walk _every_ scrollable ancestor, and § 13.6.'s clipping strip is `overflow: hidden` — which mid-collapse counts as one, so the panel would be scrolled inside its own clip. This is the trap `revealActiveTab` is already written by hand for
+- **`Enter` stages and `⌘Enter` sends outright**, mirroring § 13.6.'s one tap and two. **The repeat guard on `Enter` is not tidying**: the browser fires a `click` per key repeat, and two inside `DOUBLE_TAP_WINDOW` are a send — so a key left down posts the emoticon it was only ever staging. `Space` needs no guard, since it fires on `keyup`
+- **The tab strip is ARIA's toolbar, not its tablist**, so the bare arrows move focus and `Enter` activates. Manual activation because each tab is a request of its own (§ 13.6.) — moving the selection with the focus would fetch every pack walked past
+- **`Esc` and `⌘↓` both stand down while § 8.6.'s search is open**, and for two different reasons. `Esc` because the composer stack is `hidden` and `inert` for the length of one, so the focus would land on nothing — closing the search belongs to the header that owns it, and is deliberately not bound here. `⌘↓` because `MessageSearchResults` is a `ShellOverlay` and carries no dialog marker, so the hook's own overlay check does not see it and the jump would move the conversation underneath a list the reader is still in. `⌘/` survives both, being a sheet to read rather than an act on the room
+- **The room's listener tests the key before it queries the DOM.** It runs on every keystroke typed into the composer, and the `OPEN_OVERLAY_SELECTOR` query that defers to an open sheet must not be part of that path
+- **`⌘↓` is claimed inside the composer too**, where WebKit spends it moving the caret to the end of the draft. That is a near-nothing in a field capped at five lines, and the composer is the one place this shortcut has to work from
+- **`⌘/` opens a `Modal` and not DESIGN.md § 7.5.'s sheet**, which is the app's default overlay. A sheet is for something that started at the bottom of the screen or in a list, and this starts nowhere on it — nothing in it can be reached without a hardware keyboard, so thumb reach, the whole argument for a sheet, does not apply
+- **Discoverability is `⌘/` and nothing else.** These keys appear nowhere on screen, which is the price of a UI with no menu bar; the one key worth learning is the one that lists the rest
+- **A cell's `aria-label` is its own keywords** (§ 13.8.), falling back to `이모티콘` where nobody has described it. Stepping a grid of forty identical labels tells a reader nothing about which picture each cell is
+- **§ 8.4.1.'s wake filter is unchanged and a modified key still will not wake the app.** `isTypingKey` refuses anything carrying `⌘`/`Ctrl`/`Alt` so that `⌘Tab` — a departure — cannot wake it on the way out. The consequence is that these shortcuts do nothing while 절전 모드 is up, and the first unmodified key or tap is what brings the room back
+
+---
+
 ## 9. Media Storage (R2) ✅
 
 - `POST /api/media/upload-url` issues a **pair** of presigned PUTs — the object and its `{key}_thumb` sibling — and `POST /api/media` registers the result. The upload goes **client → R2 directly**, which gets a full-resolution iPhone photo past Vercel's 4.5MB request body limit and makes `XMLHttpRequest`'s `upload.onprogress` a real byte count
