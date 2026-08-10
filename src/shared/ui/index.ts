@@ -4,6 +4,7 @@ export { AppHeader, type AppHeaderProps } from "./app-header";
 export { Avatar, type AvatarProps } from "./avatar";
 export { BackgroundMedia, type BackgroundMediaProps } from "./background-media";
 export { Badge, type BadgeProps } from "./badge";
+export { toBlurhashAverage } from "./blur-placeholder";
 export { BottomOverlay, type BottomOverlayProps } from "./bottom-overlay";
 export { BottomSheet, type BottomSheetProps } from "./bottom-sheet";
 export { Button, type ButtonProps } from "./button";

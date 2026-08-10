@@ -4,6 +4,55 @@ import { ensure, safelyGet, useHydrated, type Maybe, type Optional } from "@/sha
 import { decode } from "blurhash";
 import type { CSSProperties } from "react";
 
+// INFO: The wire format. A blurhash is `[size flag][max value][4 chars of DC][2 chars per AC component]`, so the average colour is characters 2–5 and nothing after them is read here.
+const DC_START = 2;
+const DC_END = 6;
+
+const BASE83_DIGITS =
+  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#$%*+,-.:;=?@[]^_{|}~";
+
+const BYTE_MASK = 0xff;
+
+/**
+ * The image's average colour, read straight off `hash`'s DC term — which *is* the
+ * mean of the image, so this is string arithmetic on a value every caller already
+ * holds. Available before a byte of the asset has arrived, and on the server.
+ *
+ * WARN: Decoded by hand rather than through the package's own `decode`, which renders pixels: a 1×1 render is the top-left **corner**, where every basis function evaluates to 1, so the AC terms are summed into the answer. The package exports no DC accessor.
+ *
+ * WARN: Guarded rather than trusted. `registerMedia` validates the hash at the write (REQUIREMENTS.md § 9.), but a malformed one must yield nothing rather than a colour built from `NaN`.
+ */
+export function toBlurhashAverage(hash: Maybe<string>): Optional<string> {
+  if (!hash || hash.length < DC_END) {
+    return undefined;
+  }
+
+  const packed = decodeBase83(hash.slice(DC_START, DC_END));
+
+  if (packed === undefined) {
+    return undefined;
+  }
+
+  // INFO: The DC is stored already sRGB-encoded, packed into 24 bits, so there is no linear-light conversion to undo here.
+  return `rgb(${(packed >> 16) & BYTE_MASK} ${(packed >> 8) & BYTE_MASK} ${packed & BYTE_MASK})`;
+}
+
+function decodeBase83(digits: string): Optional<number> {
+  let value = 0;
+
+  for (const digit of digits) {
+    const index = BASE83_DIGITS.indexOf(digit);
+
+    if (index < 0) {
+      return undefined;
+    }
+
+    value = value * BASE83_DIGITS.length + index;
+  }
+
+  return value;
+}
+
 /** How the element the blur stands in for is fitted to its box, since the placeholder has to be framed by the same rule. */
 export type BlurhashFit = "cover" | "contain";
 
@@ -34,27 +83,65 @@ const styles = new Map<string, Optional<CSSProperties>>();
 let scratch: Optional<HTMLCanvasElement>;
 
 /**
- * The `style` that paints `hash`'s decoded blur across a box, or `undefined` when
- * there is nothing to paint — no hash, one the decoder rejects, or a render with no
- * canvas to decode on.
+ * The `style` that paints `hash` across a box: its average colour immediately, and
+ * the decoded blur over that once there is a canvas to decode on. `undefined` when
+ * there is nothing to paint — no hash, or one the decoder rejects.
  *
- * WARN: Gated on hydration, and it has to be. A canvas exists only in the browser,
- * so the server paints nothing; a client render that decoded on its first pass would
- * hand React a `background-image` the SSR markup does not carry and fail hydration on
- * every placeholder on screen. A component mounted after hydration — every tile a
- * scroll brings in — reads `true` on its first render and pays no extra pass.
+ * WARN: The **`background-image` alone** is gated on hydration, and it has to be. A
+ * canvas exists only in the browser, so the server paints no blur; a client render
+ * that decoded on its first pass would hand React a `background-image` the SSR markup
+ * does not carry and fail hydration on every placeholder on screen.
+ *
+ * WARN: The `background-color` is deliberately **not** gated, and that is what the
+ * iOS 26 chrome depends on. It is string arithmetic on the hash's DC term, so the
+ * server and the client's first pass compute the identical value and there is no
+ * mismatch to suppress. Gated with the image, the first paint was a flat
+ * `chat-canvas` plate — which is the colour Safari then sampled its status bar with
+ * for the whole session, since it never re-samples (DESIGN.md § 3.3.).
+ *
+ * WARN: `cover` only. That fit fills the box, so the colour is invisible the moment
+ * the blur lands and only ever shows in the window before it; under `contain` it
+ * would paint the letterbox the § 7.10. viewer deliberately leaves to the backdrop.
  */
 export function useBlurhashStyle(
   hash: Maybe<string>,
   box: BlurhashBox = {},
 ): Optional<CSSProperties> {
   const isHydrated = useHydrated();
+  const fit = box.fit ?? "cover";
 
-  if (!isHydrated || !hash) {
+  if (!hash) {
     return undefined;
   }
 
-  return toBlurhashStyle(hash, box.ratio, box.fit ?? "cover");
+  const base = fit === "cover" ? toAverageStyle(hash) : undefined;
+
+  if (!isHydrated) {
+    return base;
+  }
+
+  const blur = toBlurhashStyle(hash, box.ratio, fit);
+
+  return blur ? { ...base, ...blur } : base;
+}
+
+// INFO: Cached like the blur below it, so a re-render hands the element the identical object and React diffs nothing.
+const averages = new Map<string, Optional<CSSProperties>>();
+
+function toAverageStyle(hash: string): Optional<CSSProperties> {
+  if (!averages.has(hash)) {
+    const average = toBlurhashAverage(hash);
+
+    if (averages.size >= CACHE_LIMIT) {
+      for (const stale of [...averages.keys()].slice(0, CACHE_LIMIT / 2)) {
+        averages.delete(stale);
+      }
+    }
+
+    averages.set(hash, average ? { backgroundColor: average } : undefined);
+  }
+
+  return averages.get(hash);
 }
 
 // INFO: Cached by the whole style object rather than by its URL, so a re-render hands the element the identical object and React diffs nothing.
