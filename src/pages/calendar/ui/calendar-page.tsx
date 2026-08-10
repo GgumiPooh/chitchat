@@ -176,11 +176,6 @@ export function CalendarPage({
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
       <Container className="space-y-md py-md pt-[calc(var(--app-header-inset)+var(--spacing-md))]">
         <DDayBand summary={summary} />
-        <UpcomingCard
-          occurrences={summary.upcoming}
-          todayKey={summary.todayKey}
-          onSelect={selectDay}
-        />
         <CalendarMonth
           monthKey={monthKey}
           startDate={summary.startDate}
@@ -200,6 +195,12 @@ export function CalendarPage({
           participants={participants}
           onCreate={() => openForm(selectedDayKey, null)}
           onSelect={openActions}
+        />
+        {/* WARN: DESIGN.md § 7.9. Last, and never above the grid. It is the one section here whose height is the event count, so between the band and the grid it moved the month under the thumb — day to day, and again on every add or delete. Nothing follows it, so it may now arrive at whatever height it likes. */}
+        <UpcomingCard
+          occurrences={summary.upcoming}
+          todayKey={summary.todayKey}
+          onSelect={selectDay}
         />
       </Container>
 

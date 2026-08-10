@@ -15,10 +15,13 @@ export type UpcomingCardProps = {
 };
 
 /**
- * DESIGN.md § 7.9. The next few events, up to `MAX_UPCOMING_EVENTS`.
+ * DESIGN.md § 7.9. The next few events, up to `MAX_UPCOMING_EVENTS`, at the foot of
+ * the screen.
  *
  * WARN: Renders nothing when there are none — never an empty state. A card
- * announcing that there is nothing to announce is worse than no card.
+ * announcing that there is nothing to announce is worse than no card. That is also
+ * why it may not sit above the grid: a section that varies between nothing and three
+ * rows moves every tap target under it.
  */
 export function UpcomingCard({ className, occurrences, todayKey, onSelect }: UpcomingCardProps) {
   if (occurrences.length === 0) {

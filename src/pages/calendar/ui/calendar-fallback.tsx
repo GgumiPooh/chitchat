@@ -24,10 +24,11 @@ export type CalendarFallbackProps = {
  * skeleton of them would be a swap for identical pixels. Everything the server
  * resolves (REQUIREMENTS.md § 11.1.) is a block at the box that block will occupy.
  *
- * WARN: DESIGN.md § 7.9. No 다가오는 일정 card. That section renders nothing when
- * there is nothing upcoming, so a placeholder for it would be a band that vanishes on
- * roughly the days it was drawn for — § 7.8.'s 보관함 lesson, where settling the eye
- * on a layout and then taking it away is worse than not drawing it.
+ * WARN: DESIGN.md § 7.9. No 다가오는 일정 card, and this is only safe because that
+ * section is now the last thing on the screen. It renders nothing when there is
+ * nothing upcoming, so a placeholder for it would be a band that vanishes on roughly
+ * the days it was drawn for — but while it sat above the grid, omitting it here is
+ * also what pushed the month down the moment the real screen arrived.
  */
 export function CalendarFallback({ className }: CalendarFallbackProps) {
   return (
