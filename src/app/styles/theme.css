@@ -284,10 +284,11 @@
 }
 
 /* WARN: DESIGN.md § 3.4. `env(safe-area-inset-bottom)` never moves for the keyboard, so with the keys up the lift is paying for a home indicator the keyboard already covers — 34px of dead space the composer floated above the keys on. */
+/* WARN: DESIGN.md § 7.3. `0px` and not `--bar-float-gap`: the float gap keeps a `fixed` box off iOS 26 Safari's toolbar edge, and with the keys up the bottom edge is the keyboard rather than that toolbar. Left in, it is also exactly how much of the collapsed bar stays on screen — measured 3.8px of the tab bar above the keys, wedged under the composer. */
 /* INFO: DESIGN.md § 7.3. A flag from `BottomOverlay` rather than arithmetic on `--viewport-bottom`, which WebKit's pan moves on every frame of a scroll and would jitter the clearance with it. */
 /* WARN: DESIGN.md § 3.4. The pan correction is gated here and nowhere else — `visualViewport.offsetTop` is also non-zero while Safari collapses its toolbar, where a `fixed` box needs no correcting and gets pushed *down* by one. Measured on the device: the 캘린더 header's 일정 추가 button 24px below the strip it belongs to. */
 :root[data-keyboard-open] {
-  --bar-lift: var(--bar-float-gap);
+  --bar-lift: 0px;
   --keyboard-pan: var(--viewport-top, 0px);
 }
 
