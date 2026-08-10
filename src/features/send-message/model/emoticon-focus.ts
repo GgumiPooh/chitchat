@@ -145,6 +145,12 @@ export function focusItem(scroller: HTMLElement, index: number): boolean {
   }
 
   item.focus({ preventScroll: true });
+
+  // WARN: § 8.14. Whether focus **landed**, not whether a cell was found. `focus()` on an element inside an `inert` subtree does nothing and reports nothing — § 13.6.'s strip is `inert` for the whole of the panel's collapse — so a caller told it succeeded would drop a request that has not been answered yet.
+  if (document.activeElement !== item) {
+    return false;
+  }
+
   revealWithin(scroller, item);
 
   return true;

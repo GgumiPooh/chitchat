@@ -51,7 +51,17 @@ const SEARCH_FAILED_MESSAGE = "검색하지 못했어요";
 
 /** REQUIREMENTS.md § 8.14. A tab, the cell focus is to land on in it, and the offset to read it at. */
 type TabEntry = {
-  tab: string;
+  /**
+   * The tab this entry belongs to, where it belongs to one.
+   *
+   * WARN: § 8.14. Absent for `⌘E`, which asks for **the panel** rather than a tab —
+   * and on a freshly loaded page the tab underneath it is still settling, since the
+   * remembered pack id is only checked against the list once that list lands (see
+   * `activeTab`). Named there, the entry was dropped by that resolution and the panel
+   * opened with focus nowhere, which is the whole of this shortcut being dead until a
+   * reload put the answer in cache. A page turn does name its tab, and must.
+   */
+  tab?: string;
   /** Clamped to the list on arrival, since the pack turned to may be shorter than the one turned from. */
   index: number;
   /**
@@ -360,7 +370,9 @@ export function EmoticonPicker({
   useLayoutEffect(() => {
     if (focusRequest !== 0 && focusRequest !== satisfiedFocusRequestRef.current) {
       satisfiedFocusRequestRef.current = focusRequest;
-      pendingEntryRef.current = { tab: activeTab, index: 0 };
+      pendingEntryRef.current = { index: 0 };
+      // WARN: § 8.14. A focus request only ever comes from a key, and `noteKeyboardUse` cannot hear that one — ⌘E is pressed with focus outside this panel, so the event never travels through it. Left unsaid, the cell this is about to focus paints no ring: `:focus-visible` judges a programmatic focus by whether the *previously* focused element had it, and on a freshly loaded page that is `<body>`, which never does. Reaching the panel from the composer hid it, a text field always matching.
+      setIsKeyboardDriven(true);
     }
 
     const entry = pendingEntryRef.current;
@@ -370,7 +382,7 @@ export function EmoticonPicker({
     }
 
     // WARN: § 8.14. Dropped on a tab that is no longer the one asked for, and on a closed panel — reaching for the composer closes it (§ 13.6.), and a pack landing after that would pull the caret back out of the field.
-    if (!isOpen || entry.tab !== activeTab) {
+    if (!isOpen || (entry.tab !== undefined && entry.tab !== activeTab)) {
       pendingEntryRef.current = null;
 
       return;
@@ -792,7 +804,7 @@ export function EmoticonPicker({
 
   /** REQUIREMENTS.md § 8.14. `ArrowUp` off the strip, back into what the tab holds. */
   function focusTabContent() {
-    enterTab({ tab: activeTab, index: 0 });
+    enterTab({ index: 0 });
   }
 
   /**
