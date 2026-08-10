@@ -1,23 +1,94 @@
 import "server-only";
 
+import { EMOTICON_PACK_PAGE_SIZE } from "@/shared/config";
 import { emoticonItems, emoticonPacks, getDb, userEmoticonPrefs } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
-import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { toEmoticon } from "../model/to-emoticon";
-import type { Emoticon, EmoticonPackSummary, EmoticonPackWithItems } from "../model/types";
+import type {
+  Emoticon,
+  EmoticonPackPage,
+  EmoticonPackSummary,
+  EmoticonPackWithItems,
+} from "../model/types";
 import { effectivePackPosition } from "./effective-pack-position";
+import { toLikeLiteral } from "./to-like-literal";
+
+/** Which packs a read is about, before any paging (REQUIREMENTS.md § 13.5.). */
+export type EmoticonPackFilter = {
+  /** `coalesce(enabled, true)`, so a user with no prefs row still sees the pack (§ 13.1.). */
+  enabledOnly?: boolean;
+  /** Case-insensitive containment on the pack's name. Blank means no filter, never "match nothing". */
+  query?: string;
+};
+
+export type EmoticonPackPageQuery = EmoticonPackFilter & {
+  cursor?: Nullable<string>;
+  limit?: number;
+};
 
 /**
- * Every pack, in this user's order (REQUIREMENTS.md § 13.1.), each carrying the
- * thumbnail it is actually drawn with (§ 13.2.).
+ * Every pack the filter names, in this user's order (REQUIREMENTS.md § 13.1.), each
+ * carrying the thumbnail it is actually drawn with (§ 13.2.).
  *
- * WARN: § 13.6. The resolution is the server's now and cannot move back. The picker
- * used to fall back to `pack.items[0]` in the browser; it holds summaries and no
+ * WARN: § 13.6. Unpaged, and § 13.5.'s 사용중 tab and the picker both need it to stay
+ * that way. The picker answers membership questions off this list — its 최근 사용 filter
+ * tests `visiblePackIds` and its remembered tab is a `findPack` over it — so a partial
+ * list does not show less, it reads as the missing packs having been hidden.
+ *
+ * WARN: § 13.6. The thumbnail resolution is the server's and cannot move back. The
+ * picker used to fall back to `pack.items[0]` in the browser; it holds summaries and no
  * items, so a pack whose `thumbnail_item_id` is null would simply lose its tab icon.
  */
-export async function listEmoticonPacks(userId: string): Promise<EmoticonPackSummary[]> {
-  return (await selectPackRows(userId)).map(toDrawnSummary);
+export async function listEmoticonPacks(
+  userId: string,
+  filter: EmoticonPackFilter = {},
+): Promise<EmoticonPackSummary[]> {
+  return (await selectPackRows(userId, filter)).map(toDrawnSummary);
+}
+
+/**
+ * One page of § 13.5.'s 이모티콘셋 검색 tab, keyed on the order the list is drawn in.
+ *
+ * INFO: `limit + 1` rows are read and the extra one is dropped — whether it arrived is
+ * the whole of what `nextCursor` reports, and it costs nothing over asking for `limit`.
+ *
+ * WARN: The cursor is the sort key itself (`effectivePackPosition`, then id), so a pack
+ * moved or created between two pages shifts nothing already read — which an offset does
+ * not, and § 13.5.'s drag rewrites those positions while the list is open.
+ */
+export async function listEmoticonPacksPage(
+  userId: string,
+  query: EmoticonPackPageQuery = {},
+): Promise<EmoticonPackPage> {
+  const limit = query.limit ?? EMOTICON_PACK_PAGE_SIZE;
+  const rows = await selectPackRows(userId, { ...query, limit: limit + 1 });
+  const page = rows.slice(0, limit);
+  const last = page.at(-1);
+
+  return {
+    packs: page.map(toDrawnSummary),
+    nextCursor: rows.length > limit && last ? toPackCursor(last.position, last.id) : null,
+  };
+}
+
+/**
+ * The cursor `listEmoticonPacksPage` was handed, or null when it is not one this
+ * server wrote.
+ *
+ * INFO: Exported for the route, which validates the parameter before answering
+ * `invalid_request` — the cursor stays opaque to it, and this is the only thing it may
+ * ask about one.
+ */
+export function parseEmoticonPackCursor(cursor: string): Nullable<EmoticonPackCursor> {
+  const match = CURSOR_PATTERN.exec(cursor);
+
+  if (!match) {
+    return null;
+  }
+
+  return { position: match[1], id: match[2] };
 }
 
 /**
@@ -32,7 +103,7 @@ export async function getEmoticonPack(
   packId: string,
   userId: string,
 ): Promise<Nullable<EmoticonPackWithItems>> {
-  const [row] = await selectPackRows(userId, packId);
+  const [row] = await selectPackRows(userId, { packId });
 
   if (!row) {
     return null;
@@ -83,61 +154,112 @@ export async function listEmoticonPackItems(packId: string): Promise<Emoticon[]>
 }
 
 /**
+ * The packs a read selects, ordered and cut to a page, before anything is read
+ * **about** them.
+ *
  * WARN: A `LEFT JOIN` onto the prefs, not an inner one. A user who has never
  * reordered anything has no `user_emoticon_prefs` rows at all, and an inner join
  * would show them an empty list rather than every pack — the absent row is the
  * default, not a gap. `effectivePackPosition` is what orders the two kinds together.
+ *
+ * WARN: `coalesce(enabled, true)`, never `enabled = true`, for that same missing row.
+ *
+ * WARN: The two-phase shape is what keeps the library's size off the page. Everything a
+ * summary carries beyond the pack's own row — the item count, the thumbnail — is read
+ * against **this** subquery's output, so a `LIMIT` here is a limit on that work too.
+ * Written as one flat select the cut falls after all of it: measured over 10,000 packs,
+ * a page of 30 is 4–7ms against 44ms, and the whole list 81ms against 557ms once the
+ * packs hold eighteen items each. The whole list is a wash at two items each, which is
+ * the shape a synthetic seed has and no real pack does.
  */
-function selectPackRows(userId: string, packId?: string) {
-  // INFO: A second alias of the same table — the join below counts the pack's items, this one reads the single item the pack points at (§ 13.2.).
+function selectPackPage(userId: string, query: EmoticonPackPageQuery & { packId?: string }) {
+  const cursor = query.cursor ? parseEmoticonPackCursor(query.cursor) : null;
+  const conditions: Nullable<SQL>[] = [
+    query.packId === undefined ? null : eq(emoticonPacks.id, query.packId),
+    query.enabledOnly ? sql`coalesce(${userEmoticonPrefs.enabled}, true) = true` : null,
+    // WARN: `toLikeLiteral`, or a query of a single `%` answers with the whole library.
+    query.query ? ilike(emoticonPacks.name, `%${toLikeLiteral(query.query)}%`) : null,
+    // WARN: One row-value comparison against the **same** pair the `ORDER BY` uses, and the casts are load-bearing — a bind parameter arrives as text, where the key is `numeric` and `uuid`.
+    cursor
+      ? sql`(${effectivePackPosition()}, ${emoticonPacks.id}) > (${cursor.position}::numeric, ${cursor.id}::uuid)`
+      : null,
+  ];
+
+  const page = getDb()
+    .select({
+      id: emoticonPacks.id,
+      name: emoticonPacks.name,
+      thumbnailItemId: emoticonPacks.thumbnailItemId,
+      enabled: userEmoticonPrefs.enabled,
+      // INFO: Selected because the cursor is this value — the browser cannot compute it, and a page's last row is where the next one starts.
+      position: sql<string>`${effectivePackPosition()}`.as("position"),
+    })
+    .from(emoticonPacks)
+    .leftJoin(
+      userEmoticonPrefs,
+      and(eq(userEmoticonPrefs.packId, emoticonPacks.id), eq(userEmoticonPrefs.userId, userId)),
+    )
+    .where(and(...conditions.filter((condition) => condition !== null)))
+    // INFO: § 13.5. `created_at` needs no tiebreaker of its own — it is already inside the fallback half of `effectivePackPosition`.
+    .orderBy(effectivePackPosition(), asc(emoticonPacks.id))
+    .$dynamic();
+
+  return (query.limit === undefined ? page : page.limit(query.limit)).as("pack_page");
+}
+
+function selectPackRows(userId: string, query: EmoticonPackPageQuery & { packId?: string }) {
+  const page = selectPackPage(userId, query);
+  // INFO: One alias of `emoticon_items` per question asked of it — the item the pack points at (§ 13.2.), the item it falls back to, and how many it holds.
   const chosenThumbnails = alias(emoticonItems, "chosen_thumbnails");
   const firstItems = alias(emoticonItems, "first_items");
+  const countedItems = alias(emoticonItems, "counted_items");
   // INFO: § 13.2. The fallback thumbnail, taken by the `(pack_id, sort_order)` index one row at a time rather than by grouping every item of every pack.
   const firstItem = getDb()
     .select({ id: firstItems.id, updatedAt: firstItems.updatedAt })
     .from(firstItems)
-    .where(eq(firstItems.packId, emoticonPacks.id))
+    .where(eq(firstItems.packId, page.id))
     // WARN: The same order `listEmoticonPackItems` returns, or the tab icon is not the cell the grid draws first.
     .orderBy(asc(firstItems.sortOrder), asc(firstItems.createdAt))
     .limit(1)
     .as("first_item");
+  // WARN: A correlated subquery in the target list rather than a `GROUP BY` over a join, and `::int` because `count` is `bigint` and would otherwise arrive as a string. Postgres evaluates it **after** the sort and the limit, which is what takes the count off every pack the page does not hold.
+  const itemCount = getDb()
+    .select({ value: sql<number>`count(*)::int` })
+    .from(countedItems)
+    .where(eq(countedItems.packId, page.id));
 
   return (
     getDb()
       .select({
-        id: emoticonPacks.id,
-        name: emoticonPacks.name,
-        thumbnailItemId: emoticonPacks.thumbnailItemId,
+        id: page.id,
+        name: page.name,
+        thumbnailItemId: page.thumbnailItemId,
         thumbnailUpdatedAt: chosenThumbnails.updatedAt,
         firstItemId: firstItem.id,
         firstItemUpdatedAt: firstItem.updatedAt,
-        itemCount: count(emoticonItems.id),
-        enabled: userEmoticonPrefs.enabled,
+        itemCount: sql<number>`(${itemCount})`,
+        enabled: page.enabled,
+        position: page.position,
       })
-      .from(emoticonPacks)
-      .leftJoin(
-        userEmoticonPrefs,
-        and(eq(userEmoticonPrefs.packId, emoticonPacks.id), eq(userEmoticonPrefs.userId, userId)),
-      )
-      .leftJoin(emoticonItems, eq(emoticonItems.packId, emoticonPacks.id))
-      .leftJoin(chosenThumbnails, eq(chosenThumbnails.id, emoticonPacks.thumbnailItemId))
-      // WARN: `LATERAL` is what lets the subquery name `emoticon_packs.id`, and the `on true` is the join's whole condition — the correlation is inside it.
+      .from(page)
+      .leftJoin(chosenThumbnails, eq(chosenThumbnails.id, page.thumbnailItemId))
+      // WARN: `LATERAL` is what lets the subquery name the page's `id`, and the `on true` is the join's whole condition — the correlation is inside it.
       .leftJoinLateral(firstItem, sql`true`)
-      .where(packId === undefined ? undefined : eq(emoticonPacks.id, packId))
-      .groupBy(
-        emoticonPacks.id,
-        emoticonPacks.name,
-        emoticonPacks.thumbnailItemId,
-        chosenThumbnails.updatedAt,
-        firstItem.id,
-        firstItem.updatedAt,
-        emoticonPacks.createdAt,
-        userEmoticonPrefs.enabled,
-        userEmoticonPrefs.position,
-      )
-      // INFO: § 13.5. `created_at` needs no tiebreaker of its own — it is already inside the fallback half of `effectivePackPosition`.
-      .orderBy(effectivePackPosition(), asc(emoticonPacks.id))
+      // WARN: Repeated out here, and not decoration — a join is free to return its input in any order, so the subquery's own `ORDER BY` decides which rows the page holds and this one decides how they are drawn.
+      .orderBy(asc(page.position), asc(page.id))
   );
+}
+
+type EmoticonPackCursor = {
+  position: string;
+  id: string;
+};
+
+// WARN: The position is `numeric` and reaches the cursor as the digits Postgres printed, which `::numeric` reads back exactly. Parsing it into a JS number would round the scale off and put the cursor between two packs rather than on one.
+const CURSOR_PATTERN = /^(-?\d+(?:\.\d+)?):([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/i;
+
+function toPackCursor(position: string, id: string): string {
+  return `${position}:${id}`;
 }
 
 type PackRow = Awaited<ReturnType<typeof selectPackRows>>[number];

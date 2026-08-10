@@ -12,6 +12,7 @@ import { asc, ilike, inArray, type SQL } from "drizzle-orm";
 import { union } from "drizzle-orm/pg-core";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon } from "../model/types";
+import { toLikeLiteral } from "./to-like-literal";
 
 /**
  * REQUIREMENTS.md § 13.9. The picker's search, ranked (§ 13.9.1.).
@@ -175,14 +176,4 @@ function toProbeSubstrings(foldedTerm: string): string[] {
   }
 
   return found;
-}
-
-/**
- * WARN: `%`, `_` and the escape character itself, exactly as `search-messages.ts`
- * escapes them. This is not hygiene: unescaped, a query of `%` matches every keyword
- * in the library and one of `_` matches every keyword of that length. The user typed
- * characters, not a pattern.
- */
-function toLikeLiteral(term: string): string {
-  return term.replace(/[\\%_]/g, "\\$&");
 }

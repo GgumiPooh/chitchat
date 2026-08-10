@@ -30,6 +30,17 @@ export type EmoticonPackSummary = {
 };
 
 /**
+ * One page of § 13.5.'s pack list, and where the next one starts.
+ *
+ * INFO: `nextCursor` is opaque and null at the end of the list — it is the only thing
+ * a caller may say about a page it has read, and never an index into one.
+ */
+export type EmoticonPackPage = {
+  packs: EmoticonPackSummary[];
+  nextCursor: Nullable<string>;
+};
+
+/**
  * A pack with its items, as § 13.4.'s pack screen reads it.
  *
  * WARN: `thumbnailItemId` is the pack's **stored** choice in this shape and the

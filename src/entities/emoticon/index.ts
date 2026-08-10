@@ -10,6 +10,10 @@ export {
   getEmoticonPack,
   listEmoticonPackItems,
   listEmoticonPacks,
+  listEmoticonPacksPage,
+  parseEmoticonPackCursor,
+  type EmoticonPackFilter,
+  type EmoticonPackPageQuery,
 } from "./api/get-emoticon-packs";
 export { listEmoticonKeywords } from "./api/list-emoticon-keywords";
 export { listEmoticonsByIds } from "./api/list-emoticons-by-ids";
@@ -35,4 +39,9 @@ export {
   setEmoticonPackOrder,
 } from "./api/write-emoticon-prefs";
 // WARN: Everything above touches the database. A client module may import from this barrel with `import type` only — a value import drags `server-only` into its bundle, which is why `toEmoticonAssetUrl` lives in `@/shared/config` instead.
-export type { Emoticon, EmoticonPackSummary, EmoticonPackWithItems } from "./model/types";
+export type {
+  Emoticon,
+  EmoticonPackPage,
+  EmoticonPackSummary,
+  EmoticonPackWithItems,
+} from "./model/types";

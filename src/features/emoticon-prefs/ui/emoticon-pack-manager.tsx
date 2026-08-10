@@ -8,20 +8,24 @@ import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifi
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Smile } from "lucide-react";
 import { useRef } from "react";
-import { saveEmoticonPackEnabled, saveEmoticonPackOrder } from "../api/write-prefs";
+import { saveEmoticonPackOrder } from "../api/write-prefs";
 import { EmoticonPackRow } from "./emoticon-pack-row";
 
 export type EmoticonPackManagerProps = {
   className?: string;
   packs: EmoticonPackSummary[];
+  /** REQUIREMENTS.md § 13.5. The pack 숨기기 was chosen for, while its row collapses. */
+  hidingId: Nullable<string>;
   onOpenPack: (packId: string) => void;
   onManagePack: (packId: string) => void;
+  onPackHidden: (packId: string) => void;
   onPacksChange: (packs: EmoticonPackSummary[]) => void;
 };
 
 /**
- * REQUIREMENTS.md § 13.5. The KakaoTalk 이모티콘 관리 list — long-press to move a
- * pack, a switch to hide it. Both are per-user and neither touches the pack itself.
+ * REQUIREMENTS.md § 13.5. The 사용중 list — long-press to move a pack, and the row's
+ * own `⋮` to rename, hide or delete it. All three are per-user or the pack's own; none
+ * of them is a viewport decision.
  *
  * WARN: Fully controlled — the order lives in the caller, which also creates,
  * renames and deletes packs. Holding it here as well would let a rename overwrite
@@ -34,8 +38,10 @@ export type EmoticonPackManagerProps = {
 export function EmoticonPackManager({
   className,
   packs,
+  hidingId,
   onOpenPack,
   onManagePack,
+  onPackHidden,
   onPacksChange,
 }: EmoticonPackManagerProps) {
   const sensors = useSortableSensors();
@@ -64,7 +70,7 @@ export function EmoticonPackManager({
       <EmptyState
         className={className}
         Icon={Smile}
-        description="오른쪽 위 + 를 눌러 이모티콘 그룹을 만들면 여기에서 관리할 수 있어요"
+        description="사용 중인 이모티콘 그룹이 없어요. 이모티콘셋 검색에서 켜거나 오른쪽 위 + 로 만들 수 있어요"
       />
     );
   }
@@ -86,9 +92,10 @@ export function EmoticonPackManager({
             <EmoticonPackRow
               key={pack.id}
               pack={pack}
+              isHiding={pack.id === hidingId}
               onOpen={onOpenPack}
               onManage={onManagePack}
-              onToggle={handleToggle}
+              onHidden={onPackHidden}
             />
           ))}
         </SortableContext>
@@ -140,17 +147,6 @@ export function EmoticonPackManager({
         onPacksChange(previous);
         toast.error("순서를 저장하지 못했어요");
       }
-    });
-  }
-
-  function handleToggle(packId: string, isEnabled: boolean) {
-    const previous = packs;
-
-    onPacksChange(packs.map((pack) => (pack.id === packId ? { ...pack, isEnabled } : pack)));
-
-    void saveEmoticonPackEnabled(packId, isEnabled).catch(() => {
-      onPacksChange(previous);
-      toast.error("설정을 저장하지 못했어요");
     });
   }
 }

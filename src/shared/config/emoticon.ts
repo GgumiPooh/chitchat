@@ -117,6 +117,23 @@ export const EMOTICON_MAX_EDGE = 420;
 export const MAX_EMOTICON_PACK_NAME_LENGTH = 40;
 
 /**
+ * How many packs one page of § 13.5.'s 이모티콘셋 검색 tab holds, and the most a caller
+ * may ask for.
+ *
+ * WARN: REQUIREMENTS.md § 13.5. The paged read is the **search** tab's, never the
+ * picker's or 사용중's — both of those need the whole set to answer membership, and a
+ * page silently reads to them as the packs it left out having been hidden.
+ *
+ * WARN: § 13.7.1. Declared in both repositories with the same values. A page size that
+ * drifts is two deployments that both answer and hand back different pages depending on
+ * which one the switch is pointing at, with the browser's cursor written against the
+ * other.
+ */
+export const EMOTICON_PACK_PAGE_SIZE = 30;
+
+export const MAX_EMOTICON_PACK_PAGE_SIZE = 50;
+
+/**
  * REQUIREMENTS.md § 13.8. How many search keywords one item may carry, and how
  * long each may be.
  *
