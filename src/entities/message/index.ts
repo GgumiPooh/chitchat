@@ -10,6 +10,7 @@ export { deleteMessage } from "./api/delete-message";
 export { editMessage } from "./api/edit-message";
 export { getMessage } from "./api/get-message";
 export { isQuotable } from "./api/is-quotable";
+export { isMessageUnreadBy } from "./api/is-unread-by";
 export { listChangedMessages } from "./api/list-changed-messages";
 export { listMessages, type ListMessagesParams } from "./api/list-messages";
 export {

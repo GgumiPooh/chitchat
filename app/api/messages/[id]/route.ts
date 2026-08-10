@@ -1,8 +1,10 @@
 import { deleteMessage, editMessage } from "@/entities/message";
+import { notifyMessageRetraction } from "@/features/notify-chat";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { MAX_MESSAGE_LENGTH } from "@/shared/config";
-import { NextResponse } from "next/server";
+import { safelyRunAsync } from "@/shared/lib";
+import { NextResponse, after } from "next/server";
 import { z } from "zod";
 
 const idSchema = z.coerce.number().int().positive();
@@ -27,6 +29,9 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!(await deleteMessage(id.data, user.id))) {
     return apiError("not_found");
   }
+
+  // WARN: REQUIREMENTS.md § 16.1. `after`, like the send path — the fan-out's round trips to the push services must never sit between the deleter and their 204.
+  after(() => safelyRunAsync(() => notifyMessageRetraction(user, id.data)));
 
   return new NextResponse(null, { status: 204 });
 }

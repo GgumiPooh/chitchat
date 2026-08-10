@@ -2,9 +2,9 @@ import "server-only";
 
 import { countUnreadMessages } from "@/entities/message";
 import { pushToUser, type PushPayload } from "@/entities/push-subscription";
-import { listUsers, resolveDisplayName } from "@/entities/user";
 import { CHAT_ROUTE, PUSH_BODY_MAX_LENGTH } from "@/shared/config";
 import type { User } from "@/shared/db";
+import { resolveNotificationTargets } from "./notification-targets";
 
 /**
  * REQUIREMENTS.md § 16.1. One banner per recipient device, carrying that
@@ -20,9 +20,7 @@ import type { User } from "@/shared/db";
  * user's request and its response.
  */
 export async function notifyMessageRecipients(sender: User, body: string) {
-  const recipients = (await listUsers()).filter((participant) => participant.id !== sender.id);
-  // WARN: § 8.7. bans copying a name onto a stored row, not onto a notification. A banner is a point-in-time artifact the service worker cannot re-resolve — it holds no session and cannot query.
-  const title = resolveDisplayName(sender);
+  const { title, recipients } = await resolveNotificationTargets(sender);
 
   await Promise.all(
     recipients.map(async (recipient) => {
