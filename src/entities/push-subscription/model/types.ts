@@ -31,9 +31,4 @@ export type PushPayload = {
   unreadCount: number;
   /** Where a tap lands. */
   url: string;
-  /**
-   * Overrides this device's 알림 소리 preference (`REQUIREMENTS.md § 16.1.`) for
-   * one send. Left out, `pushToUser` fills it in per row from `sound_enabled`.
-   */
-  silent?: boolean;
 };

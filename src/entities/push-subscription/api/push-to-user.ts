@@ -29,14 +29,11 @@ export async function pushToUser(userId: string, payload: PushPayload): Promise<
   }
 
   // INFO: REQUIREMENTS.md § 16.1. Serialized per row rather than once, because 알림 소리 belongs to the installation — the same message can sound on the phone and land silently on the laptop.
-  // WARN: An explicit `silent` on the payload wins over the row. A retraction banner is silent wherever it is delivered, and this is the hook it takes.
   // INFO: Two bodies at most however many devices answer, so they are built once and picked per row rather than serialized inside the fan-out.
   const audible = JSON.stringify({ ...payload, silent: false });
   const muted = JSON.stringify({ ...payload, silent: true });
   const results = await Promise.all(
-    targets.map((target) =>
-      sendPush(target, (payload.silent ?? !target.soundEnabled) ? muted : audible),
-    ),
+    targets.map((target) => sendPush(target, target.soundEnabled ? audible : muted)),
   );
   const retired = targets
     .filter((_, index) => results[index] === "gone")
