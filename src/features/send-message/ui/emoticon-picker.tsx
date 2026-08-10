@@ -703,8 +703,8 @@ export function EmoticonPicker({
       return;
     }
 
-    // WARN: § 8.14. The bare arrows only. ⌘↓ leaves the panel for the live edge (`useChatShortcuts`), and answering it here would move a cell instead and stop the event ever getting there.
-    if (isCommandKey(event)) {
+    // WARN: § 8.14. The bare arrows only, and `isBareKey` rather than `!isCommandKey`. This guard asks "is this somebody else's chord", which is the **negative** of what `isCommandKey` answers — that one is an exact match, so it says no to `⌘⇧↓` and `⌥↓` and would have let both move a cell. ⌘↓ leaves the panel for the live edge, ⌥↓ scrolls the conversation, and `⌘⇧↓` extends a selection: none of them is this scroller's.
+    if (!isBareKey(event)) {
       return;
     }
 
@@ -776,11 +776,14 @@ export function EmoticonPicker({
    * results row where the words found something, and the tabs where they did not, so
    * the key navigates on an empty search as readily as on a full one.
    *
-   * WARN: `isComposing` and the bare key only. A Hangul IME steers its candidate list
-   * with this key, and ⌘↓ is the room's jump to the live edge.
+   * WARN: `isComposing` and the bare key only, through `isBareKey` rather than
+   * `!isCommandKey`. A Hangul IME steers its candidate list with this key; ⌘↓ is the
+   * room's jump to the live edge; ⌥↓ scrolls the conversation; and `⌘⇧↓` extends the
+   * selection this field is holding — which `isCommandKey`, an exact match, says no to,
+   * so asking it here would have taken that selection away.
    */
   function handleFieldKeys(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== "ArrowDown" || isCommandKey(event) || event.nativeEvent.isComposing) {
+    if (event.key !== "ArrowDown" || !isBareKey(event) || event.nativeEvent.isComposing) {
       return;
     }
 

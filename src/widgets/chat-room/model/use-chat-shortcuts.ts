@@ -50,15 +50,16 @@ export type ChatShortcuts = {
  * control inside it, so they answer wherever focus happens to be — including nowhere,
  * which is where a click on a bubble leaves it.
  *
- * WARN: `⌘⇧E` is here **last**, behind both of the handlers that mean something more
- * specific by it: the composer seeds the search with the word it has underlined, and
- * the picker asks for its own 검색 tab. Answered here first, from the panel's own
- * field, it would wipe whatever the user had typed into it — so this is the fallback
- * for the case neither of them is focused, and it depends on both calling
- * `preventDefault`.
+ * WARN: `⌘⇧E` is here **last**, behind the one handler that means something more
+ * specific by it: the composer seeds the search with the word it has underlined and
+ * `preventDefault`s, being a React handler on the root container, which is inside
+ * `document`. Answered here first it would ignore that word — so this is the fallback
+ * for every press the composer does not claim.
  *
- * INFO: `⌘E` has no such split. It opens the panel on the tab § 13.6. remembers, or
- * closes it, and means exactly that from everywhere — so it is answered here alone.
+ * INFO: `EmoticonPicker` answers neither key, having answered both at first. Both
+ * **toggle**, and what each toggles — whether the panel is open, and whether 검색 is
+ * the tab on screen — is this room's state, so a copy in the panel could only ever
+ * open and never close.
  */
 export function useChatShortcuts(shortcuts: ChatShortcuts) {
   const handlers = useRef(shortcuts);

@@ -1492,8 +1492,20 @@ export function ChatRoom({
    *
    * INFO: § 8.6. No word to seed it with — the composer owns the draft and is not what
    * is focused when this fallback is reached.
+   *
+   * WARN: § 8.13. The correction guard is `toggleEmoticonPanel`'s and it is needed
+   * **here too**, for a reason that is easy to miss: the composer refuses this key
+   * while editing and therefore does not `preventDefault` it, so the press falls
+   * straight through to this fallback — and the hook's own `isCovered` is about the
+   * *attachment* editor, not a message being corrected. Without it the panel opened
+   * mid-edit and staged an emoticon the correction has no row to send, invisibly,
+   * since § 8.13. hides the tray that would have shown it.
    */
   function toggleEmoticonSearch() {
+    if (isSearching || editingId !== null) {
+      return;
+    }
+
     if (isEmoticonPanelOpen && isEmoticonSearchTab) {
       peelComposerStack();
 

@@ -44,8 +44,9 @@ export async function listEventOccurrences(
  * looks, and a card summarising an event further out than that would be noise.
  *
  * WARN: The day range alone is not the answer — it keeps a breakfast that ended at
- * 09:00 "upcoming" until midnight, holding one of the card's two slots (`DESIGN.md
- * § 7.9.`). `isOccurrenceUnfinished` is what narrows it to what is genuinely left.
+ * 09:00 "upcoming" until midnight, holding one of the card's `MAX_UPCOMING_EVENTS`
+ * slots (`DESIGN.md § 7.9.`). `isOccurrenceUnfinished` is what narrows it to what is
+ * genuinely left.
  */
 export async function listUpcomingOccurrences(
   todayKey: string,
