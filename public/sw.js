@@ -164,16 +164,33 @@ async function handlePush(data) {
   updateBadge(payload.unreadCount);
   await postUnreadCount(payload.unreadCount);
 
+  // WARN: REQUIREMENTS.md § 16.1. Captured before the banner below and closed after it, never around it — these carry the same tag, so a sweep that ran later would take the new one with them.
+  const superseded = await listOwnNotifications();
+
   // WARN: REQUIREMENTS.md § 16.1. Every push MUST end in a banner, with no exception for a visible window — WebKit revokes the subscription after three that do not, which reads as the Settings toggle emptying itself and push dying for good.
   await self.registration.showNotification(payload.title, {
     body: payload.body,
     icon: NOTIFICATION_ICON,
     badge: NOTIFICATION_ICON,
-    // INFO: REQUIREMENTS.md § 6. One conversation, so a second message replaces the first banner instead of stacking beside it; `renotify` is what still alerts on the replacement.
+    // INFO: REQUIREMENTS.md § 6. One conversation, so a second message replaces the first banner where the platform honours a tag; `renotify` is what still alerts on the replacement, and the close above is what covers iOS, which does not.
     tag: NOTIFICATION_TAG,
     renotify: true,
     data: { url: payload.url },
   });
+
+  superseded.forEach((notification) => notification.close());
+}
+
+/**
+ * WARN: REQUIREMENTS.md § 16.1. This is what `tag` alone was believed to do, and does not on iOS — `webpushd` identifies a `UNNotificationRequest` by the notification's own generated UUID and performs no replace-by-tag step, so every push stacked another banner in Notification Center.
+ * WARN: Swallowed and never rethrown. It runs on the path § 16.1. requires to end in a banner, so a failure here must cost the collapse and never the `showNotification` after it.
+ */
+async function listOwnNotifications() {
+  try {
+    return await self.registration.getNotifications({ tag: NOTIFICATION_TAG });
+  } catch {
+    return [];
+  }
 }
 
 // INFO: REQUIREMENTS.md § 8.4.2. The tab-bar badge is driven by the stream, which is only open on 채팅 — this is what moves it while the user is on one of the other three tabs.
