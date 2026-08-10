@@ -1,5 +1,9 @@
+"use client";
+
+import { useChatStream } from "@/features/chat-stream";
 import { cn } from "@/shared/lib";
 import { AppHeader, Container, Skeleton } from "@/shared/ui";
+import { toChromeTint } from "@/widgets/chat-room";
 
 /**
  * INFO: DESIGN.md § 6.3. The newest page as a shape — who sent what alternates, and a
@@ -33,17 +37,29 @@ export type ChatFallbackProps = {
  * shell column for as long as it is up — so the swap would land the room in a
  * document that had just been scrolled somewhere else.
  *
- * INFO: The wallpaper (REQUIREMENTS.md § 12.2.) is deliberately absent. Its tint is
- * seeded by the shell, which has not resolved yet wherever this is on screen, and a
- * flat `chat-canvas` is exactly what the room falls back to when there is none.
+ * WARN: REQUIREMENTS.md § 12.2. It wears `ChatScreen`'s chrome tint, and this is the
+ * whole reason it is a client component. `chat/page.tsx` awaits `listMessages`, so
+ * this — not the room — is the first paint of a cold `/chat`, and iOS 26 samples the
+ * status bar and toolbar from this box exactly once and never re-reads it
+ * (`toChromeTint`). Drawn flat, the bars keep `chat-canvas` for the whole session
+ * while the room behind them wears the wallpaper.
+ *
+ * INFO: The wallpaper photo itself stays absent — the hash is what the bars are read
+ * from, and a plate the size of the screen is louder than the swap it covers
+ * (DESIGN.md § 7.8.). The shell resolves before this renders, so the hash is here.
  */
 export function ChatFallback({ className }: ChatFallbackProps) {
+  const { chatBackgroundBlurhash } = useChatStream();
+  const chromeTint = toChromeTint(chatBackgroundBlurhash);
+
   return (
     <Container
       className={cn(
         "fixed inset-x-0 top-(--keyboard-pan) flex h-[var(--viewport-height,100dvh)] flex-col bg-chat-canvas px-0 shell-edge",
         className,
       )}
+      // INFO: REQUIREMENTS.md § 12.2. Overrides `bg-chat-canvas`, which stays as the no-wallpaper answer — the same pair `ChatScreen` carries, so the swap changes no colour.
+      style={chromeTint ? { backgroundColor: chromeTint } : undefined}
       aria-hidden
     >
       <AppHeader />
