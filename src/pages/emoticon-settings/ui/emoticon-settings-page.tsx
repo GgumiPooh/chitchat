@@ -24,7 +24,7 @@ export type EmoticonSettingsPageProps = {
 
 /**
  * REQUIREMENTS.md § 13.5. The KakaoTalk 이모티콘 관리 screen, in two tabs — 사용중,
- * which the user orders, and 이모티콘셋 검색, which is the library.
+ * which the user orders, and 이모티콘그룹 검색, which is the library.
  *
  * INFO: The split is what dissolves a conflict rather than a taste in navigation: a
  * library holds ten thousand packs and a user enables thirty, and the list that has to

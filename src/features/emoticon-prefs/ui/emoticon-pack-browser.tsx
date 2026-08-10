@@ -26,7 +26,7 @@ export type EmoticonPackBrowserProps = {
 };
 
 /**
- * REQUIREMENTS.md § 13.5. The 이모티콘셋 검색 tab — the whole library, windowed,
+ * REQUIREMENTS.md § 13.5. The 이모티콘그룹 검색 tab — the whole library, windowed,
  * with a switch per row and no reordering.
  *
  * INFO: The two tabs exist because those last two clauses cannot both be had in one

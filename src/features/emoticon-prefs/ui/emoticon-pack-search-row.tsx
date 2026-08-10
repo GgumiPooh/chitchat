@@ -15,7 +15,7 @@ export type EmoticonPackSearchRowProps = {
 };
 
 /**
- * One row of the § 13.5. 이모티콘셋 검색 tab — the same pack as the 사용중 row, with
+ * One row of the § 13.5. 이모티콘그룹 검색 tab — the same pack as the 사용중 row, with
  * the switch instead of the grip and the menu.
  *
  * WARN: Its height is `EMOTICON_PACK_ROW_HEIGHT` exactly and nothing here may grow

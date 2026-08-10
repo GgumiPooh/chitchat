@@ -49,7 +49,7 @@ export async function listEmoticonPacks(
 }
 
 /**
- * One page of § 13.5.'s 이모티콘셋 검색 tab, keyed on the order the list is drawn in.
+ * One page of § 13.5.'s 이모티콘그룹 검색 tab, keyed on the order the list is drawn in.
  *
  * INFO: `limit + 1` rows are read and the extra one is dropped — whether it arrived is
  * the whole of what `nextCursor` reports, and it costs nothing over asking for `limit`.

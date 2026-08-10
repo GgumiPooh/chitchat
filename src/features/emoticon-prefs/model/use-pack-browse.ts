@@ -26,7 +26,7 @@ export type PackBrowse = {
 };
 
 /**
- * REQUIREMENTS.md § 13.5. The 이모티콘셋 검색 tab's data — the whole library, one
+ * REQUIREMENTS.md § 13.5. The 이모티콘그룹 검색 tab's data — the whole library, one
  * cursor page at a time, with this user's switches applied on top.
  *
  * WARN: A toggle is held here rather than written into the query cache. The key

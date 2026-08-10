@@ -70,7 +70,7 @@ export function EmoticonPackManager({
       <EmptyState
         className={className}
         Icon={Smile}
-        description="사용 중인 이모티콘 그룹이 없어요. 이모티콘셋 검색에서 켜거나 오른쪽 위 + 로 만들 수 있어요"
+        description="사용 중인 이모티콘 그룹이 없어요. 이모티콘그룹 검색에서 켜거나 오른쪽 위 + 로 만들 수 있어요"
       />
     );
   }
