@@ -33,7 +33,8 @@ export function ShellOverlay({ className, children }: ShellOverlayProps) {
         // WARN: `z-40` belongs on the layer, and it is what makes every `z-` inside it mean anything. `position: fixed` establishes a stacking context whatever its own z-index is, so the children are sealed in here — left at `z-auto` the whole layer painted *below* the `z-30` bars, and no `z-50` on a child could reach past them. Raise this, never a child, and keep it under the `z-50` the `body`-level sheets are portalled at.
         <Container
           className={cn(
-            "pointer-events-none fixed inset-x-0 top-[var(--viewport-top,0px)] z-40 h-[var(--viewport-height,100dvh)] px-0",
+            // WARN: DESIGN.md § 3.4. `--keyboard-pan` and never `--viewport-top` — the raw property is also non-zero while Safari collapses its toolbar, which would drop this layer below the visible area on a screen with no keyboard in it.
+            "pointer-events-none fixed inset-x-0 top-(--keyboard-pan) z-40 h-[var(--viewport-height,100dvh)] px-0",
             className,
           )}
         >

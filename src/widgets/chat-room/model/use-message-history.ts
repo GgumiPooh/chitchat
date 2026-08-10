@@ -504,7 +504,15 @@ function withChangedQuote(message: ChatMessage, parent: ChatMessage): ChatMessag
   if (parent.isDeleted) {
     return {
       ...message,
-      replyTo: { ...replyTo, text: null, thumbnailMediaId: null, isDeleted: true },
+      // WARN: `mediaKind` is nulled with the rest. `listReplyPreviews` never queries attachments for a deleted row, so a live correction that kept the old kind would disagree with the very next fetch of the same quote.
+      replyTo: {
+        ...replyTo,
+        text: null,
+        thumbnail: null,
+        mediaKind: null,
+        mediaCount: 0,
+        isDeleted: true,
+      },
     };
   }
 

@@ -729,13 +729,18 @@ function ImageSlide({ cell, zoom }: { cell: MediaCell; zoom?: ReturnType<typeof 
     // WARN: REQUIREMENTS.md § 18. #6. The gesture surface, and it never scales — the hook measures its box for the pan bounds, so the transform belongs to the element inside it.
     <div className="flex max-h-full w-full items-center justify-center" {...zoom?.surfaceProps}>
       <div className="max-h-full w-full" style={zoom?.contentStyle}>
-        {/* INFO: The stored ratio gives the skeleton a box to fill while the original downloads — the grid tile the user tapped came from a thumbnail, so this request starts cold. */}
+        {/* INFO: The stored ratio gives the placeholder a box to fill while the original downloads — the grid tile the user tapped came from a thumbnail, so this request starts cold. */}
+        {/* INFO: The hash describes that same thumbnail, which is what makes it a stand-in for a full-size object it was never encoded from. */}
         <PreloadImage
           className="max-h-full w-full"
           imgClassName="size-full object-contain"
           placeholderClassName="rounded-md"
           style={{ aspectRatio: `${cell.width} / ${cell.height}` }}
           src={cell.originalUrl ?? cell.previewUrl}
+          blurhash={cell.blurhash}
+          blurhashRatio={cell.width / cell.height}
+          // WARN: DESIGN.md § 7.8. `contain`, matching the slide's own `object-contain` — the box carries the stored ratio but `max-h-full` clamps a portrait one on a short screen, and a `cover` blur would fill the width the letterboxed photo leaves as scrim.
+          blurhashFit="contain"
           alt=""
         />
       </div>

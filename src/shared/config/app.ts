@@ -187,7 +187,20 @@ export const SEARCH_EXCERPT_LEAD = 24;
 // INFO: REQUIREMENTS.md § 8.10. The quote is clamped to one line, so the wire carries a slice rather than a 2000-character parent every reply would otherwise drag along.
 export const REPLY_PREVIEW_MAX_LENGTH = 120;
 
-/** DESIGN.md § 6.8. How long a jumped-to bubble holds its highlight before it fades. */
+/**
+ * DESIGN.md § 6.8. The whole of a jump flash — the fade in, the hold and the long
+ * fade out together, which `message-flash` divides between in keyframe percentages.
+ *
+ * WARN: Handed to that animation as `--message-flash-duration` rather than written
+ * into the stylesheet, so this stays the one place the length is stated. The row
+ * that wears the class also clears it from here, and the two lengths disagreeing is
+ * a highlight that ends before or after the animation drawing it.
+ *
+ * WARN: Also the § 7.10. tile ring's lifetime in 보관함, which fades on a transition
+ * of its own rather than on those keyframes. One duration because it is one gesture
+ * landing (§ 10.'s 대화에서 보기 and the quote jump alike), not because the two
+ * animate alike.
+ */
 export const MESSAGE_FLASH_DURATION = 1.5 * A_SECOND;
 
 /** REQUIREMENTS.md § 8.4. The one `EventSource` the chat client holds open. */

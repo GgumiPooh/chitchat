@@ -123,7 +123,19 @@ Use only the semantic color tokens defined in `src/app/styles/theme.css` (`canva
 
 ## 5.2. Dark theme readiness
 
-The `.dark` block in `theme.css` is intentionally unpopulated. Never hardcode a light-mode value that would need a `dark:` override later; express it as a token instead.
+The `.dark` block in `theme.css` rebinds the same token names against the dark canvas, and **a new token needs its entry there in the same change** — a colour stated once is a light value sitting on a dark floor. Never hardcode a light-mode value that would need a `dark:` override later; express it as a token instead.
+
+A dark value is **re-derived against that canvas, never the light one reused** (`DESIGN.md § 5.4.`). One token departs from that and says so: `message-flash` is `primary`'s own channels at a fixed alpha, so its dark entry swaps the channels and keeps the alpha. **Do not express a theme-following token with `color-mix(… var(--color-primary) …)`** — Tailwind rewrites the `var()` into an `@supports` pair and inlines the resolved **light** value as the fallback, inside the `.dark` block too. Write the channels out per theme.
+
+## 5.3. A colour taken from an image comes from its stored hash
+
+**Never sample a stored photo by drawing it to a canvas and reading the pixels back.** Every drawn object carries `media.blurhash` (`REQUIREMENTS.md § 9.`), and a blurhash's DC term **is** the image's average colour — so the answer is string arithmetic on a value the screen is already holding, available before a single byte of the photo has arrived.
+
+A canvas read costs three things the hash does not, and all three were shipped and then removed (`REQUIREMENTS.md § 12.2.`). `/api/media/{id}` answers a 302 into R2, so the pixels are cross-origin and `getImageData` throws unless the request was made in CORS mode — and a CORS request is cached separately from the plain one every `<img>` and `preload` makes, so the photo is downloaded **twice**; the redirect answers that check differently cold and warm, so the read fails on a refresh and works after a route change; and a bucket policy that does not name the origin (`REQUIREMENTS.md § 15.`) turns a missing colour into a **failed image load**, because the element itself errors. It also publishes nothing until the full-size photo has decoded, so whatever wears the colour visibly changes under the reader.
+
+Decode the DC term by hand rather than calling the package's `decode` at 1×1 — that renders the top-left **corner**, where every basis function evaluates to `1` and the AC terms are summed into the answer.
+
+Composite the result in CSS and not in script: `color-mix(in srgb, var(--color-token) N%, {average})` re-resolves when the theme moves (§ 5.2.), where numbers resolved at the moment of the read are baked against whichever theme was up then, with nothing to recompute on.
 
 # 6. Server Code
 

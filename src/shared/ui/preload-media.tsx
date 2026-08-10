@@ -1,9 +1,10 @@
 "use client";
 
-import { cn, type Optional } from "@/shared/lib";
+import { cn, type Nullable, type Optional } from "@/shared/lib";
 import type { ClassValue } from "clsx";
 import type { LucideIcon } from "lucide-react";
 import { useState, type CSSProperties, type PropsWithChildren } from "react";
+import { useBlurhashStyle, type BlurhashFit } from "./blur-placeholder";
 import { Skeleton } from "./skeleton";
 
 export type LoadStatus = "loading" | "loaded" | "failed";
@@ -90,13 +91,20 @@ export type PreloadFrameProps = PropsWithChildren<{
   isRevealed: boolean;
   /** WARN: DESIGN.md § 7.8. Off for a full-bleed surface, where `placeholderClassName` is the flat surface the load is meant to hide behind — `Skeleton` is opaque `surface-strong` and would paint straight over it, turning the whole screen into a pulsing plate. */
   hasSkeleton: boolean;
+  /** The asset's stored hash. Where there is one it **replaces** the skeleton, and `hasSkeleton` stops meaning anything; absent, every line below is what it was before blurs existed. */
+  blurhash?: Nullable<string>;
+  /** The asset's own width ÷ height, so the hash is decoded at the picture's shape and cropped where the element crops it. A caller that knows its geometry SHOULD pass it — DESIGN.md § 7.8. */
+  blurhashRatio?: number;
+  /** How the element below is fitted, since the blur has to be framed by the same rule. `cover` unless the media element carries `object-contain`. */
+  blurhashFit?: BlurhashFit;
   failureIcon: LucideIcon;
 }>;
 
 /**
  * The box a preloaded media element sits in: it reserves the geometry, fills it
- * with a DESIGN.md § 7.8. skeleton until the element has something to paint, and
- * ends on a static glyph if the asset never arrives.
+ * with the asset's decoded `blurhash` — or a DESIGN.md § 7.8. skeleton where there
+ * is no hash — until the element has something to paint, and ends on a static glyph
+ * if the asset never arrives.
  *
  * The wrapper reserves the box, so a caller that already knows the size (chat's
  * emoticons and media, REQUIREMENTS.md § 8.3.) keeps giving it the same geometry it
@@ -109,26 +117,42 @@ export function PreloadFrame({
   status,
   isRevealed,
   hasSkeleton,
+  blurhash,
+  blurhashRatio,
+  blurhashFit,
   failureIcon: FailureIcon,
   children,
 }: PreloadFrameProps) {
+  // INFO: Withheld on failure so DESIGN.md § 7.8.'s ending stands: the glyph's contrast was picked against the `surface-strong` plate below, not against an arbitrary photo's colours.
+  const blurStyle = useBlurhashStyle(status === "failed" ? undefined : blurhash, {
+    ratio: blurhashRatio,
+    fit: blurhashFit,
+  });
+  const hasBlur = blurStyle !== undefined;
+
   return (
     <span className={cn("grid", className)} style={style}>
-      {!isRevealed && (
+      {/* WARN: A blur outlives the reveal instead of unmounting with it. The element beneath spends the next 200ms climbing out of `opacity-0` (`toMediaElementClassName`), and pulling the placeholder at the start of that leaves an empty box for the whole crossfade — which is what the blur exists to fill. */}
+      {(!isRevealed || hasBlur) && (
         // WARN: The failed state's `bg-surface-strong` sits on this element and never on a child of it, so `placeholderClassName` still wins it through tailwind-merge — a full-bleed caller passing `bg-scrim` is asking for a near-black floor, and a light plate the size of the cover is what it is passing that to avoid.
+        // WARN: Decoration and never a target. Left tappable, a blur that has faded out would go on covering the box after the reveal, and the topmost thing under a finger would be a placeholder rather than the asset.
         <span
           className={cn(
-            "col-start-1 row-start-1 size-full overflow-hidden rounded-[inherit]",
+            "pointer-events-none col-start-1 row-start-1 size-full overflow-hidden rounded-[inherit]",
             status === "failed" && "bg-surface-strong",
+            hasBlur && "transition-opacity duration-200 ease-out",
+            hasBlur && isRevealed && "opacity-0",
             placeholderClassName,
           )}
+          style={blurStyle}
         >
           {status === "failed" ? (
             <span className="flex size-full items-center justify-center">
               <FailureIcon className="size-4 text-meta-soft" strokeWidth={1.75} />
             </span>
           ) : (
-            hasSkeleton && <Skeleton className="size-full rounded-[inherit]" />
+            // WARN: DESIGN.md § 7.8. A blur *replaces* the skeleton rather than layering under it — `Skeleton` is an opaque `surface-strong` pulse, so over a blur it hides the very thing it was drawn to stand in for, and a pulsing plate is louder than the swap it covers (`ChatBackdrop` withholds it over a flat floor for the same reason).
+            hasSkeleton && !hasBlur && <Skeleton className="size-full rounded-[inherit]" />
           )}
         </span>
       )}

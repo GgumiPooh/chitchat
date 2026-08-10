@@ -4,7 +4,7 @@ import type { Emoticon } from "@/entities/emoticon";
 import type { ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { useProfileViewer } from "@/features/view-profile";
-import { DELETED_MESSAGE_TEXT } from "@/shared/config";
+import { DELETED_MESSAGE_TEXT, MESSAGE_FLASH_DURATION } from "@/shared/config";
 import {
   LONG_PRESS_TARGET_CLASS,
   cn,
@@ -16,12 +16,18 @@ import {
 } from "@/shared/lib";
 import { Avatar, IconButton, VoicePlayer, type MediaCell } from "@/shared/ui";
 import { CornerUpLeft, RotateCcw, Share, X } from "lucide-react";
+import type { CSSProperties } from "react";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
 import { EmoticonBubble } from "./emoticon-bubble";
 import { LinkPreviewCard } from "./link-preview-card";
 import { MediaGrid } from "./media-grid";
 import { MessageText } from "./message-text";
 import { ReplyQuote } from "./reply-quote";
+
+// INFO: Hoisted because the length is a constant — a fresh object per render of every flashing row is an allocation that can never differ from this one.
+const FLASH_STYLE = {
+  "--message-flash-duration": `${MESSAGE_FLASH_DURATION}ms`,
+} as CSSProperties;
 
 export type MessageRowProps = {
   className?: string;
@@ -106,15 +112,18 @@ export function MessageRow({
   const previewUrl = emoticon || hasMedia ? undefined : findFirstUrl(text);
 
   return (
-    // INFO: DESIGN.md § 6.8. The flash is on the row rather than on the bubble's own fill, so a media or emoticon message — which has no fill — highlights the same way a text one does.
+    // INFO: DESIGN.md § 6.10. The flash is on the row rather than on the bubble's own fill, so a media or emoticon message — which has no fill — highlights the same way a text one does.
+    // WARN: `message-flash` paints and times itself, and it is the row's *background* — nothing here may become a border, a ring or a spacer, since REQUIREMENTS.md § 8.3.'s estimate prices this box without ever seeing the flash.
+    // WARN: The class and the variable travel together. `message-flash` reads its length from `--message-flash-duration` alone, and an unresolved `var()` there is an animation that never plays rather than an error.
     <div
       className={cn(
-        "group/row flex gap-xs px-md transition-colors duration-300",
+        "group/row flex gap-xs px-md",
         isFirstOfGroup ? "pt-sm" : "pt-2xs",
         isMine && "justify-end",
-        isHighlighted && "bg-primary-tint",
+        isHighlighted && "message-flash",
         className,
       )}
+      style={isHighlighted ? FLASH_STYLE : undefined}
     >
       {!isMine &&
         (isFirstOfGroup ? (

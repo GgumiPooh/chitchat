@@ -109,6 +109,8 @@ async function toAnimatedDraft(file: File, mime: string): Promise<MediaDraft> {
       width: image.naturalWidth,
       height: image.naturalHeight,
       durationMs: null,
+      // INFO: § 13.3. An emoticon is rendered directly and registers no `media` row, so there is no thumbnail for a placeholder to stand in for and nothing that would read one.
+      blurhash: null,
       filename: null,
       waveformPeaks: null,
     };
@@ -148,6 +150,8 @@ async function toStillDraft(file: File): Promise<MediaDraft> {
       width: size.width,
       height: size.height,
       durationMs: null,
+      // INFO: § 13.3. Null for the reason `toAnimatedDraft` gives — an emoticon has no `_thumb` sibling and no `media` row to carry a placeholder on.
+      blurhash: null,
       filename: null,
       waveformPeaks: null,
     };

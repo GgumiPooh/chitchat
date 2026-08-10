@@ -1,7 +1,7 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
-import type { ChatMedia, MediaDraft } from "@/entities/media";
+import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { useChatStream, useChatStreamListener } from "@/features/chat-stream";
@@ -37,6 +37,7 @@ import {
   toMediaCountUnit,
   toMediaKind,
   toMediaLabel,
+  toQuoteThumbnail,
   type MediaKind,
   type MessageArrival,
 } from "@/shared/config";
@@ -98,6 +99,7 @@ import {
   type RefObject,
   type TransitionEvent,
 } from "react";
+import { flushSync } from "react-dom";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { requestMessageEdit } from "../api/request-message-edit";
 import { buildChatRows } from "../model/build-chat-rows";
@@ -152,7 +154,7 @@ export type ChatRoomProps = {
   /**
    * REQUIREMENTS.md § 8.6.1. The open search's query, lit inside every bubble
    * that contains it — which is what marks a search jump, in place of the
-   * quote jump's flash. A whole row washed in `primary-tint` says "here" and
+   * quote jump's flash. A whole row washed in `message-flash` says "here" and
    * nothing else; the mark says which words were matched, and it stays up
    * while the reader steps through the other hits.
    */
@@ -353,8 +355,14 @@ export function ChatRoom({
     }
   }, [isSearching]);
   // INFO: REQUIREMENTS.md § 12.2. The wallpaper comes from here rather than from a prop, because either participant can change it and the other one must see it without leaving the room.
-  const { participants, chatBackgroundMediaId, typingUserIds, setIsReading, markRead } =
-    useChatStream();
+  const {
+    participants,
+    chatBackgroundMediaId,
+    chatBackgroundBlurhash,
+    typingUserIds,
+    setIsReading,
+    markRead,
+  } = useChatStream();
   // WARN: REQUIREMENTS.md § 8.12. Only the two *sustained* sources are passed; typing arrives as edit pulses through the returned callback, because a field holding a draft is not somebody typing. Sending is not a trigger either way — it clears both of these and produces no edit.
   // WARN: REQUIREMENTS.md § 8.12. Silent for the length of a search. A staged emoticon is state that outlives the hidden composer, so left connected it holds the signal up and re-POSTs every `TYPING_PING_INTERVAL` — the other participant reads 입력 중 from a composer that is not even on screen, which is exactly the parked-draft failure § 8.12. exists to have removed.
   const signalEdit = useTypingSignal(
@@ -923,12 +931,15 @@ export function ChatRoom({
   return (
     // INFO: DESIGN.md § 3.5. One scroll region spanning the whole screen; the composer and the tab bar float over its bottom edge rather than shortening it.
     // INFO: REQUIREMENTS.md § 9.2. The drop target is the whole room, so a file dragged anywhere over the conversation stages rather than having to find the composer.
+    // INFO: REQUIREMENTS.md § 12.2. `bg-chat-canvas` covers `ChatScreen`'s `--chat-chrome-tint` completely and is meant to — that box is sampled for its computed `background-color`, not for what is visible, so the room's own floor is free to be the flat surface every colour in it was designed against.
     <div
       ref={containerRef}
       className={cn("relative min-h-0 flex-1 bg-chat-canvas", className)}
       {...fileDrop.handlers}
     >
-      {chatBackgroundMediaId && <ChatBackdrop mediaId={chatBackgroundMediaId} />}
+      {chatBackgroundMediaId && (
+        <ChatBackdrop mediaId={chatBackgroundMediaId} blurhash={chatBackgroundBlurhash} />
+      )}
       {rows.length === 0 ? (
         <>
           <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">
@@ -1747,11 +1758,12 @@ export function ChatRoom({
       senderId: message.senderId,
       kind: message.type,
       text: message.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null,
-      // INFO: REQUIREMENTS.md § 9.1., § 9.3. Neither a file attachment nor a recording has a `_thumb` object, so the quote takes its label alone rather than a tile that would 404.
-      // WARN: Must stay in step with `listReplyPreviews`, which answers the same question on the server — the optimistic quote and the echoed one are the same row and may not disagree about whether it has a tile.
-      thumbnailMediaId: toQuoteThumbnailId(message.media[0]),
-      mediaKind: toMediaKind(message.media),
-      isDeleted: false,
+      // INFO: REQUIREMENTS.md § 8.10. The same call `listReplyPreviews` makes on the server, so the optimistic quote and the echoed one cannot disagree about whether the row has a tile.
+      thumbnail: message.isDeleted ? null : toQuoteThumbnail(message.emoticon, message.media),
+      // WARN: REQUIREMENTS.md § 8.13. A withdrawn parent surrenders its payload here too. Nothing routes 답장 onto a tombstone today, but that is the row it is rendered on rather than a property of this function — and `listReplyPreviews` nulls all four, so staging them live would be the optimistic/echo disagreement `toQuoteThumbnail` exists to rule out.
+      mediaKind: message.isDeleted ? null : toMediaKind(message.media),
+      mediaCount: message.isDeleted ? 0 : message.media.length,
+      isDeleted: message.isDeleted,
       id: message.id,
     });
   }
@@ -1794,8 +1806,10 @@ export function ChatRoom({
       // WARN: Not `behavior: "smooth"`. A jump crosses an arbitrary distance, so smooth animates through history the user did not ask to see, and the window it is animating over was replaced a frame ago.
       virtualizer.scrollToIndex(index, { align: "center" });
 
-      // WARN: DESIGN.md § 6.8. A property of the jump, never of whether a search happens to be open. The flash is for a jump with nothing else to point at — a quote, whose parent need not contain the query, so keying this on the search being open leaves such a jump marked by nothing at all.
+      // WARN: DESIGN.md § 6.10. A property of the jump, never of whether a search happens to be open. The flash is for a jump with nothing else to point at — a quote, whose parent need not contain the query, so keying this on the search being open leaves such a jump marked by nothing at all.
       if (flash) {
+        // WARN: `flushSync`, and after the bail-out above. A CSS animation restarts only when the class is applied, so a second jump to the row already flashing has to commit its removal *before* re-adding it — batched, the two updates collapse into a render whose state never changed and the wash never plays again. A jump that found no row keeps the flash it has rather than clearing one it cannot replace.
+        flushSync(() => setHighlightedId(null));
         setHighlightedId(id);
       }
     });
@@ -1813,19 +1827,6 @@ export function ChatRoom({
     const hasShareableMedia = first !== undefined && !first.filename && !first.voice;
 
     return hasShareableMedia || (message.text !== null && message.text.length > 0);
-  }
-
-  /**
-   * WARN: The same test `listReplyPreviews` runs on the server, and the two answer for
-   * the same row — a quote that disagrees between the optimistic bubble and the echo
-   * would swap a tile in or out under the reader.
-   */
-  function toQuoteThumbnailId(attachment: Optional<ChatMedia>): Nullable<string> {
-    if (!attachment || attachment.filename || attachment.voice) {
-      return null;
-    }
-
-    return attachment.id;
   }
 
   /**

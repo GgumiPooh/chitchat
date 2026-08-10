@@ -6,6 +6,7 @@ import type { MediaCell } from "@/shared/ui";
 export function toArchiveCells(media: ArchiveMedia[]): MediaCell[] {
   return media.map((item) => ({
     previewUrl: toMediaUrl(item.id),
+    blurhash: item.blurhash,
     originalUrl: toMediaUrl(item.id, "original"),
     downloadUrl: toMediaDownloadUrl(item.id),
     width: item.width,

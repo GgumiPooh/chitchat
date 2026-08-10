@@ -96,6 +96,8 @@ export function toVoiceDraft({ file, mime, durationMs, peaks }: VoiceRecording):
     width: 0,
     height: 0,
     durationMs,
+    // INFO: § 9.3. There is no `_thumb` object and no box to draw a placeholder in — the player is a fixed 56px of waveform (DESIGN.md § 6.5.).
+    blurhash: null,
     // INFO: § 9.3. A recording is not a file attachment — it is named by neither the user nor the OS, and a filename here would file it into the 파일 shelf of § 10.
     filename: null,
     waveformPeaks: peaks,
@@ -113,6 +115,8 @@ function toFileDraft(file: File, mime: string): MediaDraft {
     width: 0,
     height: 0,
     durationMs: null,
+    // INFO: § 9.1. Nothing renders a file attachment, so there is neither a thumbnail to stand in for nor a tile to stand in it.
+    blurhash: null,
     filename: toSafeFilename(file.name),
     waveformPeaks: null,
   };
@@ -124,7 +128,7 @@ async function toImageDraft(file: File): Promise<MediaDraft> {
   try {
     const image = await loadImage(sourceUrl);
     const { naturalHeight: height, naturalWidth: width } = image;
-    const thumbnail = await renderThumbnail(image, width, height);
+    const { blob: thumbnail, blurhash } = await renderThumbnail(image, width, height);
 
     return {
       id: randomId(),
@@ -136,6 +140,7 @@ async function toImageDraft(file: File): Promise<MediaDraft> {
       width,
       height,
       durationMs: null,
+      blurhash,
       filename: null,
       waveformPeaks: null,
     };
@@ -156,7 +161,7 @@ async function toVideoDraft(file: File): Promise<MediaDraft> {
       throw new Error("video decode failed");
     }
 
-    const thumbnail = await renderThumbnail(video, width, height);
+    const { blob: thumbnail, blurhash } = await renderThumbnail(video, width, height);
 
     return {
       id: randomId(),
@@ -168,6 +173,8 @@ async function toVideoDraft(file: File): Promise<MediaDraft> {
       width,
       height,
       durationMs: Number.isFinite(video.duration) ? Math.round(video.duration * A_SECOND) : null,
+      // WARN: The poster frame's hash, never the clip's first frame. `toPosterTime` seeks past a black opening, so a hash of frame 0 would blur to black and then jump to a lit poster.
+      blurhash,
       filename: null,
       waveformPeaks: null,
     };

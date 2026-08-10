@@ -17,6 +17,17 @@ export type MediaDraft = {
   width: number;
   height: number;
   durationMs: Nullable<number>;
+  /**
+   * REQUIREMENTS.md § 9. The placeholder `ChatMedia.blurhash` is registered with,
+   * encoded in the browser because the server never sees the bytes (§ 9.).
+   *
+   * WARN: It describes `thumbnail` and nothing else — see `renderThumbnail`, which
+   * is the only thing that produces one.
+   *
+   * INFO: § 9.1., § 9.3. Null for a file attachment and for a recording, neither of
+   * which has a thumbnail to stand in for or a drawn box to stand in it.
+   */
+  blurhash: Nullable<string>;
   /** REQUIREMENTS.md § 9.1. Set on a file attachment and null on a photo or video, exactly as `ChatMedia.filename` is. */
   filename: Nullable<string>;
   /**

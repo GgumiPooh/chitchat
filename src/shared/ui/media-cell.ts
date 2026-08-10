@@ -22,6 +22,17 @@ export type VoiceTrack = {
 export type MediaCell = {
   /** What the tile shows — the stored thumbnail, or the draft's local preview. Null for a file attachment (REQUIREMENTS.md § 9.1.), which has neither. */
   previewUrl: Nullable<string>;
+  /**
+   * REQUIREMENTS.md § 9. The row's stored hash, which is what the box is painted
+   * with while `previewUrl` loads. It describes the thumbnail and nothing else, so it
+   * stands in for the same image every reader of this cell draws.
+   *
+   * WARN: Null is ordinary rather than absent data, and DESIGN.md § 7.8.'s skeleton
+   * is what fills the box wherever it is. A file attachment and a recording have no
+   * thumbnail to describe (§ 9.1., § 9.3.), a row registered before the column existed
+   * carries none, and `toCellsFromDrafts` withholds the one a draft holds.
+   */
+  blurhash: Nullable<string>;
   // INFO: Null while the attachment is still a local draft. The viewer needs the full-size object, which does not exist until the upload is registered.
   originalUrl: Nullable<string>;
   /** The same object as `originalUrl`, signed to save rather than to display. */

@@ -26,6 +26,13 @@ export type PreloadVideoProps = Omit<ComponentProps<"video">, "style" | "src" | 
    * element shows a poster as soon as *that* image loads, independently of the video
    * data, so an opaque skeleton on top would hide the very frame REQUIREMENTS.md
    * § 12.1. keeps a poster for.
+   *
+   * WARN: It is also why this component takes no `blurhash` where `PreloadImage` does.
+   * A poster reveals the element on its **first** render (`useLoadStatus`), so
+   * `PreloadFrame` would mount the blur already at `opacity-0` and it would never paint
+   * — and every stored video in the app is postered, since the § 9. upload writes a
+   * `_thumb` for one. Wiring a hash here means changing what a poster reveals, which
+   * is what § 12.1. fixed the reveal for.
    */
   poster?: string;
   /** Applied to the wrapper, which is the box the skeleton fills — a reserved size or aspect ratio belongs here, not on the video. */

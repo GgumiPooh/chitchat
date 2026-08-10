@@ -1,4 +1,4 @@
-import { readChatBackgroundMediaId } from "@/entities/chat-background";
+import { readChatBackground } from "@/entities/chat-background";
 import { listUsers } from "@/entities/user";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
@@ -24,10 +24,12 @@ export async function GET() {
     return apiError("unauthorized");
   }
 
-  const [users, chatBackgroundMediaId] = await Promise.all([
-    listUsers(),
-    readChatBackgroundMediaId(),
-  ]);
+  const [users, chatBackground] = await Promise.all([listUsers(), readChatBackground()]);
 
-  return NextResponse.json({ users, chatBackgroundMediaId });
+  // INFO: REQUIREMENTS.md § 12.2. The hash rides with the id rather than being fetched per wallpaper — it is what the chat route's chrome is tinted with, and both move on exactly the same event.
+  return NextResponse.json({
+    users,
+    chatBackgroundMediaId: chatBackground?.mediaId ?? null,
+    chatBackgroundBlurhash: chatBackground?.blurhash ?? null,
+  });
 }

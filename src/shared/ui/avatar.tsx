@@ -120,6 +120,8 @@ function toAvatarCell(mediaId: string): MediaCell {
   return {
     id: mediaId,
     previewUrl: toMediaUrl(mediaId),
+    // INFO: The cell is built from an id and nothing else, so the row's own hash is out of reach here — DESIGN.md § 7.8.'s skeleton fills the box instead.
+    blurhash: null,
     originalUrl: toMediaUrl(mediaId, "original"),
     // INFO: REQUIREMENTS.md § 9.1. An avatar is never a file attachment — the scope refuses one at registration — so it names none and reports no size the viewer would show.
     filename: null,

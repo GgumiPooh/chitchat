@@ -59,6 +59,39 @@
   }
 }
 
+/* INFO: DESIGN.md § 6.10. Where a quote jump lands — in fast enough to catch the eye arriving, held while it reads the row, then dissolved. */
+/* WARN: The three stops are not symmetric and must not be evened out. Equal edges are a blink, which is the one thing a locator cannot be: the reader looks up *after* the room has stopped moving, so the fade out is what has to be long. */
+/* WARN: The ends are `message-flash-out`, never the keyword `transparent` — that is `rgba(0,0,0,0)` and fades the row through black wherever an engine interpolates un-premultiplied. */
+@keyframes message-flash {
+  from {
+    background-color: var(--color-message-flash-out);
+  }
+  12%,
+  52% {
+    background-color: var(--color-message-flash);
+  }
+  to {
+    background-color: var(--color-message-flash-out);
+  }
+}
+
+/* INFO: DESIGN.md § 6.10. The jump target's landing, worn by the row and not the bubble — a media or emoticon message has no fill to tint (§ 6.5.). */
+/* WARN: `--message-flash-duration` comes from `MessageRow`, which carries `MESSAGE_FLASH_DURATION` down so the constant stays the one source of truth. Left unresolved it voids the whole shorthand and the flash silently never plays (DESIGN.md § 4.7.), so the class and the variable are applied by one condition. */
+/* WARN: A keyframe animation and never a `transition`. Transitions outrank animations in the cascade, so a `transition-colors` on the same element wins outright — and one transition cannot time its two edges apart anyway, which is the whole point here. */
+/* WARN: `forwards`, where § 4.7.1.'s route animation forbids it. What that rule guards against is a held `translate`, which leaves the wrapper a containing block for every `fixed` descendant; a held `background-color: transparent` holds nothing. Without it the row repaints at full strength for the frames between the animation ending and React dropping the class. */
+@utility message-flash {
+  background-color: var(--color-message-flash);
+  animation: message-flash var(--message-flash-duration) var(--ease-route) forwards;
+}
+
+/* INFO: DESIGN.md § 4.7. Reduced motion drops the fade and keeps the wash — this is the only thing saying which row the jump landed on, so it has to survive as a state even where it cannot animate. */
+/* WARN: Not the `0s` duration § 4.7.1. uses. A zero-length animation ends on its own last keyframe, which here is `transparent`: the flash would be removed rather than stilled. */
+@media (prefers-reduced-motion: reduce) {
+  .message-flash {
+    animation: none !important;
+  }
+}
+
 /* INFO: DESIGN.md § 4.7.2. The press for every round control — it swells under the finger and settles back, so the touch reads as the surface answering rather than the control receding. */
 /* WARN: The `transition` shorthand carries a per-property timing list, so the control keeps `--duration-state` colour (§ 4.7.) while only the scale runs on the long overshoot. A caller MUST NOT add `transition-colors` beside this — `transition-property` is one declaration and the loser is silently dropped. */
 /* WARN: The resting `scale: 1` is not redundant. Left off, the resting value is `none`, and WebKit refuses to interpolate `none` → a number: the control snaps to its pressed size instead of growing into it. */
@@ -88,6 +121,15 @@
 /* INFO: DESIGN.md § 4.7.1. The blur is only viable because route changes no longer capture anything; a `backdrop-filter` cannot survive a view-transition capture. */
 @utility glass {
   @apply bg-canvas/75 backdrop-blur-lg;
+}
+
+/* INFO: DESIGN.md § 3.3. The two hairlines that separate the column from the desktop gutter — one definition, since the shell and the chat screen have to agree on an edge the reader sees as one line. */
+/* WARN: A `box-shadow` and never `border-x`, and the 1px offset is the whole point: it draws the line *outside* the box, so where there is no gutter the line falls outside the viewport and is clipped. That is what keeps this off a `min-width:` branch (AGENTS.md § 4.1.) — the geometry answers the question, not the media query. */
+/* WARN: Ink overflow, so it grows no scrollable area on the phone it overhangs. Anything that gives these two elements a second `box-shadow` drops this one — `box-shadow` is one declaration and the last wins. */
+@utility shell-edge {
+  box-shadow:
+    -1px 0 0 var(--color-hairline),
+    1px 0 0 var(--color-hairline);
 }
 
 /* INFO: REQUIREMENTS.md § 12.1. A refused autoplay leaves the poster; WebKit instead paints its own start-playback button over it, which is a control the app never rendered and cannot style. */

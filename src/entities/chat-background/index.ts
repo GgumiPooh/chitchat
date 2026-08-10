@@ -1,4 +1,8 @@
-export { readChatBackgroundMediaId } from "./api/read-chat-background";
+export {
+  readChatBackground,
+  readChatBackgroundMediaId,
+  type ChatBackground,
+} from "./api/read-chat-background";
 export {
   writeChatBackground,
   type ChatBackgroundUpdate,

@@ -1,4 +1,4 @@
-import { readChatBackgroundMediaId } from "@/entities/chat-background";
+import { readChatBackground } from "@/entities/chat-background";
 import { hasEventToday } from "@/entities/event";
 import { countUnreadMessages } from "@/entities/message";
 import { listUsers } from "@/entities/user";
@@ -25,26 +25,28 @@ export default async function MainLayout({ children }: PropsWithChildren) {
   // INFO: REQUIREMENTS.md § 8.4.2. Both seed the shell's state, which outlives the chat screen the socket itself is scoped to.
   // INFO: REQUIREMENTS.md § 11.5. The calendar dot rides the same render — it is conversation-wide, so it needs no per-user query.
   // INFO: REQUIREMENTS.md § 12.2. The wallpaper is seeded here rather than by the chat screen, because the state it feeds is refreshed by a `user_changed` event that reaches every tab.
-  const [participants, unreadCount, hasTodayEvent, chatBackgroundMediaId] = await Promise.all([
+  const [participants, unreadCount, hasTodayEvent, chatBackground] = await Promise.all([
     listUsers(),
     countUnreadMessages(user.id),
     hasEventToday(),
-    readChatBackgroundMediaId(),
+    readChatBackground(),
   ]);
 
   return (
     <ChatStreamProvider
       currentUserId={user.id}
       initialParticipants={participants}
-      initialChatBackgroundMediaId={chatBackgroundMediaId}
+      initialChatBackgroundMediaId={chatBackground?.mediaId ?? null}
+      initialChatBackgroundBlurhash={chatBackground?.blurhash ?? null}
       initialUnreadCount={unreadCount}
     >
       {/* INFO: REQUIREMENTS.md § 12.3. Inside the stream provider, because the profile it draws is resolved against the live participant set; outside the shell box, because the overlay portals into that box rather than nesting in it. */}
       <ProfileViewerProvider currentUserId={user.id}>
         {/* INFO: DESIGN.md § 3.3. The column is in flow and the document scrolls it, so Safari's bottom toolbar collapses the way it does on any ordinary page. */}
-        {/* WARN: `border-x`, not a `backdrop` gutter — the gutter colour would be what iOS 26 Safari tints its chrome with, and a border-colour is never sampled. */}
+        {/* WARN: A hairline down each side, not a `backdrop` gutter — the gutter colour would be what iOS 26 Safari tints its chrome with, and neither a border nor a shadow is ever sampled. */}
+        {/* INFO: DESIGN.md § 3.3. `shell-edge` draws it 1px *outside* the box, so the phone — where the column is the full width — never sees it. */}
         <Container
-          className="relative flex min-h-dvh flex-col border-x border-hairline bg-canvas px-0"
+          className="relative flex min-h-dvh flex-col bg-canvas px-0 shell-edge"
           id={APP_SHELL_ID}
         >
           {/* WARN: No `overflow` of any kind. The route slide's horizontal clip lives on `body` instead — an overflow here makes this the scrollport a `sticky` header resolves against, and the header then has nothing to stick to (DESIGN.md § 3.3.). */}

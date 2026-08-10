@@ -53,6 +53,12 @@
   --color-chat-pill-ink: #6b6153;
   --color-unread: #b65c4e;
   --color-search-hit: #f9e9c8;
+  /* INFO: DESIGN.md § 6.10. The wash a quote jump lands in, and its own token rather than `primary-tint` — that one is an opaque plate *lighter* than `chat-canvas`, so a full-width band of it lifted the row above the bubbles standing on it. */
+  /* WARN: `primary`'s channels at an alpha, and the transparency is load-bearing rather than a shade: § 7.16.'s wallpaper is under this row, and an opaque fill blots it out for the length of the flash. */
+  /* WARN: The channels are written out rather than mixed off `var(--color-primary)`. Tailwind rewrites a `var()` inside `color-mix` into an `@supports` pair and inlines the **light** primary as the fallback — in the `.dark` copy as well, which is a light wash on the dark floor wherever that test fails. Moving `primary` moves both copies by hand. */
+  --color-message-flash: rgb(182 92 78 / 0.1);
+  /* WARN: The same hue at zero alpha, which is what the animation fades from and to — never the keyword `transparent`, which computes to `rgba(0,0,0,0)` so an engine interpolating un-premultiplied walks both ramps through black. § 4.1. keeps every neutral off `#000000` precisely because a black wash reads as a hole. */
+  --color-message-flash-out: rgb(182 92 78 / 0);
 
   /* INFO: Event colours — DESIGN.md § 4.1.7. A closed set; `primary` is deliberately not in it. */
   --color-event-clay: #c97b5a;
@@ -245,8 +251,9 @@
   /* WARN: DESIGN.md § 3.3. The same clearance at the **top** edge, where the status bar needs more of it than the toolbar does below. Not a visual choice either, and lowering it puts the opaque bars back. */
   --chrome-edge-gap: 6px;
   /* INFO: DESIGN.md § 3.3. The two lifts every `fixed` bar is held at, so the clearance cannot drift between the header and the bars. `ChatScreen` reads neither — it is deliberately flush to both edges (§ 3.4.), and pays for the keyboard with chrome Safari tints from `--chat-chrome-tint` instead. */
-  /* WARN: DESIGN.md § 3.4. `--viewport-top` is a term because a `fixed` box resolves against the *layout* viewport, and WebKit pans the visual one down inside it to reveal a focused field. Measured on the device: `offsetTop` 385 with the keyboard up, which puts an uncorrected header that far above anything on screen. It is `0` whenever there is no keyboard, so this costs the resting layout nothing. */
-  --header-lift: calc(env(safe-area-inset-top) + var(--chrome-edge-gap) + var(--viewport-top, 0px));
+  /* WARN: DESIGN.md § 3.4. The pan WebKit performs to reveal a focused field, and `0px` at every other moment — which is **not** what `--viewport-top` is, so nothing may substitute the raw property for this one. */
+  --keyboard-pan: 0px;
+  --header-lift: calc(env(safe-area-inset-top) + var(--chrome-edge-gap) + var(--keyboard-pan));
   --bar-lift: calc(env(safe-area-inset-bottom) + var(--bar-float-gap));
   /* WARN: DESIGN.md § 6.6. `useComposerClearance` overwrites this on the chat container one frame after mount; without the default here the list's trailing spacer is invalid until then and the first bottom-anchored paint parks the newest message behind the composer. */
   --chat-bottom-gap: 0px;
@@ -276,6 +283,15 @@
       ) +
       var(--spacing-xs) * 2
   );
+}
+
+/* WARN: DESIGN.md § 3.4. `env(safe-area-inset-bottom)` never moves for the keyboard, so with the keys up the lift is paying for a home indicator the keyboard already covers — 34px of dead space the composer floated above the keys on. */
+/* WARN: DESIGN.md § 7.3. `0px` and not `--bar-float-gap`: the float gap keeps a `fixed` box off iOS 26 Safari's toolbar edge, and with the keys up the bottom edge is the keyboard rather than that toolbar. Left in, it is also exactly how much of the collapsed bar stays on screen — measured 3.8px of the tab bar above the keys, wedged under the composer. */
+/* INFO: DESIGN.md § 7.3. A flag from `BottomOverlay` rather than arithmetic on `--viewport-bottom`, which WebKit's pan moves on every frame of a scroll and would jitter the clearance with it. */
+/* WARN: DESIGN.md § 3.4. The pan correction is gated here and nowhere else — `visualViewport.offsetTop` is also non-zero while Safari collapses its toolbar, where a `fixed` box needs no correcting and gets pushed *down* by one. Measured on the device: the 캘린더 header's 일정 추가 button 24px below the strip it belongs to. */
+:root[data-keyboard-open] {
+  --bar-lift: 0px;
+  --keyboard-pan: var(--viewport-top, 0px);
 }
 
 /* INFO: DESIGN.md § 5.2. Rebinds the same names `@theme` declared, so `bg-canvas` swaps without a `dark:` utility existing anywhere. */
@@ -328,6 +344,11 @@
   --color-unread: #d2795f;
   /* INFO: DESIGN.md § 4.1.4. A dark amber rather than the light one — the hit sits behind `ink`, so the fill has to stay below the text it marks. */
   --color-search-hit: #4a3a18;
+  /* INFO: DESIGN.md § 6.10. This theme's `primary` channels at the same alpha, not a re-derived tint. 10% lands at a 1.12 contrast ratio against the floor on both themes — the flare term dominates that close to black — so the wash keeps its weight without being re-measured. */
+  /* WARN: Alpha and not an opaque hex, unlike `primary-tint` and `search-hit` above. § 7.16.'s wallpaper shows through this row, so the one thing this token may never become is a plate. */
+  --color-message-flash: rgb(210 121 95 / 0.1);
+  /* WARN: This theme's channels at zero alpha, for the reason the light entry gives — the keyword `transparent` would fade both ends through black. */
+  --color-message-flash-out: rgb(210 121 95 / 0);
 
   /* INFO: DESIGN.md § 4.1.7. Lifted as a set, so the six stay distinguishable from each other as well as from the canvas. */
   --color-event-clay: #d98f6e;
