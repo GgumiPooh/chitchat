@@ -19,3 +19,5 @@ jandh.jeheecheon.com, hyony.jeheecheon.com {
 		}
 	}
 }
+
+import /etc/caddy/sites/*.caddy

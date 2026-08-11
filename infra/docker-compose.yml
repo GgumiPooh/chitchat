@@ -9,7 +9,8 @@ services:
       - "443:443/udp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - /srv/www/jandh:/srv/www/jandh:ro
+      - /srv/www:/srv/www:ro
+      - /srv/caddy/sites:/etc/caddy/sites:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
@@ -34,3 +35,7 @@ volumes:
     name: jandh-caddy-data
   caddy-config:
     name: jandh-caddy-config
+
+networks:
+  default:
+    name: jandh-net
