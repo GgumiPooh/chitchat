@@ -1,12 +1,27 @@
 services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: jandh-caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /srv/www/jandh:/srv/www/jandh:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+
   app:
     image: ghcr.io/ggumipooh/jandh:latest
     container_name: jandh-app
     restart: always
     env_file:
       - .env
-    networks:
-      - web
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/robots.txt"]
       interval: 10s
@@ -14,6 +29,8 @@ services:
       retries: 5
       start_period: 20s
 
-networks:
-  web:
-    external: true
+volumes:
+  caddy-data:
+    name: jandh-caddy-data
+  caddy-config:
+    name: jandh-caddy-config

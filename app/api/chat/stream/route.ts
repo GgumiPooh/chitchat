@@ -27,7 +27,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // INFO: REQUIREMENTS.md § 15. The client's `EventSource` reconnects on its own when the platform ends the invocation, and `Last-Event-ID` makes that reconnect lossless.
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 const SSE_HEADERS = {
   "Content-Type": "text/event-stream; charset=utf-8",

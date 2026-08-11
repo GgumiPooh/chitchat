@@ -66,17 +66,8 @@ jobs:
           host: ${{ secrets.INFRA_MONO_HOST }}
           username: ${{ secrets.INFRA_MONO_USER }}
           key: ${{ secrets.INFRA_MONO_SSH_KEY }}
-          source: infra/docker-compose.yml
+          source: infra/docker-compose.yml,infra/Caddyfile
           target: /opt/jandh
-          strip_components: 1
-
-      - uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.INFRA_MONO_HOST }}
-          username: ${{ secrets.INFRA_MONO_USER }}
-          key: ${{ secrets.INFRA_MONO_SSH_KEY }}
-          source: infra/jandh.caddy
-          target: /srv/caddy/sites
           strip_components: 1
 
       - uses: appleboy/ssh-action@v1
@@ -87,15 +78,14 @@ jobs:
           script: |
             set -euo pipefail
             cd /opt/jandh
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker compose pull
+            echo "${{ secrets.GITHUB_TOKEN }}" | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            sudo docker compose pull
 
-            docker rm -f jandh-static >/dev/null 2>&1 || true
-            docker create --name jandh-static ghcr.io/ggumipooh/jandh:latest
-            mkdir -p /srv/www/jandh/_next/static
-            docker cp jandh-static:/app/.next/static/. /srv/www/jandh/_next/static/
-            docker rm jandh-static
+            sudo docker rm -f jandh-static >/dev/null 2>&1 || true
+            sudo docker create --name jandh-static ghcr.io/ggumipooh/jandh:latest
+            sudo mkdir -p /srv/www/jandh/_next/static
+            sudo docker cp jandh-static:/app/.next/static/. /srv/www/jandh/_next/static/
+            sudo docker rm jandh-static
 
-            docker compose up -d --remove-orphans
-            docker exec everytldr-caddy caddy reload --config /etc/caddy/Caddyfile
-            docker image prune -f
+            sudo docker compose up -d --remove-orphans
+            sudo docker image prune -f
