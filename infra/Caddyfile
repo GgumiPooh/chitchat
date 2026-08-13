@@ -1,4 +1,9 @@
-jandh.jeheecheon.com, hyony.jeheecheon.com, hyoeun.jeheecheon.com, hyo0joo.jeheecheon.com hyo00joo.jeheecheon.com {
+# WARN: Site addresses, straight from the app's own APP_URL — one place to add or
+# retire a domain instead of two drifting lists. Caddy's Caddyfile tokenizes site
+# addresses on whitespace (a trailing comma is stripped, but doesn't separate on
+# its own), so APP_URL in .env MUST be comma-AND-space separated here, not the
+# bare comma the app code alone would also accept.
+{$APP_URL} {
 	handle /_next/static/* {
 		root * /srv/www/jandh
 
