@@ -12,30 +12,30 @@ export const APP_URLS = (process.env.APP_URL ?? "")
 export const APP_URL = APP_URLS[0] ?? "http://localhost:3000";
 
 /**
- * Picks the `APP_URLS` entry matching `origin`, for callers that must answer with
- * the same origin the request came in on (google.ts's OAuth `redirect_uri`).
+ * Picks the `APP_URLS` entry matching `requestHost`, for callers that must answer
+ * with the same origin the request came in on (google.ts's OAuth `redirect_uri`).
  *
- * WARN: Matches on `host` (hostname + port) only, never the scheme. Caddy
- * terminates TLS and proxies to this container over plain http, and the
- * standalone `server.js` does not read `x-forwarded-proto` — so `origin` here is
- * `http://…` for a request that reached the browser as `https://…`. `APP_URLS`
- * itself keeps the real scheme, which is what the returned value carries.
+ * WARN: Takes the raw `Host` header (`request.headers.get("host")`), never
+ * `request.nextUrl.origin`. Standalone `server.js` binds `HOSTNAME`/`PORT`
+ * (`http://0.0.0.0:3000`, the container's own listen address) and builds
+ * `nextUrl` from that rather than from the incoming request behind Caddy, so
+ * `origin` is always the same wrong value no matter which domain was requested.
+ * The `Host` header is what Caddy actually forwards untouched.
  *
- * WARN: Throws rather than falling back to `APP_URL` when `origin` is set but
- * matches none of them — silently answering with the wrong origin is exactly
+ * WARN: Throws rather than falling back to `APP_URL` when `requestHost` is set
+ * but matches none of them — silently answering with the wrong origin is exactly
  * what made the request ambiguous in the first place, and Google would only
  * reject it later with a less legible error.
  */
-export function resolveAppUrl(origin?: Maybe<string>): string {
-  if (!origin) {
+export function resolveAppUrl(requestHost?: Maybe<string>): string {
+  if (!requestHost) {
     return APP_URL;
   }
 
-  const requestHost = new URL(origin).host;
   const match = APP_URLS.find((url) => new URL(url).host === requestHost);
 
   if (!match) {
-    throw new Error(`${origin} is not one of APP_URL: ${APP_URLS.join(", ")}`);
+    throw new Error(`${requestHost} is not one of APP_URL: ${APP_URLS.join(", ")}`);
   }
 
   return match;

@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function GET(request: NextRequest) {
   const state = generateState();
   const codeVerifier = generateCodeVerifier();
-  const authorizationUrl = getGoogleClient(request.nextUrl.origin).createAuthorizationURL(
+  const authorizationUrl = getGoogleClient(request.headers.get("host")).createAuthorizationURL(
     state,
     codeVerifier,
     GOOGLE_SCOPES,

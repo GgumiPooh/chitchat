@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const tokens = await getGoogleClient(request.nextUrl.origin).validateAuthorizationCode(
+    const tokens = await getGoogleClient(request.headers.get("host")).validateAuthorizationCode(
       code,
       codeVerifier,
     );

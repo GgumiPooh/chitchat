@@ -19,17 +19,18 @@ function getGoogleClientId(): string {
 }
 
 /**
- * `requestOrigin` is the incoming request's own origin, for a deployment answering
+ * `requestHost` is the incoming request's own `Host` header (never
+ * `request.nextUrl.origin` — see `resolveAppUrl`), for a deployment answering
  * under more than one `APP_URL` (§ config/app.ts). Omitted, this falls back to the
- * first configured `APP_URL` rather than the constant's localhost default — passing
- * an origin `resolveAppUrl` doesn't recognize throws instead of shipping a
+ * first configured `APP_URL` rather than the constant's localhost default —
+ * passing a host `resolveAppUrl` doesn't recognize throws instead of shipping a
  * `redirect_uri` that only fails on Google's own screen.
  */
-export function getGoogleClient(requestOrigin?: Maybe<string>): Google {
+export function getGoogleClient(requestHost?: Maybe<string>): Google {
   return new Google(
     getGoogleClientId(),
     ensureEnv("GOOGLE_CLIENT_SECRET"),
-    `${resolveAppUrl(requestOrigin)}${GOOGLE_CALLBACK_PATH}`,
+    `${resolveAppUrl(requestHost)}${GOOGLE_CALLBACK_PATH}`,
   );
 }
 
