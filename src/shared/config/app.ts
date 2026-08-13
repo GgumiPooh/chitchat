@@ -15,6 +15,12 @@ export const APP_URL = APP_URLS[0] ?? "http://localhost:3000";
  * Picks the `APP_URLS` entry matching `origin`, for callers that must answer with
  * the same origin the request came in on (google.ts's OAuth `redirect_uri`).
  *
+ * WARN: Matches on `host` (hostname + port) only, never the scheme. Caddy
+ * terminates TLS and proxies to this container over plain http, and the
+ * standalone `server.js` does not read `x-forwarded-proto` — so `origin` here is
+ * `http://…` for a request that reached the browser as `https://…`. `APP_URLS`
+ * itself keeps the real scheme, which is what the returned value carries.
+ *
  * WARN: Throws rather than falling back to `APP_URL` when `origin` is set but
  * matches none of them — silently answering with the wrong origin is exactly
  * what made the request ambiguous in the first place, and Google would only
@@ -25,7 +31,8 @@ export function resolveAppUrl(origin?: Maybe<string>): string {
     return APP_URL;
   }
 
-  const match = APP_URLS.find((url) => new URL(url).origin === origin);
+  const requestHost = new URL(origin).host;
+  const match = APP_URLS.find((url) => new URL(url).host === requestHost);
 
   if (!match) {
     throw new Error(`${origin} is not one of APP_URL: ${APP_URLS.join(", ")}`);
