@@ -1,6 +1,7 @@
 import "server-only";
 
-import { ensureEnv } from "@/shared/config";
+import { ensureEnv, resolveAppUrl } from "@/shared/config";
+import { type Maybe } from "@/shared/lib";
 import { Google } from "arctic";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
@@ -17,12 +18,18 @@ function getGoogleClientId(): string {
   return ensureEnv("GOOGLE_CLIENT_ID");
 }
 
-export function getGoogleClient(): Google {
-  // WARN: Not the `APP_URL` constant — its localhost default would silently ship a `redirect_uri` that only fails on Google's own screen.
+/**
+ * `requestOrigin` is the incoming request's own origin, for a deployment answering
+ * under more than one `APP_URL` (§ config/app.ts). Omitted, this falls back to the
+ * first configured `APP_URL` rather than the constant's localhost default — passing
+ * an origin `resolveAppUrl` doesn't recognize throws instead of shipping a
+ * `redirect_uri` that only fails on Google's own screen.
+ */
+export function getGoogleClient(requestOrigin?: Maybe<string>): Google {
   return new Google(
     getGoogleClientId(),
     ensureEnv("GOOGLE_CLIENT_SECRET"),
-    `${ensureEnv("APP_URL")}${GOOGLE_CALLBACK_PATH}`,
+    `${resolveAppUrl(requestOrigin)}${GOOGLE_CALLBACK_PATH}`,
   );
 }
 

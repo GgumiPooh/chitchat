@@ -1,11 +1,11 @@
 import { GOOGLE_SCOPES, getGoogleClient, setOAuthCookies } from "@/shared/auth";
 import { generateCodeVerifier, generateState } from "arctic";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const state = generateState();
   const codeVerifier = generateCodeVerifier();
-  const authorizationUrl = getGoogleClient().createAuthorizationURL(
+  const authorizationUrl = getGoogleClient(request.nextUrl.origin).createAuthorizationURL(
     state,
     codeVerifier,
     GOOGLE_SCOPES,

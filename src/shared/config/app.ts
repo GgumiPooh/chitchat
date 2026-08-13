@@ -3,7 +3,36 @@ import { z } from "zod";
 
 export const APP_NAME = "J&H";
 
-export const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
+// INFO: Comma-separated so one deployment can answer under more than one origin (a custom domain alongside the platform-assigned one, or mid-migration between two domains).
+export const APP_URLS = (process.env.APP_URL ?? "")
+  .split(",")
+  .map((entry) => entry.trim())
+  .filter(Boolean);
+
+export const APP_URL = APP_URLS[0] ?? "http://localhost:3000";
+
+/**
+ * Picks the `APP_URLS` entry matching `origin`, for callers that must answer with
+ * the same origin the request came in on (google.ts's OAuth `redirect_uri`).
+ *
+ * WARN: Throws rather than falling back to `APP_URL` when `origin` is set but
+ * matches none of them — silently answering with the wrong origin is exactly
+ * what made the request ambiguous in the first place, and Google would only
+ * reject it later with a less legible error.
+ */
+export function resolveAppUrl(origin?: Maybe<string>): string {
+  if (!origin) {
+    return APP_URL;
+  }
+
+  const match = APP_URLS.find((url) => url === origin);
+
+  if (!match) {
+    throw new Error(`${origin} is not one of APP_URL: ${APP_URLS.join(", ")}`);
+  }
+
+  return match;
+}
 
 /**
  * The `(main)` layout's floating-bar stack (DESIGN.md § 3.5.). A screen that
