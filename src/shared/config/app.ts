@@ -25,7 +25,7 @@ export function resolveAppUrl(origin?: Maybe<string>): string {
     return APP_URL;
   }
 
-  const match = APP_URLS.find((url) => url === origin);
+  const match = APP_URLS.find((url) => new URL(url).origin === origin);
 
   if (!match) {
     throw new Error(`${origin} is not one of APP_URL: ${APP_URLS.join(", ")}`);

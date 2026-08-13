@@ -1,4 +1,4 @@
-jandh.jeheecheon.com, hyony.jeheecheon.com {
+jandh.jeheecheon.com, hyony.jeheecheon.com, hyoeun.jeheecheon.com, hyo0joo.jeheecheon.com hyo00joo.jeheecheon.com {
 	handle /_next/static/* {
 		root * /srv/www/jandh
 
