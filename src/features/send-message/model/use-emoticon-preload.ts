@@ -101,7 +101,7 @@ export function useEmoticonPreload(): void {
 
       const urls = items
         .slice(0, MAX_PRELOADED_EMOTICONS)
-        .map((item) => toEmoticonAssetUrl(item.id, "image", item.version));
+        .map((item) => toEmoticonAssetUrl(item.id, "still-image", item.version));
 
       // INFO: Every task resolves (`warmImage`), so one asset the § 13.3. route refuses cannot stop the queue on the rest of the tab.
       await mapPooled(urls, (url) => (isCancelled ? Promise.resolve() : warmImage(url)), {

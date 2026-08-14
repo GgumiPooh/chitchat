@@ -1,9 +1,10 @@
-import { getEmoticonItem, toSlotKey } from "@/entities/emoticon";
+import { getEmoticonItem, toSlotAsset } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
   EMOTICON_ASSET_CACHE_CONTROL,
   EMOTICON_CACHE_MAX_AGE,
+  EMOTICON_FALLBACK_CACHE_MAX_AGE,
   EMOTICON_SLOTS,
   EMOTICON_URL_EXPIRY,
   snowflakeSchema,
@@ -47,22 +48,25 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   }
 
   const row = await getEmoticonItem(params.data.id);
-  const key = row && toSlotKey(row, query.data.slot);
+  const asset = row && toSlotAsset(row, query.data.slot);
 
   // INFO: The same answer for an item that does not exist and one that carries no asset in this slot — an optional companion's absence is not worth a distinguishable status.
-  if (!key) {
+  if (!asset) {
     return apiError("not_found");
   }
 
   // WARN: § 13.3. The `Cache-Control` on the *bytes* is signed into this URL, not stored on the object — R2 holds none, and a browser cannot put one on the upload.
-  const url = await presignDownload(key, {
+  const url = await presignDownload(asset.key, {
     expiry: EMOTICON_URL_EXPIRY,
     cacheControl: EMOTICON_ASSET_CACHE_CONTROL,
   });
 
+  // WARN: RESTRUCTURE.md § 5.7. Days are earned by `v` addressing one immutable version of the slot that was **asked for**, and a fallback is the case where that is not what answered. An item with no still serves its animation here, so holding that redirect for six days would hide the still § 5.5.'s backfill is about to give it from every browser that had asked once. Permanently correct rather than a migration patch — any item that gains a still later is the same case.
+  const maxAge = asset.isFallback ? EMOTICON_FALLBACK_CACHE_MAX_AGE : EMOTICON_CACHE_MAX_AGE;
+
   return NextResponse.redirect(url, {
     status: 302,
     // WARN: REQUIREMENTS.md § 13.3. Days rather than § 9.'s minutes, because `v` makes this URL address one immutable version — and still shorter than the signature's own lifetime, or the browser replays a redirect R2 has stopped honouring.
-    headers: { "Cache-Control": `private, max-age=${EMOTICON_CACHE_MAX_AGE / A_SECOND}` },
+    headers: { "Cache-Control": `private, max-age=${maxAge / A_SECOND}` },
   });
 }

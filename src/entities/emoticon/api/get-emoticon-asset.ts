@@ -25,10 +25,27 @@ export async function getEmoticonItem(id: EmoticonItemId): Promise<Nullable<Emot
  * already stored. When they do, this becomes the fallback **both ways** — a missing
  * still serves the animation and a missing animation serves the still — so that no
  * render path ever has to branch on what an item happens to carry.
+ *
+ * WARN: § 5.7. `isFallback` is what the asset route reads to shorten its cache, and it
+ * is the whole of that trap: an answer from the other slot must not be held for the days
+ * a versioned URL earns, or the still § 5.5. is about to write is invisible for a week to
+ * every browser that asked once. It reports the slot that **answered**, not the slot that
+ * was asked for.
  */
-export function toSlotKey(row: EmoticonItem, slot: EmoticonSlot): Nullable<string> {
-  return slot === "audio" ? row.audioKey : row.r2Key;
+export function toSlotAsset(row: EmoticonItem, slot: EmoticonSlot): Nullable<ResolvedSlotAsset> {
+  if (slot === "audio") {
+    return row.audioKey ? { key: row.audioKey, isFallback: false } : null;
+  }
+
+  // INFO: § 5.2. Until the columns are filled there is one image object, so a request for the still is answered by the animation — which is a fallback, and says so.
+  return { key: row.r2Key, isFallback: slot === "still-image" };
 }
+
+export type ResolvedSlotAsset = {
+  key: string;
+  /** RESTRUCTURE.md § 5.7. The asset came from a slot other than the one asked for. */
+  isFallback: boolean;
+};
 
 /**
  * The subset of `keys` that no item references, which is exactly the set that may

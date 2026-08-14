@@ -36,7 +36,7 @@ export function EmoticonItemCell({
           className="size-full"
           imgClassName="size-full object-contain"
           placeholderClassName="rounded-sm"
-          src={toEmoticonAssetUrl(item.id, "image", item.version)}
+          src={toEmoticonAssetUrl(item.id, "still-image", item.version)}
           alt=""
           draggable={false}
           loading="lazy"

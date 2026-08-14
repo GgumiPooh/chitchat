@@ -2,8 +2,9 @@ export {
   deleteEmoticonItem,
   getEmoticonItem,
   listUnregisteredEmoticonKeys,
-  toSlotKey,
+  toSlotAsset,
   type DeleteEmoticonResult,
+  type ResolvedSlotAsset,
 } from "./api/get-emoticon-asset";
 export {
   findKnownPackIds,

@@ -50,7 +50,7 @@ export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubble
           width={box.width}
           height={box.height}
           draggable={false}
-          src={toEmoticonAssetUrl(emoticon.id, "image", emoticon.version)}
+          src={toEmoticonAssetUrl(emoticon.id, "animated-image", emoticon.version)}
         />
       </button>
     </div>

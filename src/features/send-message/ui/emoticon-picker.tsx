@@ -573,7 +573,7 @@ export function EmoticonPicker({
                 loading="lazy"
                 src={toEmoticonAssetUrl(
                   pack.thumbnailItemId,
-                  "image",
+                  "still-image",
                   pack.thumbnailVersion ?? undefined,
                 )}
               />
@@ -1134,7 +1134,7 @@ function EmoticonCell({
           className="size-full"
           imgClassName="size-full object-contain"
           placeholderClassName="rounded-sm"
-          src={toEmoticonAssetUrl(item.id, "image", item.version)}
+          src={toEmoticonAssetUrl(item.id, "still-image", item.version)}
           alt=""
           loading="lazy"
           draggable={false}

@@ -1,4 +1,4 @@
-import { A_DAY, A_MEGABYTE, A_SECOND, type Nullable } from "@/shared/lib";
+import { A_DAY, A_MEGABYTE, A_MINUTE, A_SECOND, type Nullable } from "@/shared/lib";
 
 // WARN: REQUIREMENTS.md § 13.7.1. Held apart from the fallback below, because the switch has to be able to tell a configured origin from a defaulted one.
 const EMOTICONS_ORIGIN_SETTING = (process.env.NEXT_PUBLIC_EMOTICONS_ORIGIN ?? "").trim();
@@ -199,6 +199,21 @@ export const KEYWORD_SUGGESTION_BATCH = 3;
 export const EMOTICON_URL_EXPIRY = 7 * A_DAY;
 
 export const EMOTICON_CACHE_MAX_AGE = 6 * A_DAY;
+
+/**
+ * RESTRUCTURE.md § 5.7. How long a redirect that answered from the **other** image slot
+ * may be held.
+ *
+ * WARN: The days above are earned by `v` addressing one immutable version of one slot,
+ * and a fallback is exactly the case where that stops being true: an item with no still
+ * serves its animation under `slot=still-image`, and the still it is about to be given by
+ * § 5.5.'s backfill would then be six days behind every browser that had asked once. This
+ * is not a migration patch — it is equally true of any item that gains a still later.
+ *
+ * INFO: § 9.'s own window, because "short enough that a change lands the same session"
+ * is the same question `MEDIA_CACHE_MAX_AGE` answers for an unversioned media URL.
+ */
+export const EMOTICON_FALLBACK_CACHE_MAX_AGE = 5 * A_MINUTE;
 
 /**
  * The `Cache-Control` an emoticon's presigned GET answers with.

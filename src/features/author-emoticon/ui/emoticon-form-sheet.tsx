@@ -300,7 +300,7 @@ async function uploadSlots(uploaded: string[], files: SlotFiles): Promise<SlotKe
 }
 
 function toExistingImageUrl(emoticon: Maybe<Emoticon>): Optional<string> {
-  return emoticon ? toEmoticonAssetUrl(emoticon.id, "image", emoticon.version) : undefined;
+  return emoticon ? toEmoticonAssetUrl(emoticon.id, "animated-image", emoticon.version) : undefined;
 }
 
 function toExistingAudioLabel(emoticon: Maybe<Emoticon>, isCleared: boolean): Optional<string> {

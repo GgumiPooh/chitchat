@@ -87,7 +87,7 @@ export function EmoticonPackRow({
                 alt=""
                 src={toEmoticonAssetUrl(
                   pack.thumbnailItemId,
-                  "image",
+                  "still-image",
                   pack.thumbnailVersion ?? undefined,
                 )}
               />

@@ -53,7 +53,7 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
             width={box.width}
             height={box.height}
             draggable={false}
-            src={toEmoticonAssetUrl(emoticon.id, "image", emoticon.version)}
+            src={toEmoticonAssetUrl(emoticon.id, "animated-image", emoticon.version)}
           />
         </button>
         {/* INFO: `className` positions the haptic wrapper and `buttonClassName` styles the disc inside it — the split `IconButton` exposes precisely so a positioned control can still ask for `haptic` (`AGENTS.md § 1.2.`). */}

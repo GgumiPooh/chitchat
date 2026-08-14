@@ -49,7 +49,7 @@ export function EmoticonPackSearchRow({
             // INFO: § 13.6. The row is drawn from the same summary the picker's tab is, so a windowed scroll re-uses the redirect the browser already has.
             src={toEmoticonAssetUrl(
               pack.thumbnailItemId,
-              "image",
+              "still-image",
               pack.thumbnailVersion ?? undefined,
             )}
           />

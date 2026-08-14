@@ -100,7 +100,7 @@ export function ReplyQuote({
         <PreloadImage
           className="size-8 shrink-0"
           imgClassName="size-full object-contain"
-          src={toEmoticonAssetUrl(thumbnail.itemId, "image", thumbnail.version)}
+          src={toEmoticonAssetUrl(thumbnail.itemId, "still-image", thumbnail.version)}
           hasSkeleton={false}
           alt=""
         />
