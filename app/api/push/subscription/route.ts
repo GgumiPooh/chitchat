@@ -4,7 +4,7 @@ import {
   updatePushSubscriptionSound,
 } from "@/entities/push-subscription";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, getSessionContext } from "@/shared/auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -28,9 +28,10 @@ const soundSchema = z.object({ endpoint: z.url(), soundEnabled: z.boolean() });
  * re-registration is the one exchange that already identifies this device.
  */
 export async function POST(request: Request) {
-  const user = await getCurrentUser();
+  // INFO: The session and not just the user (REQUIREMENTS.md § 12.) — the row is bound to the login it was registered under, and this is the exchange that knows both ends.
+  const context = await getSessionContext();
 
-  if (!user) {
+  if (!context) {
     return apiError("unauthorized");
   }
 
@@ -41,7 +42,8 @@ export async function POST(request: Request) {
   }
 
   const saved = await savePushSubscription({
-    userId: user.id,
+    userId: context.user.id,
+    sessionId: context.session.id,
     ...body.data,
     userAgent: body.data.userAgent ?? null,
   });

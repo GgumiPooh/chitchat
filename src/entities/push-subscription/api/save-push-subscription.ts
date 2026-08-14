@@ -1,4 +1,4 @@
-import type { PushSubscriptionId, UserId } from "@/shared/lib";
+import type { PushSubscriptionId, SessionId, UserId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, nextSnowflake, pushSubscriptions } from "@/shared/db";
@@ -6,6 +6,7 @@ import type { PushSubscriptionInput, SavedPushSubscription } from "../model/type
 
 export type SavePushSubscriptionParams = PushSubscriptionInput & {
   userId: UserId;
+  sessionId: SessionId;
 };
 
 /**
@@ -15,6 +16,7 @@ export type SavePushSubscriptionParams = PushSubscriptionInput & {
  */
 export async function savePushSubscription({
   userId,
+  sessionId,
   endpoint,
   p256dh,
   auth,
@@ -25,6 +27,7 @@ export async function savePushSubscription({
     .values({
       id: nextSnowflake<PushSubscriptionId>(),
       userId,
+      sessionId,
       endpoint,
       p256dh,
       auth,
@@ -35,7 +38,8 @@ export async function savePushSubscription({
     // INFO: `lastSeenAt` is the abandonment lease (`REQUIREMENTS.md § 16.1.`), and this upsert is the only thing that renews it — one launch of the app on this installation.
     .onConflictDoUpdate({
       target: pushSubscriptions.endpoint,
-      set: { userId, p256dh, auth, userAgent, lastSeenAt: new Date() },
+      // WARN: `sessionId` follows the launch for `userId`'s reason and one more of its own — a re-login mints a new session, and a row left pointing at the old one is revoked by a 로그아웃 the user aimed at a device they are no longer signed in on.
+      set: { userId, sessionId, p256dh, auth, userAgent, lastSeenAt: new Date() },
     })
     .returning({ soundEnabled: pushSubscriptions.soundEnabled });
 

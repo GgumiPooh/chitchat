@@ -1,6 +1,7 @@
-import type { PushSubscriptionId, UserId } from "@/shared/lib";
+import type { PushSubscriptionId, SessionId, UserId } from "@/shared/lib";
 import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { snowflake } from "../types";
+import { sessions } from "./sessions";
 import { users } from "./users";
 
 // INFO: REQUIREMENTS.md § 16.1. One row per browser installation, not per user — the same person carries a phone and a laptop.
@@ -13,6 +14,11 @@ export const pushSubscriptions = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     // WARN: Unique across the whole table, not per user. The push service owns this string and hands the same one back to whoever logs in on that installation, so a second account on one browser MOVES the row rather than adding a second.
     endpoint: text("endpoint").notNull().unique(),
+    // INFO: REQUIREMENTS.md § 12. The cascade IS the revocation — § 12.'s 로그아웃, the shell's own logout and the § 5.2. expiry sweep all delete a `sessions` row, and none of them knows an endpoint to name.
+    // WARN: Nullable because a row written before this column existed has no session to point at, and because the § 5.2. sweep deletes an expired session out from under a live installation. Both heal on the next launch upsert.
+    sessionId: snowflake<SessionId>("session_id").references(() => sessions.id, {
+      onDelete: "cascade",
+    }),
     p256dh: text("p256dh").notNull(),
     auth: text("auth").notNull(),
     userAgent: text("user_agent"),

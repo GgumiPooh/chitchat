@@ -17,8 +17,8 @@ const UNKNOWN_DEVICE = "알 수 없는 기기";
 
 /**
  * REQUIREMENTS.md § 12. The logged-in devices, with per-session revocation. Reads
- * `sessions` — **not** the § 16.1. push subscriptions, which are a different set and
- * are not revocable.
+ * `sessions`, and revoking one also retires the § 16.1. push subscription registered
+ * under it — the cascade does that, so this screen sends one request and no more.
  *
  * INFO: The caller's own session is marked rather than revocable. Signing the current
  * device out is the 로그아웃 row on the § 12. screen, which also clears the cookie —
@@ -61,7 +61,7 @@ export function DeviceList({ className, sessions }: DeviceListProps) {
         isOpen={pending !== null}
         header={{
           title: "이 기기에서 로그아웃할까요?",
-          description: `${pending?.label ?? UNKNOWN_DEVICE}에서 다시 로그인해야 해요`,
+          description: `${pending?.label ?? UNKNOWN_DEVICE}의 알림이 꺼지고, 다시 로그인해야 해요`,
         }}
         onClose={() => setPendingId(null)}
       >

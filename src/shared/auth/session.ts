@@ -160,6 +160,7 @@ export async function invalidateCurrentSession(): Promise<void> {
   const context = await getSessionContext();
 
   if (context) {
+    // INFO: REQUIREMENTS.md § 12. This also retires the device's push subscription, by cascade — a signed-out browser held a live one until that key existed.
     await getDb().delete(sessions).where(eq(sessions.id, context.session.id));
   }
 }

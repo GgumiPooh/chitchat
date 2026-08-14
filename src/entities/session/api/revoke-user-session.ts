@@ -8,6 +8,9 @@ import { and, eq, ne } from "drizzle-orm";
  * REQUIREMENTS.md § 12. Signs one other device out. Answers whether a row was
  * actually removed, so the route can 404 rather than report a success it did not have.
  *
+ * INFO: The § 16.1. push subscription registered under this session goes with it, through
+ * `push_subscriptions.session_id`'s cascade — there is no second statement to keep in step.
+ *
  * WARN: Scoped to the caller's own `user_id` **and** away from the caller's own
  * session, because the id arrives from the client. Without the first clause one
  * participant could sign the other out of every device they own; without the second a

@@ -232,6 +232,13 @@
       "when": 1786720055940,
       "tag": "0032_push_last_seen_at",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1786721173956,
+      "tag": "0033_push_session_id",
+      "breakpoints": true
     }
   ]
 }
