@@ -1,0 +1,2 @@
+-- WARN: REQUIREMENTS.md § 6. `0030` left this table behind for one reader — `scripts/migrate-r2-keys.ts`, which needed it to recover the uploader inside an emoticon's R2 key, since `emoticon_items` carries no owner column. It is written *after* that script has run and been verified, never beside `0030`: `pnpm db:migrate` applies every pending file in one go, so a drop shipped alongside would have erased the map before anything read it.
+DROP TABLE IF EXISTS "snowflake_user_id_map";

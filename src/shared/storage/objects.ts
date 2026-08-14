@@ -14,7 +14,9 @@ import {
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
+  type ListObjectsV2CommandOutput,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getBucket, getR2 } from "./client";
@@ -175,6 +177,29 @@ export async function copyObject(sourceKey: string, destinationKey: string): Pro
       Key: destinationKey,
     }),
   );
+}
+
+/**
+ * Every key in the bucket, a page at a time.
+ *
+ * WARN: For scripts only — nothing in a request path may enumerate the bucket, and
+ * `media` / `emoticon_items` are the record of what exists (REQUIREMENTS.md § 9.).
+ * A listing is the *bucket's* answer, which is a superset: it holds derived `_thumb`
+ * objects no row names, and anything an interrupted upload left behind.
+ */
+export async function* listObjectKeys(): AsyncGenerator<string[]> {
+  // WARN: Annotated, or TypeScript infers the page from the token it also assigns and gives up on both.
+  let token: Optional<string> = undefined;
+
+  do {
+    const page: ListObjectsV2CommandOutput = await getR2().send(
+      new ListObjectsV2Command({ Bucket: getBucket(), ContinuationToken: token }),
+    );
+
+    yield (page.Contents ?? []).map((object) => object.Key).filter((key) => key !== undefined);
+
+    token = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (token);
 }
 
 /**

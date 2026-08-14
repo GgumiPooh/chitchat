@@ -218,6 +218,13 @@
       "when": 1786681546880,
       "tag": "0030_snowflake_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1786685439244,
+      "tag": "0031_drop_user_id_map",
+      "breakpoints": true
     }
   ]
 }
