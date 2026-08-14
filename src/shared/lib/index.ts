@@ -111,7 +111,8 @@ export {
   type SnowflakeId,
   type StorageObjectId,
   type UserId,
-} from "./id";
+} from "./identity/id";
+export { randomId } from "./identity/random";
 export { GESTURE_SLOP } from "./input/gesture";
 export {
   isAltKey,
@@ -125,7 +126,6 @@ export {
   type CommandKeyLabel,
 } from "./input/keyboard";
 export type { Maybe, Nullable, Optional } from "./nullish";
-export { randomId } from "./random";
 export { mapPooled, type PoolOptions } from "./run/pool";
 export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./run/safely";
 export { measureLineHeight, warmLineHeights } from "./text/line-height";
