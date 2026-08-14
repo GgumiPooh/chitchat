@@ -79,7 +79,7 @@ export const EMOTICON_KEYWORDS_URL = `${EMOTICONS_API_ORIGIN}/api/emoticons/keyw
  * and `animated-image` is what the bubble and the staged preview play.
  *
  * WARN: `image` is kept as a **deprecated alias for `animated-image`** and nothing new
- * may use it (§ 5.7.). A tab left open across the deploy goes on asking for it, and this
+ * may use it. A tab left open across the deploy goes on asking for it, and this
  * is the only thing between that tab and a `400` on every asset it draws. Removed in the
  * cycle after this one.
  *
@@ -231,9 +231,8 @@ export const EMOTICON_CACHE_MAX_AGE = 6 * A_DAY;
  *
  * WARN: The days above are earned by `v` addressing one immutable version of one slot,
  * and a fallback is exactly the case where that stops being true: an item with no still
- * serves its animation under `slot=still-image`, and the still it is about to be given by
- * § 5.5.'s backfill would then be six days behind every browser that had asked once. This
- * is not a migration patch — it is equally true of any item that gains a still later.
+ * serves its animation under `slot=still-image`, and a still given to it afterwards would
+ * be six days behind every browser that had asked once.
  *
  * INFO: § 9.'s own window, because "short enough that a change lands the same session"
  * is the same question `MEDIA_CACHE_MAX_AGE` answers for an unversioned media URL.
@@ -531,7 +530,7 @@ export type AllowedEmoticonImageMime = (typeof ALLOWED_EMOTICON_IMAGE_MIMES)[num
 
 export type AllowedEmoticonAudioMime = (typeof ALLOWED_EMOTICON_AUDIO_MIMES)[number];
 
-// INFO: The finished restructure. Both image slots take the same types and the same ceiling — they hold two renderings of one picture, not two kinds of thing. `image` is § 5.7.'s deprecated alias and carries the animated slot's rules because that is what it always meant.
+// INFO: The finished restructure. Both image slots take the same types and the same ceiling — they hold two renderings of one picture, not two kinds of thing. `image` is the deprecated alias and carries the animated slot's rules because that is what it always meant.
 const SLOT_RULES: Record<EmoticonSlot, { mimes: readonly string[]; maxSize: number }> = {
   "still-image": { mimes: ALLOWED_EMOTICON_IMAGE_MIMES, maxSize: MAX_EMOTICON_IMAGE_SIZE },
   "animated-image": { mimes: ALLOWED_EMOTICON_IMAGE_MIMES, maxSize: MAX_EMOTICON_IMAGE_SIZE },

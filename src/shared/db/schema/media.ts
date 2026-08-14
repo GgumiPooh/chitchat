@@ -6,7 +6,7 @@ import { snowflake } from "../types";
 import { users } from "./users";
 
 // INFO: REQUIREMENTS.md § 10. The single source for the library too — a chat image is never copied into a second table.
-// INFO: The finished restructure. Every uploaded object lives here, emoticon assets included (§ 5.) — "media" in the IANA sense, which is what `mime` already names.
+// INFO: The finished restructure. Every uploaded object lives here, emoticon assets included — "media" in the IANA sense, which is what `mime` already names.
 export const media = pgTable(
   "media",
   {

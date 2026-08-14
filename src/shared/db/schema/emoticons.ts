@@ -43,7 +43,7 @@ export const emoticonItems = pgTable(
     animatedImageId: snowflake<MediaId>("animated_image_id").references(() => media.id),
     audioId: snowflake<MediaId>("audio_id").references(() => media.id),
     // INFO: REQUIREMENTS.md § 13.3. The R2 key itself, not a `media` row — an emoticon is neither library content nor a thumbnailed pair.
-    // TODO: The finished restructure. Replaced by the three slots above; dropped in migration D once the backfill has filled them and § 5.'s code has stopped reading these.
+    // TODO: The finished restructure. Replaced by the three slots above, and dropped once nothing reads them — the backfill has filled every row.
     r2Key: text("r2_key").notNull().unique(),
     // INFO: REQUIREMENTS.md § 13.2. One image slot for both kinds — an animated GIF or WebP is stored here exactly as a PNG is, and the renderer never branches on which it got.
     mime: text("mime").notNull(),

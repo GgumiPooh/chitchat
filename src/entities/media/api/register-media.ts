@@ -131,7 +131,7 @@ export async function registerMedia({
     return null;
   }
 
-  // WARN: The finished restructure. An emoticon asset is never a library row, and this is what makes that structural rather than remembered. § 5.1. argues it holds "by construction" — `isInLibrary()` wants `archive_added_at` or a live message and an emoticon has neither — but `archive_added_at` is exactly what this flag sets, so construction only holds while nobody passes it. `POST /api/media` cannot: it resolves the scope out of `MEDIA_UPLOAD_SCOPES`, which has no `emoticon` in it. § 5.'s own registration path calls this function directly, with no route in between to refuse it.
+  // WARN: The finished restructure. An emoticon asset is never a library row, and this is what makes that structural rather than remembered. It would hold "by construction" — `isInLibrary()` wants `archive_added_at` or a live message and an emoticon has neither — but `archive_added_at` is exactly what this flag sets, so construction only holds while nobody passes it. `POST /api/media` cannot: it resolves the scope out of `MEDIA_UPLOAD_SCOPES`, which has no `emoticon` in it. An emoticon's own registration path calls this function directly, with no route in between to refuse it.
   if (scope === "emoticon" && addToGallery) {
     return null;
   }
