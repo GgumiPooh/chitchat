@@ -199,8 +199,8 @@ const LIST_HEADER_HEIGHT = 40;
 // INFO: Rows here run from a 44px bubble to a 363px photo, so this is counted generously — eight of the tall ones is roughly the 600px of runway a flick covers before the next frame.
 const OVERSCAN_ROWS = 8;
 
-// INFO: REQUIREMENTS.md § 8.6.1. How many frames a jump may re-assert its offset over while the rows around it are measured. Four spans WebKit's post-paint `ResizeObserver` delivery with room for the correction it causes, and the loop stops early the moment two asserts agree.
-const JUMP_SETTLE_FRAMES = 4;
+// INFO: REQUIREMENTS.md § 8.6.1. How many frames a jump may re-assert its offset over while the rows around it are measured. Six spans WebKit's post-paint `ResizeObserver` deliveries — the first lands a frame late and the correction it causes brings a second — and the loop stops early the moment two asserts resolve to the same offset.
+const JUMP_SETTLE_FRAMES = 6;
 
 // INFO: REQUIREMENTS.md § 8.3. Upward paging fires once the scroller is this close to the top — far enough out that the fetch and the wait for a still scroller both fit before the reader arrives.
 const LOAD_OLDER_THRESHOLD = 600;
@@ -2105,7 +2105,7 @@ export function ChatRoom({
    * offset stops moving — because the rows it scrolled past have not been measured yet.
    *
    * WARN: One `scrollToIndex` is right in Chrome and short in WebKit, and the difference is *when* the first measurement arrives. Rows are deliberately not measured in React's commit (see `measureElement`), so their real heights come from the `ResizeObserver`'s first delivery — which Blink runs before this frame's paint and WebKit runs after it. The estimate→actual corrections therefore land under a scroll that has already been committed against the estimates, and the target ends up below the fold: the reader has to scroll up to find the message the jump was for.
-   * WARN: Bounded, and it stops the moment two asserts agree. Every extra frame is one the reader could be scrolling in, and re-asserting on top of a real gesture would drag them back.
+   * WARN: Bounded, and it stops the moment two asserts resolve the row to the same offset. Every extra frame is one the reader could be scrolling in, and re-asserting on top of a real gesture would drag them back.
    */
   function settleJumpScroll(index: number) {
     let remaining = JUMP_SETTLE_FRAMES;
@@ -2119,7 +2119,8 @@ export function ChatRoom({
       // WARN: Not `behavior: "smooth"`. A jump crosses an arbitrary distance, so smooth animates through history the user did not ask to see, and the window it is animating over was replaced a frame ago — and a re-assert would then be measuring a scroll still in flight.
       virtualizer.scrollToIndex(index, { align: "center" });
 
-      const offset = scrollerRef.current?.scrollTop ?? 0;
+      // WARN: The offset the row *resolves* to, never the scroller's own. Before WebKit's first `ResizeObserver` delivery two asserts land on the identical `scrollTop` — nothing has been measured yet — and a loop that reads settling off that exits one frame before the corrections it exists to absorb.
+      const offset = virtualizer.getOffsetForIndex(index, "center")?.[0] ?? Number.NaN;
 
       remaining -= 1;
 
