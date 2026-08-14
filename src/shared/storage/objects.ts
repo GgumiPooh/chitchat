@@ -147,8 +147,14 @@ export async function headAcceptableObject(
   return object && isAcceptable(object) ? object : undefined;
 }
 
+/** The bytes R2 holds at a key, and the type it holds them as. */
+export type FetchedObject = {
+  bytes: Uint8Array;
+  mime: string;
+};
+
 /**
- * The stored object's own bytes.
+ * Reads an object's bytes into memory.
  *
  * INFO: The one thing a HEAD cannot answer. § 13.2.'s two image slots are decided
  * by whether the file animates, and no header says: `image/webp` and `image/gif`
@@ -157,15 +163,28 @@ export async function headAcceptableObject(
  *
  * WARN: The whole object, and deliberately not a prefix. A GIF's second image
  * descriptor may sit anywhere in the file, so a prefix can confirm an animation and
- * can never refuse one — and refusing is the half that matters here. § 14.'s size
- * ceiling is what bounds this, and it is one read per authoring write.
+ * can never refuse one — and refusing is the half that matters here.
+ *
+ * WARN: Bounded by `maxBytes` against what R2 reports, and refused rather than
+ * truncated. Everything this reads was capped on the way in (§ 14.), so anything
+ * past it is not an object this was meant to read.
  */
-export async function readObject(key: string): Promise<Optional<Uint8Array>> {
+export async function readObject(key: string, maxBytes: number): Promise<Optional<FetchedObject>> {
   const object = await safelyGetAsync(() =>
     getR2().send(new GetObjectCommand({ Bucket: getBucket(), Key: key })),
   );
 
-  return object?.Body ? object.Body.transformToByteArray() : undefined;
+  if (!object?.Body || !object.ContentType) {
+    return undefined;
+  }
+
+  if (object.ContentLength !== undefined && object.ContentLength > maxBytes) {
+    return undefined;
+  }
+
+  const bytes = await safelyGetAsync(() => object.Body!.transformToByteArray());
+
+  return bytes && bytes.byteLength <= maxBytes ? { bytes, mime: object.ContentType } : undefined;
 }
 
 /**

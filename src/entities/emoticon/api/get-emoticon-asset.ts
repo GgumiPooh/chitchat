@@ -9,9 +9,9 @@ import { alias } from "drizzle-orm/pg-core";
 /**
  * One item and the storage key behind each of its slots (the finished restructure).
  *
- * WARN: The keys are joined rather than read off the item, because § 5.2. moved them onto
- * `media` rows. The item's own `r2_key` and `audio_key` are still here and still carry the
- * pre-§ 5. objects, which is what `toSlotAsset` falls back to — migration D is what makes
+ * WARN: The keys are joined rather than read off the item, because the slots name `media`
+ * rows. The item's own `r2_key` and `audio_key` are still here and still carry the
+ * objects that predate them, which is what `toSlotAsset` falls back to — migration D is what makes
  * the join the only source.
  */
 export type EmoticonItemAssets = {
@@ -34,7 +34,7 @@ export async function getEmoticonItem(id: EmoticonItemId): Promise<Nullable<Emot
       audioKey: audio.r2Key,
     })
     .from(emoticonItems)
-    // WARN: Three `leftJoin`s and never an inner one — every slot is nullable (§ 5.2.), so an inner join drops the very items this is asked about.
+    // WARN: Three `leftJoin`s and never an inner one — every slot is nullable, so an inner join drops the very items this is asked about.
     .leftJoin(still, eq(still.id, emoticonItems.stillImageId))
     .leftJoin(animated, eq(animated.id, emoticonItems.animatedImageId))
     .leftJoin(audio, eq(audio.id, emoticonItems.audioId))

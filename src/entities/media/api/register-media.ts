@@ -48,9 +48,9 @@ export type RegisterMediaParams = {
    * WARN: The finished restructure. `MediaScope`, not `MediaUploadScope`, and the two are
    * deliberately different sets. `MEDIA_UPLOAD_SCOPES` is what `POST /api/media/upload-url`
    * will sign a ticket for and stays the three it always was; this is what a `media` row
-   * may **be**, which § 5. widens to `emoticon` because those objects are signed by
-   * `/api/emoticons/upload-url` instead and still have to register through here — § 5.2.
-   * collapses `listUnregisteredEmoticonKeys` and this function into one mechanism.
+   * may **be**, and it includes `emoticon` because those objects are signed by
+   * `/api/emoticons/upload-url` instead and still have to register through here — one
+   * mechanism where there used to be `listUnregisteredEmoticonKeys` beside it.
    */
   scope: MediaScope;
 };

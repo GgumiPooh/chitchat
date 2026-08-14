@@ -9,6 +9,7 @@ export {
   presignDownload,
   presignUpload,
   readObject,
+  type FetchedObject,
   type PresignDownloadOptions,
   type StoredObject,
 } from "./objects";

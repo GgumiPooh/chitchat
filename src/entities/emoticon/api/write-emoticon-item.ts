@@ -2,6 +2,7 @@ import "server-only";
 
 import { registerMedia } from "@/entities/media/@x/emoticon";
 import {
+  MAX_EMOTICON_IMAGE_SIZE,
   isAllowedEmoticonAsset,
   isAnimatedImage,
   normalizeKeywords,
@@ -69,7 +70,7 @@ export async function registerEmoticon({
     return null;
   }
 
-  // INFO: § 5.2.'s CHECK. The route refuses this too, but the import path (§ 13.7.) writes through here with no request body to have refused.
+  // INFO: `emoticon_items_has_image_check`. The route refuses this too, but the import path (§ 13.7.) writes through here with no request body to have refused.
   if (!stillObject && !animatedObject) {
     return null;
   }
@@ -203,7 +204,7 @@ export async function updateEmoticonItem({
     return { status: "not_found" };
   }
 
-  // INFO: § 5.2.'s CHECK against what the item actually holds — the route can only refuse a body emptying *both*, where emptying the only one it has reads as legal until the constraint says otherwise.
+  // INFO: `emoticon_items_has_image_check` against what the item actually holds — the route can only refuse a body emptying *both*, where emptying the only one it has reads as legal until the constraint says otherwise.
   if (!willHoldAnImage(current, still, animated)) {
     return { status: "unprocessable" };
   }
@@ -260,13 +261,13 @@ export async function updateEmoticonItem({
   }
 
   // INFO: § 9. The objects the edit just detached — nothing references them any more, and nothing in the app addresses R2 by key, so they are unreachable until they are deleted.
-  // WARN: The detached `media` rows are left as they are. An orphan there costs a row and is what § 12.2.'s sweep is for; deleting one an old page may still name would answer that page a 404 instead of the image it was already showing.
+  // WARN: The detached `media` rows are left as they are. An orphan there costs a row and is what the sweep is for; deleting one an old page may still name would answer that page a 404 instead of the image it was already showing.
   const orphanedKeys = await findDetachedKeys(current, { still, animated, audioKey });
 
   return { status: "updated", emoticon: toEmoticon(row), orphanedKeys };
 }
 
-/** INFO: § 5.2. What the row would hold after this edit — an absent slot keeps what it has, `null` empties it, a value fills it. */
+/** INFO: What the row would hold after this edit — an absent slot keeps what it has, `null` empties it, a value fills it. */
 function willHoldAnImage(
   current: EmoticonItem,
   still: Maybe<EmoticonImageUpload>,
@@ -335,7 +336,7 @@ async function verifyAsset(slot: EmoticonSlot, key: Maybe<string>, uploaderId: U
  * WARN: The stored bytes, never the stored mime. `image/webp` and `image/gif` are
  * both legal for one frame and an APNG is stored as `image/png`, so a mime test
  * would put a picture in the animated slot — where the bubble would play a still,
- * and § 5.4.'s fallback would have nothing to fall back to.
+ * and the asset route's fallback would have nothing to fall back to.
  */
 async function verifyImage(
   slot: EmoticonImageSlot,
@@ -352,11 +353,11 @@ async function verifyImage(
     return undefined;
   }
 
-  const bytes = await readObject(image.key);
+  const fetched = await readObject(image.key, MAX_EMOTICON_IMAGE_SIZE);
 
-  if (!bytes) {
+  if (!fetched) {
     return undefined;
   }
 
-  return isAnimatedImage(bytes) === (slot === "animated-image") ? object : undefined;
+  return isAnimatedImage(fetched.bytes) === (slot === "animated-image") ? object : undefined;
 }

@@ -104,7 +104,7 @@ export function EmoticonFormSheet({
     draft.isAnimatedCleared ||
     draft.isAudioCleared ||
     hasKeywordChange;
-  // INFO: § 5.2.'s CHECK, read off what the two rows are showing — either image satisfies it, and emptying the last one is what the button refuses.
+  // INFO: `emoticon_items_has_image_check`, read off what the two rows are showing — either image satisfies it, and emptying the last one is what the button refuses.
   const hasImage = stillUrl !== undefined || animatedUrl !== undefined;
   const canSubmit = !isSubmitting && hasChange && hasImage;
 
@@ -134,7 +134,7 @@ export function EmoticonFormSheet({
         onClose={handleClose}
       >
         <div className="space-y-sm pt-2xs">
-          {/* INFO: § 5.2. The one thing a reader cannot infer from two empty boxes — the CHECK takes either, so neither row may read as required. */}
+          {/* INFO: The one thing a reader cannot infer from two empty boxes — the CHECK takes either, so neither row may read as required. */}
           <p className="text-body-sm text-meta">둘 중 하나만 올려도 돼요</p>
           <ImageRow
             label="정지 이미지"
@@ -333,7 +333,7 @@ async function uploadSlots(uploaded: string[], files: SlotFiles): Promise<SlotKe
   return { stillKey: still, animatedKey: animated, audioKey: audio };
 }
 
-/** INFO: § 5.4. Asks for the slot itself rather than letting the route fall back, so an empty row stays empty instead of showing the other slot's picture. */
+/** INFO: Asks for the slot itself rather than letting the route fall back, so an empty row stays empty instead of showing the other slot's picture. */
 function toExistingImageUrl(
   emoticon: Maybe<Emoticon>,
   slot: EmoticonImageSlot,

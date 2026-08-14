@@ -37,7 +37,7 @@ const patchSchema = z
       .max(MAX_EMOTICON_KEYWORDS)
       .optional(),
   })
-  // INFO: § 5.2.'s CHECK for the one case the body can settle on its own; emptying only the slot the item actually holds is refused by `updateEmoticonItem`, which is what knows.
+  // INFO: `emoticon_items_has_image_check` for the one case the body can settle on its own; emptying only the slot the item actually holds is refused by `updateEmoticonItem`, which is what knows.
   .refine((body) => body.still !== null || body.animated !== null)
   // WARN: Every key is optional, so `{}` parses — and drizzle throws `No values to set` on the empty `.set()` that follows, which surfaces as a 500 for what is a malformed request. § 13.8. made `updated_at` conditional, which removed the one field that had always kept that object non-empty.
   .refine((body) => Object.values(body).some((value) => value !== undefined), "empty patch");

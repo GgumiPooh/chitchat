@@ -39,7 +39,7 @@ const bodySchema = z
       .max(MAX_EMOTICON_KEYWORDS)
       .optional(),
   })
-  // INFO: § 5.2.'s CHECK, refused here as a `400` rather than reaching the database as a constraint violation.
+  // INFO: `emoticon_items_has_image_check`, refused here as a `400` rather than reaching the database as a constraint violation.
   .refine((body) => body.still !== undefined || body.animated !== undefined);
 
 /**
