@@ -1,7 +1,7 @@
 import "server-only";
 
 import { resolveDisplayName } from "@/entities/user/@x/media";
-import { ARCHIVE_PAGE_SIZE, type LibraryKind } from "@/shared/config";
+import { ARCHIVE_PAGE_SIZE, SHELF_KINDS, type LibraryShelf } from "@/shared/config";
 import { getDb, media, messageMedia, messages, users, type Media } from "@/shared/db";
 import type { MediaId, Nullable, Optional } from "@/shared/lib";
 import {
@@ -10,9 +10,12 @@ import {
   desc,
   eq,
   exists,
+  gt,
   inArray,
   isNotNull,
   isNull,
+  lt,
+  lte,
   or,
   sql,
   type SQL,
@@ -20,14 +23,22 @@ import {
 import { toArchiveMedia, type ArchiveOrigin } from "../model/to-archive-media";
 import type { ArchiveMedia } from "../model/types";
 
-export type ArchiveCursor = {
-  createdAt: string;
-  id: MediaId;
-};
+/**
+ * The tile a page is measured from — one `media` id and nothing beside it
+ * (RESTRUCTURE.md § 3.4.).
+ *
+ * WARN: This was the `(created_at, id)` **pair** until the id became the whole of
+ * the ordering. It is not a simplification to undo: `created_at` defaults to the
+ * transaction timestamp, so every attachment of one multi-photo send compared equal
+ * on it, and the id was already carried alongside precisely to break that tie.
+ *
+ * INFO: Which is also why the row-constructor comparison is gone — a single column takes `lt`/`lte`/`gt`, so no operator is interpolated raw and no parameter is cast by hand to keep it off a `text` sort.
+ */
+export type ArchiveCursor = MediaId;
 
 export type ListArchiveMediaParams = {
-  /** Which shelf of the library to page through — 사진 by default (REQUIREMENTS.md § 10.). */
-  kind?: LibraryKind;
+  /** Which shelf of the library to page through — 갤러리 by default (REQUIREMENTS.md § 10.). */
+  shelf?: LibraryShelf;
   /** The last tile of the previous page — everything older than it comes next. */
   before?: ArchiveCursor;
   /** The first tile of the loaded window — the page directly newer than it, for the upward paging of REQUIREMENTS.md § 10. */
@@ -40,38 +51,35 @@ export type ListArchiveMediaParams = {
 /**
  * One page of one library shelf, newest first (REQUIREMENTS.md § 10.).
  *
- * WARN: The cursor is the `(created_at, id)` **pair**, never `created_at` alone.
- * `created_at` defaults to the transaction timestamp, so every attachment of one
- * multi-photo send compares equal — a page boundary inside that group would skip
- * or repeat images (§ 6.).
+ * INFO: RESTRUCTURE.md § 3.4. Ordered by id alone. An id is a total order, so the tie a timestamp had to be broken out of does not arise — see `ArchiveCursor` for the one that used to.
  *
  * WARN: `around` wins over the other two rather than combining with them, exactly
  * as `listMessages` resolves the same set (§ 8.2.) — they name different windows.
  */
 export async function listArchiveMedia({
-  kind = "photo",
+  shelf = "gallery",
   before,
   after,
   around,
   limit = ARCHIVE_PAGE_SIZE,
 }: ListArchiveMediaParams = {}): Promise<ArchiveMedia[]> {
-  const shelf = and(isInLibrary(), isOfKind(kind));
+  const within = and(isInLibrary(), isOfShelf(shelf));
   const rows = around
-    ? await selectAround(shelf, around, limit)
+    ? await selectAround(within, around, limit)
     : after
-      ? await selectNewer(shelf, after, limit)
-      : await selectOlder(shelf, before, limit);
+      ? await selectNewer(within, after, limit)
+      : await selectOlder(within, before, limit);
   const sentIn = await findSendingMessages(rows.map((row) => row.id));
 
   return rows.map((row) => toArchiveMedia(row, sentIn.get(row.id) ?? null));
 }
 
-function selectOlder(shelf: Optional<SQL>, before: Optional<ArchiveCursor>, limit: number) {
+function selectOlder(within: Optional<SQL>, before: Optional<ArchiveCursor>, limit: number) {
   return getDb()
     .select()
     .from(media)
-    .where(before ? and(shelf, comparedToCursor("<", before)) : shelf)
-    .orderBy(desc(media.createdAt), desc(media.id))
+    .where(before ? and(within, lt(media.id, before)) : within)
+    .orderBy(desc(media.id))
     .limit(limit);
 }
 
@@ -84,15 +92,15 @@ function selectOlder(shelf: Optional<SQL>, before: Optional<ArchiveCursor>, limi
  * ordering that returns the rows contiguous with the window being extended.
  */
 async function selectNewer(
-  shelf: Optional<SQL>,
+  within: Optional<SQL>,
   after: ArchiveCursor,
   limit: number,
 ): Promise<Media[]> {
   const rows = await getDb()
     .select()
     .from(media)
-    .where(and(shelf, comparedToCursor(">", after)))
-    .orderBy(asc(media.createdAt), asc(media.id))
+    .where(and(within, gt(media.id, after)))
+    .orderBy(asc(media.id))
     .limit(limit);
 
   return rows.reverse();
@@ -115,28 +123,29 @@ async function selectNewer(
  * shelf at the very first screenful.
  */
 async function selectAround(
-  shelf: Optional<SQL>,
+  within: Optional<SQL>,
   targetId: MediaId,
   limit: number,
 ): Promise<Media[]> {
-  const target = await findCursor(shelf, targetId);
+  const target = await findCursor(within, targetId);
 
   if (!target) {
-    return selectOlder(shelf, undefined, limit);
+    return selectOlder(within, undefined, limit);
   }
 
   const [newer, atOrOlder] = await Promise.all([
     getDb()
       .select()
       .from(media)
-      .where(and(shelf, comparedToCursor(">", target)))
-      .orderBy(asc(media.createdAt), asc(media.id))
+      .where(and(within, gt(media.id, target)))
+      .orderBy(asc(media.id))
       .limit(Math.floor(limit / 2)),
     getDb()
       .select()
       .from(media)
-      .where(and(shelf, comparedToCursor("<=", target)))
-      .orderBy(desc(media.createdAt), desc(media.id))
+      // WARN: `lte`, not `lt` — § 10.'s jump is centred on the target, and an exclusive bound here drops the very tile the window was opened for.
+      .where(and(within, lte(media.id, target)))
+      .orderBy(desc(media.id))
       .limit(limit),
   ]);
 
@@ -144,22 +153,27 @@ async function selectAround(
 }
 
 /**
- * INFO: The `shelf` predicate is part of the lookup, not only of the pages around
+ * Whether the target names a row **on this shelf**, which is the whole of what the
+ * cursor now has to establish (RESTRUCTURE.md § 3.4.).
+ *
+ * INFO: The shelf predicate is part of the lookup, not only of the pages around
  * it. A `media` id from another segment resolves to a real row whose place in this
  * listing does not exist, and centring on it would page from a position no tile of
  * this grid ever occupies.
+ *
+ * INFO: The id is the caller's own, so the row is looked up to be tested rather than to be read from — the cursor it used to project is now that same id.
  */
 async function findCursor(
-  shelf: Optional<SQL>,
+  within: Optional<SQL>,
   targetId: MediaId,
 ): Promise<Nullable<ArchiveCursor>> {
   const [row] = await getDb()
-    .select({ createdAt: media.createdAt, id: media.id })
+    .select({ id: media.id })
     .from(media)
-    .where(and(shelf, eq(media.id, targetId)))
+    .where(and(within, eq(media.id, targetId)))
     .limit(1);
 
-  return row ? { createdAt: row.createdAt.toISOString(), id: row.id } : null;
+  return row?.id ?? null;
 }
 
 /**
@@ -174,7 +188,7 @@ async function findCursor(
  * INFO: `users` **is** joined, here and not there. That warning is about a join that
  * can multiply rows; this one is a foreign key to a primary key inside the query that
  * already runs, so it adds a lookup per row and no rows at all. It is not gated on
- * 사진 either — the branch and the second row shape would cost more than the column.
+ * 갤러리 either — the branch and the second row shape would cost more than the column.
  *
  * WARN: The name is resolved through `resolveDisplayName`, never read straight off
  * `nickname` (REQUIREMENTS.md § 8.7.) — an empty nickname falls back to the email's
@@ -215,7 +229,7 @@ async function findSendingMessages(mediaIds: MediaId[]): Promise<Map<string, Arc
  * because it was uploaded straight in. An object with neither is an upload whose
  * send never landed, and it is not something the user ever saw.
  *
- * WARN: Membership only — which **shelf** a row lands on is `isOfKind`, and the
+ * WARN: Membership only — which **shelf** a row lands on is `isOfShelf`, and the
  * two were one predicate until 파일 got a segment of its own. `removeArchiveMedia`
  * wants this half alone, since 삭제 reaches every shelf.
  */
@@ -229,66 +243,28 @@ export function isInLibrary(): Optional<SQL> {
   );
 
   // INFO: REQUIREMENTS.md § 18. #1. The library's own delete, and the only place it is read — a hidden row still renders in the bubble it was sent in.
-  return and(isNull(media.galleryHiddenAt), or(isNotNull(media.galleryAddedAt), isPosted));
+  // WARN: RESTRUCTURE.md § 2.8. `archive_*`, not the `gallery_*` pair it was renamed from — those still exist until migration B and hold the pre-deploy values, so a reader left on one of them and a writer moved to the other is a row that is in 보관함 by one column and not by the other.
+  // INFO: RESTRUCTURE.md § 4.3. A row the uploader destroyed leaves the shelf outright rather than being hidden — there is no object left to draw a tile from. The bubble it was sent in still holds its place and draws a tombstone.
+  return and(
+    isNull(media.deletedAt),
+    isNull(media.archiveHiddenAt),
+    or(isNotNull(media.archiveAddedAt), isPosted),
+  );
 }
 
 /**
- * Which segment a row is drawn under (REQUIREMENTS.md § 10.).
+ * Which segment a row is drawn under (REQUIREMENTS.md § 10., RESTRUCTURE.md § 2.7.) —
+ * the kinds `SHELF_KINDS` maps this shelf to, and nothing else.
  *
- * WARN: REQUIREMENTS.md § 9.1. `filename` is the discriminator and the whole of it —
- * a file has no `_thumb` object, so it must never reach the grid, where a tile of one
- * is a broken image and the § 7.10. viewer opens on nothing.
+ * WARN: The ordering trap this function used to be is gone, and the record of it is
+ * why the map is where it is. It read `filename`, then `waveform_peaks`, **in that
+ * order**, and 사진 was the fallthrough — so a recording tested after 사진 rather
+ * than before it appeared as a tile in the grid with no `_thumb` object behind it,
+ * and a kind added to the shelf list without a clause here spilled into 사진 instead
+ * of opening an empty segment. A shelf now names its kinds and the column answers.
  *
- * WARN: REQUIREMENTS.md § 9.3. A voice message shares `filename IS NULL` with a
- * photo, so 사진 excludes it **explicitly** — without that second clause every
- * recording appears as a tile in the grid, and it has no `_thumb` object either,
- * so the tile is broken and the viewer opens on nothing. 파일 excludes it for free:
- * a recording carries no filename.
- *
- * INFO: Derived, never stored. 음성 cost one clause here and one literal in
- * `LIBRARY_KINDS` — no column and no migration, which is the whole reason § 9.3.
- * took the peaks as its discriminator rather than adding a `kind` enum.
- *
- * WARN: 사진 is "neither of the others", so a fourth kind is two edits and not one.
- * Added to `LIBRARY_KINDS` alone it does not open an empty shelf — it spills into
- * the grid.
+ * INFO: Which is also what let the 사진 shelf be renamed 갤러리 without a query changing — it always held `image` and `video`, and only the fallthrough made that hard to see.
  */
-function isOfKind(kind: LibraryKind): Optional<SQL> {
-  if (kind === "file") {
-    return isNotNull(media.filename);
-  }
-
-  if (kind === "voice") {
-    return isNotNull(media.waveformPeaks);
-  }
-
-  return and(isNull(media.filename), isNull(media.waveformPeaks));
+function isOfShelf(shelf: LibraryShelf): Optional<SQL> {
+  return inArray(media.kind, [...SHELF_KINDS[shelf]]);
 }
-
-/**
- * WARN: The timestamp is bound as its ISO **string**, not as a `Date`. A raw
- * template parameter carries no column to take its type from, so drizzle hands it
- * to postgres.js as-is and the driver refuses a `Date` outright.
- *
- * WARN: Which is why both sides are cast. Without `::timestamptz` Postgres has to
- * infer the parameter's type from a row constructor, and an `unknown` there
- * resolves to `text` — where `2026-08-06T…` sorts after `2026-08-1…`.
- *
- * WARN: This is only exact because `media.created_at` is `timestamptz(3)`. The
- * string above came from a JS `Date`, which has no sub-millisecond digits, so at
- * the default microsecond precision the cursor would be a truncated copy of the
- * row it names and every sibling sharing that timestamp would compare greater and
- * be skipped. Never widen the column back.
- *
- * WARN: The operator is interpolated raw because a row-constructor comparison has
- * no drizzle helper to express it. It is a literal of `PairOperator` at every call
- * site and must never become a value read off a request.
- *
- * WARN: `<=` is the one that includes the row the cursor names, and § 10.'s jump
- * needs exactly that — a `<` there drops the very tile the window is centred on.
- */
-function comparedToCursor(operator: PairOperator, { createdAt, id }: ArchiveCursor): SQL {
-  return sql`(${media.createdAt}, ${media.id}) ${sql.raw(operator)} (${createdAt}::timestamptz, ${id}::bigint)`;
-}
-
-type PairOperator = "<" | "<=" | ">";

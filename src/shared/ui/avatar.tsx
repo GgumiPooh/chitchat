@@ -132,5 +132,7 @@ function toAvatarCell(mediaId: MediaId): MediaCell {
     height: 1,
     durationMs: null,
     isVideo: false,
+    // INFO: RESTRUCTURE.md § 4.3. An avatar reaches this only by being the one a profile currently wears, so a deleted object would have been unset from the profile before it could be drawn here.
+    isDeleted: false,
   };
 }

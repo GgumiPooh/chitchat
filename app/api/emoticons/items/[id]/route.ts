@@ -93,10 +93,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
  * existing — the FK is `ON DELETE SET NULL` and the picker falls back to the
  * pack's first item.
  *
- * WARN: An item already sent in chat is referenced by `messages.emoticon_item_id`,
- * which carries no cascade, so this answers 409 rather than letting Postgres
- * surface a foreign-key error as a 500. Deleting the item would otherwise have to
- * decide what an already-sent bubble becomes, which is § 18. #1's question.
+ * INFO: RESTRUCTURE.md § 4.4. One control, two outcomes, decided by whether anything
+ * has sent the item: never sent is a real delete, sent is a retirement out of the
+ * picker. Both answer 204, because from the caller's side the item is gone from every
+ * place it was choosing from.
+ *
+ * WARN: This used to answer 409 `in_use` for a sent item, and the control simply
+ * failed. `messages.emoticon_item_id` still carries no cascade and
+ * `messages_type_payload_check` still forbids a `set null`, which is why retiring is
+ * the answer rather than a wider migration.
  */
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -117,8 +122,9 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     return apiError("not_found");
   }
 
-  if (result.status === "in_use") {
-    return apiError("in_use");
+  // INFO: RESTRUCTURE.md § 4.4. A sent item was retired rather than removed, so there is nothing to sweep — its objects are still drawn by every bubble carrying it.
+  if (result.status === "retired") {
+    return new NextResponse(null, { status: 204 });
   }
 
   // INFO: REQUIREMENTS.md § 9. Cleanup behind a row that is already gone; `deleteObjects` never throws.

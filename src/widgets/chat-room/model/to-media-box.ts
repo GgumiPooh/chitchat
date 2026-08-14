@@ -19,8 +19,9 @@ const FILE_CARD_GAP = 4;
 export const VOICE_CARD_HEIGHT = 56;
 
 type Sized = {
-  width: number;
-  height: number;
+  // INFO: RESTRUCTURE.md § 2.4. Null on the two kinds that reserve no box, which is what makes the fixed-height branches below the compiler's business rather than the reader's.
+  width: Nullable<number>;
+  height: Nullable<number>;
   /** REQUIREMENTS.md § 9.1. Set on a file attachment, which is a stacked card rather than a tile in the grid. */
   filename?: Nullable<string>;
   /** Set on a sent voice message, which is one fixed-height row rather than a box with a ratio. */
@@ -63,7 +64,8 @@ export function toMediaBoxHeight(cells: Sized[]): number {
   }
 
   // INFO: REQUIREMENTS.md § 9.1. A bubble is files or photos, never both (§ 6.), so the first cell decides for all of them — a stack of fixed-height cards rather than a grid of ratios.
-  if (first.filename) {
+  // INFO: RESTRUCTURE.md § 2.4. A boxless cell that is not a recording is a file attachment, so the missing box lands in this branch rather than being answered with a number.
+  if (first.filename || first.width === null || first.height === null) {
     return cells.length * FILE_CARD_HEIGHT + (cells.length - 1) * FILE_CARD_GAP;
   }
 

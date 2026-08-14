@@ -10,12 +10,12 @@ import {
   toShareCapMessage,
   useMediaShare,
 } from "@/shared/share";
-import { AppHeader, Button, EmptyState, IconButton, Modal, toast } from "@/shared/ui";
+import { AppHeader, EmptyState, IconButton, toast } from "@/shared/ui";
 import {
   ArchiveFileList,
   ArchiveSelectionBar,
-  deleteArchiveMedia,
   useArchiveMedia,
+  useArchiveRemoval,
   useArchiveSelection,
   useShelfStaging,
 } from "@/widgets/archive-shelves";
@@ -40,15 +40,21 @@ export type ArchiveFilesPageProps = {
  */
 export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPageProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [isRemoving, setIsRemoving] = useState(false);
   const { media, isLoadingMore, loadMore, prepend, remove } = useArchiveMedia(initialMedia, "file");
   // INFO: REQUIREMENTS.md § 9.1. `savesToPhotoLibrary: false` — a file downloads on iOS too, so neither the cap nor the merged 저장/공유 row of § 10. applies here.
+  // INFO: RESTRUCTURE.md § 4.1. The 숨기기 / 완전히 삭제 choice, its two confirmations and the reconciliation of what the server took — shared with the other two shelves (`useArchiveRemoval`).
+  const removal = useArchiveRemoval({
+    noun: "file",
+    onRemoved: (ids) => {
+      remove(ids);
+      selection.cancel();
+    },
+  });
   const selection = useArchiveSelection({ savesToPhotoLibrary: false, countUnit: "개" });
   const sharing = useMediaShare();
   // INFO: § 9.1. `acceptsFiles: true`, unlike 사진. This shelf draws a named row rather than a thumbnail, so there is nothing a file cannot be shown as — and a photo dropped here is taken too, filed onto 사진 with a toast that says so (§ 10.).
   const staging = useShelfStaging({
-    kind: "file",
+    shelf: "file",
     acceptsFiles: true,
     isBlocked: selection.isSelecting,
     onAdded: prepend,
@@ -128,11 +134,11 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
         <ArchiveSelectionBar
           selectedCount={selectedCount}
           countUnit="개"
-          isBusy={isRemoving}
+          isBusy={removal.isRemoving}
           savesToPhotoLibrary={false}
           onSave={startSave}
           onShare={startShare}
-          onDelete={() => setIsConfirmingDelete(true)}
+          onDelete={askToDeleteSelection}
         />
       )}
       {/* INFO: REQUIREMENTS.md § 10. The buffering wait and the re-tap iOS needs once it has spent the tap's activation — worded for 파일 rather than 사진. */}
@@ -154,35 +160,7 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
       />
       {staging.sheet}
       {staging.editors}
-      <Modal
-        isOpen={isConfirmingDelete}
-        header={{
-          title: `${selectedCount}개를 삭제할까요?`,
-          // INFO: REQUIREMENTS.md § 18. #1. The one thing a user cannot tell from the button — the file leaves 보관함 and stays in the conversation.
-          description: "대화에 보낸 파일은 말풍선에 그대로 남아요",
-        }}
-        onClose={() => setIsConfirmingDelete(false)}
-      >
-        {/* WARN: `flex-1` on both — `Button` is `w-full shrink-0`, so a bare pair in a row would push the second one off the modal. */}
-        <div className="flex gap-xs">
-          <Button
-            className="flex-1"
-            variant="secondary"
-            onClick={() => setIsConfirmingDelete(false)}
-          >
-            취소
-          </Button>
-          <Button
-            className="flex-1"
-            variant="destructive"
-            disabled={isRemoving}
-            haptic
-            onClick={() => void confirmDelete()}
-          >
-            삭제
-          </Button>
-        </div>
-      </Modal>
+      {removal.overlays}
       {staging.overlay}
     </div>
   );
@@ -234,20 +212,8 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
     void sharing.share(ids, { names: filenames, countUnit: "개" });
   }
 
-  async function confirmDelete() {
-    const ids = selection.selectedIds;
-
-    setIsRemoving(true);
-
-    try {
-      await deleteArchiveMedia(ids);
-      remove(ids);
-      selection.cancel();
-      setIsConfirmingDelete(false);
-    } catch {
-      toast.error("파일을 삭제하지 못했어요");
-    } finally {
-      setIsRemoving(false);
-    }
+  // INFO: REQUIREMENTS.md § 10. Counted rather than named — one confirmation covers the whole selection, and the shelf's own noun is what its sentences take.
+  function askToDeleteSelection() {
+    removal.ask({ ids: selection.selectedIds, subject: `${selectedCount}개` });
   }
 }

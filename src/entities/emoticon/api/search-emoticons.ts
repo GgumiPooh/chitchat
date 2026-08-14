@@ -8,7 +8,7 @@ import {
   toKeywordRelevance,
 } from "@/shared/config";
 import { emoticonItems, emoticonKeywords, getDb } from "@/shared/db";
-import { asc, ilike, inArray, type SQL } from "drizzle-orm";
+import { and, asc, ilike, inArray, isNull, type SQL } from "drizzle-orm";
 import { union } from "drizzle-orm/pg-core";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon } from "../model/types";
@@ -37,9 +37,10 @@ export async function searchEmoticons(terms: string[]): Promise<Emoticon[]> {
   const rows = await getDb()
     .select()
     .from(emoticonItems)
-    .where(inArray(emoticonItems.id, candidateIds))
+    // INFO: RESTRUCTURE.md § 4.4. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
+    .where(and(inArray(emoticonItems.id, candidateIds), isNull(emoticonItems.retiredAt)))
     // INFO: § 13.9.1. Authoring order, which decides nothing about what is kept — the cut is upstream — and everything about which of two equally relevant items the stable sort below leaves first.
-    .orderBy(asc(emoticonItems.packId), asc(emoticonItems.sortOrder), asc(emoticonItems.createdAt));
+    .orderBy(asc(emoticonItems.packId), asc(emoticonItems.sortOrder), asc(emoticonItems.id));
 
   return (
     rows

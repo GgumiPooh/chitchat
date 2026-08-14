@@ -19,8 +19,8 @@ import {
   PUSH_BODY_MAX_LENGTH,
   snowflakeCursorSchema,
   snowflakeSchema,
-  toMediaKind,
   toMediaLabel,
+  toMediaNoun,
 } from "@/shared/config";
 import {
   safelyRunAsync,
@@ -163,5 +163,5 @@ function toPushBody(message: ChatMessage): string {
     return (message.text ?? "").slice(0, PUSH_BODY_MAX_LENGTH);
   }
 
-  return toMediaLabel(toMediaKind(message.media));
+  return toMediaLabel(toMediaNoun(message.media));
 }

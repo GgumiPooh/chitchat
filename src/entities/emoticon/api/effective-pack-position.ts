@@ -1,6 +1,7 @@
 import "server-only";
 
 import { emoticonPacks, userEmoticonPrefs } from "@/shared/db";
+import { SNOWFLAKE_EPOCH, SNOWFLAKE_TIME_SHIFT } from "@/shared/lib";
 import { sql } from "drizzle-orm";
 
 /**
@@ -21,7 +22,23 @@ import { sql } from "drizzle-orm";
  * ordering of every other query in the process — no error, and the list is still
  * sorted, just not by this. Nothing orders a set operation by it today, which is
  * exactly why the trap is worth removing rather than remembering.
+ *
+ * WARN: RESTRUCTURE.md § 3.6. The fallback reads the id's own timestamp rather than
+ * `created_at`, which migration B drops. It reconstructs **milliseconds**, not the raw
+ * id: the stored positions are small ordinals backfilled from `sort_order` in `0027`,
+ * so the fallback's magnitude decides where every never-moved pack sorts against them.
+ * Measured against production, the millisecond form leaves all 58 (user, pack) pairs in
+ * exactly the order they were already in, where `id::numeric` moved four of them.
+ *
+ * WARN: The epoch and the shift are **imported**, never written out here. They are the
+ * id format itself (`CLAUDE.md § 4.2.1.`), already mirrored across two repositories,
+ * and a literal in this file would be a third copy inside a query nobody would think to
+ * check when the format is discussed.
  */
 export function effectivePackPosition() {
-  return sql`coalesce(${userEmoticonPrefs.position}, extract(epoch from ${emoticonPacks.createdAt})::numeric * 1000)`;
+  // WARN: The column goes through drizzle so it stays table-qualified — this expression is used inside joins where a bare `id` is ambiguous. Only the two constants are raw.
+  const shift = sql.raw(String(SNOWFLAKE_TIME_SHIFT));
+  const epoch = sql.raw(String(SNOWFLAKE_EPOCH));
+
+  return sql`coalesce(${userEmoticonPrefs.position}, ((${emoticonPacks.id} >> ${shift}) + ${epoch})::numeric)`;
 }

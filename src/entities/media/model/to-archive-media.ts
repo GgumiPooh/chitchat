@@ -13,7 +13,6 @@ export type ArchiveOrigin = {
 export function toArchiveMedia(row: Media, origin: Nullable<ArchiveOrigin> = null): ArchiveMedia {
   return {
     ...toChatMedia(row),
-    createdAt: row.createdAt.toISOString(),
     messageId: origin?.messageId ?? null,
     senderName: origin?.senderName ?? null,
   };

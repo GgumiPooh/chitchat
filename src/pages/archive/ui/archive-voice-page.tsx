@@ -4,12 +4,12 @@ import type { ArchiveMedia } from "@/entities/media";
 import { toVoiceDraft, VoiceRecorderBar, type VoiceRecording } from "@/features/upload-media";
 import { cn, stopVoice } from "@/shared/lib";
 import { downloadMedia } from "@/shared/share";
-import { AppHeader, Button, EmptyState, IconButton, Modal, ShellOverlay, toast } from "@/shared/ui";
+import { AppHeader, EmptyState, IconButton, ShellOverlay, toast } from "@/shared/ui";
 import {
   ArchiveSelectionBar,
   ArchiveVoiceList,
-  deleteArchiveMedia,
   useArchiveMedia,
+  useArchiveRemoval,
   useArchiveSelection,
   useShelfStaging,
 } from "@/widgets/archive-shelves";
@@ -34,17 +34,23 @@ export type ArchiveVoicePageProps = {
  */
 export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePageProps) {
   const [isRecording, setIsRecording] = useState(false);
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [isRemoving, setIsRemoving] = useState(false);
   const { media, isLoadingMore, loadMore, prepend, remove } = useArchiveMedia(
     initialMedia,
     "voice",
   );
   // INFO: REQUIREMENTS.md § 9.3. `savesToPhotoLibrary: false` — a recording downloads on iOS too, so neither the § 10. cap nor the merged 저장/공유 row applies.
+  // INFO: RESTRUCTURE.md § 4.1. The 숨기기 / 완전히 삭제 choice, its two confirmations and the reconciliation of what the server took — shared with the other two shelves (`useArchiveRemoval`).
+  const removal = useArchiveRemoval({
+    noun: "voice",
+    onRemoved: (ids) => {
+      remove(ids);
+      selection.cancel();
+    },
+  });
   const selection = useArchiveSelection({ savesToPhotoLibrary: false, countUnit: "개" });
   // INFO: § 9.2. This shelf takes a drop like the other two, and everything dropped on it is a file or a photo — a recording is the one thing that cannot arrive this way, since the waveform § 9.3. discriminates on is only ever extracted while recording. `useArchiveUpload`'s closing toast is what says where it went.
   const staging = useShelfStaging({
-    kind: "voice",
+    shelf: "voice",
     acceptsFiles: true,
     isBlocked: selection.isSelecting || isRecording,
     onAdded: prepend,
@@ -119,43 +125,15 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
         <ArchiveSelectionBar
           selectedCount={selectedCount}
           countUnit="개"
-          isBusy={isRemoving}
+          isBusy={removal.isRemoving}
           savesToPhotoLibrary={false}
           onSave={startSave}
-          onDelete={() => setIsConfirmingDelete(true)}
+          onDelete={askToDeleteSelection}
         />
       )}
       {staging.sheet}
       {staging.editors}
-      <Modal
-        isOpen={isConfirmingDelete}
-        header={{
-          title: `${selectedCount}개를 삭제할까요?`,
-          // INFO: REQUIREMENTS.md § 18. #1. The one thing a user cannot tell from the button — the recording leaves 보관함 and stays in the conversation.
-          description: "대화에 보낸 음성은 말풍선에 그대로 남아요",
-        }}
-        onClose={() => setIsConfirmingDelete(false)}
-      >
-        {/* WARN: `flex-1` on both — `Button` is `w-full shrink-0`, so a bare pair in a row would push the second one off the modal. */}
-        <div className="flex gap-xs">
-          <Button
-            className="flex-1"
-            variant="secondary"
-            onClick={() => setIsConfirmingDelete(false)}
-          >
-            취소
-          </Button>
-          <Button
-            className="flex-1"
-            variant="destructive"
-            disabled={isRemoving}
-            haptic
-            onClick={() => void confirmDelete()}
-          >
-            삭제
-          </Button>
-        </div>
-      </Modal>
+      {removal.overlays}
       {/* WARN: DESIGN.md § 3.3. Portalled into the shell box rather than positioned in this screen. The bar has to stand above the tab bar over whatever is scrolled, and this screen *is* the document scroller's content — an absolute strip left inside it would sit at the bottom of every month ever loaded. */}
       {isRecording && (
         <ShellOverlay>
@@ -194,20 +172,8 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
     toast.success(`${ids.length}개를 저장하고 있어요`);
   }
 
-  async function confirmDelete() {
-    const ids = selection.selectedIds;
-
-    setIsRemoving(true);
-
-    try {
-      await deleteArchiveMedia(ids);
-      remove(ids);
-      selection.cancel();
-      setIsConfirmingDelete(false);
-    } catch {
-      toast.error("음성을 삭제하지 못했어요");
-    } finally {
-      setIsRemoving(false);
-    }
+  // INFO: REQUIREMENTS.md § 10. Counted rather than named — one confirmation covers the whole selection, and the shelf's own noun is what its sentences take.
+  function askToDeleteSelection() {
+    removal.ask({ ids: selection.selectedIds, subject: `${selectedCount}개` });
   }
 }

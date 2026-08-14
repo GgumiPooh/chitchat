@@ -8,7 +8,7 @@ import type { Participant } from "./types";
 // INFO: REQUIREMENTS.md § 12.2. The chat wallpaper is absent because it is not a property of a user at all any more — it is conversation-wide, and `GET /api/users` ships it beside this set rather than inside it.
 export type ParticipantSource = Pick<
   User,
-  "id" | "email" | "nickname" | "avatarMediaId" | "profileBackgroundMediaId" | "lastReadAt"
+  "id" | "email" | "nickname" | "avatarMediaId" | "profileBackgroundMediaId" | "lastReadMessageId"
 > & {
   /** WARN: REQUIREMENTS.md § 12.1. Joined from `media`, not held on `users` — the caller resolves it, because a cover may be a video and the renderer has to pick an element before it fetches anything. */
   profileBackgroundMime: Nullable<string>;
@@ -21,6 +21,6 @@ export function toParticipant(user: ParticipantSource): Participant {
     avatarMediaId: user.avatarMediaId,
     profileBackgroundMediaId: user.profileBackgroundMediaId,
     isProfileBackgroundVideo: isVideoMime(user.profileBackgroundMime ?? ""),
-    lastReadAt: user.lastReadAt.toISOString(),
+    lastReadMessageId: user.lastReadMessageId,
   };
 }

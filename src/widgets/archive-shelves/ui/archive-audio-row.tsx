@@ -22,8 +22,8 @@ export type ArchiveAudioRowProps = {
  * REQUIREMENTS.md § 9.1. A 파일 row whose attachment is audio: the ordinary card,
  * with a play control in front of it.
  *
- * WARN: It is still a **file**, on the 파일 shelf, and `isOfKind` is untouched. The
- * discriminator is `waveform_peaks` (§ 9.3.) and this row has none — what changed is
+ * WARN: It is still a **file**, on the 파일 shelf, and `isOfShelf` is untouched. Its
+ * `kind` is `file` (RESTRUCTURE.md § 2.2.) whatever its mime says — what changed is
  * only that a file with no inline view now has one for the single type where an
  * inline view costs nothing to produce.
  *

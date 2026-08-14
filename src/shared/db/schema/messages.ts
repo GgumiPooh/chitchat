@@ -58,8 +58,9 @@ export const messages = pgTable(
     // INFO: REQUIREMENTS.md § 8.5. Client-generated, so a retried send collides instead of inserting a duplicate.
     // WARN: The one id in the schema that is not a snowflake (§ 6.), and it cannot become one: a browser has no machine number to mint with, and a collision here is read as "that retry already landed" — so it would drop a real message rather than fail an INSERT.
     clientMsgId: uuid("client_msg_id").notNull().unique(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     // INFO: REQUIREMENTS.md § 8.13. NULL is "never edited", which is the whole 수정됨 test — an `updated_at` bumped by the soft delete beside it would light the label on a row nobody edited.
+    // TODO: RESTRUCTURE.md § 3.3. Superseded by the id, which carries its own timestamp, and read by nothing. It stays **declared** only so the schema matches the database until a follow-up change drops it — the drop is a § 6. rule 1 migration and must not run until the build that stopped naming it is live. Delete this line, `pnpm db:generate`, then migrate.
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     editedAt: timestamp("edited_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },

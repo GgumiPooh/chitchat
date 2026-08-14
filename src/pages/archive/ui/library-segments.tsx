@@ -4,7 +4,8 @@ import {
   ARCHIVE_FILES_ROUTE,
   ARCHIVE_GALLERY_ROUTE,
   ARCHIVE_VOICE_ROUTE,
-  type LibraryKind,
+  LIBRARY_SHELF_LABELS,
+  type LibraryShelf,
 } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
 import { Chip, Link } from "@/shared/ui";
@@ -15,14 +16,15 @@ export type LibrarySegmentsProps = {
 };
 
 // INFO: REQUIREMENTS.md § 10. Ordered by how much of the conversation each holds, so the one opened most often is the one the thumb lands on first.
-const SEGMENTS: { kind: LibraryKind; label: string; href: string }[] = [
-  { kind: "photo", label: "사진", href: ARCHIVE_GALLERY_ROUTE },
-  { kind: "file", label: "파일", href: ARCHIVE_FILES_ROUTE },
-  { kind: "voice", label: "음성", href: ARCHIVE_VOICE_ROUTE },
+// WARN: The names come from `LIBRARY_SHELF_LABELS` rather than being written out here — that table is read by the upload's "landed elsewhere" toast and by the staging sheet's title too, and a chip renamed on its own leaves both naming a shelf the user cannot see.
+const SEGMENTS: { shelf: LibraryShelf; href: string }[] = [
+  { shelf: "gallery", href: ARCHIVE_GALLERY_ROUTE },
+  { shelf: "file", href: ARCHIVE_FILES_ROUTE },
+  { shelf: "voice", href: ARCHIVE_VOICE_ROUTE },
 ];
 
 /**
- * 보관함's 사진 / 파일 / 음성 segments (REQUIREMENTS.md § 10.).
+ * 보관함's 갤러리 / 파일 / 음성 segments (REQUIREMENTS.md § 10.).
  *
  * INFO: Chips rather than an underlined segmented control. The tab bar right below
  * already runs a fill that travels between items (DESIGN.md § 7.3.), and a second
@@ -35,17 +37,17 @@ const SEGMENTS: { kind: LibraryKind; label: string; href: string }[] = [
  */
 export function LibrarySegments({ className }: LibrarySegmentsProps) {
   // WARN: Read from the URL, never passed down from the page. A prop only changes once the new page has rendered, which is after the server has answered — the tapped chip stayed unlit for the whole round trip. The router commits the pathname as soon as the navigation starts, so this lights up on the tap.
-  const active = toActiveKind(usePathname());
+  const active = toActiveShelf(usePathname());
 
   return (
     <nav className={cn("flex gap-2xs", className)} aria-label="보관함 종류">
-      {SEGMENTS.map(({ kind, label, href }) => {
-        const isSelected = kind === active;
+      {SEGMENTS.map(({ shelf, href }) => {
+        const isSelected = shelf === active;
 
         return (
-          <Chip key={kind} asChild isSelected={isSelected} haptic={!isSelected}>
+          <Chip key={shelf} asChild isSelected={isSelected} haptic={!isSelected}>
             <Link href={href} aria-current={isSelected ? "page" : undefined}>
-              {label}
+              {LIBRARY_SHELF_LABELS[shelf]}
             </Link>
           </Chip>
         );
@@ -59,12 +61,12 @@ export function LibrarySegments({ className }: LibrarySegmentsProps) {
  * prefix of all three, so a `startsWith` test would light whichever chip was declared
  * first on every shelf.
  *
- * INFO: The bare `/archive` answers 사진 as well. It only ever exists for the instant
+ * INFO: The bare `/archive` answers 갤러리 as well. It only ever exists for the instant
  * before its redirect to `ARCHIVE_GALLERY_ROUTE` lands (§ 10.), and the `loading.tsx`
  * that covers that instant renders these chips — unhandled, all three would sit unlit
  * and the strip would flicker empty on the way in.
  */
-function toActiveKind(pathname: Nullable<string>): LibraryKind {
+function toActiveShelf(pathname: Nullable<string>): LibraryShelf {
   if (pathname === ARCHIVE_FILES_ROUTE) {
     return "file";
   }
@@ -73,5 +75,5 @@ function toActiveKind(pathname: Nullable<string>): LibraryKind {
     return "voice";
   }
 
-  return "photo";
+  return "gallery";
 }

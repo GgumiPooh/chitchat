@@ -1,4 +1,4 @@
-import type { MediaId, UserId } from "@/shared/lib";
+import type { MediaId, MessageId, UserId } from "@/shared/lib";
 import { boolean, pgTable, text, timestamp, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { snowflake } from "../types";
 import { media } from "./media";
@@ -26,10 +26,15 @@ export const users = pgTable("users", {
       onDelete: "set null",
     },
   ),
-  // WARN: No `defaultNow()` — REQUIREMENTS.md § 8.8. reads unread as `created_at > last_read_at`, so joining at `now()` would mark every message sent before this person's first login as already read.
+  // TODO: RESTRUCTURE.md § 3.5. Replaced by `last_read_message_id` below. Declared only until migration B drops it — the drop is a § 6. rule 1 migration and must not run until the build that stopped reading it is live.
   lastReadAt: timestamp("last_read_at", { withTimezone: true }).notNull(),
+  // INFO: RESTRUCTURE.md § 3.5. The read cursor was always a message rather than an instant, and saying so is what lets § 8.8. compare `messages.id > last_read_message_id` — id to id, with no clock and no conversion in SQL.
+  // WARN: Nullable, and NULL is "never read, therefore everything is unread". That is the same fact `last_read_at` carried by having no `defaultNow()`: joining a new user at the live edge would mark every message sent before their first login as already read.
+  // WARN: No foreign key, deliberately. `messages` already imports this module, so a reference here is the cycle `emoticon_packs.thumbnail_item_id` has to be patched in by a separate ALTER — and it would buy nothing, since `messages` is append-only (§ 6.) and a cursor can only ever name a row that still exists.
+  lastReadMessageId: snowflake<MessageId>("last_read_message_id"),
   // INFO: REQUIREMENTS.md § 8.12. Governs whether this user *broadcasts* 입력 중, never whether they are typing right now — that signal is never stored.
   typingIndicatorEnabled: boolean("typing_indicator_enabled").notNull().default(true),
+  // TODO: RESTRUCTURE.md § 3.3. Superseded by the id, which carries its own timestamp, and read by nothing. It stays **declared** only so the schema matches the database until a follow-up change drops it — the drop is a § 6. rule 1 migration and must not run until the build that stopped naming it is live, and `pnpm db:migrate` applies every pending file in one go. Delete this line, `pnpm db:generate`, then migrate.
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -1,4 +1,4 @@
-import type { MessageId } from "@/shared/lib";
+import { idToDate, type MessageId } from "@/shared/lib";
 import "server-only";
 
 import { SEARCH_PAGE_SIZE } from "@/shared/config";
@@ -35,7 +35,6 @@ export async function searchMessages({
       id: messages.id,
       senderId: messages.senderId,
       text: messages.text,
-      createdAt: messages.createdAt,
     })
     .from(messages)
     .where(
@@ -52,7 +51,7 @@ export async function searchMessages({
   return rows.map((row) => ({
     id: row.id,
     senderId: row.senderId,
-    createdAt: row.createdAt.toISOString(),
+    createdAt: idToDate(row.id).toISOString(),
     excerpt: toSearchExcerpt(row.text ?? "", query),
   }));
 }

@@ -1,7 +1,7 @@
 import type { Emoticon } from "@/entities/emoticon/@x/message";
 import type { ChatMedia } from "@/entities/media/@x/message";
 import type { Message } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import { idToDate, type Nullable } from "@/shared/lib";
 import type { ChatMessage, ReplyPreview } from "./types";
 
 export function toChatMessage(
@@ -25,7 +25,8 @@ export function toChatMessage(
     eventTitle: row.eventTitle,
     eventStartsAt: row.eventStartsAt?.toISOString() ?? null,
     replyTo,
-    createdAt: row.createdAt.toISOString(),
+    // INFO: RESTRUCTURE.md § 3.4. Derived from the id rather than read from a column, which migration B drops. The field stays on the wire because an optimistic send has no id yet and still has to be placed on a day and in a minute group.
+    createdAt: idToDate(row.id).toISOString(),
     // INFO: § 8.13. Kept on a deleted row, and harmless — it dates a correction that no longer has anything to correct, and the tombstone reads neither it nor 수정됨.
     editedAt: row.editedAt?.toISOString() ?? null,
     // INFO: REQUIREMENTS.md § 8.13. The flag, never the timestamp — nothing renders *when* a message was deleted, and shipping it would date a withdrawal the reader is not owed.

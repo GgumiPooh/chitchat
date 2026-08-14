@@ -5,7 +5,7 @@ import { toArchiveSections } from "./to-archive-sections";
 export const ARCHIVE_GRID_COLUMNS = 3;
 
 /**
- * One virtualized row of the 사진 grid — a month label, or one line of up to
+ * One virtualized row of the 갤러리 grid — a month label, or one line of up to
  * `ARCHIVE_GRID_COLUMNS` tiles (REQUIREMENTS.md § 8.3., DESIGN.md § 7.10.).
  *
  * INFO: A row of tiles rather than a tile, so a month header is a row of the same

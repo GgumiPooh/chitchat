@@ -24,11 +24,12 @@ export const pushSubscriptions = pgTable(
     userAgent: text("user_agent"),
     // INFO: REQUIREMENTS.md § 16.1. 알림 소리 is a property of the installation, so it belongs on this row rather than on `users` — one person silences the laptop and keeps the phone audible.
     soundEnabled: boolean("sound_enabled").notNull().default(true),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     // INFO: Diagnostics only. It is NOT what retires an abandoned device — `REQUIREMENTS.md § 16.1.` explains why a send to one still succeeds.
     lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
     // INFO: REQUIREMENTS.md § 16.1. The launch upsert stamps this, so it dates the last time the app was OPENED on this installation — which is the only thing that distinguishes an abandoned device from a quiet one.
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    // TODO: RESTRUCTURE.md § 3.3. Superseded by the id, which carries its own timestamp, and read by nothing. It stays **declared** only so the schema matches the database until a follow-up change drops it — the drop is a § 6. rule 1 migration and must not run until the build that stopped naming it is live. Delete this line, `pnpm db:generate`, then migrate.
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("push_subscriptions_user_id_idx").on(table.userId)],
 );

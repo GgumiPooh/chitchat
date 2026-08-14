@@ -4,11 +4,11 @@ import type { ArchiveMedia, MediaDraft } from "@/entities/media";
 import { postMessage, toBubbles, toDraftKind } from "@/features/send-message";
 import { revokePreview, uploadDraft } from "@/features/upload-media";
 import {
-  LIBRARY_KIND_LABELS,
+  LIBRARY_SHELF_LABELS,
   MAX_UPLOAD_INFLIGHT_BYTES,
   UPLOAD_CONCURRENCY,
   toMediaCountUnit,
-  type LibraryKind,
+  type LibraryShelf,
 } from "@/shared/config";
 import { mapPooled, randomId } from "@/shared/lib";
 import { toast } from "@/shared/ui";
@@ -37,12 +37,12 @@ type Uploaded = {
  * already happened by the time this runs — reading them again here would decode
  * every file a second time and throw away the edit.
  *
- * WARN: `kind` is the shelf this is running on, and it is not decoration: a drop is
- * taken whatever it holds (§ 9.2.), so a photo dropped on 파일 lands on 사진 and
+ * WARN: `shelf` is the one this is running on, and it is not decoration: a drop is
+ * taken whatever it holds (§ 9.2.), so a photo dropped on 파일 lands on 갤러리 and
  * never appears on the screen it was dropped on. That is what the closing toast is
  * for, and it is why `onAdded` is called only for the rows this shelf can list.
  */
-export function useArchiveUpload(kind: LibraryKind, onAdded: (media: ArchiveMedia) => void) {
+export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMedia) => void) {
   // WARN: Every write to these two is relative, never absolute. A second pick while the first batch is running is an ordinary thing to do, and an absolute `setRemainingCount(n)` would wipe the batch already in flight — then the first batch finishing would zero the counter under the second and flip the screen to its empty state mid-upload.
   const [remainingCount, setRemainingCount] = useState(0);
   const [runningCount, setRunningCount] = useState(0);
@@ -61,8 +61,8 @@ export function useArchiveUpload(kind: LibraryKind, onAdded: (media: ArchiveMedi
               // WARN: `addToGallery` even when the item is also being posted. The user filed it in 보관함, so it must be there whether or not the POST that follows succeeds — and it must survive that message later being deleted. `registerMedia` accepts this for a file and a recording too now (§ 9.1., § 9.3.); it used to refuse both, because neither had a shelf to be found on.
               const media = await uploadDraft(draft, { addToGallery: true });
 
-              // INFO: Only the rows this shelf lists are prepended. The others are real and are in 보관함, but `isOfKind` puts them on a different segment, and pushing one into this list would draw a file card through the 사진 grid.
-              if (toLibraryKind(draft) === kind) {
+              // INFO: Only the rows this shelf lists are prepended. The others are real and are in 보관함, but `isOfShelf` puts them on a different segment, and pushing one into this list would draw a file card through the 갤러리 grid.
+              if (toShelf(draft) === shelf) {
                 onAdded(media);
               }
 
@@ -90,30 +90,31 @@ export function useArchiveUpload(kind: LibraryKind, onAdded: (media: ArchiveMedi
           await post(uploaded);
         }
 
-        reportOtherShelves(uploaded, kind);
+        reportOtherShelves(uploaded, shelf);
 
         if (failedCount > 0) {
           // INFO: AGENTS.md § 0.4. `3장을` and `3개를` are the same sentence, so the particle is picked rather than written.
+          // INFO: RESTRUCTURE.md § 2.7. The counter follows the **noun**, not the shelf — 갤러리 counts its contents in 장 because they are 사진, which is the axis `toMediaCountUnit` takes.
           toast.error(
-            `${josa(`${failedCount}${toMediaCountUnit(kind)}`, "을/를")} 올리지 못했어요`,
+            `${josa(`${failedCount}${toMediaCountUnit(shelf === "gallery" ? "photo" : shelf)}`, "을/를")} 올리지 못했어요`,
           );
         }
       } finally {
         setRunningCount((current) => Math.max(current - 1, 0));
       }
     },
-    [kind, onAdded],
+    [shelf, onAdded],
   );
 
   // WARN: `isBusy` outlives `remainingCount`. It stays true through `post`, which is when the rows exist with no `message_media` child yet — `removeArchiveMedia` reads exactly that as "nothing renders it" and would delete them out from under the send.
   return { remainingCount, isBusy: runningCount > 0, upload };
 }
 
-// INFO: The `LibraryKind` a draft will be listed under once it is a row, which is `toDraftKind`'s answer with its own name for a photo or a video.
-function toLibraryKind(draft: MediaDraft): LibraryKind {
+// INFO: The shelf a draft will be listed on once it is a row, which is `toDraftKind`'s answer under the § 2.7. name for the two kinds 갤러리 holds.
+function toShelf(draft: MediaDraft): LibraryShelf {
   const kind = toDraftKind(draft);
 
-  return kind === "media" ? "photo" : kind;
+  return kind === "media" ? "gallery" : kind;
 }
 
 /**
@@ -124,14 +125,14 @@ function toLibraryKind(draft: MediaDraft): LibraryKind {
  * staying silent would leave them believing the upload failed. One line per shelf
  * that actually received something, never one per item.
  */
-function reportOtherShelves(uploaded: Uploaded[], kind: LibraryKind): void {
+function reportOtherShelves(uploaded: Uploaded[], shelf: LibraryShelf): void {
   const elsewhere = new Set(
-    uploaded.map(({ draft }) => toLibraryKind(draft)).filter((landed) => landed !== kind),
+    uploaded.map(({ draft }) => toShelf(draft)).filter((landed) => landed !== shelf),
   );
 
   for (const landed of elsewhere) {
     // INFO: `에` has one form whatever precedes it, so AGENTS.md § 0.4. does not apply and the shelf name goes in as it is.
-    toast.success(`${LIBRARY_KIND_LABELS[landed]}에 추가했어요`);
+    toast.success(`${LIBRARY_SHELF_LABELS[landed]}에 추가했어요`);
   }
 }
 

@@ -42,16 +42,26 @@ export async function listUnregisteredEmoticonKeys(keys: string[]): Promise<stri
 }
 
 export type DeleteEmoticonResult =
-  { status: "deleted"; orphanedKeys: string[] } | { status: "in_use" } | { status: "not_found" };
+  { status: "deleted"; orphanedKeys: string[] } | { status: "retired" } | { status: "not_found" };
 
 /**
- * Removes an item and reports the R2 keys it leaves behind, so the caller can
- * clean the bucket (§ 9.).
+ * Takes an item out of the picker, and removes it outright where nothing has sent it —
+ * reporting the R2 keys that leaves behind so the caller can clean the bucket (§ 9.).
  *
- * WARN: An item already sent in chat is refused. `messages.emoticon_item_id`
- * carries no cascade, so deleting it would surface a foreign-key error as a 500 —
- * and deciding what an already-sent bubble becomes is § 18. #1's open question,
- * not something to settle silently here.
+ * INFO: RESTRUCTURE.md § 4.4. An item that has been sent is **retired** rather than
+ * refused. It leaves the picker, search and 최근 사용, and every bubble that already
+ * carries it renders exactly as before. This used to answer `in_use` and the control
+ * simply failed, which is the complaint this resolves.
+ *
+ * WARN: § 4.4. Retiring is the whole of it, and neither the FK nor the CHECK behind it
+ * is touched. `messages.emoticon_item_id` carries no cascade and
+ * `messages_type_payload_check` forbids the `set null` that would otherwise let the row
+ * go — deliberately, because an emoticon is shared vocabulary rather than one person's
+ * record, so erasing one would put a tombstone in **both** participants' bubbles with no
+ * author to attribute it to.
+ *
+ * WARN: § 4.1. Either participant may do this, unlike a media delete. The picker is
+ * shared, and retiring changes no bubble.
  */
 export async function deleteEmoticonItem(id: EmoticonItemId): Promise<DeleteEmoticonResult> {
   const [sent] = await getDb()
@@ -61,7 +71,13 @@ export async function deleteEmoticonItem(id: EmoticonItemId): Promise<DeleteEmot
     .limit(1);
 
   if (sent) {
-    return { status: "in_use" };
+    const [retired] = await getDb()
+      .update(emoticonItems)
+      .set({ retiredAt: new Date() })
+      .where(eq(emoticonItems.id, id))
+      .returning({ id: emoticonItems.id });
+
+    return retired ? { status: "retired" } : { status: "not_found" };
   }
 
   const [row] = await getDb()

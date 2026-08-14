@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { TABS } from "../model/tabs";
 
-// WARN: The tab's **route** prefix, not its `href`. 보관함 links to its 사진 shelf while the bar fills from `/archive` (§ 10.), so a pending tab holding the link would never match `isUnderRoute` against itself.
+// WARN: The tab's **route** prefix, not its `href`. 보관함 links to its 갤러리 shelf while the bar fills from `/archive` (§ 10.), so a pending tab holding the link would never match `isUnderRoute` against itself.
 type PendingTab = { route: string; from: Nullable<string> };
 
 export type TabBarProps = {

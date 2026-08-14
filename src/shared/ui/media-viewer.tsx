@@ -29,7 +29,7 @@ import {
   type MouseEvent,
 } from "react";
 import { IconButton } from "./icon-button";
-import type { MediaCell } from "./media-cell";
+import { toCellRatio, type MediaCell } from "./media-cell";
 import { PreloadImage } from "./preload-image";
 import { ShellOverlay } from "./shell-overlay";
 
@@ -721,7 +721,7 @@ function SlidePlaceholder({ cell }: { cell: MediaCell }) {
   return (
     <div
       className="max-h-full w-full rounded-md bg-on-scrim/10"
-      style={{ aspectRatio: `${cell.width} / ${cell.height}` }}
+      style={{ aspectRatio: toCellRatio(cell) }}
     />
   );
 }
@@ -737,10 +737,10 @@ function ImageSlide({ cell, zoom }: { cell: MediaCell; zoom?: ReturnType<typeof 
           className="max-h-full w-full"
           imgClassName="size-full object-contain"
           placeholderClassName="rounded-md"
-          style={{ aspectRatio: `${cell.width} / ${cell.height}` }}
+          style={{ aspectRatio: toCellRatio(cell) }}
           src={cell.originalUrl ?? cell.previewUrl}
           blurhash={cell.blurhash}
-          blurhashRatio={cell.width / cell.height}
+          blurhashRatio={toCellRatio(cell)}
           // WARN: DESIGN.md § 7.8. `contain`, matching the slide's own `object-contain` — the box carries the stored ratio but `max-h-full` clamps a portrait one on a short screen, and a `cover` blur would fill the width the letterboxed photo leaves as scrim.
           blurhashFit="contain"
           alt=""

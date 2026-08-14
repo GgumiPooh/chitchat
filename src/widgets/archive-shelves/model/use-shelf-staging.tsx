@@ -10,17 +10,17 @@ import {
   useMediaSelection,
   VideoTrimmer,
 } from "@/features/upload-media";
-import { isAllowedMediaMime, LIBRARY_KIND_LABELS, type LibraryKind } from "@/shared/config";
+import { isAllowedMediaMime, LIBRARY_SHELF_LABELS, type LibraryShelf } from "@/shared/config";
 import { BottomSheet, Button, ShellOverlay } from "@/shared/ui";
 import { useArchiveUpload } from "./use-archive-upload";
 
 export type ShelfStagingParams = {
   /** Which shelf this is running on — it picks the sheet's title and decides which uploads report themselves as having landed elsewhere. */
-  kind: LibraryKind;
+  shelf: LibraryShelf;
   /**
    * Whether a § 9.1. file attachment may be staged.
    *
-   * INFO: 사진 says no and the other two say yes. The 사진 shelf shows tiles and a
+   * INFO: 갤러리 says no and the other two say yes. That shelf shows tiles and a
    * `.zip` has none, so a file picked there is a refusal the user can act on
    * (`사진과 동영상만 올릴 수 있어요`); 파일 and 음성 draw rows and take anything.
    */
@@ -45,10 +45,10 @@ export type ShelfStagingParams = {
  * wires the whole flow with a spread of `dropHandlers` and three slots, which is what
  * keeps the three screens from each growing their own copy of the sheet.
  */
-export function useShelfStaging({ kind, acceptsFiles, isBlocked, onAdded }: ShelfStagingParams) {
+export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: ShelfStagingParams) {
   const staging = useMediaSelection({ acceptsFiles });
   const editing = useAttachmentEditing(staging.replace);
-  const { remainingCount, isBusy, upload } = useArchiveUpload(kind, onAdded);
+  const { remainingCount, isBusy, upload } = useArchiveUpload(shelf, onAdded);
   // WARN: REQUIREMENTS.md § 9.2. Refused under an editor as well as behind `isBlocked`. React bubbles a drop through the *component* tree, so `MediaEditor` and `VideoTrimmer` deliver one here however they are portalled — and the sheet is suppressed for exactly their duration, so the drop would land in a tray the user cannot see.
   const drop = useFileDrop({
     isEnabled: !isBlocked && !editing.isEditing,
@@ -97,7 +97,7 @@ export function useShelfStaging({ kind, acceptsFiles, isBlocked, onAdded }: Shel
       <BottomSheet
         isOpen={(staging.drafts.length > 0 || staging.isReading) && !editing.isEditing}
         header={{
-          title: `${LIBRARY_KIND_LABELS[kind]} 추가`,
+          title: `${LIBRARY_SHELF_LABELS[shelf]} 추가`,
           // INFO: Only said where it is true. A file has neither editor (§ 9.1.), so the line appears once the tray actually holds something a tap could crop or trim.
           description: hasEditableDraft() ? "올리기 전에 하나씩 편집할 수 있어요" : undefined,
         }}

@@ -35,16 +35,17 @@ import {
   MESSAGE_FLASH_DURATION,
   REPLY_PREVIEW_MAX_LENGTH,
   toMediaCountUnit,
-  toMediaKind,
   toMediaLabel,
+  toMediaNoun,
   toQuoteThumbnail,
-  type MediaKind,
+  type MediaNoun,
   type MessageArrival,
 } from "@/shared/config";
 import {
   GESTURE_SLOP,
   buildFadeMask,
   cn,
+  compareId,
   composeEventNotice,
   isDormant,
   stopVoice,
@@ -306,7 +307,7 @@ export function ChatRoom({
   // WARN: REQUIREMENTS.md § 10. Openness is the boolean below and never this, which outlives a dismissal on purpose — `DialogContent` stays mounted through its 200ms exit (`DESIGN.md § 7.4.`), so cleared here every answer fades out with no title, no description and a blank 이 사진만.
   const [pendingBundle, setPendingBundle] =
     useState<
-      Nullable<{ mediaId: MediaId; ids: string[]; slideNoun: string; kind: Nullable<MediaKind> }>
+      Nullable<{ mediaId: MediaId; ids: string[]; slideNoun: string; kind: Nullable<MediaNoun> }>
     >(null);
   const [isChoosingBundle, setIsChoosingBundle] = useState(false);
   // INFO: REQUIREMENTS.md § 8.13. The message the composer is correcting rather than replying to. Null is the ordinary composing mode.
@@ -1793,6 +1794,11 @@ export function ChatRoom({
    * WARN: REQUIREMENTS.md § 9.1. A file attachment saves instead of opening. It has
    * no thumbnail and no inline representation, so the § 7.10. viewer would open on
    * an empty slide it could neither draw nor swipe out of.
+   *
+   * WARN: RESTRUCTURE.md § 4.3. The seed track is the bubble's cells **less its
+   * tombstones**, which is what `toSurvivingRows` does to every page behind it. The
+   * grid draws a tombstone in place and hands over no tap, so the index has to be
+   * re-found rather than carried across — the two arrays no longer agree.
    */
   function openAttachment(
     cells: MediaCell[],
@@ -1802,7 +1808,12 @@ export function ChatRoom({
   ) {
     const cell = cells[index];
 
-    if (cell?.filename) {
+    // INFO: § 4.3. Nothing to open and nothing to save — the object is gone, and the tombstone that says so is already on screen.
+    if (!cell || cell.isDeleted) {
+      return;
+    }
+
+    if (cell.filename) {
       void downloadMedia([cell.id]);
       // INFO: The same acknowledgement § 10.'s 저장 gives, for the same reason — `downloadMedia` resolves whatever the navigation does, so a 404 or a swallowed download would otherwise be a tap that did nothing.
       toast.success("파일을 저장하고 있어요");
@@ -1810,7 +1821,14 @@ export function ChatRoom({
       return;
     }
 
-    mediaTrack.open(cells, index, messageId, senderId);
+    const openable = cells.filter((item) => !item.isDeleted);
+
+    mediaTrack.open(
+      openable,
+      openable.findIndex((item) => item.id === cell.id),
+      messageId,
+      senderId,
+    );
   }
 
   /**
@@ -1861,8 +1879,8 @@ export function ChatRoom({
       mediaId,
       ids: siblings.map((item) => item.id),
       slideNoun,
-      // WARN: REQUIREMENTS.md § 8.1. The **bundle's** kind, not the tapped slide's, because 모두 저장 acts on the bundle. § 6. lets one bubble carry photos and videos together, so a slide-named heading offered to save 동영상 and then saved the photos beside it too — it misdescribed the action rather than merely labelling it. `toMediaKind` calls a mixed set `photo`, which is the 사진 shelf's own rule for a selection carrying both.
-      kind: toMediaKind(siblings),
+      // WARN: REQUIREMENTS.md § 8.1. The **bundle's** kind, not the tapped slide's, because 모두 저장 acts on the bundle. § 6. lets one bubble carry photos and videos together, so a slide-named heading offered to save 동영상 and then saved the photos beside it too — it misdescribed the action rather than merely labelling it. `toMediaNoun` calls a mixed set `photo`, which is 갤러리's own rule for a selection carrying both.
+      kind: toMediaNoun(siblings),
     });
     setIsChoosingBundle(true);
   }
@@ -1880,7 +1898,7 @@ export function ChatRoom({
   }
 
   // INFO: REQUIREMENTS.md § 10. The unit follows the kind of the set being counted — 장 for photos and for a mixed bubble, 개 for one that is all video. § 9.1.'s files never reach the viewer at all.
-  function toBundleCount(count: number, kind: Nullable<MediaKind>): string {
+  function toBundleCount(count: number, kind: Nullable<MediaNoun>): string {
     return `${count}${toMediaCountUnit(kind)}`;
   }
 
@@ -1979,7 +1997,7 @@ export function ChatRoom({
       // INFO: REQUIREMENTS.md § 8.10. The same call `listReplyPreviews` makes on the server, so the optimistic quote and the echoed one cannot disagree about whether the row has a tile.
       thumbnail: message.isDeleted ? null : toQuoteThumbnail(message.emoticon, message.media),
       // WARN: REQUIREMENTS.md § 8.13. A withdrawn parent surrenders its payload here too. Nothing routes 답장 onto a tombstone today, but that is the row it is rendered on rather than a property of this function — and `listReplyPreviews` nulls all four, so staging them live would be the optimistic/echo disagreement `toQuoteThumbnail` exists to rule out.
-      mediaKind: message.isDeleted ? null : toMediaKind(message.media),
+      mediaKind: message.isDeleted ? null : toMediaNoun(message.media),
       mediaCount: message.isDeleted ? 0 : message.media.length,
       isDeleted: message.isDeleted,
       id: message.id,
@@ -2272,13 +2290,19 @@ function findLastReadMineId(
     return null;
   }
 
-  const readAt = Date.parse(other.lastReadAt);
+  const readId = other.lastReadMessageId;
+
+  if (!readId) {
+    return null;
+  }
+
   // INFO: REQUIREMENTS.md § 8.13. A tombstone never carries 읽음 — it says nothing that could have been read — so the mark falls back to the newest of my messages that still does.
+  // WARN: RESTRUCTURE.md § 3.5. `compareId`, never `<=`. Both sides are branded id strings here, and `CLAUDE.md § 3.2.` forbids comparing those with an operator — it works today only because every id this layout mints is the same width.
   const read = messages.filter(
     (message) =>
       message.senderId === currentUserId &&
       !message.isDeleted &&
-      Date.parse(message.createdAt) <= readAt,
+      compareId(message.id, readId) <= 0,
   );
 
   return read.at(-1)?.id ?? null;

@@ -1,44 +1,77 @@
-import { listArchiveMedia, removeArchiveMedia } from "@/entities/media";
+import { deleteOwnMedia, listArchiveMedia, removeArchiveMedia } from "@/entities/media";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
   ARCHIVE_PAGE_SIZE,
-  LIBRARY_KINDS,
+  LIBRARY_SHELVES,
   MAX_ARCHIVE_PAGE_SIZE,
   MAX_ARCHIVE_SELECTION,
   snowflakeSchema,
+  type LibraryShelf,
 } from "@/shared/config";
 import type { MediaId } from "@/shared/lib";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-// INFO: REQUIREMENTS.md § 6. Both halves of the keyset cursor, or neither — `created_at` alone cannot separate the rows of one multi-photo send.
-const querySchema = z
-  .object({
-    // INFO: REQUIREMENTS.md § 10. Which segment is being paged, 사진 when the caller says nothing. An unknown value is a 400 rather than a silent fallback — a client asking for a shelf this build has never heard of must not be handed photos.
-    kind: z.enum(LIBRARY_KINDS).optional(),
-    beforeCreatedAt: z.iso.datetime({ offset: true }).optional(),
-    beforeId: snowflakeSchema<MediaId>().optional(),
-    // INFO: REQUIREMENTS.md § 10. The window's first tile, for paging upward out of a jumped window — the mirror of the pair above, and refused half-given for the same reason.
-    afterCreatedAt: z.iso.datetime({ offset: true }).optional(),
-    afterId: snowflakeSchema<MediaId>().optional(),
-    // INFO: REQUIREMENTS.md § 10. The photo 보관함 is to open on, for the position jump — a single id rather than a cursor pair, because the row it names is what the pair is then resolved from.
-    around: snowflakeSchema<MediaId>().optional(),
-    limit: z.coerce.number().int().positive().optional(),
-  })
-  .refine(
-    ({ beforeCreatedAt, beforeId }) => (beforeCreatedAt === undefined) === (beforeId === undefined),
-    { message: "cursor_incomplete" },
-  )
-  .refine(
-    ({ afterCreatedAt, afterId }) => (afterCreatedAt === undefined) === (afterId === undefined),
-    {
-      message: "cursor_incomplete",
-    },
-  );
+// INFO: RESTRUCTURE.md § 2.7. What a pre-rename client calls each shelf. Only 사진 moved; the other two are listed so one table answers the whole deprecated parameter rather than a branch answering half of it.
+const DEPRECATED_SHELF_NAMES = ["photo", "file", "voice"] as const;
+
+const SHELVES_BY_DEPRECATED_NAME: Record<(typeof DEPRECATED_SHELF_NAMES)[number], LibraryShelf> = {
+  photo: "gallery",
+  file: "file",
+  voice: "voice",
+};
+
+// INFO: RESTRUCTURE.md § 3.4. Every cursor here is one `media` id — the pair of query parameters each of them used to take, and the refinement that rejected a half-given one, went with the `created_at` half.
+const querySchema = z.object({
+  // INFO: REQUIREMENTS.md § 10. Which segment is being paged, 갤러리 when the caller says nothing. An unknown value is a 400 rather than a silent fallback — a client asking for a shelf this build has never heard of must not be handed the gallery.
+  shelf: z.enum(LIBRARY_SHELVES).optional(),
+  /**
+   * TODO: RESTRUCTURE.md § 2.7. Removed in the following cycle, exactly as § 5.7.'s
+   * `slot=image` alias is.
+   *
+   * WARN: A tab left open across the deploy goes on sending `kind=photo`, and this
+   * route is the only thing standing between that tab and a 400 on every page it
+   * asks for — the shelf it is showing does not exist under the new name.
+   */
+  kind: z.enum(DEPRECATED_SHELF_NAMES).optional(),
+  // INFO: REQUIREMENTS.md § 10. The last tile of the loaded window — the page older than it comes next.
+  before: snowflakeSchema<MediaId>().optional(),
+  // INFO: REQUIREMENTS.md § 10. The window's first tile, for paging upward out of a jumped window.
+  after: snowflakeSchema<MediaId>().optional(),
+  /**
+   * TODO: RESTRUCTURE.md § 3.4. The id half of the pair each cursor used to be. Removed
+   * in the following cycle with `kind` above.
+   *
+   * WARN: Silently ignoring these was worse than rejecting them. A tab left open across
+   * the deploy sends `beforeId` and no `before`, so the route answered the **newest**
+   * page every time; `useArchiveMedia` de-duplicates it away, never advances, and asks
+   * again — an unbounded loop of identical requests on a shelf that never scrolls. The
+   * `created_at` halves are dropped rather than mapped, since the id alone is the cursor
+   * now and it is the half that ordered the page.
+   */
+  beforeId: snowflakeSchema<MediaId>().optional(),
+  afterId: snowflakeSchema<MediaId>().optional(),
+  // INFO: REQUIREMENTS.md § 10. The photo 보관함 is to open on, for the position jump.
+  around: snowflakeSchema<MediaId>().optional(),
+  limit: z.coerce.number().int().positive().optional(),
+});
 
 const bodySchema = z.object({
   ids: z.array(snowflakeSchema<MediaId>()).min(1).max(MAX_ARCHIVE_SELECTION),
+  /**
+   * RESTRUCTURE.md § 4.1. Which of the two removals this is.
+   *
+   * INFO: `hide` is the default so a client that has not been updated keeps the
+   * behaviour it had — the shelf is curated and nothing is destroyed, which is the
+   * safe half of the pair.
+   *
+   * WARN: § 4.1. The two are not degrees of the same action. `hide` curates a shared
+   * shelf and either participant may do it; `delete` destroys the object and rewrites
+   * what the other participant sees in a message they are reading, so it is scoped to
+   * whoever uploaded it — `deleteOwnMedia` enforces that, not this schema.
+   */
+  mode: z.enum(["hide", "delete"]).default("hide"),
 });
 
 // INFO: AGENTS.md § 6.4. A Route Handler answers its own 401 — the App Router does not honour a thrown `Response`.
@@ -57,28 +90,33 @@ export async function GET(request: Request) {
     return apiError("invalid_request");
   }
 
-  const { kind, beforeCreatedAt, beforeId, afterCreatedAt, afterId, around, limit } = query.data;
+  const { limit, shelf, kind, before, after, beforeId, afterId, ...cursors } = query.data;
 
   return NextResponse.json({
     media: await listArchiveMedia({
-      kind,
-      before:
-        beforeCreatedAt && beforeId ? { createdAt: beforeCreatedAt, id: beforeId } : undefined,
-      after: afterCreatedAt && afterId ? { createdAt: afterCreatedAt, id: afterId } : undefined,
-      around,
+      ...cursors,
+      // INFO: The current parameter wins outright, exactly as `shelf` does over `kind`.
+      before: before ?? beforeId,
+      after: after ?? afterId,
+      // INFO: The current parameter wins outright. A client sending both is one mid-upgrade, and the name it knows the new build by is the one to answer.
+      shelf: shelf ?? (kind && SHELVES_BY_DEPRECATED_NAME[kind]),
       limit: Math.min(limit ?? ARCHIVE_PAGE_SIZE, MAX_ARCHIVE_PAGE_SIZE),
     }),
   });
 }
 
 /**
- * REQUIREMENTS.md § 18. #1. Takes photos out of the library without touching the
- * messages that carry them.
+ * REQUIREMENTS.md § 18. #1. Takes photos out of the library, and — on `mode: "delete"`
+ * — destroys the objects behind them.
  *
- * INFO: Unscoped to the uploader on purpose — the library belongs to the
- * conversation (§ 6.), so either participant removes any tile. An id that is not
- * in the library simply removes nothing, which is why there is no per-id 404 to
- * report and no way to probe with one.
+ * INFO: RESTRUCTURE.md § 4.1. 숨기기 is unscoped to the uploader on purpose: the library
+ * belongs to the conversation (§ 6.), so either participant removes any tile from the
+ * shelf and no bubble changes. 완전 삭제 is the opposite case and is scoped inside
+ * `deleteOwnMedia`, because it rewrites what the other participant sees in a message
+ * they are reading.
+ *
+ * INFO: An id the caller may not act on simply does nothing — no per-id 404 to report,
+ * and no way to probe with one. That holds for both modes.
  */
 export async function DELETE(request: Request) {
   const user = await getCurrentUser();
@@ -93,5 +131,13 @@ export async function DELETE(request: Request) {
     return apiError("invalid_request");
   }
 
+  // INFO: RESTRUCTURE.md § 4.3. 완전 삭제 answers in the same shape as 숨기기 so the screen has one response to reconcile against — the ids it names have left the shelf either way.
+  if (body.data.mode === "delete") {
+    const deletedIds = await deleteOwnMedia(body.data.ids, user.id);
+
+    return NextResponse.json({ hiddenIds: [], deletedIds });
+  }
+
+  // INFO: RESTRUCTURE.md § 4.1. No caller is passed: hiding is open to either participant and destroys nothing, so there is nothing here to scope.
   return NextResponse.json(await removeArchiveMedia(body.data.ids));
 }

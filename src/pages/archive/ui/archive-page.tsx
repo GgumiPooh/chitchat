@@ -3,7 +3,7 @@
 import type { ArchiveMedia } from "@/entities/media";
 import { useSetBackground } from "@/features/set-background";
 import { useMediaPicker } from "@/features/upload-media";
-import { CHAT_MESSAGE_PARAM, CHAT_ROUTE } from "@/shared/config";
+import { CHAT_MESSAGE_PARAM, CHAT_ROUTE, toMediaLabel } from "@/shared/config";
 import { cn, type MediaId, type Nullable } from "@/shared/lib";
 import {
   downloadMedia,
@@ -12,25 +12,15 @@ import {
   toShareCapMessage,
   useMediaShare,
 } from "@/shared/share";
-import {
-  AppHeader,
-  Button,
-  EmptyState,
-  IconButton,
-  MediaViewer,
-  Modal,
-  toast,
-  type MediaCell,
-} from "@/shared/ui";
+import { AppHeader, EmptyState, IconButton, MediaViewer, toast, type MediaCell } from "@/shared/ui";
 import {
   ArchiveGrid,
   ArchiveSelectionBar,
-  deleteArchiveMedia,
   useArchiveMedia,
+  useArchiveRemoval,
   useArchiveSelection,
   useShelfStaging,
 } from "@/widgets/archive-shelves";
-import { josa } from "es-hangul";
 import { ImagePlus, Images, ListChecks, MessageCircle, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -51,11 +41,6 @@ export type ArchivePageProps = {
 export function ArchivePage({ className, initialMedia, targetId }: ArchivePageProps) {
   const router = useRouter();
   const [viewer, setViewer] = useState<Nullable<{ cells: MediaCell[]; index: number }>>(null);
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  // INFO: What one confirmation answers for — the whole selection, or the single slide the viewer's 삭제 was tapped on. The two reach the same endpoint and differ only in the nouns their sentences take.
-  // WARN: Openness is the boolean beside it and never this, which outlives a dismissal on purpose. `DialogContent` stays mounted through its 200ms exit (`DESIGN.md § 7.4.`), so clearing the subject on close empties the heading and the modal fades out with no title in it.
-  const [pendingDelete, setPendingDelete] = useState<Nullable<PendingDelete>>(null);
-  const [isRemoving, setIsRemoving] = useState(false);
   const {
     media,
     isLoadingMore,
@@ -66,24 +51,33 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
     insertNewer,
     prepend,
     remove,
-  } = useArchiveMedia(initialMedia, "photo", targetId);
+  } = useArchiveMedia(initialMedia, "gallery", targetId);
+  // INFO: RESTRUCTURE.md § 4.1. The 숨기기 / 완전히 삭제 choice, its two confirmations and the reconciliation of what the server took — all three shelves share it (`useArchiveRemoval`).
+  const removal = useArchiveRemoval({
+    noun: "photo",
+    onRemoved: (ids) => {
+      remove(ids);
+      selection.cancel();
+      dropFromViewer(ids);
+    },
+  });
   const selection = useArchiveSelection();
   const setBackground = useSetBackground();
   const saving = useMediaShare();
   // INFO: REQUIREMENTS.md § 9.2. Blocked while a selection is up — a drop would upload into the grid the bar is about to delete from, which is the very window § 10. closes by withholding selection during an upload. The viewer is the other cover; the editors are the hook's own business.
   // INFO: § 9.1. `acceptsFiles: false`, and this is the one shelf that says so. The grid draws thumbnails and a `.zip` has none, so a file dropped here is refused with copy the user can act on rather than quietly filed onto another shelf.
   const staging = useShelfStaging({
-    kind: "photo",
+    shelf: "gallery",
     acceptsFiles: false,
     isBlocked: selection.isSelecting || viewer !== null,
     onAdded: prepend,
   });
-  // INFO: REQUIREMENTS.md § 10. 사진 추가 opens the album picker outright — this shelf takes photos and videos and nothing else, so there was never a choice for a sheet to offer.
+  // INFO: REQUIREMENTS.md § 10. 갤러리 추가 opens the album picker outright — this shelf takes photos and videos and nothing else, so there was never a choice for a sheet to offer.
   const picker = useMediaPicker({ isMultiple: true, onSelect: staging.add });
   const selectedCount = selection.selectedIds.length;
 
   return (
-    // INFO: REQUIREMENTS.md § 9.2. The drop target is the whole screen, so photos dragged anywhere over the grid stage rather than having to find the 사진 추가 control.
+    // INFO: REQUIREMENTS.md § 9.2. The drop target is the whole screen, so photos dragged anywhere over the grid stage rather than having to find the 갤러리 추가 control.
     <div className={cn("flex flex-1 flex-col", className)} {...staging.dropHandlers}>
       <AppHeader
         // INFO: 보관함 on every segment, matching the tab label — the chips below say which shelf, so the title has no reason to repeat it.
@@ -103,7 +97,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
                 variant="floating"
                 Icon={ImagePlus}
                 haptic
-                aria-label="사진 추가"
+                aria-label="갤러리 추가"
                 onClick={picker.open}
               />
               {/* WARN: Unavailable while an upload is in flight. A photo being posted is in the grid with no message attached yet, which is exactly what `removeArchiveMedia` reads as "delete it outright" — deleting it there would take the row out from under the `postMessage` that was about to reference it. */}
@@ -157,7 +151,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
       {selection.isSelecting && (
         <ArchiveSelectionBar
           selectedCount={selectedCount}
-          isBusy={isRemoving}
+          isBusy={removal.isRemoving}
           onDelete={askToDeleteSelection}
           onSave={startSave}
           onShare={startShare}
@@ -173,34 +167,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
       {picker.input}
       {staging.sheet}
       {staging.editors}
-      <Modal
-        isOpen={isConfirmingDelete}
-        header={{
-          title: toDeleteTitle(pendingDelete),
-          description: toDeleteWarning(pendingDelete),
-        }}
-        onClose={() => setIsConfirmingDelete(false)}
-      >
-        {/* WARN: `flex-1` on both — `Button` is `w-full shrink-0`, so a bare pair in a row would push the second one off the modal. */}
-        <div className="flex gap-xs">
-          <Button
-            className="flex-1"
-            variant="secondary"
-            onClick={() => setIsConfirmingDelete(false)}
-          >
-            취소
-          </Button>
-          <Button
-            className="flex-1"
-            variant="destructive"
-            disabled={isRemoving}
-            haptic
-            onClick={() => void confirmDelete()}
-          >
-            삭제
-          </Button>
-        </div>
-      </Modal>
+      {removal.overlays}
       {viewer && (
         <MediaViewer
           cells={viewer.cells}
@@ -208,11 +175,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
           // INFO: DESIGN.md § 7.10. 채팅's own glyph, the one the tab bar and 대화하기 already use — the jump is named by where it lands, and this one lands on a message.
           jump={{ label: "대화에서 보기", Icon: MessageCircle, onSelect: openInChat }}
           // WARN: REQUIREMENTS.md § 10. Withheld while an upload is in flight, for the reason the 선택 control is disabled — a row whose `postMessage` has not settled would be deleted out from under the send.
-          deletion={
-            staging.isUploading
-              ? undefined
-              : { label: "보관함에서 삭제", onSelect: askToDeleteSlide }
-          }
+          deletion={staging.isUploading ? undefined : { label: "삭제", onSelect: askToDeleteSlide }}
           onClose={() => setViewer(null)}
           // WARN: REQUIREMENTS.md § 18. #1. Given for the probe, not for a question — a flat library has no bundle to ask about. The `<a href>` this replaces navigated straight at the object, and the other participant's 삭제 reaches rows on this screen with nothing publishing it, so a slide can name an object that is gone: the anchor took a standalone PWA to a JSON 404 with no way back, where `downloadMedia` says so and stays put.
           onDownload={(mediaId) => void downloadMedia([mediaId])}
@@ -286,22 +249,18 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
 
   // INFO: REQUIREMENTS.md § 10. Counted rather than named, and 사진 whatever the selection holds — the shelf's own counter says 장 of a video as readily, so only a single named slide is specific enough to be wrong.
   function askToDeleteSelection() {
-    askToDelete({ ids: selection.selectedIds, subject: `${selectedCount}장`, noun: "사진" });
+    removal.ask({ ids: selection.selectedIds, subject: `${selectedCount}장` });
   }
 
   /**
-   * REQUIREMENTS.md § 10. The viewer's 삭제, which removes the library row alone —
-   * the message the photo was sent in keeps it, which is what the confirmation says.
+   * REQUIREMENTS.md § 10., RESTRUCTURE.md § 4.1. The viewer's 삭제, which opens the
+   * same two-way choice the selection bar's does — the slide is one row rather than a
+   * selection, so it is the one place the subject is named instead of counted.
    */
   function askToDeleteSlide(mediaId: MediaId) {
-    const noun = viewer?.cells.find((item) => item.id === mediaId)?.isVideo ? "동영상" : "사진";
+    const noun = viewer?.cells.find((item) => item.id === mediaId)?.isVideo ? "video" : "photo";
 
-    askToDelete({ ids: [mediaId], subject: `이 ${noun}`, noun });
-  }
-
-  function askToDelete(pending: PendingDelete) {
-    setPendingDelete(pending);
-    setIsConfirmingDelete(true);
+    removal.ask({ ids: [mediaId], subject: `이 ${toMediaLabel(noun)}`, noun });
   }
 
   /**
@@ -325,39 +284,4 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
       return remaining.length === 0 ? null : { ...previous, cells: remaining };
     });
   }
-
-  async function confirmDelete() {
-    if (pendingDelete === null) {
-      return;
-    }
-
-    const { ids, noun } = pendingDelete;
-
-    setIsRemoving(true);
-
-    try {
-      await deleteArchiveMedia(ids);
-      remove(ids);
-      selection.cancel();
-      setIsConfirmingDelete(false);
-      dropFromViewer(ids);
-    } catch {
-      toast.error(`${josa(noun, "을/를")} 삭제하지 못했어요`);
-    } finally {
-      setIsRemoving(false);
-    }
-  }
-}
-
-/** The rows one confirmation is for, the subject naming them in its title, and the noun every sentence under it takes. */
-type PendingDelete = { ids: string[]; subject: string; noun: string };
-
-// INFO: AGENTS.md § 0.4. The subject varies (`3장`, `이 동영상`), so the particle is chosen rather than written into a sentence two of them reach.
-function toDeleteTitle(pending: Nullable<PendingDelete>): string {
-  return pending === null ? "" : `${josa(pending.subject, "을/를")} 삭제할까요?`;
-}
-
-// INFO: REQUIREMENTS.md § 18. #1. The one thing a user cannot tell from the button — what is deleted leaves the library and stays in the conversation.
-function toDeleteWarning(pending: Nullable<PendingDelete>): string {
-  return `대화에 보낸 ${josa(pending?.noun ?? "사진", "은/는")} 말풍선에 그대로 남아요`;
 }

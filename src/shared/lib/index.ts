@@ -75,6 +75,7 @@ export { useBfcacheRestore } from "./hooks/use-bfcache-restore";
 export { useHydrated } from "./hooks/use-hydrated";
 export { useIsCoarsePointer, useIsFinePointer } from "./hooks/use-is-coarse-pointer";
 export { isIos, useIsIos } from "./hooks/use-is-ios";
+export { isStandalone, useIsStandalone } from "./hooks/use-is-standalone";
 export { useIsVirtualKeyboardOpen } from "./hooks/use-is-virtual-keyboard-open";
 export { useIsomorphicLayoutEffect } from "./hooks/use-isomorphic-layout-effect";
 export { holdAwake, isBusy, openFilePicker, useKeepAwake } from "./hooks/use-keep-awake";
@@ -94,10 +95,13 @@ export {
 export { useSettledCommit, type SettledCommitOptions } from "./hooks/use-settled-commit";
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
 export {
+  SNOWFLAKE_EPOCH,
   SNOWFLAKE_PATTERN,
+  SNOWFLAKE_TIME_SHIFT,
   compareId,
   idBefore,
   idFloorBefore,
+  idToDate,
   isSnowflake,
   maxId,
   toId,

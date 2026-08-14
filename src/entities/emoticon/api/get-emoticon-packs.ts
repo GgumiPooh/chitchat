@@ -3,7 +3,7 @@ import "server-only";
 import { EMOTICON_PACK_PAGE_SIZE } from "@/shared/config";
 import { emoticonItems, emoticonPacks, getDb, userEmoticonPrefs } from "@/shared/db";
 import type { EmoticonPackId, Nullable, UserId } from "@/shared/lib";
-import { and, asc, eq, ilike, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { toEmoticon } from "../model/to-emoticon";
 import type {
@@ -147,8 +147,9 @@ export async function listEmoticonPackItems(packId: EmoticonPackId): Promise<Emo
   const rows = await getDb()
     .select()
     .from(emoticonItems)
-    .where(eq(emoticonItems.packId, packId))
-    .orderBy(asc(emoticonItems.sortOrder), asc(emoticonItems.createdAt));
+    // INFO: RESTRUCTURE.md § 4.4. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
+    .where(and(eq(emoticonItems.packId, packId), isNull(emoticonItems.retiredAt)))
+    .orderBy(asc(emoticonItems.sortOrder), asc(emoticonItems.id));
 
   return rows.map(toEmoticon);
 }
@@ -223,16 +224,18 @@ function selectPackRows(
   const firstItem = getDb()
     .select({ id: firstItems.id, updatedAt: firstItems.updatedAt })
     .from(firstItems)
-    .where(eq(firstItems.packId, page.id))
+    // WARN: RESTRUCTURE.md § 4.4. The retirement filter belongs here as much as in `listEmoticonPackItems`. Without it the tab icon goes on drawing an item the picker no longer offers, and the fallback stops being "the first of what that list returns" — which is exactly what the line below asserts.
+    .where(and(eq(firstItems.packId, page.id), isNull(firstItems.retiredAt)))
     // WARN: The same order `listEmoticonPackItems` returns, or the tab icon is not the cell the grid draws first.
-    .orderBy(asc(firstItems.sortOrder), asc(firstItems.createdAt))
+    .orderBy(asc(firstItems.sortOrder), asc(firstItems.id))
     .limit(1)
     .as("first_item");
   // WARN: A correlated subquery in the target list rather than a `GROUP BY` over a join, and `::int` because `count` is `bigint` and would otherwise arrive as a string. Postgres evaluates it **after** the sort and the limit, which is what takes the count off every pack the page does not hold.
   const itemCount = getDb()
     .select({ value: sql<number>`count(*)::int` })
     .from(countedItems)
-    .where(eq(countedItems.packId, page.id));
+    // WARN: § 4.4. Retired items are not counted, for the reason the cover excludes them: a pack whose only item was retired would report `1개` over a grid that opens empty.
+    .where(and(eq(countedItems.packId, page.id), isNull(countedItems.retiredAt)));
 
   return (
     getDb()

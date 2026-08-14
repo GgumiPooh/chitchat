@@ -52,7 +52,8 @@ export async function upsertGoogleUser(identity: {
       id: nextSnowflake<UserId>(),
       email: identity.email,
       googleSub: identity.sub,
-      // INFO: REQUIREMENTS.md § 8.8. The epoch, so everything sent before this person's first login counts as unread rather than silently read.
+      // INFO: REQUIREMENTS.md § 8.8. The epoch, so everything sent before this person's first login counts as unread rather than silently read. `last_read_message_id` says the same by staying NULL, which is why it is not set here.
+      // TODO: RESTRUCTURE.md § 3.5. Drops out with the column in migration B; until then `last_read_at` is still NOT NULL and still read by the deployed build.
       lastReadAt: new Date(0),
       nickname: identity.name?.trim() || identity.email.split("@")[0],
     })

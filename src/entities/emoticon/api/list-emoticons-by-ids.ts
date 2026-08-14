@@ -3,7 +3,7 @@ import "server-only";
 
 import { MAX_EMOTICON_ID_LOOKUP } from "@/shared/config";
 import { emoticonItems, getDb } from "@/shared/db";
-import { asc, inArray } from "drizzle-orm";
+import { and, asc, inArray, isNull } from "drizzle-orm";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon } from "../model/types";
 
@@ -30,8 +30,14 @@ export async function listEmoticonsByIds(ids: EmoticonItemId[]): Promise<Emotico
   const rows = await getDb()
     .select()
     .from(emoticonItems)
-    .where(inArray(emoticonItems.id, ids.slice(0, MAX_EMOTICON_ID_LOOKUP)))
-    .orderBy(asc(emoticonItems.packId), asc(emoticonItems.sortOrder), asc(emoticonItems.createdAt));
+    // INFO: RESTRUCTURE.md § 4.4. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
+    .where(
+      and(
+        inArray(emoticonItems.id, ids.slice(0, MAX_EMOTICON_ID_LOOKUP)),
+        isNull(emoticonItems.retiredAt),
+      ),
+    )
+    .orderBy(asc(emoticonItems.packId), asc(emoticonItems.sortOrder), asc(emoticonItems.id));
 
   return rows.map(toEmoticon);
 }

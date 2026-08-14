@@ -1,8 +1,8 @@
 "use client";
 
 import type { ArchiveMedia } from "@/entities/media";
-import { ARCHIVE_PAGE_SIZE, type LibraryKind } from "@/shared/config";
-import type { Nullable, Optional } from "@/shared/lib";
+import { ARCHIVE_PAGE_SIZE, type LibraryShelf } from "@/shared/config";
+import { compareId, type Nullable, type Optional } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { josa } from "es-hangul";
 import { useCallback, useRef, useState } from "react";
@@ -10,11 +10,11 @@ import { fetchArchiveMedia } from "../api/fetch-archive-media";
 
 /**
  * The loaded window of one library segment, newest first. Pages either side are
- * keyset-paginated on the `(created_at, id)` pair (REQUIREMENTS.md § 6., § 10.);
- * the first page arrives from the server render, so opening the tab costs no
- * round trip.
+ * keyset-paginated on the tile's own id (REQUIREMENTS.md § 10., RESTRUCTURE.md
+ * § 3.4.); the first page arrives from the server render, so opening the tab costs
+ * no round trip.
  *
- * INFO: `kind` is fixed for the life of the hook — the two segments are two routes
+ * INFO: `shelf` is fixed for the life of the hook — the segments are separate routes
  * (§ 10.), so switching them remounts rather than refetching in place.
  *
  * INFO: `targetId` is § 10.'s position jump, and the only thing this hook wants from
@@ -22,7 +22,7 @@ import { fetchArchiveMedia } from "../api/fetch-archive-media";
  */
 export function useArchiveMedia(
   initialMedia: ArchiveMedia[],
-  kind: LibraryKind = "photo",
+  shelf: LibraryShelf = "gallery",
   targetId?: string,
 ) {
   const [media, setMedia] = useState(initialMedia);
@@ -66,8 +66,8 @@ export function useArchiveMedia(
 
     try {
       const older = await fetchArchiveMedia({
-        kind,
-        before: { createdAt: oldest.createdAt, id: oldest.id },
+        shelf,
+        before: oldest.id,
       });
 
       hasMoreRef.current = older.length >= ARCHIVE_PAGE_SIZE;
@@ -81,12 +81,12 @@ export function useArchiveMedia(
         });
       }
     } catch {
-      toast.error(`${josa(LOAD_FAILURE_SUBJECTS[kind], "을/를")} 더 불러오지 못했어요`);
+      toast.error(`${josa(LOAD_FAILURE_SUBJECTS[shelf], "을/를")} 더 불러오지 못했어요`);
     } finally {
       isLoadingRef.current = false;
       setIsLoadingMore(false);
     }
-  }, [commit, kind]);
+  }, [commit, shelf]);
 
   /**
    * REQUIREMENTS.md § 10. The page directly newer than the window's top, for a window
@@ -116,8 +116,8 @@ export function useArchiveMedia(
 
     try {
       const newer = await fetchArchiveMedia({
-        kind,
-        after: { createdAt: windowTop.createdAt, id: windowTop.id },
+        shelf,
+        after: windowTop.id,
       });
 
       // INFO: No generation to check against, unlike § 8.6.1.'s windows. This page is measured from `windowTopRef`, which an upload deliberately does not move — so nothing an upload does while it is in flight can make its rows the wrong ones, and `insertNewer` places them behind that upload rather than in front of it.
@@ -125,12 +125,12 @@ export function useArchiveMedia(
       heldNewerRef.current = newer;
       setHasHeldNewer(newer.length > 0);
     } catch {
-      toast.error(`${josa(LOAD_FAILURE_SUBJECTS[kind], "을/를")} 더 불러오지 못했어요`);
+      toast.error(`${josa(LOAD_FAILURE_SUBJECTS[shelf], "을/를")} 더 불러오지 못했어요`);
     } finally {
       isLoadingNewerRef.current = false;
       setIsLoadingNewer(false);
     }
-  }, [kind]);
+  }, [shelf]);
 
   /**
    * REQUIREMENTS.md § 10. Called by the grid once its scroller is still, so the
@@ -140,7 +140,7 @@ export function useArchiveMedia(
    * INFO: Deduplicated for the reason `loadMore` is, since the other participant can add a photo between two requests.
    * INFO: The window's top moves to this page's newest row, which is what the next upward ask is measured from — an upload prepended ahead of it must not move it (see `windowTopRef`).
    *
-   * WARN: Inserted at the page's **sorted place**, never blindly at the front, and that is what makes the two prepends commute. A page is newer than the window and **older** than any upload made during this open, so at the front it would sit ahead of the upload — out of order, which puts a second section carrying an already-used `monthKey` in the list and duplicates a React key. Placed by the shelf's own `(created_at, id)` order it lands behind the upload instead, so neither prepend has to know the other happened.
+   * WARN: Inserted at the page's **sorted place**, never blindly at the front, and that is what makes the two prepends commute. A page is newer than the window and **older** than any upload made during this open, so at the front it would sit ahead of the upload — out of order, which puts a second section carrying an already-used `monthKey` in the list and duplicates a React key. Placed by the shelf's own id order it lands behind the upload instead, so neither prepend has to know the other happened.
    */
   const insertNewer = useCallback(() => {
     const held = heldNewerRef.current;
@@ -218,8 +218,9 @@ export function useArchiveMedia(
 }
 
 // INFO: REQUIREMENTS.md § 10. One noun per shelf — 음성 shared 사진's copy while this was a two-way branch.
-const LOAD_FAILURE_SUBJECTS: Record<LibraryKind, string> = {
-  photo: "사진",
+// WARN: What is missing, never `LIBRARY_SHELF_LABELS`. The shelf is called 갤러리 and its contents are still 사진 — `갤러리를 더 불러오지 못했어요` says the screen failed rather than the photos on it.
+const LOAD_FAILURE_SUBJECTS: Record<LibraryShelf, string> = {
+  gallery: "사진",
   file: "파일",
   voice: "음성",
 };
@@ -238,13 +239,13 @@ const LOAD_FAILURE_SUBJECTS: Record<LibraryKind, string> = {
  * above it — `indexOf` answering `-1` is exactly that case and must not read as one.
  */
 /**
- * The shelf's own order (REQUIREMENTS.md § 6., § 10.) — `(created_at, id)`,
- * descending, which is what every cursor here is a pair of.
+ * The shelf's own order (REQUIREMENTS.md § 10., RESTRUCTURE.md § 3.4.) — the id,
+ * descending, which is what every cursor here now is.
  *
- * INFO: The timestamps compare as strings because they are `toISOString()` output on both sides, fixed-width UTC to the millisecond, where lexicographic order *is* chronological order. Parsing them to `Date` per comparison would answer the same and allocate.
+ * WARN: `compareId`, never `>`. Both operands are 19-digit strings today, so the string comparison this replaced happened to agree — which is exactly how a wrong one survives review (CLAUDE.md § 3.2.).
  */
 function isNewerThan(a: ArchiveMedia, b: ArchiveMedia): boolean {
-  return a.createdAt === b.createdAt ? a.id > b.id : a.createdAt > b.createdAt;
+  return compareId(a.id, b.id) > 0;
 }
 
 function toHasNewer(initialMedia: ArchiveMedia[], targetId: Optional<string>): boolean {

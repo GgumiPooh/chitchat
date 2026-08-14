@@ -1,6 +1,13 @@
 import type { ChatMedia, ChatTrackMedia, MediaDraft } from "@/entities/media";
 import { isVideoMime, toMediaDownloadUrl, toMediaUrl, toVoiceTrack } from "@/shared/config";
-import { toId, type MediaId, type MessageId, type Optional, type UserId } from "@/shared/lib";
+import {
+  idToDate,
+  toId,
+  type MediaId,
+  type MessageId,
+  type Optional,
+  type UserId,
+} from "@/shared/lib";
 import type { MediaCell } from "@/shared/ui";
 
 /**
@@ -24,6 +31,7 @@ export function toCellsFromMedia(media: ChatMedia[]): MediaCell[] {
     // INFO: § 9.3. Already `0`–`1` — `toChatMedia` converted it off the column's integer scale, and this is the same object the player draws from.
     voice: item.voice,
     sizeBytes: item.size,
+    isDeleted: item.isDeleted,
     id: item.id,
   }));
 }
@@ -44,7 +52,8 @@ export function toCellsFromTrack(
     return {
       ...cell,
       messageId: row?.messageId ?? null,
-      sentAt: row?.createdAt ?? null,
+      // INFO: DESIGN.md § 7.10., RESTRUCTURE.md § 3.4. The caption's instant comes off the slide's own id, which is where the track's order comes from too.
+      sentAt: row ? idToDate(row.id).toISOString() : null,
       senderName: row ? (toSenderName(row.senderId) ?? null) : null,
     };
   });
@@ -88,6 +97,8 @@ export function toCellsFromDrafts(drafts: MediaDraft[]): MediaCell[] {
     voice: toVoiceTrack(draft.waveformPeaks),
     // INFO: The picked file's own size — an optimistic card names the same figure the sent one will.
     sizeBytes: draft.file.size,
+    // INFO: RESTRUCTURE.md § 4.3. A draft names no row, so there is nothing that could have been deleted out from under it.
+    isDeleted: false,
     // WARN: A local draft id worn as a `MediaId` — see `MediaCell.id`. It names no row and must never reach an endpoint.
     id: toId<MediaId>(draft.id),
   }));

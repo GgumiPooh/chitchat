@@ -77,7 +77,7 @@ export async function updateUserProfile({
       nickname: users.nickname,
       avatarMediaId: users.avatarMediaId,
       profileBackgroundMediaId: users.profileBackgroundMediaId,
-      lastReadAt: users.lastReadAt,
+      lastReadMessageId: users.lastReadMessageId,
       previousAvatarMediaId: previous.avatarMediaId,
       previousProfileBackgroundMediaId: previous.profileBackgroundMediaId,
     });

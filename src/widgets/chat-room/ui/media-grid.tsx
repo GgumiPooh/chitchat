@@ -1,7 +1,7 @@
 "use client";
 
 import { cn, formatDuration } from "@/shared/lib";
-import { FileCard, PreloadImage, type MediaCell } from "@/shared/ui";
+import { FileCard, MediaTombstone, PreloadImage, toCellRatio, type MediaCell } from "@/shared/ui";
 import { Play } from "lucide-react";
 import { MEDIA_EDGE_REM, toMediaColumns } from "../model/to-media-box";
 
@@ -59,22 +59,36 @@ export function MediaGrid({
   function renderFiles() {
     return (
       <div className="flex flex-col gap-2xs">
-        {cells.map((cell, index) => (
-          <FileCard
-            key={cell.id}
-            filename={cell.filename ?? ""}
-            sizeBytes={cell.sizeBytes}
-            // INFO: A draft has no stored object yet, so the card is inert until the upload registers one.
-            disabled={cell.downloadUrl === null}
-            aria-label={`${cell.filename} 저장`}
-            onClick={() => onOpen?.(index)}
-          />
-        ))}
+        {cells.map((cell, index) =>
+          cell.isDeleted ? (
+            // INFO: RESTRUCTURE.md § 4.3. `FILE_CARD_HEIGHT`'s own `h-14`, so the stack measures the same whether the card is a file or a tombstone (REQUIREMENTS.md § 8.3.).
+            <MediaTombstone key={cell.id} className="h-14 flex-row" cell={cell} />
+          ) : (
+            <FileCard
+              key={cell.id}
+              filename={cell.filename ?? ""}
+              sizeBytes={cell.sizeBytes}
+              // INFO: A draft has no stored object yet, so the card is inert until the upload registers one.
+              disabled={cell.downloadUrl === null}
+              aria-label={`${cell.filename} 저장`}
+              onClick={() => onOpen?.(index)}
+            />
+          ),
+        )}
       </div>
     );
   }
 
   function renderSingle(cell: MediaCell) {
+    // INFO: RESTRUCTURE.md § 4.3. Not a button — there is nothing behind it to open — but it keeps the ratio, so the row is exactly as tall as it was before the delete.
+    if (cell.isDeleted) {
+      return (
+        <span className="block w-full" style={{ aspectRatio: toCellRatio(cell) }}>
+          <MediaTombstone cell={cell} />
+        </span>
+      );
+    }
+
     return (
       <button
         className="block w-full cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
@@ -85,14 +99,14 @@ export function MediaGrid({
         {/* WARN: REQUIREMENTS.md § 8.3. The ratio is what reserves the row's height before the asset loads; without it every image that arrives re-measures the list and jolts the scroll. */}
         <span
           className="relative block w-full ring-1 ring-hairline ring-inset"
-          style={{ aspectRatio: `${cell.width} / ${cell.height}` }}
+          style={{ aspectRatio: toCellRatio(cell) }}
         >
           <PreloadImage
             className="size-full"
             imgClassName="size-full object-cover"
             src={cell.previewUrl}
             blurhash={cell.blurhash}
-            blurhashRatio={cell.width / cell.height}
+            blurhashRatio={toCellRatio(cell)}
             alt=""
             // WARN: DESIGN.md § 3.2. Without it the hold on a bubble starts iOS's own image drag before the § 8.11. sheet can open.
             draggable={false}
@@ -106,27 +120,34 @@ export function MediaGrid({
   function renderGrid() {
     return (
       <div className={cn("grid gap-2xs", toColumnsClassName(cells.length))}>
-        {cells.map((cell, index) => (
-          <button
-            key={cell.id}
-            className="relative aspect-square cursor-pointer overflow-hidden rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
-            type="button"
-            aria-label={cell.isVideo ? "동영상 보기" : "사진 보기"}
-            onClick={() => onOpen?.(index)}
-          >
-            <PreloadImage
-              className="size-full"
-              imgClassName="size-full object-cover ring-1 ring-hairline ring-inset"
-              src={cell.previewUrl}
-              blurhash={cell.blurhash}
-              // WARN: DESIGN.md § 7.8. As 보관함's tile — these cells are square whatever shape the attachment is, so the blur needs the ratio to be cropped where the photo is.
-              blurhashRatio={cell.width / cell.height}
-              alt=""
-              draggable={false}
-            />
-            {renderVideoOverlay(cell)}
-          </button>
-        ))}
+        {cells.map((cell, index) =>
+          cell.isDeleted ? (
+            // WARN: RESTRUCTURE.md § 4.3. The cell stays in the grid rather than being filtered out of it. A bubble of three with one deleted draws two tiles and a tombstone; two tiles would silently rewrite what the other participant remembers seeing.
+            <div key={cell.id} className="aspect-square">
+              <MediaTombstone className="rounded-sm" cell={cell} />
+            </div>
+          ) : (
+            <button
+              key={cell.id}
+              className="relative aspect-square cursor-pointer overflow-hidden rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+              type="button"
+              aria-label={cell.isVideo ? "동영상 보기" : "사진 보기"}
+              onClick={() => onOpen?.(index)}
+            >
+              <PreloadImage
+                className="size-full"
+                imgClassName="size-full object-cover ring-1 ring-hairline ring-inset"
+                src={cell.previewUrl}
+                blurhash={cell.blurhash}
+                // WARN: DESIGN.md § 7.8. As 보관함's tile — these cells are square whatever shape the attachment is, so the blur needs the ratio to be cropped where the photo is.
+                blurhashRatio={toCellRatio(cell)}
+                alt=""
+                draggable={false}
+              />
+              {renderVideoOverlay(cell)}
+            </button>
+          ),
+        )}
       </div>
     );
   }

@@ -87,7 +87,7 @@ export async function canReadMedia(row: Media, userId: UserId): Promise<boolean>
   }
 
   // INFO: REQUIREMENTS.md § 10. A photo put in the library without being sent is conversation-wide by construction — the library is shared, so the other participant is looking at the same grid.
-  if (row.galleryAddedAt !== null) {
+  if (row.archiveAddedAt !== null) {
     return true;
   }
 

@@ -1,4 +1,4 @@
-import type { UserId } from "@/shared/lib";
+import { idToDate, type UserId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, sessions } from "@/shared/db";
@@ -22,7 +22,6 @@ export async function listUserSessions(
     .select({
       id: sessions.id,
       label: sessions.deviceLabel,
-      createdAt: sessions.createdAt,
       lastSeenAt: sessions.lastSeenAt,
     })
     .from(sessions)
@@ -32,7 +31,7 @@ export async function listUserSessions(
   return rows.map((row) => ({
     id: row.id,
     label: row.label,
-    createdAt: row.createdAt.toISOString(),
+    createdAt: idToDate(row.id).toISOString(),
     lastSeenAt: row.lastSeenAt.toISOString(),
     isCurrent: row.id === currentSessionId,
   }));

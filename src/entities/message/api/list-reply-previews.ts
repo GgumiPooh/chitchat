@@ -1,6 +1,6 @@
 import "server-only";
 
-import { REPLY_PREVIEW_MAX_LENGTH, toMediaKind, toQuoteThumbnail } from "@/shared/config";
+import { REPLY_PREVIEW_MAX_LENGTH, toMediaNoun, toQuoteThumbnail } from "@/shared/config";
 import { emoticonItems, getDb, messages } from "@/shared/db";
 import type { EmoticonItemId, MessageId, Nullable } from "@/shared/lib";
 import { eq, inArray } from "drizzle-orm";
@@ -71,7 +71,7 @@ export async function listReplyPreviews(
       // WARN: The deletion is tested here rather than left to the helper, because only the media half gets it for free — `listMessageMedia` is never asked about a deleted row, where the emoticon join above is on `messages` itself and answers for one.
       thumbnail: row.deletedAt ? null : toQuoteThumbnail(toQuotedEmoticon(row), attachments),
       // INFO: The same rule the § 16.1. push body applies — 동영상 only when there is no photo in the bubble to contradict it.
-      mediaKind: toMediaKind(attachments),
+      mediaKind: toMediaNoun(attachments),
       // INFO: DESIGN.md § 6.10. The summary counts what the tile cannot show — it is the first attachment alone, however many were sent.
       mediaCount: attachments.length,
       isDeleted: row.deletedAt !== null,

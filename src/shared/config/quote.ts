@@ -15,7 +15,7 @@ export type QuoteThumbnail =
 /**
  * Which tile a quote of this bubble draws, if any (REQUIREMENTS.md § 8.10.).
  *
- * WARN: Lives here rather than in `entities/message` for the reason `toMediaKind`
+ * WARN: Lives here rather than in `entities/message` for the reason `toMediaNoun`
  * does — the chat room composes an optimistic quote in the browser, and a value
  * import from that barrel drags `server-only` into the bundle. **This is the one
  * copy.** The optimistic bubble and the echoed row answer for the same message, and

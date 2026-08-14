@@ -117,8 +117,8 @@ type Payload = {
   // INFO: REQUIREMENTS.md § 9.3. A voice bubble is one fixed-height row rather than a box with a ratio, and `toMediaBoxHeight` reads that before either of the others.
   // WARN: Both voice fields, because a pending row is `MediaDraft[]` and a sent one is `ChatMedia[]` — the draft carries `waveformPeaks` and no `voice`, so dropping it here estimates an optimistic recording from its `0 / 0` box.
   media: {
-    width: number;
-    height: number;
+    width: Nullable<number>;
+    height: Nullable<number>;
     filename: Nullable<string>;
     voice?: Nullable<unknown>;
     waveformPeaks?: Nullable<number[]>;

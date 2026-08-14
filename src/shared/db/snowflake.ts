@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { SnowflakeId } from "@/shared/lib";
+import { SNOWFLAKE_EPOCH, type SnowflakeId } from "@/shared/lib";
 
 /**
  * REQUIREMENTS.md § 6. The id generator. `43 bits ms | 10 bits machine | 10 bits
@@ -12,8 +12,8 @@ import type { SnowflakeId } from "@/shared/lib";
  * `MACHINE_BASE` differs, and it is what keeps the two apart.
  */
 
-// INFO: 1990-01-01T00:00:00Z. Far enough back that the first id this app can mint already exceeds 1e18, so every id it will ever hold is 19 digits (§ 6.); the field runs out in 2268.
-const EPOCH = 631152000000n;
+// INFO: 1990-01-01T00:00:00Z, imported rather than declared — `idToDate` reads it in the browser, so it lives in `identity/id.ts` (RESTRUCTURE.md § 3.2.). Far enough back that the first id this app can mint already exceeds 1e18, so every id it will ever hold is 19 digits (§ 6.); the field runs out in 2268.
+const EPOCH = SNOWFLAKE_EPOCH;
 
 const TIMESTAMP_SHIFT = 20n;
 

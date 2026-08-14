@@ -11,7 +11,11 @@ export {
   type ListConversationMediaParams,
 } from "./api/list-conversation-media";
 export { registerMedia, type RegisterMediaParams } from "./api/register-media";
-export { removeArchiveMedia, type ArchiveRemoval } from "./api/remove-archive-media";
+export {
+  deleteOwnMedia,
+  removeArchiveMedia,
+  type ArchiveRemoval,
+} from "./api/remove-archive-media";
 // WARN: Everything above touches the database. A client module may import from this barrel with `import type` only — a value import drags `server-only` into its bundle, which is why `toMediaUrl` lives in `@/shared/config` instead.
 export type { MediaDraft } from "./model/draft";
 export type { ArchiveMedia, ChatMedia, ChatTrackMedia } from "./model/types";

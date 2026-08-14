@@ -8,9 +8,9 @@ import type { MediaId, MessageId, Nullable, UserId } from "@/shared/lib";
 export type ChatMedia = {
   mime: string;
   // INFO: REQUIREMENTS.md § 8.3. What the virtualizer reserves the row's box from, before the asset loads.
-  // WARN: Both zero on a file attachment (§ 9.1.) **and on a voice message** (§ 9.3.) — neither has a box to measure. Read `filename` and `voice` first, or either lands as a `0 / 0` aspect ratio. Both are drawn at a fixed height instead.
-  width: number;
-  height: number;
+  // INFO: RESTRUCTURE.md § 2.4. Null wherever there is no box — a file attachment (§ 9.1.) and a voice message (§ 9.3.), both drawn at a fixed height. It used to be `0`, and the sentinel is what made "read `filename` and `voice` first" a rule every reader had to remember; a null is a branch the compiler asks for.
+  width: Nullable<number>;
+  height: Nullable<number>;
   /** REQUIREMENTS.md § 9.3. The running time a voice player draws its progress against, and a video cell its badge. */
   durationMs: Nullable<number>;
   blurhash: Nullable<string>;
@@ -33,6 +33,19 @@ export type ChatMedia = {
   voice: Nullable<{ peaks: number[] }>;
   // INFO: § 9.1. The file card names its own size, which is the only thing it can say about a document it cannot draw.
   size: number;
+  /**
+   * RESTRUCTURE.md § 4.3. Whether the uploader has deleted the object outright, which
+   * is what makes the cell a tombstone rather than a picture.
+   *
+   * INFO: § 4.3. The row survives the delete — `message_media`'s FK and § 8.13.'s
+   * resume reconciliation both need it — so the bubble keeps its place and the tile
+   * keeps its box, exactly as a withdrawn message does. Only the R2 objects go.
+   *
+   * WARN: § 4.3. The geometry above stays populated on a deleted row **on purpose**.
+   * It is what lets the tombstone occupy the space the photo did, so the § 8.3.
+   * virtualized list re-measures nothing when one is deleted out from under it.
+   */
+  isDeleted: boolean;
   id: MediaId;
 };
 
@@ -46,21 +59,20 @@ export type ChatMedia = {
  * in the conversation and has no slide.
  *
  * INFO: `senderId` rather than an `isMine` the server resolved. The room already holds `currentUserId` and decides every other bubble's side with it (§ 6.), and a second answer to the same question is a second thing to keep true.
+ *
+ * INFO: RESTRUCTURE.md § 3.4. No `createdAt`. DESIGN.md § 7.10.'s caption reads `idToDate(id)`, which is the instant the id already carries — sending a derived copy beside it is one fact twice, and two things that can disagree.
  */
 export type ChatTrackMedia = ChatMedia & {
-  /** DESIGN.md § 7.10. When the slide was sent, for the viewer's caption — the same instant `ArchiveMedia` carries, and read off the same column. */
-  createdAt: string;
   messageId: MessageId;
   senderId: UserId;
 };
 
 /**
- * A library tile (REQUIREMENTS.md § 10.). The same object as `ChatMedia` plus the
- * instant it was taken in, which is both the month section header and the second
- * half of the keyset cursor (§ 6.).
+ * A library tile (REQUIREMENTS.md § 10.).
+ *
+ * INFO: RESTRUCTURE.md § 3.4. No `createdAt` here either, for the reason on `ChatTrackMedia` — the month section header and the keyset cursor are both the id now.
  */
 export type ArchiveMedia = ChatMedia & {
-  createdAt: string;
   /**
    * REQUIREMENTS.md § 10. The message this tile was sent in, which 대화에서 보기
    * jumps to (§ 8.6.1.).

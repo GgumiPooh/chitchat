@@ -295,6 +295,8 @@ function toEmptyPages(): HeldPages {
 }
 
 // INFO: REQUIREMENTS.md § 8.13. Named rather than written out at each of the three sites, so the window, a page in flight and a page already held cannot come to disagree about what a withdrawal removed.
+// INFO: RESTRUCTURE.md § 4.3. A deleted attachment leaves the track on the same terms, and through the same function for the same reason — a page fetched before the delete can land after it, and § 4.3. is that there is nothing behind the slide to open.
+// WARN: It is only the **track** that narrows. The bubble keeps its tombstone (`MediaTombstone`); filtering there would rewrite what the other participant remembers seeing.
 function toSurvivingRows(rows: ChatTrackMedia[], dropped: Set<MessageId>): ChatTrackMedia[] {
-  return rows.filter((row) => !dropped.has(row.messageId));
+  return rows.filter((row) => !row.isDeleted && !dropped.has(row.messageId));
 }

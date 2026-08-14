@@ -11,11 +11,19 @@
  * happens to agree with numeric order — which is exactly what would make a stray
  * `>` survive review and then fail the day the width moves. Use `compareId`.
  *
- * WARN: `idFloorBefore` is the **only** thing that reads a field back out of an id,
- * and it is what ties this file to the bit widths (§ 6.). Anything else added here
- * that decodes one — an `idToDate`, say — needs a version branch the day the split
- * moves; the layout is otherwise free to be re-cut, since ordering is all the rest
- * of the app asks of an id.
+ * WARN: The layout is **frozen** and is no longer free to be re-cut. This note used to
+ * say the opposite, on the grounds that ordering was all the app asked of an id and
+ * that an `idToDate` would tie the file to the bit widths forever. RESTRUCTURE.md
+ * § 3.1. takes that trade deliberately: the timestamp is read back out of the id now,
+ * every `created_at` column is gone, and a change to the epoch or the field widths
+ * would silently restate the age of every row already written. Re-cutting the format
+ * means versioning it and keeping the old branch for every id minted under it.
+ *
+ * WARN: § 3.1. The time an id carries is the wall clock of whichever instance minted
+ * it — two deployments on two platforms — rather than the database's `now()`, and
+ * `nextSnowflake` mints deliberately ahead of real time when a millisecond's sequence
+ * is exhausted. Sub-second, and accepted; do not build anything on this that needs a
+ * single authoritative clock.
  */
 declare const idBrand: unique symbol;
 
@@ -81,8 +89,40 @@ export function compareId(left: string, right: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-// INFO: § 6. The width of the machine and sequence fields together, which is what a millisecond is worth in id space.
-const SNOWFLAKE_TIME_SHIFT = 20n;
+/**
+ * REQUIREMENTS.md § 6. The width of the machine and sequence fields together, which is
+ * what a millisecond is worth in id space.
+ *
+ * WARN: Exported so that SQL which has to reconstruct the timestamp builds it from
+ * *this* value rather than writing `20` out again — `effectivePackPosition` is the one
+ * such caller. A literal in a migration or a query is the third copy of a constant
+ * `CLAUDE.md § 4.2.1.` already requires to be mirrored across two repositories.
+ */
+export const SNOWFLAKE_TIME_SHIFT = 20n;
+
+/**
+ * REQUIREMENTS.md § 6. 1990-01-01T00:00:00Z, the instant the timestamp field counts
+ * from.
+ *
+ * WARN: Declared here rather than beside the generator so the browser can reach it —
+ * `db/snowflake.ts` is `server-only` and `idToDate` runs wherever a timestamp is
+ * drawn. That module imports this one; there is no second copy.
+ */
+export const SNOWFLAKE_EPOCH = 631152000000n;
+
+/**
+ * When the row this id names was created.
+ *
+ * INFO: RESTRUCTURE.md § 3.3. This replaces the `created_at` column on every table
+ * whose primary key is a snowflake — the id already carried the instant, and storing
+ * it twice meant the ordering key and the displayed time could disagree.
+ *
+ * WARN: § 3.1. Reading this ties the app to the bit layout permanently. That is the
+ * decision, not an oversight; the header note says what it costs.
+ */
+export function idToDate(id: string): Date {
+  return new Date(Number((BigInt(id) >> SNOWFLAKE_TIME_SHIFT) + SNOWFLAKE_EPOCH));
+}
 
 /**
  * The smallest id that could have been minted `ms` milliseconds before `id`.

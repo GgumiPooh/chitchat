@@ -14,5 +14,6 @@ export function toChatMedia(row: Media): ChatMedia {
     filename: row.filename,
     voice: toVoiceTrack(row.waveformPeaks),
     size: row.size,
+    isDeleted: row.deletedAt !== null,
   };
 }

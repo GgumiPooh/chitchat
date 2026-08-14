@@ -91,7 +91,7 @@ export const CALENDAR_ROUTE = "/calendar";
  * `ARCHIVE_GALLERY_ROUTE`. This constant exists for `isUnderRoute`, which is what
  * keeps the tab bar's fill on 보관함 across all three shelves and what
  * `RouteTransition` reads the slide direction from (DESIGN.md § 4.7.1.). **It is not
- * a link target**: `widgets/tab-bar` points the tab at the 사진 shelf so a tab tap
+ * a link target**: `widgets/tab-bar` points the tab at the 갤러리 shelf so a tab tap
  * does not spend a redirect.
  */
 export const ARCHIVE_ROUTE = "/archive";

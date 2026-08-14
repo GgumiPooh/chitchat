@@ -1,14 +1,14 @@
-import type { LibraryKind } from "@/shared/config";
+import type { LibraryShelf } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { AppHeader, Skeleton } from "@/shared/ui";
 import { LibrarySegments } from "./library-segments";
 
 export type LibraryFallbackProps = {
   className?: string;
-  shelf: LibraryKind;
+  shelf: LibraryShelf;
 };
 
-// INFO: DESIGN.md § 7.8. Enough to reach the fold on a phone without claiming a page the response may not fill — a grid row is a third of a list row's height, so 사진 counts nine where the lists count six.
+// INFO: DESIGN.md § 7.8. Enough to reach the fold on a phone without claiming a page the response may not fill — a grid row is a third of a list row's height, so 갤러리 counts nine where the lists count six.
 const TILE_KEYS = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
 const ROW_KEYS = ["a", "b", "c", "d", "e", "f"];
 
@@ -17,7 +17,7 @@ const ROW_KEYS = ["a", "b", "c", "d", "e", "f"];
  *
  * WARN: DESIGN.md § 7.8. The placeholder takes the **shelf's own** geometry, which is
  * why this is per-segment rather than one file at `/archive`. One shared fallback drew
- * 파일's rows on all three, so opening 사진 filled the screen with tall bars and then
+ * 파일's rows on all three, so opening 갤러리 filled the screen with tall bars and then
  * replaced them wholesale with a 3-column grid — a skeleton that stands in for a shape
  * it is not is a worse wait than no skeleton at all.
  *
@@ -37,7 +37,7 @@ export function LibraryFallback({ className, shelf }: LibraryFallbackProps) {
         <div aria-hidden>
           {/* INFO: DESIGN.md § 7.10. Every shelf opens on a month section header, so the placeholder does too — without it the rows land `pb-xs` higher than the real ones and the whole screen steps up on the swap. */}
           <Skeleton className="mb-xs h-5 w-24 rounded-xs" />
-          {shelf === "photo" ? renderTiles() : renderRows()}
+          {shelf === "gallery" ? renderTiles() : renderRows()}
         </div>
       </div>
     </div>

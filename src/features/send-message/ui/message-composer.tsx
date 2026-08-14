@@ -226,11 +226,10 @@ export function MessageComposer({
             maxLength={MAX_MESSAGE_LENGTH}
             rows={1}
             value={text}
+            // INFO: § 8.14. The pointer decides it and nothing else: a mouse means a keyboard is there to press, and whether the app is installed says nothing about that. The hint alone, since `aria-label` below already names the field.
+            // INFO: § 8.14. Read inside the ternary, which is what keeps `toCommandKeyLabel`'s platform guess out of the server's HTML.
+            placeholder={isFinePointer ? `${toCommandKeyLabel()} + / 단축키 보기` : "메시지 입력"}
             aria-label="메시지 입력"
-            // INFO: § 8.14. Only where a mouse is driving, since a phone has no key to press — and the ternary is also what keeps `toCommandKeyLabel` out of the server's HTML, where its answer would be a guess at a platform it cannot see.
-            placeholder={
-              isFinePointer ? `메시지 입력 · ${toCommandKeyLabel()} + / 단축키 보기` : "메시지 입력"
-            }
             // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
             onChange={(event) => {
               setText(event.target.value);

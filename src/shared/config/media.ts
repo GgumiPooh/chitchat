@@ -43,33 +43,89 @@ export const CHAT_MEDIA_PAGE_MARGIN = 8;
 export type ChatTrackEdge = "older" | "newer";
 
 /**
+ * What a `media` row **is**, as the column of the same name records it.
+ *
+ * INFO: RESTRUCTURE.md § 2.2. The discriminator is a column now. It used to be probed
+ * out of `filename`, `waveform_peaks` and the mime **in that order**, which
+ * `register-media.ts` documents as a trap — `isFileMime` is true for `audio/mp4`, so an
+ * unguarded order files every recording as an attachment.
+ *
+ * WARN: `voice` and `audio` are both here and are not the same. A voice message is a
+ * recording, carries `waveform_peaks` and is drawn as a player; `audio` is an audio
+ * object that is none of those — § 5. of the same document files an emoticon's sound
+ * here. Collapsing the two turns every emoticon sound into a voice message in 보관함.
+ *
+ * WARN: This is not the shelf axis. `LIBRARY_SHELVES` below is, and `SHELF_KINDS`
+ * maps between them — 갤러리 holds two kinds.
+ */
+export const MEDIA_KINDS = ["image", "video", "audio", "voice", "file"] as const;
+
+export type MediaKind = (typeof MEDIA_KINDS)[number];
+
+/** RESTRUCTURE.md § 2.7. The kinds the viewer, the § 8.1. track and the blurhash path accept — everything that has a box to draw. */
+export const VISUAL_KINDS = ["image", "video"] as const satisfies readonly MediaKind[];
+
+/**
+ * Which part of the app an object was uploaded for, and the first path segment of its
+ * storage key.
+ *
+ * WARN: RESTRUCTURE.md § 2.3. A column as well as a key prefix, because
+ * `registerMedia`'s rules are about **use** rather than kind — whether a `_thumb`
+ * sibling is required, whether the row is a library candidate, which cache policy the
+ * route signs. `shared/storage`'s `StorageScope` is this list; it is declared here
+ * rather than there so the browser can read it.
+ */
+export const MEDIA_SCOPES = ["chat", "avatar", "background", "emoticon"] as const;
+
+export type MediaScope = (typeof MEDIA_SCOPES)[number];
+
+/**
  * Which shelf of the library (REQUIREMENTS.md § 10.) a listing asks for — the
- * 사진 / 파일 / 음성 segments, and the `kind` `GET /api/archive` takes.
+ * 갤러리 / 파일 / 음성 segments, and the `shelf` `GET /api/archive` takes.
  *
  * WARN: A union and never an `isFile` boolean. 음성 arrived as one literal here
- * and one clause in `isOfKind`, where a boolean would have had to be replaced in
+ * and one entry in `SHELF_KINDS`, where a boolean would have had to be replaced in
  * the predicate, the API, the fetch, the hook and the URL alike.
  *
- * WARN: A member here is only half of a shelf — `isOfKind` is the other half, and
- * a literal added without the clause behind it does not open an empty segment, it
- * spills that kind into 사진, whose branch is "neither of the others".
- *
- * INFO: Derived from `filename` and `waveform_peaks`, so no column stores it (§ 6.).
+ * WARN: RESTRUCTURE.md § 2.7. Not `MEDIA_KINDS`, which is the other axis. A shelf
+ * holds a **set** of kinds and 갤러리 holds two, so the two cannot be one list —
+ * which is also what dissolves "the 사진 tab shows videos".
  */
-export const LIBRARY_KINDS = ["photo", "file", "voice"] as const;
+export const LIBRARY_SHELVES = ["gallery", "file", "voice"] as const;
 
-export type LibraryKind = (typeof LIBRARY_KINDS)[number];
+export type LibraryShelf = (typeof LIBRARY_SHELVES)[number];
+
+/**
+ * Which `media.kind`s each shelf lists (RESTRUCTURE.md § 2.7.) — the whole of what
+ * `isOfShelf` asks the database.
+ *
+ * WARN: This is the half of a shelf that `LIBRARY_SHELVES` is not, and it is now
+ * enforced rather than remembered: `satisfies Record<LibraryShelf, …>` fails to
+ * compile on a shelf declared without its kinds. It used to be a chain of `IS NULL`
+ * clauses whose 사진 branch was "neither of the others", where a kind added without
+ * a clause did not open an empty segment — it spilled into 사진.
+ *
+ * INFO: `audio` is on no shelf and that is deliberate. It is § 5.'s emoticon sound rather than anything 보관함 lists, and it matches no row at all until then.
+ */
+export const SHELF_KINDS = {
+  gallery: ["image", "video"],
+  file: ["file"],
+  voice: ["voice"],
+} as const satisfies Record<LibraryShelf, readonly MediaKind[]>;
 
 /**
  * What each shelf is called on screen — the chips of DESIGN.md § 7.10., and the
  * only names a user has for these three sets.
  *
  * WARN: One table, read by the segment chips **and** by the copy that says an upload
- * landed on a different shelf than the one it was dropped on (REQUIREMENTS.md § 10.).
- * Written out twice, a renamed chip leaves the toast naming a shelf that is not there.
+ * landed on a different shelf than the one it was dropped on (REQUIREMENTS.md § 10.),
+ * and by the staging sheet's own title. Written out twice, a renamed chip leaves the
+ * toast naming a shelf that is not there.
+ *
+ * WARN: A shelf's label is not a **noun for its contents**. 갤러리 names the screen; what is counted and reported as missing there is still 사진 (`LOAD_FAILURE_SUBJECTS`, `toMediaCountUnit`), because `갤러리를 더 불러오지 못했어요` says the screen failed rather than the photos.
  */
-export const LIBRARY_KIND_LABELS: Record<LibraryKind, string> = {
-  photo: "사진",
+export const LIBRARY_SHELF_LABELS: Record<LibraryShelf, string> = {
+  gallery: "갤러리",
   file: "파일",
   voice: "음성",
 };
@@ -80,9 +136,9 @@ export const LIBRARY_KIND_LABELS: Record<LibraryKind, string> = {
  * INFO: AGENTS.md § 0.4. The particle that follows is chosen by `josa` at the call
  * site, because `3장을` and `3개를` are the same sentence with different 받침.
  *
- * INFO: Takes a `MediaKind` rather than the `LibraryKind` it began as, so a set that is *all* video can be counted too — `toMediaKind` calls a mixed set `photo`, which is the same rule the 사진 shelf follows when it counts a selection carrying both in 장.
+ * INFO: Takes a `MediaNoun` rather than the shelf it began as, so a set that is *all* video can be counted too — `toMediaNoun` calls a mixed set `photo`, which is the same rule 갤러리 follows when it counts a selection carrying both in 장.
  */
-export function toMediaCountUnit(kind: Nullable<MediaKind>): string {
+export function toMediaCountUnit(kind: Nullable<MediaNoun>): string {
   return kind === "photo" ? "장" : "개";
 }
 
@@ -90,11 +146,17 @@ export function toMediaCountUnit(kind: Nullable<MediaKind>): string {
  * The key prefixes `POST /api/media/upload-url` will sign for, and the set
  * `POST /api/media` accepts a registration under.
  *
- * WARN: A subset of `StorageScope`, not a copy of it. `emoticon` is deliberately
- * absent — REQUIREMENTS.md § 13.3. keeps those objects out of `media` entirely and
- * registers them through their own route, because a `media` row is a library row.
+ * WARN: A subset of `MEDIA_SCOPES`, not a copy of it, and `emoticon` stays absent for a
+ * reason that has changed. It used to be that an emoticon object was not a `media` row
+ * at all; RESTRUCTURE.md § 5. makes it one, and the exclusion survives because those
+ * objects are uploaded through `/api/emoticons/upload-url` — which is mirrored to
+ * jandh-emoticons and signs its own keys — rather than through this route.
  */
-export const MEDIA_UPLOAD_SCOPES = ["chat", "avatar", "background"] as const;
+export const MEDIA_UPLOAD_SCOPES = [
+  "chat",
+  "avatar",
+  "background",
+] as const satisfies readonly MediaScope[];
 
 export type MediaUploadScope = (typeof MEDIA_UPLOAD_SCOPES)[number];
 
@@ -271,7 +333,7 @@ export function toSafeFilename(name: string): string {
 }
 
 /** What a media bubble is called where it cannot be drawn — the § 8.10. quote and the § 16.1. push body. */
-export type MediaKind = "photo" | "video" | "file" | "voice";
+export type MediaNoun = "photo" | "video" | "file" | "voice";
 
 /**
  * The one kind that names a whole bubble's attachments.
@@ -284,7 +346,7 @@ export type MediaKind = "photo" | "video" | "file" | "voice";
  * manifest in a line with room for neither. A file bubble never mixes with them at
  * all (REQUIREMENTS.md § 9.1.), so its own kind is exact rather than a majority.
  */
-export function toMediaKind(items: MediaKindInput[]): Nullable<MediaKind> {
+export function toMediaNoun(items: MediaNounInput[]): Nullable<MediaNoun> {
   if (items.length === 0) {
     return null;
   }
@@ -301,7 +363,7 @@ export function toMediaKind(items: MediaKindInput[]): Nullable<MediaKind> {
   return items.every((item) => isVideoMime(item.mime)) ? "video" : "photo";
 }
 
-export function toMediaLabel(kind: Nullable<MediaKind>): string {
+export function toMediaLabel(kind: Nullable<MediaNoun>): string {
   if (kind === "file") {
     return "파일";
   }
@@ -313,7 +375,7 @@ export function toMediaLabel(kind: Nullable<MediaKind>): string {
   return kind === "video" ? "동영상" : "사진";
 }
 
-type MediaKindInput = {
+type MediaNounInput = {
   mime: string;
   filename: Nullable<string>;
   /** REQUIREMENTS.md § 9.3. Present on a voice message and `null` on everything else — the same job `filename` does one line above. */

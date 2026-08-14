@@ -7,10 +7,12 @@ import {
   THUMBNAIL_MIME,
   isAllowedMediaMime,
   isFileMime,
+  isVideoMime,
   isVoiceMime,
   isWaveformPeaks,
   maxSizeForScope,
   toSafeFilename,
+  type MediaKind,
   type MediaUploadScope,
 } from "@/shared/config";
 import { getDb, media, nextSnowflake } from "@/shared/db";
@@ -23,8 +25,9 @@ import type { ArchiveMedia } from "../model/types";
 export type RegisterMediaParams = {
   ownerId: UserId;
   r2Key: string;
-  width: number;
-  height: number;
+  /** RESTRUCTURE.md § 2.4. Null for a caller that has no box to measure, and refused below for one that should have had it. */
+  width: Nullable<number>;
+  height: Nullable<number>;
   durationMs?: Nullable<number>;
   /** REQUIREMENTS.md § 9. The placeholder for the `_thumb` object, encoded in the browser from the pixels it uploaded — the server never sees them, so it cannot produce one. */
   blurhash?: Nullable<string>;
@@ -105,7 +108,7 @@ export async function registerMedia({
     return null;
   }
 
-  // WARN: § 9.3. Likewise. The 음성 shelf now holds a recording that rides no bubble, so 보관함에만 추가 is a real choice on that screen and the row it writes is listed by `isOfKind`'s voice branch (§ 10.).
+  // WARN: § 9.3. Likewise. The 음성 shelf now holds a recording that rides no bubble, so 보관함에만 추가 is a real choice on that screen and the row it writes is listed by the 음성 shelf's own kind (§ 10.).
   if (isVoice && scope !== "chat") {
     return null;
   }
@@ -123,8 +126,9 @@ export async function registerMedia({
     return null;
   }
 
-  // WARN: REQUIREMENTS.md § 8.3. The route admits a zero only so a row with no drawn box can decline to measure one. A photo or a video that arrives with one is refused here rather than stored: `toMediaBoxHeight` divides by `width` for a single attachment, so a `0` row makes the whole virtualized list resolve its total size to `NaN` and stop laying out.
-  if (!hasNoBox && (width <= 0 || height <= 0)) {
+  // WARN: REQUIREMENTS.md § 8.3. A photo or a video that arrives without a usable box is refused here rather than stored: `toMediaBoxHeight` divides by `width` for a single attachment, so an unmeasured row makes the whole virtualized list resolve its total size to `NaN` and stop laying out.
+  // WARN: RESTRUCTURE.md § 2.4. `<= 0` as well as null, because the route still accepts a number from the client and `0` is what it used to send for a row with no box — that reading is now a null, and a zero arriving here is a caller that failed to measure rather than one that had nothing to measure.
+  if (!hasNoBox && (width === null || height === null || width <= 0 || height <= 0)) {
     return null;
   }
 
@@ -136,9 +140,12 @@ export async function registerMedia({
       r2Key,
       mime: object.mime,
       size: object.size,
-      // WARN: § 9.1., § 9.3. Zeroed rather than trusted. The client has no box to measure for either kind, so whatever it sent is a guess the row would carry forever.
-      width: hasNoBox ? 0 : width,
-      height: hasNoBox ? 0 : height,
+      // INFO: RESTRUCTURE.md § 2.2. Decided here, from what the bytes turned out to be — never probed back out of the columns below, which is the ordering trap this column replaces.
+      kind: toMediaKind(object.mime, { isFile, isVoice }),
+      scope,
+      // WARN: § 9.1., § 9.3. Nulled rather than trusted. The client has no box to measure for either kind, so whatever it sent is a guess the row would carry forever — and § 2.5.'s CHECK refuses a number here anyway.
+      width: hasNoBox ? null : width,
+      height: hasNoBox ? null : height,
       // WARN: § 9.3. A voice message **keeps** its duration where a file drops one. It is not decoration: the player draws its progress against this figure rather than against `audio.duration`, which a `MediaRecorder` WebM reports as `Infinity`. Nulling it here is what left the waveform frozen at `0:00`.
       durationMs: isFile ? null : (durationMs ?? null),
       // INFO: § 9.1., § 9.3. Nulled across `hasNoBox` for one reason, not two: neither kind uploaded a `_thumb` object for a placeholder to stand in for, and neither is drawn in a box one could be painted into.
@@ -146,7 +153,8 @@ export async function registerMedia({
       blurhash: hasNoBox ? null : (blurhash ?? null),
       filename: storedName,
       waveformPeaks: isVoice ? waveformPeaks : null,
-      galleryAddedAt: addToGallery ? new Date() : null,
+      // WARN: RESTRUCTURE.md § 2.8. `archive_*` is the pair `isInLibrary` reads. The `gallery_*` columns still exist until migration B and are no longer written, so anything moved back to them writes a row 보관함 cannot see.
+      archiveAddedAt: addToGallery ? new Date() : null,
     })
     // INFO: `r2_key` is unique, so a retried registration returns the row the first attempt wrote instead of failing the send.
     .onConflictDoNothing({ target: media.r2Key })
@@ -157,6 +165,34 @@ export async function registerMedia({
   }
 
   return getMediaByKey(r2Key, ownerId);
+}
+
+/**
+ * RESTRUCTURE.md § 2.2. What the row is, from the two decisions this function has
+ * already made and the stored mime for the rest.
+ *
+ * WARN: `voice` before `audio`, and the two are not the same. A recording is decided
+ * above — peaks, in the right shape, on a mime this app records into — and anything
+ * else that is audio is an ordinary audio object. Collapsing them would file § 5.'s
+ * emoticon sounds as voice messages and put them in 보관함's 음성 shelf.
+ */
+function toMediaKind(
+  mime: string,
+  { isFile, isVoice }: { isFile: boolean; isVoice: boolean },
+): MediaKind {
+  if (isVoice) {
+    return "voice";
+  }
+
+  if (isFile) {
+    return "file";
+  }
+
+  if (isVideoMime(mime)) {
+    return "video";
+  }
+
+  return mime.startsWith("audio/") ? "audio" : "image";
 }
 
 /**

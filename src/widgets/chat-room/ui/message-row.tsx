@@ -14,7 +14,7 @@ import {
   type Nullable,
   type Optional,
 } from "@/shared/lib";
-import { Avatar, IconButton, VoicePlayer, type MediaCell } from "@/shared/ui";
+import { Avatar, IconButton, MediaTombstone, VoicePlayer, type MediaCell } from "@/shared/ui";
 import { CornerUpLeft, RotateCcw, Share, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
@@ -192,14 +192,19 @@ export function MessageRow({
             // INFO: REQUIREMENTS.md § 9.3. `VoicePlayer` draws its own fill, so the row hands it only the notch corner the group rule asks for (DESIGN.md § 6.2.).
             // WARN: The waveform's tap is a `pointerdown` on a descendant of this wrapper, so the hold's click capture still reaches it — a held finger opens the sheet and the seek it would have made is swallowed with the release.
             <div className={LONG_PRESS_TARGET_CLASS} {...longPressHandlers}>
-              <VoicePlayer
-                className={cn(isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"))}
-                src={voiceCell.originalUrl}
-                durationMs={voiceCell.durationMs ?? 0}
-                peaks={voiceCell.voice?.peaks ?? []}
-                isMine={isMine}
-                isPending={status !== "sent"}
-              />
+              {voiceCell.isDeleted ? (
+                // INFO: RESTRUCTURE.md § 4.3. `VOICE_CARD_HEIGHT`'s own `h-14` and the player's own radius, so the row keeps its height and its shape — the transport would otherwise draw a waveform over an object that is gone.
+                <MediaTombstone className="h-14 w-55 flex-row rounded-bubble" cell={voiceCell} />
+              ) : (
+                <VoicePlayer
+                  className={cn(isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"))}
+                  src={voiceCell.originalUrl}
+                  durationMs={voiceCell.durationMs ?? 0}
+                  peaks={voiceCell.voice?.peaks ?? []}
+                  isMine={isMine}
+                  isPending={status !== "sent"}
+                />
+              )}
             </div>
           ) : hasMedia ? (
             // INFO: DESIGN.md § 6.5. Attachments render without a bubble — a container around a photo is redundant chrome.

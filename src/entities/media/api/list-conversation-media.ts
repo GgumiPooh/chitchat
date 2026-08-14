@@ -1,9 +1,9 @@
 import "server-only";
 
-import { CHAT_MEDIA_TRACK_SPAN } from "@/shared/config";
+import { CHAT_MEDIA_TRACK_SPAN, VISUAL_KINDS } from "@/shared/config";
 import { getDb, media, messageMedia, messages } from "@/shared/db";
 import type { MediaId, MessageId, Optional } from "@/shared/lib";
-import { and, asc, desc, eq, isNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { toChatMedia } from "../model/to-chat-media";
 import type { ChatTrackMedia } from "../model/types";
 
@@ -110,17 +110,21 @@ async function selectPage(
     .from(messageMedia)
     .innerJoin(messages, eq(messages.id, messageMedia.messageId))
     .innerJoin(media, eq(media.id, messageMedia.mediaId))
-    // INFO: § 9.1., § 9.3. `filename` and `waveformPeaks` are the two discriminators, exactly as `isOfKind`'s 사진 shelf reads them.
+    // INFO: RESTRUCTURE.md § 1.2. `VISUAL_KINDS` — the set with a box to draw, which is what the § 7.10. viewer can open at all. It was `filename IS NULL AND waveform_peaks IS NULL` before the kind column, and the two answer the same rows.
+    // INFO: RESTRUCTURE.md § 4.3. A destroyed object has nothing to open, so it is not a slide. The bubble's own grid still draws a tombstone where it was.
     .where(
-      and(isNull(messages.deletedAt), isNull(media.filename), isNull(media.waveformPeaks), within),
+      and(
+        isNull(messages.deletedAt),
+        isNull(media.deletedAt),
+        inArray(media.kind, [...VISUAL_KINDS]),
+        within,
+      ),
     )
     .orderBy(order(messageMedia.messageId), order(messageMedia.sortOrder))
     .limit(limit);
 
   return rows.map(({ row, messageId, senderId }) => ({
     ...toChatMedia(row),
-    // INFO: DESIGN.md § 7.10. The same instant `toArchiveMedia` projects, for the same caption — one send's attachments share it (§ 6.), which is exactly what the bubble's own timestamp shows.
-    createdAt: row.createdAt.toISOString(),
     messageId,
     senderId,
   }));

@@ -24,12 +24,12 @@ export async function listUsers(): Promise<Participant[]> {
       // INFO: REQUIREMENTS.md § 12.1. A cover may be a video, so the renderer has to know which element to reach for before it fetches anything — and a `media` id says nothing about that on its own.
       profileBackgroundMime: media.mime,
       // INFO: REQUIREMENTS.md § 8.8. The other person's cursor is what the `1` marker reads.
-      lastReadAt: users.lastReadAt,
+      lastReadMessageId: users.lastReadMessageId,
     })
     .from(users)
     // WARN: A `leftJoin`, never an inner one — the overwhelmingly common case is a user with no cover at all, and an inner join would drop them from the participant set entirely.
     .leftJoin(media, eq(media.id, users.profileBackgroundMediaId))
-    .orderBy(asc(users.createdAt));
+    .orderBy(asc(users.id));
 
   return rows.map(toParticipant);
 }

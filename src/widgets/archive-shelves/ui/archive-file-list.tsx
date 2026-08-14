@@ -44,7 +44,7 @@ export function ArchiveFileList({
   onDownload,
   onLoadMore,
 }: ArchiveFileListProps) {
-  // INFO: The same `ArchiveMedia` sections the grid builds — a file row carries `createdAt` like every other library row, so the month header needed no change at all.
+  // INFO: The same `ArchiveMedia` sections the grid builds — a file row carries an id like every other library row, so the month header needed no change at all.
   const sections = useMemo(() => toArchiveSections(media), [media]);
   const { ref: sentinelRef, inView } = useInView({ rootMargin: "600px" });
 
