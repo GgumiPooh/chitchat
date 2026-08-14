@@ -488,9 +488,9 @@ export function MediaViewer({
           {cells.map((cell, slideIndex) => (
             <div
               key={cell.id}
-              // INFO: Vertical padding only. A side gutter reads as a frame around the photo, and the viewer's whole point is that the image is the screen.
+              // INFO: DESIGN.md § 7.10. No padding on either axis. The slide *is* the screen, and the asset's own `object-contain` is what keeps it inside — a gutter only makes the picture smaller than the screen can hold.
               // WARN: REQUIREMENTS.md § 8.1. `snap-always` is what holds one drag to one slide. Without it a flick's momentum runs through every snap point it passes, and a track that spans the conversation answers a firm swipe with five photos gone by.
-              className="flex w-full shrink-0 snap-center snap-always items-center justify-center py-md"
+              className="flex w-full shrink-0 snap-center snap-always items-center justify-center"
             >
               {/* WARN: REQUIREMENTS.md § 10. Only the neighbours load their asset. Every slide used to request its original on mount, which was bounded by `MAX_MEDIA_PER_MESSAGE` in a chat bubble but is the whole loaded library here — opening one photo after three pages of scrolling started 180 requests for objects of up to `MAX_IMAGE_SIZE`. */}
               {Math.abs(slideIndex - index) > 1 ? (
