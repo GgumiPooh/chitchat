@@ -15,7 +15,6 @@ import {
   useModalOverlay,
   usePinchZoom,
   useSettledCommit,
-  useSwipeDismiss,
   whenMediaMorphSettled,
   type MediaId,
   type MessageId,
@@ -32,7 +31,6 @@ import {
   type ComponentProps,
   type FC,
   type MouseEvent,
-  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { IconButton } from "./icon-button";
 import { toCellRatio, type MediaCell } from "./media-cell";
@@ -204,13 +202,6 @@ export function MediaViewer({
   const zoom = usePinchZoom();
   // INFO: Taken off the hook once, because the correction below has to depend on it and `zoom` itself is a fresh object on every render — `reset` is the stable half of it.
   const resetZoom = zoom.reset;
-  // INFO: DESIGN.md § 7.10. Pull the track down to close, the way iOS's own photo viewer does — the second way out, beside 닫기 and `Escape`, and the only one a thumb reaches without travelling to a corner.
-  // WARN: Withheld while the slide is zoomed, by the rule that freezes the swipe (REQUIREMENTS.md § 18. #6.) — the pan owns the finger there, and a downward one is how a reader reaches the bottom of a zoomed photo.
-  const dismiss = useSwipeDismiss({
-    isEnabled: !zoom.isZoomed,
-    canStart: (event) => !isOnPlayer(event.target, event.clientX, event.clientY),
-    onDismiss: handleClose,
-  });
   const captureRoot = zoom.captureRoot;
   /**
    * WARN: The two owners of this element are composed by hand, and both return a cleanup React has to be able to call. `useModalOverlay`'s attach **focuses** the container, so a fresh arrow here would re-run it on every render — and the viewer re-renders on every slide the reader crosses.
@@ -416,9 +407,8 @@ export function MediaViewer({
           className,
         )}
         role="dialog"
-        // INFO: DESIGN.md § 7.10. The scrim thins as the pull-to-close drag travels, and the chrome over it goes with it — what is being uncovered is the screen underneath, so nothing that belongs to the viewer may stay at full strength over it.
         // INFO: DESIGN.md § 4.7.3. The name is what makes the scrim and the chrome resolve around the travelling picture. It cannot reach the slide: that one carries its own name and is lifted into a group above this, which is exactly what lets the photo arrive at full strength.
-        style={{ ...dismiss.scrimStyle, viewTransitionName: MEDIA_VIEWER_NAME }}
+        style={{ viewTransitionName: MEDIA_VIEWER_NAME }}
         aria-modal="true"
         aria-label="첨부 크게 보기"
       >
@@ -483,20 +473,14 @@ export function MediaViewer({
         </div>
         {/* INFO: Native scroll snapping is the horizontal swipe of REQUIREMENTS.md § 8.1. — it costs no gesture code and matches the platform's own momentum. */}
         {/* WARN: REQUIREMENTS.md § 18. #6. A zoomed slide freezes the track, or the pan competes with the swipe for the same finger and the photo changes under it. `overflow-x-hidden` holds `scrollLeft` where it is, so the slide is still the one the reader zoomed when it lifts. */}
-        {/* WARN: DESIGN.md § 7.10. A committed pull-to-close freezes it on the same terms, and this is the half `setPointerCapture` cannot do. Capture retargets the *events*; a native scroll the browser has already begun goes on running underneath, so a drag that started a few degrees off vertical left the viewer following the finger down while the track slid sideways under it. Made unscrollable the pan has nothing left to move. */}
         <div
           ref={captureTrack}
           className={cn(
             "scrollbar-hidden flex min-h-0 flex-1 snap-x snap-mandatory overscroll-x-contain",
-            zoom.isZoomed || dismiss.isDragging ? "overflow-x-hidden" : "overflow-x-auto",
+            zoom.isZoomed ? "overflow-x-hidden" : "overflow-x-auto",
           )}
-          // INFO: DESIGN.md § 7.10. The track is what follows the pull-to-close drag, since it is the whole of what the reader is holding — the chrome fades with the scrim on the root instead.
-          style={dismiss.contentStyle}
           onClick={handleSurfaceClick}
-          onPointerDown={handleTrackPointerDown}
-          onPointerMove={dismiss.surfaceProps.onPointerMove}
-          onPointerUp={dismiss.surfaceProps.onPointerUp}
-          onPointerCancel={dismiss.surfaceProps.onPointerCancel}
+          onPointerDown={cancelPendingStep}
           onScroll={handleScroll}
           onWheel={cancelPendingStep}
         >
@@ -640,12 +624,10 @@ export function MediaViewer({
   );
 
   /**
-   * DESIGN.md § 4.7.3. Every way out routes through here, so the slide collapses back
-   * into its thumbnail whichever of the three the reader used — 닫기, `Escape`, or the
-   * downward pull.
+   * DESIGN.md § 4.7.3. Both ways out route through here, so the slide collapses back
+   * into its thumbnail whichever the reader used — 닫기 or `Escape`.
    *
-   * INFO: The pull is included deliberately. The gesture has already carried the slide part-way down under the finger, and the capture is taken from wherever it was let go, so the picture continues from there to the tile rather than snapping back first.
-   * WARN: A plain function declaration and not a `useCallback`. `useModalOverlay` holds its handler in a ref for exactly this, and `useSwipeDismiss` already receives a fresh arrow from every caller — so identity here is no less stable than the `onClose` it replaces.
+   * WARN: A plain function declaration and not a `useCallback`. `useModalOverlay` holds its handler in a ref for exactly this — so identity here is no less stable than the `onClose` it replaces.
    */
   function handleClose() {
     endMediaMorph(current ? (findMorphOrigin?.(current.id) ?? null) : null, onClose);
@@ -724,12 +706,6 @@ export function MediaViewer({
     steppedRef.current = null;
   }
 
-  // INFO: The track's own `pointerdown` does two unrelated things, and the pull-to-close gesture is the one that has to see every press rather than only the ones that interrupt a step.
-  function handleTrackPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    cancelPendingStep();
-    dismiss.surfaceProps.onPointerDown(event);
-  }
-
   function handleScroll() {
     const track = trackRef.current;
 
@@ -759,17 +735,12 @@ export function MediaViewer({
    * DESIGN.md § 7.10. A tap anywhere on the slide toggles the chrome, so a photo can
    * be looked at with nothing over it.
    *
-   * WARN: It does **not** close, unlike every other overlay's scrim (§ 3.5.1.). The photo is `object-contain`, so a portrait one leaves most of the screen as scrim — and § 8.1.'s track is a stream the reader swipes through rather than a single photo they opened, where a tap landing a few pixels off the image threw them out of it. 닫기 and `Escape` are the ways out, and neither can be hit by accident.
+   * WARN: It does **not** close, unlike every other overlay's scrim (§ 3.5.1.). The photo is `object-contain`, so a portrait one leaves most of the screen as scrim — and § 8.1.'s track is a stream the reader swipes through rather than a single photo they opened, where a tap landing a few pixels off the image threw them out of it. 닫기 and `Escape` are the only ways out, and neither can be hit by accident.
    * WARN: A `<video>` is excluded whole. Its controls are the platform's own and a tap that lands between two of them is aimed at the player, not past it. So is every control on a slide.
    * WARN: It must stay a `click`: a `pointerdown` here would fire under the OS hold that § 8.11. deliberately leaves to iOS, and the chrome would vanish as the 사진에 저장 menu opened over it.
    */
   function handleSurfaceClick(event: MouseEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
-
-    // WARN: A pull-to-close drag that sprang back still ends in a `click` on the surface it started over. Left unread it toggles the chrome away on every abandoned dismiss, which is a gesture readers make constantly while deciding.
-    if (dismiss.consumeClick()) {
-      return;
-    }
 
     if (target.closest("a, button") || isOnPlayer(target, event.clientX, event.clientY)) {
       return;
