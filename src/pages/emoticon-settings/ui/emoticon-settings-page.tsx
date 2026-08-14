@@ -30,7 +30,7 @@ export type EmoticonSettingsPageProps = {
 
 /**
  * REQUIREMENTS.md § 13.5. The KakaoTalk 이모티콘 관리 screen, in two tabs — 사용중,
- * which the user orders, and 이모티콘그룹 검색, which is the library.
+ * which the user orders, and 이모티콘 묶음 검색, which is the library.
  *
  * INFO: The split is what dissolves a conflict rather than a taste in navigation: a
  * library holds ten thousand packs and a user enables thirty, and the list that has to
@@ -84,7 +84,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
             variant="floating"
             Icon={Plus}
             haptic
-            aria-label="새 이모티콘 그룹"
+            aria-label="새 이모티콘 묶음"
             onClick={() => setIsAddMenuOpen(true)}
           />
         }
@@ -114,7 +114,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
       {/* INFO: REQUIREMENTS.md § 13.5. Two ways to make a pack — name one and fill it by hand, or hand it off to jandh-emoticons, which imports one whole. */}
       <ActionSheet
         isOpen={isAddMenuOpen}
-        header={{ title: "이모티콘 그룹 추가" }}
+        header={{ title: "이모티콘 묶음 추가" }}
         items={[
           { label: "직접 만들기", Icon: Plus, onSelect: () => setIsCreating(true) },
           { label: "URL로 추가", Icon: Link2, onSelect: openImport },
@@ -134,7 +134,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
           { label: "이름 바꾸기", Icon: Pencil, onSelect: () => setRenamingId(managedId) },
           { label: "숨기기", Icon: EyeOff, onSelect: () => hidePack(managedId) },
           {
-            label: "이모티콘 그룹 삭제",
+            label: "이모티콘 묶음 삭제",
             Icon: Trash2,
             variant: "destructive",
             onSelect: () => setDeletingId(managedId),
@@ -154,7 +154,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
         isOpen={deleting !== undefined}
         header={{
           title: deleting ? `${josa(deleting.name, "을/를")} 삭제할까요?` : "",
-          description: "이모티콘 그룹과 그 안의 이모티콘이 모두 사라져요",
+          description: "이모티콘 묶음과 그 안의 이모티콘이 모두 사라져요",
         }}
         onClose={() => setDeletingId(null)}
       >

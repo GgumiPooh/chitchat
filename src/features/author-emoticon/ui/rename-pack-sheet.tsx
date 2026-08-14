@@ -26,14 +26,14 @@ export function RenamePackSheet({ className, pack, onClose, onRenamed }: RenameP
     <BottomSheet
       className={className}
       isOpen={pack !== null}
-      header={{ title: "이모티콘 그룹 이름 바꾸기" }}
+      header={{ title: "이모티콘 묶음 이름 바꾸기" }}
       onClose={onClose}
     >
       <div className="space-y-sm pt-2xs">
         <Input
           value={name}
           maxLength={MAX_EMOTICON_PACK_NAME_LENGTH}
-          placeholder="이모티콘 그룹 이름"
+          placeholder="이모티콘 묶음 이름"
           onChange={(event) => setName(event.target.value)}
         />
         <Button disabled={!canSubmit} haptic onClick={() => void submit()}>

@@ -14,7 +14,7 @@ export type EmoticonSettingsTabsProps = {
 
 const TABS: { value: EmoticonSettingsTab; label: string }[] = [
   { value: "using", label: "사용중" },
-  { value: "browse", label: "이모티콘그룹 검색" },
+  { value: "browse", label: "이모티콘 묶음 검색" },
 ];
 
 /**

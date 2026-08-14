@@ -4,7 +4,7 @@ import { EMOTICON_PACKS_URL } from "@/shared/config";
 import type { Nullable } from "@/shared/lib";
 
 /**
- * REQUIREMENTS.md § 13.5. One page of the 이모티콘그룹 검색 tab — the whole library,
+ * REQUIREMENTS.md § 13.5. One page of the 이모티콘 묶음 검색 tab — the whole library,
  * narrowed by name and walked by cursor.
  *
  * WARN: `q` is sent even when it is blank, and that is what asks for a *page* at all:

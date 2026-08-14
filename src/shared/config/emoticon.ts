@@ -131,7 +131,7 @@ export const EMOTICON_MAX_EDGE = 420;
 export const MAX_EMOTICON_PACK_NAME_LENGTH = 40;
 
 /**
- * How many packs one page of § 13.5.'s 이모티콘그룹 검색 tab holds, and the most a caller
+ * How many packs one page of § 13.5.'s 이모티콘 묶음 검색 tab holds, and the most a caller
  * may ask for.
  *
  * WARN: REQUIREMENTS.md § 13.5. The paged read is the **search** tab's, never the

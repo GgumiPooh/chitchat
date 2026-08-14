@@ -26,7 +26,7 @@ export type EmoticonPackBrowserProps = {
 };
 
 /**
- * REQUIREMENTS.md § 13.5. The 이모티콘그룹 검색 tab — the whole library, windowed,
+ * REQUIREMENTS.md § 13.5. The 이모티콘 묶음 검색 tab — the whole library, windowed,
  * with a switch per row and no reordering.
  *
  * INFO: The two tabs exist because those last two clauses cannot both be had in one
@@ -119,8 +119,8 @@ export function EmoticonPackBrowser({
             // WARN: Not `type="search"`. WebKit draws its own clear glyph inside such a field, which this pill has no room for and no style to match.
             type="text"
             value={query}
-            placeholder="이모티콘 그룹 이름 검색"
-            aria-label="이모티콘 그룹 이름 검색"
+            placeholder="이모티콘 묶음 이름 검색"
+            aria-label="이모티콘 묶음 이름 검색"
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
@@ -146,7 +146,7 @@ export function EmoticonPackBrowser({
 
     if (hasFailed) {
       return (
-        <EmptyState className="m-md" Icon={Smile} description="이모티콘 그룹을 불러오지 못했어요" />
+        <EmptyState className="m-md" Icon={Smile} description="이모티콘 묶음을 불러오지 못했어요" />
       );
     }
 
@@ -156,7 +156,7 @@ export function EmoticonPackBrowser({
           className="m-md"
           Icon={Smile}
           description={
-            query.trim().length > 0 ? "검색 결과가 없어요" : "아직 이모티콘 그룹이 없어요"
+            query.trim().length > 0 ? "검색 결과가 없어요" : "아직 이모티콘 묶음이 없어요"
           }
         />
       );

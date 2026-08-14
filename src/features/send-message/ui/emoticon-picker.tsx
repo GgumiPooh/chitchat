@@ -472,10 +472,10 @@ export function EmoticonPicker({
           onFocus={trackCellFocus}
           {...swipeHandlers}
         >
-          {/* WARN: § 13.6. The tab's own items are a request now, so the grid waits for them as it waits for the list. Drawn before they land, a pack tab paints `이 그룹에는 이모티콘이 없어요` over a pack that has plenty — the verdict-before-the-answer § 13.9.1. removed from the search pane. */}
+          {/* WARN: § 13.6. The tab's own items are a request now, so the grid waits for them as it waits for the list. Drawn before they land, a pack tab paints `이 묶음에는 이모티콘이 없어요` over a pack that has plenty — the verdict-before-the-answer § 13.9.1. removed from the search pane. */}
           {/* WARN: § 13.6. 최근 사용 is the default tab and its ids resolve through a request of their own, so it needs the same guard — without it the panel flashes `최근 사용한 이모티콘이 여기에 보여요` every time it opens ahead of the preload. Every send used to do it too, a new id being a cold key; `emoticons-query.ts` holds the previous answer over for exactly that. */}
           {/* INFO: § 13.6. A pack tab holds nothing over, deliberately, where 최근 사용 does. The key there is the same list plus one item; here it is a **different pack**, and what would slide in under the new tab is another pack's shelf, swapped out a round trip later. */}
-          {/* INFO: § 13.6. So the animation below decorates the arrival rather than the gesture — a warm tab slides at once, a cold one is blank for a round trip and slides after. Recorded and not fixed: waiting is still better than painting `이 그룹에는 이모티콘이 없어요` over a pack that is full. */}
+          {/* INFO: § 13.6. So the animation below decorates the arrival rather than the gesture — a warm tab slides at once, a cold one is blank for a round trip and slides after. Recorded and not fixed: waiting is still better than painting `이 묶음에는 이모티콘이 없어요` over a pack that is full. */}
           {isPending ||
           (activePackId !== null && isPackPending) ||
           (activeTab === RECENTS_TAB && isRecentsPending) ? null : (
@@ -641,7 +641,7 @@ export function EmoticonPicker({
    *
    * WARN: A failed request is not an empty pack, and saying so was the bug. The items
    * behind both tabs are requests now, and `isPending` goes false on an error as
-   * readily as on an answer — so the grid asserted `이 그룹에는 이모티콘이 없어요` over
+   * readily as on an answer — so the grid asserted `이 묶음에는 이모티콘이 없어요` over
    * a pack that had plenty and the user had no way to tell.
    */
   function toGridEmptyMessage(): string {
@@ -651,7 +651,7 @@ export function EmoticonPicker({
         : "최근 사용한 이모티콘이 여기에 보여요";
     }
 
-    return hasPackFailed ? "이모티콘을 불러오지 못했어요" : "이 그룹에는 이모티콘이 없어요";
+    return hasPackFailed ? "이모티콘을 불러오지 못했어요" : "이 묶음에는 이모티콘이 없어요";
   }
 
   /**

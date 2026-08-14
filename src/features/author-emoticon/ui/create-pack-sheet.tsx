@@ -27,7 +27,7 @@ export function CreatePackSheet({ className, isOpen, onClose, onCreated }: Creat
       className={className}
       isOpen={isOpen}
       header={{
-        title: "새 이모티콘 그룹 추가하기",
+        title: "새 이모티콘 묶음 추가하기",
         description: "이름만 정하면 돼요.\n이미지는 이후에 하나씩 추가할 수 있어요",
       }}
       onClose={handleClose}
@@ -36,7 +36,7 @@ export function CreatePackSheet({ className, isOpen, onClose, onCreated }: Creat
         <Input
           value={name}
           maxLength={MAX_EMOTICON_PACK_NAME_LENGTH}
-          placeholder="이모티콘 그룹 이름"
+          placeholder="이모티콘 묶음 이름"
           onChange={(event) => setName(event.target.value)}
         />
         <Button
@@ -62,7 +62,7 @@ export function CreatePackSheet({ className, isOpen, onClose, onCreated }: Creat
       onCreated(await createEmoticonPack(name.trim()));
       handleClose();
     } catch {
-      toast.error("이모티콘 그룹을 만들지 못했어요");
+      toast.error("이모티콘 묶음을 만들지 못했어요");
     } finally {
       setIsSubmitting(false);
     }
