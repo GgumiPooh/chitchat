@@ -8,7 +8,7 @@ import type { MediaId, MessageId, Nullable, UserId } from "@/shared/lib";
 export type ChatMedia = {
   mime: string;
   // INFO: REQUIREMENTS.md § 8.3. What the virtualizer reserves the row's box from, before the asset loads.
-  // INFO: RESTRUCTURE.md § 2.4. Null wherever there is no box — a file attachment (§ 9.1.) and a voice message (§ 9.3.), both drawn at a fixed height. It used to be `0`, and the sentinel is what made "read `filename` and `voice` first" a rule every reader had to remember; a null is a branch the compiler asks for.
+  // INFO: The finished restructure. Null wherever there is no box — a file attachment (§ 9.1.) and a voice message (§ 9.3.), both drawn at a fixed height. It used to be `0`, and the sentinel is what made "read `filename` and `voice` first" a rule every reader had to remember; a null is a branch the compiler asks for.
   width: Nullable<number>;
   height: Nullable<number>;
   /** REQUIREMENTS.md § 9.3. The running time a voice player draws its progress against, and a video cell its badge. */
@@ -34,7 +34,7 @@ export type ChatMedia = {
   // INFO: § 9.1. The file card names its own size, which is the only thing it can say about a document it cannot draw.
   size: number;
   /**
-   * RESTRUCTURE.md § 4.3. Whether the uploader has deleted the object outright, which
+   * The finished restructure. Whether the uploader has deleted the object outright, which
    * is what makes the cell a tombstone rather than a picture.
    *
    * INFO: § 4.3. The row survives the delete — `message_media`'s FK and § 8.13.'s
@@ -60,7 +60,7 @@ export type ChatMedia = {
  *
  * INFO: `senderId` rather than an `isMine` the server resolved. The room already holds `currentUserId` and decides every other bubble's side with it (§ 6.), and a second answer to the same question is a second thing to keep true.
  *
- * INFO: RESTRUCTURE.md § 3.4. No `createdAt`. DESIGN.md § 7.10.'s caption reads `idToDate(id)`, which is the instant the id already carries — sending a derived copy beside it is one fact twice, and two things that can disagree.
+ * INFO: The finished restructure. No `createdAt`. DESIGN.md § 7.10.'s caption reads `idToDate(id)`, which is the instant the id already carries — sending a derived copy beside it is one fact twice, and two things that can disagree.
  */
 export type ChatTrackMedia = ChatMedia & {
   messageId: MessageId;
@@ -70,7 +70,7 @@ export type ChatTrackMedia = ChatMedia & {
 /**
  * A library tile (REQUIREMENTS.md § 10.).
  *
- * INFO: RESTRUCTURE.md § 3.4. No `createdAt` here either, for the reason on `ChatTrackMedia` — the month section header and the keyset cursor are both the id now.
+ * INFO: The finished restructure. No `createdAt` here either, for the reason on `ChatTrackMedia` — the month section header and the keyset cursor are both the id now.
  */
 export type ArchiveMedia = ChatMedia & {
   /**

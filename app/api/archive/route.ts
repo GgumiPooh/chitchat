@@ -13,7 +13,7 @@ import type { MediaId } from "@/shared/lib";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-// INFO: RESTRUCTURE.md § 2.7. What a pre-rename client calls each shelf. Only 사진 moved; the other two are listed so one table answers the whole deprecated parameter rather than a branch answering half of it.
+// INFO: The finished restructure. What a pre-rename client calls each shelf. Only 사진 moved; the other two are listed so one table answers the whole deprecated parameter rather than a branch answering half of it.
 const DEPRECATED_SHELF_NAMES = ["photo", "file", "voice"] as const;
 
 const SHELVES_BY_DEPRECATED_NAME: Record<(typeof DEPRECATED_SHELF_NAMES)[number], LibraryShelf> = {
@@ -22,12 +22,12 @@ const SHELVES_BY_DEPRECATED_NAME: Record<(typeof DEPRECATED_SHELF_NAMES)[number]
   voice: "voice",
 };
 
-// INFO: RESTRUCTURE.md § 3.4. Every cursor here is one `media` id — the pair of query parameters each of them used to take, and the refinement that rejected a half-given one, went with the `created_at` half.
+// INFO: The finished restructure. Every cursor here is one `media` id — the pair of query parameters each of them used to take, and the refinement that rejected a half-given one, went with the `created_at` half.
 const querySchema = z.object({
   // INFO: REQUIREMENTS.md § 10. Which segment is being paged, 갤러리 when the caller says nothing. An unknown value is a 400 rather than a silent fallback — a client asking for a shelf this build has never heard of must not be handed the gallery.
   shelf: z.enum(LIBRARY_SHELVES).optional(),
   /**
-   * TODO: RESTRUCTURE.md § 2.7. Removed in the following cycle, exactly as § 5.7.'s
+   * TODO: The finished restructure. Removed in the following cycle, exactly as § 5.7.'s
    * `slot=image` alias is.
    *
    * WARN: A tab left open across the deploy goes on sending `kind=photo`, and this
@@ -40,7 +40,7 @@ const querySchema = z.object({
   // INFO: REQUIREMENTS.md § 10. The window's first tile, for paging upward out of a jumped window.
   after: snowflakeSchema<MediaId>().optional(),
   /**
-   * TODO: RESTRUCTURE.md § 3.4. The id half of the pair each cursor used to be. Removed
+   * TODO: The finished restructure. The id half of the pair each cursor used to be. Removed
    * in the following cycle with `kind` above.
    *
    * WARN: Silently ignoring these was worse than rejecting them. A tab left open across
@@ -60,7 +60,7 @@ const querySchema = z.object({
 const bodySchema = z.object({
   ids: z.array(snowflakeSchema<MediaId>()).min(1).max(MAX_ARCHIVE_SELECTION),
   /**
-   * RESTRUCTURE.md § 4.1. Which of the two removals this is.
+   * The finished restructure. Which of the two removals this is.
    *
    * INFO: `hide` is the default so a client that has not been updated keeps the
    * behaviour it had — the shelf is curated and nothing is destroyed, which is the
@@ -109,7 +109,7 @@ export async function GET(request: Request) {
  * REQUIREMENTS.md § 18. #1. Takes photos out of the library, and — on `mode: "delete"`
  * — destroys the objects behind them.
  *
- * INFO: RESTRUCTURE.md § 4.1. Neither mode is scoped to the uploader: the library belongs
+ * INFO: The finished restructure. Neither mode is scoped to the uploader: the library belongs
  * to the conversation (§ 6.), so curating it — including throwing something out for good —
  * belongs to both. What keeps 완전 삭제 answerable is that it never removes a bubble, only
  * the picture inside one, and § 4.3.s tombstone is what stands in its place.
@@ -130,13 +130,13 @@ export async function DELETE(request: Request) {
     return apiError("invalid_request");
   }
 
-  // INFO: RESTRUCTURE.md § 4.3. 완전 삭제 answers in the same shape as 숨기기 so the screen has one response to reconcile against — the ids it names have left the shelf either way.
+  // INFO: The finished restructure. 완전 삭제 answers in the same shape as 숨기기 so the screen has one response to reconcile against — the ids it names have left the shelf either way.
   if (body.data.mode === "delete") {
     const deletedIds = await destroyArchiveMedia(body.data.ids);
 
     return NextResponse.json({ hiddenIds: [], deletedIds });
   }
 
-  // INFO: RESTRUCTURE.md § 4.1. No caller is passed: hiding is open to either participant and destroys nothing, so there is nothing here to scope.
+  // INFO: The finished restructure. No caller is passed: hiding is open to either participant and destroys nothing, so there is nothing here to scope.
   return NextResponse.json(await removeArchiveMedia(body.data.ids));
 }

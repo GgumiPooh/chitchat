@@ -194,7 +194,7 @@ export function MessageRow({
             // WARN: The waveform's tap is a `pointerdown` on a descendant of this wrapper, so the hold's click capture still reaches it — a held finger opens the sheet and the seek it would have made is swallowed with the release.
             <div className={LONG_PRESS_TARGET_CLASS} {...longPressHandlers}>
               {voiceCell.isDeleted ? (
-                // INFO: RESTRUCTURE.md § 4.3. `VOICE_CARD_HEIGHT`'s own `h-14` and the player's own radius, so the row keeps its height and its shape — the transport would otherwise draw a waveform over an object that is gone.
+                // INFO: The finished restructure. `VOICE_CARD_HEIGHT`'s own `h-14` and the player's own radius, so the row keeps its height and its shape — the transport would otherwise draw a waveform over an object that is gone.
                 <MediaTombstone className="h-14 w-55 flex-row rounded-bubble" cell={voiceCell} />
               ) : (
                 <VoicePlayer

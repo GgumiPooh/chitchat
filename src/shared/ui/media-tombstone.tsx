@@ -11,7 +11,7 @@ export type MediaTombstoneProps = {
 };
 
 /**
- * RESTRUCTURE.md § 4.3. What stands where a deleted attachment was.
+ * The finished restructure. What stands where a deleted attachment was.
  *
  * WARN: It fills its parent rather than sizing itself, and every caller gives it the
  * box the attachment had. That is the whole point — § 4.3. keeps `width`/`height` on a
@@ -38,7 +38,7 @@ export function MediaTombstone({ className, iconClassName, cell }: MediaTombston
 }
 
 /**
- * RESTRUCTURE.md § 4.3. The sentence a tombstone shows.
+ * The finished restructure. The sentence a tombstone shows.
  *
  * WARN: Exported because 보관함's 완전히 삭제 confirmation quotes it, to show the reader
  * what the other participant will be left looking at. Spelled out a second time there it

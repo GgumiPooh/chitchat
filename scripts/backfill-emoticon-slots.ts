@@ -1,5 +1,5 @@
 /**
- * RESTRUCTURE.md § 5.5. Gives every existing `emoticon_items` row the `media` rows and
+ * The finished restructure. Gives every existing `emoticon_items` row the `media` rows and
  * slot FKs § 5.2. introduced.
  *
  * Three passes, and they are separate because their risk is:

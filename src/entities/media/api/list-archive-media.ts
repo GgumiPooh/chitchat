@@ -25,7 +25,7 @@ import type { ArchiveMedia } from "../model/types";
 
 /**
  * The tile a page is measured from — one `media` id and nothing beside it
- * (RESTRUCTURE.md § 3.4.).
+ * (the finished restructure).
  *
  * WARN: This was the `(created_at, id)` **pair** until the id became the whole of
  * the ordering. It is not a simplification to undo: `created_at` defaults to the
@@ -51,7 +51,7 @@ export type ListArchiveMediaParams = {
 /**
  * One page of one library shelf, newest first (REQUIREMENTS.md § 10.).
  *
- * INFO: RESTRUCTURE.md § 3.4. Ordered by id alone. An id is a total order, so the tie a timestamp had to be broken out of does not arise — see `ArchiveCursor` for the one that used to.
+ * INFO: The finished restructure. Ordered by id alone. An id is a total order, so the tie a timestamp had to be broken out of does not arise — see `ArchiveCursor` for the one that used to.
  *
  * WARN: `around` wins over the other two rather than combining with them, exactly
  * as `listMessages` resolves the same set (§ 8.2.) — they name different windows.
@@ -154,7 +154,7 @@ async function selectAround(
 
 /**
  * Whether the target names a row **on this shelf**, which is the whole of what the
- * cursor now has to establish (RESTRUCTURE.md § 3.4.).
+ * cursor now has to establish (the finished restructure).
  *
  * INFO: The shelf predicate is part of the lookup, not only of the pages around
  * it. A `media` id from another segment resolves to a real row whose place in this
@@ -243,8 +243,8 @@ export function isInLibrary(): Optional<SQL> {
   );
 
   // INFO: REQUIREMENTS.md § 18. #1. The library's own delete, and the only place it is read — a hidden row still renders in the bubble it was sent in.
-  // WARN: RESTRUCTURE.md § 2.8. `archive_*`, not the `gallery_*` pair it was renamed from — those still exist until migration B and hold the pre-deploy values, so a reader left on one of them and a writer moved to the other is a row that is in 보관함 by one column and not by the other.
-  // INFO: RESTRUCTURE.md § 4.3. A row the uploader destroyed leaves the shelf outright rather than being hidden — there is no object left to draw a tile from. The bubble it was sent in still holds its place and draws a tombstone.
+  // WARN: The finished restructure. `archive_*`, not the `gallery_*` pair it was renamed from — those still exist until migration B and hold the pre-deploy values, so a reader left on one of them and a writer moved to the other is a row that is in 보관함 by one column and not by the other.
+  // INFO: The finished restructure. A row the uploader destroyed leaves the shelf outright rather than being hidden — there is no object left to draw a tile from. The bubble it was sent in still holds its place and draws a tombstone.
   return and(
     isNull(media.deletedAt),
     isNull(media.archiveHiddenAt),
@@ -253,7 +253,7 @@ export function isInLibrary(): Optional<SQL> {
 }
 
 /**
- * Which segment a row is drawn under (REQUIREMENTS.md § 10., RESTRUCTURE.md § 2.7.) —
+ * Which segment a row is drawn under (REQUIREMENTS.md § 10., the finished restructure) —
  * the kinds `SHELF_KINDS` maps this shelf to, and nothing else.
  *
  * WARN: The ordering trap this function used to be is gone, and the record of it is

@@ -37,13 +37,13 @@ export const emoticonItems = pgTable(
     packId: snowflake<EmoticonPackId>("pack_id")
       .notNull()
       .references(() => emoticonPacks.id, { onDelete: "cascade" }),
-    // INFO: RESTRUCTURE.md § 5.2. The three slots an emoticon's assets become.
+    // INFO: The finished restructure. The three slots an emoticon's assets become.
     // WARN: No `onDelete`, so NO ACTION blocks removing a `media` row an item still draws from. `set null` is the tempting alternative and is wrong for the reason `retired_at` records one line down: it would resolve the constraint by silently emptying a slot every bubble in the history renders from.
     stillImageId: snowflake<MediaId>("still_image_id").references(() => media.id),
     animatedImageId: snowflake<MediaId>("animated_image_id").references(() => media.id),
     audioId: snowflake<MediaId>("audio_id").references(() => media.id),
     // INFO: REQUIREMENTS.md § 13.3. The R2 key itself, not a `media` row — an emoticon is neither library content nor a thumbnailed pair.
-    // TODO: RESTRUCTURE.md § 5.2. Replaced by the three slots above; dropped in migration D once the backfill has filled them and § 5.'s code has stopped reading these.
+    // TODO: The finished restructure. Replaced by the three slots above; dropped in migration D once the backfill has filled them and § 5.'s code has stopped reading these.
     r2Key: text("r2_key").notNull().unique(),
     // INFO: REQUIREMENTS.md § 13.2. One image slot for both kinds — an animated GIF or WebP is stored here exactly as a PNG is, and the renderer never branches on which it got.
     mime: text("mime").notNull(),
@@ -59,13 +59,13 @@ export const emoticonItems = pgTable(
     sortOrder: smallint("sort_order").notNull(),
     // WARN: REQUIREMENTS.md § 13.4. What the asset URL is versioned by. Editing an item swaps its R2 keys under an unchanged item id, and the asset redirect is cached (§ 9.), so without this the old image survives the edit.
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-    // INFO: RESTRUCTURE.md § 4.4. 목록에서 내리기, which either participant may do — the picker is shared vocabulary. The item leaves the picker, search and 최근 사용, and every bubble that already carries it renders exactly as before.
+    // INFO: The finished restructure. 목록에서 내리기, which either participant may do — the picker is shared vocabulary. The item leaves the picker, search and 최근 사용, and every bubble that already carries it renders exactly as before.
     // WARN: This is the whole answer to "a used emoticon cannot be deleted". `messages.emoticon_item_id` has no `onDelete`, so NO ACTION blocks the delete, and `messages_type_payload_check` forbids the `set null` that would otherwise resolve it — neither is changed, because an emoticon is nobody's record and a tombstone would mark both participants' bubbles at once (§ 4.4.). An item nothing has sent is still deleted outright, which already works.
     retiredAt: timestamp("retired_at", { withTimezone: true }),
   },
   (table) => [
     index("emoticon_items_pack_id_sort_order_idx").on(table.packId, table.sortOrder),
-    // WARN: RESTRUCTURE.md § 5.2. The floor under both nullable image slots. An author may register either one, and `toSlotAsset` falls back both ways — but an item with neither draws nothing anywhere, which no screen has a state for.
+    // WARN: The finished restructure. The floor under both nullable image slots. An author may register either one, and `toSlotAsset` falls back both ways — but an item with neither draws nothing anywhere, which no screen has a state for.
     check(
       "emoticon_items_has_image_check",
       sql`"still_image_id" IS NOT NULL OR "animated_image_id" IS NOT NULL`,

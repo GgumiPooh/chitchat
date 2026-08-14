@@ -26,7 +26,7 @@ export type ArchiveRemovalRequest = {
 };
 
 /**
- * RESTRUCTURE.md § 4.1. 보관함's two removals, and the whole of the screen that asks
+ * The finished restructure. 보관함's two removals, and the whole of the screen that asks
  * for them — the choice between them, a confirmation for each, and the reconciliation
  * of what the server actually took.
  *
@@ -171,7 +171,7 @@ export function useArchiveRemoval({ noun, onRemoved }: ArchiveRemovalParams) {
   }
 
   /**
-   * RESTRUCTURE.md § 4.1. What the server declined to destroy, said plainly.
+   * The finished restructure. What the server declined to destroy, said plainly.
    *
    * WARN: Only `delete` can come back short. `hide` is open to either participant, so
    * every id it was given has left the shelf and there is nothing to report — a toast

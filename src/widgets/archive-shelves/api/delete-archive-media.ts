@@ -3,7 +3,7 @@ import { ARCHIVE_PATH } from "@/shared/config";
 import type { MediaId } from "@/shared/lib";
 
 /**
- * RESTRUCTURE.md § 4.1. Which of the two removals is being asked for.
+ * The finished restructure. Which of the two removals is being asked for.
  *
  * WARN: They are not degrees of the same thing. `hide` takes a tile off the shared shelf
  * and touches neither the bubble nor the bytes; `delete` destroys the object, and the
@@ -17,7 +17,7 @@ export type ArchiveRemovalMode = "hide" | "delete";
 /**
  * What the server actually took, which is not always what was asked for.
  *
- * WARN: RESTRUCTURE.md § 4.1. `deletedIds` can still be **shorter than the request**,
+ * WARN: The finished restructure. `deletedIds` can still be **shorter than the request**,
  * though no longer because of who uploaded what: `destroyArchiveMedia` guards on
  * `deleted_at IS NULL` and on `isInLibrary()`, so an id already destroyed by another
  * device, or one that never reached the shelf, is silently left alone. The caller
@@ -29,7 +29,7 @@ export type ArchiveRemovalResult = {
 };
 
 /**
- * REQUIREMENTS.md § 18. #1., RESTRUCTURE.md § 4.1. Removes tiles from the library —
+ * REQUIREMENTS.md § 18. #1. and the finished restructure. Removes tiles from the library —
  * hiding them from the shared shelf, or destroying the objects outright.
  *
  * WARN: `ids` is plain `string[]` where the answer is branded. These are the ids the

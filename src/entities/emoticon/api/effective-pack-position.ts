@@ -23,7 +23,7 @@ import { sql } from "drizzle-orm";
  * sorted, just not by this. Nothing orders a set operation by it today, which is
  * exactly why the trap is worth removing rather than remembering.
  *
- * WARN: RESTRUCTURE.md § 3.6. The fallback reads the id's own timestamp rather than
+ * WARN: The finished restructure. The fallback reads the id's own timestamp rather than
  * `created_at`, which migration B drops. It reconstructs **milliseconds**, not the raw
  * id: the stored positions are small ordinals backfilled from `sort_order` in `0027`,
  * so the fallback's magnitude decides where every never-moved pack sorts against them.

@@ -30,7 +30,7 @@ export async function listEmoticonsByIds(ids: EmoticonItemId[]): Promise<Emotico
   const rows = await getDb()
     .select()
     .from(emoticonItems)
-    // INFO: RESTRUCTURE.md § 4.4. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
+    // INFO: The finished restructure. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
     .where(
       and(
         inArray(emoticonItems.id, ids.slice(0, MAX_EMOTICON_ID_LOOKUP)),

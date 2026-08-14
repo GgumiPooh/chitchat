@@ -77,7 +77,7 @@ export function MediaGrid({
       <div className="flex flex-col gap-2xs">
         {cells.map((cell, index) =>
           cell.isDeleted ? (
-            // INFO: RESTRUCTURE.md § 4.3. `FILE_CARD_HEIGHT`'s own `h-14`, so the stack measures the same whether the card is a file or a tombstone (REQUIREMENTS.md § 8.3.).
+            // INFO: The finished restructure. `FILE_CARD_HEIGHT`'s own `h-14`, so the stack measures the same whether the card is a file or a tombstone (REQUIREMENTS.md § 8.3.).
             <MediaTombstone key={cell.id} className="h-14 flex-row" cell={cell} />
           ) : (
             <FileCard
@@ -96,7 +96,7 @@ export function MediaGrid({
   }
 
   function renderSingle(cell: MediaCell) {
-    // INFO: RESTRUCTURE.md § 4.3. Not a button — there is nothing behind it to open — but it keeps the ratio, so the row is exactly as tall as it was before the delete.
+    // INFO: The finished restructure. Not a button — there is nothing behind it to open — but it keeps the ratio, so the row is exactly as tall as it was before the delete.
     if (cell.isDeleted) {
       return (
         <span className="block w-full" style={{ aspectRatio: toCellRatio(cell) }}>
@@ -139,7 +139,7 @@ export function MediaGrid({
       <div className={cn("grid gap-2xs", toColumnsClassName(cells.length))}>
         {cells.map((cell, index) =>
           cell.isDeleted ? (
-            // WARN: RESTRUCTURE.md § 4.3. The cell stays in the grid rather than being filtered out of it. A bubble of three with one deleted draws two tiles and a tombstone; two tiles would silently rewrite what the other participant remembers seeing.
+            // WARN: The finished restructure. The cell stays in the grid rather than being filtered out of it. A bubble of three with one deleted draws two tiles and a tombstone; two tiles would silently rewrite what the other participant remembers seeing.
             <div key={cell.id} className="aspect-square">
               <MediaTombstone className="rounded-sm" cell={cell} />
             </div>

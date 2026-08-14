@@ -28,7 +28,7 @@ import type { ArchiveMedia } from "../model/types";
 export type RegisterMediaParams = {
   ownerId: UserId;
   r2Key: string;
-  /** RESTRUCTURE.md § 2.4. Null for a caller that has no box to measure, and refused below for one that should have had it. */
+  /** The finished restructure. Null for a caller that has no box to measure, and refused below for one that should have had it. */
   width: Nullable<number>;
   height: Nullable<number>;
   durationMs?: Nullable<number>;
@@ -45,7 +45,7 @@ export type RegisterMediaParams = {
    * and it narrows the size ceiling — a `background` video is bounded far below
    * `MAX_VIDEO_SIZE`.
    *
-   * WARN: RESTRUCTURE.md § 5.2. `MediaScope`, not `MediaUploadScope`, and the two are
+   * WARN: The finished restructure. `MediaScope`, not `MediaUploadScope`, and the two are
    * deliberately different sets. `MEDIA_UPLOAD_SCOPES` is what `POST /api/media/upload-url`
    * will sign a ticket for and stays the three it always was; this is what a `media` row
    * may **be**, which § 5. widens to `emoticon` because those objects are signed by
@@ -113,7 +113,7 @@ export async function registerMedia({
     return null;
   }
 
-  // WARN: RESTRUCTURE.md § 5.2. Ahead of `isFile` for exactly the reason `isVoice` is: `isFileMime` is true for every `audio/*` (§ 9.3. keeps them off the media allow-list on purpose), so without this an emoticon's sound is decided as an attachment and the `audio` branch of `toMediaKind` is unreachable — which is what it was, dead from the day the kind was added.
+  // WARN: The finished restructure. Ahead of `isFile` for exactly the reason `isVoice` is: `isFileMime` is true for every `audio/*` (§ 9.3. keeps them off the media allow-list on purpose), so without this an emoticon's sound is decided as an attachment and the `audio` branch of `toMediaKind` is unreachable — which is what it was, dead from the day the kind was added.
   // INFO: Narrowed to the one scope that has a sound, so nothing on the chat path changes: a `.m4a` sent as an attachment is still a file, and a recording is still caught by `isVoice` above.
   const isEmoticonAudio = !isVoice && scope === "emoticon" && object.mime.startsWith("audio/");
 
@@ -131,7 +131,7 @@ export async function registerMedia({
     return null;
   }
 
-  // WARN: RESTRUCTURE.md § 5.1. An emoticon asset is never a library row, and this is what makes that structural rather than remembered. § 5.1. argues it holds "by construction" — `isInLibrary()` wants `archive_added_at` or a live message and an emoticon has neither — but `archive_added_at` is exactly what this flag sets, so construction only holds while nobody passes it. `POST /api/media` cannot: it resolves the scope out of `MEDIA_UPLOAD_SCOPES`, which has no `emoticon` in it. § 5.'s own registration path calls this function directly, with no route in between to refuse it.
+  // WARN: The finished restructure. An emoticon asset is never a library row, and this is what makes that structural rather than remembered. § 5.1. argues it holds "by construction" — `isInLibrary()` wants `archive_added_at` or a live message and an emoticon has neither — but `archive_added_at` is exactly what this flag sets, so construction only holds while nobody passes it. `POST /api/media` cannot: it resolves the scope out of `MEDIA_UPLOAD_SCOPES`, which has no `emoticon` in it. § 5.'s own registration path calls this function directly, with no route in between to refuse it.
   if (scope === "emoticon" && addToGallery) {
     return null;
   }
@@ -143,17 +143,17 @@ export async function registerMedia({
 
   const kind = toMediaKind(object.mime, { isFile, isVoice, isEmoticonAudio });
 
-  // WARN: RESTRUCTURE.md § 2.4. Derived from the resolved kind against `VISUAL_KINDS`, never a hand-written list of the kinds that have no box. `media_no_box_when_not_visual_check` is written against that same set, so this way the function and the constraint cannot disagree — and they did: `isFile || isVoice` left `audio` demanding a positive box that the CHECK requires to be NULL, which is a row that could not be written at all.
+  // WARN: The finished restructure. Derived from the resolved kind against `VISUAL_KINDS`, never a hand-written list of the kinds that have no box. `media_no_box_when_not_visual_check` is written against that same set, so this way the function and the constraint cannot disagree — and they did: `isFile || isVoice` left `audio` demanding a positive box that the CHECK requires to be NULL, which is a row that could not be written at all.
   const hasNoBox = !VISUAL_KINDS.includes(kind as (typeof VISUAL_KINDS)[number]);
 
   // INFO: § 9.1. A file attachment has no sibling to require — nothing renders it, and `toVariantKey` never asks for a thumb variant of a row carrying a filename. A voice message has none either (§ 9.3.), for the same reason and by the same single PUT.
-  // WARN: RESTRUCTURE.md § 5.3. A scope question rather than a kind one. An emoticon **is** a drawn image and still uploads no `_thumb`: the thumbnail rule is a fixed 720px JPEG, which is larger than `EMOTICON_MAX_EDGE` and would flatten the alpha the bubble-less art is drawn with (`REQUIREMENTS.md § 13.3.`). Its own object is already tile-sized, so it is served as `original` everywhere.
+  // WARN: The finished restructure. A scope question rather than a kind one. An emoticon **is** a drawn image and still uploads no `_thumb`: the thumbnail rule is a fixed 720px JPEG, which is larger than `EMOTICON_MAX_EDGE` and would flatten the alpha the bubble-less art is drawn with (`REQUIREMENTS.md § 13.3.`). Its own object is already tile-sized, so it is served as `original` everywhere.
   if (needsThumbnail(scope) && !thumbnail) {
     return null;
   }
 
   // WARN: REQUIREMENTS.md § 8.3. A photo or a video that arrives without a usable box is refused here rather than stored: `toMediaBoxHeight` divides by `width` for a single attachment, so an unmeasured row makes the whole virtualized list resolve its total size to `NaN` and stop laying out.
-  // WARN: RESTRUCTURE.md § 2.4. `<= 0` as well as null, because the route still accepts a number from the client and `0` is what it used to send for a row with no box — that reading is now a null, and a zero arriving here is a caller that failed to measure rather than one that had nothing to measure.
+  // WARN: The finished restructure. `<= 0` as well as null, because the route still accepts a number from the client and `0` is what it used to send for a row with no box — that reading is now a null, and a zero arriving here is a caller that failed to measure rather than one that had nothing to measure.
   if (!hasNoBox && (width === null || height === null || width <= 0 || height <= 0)) {
     return null;
   }
@@ -166,7 +166,7 @@ export async function registerMedia({
       r2Key,
       mime: object.mime,
       size: object.size,
-      // INFO: RESTRUCTURE.md § 2.2. Decided above, from what the bytes turned out to be — never probed back out of the columns below, which is the ordering trap this column replaces.
+      // INFO: The finished restructure. Decided above, from what the bytes turned out to be — never probed back out of the columns below, which is the ordering trap this column replaces.
       kind,
       scope,
       // WARN: § 9.1., § 9.3. Nulled rather than trusted. The client has no box to measure for either kind, so whatever it sent is a guess the row would carry forever — and § 2.5.'s CHECK refuses a number here anyway.
@@ -179,7 +179,7 @@ export async function registerMedia({
       blurhash: hasNoBox ? null : (blurhash ?? null),
       filename: storedName,
       waveformPeaks: isVoice ? waveformPeaks : null,
-      // WARN: RESTRUCTURE.md § 2.8. `archive_*` is the pair `isInLibrary` reads. The `gallery_*` columns still exist until migration B and are no longer written, so anything moved back to them writes a row 보관함 cannot see.
+      // WARN: The finished restructure. `archive_*` is the pair `isInLibrary` reads. The `gallery_*` columns still exist until migration B and are no longer written, so anything moved back to them writes a row 보관함 cannot see.
       archiveAddedAt: addToGallery ? new Date() : null,
     })
     // INFO: `r2_key` is unique, so a retried registration returns the row the first attempt wrote instead of failing the send.
@@ -194,7 +194,7 @@ export async function registerMedia({
 }
 
 /**
- * RESTRUCTURE.md § 2.2. What the row is, from the two decisions this function has
+ * The finished restructure. What the row is, from the two decisions this function has
  * already made and the stored mime for the rest.
  *
  * WARN: `voice` before `audio`, and the two are not the same. A recording is decided
@@ -214,7 +214,7 @@ function toMediaKind(
     return "voice";
   }
 
-  // WARN: RESTRUCTURE.md § 5.2. Before `isFile`, which is where the caller has already resolved it — the mime alone cannot answer this, since a recording, an attached `.m4a` and an emoticon's sound are all `audio/*` and only the scope and the peaks tell them apart.
+  // WARN: The finished restructure. Before `isFile`, which is where the caller has already resolved it — the mime alone cannot answer this, since a recording, an attached `.m4a` and an emoticon's sound are all `audio/*` and only the scope and the peaks tell them apart.
   if (isEmoticonAudio) {
     return "audio";
   }
@@ -238,7 +238,7 @@ function toMediaKind(
  */
 function isAcceptableObject(scope: MediaScope) {
   return ({ mime, size }: StoredObject) => {
-    // WARN: RESTRUCTURE.md § 5.2. The emoticon scope is answered by § 13.2.'s own rules and never by the media allow-list, which is **wider** in exactly the direction that matters: it admits `image/jpeg` and `image/heic`, and an emoticon is bubble-less transparent art (§ 13.3.) that a JPEG cannot carry. Falling through to `isAllowedMediaMime` would have let one register the moment § 5. started calling this with the scope.
+    // WARN: The finished restructure. The emoticon scope is answered by § 13.2.'s own rules and never by the media allow-list, which is **wider** in exactly the direction that matters: it admits `image/jpeg` and `image/heic`, and an emoticon is bubble-less transparent art (§ 13.3.) that a JPEG cannot carry. Falling through to `isAllowedMediaMime` would have let one register the moment § 5. started calling this with the scope.
     // INFO: The slot is read off the mime because that is all this function has, and it is enough — § 13.2.'s two slots are an image and a sound, and nothing else reaches here under this scope.
     if (scope === "emoticon") {
       return isAllowedEmoticonAsset(

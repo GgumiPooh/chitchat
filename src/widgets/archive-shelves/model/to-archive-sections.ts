@@ -20,7 +20,7 @@ export type ArchiveSection = {
  * in `TIME_ZONE`, so a photo sent at 00:30 KST on the first falls under the month
  * it was actually taken in rather than the previous one.
  *
- * INFO: RESTRUCTURE.md § 3.4. The instant is read off the id, which is the same value the shelf is ordered by — so a section boundary can never fall anywhere but between two tiles the grid already has in that order.
+ * INFO: The finished restructure. The instant is read off the id, which is the same value the shelf is ordered by — so a section boundary can never fall anywhere but between two tiles the grid already has in that order.
  */
 export function toArchiveSections(media: ArchiveMedia[]): ArchiveSection[] {
   const sections: ArchiveSection[] = [];

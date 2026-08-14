@@ -110,8 +110,8 @@ async function selectPage(
     .from(messageMedia)
     .innerJoin(messages, eq(messages.id, messageMedia.messageId))
     .innerJoin(media, eq(media.id, messageMedia.mediaId))
-    // INFO: RESTRUCTURE.md § 1.2. `VISUAL_KINDS` — the set with a box to draw, which is what the § 7.10. viewer can open at all. It was `filename IS NULL AND waveform_peaks IS NULL` before the kind column, and the two answer the same rows.
-    // INFO: RESTRUCTURE.md § 4.3. A destroyed object has nothing to open, so it is not a slide. The bubble's own grid still draws a tombstone where it was.
+    // INFO: The finished restructure. `VISUAL_KINDS` — the set with a box to draw, which is what the § 7.10. viewer can open at all. It was `filename IS NULL AND waveform_peaks IS NULL` before the kind column, and the two answer the same rows.
+    // INFO: The finished restructure. A destroyed object has nothing to open, so it is not a slide. The bubble's own grid still draws a tombstone where it was.
     .where(
       and(
         isNull(messages.deletedAt),

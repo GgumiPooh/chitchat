@@ -1841,7 +1841,7 @@ export function ChatRoom({
    * no thumbnail and no inline representation, so the § 7.10. viewer would open on
    * an empty slide it could neither draw nor swipe out of.
    *
-   * WARN: RESTRUCTURE.md § 4.3. The seed track is the bubble's cells **less its
+   * WARN: The finished restructure. The seed track is the bubble's cells **less its
    * tombstones**, which is what `toSurvivingRows` does to every page behind it. The
    * grid draws a tombstone in place and hands over no tap, so the index has to be
    * re-found rather than carried across — the two arrays no longer agree.

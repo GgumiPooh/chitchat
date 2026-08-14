@@ -23,7 +23,7 @@ export type ArchiveAudioRowProps = {
  * with a play control in front of it.
  *
  * WARN: It is still a **file**, on the 파일 shelf, and `isOfShelf` is untouched. Its
- * `kind` is `file` (RESTRUCTURE.md § 2.2.) whatever its mime says — what changed is
+ * `kind` is `file` (the finished restructure) whatever its mime says — what changed is
  * only that a file with no inline view now has one for the single type where an
  * inline view costs nothing to produce.
  *

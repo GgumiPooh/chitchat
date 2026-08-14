@@ -47,7 +47,7 @@ export type ChatTrackEdge = "older" | "newer";
 /**
  * What a `media` row **is**, as the column of the same name records it.
  *
- * INFO: RESTRUCTURE.md § 2.2. The discriminator is a column now. It used to be probed
+ * INFO: The finished restructure. The discriminator is a column now. It used to be probed
  * out of `filename`, `waveform_peaks` and the mime **in that order**, which
  * `register-media.ts` documents as a trap — `isFileMime` is true for `audio/mp4`, so an
  * unguarded order files every recording as an attachment.
@@ -64,14 +64,14 @@ export const MEDIA_KINDS = ["image", "video", "audio", "voice", "file"] as const
 
 export type MediaKind = (typeof MEDIA_KINDS)[number];
 
-/** RESTRUCTURE.md § 2.7. The kinds the viewer, the § 8.1. track and the blurhash path accept — everything that has a box to draw. */
+/** The finished restructure. The kinds the viewer, the § 8.1. track and the blurhash path accept — everything that has a box to draw. */
 export const VISUAL_KINDS = ["image", "video"] as const satisfies readonly MediaKind[];
 
 /**
  * Which part of the app an object was uploaded for, and the first path segment of its
  * storage key.
  *
- * WARN: RESTRUCTURE.md § 2.3. A column as well as a key prefix, because
+ * WARN: The finished restructure. A column as well as a key prefix, because
  * `registerMedia`'s rules are about **use** rather than kind — whether a `_thumb`
  * sibling is required, whether the row is a library candidate, which cache policy the
  * route signs. `shared/storage`'s `StorageScope` is this list; it is declared here
@@ -89,7 +89,7 @@ export type MediaScope = (typeof MEDIA_SCOPES)[number];
  * and one entry in `SHELF_KINDS`, where a boolean would have had to be replaced in
  * the predicate, the API, the fetch, the hook and the URL alike.
  *
- * WARN: RESTRUCTURE.md § 2.7. Not `MEDIA_KINDS`, which is the other axis. A shelf
+ * WARN: The finished restructure. Not `MEDIA_KINDS`, which is the other axis. A shelf
  * holds a **set** of kinds and 갤러리 holds two, so the two cannot be one list —
  * which is also what dissolves "the 사진 tab shows videos".
  */
@@ -98,7 +98,7 @@ export const LIBRARY_SHELVES = ["gallery", "file", "voice"] as const;
 export type LibraryShelf = (typeof LIBRARY_SHELVES)[number];
 
 /**
- * Which `media.kind`s each shelf lists (RESTRUCTURE.md § 2.7.) — the whole of what
+ * Which `media.kind`s each shelf lists (the finished restructure) — the whole of what
  * `isOfShelf` asks the database.
  *
  * WARN: This is the half of a shelf that `LIBRARY_SHELVES` is not, and it is now
@@ -150,7 +150,7 @@ export function toMediaCountUnit(kind: Nullable<MediaNoun>): string {
  *
  * WARN: A subset of `MEDIA_SCOPES`, not a copy of it, and `emoticon` stays absent for a
  * reason that has changed. It used to be that an emoticon object was not a `media` row
- * at all; RESTRUCTURE.md § 5. makes it one, and the exclusion survives because those
+ * at all; the finished restructure makes it one, and the exclusion survives because those
  * objects are uploaded through `/api/emoticons/upload-url` — which is mirrored to
  * jandh-emoticons and signs its own keys — rather than through this route.
  */
@@ -450,7 +450,7 @@ export function maxSizeForScope(mime: string, scope: MediaScope): number {
     return MAX_BACKGROUND_VIDEO_SIZE;
   }
 
-  // INFO: RESTRUCTURE.md § 5.2. An emoticon's own ceilings, which are far below the media ones — its art is bounded by `EMOTICON_MAX_EDGE` and its sound is a two-second ping (`REQUIREMENTS.md § 13.2.`).
+  // INFO: The finished restructure. An emoticon's own ceilings, which are far below the media ones — its art is bounded by `EMOTICON_MAX_EDGE` and its sound is a two-second ping (`REQUIREMENTS.md § 13.2.`).
   if (scope === "emoticon") {
     return mime.startsWith("audio/") ? MAX_EMOTICON_AUDIO_SIZE : MAX_EMOTICON_IMAGE_SIZE;
   }
@@ -459,7 +459,7 @@ export function maxSizeForScope(mime: string, scope: MediaScope): number {
 }
 
 /**
- * RESTRUCTURE.md § 5.3. Whether a scope's objects are drawn from a `_thumb` sibling.
+ * The finished restructure. Whether a scope's objects are drawn from a `_thumb` sibling.
  *
  * WARN: A scope question and not a kind one, which is the whole of what § 5.3. changes
  * here. An emoticon is as much a drawn image as a chat photo and still uploads no

@@ -7,7 +7,7 @@ import { eq, inArray, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 /**
- * One item and the storage key behind each of its slots (RESTRUCTURE.md § 5.2.).
+ * One item and the storage key behind each of its slots (the finished restructure).
  *
  * WARN: The keys are joined rather than read off the item, because § 5.2. moved them onto
  * `media` rows. The item's own `r2_key` and `audio_key` are still here and still carry the
@@ -51,7 +51,7 @@ export async function getEmoticonItem(id: EmoticonItemId): Promise<Nullable<Emot
  * A pack belongs to the conversation (§ 13.1.), so a valid session is the whole
  * check — unlike `canReadMedia`, whose scopes reach objects nobody has posted.
  *
- * WARN: RESTRUCTURE.md § 5.2. **The fallback runs both ways** — a missing still is answered
+ * WARN: The finished restructure. **The fallback runs both ways** — a missing still is answered
  * by the animation and a missing animation by the still — which is what lets an author
  * register only one slot without a single render path branching on what an item carries.
  *
@@ -84,7 +84,7 @@ export function toSlotAsset(
 
 export type ResolvedSlotAsset = {
   key: string;
-  /** RESTRUCTURE.md § 5.7. The asset came from a slot other than the one asked for. */
+  /** The finished restructure. The asset came from a slot other than the one asked for. */
   isFallback: boolean;
 };
 
@@ -114,7 +114,7 @@ export type DeleteEmoticonResult =
  * Takes an item out of the picker, and removes it outright where nothing has sent it —
  * reporting the R2 keys that leaves behind so the caller can clean the bucket (§ 9.).
  *
- * INFO: RESTRUCTURE.md § 4.4. An item that has been sent is **retired** rather than
+ * INFO: The finished restructure. An item that has been sent is **retired** rather than
  * refused. It leaves the picker, search and 최근 사용, and every bubble that already
  * carries it renders exactly as before. This used to answer `in_use` and the control
  * simply failed, which is the complaint this resolves.

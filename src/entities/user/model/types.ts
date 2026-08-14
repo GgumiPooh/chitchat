@@ -17,7 +17,7 @@ export type Participant = {
    * REQUIREMENTS.md § 8.8. How far this participant has read — the newest message
    * they have seen, and `null` for someone who has read nothing.
    *
-   * INFO: RESTRUCTURE.md § 3.5. A message rather than the instant it used to be. The
+   * INFO: The finished restructure. A message rather than the instant it used to be. The
    * cursor was always naming a message, and saying so lets both the badge and § 8.13.'s
    * unread count compare id to id, with no clock and no parsing on either side.
    */

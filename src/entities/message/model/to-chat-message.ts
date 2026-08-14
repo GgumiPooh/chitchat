@@ -25,7 +25,7 @@ export function toChatMessage(
     eventTitle: row.eventTitle,
     eventStartsAt: row.eventStartsAt?.toISOString() ?? null,
     replyTo,
-    // INFO: RESTRUCTURE.md § 3.4. Derived from the id rather than read from a column, which migration B drops. The field stays on the wire because an optimistic send has no id yet and still has to be placed on a day and in a minute group.
+    // INFO: The finished restructure. Derived from the id rather than read from a column, which migration B drops. The field stays on the wire because an optimistic send has no id yet and still has to be placed on a day and in a minute group.
     createdAt: idToDate(row.id).toISOString(),
     // INFO: § 8.13. Kept on a deleted row, and harmless — it dates a correction that no longer has anything to correct, and the tombstone reads neither it nor 수정됨.
     editedAt: row.editedAt?.toISOString() ?? null,

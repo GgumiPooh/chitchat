@@ -5,7 +5,7 @@ import { ARCHIVE_PATH, type LibraryShelf } from "@/shared/config";
 export type FetchArchiveMediaParams = {
   /** Which segment is being paged (REQUIREMENTS.md § 10.); the server answers 400 for a value it does not know. */
   shelf?: LibraryShelf;
-  /** REQUIREMENTS.md § 10. The last tile of the loaded window — the page directly older than it. One `media` id, since an id is the shelf's whole ordering (RESTRUCTURE.md § 3.4.). */
+  /** REQUIREMENTS.md § 10. The last tile of the loaded window — the page directly older than it. One `media` id, since an id is the shelf's whole ordering (the finished restructure). */
   before?: string;
   /** REQUIREMENTS.md § 10. The window's first tile — the page directly newer than it, for upward paging out of a jumped window. */
   after?: string;

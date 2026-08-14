@@ -12,7 +12,7 @@ import { SNOWFLAKE_EPOCH, type SnowflakeId } from "@/shared/lib";
  * `MACHINE_BASE` differs, and it is what keeps the two apart.
  */
 
-// INFO: 1990-01-01T00:00:00Z, imported rather than declared — `idToDate` reads it in the browser, so it lives in `identity/id.ts` (RESTRUCTURE.md § 3.2.). Far enough back that the first id this app can mint already exceeds 1e18, so every id it will ever hold is 19 digits (§ 6.); the field runs out in 2268.
+// INFO: 1990-01-01T00:00:00Z, imported rather than declared — `idToDate` reads it in the browser, so it lives in `identity/id.ts` (the finished restructure). Far enough back that the first id this app can mint already exceeds 1e18, so every id it will ever hold is 19 digits (§ 6.); the field runs out in 2268.
 const EPOCH = SNOWFLAKE_EPOCH;
 
 const TIMESTAMP_SHIFT = 20n;

@@ -53,7 +53,7 @@ export async function registerEmoticon({
     return null;
   }
 
-  // INFO: RESTRUCTURE.md § 5.2. The `media` rows behind this item, minted here so the FKs below have something to name. The columns beside them are still written and still authoritative — this is additive until § 5.'s read paths move over and migration D takes the old ones.
+  // INFO: The finished restructure. The `media` rows behind this item, minted here so the FKs below have something to name. The columns beside them are still written and still authoritative — this is additive until § 5.'s read paths move over and migration D takes the old ones.
   // INFO: `registerMedia` is idempotent on `r2_key`, so the retry the `onConflictDoNothing` below answers for does not mint a second row for the same object.
   const [imageMedia, audioMedia] = await Promise.all([
     registerMedia({ ownerId: uploaderId, r2Key: imageKey, width, height, scope: "emoticon" }),
@@ -73,7 +73,7 @@ export async function registerEmoticon({
     return null;
   }
 
-  // WARN: RESTRUCTURE.md § 5.2. Which image slot the one uploaded object belongs in, and a `png` gets **`still_image_id` with `animated_image_id` left NULL** — it does not animate, so it has no animation, and saying otherwise would make the column mean "the image" all over again. § 5.2.'s CHECK is satisfied by either slot alone, and `toSlotAsset` falls back both ways, so the bubble asking for the animation is answered by the still.
+  // WARN: The finished restructure. Which image slot the one uploaded object belongs in, and a `png` gets **`still_image_id` with `animated_image_id` left NULL** — it does not animate, so it has no animation, and saying otherwise would make the column mean "the image" all over again. § 5.2.'s CHECK is satisfied by either slot alone, and `toSlotAsset` falls back both ways, so the bubble asking for the animation is answered by the still.
   // WARN: The stored mime is the test, which is a proxy rather than the truth: a **static** WebP is legal and lands in the animated slot with no still of its own. That costs it § 5.4.'s fallback in the picker and nothing else, where decoding here to be sure would put a frame extraction on the authoring path — § 5.5.'s backfill is where that cost belongs. An APNG is `image/png` on the wire (§ 13.4.) and lands in the still slot for the same reason, which is the one case this proxy gets wrong in the other direction.
   const isAnimated = isAnimatableEmoticonMime(image.mime);
 

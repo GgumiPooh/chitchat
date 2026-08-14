@@ -94,7 +94,7 @@ export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMe
 
         if (failedCount > 0) {
           // INFO: AGENTS.md § 0.4. `3장을` and `3개를` are the same sentence, so the particle is picked rather than written.
-          // INFO: RESTRUCTURE.md § 2.7. The counter follows the **noun**, not the shelf — 갤러리 counts its contents in 장 because they are 사진, which is the axis `toMediaCountUnit` takes.
+          // INFO: The finished restructure. The counter follows the **noun**, not the shelf — 갤러리 counts its contents in 장 because they are 사진, which is the axis `toMediaCountUnit` takes.
           toast.error(
             `${josa(`${failedCount}${toMediaCountUnit(shelf === "gallery" ? "photo" : shelf)}`, "을/를")} 올리지 못했어요`,
           );

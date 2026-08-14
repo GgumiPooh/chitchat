@@ -74,7 +74,7 @@ export const EMOTICON_PREFS_URL = `${EMOTICON_API_BASE}/api/emoticons/prefs`;
 export const EMOTICON_KEYWORDS_URL = `${EMOTICONS_API_ORIGIN}/api/emoticons/keywords`;
 
 /**
- * RESTRUCTURE.md § 1.1. An emoticon has two image slots and neither of them is "the
+ * The finished restructure. An emoticon has two image slots and neither of them is "the
  * image": `still-image` is what a picker cell, a tab icon and a quote thumbnail draw,
  * and `animated-image` is what the bubble and the staged preview play.
  *
@@ -226,7 +226,7 @@ export const EMOTICON_URL_EXPIRY = 7 * A_DAY;
 export const EMOTICON_CACHE_MAX_AGE = 6 * A_DAY;
 
 /**
- * RESTRUCTURE.md § 5.7. How long a redirect that answered from the **other** image slot
+ * The finished restructure. How long a redirect that answered from the **other** image slot
  * may be held.
  *
  * WARN: The days above are earned by `v` addressing one immutable version of one slot,
@@ -531,7 +531,7 @@ export type AllowedEmoticonImageMime = (typeof ALLOWED_EMOTICON_IMAGE_MIMES)[num
 
 export type AllowedEmoticonAudioMime = (typeof ALLOWED_EMOTICON_AUDIO_MIMES)[number];
 
-// INFO: RESTRUCTURE.md § 1.1. Both image slots take the same types and the same ceiling — they hold two renderings of one picture, not two kinds of thing. `image` is § 5.7.'s deprecated alias and carries the animated slot's rules because that is what it always meant.
+// INFO: The finished restructure. Both image slots take the same types and the same ceiling — they hold two renderings of one picture, not two kinds of thing. `image` is § 5.7.'s deprecated alias and carries the animated slot's rules because that is what it always meant.
 const SLOT_RULES: Record<EmoticonSlot, { mimes: readonly string[]; maxSize: number }> = {
   "still-image": { mimes: ALLOWED_EMOTICON_IMAGE_MIMES, maxSize: MAX_EMOTICON_IMAGE_SIZE },
   "animated-image": { mimes: ALLOWED_EMOTICON_IMAGE_MIMES, maxSize: MAX_EMOTICON_IMAGE_SIZE },
@@ -593,7 +593,7 @@ const EMOTICON_ASSET_ITEMS_PATH = "/api/emoticons/items";
  * it. Editing an item (§ 13.4.) swaps the object behind an unchanged id, and this
  * redirect is cached (§ 9.) — without it the browser keeps serving the old asset.
  *
- * WARN: RESTRUCTURE.md § 1.1. `slot` is **required, and its default is not coming back**.
+ * WARN: The finished restructure. `slot` is **required, and its default is not coming back**.
  * It defaulted to `image`, which is to say to the animated object, so every call site
  * that had not thought about the question was silently handed the heavy asset — a picker
  * of forty cells, a strip of tab icons and a 32px quote thumbnail included. That default

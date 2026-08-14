@@ -160,7 +160,7 @@ export async function listEmoticonPackItems(packId: EmoticonPackId): Promise<Emo
   const rows = await getDb()
     .select()
     .from(emoticonItems)
-    // INFO: RESTRUCTURE.md § 4.4. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
+    // INFO: The finished restructure. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
     .where(and(eq(emoticonItems.packId, packId), isNull(emoticonItems.retiredAt)))
     .orderBy(asc(emoticonItems.sortOrder), asc(emoticonItems.id));
 
@@ -237,7 +237,7 @@ function selectPackRows(
   const firstItem = getDb()
     .select({ id: firstItems.id, updatedAt: firstItems.updatedAt })
     .from(firstItems)
-    // WARN: RESTRUCTURE.md § 4.4. The retirement filter belongs here as much as in `listEmoticonPackItems`. Without it the tab icon goes on drawing an item the picker no longer offers, and the fallback stops being "the first of what that list returns" — which is exactly what the line below asserts.
+    // WARN: The finished restructure. The retirement filter belongs here as much as in `listEmoticonPackItems`. Without it the tab icon goes on drawing an item the picker no longer offers, and the fallback stops being "the first of what that list returns" — which is exactly what the line below asserts.
     .where(and(eq(firstItems.packId, page.id), isNull(firstItems.retiredAt)))
     // WARN: The same order `listEmoticonPackItems` returns, or the tab icon is not the cell the grid draws first.
     .orderBy(asc(firstItems.sortOrder), asc(firstItems.id))

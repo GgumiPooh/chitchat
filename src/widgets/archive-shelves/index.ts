@@ -4,7 +4,7 @@ export {
   type ArchiveRemovalResult,
 } from "./api/delete-archive-media";
 export { useArchiveMedia } from "./model/use-archive-media";
-// INFO: RESTRUCTURE.md § 4.1. The 숨기기 / 완전히 삭제 choice and both confirmations, shared by all three shelves so the two can never be described as degrees of one another.
+// INFO: The finished restructure. The 숨기기 / 완전히 삭제 choice and both confirmations, shared by all three shelves so the two can never be described as degrees of one another.
 export {
   useArchiveRemoval,
   type ArchiveRemovalParams,

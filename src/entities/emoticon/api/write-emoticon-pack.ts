@@ -10,7 +10,7 @@ import type { EmoticonPackSummary } from "../model/types";
  * state on purpose: the thumbnail is one of the pack's own items (§ 13.2.), so it
  * cannot be chosen until items exist.
  *
- * INFO: RESTRUCTURE.md § 6. It takes no author. `created_by` recorded one and nothing
+ * INFO: The finished restructure. It takes no author. `created_by` recorded one and nothing
  * ever read it — § 13.1.'s "a record, never a permission check" was true of the column
  * and of the parameter alike, and a pack belongs to the conversation rather than to
  * whoever typed its name.

@@ -61,7 +61,7 @@ export async function updateEvent(
   const db = getDb();
   const [row] = await db
     .update(events)
-    // TODO: RESTRUCTURE.md § 6. `updated_at` is no longer stamped — nothing has ever read it, and § 6. _Timestamps_ only keeps such a column where it carries a version somebody reads (`emoticon_items.updated_at` is `Emoticon.version`). It stays declared until the drop that follows this build.
+    // TODO: The finished restructure. `updated_at` is no longer stamped — nothing has ever read it, and § 6. _Timestamps_ only keeps such a column where it carries a version somebody reads (`emoticon_items.updated_at` is `Emoticon.version`). It stays declared until the drop that follows this build.
     .set(params)
     .where(eq(events.id, id))
     .returning();

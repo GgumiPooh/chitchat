@@ -8,7 +8,7 @@ import { and, count, eq, isNull, ne, sql } from "drizzle-orm";
  * Unread count for the tab-bar badge (`REQUIREMENTS.md § 8.8.`) — messages the
  * other person sent past this user's read cursor.
  *
- * WARN: RESTRUCTURE.md § 3.5. `coalesce(…, 0)` is not decoration. A user who has read
+ * WARN: The finished restructure. `coalesce(…, 0)` is not decoration. A user who has read
  * nothing carries a NULL cursor, and `id > NULL` is NULL rather than true — so without
  * it the badge reads zero for exactly the person who has everything left to read.
  *

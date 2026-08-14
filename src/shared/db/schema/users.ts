@@ -19,7 +19,7 @@ export const users = pgTable("users", {
     (): AnyPgColumn => media.id,
     { onDelete: "set null" },
   ),
-  // INFO: RESTRUCTURE.md § 3.5. The read cursor was always a message rather than an instant, and saying so is what lets § 8.8. compare `messages.id > last_read_message_id` — id to id, with no clock and no conversion in SQL.
+  // INFO: The finished restructure. The read cursor was always a message rather than an instant, and saying so is what lets § 8.8. compare `messages.id > last_read_message_id` — id to id, with no clock and no conversion in SQL.
   // WARN: Nullable, and NULL is "never read, therefore everything is unread". That is the same fact `last_read_at` carried by having no `defaultNow()`: joining a new user at the live edge would mark every message sent before their first login as already read.
   // WARN: No foreign key, deliberately. `messages` already imports this module, so a reference here is the cycle `emoticon_packs.thumbnail_item_id` has to be patched in by a separate ALTER — and it would buy nothing, since `messages` is append-only (§ 6.) and a cursor can only ever name a row that still exists.
   lastReadMessageId: snowflake<MessageId>("last_read_message_id"),

@@ -58,6 +58,12 @@ What remains is not implementation:
 
 ---
 
+## 0. "The finished restructure" ✅
+
+**A comment citing "the finished restructure" is naming the media and emoticon rework** — `media.kind`, the `archive_*` rename, timestamps derived from the id, and the emoticon asset slots. It was carried out against a plan document of its own; the work landed and that document was deleted, so the phrase is the whole of the reference and there is nothing further to look up.
+
+---
+
 ## 1. Project Setup ✅
 
 Next 16.2.12 + `pnpm` + Turbopack; local Postgres via `docker-compose` (`pnpm db:up`), Neon in production. Config inherited verbatim from the reference project: `tsconfig` (`@/*` → `./src/*`, `verbatimModuleSyntax`, `strict`), `eslint.config.mjs`, `.prettierrc` (`printWidth: 100`), `steiger.config.ts`, `postcss.config.mjs`, `components.json` (shadcn `new-york`, `@/shared/ui`, `@/shared/lib`, lucide), the SVGR turbopack rule, Pretendard Variable as a local font. `pnpm lint` = eslint + steiger; `pnpm dev` runs the app and steiger `--watch`.

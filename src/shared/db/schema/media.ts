@@ -6,7 +6,7 @@ import { snowflake } from "../types";
 import { users } from "./users";
 
 // INFO: REQUIREMENTS.md § 10. The single source for the library too — a chat image is never copied into a second table.
-// INFO: RESTRUCTURE.md § 1.2. Every uploaded object lives here, emoticon assets included (§ 5.) — "media" in the IANA sense, which is what `mime` already names.
+// INFO: The finished restructure. Every uploaded object lives here, emoticon assets included (§ 5.) — "media" in the IANA sense, which is what `mime` already names.
 export const media = pgTable(
   "media",
   {
@@ -16,14 +16,14 @@ export const media = pgTable(
       .references(() => users.id),
     // WARN: REQUIREMENTS.md § 9. The key, never a URL — presigned URLs expire in minutes and are minted per request.
     r2Key: text("r2_key").notNull().unique(),
-    // INFO: RESTRUCTURE.md § 2.2. What this row is, decided at registration rather than probed back out of the nullable columns below.
+    // INFO: The finished restructure. What this row is, decided at registration rather than probed back out of the nullable columns below.
     kind: text("kind").$type<MediaKind>().notNull(),
-    // INFO: RESTRUCTURE.md § 2.3. What it was uploaded for, which is what decides the rules `registerMedia` applies to it.
+    // INFO: The finished restructure. What it was uploaded for, which is what decides the rules `registerMedia` applies to it.
     scope: text("scope").$type<MediaScope>().notNull(),
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
     // INFO: REQUIREMENTS.md § 8.3. Present wherever there is a box, so the virtualized list can reserve it before the asset loads.
-    // WARN: RESTRUCTURE.md § 2.4. Nullable, and `0` is no longer a value it may hold. The sentinel was what forced every reader to test `filename` and `voice` first before trusting these as a ratio; a NULL cannot be mistaken for one, and the CHECK below is what keeps it exactly where the box is.
+    // WARN: The finished restructure. Nullable, and `0` is no longer a value it may hold. The sentinel was what forced every reader to test `filename` and `voice` first before trusting these as a ratio; a NULL cannot be mistaken for one, and the CHECK below is what keeps it exactly where the box is.
     width: integer("width"),
     height: integer("height"),
     // WARN: REQUIREMENTS.md § 9.1. The name a file attachment was sent under. No longer a discriminator — `kind` is — but still the payload, and still set by the server from the stored mime rather than taken as the client says it.
@@ -37,13 +37,13 @@ export const media = pgTable(
     blurhash: text("blurhash"),
     // INFO: REQUIREMENTS.md § 10. Set only for an object uploaded straight into the library. Everything else earns its place there by hanging off a live message, and an object that has neither is an abandoned upload rather than a photo.
     archiveAddedAt: timestamp("archive_added_at", { withTimezone: true }),
-    // INFO: REQUIREMENTS.md § 18. #1. 보관함에서 숨기기, which either participant may do (RESTRUCTURE.md § 4.1.) — the shelf is shared. The bubble the object was sent in keeps rendering it, and the bytes are never touched (§ 4.2.).
+    // INFO: REQUIREMENTS.md § 18. #1. 보관함에서 숨기기, which either participant may do (the finished restructure) — the shelf is shared. The bubble the object was sent in keeps rendering it, and the bytes are never touched (§ 4.2.).
     archiveHiddenAt: timestamp("archive_hidden_at", { withTimezone: true }),
-    // INFO: RESTRUCTURE.md § 4.3. 완전 삭제, which only the uploader may do. Soft, because `message_media`'s FK and § 8.13.'s resume reconciliation both need the row to survive — only the R2 objects are really removed.
+    // INFO: The finished restructure. 완전 삭제, which only the uploader may do. Soft, because `message_media`'s FK and § 8.13.'s resume reconciliation both need the row to survive — only the R2 objects are really removed.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   () => [
-    // WARN: RESTRUCTURE.md § 2.5. The kind's shape is held here rather than in `registerMedia` alone. That function still validates — it has to tell the user *why* — but two deployments write this table and neither can be the guarantee.
+    // WARN: The finished restructure. The kind's shape is held here rather than in `registerMedia` alone. That function still validates — it has to tell the user *why* — but two deployments write this table and neither can be the guarantee.
     check("media_kind_check", sql`"kind" in ${sql.raw(toSqlList(MEDIA_KINDS))}`),
     check("media_scope_check", sql`"scope" in ${sql.raw(toSqlList(MEDIA_SCOPES))}`),
     check("media_file_has_name_check", sql`"kind" <> 'file' OR "filename" IS NOT NULL`),
@@ -53,7 +53,7 @@ export const media = pgTable(
       sql`"kind" <> 'voice' OR ("waveform_peaks" IS NOT NULL AND "duration_ms" IS NOT NULL)`,
     ),
     check("media_peaks_are_voice_check", sql`"kind" = 'voice' OR "waveform_peaks" IS NULL`),
-    // INFO: RESTRUCTURE.md § 2.5. There is deliberately **no** `kind = 'video' → duration_ms IS NOT NULL` check beside the voice one. A recording measures its own duration off the wall clock, so `registerMedia` can insist on it; a picked video is measured by the browser, and `read-draft.ts` sends null wherever `video.duration` is not finite — a real case for a MediaRecorder WebM and for some `.mov` files. A constraint the producer cannot honour turns that upload into a 500 rather than a video with no duration badge.
+    // INFO: The finished restructure. There is deliberately **no** `kind = 'video' → duration_ms IS NOT NULL` check beside the voice one. A recording measures its own duration off the wall clock, so `registerMedia` can insist on it; a picked video is measured by the browser, and `read-draft.ts` sends null wherever `video.duration` is not finite — a real case for a MediaRecorder WebM and for some `.mov` files. A constraint the producer cannot honour turns that upload into a 500 rather than a video with no duration badge.
     // WARN: § 2.4. Both halves are needed. The first keeps a drawn box measured; the second is what actually retires the `0` sentinel, and without it a file row may still carry the numbers that made every reader branch.
     check(
       "media_box_is_visual_check",

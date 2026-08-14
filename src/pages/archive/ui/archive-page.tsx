@@ -61,7 +61,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
     prepend,
     remove,
   } = useArchiveMedia(initialMedia, "gallery", targetId);
-  // INFO: RESTRUCTURE.md § 4.1. The 숨기기 / 완전히 삭제 choice, its two confirmations and the reconciliation of what the server took — all three shelves share it (`useArchiveRemoval`).
+  // INFO: The finished restructure. The 숨기기 / 완전히 삭제 choice, its two confirmations and the reconciliation of what the server took — all three shelves share it (`useArchiveRemoval`).
   const removal = useArchiveRemoval({
     noun: "photo",
     onRemoved: (ids) => {
@@ -270,7 +270,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
   }
 
   /**
-   * REQUIREMENTS.md § 10., RESTRUCTURE.md § 4.1. The viewer's 삭제, which opens the
+   * REQUIREMENTS.md § 10. and the finished restructure. The viewer's 삭제, which opens the
    * same two-way choice the selection bar's does — the slide is one row rather than a
    * selection, so it is the one place the subject is named instead of counted.
    */

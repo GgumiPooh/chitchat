@@ -10,9 +10,9 @@ import { fetchArchiveMedia } from "../api/fetch-archive-media";
 
 /**
  * The loaded window of one library segment, newest first. Pages either side are
- * keyset-paginated on the tile's own id (REQUIREMENTS.md § 10., RESTRUCTURE.md
- * § 3.4.); the first page arrives from the server render, so opening the tab costs
- * no round trip.
+ * keyset-paginated on the tile's own id (REQUIREMENTS.md § 10., the finished
+ * restructure); the first page arrives from the server render, so opening the tab
+ * costs no round trip.
  *
  * INFO: `shelf` is fixed for the life of the hook — the segments are separate routes
  * (§ 10.), so switching them remounts rather than refetching in place.
@@ -239,7 +239,7 @@ const LOAD_FAILURE_SUBJECTS: Record<LibraryShelf, string> = {
  * above it — `indexOf` answering `-1` is exactly that case and must not read as one.
  */
 /**
- * The shelf's own order (REQUIREMENTS.md § 10., RESTRUCTURE.md § 3.4.) — the id,
+ * The shelf's own order (REQUIREMENTS.md § 10., the finished restructure) — the id,
  * descending, which is what every cursor here now is.
  *
  * WARN: `compareId`, never `>`. Both operands are 19-digit strings today, so the string comparison this replaced happened to agree — which is exactly how a wrong one survives review (CLAUDE.md § 3.2.).

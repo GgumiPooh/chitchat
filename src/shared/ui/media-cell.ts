@@ -39,7 +39,7 @@ export type MediaCell = {
   /** The same object as `originalUrl`, signed to save rather than to display. */
   downloadUrl: Nullable<string>;
   /**
-   * RESTRUCTURE.md § 2.4. The asset's own box, and null wherever there is none — a
+   * The finished restructure. The asset's own box, and null wherever there is none — a
    * file card and a voice player are drawn at a fixed height instead.
    *
    * WARN: `0` was what a boxless cell used to carry, which is why every reader of
@@ -87,7 +87,7 @@ export type MediaCell = {
   /** DESIGN.md § 7.10. Who sent the slide, shown above the caption. Unset where the viewer has no sender to name — a draft, or a profile photo (§ 7.7.). */
   senderName?: Nullable<string>;
   /**
-   * RESTRUCTURE.md § 4.3. The uploader has deleted the object, so the cell is a
+   * The finished restructure. The uploader has deleted the object, so the cell is a
    * tombstone rather than a picture — `MediaTombstone`, keeping the box.
    *
    * WARN: § 4.3. It keeps its place, exactly as REQUIREMENTS.md § 8.13.'s withdrawn

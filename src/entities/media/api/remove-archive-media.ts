@@ -23,7 +23,7 @@ export type ArchiveRemoval = {
  * REQUIREMENTS.md § 18. #1. 보관함에서 숨기기 — takes tiles off the shared shelf and
  * touches nothing else.
  *
- * INFO: RESTRUCTURE.md § 4.1. Open to **either** participant: the shelf is shared, so
+ * INFO: The finished restructure. Open to **either** participant: the shelf is shared, so
  * curating it is shared. That is only defensible because it destroys nothing — the
  * bubble goes on rendering the object and the bytes stay where they are.
  *
@@ -53,7 +53,7 @@ export async function removeArchiveMedia(ids: MediaId[]): Promise<ArchiveRemoval
 }
 
 /**
- * RESTRUCTURE.md § 4.3. 완전 삭제 — the object itself is destroyed, and the bubble it
+ * The finished restructure. 완전 삭제 — the object itself is destroyed, and the bubble it
  * was sent in draws a tombstone in its place.
  *
  * WARN: § 4.1. **Either participant may do this, and it is deliberately no longer

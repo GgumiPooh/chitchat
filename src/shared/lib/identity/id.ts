@@ -13,8 +13,8 @@
  *
  * WARN: The layout is **frozen** and is no longer free to be re-cut. This note used to
  * say the opposite, on the grounds that ordering was all the app asked of an id and
- * that an `idToDate` would tie the file to the bit widths forever. RESTRUCTURE.md
- * § 3.1. takes that trade deliberately: the timestamp is read back out of the id now,
+ * that an `idToDate` would tie the file to the bit widths forever. The finished
+ * restructure takes that trade deliberately: the timestamp is read back out of the id now,
  * every `created_at` column is gone, and a change to the epoch or the field widths
  * would silently restate the age of every row already written. Re-cutting the format
  * means versioning it and keeping the old branch for every id minted under it.
@@ -113,7 +113,7 @@ export const SNOWFLAKE_EPOCH = 631152000000n;
 /**
  * When the row this id names was created.
  *
- * INFO: RESTRUCTURE.md § 3.3. This replaces the `created_at` column on every table
+ * INFO: The finished restructure. This replaces the `created_at` column on every table
  * whose primary key is a snowflake — the id already carried the instant, and storing
  * it twice meant the ordering key and the displayed time could disagree.
  *

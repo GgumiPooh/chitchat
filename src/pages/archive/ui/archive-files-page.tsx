@@ -42,7 +42,7 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const { media, isLoadingMore, loadMore, prepend, remove } = useArchiveMedia(initialMedia, "file");
   // INFO: REQUIREMENTS.md § 9.1. `savesToPhotoLibrary: false` — a file downloads on iOS too, so neither the cap nor the merged 저장/공유 row of § 10. applies here.
-  // INFO: RESTRUCTURE.md § 4.1. The 숨기기 / 완전히 삭제 choice, its two confirmations and the reconciliation of what the server took — shared with the other two shelves (`useArchiveRemoval`).
+  // INFO: The finished restructure. The 숨기기 / 완전히 삭제 choice, its two confirmations and the reconciliation of what the server took — shared with the other two shelves (`useArchiveRemoval`).
   const removal = useArchiveRemoval({
     noun: "file",
     onRemoved: (ids) => {

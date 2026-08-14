@@ -39,7 +39,7 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
     "voice",
   );
   // INFO: REQUIREMENTS.md § 9.3. `savesToPhotoLibrary: false` — a recording downloads on iOS too, so neither the § 10. cap nor the merged 저장/공유 row applies.
-  // INFO: RESTRUCTURE.md § 4.1. The 숨기기 / 완전히 삭제 choice, its two confirmations and the reconciliation of what the server took — shared with the other two shelves (`useArchiveRemoval`).
+  // INFO: The finished restructure. The 숨기기 / 완전히 삭제 choice, its two confirmations and the reconciliation of what the server took — shared with the other two shelves (`useArchiveRemoval`).
   const removal = useArchiveRemoval({
     noun: "voice",
     onRemoved: (ids) => {

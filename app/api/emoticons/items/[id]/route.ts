@@ -93,7 +93,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
  * existing — the FK is `ON DELETE SET NULL` and the picker falls back to the
  * pack's first item.
  *
- * INFO: RESTRUCTURE.md § 4.4. One control, two outcomes, decided by whether anything
+ * INFO: The finished restructure. One control, two outcomes, decided by whether anything
  * has sent the item: never sent is a real delete, sent is a retirement out of the
  * picker. Both answer 204, because from the caller's side the item is gone from every
  * place it was choosing from.
@@ -122,7 +122,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     return apiError("not_found");
   }
 
-  // INFO: RESTRUCTURE.md § 4.4. A sent item was retired rather than removed, so there is nothing to sweep — its objects are still drawn by every bubble carrying it.
+  // INFO: The finished restructure. A sent item was retired rather than removed, so there is nothing to sweep — its objects are still drawn by every bubble carrying it.
   if (result.status === "retired") {
     return new NextResponse(null, { status: 204 });
   }

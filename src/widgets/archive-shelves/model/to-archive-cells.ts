@@ -21,7 +21,7 @@ export function toArchiveCells(media: ArchiveMedia[]): MediaCell[] {
     isDeleted: item.isDeleted,
     // INFO: REQUIREMENTS.md § 10. What 대화에서 보기 needs; null for a row uploaded straight into the library, which was never sent (§ 10.).
     messageId: item.messageId,
-    // INFO: DESIGN.md § 7.10. The viewer's caption, read off the id (RESTRUCTURE.md § 3.4.) — the row carries no separate instant to copy.
+    // INFO: DESIGN.md § 7.10. The viewer's caption, read off the id (the finished restructure) — the row carries no separate instant to copy.
     sentAt: idToDate(item.id).toISOString(),
     // INFO: DESIGN.md § 7.10. The name above that caption. It rides the query that already resolves `messageId` (REQUIREMENTS.md § 10.), so naming the sender costs a primary-key lookup rather than a listing of its own — and it is `null` on exactly the rows `messageId` is, a library-only upload having nobody to name.
     senderName: item.senderName,
