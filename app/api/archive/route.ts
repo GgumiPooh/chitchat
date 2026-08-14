@@ -1,4 +1,4 @@
-import { deleteOwnMedia, listArchiveMedia, removeArchiveMedia } from "@/entities/media";
+import { destroyArchiveMedia, listArchiveMedia, removeArchiveMedia } from "@/entities/media";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
@@ -66,10 +66,10 @@ const bodySchema = z.object({
    * behaviour it had — the shelf is curated and nothing is destroyed, which is the
    * safe half of the pair.
    *
-   * WARN: § 4.1. The two are not degrees of the same action. `hide` curates a shared
-   * shelf and either participant may do it; `delete` destroys the object and rewrites
-   * what the other participant sees in a message they are reading, so it is scoped to
-   * whoever uploaded it — `deleteOwnMedia` enforces that, not this schema.
+   * WARN: § 4.1. The two are not degrees of the same action. `hide` takes a tile off the
+   * shared shelf and leaves the bubble and the bytes alone; `delete` destroys the object,
+   * and the bubble it was sent in draws a tombstone from then on. Both are open to either
+   * participant — the library belongs to the conversation — and neither is scoped here.
    */
   mode: z.enum(["hide", "delete"]).default("hide"),
 });
@@ -109,11 +109,10 @@ export async function GET(request: Request) {
  * REQUIREMENTS.md § 18. #1. Takes photos out of the library, and — on `mode: "delete"`
  * — destroys the objects behind them.
  *
- * INFO: RESTRUCTURE.md § 4.1. 숨기기 is unscoped to the uploader on purpose: the library
- * belongs to the conversation (§ 6.), so either participant removes any tile from the
- * shelf and no bubble changes. 완전 삭제 is the opposite case and is scoped inside
- * `deleteOwnMedia`, because it rewrites what the other participant sees in a message
- * they are reading.
+ * INFO: RESTRUCTURE.md § 4.1. Neither mode is scoped to the uploader: the library belongs
+ * to the conversation (§ 6.), so curating it — including throwing something out for good —
+ * belongs to both. What keeps 완전 삭제 answerable is that it never removes a bubble, only
+ * the picture inside one, and § 4.3.s tombstone is what stands in its place.
  *
  * INFO: An id the caller may not act on simply does nothing — no per-id 404 to report,
  * and no way to probe with one. That holds for both modes.
@@ -133,7 +132,7 @@ export async function DELETE(request: Request) {
 
   // INFO: RESTRUCTURE.md § 4.3. 완전 삭제 answers in the same shape as 숨기기 so the screen has one response to reconcile against — the ids it names have left the shelf either way.
   if (body.data.mode === "delete") {
-    const deletedIds = await deleteOwnMedia(body.data.ids, user.id);
+    const deletedIds = await destroyArchiveMedia(body.data.ids);
 
     return NextResponse.json({ hiddenIds: [], deletedIds });
   }

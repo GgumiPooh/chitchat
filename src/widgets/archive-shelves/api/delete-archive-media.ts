@@ -5,9 +5,10 @@ import type { MediaId } from "@/shared/lib";
 /**
  * RESTRUCTURE.md § 4.1. Which of the two removals is being asked for.
  *
- * WARN: They are not degrees of the same thing. `hide` curates the shared shelf and
- * either participant may do it; `delete` destroys the object and is the uploader's
- * alone. The screen must never present one as a stronger version of the other.
+ * WARN: They are not degrees of the same thing. `hide` takes a tile off the shared shelf
+ * and touches neither the bubble nor the bytes; `delete` destroys the object, and the
+ * bubble it was sent in draws a tombstone from then on. Both are open to either
+ * participant. The screen must never present one as a stronger version of the other.
  *
  * INFO: `hide` is the default on the wire as well as here, so a tab left open across the deploy goes on doing exactly what it did.
  */
@@ -16,10 +17,11 @@ export type ArchiveRemovalMode = "hide" | "delete";
 /**
  * What the server actually took, which is not always what was asked for.
  *
- * WARN: RESTRUCTURE.md § 4.1. `deletedIds` can be **shorter than the request** —
- * `deleteOwnMedia` is scoped to `owner_id`, so a selection carrying the other
- * participant's tiles has those ids silently left alone. The caller reconciles
- * against these two arrays and never against what it sent.
+ * WARN: RESTRUCTURE.md § 4.1. `deletedIds` can still be **shorter than the request**,
+ * though no longer because of who uploaded what: `destroyArchiveMedia` guards on
+ * `deleted_at IS NULL` and on `isInLibrary()`, so an id already destroyed by another
+ * device, or one that never reached the shelf, is silently left alone. The caller
+ * reconciles against these two arrays and never against what it sent.
  */
 export type ArchiveRemovalResult = {
   hiddenIds: MediaId[];

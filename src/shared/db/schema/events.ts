@@ -26,7 +26,6 @@ export const events = pgTable(
     createdBy: snowflake<UserId>("created_by")
       .notNull()
       .references(() => users.id),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("events_starts_at_idx").on(table.startsAt)],
 );

@@ -1,4 +1,6 @@
 import { A_MEGABYTE, A_MINUTE, A_SECOND, type Nullable } from "@/shared/lib";
+// INFO: One-way — `emoticon.ts` imports nothing from here, so naming its ceilings in `maxSizeForScope` closes no cycle.
+import { MAX_EMOTICON_AUDIO_SIZE, MAX_EMOTICON_IMAGE_SIZE } from "./emoticon";
 
 /** REQUIREMENTS.md § 9. Presigned PUT, then registration; the id route mints presigned GETs. */
 export const MEDIA_UPLOAD_URL_PATH = "/api/media/upload-url";
@@ -443,12 +445,31 @@ export function maxSizeForMime(mime: string): number {
  * be applied at registration too — the client's own check is a courtesy, and R2
  * enforces no size at all on a presigned PUT (§ 9.).
  */
-export function maxSizeForScope(mime: string, scope: MediaUploadScope): number {
+export function maxSizeForScope(mime: string, scope: MediaScope): number {
   if (scope === "background" && isVideoMime(mime)) {
     return MAX_BACKGROUND_VIDEO_SIZE;
   }
 
+  // INFO: RESTRUCTURE.md § 5.2. An emoticon's own ceilings, which are far below the media ones — its art is bounded by `EMOTICON_MAX_EDGE` and its sound is a two-second ping (`REQUIREMENTS.md § 13.2.`).
+  if (scope === "emoticon") {
+    return mime.startsWith("audio/") ? MAX_EMOTICON_AUDIO_SIZE : MAX_EMOTICON_IMAGE_SIZE;
+  }
+
   return maxSizeForMime(mime);
+}
+
+/**
+ * RESTRUCTURE.md § 5.3. Whether a scope's objects are drawn from a `_thumb` sibling.
+ *
+ * WARN: A scope question and not a kind one, which is the whole of what § 5.3. changes
+ * here. An emoticon is as much a drawn image as a chat photo and still uploads no
+ * thumbnail: `THUMBNAIL_MIME` is JPEG, which flattens the alpha the bubble-less art is
+ * drawn with, and the 720px long edge is larger than `EMOTICON_MAX_EDGE` — so the
+ * derivative would be a bigger, worse copy of an object that is already tile-sized
+ * (`REQUIREMENTS.md § 13.3.`).
+ */
+export function needsThumbnail(scope: MediaScope): boolean {
+  return scope !== "emoticon";
 }
 
 /**

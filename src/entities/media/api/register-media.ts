@@ -1,19 +1,21 @@
 import "server-only";
 
 import {
-  MAX_FILE_SIZE,
-  MAX_THUMBNAIL_SIZE,
-  MAX_VOICE_SIZE,
-  THUMBNAIL_MIME,
   isAllowedMediaMime,
   isFileMime,
   isVideoMime,
   isVoiceMime,
   isWaveformPeaks,
+  MAX_FILE_SIZE,
+  MAX_THUMBNAIL_SIZE,
+  MAX_VOICE_SIZE,
   maxSizeForScope,
+  needsThumbnail,
+  THUMBNAIL_MIME,
   toSafeFilename,
+  VISUAL_KINDS,
   type MediaKind,
-  type MediaUploadScope,
+  type MediaScope,
 } from "@/shared/config";
 import { getDb, media, nextSnowflake } from "@/shared/db";
 import type { MediaId, Nullable, UserId } from "@/shared/lib";
@@ -37,8 +39,19 @@ export type RegisterMediaParams = {
   waveformPeaks?: Nullable<number[]>;
   // INFO: REQUIREMENTS.md § 10. Set by an upload that starts in the 보관함 tab. A chat attachment leaves it false and reaches the grid through the message it is sent in.
   addToGallery?: boolean;
-  /** WARN: REQUIREMENTS.md § 12.1. Read from the key rather than trusted from the caller, and it narrows the size ceiling — a `background` video is bounded far below `MAX_VIDEO_SIZE`. */
-  scope: MediaUploadScope;
+  /**
+   * WARN: REQUIREMENTS.md § 12.1. Read from the key rather than trusted from the caller,
+   * and it narrows the size ceiling — a `background` video is bounded far below
+   * `MAX_VIDEO_SIZE`.
+   *
+   * WARN: RESTRUCTURE.md § 5.2. `MediaScope`, not `MediaUploadScope`, and the two are
+   * deliberately different sets. `MEDIA_UPLOAD_SCOPES` is what `POST /api/media/upload-url`
+   * will sign a ticket for and stays the three it always was; this is what a `media` row
+   * may **be**, which § 5. widens to `emoticon` because those objects are signed by
+   * `/api/emoticons/upload-url` instead and still have to register through here — § 5.2.
+   * collapses `listUnregisteredEmoticonKeys` and this function into one mechanism.
+   */
+  scope: MediaScope;
 };
 
 /**
@@ -99,7 +112,11 @@ export async function registerMedia({
     return null;
   }
 
-  const isFile = !isVoice && isFileMime(object.mime);
+  // WARN: RESTRUCTURE.md § 5.2. Ahead of `isFile` for exactly the reason `isVoice` is: `isFileMime` is true for every `audio/*` (§ 9.3. keeps them off the media allow-list on purpose), so without this an emoticon's sound is decided as an attachment and the `audio` branch of `toMediaKind` is unreachable — which is what it was, dead from the day the kind was added.
+  // INFO: Narrowed to the one scope that has a sound, so nothing on the chat path changes: a `.m4a` sent as an attachment is still a file, and a recording is still caught by `isVoice` above.
+  const isEmoticonAudio = !isVoice && scope === "emoticon" && object.mime.startsWith("audio/");
+
+  const isFile = !isVoice && !isEmoticonAudio && isFileMime(object.mime);
   const storedName = isFile && filename ? toSafeFilename(filename) : null;
 
   // WARN: § 9.1. `addToGallery` used to be refused here too, and that half is gone: the old reason was that a file carried by no message had nowhere in the app to be found again, not anything about files. § 10.'s 파일 shelf is that place, so a row filed straight into it is now reachable exactly as a photo is.
@@ -113,16 +130,24 @@ export async function registerMedia({
     return null;
   }
 
+  // WARN: RESTRUCTURE.md § 5.1. An emoticon asset is never a library row, and this is what makes that structural rather than remembered. § 5.1. argues it holds "by construction" — `isInLibrary()` wants `archive_added_at` or a live message and an emoticon has neither — but `archive_added_at` is exactly what this flag sets, so construction only holds while nobody passes it. `POST /api/media` cannot: it resolves the scope out of `MEDIA_UPLOAD_SCOPES`, which has no `emoticon` in it. § 5.'s own registration path calls this function directly, with no route in between to refuse it.
+  if (scope === "emoticon" && addToGallery) {
+    return null;
+  }
+
   // WARN: § 9.3. A recording's duration is required, not merely nullable. It is wall-clock from the browser and nothing recomputes it here, and the player draws its progress against it — at `0` the bubble reads `0:00` under a waveform that never fills however long the clip runs.
   if (isVoice && (durationMs ?? 0) <= 0) {
     return null;
   }
 
-  // INFO: § 9.1., § 9.3. The two kinds drawn at a fixed height rather than from a ratio — a file card and a voice player. Neither has a frame to render a thumbnail from and neither has a box to measure, so the two tests below are one test.
-  const hasNoBox = isFile || isVoice;
+  const kind = toMediaKind(object.mime, { isFile, isVoice, isEmoticonAudio });
+
+  // WARN: RESTRUCTURE.md § 2.4. Derived from the resolved kind against `VISUAL_KINDS`, never a hand-written list of the kinds that have no box. `media_no_box_when_not_visual_check` is written against that same set, so this way the function and the constraint cannot disagree — and they did: `isFile || isVoice` left `audio` demanding a positive box that the CHECK requires to be NULL, which is a row that could not be written at all.
+  const hasNoBox = !VISUAL_KINDS.includes(kind as (typeof VISUAL_KINDS)[number]);
 
   // INFO: § 9.1. A file attachment has no sibling to require — nothing renders it, and `toVariantKey` never asks for a thumb variant of a row carrying a filename. A voice message has none either (§ 9.3.), for the same reason and by the same single PUT.
-  if (!hasNoBox && !thumbnail) {
+  // WARN: RESTRUCTURE.md § 5.3. A scope question rather than a kind one. An emoticon **is** a drawn image and still uploads no `_thumb`: the thumbnail rule is a fixed 720px JPEG, which is larger than `EMOTICON_MAX_EDGE` and would flatten the alpha the bubble-less art is drawn with (`REQUIREMENTS.md § 13.3.`). Its own object is already tile-sized, so it is served as `original` everywhere.
+  if (needsThumbnail(scope) && !thumbnail) {
     return null;
   }
 
@@ -140,8 +165,8 @@ export async function registerMedia({
       r2Key,
       mime: object.mime,
       size: object.size,
-      // INFO: RESTRUCTURE.md § 2.2. Decided here, from what the bytes turned out to be — never probed back out of the columns below, which is the ordering trap this column replaces.
-      kind: toMediaKind(object.mime, { isFile, isVoice }),
+      // INFO: RESTRUCTURE.md § 2.2. Decided above, from what the bytes turned out to be — never probed back out of the columns below, which is the ordering trap this column replaces.
+      kind,
       scope,
       // WARN: § 9.1., § 9.3. Nulled rather than trusted. The client has no box to measure for either kind, so whatever it sent is a guess the row would carry forever — and § 2.5.'s CHECK refuses a number here anyway.
       width: hasNoBox ? null : width,
@@ -178,21 +203,26 @@ export async function registerMedia({
  */
 function toMediaKind(
   mime: string,
-  { isFile, isVoice }: { isFile: boolean; isVoice: boolean },
+  {
+    isFile,
+    isVoice,
+    isEmoticonAudio,
+  }: { isFile: boolean; isVoice: boolean; isEmoticonAudio: boolean },
 ): MediaKind {
   if (isVoice) {
     return "voice";
+  }
+
+  // WARN: RESTRUCTURE.md § 5.2. Before `isFile`, which is where the caller has already resolved it — the mime alone cannot answer this, since a recording, an attached `.m4a` and an emoticon's sound are all `audio/*` and only the scope and the peaks tell them apart.
+  if (isEmoticonAudio) {
+    return "audio";
   }
 
   if (isFile) {
     return "file";
   }
 
-  if (isVideoMime(mime)) {
-    return "video";
-  }
-
-  return mime.startsWith("audio/") ? "audio" : "image";
+  return isVideoMime(mime) ? "video" : "image";
 }
 
 /**
@@ -205,9 +235,14 @@ function toMediaKind(
  * signed type nor any size (§ 9.), so a malformed mime could be stored under a key
  * whose `_thumb` sibling is a real JPEG and register as a photo.
  */
-function isAcceptableObject(scope: MediaUploadScope) {
+function isAcceptableObject(scope: MediaScope) {
   return ({ mime, size }: StoredObject) => {
     if (isAllowedMediaMime(mime)) {
+      return size <= maxSizeForScope(mime, scope);
+    }
+
+    // INFO: RESTRUCTURE.md § 5.2. An emoticon's sound reaches this branch because § 9.3. keeps `audio/*` off the media allow-list, and it takes that scope's own ceiling rather than the file one.
+    if (scope === "emoticon" && mime.startsWith("audio/")) {
       return size <= maxSizeForScope(mime, scope);
     }
 

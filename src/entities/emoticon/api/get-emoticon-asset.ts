@@ -17,6 +17,14 @@ export async function getEmoticonItem(id: EmoticonItemId): Promise<Nullable<Emot
  * INFO: REQUIREMENTS.md § 13.3. There is no per-object authorization to do here.
  * A pack belongs to the conversation (§ 13.1.), so a valid session is the whole
  * check — unlike `canReadMedia`, whose scopes reach objects nobody has posted.
+ *
+ * WARN: RESTRUCTURE.md § 1.1. All three image slots resolve to the one stored object
+ * for now, and that is the interim answer rather than a `?:` that happens to work.
+ * § 5.2.'s columns exist and are empty, so `still-image` has nothing of its own to
+ * return until § 5.'s code phase fills them and § 5.5.'s backfill reaches the items
+ * already stored. When they do, this becomes the fallback **both ways** — a missing
+ * still serves the animation and a missing animation serves the still — so that no
+ * render path ever has to branch on what an item happens to carry.
  */
 export function toSlotKey(row: EmoticonItem, slot: EmoticonSlot): Nullable<string> {
   return slot === "audio" ? row.audioKey : row.r2Key;

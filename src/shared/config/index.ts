@@ -203,6 +203,7 @@ export {
   isWearableBackgroundVideo,
   maxSizeForMime,
   maxSizeForScope,
+  needsThumbnail,
   toMediaCountUnit,
   toMediaDownloadUrl,
   toMediaLabel,

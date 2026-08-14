@@ -107,9 +107,10 @@ export function useArchiveRemoval({ noun, onRemoved }: ArchiveRemovalParams) {
           isOpen={confirming === "delete"}
           header={{
             title: `${josa(subject, "을/를")} 완전히 삭제할까요?`,
-            // INFO: § 4.1. The ownership rule is said **before** the tap, not reported after it — the server refuses the other participant's rows outright, so a confirmation that did not mention it would be a destructive question with a partly silent answer.
-            // INFO: § 4.3. The tombstone's own words, quoted, so the sentence shows what the other participant will be left looking at rather than describing it.
-            description: `내가 올린 ${toMediaLabel(subjectNoun)}만 지워져요. 원본이 사라져 되돌릴 수 없고, 대화 말풍선에는 '${toDeletedMediaText(subjectNoun)}'만 남아요`,
+            // INFO: § 4.1. The ownership clause is gone with the scoping — either participant may destroy any tile on the shared shelf now, so `내가 올린 …만` would be the sentence promising the wrong thing.
+            // WARN: § 4.3. What survives is the half that actually needs saying before the tap: it is irreversible, and it reaches a photo the *other* participant may be the one who sent. Both clauses are the reason this action has a confirmation at all where 숨기기's is a courtesy.
+            // INFO: § 4.3. The tombstone's own words, quoted, so the sentence shows what the reader will be left looking at rather than describing it.
+            description: `원본이 사라져 되돌릴 수 없어요. 대화 말풍선에는 '${toDeletedMediaText(subjectNoun)}'만 남아요`,
           }}
           onClose={close}
         >
@@ -181,13 +182,13 @@ export function useArchiveRemoval({ noun, onRemoved }: ArchiveRemovalParams) {
       return;
     }
 
-    // WARN: The copy says what is true of **both** ways of taking nothing. `deleteOwnMedia` refuses the other participant's rows, and it is also idempotent — it guards on `deleted_at IS NULL` — so a repeat of a delete that already landed (a second device, a retry after a dropped response) answers the same way. Naming ownership here would have been a lie about rows the caller owns and has already deleted.
+    // WARN: § 4.1. The copy says what is true of **both** ways of taking nothing, and ownership is no longer one of them — `destroyArchiveMedia` stopped being scoped to `owner_id`. What is left is idempotency (a second device, or a retry after a dropped response, meeting `deleted_at IS NULL`) and a row that has since left the shelf, and neither is worth naming: the reader asked for these tiles to be gone and they are.
     if (removedCount === 0) {
       toast.error(`완전히 삭제할 수 있는 ${josa(toMediaLabel(subjectNoun), "이/가")} 없어요`);
 
       return;
     }
 
-    toast.success(`내가 올린 ${removedCount}${toMediaCountUnit(subjectNoun)}만 삭제했어요`);
+    toast.success(`${removedCount}${toMediaCountUnit(subjectNoun)}만 삭제했어요`);
   }
 }

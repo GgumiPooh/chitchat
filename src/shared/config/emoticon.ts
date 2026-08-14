@@ -73,8 +73,22 @@ export const EMOTICON_PREFS_URL = `${EMOTICON_API_BASE}/api/emoticons/prefs`;
  */
 export const EMOTICON_KEYWORDS_URL = `${EMOTICONS_API_ORIGIN}/api/emoticons/keywords`;
 
-/** REQUIREMENTS.md § 13.2. One required image, one optional audio companion, each its own object. */
-export const EMOTICON_SLOTS = ["image", "audio"] as const;
+/**
+ * RESTRUCTURE.md § 1.1. An emoticon has two image slots and neither of them is "the
+ * image": `still-image` is what a picker cell, a tab icon and a quote thumbnail draw,
+ * and `animated-image` is what the bubble and the staged preview play.
+ *
+ * WARN: `image` is kept as a **deprecated alias for `animated-image`** and nothing new
+ * may use it (§ 5.7.). A tab left open across the deploy goes on asking for it, and this
+ * is the only thing between that tab and a `400` on every asset it draws. Removed in the
+ * cycle after this one.
+ *
+ * INFO: `still` alone was rejected — this codebase already reads `still` as an adverb
+ * (`isStillStored`, and the prose throughout), and the `-image` suffix is what fixes the
+ * part of speech. `poster` was rejected as a `<video poster>` borrowing implying a
+ * placeholder that is replaced on play, which never happens here.
+ */
+export const EMOTICON_SLOTS = ["still-image", "animated-image", "audio", "image"] as const;
 
 export type EmoticonSlot = (typeof EMOTICON_SLOTS)[number];
 
@@ -477,7 +491,10 @@ export type AllowedEmoticonImageMime = (typeof ALLOWED_EMOTICON_IMAGE_MIMES)[num
 
 export type AllowedEmoticonAudioMime = (typeof ALLOWED_EMOTICON_AUDIO_MIMES)[number];
 
+// INFO: RESTRUCTURE.md § 1.1. Both image slots take the same types and the same ceiling — they hold two renderings of one picture, not two kinds of thing. `image` is § 5.7.'s deprecated alias and carries the animated slot's rules because that is what it always meant.
 const SLOT_RULES: Record<EmoticonSlot, { mimes: readonly string[]; maxSize: number }> = {
+  "still-image": { mimes: ALLOWED_EMOTICON_IMAGE_MIMES, maxSize: MAX_EMOTICON_IMAGE_SIZE },
+  "animated-image": { mimes: ALLOWED_EMOTICON_IMAGE_MIMES, maxSize: MAX_EMOTICON_IMAGE_SIZE },
   image: { mimes: ALLOWED_EMOTICON_IMAGE_MIMES, maxSize: MAX_EMOTICON_IMAGE_SIZE },
   audio: { mimes: ALLOWED_EMOTICON_AUDIO_MIMES, maxSize: MAX_EMOTICON_AUDIO_SIZE },
 };
@@ -535,12 +552,16 @@ const EMOTICON_ASSET_ITEMS_PATH = "/api/emoticons/items";
  * WARN: `version` is `Emoticon.version` and callers that hold the item MUST pass
  * it. Editing an item (§ 13.4.) swaps the object behind an unchanged id, and this
  * redirect is cached (§ 9.) — without it the browser keeps serving the old asset.
+ *
+ * WARN: RESTRUCTURE.md § 1.1. `slot` is **required, and its default is not coming back**.
+ * It defaulted to `image`, which is to say to the animated object, so every call site
+ * that had not thought about the question was silently handed the heavy asset — a picker
+ * of forty cells, a strip of tab icons and a 32px quote thumbnail included. That default
+ * is the bug this whole body of work starts from, and making the parameter required is
+ * what turns "which slot does this draw?" from something a reader has to know into
+ * something the compiler asks at every call.
  */
-export function toEmoticonAssetUrl(
-  itemId: string,
-  slot: EmoticonSlot = "image",
-  version?: number,
-): string {
+export function toEmoticonAssetUrl(itemId: string, slot: EmoticonSlot, version?: number): string {
   const versionParam = version === undefined ? "" : `&v=${version}`;
 
   return `${EMOTICON_ASSET_ITEMS_PATH}/${itemId}/asset?slot=${slot}${versionParam}`;

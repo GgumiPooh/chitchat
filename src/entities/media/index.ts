@@ -12,7 +12,7 @@ export {
 } from "./api/list-conversation-media";
 export { registerMedia, type RegisterMediaParams } from "./api/register-media";
 export {
-  deleteOwnMedia,
+  destroyArchiveMedia,
   removeArchiveMedia,
   type ArchiveRemoval,
 } from "./api/remove-archive-media";

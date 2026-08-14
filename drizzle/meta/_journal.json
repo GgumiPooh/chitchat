@@ -260,6 +260,13 @@
       "when": 1786734820215,
       "tag": "0036_military_lady_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1786735783317,
+      "tag": "0037_cuddly_omega_sentinel",
+      "breakpoints": true
     }
   ]
 }

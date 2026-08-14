@@ -52,9 +52,7 @@ export async function upsertGoogleUser(identity: {
       id: nextSnowflake<UserId>(),
       email: identity.email,
       googleSub: identity.sub,
-      // INFO: REQUIREMENTS.md § 8.8. The epoch, so everything sent before this person's first login counts as unread rather than silently read. `last_read_message_id` says the same by staying NULL, which is why it is not set here.
-      // TODO: RESTRUCTURE.md § 3.5. The last write to `last_read_at` anywhere, and it goes with the column rather than before it — nothing reads the value, but the column is still NOT NULL with no default, so omitting it here while it exists is a `23502` on the one path that inserts a user.
-      lastReadAt: new Date(0),
+      // INFO: REQUIREMENTS.md § 8.8. Nothing is seeded for the read cursor: `last_read_message_id` stays NULL, which is what makes everything sent before this person's first login unread rather than silently read.
       nickname: identity.name?.trim() || identity.email.split("@")[0],
     })
     .returning();
