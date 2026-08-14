@@ -473,10 +473,11 @@ export function MediaViewer({
         </div>
         {/* INFO: Native scroll snapping is the horizontal swipe of REQUIREMENTS.md § 8.1. — it costs no gesture code and matches the platform's own momentum. */}
         {/* WARN: REQUIREMENTS.md § 18. #6. A zoomed slide freezes the track, or the pan competes with the swipe for the same finger and the photo changes under it. `overflow-x-hidden` holds `scrollLeft` where it is, so the slide is still the one the reader zoomed when it lifts. */}
+        {/* WARN: `overflow-y-hidden` is written out, never left to default — CSS computes a `visible` axis to `auto` once the other is not visible, so a slide one pixel too tall turns this into a scroller the reader pans vertically between swipes. */}
         <div
           ref={captureTrack}
           className={cn(
-            "scrollbar-hidden flex min-h-0 flex-1 snap-x snap-mandatory overscroll-x-contain",
+            "scrollbar-hidden flex min-h-0 flex-1 snap-x snap-mandatory overflow-y-hidden overscroll-x-contain",
             zoom.isZoomed ? "overflow-x-hidden" : "overflow-x-auto",
           )}
           onClick={handleSurfaceClick}
@@ -926,8 +927,9 @@ function ImageSlide({
 
   return (
     // WARN: REQUIREMENTS.md § 18. #6. The gesture surface, and it never scales — the hook measures its box for the pan bounds, so the transform belongs to the element inside it.
-    <div className="flex max-h-full w-full items-center justify-center" {...zoom?.surfaceProps}>
-      <div className="max-h-full w-full" style={zoom?.contentStyle}>
+    // WARN: `h-full` on both wrappers, never `max-h-full`. A percentage `max-height` resolves to `none` against a content-derived parent, so a chain of them is dead from the second link down and the image's own clamp did nothing — a portrait photo took its stored ratio's height and overflowed the screen.
+    <div className="flex h-full w-full items-center justify-center" {...zoom?.surfaceProps}>
+      <div className="flex h-full w-full items-center justify-center" style={zoom?.contentStyle}>
         {/* INFO: The stored ratio gives the placeholder a box to fill while the original downloads — the grid tile the user tapped came from a thumbnail, so this request starts cold. */}
         {/* INFO: The hash describes that same thumbnail, which is what makes it a stand-in for a full-size object it was never encoded from. */}
         <PreloadImage
