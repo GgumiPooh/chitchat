@@ -6,7 +6,9 @@ import {
   EMOTICON_CACHE_MAX_AGE,
   EMOTICON_SLOTS,
   EMOTICON_URL_EXPIRY,
+  snowflakeSchema,
 } from "@/shared/config";
+import type { EmoticonItemId } from "@/shared/lib";
 import { A_SECOND } from "@/shared/lib";
 import { presignDownload } from "@/shared/storage";
 import { NextResponse } from "next/server";
@@ -14,7 +16,7 @@ import { z } from "zod";
 
 // WARN: REQUIREMENTS.md § 13.7.1. jandh-emoticons mirrors this handler too, and this one is exempt from the switch rather than from the mirror — each app always serves its own copy, so a fix landed here alone leaves that app's screens on the old behaviour indefinitely.
 
-const paramsSchema = z.object({ id: z.uuid() });
+const paramsSchema = z.object({ id: snowflakeSchema<EmoticonItemId>() });
 
 // INFO: `v` is `Emoticon.version` and is read by nobody here — it is what keeps an edited item's cached redirect (§ 13.4.) from answering for the object it replaced.
 const querySchema = z.object({ slot: z.enum(EMOTICON_SLOTS).default("image") });

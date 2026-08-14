@@ -6,7 +6,9 @@ import {
   LIBRARY_KINDS,
   MAX_ARCHIVE_PAGE_SIZE,
   MAX_ARCHIVE_SELECTION,
+  snowflakeSchema,
 } from "@/shared/config";
+import type { MediaId } from "@/shared/lib";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -16,12 +18,12 @@ const querySchema = z
     // INFO: REQUIREMENTS.md § 10. Which segment is being paged, 사진 when the caller says nothing. An unknown value is a 400 rather than a silent fallback — a client asking for a shelf this build has never heard of must not be handed photos.
     kind: z.enum(LIBRARY_KINDS).optional(),
     beforeCreatedAt: z.iso.datetime({ offset: true }).optional(),
-    beforeId: z.uuid().optional(),
+    beforeId: snowflakeSchema<MediaId>().optional(),
     // INFO: REQUIREMENTS.md § 10. The window's first tile, for paging upward out of a jumped window — the mirror of the pair above, and refused half-given for the same reason.
     afterCreatedAt: z.iso.datetime({ offset: true }).optional(),
-    afterId: z.uuid().optional(),
+    afterId: snowflakeSchema<MediaId>().optional(),
     // INFO: REQUIREMENTS.md § 10. The photo 보관함 is to open on, for the position jump — a single id rather than a cursor pair, because the row it names is what the pair is then resolved from.
-    around: z.uuid().optional(),
+    around: snowflakeSchema<MediaId>().optional(),
     limit: z.coerce.number().int().positive().optional(),
   })
   .refine(
@@ -36,7 +38,7 @@ const querySchema = z
   );
 
 const bodySchema = z.object({
-  ids: z.array(z.uuid()).min(1).max(MAX_ARCHIVE_SELECTION),
+  ids: z.array(snowflakeSchema<MediaId>()).min(1).max(MAX_ARCHIVE_SELECTION),
 });
 
 // INFO: AGENTS.md § 6.4. A Route Handler answers its own 401 — the App Router does not honour a thrown `Response`.

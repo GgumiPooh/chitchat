@@ -1,3 +1,4 @@
+import type { MessageId } from "@/shared/lib";
 import "server-only";
 
 import { CHANGED_MESSAGES_LIMIT } from "@/shared/config";
@@ -30,8 +31,8 @@ import { listReplyPreviews } from "./list-reply-previews";
  * exception for `listReplyPreviews`. The deleted rows are the answer here.
  */
 export async function listChangedMessages(
-  from: number,
-  to: number,
+  from: MessageId,
+  to: MessageId,
   limit = CHANGED_MESSAGES_LIMIT,
 ): Promise<ChatMessage[]> {
   const rows = await getDb()
@@ -53,7 +54,7 @@ export async function listChangedMessages(
   const parentIds = rows
     .filter((row) => row.deletedAt === null)
     .map((row) => row.replyToId)
-    .filter((id): id is number => id !== null);
+    .filter((id): id is MessageId => id !== null);
   const byParentId = await listReplyPreviews(parentIds);
 
   return rows.map((row) =>

@@ -5,17 +5,25 @@ import {
 } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
+import { snowflakeSchema } from "@/shared/config";
+import type { EmoticonPackId } from "@/shared/lib";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 // WARN: REQUIREMENTS.md § 13.7.1. jandh-emoticons mirrors this handler, and the browser reaches whichever copy the switch names. Both sides change together — a fix landed here alone is one this app stops running the moment the switch is on.
 
 const orderSchema = z
-  .object({ packId: z.uuid(), after: z.uuid().nullable() })
+  .object({
+    packId: snowflakeSchema<EmoticonPackId>(),
+    after: snowflakeSchema<EmoticonPackId>().nullable(),
+  })
   // INFO: A pack cannot land behind itself — the midpoint would be bisected against its own position and the move would answer 204 having changed nothing.
   .refine((body) => body.after !== body.packId);
 
-const enabledSchema = z.object({ packId: z.uuid(), enabled: z.boolean() });
+const enabledSchema = z.object({
+  packId: snowflakeSchema<EmoticonPackId>(),
+  enabled: z.boolean(),
+});
 
 /**
  * REQUIREMENTS.md § 13.5. One move, not the list: the pack that moved and the pack

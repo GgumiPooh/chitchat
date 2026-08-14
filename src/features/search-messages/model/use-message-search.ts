@@ -2,7 +2,7 @@
 
 import type { MessageSearchResult } from "@/entities/message";
 import { SEARCH_PAGE_SIZE } from "@/shared/config";
-import type { Nullable } from "@/shared/lib";
+import type { MessageId, Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useRef, useState } from "react";
 import { fetchMessageSearch } from "../api/fetch-message-search";
@@ -15,7 +15,7 @@ import { fetchMessageSearch } from "../api/fetch-message-search";
  */
 export type SearchJumpTarget = {
   token: number;
-  id: number;
+  id: MessageId;
 };
 
 export type MessageSearch = ReturnType<typeof useMessageSearch>;

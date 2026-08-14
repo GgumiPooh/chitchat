@@ -1,7 +1,6 @@
+import type { EmoticonItemId, EventId, MediaId, MessageId, UserId } from "@/shared/lib";
 import { sql } from "drizzle-orm";
 import {
-  bigint,
-  bigserial,
   check,
   index,
   pgEnum,
@@ -13,6 +12,7 @@ import {
   uuid,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import { snowflake } from "../types";
 import { emoticonItems } from "./emoticons";
 import { events } from "./events";
 import { media } from "./media";
@@ -34,27 +34,29 @@ export const messages = pgTable(
   "messages",
   {
     // INFO: REQUIREMENTS.md § 8.2. The ordering key and the pagination cursor; OFFSET paging is rejected outright.
-    id: bigserial("id", { mode: "number" }).primaryKey(),
+    id: snowflake<MessageId>("id").primaryKey(),
     // INFO: REQUIREMENTS.md § 8.7. The name and avatar are joined at render time, never copied onto the row.
-    senderId: uuid("sender_id")
+    senderId: snowflake<UserId>("sender_id")
       .notNull()
       .references(() => users.id),
     type: messageTypeEnum("type").notNull(),
     text: text("text"),
-    emoticonItemId: uuid("emoticon_item_id").references(() => emoticonItems.id),
+    emoticonItemId: snowflake<EmoticonItemId>("emoticon_item_id").references(
+      () => emoticonItems.id,
+    ),
     // WARN: `set null` — a deleted event still has its "deleted" system message, which then has nothing to navigate to.
-    eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
+    eventId: snowflake<EventId>("event_id").references(() => events.id, { onDelete: "set null" }),
     systemAction: systemActionEnum("system_action"),
     // INFO: REQUIREMENTS.md § 11.5. A snapshot, because a delete notice outlives its event row; the *user* name is still resolved at render time.
     eventTitle: text("event_title"),
     eventStartsAt: timestamp("event_starts_at", { withTimezone: true }),
     // INFO: REQUIREMENTS.md § 8.10. The quoted message is joined at read time, never snapshotted — a rename or an emoticon edit reaches the quote for the same reason § 8.7. reaches the bubble.
     // WARN: `set null` rather than cascade. Rows are only ever soft-deleted, so this fires for nothing the app does; a cascade would make a hard delete take every reply with it.
-    replyToId: bigint("reply_to_id", { mode: "number" }).references(
-      (): AnyPgColumn => messages.id,
-      { onDelete: "set null" },
-    ),
+    replyToId: snowflake<MessageId>("reply_to_id").references((): AnyPgColumn => messages.id, {
+      onDelete: "set null",
+    }),
     // INFO: REQUIREMENTS.md § 8.5. Client-generated, so a retried send collides instead of inserting a duplicate.
+    // WARN: The one id in the schema that is not a snowflake (§ 6.), and it cannot become one: a browser has no machine number to mint with, and a collision here is read as "that retry already landed" — so it would drop a real message rather than fail an INSERT.
     clientMsgId: uuid("client_msg_id").notNull().unique(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     // INFO: REQUIREMENTS.md § 8.13. NULL is "never edited", which is the whole 수정됨 test — an `updated_at` bumped by the soft delete beside it would light the label on a row nobody edited.
@@ -87,11 +89,11 @@ export const messages = pgTable(
 export const messageMedia = pgTable(
   "message_media",
   {
-    messageId: bigint("message_id", { mode: "number" })
+    messageId: snowflake<MessageId>("message_id")
       .notNull()
       .references(() => messages.id, { onDelete: "cascade" }),
     // TODO: Decide the delete behaviour with § 18 #1 — library deletion may need `media.deleted_at` instead of a cascade.
-    mediaId: uuid("media_id")
+    mediaId: snowflake<MediaId>("media_id")
       .notNull()
       .references(() => media.id),
     // INFO: REQUIREMENTS.md § 6. Preserves the order the sender picked; without it the grid rearranges between queries.

@@ -2,13 +2,15 @@ import "server-only";
 
 import { REPLY_PREVIEW_MAX_LENGTH, toMediaKind, toQuoteThumbnail } from "@/shared/config";
 import { emoticonItems, getDb, messages } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import type { EmoticonItemId, MessageId, Nullable } from "@/shared/lib";
 import { eq, inArray } from "drizzle-orm";
 import type { ReplyPreview } from "../model/types";
 import { listMessageMedia } from "./list-message-media";
 
 /** The quote for one reply — what the create paths resolve before they echo the row back. */
-export async function getReplyPreview(parentId: Nullable<number>): Promise<Nullable<ReplyPreview>> {
+export async function getReplyPreview(
+  parentId: Nullable<MessageId>,
+): Promise<Nullable<ReplyPreview>> {
   if (parentId === null) {
     return null;
   }
@@ -29,8 +31,10 @@ export async function getReplyPreview(parentId: Nullable<number>): Promise<Nulla
  * `isDeleted` off — filtering it here would render a deleted parent as no quote at
  * all rather than as 삭제된 메시지예요.
  */
-export async function listReplyPreviews(parentIds: number[]): Promise<Map<number, ReplyPreview>> {
-  const byId = new Map<number, ReplyPreview>();
+export async function listReplyPreviews(
+  parentIds: MessageId[],
+): Promise<Map<MessageId, ReplyPreview>> {
+  const byId = new Map<MessageId, ReplyPreview>();
 
   if (parentIds.length === 0) {
     return byId;
@@ -90,7 +94,7 @@ function toQuotedEmoticon({
   emoticonItemId,
   emoticonUpdatedAt,
 }: {
-  emoticonItemId: Nullable<string>;
+  emoticonItemId: Nullable<EmoticonItemId>;
   emoticonUpdatedAt: Nullable<Date>;
 }): Nullable<{ version: number; id: string }> {
   if (!emoticonItemId || !emoticonUpdatedAt) {

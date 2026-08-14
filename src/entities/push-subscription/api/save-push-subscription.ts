@@ -1,10 +1,11 @@
+import type { PushSubscriptionId, UserId } from "@/shared/lib";
 import "server-only";
 
-import { getDb, pushSubscriptions } from "@/shared/db";
+import { getDb, nextSnowflake, pushSubscriptions } from "@/shared/db";
 import type { PushSubscriptionInput, SavedPushSubscription } from "../model/types";
 
 export type SavePushSubscriptionParams = PushSubscriptionInput & {
-  userId: string;
+  userId: UserId;
 };
 
 /**
@@ -21,7 +22,14 @@ export async function savePushSubscription({
 }: SavePushSubscriptionParams): Promise<SavedPushSubscription> {
   const [saved] = await getDb()
     .insert(pushSubscriptions)
-    .values({ userId, endpoint, p256dh, auth, userAgent })
+    .values({
+      id: nextSnowflake<PushSubscriptionId>(),
+      userId,
+      endpoint,
+      p256dh,
+      auth,
+      userAgent,
+    })
     // WARN: `userId` is part of the update on purpose. Two accounts can share one browser, and the endpoint follows the installation rather than the person — without this the row keeps pushing the new session's messages to the previous account.
     // WARN: `soundEnabled` is deliberately absent. It is the one column the client does not send, so listing it here would reset 알림 소리 to the column default on every launch (`REQUIREMENTS.md § 16.1.`).
     .onConflictDoUpdate({

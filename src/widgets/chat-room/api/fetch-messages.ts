@@ -1,10 +1,11 @@
 import type { ChatMessage } from "@/entities/message";
 import { request } from "@/shared/api";
+import type { MessageId } from "@/shared/lib";
 
 export type FetchMessagesParams = {
-  before?: number;
-  after?: number;
-  around?: number;
+  before?: MessageId;
+  after?: MessageId;
+  around?: MessageId;
 };
 
 export async function fetchMessages(params: FetchMessagesParams): Promise<ChatMessage[]> {

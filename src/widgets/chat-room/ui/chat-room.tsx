@@ -56,8 +56,11 @@ import {
   useUnsentWork,
   warmLineHeights,
   type Maybe,
+  type MediaId,
+  type MessageId,
   type Nullable,
   type Optional,
+  type UserId,
 } from "@/shared/lib";
 import {
   MediaShareDialog,
@@ -141,12 +144,12 @@ import { TypingIndicator } from "./typing-indicator";
  */
 export type ChatJumpTarget = {
   token: number;
-  id: number;
+  id: MessageId;
 };
 
 export type ChatRoomProps = {
   className?: string;
-  currentUserId: string;
+  currentUserId: UserId;
   initialMessages: ChatMessage[];
   /** @see ChatJumpTarget */
   jumpTarget?: Nullable<ChatJumpTarget>;
@@ -155,7 +158,7 @@ export type ChatRoomProps = {
    * 대화에서 보기, taken **once, at mount** — it is the URL the room was reached
    * through and not a target that can be named again.
    */
-  initialJumpMessageId?: Maybe<number>;
+  initialJumpMessageId?: Maybe<MessageId>;
   /**
    * REQUIREMENTS.md § 8.6.1. The open search's query, lit inside every bubble
    * that contains it — which is what marks a search jump, in place of the
@@ -295,19 +298,19 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 8.10. Not mutually exclusive with the two above — a quote is an attribute of the send, not a payload competing for the § 6. row.
   const [replyTarget, setReplyTarget] = useState<Nullable<ReplyPreview>>(null);
   // INFO: DESIGN.md § 6.8. The bubble a jump landed on, until its flash expires.
-  const [highlightedId, setHighlightedId] = useState<Nullable<number>>(null);
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState<Nullable<number>>(null);
+  const [highlightedId, setHighlightedId] = useState<Nullable<MessageId>>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<Nullable<MessageId>>(null);
   // INFO: REQUIREMENTS.md § 8.1. The slide 원본 저장 was tapped on, and every attachment of its bubble — held together so the two buttons cannot disagree about which is which.
   // WARN: REQUIREMENTS.md § 10. The nouns are carried on the pending bundle rather than decided in the heading, because the description, both buttons and the toast all take them — hardcoded, they read 사진 over a bubble of videos.
   // WARN: REQUIREMENTS.md § 8.1. **Two** kinds, and they answer different questions: `kind` is the bundle's, for every sentence about 모두, and `slideNoun` is the tapped slide's, for the one control that saves it alone. One noun served both until a mixed bubble (§ 6.) showed it offering to save 동영상 and saving the photos with it.
   // WARN: REQUIREMENTS.md § 10. Openness is the boolean below and never this, which outlives a dismissal on purpose — `DialogContent` stays mounted through its 200ms exit (`DESIGN.md § 7.4.`), so cleared here every answer fades out with no title, no description and a blank 이 사진만.
   const [pendingBundle, setPendingBundle] =
     useState<
-      Nullable<{ mediaId: string; ids: string[]; slideNoun: string; kind: Nullable<MediaKind> }>
+      Nullable<{ mediaId: MediaId; ids: string[]; slideNoun: string; kind: Nullable<MediaKind> }>
     >(null);
   const [isChoosingBundle, setIsChoosingBundle] = useState(false);
   // INFO: REQUIREMENTS.md § 8.13. The message the composer is correcting rather than replying to. Null is the ordinary composing mode.
-  const [editingId, setEditingId] = useState<Nullable<number>>(null);
+  const [editingId, setEditingId] = useState<Nullable<MessageId>>(null);
   // WARN: § 8.13. The composer owns its draft, so text only reaches it through this. A token rather than the string alone — cancelling an edit seeds `""`, and so does cancelling the next one, which as a bare value is no instruction at all.
   const [seededDraft, setSeededDraft] =
     useState<Optional<{ text: string; token: number }>>(undefined);
@@ -391,7 +394,7 @@ export function ChatRoom({
   // INFO: DESIGN.md § 7.10. The name the viewer's caption shows, from the same participant set every bubble's nickname is resolved through (§ 8.7.).
   // WARN: Memoized, because `useViewerTrack` carries this identity into every callback it hands the viewer — and one of them is what `useSettledCommit` measures its wait from (§ 8.3.).
   const toSenderName = useCallback(
-    (senderId: string) => participantById.get(senderId)?.name,
+    (senderId: UserId) => participantById.get(senderId)?.name,
     [participantById],
   );
   // INFO: REQUIREMENTS.md § 8.1. The § 7.10. viewer's track, which reaches the whole conversation rather than the bubble that opened it, and pages at both of its edges.
@@ -1775,7 +1778,7 @@ export function ChatRoom({
   }
 
   // INFO: REQUIREMENTS.md § 9.1. A file bubble carries no photos to warn about losing, and § 6. keeps a bubble's attachments all of one kind — so the first one names them all.
-  function toDeleteWarning(messageId: Nullable<number>): string {
+  function toDeleteWarning(messageId: Nullable<MessageId>): string {
     // INFO: The modal stays mounted, so this prop is evaluated on every render of the room — the scan belongs behind the one state that can ask for it.
     if (messageId === null) {
       return MEDIA_DELETE_WARNING;
@@ -1791,7 +1794,12 @@ export function ChatRoom({
    * no thumbnail and no inline representation, so the § 7.10. viewer would open on
    * an empty slide it could neither draw nor swipe out of.
    */
-  function openAttachment(cells: MediaCell[], index: number, messageId: number, senderId: string) {
+  function openAttachment(
+    cells: MediaCell[],
+    index: number,
+    messageId: MessageId,
+    senderId: UserId,
+  ) {
     const cell = cells[index];
 
     if (cell?.filename) {
@@ -1836,7 +1844,7 @@ export function ChatRoom({
     );
   }
 
-  function askToSaveBundle(mediaId: string) {
+  function askToSaveBundle(mediaId: MediaId) {
     const siblings = toBundleItems(mediaId);
     // INFO: REQUIREMENTS.md § 10. The slide's own kind, which names the one control that acts on the slide alone — 이 사진만 / 이 동영상만, and the toast that answers it.
     const isVideo = mediaTrack.viewer?.cells.find((cell) => cell.id === mediaId)?.isVideo ?? false;
@@ -1864,7 +1872,7 @@ export function ChatRoom({
    * WARN: Empty when that message is no longer in the loaded window, which the conversation-wide track makes ordinary: the reader can swipe to a photo whose bubble has been paged out. The caller then saves the one slide, since the bundle it cannot see is a bundle it must not claim to know the size of.
    * WARN: The rows rather than their ids, because the bundle's own kind is read off them (§ 6.) — an id cannot say whether it is a photo.
    */
-  function toBundleItems(mediaId: string) {
+  function toBundleItems(mediaId: MediaId) {
     const messageId = mediaTrack.viewer?.owners.get(mediaId)?.messageId;
     const message = messageId === undefined ? undefined : messages.find((m) => m.id === messageId);
 
@@ -1883,7 +1891,7 @@ export function ChatRoom({
    * WARN: This exists only because § 8.1.'s track leaves the bubble. While the viewer showed one message's attachments the destination was the message the reader was already on, which is why 보관함's viewer had this journey and 채팅's had none.
    * WARN: The viewer is dismissed first, or it would cover the bubble the jump flashes — the same reason both route-changing jumps close it.
    */
-  function openBubble(messageId: number) {
+  function openBubble(messageId: MessageId) {
     mediaTrack.close();
     void jumpToMessage(messageId, { flash: true });
   }
@@ -1987,7 +1995,7 @@ export function ChatRoom({
    * scroll inside this call stack resolves the index against measurements the
    * previous window left behind, and lands on whatever was at that offset.
    */
-  async function jumpToMessage(id: number, { flash }: { flash: boolean }) {
+  async function jumpToMessage(id: MessageId, { flash }: { flash: boolean }) {
     if (!messages.some((message) => message.id === id)) {
       const outcome = await loadAround(id);
 
@@ -2077,11 +2085,11 @@ export function ChatRoom({
    * crosses bubbles, so the reach of this trash changes with every swipe — and
    * § 8.13. withdraws my own messages only, which is what `isAvailable` answers.
    */
-  function buildViewerDelete(owners: Map<string, TrackOwner>) {
+  function buildViewerDelete(owners: Map<MediaId, TrackOwner>) {
     return {
       label: "메시지 삭제",
-      isAvailable: (mediaId: string) => owners.get(mediaId)?.senderId === currentUserId,
-      onSelect: (mediaId: string) => {
+      isAvailable: (mediaId: MediaId) => owners.get(mediaId)?.senderId === currentUserId,
+      onSelect: (mediaId: MediaId) => {
         const messageId = owners.get(mediaId)?.messageId;
 
         if (messageId !== undefined) {
@@ -2116,7 +2124,7 @@ export function ChatRoom({
    * no text, no attachments, no emoticon, no quote. Leaving any of them on would
    * draw a bubble here that no other client can see, until the echo replaced it.
    */
-  async function deleteMessage(id: number) {
+  async function deleteMessage(id: MessageId) {
     const current = messages.find((entry) => entry.id === id);
 
     try {
@@ -2203,7 +2211,7 @@ export function ChatRoom({
    * database's, so the echo corrects it a moment later — one extra key revision
    * (§ 8.3.) and nothing else, since the label only ever asks whether it is null.
    */
-  async function applyEdit(id: number, text: string) {
+  async function applyEdit(id: MessageId, text: string) {
     const current = messages.find((entry) => entry.id === id);
     const edited = text.trim();
 
@@ -2255,9 +2263,9 @@ export function ChatRoom({
  */
 function findLastReadMineId(
   messages: ChatMessage[],
-  currentUserId: string,
+  currentUserId: UserId,
   participants: Participant[],
-): Nullable<number> {
+): Nullable<MessageId> {
   const other = participants.find((participant) => participant.id !== currentUserId);
 
   if (!other) {

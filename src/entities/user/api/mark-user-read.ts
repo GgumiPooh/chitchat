@@ -1,3 +1,4 @@
+import type { UserId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, users } from "@/shared/db";
@@ -11,7 +12,7 @@ import { and, eq, lt } from "drizzle-orm";
  * the UPDATE a no-op when nothing changed — which is what keeps the § 6.
  * `user_changed` trigger quiet under the app's most frequent write (§ 8.4.).
  */
-export async function markUserRead(userId: string): Promise<void> {
+export async function markUserRead(userId: UserId): Promise<void> {
   const readAt = new Date();
 
   await getDb()

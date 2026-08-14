@@ -1,14 +1,19 @@
 import { deleteEmoticonItem, updateEmoticonItem } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { MAX_EMOTICON_KEYWORDS, MAX_EMOTICON_KEYWORD_LENGTH } from "@/shared/config";
+import {
+  MAX_EMOTICON_KEYWORD_LENGTH,
+  MAX_EMOTICON_KEYWORDS,
+  snowflakeSchema,
+} from "@/shared/config";
+import type { EmoticonItemId } from "@/shared/lib";
 import { deleteObjects } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 // WARN: REQUIREMENTS.md § 13.7.1. jandh-emoticons mirrors this handler, and the browser reaches whichever copy the switch names. Both sides change together — a fix landed here alone is one this app stops running the moment the switch is on.
 
-const paramsSchema = z.object({ id: z.uuid() });
+const paramsSchema = z.object({ id: snowflakeSchema<EmoticonItemId>() });
 
 /**
  * INFO: REQUIREMENTS.md § 13.4. `audioKey` is tri-state on purpose — absent keeps

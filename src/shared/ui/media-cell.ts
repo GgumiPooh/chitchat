@@ -1,4 +1,4 @@
-import type { Nullable } from "@/shared/lib";
+import type { MediaId, MessageId, Nullable } from "@/shared/lib";
 
 /**
  * What a voice message carries beyond an ordinary attachment: the precomputed
@@ -67,7 +67,7 @@ export type MediaCell = {
    *
    * INFO: Left unset by a bubble's own cells, which is the state the viewer opens in before § 8.1.'s conversation-wide track replaces them — the reader is on that message either way, so nothing is lost in the gap.
    */
-  messageId?: Nullable<number>;
+  messageId?: Nullable<MessageId>;
   /**
    * DESIGN.md § 7.10. When the slide was sent, for the viewer's caption.
    *
@@ -76,5 +76,12 @@ export type MediaCell = {
   sentAt?: Nullable<string>;
   /** DESIGN.md § 7.10. Who sent the slide, shown above the caption. Unset where the viewer has no sender to name — a draft, or a profile photo (§ 7.7.). */
   senderName?: Nullable<string>;
-  id: string;
+  /**
+   * WARN: A `media` id for every cell built from a stored row, and a **local draft
+   * id** for one `toCellsFromDrafts` built (REQUIREMENTS.md § 8.5.). A draft cell
+   * carries no `originalUrl` and reaches no id-taking endpoint, which is what makes
+   * the shared brand safe here — anything added that sends this id to the server has
+   * to exclude draft cells first.
+   */
+  id: MediaId;
 };

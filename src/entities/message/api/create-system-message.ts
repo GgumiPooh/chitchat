@@ -1,15 +1,15 @@
 import "server-only";
 
-import { getDb, messages, type SystemAction } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import { getDb, messages, nextSnowflake, type SystemAction } from "@/shared/db";
+import type { EventId, MessageId, Nullable, UserId } from "@/shared/lib";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 
 export type CreateSystemMessageParams = {
-  senderId: string;
+  senderId: UserId;
   action: SystemAction;
   /** Null once the event has been deleted — the notice outlives its row (REQUIREMENTS.md § 6.). */
-  eventId: Nullable<string>;
+  eventId: Nullable<EventId>;
   eventTitle: string;
   eventStartsAt: Date;
 };
@@ -35,6 +35,7 @@ export async function createSystemMessage({
   const [row] = await db
     .insert(messages)
     .values({
+      id: nextSnowflake<MessageId>(),
       senderId,
       type: "system",
       systemAction: action,

@@ -4,7 +4,7 @@ import type { ArchiveMedia } from "@/entities/media";
 import { useSetBackground } from "@/features/set-background";
 import { useMediaPicker } from "@/features/upload-media";
 import { CHAT_MESSAGE_PARAM, CHAT_ROUTE } from "@/shared/config";
-import { cn, type Nullable } from "@/shared/lib";
+import { cn, type MediaId, type Nullable } from "@/shared/lib";
 import {
   downloadMedia,
   isShareableSelection,
@@ -40,7 +40,7 @@ export type ArchivePageProps = {
   className?: string;
   initialMedia: ArchiveMedia[];
   /** REQUIREMENTS.md § 10. The photo 채팅's viewer sent the reader here to see, from `?target=`; the window above already came back centred on it. */
-  targetId?: string;
+  targetId?: MediaId;
 };
 
 /**
@@ -293,7 +293,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
    * REQUIREMENTS.md § 10. The viewer's 삭제, which removes the library row alone —
    * the message the photo was sent in keeps it, which is what the confirmation says.
    */
-  function askToDeleteSlide(mediaId: string) {
+  function askToDeleteSlide(mediaId: MediaId) {
     const noun = viewer?.cells.find((item) => item.id === mediaId)?.isVideo ? "동영상" : "사진";
 
     askToDelete({ ids: [mediaId], subject: `이 ${noun}`, noun });

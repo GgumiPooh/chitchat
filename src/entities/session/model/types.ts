@@ -1,4 +1,4 @@
-import type { Nullable } from "@/shared/lib";
+import type { Nullable, SessionId } from "@/shared/lib";
 
 /**
  * REQUIREMENTS.md § 12. One logged-in device as the settings list shows it. The
@@ -15,5 +15,5 @@ export type DeviceSession = {
   lastSeenAt: string;
   /** REQUIREMENTS.md § 12. The caller's own session, which is marked rather than revocable. */
   isCurrent: boolean;
-  id: string;
+  id: SessionId;
 };

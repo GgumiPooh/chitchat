@@ -1,10 +1,10 @@
 import { request } from "@/shared/api";
 import { EMOTICON_PREFS_URL } from "@/shared/config";
-import type { Nullable } from "@/shared/lib";
+import type { EmoticonPackId, Nullable } from "@/shared/lib";
 
 /** REQUIREMENTS.md § 13.5. One move — the pack that moved and the pack it landed behind, `null` for the front of the list. */
 export async function saveEmoticonPackOrder(
-  packId: string,
+  packId: EmoticonPackId,
   after: Nullable<string>,
 ): Promise<void> {
   const response = await request(EMOTICON_PREFS_URL, {
@@ -18,7 +18,10 @@ export async function saveEmoticonPackOrder(
   }
 }
 
-export async function saveEmoticonPackEnabled(packId: string, enabled: boolean): Promise<void> {
+export async function saveEmoticonPackEnabled(
+  packId: EmoticonPackId,
+  enabled: boolean,
+): Promise<void> {
   const response = await request(EMOTICON_PREFS_URL, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },

@@ -6,15 +6,20 @@ import {
 } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { MAX_EMOTICON_KEYWORDS, MAX_EMOTICON_KEYWORD_LENGTH } from "@/shared/config";
+import {
+  MAX_EMOTICON_KEYWORD_LENGTH,
+  MAX_EMOTICON_KEYWORDS,
+  snowflakeSchema,
+} from "@/shared/config";
+import type { EmoticonItemId, EmoticonPackId } from "@/shared/lib";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 // WARN: REQUIREMENTS.md § 13.7.1. jandh-emoticons mirrors this handler, and the browser reaches whichever copy the switch names. Both sides change together — a fix landed here alone is one this app stops running the moment the switch is on.
 
-const paramsSchema = z.object({ id: z.uuid() });
+const paramsSchema = z.object({ id: snowflakeSchema<EmoticonPackId>() });
 
-const orderSchema = z.object({ itemIds: z.array(z.uuid()).min(1) });
+const orderSchema = z.object({ itemIds: z.array(snowflakeSchema<EmoticonItemId>()).min(1) });
 
 const bodySchema = z.object({
   imageKey: z.string().min(1),
@@ -135,6 +140,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
  * for every item in the pack — and all either write needs of it is that the id names
  * a row. § 13.5.'s prefs handlers were moved off the same pattern.
  */
-async function isKnownPack(packId: string): Promise<boolean> {
+async function isKnownPack(packId: EmoticonPackId): Promise<boolean> {
   return (await findKnownPackIds([packId])).has(packId);
 }

@@ -1,3 +1,4 @@
+import type { SessionId, UserId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, sessions } from "@/shared/db";
@@ -14,9 +15,9 @@ import { and, eq, ne } from "drizzle-orm";
  * row for — and which would leave a cookie the proxy still accepts (§ 5.2.).
  */
 export async function revokeUserSession(
-  userId: string,
-  sessionId: string,
-  currentSessionId: string,
+  userId: UserId,
+  sessionId: SessionId,
+  currentSessionId: SessionId,
 ): Promise<boolean> {
   const revoked = await getDb()
     .delete(sessions)

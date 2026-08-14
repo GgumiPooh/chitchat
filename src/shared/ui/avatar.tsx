@@ -1,7 +1,7 @@
 "use client";
 
 import { toMediaUrl } from "@/shared/config";
-import { cn, type Maybe, type Nullable } from "@/shared/lib";
+import { cn, type Maybe, type MediaId, type Nullable } from "@/shared/lib";
 import { Avatar as AvatarPrimitive } from "radix-ui";
 import { useMemo, useState } from "react";
 import type { MediaCell } from "./media-cell";
@@ -12,7 +12,7 @@ export type AvatarProps = {
   fallbackClassName?: string;
   src?: Maybe<string>;
   /** REQUIREMENTS.md § 12. The `media` row behind the photo. Resolves `src` and is what the full-screen view reads. */
-  mediaId?: Nullable<string>;
+  mediaId?: Nullable<MediaId>;
   /** Resolved display name. Its first character is the fallback, per DESIGN.md § 7.7. */
   name: string;
   size?: "chat" | "row" | "profile";
@@ -116,7 +116,7 @@ export function Avatar({
  * is what lets the viewer reserve a box without a round trip for the real
  * dimensions — an avatar written any other way would show letterboxed here.
  */
-function toAvatarCell(mediaId: string): MediaCell {
+function toAvatarCell(mediaId: MediaId): MediaCell {
   return {
     id: mediaId,
     previewUrl: toMediaUrl(mediaId),

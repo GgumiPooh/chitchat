@@ -1,7 +1,7 @@
 import "server-only";
 
-import { getDb, messageMedia, messages } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import { getDb, messageMedia, messages, nextSnowflake } from "@/shared/db";
+import type { MediaId, MessageId, Nullable, UserId } from "@/shared/lib";
 import { and, eq, isNull } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
@@ -9,7 +9,7 @@ import { listMessageMedia } from "./list-message-media";
 import { getReplyPreview } from "./list-reply-previews";
 
 export type CreateMediaMessageParams = {
-  senderId: string;
+  senderId: UserId;
   clientMsgId: string;
   /**
    * Already-registered `media` ids owned by `senderId`, in the order they were picked.
@@ -18,9 +18,9 @@ export type CreateMediaMessageParams = {
    * carries a foreign key, so an id with no row aborts the transaction. The route
    * clears it with `ownsAllMedia` and answers 400.
    */
-  mediaIds: string[];
+  mediaIds: MediaId[];
   /** REQUIREMENTS.md § 8.10. The quoted message; a precondition here for the same reason `mediaIds` is. */
-  replyToId?: number;
+  replyToId?: MessageId;
 };
 
 /**
@@ -41,7 +41,7 @@ export async function createMediaMessage({
   const inserted = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(messages)
-      .values({ senderId, type: "media", clientMsgId, replyToId })
+      .values({ id: nextSnowflake<MessageId>(), senderId, type: "media", clientMsgId, replyToId })
       // INFO: REQUIREMENTS.md § 8.5. Idempotent on `client_msg_id`, so a retried send after a timeout cannot post the same photos twice.
       .onConflictDoNothing({ target: messages.clientMsgId })
       .returning();
@@ -76,7 +76,7 @@ export async function createMediaMessage({
 }
 
 // WARN: `client_msg_id` is unique table-wide rather than per sender, so matching on it alone would hand this caller the other user's message on a collision.
-async function findOwnMessage(clientMsgId: string, senderId: string) {
+async function findOwnMessage(clientMsgId: string, senderId: UserId) {
   const [existing] = await getDb()
     .select()
     .from(messages)

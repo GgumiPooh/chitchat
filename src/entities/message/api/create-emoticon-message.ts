@@ -1,7 +1,7 @@
 import "server-only";
 
-import { getDb, messages } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import { getDb, messages, nextSnowflake } from "@/shared/db";
+import type { EmoticonItemId, MessageId, Nullable, UserId } from "@/shared/lib";
 import { and, eq, isNull } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
@@ -9,11 +9,11 @@ import { listMessageEmoticons } from "./list-message-emoticons";
 import { getReplyPreview } from "./list-reply-previews";
 
 export type CreateEmoticonMessageParams = {
-  senderId: string;
+  senderId: UserId;
   clientMsgId: string;
-  emoticonItemId: string;
+  emoticonItemId: EmoticonItemId;
   /** REQUIREMENTS.md § 8.10. The quoted message; a precondition here, cleared by the route. */
-  replyToId?: number;
+  replyToId?: MessageId;
 };
 
 /**
@@ -32,7 +32,14 @@ export async function createEmoticonMessage({
   const db = getDb();
   const [inserted] = await db
     .insert(messages)
-    .values({ senderId, type: "emoticon", emoticonItemId, clientMsgId, replyToId })
+    .values({
+      id: nextSnowflake<MessageId>(),
+      senderId,
+      type: "emoticon",
+      emoticonItemId,
+      clientMsgId,
+      replyToId,
+    })
     .onConflictDoNothing({ target: messages.clientMsgId })
     .returning();
 
@@ -56,7 +63,7 @@ export async function createEmoticonMessage({
 }
 
 // WARN: `client_msg_id` is unique across the whole table, not per sender, so matching on it alone would hand this caller the other user's message on a collision.
-async function findOwnMessage(clientMsgId: string, senderId: string) {
+async function findOwnMessage(clientMsgId: string, senderId: UserId) {
   const [existing] = await getDb()
     .select()
     .from(messages)

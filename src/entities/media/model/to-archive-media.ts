@@ -1,11 +1,11 @@
 import type { Media } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import type { MessageId, Nullable } from "@/shared/lib";
 import { toChatMedia } from "./to-chat-media";
 import type { ArchiveMedia } from "./types";
 
 /** Who sent a library tile and in which message — resolved together, because one query answers both (REQUIREMENTS.md § 10.). */
 export type ArchiveOrigin = {
-  messageId: number;
+  messageId: MessageId;
   senderName: string;
 };
 

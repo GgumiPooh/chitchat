@@ -1,3 +1,4 @@
+import type { EmoticonItemId } from "@/shared/lib";
 import "server-only";
 
 import { MAX_EMOTICON_ID_LOOKUP } from "@/shared/config";
@@ -21,7 +22,7 @@ import type { Emoticon } from "../model/types";
  * them ever being corrected — the bound belongs on the query, where it holds for
  * whatever calls it.
  */
-export async function listEmoticonsByIds(ids: string[]): Promise<Emoticon[]> {
+export async function listEmoticonsByIds(ids: EmoticonItemId[]): Promise<Emoticon[]> {
   if (ids.length === 0) {
     return [];
   }

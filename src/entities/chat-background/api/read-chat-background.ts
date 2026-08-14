@@ -1,13 +1,13 @@
 import "server-only";
 
 import { chatSettings, getDb, media } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import type { MediaId, Nullable } from "@/shared/lib";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
 
 /** REQUIREMENTS.md § 12.2. The wallpaper both participants see. */
 export type ChatBackground = {
-  mediaId: string;
+  mediaId: MediaId;
   /**
    * REQUIREMENTS.md § 9. The object's stored hash, carried beside the id because its
    * DC term is the photo's average colour — which is what the chat route's chrome is

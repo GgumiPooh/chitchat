@@ -1,7 +1,7 @@
 "use client";
 
 import type { EmoticonPackSummary } from "@/entities/emoticon";
-import { cn, useSortableSensors, type Nullable } from "@/shared/lib";
+import { cn, useSortableSensors, type EmoticonPackId, type Nullable } from "@/shared/lib";
 import { EmptyState, toast } from "@/shared/ui";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
@@ -16,9 +16,9 @@ export type EmoticonPackManagerProps = {
   packs: EmoticonPackSummary[];
   /** REQUIREMENTS.md § 13.5. The pack 숨기기 was chosen for, while its row collapses. */
   hidingId: Nullable<string>;
-  onOpenPack: (packId: string) => void;
-  onManagePack: (packId: string) => void;
-  onPackHidden: (packId: string) => void;
+  onOpenPack: (packId: EmoticonPackId) => void;
+  onManagePack: (packId: EmoticonPackId) => void;
+  onPackHidden: (packId: EmoticonPackId) => void;
   onPacksChange: (packs: EmoticonPackSummary[]) => void;
 };
 
@@ -127,7 +127,7 @@ export function EmoticonPackManager({
   }
 
   function queueOrderWrite(
-    packId: string,
+    packId: EmoticonPackId,
     after: Nullable<string>,
     previous: EmoticonPackSummary[],
   ) {

@@ -6,7 +6,7 @@ import { A_MINUTE, A_SECOND, mapPooled, type Nullable } from "@/shared/lib";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { useStorageState } from "synced-storage/react";
-import { ACTIVE_TAB_KEY, RECENTS_TAB } from "./emoticon-tabs";
+import { ACTIVE_TAB_KEY, RECENTS_TAB, isPackTabId } from "./emoticon-tabs";
 import { toEmoticonsByIdsQuery } from "./emoticons-query";
 import { toEmoticonKeywordsQuery } from "./keywords-query";
 import { toEmoticonPackItemsQuery } from "./pack-items-query";
@@ -118,7 +118,7 @@ export function useEmoticonPreload(): void {
     async function fetchOpeningTabItems(packs: EmoticonPackSummary[]): Promise<Emoticon[]> {
       const { storedTab: tab, recentIds: ids } = openingTabRef.current;
 
-      if (packs.some((pack) => pack.id === tab && pack.isEnabled)) {
+      if (isPackTabId(tab) && packs.some((pack) => pack.id === tab && pack.isEnabled)) {
         return queryClient.fetchQuery(toEmoticonPackItemsQuery(tab)).catch(() => []);
       }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { MAX_EMOTICON_PACK_NAME_LENGTH } from "@/shared/config";
-import { cn, type Nullable } from "@/shared/lib";
+import { cn, type EmoticonPackId, type Nullable } from "@/shared/lib";
 import { EmptyState, Skeleton } from "@/shared/ui";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { Search, Smile } from "lucide-react";
@@ -20,7 +20,7 @@ import { EmoticonPackSearchRow } from "./emoticon-pack-search-row";
 
 export type EmoticonPackBrowserProps = {
   className?: string;
-  onOpenPack: (packId: string) => void;
+  onOpenPack: (packId: EmoticonPackId) => void;
   /** REQUIREMENTS.md § 13.5. A switch has been written, so the 사용중 tab's server seed is one edit out of date. */
   onEnabledChange: () => void;
 };

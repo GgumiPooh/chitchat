@@ -7,6 +7,7 @@ import {
   useSettledCommit,
   type LongPressPoint,
   type Maybe,
+  type MediaId,
   type Nullable,
   type Optional,
 } from "@/shared/lib";
@@ -38,7 +39,7 @@ export type ArchiveGridProps = {
   isSelecting: boolean;
   selected: Set<string>;
   /** REQUIREMENTS.md § 10. The tile the shelf was opened on, from `?target=` — consumed once at mount, never re-applied. */
-  targetId?: string;
+  targetId?: MediaId;
   /** Given the whole ordered cell list and the tapped index, so the viewer can swipe past the month it started in. */
   onOpen: (cells: MediaCell[], index: number) => void;
   onToggle: (id: string) => void;
@@ -405,7 +406,7 @@ export function ArchiveGrid({
 
   /** REQUIREMENTS.md § 10. The hold picks the tile it fired on and anchors the sweep there. */
   // WARN: The anchor is written after the sweep is armed, never before. Arming disposes a sweep still running on another finger, and that disposal ends with the `onEnd` that clears this very ref.
-  function hold(id: string, point: LongPressPoint) {
+  function hold(id: MediaId, point: LongPressPoint) {
     onSweepStart?.(id);
     startSweep(point);
     anchorRef.current = indexById.get(id) ?? null;
@@ -420,7 +421,7 @@ export function ArchiveGrid({
    * rendered window is the same range it always was — only the tile the finger is
    * *on* has to exist in the DOM, and that one is by definition on screen.
    */
-  function sweepTo(id: string) {
+  function sweepTo(id: MediaId) {
     const anchor = anchorRef.current;
     const index = indexById.get(id);
 

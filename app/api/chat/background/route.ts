@@ -2,14 +2,14 @@ import { writeChatBackground, type ReplacedBackground } from "@/entities/chat-ba
 import { discardUnwornScopedMedia, getMediaRow } from "@/entities/media";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { isImageMime } from "@/shared/config";
-import { safelyRunAsync, type Nullable } from "@/shared/lib";
+import { isImageMime, snowflakeSchema } from "@/shared/config";
+import { safelyRunAsync, type MediaId, type Nullable, type UserId } from "@/shared/lib";
 import { toScopePrefix } from "@/shared/storage";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
 // INFO: REQUIREMENTS.md § 12.2. `null` is 기본 배경으로 — the room goes back to the flat `chat-canvas`. Required rather than `nullish`, because unlike § 12.'s patch there is only one field here and an absent one would leave nothing to write.
-const bodySchema = z.object({ mediaId: z.uuid().nullable() });
+const bodySchema = z.object({ mediaId: snowflakeSchema<MediaId>().nullable() });
 
 /**
  * REQUIREMENTS.md § 12.2. The wallpaper both participants see.
@@ -60,7 +60,7 @@ export async function PATCH(request: Request) {
  * the same row by primary key, and the row already carries everything either test
  * needs — the second round trip bought nothing and sat on a user-visible save.
  */
-async function isWearableBy(mediaId: Nullable<string>, userId: string): Promise<boolean> {
+async function isWearableBy(mediaId: Nullable<MediaId>, userId: UserId): Promise<boolean> {
   if (!mediaId) {
     return true;
   }

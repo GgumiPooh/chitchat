@@ -1,15 +1,15 @@
 "use client";
 
 import { useProfileViewer } from "@/features/view-profile";
-import { cn, type Nullable } from "@/shared/lib";
+import { cn, type MediaId, type Nullable, type UserId } from "@/shared/lib";
 import { Avatar, BackgroundMedia } from "@/shared/ui";
 
 export type ProfileCoverProps = {
   className?: string;
-  userId: string;
+  userId: UserId;
   name: string;
-  avatarMediaId: Nullable<string>;
-  profileBackgroundMediaId: Nullable<string>;
+  avatarMediaId: Nullable<MediaId>;
+  profileBackgroundMediaId: Nullable<MediaId>;
   /** REQUIREMENTS.md § 12.1. A cover may be a video, and the element to draw it in cannot be inferred from the id. */
   isProfileBackgroundVideo: boolean;
 };

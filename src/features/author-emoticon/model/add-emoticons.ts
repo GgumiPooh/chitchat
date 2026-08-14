@@ -8,6 +8,7 @@ import {
   allowedMimesForEmoticonSlot,
   isAllowedEmoticonAsset,
 } from "@/shared/config";
+import type { EmoticonPackId } from "@/shared/lib";
 import { formatSize, holdAwake, holdUnsentWork, mapPooled } from "@/shared/lib";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
 import { createEmoticon } from "../api/write-emoticon";
@@ -40,7 +41,7 @@ type Prepared = { uploadedKey: string; width: number; height: number } | { reaso
  * INFO: Uploads run `UPLOAD_CONCURRENCY` wide under a byte budget rather than one at a time; § 13.4. carries the argument for both halves of that limit.
  */
 export async function addEmoticonsFromFiles(
-  packId: string,
+  packId: EmoticonPackId,
   files: File[],
   { onAdded, onSettled }: BulkAddHandlers,
 ): Promise<BulkAddResult> {

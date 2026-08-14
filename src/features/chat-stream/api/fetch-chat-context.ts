@@ -1,7 +1,7 @@
 import type { Participant } from "@/entities/user";
 import { request } from "@/shared/api";
 import { USERS_PATH } from "@/shared/config";
-import type { Nullable } from "@/shared/lib";
+import type { MediaId, Nullable } from "@/shared/lib";
 
 /**
  * REQUIREMENTS.md § 8.4. Everything a `user_changed` event invalidates, in one
@@ -10,7 +10,7 @@ import type { Nullable } from "@/shared/lib";
  */
 export type ChatContext = {
   participants: Participant[];
-  chatBackgroundMediaId: Nullable<string>;
+  chatBackgroundMediaId: Nullable<MediaId>;
   /** REQUIREMENTS.md § 12.2. The wallpaper's own hash, which the chat route's chrome takes its colour from. */
   chatBackgroundBlurhash: Nullable<string>;
 };
@@ -24,7 +24,7 @@ export async function fetchChatContext(): Promise<ChatContext> {
 
   const { users, chatBackgroundMediaId, chatBackgroundBlurhash } = (await response.json()) as {
     users: Participant[];
-    chatBackgroundMediaId: Nullable<string>;
+    chatBackgroundMediaId: Nullable<MediaId>;
     chatBackgroundBlurhash: Nullable<string>;
   };
 

@@ -1,7 +1,7 @@
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import { request } from "@/shared/api";
 import { EMOTICON_ITEMS_URL, EMOTICON_KEYWORDS_URL, EMOTICON_PACKS_URL } from "@/shared/config";
-import type { Maybe, Nullable } from "@/shared/lib";
+import type { EmoticonItemId, EmoticonPackId, Maybe, Nullable } from "@/shared/lib";
 
 export type CreateEmoticonBody = {
   imageKey: string;
@@ -56,7 +56,7 @@ export class KeywordRateLimitError extends Error {
  * answers that with CORS.
  */
 export async function suggestEmoticonKeywords(
-  itemIds: string[],
+  itemIds: EmoticonItemId[],
 ): Promise<Record<string, string[]>> {
   const response = await request(EMOTICON_KEYWORDS_URL, {
     method: "POST",
@@ -85,7 +85,10 @@ export async function createEmoticonPack(name: string): Promise<EmoticonPackSumm
   return pack;
 }
 
-export async function createEmoticon(packId: string, body: CreateEmoticonBody): Promise<Emoticon> {
+export async function createEmoticon(
+  packId: EmoticonPackId,
+  body: CreateEmoticonBody,
+): Promise<Emoticon> {
   const { emoticon } = await send<{ emoticon: Emoticon }>(
     `${EMOTICON_PACKS_URL}/${packId}/items`,
     "POST",
@@ -95,7 +98,10 @@ export async function createEmoticon(packId: string, body: CreateEmoticonBody): 
   return emoticon;
 }
 
-export async function updateEmoticon(itemId: string, body: UpdateEmoticonBody): Promise<Emoticon> {
+export async function updateEmoticon(
+  itemId: EmoticonItemId,
+  body: UpdateEmoticonBody,
+): Promise<Emoticon> {
   const { emoticon } = await send<{ emoticon: Emoticon }>(
     `${EMOTICON_ITEMS_URL}/${itemId}`,
     "PATCH",
@@ -106,17 +112,17 @@ export async function updateEmoticon(itemId: string, body: UpdateEmoticonBody): 
 }
 
 export async function updateEmoticonPack(
-  packId: string,
+  packId: EmoticonPackId,
   body: { name?: string; thumbnailItemId?: Nullable<string> },
 ): Promise<void> {
   await send(`${EMOTICON_PACKS_URL}/${packId}`, "PATCH", body);
 }
 
-export async function deleteEmoticonPack(packId: string): Promise<void> {
+export async function deleteEmoticonPack(packId: EmoticonPackId): Promise<void> {
   await send(`${EMOTICON_PACKS_URL}/${packId}`, "DELETE");
 }
 
-export async function deleteEmoticon(itemId: string): Promise<void> {
+export async function deleteEmoticon(itemId: EmoticonItemId): Promise<void> {
   await send(`${EMOTICON_ITEMS_URL}/${itemId}`, "DELETE");
 }
 

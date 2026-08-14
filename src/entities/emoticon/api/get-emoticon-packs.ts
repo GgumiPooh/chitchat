@@ -2,7 +2,7 @@ import "server-only";
 
 import { EMOTICON_PACK_PAGE_SIZE } from "@/shared/config";
 import { emoticonItems, emoticonPacks, getDb, userEmoticonPrefs } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import type { EmoticonPackId, Nullable, UserId } from "@/shared/lib";
 import { and, asc, eq, ilike, inArray, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { toEmoticon } from "../model/to-emoticon";
@@ -42,7 +42,7 @@ export type EmoticonPackPageQuery = EmoticonPackFilter & {
  * items, so a pack whose `thumbnail_item_id` is null would simply lose its tab icon.
  */
 export async function listEmoticonPacks(
-  userId: string,
+  userId: UserId,
   filter: EmoticonPackFilter = {},
 ): Promise<EmoticonPackSummary[]> {
   return (await selectPackRows(userId, filter)).map(toDrawnSummary);
@@ -59,7 +59,7 @@ export async function listEmoticonPacks(
  * not, and § 13.5.'s drag rewrites those positions while the list is open.
  */
 export async function listEmoticonPacksPage(
-  userId: string,
+  userId: UserId,
   query: EmoticonPackPageQuery = {},
 ): Promise<EmoticonPackPage> {
   const limit = query.limit ?? EMOTICON_PACK_PAGE_SIZE;
@@ -100,8 +100,8 @@ export function parseEmoticonPackCursor(cursor: string): Nullable<EmoticonPackCu
  * offer 대표로 지정 on a pack that has none.
  */
 export async function getEmoticonPack(
-  packId: string,
-  userId: string,
+  packId: EmoticonPackId,
+  userId: UserId,
 ): Promise<Nullable<EmoticonPackWithItems>> {
   const [row] = await selectPackRows(userId, { packId });
 
@@ -124,7 +124,7 @@ export async function getEmoticonPack(
  * INFO: § 13.1. No `userId` — a pack has no owner, and the per-user part is the prefs
  * row the caller is about to write rather than the pack it names.
  */
-export async function findKnownPackIds(packIds: string[]): Promise<Set<string>> {
+export async function findKnownPackIds(packIds: EmoticonPackId[]): Promise<Set<string>> {
   if (packIds.length === 0) {
     return new Set();
   }
@@ -143,7 +143,7 @@ export async function findKnownPackIds(packIds: string[]): Promise<Set<string>> 
  * INFO: § 13.6. What a picker tab is filled from, one pack at a time — the panel used
  * to be handed every pack's items at once, which is the payload this replaced.
  */
-export async function listEmoticonPackItems(packId: string): Promise<Emoticon[]> {
+export async function listEmoticonPackItems(packId: EmoticonPackId): Promise<Emoticon[]> {
   const rows = await getDb()
     .select()
     .from(emoticonItems)
@@ -172,7 +172,10 @@ export async function listEmoticonPackItems(packId: string): Promise<Emoticon[]>
  * packs hold eighteen items each. The whole list is a wash at two items each, which is
  * the shape a synthetic seed has and no real pack does.
  */
-function selectPackPage(userId: string, query: EmoticonPackPageQuery & { packId?: string }) {
+function selectPackPage(
+  userId: UserId,
+  query: EmoticonPackPageQuery & { packId?: EmoticonPackId },
+) {
   const cursor = query.cursor ? parseEmoticonPackCursor(query.cursor) : null;
   const conditions: Nullable<SQL>[] = [
     query.packId === undefined ? null : eq(emoticonPacks.id, query.packId),
@@ -181,7 +184,7 @@ function selectPackPage(userId: string, query: EmoticonPackPageQuery & { packId?
     query.query ? ilike(emoticonPacks.name, `%${toLikeLiteral(query.query)}%`) : null,
     // WARN: One row-value comparison against the **same** pair the `ORDER BY` uses, and the casts are load-bearing — a bind parameter arrives as text, where the key is `numeric` and `uuid`.
     cursor
-      ? sql`(${effectivePackPosition()}, ${emoticonPacks.id}) > (${cursor.position}::numeric, ${cursor.id}::uuid)`
+      ? sql`(${effectivePackPosition()}, ${emoticonPacks.id}) > (${cursor.position}::numeric, ${cursor.id}::bigint)`
       : null,
   ];
 
@@ -207,7 +210,10 @@ function selectPackPage(userId: string, query: EmoticonPackPageQuery & { packId?
   return (query.limit === undefined ? page : page.limit(query.limit)).as("pack_page");
 }
 
-function selectPackRows(userId: string, query: EmoticonPackPageQuery & { packId?: string }) {
+function selectPackRows(
+  userId: UserId,
+  query: EmoticonPackPageQuery & { packId?: EmoticonPackId },
+) {
   const page = selectPackPage(userId, query);
   // INFO: One alias of `emoticon_items` per question asked of it — the item the pack points at (§ 13.2.), the item it falls back to, and how many it holds.
   const chosenThumbnails = alias(emoticonItems, "chosen_thumbnails");

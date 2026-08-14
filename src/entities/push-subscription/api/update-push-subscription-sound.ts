@@ -1,10 +1,11 @@
+import type { UserId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, pushSubscriptions } from "@/shared/db";
 import { and, eq } from "drizzle-orm";
 
 export type UpdatePushSubscriptionSoundParams = {
-  userId: string;
+  userId: UserId;
   endpoint: string;
   soundEnabled: boolean;
 };

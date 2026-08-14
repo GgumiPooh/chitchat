@@ -1,3 +1,4 @@
+import type { UserId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, pushSubscriptions } from "@/shared/db";
@@ -12,7 +13,7 @@ import type { PushPayload } from "../model/types";
  * Never throws. It runs in `after()` on the send path, where a rejection would
  * surface as an unhandled invocation failure long after the sender got their 201.
  */
-export async function pushToUser(userId: string, payload: PushPayload): Promise<void> {
+export async function pushToUser(userId: UserId, payload: PushPayload): Promise<void> {
   const db = getDb();
   const targets = await db
     .select({

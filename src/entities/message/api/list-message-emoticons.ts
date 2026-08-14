@@ -1,3 +1,4 @@
+import type { EmoticonItemId } from "@/shared/lib";
 import "server-only";
 
 import { toEmoticon, type Emoticon } from "@/entities/emoticon/@x/message";
@@ -11,7 +12,9 @@ import { inArray } from "drizzle-orm";
  * the same reason `listMessageMedia` is one query. Keyed by *item* rather than by
  * message, because a page commonly repeats one emoticon several times.
  */
-export async function listMessageEmoticons(itemIds: string[]): Promise<Map<string, Emoticon>> {
+export async function listMessageEmoticons(
+  itemIds: EmoticonItemId[],
+): Promise<Map<string, Emoticon>> {
   const byId = new Map<string, Emoticon>();
 
   if (itemIds.length === 0) {

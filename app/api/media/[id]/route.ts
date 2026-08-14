@@ -1,13 +1,14 @@
 import { canReadMedia, getMediaRow, toVariantKey } from "@/entities/media";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { MEDIA_CACHE_MAX_AGE } from "@/shared/config";
+import { MEDIA_CACHE_MAX_AGE, snowflakeSchema } from "@/shared/config";
+import type { MediaId } from "@/shared/lib";
 import { A_SECOND } from "@/shared/lib";
 import { presignDownload } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-const paramsSchema = z.object({ id: z.uuid() });
+const paramsSchema = z.object({ id: snowflakeSchema<MediaId>() });
 
 const querySchema = z.object({
   variant: z.enum(["thumb", "original"]).default("thumb"),

@@ -13,15 +13,15 @@ import {
   toSafeFilename,
   type MediaUploadScope,
 } from "@/shared/config";
-import { getDb, media } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import { getDb, media, nextSnowflake } from "@/shared/db";
+import type { MediaId, Nullable, UserId } from "@/shared/lib";
 import { headAcceptableObject, toThumbKey, type StoredObject } from "@/shared/storage";
 import { and, eq } from "drizzle-orm";
 import { toArchiveMedia } from "../model/to-archive-media";
 import type { ArchiveMedia } from "../model/types";
 
 export type RegisterMediaParams = {
-  ownerId: string;
+  ownerId: UserId;
   r2Key: string;
   width: number;
   height: number;
@@ -131,6 +131,7 @@ export async function registerMedia({
   const [row] = await getDb()
     .insert(media)
     .values({
+      id: nextSnowflake<MediaId>(),
       ownerId,
       r2Key,
       mime: object.mime,
@@ -178,7 +179,7 @@ function isAcceptableObject(scope: MediaUploadScope) {
   };
 }
 
-async function getMediaByKey(r2Key: string, ownerId: string): Promise<Nullable<ArchiveMedia>> {
+async function getMediaByKey(r2Key: string, ownerId: UserId): Promise<Nullable<ArchiveMedia>> {
   const [existing] = await getDb()
     .select()
     .from(media)

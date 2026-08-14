@@ -1,6 +1,8 @@
 import { listChangedMessages } from "@/entities/message";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
+import { snowflakeCursorSchema } from "@/shared/config";
+import type { MessageId } from "@/shared/lib";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -11,8 +13,8 @@ import { z } from "zod";
  */
 const querySchema = z
   .object({
-    from: z.coerce.number().int().nonnegative(),
-    to: z.coerce.number().int().nonnegative(),
+    from: snowflakeCursorSchema<MessageId>(),
+    to: snowflakeCursorSchema<MessageId>(),
   })
   // INFO: An inverted range is a client bug rather than an empty answer, and § 14. reports it as the 400 every other malformed query gets.
   .refine(({ from, to }) => from <= to);

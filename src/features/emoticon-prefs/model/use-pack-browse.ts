@@ -1,6 +1,7 @@
 "use client";
 
 import type { EmoticonPackSummary } from "@/entities/emoticon";
+import type { EmoticonPackId } from "@/shared/lib";
 import { A_MINUTE, A_SECOND, type Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useInfiniteQuery } from "@tanstack/react-query";
@@ -22,7 +23,7 @@ export type PackBrowse = {
   isLoadingMore: boolean;
   hasFailed: boolean;
   loadMore: () => void;
-  toggle: (packId: string, isEnabled: boolean) => void;
+  toggle: (packId: EmoticonPackId, isEnabled: boolean) => void;
 };
 
 /**
@@ -70,7 +71,7 @@ export function usePackBrowse(query: string, onEnabledChange: () => void): PackB
     toggle,
   };
 
-  function toggle(packId: string, isEnabled: boolean) {
+  function toggle(packId: EmoticonPackId, isEnabled: boolean) {
     setSwitches((current) => ({ ...current, [packId]: isEnabled }));
     // INFO: § 13.5. The other tab is seeded by the server and cannot hear this write, so it is told to re-read before it is next looked at.
     onEnabledChange();

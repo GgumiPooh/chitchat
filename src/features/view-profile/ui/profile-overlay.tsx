@@ -2,7 +2,7 @@
 
 import { useChatStream } from "@/features/chat-stream/@x/view-profile";
 import { ProfileEditorSheet } from "@/features/update-profile/@x/view-profile";
-import { cn, useModalOverlay } from "@/shared/lib";
+import { cn, useModalOverlay, type UserId } from "@/shared/lib";
 import { Avatar, BackgroundMedia, HapticTarget, IconButton, ShellOverlay } from "@/shared/ui";
 import { MessageCircle, Pencil, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -11,8 +11,8 @@ import { useEffect, useState } from "react";
 export type ProfileOverlayProps = {
   className?: string;
   /** The participant being looked at. Resolved live, so a rename reaches an open profile (REQUIREMENTS.md § 8.7.). */
-  userId: string;
-  currentUserId: string;
+  userId: UserId;
+  currentUserId: UserId;
   onClose: () => void;
 };
 

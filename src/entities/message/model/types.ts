@@ -2,7 +2,7 @@ import type { Emoticon } from "@/entities/emoticon/@x/message";
 import type { ChatMedia } from "@/entities/media/@x/message";
 import type { MediaKind, QuoteThumbnail } from "@/shared/config";
 import type { MessageType, SystemAction } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import type { EventId, MessageId, Nullable, UserId } from "@/shared/lib";
 
 /**
  * The message a reply quotes, as the quote renders it (REQUIREMENTS.md § 8.10.).
@@ -16,7 +16,7 @@ import type { Nullable } from "@/shared/lib";
  */
 export type ReplyPreview = {
   /** Resolved against the participant set on the client, never carried as a name (§ 8.7.). */
-  senderId: string;
+  senderId: UserId;
   kind: MessageType;
   /** Already sliced to `REPLY_PREVIEW_MAX_LENGTH` — the quote clamps to one line. */
   text: Nullable<string>;
@@ -28,7 +28,7 @@ export type ReplyPreview = {
   mediaCount: number;
   // INFO: § 6. is append-only and a delete is a soft one, so the parent row outlives its content and the quote says 삭제된 메시지예요 instead of going blank.
   isDeleted: boolean;
-  id: number;
+  id: MessageId;
 };
 
 /**
@@ -40,12 +40,12 @@ export type ReplyPreview = {
  */
 export type MessageSearchResult = {
   /** Resolved against the participant set on the client, exactly as a bubble is (§ 8.7.). */
-  senderId: string;
+  senderId: UserId;
   // INFO: Already windowed around the first match, since the row clamps to two lines and the match has to survive the clamp.
   excerpt: string;
   createdAt: string;
   /** What the jump asks `GET /api/messages?around=` for (§ 8.6.1.). */
-  id: number;
+  id: MessageId;
 };
 
 /**
@@ -54,14 +54,14 @@ export type MessageSearchResult = {
  */
 export type ChatMessage = {
   type: MessageType;
-  senderId: string;
+  senderId: UserId;
   clientMsgId: string;
   text: Nullable<string>;
   // INFO: REQUIREMENTS.md § 6. One bubble is one row however many attachments it carries, so this is an array rather than a `mediaId` on the message.
   media: ChatMedia[];
   // INFO: REQUIREMENTS.md § 13.6. Resolved at read time from `emoticon_item_id`, never copied onto the row — an emoticon renamed in Settings updates every bubble that used it, the same way § 8.7. treats a sender's name.
   emoticon: Nullable<Emoticon>;
-  eventId: Nullable<string>;
+  eventId: Nullable<EventId>;
   systemAction: Nullable<SystemAction>;
   eventTitle: Nullable<string>;
   eventStartsAt: Nullable<string>;
@@ -79,5 +79,5 @@ export type ChatMessage = {
    * before any of them; there is nothing behind it to fall back on.
    */
   isDeleted: boolean;
-  id: number;
+  id: MessageId;
 };

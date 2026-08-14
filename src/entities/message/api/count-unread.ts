@@ -1,3 +1,4 @@
+import type { UserId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, messages, users } from "@/shared/db";
@@ -7,7 +8,7 @@ import { and, count, eq, gt, isNull, ne } from "drizzle-orm";
  * Unread count for the tab-bar badge (`REQUIREMENTS.md § 8.8.`) — messages the
  * other person sent after this user's `last_read_at` cursor.
  */
-export async function countUnreadMessages(userId: string) {
+export async function countUnreadMessages(userId: UserId) {
   const [row] = await getDb()
     .select({ unread: count() })
     .from(messages)

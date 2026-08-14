@@ -1,16 +1,18 @@
 import { listConversationMedia } from "@/entities/media";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
+import { snowflakeSchema } from "@/shared/config";
+import type { MediaId } from "@/shared/lib";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const querySchema = z
   .object({
     // INFO: REQUIREMENTS.md § 8.1. The slide the reader tapped. The window is centred on it.
-    around: z.uuid().optional(),
+    around: snowflakeSchema<MediaId>().optional(),
     // INFO: REQUIREMENTS.md § 8.1. The track's oldest and newest loaded slides — the two edges it pages past as the reader nears them.
-    before: z.uuid().optional(),
-    after: z.uuid().optional(),
+    before: snowflakeSchema<MediaId>().optional(),
+    after: snowflakeSchema<MediaId>().optional(),
   })
   // INFO: Exactly one, never a default. A request with no anchor names no position to answer from, and one naming two is a client that has confused a window with a page — `listConversationMedia` would silently prefer `around` and the caller would never learn its cursor was ignored.
   .refine(

@@ -2,7 +2,15 @@
 
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import { MAX_KEYWORD_QUERY_LENGTH, toEmoticonAssetUrl } from "@/shared/config";
-import { A_SECOND, cn, isBareKey, isCommandKey, type Nullable, type Optional } from "@/shared/lib";
+import {
+  A_SECOND,
+  cn,
+  isBareKey,
+  isCommandKey,
+  type EmoticonItemId,
+  type Nullable,
+  type Optional,
+} from "@/shared/lib";
 import { EmptyState, HapticTarget, Input, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Search, Smile } from "lucide-react";
@@ -246,7 +254,7 @@ export function EmoticonPicker({
    */
   const pendingEntryRef = useRef<Nullable<TabEntry>>(null);
   const [slideFrom, setSlideFrom] = useState<SwipeDirection>(1);
-  const lastTapRef = useRef<Nullable<{ at: number; id: string }>>(null);
+  const lastTapRef = useRef<Nullable<{ at: number; id: EmoticonItemId }>>(null);
   const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
   // WARN: § 13.6. Read only. `remember` belongs to the send, not to the tap — recording it here re-sorts 최근 사용 between the two taps of a double tap, moving the cell out from under the second one.
   const { recentIds } = useRecentEmoticons();
@@ -293,7 +301,7 @@ export function EmoticonPicker({
     // WARN: § 13.9. The reveal is handed over so the hook can drop the previous query's answer for it — a 따라하기 is a jump to an unrelated query, not a keystroke, and the row it lands in frames whatever is behind the tapped item as related to it.
   } = useEmoticonSearch(query, isSearching, revealed !== null);
   // INFO: § 13.6. The open tab's own items, which is what the summaries above no longer carry. 최근 사용 and 검색 are not packs and ask for nothing.
-  const activePackId = activeTab === RECENTS_TAB || isSearching ? null : activeTab;
+  const activePackId = isPackTabId(activeTab) && !isSearching ? activeTab : null;
   const {
     data: activePackItems = NO_ITEMS,
     isPending: isPackPending,
@@ -1067,7 +1075,7 @@ type SearchPaneProps = {
   /** REQUIREMENTS.md § 13.9.1. Whether what the field asked came back an error, which is neither pending nor a verdict. */
   hasFailed: boolean;
   /** REQUIREMENTS.md § 13.9. The item 따라하기 named, which is already first in `results`. */
-  revealedId: Nullable<string>;
+  revealedId: Nullable<EmoticonItemId>;
   /** REQUIREMENTS.md § 13.9. The reveal this pane is showing, which the row is scrolled back to the head of — and the one way onto this tab that does not ask for the keyboard. */
   revealToken: Optional<number>;
   /** REQUIREMENTS.md § 8.14. Whether arriving here is a request to type. False for a walk along the tab strip, which this field taking the keyboard would end. */

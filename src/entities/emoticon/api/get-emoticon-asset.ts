@@ -2,10 +2,10 @@ import "server-only";
 
 import type { EmoticonSlot } from "@/shared/config";
 import { emoticonItems, getDb, messages, type EmoticonItem } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import type { EmoticonItemId, Nullable } from "@/shared/lib";
 import { eq, inArray, or } from "drizzle-orm";
 
-export async function getEmoticonItem(id: string): Promise<Nullable<EmoticonItem>> {
+export async function getEmoticonItem(id: EmoticonItemId): Promise<Nullable<EmoticonItem>> {
   const [row] = await getDb().select().from(emoticonItems).where(eq(emoticonItems.id, id)).limit(1);
 
   return row ?? null;
@@ -53,7 +53,7 @@ export type DeleteEmoticonResult =
  * and deciding what an already-sent bubble becomes is § 18. #1's open question,
  * not something to settle silently here.
  */
-export async function deleteEmoticonItem(id: string): Promise<DeleteEmoticonResult> {
+export async function deleteEmoticonItem(id: EmoticonItemId): Promise<DeleteEmoticonResult> {
   const [sent] = await getDb()
     .select({ id: messages.id })
     .from(messages)

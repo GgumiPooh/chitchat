@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChatMessage } from "@/entities/message";
-import { findFirstUrl } from "@/shared/lib";
+import { findFirstUrl, type MessageId } from "@/shared/lib";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { toLinkPreviewQuery } from "./link-preview-query";
@@ -17,7 +17,7 @@ export function useLinkPreviewPrefetch(messages: ChatMessage[], pendingOlder: Ch
   // WARN: Attempted, not resolved. A lookup that failed has no data to keep it fresh, so without this every commit would ask again — one request per render against an endpoint that is already answering badly.
   const askedRef = useRef(new Set<string>());
   // WARN: Scanned, not asked. Every arrival replaces `messages` wholesale, so without this the regex re-runs over the entire loaded window to find the one body that is new.
-  const scannedRef = useRef(new Set<number>());
+  const scannedRef = useRef(new Set<MessageId>());
 
   useEffect(() => {
     // INFO: § 8.3. The held page before the loaded one, because it is the half that has not been measured yet and the wait for a still scroller is the head start it gets.

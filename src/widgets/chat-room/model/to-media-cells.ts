@@ -1,13 +1,13 @@
 import type { ChatMedia, ChatTrackMedia, MediaDraft } from "@/entities/media";
 import { isVideoMime, toMediaDownloadUrl, toMediaUrl, toVoiceTrack } from "@/shared/config";
-import type { Optional } from "@/shared/lib";
+import { toId, type MediaId, type MessageId, type Optional, type UserId } from "@/shared/lib";
 import type { MediaCell } from "@/shared/ui";
 
 /**
  * REQUIREMENTS.md § 8.1. Which bubble carries one slide of the § 7.10. viewer's
  * track, and who sent it.
  */
-export type TrackOwner = { messageId: number; senderId: string };
+export type TrackOwner = { messageId: MessageId; senderId: UserId };
 
 export function toCellsFromMedia(media: ChatMedia[]): MediaCell[] {
   return media.map((item) => ({
@@ -36,7 +36,7 @@ export function toCellsFromMedia(media: ChatMedia[]): MediaCell[] {
  */
 export function toCellsFromTrack(
   track: ChatTrackMedia[],
-  toSenderName: (senderId: string) => Optional<string>,
+  toSenderName: (senderId: UserId) => Optional<string>,
 ): MediaCell[] {
   return toCellsFromMedia(track).map((cell, index) => {
     const row = track[index];
@@ -51,7 +51,7 @@ export function toCellsFromTrack(
 }
 
 /** REQUIREMENTS.md § 8.1. Which bubble each slide of the conversation-wide track belongs to. */
-export function toTrackOwners(track: ChatTrackMedia[]): Map<string, TrackOwner> {
+export function toTrackOwners(track: ChatTrackMedia[]): Map<MediaId, TrackOwner> {
   return new Map(
     track.map(({ messageId, senderId, id }) => [id, { messageId, senderId }] as const),
   );
@@ -65,9 +65,9 @@ export function toTrackOwners(track: ChatTrackMedia[]): Map<string, TrackOwner> 
  */
 export function toBubbleOwners(
   cells: MediaCell[],
-  messageId: number,
-  senderId: string,
-): Map<string, TrackOwner> {
+  messageId: MessageId,
+  senderId: UserId,
+): Map<MediaId, TrackOwner> {
   return new Map(cells.map((cell) => [cell.id, { messageId, senderId }] as const));
 }
 
@@ -88,6 +88,7 @@ export function toCellsFromDrafts(drafts: MediaDraft[]): MediaCell[] {
     voice: toVoiceTrack(draft.waveformPeaks),
     // INFO: The picked file's own size — an optimistic card names the same figure the sent one will.
     sizeBytes: draft.file.size,
-    id: draft.id,
+    // WARN: A local draft id worn as a `MediaId` — see `MediaCell.id`. It names no row and must never reach an endpoint.
+    id: toId<MediaId>(draft.id),
   }));
 }

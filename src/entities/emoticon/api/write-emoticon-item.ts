@@ -1,16 +1,16 @@
 import "server-only";
 
 import { isAllowedEmoticonAsset, normalizeKeywords, type EmoticonSlot } from "@/shared/config";
-import { emoticonItems, getDb } from "@/shared/db";
-import type { Maybe, Nullable } from "@/shared/lib";
+import { emoticonItems, getDb, nextSnowflake } from "@/shared/db";
+import type { EmoticonItemId, EmoticonPackId, Maybe, Nullable, UserId } from "@/shared/lib";
 import { headAcceptableObject } from "@/shared/storage";
 import { eq, sql } from "drizzle-orm";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon } from "../model/types";
 
 export type RegisterEmoticonParams = {
-  packId: string;
-  uploaderId: string;
+  packId: EmoticonPackId;
+  uploaderId: UserId;
   imageKey: string;
   // INFO: REQUIREMENTS.md § 13.2. Read off the decoded image in the browser, because the server never receives the bytes to measure.
   width: number;
@@ -50,6 +50,7 @@ export async function registerEmoticon({
   const [row] = await getDb()
     .insert(emoticonItems)
     .values({
+      id: nextSnowflake<EmoticonItemId>(),
       packId,
       r2Key: imageKey,
       mime: image.mime,
@@ -83,8 +84,8 @@ export async function registerEmoticon({
 }
 
 export type UpdateEmoticonParams = {
-  itemId: string;
-  uploaderId: string;
+  itemId: EmoticonItemId;
+  uploaderId: UserId;
   // INFO: The image is replaced as a unit — new bytes are a new box (§ 8.3.), so the dimensions travel with the key rather than being editable on their own.
   image?: { key: string; width: number; height: number };
   // WARN: `undefined` keeps the audio the item already has and `null` removes it. Collapsing the two would make every image-only edit silently drop the sound.
@@ -170,7 +171,7 @@ export async function updateEmoticonItem({
  * claiming someone else's object — the pack being shared does not make the
  * *object* claimable.
  */
-async function verifyAsset(slot: EmoticonSlot, key: Maybe<string>, uploaderId: string) {
+async function verifyAsset(slot: EmoticonSlot, key: Maybe<string>, uploaderId: UserId) {
   if (!key || !key.startsWith(`emoticon/${uploaderId}/`)) {
     return undefined;
   }

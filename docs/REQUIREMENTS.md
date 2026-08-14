@@ -211,6 +211,15 @@ jandh-emoticons writes into this database (its `REQUIREMENTS.md § 3.`) and alwa
 
 Schema, migrations, and triggers have landed. **Columns are not listed here — read `src/shared/db/schema/*.ts`** (`users`, `sessions`, `messages`, `message_media`, `media`, `events`, `emoticons`, `push-subscriptions`), one file per table. Never copy a column list into this document. The invariants below are what the schema cannot state on its own.
 
+**Identifiers**
+
+- **Every id is a 64-bit snowflake**, minted by the application and laid out `43 bits ms | 10 bits machine | 10 bits sequence`, epoch **1990-01-01 UTC**. The columns are plain `bigint NOT NULL` with **no `DEFAULT`** — one generator, in TypeScript, mirrored in jandh-emoticons (`src/shared/db/snowflake.ts`), where only `MACHINE_BASE` differs. A second copy in SQL would be the same layout written twice, and the drift would be invisible
+- **The machine field is split by deployment**: jandh draws `0`–`511` and jandh-emoticons `512`–`1023`, per process, because a serverless instance has no stable identity to derive a number from. A collision needs the same millisecond, the same drawn number **and** the same sequence value, and surfaces as a primary key violation rather than as a shared id
+- **In TypeScript an id is a branded string, never a `number`** — it exceeds `Number.MAX_SAFE_INTEGER`, and `JSON.parse`, `Number()` and `z.coerce.number()` all round it silently into a row that does not exist. `compareId` / `maxId` / `idBefore` in `@/shared/lib` are the only way to order or step one; `snowflakeSchema` in `@/shared/config` is the only way one enters from a request
+- **The epoch is far enough back that every id is 19 digits**, and stays so for the whole life of the layout — `2^63 - 1` is itself 19 digits, so the width cannot change once the first id has crossed `1e18` (which the 1990 epoch puts in 2020, before any row here). That is what keeps a stray `>` from being merely wrong-in-waiting. The field runs out in **2268**; the layout may be re-cut after that (redistributing machine and sequence bits is free, widening the timestamp needs the epoch moved back by the same amount), and no stored id ever has to be rewritten for it. `idFloorBefore` is the one function that reads a field back out of an id
+- **`messages.client_msg_id` is the one id that is not a snowflake, and it cannot become one** (§ 8.5.). A browser has no machine number to mint with and the value has to exist before the request is sent; a collision there is read as "that retry already landed", so it would drop a real message rather than fail an INSERT. A random uuid needs no coordination at all, which is the whole requirement
+- **R2 keys are `{scope}/{owner snowflake}/{object snowflake}`** (§ 9.). The object segment is minted by the same generator and is not a row id
+
 **Shape**
 
 - There is **no `accounts` table** (one provider, § 5.1.), **no `conversation_members` table**, and **no `conversations` table**
@@ -273,6 +282,12 @@ Schema, migrations, and triggers have landed. **Columns are not listed here — 
 **`0027` and `0028` are rule 3 with one more term in it, because two deployments read this database.** `0027` adds `user_emoticon_prefs.position`, backfills it from `sort_order`, and **makes `sort_order` nullable**; `0028` drops that column and is a separate file for exactly this reason. jandh is on Vercel and jandh-emoticons on Netlify with deploy cycles of their own (§ 13.7.), and the dropped column is one the other app's running build still selects — so the order is add-and-backfill, deploy **both**, then drop. Putting the drop in the same file would have made `pnpm db:migrate` erase the middle step, since it runs every pending file in one go.
 
 **The nullable step is not cosmetic, and it is what makes a one-sided deploy survivable at all.** jandh's new code writes `position` and never `sort_order`, so a `NOT NULL` column with no default refuses its first insert; jandh-emoticons' deployed build still writes `sort_order` and reads it through `coalesce(sort_order, 32767)`, which already tolerates the NULL the other app leaves. Both directions work only while the column exists and accepts nothing.
+
+**`0030` is the one migration with no safe order at all, and downtime is what pays for it.** It renumbers every uuid key and `messages.id` together, so the previous build and the new one each break against the other's column types — rules 1 and 2 both point the wrong way and there is no split that helps. The sequence is: `pg_dump`, take both deployments down, `pnpm db:migrate`, confirm `pnpm db:generate` reports no drift, ship **both** repositories, then run `pnpm migrate:r2`.
+
+**It also writes `snowflake_user_id_map`, and that table must outlive the migration.** `emoticon_items` carries no owner column, so the uploader inside an emoticon's R2 key can only be recovered through it — `scripts/migrate-r2-keys.ts` is its only reader. **The migration that drops it must not be written until the script has run and been verified**, for the reason `0025`/`0026` give: `pnpm db:migrate` applies every pending file in one go, so a drop sitting beside `0030` would erase the map before anything read it.
+
+**`migrate-r2-keys.ts` copies and never deletes.** The old objects are what keeps the change reversible — restoring the dump puts back rows naming the old keys, and those objects have to still be there for that to be a rollback rather than data loss. Sweeping them is separate, later work.
 
 `pnpm db:migrate` is **manual and decoupled from the deploy**.
 
@@ -386,6 +401,7 @@ Cursor-based infinite scroll: `GET /api/messages?before={id}&limit=30` (`WHERE i
 
 - **No OFFSET pagination, ever** — incoming messages shift page boundaries, producing duplicates and gaps
 - `newestKnownId` is tracked alongside `oldestLoadedId` and only ever moves forward, so a delete cannot walk it back and make § 8.4.'s catch-up refetch what was already seen
+- **The cursor is a snowflake carried as a string, and it is compared with `compareId`** (§ 6.). `<` / `>` / `Math.max` on it are wrong on a value TypeScript is happy to accept — every id the epoch can mint is 19 digits, so lexicographic order agrees with numeric order today and would stop agreeing the moment that width changed. `"0"` is the "from the start of the conversation" cursor and names no row
 
 ### 8.3. Virtual Scrolling (Windowing) ✅
 
@@ -438,8 +454,9 @@ Offscreen message nodes **must not stay in the DOM** — after years of history,
 - The connection comes from the **direct (unpooled)** string via `listenToChannels` (`shared/db`) and is released in a `finally`. A transaction-mode pooler hands the connection to another client between transactions, silently dropping the `LISTEN`
 - **One endpoint, one `EventSource`, four channels.** `LISTEN user_changed`, `LISTEN typing` (§ 8.12.) and `LISTEN message_changed` (§ 8.13.) ride the same connection; they are told apart by the SSE `event:` field (`message`, `user`, `typing`, `delete`, `edit`)
 - `LISTEN` is registered **before** the replay query. Reversed, a message committing between the two is missed by both
-- **`id > cursor` alone loses messages**: `bigserial` ids are handed out at INSERT but become visible at COMMIT, so they can commit out of order. Replay starts at `cursor - SSE_REPLAY_MARGIN` and lets id-deduplication drop the overlap
-- `id:` goes on **message events only** — it is the reconnect cursor, a `messages` bigserial with no counterpart on `user`, `build` or `ping`. § 8.13.'s `delete` and `edit` name a real id and still carry none: theirs may be arbitrarily old, and the cursor may only ever advance
+- **`id > cursor` alone loses messages**: an id is taken at INSERT but becomes visible at COMMIT, so rows commit out of order. Replay starts at `idFloorBefore(cursor, SSE_REPLAY_MARGIN)` and lets id-deduplication drop the overlap. **The margin is a duration, not a row count** — what it has to cover is how long a write can stay uncommitted, and a snowflake carries the millisecond it was minted at, so the window is expressed in the unit it actually has (it was `20` rows while ids came from a sequence)
+- **The `new_message` and `message_changed` payloads carry the id as a JSON _string_** (`NEW.id::text` in both triggers). A bigint written as a JSON number is read back by `JSON.parse` as a double, which rounds every snowflake — `getMessage` then finds no row and the stream drops the notification with no error raised anywhere
+- `id:` goes on **message events only** — it is the reconnect cursor, a `messages` snowflake with no counterpart on `user`, `build` or `ping`. § 8.13.'s `delete` and `edit` name a real id and still carry none: theirs may be arbitrarily old, and the cursor may only ever advance
 - **A replayed row is `event: backfill`, a live one is `event: message`.** Same payload, same `id:`, same client-side deduplication — the split exists because § 13.6.'s emoticon sound must tell them apart. Every reconnect replays, so without it a resume plays the sounds of messages already seen
 - Notifications resolve **one at a time behind a promise chain** — each costs a `getMessage` query, and interleaving emits rows out of id order
 - `event: ping` at `SSE_HEARTBEAT_INTERVAL`. A **named event, not a `:ping` comment**: a comment keeps proxies awake but `EventSource` never surfaces it, and the client's resume path must observe the heartbeat to tell a live socket from a frozen one
@@ -679,7 +696,7 @@ Tapping a quote runs the machinery § 8.6.1. will reuse unchanged:
 - **The payload is the whole event** (`{ userId }`), unlike `new_message`'s id-and-refetch: there is no row to read back, and a uuid is nowhere near `NOTIFY`'s 8000-byte cap
 - **It publishes on the pooled client** (`notifyChannel`). `AGENTS.md § 6.3.` — `LISTEN` is session state a pooler hands away, a notification is delivered at `COMMIT`
 - **The payload carries no expiry.** A deadline computed by the sender is on the sender's clock; the receiver stamps `Date.now() + TYPING_TIMEOUT` on arrival, so two devices that disagree cannot hold the indicator up past the typing
-- `event: typing` carries **no `id:`** — the reconnect cursor is a `messages` bigserial with no counterpart here, the same reason `user`, `build` and `ping` carry none. It is also written straight out rather than queued behind § 8.4.'s notification chain, which exists to keep row reads in id order and would deliver this after it expired
+- `event: typing` carries **no `id:`** — the reconnect cursor is a `messages` snowflake with no counterpart here, the same reason `user`, `build` and `ping` carry none. It is also written straight out rather than queued behind § 8.4.'s notification chain, which exists to keep row reads in id order and would deliver this after it expired
 - **Never replayed and never caught up on.** A reconnect arrives knowing nothing, deliberately: a signal that meant "right now" ten seconds ago is not news. This is also why entering the chat tab can never show a stale indicator — there is nothing to read
 
 **Client**

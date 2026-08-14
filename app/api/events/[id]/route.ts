@@ -3,13 +3,17 @@ import { createSystemMessage } from "@/entities/message";
 import { notifyMessageRecipients } from "@/features/notify-chat";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
+import { snowflakeSchema } from "@/shared/config";
 import type { SystemAction, User } from "@/shared/db";
-import { composeEventNoticeBody, safelyRunAsync, type Nullable } from "@/shared/lib";
+import { composeEventNoticeBody, safelyRunAsync, type EventId, type Nullable } from "@/shared/lib";
 import { NextResponse, after } from "next/server";
 import type { z } from "zod";
 import { eventPatchSchema } from "../schema";
 
+// WARN: `string`, because Next validates a route's own `params` shape against its file path — the id is branded by `paramsSchema` inside each handler instead, exactly as every other `[id]` route does.
 type RouteParams = { params: Promise<{ id: string }> };
+
+const paramsSchema = snowflakeSchema<EventId>();
 
 /**
  * REQUIREMENTS.md § 11.4. Both users may edit every event, so nothing here is
@@ -28,8 +32,13 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     return apiError("invalid_request");
   }
 
-  const { id } = await params;
-  const before = await getEvent(id);
+  const id = paramsSchema.safeParse((await params).id);
+
+  if (!id.success) {
+    return apiError("invalid_request");
+  }
+
+  const before = await getEvent(id.data);
 
   if (!before) {
     return apiError("not_found");
@@ -42,7 +51,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     return apiError("invalid_request");
   }
 
-  const event = await updateEvent(id, patch);
+  const event = await updateEvent(id.data, patch);
 
   if (!event) {
     return apiError("not_found");
@@ -63,8 +72,13 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
     return apiError("unauthorized");
   }
 
-  const { id } = await params;
-  const event = await deleteEvent(id);
+  const id = paramsSchema.safeParse((await params).id);
+
+  if (!id.success) {
+    return apiError("invalid_request");
+  }
+
+  const event = await deleteEvent(id.data);
 
   if (!event) {
     return apiError("not_found");
@@ -79,7 +93,7 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
 async function postNotice(
   user: User,
   action: SystemAction,
-  eventId: Nullable<string>,
+  eventId: Nullable<EventId>,
   title: string,
   startsAt: string,
 ) {

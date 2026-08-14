@@ -1,13 +1,13 @@
 import { listEmoticonKeywords, listEmoticonsByIds, searchEmoticons } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { MAX_KEYWORD_QUERY_LENGTH, splitKeywordQuery } from "@/shared/config";
+import { MAX_KEYWORD_QUERY_LENGTH, snowflakeSchema, splitKeywordQuery } from "@/shared/config";
+import type { EmoticonItemId } from "@/shared/lib";
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
 // WARN: REQUIREMENTS.md § 13.7.1. jandh-emoticons mirrors this handler, and the browser reaches whichever copy the switch names. Both sides change together — a fix landed here alone is one this app stops running the moment the switch is on.
 
-const idSchema = z.uuid();
+const idSchema = snowflakeSchema<EmoticonItemId>();
 
 /**
  * The item collection, read three ways (REQUIREMENTS.md § 13.9.1.).
@@ -66,6 +66,9 @@ export async function GET(request: Request) {
  * not here as well. Two cuts with one constant is one of them going stale silently,
  * and the query is where the bound has to hold whatever the caller is.
  */
-function toIds(raw: string): string[] {
-  return [...new Set(raw.split(","))].filter((id) => idSchema.safeParse(id).success);
+function toIds(raw: string): EmoticonItemId[] {
+  return [...new Set(raw.split(","))]
+    .map((id) => idSchema.safeParse(id))
+    .filter((parsed) => parsed.success)
+    .map((parsed) => parsed.data);
 }

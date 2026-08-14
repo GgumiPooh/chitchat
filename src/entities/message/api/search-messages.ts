@@ -1,3 +1,4 @@
+import type { MessageId } from "@/shared/lib";
 import "server-only";
 
 import { SEARCH_PAGE_SIZE } from "@/shared/config";
@@ -9,7 +10,7 @@ import type { MessageSearchResult } from "../model/types";
 export type SearchMessagesParams = {
   query: string;
   /** Older than this id — the same keyset cursor § 8.2. pages history on. */
-  before?: number;
+  before?: MessageId;
   limit?: number;
 };
 

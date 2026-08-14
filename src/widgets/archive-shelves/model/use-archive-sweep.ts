@@ -1,6 +1,13 @@
 "use client";
 
-import { GESTURE_SLOP, type LongPressPoint, type Nullable } from "@/shared/lib";
+import {
+  GESTURE_SLOP,
+  isSnowflake,
+  toId,
+  type LongPressPoint,
+  type MediaId,
+  type Nullable,
+} from "@/shared/lib";
 import { useCallback, useEffect, useRef } from "react";
 
 /** REQUIREMENTS.md § 10. The sweep hit-tests the document rather than hearing an event per tile, so the id has to be readable off the DOM. */
@@ -16,7 +23,7 @@ function travel(depth: number) {
 
 export type ArchiveSweepHandlers = {
   /** The tile the finger is over now; the range between it and the held one is the caller's to fill. */
-  onEnter: (id: string) => void;
+  onEnter: (id: MediaId) => void;
   /** The finger that was sweeping has left the glass. */
   onEnd: () => void;
 };
@@ -126,7 +133,10 @@ export function useArchiveSweep({ onEnter, onEnd }: ArchiveSweepHandlers) {
       }
 
       lastId = id;
-      handlersRef.current.onEnter(id);
+      // WARN: Read off the DOM attribute the grid wrote, so it is shape-checked rather than trusted — `MediaId` is a claim about a value that has been through the markup.
+      if (isSnowflake(id)) {
+        handlersRef.current.onEnter(toId<MediaId>(id));
+      }
     }
 
     function step() {

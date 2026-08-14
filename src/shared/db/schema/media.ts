@@ -1,12 +1,14 @@
-import { index, integer, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import type { MediaId, UserId } from "@/shared/lib";
+import { index, integer, pgTable, smallint, text, timestamp } from "drizzle-orm/pg-core";
+import { snowflake } from "../types";
 import { users } from "./users";
 
 // INFO: REQUIREMENTS.md § 10. The single source for the library too — a chat image is never copied into a second table.
 export const media = pgTable(
   "media",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    ownerId: uuid("owner_id")
+    id: snowflake<MediaId>("id").primaryKey(),
+    ownerId: snowflake<UserId>("owner_id")
       .notNull()
       .references(() => users.id),
     // WARN: REQUIREMENTS.md § 9. The key, never a URL — presigned URLs expire in minutes and are minted per request.

@@ -1,6 +1,6 @@
 import { request } from "@/shared/api";
 import { CHAT_BACKGROUND_PATH } from "@/shared/config";
-import type { Nullable } from "@/shared/lib";
+import type { MediaId, Nullable } from "@/shared/lib";
 
 /**
  * REQUIREMENTS.md § 12.2. Points the room's shared wallpaper at a photo the caller
@@ -10,7 +10,7 @@ import type { Nullable } from "@/shared/lib";
  * `@x/update-profile`: the wallpaper stopped being a property of whoever set it when
  * it became shared, so it changes the other participant's screen too.
  */
-export async function setChatBackground(mediaId: Nullable<string>): Promise<Nullable<string>> {
+export async function setChatBackground(mediaId: Nullable<MediaId>): Promise<Nullable<MediaId>> {
   const response = await request(CHAT_BACKGROUND_PATH, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -22,7 +22,7 @@ export async function setChatBackground(mediaId: Nullable<string>): Promise<Null
   }
 
   const { backgroundMediaId } = (await response.json()) as {
-    backgroundMediaId: Nullable<string>;
+    backgroundMediaId: Nullable<MediaId>;
   };
 
   return backgroundMediaId;

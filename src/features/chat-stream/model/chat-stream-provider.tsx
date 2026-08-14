@@ -9,7 +9,14 @@ import {
   unreadCountMessageSchema,
   type MessageArrival,
 } from "@/shared/config";
-import { safelyGetAsync, safelyRunAsync, type Nullable, type Optional } from "@/shared/lib";
+import {
+  safelyGetAsync,
+  safelyRunAsync,
+  type MediaId,
+  type Nullable,
+  type Optional,
+  type UserId,
+} from "@/shared/lib";
 import {
   createContext,
   useCallback,
@@ -46,7 +53,7 @@ export type ChatStreamValue = {
    * the resume catch-up covers the change that landed while the tab was backgrounded
    * (§ 8.4.) for free.
    */
-  chatBackgroundMediaId: Nullable<string>;
+  chatBackgroundMediaId: Nullable<MediaId>;
   /**
    * REQUIREMENTS.md § 12.2. The wallpaper's stored hash, whose DC term is the photo's
    * average colour — what the chat route's chrome is tinted with (`toChromeTint`).
@@ -74,10 +81,10 @@ export type ChatStreamValue = {
    * the write's own `user_changed` — or the room's `onopen` catch-up (§ 8.4.) —
    * refetches the payload it belongs to.
    */
-  setChatBackgroundMediaId: (mediaId: Nullable<string>) => void;
+  setChatBackgroundMediaId: (mediaId: Nullable<MediaId>) => void;
   unreadCount: number;
   /** Everyone but me who is composing right now. REQUIREMENTS.md § 8.12. */
-  typingUserIds: string[];
+  typingUserIds: UserId[];
   /** REQUIREMENTS.md § 8.4.1. The app is asleep and every request to our API is refused. */
   isDormant: boolean;
   subscribe: (listener: ChatStreamListener) => () => void;
@@ -95,10 +102,10 @@ export type ChatStreamValue = {
 };
 
 export type ChatStreamProviderProps = PropsWithChildren<{
-  currentUserId: string;
+  currentUserId: UserId;
   initialParticipants: Participant[];
   /** REQUIREMENTS.md § 12.2. Seeded by the shell's render, so the room paints its wallpaper before any request is made. */
-  initialChatBackgroundMediaId: Nullable<string>;
+  initialChatBackgroundMediaId: Nullable<MediaId>;
   /** REQUIREMENTS.md § 12.2. Seeded with it, so the chrome is tinted on the chat route's first paint rather than a request later. */
   initialChatBackgroundBlurhash: Nullable<string>;
   initialUnreadCount: number;
@@ -145,8 +152,8 @@ export function ChatStreamProvider({
   });
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   // INFO: REQUIREMENTS.md § 8.12. When each signal stops counting, by this device's clock. Nothing seeds it — 입력 중 is never replayed, so a fresh mount knows nothing until a live event arrives.
-  const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
-  const typingExpiry = useRef(new Map<string, number>());
+  const [typingUserIds, setTypingUserIds] = useState<UserId[]>([]);
+  const typingExpiry = useRef(new Map<UserId, number>());
   const typingSweep = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
   const listeners = useRef(new Set<ChatStreamListener>());
   const isReadingRef = useRef(false);
@@ -169,7 +176,7 @@ export function ChatStreamProvider({
   }, []);
 
   // WARN: @see ChatStreamValue.setChatBackgroundMediaId — the hash is dropped rather than carried over, because it belongs to the photo being replaced.
-  const setChatBackgroundMediaId = useCallback((mediaId: Nullable<string>) => {
+  const setChatBackgroundMediaId = useCallback((mediaId: Nullable<MediaId>) => {
     setChatBackground({ mediaId, blurhash: null });
   }, []);
 
@@ -306,7 +313,7 @@ export function ChatStreamProvider({
    * pushes this sender's deadline out, and nothing but the deadline takes it back
    * down.
    */
-  function handleTyping(userId: string, isTyping: boolean) {
+  function handleTyping(userId: UserId, isTyping: boolean) {
     // INFO: The channel is a conversation-wide broadcast, exactly like `user_changed`, so my own ping and my other device's both come back to me here.
     if (userId === currentUserId) {
       return;

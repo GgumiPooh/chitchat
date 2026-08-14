@@ -48,3 +48,4 @@ export {
   type User,
   type UserEmoticonPref,
 } from "./schema";
+export { nextSnowflake } from "./snowflake";

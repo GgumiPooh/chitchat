@@ -8,17 +8,17 @@ import {
   MessageSearchResults,
   useMessageSearch,
 } from "@/features/search-messages";
-import { cn, type Maybe } from "@/shared/lib";
+import { cn, type Maybe, type MessageId, type UserId } from "@/shared/lib";
 import { AppHeader, Container, IconButton } from "@/shared/ui";
 import { ChatRoom, toChromeTint } from "@/widgets/chat-room";
 import { Search } from "lucide-react";
 
 export type ChatScreenProps = {
   className?: string;
-  currentUserId: string;
+  currentUserId: UserId;
   initialMessages: ChatMessage[];
   /** REQUIREMENTS.md § 10. A message 보관함 opened this screen on, if any. */
-  jumpMessageId?: Maybe<number>;
+  jumpMessageId?: Maybe<MessageId>;
 };
 
 /**

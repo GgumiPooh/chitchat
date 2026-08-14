@@ -11,6 +11,7 @@ import {
   typingEventSchema,
   type MessageArrival,
 } from "@/shared/config";
+import type { UserId } from "@/shared/lib";
 import { safelyGet, type Nullable, type Optional } from "@/shared/lib";
 import { useEffect, useRef } from "react";
 import { z } from "zod";
@@ -21,7 +22,7 @@ export type ChatEventSourceHandlers = {
   onUserChanged: () => void;
   onResume: () => void;
   /** Someone started or stopped composing. REQUIREMENTS.md § 8.12. */
-  onTyping: (userId: string, isTyping: boolean) => void;
+  onTyping: (userId: UserId, isTyping: boolean) => void;
   /** REQUIREMENTS.md § 8.13. A row already on screen, changed — corrected, or withdrawn and now a tombstone. Whole, so the client replaces rather than patches. */
   onChange: (message: ChatMessage) => void;
   /** The deployment serving this connection. REQUIREMENTS.md § 15.1. */

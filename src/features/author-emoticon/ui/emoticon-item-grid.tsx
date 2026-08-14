@@ -1,14 +1,14 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
-import { cn, type Nullable } from "@/shared/lib";
+import { cn, type EmoticonItemId, type Nullable } from "@/shared/lib";
 import { EmoticonItemCell } from "./emoticon-item-cell";
 
 export type EmoticonItemGridProps = {
   className?: string;
   items: Emoticon[];
   thumbnailItemId: Nullable<string>;
-  onSelect: (itemId: string) => void;
+  onSelect: (itemId: EmoticonItemId) => void;
 };
 
 /**

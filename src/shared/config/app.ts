@@ -1,5 +1,6 @@
-import { A_DAY, A_MINUTE, A_SECOND, type Maybe } from "@/shared/lib";
+import { A_DAY, A_MINUTE, A_SECOND, type Maybe, type UserId } from "@/shared/lib";
 import { z } from "zod";
+import { snowflakeSchema } from "./id";
 
 export const APP_NAME = "J&H";
 
@@ -280,8 +281,9 @@ export const SSE_STALE_AFTER = 2 * SSE_HEARTBEAT_INTERVAL;
 // INFO: REQUIREMENTS.md § 8.4. `pageshow`, `focus`, and `visibilitychange` all fire on one iOS resume; this collapses them into a single catch-up.
 export const SSE_SYNC_COALESCE_WINDOW = A_SECOND;
 
-// WARN: REQUIREMENTS.md § 8.4. A `bigserial` id is handed out at INSERT but becomes visible at COMMIT, so replay starts this far below the reconnect cursor and lets id-deduplication drop the overlap. `id > cursor` alone loses the message that committed late.
-export const SSE_REPLAY_MARGIN = 20;
+// WARN: REQUIREMENTS.md § 8.4. A snowflake is taken at INSERT but becomes visible at COMMIT, so replay starts this far below the reconnect cursor and lets id-deduplication drop the overlap. `id > cursor` alone loses the message that committed late.
+// INFO: § 6. A duration rather than the row count this was while ids came from a sequence — the window being covered is how long a write can stay uncommitted, and an id now carries the time it was minted at (`idFloorBefore`).
+export const SSE_REPLAY_MARGIN = 5 * A_SECOND;
 
 // INFO: Caps one reconnect's replay. Anything beyond it is covered by the catch-up the client runs on every connect (§ 8.4.), which pages from its own cursor rather than from what the replay delivered.
 export const SSE_REPLAY_LIMIT = 200;
@@ -361,7 +363,10 @@ export const CHAT_BACKGROUND_PATH = "/api/chat/background";
  * simply stops matching and the indicator quietly never appears again, with no
  * error raised anywhere to say why.
  */
-export const typingEventSchema = z.object({ userId: z.uuid(), isTyping: z.boolean() });
+export const typingEventSchema = z.object({
+  userId: snowflakeSchema<UserId>(),
+  isTyping: z.boolean(),
+});
 
 export type TypingEvent = z.infer<typeof typingEventSchema>;
 

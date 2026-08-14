@@ -1,12 +1,14 @@
-import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import type { PushSubscriptionId, UserId } from "@/shared/lib";
+import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { snowflake } from "../types";
 import { users } from "./users";
 
 // INFO: REQUIREMENTS.md § 16.1. One row per browser installation, not per user — the same person carries a phone and a laptop.
 export const pushSubscriptions = pgTable(
   "push_subscriptions",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
+    id: snowflake<PushSubscriptionId>("id").primaryKey(),
+    userId: snowflake<UserId>("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     // WARN: Unique across the whole table, not per user. The push service owns this string and hands the same one back to whoever logs in on that installation, so a second account on one browser MOVES the row rather than adding a second.

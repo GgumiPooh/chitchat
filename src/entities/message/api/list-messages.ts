@@ -2,6 +2,7 @@ import "server-only";
 
 import { MESSAGE_PAGE_SIZE } from "@/shared/config";
 import { getDb, messages, type Message } from "@/shared/db";
+import type { EmoticonItemId, MessageId } from "@/shared/lib";
 import { asc, desc, gt, lt, lte } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
@@ -11,11 +12,11 @@ import { listReplyPreviews } from "./list-reply-previews";
 
 export type ListMessagesParams = {
   /** Older than this id — scrolling into the past (REQUIREMENTS.md § 8.2.). */
-  before?: number;
+  before?: MessageId;
   /** Newer than this id — gap recovery after a dropped stream. */
-  after?: number;
+  after?: MessageId;
   /** Context on both sides of this id — the search jump of REQUIREMENTS.md § 8.6.1. */
-  around?: number;
+  around?: MessageId;
   limit?: number;
 };
 
@@ -61,7 +62,7 @@ export async function listMessages({
   return withMedia(rows.reverse());
 }
 
-async function listAround(target: number, limit: number): Promise<ChatMessage[]> {
+async function listAround(target: MessageId, limit: number): Promise<ChatMessage[]> {
   const db = getDb();
   const olderCount = Math.ceil(limit / 2);
   const [older, newer] = await Promise.all([
@@ -97,8 +98,8 @@ async function withMedia(rows: Message[]): Promise<ChatMessage[]> {
   const mediaIds = live.filter((row) => row.type === "media").map((row) => row.id);
   const emoticonIds = live
     .map((row) => row.emoticonItemId)
-    .filter((id): id is string => id !== null);
-  const parentIds = live.map((row) => row.replyToId).filter((id): id is number => id !== null);
+    .filter((id): id is EmoticonItemId => id !== null);
+  const parentIds = live.map((row) => row.replyToId).filter((id): id is MessageId => id !== null);
   const [byMessage, byEmoticonId, byParentId] = await Promise.all([
     listMessageMedia(mediaIds),
     listMessageEmoticons(emoticonIds),

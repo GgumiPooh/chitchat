@@ -1,3 +1,4 @@
+import { isSnowflake, type EmoticonPackId } from "@/shared/lib";
 /**
  * REQUIREMENTS.md § 13.6. The two tabs of the picker that are not packs, and where
  * the remembered one is kept.
@@ -14,8 +15,6 @@ export const SEARCH_TAB = "search";
 
 export const ACTIVE_TAB_KEY = "jandh:emoticon-tab";
 
-const PACK_TAB_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
-
 /**
  * Whether a remembered tab could name a pack at all (REQUIREMENTS.md § 13.6.).
  *
@@ -26,6 +25,6 @@ const PACK_TAB_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a
  * it. A value holding a `/` or a `?` is then a different route on this origin
  * entirely, so this is a guard and not tidiness.
  */
-export function isPackTabId(id: string): boolean {
-  return PACK_TAB_PATTERN.test(id);
+export function isPackTabId(id: string): id is EmoticonPackId {
+  return isSnowflake(id);
 }

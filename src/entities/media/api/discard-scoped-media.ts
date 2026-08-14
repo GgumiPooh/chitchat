@@ -1,3 +1,4 @@
+import type { MediaId, UserId } from "@/shared/lib";
 import "server-only";
 
 import type { MediaUploadScope } from "@/shared/config";
@@ -25,8 +26,8 @@ import { isWornAnywhere } from "./get-media-object";
  * rather than pointing at it where it lies.
  */
 export async function discardScopedMedia(
-  id: string,
-  ownerId: string,
+  id: MediaId,
+  ownerId: UserId,
   scope: MediaUploadScope,
 ): Promise<void> {
   await discard(id, ownerId, scope);
@@ -50,16 +51,16 @@ export async function discardScopedMedia(
  * so that path deliberately keeps the plain discard.
  */
 export async function discardUnwornScopedMedia(
-  id: string,
-  ownerId: string,
+  id: MediaId,
+  ownerId: UserId,
   scope: MediaUploadScope,
 ): Promise<void> {
   await discard(id, ownerId, scope, not(isWornAnywhere(id)));
 }
 
 async function discard(
-  id: string,
-  ownerId: string,
+  id: MediaId,
+  ownerId: UserId,
   scope: MediaUploadScope,
   unless?: SQL,
 ): Promise<void> {

@@ -6,20 +6,21 @@ import {
 } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { MAX_EMOTICON_PACK_NAME_LENGTH } from "@/shared/config";
+import { MAX_EMOTICON_PACK_NAME_LENGTH, snowflakeSchema } from "@/shared/config";
+import type { EmoticonItemId, EmoticonPackId } from "@/shared/lib";
 import { deleteObjects } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 // WARN: REQUIREMENTS.md § 13.7.1. jandh-emoticons mirrors this handler, and the browser reaches whichever copy the switch names. Both sides change together — a fix landed here alone is one this app stops running the moment the switch is on.
 
-const paramsSchema = z.object({ id: z.uuid() });
+const paramsSchema = z.object({ id: snowflakeSchema<EmoticonPackId>() });
 
 // INFO: Both fields are optional and independent — the detail screen renames and re-thumbnails from two different controls. `null` clears the thumbnail back to the § 13.2. fallback.
 const bodySchema = z
   .object({
     name: z.string().trim().min(1).max(MAX_EMOTICON_PACK_NAME_LENGTH).optional(),
-    thumbnailItemId: z.uuid().nullish(),
+    thumbnailItemId: snowflakeSchema<EmoticonItemId>().nullish(),
   })
   .refine((body) => body.name !== undefined || body.thumbnailItemId !== undefined);
 

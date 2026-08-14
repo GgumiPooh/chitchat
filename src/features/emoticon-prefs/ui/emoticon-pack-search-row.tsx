@@ -2,7 +2,7 @@
 
 import type { EmoticonPackSummary } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn } from "@/shared/lib";
+import { cn, type EmoticonPackId } from "@/shared/lib";
 import { HapticTarget, PreloadImage, Switch } from "@/shared/ui";
 import { ChevronRight, Smile } from "lucide-react";
 import { EMOTICON_PACK_ROW_HEIGHT_CLASS } from "../model/pack-row-height";
@@ -10,8 +10,8 @@ import { EMOTICON_PACK_ROW_HEIGHT_CLASS } from "../model/pack-row-height";
 export type EmoticonPackSearchRowProps = {
   className?: string;
   pack: EmoticonPackSummary;
-  onOpen: (packId: string) => void;
-  onToggle: (packId: string, isEnabled: boolean) => void;
+  onOpen: (packId: EmoticonPackId) => void;
+  onToggle: (packId: EmoticonPackId, isEnabled: boolean) => void;
 };
 
 /**

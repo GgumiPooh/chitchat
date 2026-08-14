@@ -1,6 +1,7 @@
 import type { Emoticon } from "@/entities/emoticon";
 import { request } from "@/shared/api";
 import { EMOTICON_PACKS_URL } from "@/shared/config";
+import type { EmoticonPackId } from "@/shared/lib";
 
 /**
  * One pack's items, in the authoring order both participants share
@@ -10,7 +11,7 @@ import { EMOTICON_PACKS_URL } from "@/shared/config";
  * a remembered tab whose pack has since been deleted costs a request and draws the
  * tab's own empty state rather than throwing.
  */
-export async function fetchPackItems(packId: string): Promise<Emoticon[]> {
+export async function fetchPackItems(packId: EmoticonPackId): Promise<Emoticon[]> {
   // WARN: Encoded, because the id reaching here can be a remembered tab out of `localStorage` rather than a pack the list handed over — `isPackTabId` is the check, and this is what keeps a value that got past it inside one path segment instead of naming another route on this origin.
   const url = `${EMOTICON_PACKS_URL}/${encodeURIComponent(packId)}/items`;
   const response = await request(url);

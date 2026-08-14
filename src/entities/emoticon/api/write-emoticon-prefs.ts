@@ -1,7 +1,7 @@
 import "server-only";
 
 import { emoticonPacks, getDb, userEmoticonPrefs } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import type { EmoticonPackId, Nullable, UserId } from "@/shared/lib";
 import { and, eq, sql } from "drizzle-orm";
 import { effectivePackPosition } from "./effective-pack-position";
 
@@ -16,8 +16,8 @@ import { effectivePackPosition } from "./effective-pack-position";
  * updates: a user who has never reordered has no row to update.
  */
 export async function setEmoticonPackOrder(
-  userId: string,
-  packId: string,
+  userId: UserId,
+  packId: EmoticonPackId,
   after: Nullable<string>,
 ): Promise<void> {
   const position = await toMovedPosition(userId, packId, after);
@@ -41,8 +41,8 @@ export async function setEmoticonPackOrder(
  * already put it, so hiding no longer has to record an order to avoid inventing one.
  */
 export async function setEmoticonPackEnabled(
-  userId: string,
-  packId: string,
+  userId: UserId,
+  packId: EmoticonPackId,
   enabled: boolean,
 ): Promise<void> {
   await getDb()
@@ -54,7 +54,7 @@ export async function setEmoticonPackEnabled(
     });
 }
 
-export async function getEmoticonPackPref(userId: string, packId: string) {
+export async function getEmoticonPackPref(userId: UserId, packId: EmoticonPackId) {
   const [row] = await getDb()
     .select()
     .from(userEmoticonPrefs)
@@ -77,8 +77,8 @@ export async function getEmoticonPackPref(userId: string, packId: string) {
  * scale and would eventually land the moved pack on a neighbour's exact value.
  */
 async function toMovedPosition(
-  userId: string,
-  packId: string,
+  userId: UserId,
+  packId: EmoticonPackId,
   after: Nullable<string>,
 ): Promise<string> {
   // INFO: One statement, so the two neighbours are read against a single snapshot rather than drifting between two queries.
@@ -92,13 +92,13 @@ async function toMovedPosition(
         on ${and(eq(userEmoticonPrefs.packId, emoticonPacks.id), eq(userEmoticonPrefs.userId, userId))}
     ),
     predecessor as (
-      select pack_id, ordinal from effective where pack_id = ${after}::uuid
+      select pack_id, ordinal from effective where pack_id = ${after}::bigint
     ),
     successor as (
       select effective.ordinal
       from effective
       left join predecessor on true
-      where effective.pack_id <> ${packId}::uuid
+      where effective.pack_id <> ${packId}::bigint
         and (
           predecessor.pack_id is null
           or (effective.ordinal, effective.pack_id) > (predecessor.ordinal, predecessor.pack_id)

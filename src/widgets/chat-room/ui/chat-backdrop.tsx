@@ -1,12 +1,12 @@
 "use client";
 
 import { toMediaUrl } from "@/shared/config";
-import { cn, type Nullable } from "@/shared/lib";
+import { cn, type MediaId, type Nullable } from "@/shared/lib";
 import { PreloadImage } from "@/shared/ui";
 
 export type ChatBackdropProps = {
   className?: string;
-  mediaId: string;
+  mediaId: MediaId;
   /**
    * REQUIREMENTS.md § 9. The wallpaper's stored hash, and the largest asset any
    * screen loads — so it is the one placeholder a reader spends real time on.

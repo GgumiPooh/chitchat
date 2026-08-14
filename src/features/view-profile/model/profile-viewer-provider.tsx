@@ -1,6 +1,6 @@
 "use client";
 
-import type { Nullable } from "@/shared/lib";
+import type { Nullable, UserId } from "@/shared/lib";
 import {
   createContext,
   useCallback,
@@ -13,11 +13,11 @@ import { ProfileOverlay } from "../ui/profile-overlay";
 
 export type ProfileViewerValue = {
   /** Opens the profile screen for a participant id (REQUIREMENTS.md § 12.3.). */
-  openProfile: (userId: string) => void;
+  openProfile: (userId: UserId) => void;
 };
 
 export type ProfileViewerProviderProps = PropsWithChildren<{
-  currentUserId: string;
+  currentUserId: UserId;
 }>;
 
 const ProfileViewerContext = createContext<Nullable<ProfileViewerValue>>(null);
@@ -39,8 +39,8 @@ const ProfileViewerContext = createContext<Nullable<ProfileViewerValue>>(null);
  * (§ 12.).
  */
 export function ProfileViewerProvider({ children, currentUserId }: ProfileViewerProviderProps) {
-  const [openUserId, setOpenUserId] = useState<Nullable<string>>(null);
-  const openProfile = useCallback((userId: string) => setOpenUserId(userId), []);
+  const [openUserId, setOpenUserId] = useState<Nullable<UserId>>(null);
+  const openProfile = useCallback((userId: UserId) => setOpenUserId(userId), []);
   // WARN: Stable, like `openProfile` beside it. `ProfileOverlay` lists it in the deps of both its effects — one of which registers a document-level `keydown` listener and one of which can call it — so a fresh arrow per render re-subscribes on every provider render for nothing.
   const closeProfile = useCallback(() => setOpenUserId(null), []);
   const value = useMemo(() => ({ openProfile }), [openProfile]);

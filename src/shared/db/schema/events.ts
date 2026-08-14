@@ -1,4 +1,6 @@
-import { boolean, index, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import type { EventId, UserId } from "@/shared/lib";
+import { boolean, index, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { snowflake } from "../types";
 import { users } from "./users";
 
 // INFO: REQUIREMENTS.md § 6. Yearly only, for anniversaries — deliberately not a general RRULE engine.
@@ -11,7 +13,7 @@ export const eventScopeEnum = pgEnum("event_scope", ["shared", "mine"]);
 export const events = pgTable(
   "events",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: snowflake<EventId>("id").primaryKey(),
     title: text("title").notNull(),
     description: text("description"),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
@@ -21,7 +23,7 @@ export const events = pgTable(
     color: text("color"),
     recurrence: eventRecurrenceEnum("recurrence").notNull().default("none"),
     scope: eventScopeEnum("scope").notNull().default("shared"),
-    createdBy: uuid("created_by")
+    createdBy: snowflake<UserId>("created_by")
       .notNull()
       .references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

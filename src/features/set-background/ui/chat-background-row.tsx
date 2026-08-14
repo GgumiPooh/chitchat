@@ -8,7 +8,7 @@ import {
   useMediaPicker,
 } from "@/features/upload-media/@x/set-background";
 import { BACKGROUND_MAX_EDGE, toMediaUrl } from "@/shared/config";
-import type { Nullable } from "@/shared/lib";
+import type { MediaId, Nullable } from "@/shared/lib";
 import { ActionSheet, PreloadImage, SettingsRow, toast } from "@/shared/ui";
 import { Image as ImageIcon, Trash2, Wallpaper } from "lucide-react";
 import { useState } from "react";
@@ -148,7 +148,7 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
     }
   }
 
-  async function save(mediaId: Nullable<string>) {
+  async function save(mediaId: Nullable<MediaId>) {
     // WARN: REQUIREMENTS.md § 12.2. The id the server answered, pushed into the stream state by hand — and a `router.refresh()` would not do instead. 설정 mounts no `ChatStreamConnection` (§ 8.4.2.), so the write's own `user_changed` never reaches this screen, and the provider is seeded by the `(main)` shell, which a tab change does not re-render. Without this the thumbnail beside the row goes on showing the photo that was just replaced.
     setChatBackgroundMediaId(await setChatBackground(mediaId));
     setIsActionsOpen(false);

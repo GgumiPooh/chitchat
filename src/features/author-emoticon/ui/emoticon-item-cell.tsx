@@ -2,14 +2,14 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn } from "@/shared/lib";
+import { cn, type EmoticonItemId } from "@/shared/lib";
 import { PreloadImage } from "@/shared/ui";
 
 export type EmoticonItemCellProps = {
   className?: string;
   item: Emoticon;
   isThumbnail: boolean;
-  onSelect: (itemId: string) => void;
+  onSelect: (itemId: EmoticonItemId) => void;
 };
 
 /**

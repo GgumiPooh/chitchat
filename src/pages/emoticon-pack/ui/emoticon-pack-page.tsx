@@ -13,7 +13,7 @@ import {
 } from "@/features/author-emoticon";
 import { useMediaPicker } from "@/features/upload-media";
 import { EMOTICON_SETTINGS_ROUTE } from "@/shared/config";
-import { cn, type Maybe, type Nullable } from "@/shared/lib";
+import { cn, type EmoticonItemId, type Maybe, type Nullable } from "@/shared/lib";
 import { ActionSheet, AppHeader, Button, EmptyState, IconButton, Modal, toast } from "@/shared/ui";
 import { josa } from "es-hangul";
 import {
@@ -67,7 +67,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   const [editing, setEditing] = useState<Nullable<Emoticon>>(null);
   const [addingCount, setAddingCount] = useState(0);
   const [failures, setFailures] = useState<BulkAddFailure[]>([]);
-  const [selectedId, setSelectedId] = useState<Nullable<string>>(null);
+  const [selectedId, setSelectedId] = useState<Nullable<EmoticonItemId>>(null);
   // WARN: § 13.8.1. A fraction, deliberately **not** § 13.4.'s countdown. That convention counts what is left because its grid gains rows as files land, so a fixed total would contradict them — here the items already exist and only their keywords are filling in, so the total is settled before the first batch and saying it is the more useful half.
   const [tagging, setTagging] = useState<Nullable<{ done: number; total: number }>>(null);
   const router = useRouter();
@@ -314,7 +314,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   }
 
   /** WARN: § 13.8. Ignored while a keyword run is writing. The edit sheet saves the whole list, so a user typing chips into an item the run reaches a moment later loses them to last-write-wins. */
-  function openItemActions(itemId: string) {
+  function openItemActions(itemId: EmoticonItemId) {
     if (tagging === null) {
       setSelectedId(itemId);
     }
@@ -328,7 +328,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
     );
   }
 
-  async function setThumbnail(itemId: Nullable<string>) {
+  async function setThumbnail(itemId: Nullable<EmoticonItemId>) {
     if (!itemId) {
       return;
     }
@@ -346,7 +346,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
     }
   }
 
-  async function removeItem(itemId: Nullable<string>) {
+  async function removeItem(itemId: Nullable<EmoticonItemId>) {
     if (!itemId) {
       return;
     }

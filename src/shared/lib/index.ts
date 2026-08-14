@@ -93,6 +93,25 @@ export {
 } from "./hooks/use-pinch-zoom";
 export { useSettledCommit, type SettledCommitOptions } from "./hooks/use-settled-commit";
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
+export {
+  SNOWFLAKE_PATTERN,
+  compareId,
+  idBefore,
+  idFloorBefore,
+  isSnowflake,
+  maxId,
+  toId,
+  type EmoticonItemId,
+  type EmoticonPackId,
+  type EventId,
+  type MediaId,
+  type MessageId,
+  type PushSubscriptionId,
+  type SessionId,
+  type SnowflakeId,
+  type StorageObjectId,
+  type UserId,
+} from "./id";
 export { GESTURE_SLOP } from "./input/gesture";
 export {
   isAltKey,

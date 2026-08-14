@@ -1,3 +1,4 @@
+import type { MessageId, UserId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, messages } from "@/shared/db";
@@ -8,7 +9,7 @@ import { and, eq, isNull, ne } from "drizzle-orm";
  * "not deletable", "already deleted", and "never existed" without telling the
  * caller which.
  */
-export async function deleteMessage(id: number, senderId: string): Promise<boolean> {
+export async function deleteMessage(id: MessageId, senderId: UserId): Promise<boolean> {
   const deleted = await getDb()
     .update(messages)
     .set({ deletedAt: new Date() })

@@ -1,5 +1,7 @@
+import type { MediaId } from "@/shared/lib";
 import { sql } from "drizzle-orm";
-import { boolean, check, pgTable, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, pgTable } from "drizzle-orm/pg-core";
+import { snowflake } from "../types";
 import { media } from "./media";
 
 // INFO: REQUIREMENTS.md § 12.2. One row, and the CHECK is what holds it there — the wallpaper is conversation-wide, so there is no per-user row for it to hang off the way § 12.1.'s cover does.
@@ -9,7 +11,7 @@ export const chatSettings = pgTable(
   {
     id: boolean("id").primaryKey().default(true),
     // INFO: REQUIREMENTS.md § 12.2. Owned by whichever participant last set it, so the R2 object stays under that person's `background/` prefix and `canReadMedia` admits it for the other.
-    backgroundMediaId: uuid("background_media_id").references(() => media.id, {
+    backgroundMediaId: snowflake<MediaId>("background_media_id").references(() => media.id, {
       onDelete: "set null",
     }),
   },

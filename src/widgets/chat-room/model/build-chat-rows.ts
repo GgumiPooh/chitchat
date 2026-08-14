@@ -1,12 +1,13 @@
 import type { ChatMessage } from "@/entities/message";
 import type { PendingMessage } from "@/features/send-message";
+import type { UserId } from "@/shared/lib";
 import { toDayKey, type Nullable } from "@/shared/lib";
 import type { ChatRow } from "./types";
 
 export type BuildChatRowsParams = {
   messages: ChatMessage[];
   pending: PendingMessage[];
-  currentUserId: string;
+  currentUserId: UserId;
 };
 
 type Entry = {
@@ -91,7 +92,7 @@ export function buildChatRows({
 }
 
 // INFO: The ISO string is UTC, and every offset is a whole number of minutes, so slicing it groups by the local clock minute too.
-function toGroupKey(senderId: string, createdAt: string): string {
+function toGroupKey(senderId: UserId, createdAt: string): string {
   return `${senderId}:${createdAt.slice(0, 16)}`;
 }
 

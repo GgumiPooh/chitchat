@@ -143,6 +143,7 @@ export {
   type KeywordMatch,
 } from "./emoticon";
 export { ensureEnv } from "./env";
+export { snowflakeCursorSchema, snowflakeSchema } from "./id";
 export {
   LINK_PREVIEW_FAILURE_TTL,
   LINK_PREVIEW_PATH,

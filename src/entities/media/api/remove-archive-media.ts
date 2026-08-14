@@ -1,3 +1,4 @@
+import type { MediaId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, media, messageMedia } from "@/shared/db";
@@ -7,9 +8,9 @@ import { isInLibrary } from "./list-archive-media";
 
 export type ArchiveRemoval = {
   /** Still in a bubble, so only the library lost them. */
-  hiddenIds: string[];
+  hiddenIds: MediaId[];
   /** Nothing referenced them, so the rows and the R2 objects are gone. */
-  deletedIds: string[];
+  deletedIds: MediaId[];
 };
 
 /**
@@ -26,7 +27,7 @@ export type ArchiveRemoval = {
  * conversation, like an emoticon pack (§ 13.1.), and § 6. has no permission tier
  * to express "only mine" with.
  */
-export async function removeArchiveMedia(ids: string[]): Promise<ArchiveRemoval> {
+export async function removeArchiveMedia(ids: MediaId[]): Promise<ArchiveRemoval> {
   if (ids.length === 0) {
     return { hiddenIds: [], deletedIds: [] };
   }

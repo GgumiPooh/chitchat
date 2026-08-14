@@ -9,6 +9,7 @@
     "lint:steiger": "steiger src",
     "format": "prettier --write .",
     "icons": "node node_modules/tsx/dist/cli.mjs scripts/generate-icons.ts",
+    "migrate:r2": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs --tsconfig tsconfig.scripts.json scripts/migrate-r2-keys.ts",
     "holidays": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs scripts/generate-holidays.ts",
     "dev": "concurrently -n app,steiger,tunnel -c blue,yellow,red \"pnpm dev:app\" \"pnpm dev:steiger\" \"pnpm dev:tunnel\"",
     "dev:app": "next dev",

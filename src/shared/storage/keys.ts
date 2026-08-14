@@ -1,5 +1,8 @@
 import "server-only";
 
+import { nextSnowflake } from "@/shared/db";
+import type { StorageObjectId, UserId } from "@/shared/lib";
+
 // WARN: REQUIREMENTS.md § 9. The thumbnail is a derived key, never its own `media` row — the viewer asks the same id for `variant=original`.
 const THUMB_SUFFIX = "_thumb";
 
@@ -11,8 +14,8 @@ export type StorageScope = "chat" | "avatar" | "emoticon" | "background";
  * authorizes exactly the key it was signed for, so letting the browser name it
  * is letting the browser ask for a signature that overwrites someone else's object.
  */
-export function buildStorageKey(scope: StorageScope, ownerId: string): string {
-  return `${toScopePrefix(scope, ownerId)}${crypto.randomUUID()}`;
+export function buildStorageKey(scope: StorageScope, ownerId: UserId): string {
+  return `${toScopePrefix(scope, ownerId)}${nextSnowflake<StorageObjectId>()}`;
 }
 
 /**
@@ -21,7 +24,7 @@ export function buildStorageKey(scope: StorageScope, ownerId: string): string {
  * INFO: It is the app's one ownership proof for an object (§ 9.), so the check
  * sites read it from here rather than each spelling the key layout out again.
  */
-export function toScopePrefix(scope: StorageScope, ownerId: string): string {
+export function toScopePrefix(scope: StorageScope, ownerId: UserId): string {
   return `${scope}/${ownerId}/`;
 }
 

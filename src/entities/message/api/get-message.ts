@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getDb, messages } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import type { MessageId, Nullable } from "@/shared/lib";
 import { eq } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
@@ -20,7 +20,7 @@ import { listReplyPreviews } from "./list-reply-previews";
  * a tombstone is a row the reader still sees, so the deletion now rides the
  * `isDeleted` flag on a message that resolves normally.
  */
-export async function getMessage(id: number): Promise<Nullable<ChatMessage>> {
+export async function getMessage(id: MessageId): Promise<Nullable<ChatMessage>> {
   const [row] = await getDb().select().from(messages).where(eq(messages.id, id)).limit(1);
 
   if (!row) {

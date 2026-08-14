@@ -1,12 +1,13 @@
 import { revokeUserSession } from "@/entities/session";
 import { apiError } from "@/shared/api";
 import { getSessionContext } from "@/shared/auth";
+import { snowflakeSchema } from "@/shared/config";
+import type { SessionId } from "@/shared/lib";
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-const sessionIdSchema = z.uuid();
+const sessionIdSchema = snowflakeSchema<SessionId>();
 
 /**
  * REQUIREMENTS.md § 12. Revokes one of the caller's own other sessions.

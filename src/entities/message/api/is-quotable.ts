@@ -1,3 +1,4 @@
+import type { MessageId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, messages } from "@/shared/db";
@@ -12,7 +13,7 @@ import { eq } from "drizzle-orm";
  * echo the row back — validating through it made every reply pay four round trips
  * for two. This reads the three columns the question is actually about.
  */
-export async function isQuotable(parentId: number): Promise<boolean> {
+export async function isQuotable(parentId: MessageId): Promise<boolean> {
   const [row] = await getDb()
     .select({ type: messages.type, deletedAt: messages.deletedAt })
     .from(messages)

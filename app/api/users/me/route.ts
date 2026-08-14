@@ -2,8 +2,8 @@ import { discardScopedMedia, discardUnwornScopedMedia, ownsAllMedia } from "@/en
 import { updateUserProfile, type ReplacedMedia } from "@/entities/user";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { MAX_NICKNAME_LENGTH } from "@/shared/config";
-import { safelyRunAsync, type Maybe } from "@/shared/lib";
+import { MAX_NICKNAME_LENGTH, snowflakeSchema } from "@/shared/config";
+import { safelyRunAsync, type Maybe, type MediaId, type UserId } from "@/shared/lib";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -12,9 +12,9 @@ const bodySchema = z
     // WARN: Trimmed before the length check, or twenty spaces pass it and REQUIREMENTS.md § 8.7. falls back to the email local part for a name the user believes they set.
     nickname: z.string().trim().min(1).max(MAX_NICKNAME_LENGTH).optional(),
     // INFO: REQUIREMENTS.md § 12. Absent keeps the current photo; an explicit `null` is 기본 이미지로 되돌리기.
-    avatarMediaId: z.uuid().nullish(),
+    avatarMediaId: snowflakeSchema<MediaId>().nullish(),
     // INFO: REQUIREMENTS.md § 12.1. The profile cover, published to the other participant.
-    profileBackgroundMediaId: z.uuid().nullish(),
+    profileBackgroundMediaId: snowflakeSchema<MediaId>().nullish(),
     // INFO: REQUIREMENTS.md § 8.12. The 입력 중 switch. It is a `users` column the owner may write, so it rides this patch rather than an endpoint of its own.
     typingIndicatorEnabled: z.boolean().optional(),
   })
@@ -66,8 +66,8 @@ export async function PATCH(request: Request) {
 }
 
 async function isOwnedInScope(
-  mediaId: Maybe<string>,
-  userId: string,
+  mediaId: Maybe<MediaId>,
+  userId: UserId,
   scope: "avatar" | "background",
 ): Promise<boolean> {
   return !mediaId || ownsAllMedia([mediaId], userId, scope);
@@ -89,7 +89,7 @@ async function isOwnedInScope(
  * INFO: Concurrent, because the two touch different rows and different key prefixes.
  * Only the background leg pays for the guard, and it pays inside its own leg.
  */
-function discardReplaced(replaced: ReplacedMedia, userId: string): void {
+function discardReplaced(replaced: ReplacedMedia, userId: UserId): void {
   const { avatar, background } = replaced;
 
   if (!avatar && !background) {

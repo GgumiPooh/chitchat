@@ -6,7 +6,7 @@ import {
   MESSAGE_PAGE_SIZE,
   REPLY_PREVIEW_MAX_LENGTH,
 } from "@/shared/config";
-import { safelyRunAsync } from "@/shared/lib";
+import { compareId, idBefore, maxId, safelyRunAsync, toId, type MessageId } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useRef, useState } from "react";
 import { fetchChangedMessages } from "../api/fetch-changed-messages";
@@ -40,7 +40,8 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
   const hasNewerRef = useRef(false);
   // INFO: REQUIREMENTS.md § 8.2. The gap-recovery cursor. Tracked apart from the loaded window because it only ever moves forward — a delete must not walk it back and have § 8.4.'s catch-up refetch what was already seen.
   // WARN: § 8.6.1.'s jump moves the *window* into the past and leaves this alone. They are two different questions: what is on screen, and what this client has already been told about.
-  const newestKnownIdRef = useRef(initialMessages.at(-1)?.id ?? 0);
+  // INFO: REQUIREMENTS.md § 8.4. `"0"` is the "from the start of the conversation" cursor — below every id the generator can mint.
+  const newestKnownIdRef = useRef(initialMessages.at(-1)?.id ?? toId<MessageId>("0"));
   // WARN: § 8.6.1. Bumped by everything that replaces the window whole. `discardPendingOlder` drops a page already *held*, but a fetch still in flight was started against the window that is now gone, and letting it land is what leaves `hasNewerRef` true while `hasNewer` reads false — live arrivals dropped from then on, and the pill that would fix it hidden.
   const windowId = useRef(0);
 
@@ -161,7 +162,7 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
       }
 
       newestKnownIdRef.current = incoming.reduce(
-        (newest, message) => Math.max(newest, message.id),
+        (newest, message) => maxId(newest, message.id),
         newestKnownIdRef.current,
       );
 
@@ -175,7 +176,9 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
         const added = incoming.filter((message) => !known.has(message.id));
 
         // WARN: Sorted rather than appended. Ids commit out of order (§ 8.4.), so a live event can arrive behind one the replay already delivered.
-        return added.length === 0 ? previous : [...previous, ...added].sort((a, b) => a.id - b.id);
+        return added.length === 0
+          ? previous
+          : [...previous, ...added].sort((a, b) => compareId(a.id, b.id));
       });
     },
     [commit],
@@ -235,7 +238,7 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
    * that was one page away.
    */
   const loadAround = useCallback(
-    async (id: number): Promise<LoadAroundResult> => {
+    async (id: MessageId): Promise<LoadAroundResult> => {
       const generation = beginReplacement();
 
       try {
@@ -342,7 +345,7 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
 
     try {
       const page = await fetchMessages({});
-      const newestId = page.at(-1)?.id ?? 0;
+      const newestId = page.at(-1)?.id ?? toId<MessageId>("0");
 
       // WARN: Both of these leave the jumped window on screen — an empty page commits nothing, and a superseded generation belongs to a jump that has already replaced it — so neither may report the live edge.
       if (page.length === 0 || generation !== windowId.current) {
@@ -350,9 +353,12 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
       }
 
       hasOlderRef.current = page.length >= MESSAGE_PAGE_SIZE;
-      newestKnownIdRef.current = Math.max(newestKnownIdRef.current, newestId);
+      newestKnownIdRef.current = maxId(newestKnownIdRef.current, newestId);
       // INFO: Anything that arrived while the page was in flight is newer than it, so it is carried over rather than replaced away.
-      commit((previous) => [...page, ...previous.filter((entry) => entry.id > newestId)]);
+      commit((previous) => [
+        ...page,
+        ...previous.filter((entry) => compareId(entry.id, newestId) > 0),
+      ]);
 
       return true;
     } catch {
@@ -447,7 +453,7 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
             break;
           }
 
-          to = last.id - 1;
+          to = idBefore(last.id);
         }
 
         if (changed.length === 0) {

@@ -7,8 +7,8 @@ import {
   SESSION_DURATION,
   SESSION_EXPIRE_ROUTE,
 } from "@/shared/config";
-import { getDb, sessions, users, type Session, type User } from "@/shared/db";
-import { A_DAY, type Nullable } from "@/shared/lib";
+import { getDb, nextSnowflake, sessions, users, type Session, type User } from "@/shared/db";
+import { A_DAY, type Nullable, type SessionId, type UserId } from "@/shared/lib";
 import { and, eq, gt } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -38,7 +38,7 @@ async function hashSessionToken(token: string): Promise<string> {
 }
 
 export async function createSession(
-  userId: string,
+  userId: UserId,
   deviceLabel: Nullable<string>,
 ): Promise<string> {
   const token = generateSessionToken();
@@ -46,6 +46,7 @@ export async function createSession(
   await getDb()
     .insert(sessions)
     .values({
+      id: nextSnowflake<SessionId>(),
       userId,
       tokenHash: await hashSessionToken(token),
       deviceLabel,
@@ -114,7 +115,7 @@ export async function getCurrentUser(): Promise<Nullable<User>> {
  * window § 12. revocation has to close. It renews nothing, so re-asking cannot keep
  * a session alive.
  */
-export async function isSessionLive(sessionId: string): Promise<boolean> {
+export async function isSessionLive(sessionId: SessionId): Promise<boolean> {
   const [row] = await getDb()
     .select({ id: sessions.id })
     .from(sessions)

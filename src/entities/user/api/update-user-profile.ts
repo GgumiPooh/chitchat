@@ -1,19 +1,19 @@
 import "server-only";
 
 import { getDb, media, users } from "@/shared/db";
-import type { Maybe, Nullable } from "@/shared/lib";
+import type { Maybe, MediaId, Nullable, UserId } from "@/shared/lib";
 import { and, eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { toParticipant } from "../model/to-participant";
 import type { Participant } from "../model/types";
 
 export type UpdateUserProfileParams = {
-  userId: string;
+  userId: UserId;
   nickname?: string;
   /** REQUIREMENTS.md § 12. Absent keeps the current photo; an explicit `null` removes it. */
-  avatarMediaId?: Nullable<string>;
+  avatarMediaId?: Nullable<MediaId>;
   /** REQUIREMENTS.md § 12.1. The profile cover. Same absent/`null` contract as the avatar. */
-  profileBackgroundMediaId?: Nullable<string>;
+  profileBackgroundMediaId?: Nullable<MediaId>;
   /** REQUIREMENTS.md § 8.12. Whether this user broadcasts 입력 중 at all. */
   typingIndicatorEnabled?: boolean;
 };
@@ -32,8 +32,8 @@ export type UpdateUserProfileParams = {
  * that used to be a row-local comparison here and could not survive the move.
  */
 export type ReplacedMedia = {
-  avatar: Nullable<string>;
-  background: Nullable<string>;
+  avatar: Nullable<MediaId>;
+  background: Nullable<MediaId>;
 };
 
 export type ProfileUpdate = {
@@ -99,7 +99,7 @@ export async function updateUserProfile({
   };
 }
 
-async function readMime(mediaId: Nullable<string>): Promise<Nullable<string>> {
+async function readMime(mediaId: Nullable<MediaId>): Promise<Nullable<string>> {
   if (!mediaId) {
     return null;
   }
@@ -114,6 +114,6 @@ async function readMime(mediaId: Nullable<string>): Promise<Nullable<string>> {
 }
 
 // INFO: Only a photo that is actually gone is handed back. Re-submitting the same id is a no-op, and its object is still the one being worn.
-function toReplaced(before: Nullable<string>, after: Nullable<string>): Nullable<string> {
+function toReplaced(before: Nullable<MediaId>, after: Nullable<MediaId>): Nullable<MediaId> {
   return before && before !== after ? before : null;
 }

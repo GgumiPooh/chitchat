@@ -1,4 +1,4 @@
-import type { Nullable } from "@/shared/lib";
+import type { MediaId, MessageId, Nullable, UserId } from "@/shared/lib";
 
 /**
  * A media object as it crosses the API. It carries no URL — REQUIREMENTS.md § 9.
@@ -33,7 +33,7 @@ export type ChatMedia = {
   voice: Nullable<{ peaks: number[] }>;
   // INFO: § 9.1. The file card names its own size, which is the only thing it can say about a document it cannot draw.
   size: number;
-  id: string;
+  id: MediaId;
 };
 
 /**
@@ -50,8 +50,8 @@ export type ChatMedia = {
 export type ChatTrackMedia = ChatMedia & {
   /** DESIGN.md § 7.10. When the slide was sent, for the viewer's caption — the same instant `ArchiveMedia` carries, and read off the same column. */
   createdAt: string;
-  messageId: number;
-  senderId: string;
+  messageId: MessageId;
+  senderId: UserId;
 };
 
 /**
@@ -69,7 +69,7 @@ export type ArchiveMedia = ChatMedia & {
    * library hangs off no message at all, and so does one whose message has since
    * been deleted. The control is withheld there rather than jumping to nothing.
    */
-  messageId: Nullable<number>;
+  messageId: Nullable<MessageId>;
   /**
    * DESIGN.md § 7.10. Who sent the tile, for the viewer's top bar.
    *

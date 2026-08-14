@@ -11,7 +11,15 @@ import {
   isAnimatableEmoticonMime,
   toEmoticonAssetUrl,
 } from "@/shared/config";
-import { cn, playSound, stopSound, type Maybe, type Nullable, type Optional } from "@/shared/lib";
+import {
+  cn,
+  playSound,
+  stopSound,
+  type EmoticonPackId,
+  type Maybe,
+  type Nullable,
+  type Optional,
+} from "@/shared/lib";
 import {
   BottomSheet,
   Button,
@@ -31,7 +39,7 @@ const AUDIO_ACCEPT = ALLOWED_EMOTICON_AUDIO_MIMES.join(",");
 
 export type EmoticonFormSheetProps = {
   className?: string;
-  packId: string;
+  packId: EmoticonPackId;
   isOpen: boolean;
   /** REQUIREMENTS.md § 13.4. The item being edited; absent authors a new one. */
   emoticon?: Nullable<Emoticon>;

@@ -1,3 +1,4 @@
+import type { MediaId, UserId } from "@/shared/lib";
 import "server-only";
 
 import {
@@ -13,9 +14,9 @@ import { canReadMedia, getMediaRow } from "./get-media-object";
 import { registerMedia } from "./register-media";
 
 export type CopyMediaIntoScopeParams = {
-  sourceId: string;
+  sourceId: MediaId;
   /** The caller, who becomes the copy's owner — the copy is theirs however the source got there. */
-  userId: string;
+  userId: UserId;
   scope: MediaUploadScope;
   /**
    * WARN: REQUIREMENTS.md § 12.1. Only the **profile** background may be a video —

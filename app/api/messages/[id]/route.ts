@@ -1,11 +1,12 @@
 import { deleteMessage, editMessage } from "@/entities/message";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { MAX_MESSAGE_LENGTH } from "@/shared/config";
+import { MAX_MESSAGE_LENGTH, snowflakeSchema } from "@/shared/config";
+import type { MessageId } from "@/shared/lib";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-const idSchema = z.coerce.number().int().positive();
+const idSchema = snowflakeSchema<MessageId>();
 
 // INFO: REQUIREMENTS.md § 8.13. The same shape a send is validated against — an edit may not produce a message the composer could not have sent in the first place.
 const bodySchema = z.object({ text: z.string().trim().min(1).max(MAX_MESSAGE_LENGTH) });

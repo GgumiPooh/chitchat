@@ -2,11 +2,11 @@ import "server-only";
 
 import type { MediaUploadScope, MediaVariant } from "@/shared/config";
 import { chatSettings, getDb, media, messageMedia, messages, users, type Media } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import type { MediaId, Nullable, UserId } from "@/shared/lib";
 import { toScopePrefix, toThumbKey } from "@/shared/storage";
 import { and, eq, inArray, isNull, like, sql, type SQL } from "drizzle-orm";
 
-export async function getMediaRow(id: string): Promise<Nullable<Media>> {
+export async function getMediaRow(id: MediaId): Promise<Nullable<Media>> {
   const [row] = await getDb().select().from(media).where(eq(media.id, id)).limit(1);
 
   return row ?? null;
@@ -41,8 +41,8 @@ export async function getMediaRow(id: string): Promise<Nullable<Media>> {
  * photo in one bubble — which draws a voice card through the photo grid.
  */
 export async function ownsAllMedia(
-  ids: string[],
-  ownerId: string,
+  ids: MediaId[],
+  ownerId: UserId,
   scope: MediaUploadScope,
 ): Promise<boolean> {
   if (ids.length === 0) {
@@ -81,7 +81,7 @@ export async function ownsAllMedia(
  * posted is reachable by id alone without this, and the library of § 18. #1 makes
  * that a real leak rather than a theoretical one.
  */
-export async function canReadMedia(row: Media, userId: string): Promise<boolean> {
+export async function canReadMedia(row: Media, userId: UserId): Promise<boolean> {
   if (row.ownerId === userId) {
     return true;
   }
@@ -125,7 +125,7 @@ export async function canReadMedia(row: Media, userId: string): Promise<boolean>
  * its DELETE rather than calling this, because a cleanup cannot afford to ask and
  * then act (§ 12.2.).
  */
-export async function isMediaWorn(mediaId: string): Promise<boolean> {
+export async function isMediaWorn(mediaId: MediaId): Promise<boolean> {
   const [row] = await getDb().execute<{ worn: boolean }>(
     sql`SELECT (${isWornAnywhere(mediaId)}) AS worn`,
   );
@@ -149,7 +149,7 @@ export async function isMediaWorn(mediaId: string): Promise<boolean> {
  * `(id AND owner AND prefix AND NOT EXISTS…) OR EXISTS…`, so discarding an object that
  * *was* still worn matched **every row in `media`** and deleted the table.
  */
-export function isWornAnywhere(mediaId: string): SQL {
+export function isWornAnywhere(mediaId: MediaId): SQL {
   return sql`(EXISTS (
     SELECT 1 FROM ${users}
     WHERE ${users.avatarMediaId} = ${mediaId} OR ${users.profileBackgroundMediaId} = ${mediaId}

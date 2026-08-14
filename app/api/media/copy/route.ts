@@ -1,11 +1,13 @@
 import { copyMediaIntoScope } from "@/entities/media";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
+import { snowflakeSchema } from "@/shared/config";
+import type { MediaId } from "@/shared/lib";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const bodySchema = z.object({
-  sourceId: z.uuid(),
+  sourceId: snowflakeSchema<MediaId>(),
   // INFO: REQUIREMENTS.md § 12.1. Which background this copy is for. It is not the scope — both share `background/` — it is the one thing that decides whether a video is allowed.
   slot: z.enum(["profile", "chat"]),
 });

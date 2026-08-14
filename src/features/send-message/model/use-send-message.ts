@@ -11,6 +11,7 @@ import {
   mapPooled,
   randomId,
   stopVoice,
+  type MediaId,
   type Nullable,
 } from "@/shared/lib";
 import { useCallback, useRef, useState } from "react";
@@ -89,7 +90,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
   );
 
   const uploadAll = useCallback(
-    async (message: PendingMessage): Promise<string[]> => {
+    async (message: PendingMessage): Promise<MediaId[]> => {
       const totalBytes = message.media.reduce((total, draft) => total + draft.file.size, 0);
       const loaded = message.media.map((draft, index) =>
         message.uploadedIds[index] ? draft.file.size : 0,
@@ -137,7 +138,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
       );
 
       // WARN: Indexed, so `mediaIds` stays in the picked order however the uploads interleaved — § 6. renders the grid in exactly this order.
-      return uploaded.filter((id): id is string => Boolean(id));
+      return uploaded.filter((id): id is MediaId => Boolean(id));
     },
     [patch],
   );
@@ -265,7 +266,7 @@ function createPending(text: Nullable<string>, media: MediaDraft[]): PendingMess
 // INFO: REQUIREMENTS.md § 6. A row is text, attachments, or one emoticon — never a combination, which is what the table's CHECK constraint says too.
 async function toPostParams(
   message: PendingMessage,
-  uploadAll: (message: PendingMessage) => Promise<string[]>,
+  uploadAll: (message: PendingMessage) => Promise<MediaId[]>,
 ): Promise<PostMessageParams> {
   const { clientMsgId } = message;
   const replyToId = message.replyTo?.id;

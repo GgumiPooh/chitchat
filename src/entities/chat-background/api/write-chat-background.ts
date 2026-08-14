@@ -1,7 +1,7 @@
 import "server-only";
 
 import { chatSettings, getDb, media } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import type { MediaId, Nullable, UserId } from "@/shared/lib";
 import { eq } from "drizzle-orm";
 
 /** The object this change detached, for the caller to take back out of R2. */
@@ -12,12 +12,12 @@ export type ReplacedBackground = {
    * `discardScopedMedia` narrows to that prefix, so handing it the caller's id
    * silently reclaims nothing every time the two participants take turns.
    */
-  ownerId: string;
-  id: string;
+  ownerId: UserId;
+  id: MediaId;
 };
 
 export type ChatBackgroundUpdate = {
-  backgroundMediaId: Nullable<string>;
+  backgroundMediaId: Nullable<MediaId>;
   replaced: Nullable<ReplacedBackground>;
 };
 
@@ -39,7 +39,7 @@ export type ChatBackgroundUpdate = {
  * participant, who reads the new id off the participant payload.
  */
 export async function writeChatBackground(
-  mediaId: Nullable<string>,
+  mediaId: Nullable<MediaId>,
 ): Promise<ChatBackgroundUpdate> {
   return getDb().transaction(async (tx) => {
     const [current] = await tx
@@ -69,8 +69,8 @@ type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 // INFO: Only an object that is actually gone is handed back. Re-submitting the same id is a no-op, and its object is still the one being drawn.
 async function toReplaced(
   tx: Tx,
-  before: Nullable<string>,
-  after: Nullable<string>,
+  before: Nullable<MediaId>,
+  after: Nullable<MediaId>,
 ): Promise<Nullable<ReplacedBackground>> {
   if (!before || before === after) {
     return null;

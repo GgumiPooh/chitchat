@@ -1,8 +1,8 @@
 import "server-only";
 
 import type { EventColor } from "@/shared/config";
-import { events, getDb, type EventRecurrence, type EventScope } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import { events, getDb, nextSnowflake, type EventRecurrence, type EventScope } from "@/shared/db";
+import type { EventId, Nullable, UserId } from "@/shared/lib";
 import { eq } from "drizzle-orm";
 import { toCalendarEvent } from "../model/to-calendar-event";
 import type { CalendarEvent } from "../model/types";
@@ -16,7 +16,7 @@ export type CreateEventParams = {
   color: Nullable<EventColor>;
   recurrence: EventRecurrence;
   scope: EventScope;
-  createdBy: string;
+  createdBy: UserId;
 };
 
 /** REQUIREMENTS.md § 11.4. Every field is optional — an edit sends only what changed. */
@@ -31,7 +31,7 @@ export type UpdateEventParams = {
   scope?: EventScope;
 };
 
-export async function getEvent(id: string): Promise<Nullable<CalendarEvent>> {
+export async function getEvent(id: EventId): Promise<Nullable<CalendarEvent>> {
   const db = getDb();
   const [row] = await db.select().from(events).where(eq(events.id, id)).limit(1);
 
@@ -40,7 +40,10 @@ export async function getEvent(id: string): Promise<Nullable<CalendarEvent>> {
 
 export async function createEvent(params: CreateEventParams): Promise<CalendarEvent> {
   const db = getDb();
-  const [row] = await db.insert(events).values(params).returning();
+  const [row] = await db
+    .insert(events)
+    .values({ id: nextSnowflake<EventId>(), ...params })
+    .returning();
 
   return toCalendarEvent(row);
 }
@@ -52,7 +55,7 @@ export async function createEvent(params: CreateEventParams): Promise<CalendarEv
  * Answers `null` when the row is gone, which the caller turns into a 404.
  */
 export async function updateEvent(
-  id: string,
+  id: EventId,
   params: UpdateEventParams,
 ): Promise<Nullable<CalendarEvent>> {
   const db = getDb();
@@ -69,7 +72,7 @@ export async function updateEvent(
  * Answers the row it removed, because § 11.5.'s delete notice is composed from a
  * snapshot of it — by the time the message is written the row is gone.
  */
-export async function deleteEvent(id: string): Promise<Nullable<CalendarEvent>> {
+export async function deleteEvent(id: EventId): Promise<Nullable<CalendarEvent>> {
   const db = getDb();
   const [row] = await db.delete(events).where(eq(events.id, id)).returning();
 

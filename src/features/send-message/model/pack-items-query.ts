@@ -1,4 +1,5 @@
 import type { Emoticon } from "@/entities/emoticon";
+import type { EmoticonPackId } from "@/shared/lib";
 import { A_MINUTE, type Nullable } from "@/shared/lib";
 import { skipToken, type SkipToken } from "@tanstack/react-query";
 import { fetchPackItems } from "../api/fetch-pack-items";
@@ -29,7 +30,7 @@ type EmoticonPackItemsQuery = {
  * authoring screens, which are routes of their own, and § 13.6.'s swipe walks a tab
  * at a time. Without it, crossing the strip is a request per tab passed through.
  */
-export function toEmoticonPackItemsQuery(packId: Nullable<string>): EmoticonPackItemsQuery {
+export function toEmoticonPackItemsQuery(packId: Nullable<EmoticonPackId>): EmoticonPackItemsQuery {
   return {
     queryKey: ["emoticon-pack-items", packId] as const,
     queryFn: packId === null ? skipToken : () => fetchPackItems(packId),

@@ -3,7 +3,7 @@ import "server-only";
 import { resolveDisplayName } from "@/entities/user/@x/media";
 import { ARCHIVE_PAGE_SIZE, type LibraryKind } from "@/shared/config";
 import { getDb, media, messageMedia, messages, users, type Media } from "@/shared/db";
-import type { Nullable, Optional } from "@/shared/lib";
+import type { MediaId, Nullable, Optional } from "@/shared/lib";
 import {
   and,
   asc,
@@ -22,7 +22,7 @@ import type { ArchiveMedia } from "../model/types";
 
 export type ArchiveCursor = {
   createdAt: string;
-  id: string;
+  id: MediaId;
 };
 
 export type ListArchiveMediaParams = {
@@ -33,7 +33,7 @@ export type ListArchiveMediaParams = {
   /** The first tile of the loaded window — the page directly newer than it, for the upward paging of REQUIREMENTS.md § 10. */
   after?: ArchiveCursor;
   /** A `media` id the window is to be centred on, for the position jump of REQUIREMENTS.md § 10. */
-  around?: string;
+  around?: MediaId;
   limit?: number;
 };
 
@@ -116,7 +116,7 @@ async function selectNewer(
  */
 async function selectAround(
   shelf: Optional<SQL>,
-  targetId: string,
+  targetId: MediaId,
   limit: number,
 ): Promise<Media[]> {
   const target = await findCursor(shelf, targetId);
@@ -151,7 +151,7 @@ async function selectAround(
  */
 async function findCursor(
   shelf: Optional<SQL>,
-  targetId: string,
+  targetId: MediaId,
 ): Promise<Nullable<ArchiveCursor>> {
   const [row] = await getDb()
     .select({ createdAt: media.createdAt, id: media.id })
@@ -184,7 +184,7 @@ async function findCursor(
  * one whose message was deleted; both leave the control off the viewer rather than
  * offering a jump into nothing, and neither has anyone to name.
  */
-async function findSendingMessages(mediaIds: string[]): Promise<Map<string, ArchiveOrigin>> {
+async function findSendingMessages(mediaIds: MediaId[]): Promise<Map<string, ArchiveOrigin>> {
   if (mediaIds.length === 0) {
     return new Map();
   }
@@ -288,7 +288,7 @@ function isOfKind(kind: LibraryKind): Optional<SQL> {
  * needs exactly that — a `<` there drops the very tile the window is centred on.
  */
 function comparedToCursor(operator: PairOperator, { createdAt, id }: ArchiveCursor): SQL {
-  return sql`(${media.createdAt}, ${media.id}) ${sql.raw(operator)} (${createdAt}::timestamptz, ${id}::uuid)`;
+  return sql`(${media.createdAt}, ${media.id}) ${sql.raw(operator)} (${createdAt}::timestamptz, ${id}::bigint)`;
 }
 
 type PairOperator = "<" | "<=" | ">";

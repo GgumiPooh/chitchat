@@ -1,3 +1,4 @@
+import type { MessageId, UserId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, messages } from "@/shared/db";
@@ -11,7 +12,7 @@ import { and, eq, isNull } from "drizzle-orm";
  * "not text", "already deleted" and "never existed" without telling the caller
  * which. There is no time limit: an edit is allowed for as long as the row lives.
  */
-export async function editMessage(id: number, senderId: string, text: string): Promise<boolean> {
+export async function editMessage(id: MessageId, senderId: UserId, text: string): Promise<boolean> {
   const edited = await getDb()
     .update(messages)
     .set({ text, editedAt: new Date() })

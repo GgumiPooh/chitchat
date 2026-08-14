@@ -8,7 +8,13 @@ import {
   saveEmoticonPackEnabled,
 } from "@/features/emoticon-prefs";
 import { EMOTICON_IMPORT_ROUTE, EMOTICON_SETTINGS_ROUTE, SETTINGS_ROUTE } from "@/shared/config";
-import { cn, markZoneDeparture, useBfcacheRestore, type Nullable } from "@/shared/lib";
+import {
+  cn,
+  markZoneDeparture,
+  useBfcacheRestore,
+  type EmoticonPackId,
+  type Nullable,
+} from "@/shared/lib";
 import { ActionSheet, AppHeader, Button, IconButton, Modal, toast } from "@/shared/ui";
 import { josa } from "es-hangul";
 import { ChevronLeft, EyeOff, Link2, Pencil, Plus, Trash2 } from "lucide-react";
@@ -39,10 +45,10 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
   const [isCreating, setIsCreating] = useState(false);
   const [known, setKnown] = useState(packs);
   const [seeded, setSeeded] = useState(packs);
-  const [managedId, setManagedId] = useState<Nullable<string>>(null);
-  const [renamingId, setRenamingId] = useState<Nullable<string>>(null);
-  const [hidingId, setHidingId] = useState<Nullable<string>>(null);
-  const [deletingId, setDeletingId] = useState<Nullable<string>>(null);
+  const [managedId, setManagedId] = useState<Nullable<EmoticonPackId>>(null);
+  const [renamingId, setRenamingId] = useState<Nullable<EmoticonPackId>>(null);
+  const [hidingId, setHidingId] = useState<Nullable<EmoticonPackId>>(null);
+  const [deletingId, setDeletingId] = useState<Nullable<EmoticonPackId>>(null);
   const [isRemoving, setIsRemoving] = useState(false);
   // INFO: § 13.5. A switch thrown on the other tab is a write this list was seeded before — the seed is re-read on the way back rather than on every toggle.
   const hasStaleSeedRef = useRef(false);
@@ -171,7 +177,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
     </div>
   );
 
-  function openPack(packId: string) {
+  function openPack(packId: EmoticonPackId) {
     router.push(`${EMOTICON_SETTINGS_ROUTE}/${packId}`);
   }
 
@@ -197,7 +203,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
     window.location.assign(EMOTICON_IMPORT_ROUTE);
   }
 
-  function handleRenamed(packId: string, name: string) {
+  function handleRenamed(packId: EmoticonPackId, name: string) {
     setKnown((current) => current.map((pack) => (pack.id === packId ? { ...pack, name } : pack)));
   }
 
@@ -209,7 +215,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
    * WARN: `enabled` is written and `position` is not, so the undo needs no order of its
    * own — the row goes back exactly where it was.
    */
-  function hidePack(packId: Nullable<string>) {
+  function hidePack(packId: Nullable<EmoticonPackId>) {
     const index = known.findIndex((pack) => pack.id === packId);
     const pack = known[index];
 
@@ -234,7 +240,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
   }
 
   // WARN: The row is dropped only when its collapse lands, and both writes are one update — clearing `hidingId` on its own would expand the row again for a frame before the filter reached it.
-  function commitHide(packId: string) {
+  function commitHide(packId: EmoticonPackId) {
     setHidingId(null);
     setKnown((current) => current.filter((pack) => pack.id !== packId));
   }
@@ -265,7 +271,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
     );
   }
 
-  async function removePack(packId: Nullable<string>) {
+  async function removePack(packId: Nullable<EmoticonPackId>) {
     if (!packId) {
       return;
     }

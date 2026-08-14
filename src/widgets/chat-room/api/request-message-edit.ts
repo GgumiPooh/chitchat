@@ -1,6 +1,7 @@
 import { request } from "@/shared/api";
+import type { MessageId } from "@/shared/lib";
 
-export async function requestMessageEdit(id: number, text: string): Promise<void> {
+export async function requestMessageEdit(id: MessageId, text: string): Promise<void> {
   const response = await request(`/api/messages/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },

@@ -1,12 +1,12 @@
 import { listMessages } from "@/entities/message";
 import { toMediaUrl } from "@/shared/config";
-import type { Maybe, Nullable } from "@/shared/lib";
+import type { Maybe, MessageId, Nullable, UserId } from "@/shared/lib";
 import { preload } from "react-dom";
 import { ChatScreen } from "./chat-screen";
 
 export type ChatPageProps = {
   className?: string;
-  currentUserId: string;
+  currentUserId: UserId;
   /**
    * REQUIREMENTS.md § 12.2. The room's shared wallpaper, for the preload alone.
    *
@@ -16,7 +16,7 @@ export type ChatPageProps = {
    */
   backgroundMediaId: Nullable<string>;
   /** REQUIREMENTS.md § 10. A message the screen was opened on, validated by the route. */
-  jumpMessageId?: Maybe<number>;
+  jumpMessageId?: Maybe<MessageId>;
 };
 
 export async function ChatPage({

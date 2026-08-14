@@ -2,7 +2,7 @@ import "server-only";
 
 import { CHAT_MEDIA_TRACK_SPAN } from "@/shared/config";
 import { getDb, media, messageMedia, messages } from "@/shared/db";
-import type { Optional } from "@/shared/lib";
+import type { MediaId, MessageId, Optional } from "@/shared/lib";
 import { and, asc, desc, eq, isNull, sql, type SQL } from "drizzle-orm";
 import { toChatMedia } from "../model/to-chat-media";
 import type { ChatTrackMedia } from "../model/types";
@@ -16,15 +16,15 @@ import type { ChatTrackMedia } from "../model/types";
  * which is the order the bubble draws them in. Ordering the track any other way
  * makes a swipe through one bubble disagree with the bubble it came from.
  */
-type TrackPosition = { messageId: number; sortOrder: number };
+type TrackPosition = { messageId: MessageId; sortOrder: number };
 
 export type ListConversationMediaParams = {
   /** The slide the reader tapped — the window comes back centred on it (REQUIREMENTS.md § 8.1.). */
-  around?: string;
+  around?: MediaId;
   /** The track's **oldest** loaded slide; the answer is the page of the conversation before it, which extends the front of the track. */
-  before?: string;
+  before?: MediaId;
   /** The track's **newest** loaded slide; the answer is the page after it, which extends the back. */
-  after?: string;
+  after?: MediaId;
 };
 
 /**
@@ -76,7 +76,7 @@ export async function listConversationMedia({
  *
  * WARN: A withdrawn message's attachments are gone from the track, so an anchor inside one resolves to nothing and the caller is handed an empty track rather than a window around a hole. The § 8.13. stream withdraws the viewer in that case anyway; this is the race where the tap and the withdrawal cross.
  */
-async function findPosition(anchorId: Optional<string>): Promise<Optional<TrackPosition>> {
+async function findPosition(anchorId: Optional<MediaId>): Promise<Optional<TrackPosition>> {
   if (!anchorId) {
     return undefined;
   }

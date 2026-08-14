@@ -2,7 +2,7 @@
 
 import type { EmoticonPackSummary } from "@/entities/emoticon";
 import { MAX_EMOTICON_PACK_NAME_LENGTH } from "@/shared/config";
-import type { Nullable } from "@/shared/lib";
+import type { EmoticonPackId, Nullable } from "@/shared/lib";
 import { BottomSheet, Button, Input, toast } from "@/shared/ui";
 import { useState } from "react";
 import { updateEmoticonPack } from "../api/write-emoticon";
@@ -12,7 +12,7 @@ export type RenamePackSheetProps = {
   /** WARN: Also the sheet's identity — the field is seeded from it, so a different pack must be a different mount (`key`). */
   pack: Nullable<EmoticonPackSummary>;
   onClose: () => void;
-  onRenamed: (packId: string, name: string) => void;
+  onRenamed: (packId: EmoticonPackId, name: string) => void;
 };
 
 /** REQUIREMENTS.md § 13.1. Either participant may rename any pack — it belongs to the conversation. */

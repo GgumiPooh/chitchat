@@ -1,6 +1,7 @@
+import type { UserId } from "@/shared/lib";
 import "server-only";
 
-import { getDb, users, type User } from "@/shared/db";
+import { getDb, nextSnowflake, users, type User } from "@/shared/db";
 import { eq } from "drizzle-orm";
 
 /**
@@ -48,6 +49,7 @@ export async function upsertGoogleUser(identity: {
   const [created] = await db
     .insert(users)
     .values({
+      id: nextSnowflake<UserId>(),
       email: identity.email,
       googleSub: identity.sub,
       // INFO: REQUIREMENTS.md § 8.8. The epoch, so everything sent before this person's first login counts as unread rather than silently read.

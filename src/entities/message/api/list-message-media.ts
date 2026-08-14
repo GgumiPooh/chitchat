@@ -1,3 +1,4 @@
+import type { MessageId } from "@/shared/lib";
 import "server-only";
 
 import { toChatMedia, type ChatMedia } from "@/entities/media/@x/message";
@@ -10,8 +11,10 @@ import { asc, eq, inArray } from "drizzle-orm";
  * INFO: REQUIREMENTS.md § 9. One query for the page, never one per message — a
  * 30-message page of photos would otherwise be 30 round trips to Neon.
  */
-export async function listMessageMedia(messageIds: number[]): Promise<Map<number, ChatMedia[]>> {
-  const byMessage = new Map<number, ChatMedia[]>();
+export async function listMessageMedia(
+  messageIds: MessageId[],
+): Promise<Map<MessageId, ChatMedia[]>> {
+  const byMessage = new Map<MessageId, ChatMedia[]>();
 
   if (messageIds.length === 0) {
     return byMessage;

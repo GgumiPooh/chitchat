@@ -1,6 +1,6 @@
 import type { EventColor } from "@/shared/config";
 import type { EventRecurrence, EventScope } from "@/shared/db";
-import type { Nullable, UpcomingMilestone } from "@/shared/lib";
+import type { EventId, Nullable, UpcomingMilestone, UserId } from "@/shared/lib";
 
 /**
  * An event as it crosses `/api/events`. Timestamps are ISO strings because the
@@ -21,8 +21,8 @@ export type CalendarEvent = {
   recurrence: EventRecurrence;
   scope: EventScope;
   // INFO: REQUIREMENTS.md § 11.4. A record of authorship, never a permission check — either user may edit any event.
-  createdBy: string;
-  id: string;
+  createdBy: UserId;
+  id: EventId;
 };
 
 /**

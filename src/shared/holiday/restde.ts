@@ -1,4 +1,4 @@
-import { type Optional } from "@/shared/lib";
+import type { Optional } from "@/shared/lib";
 import { z } from "zod";
 
 /** Where a 특일 정보 일반 인증키 is issued. */

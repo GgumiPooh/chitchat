@@ -5,6 +5,7 @@ import {
   BACKFILL_EVENT,
   BUILD_ID,
   CHANGE_EVENT,
+  snowflakeSchema,
   SSE_HEARTBEAT_INTERVAL,
   SSE_REPLAY_LIMIT,
   SSE_REPLAY_MARGIN,
@@ -18,7 +19,16 @@ import {
   TYPING_CHANNEL,
   USER_CHANGED_CHANNEL,
 } from "@/shared/db";
-import { safelyGet, safelyRun, type Nullable, type Optional } from "@/shared/lib";
+import {
+  idFloorBefore,
+  isSnowflake,
+  safelyGet,
+  safelyRun,
+  toId,
+  type MessageId,
+  type Nullable,
+  type Optional,
+} from "@/shared/lib";
 import { z } from "zod";
 
 // WARN: The stream holds a `LISTEN` connection open, which the edge runtime cannot do.
@@ -39,7 +49,7 @@ const SSE_HEADERS = {
 
 // INFO: REQUIREMENTS.md § 6. `NOTIFY` caps at 8000 bytes, so the payload is an id and the row is read back here.
 const newMessageSchema = z.object({
-  id: z.number().int().positive(),
+  id: snowflakeSchema<MessageId>(),
 });
 
 /**
@@ -155,7 +165,7 @@ export async function GET(request: Request) {
        * millisecond of each other, and a delete written ahead of the `getMessage` an
        * insert already had in flight is a bubble the reader watches come back.
        */
-      function enqueue(id: number, isMutation: boolean) {
+      function enqueue(id: MessageId, isMutation: boolean) {
         // WARN: The `catch` keeps the chain alive — a rejection left on it would silence every later notification on this stream.
         pipeline = pipeline
           .then(async () => {
@@ -207,21 +217,19 @@ function toChangeEvent(message: ChatMessage): string {
   return `event: ${CHANGE_EVENT}\ndata: ${JSON.stringify(message)}\n\n`;
 }
 
-async function replayFrom(cursor: Nullable<number>): Promise<ChatMessage[]> {
+async function replayFrom(cursor: Nullable<MessageId>): Promise<ChatMessage[]> {
   if (cursor === null) {
     return [];
   }
 
   return listMessages({
-    after: Math.max(cursor - SSE_REPLAY_MARGIN, 0),
+    after: idFloorBefore(cursor, SSE_REPLAY_MARGIN),
     limit: SSE_REPLAY_LIMIT,
   });
 }
 
-function parseCursor(header: Nullable<string>): Nullable<number> {
-  const value = Number(header);
-
-  return header && Number.isSafeInteger(value) && value > 0 ? value : null;
+function parseCursor(header: Nullable<string>): Nullable<MessageId> {
+  return header && isSnowflake(header) ? toId<MessageId>(header) : null;
 }
 
 function whenAborted(signal: AbortSignal): Promise<void> {

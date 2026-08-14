@@ -1,14 +1,15 @@
 import { countMatchingMessages, searchMessages } from "@/entities/message";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { MAX_SEARCH_QUERY_LENGTH, SEARCH_PAGE_SIZE } from "@/shared/config";
+import { MAX_SEARCH_QUERY_LENGTH, SEARCH_PAGE_SIZE, snowflakeSchema } from "@/shared/config";
+import type { MessageId } from "@/shared/lib";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 // INFO: REQUIREMENTS.md § 8.6. Trimmed and lowercased here so the pattern the query builds is the same one whatever the caller sent; `ILIKE` makes the case fold a normalization rather than a behaviour change.
 const querySchema = z.object({
   q: z.string().trim().toLowerCase().min(1).max(MAX_SEARCH_QUERY_LENGTH),
-  before: z.coerce.number().int().positive().optional(),
+  before: snowflakeSchema<MessageId>().optional(),
 });
 
 // INFO: AGENTS.md § 6.4. A Route Handler returns its own 401 — the App Router does not honour a thrown `Response`.

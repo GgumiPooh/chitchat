@@ -12,6 +12,8 @@ import {
   useModalOverlay,
   usePinchZoom,
   useSettledCommit,
+  type MediaId,
+  type MessageId,
   type Nullable,
   type Optional,
 } from "@/shared/lib";
@@ -58,8 +60,8 @@ export type MediaViewerProps = {
    */
   deletion?: {
     label: string;
-    isAvailable?: (mediaId: string) => boolean;
-    onSelect: (mediaId: string) => void;
+    isAvailable?: (mediaId: MediaId) => boolean;
+    onSelect: (mediaId: MediaId) => void;
   };
   /**
    * REQUIREMENTS.md § 8.1. 채팅's track is a window on the conversation and it grows
@@ -83,12 +85,12 @@ export type MediaViewerProps = {
    *
    * WARN: 채팅 alone passes it, and only because § 8.1.'s track leaves the bubble. Its top-right control is already spoken for by 보관함, and while the track was one bubble there was nowhere for this to go — the reader was on that message. 보관함 leaves it unset: its top-right control is this journey.
    */
-  onOpenMessage?: (messageId: number) => void;
+  onOpenMessage?: (messageId: MessageId) => void;
   onClose: () => void;
   /** REQUIREMENTS.md § 8.11. Hands the slide on screen to the OS share sheet. Given the media id, since the slide moves under the control. */
-  onShare?: (mediaId: string) => void;
+  onShare?: (mediaId: MediaId) => void;
   /** REQUIREMENTS.md § 8.11. The 저장 route for the slide on screen. Used on iOS only, where the download beside it cannot reach the photo library. */
-  onSave?: (mediaId: string) => void;
+  onSave?: (mediaId: MediaId) => void;
   /**
    * REQUIREMENTS.md § 12.1. Opens 배경으로 설정 for the slide on screen.
    *
@@ -96,7 +98,7 @@ export type MediaViewerProps = {
    * control, so the id has to be read at the tap rather than captured at mount.
    * INFO: `isVideo` rides along because the two backgrounds do not take the same kinds — a profile cover may be a video and the chat wallpaper may not (§ 12.2.), so the sheet has to know before it draws its rows.
    */
-  onSetBackground?: (mediaId: string, isVideo: boolean) => void;
+  onSetBackground?: (mediaId: MediaId, isVideo: boolean) => void;
   /**
    * REQUIREMENTS.md § 8.1. Takes 원본 저장 over, so the caller can do something before
    * the object is reached — 채팅 offers the rest of the bubble first (§ 8.1.), 보관함
@@ -104,7 +106,7 @@ export type MediaViewerProps = {
    *
    * WARN: Given, the control becomes a `button`; left unset it stays the `<a href>` below. **Both viewers now pass it**, and 보관함's reason is not a question it wants to ask: the anchor navigates straight at the object, and `REQUIREMENTS.md § 18.` #1.'s 삭제 reaches rows on a screen with nothing publishing it, so a slide can name an object that is gone — which took a standalone PWA to a bare JSON 404 with no way back. The anchor survives for the § 7.7. profile viewer, where the source is this user's own avatar and nobody else can remove it.
    */
-  onDownload?: (mediaId: string) => void;
+  onDownload?: (mediaId: MediaId) => void;
 };
 
 /**

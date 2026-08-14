@@ -1,3 +1,4 @@
+import type { UserId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, sessions } from "@/shared/db";
@@ -13,7 +14,7 @@ import type { DeviceSession } from "../model/types";
  * already dead, and deleting it here would make a read route write.
  */
 export async function listUserSessions(
-  userId: string,
+  userId: UserId,
   currentSessionId: string,
 ): Promise<DeviceSession[]> {
   // WARN: An explicit projection, never `select()` — `token_hash` is the credential (§ 5.2.) and everything selected here reaches the browser.

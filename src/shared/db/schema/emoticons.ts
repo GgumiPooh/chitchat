@@ -1,3 +1,4 @@
+import type { EmoticonItemId, EmoticonPackId, UserId } from "@/shared/lib";
 import {
   boolean,
   index,
@@ -8,31 +9,34 @@ import {
   smallint,
   text,
   timestamp,
-  uuid,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import { snowflake } from "../types";
 import { users } from "./users";
 
 // INFO: REQUIREMENTS.md § 13. Packs are authored in the app, never seeded — there is no `scripts/seed-emoticons.ts`.
 export const emoticonPacks = pgTable("emoticon_packs", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: snowflake<EmoticonPackId>("id").primaryKey(),
   name: text("name").notNull(),
   // INFO: REQUIREMENTS.md § 13.1. A record of who created it, never a permission check — a pack belongs to the conversation.
-  createdBy: uuid("created_by")
+  createdBy: snowflake<UserId>("created_by")
     .notNull()
     .references(() => users.id),
   // WARN: REQUIREMENTS.md § 13.2. A cycle with `emoticon_items`, so the constraint is added by a separate ALTER TABLE. `set null`, because removing the item a pack uses as its tab icon must not remove the pack.
-  thumbnailItemId: uuid("thumbnail_item_id").references((): AnyPgColumn => emoticonItems.id, {
-    onDelete: "set null",
-  }),
+  thumbnailItemId: snowflake<EmoticonItemId>("thumbnail_item_id").references(
+    (): AnyPgColumn => emoticonItems.id,
+    {
+      onDelete: "set null",
+    },
+  ),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const emoticonItems = pgTable(
   "emoticon_items",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    packId: uuid("pack_id")
+    id: snowflake<EmoticonItemId>("id").primaryKey(),
+    packId: snowflake<EmoticonPackId>("pack_id")
       .notNull()
       .references(() => emoticonPacks.id, { onDelete: "cascade" }),
     // INFO: REQUIREMENTS.md § 13.3. The R2 key itself, not a `media` row — an emoticon is neither library content nor a thumbnailed pair.
@@ -72,7 +76,7 @@ export const emoticonItems = pgTable(
 export const emoticonKeywords = pgTable(
   "emoticon_keywords",
   {
-    itemId: uuid("item_id")
+    itemId: snowflake<EmoticonItemId>("item_id")
       .notNull()
       .references(() => emoticonItems.id, { onDelete: "cascade" }),
     // INFO: § 13.9.1. Stored folded, because both directions of the match are case-insensitive and a folded column lets the btree below answer the reverse one with an equality probe.
@@ -89,10 +93,10 @@ export const emoticonKeywords = pgTable(
 export const userEmoticonPrefs = pgTable(
   "user_emoticon_prefs",
   {
-    userId: uuid("user_id")
+    userId: snowflake<UserId>("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    packId: uuid("pack_id")
+    packId: snowflake<EmoticonPackId>("pack_id")
       .notNull()
       .references(() => emoticonPacks.id, { onDelete: "cascade" }),
     enabled: boolean("enabled").notNull().default(true),

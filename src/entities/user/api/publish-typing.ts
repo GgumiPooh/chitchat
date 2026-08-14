@@ -1,3 +1,4 @@
+import type { UserId } from "@/shared/lib";
 import "server-only";
 
 import { typingEventSchema } from "@/shared/config";
@@ -13,7 +14,7 @@ import { notifyChannel, TYPING_CHANNEL } from "@/shared/db";
  * indicator up long after the typing stopped; the receiver stamps its own
  * (§ 8.12.).
  */
-export async function publishTyping(userId: string, isTyping: boolean): Promise<void> {
+export async function publishTyping(userId: UserId, isTyping: boolean): Promise<void> {
   await notifyChannel(
     TYPING_CHANNEL,
     JSON.stringify(typingEventSchema.parse({ userId, isTyping })),

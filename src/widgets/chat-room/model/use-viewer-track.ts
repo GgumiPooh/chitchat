@@ -2,7 +2,7 @@
 
 import type { ChatTrackMedia } from "@/entities/media";
 import { CHAT_MEDIA_TRACK_SPAN, type ChatTrackEdge } from "@/shared/config";
-import type { Nullable, Optional } from "@/shared/lib";
+import type { MediaId, MessageId, Nullable, Optional, UserId } from "@/shared/lib";
 import type { MediaCell } from "@/shared/ui";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { fetchConversationMedia } from "../api/fetch-conversation-media";
@@ -20,7 +20,7 @@ import { toBubbleOwners, toCellsFromTrack, toTrackOwners, type TrackOwner } from
 export type ViewerTrack = {
   cells: MediaCell[];
   index: number;
-  owners: Map<string, TrackOwner>;
+  owners: Map<MediaId, TrackOwner>;
 };
 
 type HeldPages = Record<ChatTrackEdge, ChatTrackMedia[]>;
@@ -35,7 +35,7 @@ type HeldPages = Record<ChatTrackEdge, ChatTrackMedia[]>;
  *
  * INFO: `toSenderName` rather than a name per row (DESIGN.md § 7.10.). The wire carries `senderId` and the room already holds the participants it resolves against (§ 8.7.); it must be memoized, since every callback below carries its identity.
  */
-export function useViewerTrack(toSenderName: (senderId: string) => Optional<string>) {
+export function useViewerTrack(toSenderName: (senderId: UserId) => Optional<string>) {
   const [viewer, setViewer] = useState<Nullable<ViewerTrack>>(null);
   // INFO: State rather than only the ref beside it, because `MediaViewer` holds the page until its track goes still and has to re-render to notice one arriving (§ 8.3.).
   const [hasHeldPage, setHasHeldPage] = useState(false);
@@ -66,7 +66,7 @@ export function useViewerTrack(toSenderName: (senderId: string) => Optional<stri
    *
    * WARN: The generation cannot answer this. A withdrawal is not a reopen: bumping it would discard a page fetched for the track the reader is still holding, and `isLoadingRef` is only cleared for the generation that set it — so the edge that was mid-request would page no further for the rest of the open.
    */
-  const droppedRef = useRef(new Set<number>());
+  const droppedRef = useRef(new Set<MessageId>());
 
   // INFO: Bumped rather than cleared, so anything already in flight for the previous open is discarded when it lands rather than having to be cancelled.
   const reset = useCallback(() => {
@@ -86,7 +86,7 @@ export function useViewerTrack(toSenderName: (senderId: string) => Optional<stri
    * WARN: A failure is silent, and deliberately. The bubble's own attachments are already on screen and still swipeable, so the track simply stays as narrow as it used to be — a toast here would report the loss of something the reader never asked for. Paging stays disarmed, which is the honest state: nothing knows where this track sits in the conversation.
    */
   const extend = useCallback(
-    async (anchorId: Optional<string>, generation: number) => {
+    async (anchorId: Optional<MediaId>, generation: number) => {
       if (!anchorId) {
         return;
       }
@@ -130,7 +130,7 @@ export function useViewerTrack(toSenderName: (senderId: string) => Optional<stri
    * WARN: The seed cells are given the message and the sender the bubble already knows, rather than waiting for the window to supply them. `toCellsFromMedia` leaves both unset because a bubble's grid has no use for them, but the viewer does: without them the § 7.10. counter reads nothing and the identity block cannot travel, then both appear a moment later when the window lands.
    */
   const open = useCallback(
-    (cells: MediaCell[], index: number, messageId: number, senderId: string) => {
+    (cells: MediaCell[], index: number, messageId: MessageId, senderId: UserId) => {
       reset();
       setViewer({
         cells: cells.map((cell) => ({
@@ -252,7 +252,7 @@ export function useViewerTrack(toSenderName: (senderId: string) => Optional<stri
    * WARN: The **held pages are filtered too**, not only the loaded track. A page waiting for the track to go still can carry slides of the very message being withdrawn, and § 8.13. is that those slides leave — committed unexamined they arrive back into the track a moment later, offering 메시지 삭제 over a message that is already gone.
    * WARN: And the id is remembered, because filtering what is held reaches neither the page nor the window still **in flight** — `droppedRef` is what those two are filtered through when they land.
    */
-  const drop = useCallback((messageId: number) => {
+  const drop = useCallback((messageId: MessageId) => {
     droppedRef.current.add(messageId);
 
     const held: HeldPages = {
@@ -295,6 +295,6 @@ function toEmptyPages(): HeldPages {
 }
 
 // INFO: REQUIREMENTS.md § 8.13. Named rather than written out at each of the three sites, so the window, a page in flight and a page already held cannot come to disagree about what a withdrawal removed.
-function toSurvivingRows(rows: ChatTrackMedia[], dropped: Set<number>): ChatTrackMedia[] {
+function toSurvivingRows(rows: ChatTrackMedia[], dropped: Set<MessageId>): ChatTrackMedia[] {
   return rows.filter((row) => !dropped.has(row.messageId));
 }

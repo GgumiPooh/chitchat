@@ -1,7 +1,7 @@
 import "server-only";
 
-import { emoticonItems, emoticonPacks, getDb, messages } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import { emoticonItems, emoticonPacks, getDb, messages, nextSnowflake } from "@/shared/db";
+import type { EmoticonItemId, EmoticonPackId, Nullable, UserId } from "@/shared/lib";
 import { and, eq } from "drizzle-orm";
 import type { EmoticonPackSummary } from "../model/types";
 
@@ -12,9 +12,12 @@ import type { EmoticonPackSummary } from "../model/types";
  */
 export async function createEmoticonPack(
   name: string,
-  createdBy: string,
+  createdBy: UserId,
 ): Promise<EmoticonPackSummary> {
-  const [row] = await getDb().insert(emoticonPacks).values({ name, createdBy }).returning();
+  const [row] = await getDb()
+    .insert(emoticonPacks)
+    .values({ id: nextSnowflake<EmoticonPackId>(), name, createdBy })
+    .returning();
 
   return {
     id: row.id,
@@ -27,7 +30,7 @@ export async function createEmoticonPack(
 }
 
 /** INFO: REQUIREMENTS.md § 13.1. No `created_by` check — a pack belongs to the conversation, not to whoever made it. */
-export async function renameEmoticonPack(packId: string, name: string): Promise<boolean> {
+export async function renameEmoticonPack(packId: EmoticonPackId, name: string): Promise<boolean> {
   const updated = await getDb()
     .update(emoticonPacks)
     .set({ name })
@@ -43,8 +46,8 @@ export async function renameEmoticonPack(packId: string, name: string): Promise<
  * that pack would then blank an icon belonging to a pack nobody touched.
  */
 export async function setEmoticonPackThumbnail(
-  packId: string,
-  itemId: Nullable<string>,
+  packId: EmoticonPackId,
+  itemId: Nullable<EmoticonItemId>,
 ): Promise<boolean> {
   if (itemId) {
     const [item] = await getDb()
@@ -79,7 +82,9 @@ export type DeleteEmoticonPackResult =
  * the delete surfaces a foreign-key error as a 500, and the alternative (deleting
  * the messages too) is § 18. #1's open question rather than something to decide here.
  */
-export async function deleteEmoticonPack(packId: string): Promise<DeleteEmoticonPackResult> {
+export async function deleteEmoticonPack(
+  packId: EmoticonPackId,
+): Promise<DeleteEmoticonPackResult> {
   const [pack] = await getDb()
     .select({ id: emoticonPacks.id })
     .from(emoticonPacks)

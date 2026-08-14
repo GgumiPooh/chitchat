@@ -1,8 +1,8 @@
 import { readChatBackgroundMediaId } from "@/entities/chat-background";
 import { ChatPage } from "@/pages/chat";
 import { requireUserOrRedirect } from "@/shared/auth";
-import { CHAT_MESSAGE_PARAM } from "@/shared/config";
-import type { Maybe } from "@/shared/lib";
+import { CHAT_MESSAGE_PARAM, snowflakeSchema } from "@/shared/config";
+import type { Maybe, MessageId } from "@/shared/lib";
 
 type PageProps = {
   searchParams: Promise<Record<string, Maybe<string | string[]>>>;
@@ -31,8 +31,8 @@ export default async function Page({ searchParams }: PageProps) {
  * trip to be told the row does not exist — which surfaces as 원본 메시지를 찾지
  * 못했어요 on a URL anybody can type.
  */
-function toMessageId(value: Maybe<string | string[]>): Maybe<number> {
-  const id = typeof value === "string" ? Number(value) : NaN;
+function toMessageId(value: Maybe<string | string[]>): Maybe<MessageId> {
+  const id = snowflakeSchema<MessageId>().safeParse(value);
 
-  return Number.isSafeInteger(id) && id > 0 ? id : undefined;
+  return id.success ? id.data : undefined;
 }

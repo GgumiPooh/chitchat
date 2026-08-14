@@ -17,17 +17,26 @@ import {
   MAX_MESSAGE_PAGE_SIZE,
   MESSAGE_PAGE_SIZE,
   PUSH_BODY_MAX_LENGTH,
+  snowflakeCursorSchema,
+  snowflakeSchema,
   toMediaKind,
   toMediaLabel,
 } from "@/shared/config";
-import { safelyRunAsync, type Optional } from "@/shared/lib";
+import {
+  safelyRunAsync,
+  type EmoticonItemId,
+  type MediaId,
+  type MessageId,
+  type Optional,
+  type UserId,
+} from "@/shared/lib";
 import { NextResponse, after } from "next/server";
 import { z } from "zod";
 
-const cursorSchema = z.coerce.number().int().positive().optional();
+const cursorSchema = snowflakeSchema<MessageId>().optional();
 
 // INFO: REQUIREMENTS.md § 8.4. Zero is a real `after` cursor — a client whose window is still empty catches up from the start of the conversation rather than from the newest page, which would strand everything behind it.
-const afterCursorSchema = z.coerce.number().int().nonnegative().optional();
+const afterCursorSchema = snowflakeCursorSchema<MessageId>().optional();
 
 const querySchema = z.object({
   before: cursorSchema,
@@ -37,7 +46,7 @@ const querySchema = z.object({
 });
 
 // INFO: REQUIREMENTS.md § 8.10. Orthogonal to the payload, so it rides on every branch of the union below rather than forming one of its own.
-const replySchema = z.object({ replyToId: z.coerce.number().int().positive().optional() });
+const replySchema = z.object({ replyToId: snowflakeSchema<MessageId>().optional() });
 
 // INFO: REQUIREMENTS.md § 6. A row is text or attachments, never both — the CHECK constraint says the same thing at the database.
 const bodySchema = z.union([
@@ -47,12 +56,12 @@ const bodySchema = z.union([
   }),
   replySchema.extend({
     clientMsgId: z.uuid(),
-    mediaIds: z.array(z.uuid()).min(1).max(MAX_MEDIA_PER_MESSAGE),
+    mediaIds: z.array(snowflakeSchema<MediaId>()).min(1).max(MAX_MEDIA_PER_MESSAGE),
   }),
   // INFO: REQUIREMENTS.md § 13.6. One id and nothing else — an emoticon carries no caption of its own.
   replySchema.extend({
     clientMsgId: z.uuid(),
-    emoticonItemId: z.uuid(),
+    emoticonItemId: snowflakeSchema<EmoticonItemId>(),
   }),
 ]);
 
@@ -127,11 +136,11 @@ export async function POST(request: Request) {
   return NextResponse.json({ message }, { status: 201 });
 }
 
-async function canReplyTo(replyToId: Optional<number>): Promise<boolean> {
+async function canReplyTo(replyToId: Optional<MessageId>): Promise<boolean> {
   return replyToId === undefined || isQuotable(replyToId);
 }
 
-function createMessage(senderId: string, payload: z.infer<typeof bodySchema>) {
+function createMessage(senderId: UserId, payload: z.infer<typeof bodySchema>) {
   if ("text" in payload) {
     return createTextMessage({ senderId, ...payload });
   }

@@ -1,13 +1,13 @@
 "use client";
 
 import { toMediaUrl } from "@/shared/config";
-import { cn, type Nullable } from "@/shared/lib";
+import { cn, type MediaId, type Nullable } from "@/shared/lib";
 import { PreloadImage } from "./preload-image";
 import { PreloadVideo } from "./preload-video";
 
 export type BackgroundMediaProps = {
   className?: string;
-  mediaId: string;
+  mediaId: MediaId;
   /** REQUIREMENTS.md § 12.1. A profile cover may be a video; a chat wallpaper never is (§ 12.2.). */
   isVideo?: boolean;
   /**

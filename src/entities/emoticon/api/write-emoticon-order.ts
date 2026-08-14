@@ -1,3 +1,4 @@
+import type { EmoticonItemId, EmoticonPackId } from "@/shared/lib";
 import "server-only";
 
 import { emoticonItems, getDb } from "@/shared/db";
@@ -12,7 +13,10 @@ import { asc, eq, sql } from "drizzle-orm";
  * would renumber some rows and leave the rest on their old positions, which is a
  * worse state than the reorder simply failing.
  */
-export async function setEmoticonItemOrder(packId: string, itemIds: string[]): Promise<boolean> {
+export async function setEmoticonItemOrder(
+  packId: EmoticonPackId,
+  itemIds: EmoticonItemId[],
+): Promise<boolean> {
   const current = await getDb()
     .select({ id: emoticonItems.id })
     .from(emoticonItems)

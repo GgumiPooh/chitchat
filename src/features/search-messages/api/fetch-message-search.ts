@@ -1,7 +1,7 @@
 import type { MessageSearchResult } from "@/entities/message";
 import { request } from "@/shared/api";
 import { MESSAGE_SEARCH_PATH } from "@/shared/config";
-import type { Optional } from "@/shared/lib";
+import type { MessageId, Optional } from "@/shared/lib";
 
 export type MessageSearchPage = {
   results: MessageSearchResult[];
@@ -11,7 +11,7 @@ export type MessageSearchPage = {
 
 export type FetchMessageSearchParams = {
   query: string;
-  before?: number;
+  before?: MessageId;
 };
 
 export async function fetchMessageSearch({

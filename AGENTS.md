@@ -69,6 +69,16 @@ Overlay components exported from `@/shared/ui` (`BottomSheet`, `Modal`, `ActionS
 
 Replace `T | null`, `T | undefined`, and `T | null | undefined` with `Nullable<T>`, `Optional<T>`, and `Maybe<T>` from `@/shared/lib`. Wrap the full non-nullish operand: `Nullable<A | B>`, not `A | Nullable<B>`.
 
+## 3.2. Ids are branded strings
+
+Every id in the app is a 64-bit snowflake carried as a **string**, typed with the brand for its table — `UserId`, `MediaId`, `MessageId`, `EventId`, `SessionId`, `EmoticonPackId`, `EmoticonItemId`, `PushSubscriptionId`, `StorageObjectId`, all from `@/shared/lib`. Never `number`: a snowflake exceeds `Number.MAX_SAFE_INTEGER`, and `Number()`, `JSON.parse` and `z.coerce.number()` all round it silently into a row that does not exist.
+
+**Order them with `compareId` / `maxId`, and step them with `idBefore`** — never `<`, `>`, `Math.max` or arithmetic. Those compile and are wrong: every id this layout can mint is 19 digits, so lexicographic order happens to agree with numeric order — which is what would let a stray `>` survive review and then be wrong under any future re-cut of the format. Equality (`===`, `Set`, `Map` keys) is fine as it stands.
+
+**An id enters from a request through `snowflakeSchema` (or `snowflakeCursorSchema`, which also takes the `"0"` sentinel) from `@/shared/config`** — that is where the brand is applied, and the only place `toId` belongs outside it is a value already proven to be one. A route's own `params` type stays `string`, because Next validates that shape against the file path; the handler brands it.
+
+`messages.client_msg_id` is a uuid and stays one — see `REQUIREMENTS.md § 6.` for why it cannot be a snowflake.
+
 # 4. Responsive Policy
 
 ## 4.1. Single mobile UI
@@ -100,6 +110,8 @@ Two things use that permission and there is no third. `EMOTICON_KEYWORDS_URL` (`
 **Every route under `app/api/emoticons/` exists twice — here and in jandh-emoticons — and both copies MUST be changed in the same piece of work.** All eight: `packs`, `packs/{id}`, `packs/{id}/items`, `items`, `items/{id}`, `prefs`, `upload-url` and `items/{id}/asset`. For the first seven the browser reaches whichever copy `NEXT_PUBLIC_EMOTICON_API_REMOTE` names, so a one-sided edit is not a change that half works — it works until a variable moves, then silently stops. `items/{id}/asset` is the exception to the _switch_ and not to this rule: each app always serves its own, so a one-sided edit there simply leaves the other app's screens rendering the old behaviour forever. Read `REQUIREMENTS.md § 13.7.1.` before touching any of them.
 
 **`src/shared/config/emoticon.ts` is mirrored on the same terms, and it fails more quietly than a route does.** A route copy cannot answer without the constants it is written against, so `RELEVANCE`'s three numbers, `toKeywordRelevance`, `splitKeywordQuery`, `MAX_KEYWORD_QUERY_LENGTH`, `EMOTICON_SEARCH_CANDIDATE_LIMIT`, `EMOTICON_SEARCH_PAGE_SIZE` and `MAX_EMOTICON_ID_LOOKUP` are declared in both repositories, beside `normalizeKeywords` and `MIN_KEYWORD_LENGTH`. Move them together. A drifted route is at least a shape somebody can diff; `6/4/3` against `6/4/2` is two deployments that both answer and rank differently depending on where the switch happens to point.
+
+**`src/shared/lib/id.ts`, `src/shared/db/types.ts` and `src/shared/db/snowflake.ts` are mirrored on the same terms, and they fail the most quietly of all.** They are the id format itself (`REQUIREMENTS.md § 6.`) — epoch, field widths, the branded types and the generator — shared by two deployments writing the same tables. Only `MACHINE_BASE` may differ between the copies, and it is what keeps the two apart; change anything else in one alone and the two start minting ids that collide, or that order against each other wrongly, with nothing failing at the moment the drift is introduced.
 
 ## 4.3. App shell width
 

@@ -1,14 +1,14 @@
 import "server-only";
 
-import { getDb, messages } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import { getDb, messages, nextSnowflake } from "@/shared/db";
+import type { MessageId, Nullable, UserId } from "@/shared/lib";
 import { and, eq, isNull } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 import { getReplyPreview } from "./list-reply-previews";
 
 export type CreateTextMessageParams = {
-  senderId: string;
+  senderId: UserId;
   clientMsgId: string;
   text: string;
   /**
@@ -18,7 +18,7 @@ export type CreateTextMessageParams = {
    * foreign key, so an id with no row aborts the insert. The route clears it and
    * answers 400.
    */
-  replyToId?: number;
+  replyToId?: MessageId;
 };
 
 /**
@@ -38,7 +38,14 @@ export async function createTextMessage({
   const db = getDb();
   const [inserted] = await db
     .insert(messages)
-    .values({ senderId, type: "text", text, clientMsgId, replyToId })
+    .values({
+      id: nextSnowflake<MessageId>(),
+      senderId,
+      type: "text",
+      text,
+      clientMsgId,
+      replyToId,
+    })
     .onConflictDoNothing({ target: messages.clientMsgId })
     .returning();
 
@@ -52,7 +59,7 @@ export async function createTextMessage({
 }
 
 // WARN: `client_msg_id` is unique across the whole table, not per sender, so matching on it alone would hand this caller the other user's message on a collision.
-async function findOwnMessage(clientMsgId: string, senderId: string) {
+async function findOwnMessage(clientMsgId: string, senderId: UserId) {
   const [existing] = await getDb()
     .select()
     .from(messages)

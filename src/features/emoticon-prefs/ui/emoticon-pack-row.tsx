@@ -2,7 +2,7 @@
 
 import type { EmoticonPackSummary } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn } from "@/shared/lib";
+import { cn, type EmoticonPackId } from "@/shared/lib";
 import { HapticTarget, IconButton, PreloadImage } from "@/shared/ui";
 import { useSortable } from "@dnd-kit/sortable";
 import { ChevronRight, GripVertical, MoreVertical, Smile } from "lucide-react";
@@ -14,10 +14,10 @@ export type EmoticonPackRowProps = {
   pack: EmoticonPackSummary;
   /** REQUIREMENTS.md § 13.5. 숨기기 has been asked for and the row is collapsing; the removal is committed when it lands. */
   isHiding: boolean;
-  onOpen: (packId: string) => void;
+  onOpen: (packId: EmoticonPackId) => void;
   /** REQUIREMENTS.md § 13.5. 이름 바꾸기 / 숨기기 / 삭제 — the sheet, not a control of its own. */
-  onManage: (packId: string) => void;
-  onHidden: (packId: string) => void;
+  onManage: (packId: EmoticonPackId) => void;
+  onHidden: (packId: EmoticonPackId) => void;
 };
 
 /**

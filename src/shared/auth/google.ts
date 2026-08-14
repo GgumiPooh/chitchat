@@ -1,7 +1,7 @@
 import "server-only";
 
 import { ensureEnv, resolveAppUrl } from "@/shared/config";
-import { type Maybe } from "@/shared/lib";
+import type { Maybe } from "@/shared/lib";
 import { Google } from "arctic";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
