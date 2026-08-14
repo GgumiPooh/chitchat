@@ -1,6 +1,6 @@
 import "server-only";
 
-import { EMOTICON_PACK_PAGE_SIZE } from "@/shared/config";
+import { EMOTICON_PACK_PAGE_SIZE, snowflakeSchema } from "@/shared/config";
 import { emoticonItems, emoticonPacks, getDb, userEmoticonPrefs } from "@/shared/db";
 import type { EmoticonPackId, Nullable, UserId } from "@/shared/lib";
 import { and, asc, eq, ilike, inArray, isNull, sql, type SQL } from "drizzle-orm";
@@ -80,15 +80,28 @@ export async function listEmoticonPacksPage(
  * INFO: Exported for the route, which validates the parameter before answering
  * `invalid_request` — the cursor stays opaque to it, and this is the only thing it may
  * ask about one.
+ *
+ * WARN: The id half goes through `snowflakeSchema` (`CLAUDE.md § 3.2.`) and MUST NOT go
+ * back to a shape written out here. It was a uuid pattern, and `0030` renumbered every id
+ * to a snowflake without it — so this server issued cursors it then refused, and the tab
+ * answered `400` on every page past the first. Nothing caught it because production holds
+ * 29 packs against a page of 30, so page two had never been asked for.
  */
 export function parseEmoticonPackCursor(cursor: string): Nullable<EmoticonPackCursor> {
-  const match = CURSOR_PATTERN.exec(cursor);
+  const separator = cursor.indexOf(":");
 
-  if (!match) {
+  if (separator < 0) {
     return null;
   }
 
-  return { position: match[1], id: match[2] };
+  const position = cursor.slice(0, separator);
+  const id = packCursorIdSchema.safeParse(cursor.slice(separator + 1));
+
+  if (!POSITION_PATTERN.test(position) || !id.success) {
+    return null;
+  }
+
+  return { position, id: id.data };
 }
 
 /**
@@ -183,7 +196,7 @@ function selectPackPage(
     query.enabledOnly ? sql`coalesce(${userEmoticonPrefs.enabled}, true) = true` : null,
     // WARN: `toLikeLiteral`, or a query of a single `%` answers with the whole library.
     query.query ? ilike(emoticonPacks.name, `%${toLikeLiteral(query.query)}%`) : null,
-    // WARN: One row-value comparison against the **same** pair the `ORDER BY` uses, and the casts are load-bearing — a bind parameter arrives as text, where the key is `numeric` and `uuid`.
+    // WARN: One row-value comparison against the **same** pair the `ORDER BY` uses, and the casts are load-bearing — a bind parameter arrives as text, where the key is `numeric` and `bigint`.
     cursor
       ? sql`(${effectivePackPosition()}, ${emoticonPacks.id}) > (${cursor.position}::numeric, ${cursor.id}::bigint)`
       : null,
@@ -261,11 +274,12 @@ function selectPackRows(
 
 type EmoticonPackCursor = {
   position: string;
-  id: string;
+  id: EmoticonPackId;
 };
 
 // WARN: The position is `numeric` and reaches the cursor as the digits Postgres printed, which `::numeric` reads back exactly. Parsing it into a JS number would round the scale off and put the cursor between two packs rather than on one.
-const CURSOR_PATTERN = /^(-?\d+(?:\.\d+)?):([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/i;
+const POSITION_PATTERN = /^-?\d+(?:\.\d+)?$/;
+const packCursorIdSchema = snowflakeSchema<EmoticonPackId>();
 
 function toPackCursor(position: string, id: string): string {
   return `${position}:${id}`;
