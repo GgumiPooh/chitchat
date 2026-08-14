@@ -281,6 +281,13 @@
       "when": 1786742220505,
       "tag": "0039_overrated_terrax",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1786745707863,
+      "tag": "0040_far_corsair",
+      "breakpoints": true
     }
   ]
 }

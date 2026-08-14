@@ -1,0 +1,1 @@
+ALTER TABLE "emoticon_items" ADD CONSTRAINT "emoticon_items_has_image_check" CHECK ("still_image_id" IS NOT NULL OR "animated_image_id" IS NOT NULL);

@@ -1,6 +1,8 @@
 import type { EmoticonItemId, EmoticonPackId, MediaId, UserId } from "@/shared/lib";
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   numeric,
@@ -35,8 +37,7 @@ export const emoticonItems = pgTable(
     packId: snowflake<EmoticonPackId>("pack_id")
       .notNull()
       .references(() => emoticonPacks.id, { onDelete: "cascade" }),
-    // INFO: RESTRUCTURE.md § 5.2. The three slots an emoticon's assets become, added nullable and read by nothing yet — § 5.'s code phase is what fills them, and the § 5.5. backfill is what gives an existing item its still.
-    // WARN: § 5.2.'s `CHECK (still_image_id IS NOT NULL OR animated_image_id IS NOT NULL)` is deliberately **not** here. A CHECK validates the rows that already exist, and all 757 of them hold NULL in both columns until the backfill has run — added now it fails the migration outright. It belongs with § 6.'s migration D, after the backfill.
+    // INFO: RESTRUCTURE.md § 5.2. The three slots an emoticon's assets become.
     // WARN: No `onDelete`, so NO ACTION blocks removing a `media` row an item still draws from. `set null` is the tempting alternative and is wrong for the reason `retired_at` records one line down: it would resolve the constraint by silently emptying a slot every bubble in the history renders from.
     stillImageId: snowflake<MediaId>("still_image_id").references(() => media.id),
     animatedImageId: snowflake<MediaId>("animated_image_id").references(() => media.id),
@@ -62,7 +63,14 @@ export const emoticonItems = pgTable(
     // WARN: This is the whole answer to "a used emoticon cannot be deleted". `messages.emoticon_item_id` has no `onDelete`, so NO ACTION blocks the delete, and `messages_type_payload_check` forbids the `set null` that would otherwise resolve it — neither is changed, because an emoticon is nobody's record and a tombstone would mark both participants' bubbles at once (§ 4.4.). An item nothing has sent is still deleted outright, which already works.
     retiredAt: timestamp("retired_at", { withTimezone: true }),
   },
-  (table) => [index("emoticon_items_pack_id_sort_order_idx").on(table.packId, table.sortOrder)],
+  (table) => [
+    index("emoticon_items_pack_id_sort_order_idx").on(table.packId, table.sortOrder),
+    // WARN: RESTRUCTURE.md § 5.2. The floor under both nullable image slots. An author may register either one, and `toSlotAsset` falls back both ways — but an item with neither draws nothing anywhere, which no screen has a state for.
+    check(
+      "emoticon_items_has_image_check",
+      sql`"still_image_id" IS NOT NULL OR "animated_image_id" IS NOT NULL`,
+    ),
+  ],
 );
 
 /**
