@@ -34,23 +34,26 @@ export function AppHeader({ className, titleClassName, title, leading, trailing 
       )}
     >
       {/* INFO: DESIGN.md § 3.3. The shell width, re-applied for the same reason `BottomOverlay` re-applies it — the document moves under a `fixed` box, so it cannot inherit the column's centring. */}
-      <Container className="flex h-(--app-header-height) items-center gap-2xs px-sm [&>*]:pointer-events-auto">
+      {/* WARN: DESIGN.md § 7.12. `:not([data-inert])`, and the exclusion is the whole of it. The row used to grant `pointer-events-auto` to **every** direct child, which handed it to the two that fill the row and paint nothing — the `flex-1` title and the `flex-1` spacer — so the entire left and centre of the strip swallowed taps aimed at the content scrolling under a header that is deliberately transparent (§ 7.12.). Only what a finger can actually aim at may take pointers back. */}
+      <Container className="flex h-(--app-header-height) items-center gap-2xs px-sm [&>*:not([data-inert])]:pointer-events-auto">
         {leading}
         {title ? (
           <h1
-            // INFO: DESIGN.md § 7.12. The title has no surface of its own, so it fades out rather than collide with the content scrolling under it — the controls keep their floating fill and stay.
-            // WARN: The faded title must drop `pointer-events`, which the row grants every child — invisible, it would still be a full-width block over the content it just made way for.
             className={cn(
-              "flex-1 truncate px-2xs text-title-md text-ink transition-opacity duration-200 ease-out",
-              isScrolled && "pointer-events-none opacity-0",
+              "pointer-events-none flex-1 truncate px-2xs text-title-md text-ink transition-opacity duration-200 ease-out",
+              isScrolled && "opacity-0",
               titleClassName,
             )}
+            // INFO: DESIGN.md § 7.12. The title has no surface of its own, so it fades out rather than collide with the content scrolling under it — the controls keep their floating fill and stay.
+            // WARN: `data-inert` at all times, not only once faded, which is what the row's own selector reads. It is a `flex-1` block spanning everything between the two control groups, so tappable it takes every tap on the content beneath the middle of the strip — the state before the fade is no different from the state after it, except that the reader can see what they are failing to reach.
+            data-inert
           >
             {title}
           </h1>
         ) : (
           // INFO: The spacer exists to push `trailing` to the far edge when there is no title to do it. A `leading` that came without a title is a caller filling the row itself (REQUIREMENTS.md § 8.6.'s search field), and a second flexible child beside it would halve the width it asked for.
-          !leading && <div className="flex-1" />
+          // WARN: `data-inert` for the title's reason and more plainly: it paints nothing at all, so every tap it takes is one the reader has no way to explain.
+          !leading && <div className="flex-1" data-inert />
         )}
         {trailing}
       </Container>
