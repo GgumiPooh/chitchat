@@ -166,6 +166,7 @@ Read `src/shared/ui/index.ts` for what exists (buttons, inputs, the overlays bel
 
 - The `users` lookup key is **`google_sub`, not the email** — Google lets an account change address, and matching on email collides with the existing row's unique `google_sub`
 - **Google OAuth only.** No provider abstraction, no `[provider]` segment, no password login
+- **The authorization URL carries `prompt=select_account`**, which arctic does not add. Google otherwise skips the chooser whenever exactly one account is signed in to the browser, and a rejected email lands back on `/login?error=not_allowed` with **that same account** on the next attempt — the app can revoke its own session but never Google's, so the chooser is the only way back to a different address
 
 ### 5.2. Session ✅
 
