@@ -191,6 +191,21 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
   }
 }
 
+/* INFO: DESIGN.md § 7.10. AGENTS.md § 4.2. The pointer affordance every control in the app owes a mouse, for the one set the app did not draw — a `<video controls>` player's transport is UA shadow DOM, so the `button` rule in the base layer above cannot reach it and Chromium's own panel rule leaves an arrow over the play button. */
+/* WARN: One rule per pseudo-element and never a comma list. An unrecognised pseudo-element invalidates the **whole** selector it appears in, so a single list would drop every engine's cursor on the first name that engine happens not to know. */
+/* WARN: The timeline is deliberately absent. It is a scrubber the reader drags, and a pointer over a slider says the wrong thing about what the press will do. */
+@utility media-controls-pointer {
+  &::-webkit-media-controls-play-button {
+    cursor: pointer;
+  }
+  &::-webkit-media-controls-mute-button {
+    cursor: pointer;
+  }
+  &::-webkit-media-controls-fullscreen-button {
+    cursor: pointer;
+  }
+}
+
 @utility scrollbar-hidden {
   -ms-overflow-style: none;
   scrollbar-width: none;

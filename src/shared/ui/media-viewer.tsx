@@ -1044,7 +1044,8 @@ function VideoSlide({ cell, isMorphTarget }: { cell: MediaCell; isMorphTarget: b
   return (
     // WARN: `w-full` with the stored ratio, exactly as `ImageSlide` is framed — `max-w-full` capped the element at the clip's own pixel width instead, so anything narrower than the shell sat inside gutters the photo beside it does not have. `object-contain` is what keeps a portrait clip from stretching once `max-h-full` clamps the box.
     <video
-      className="max-h-full w-full object-contain"
+      // INFO: AGENTS.md § 4.2. The transport is the platform's own, and the pointer affordance every other control in the app carries has to be given to it by hand — the `button` rule in the base layer cannot reach UA shadow DOM.
+      className="max-h-full w-full media-controls-pointer object-contain"
       src={cell.originalUrl ?? undefined}
       poster={cell.previewUrl ?? undefined}
       controls
