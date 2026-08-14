@@ -19,6 +19,14 @@ const MAX_SCRIM_FADE = 0.6;
 // INFO: How far the content shrinks at the dismiss point, which is what says the surface is leaving rather than scrolling.
 const MAX_SHRINK = 0.12;
 
+/**
+ * INFO: How far the horizontal has to outrun the vertical before the gesture is given
+ * up as a swipe rather than a pull — roughly 34° off horizontal.
+ *
+ * WARN: The abandon used to be `|dx| >= |dy|`, which hands every diagonal to the swipe and every tie with it. A thumb pulling down arcs, so the first few pixels of an honest downward drag are routinely sideways: those readers got the surface refusing to move, and the refusal is permanent within a gesture — the origin is dropped, so the same finger travelling straight down for the next 200px still did nothing. The bias leaves a wedge either side of the diagonal where neither axis has won yet, and the gesture simply keeps waiting for one to.
+ */
+const AXIS_BIAS = 1.5;
+
 export type SwipeDismissOptions = {
   /** Off wherever another gesture owns the finger — a zoomed slide's pan (REQUIREMENTS.md § 18. #6.). */
   isEnabled: boolean;
@@ -125,13 +133,14 @@ export function useSwipeDismiss({ isEnabled, canStart, onDismiss }: SwipeDismiss
         const dy = event.clientY - origin.y;
 
         if (!isDragging) {
-          if (Math.abs(dx) > GESTURE_SLOP && Math.abs(dx) >= Math.abs(dy)) {
+          // WARN: Only a horizontal that has clearly won gives the gesture up — see `AXIS_BIAS`. Anything inside the wedge falls through to the vertical test below and, failing that, waits for the next move rather than settling on an axis the finger has not chosen yet.
+          if (Math.abs(dx) > GESTURE_SLOP && Math.abs(dx) > Math.abs(dy) * AXIS_BIAS) {
             originRef.current = null;
 
             return;
           }
 
-          if (Math.abs(dy) <= GESTURE_SLOP) {
+          if (Math.abs(dy) <= GESTURE_SLOP || Math.abs(dy) < Math.abs(dx)) {
             return;
           }
 

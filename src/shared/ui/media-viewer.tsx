@@ -483,11 +483,12 @@ export function MediaViewer({
         </div>
         {/* INFO: Native scroll snapping is the horizontal swipe of REQUIREMENTS.md § 8.1. — it costs no gesture code and matches the platform's own momentum. */}
         {/* WARN: REQUIREMENTS.md § 18. #6. A zoomed slide freezes the track, or the pan competes with the swipe for the same finger and the photo changes under it. `overflow-x-hidden` holds `scrollLeft` where it is, so the slide is still the one the reader zoomed when it lifts. */}
+        {/* WARN: DESIGN.md § 7.10. A committed pull-to-close freezes it on the same terms, and this is the half `setPointerCapture` cannot do. Capture retargets the *events*; a native scroll the browser has already begun goes on running underneath, so a drag that started a few degrees off vertical left the viewer following the finger down while the track slid sideways under it. Made unscrollable the pan has nothing left to move. */}
         <div
           ref={captureTrack}
           className={cn(
             "scrollbar-hidden flex min-h-0 flex-1 snap-x snap-mandatory overscroll-x-contain",
-            zoom.isZoomed ? "overflow-x-hidden" : "overflow-x-auto",
+            zoom.isZoomed || dismiss.isDragging ? "overflow-x-hidden" : "overflow-x-auto",
           )}
           // INFO: DESIGN.md § 7.10. The track is what follows the pull-to-close drag, since it is the whole of what the reader is holding — the chrome fades with the scrim on the root instead.
           style={dismiss.contentStyle}
