@@ -1,12 +1,45 @@
 import "server-only";
 
 import type { EmoticonSlot } from "@/shared/config";
-import { emoticonItems, getDb, messages, type EmoticonItem } from "@/shared/db";
+import { emoticonItems, getDb, media, messages, type EmoticonItem } from "@/shared/db";
 import type { EmoticonItemId, Nullable } from "@/shared/lib";
 import { eq, inArray, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
-export async function getEmoticonItem(id: EmoticonItemId): Promise<Nullable<EmoticonItem>> {
-  const [row] = await getDb().select().from(emoticonItems).where(eq(emoticonItems.id, id)).limit(1);
+/**
+ * One item and the storage key behind each of its slots (RESTRUCTURE.md § 5.2.).
+ *
+ * WARN: The keys are joined rather than read off the item, because § 5.2. moved them onto
+ * `media` rows. The item's own `r2_key` and `audio_key` are still here and still carry the
+ * pre-§ 5. objects, which is what `toSlotAsset` falls back to — migration D is what makes
+ * the join the only source.
+ */
+export type EmoticonItemAssets = {
+  item: EmoticonItem;
+  stillKey: Nullable<string>;
+  animatedKey: Nullable<string>;
+  audioKey: Nullable<string>;
+};
+
+export async function getEmoticonItem(id: EmoticonItemId): Promise<Nullable<EmoticonItemAssets>> {
+  const still = alias(media, "still_media");
+  const animated = alias(media, "animated_media");
+  const audio = alias(media, "audio_media");
+
+  const [row] = await getDb()
+    .select({
+      item: emoticonItems,
+      stillKey: still.r2Key,
+      animatedKey: animated.r2Key,
+      audioKey: audio.r2Key,
+    })
+    .from(emoticonItems)
+    // WARN: Three `leftJoin`s and never an inner one — every slot is nullable (§ 5.2.), so an inner join drops the very items this is asked about.
+    .leftJoin(still, eq(still.id, emoticonItems.stillImageId))
+    .leftJoin(animated, eq(animated.id, emoticonItems.animatedImageId))
+    .leftJoin(audio, eq(audio.id, emoticonItems.audioId))
+    .where(eq(emoticonItems.id, id))
+    .limit(1);
 
   return row ?? null;
 }
@@ -18,27 +51,35 @@ export async function getEmoticonItem(id: EmoticonItemId): Promise<Nullable<Emot
  * A pack belongs to the conversation (§ 13.1.), so a valid session is the whole
  * check — unlike `canReadMedia`, whose scopes reach objects nobody has posted.
  *
- * WARN: RESTRUCTURE.md § 1.1. All three image slots resolve to the one stored object
- * for now, and that is the interim answer rather than a `?:` that happens to work.
- * § 5.2.'s columns exist and are empty, so `still-image` has nothing of its own to
- * return until § 5.'s code phase fills them and § 5.5.'s backfill reaches the items
- * already stored. When they do, this becomes the fallback **both ways** — a missing
- * still serves the animation and a missing animation serves the still — so that no
- * render path ever has to branch on what an item happens to carry.
+ * WARN: RESTRUCTURE.md § 5.2. **The fallback runs both ways** — a missing still is answered
+ * by the animation and a missing animation by the still — which is what lets an author
+ * register only one slot without a single render path branching on what an item carries.
  *
  * WARN: § 5.7. `isFallback` is what the asset route reads to shorten its cache, and it
  * is the whole of that trap: an answer from the other slot must not be held for the days
- * a versioned URL earns, or the still § 5.5. is about to write is invisible for a week to
- * every browser that asked once. It reports the slot that **answered**, not the slot that
- * was asked for.
+ * a versioned URL earns, or a still written later is invisible for a week to every
+ * browser that asked once. It reports the slot that **answered**, not the one asked for.
+ *
+ * INFO: The item's own `r2_key` is the last resort on both image slots and `audio_key` on
+ * the sound. Those columns are pre-§ 5. and still authoritative for anything the § 5.5.
+ * backfill has not reached; migration D is what removes them and this line with them.
  */
-export function toSlotAsset(row: EmoticonItem, slot: EmoticonSlot): Nullable<ResolvedSlotAsset> {
+export function toSlotAsset(
+  { item, stillKey, animatedKey, audioKey }: EmoticonItemAssets,
+  slot: EmoticonSlot,
+): Nullable<ResolvedSlotAsset> {
   if (slot === "audio") {
-    return row.audioKey ? { key: row.audioKey, isFallback: false } : null;
+    const key = audioKey ?? item.audioKey;
+
+    return key ? { key, isFallback: false } : null;
   }
 
-  // INFO: § 5.2. Until the columns are filled there is one image object, so a request for the still is answered by the animation — which is a fallback, and says so.
-  return { key: row.r2Key, isFallback: slot === "still-image" };
+  // WARN: § 5.7. `image` is the deprecated alias and means the **animated** slot, which is what it has always meant — a tab left open across the deploy goes on asking for it.
+  const wants = slot === "still-image" ? stillKey : (animatedKey ?? item.r2Key);
+  const other = slot === "still-image" ? (animatedKey ?? item.r2Key) : stillKey;
+  const key = wants ?? other;
+
+  return key ? { key, isFallback: wants === null } : null;
 }
 
 export type ResolvedSlotAsset = {
