@@ -148,6 +148,27 @@ export async function headAcceptableObject(
 }
 
 /**
+ * The stored object's own bytes.
+ *
+ * INFO: The one thing a HEAD cannot answer. § 13.2.'s two image slots are decided
+ * by whether the file animates, and no header says: `image/webp` and `image/gif`
+ * are each legal for a single frame, and an APNG is stored as the `image/png` it
+ * was uploaded as.
+ *
+ * WARN: The whole object, and deliberately not a prefix. A GIF's second image
+ * descriptor may sit anywhere in the file, so a prefix can confirm an animation and
+ * can never refuse one — and refusing is the half that matters here. § 14.'s size
+ * ceiling is what bounds this, and it is one read per authoring write.
+ */
+export async function readObject(key: string): Promise<Optional<Uint8Array>> {
+  const object = await safelyGetAsync(() =>
+    getR2().send(new GetObjectCommand({ Bucket: getBucket(), Key: key })),
+  );
+
+  return object?.Body ? object.Body.transformToByteArray() : undefined;
+}
+
+/**
  * Duplicates a stored object under a second key, inside the bucket.
  *
  * INFO: REQUIREMENTS.md § 12.1. What 배경으로 설정 runs on a photo that is already

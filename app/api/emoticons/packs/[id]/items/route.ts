@@ -21,18 +21,26 @@ const paramsSchema = z.object({ id: snowflakeSchema<EmoticonPackId>() });
 
 const orderSchema = z.object({ itemIds: z.array(snowflakeSchema<EmoticonItemId>()).min(1) });
 
-const bodySchema = z.object({
-  imageKey: z.string().min(1),
+const imageSchema = z.object({
+  key: z.string().min(1),
   // INFO: REQUIREMENTS.md § 13.2. The image's own size, read off the decoded image in the browser — an animated one is measured from its first frame.
   width: z.number().int().positive(),
   height: z.number().int().positive(),
-  audioKey: z.string().min(1).nullish(),
-  // INFO: REQUIREMENTS.md § 13.8. Bounded here so an oversized body is refused; `normalizeKeywords` is what trims, folds and deduplicates what gets through.
-  keywords: z
-    .array(z.string().max(MAX_EMOTICON_KEYWORD_LENGTH))
-    .max(MAX_EMOTICON_KEYWORDS)
-    .optional(),
 });
+
+const bodySchema = z
+  .object({
+    still: imageSchema.optional(),
+    animated: imageSchema.optional(),
+    audioKey: z.string().min(1).nullish(),
+    // INFO: REQUIREMENTS.md § 13.8. Bounded here so an oversized body is refused; `normalizeKeywords` is what trims, folds and deduplicates what gets through.
+    keywords: z
+      .array(z.string().max(MAX_EMOTICON_KEYWORD_LENGTH))
+      .max(MAX_EMOTICON_KEYWORDS)
+      .optional(),
+  })
+  // INFO: § 5.2.'s CHECK, refused here as a `400` rather than reaching the database as a constraint violation.
+  .refine((body) => body.still !== undefined || body.animated !== undefined);
 
 /**
  * The pack's items in the shared authoring order (REQUIREMENTS.md § 13.1.).

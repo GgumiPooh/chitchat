@@ -15,15 +15,21 @@ import { z } from "zod";
 
 const paramsSchema = z.object({ id: snowflakeSchema<EmoticonItemId>() });
 
+/** WARN: § 8.3. reserves the bubble's box from the stored size, so the measurements travel with the key rather than being fields of their own — new bytes without them would leave the row describing the image they replaced. */
+const imageSchema = z.object({
+  key: z.string().min(1),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+});
+
 /**
- * INFO: REQUIREMENTS.md § 13.4. `audioKey` is tri-state on purpose — absent keeps
- * the sound the item already has, `null` removes it, a key replaces it.
+ * INFO: REQUIREMENTS.md § 13.4. Every slot is tri-state on purpose — absent keeps
+ * what the item already has, `null` empties it, a value replaces it.
  */
 const patchSchema = z
   .object({
-    imageKey: z.string().min(1).optional(),
-    width: z.number().int().positive().optional(),
-    height: z.number().int().positive().optional(),
+    still: imageSchema.nullish(),
+    animated: imageSchema.nullish(),
     audioKey: z.string().min(1).nullish(),
     // INFO: REQUIREMENTS.md § 13.8. Absent keeps the item's keywords; `[]` is the explicit "remove them all", so an image-only edit cannot wipe them by omission.
     keywords: z
@@ -31,13 +37,8 @@ const patchSchema = z
       .max(MAX_EMOTICON_KEYWORDS)
       .optional(),
   })
-  // WARN: § 8.3. reserves the bubble's box from the stored size, so new bytes without their measurements would leave the row describing the image it replaced.
-  .refine(
-    (body) =>
-      (body.imageKey === undefined) === (body.width === undefined) &&
-      (body.width === undefined) === (body.height === undefined),
-    { message: "image requires its measurements" },
-  )
+  // INFO: § 5.2.'s CHECK for the one case the body can settle on its own; emptying only the slot the item actually holds is refused by `updateEmoticonItem`, which is what knows.
+  .refine((body) => body.still !== null || body.animated !== null)
   // WARN: Every key is optional, so `{}` parses — and drizzle throws `No values to set` on the empty `.set()` that follows, which surfaces as a 500 for what is a malformed request. § 13.8. made `updated_at` conditional, which removed the one field that had always kept that object non-empty.
   .refine((body) => Object.values(body).some((value) => value !== undefined), "empty patch");
 
@@ -63,14 +64,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return apiError("invalid_request");
   }
 
-  const { imageKey, width, height, audioKey, keywords } = body.data;
-
   const result = await updateEmoticonItem({
     itemId: params.data.id,
     uploaderId: user.id,
-    image: imageKey && width && height ? { key: imageKey, width, height } : undefined,
-    audioKey,
-    keywords,
+    ...body.data,
   });
 
   if (result.status === "not_found") {

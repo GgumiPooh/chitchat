@@ -92,6 +92,9 @@ export const EMOTICON_SLOTS = ["still-image", "animated-image", "audio", "image"
 
 export type EmoticonSlot = (typeof EMOTICON_SLOTS)[number];
 
+/** INFO: The two an author fills, which is `EmoticonSlot` without the sound and without the deprecated alias. Either one alone is a whole emoticon. */
+export type EmoticonImageSlot = "still-image" | "animated-image";
+
 /**
  * WARN: REQUIREMENTS.md § 13.2. One slot for both kinds of image. A still arrives
  * re-encoded to PNG, which is why `image/jpeg` is absent — an emoticon is rendered
@@ -550,6 +553,148 @@ const SLOT_RULES: Record<EmoticonSlot, { mimes: readonly string[]; maxSize: numb
  */
 export function isAnimatableEmoticonMime(mime: string): boolean {
   return ANIMATABLE_EMOTICON_MIMES.includes(mime as (typeof ANIMATABLE_EMOTICON_MIMES)[number]);
+}
+
+/**
+ * Whether these bytes actually animate.
+ *
+ * WARN: The only honest answer to "is this the still or the animation", and the
+ * reason the slot cannot be decided from a mime. `image/webp` and `image/gif` are
+ * both perfectly legal for a single frame, and an APNG arrives as `image/png` — so
+ * the mime is wrong in both directions and is wrong silently, which is a picker
+ * cell playing an animation or a bubble holding still.
+ *
+ * WARN: Reads the container, never a decoder. `createImageBitmap` and an `<img>`
+ * both answer "it decoded" for one frame and for sixty, and neither runs on the
+ * server at all.
+ */
+export function isAnimatedImage(bytes: Uint8Array): boolean {
+  if (startsWith(bytes, PNG_SIGNATURE)) {
+    return hasPngChunk(bytes, "acTL");
+  }
+
+  if (startsWith(bytes, GIF_SIGNATURE)) {
+    return countGifFrames(bytes) > 1;
+  }
+
+  if (startsWith(bytes, RIFF_SIGNATURE) && startsWith(bytes.subarray(8), WEBP_SIGNATURE)) {
+    return hasWebpChunk(bytes, "ANMF");
+  }
+
+  return false;
+}
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+const GIF_SIGNATURE = [0x47, 0x49, 0x46, 0x38];
+
+const RIFF_SIGNATURE = [0x52, 0x49, 0x46, 0x46];
+
+const WEBP_SIGNATURE = [0x57, 0x45, 0x42, 0x50];
+
+function startsWith(bytes: Uint8Array, signature: number[]): boolean {
+  return signature.every((byte, index) => bytes[index] === byte);
+}
+
+function readFourCc(bytes: Uint8Array, offset: number): string {
+  return String.fromCharCode(...bytes.subarray(offset, offset + 4));
+}
+
+/** INFO: A PNG chunk is a 4-byte length, a 4-byte type, the payload and a 4-byte CRC. `acTL` must precede the first `IDAT`, so the walk stops there rather than reading the pixels. */
+function hasPngChunk(bytes: Uint8Array, type: string): boolean {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = PNG_SIGNATURE.length;
+
+  while (offset + 8 <= bytes.length) {
+    const chunk = readFourCc(bytes, offset + 4);
+
+    if (chunk === type) {
+      return true;
+    }
+
+    if (chunk === "IDAT") {
+      return false;
+    }
+
+    offset += 12 + view.getUint32(offset);
+  }
+
+  return false;
+}
+
+/** INFO: RIFF is a flat chunk list — a 4-byte tag, a 4-byte little-endian length, and a payload padded to an even boundary. `ANMF` is an actual frame, where `ANIM` is only the header that says frames may follow. */
+function hasWebpChunk(bytes: Uint8Array, type: string): boolean {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 12;
+
+  while (offset + 8 <= bytes.length) {
+    if (readFourCc(bytes, offset) === type) {
+      return true;
+    }
+
+    const size = view.getUint32(offset + 4, true);
+
+    offset += 8 + size + (size % 2);
+  }
+
+  return false;
+}
+
+/**
+ * WARN: The whole file is walked, because a GIF's second image descriptor may sit
+ * anywhere in it — this is the one format whose *absence* of animation cannot be
+ * read off a prefix. The walk is block headers only; no LZW data is decoded.
+ */
+function countGifFrames(bytes: Uint8Array): number {
+  // INFO: The 6-byte header, the 7-byte logical screen descriptor, and a global colour table only when its flag is set.
+  const packed = bytes[10];
+  let offset = 13 + (packed & 0x80 ? 3 * 2 ** ((packed & 0x07) + 1) : 0);
+  let frames = 0;
+
+  while (offset < bytes.length) {
+    const block = bytes[offset];
+
+    if (block === 0x3b) {
+      break;
+    }
+
+    if (block === 0x21) {
+      offset = skipGifSubBlocks(bytes, offset + 2);
+
+      continue;
+    }
+
+    if (block !== 0x2c) {
+      break;
+    }
+
+    frames += 1;
+
+    if (frames > 1) {
+      break;
+    }
+
+    // INFO: The 10-byte image descriptor, a local colour table when its flag is set, then the LZW minimum code size the data blocks follow.
+    const local = bytes[offset + 9];
+
+    offset = skipGifSubBlocks(
+      bytes,
+      offset + 11 + (local & 0x80 ? 3 * 2 ** ((local & 0x07) + 1) : 0),
+    );
+  }
+
+  return frames;
+}
+
+/** INFO: A run of length-prefixed blocks closed by a zero length, which is how GIF stores both extension payloads and pixel data. */
+function skipGifSubBlocks(bytes: Uint8Array, start: number): number {
+  let offset = start;
+
+  while (offset < bytes.length && bytes[offset] !== 0x00) {
+    offset += bytes[offset] + 1;
+  }
+
+  return offset + 1;
 }
 
 /** REQUIREMENTS.md § 14. What the slot's object must be, checked against what R2 actually stored. */

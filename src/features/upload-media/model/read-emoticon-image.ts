@@ -1,6 +1,6 @@
 import type { MediaDraft } from "@/entities/media";
-import { EMOTICON_MAX_EDGE, isAnimatableEmoticonMime } from "@/shared/config";
-import { A_KILOBYTE, randomId } from "@/shared/lib";
+import { EMOTICON_MAX_EDGE, isAnimatedImage, type EmoticonImageSlot } from "@/shared/config";
+import { randomId } from "@/shared/lib";
 import type { ApplyEditOptions } from "./apply-edit";
 import {
   TRANSPARENT_OUTPUT_MIME,
@@ -11,90 +11,47 @@ import {
   toExtension,
 } from "./canvas";
 
-const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-
-const PNG_CHUNK_HEADER_BYTES = 8;
-
-// INFO: `acTL` sits within a few dozen bytes of the signature in practice; this only has to outlast whatever colour and metadata chunks an encoder put before it.
-const APNG_SCAN_BYTES = 64 * A_KILOBYTE;
-
 /** What `MediaEditor` must be given so an emoticon crop keeps its alpha (REQUIREMENTS.md § 13.4.). */
 export const EMOTICON_IMAGE_EDIT_OPTIONS: ApplyEditOptions = {
   outputMime: TRANSPARENT_OUTPUT_MIME,
   maxEdge: EMOTICON_MAX_EDGE,
 };
 
+/** A picked file, read into the image slot its own bytes put it in. */
+export type EmoticonImagePick = {
+  draft: MediaDraft;
+  slot: EmoticonImageSlot;
+};
+
 /**
- * Reads a picked file into the single image an emoticon item is registered from
+ * Reads a picked file into one of an emoticon's two image slots
  * (REQUIREMENTS.md § 13.2.).
  *
- * WARN: A file whose type may animate is carried through **byte for byte**. A
- * canvas re-encode decodes one frame, which would silently turn the animation the
- * user picked into a picture — so it is uploaded at whatever size it already is,
- * and it can never enter `MediaEditor` (§ 13.4.).
+ * WARN: The slot is decided by `isAnimatedImage` and never by the file's type. A
+ * `.webp` and a `.gif` are each legal for one frame, and an APNG arrives as
+ * `image/png` — so the mime is wrong in both directions, and wrong silently.
  *
- * WARN: Anything else is **always** re-encoded, even a PNG that would have passed
- * through untouched. An emoticon has no derivative to fall back on — it is rendered
- * directly (DESIGN.md § 6.5.) — so a `heic` from an iPhone would be unreadable to
- * whichever participant is not on iOS, and an un-downscaled photo would be
- * megabytes of PNG behind a 140px box.
- */
-export async function toEmoticonImageDraft(file: File): Promise<MediaDraft> {
-  const mime = await readEmoticonMime(file);
-
-  return isAnimatableEmoticonMime(mime) ? toAnimatedDraft(file, mime) : toStillDraft(file);
-}
-
-/**
- * The type the rest of the flow treats the file as, which is not always `file.type`.
+ * WARN: An animation is carried through **byte for byte**. A canvas re-encode
+ * decodes one frame, which would turn the animation the user picked into a
+ * picture — so it is uploaded at whatever size it already is, and it can never
+ * enter `MediaEditor` (§ 13.4.).
  *
- * WARN: An APNG arrives as `image/png`, because a `File`'s type comes from the OS
- * extension map and `.png` maps to one type however the bytes were encoded. Left at
- * that it would take the still path and the canvas would flatten the animation to
- * its first frame — the exact failure the note above forbids — so the animation
- * control chunk is sniffed and the file is renamed to `image/apng` for § 13.4.
+ * WARN: A still is **always** re-encoded, even a PNG that would have passed
+ * through untouched. An emoticon has no derivative to fall back on — it is
+ * rendered directly (DESIGN.md § 6.5.) — so a `heic` from an iPhone would be
+ * unreadable to whichever participant is not on iOS, and an un-downscaled photo
+ * would be megabytes of PNG behind a 140px box.
  */
-async function readEmoticonMime(file: File): Promise<string> {
-  if (isAnimatableEmoticonMime(file.type) || file.type !== "image/png") {
-    return file.type;
-  }
+export async function toEmoticonImagePick(file: File): Promise<EmoticonImagePick> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
 
-  return (await hasApngControlChunk(file)) ? "image/apng" : file.type;
-}
-
-// INFO: `acTL` is what makes a PNG an APNG, and the spec requires it before the first `IDAT` — so the scan stops there rather than reading the whole file.
-async function hasApngControlChunk(file: File): Promise<boolean> {
-  const bytes = new Uint8Array(await file.slice(0, APNG_SCAN_BYTES).arrayBuffer());
-
-  if (!PNG_SIGNATURE.every((byte, index) => bytes[index] === byte)) {
-    return false;
-  }
-
-  const view = new DataView(bytes.buffer);
-  let offset = PNG_SIGNATURE.length;
-
-  while (offset + PNG_CHUNK_HEADER_BYTES <= bytes.length) {
-    const type = String.fromCharCode(
-      ...bytes.subarray(offset + 4, offset + PNG_CHUNK_HEADER_BYTES),
-    );
-
-    if (type === "acTL") {
-      return true;
-    }
-
-    if (type === "IDAT") {
-      return false;
-    }
-
-    // INFO: A chunk is its 4-byte length, its 4-byte type, its payload and a 4-byte CRC.
-    offset += PNG_CHUNK_HEADER_BYTES + view.getUint32(offset) + 4;
-  }
-
-  return false;
+  return isAnimatedImage(bytes)
+    ? { draft: await toAnimatedDraft(file), slot: "animated-image" }
+    : { draft: await toStillDraft(file), slot: "still-image" };
 }
 
 /** INFO: The decoded first frame is what carries the size, and its box is the one every later frame shares — which is what § 8.3. reserves the row from. */
-async function toAnimatedDraft(file: File, mime: string): Promise<MediaDraft> {
+async function toAnimatedDraft(file: File): Promise<MediaDraft> {
   const previewUrl = URL.createObjectURL(file);
 
   try {
@@ -105,11 +62,11 @@ async function toAnimatedDraft(file: File, mime: string): Promise<MediaDraft> {
       file,
       thumbnail: file,
       previewUrl,
-      mime,
+      mime: file.type,
       width: image.naturalWidth,
       height: image.naturalHeight,
       durationMs: null,
-      // INFO: § 13.3. An emoticon is rendered directly and registers no `media` row, so there is no thumbnail for a placeholder to stand in for and nothing that would read one.
+      // INFO: § 13.3. An emoticon is rendered directly and registers no `_thumb` sibling, so there is no placeholder for a hash to stand behind.
       blurhash: null,
       filename: null,
       waveformPeaks: null,

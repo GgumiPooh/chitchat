@@ -8,6 +8,7 @@ export {
   headObject,
   presignDownload,
   presignUpload,
+  readObject,
   type PresignDownloadOptions,
   type StoredObject,
 } from "./objects";

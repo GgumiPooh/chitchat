@@ -14,6 +14,8 @@ export function toEmoticon(row: EmoticonItem): Emoticon {
     width: row.width,
     height: row.height,
     hasAudio: row.audioKey !== null,
+    hasStill: row.stillImageId !== null,
+    hasAnimated: row.animatedImageId !== null,
     keywords: row.keywords,
     version: row.updatedAt.getTime(),
   };

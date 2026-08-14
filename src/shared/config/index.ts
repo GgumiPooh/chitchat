@@ -133,6 +133,7 @@ export {
   findKeywordMatch,
   isAllowedEmoticonAsset,
   isAnimatableEmoticonMime,
+  isAnimatedImage,
   matchesKeywordQuery,
   maxSizeForEmoticonSlot,
   normalizeKeywords,
@@ -141,6 +142,7 @@ export {
   toKeywordRelevance,
   type AllowedEmoticonAudioMime,
   type AllowedEmoticonImageMime,
+  type EmoticonImageSlot,
   type EmoticonSlot,
   type KeywordMatch,
 } from "./emoticon";

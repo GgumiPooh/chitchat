@@ -1,12 +1,13 @@
 import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
-import { revokePreview, toEmoticonImageDraft } from "@/features/upload-media/@x/author-emoticon";
+import { revokePreview, toEmoticonImagePick } from "@/features/upload-media/@x/author-emoticon";
 import {
   MAX_EMOTICON_IMAGE_SIZE,
   MAX_UPLOAD_INFLIGHT_BYTES,
   UPLOAD_CONCURRENCY,
   allowedMimesForEmoticonSlot,
   isAllowedEmoticonAsset,
+  type EmoticonImageSlot,
 } from "@/shared/config";
 import type { EmoticonPackId } from "@/shared/lib";
 import { formatSize, holdAwake, holdUnsentWork, mapPooled } from "@/shared/lib";
@@ -30,7 +31,10 @@ export type BulkAddHandlers = {
   onSettled?: () => void;
 };
 
-type Prepared = { uploadedKey: string; width: number; height: number } | { reason: string };
+// INFO: The finished restructure. A bulk pile is one item per file, so the file's own bytes decide its slot and there is never a second one to fill.
+type Prepared =
+  | { slot: EmoticonImageSlot; uploadedKey: string; width: number; height: number }
+  | { reason: string };
 
 /**
  * REQUIREMENTS.md § 13.4. A pile of images, one item each — the path that exists so
@@ -107,11 +111,11 @@ export async function addEmoticonsFromFiles(
     }
 
     try {
-      const emoticon = await createEmoticon(packId, {
-        imageKey: prepared.uploadedKey,
-        width: prepared.width,
-        height: prepared.height,
-      });
+      const image = { key: prepared.uploadedKey, width: prepared.width, height: prepared.height };
+      const emoticon = await createEmoticon(
+        packId,
+        prepared.slot === "still-image" ? { still: image } : { animated: image },
+      );
 
       added.push(emoticon);
       onAdded(emoticon);
@@ -135,9 +139,10 @@ export async function addEmoticonsFromFiles(
 async function prepare(file: File): Promise<Prepared> {
   // WARN: Two `try` blocks and not one. A single block cannot tell the two failures apart — the key is only ever assigned by the upload that would have thrown, so it is always unset in the `catch` and every failure reads as an unreadable file (§ 13.4.).
   let draft: MediaDraft;
+  let slot: EmoticonImageSlot;
 
   try {
-    draft = await toEmoticonImageDraft(file);
+    ({ draft, slot } = await toEmoticonImagePick(file));
   } catch {
     return { reason: "파일을 읽지 못했어요" };
   }
@@ -146,14 +151,14 @@ async function prepare(file: File): Promise<Prepared> {
   revokePreview(draft);
 
   // INFO: REQUIREMENTS.md § 14. A courtesy check, so an oversized file fails before it is uploaded rather than at registration.
-  if (!isAllowedEmoticonAsset("image", draft.file.type, draft.file.size)) {
-    return { reason: describeRejection(draft.file) };
+  if (!isAllowedEmoticonAsset(slot, draft.file.type, draft.file.size)) {
+    return { reason: describeRejection(slot, draft.file) };
   }
 
   try {
-    const uploadedKey = await uploadEmoticonAsset("image", draft.file);
+    const uploadedKey = await uploadEmoticonAsset(slot, draft.file);
 
-    return { uploadedKey, width: draft.width, height: draft.height };
+    return { slot, uploadedKey, width: draft.width, height: draft.height };
   } catch {
     // INFO: Nothing to discard — an upload that threw never handed back a key, and § 13.3.'s cleanup has nothing to name.
     return { reason: "업로드하지 못했어요" };
@@ -161,8 +166,8 @@ async function prepare(file: File): Promise<Prepared> {
 }
 
 // INFO: Split by which half of `isAllowedEmoticonAsset` refused it — "8MB를 넘어요" and "지원하지 않는 형식이에요" are acted on differently by whoever reads the list.
-function describeRejection(file: Blob): string {
-  if (!allowedMimesForEmoticonSlot("image").includes(file.type)) {
+function describeRejection(slot: EmoticonImageSlot, file: Blob): string {
+  if (!allowedMimesForEmoticonSlot(slot).includes(file.type)) {
     return "지원하지 않는 형식이에요";
   }
 

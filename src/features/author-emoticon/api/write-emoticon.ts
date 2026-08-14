@@ -3,25 +3,31 @@ import { request } from "@/shared/api";
 import { EMOTICON_ITEMS_URL, EMOTICON_KEYWORDS_URL, EMOTICON_PACKS_URL } from "@/shared/config";
 import type { EmoticonItemId, EmoticonPackId, Maybe, Nullable } from "@/shared/lib";
 
-export type CreateEmoticonBody = {
-  imageKey: string;
+/** INFO: § 8.3. The box travels with the key, because new bytes are a new box — neither is editable on its own. */
+export type EmoticonImageBody = {
+  key: string;
   width: number;
   height: number;
+};
+
+/** INFO: The finished restructure. Either image alone is a whole emoticon; the route refuses a body carrying neither. */
+export type CreateEmoticonBody = {
+  still?: EmoticonImageBody;
+  animated?: EmoticonImageBody;
   audioKey?: Maybe<string>;
   keywords?: string[];
 };
 
 /**
- * REQUIREMENTS.md § 13.4. An absent `audioKey` keeps the item's current sound;
- * `null` removes it.
+ * REQUIREMENTS.md § 13.4. An absent slot keeps what the item has; `null` empties
+ * it, and the route refuses an edit that would leave the item with no image at all.
  *
  * INFO: § 13.8. `keywords` is absent-or-whole for the same reason: an edit that
- * only replaces the image must leave the words the item answers to alone.
+ * only replaces an image must leave the words the item answers to alone.
  */
 export type UpdateEmoticonBody = {
-  imageKey?: string;
-  width?: number;
-  height?: number;
+  still?: Nullable<EmoticonImageBody>;
+  animated?: Nullable<EmoticonImageBody>;
   audioKey?: Nullable<string>;
   keywords?: string[];
 };
