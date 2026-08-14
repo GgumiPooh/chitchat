@@ -25,6 +25,11 @@
   [role="button"]:not(:disabled):hover {
     @apply cursor-pointer;
   }
+
+  /* WARN: DESIGN.md § 4.7.1., § 4.7.3. The UA gives the root `view-transition-name: root`, and stripping it is what makes the § 4.7.3. morph affordable at all — a root snapshot lifts the floating bars into the top layer, where their `backdrop-filter` has no backdrop left to sample and `glass` renders as a flat plate. Nothing may give the root a name back. */
+  :root {
+    view-transition-name: none;
+  }
 }
 
 /* INFO: DESIGN.md § 4.7.1. The arriving screen slides in from the side its tab sits on. Nothing captures anything — see `RouteTransition` for why a view transition cannot be used here. */
@@ -57,6 +62,51 @@
   .route-enter-back {
     animation-duration: 0s !important;
   }
+}
+
+/* INFO: DESIGN.md § 4.7.3. The 보관함 tile expanding into the viewer's slide — the app's only view transition, and the only capture § 4.7.1. permits, because it names two elements and never the root. */
+/* INFO: `--duration-media-morph` and not the route arrival's, which it began as (§ 4.7.). A thumbnail crossing to full screen travels most of the viewport where an arriving screen travels 24px, so the same 220ms read as the photo being thrown rather than opened. `ease-route` is kept — its long tail is what makes the picture settle. */
+::view-transition-group(media-morph) {
+  animation-duration: var(--duration-media-morph);
+  animation-timing-function: var(--ease-route);
+}
+
+/* WARN: One snapshot is **dropped** rather than cross-faded, and this is what removes the flash the morph shipped with. The two halves are the same photograph, and the UA pairs them with `mix-blend-mode: plus-lighter` on complementary opacity curves — seamless only for identical content. A tile is a square crop of a thumbnail and the slide is the whole picture, so the two sum past 1 through the middle of the flight and the photo visibly brightens and settles. Nothing is lost by showing one: it is the same image either way, and what travels is the group's box rather than the picture. */
+/* WARN: The one that survives is always the **viewer's**, which is why the direction has to reach the stylesheet at all (`startMediaMorph` / `endMediaMorph` write the attribute). The tile is a thumbnail: kept on the way out it would be scaled up to the slide's size for the first frame of the close, which is the same pop this rule exists to remove, arriving from the other side. */
+html[data-media-morph="open"]::view-transition-old(media-morph),
+html[data-media-morph="close"]::view-transition-new(media-morph) {
+  display: none;
+}
+
+/* WARN: `cover` and never the UA's own `fill`. The group's box travels between a square cell (§ 7.10.) and the photo's stored ratio, and a stretched snapshot squashes the picture through every frame in between — with `cover` the same travel reads as the crop opening up, which is what the tile was hiding. */
+/* WARN: `block-size: 100%` goes with it. The UA sizes the snapshot at `inline-size: 100%; block-size: auto`, so without this `cover` has a box of the wrong height to fit against and crops nothing. */
+::view-transition-old(media-morph),
+::view-transition-new(media-morph) {
+  block-size: 100%;
+  object-fit: cover;
+  mix-blend-mode: normal;
+}
+
+/* WARN: `animation: none` removes the UA's own fade, leaving the picture at full strength for the whole flight — and it belongs **only** to the two directions that have a pair. The group carries the motion and is animated separately above, so this suppresses the blend and not the morph. */
+/* WARN: A `dismiss` must not be caught by it, and reading the three directions as two is the bug this scoping fixes. There is no landing there and so no second snapshot: stripped of its fade the lone old picture sat at full strength over a scrim draining underneath it, then cut to nothing when the transition ended — a photo left hanging in mid-air, which is exactly what the rule below animates out instead. */
+html[data-media-morph="open"]::view-transition-new(media-morph),
+html[data-media-morph="close"]::view-transition-old(media-morph) {
+  animation: none;
+}
+
+/* INFO: DESIGN.md § 4.7.3. The close with nowhere to land — the reader swiped past whatever the room still has on screen. The picture leaves with the scrim rather than travelling, on the same duration and curve, so the viewer reads as one surface dissolving instead of a photo being deleted out of it. */
+html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
+  animation-duration: var(--duration-media-morph);
+  animation-timing-function: var(--ease-route);
+}
+
+/* INFO: DESIGN.md § 4.7.3. The viewer's own scrim and chrome, which resolve around the travelling picture rather than cutting in and out with it. The slide is lifted out of this group by its own name, so the photo crosses at full strength while only its surroundings fade. */
+/* INFO: The UA's default fade is what animates it — there is an old snapshot or a new one but never both, since the viewer is mounting or unmounting. Only the timing is stated, so the two groups land together. */
+::view-transition-group(media-viewer),
+::view-transition-old(media-viewer),
+::view-transition-new(media-viewer) {
+  animation-duration: var(--duration-media-morph);
+  animation-timing-function: var(--ease-route);
 }
 
 /* INFO: DESIGN.md § 6.10. Where a quote jump lands — in fast enough to catch the eye arriving, held while it reads the row, then dissolved. */

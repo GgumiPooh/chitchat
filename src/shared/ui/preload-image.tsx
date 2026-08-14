@@ -1,6 +1,6 @@
 "use client";
 
-import type { Nullable } from "@/shared/lib";
+import { cn, type Nullable } from "@/shared/lib";
 import { ImageOff } from "lucide-react";
 import type { ComponentProps, CSSProperties, SyntheticEvent } from "react";
 import type { BlurhashFit } from "./blur-placeholder";
@@ -20,6 +20,15 @@ export type PreloadImageProps = Omit<ComponentProps<"img">, "placeholder" | "sty
   src?: Nullable<string>;
   /** Applied to the wrapper, which is the box the skeleton fills — a reserved size or aspect ratio belongs here, not on the image. */
   style?: CSSProperties;
+  /**
+   * A smaller copy of the **same picture** that the screen before this one has already
+   * loaded, painted at once and left underneath while `src` arrives.
+   *
+   * INFO: DESIGN.md § 7.10. 보관함's tile is `previewUrl` and the viewer's slide is `originalUrl` — two different objects, so opening a photo starts a cold download however long the reader spent looking at the grid. The blurhash covered that gap with a blur of a picture already decoded one screen away.
+   * WARN: Dropped outright the instant `src` has pixels, and the element below gives up its own 200ms reveal fade while this is standing in — the two are the same picture, so a crossfade between them is the picture blended with itself. On an animated original that is every frame it has moved on to, showing through a still one. This is where it differs from the blur, which does fade and must.
+   * WARN: Decorative — `alt=""` and `aria-hidden`. It is the same picture as the element below it, and announced twice a reader hears the photo named twice.
+   */
+  previewSrc?: Nullable<string>;
   /** Off for an asset this app does not serve: the retry below cache-busts a URL we do not own, and a host that refused it once refuses it again. */
   canRetry?: boolean;
   /** WARN: DESIGN.md § 7.8. Off for a full-bleed backdrop, where `placeholderClassName` is the flat surface the load is meant to hide behind — `Skeleton` is opaque `surface-strong` and would paint straight over it, turning the whole screen into a pulsing plate. */
@@ -55,6 +64,7 @@ export function PreloadImage({
   placeholderClassName,
   style,
   src,
+  previewSrc,
   canRetry = true,
   hasSkeleton = true,
   blurhash,
@@ -69,6 +79,14 @@ export function PreloadImage({
     src: src ?? undefined,
     canRetry,
   });
+  /**
+   * INFO: Up until the element below reveals the picture the caller ultimately asked for. Past that it is either revealed — and the stand-in is what would show through it — or failed, where DESIGN.md § 7.8.'s glyph on its own plate is the documented ending rather than a thumbnail left standing in for an object that is gone.
+   * WARN: The first arm is what keeps this **one element across the swap**. DESIGN.md § 4.7.3. has the viewer hold `src` at the preview until its opening morph lands and only then point it at the original, and that swap remounts the element below (it is keyed on the URL). Tested on `status` alone the layer would unmount on the same commit the original's element mounts empty — one element leaving as another arrives, with a blank frame between them if the cached decode does not land in that paint.
+   */
+  const hasPreview =
+    Boolean(previewSrc) &&
+    (previewSrc === attemptSrc || status === "loading") &&
+    status !== "failed";
 
   return (
     <PreloadFrame
@@ -83,13 +101,25 @@ export function PreloadImage({
       blurhashFit={blurhashFit}
       failureIcon={ImageOff}
     >
+      {/* INFO: Its lifetime and the reason it never fades are both on `hasPreview` above; a same-URL pair here is one request, since the second reads the first out of the memory cache. */}
+      {hasPreview && (
+        // eslint-disable-next-line @next/next/no-img-element -- As the element below.
+        <img
+          className={cn("col-start-1 row-start-1 min-h-0 min-w-0", imgClassName)}
+          src={previewSrc ?? undefined}
+          alt=""
+          draggable={false}
+          aria-hidden
+        />
+      )}
       {/* eslint-disable-next-line @next/next/no-img-element -- The asset routes of REQUIREMENTS.md § 9. and § 13.3. answer a 302 to a presigned R2 URL, which `next/image` cannot take as a loader source. */}
       <img
         {...props}
         // WARN: Keyed by the attempt URL so a swap — or a retry — remounts the element. The ref below only re-reads the cache on mount, and an animated emoticon only restarts its loop on a fresh element (REQUIREMENTS.md § 13.2.).
         key={attemptSrc}
         ref={syncCachedStatus}
-        className={toMediaElementClassName(isRevealed, imgClassName)}
+        // WARN: The reveal fade is **skipped** while a preview is standing in, for that element's own reason: it is the same picture, already on screen at full strength, so there is nothing for a crossfade to reveal and everything for it to double. An unloaded `<img>` paints nothing either way, so full opacity from the start costs no flash of its own.
+        className={toMediaElementClassName(isRevealed || hasPreview, imgClassName)}
         src={attemptSrc}
         onLoad={handleLoad}
         onError={handleError}

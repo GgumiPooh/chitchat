@@ -1,4 +1,4 @@
-import type { Maybe } from "./nullish";
+import type { Maybe } from "../nullish";
 
 export function isBrowser(): boolean {
   return typeof window === "object";

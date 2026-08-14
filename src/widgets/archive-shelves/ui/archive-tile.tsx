@@ -6,10 +6,37 @@ import {
   formatDuration,
   useLongPress,
   type LongPressPoint,
+  type MediaId,
+  type Nullable,
 } from "@/shared/lib";
 import { PreloadImage, toCellRatio, type MediaCell } from "@/shared/ui";
 import { Check, Play } from "lucide-react";
 import { ARCHIVE_TILE_ID_ATTRIBUTE } from "../model/use-archive-sweep";
+
+/**
+ * DESIGN.md § 4.7.3. The square a media id is currently drawn in, for the viewer to
+ * collapse back into.
+ *
+ * WARN: The `button` inside the marked wrapper, not the wrapper itself — that is the box the opening morph left from (`onActivate` hands `event.currentTarget`), and a return journey that landed on a different rectangle would end with the photo snapping by a pixel or two.
+ * INFO: Answers `null` for most of the library, and that is the normal case rather than a failure: REQUIREMENTS.md § 8.3. windows the grid on lines, so a reader who swiped the § 8.1. track a long way has no node for the slide they end on. `endMediaMorph` reads an off-screen one the same way.
+ */
+export function findArchiveTile(mediaId: MediaId): Nullable<HTMLElement> {
+  return document.querySelector<HTMLElement>(
+    `[${ARCHIVE_TILE_ID_ATTRIBUTE}="${CSS.escape(mediaId)}"] button`,
+  );
+}
+
+/**
+ * DESIGN.md § 4.7.3. Whether that tile is drawn **and inside the viewport** — the
+ * question the shelf asks before moving itself to bring one into reach.
+ *
+ * WARN: Rendered is not enough. The grid overscans well past the fold for the § 10. sweep, so a tile can have a perfectly good node several screens away — scrolled to anyway, the shelf moves under a reader who could already see the one they were looking at.
+ */
+export function isTileOnScreen(mediaId: MediaId): boolean {
+  const box = findArchiveTile(mediaId)?.getBoundingClientRect();
+
+  return box !== undefined && box.width > 0 && box.bottom > 0 && box.top < window.innerHeight;
+}
 
 export type ArchiveTileProps = {
   className?: string;
@@ -18,7 +45,12 @@ export type ArchiveTileProps = {
   isSelected: boolean;
   /** DESIGN.md § 6.8., § 7.10. This is the tile a § 10. position jump landed on, for as long as the flash runs. */
   isFlashing?: boolean;
-  onActivate: () => void;
+  /**
+   * Opens the viewer on this tile, or picks it while a selection is up.
+   *
+   * INFO: DESIGN.md § 4.7.3. Handed the square the reader tapped, because that box is where the viewer's slide expands *from* — `startMediaMorph` names it and the browser captures it. Read off the event rather than a ref, so the grid keeps one node per tile and no ref map to hold them in.
+   */
+  onActivate: (origin: HTMLElement) => void;
   /** REQUIREMENTS.md § 10. Picks this tile and anchors the sweep where the hold fired; the header control is the pointer equivalent. */
   onLongPress?: (point: LongPressPoint) => void;
 };
@@ -49,7 +81,7 @@ export function ArchiveTile({
         type="button"
         aria-label={cell.isVideo ? "동영상" : "사진"}
         aria-pressed={isSelecting ? isSelected : undefined}
-        onClick={onActivate}
+        onClick={(event) => onActivate(event.currentTarget)}
       >
         <PreloadImage
           className="size-full"

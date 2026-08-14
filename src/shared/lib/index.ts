@@ -69,7 +69,14 @@ export {
   toTimeField,
   toWeekday,
 } from "./date/time";
-export { hasDataTransferFiles, isBrowser, isEditableElement } from "./dom";
+export { hasDataTransferFiles, isBrowser, isEditableElement } from "./dom/environment";
+export {
+  MEDIA_MORPH_NAME,
+  MEDIA_VIEWER_NAME,
+  endMediaMorph,
+  startMediaMorph,
+  whenMediaMorphSettled,
+} from "./dom/view-transition";
 export { buildFadeMask, type FadeMaskOptions } from "./fade-mask";
 export { useBfcacheRestore } from "./hooks/use-bfcache-restore";
 export { useHydrated } from "./hooks/use-hydrated";

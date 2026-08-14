@@ -7,12 +7,16 @@ import {
   type ChatTrackEdge,
 } from "@/shared/config";
 import {
+  MEDIA_MORPH_NAME,
+  MEDIA_VIEWER_NAME,
   cn,
+  endMediaMorph,
   useIsIos,
   useModalOverlay,
   usePinchZoom,
   useSettledCommit,
   useSwipeDismiss,
+  whenMediaMorphSettled,
   type MediaId,
   type MessageId,
   type Nullable,
@@ -50,6 +54,14 @@ export type MediaViewerProps = {
    */
   jump?: { label: string; Icon: FC<ComponentProps<"svg">>; onSelect: (cell: MediaCell) => void };
   /**
+   * DESIGN.md § 4.7.3. Resolves the thumbnail the viewer should collapse back into —
+   * given the slide the reader ended on, which is rarely the one they opened.
+   *
+   * WARN: Answered by the surface behind the viewer, because only it knows how to find its own thumbnails: 보관함 by the grid's tile attribute, 채팅 by the bubble's cell. It returns nothing wherever there is no node — a windowed grid row scrolled far past, a bubble the § 8.1. track has swiped out of — and `endMediaMorph` drops an off-screen one as well, so a caller may answer optimistically.
+   * WARN: Left unset the viewer still fades, and that is the § 7.7. profile viewer's whole case: the avatar it opens from is one element that is always on screen, but the picture is a *cropped* cover rather than the same rectangle, so a morph would be a lie about which photo it is.
+   */
+  findMorphOrigin?: (mediaId: MediaId) => Nullable<HTMLElement>;
+  /**
    * REQUIREMENTS.md § 10. The 삭제 for the slide on screen, and the label saying how
    * far it reaches — a chat bubble's takes the whole message with it (`메시지 삭제`),
    * 보관함's takes the library row alone (`보관함에서 삭제`). Omitted where the reader
@@ -81,6 +93,14 @@ export type MediaViewerProps = {
     /** Commits every held page. Called from here alone, and on **every** settle rather than only the awaited ones — the caller is what knows whether anything is waiting. */
     onCommit: () => void;
   };
+  /**
+   * DESIGN.md § 4.7.3. The slide the reader has crossed to, so the surface underneath
+   * can keep a landing for the closing morph within reach.
+   *
+   * WARN: 보관함 alone answers it, and what it does with it is conditional: it moves its grid **only** where the tile is not already on screen. Centring unconditionally would move the shelf under a reader who opened one photo and closed it again, which is the one case where returning to exactly where they were is the whole point.
+   * WARN: 채팅 leaves it unset on purpose. The equivalent there is jumping the room to another message, which loses the reader's place in the conversation — it exists, and it is the explicit `대화에서 보기` control rather than something a dismissal does behind them.
+   */
+  onSlideChange?: (mediaId: MediaId) => void;
   /**
    * DESIGN.md § 7.10. Makes the sender-and-caption block itself travel to the bubble
    * the slide was sent in — the second jump, and the one 채팅 needs.
@@ -134,7 +154,9 @@ export function MediaViewer({
   deletion,
   jump,
   paging,
+  findMorphOrigin,
   onClose,
+  onSlideChange,
   onOpenMessage,
   onShare,
   onSave,
@@ -143,6 +165,8 @@ export function MediaViewer({
 }: MediaViewerProps) {
   const trackRef = useRef<Nullable<HTMLDivElement>>(null);
   const lengthRef = useRef(cells.length);
+  // INFO: Whether the open offset has been asserted, so whichever of the two passes below measures first is the only one that acts — see their shared WARN.
+  const hasOpenedRef = useRef(false);
   // WARN: State beside the ref above, because `useSettledCommit` takes the element as a value and the React Compiler forbids reading a ref during render. The ref stays for the imperative `scrollTo`s, which run in effects where reading it is fine.
   const [trackElement, setTrackElement] = useState<Nullable<HTMLDivElement>>(null);
   // WARN: REQUIREMENTS.md § 8.1. Which slide the reader is on, by id rather than by offset. **State, not a ref**, because `index` is derived from it during render and the React Compiler forbids reading a ref there — a ref would also be the stale value on the render that matters, which is the swap this exists for.
@@ -165,9 +189,17 @@ export function MediaViewer({
    */
   const steppedRef = useRef<Nullable<number>>(null);
   // INFO: REQUIREMENTS.md § 12.3. `Escape`, the focus trap and the marker the profile screen underneath reads, from the one owner the profile screen shares — and § 8.1.'s arrow keys, which that owner forwards because "is anything open over me" is the same question for all four.
-  const overlayRef = useModalOverlay<HTMLDivElement>(onClose, handleOverlayKeyDown);
+  const overlayRef = useModalOverlay<HTMLDivElement>(handleClose, handleOverlayKeyDown);
   // INFO: DESIGN.md § 7.10. A tap on the photo puts the chrome away, so the slide can be looked at with nothing over it. It starts visible — the controls have to be findable without discovering the gesture first.
   const [isChromeVisible, setIsChromeVisible] = useState(true);
+  /**
+   * DESIGN.md § 4.7.3. Whether the opening morph has landed, which is what releases
+   * the slides to ask for their stored originals (§ 7.10.).
+   *
+   * WARN: The request is held rather than the paint. An original that arrives mid-flight replaces the picture under an animation the live DOM is not painting at all, so the swap surfaces as a pop at the instant the transition ends — which is the one moment the reader is looking straight at it.
+   * INFO: Resolves immediately where no morph ran (reduced motion, or a browser without the API), so this costs the fallback path nothing but a microtask.
+   */
+  const [hasMorphSettled, setHasMorphSettled] = useState(false);
   // INFO: REQUIREMENTS.md § 18. #6. One zoom for the viewer rather than one per slide — only the slide on screen can be gestured, and a stale scale on a neighbour would be restored by a swipe back to it.
   const zoom = usePinchZoom();
   // INFO: Taken off the hook once, because the correction below has to depend on it and `zoom` itself is a fresh object on every render — `reset` is the stable half of it.
@@ -177,7 +209,7 @@ export function MediaViewer({
   const dismiss = useSwipeDismiss({
     isEnabled: !zoom.isZoomed,
     canStart: (event) => !isOnPlayer(event.target, event.clientX, event.clientY),
-    onDismiss: onClose,
+    onDismiss: handleClose,
   });
   const captureRoot = zoom.captureRoot;
   /**
@@ -188,7 +220,11 @@ export function MediaViewer({
       const releaseOverlay = overlayRef(element);
       const releaseWheel = captureRoot(element);
 
+      // WARN: DESIGN.md § 7.10. The pointer's half of the `touch-pan-x` on the root — a trackpad's two-finger scroll is a `wheel`, which `touch-action` says nothing about, so without this the grid behind the viewer travels under a desktop reader. Attached by hand because React registers `onWheel` passively, where `preventDefault` is ignored.
+      element.addEventListener("wheel", refuseVerticalWheel, { passive: false });
+
       return () => {
+        element.removeEventListener("wheel", refuseVerticalWheel);
         releaseOverlay?.();
         releaseWheel?.();
       };
@@ -244,16 +280,45 @@ export function MediaViewer({
   const commitHeldPages = useCallback(() => onCommit?.(), [onCommit]);
 
   /**
-   * The offset the viewer opens at, asserted **once**.
+   * The offset the viewer opens at, asserted **once** — tried in the layout phase and
+   * again after paint, because only one of the two is ever the one that can measure.
    *
-   * WARN: Mount only, and `initialIndex` is deliberately not a dependency — every later move of the offset belongs to the correction below, which resolves the reader's own slide by id. Re-run on a changed `initialIndex` this scrolls to a position the reader left long ago: 채팅's window swap and its § 8.13. narrowing both rewrite that number, and both run at a point where the reader may be on a different slide. It used to be masked by both effects being passive and this one being declared first; the correction is a layout effect now, so this would land after it and win.
-   * WARN: Passive on purpose, unlike the correction. At mount the track has never been laid out, and a `clientWidth` of `0` read one phase earlier would open every viewer on its first slide.
+   * WARN: Mount only, and `initialIndex` is deliberately not a dependency — every later move of the offset belongs to the correction below, which resolves the reader's own slide by id. Re-run on a changed `initialIndex` this scrolls to a position the reader left long ago: 채팅's window swap and its § 8.13. narrowing both rewrite that number, and both run at a point where the reader may be on a different slide.
+   * WARN: The passive half is what this used to be, whole, and it cannot simply become a layout effect: at mount the track may not have been laid out, and a `clientWidth` of `0` read one phase earlier would open every viewer on its first slide. `openAtInitialIndex` refuses that measurement rather than acting on it, so the passive pass is still what answers wherever the early one cannot.
+   * WARN: DESIGN.md § 4.7.3. The layout half is what the opening morph needs, and it is the whole reason for the pair. A view transition captures the new state as soon as `startMediaMorph`'s `flushSync` returns — which runs layout effects and not passive ones — so left passive this lands *after* the capture, and every photo the reader opened past the first was captured off screen and flew in from the right instead of expanding out of its tile.
+   * WARN: Declared **before** the correction below, so the mount pass cannot land on top of it. The correction returns early on mount (the length is unchanged), but the order is what makes that true rather than incidental.
+   */
+  useLayoutEffect(() => {
+    openAtInitialIndex();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    openAtInitialIndex();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * DESIGN.md § 4.7.3. Tells the surface underneath which slide the reader is on, so
+   * it can keep a landing for the close in reach.
+   *
+   * INFO: It fires on the opening slide too, and that costs nothing: the thumbnail the reader just tapped is on screen by definition, and 보관함's answer is a no-op for a tile that already is.
    */
   useEffect(() => {
-    const track = trackRef.current;
+    if (current) {
+      onSlideChange?.(current.id);
+    }
+  }, [current, onSlideChange]);
 
-    track?.scrollTo({ left: track.clientWidth * initialIndex });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // WARN: Latched, never cleared. The promise outlives the closing morph too, and a viewer that reset here would drop back to thumbnails on its way out.
+  useEffect(() => {
+    let isMounted = true;
+
+    void whenMediaMorphSettled().then(() => isMounted && setHasMorphSettled(true));
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   /**
@@ -344,15 +409,30 @@ export function MediaViewer({
       <div
         ref={captureOverlay}
         className={cn(
-          "pointer-events-auto absolute inset-0 z-40 flex flex-col bg-scrim",
+          // WARN: DESIGN.md § 4.7.3. No `bg-scrim` here — the floor is the layer below, so that it can arrive after the picture has finished travelling. On the root it would be baked into the captured snapshot and the reader would watch a black plate grow out of a grid tile.
+          "pointer-events-auto absolute inset-0 z-40 flex flex-col",
+          // WARN: DESIGN.md § 7.10. The whole viewer reserves the vertical axis, and this is what keeps the screen behind it still. Nothing in here scrolls vertically, so a downward drag on the scrim, the chrome or a video slide chains straight to the document — which is the app's own scroller (§ 3.3.) — and 보관함's grid travels under a viewer the reader believes is the only thing on screen. `pan-x` and never `none`: the track's own swipe (§ 8.1.) is a native horizontal scroller, and a browser intersects `touch-action` down the ancestor chain, so `none` here would meet the slide's `pan-x` as `none` and freeze the swipe.
+          "touch-pan-x",
           className,
         )}
         role="dialog"
         // INFO: DESIGN.md § 7.10. The scrim thins as the pull-to-close drag travels, and the chrome over it goes with it — what is being uncovered is the screen underneath, so nothing that belongs to the viewer may stay at full strength over it.
-        style={dismiss.scrimStyle}
+        // INFO: DESIGN.md § 4.7.3. The name is what makes the scrim and the chrome resolve around the travelling picture. It cannot reach the slide: that one carries its own name and is lifted into a group above this, which is exactly what lets the photo arrive at full strength.
+        style={{ ...dismiss.scrimStyle, viewTransitionName: MEDIA_VIEWER_NAME }}
         aria-modal="true"
         aria-label="첨부 크게 보기"
       >
+        {/* INFO: DESIGN.md § 4.7.3. The floor, and it arrives **after** the § 4.7.3. morph rather than with it — the photo travels over the screen it was opened from, and only once it has landed does the room behind it go dark. Sequenced rather than simultaneous, so the two motions are read one at a time. */}
+        {/* WARN: `-z-10` and not a background on the root. This box is `absolute` and the track is in flow, so at `z-auto` it would paint *over* every slide — a positioned element outranks in-flow content in the same stacking context, whatever the DOM order says. */}
+        <div
+          className={cn(
+            // INFO: DESIGN.md § 4.7.3. It fades on the morph's own duration rather than `--duration-state`, which is what the chrome above it uses. 200ms across a full-screen plate going from nothing to opaque is a cut with a ramp on it; the floor is the largest single change of colour the app makes, and it has to be read as arriving.
+            "pointer-events-none absolute inset-0 -z-10 bg-scrim ease-out",
+            "transition-opacity duration-[var(--duration-media-morph)]",
+            !hasMorphSettled && "opacity-0",
+          )}
+          aria-hidden
+        />
         {/* WARN: DESIGN.md § 7.10. Both bars are absolute and sit *over* the track, which is what makes the chrome toggleable at all — laid out as rows they would resize the track every time they left, and the photo would jump and re-snap under the tap that hid them. */}
         {/* WARN: `pointer-events-none` on the bar and `auto` on its controls. The bars span the full width over a photo whose own taps toggle them and whose hold is the OS's (§ 8.11.), so an inert strip that still swallowed pointers would kill both gestures across the top and bottom of every slide. */}
         <div
@@ -360,7 +440,8 @@ export function MediaViewer({
             // WARN: DESIGN.md § 7.10. The gradient runs well past the controls and fades through a midpoint rather than straight to nothing. It used to end at the bar's own padding, which put the caption where the wash had already thinned to about a third — unreadable over a white photo, which is the surface this exists for.
             "pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start gap-xs bg-gradient-to-b from-scrim/85 via-scrim/45 to-transparent p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))] pb-2xl transition-opacity duration-200",
             // WARN: The descendants' `pointer-events` are revoked with the opacity, not just their `tabIndex`. `opacity-0` alone leaves every control here fully tappable while invisible — the tap that hid the chrome, repeated in the same corner, would close the viewer.
-            !isChromeVisible && "opacity-0 [&_*]:pointer-events-none",
+            // INFO: DESIGN.md § 4.7.3. Held back until the opening morph has landed, with the floor above — the chrome is what says "you are in the viewer", and said while the picture is still crossing the screen it arrives before the thing it describes.
+            (!isChromeVisible || !hasMorphSettled) && "opacity-0 [&_*]:pointer-events-none",
           )}
         >
           <IconButton
@@ -368,7 +449,7 @@ export function MediaViewer({
             Icon={X}
             tabIndex={isChromeVisible ? undefined : -1}
             aria-label="닫기"
-            onClick={onClose}
+            onClick={handleClose}
           />
           {/* INFO: DESIGN.md § 7.10. Who sent the slide and when — the identity half of the bar, where the action icons used to be. The position joins the caption because both answer "where am I", and neither earns a row of its own on a mobile shell. */}
           {/* WARN: A `button` only where there is somewhere to go, and a `div` otherwise. A pressable-looking block that answered nothing is worse here than in the bars, because the chevron is the only thing saying it travels at all. */}
@@ -429,10 +510,15 @@ export function MediaViewer({
               {Math.abs(slideIndex - index) > 1 ? (
                 <SlidePlaceholder cell={cell} />
               ) : cell.isVideo ? (
-                <VideoSlide cell={cell} />
+                <VideoSlide cell={cell} isMorphTarget={slideIndex === index} />
               ) : (
                 // WARN: REQUIREMENTS.md § 18. #6. Only the slide on screen takes the gesture. A neighbour is half a swipe away and mounted, so handlers on it would answer a pinch that started over the photo the reader can see.
-                <ImageSlide cell={cell} zoom={slideIndex === index ? zoom : undefined} />
+                <ImageSlide
+                  cell={cell}
+                  zoom={slideIndex === index ? zoom : undefined}
+                  isMorphTarget={slideIndex === index}
+                  hasMorphSettled={hasMorphSettled}
+                />
               )}
             </div>
           ))}
@@ -443,7 +529,8 @@ export function MediaViewer({
         <div
           className={cn(
             "pointer-events-none absolute inset-0 z-10 flex items-center justify-between px-xs transition-opacity duration-200",
-            !isChromeVisible && "opacity-0 [&_*]:pointer-events-none",
+            // INFO: DESIGN.md § 4.7.3. Held back until the opening morph has landed, with the floor above — the chrome is what says "you are in the viewer", and said while the picture is still crossing the screen it arrives before the thing it describes.
+            (!isChromeVisible || !hasMorphSettled) && "opacity-0 [&_*]:pointer-events-none",
           )}
         >
           {/* WARN: `invisible` at the ends rather than unmounted, so the surviving arrow does not slide across the screen when the reader reaches the first or last slide. § 8.1.'s track also grows at both edges mid-open, which would make an unmounted control blink back into existence. */}
@@ -475,7 +562,8 @@ export function MediaViewer({
             // WARN: DESIGN.md § 7.10. A gradient here too, which this bar deliberately went without for a long time on the argument that a second one frames the photo from below. The discs' own fill is what it relied on instead, and over the viewer's opaque `scrim` — which is most of the screen on a portrait slide — `scrim` on `scrim` is a control with no edge at all. The ring below answers that; the wash is what carries the group over a bright photo.
             "pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-sm bg-gradient-to-t from-scrim/85 via-scrim/45 to-transparent p-md pt-2xl pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] transition-opacity duration-200",
             // WARN: As the top bar — hidden controls must stop receiving pointers, or an invisible 삭제 sits under the reader's next tap.
-            !isChromeVisible && "opacity-0 [&_*]:pointer-events-none",
+            // INFO: DESIGN.md § 4.7.3. Held back until the opening morph has landed, with the floor above — the chrome is what says "you are in the viewer", and said while the picture is still crossing the screen it arrives before the thing it describes.
+            (!isChromeVisible || !hasMorphSettled) && "opacity-0 [&_*]:pointer-events-none",
           )}
         >
           {/* WARN: REQUIREMENTS.md § 8.11. Withheld on iOS alone, where it lands in Files rather than the photo library the control beside it reaches — and where holding the slide is already the OS's own route to 사진에 저장. */}
@@ -551,6 +639,18 @@ export function MediaViewer({
   );
 
   /**
+   * DESIGN.md § 4.7.3. Every way out routes through here, so the slide collapses back
+   * into its thumbnail whichever of the three the reader used — 닫기, `Escape`, or the
+   * downward pull.
+   *
+   * INFO: The pull is included deliberately. The gesture has already carried the slide part-way down under the finger, and the capture is taken from wherever it was let go, so the picture continues from there to the tile rather than snapping back first.
+   * WARN: A plain function declaration and not a `useCallback`. `useModalOverlay` holds its handler in a ref for exactly this, and `useSwipeDismiss` already receives a fresh arrow from every caller — so identity here is no less stable than the `onClose` it replaces.
+   */
+  function handleClose() {
+    endMediaMorph(current ? (findMorphOrigin?.(current.id) ?? null) : null, onClose);
+  }
+
+  /**
    * REQUIREMENTS.md § 8.1. `ArrowLeft` / `ArrowRight` are the desktop swipe. Reached
    * through `useModalOverlay`, which is what knows whether a sheet or a dialog is open
    * over the viewer and owns the keyboard while one is.
@@ -590,6 +690,22 @@ export function MediaViewer({
 
     steppedRef.current = next;
     track.scrollTo({ left: track.clientWidth * next, behavior: "smooth" });
+  }
+
+  /**
+   * Puts the track on `initialIndex`, or declines to — see the two effects' WARN.
+   *
+   * WARN: A `clientWidth` of `0` is refused rather than multiplied. It is the track reporting that it has not been laid out yet, and `0 * initialIndex` is a scroll to the first slide that would then mark the open as asserted and stop the pass that could have got it right.
+   */
+  function openAtInitialIndex() {
+    const track = trackRef.current;
+
+    if (hasOpenedRef.current || !track || track.clientWidth === 0) {
+      return;
+    }
+
+    hasOpenedRef.current = true;
+    track.scrollTo({ left: track.clientWidth * initialIndex });
   }
 
   // INFO: The ref and the state are the same element read two ways — see the state's own WARN.
@@ -722,6 +838,21 @@ function toPosition(index: number, cells: MediaCell[]): string {
 }
 
 /**
+ * DESIGN.md § 7.10. Keeps a wheel from reaching the document behind the viewer, which
+ * is the app's own scroller (§ 3.3.).
+ *
+ * WARN: The horizontal half is let through on purpose — it is how a trackpad crosses the § 8.1. track, and the only route a pointer has to the swipe besides the two chevrons. Refusing every wheel took that away.
+ * INFO: `ctrl`+`wheel` is the desktop pinch and is already refused by `usePinchZoom` on this same element (REQUIREMENTS.md § 18. #6.); it falls through the axis test anyway, which is why there is no branch for it.
+ */
+function refuseVerticalWheel(event: WheelEvent): void {
+  if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+    return;
+  }
+
+  event.preventDefault();
+}
+
+/**
  * Whether a point lands on the **painted** part of a `<video>`, which is the only
  * part of one that belongs to the player.
  *
@@ -802,7 +933,23 @@ function SlidePlaceholder({ cell }: { cell: MediaCell }) {
   );
 }
 
-function ImageSlide({ cell, zoom }: { cell: MediaCell; zoom?: ReturnType<typeof usePinchZoom> }) {
+/**
+ * DESIGN.md § 4.7.3. `isMorphTarget` marks the slide the reader is on as the half of
+ * the opening morph the tile expands **into**.
+ *
+ * WARN: The slide on screen and no other, because `MEDIA_MORPH_NAME` is one name for the whole app — a neighbour is mounted half a swipe away, and two elements holding the name at once abort the transition rather than degrade it.
+ */
+function ImageSlide({
+  cell,
+  zoom,
+  isMorphTarget,
+  hasMorphSettled,
+}: {
+  cell: MediaCell;
+  zoom?: ReturnType<typeof usePinchZoom>;
+  isMorphTarget: boolean;
+  hasMorphSettled: boolean;
+}) {
   return (
     // WARN: REQUIREMENTS.md § 18. #6. The gesture surface, and it never scales — the hook measures its box for the pan bounds, so the transform belongs to the element inside it.
     <div className="flex max-h-full w-full items-center justify-center" {...zoom?.surfaceProps}>
@@ -812,13 +959,20 @@ function ImageSlide({ cell, zoom }: { cell: MediaCell; zoom?: ReturnType<typeof 
         <PreloadImage
           className="max-h-full w-full"
           imgClassName="size-full object-contain"
-          style={{ aspectRatio: toCellRatio(cell) }}
-          src={cell.originalUrl ?? cell.previewUrl}
+          // WARN: DESIGN.md § 4.7.3. The original is not asked for until the opening morph has landed. Requested at mount it finishes mid-flight, and the swap lands as a pop at the instant the transition ends rather than as a photo sharpening under a reader who is already looking at it.
+          src={hasMorphSettled ? (cell.originalUrl ?? cell.previewUrl) : cell.previewUrl}
+          // INFO: DESIGN.md § 7.10. The thumbnail the grid tile — or the chat bubble — has already decoded, so the slide opens on the picture instead of on its blur while the original arrives, and stands under it again for the swap above.
+          previewSrc={cell.previewUrl}
           blurhash={cell.blurhash}
           blurhashRatio={toCellRatio(cell)}
           // WARN: DESIGN.md § 7.8. `contain`, matching the slide's own `object-contain` — the box carries the stored ratio but `max-h-full` clamps a portrait one on a short screen, and a `cover` blur would fill the width the letterboxed photo leaves as scrim.
           blurhashFit="contain"
           alt=""
+          // INFO: DESIGN.md § 4.7.3. The name rides the ratio box, so the morph lands on a rectangle that exists before a single byte of the original has arrived — the blurhash is what fills it, and the tile the reader tapped is the same picture.
+          style={{
+            aspectRatio: toCellRatio(cell),
+            viewTransitionName: isMorphTarget ? MEDIA_MORPH_NAME : undefined,
+          }}
         />
       </div>
     </div>
@@ -831,7 +985,7 @@ function ImageSlide({ cell, zoom }: { cell: MediaCell; zoom?: ReturnType<typeof 
  * element reports that as an `error`, and the download link is the fallback rather
  * than a blank black rectangle.
  */
-function VideoSlide({ cell }: { cell: MediaCell }) {
+function VideoSlide({ cell, isMorphTarget }: { cell: MediaCell; isMorphTarget: boolean }) {
   const [hasFailed, setHasFailed] = useState(false);
 
   if (hasFailed) {
@@ -853,12 +1007,16 @@ function VideoSlide({ cell }: { cell: MediaCell }) {
     // WARN: `w-full` with the stored ratio, exactly as `ImageSlide` is framed — `max-w-full` capped the element at the clip's own pixel width instead, so anything narrower than the shell sat inside gutters the photo beside it does not have. `object-contain` is what keeps a portrait clip from stretching once `max-h-full` clamps the box.
     <video
       className="max-h-full w-full object-contain"
-      style={{ aspectRatio: toCellRatio(cell) }}
       src={cell.originalUrl ?? undefined}
       poster={cell.previewUrl ?? undefined}
       controls
       playsInline
       preload="metadata"
+      // INFO: DESIGN.md § 4.7.3. A clip morphs out of its tile as a photo does — the poster is the same frame the tile drew, so the capture has a picture in it before playback has started.
+      style={{
+        aspectRatio: toCellRatio(cell),
+        viewTransitionName: isMorphTarget ? MEDIA_MORPH_NAME : undefined,
+      }}
       onError={() => setHasFailed(true)}
     />
   );

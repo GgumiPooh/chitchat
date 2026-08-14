@@ -17,4 +17,6 @@ export { useShelfStaging, type ShelfStagingParams } from "./model/use-shelf-stag
 export { ArchiveFileList, type ArchiveFileListProps } from "./ui/archive-file-list";
 export { ArchiveGrid, type ArchiveGridProps } from "./ui/archive-grid";
 export { ArchiveSelectionBar, type ArchiveSelectionBarProps } from "./ui/archive-selection-bar";
+// INFO: DESIGN.md § 4.7.3. Where the viewer's closing morph lands, resolved off the grid's own DOM contract rather than by the shelf holding a ref per tile.
+export { findArchiveTile } from "./ui/archive-tile";
 export { ArchiveVoiceList, type ArchiveVoiceListProps } from "./ui/archive-voice-list";

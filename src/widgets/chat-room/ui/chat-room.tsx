@@ -49,6 +49,7 @@ import {
   compareId,
   composeEventNotice,
   isDormant,
+  startMediaMorph,
   stopVoice,
   subscribeDormancy,
   useIsVirtualKeyboardOpen,
@@ -128,6 +129,7 @@ import { useViewerTrack } from "../model/use-viewer-track";
 import { ChatBackdrop } from "./chat-backdrop";
 import { DateDivider } from "./date-divider";
 import { EditBar } from "./edit-bar";
+import { findChatMediaCell } from "./media-grid";
 import { MessageRow } from "./message-row";
 import { ReplyBar } from "./reply-bar";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
@@ -1276,6 +1278,8 @@ export function ChatRoom({
           jump={{ label: "보관함에서 보기", Icon: Archive, onSelect: openInArchive }}
           // INFO: REQUIREMENTS.md § 8.1. 채팅's track is a window and this is what extends it; 보관함 leaves the prop unset (§ 10.).
           paging={mediaTrack.paging}
+          // INFO: DESIGN.md § 4.7.3. The return journey — the slide collapses back into its bubble cell wherever the room still has one on screen, and fades where it stands otherwise.
+          findMorphOrigin={findChatMediaCell}
           onOpenMessage={openBubble}
           onDownload={askToSaveBundle}
           onClose={mediaTrack.close}
@@ -1802,8 +1806,8 @@ export function ChatRoom({
             onShare={
               canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
             }
-            onOpenMedia={(index) =>
-              openAttachment(cells, index, row.message.id, row.message.senderId)
+            onOpenMedia={(index, origin) =>
+              openAttachment(cells, index, row.message.id, row.message.senderId, origin)
             }
             onOpenReply={quoted ? () => void jumpToMessage(quoted.id, { flash: true }) : undefined}
             onFollowEmoticon={toFollowEmoticon(row.message.emoticon)}
@@ -1847,6 +1851,7 @@ export function ChatRoom({
     index: number,
     messageId: MessageId,
     senderId: UserId,
+    origin?: HTMLElement,
   ) {
     const cell = cells[index];
 
@@ -1865,11 +1870,14 @@ export function ChatRoom({
 
     const openable = cells.filter((item) => !item.isDeleted);
 
-    mediaTrack.open(
-      openable,
-      openable.findIndex((item) => item.id === cell.id),
-      messageId,
-      senderId,
+    // INFO: DESIGN.md § 4.7.3. The cell expands into the slide rather than the viewer cutting in over the room. Wrapped around this call alone and not around the whole function — the two branches above save a file and open nothing, and a transition started for either would freeze the room for a frame with no morph in it.
+    startMediaMorph(origin ?? null, () =>
+      mediaTrack.open(
+        openable,
+        openable.findIndex((item) => item.id === cell.id),
+        messageId,
+        senderId,
+      ),
     );
   }
 

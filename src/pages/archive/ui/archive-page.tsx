@@ -4,7 +4,7 @@ import type { ArchiveMedia } from "@/entities/media";
 import { useSetBackground } from "@/features/set-background";
 import { useMediaPicker } from "@/features/upload-media";
 import { CHAT_MESSAGE_PARAM, CHAT_ROUTE, toMediaLabel } from "@/shared/config";
-import { cn, type MediaId, type Nullable } from "@/shared/lib";
+import { cn, startMediaMorph, type MediaId, type Nullable } from "@/shared/lib";
 import {
   downloadMedia,
   isShareableSelection,
@@ -16,6 +16,7 @@ import { AppHeader, EmptyState, IconButton, MediaViewer, toast, type MediaCell }
 import {
   ArchiveGrid,
   ArchiveSelectionBar,
+  findArchiveTile,
   useArchiveMedia,
   useArchiveRemoval,
   useArchiveSelection,
@@ -41,6 +42,14 @@ export type ArchivePageProps = {
 export function ArchivePage({ className, initialMedia, targetId }: ArchivePageProps) {
   const router = useRouter();
   const [viewer, setViewer] = useState<Nullable<{ cells: MediaCell[]; index: number }>>(null);
+  /**
+   * DESIGN.md § 4.7.3. The slide the open viewer is on, handed to the grid so it keeps
+   * a tile for the closing morph within reach.
+   *
+   * WARN: Held here rather than read out of the viewer, because the grid needs it as a prop and the viewer owns the position by id (`REQUIREMENTS.md § 8.1.`).
+   * WARN: **Handed to the grid only while the viewer is open**, and that gate is what makes it safe rather than the clearing. Three separate paths unmount the viewer — 닫기, the 대화에서 보기 jump, and a 삭제 that empties the track — and each one written to clear this as well is a rule that holds until the fourth is added. Left reaching the grid it would re-centre the shelf on a photo nobody is looking at, one `ArchiveGrid` mount later.
+   */
+  const [revealId, setRevealId] = useState<Nullable<MediaId>>(null);
   const {
     media,
     isLoadingMore,
@@ -131,7 +140,11 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
               isSelecting={selection.isSelecting}
               selected={selection.selected}
               targetId={targetId}
-              onOpen={(cells, index) => setViewer({ cells, index })}
+              revealId={viewer ? (revealId ?? undefined) : undefined}
+              // INFO: DESIGN.md § 4.7.3. The tile expands into the slide rather than the viewer cutting in over it; `startMediaMorph` falls back to the plain open wherever the transition cannot run, so there is no branch here.
+              onOpen={(cells, index, origin) =>
+                startMediaMorph(origin, () => setViewer({ cells, index }))
+              }
               onToggle={selection.toggle}
               onSweepTo={selection.sweepTo}
               // WARN: REQUIREMENTS.md § 10. Withheld while an upload is in flight for the same reason the header control is disabled — a row with no message attached yet cannot be deleted out from under the send.
@@ -176,7 +189,11 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
           jump={{ label: "대화에서 보기", Icon: MessageCircle, onSelect: openInChat }}
           // WARN: REQUIREMENTS.md § 10. Withheld while an upload is in flight, for the reason the 선택 control is disabled — a row whose `postMessage` has not settled would be deleted out from under the send.
           deletion={staging.isUploading ? undefined : { label: "삭제", onSelect: askToDeleteSlide }}
+          // INFO: DESIGN.md § 4.7.3. The return journey — the slide collapses back into its tile wherever the grid still has one on screen, and fades where it stands otherwise.
+          findMorphOrigin={findArchiveTile}
           onClose={() => setViewer(null)}
+          // INFO: DESIGN.md § 4.7.3. Keeps the grid on whatever the reader has swiped to, so 닫기 has a tile to shrink into however far the track has carried them.
+          onSlideChange={setRevealId}
           // WARN: REQUIREMENTS.md § 18. #1. Given for the probe, not for a question — a flat library has no bundle to ask about. The `<a href>` this replaces navigated straight at the object, and the other participant's 삭제 reaches rows on this screen with nothing publishing it, so a slide can name an object that is gone: the anchor took a standalone PWA to a JSON 404 with no way back, where `downloadMedia` says so and stays put.
           onDownload={(mediaId) => void downloadMedia([mediaId])}
           onShare={(mediaId) => void saving.share([mediaId])}

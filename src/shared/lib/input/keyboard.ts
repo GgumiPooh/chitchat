@@ -1,4 +1,4 @@
-import { isBrowser } from "../dom";
+import { isBrowser } from "../dom/environment";
 import type { Optional } from "../nullish";
 
 /** The app's shortcut modifier, as it is written in the § 8.14. sheet. */

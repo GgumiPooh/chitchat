@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { isBrowser } from "../dom";
+import { isBrowser } from "../dom/environment";
 
 /**
  * Whether this is an iOS/iPadOS engine.

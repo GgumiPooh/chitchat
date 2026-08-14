@@ -26,7 +26,7 @@ import { useInView } from "react-intersection-observer";
 import { toArchiveCells } from "../model/to-archive-cells";
 import { ARCHIVE_GRID_COLUMNS, toArchiveRows, type ArchiveGridRow } from "../model/to-archive-rows";
 import { useArchiveSweep } from "../model/use-archive-sweep";
-import { ArchiveTile } from "./archive-tile";
+import { ArchiveTile, isTileOnScreen } from "./archive-tile";
 
 export type ArchiveGridProps = {
   className?: string;
@@ -40,8 +40,21 @@ export type ArchiveGridProps = {
   selected: Set<string>;
   /** REQUIREMENTS.md § 10. The tile the shelf was opened on, from `?target=` — consumed once at mount, never re-applied. */
   targetId?: MediaId;
-  /** Given the whole ordered cell list and the tapped index, so the viewer can swipe past the month it started in. */
-  onOpen: (cells: MediaCell[], index: number) => void;
+  /**
+   * DESIGN.md § 4.7.3. The slide the open viewer is on, so this shelf keeps a landing
+   * for its closing morph within reach.
+   *
+   * WARN: Acted on **only where that tile is not already on screen**, which is the whole of the rule. Centring unconditionally would move the shelf under a reader who opened one photo and closed it again — and returning them to exactly where they were is the one thing that case has to do.
+   * WARN: Unlike `targetId` this repeats, and it must: it is a position the reader is moving through rather than a destination a URL named once. It carries no flash for the same reason — nothing has been jumped to, and the tile is under an opaque viewer anyway.
+   */
+  revealId?: MediaId;
+  /**
+   * Given the whole ordered cell list and the tapped index, so the viewer can swipe
+   * past the month it started in.
+   *
+   * INFO: DESIGN.md § 4.7.3. `origin` is the tile's own square, which the viewer's opening morph expands out of. A caller that does not animate simply ignores it.
+   */
+  onOpen: (cells: MediaCell[], index: number, origin: HTMLElement) => void;
   onToggle: (id: string) => void;
   /** REQUIREMENTS.md § 10. Holding a tile picks it and anchors the sweep, entering selection mode if it is not on yet; omitted while selection is unavailable. */
   onSweepStart?: (id: string) => void;
@@ -78,6 +91,7 @@ export function ArchiveGrid({
   isSelecting,
   selected,
   targetId,
+  revealId,
   onOpen,
   onToggle,
   onSweepStart,
@@ -272,6 +286,27 @@ export function ArchiveGrid({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * DESIGN.md § 4.7.3. Brings the open viewer's own slide back under the grid, so the
+   * photo has somewhere to shrink into when the reader closes it.
+   *
+   * INFO: The scroll is invisible — the viewer is an opaque `ShellOverlay` over this whole screen, and § 7.10.'s `touch-pan-x` means the reader cannot be scrolling it themselves at the same time.
+   * WARN: Guarded on the tile already being on screen, not merely rendered. `scrollToIndex` is cheap here (nothing in this grid is measured, § 7.10.) but it is not free of consequence: run for a tile the reader can already see it re-centres the shelf, and they close the viewer onto a grid that has moved for no reason they can name.
+   * INFO: A row the shelf has not paged in yet resolves to `-1` and is simply left alone. `endMediaMorph` reads that as a `dismiss` and the picture leaves with the scrim instead.
+   */
+  useEffect(() => {
+    if (!revealId || isTileOnScreen(revealId)) {
+      return;
+    }
+
+    const index = findRowIndex(rowsRef.current, indexById.get(revealId));
+
+    if (index !== -1) {
+      virtualizer.scrollToIndex(index, { align: "center" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealId]);
+
   // INFO: DESIGN.md § 6.8. The flash is a moment, not a selection — nothing dismisses it but time.
   useEffect(() => {
     if (flashingId === null) {
@@ -359,7 +394,7 @@ export function ArchiveGrid({
             isSelected={selected.has(cell.id)}
             isFlashing={cell.id === flashingId}
             onLongPress={onSweepStart ? (point) => hold(cell.id, point) : undefined}
-            onActivate={() => activate(cell.id, row.startIndex + i)}
+            onActivate={(origin) => activate(cell.id, row.startIndex + i, origin)}
           />
         ))}
       </div>
@@ -435,14 +470,14 @@ export function ArchiveGrid({
     onSweepTo(cells.slice(from, to + 1).map((cell) => cell.id));
   }
 
-  function activate(id: string, index: number) {
+  function activate(id: string, index: number, origin: HTMLElement) {
     if (isSelecting) {
       onToggle(id);
 
       return;
     }
 
-    onOpen(cells, index);
+    onOpen(cells, index, origin);
   }
 }
 

@@ -1,11 +1,24 @@
 "use client";
 
-import { cn, formatDuration } from "@/shared/lib";
+import { cn, formatDuration, type MediaId, type Nullable } from "@/shared/lib";
 import { FileCard, MediaTombstone, PreloadImage, toCellRatio, type MediaCell } from "@/shared/ui";
 import { Play } from "lucide-react";
 import { MEDIA_EDGE_REM, toMediaColumns } from "../model/to-media-box";
 
 const MAX_EDGE = `${MEDIA_EDGE_REM}rem`;
+
+/** DESIGN.md § 4.7.3. The viewer's closing morph has to find the cell it came from, and a bubble is windowed out of the DOM long before the § 8.1. track runs out — so the id is readable off the element rather than held as a ref. */
+const CELL_ID_ATTRIBUTE = "data-chat-media-id";
+
+/**
+ * DESIGN.md § 4.7.3. The cell a media id is currently drawn in, for the viewer to
+ * collapse back into.
+ *
+ * INFO: Answers `null` for most of a conversation, and that is the normal case rather than a failure: REQUIREMENTS.md § 8.3. windows the room on rows, and § 8.1.'s track crosses bubbles that were never on screen. `endMediaMorph` reads an off-screen one the same way.
+ */
+export function findChatMediaCell(mediaId: MediaId): Nullable<HTMLElement> {
+  return document.querySelector<HTMLElement>(`[${CELL_ID_ATTRIBUTE}="${CSS.escape(mediaId)}"]`);
+}
 
 export type MediaGridProps = {
   className?: string;
@@ -13,7 +26,10 @@ export type MediaGridProps = {
   /** `0`–`1` while the bubble uploads; `1` once every byte has landed. */
   progress?: number;
   isPending?: boolean;
-  onOpen?: (index: number) => void;
+  /**
+   * INFO: DESIGN.md § 4.7.3. `origin` is the cell's own box, which the viewer's opening morph expands out of. A file card passes none — it saves rather than opening a viewer.
+   */
+  onOpen?: (index: number, origin?: HTMLElement) => void;
 };
 
 // INFO: REQUIREMENTS.md § 8.1. Branch on count alone — one keeps its own aspect ratio, two or more take a fixed square-cell grid whose height follows from the layout rather than from the images.
@@ -94,7 +110,8 @@ export function MediaGrid({
         className="block w-full cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
         type="button"
         aria-label={cell.isVideo ? "동영상 보기" : "사진 보기"}
-        onClick={() => onOpen?.(0)}
+        {...{ [CELL_ID_ATTRIBUTE]: cell.id }}
+        onClick={(event) => onOpen?.(0, event.currentTarget)}
       >
         {/* WARN: REQUIREMENTS.md § 8.3. The ratio is what reserves the row's height before the asset loads; without it every image that arrives re-measures the list and jolts the scroll. */}
         <span
@@ -132,7 +149,8 @@ export function MediaGrid({
               className="relative aspect-square cursor-pointer overflow-hidden rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
               type="button"
               aria-label={cell.isVideo ? "동영상 보기" : "사진 보기"}
-              onClick={() => onOpen?.(index)}
+              {...{ [CELL_ID_ATTRIBUTE]: cell.id }}
+              onClick={(event) => onOpen?.(index, event.currentTarget)}
             >
               <PreloadImage
                 className="size-full"

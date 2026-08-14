@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { isBrowser } from "../dom";
+import { isBrowser } from "../dom/environment";
 
 /**
  * Whether the app is running installed rather than in a browser tab.

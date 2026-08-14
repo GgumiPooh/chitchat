@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { isEditableElement } from "../dom";
+import { isEditableElement } from "../dom/environment";
 import { useIsCoarsePointer } from "./use-is-coarse-pointer";
 
 // INFO: A collapsing address bar shrinks the viewport by roughly 60–80px; only a larger drop can be a keyboard.

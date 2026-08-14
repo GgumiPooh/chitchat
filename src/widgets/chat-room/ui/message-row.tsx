@@ -60,7 +60,8 @@ export type MessageRowProps = {
   onLongPress?: () => void;
   /** REQUIREMENTS.md § 13.9. A tap on the emoticon, which opens the picker where that emoticon is. */
   onFollowEmoticon?: () => void;
-  onOpenMedia?: (index: number) => void;
+  /** INFO: DESIGN.md § 4.7.3. `origin` is the cell the viewer's opening morph expands out of; a file attachment passes none. */
+  onOpenMedia?: (index: number, origin?: HTMLElement) => void;
   /** REQUIREMENTS.md § 8.10. The pointer affordance; touch reaches the same action through `onLongPress`. */
   onReply?: () => void;
   /** REQUIREMENTS.md § 8.11. As `onReply`: the hover control here, the action sheet on touch. Omitted for a message with nothing to hand the OS. */
