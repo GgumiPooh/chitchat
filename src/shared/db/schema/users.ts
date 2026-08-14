@@ -19,8 +19,9 @@ export const users = pgTable("users", {
     (): AnyPgColumn => media.id,
     { onDelete: "set null" },
   ),
-  // TODO: RESTRUCTURE.md § 3.5. Replaced by `last_read_message_id` below. Declared only until migration B drops it — the drop is a § 6. rule 1 migration and must not run until the build that stopped reading it is live.
-  lastReadAt: timestamp("last_read_at", { withTimezone: true }).notNull(),
+  // TODO: RESTRUCTURE.md § 3.5. Replaced by `last_read_message_id` below, and dropped in the change after this one. Nothing reads it and only `upsert-google-user` still writes it.
+  // WARN: § 6. rule 3. The `NOT NULL` is relaxed **first, in its own migration**, and that is not ceremony: a build that stops naming this column still inserts a user through § 5.4.'s dev login, which is exactly how the third `users` row got here — so the window between deploying that build and running the drop would answer `23502` rather than being unreachable. Relaxed, the column tolerates both builds and the drop needs no window at all.
+  lastReadAt: timestamp("last_read_at", { withTimezone: true }),
   // INFO: RESTRUCTURE.md § 3.5. The read cursor was always a message rather than an instant, and saying so is what lets § 8.8. compare `messages.id > last_read_message_id` — id to id, with no clock and no conversion in SQL.
   // WARN: Nullable, and NULL is "never read, therefore everything is unread". That is the same fact `last_read_at` carried by having no `defaultNow()`: joining a new user at the live edge would mark every message sent before their first login as already read.
   // WARN: No foreign key, deliberately. `messages` already imports this module, so a reference here is the cycle `emoticon_packs.thumbnail_item_id` has to be patched in by a separate ALTER — and it would buy nothing, since `messages` is append-only (§ 6.) and a cursor can only ever name a row that still exists.

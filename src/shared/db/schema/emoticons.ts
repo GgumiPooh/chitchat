@@ -1,4 +1,4 @@
-import type { EmoticonItemId, EmoticonPackId, UserId } from "@/shared/lib";
+import type { EmoticonItemId, EmoticonPackId, MediaId, UserId } from "@/shared/lib";
 import {
   boolean,
   index,
@@ -12,6 +12,7 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { snowflake } from "../types";
+import { media } from "./media";
 import { users } from "./users";
 
 // INFO: REQUIREMENTS.md § 13. Packs are authored in the app, never seeded — there is no `scripts/seed-emoticons.ts`.
@@ -38,7 +39,14 @@ export const emoticonItems = pgTable(
     packId: snowflake<EmoticonPackId>("pack_id")
       .notNull()
       .references(() => emoticonPacks.id, { onDelete: "cascade" }),
+    // INFO: RESTRUCTURE.md § 5.2. The three slots an emoticon's assets become, added nullable and read by nothing yet — § 5.'s code phase is what fills them, and the § 5.5. backfill is what gives an existing item its still.
+    // WARN: § 5.2.'s `CHECK (still_image_id IS NOT NULL OR animated_image_id IS NOT NULL)` is deliberately **not** here. A CHECK validates the rows that already exist, and all 757 of them hold NULL in both columns until the backfill has run — added now it fails the migration outright. It belongs with § 6.'s migration D, after the backfill.
+    // WARN: No `onDelete`, so NO ACTION blocks removing a `media` row an item still draws from. `set null` is the tempting alternative and is wrong for the reason `retired_at` records one line down: it would resolve the constraint by silently emptying a slot every bubble in the history renders from.
+    stillImageId: snowflake<MediaId>("still_image_id").references(() => media.id),
+    animatedImageId: snowflake<MediaId>("animated_image_id").references(() => media.id),
+    audioId: snowflake<MediaId>("audio_id").references(() => media.id),
     // INFO: REQUIREMENTS.md § 13.3. The R2 key itself, not a `media` row — an emoticon is neither library content nor a thumbnailed pair.
+    // TODO: RESTRUCTURE.md § 5.2. Replaced by the three slots above; dropped in migration D once the backfill has filled them and § 5.'s code has stopped reading these.
     r2Key: text("r2_key").notNull().unique(),
     // INFO: REQUIREMENTS.md § 13.2. One image slot for both kinds — an animated GIF or WebP is stored here exactly as a PNG is, and the renderer never branches on which it got.
     mime: text("mime").notNull(),
