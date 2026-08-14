@@ -26,7 +26,7 @@ export type ChatBackdropProps = {
  * `chat-scrim` wash.
  *
  * WARN: The wash is not decoration. Every meta colour in the room — `chat-meta`,
- * the date pill, `읽음` — was picked for contrast against `chat-canvas`
+ * the date pill, `수정됨` — was picked for contrast against `chat-canvas`
  * (DESIGN.md § 4.1.), and a photo underneath them is an arbitrary colour. The wash
  * is what puts them back on the surface they were designed against, which is why it
  * is fixed rather than a slider: a user-chosen opacity has a setting at which the

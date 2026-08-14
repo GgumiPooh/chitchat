@@ -10,7 +10,7 @@
   /* INFO: Surfaces — DESIGN.md § 4.1.1. */
   --color-canvas: #fbf9f6;
   --color-chat-canvas: #efeae2;
-  /* WARN: REQUIREMENTS.md § 12.2. The wash over a chat wallpaper, and it is a token rather than a `chat-canvas/50` at the call site so the dark theme can move it. Every meta colour in the room — `chat-meta`, the date pill, 읽음 — was chosen against `chat-canvas`, and this is what keeps them on it. */
+  /* WARN: REQUIREMENTS.md § 12.2. The wash over a chat wallpaper, and it is a token rather than a `chat-canvas/50` at the call site so the dark theme can move it. Every meta colour in the room — `chat-meta`, the date pill, 수정됨 — was chosen against `chat-canvas`, and this is what keeps them on it. */
   --color-chat-scrim: #efeae2;
   --color-surface-soft: #f4f0e9;
   --color-surface-strong: #eae4da;

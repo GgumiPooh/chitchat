@@ -19,7 +19,7 @@ export type Participant = {
    *
    * INFO: RESTRUCTURE.md § 3.5. A message rather than the instant it used to be. The
    * cursor was always naming a message, and saying so lets both the badge and § 8.13.'s
-   * 읽음 mark compare id to id, with no clock and no parsing on either side.
+   * unread count compare id to id, with no clock and no parsing on either side.
    */
   lastReadMessageId: Nullable<MessageId>;
   id: UserId;

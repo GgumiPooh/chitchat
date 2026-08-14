@@ -46,8 +46,8 @@ export type MessageRowProps = {
   isMine: boolean;
   isFirstOfGroup: boolean;
   isLastOfGroup: boolean;
-  /** REQUIREMENTS.md § 8.8. Set on the newest of my messages the other participant's read cursor has passed. */
-  isRead?: boolean;
+  /** REQUIREMENTS.md § 8.8. How many participants have yet to read this message. `0` draws nothing — the marker counts down and disappears rather than settling on a read state. */
+  unreadCount?: number;
   /** REQUIREMENTS.md § 8.13. The sender has corrected the text since sending it. */
   isEdited?: boolean;
   /** REQUIREMENTS.md § 8.13. Withdrawn by its sender. The bubble keeps its place and reads `삭제된 메시지예요`; every other prop but `createdAt` and the grouping flags is ignored. */
@@ -85,7 +85,7 @@ export function MessageRow({
   isMine,
   isFirstOfGroup,
   isLastOfGroup,
-  isRead = false,
+  unreadCount = 0,
   isEdited = false,
   isDeleted = false,
   isHighlighted = false,
@@ -273,15 +273,24 @@ export function MessageRow({
               />
             </div>
           ) : (
-            (isLastOfGroup || isRead || isEdited) && (
-              // INFO: DESIGN.md § 6.3. One timestamp per minute-group, on its last bubble; § 8.8.'s 읽음 and § 8.13.'s 수정됨 stack above it on the bubbles that carry them.
+            (isLastOfGroup || unreadCount > 0 || isEdited) && (
+              // INFO: DESIGN.md § 6.3. One timestamp per minute-group, on its last bubble; § 8.8.'s unread count and § 8.13.'s 수정됨 stack above it on the bubbles that carry them.
               // WARN: REQUIREMENTS.md § 8.3. A fixed `w-14`, wide enough for the longest `오후 12:34`. It is beside the bubble rather than under it, so its width comes off the width the text wraps in — left to size itself, the § 8.3. row estimate would have to re-measure a string it cannot see, and would flip a whole line wherever it guessed wrong.
               // WARN: `whitespace-nowrap` guards the fixed width above. `오후 12:34` clears 56px only just, and the app's font is `display: swap` — a wider fallback on the first paint would wrap the time onto a second line, breaking § 6.3.'s one-line rule and the § 8.3. estimate that trusts it. Invisible to a developer whose webfont is already cached.
               // INFO: DESIGN.md § 7.16. The clock keeps `chat-meta`'s quiet tone and takes the lift instead — over a wallpaper it is unreadable for the same reason the name was, but making it darker would give it emphasis it is not owed.
               <div className="flex w-14 shrink-0 flex-col items-end text-chat-time whitespace-nowrap text-chat-meta">
                 {/* INFO: REQUIREMENTS.md § 8.13. Beside the bubble rather than inside it — the § 8.3. estimate wraps the body text in one font, and a label of another size sharing that measurement is exactly what it cannot express. Here it is a whole line whose height is already known. */}
                 {isEdited && <span>수정됨</span>}
-                {isRead && <span>읽음</span>}
+                {/* INFO: REQUIREMENTS.md § 8.8. KakaoTalk's own marker — how many have yet to read it, gone entirely at zero rather than turning into a read state. `unread` is the token the tab-bar badge already uses (DESIGN.md § 4.1.4.), so the one number in the room that counts something live is the one thing here not in `chat-meta`. */}
+                {/* WARN: `tabular-nums` so a count that changes under the reader cannot change the line's width, and `aria-label` because a bare digit beside a bubble reads as nothing to a screen reader. */}
+                {unreadCount > 0 && (
+                  <span
+                    className="text-unread tabular-nums"
+                    aria-label={`읽지 않음 ${unreadCount}`}
+                  >
+                    {unreadCount}
+                  </span>
+                )}
                 {isLastOfGroup && <time dateTime={createdAt}>{formatTime(createdAt)}</time>}
               </div>
             )

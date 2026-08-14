@@ -420,10 +420,18 @@ export function ChatRoom({
     () => buildChatRows({ messages, pending, currentUserId }),
     [messages, pending, currentUserId],
   );
-  // INFO: REQUIREMENTS.md § 8.8. The cursor is the other participant's `last_read_at`, which the § 8.4. stream already keeps current — 읽음 lands without a request of its own.
-  const lastReadMineId = useMemo(
-    () => findLastReadMineId(messages, currentUserId, participants),
-    [messages, currentUserId, participants],
+  // INFO: REQUIREMENTS.md § 8.8. Every participant's cursor but my own, which the § 8.4. stream already keeps current — the count lands without a request of its own.
+  // INFO: Resolved once rather than per row: the count is a fold over this array, and it is the same array for every bubble in the room.
+  const readerCursors = useMemo(
+    () =>
+      participants
+        .filter((participant) => participant.id !== currentUserId)
+        .map((participant) => participant.lastReadMessageId),
+    [participants, currentUserId],
+  );
+  const countUnreadReaders = useCallback(
+    (message: ChatMessage) => toUnreadReaderCount(message, currentUserId, readerCursors),
+    [currentUserId, readerCursors],
   );
   const queryClient = useQueryClient();
   // INFO: REQUIREMENTS.md § 8.3. A cache read, never a subscription — this answers the row estimate below, which runs for rows that are nowhere near the DOM.
@@ -447,9 +455,9 @@ export function ChatRoom({
           participantById.get(message.senderId)?.name,
         ),
       // INFO: REQUIREMENTS.md § 8.8. The same test `renderRow` uses, so the estimate knows the row has a column beside it.
-      isRead: (message: ChatMessage) => message.id === lastReadMineId,
+      countUnreadReaders,
     }),
-    [scroller, scrollerWidth, readPreview, participantById, lastReadMineId],
+    [scroller, scrollerWidth, readPreview, participantById, countUnreadReaders],
   );
   // WARN: Written during render rather than in an effect, and read through a ref rather than closed over. `getItemKey` has to be one stable function: virtual-core memoizes the whole measurement pass on its identity, and a fresh closure per render re-runs `estimateSize` for every row that is not currently mounted — thousands of canvas text layouts on every SSE tick. It also has to see *this* render's rows, which `rowsRef` is deliberately one commit behind on.
   const keyedRowsRef = useRef(rows);
@@ -1752,7 +1760,7 @@ export function ChatRoom({
             isMine={row.isMine}
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
-            isRead={row.message.id === lastReadMineId}
+            unreadCount={countUnreadReaders(row.message)}
             isEdited={row.message.editedAt !== null}
             isHighlighted={row.message.id === highlightedId}
             searchQuery={searchQuery}
@@ -2274,38 +2282,34 @@ export function ChatRoom({
 }
 
 /**
- * REQUIREMENTS.md § 8.8. The newest of my messages the other participant has read.
+ * REQUIREMENTS.md § 8.8. How many participants have still not read this message —
+ * KakaoTalk's own marker, which counts down and disappears at zero.
  *
- * INFO: Only that one carries 읽음 — every read bubble saying so repeats the same
- * fact once per row, and the newest one already implies all of them.
+ * INFO: A fold over the readers' cursors rather than a per-message read receipt. That
+ * is what makes the marker cost nothing to compute and nothing to store: a cursor is
+ * one id per participant, and every message is behind it or ahead of it.
+ *
+ * INFO: With two participants the fold is `1` or `0`, which is the `1` beside an unread
+ * bubble and no column at all once it has been read.
+ *
+ * WARN: `compareId`, never `<`. Both sides are branded id strings, and `CLAUDE.md § 3.2.`
+ * forbids comparing those with an operator — it works today only because every id this
+ * layout mints is the same width.
  */
-function findLastReadMineId(
-  messages: ChatMessage[],
+function toUnreadReaderCount(
+  message: ChatMessage,
   currentUserId: UserId,
-  participants: Participant[],
-): Nullable<MessageId> {
-  const other = participants.find((participant) => participant.id !== currentUserId);
-
-  if (!other) {
-    return null;
+  readerCursors: Nullable<MessageId>[],
+): number {
+  // INFO: DESIGN.md § 6.3. `mine` only — the marker says who has yet to read what I sent, and nobody is waiting on their own message.
+  // INFO: REQUIREMENTS.md § 8.13. A tombstone carries no marker at all: it says nothing that could be read.
+  if (message.senderId !== currentUserId || message.isDeleted) {
+    return 0;
   }
 
-  const readId = other.lastReadMessageId;
-
-  if (!readId) {
-    return null;
-  }
-
-  // INFO: REQUIREMENTS.md § 8.13. A tombstone never carries 읽음 — it says nothing that could have been read — so the mark falls back to the newest of my messages that still does.
-  // WARN: RESTRUCTURE.md § 3.5. `compareId`, never `<=`. Both sides are branded id strings here, and `CLAUDE.md § 3.2.` forbids comparing those with an operator — it works today only because every id this layout mints is the same width.
-  const read = messages.filter(
-    (message) =>
-      message.senderId === currentUserId &&
-      !message.isDeleted &&
-      compareId(message.id, readId) <= 0,
-  );
-
-  return read.at(-1)?.id ?? null;
+  // INFO: § 8.8. A null cursor is "has read nothing", which counts — the column means everything is unread rather than that the reader is absent.
+  return readerCursors.filter((cursor) => cursor === null || compareId(cursor, message.id) < 0)
+    .length;
 }
 
 // WARN: Constant height in both states — a header that grows when the fetch starts shifts the very scroll position § 8.3. exists to hold still.

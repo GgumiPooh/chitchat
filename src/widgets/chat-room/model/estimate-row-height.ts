@@ -92,8 +92,16 @@ export type RowEstimateContext = {
   readPreview: PreviewReader;
   /** REQUIREMENTS.md § 11.5. The notice a system row renders, which is composed from the live nickname and so cannot be derived from the message alone. */
   readNotice: NoticeReader;
-  /** REQUIREMENTS.md § 8.8. Whether this is the one message carrying 읽음, which is resolved against the other participant's cursor rather than stored on the row. */
-  isRead: (message: ChatMessage) => boolean;
+  /**
+   * REQUIREMENTS.md § 8.8. How many participants have yet to read this message, which
+   * is resolved against their cursors rather than stored on the row.
+   *
+   * WARN: Only whether it is **zero** reaches the height — the marker is one line in the
+   * § 6.3. stack whatever the digit is, and `TIME_SLOT`'s 56px is sized for `오후 12:34`,
+   * which no count this app can produce comes near. A marker that ever wrapped, or that
+   * grew wide enough to move the width the text wraps in, would break that.
+   */
+  countUnreadReaders: (message: ChatMessage) => number;
 };
 
 /** @see RowEstimateContext.readNotice */
@@ -103,7 +111,7 @@ const DEFAULT_CONTEXT: RowEstimateContext = {
   fontFamily: "",
   readPreview: () => undefined,
   readNotice: () => "",
-  isRead: () => false,
+  countUnreadReaders: () => 0,
 };
 
 // INFO: The half of a message a height follows from — `ChatMessage` and `PendingMessage` differ elsewhere, and an optimistic bubble is drawn at exactly the size the sent one will be.
@@ -143,7 +151,7 @@ const TOMBSTONE_PAYLOAD: Payload = {
 
 type RowFlags = {
   isFirstOfGroup: boolean;
-  /** DESIGN.md § 6.3. How many lines stand in the column beside the bubble: the timestamp, § 8.8.'s 읽음, § 8.13.'s 수정됨, or any of them stacked. Zero when none is there. */
+  /** DESIGN.md § 6.3. How many lines stand in the column beside the bubble: the timestamp, § 8.8.'s unread count, § 8.13.'s 수정됨, or any of them stacked. Zero when none is there. */
   besideLines: number;
 };
 
@@ -176,22 +184,23 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
       if (row.message.isDeleted) {
         return estimateMessageRow(TOMBSTONE_PAYLOAD, row.isMine, context, {
           isFirstOfGroup: row.isFirstOfGroup,
-          // INFO: § 8.13. The timestamp and nothing else — a tombstone carries neither 읽음 nor 수정됨.
+          // INFO: § 8.13. The timestamp and nothing else — a tombstone carries neither the unread count nor 수정됨.
           besideLines: Number(row.isLastOfGroup),
         });
       }
 
       return estimateMessageRow(row.message, row.isMine, context, {
         isFirstOfGroup: row.isFirstOfGroup,
-        // INFO: REQUIREMENTS.md § 8.8. 읽음 and the timestamp stack in one `flex-col`, so the newest read message of mine is two lines rather than one — and 읽음 alone puts the column beside a bubble that is not its group's last.
+        // INFO: REQUIREMENTS.md § 8.8. The unread count and the timestamp stack in one `flex-col`, so an unread message of mine is two lines rather than one — and the count alone puts the column beside a bubble that is not its group's last.
+        // WARN: § 8.8. The count is **one line or none**, never a line per reader, so this stays a `Number()` of a predicate. It is also why the marker moved from 읽음 — which sat on one bubble — to a mark on every unread one: the rows that carry the column changed, and the arithmetic did not.
         // INFO: REQUIREMENTS.md § 8.13. 수정됨 is a third line in the same stack, which is the whole reason it was put there: `LINE.time()` already prices it, and `수정됨` clears `TIME_SLOT`'s 56px with room to spare so the width the text wraps in does not move.
         besideLines:
           Number(row.isLastOfGroup) +
-          Number(context.isRead(row.message)) +
+          Number(context.countUnreadReaders(row.message) > 0) +
           Number(row.message.editedAt !== null),
       });
     case "pending":
-      // INFO: An optimistic bubble is always mine, so it never carries the avatar column or a sender name — nor 읽음, since it has not been sent.
+      // INFO: An optimistic bubble is always mine, so it never carries the avatar column or a sender name — nor the unread count, since it has not been sent and nobody could have read it.
       return estimateMessageRow(row.pending, true, context, {
         isFirstOfGroup: row.isFirstOfGroup,
         besideLines: Number(row.isLastOfGroup),
