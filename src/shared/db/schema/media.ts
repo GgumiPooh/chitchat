@@ -1,7 +1,7 @@
 import { MEDIA_KINDS, MEDIA_SCOPES, type MediaKind, type MediaScope } from "@/shared/config";
 import type { MediaId, UserId } from "@/shared/lib";
 import { sql } from "drizzle-orm";
-import { check, index, integer, pgTable, smallint, text, timestamp } from "drizzle-orm/pg-core";
+import { check, integer, pgTable, smallint, text, timestamp } from "drizzle-orm/pg-core";
 import { snowflake } from "../types";
 import { users } from "./users";
 
@@ -35,22 +35,14 @@ export const media = pgTable(
     // WARN: § 9.3. Required for a voice message — the § 8.3. box is fixed, but the player's progress is drawn against this figure and a null reads as a waveform that never moves.
     durationMs: integer("duration_ms"),
     blurhash: text("blurhash"),
-    // TODO: RESTRUCTURE.md § 2.8. Read and written nowhere in either repository since `0001`. Declared only until a follow-up change drops it — the drop must not run until the build that stopped naming it is live.
-    takenAt: timestamp("taken_at", { withTimezone: true }),
     // INFO: REQUIREMENTS.md § 10. Set only for an object uploaded straight into the library. Everything else earns its place there by hanging off a live message, and an object that has neither is an abandoned upload rather than a photo.
     archiveAddedAt: timestamp("archive_added_at", { withTimezone: true }),
     // INFO: REQUIREMENTS.md § 18. #1. 보관함에서 숨기기, which either participant may do (RESTRUCTURE.md § 4.1.) — the shelf is shared. The bubble the object was sent in keeps rendering it, and the bytes are never touched (§ 4.2.).
     archiveHiddenAt: timestamp("archive_hidden_at", { withTimezone: true }),
     // INFO: RESTRUCTURE.md § 4.3. 완전 삭제, which only the uploader may do. Soft, because `message_media`'s FK and § 8.13.'s resume reconciliation both need the row to survive — only the R2 objects are really removed.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
-    // TODO: RESTRUCTURE.md § 2.8. The two `gallery_*` columns `archive_*` replaced, and § 3.3.'s `created_at`. Declared only until a follow-up change drops all three, for `taken_at`'s reason.
-    galleryAddedAt: timestamp("gallery_added_at", { withTimezone: true }),
-    galleryHiddenAt: timestamp("gallery_hidden_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }).notNull().defaultNow(),
   },
-  (table) => [
-    // TODO: RESTRUCTURE.md § 3.4. Dropped with the columns above — the ordering is `id DESC` alone now, which the primary key already serves.
-    index("media_created_at_id_idx").on(table.createdAt.desc(), table.id.desc()),
+  () => [
     // WARN: RESTRUCTURE.md § 2.5. The kind's shape is held here rather than in `registerMedia` alone. That function still validates — it has to tell the user *why* — but two deployments write this table and neither can be the guarantee.
     check("media_kind_check", sql`"kind" in ${sql.raw(toSqlList(MEDIA_KINDS))}`),
     check("media_scope_check", sql`"scope" in ${sql.raw(toSqlList(MEDIA_SCOPES))}`),

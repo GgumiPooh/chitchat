@@ -29,8 +29,6 @@ export const emoticonPacks = pgTable("emoticon_packs", {
       onDelete: "set null",
     },
   ),
-  // TODO: RESTRUCTURE.md § 3.3. Superseded by the id, which carries its own timestamp, and read by nothing. It stays **declared** only so the schema matches the database until a follow-up change drops it — the drop is a § 6. rule 1 migration and must not run until the build that stopped naming it is live. Delete this line, `pnpm db:generate`, then migrate.
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const emoticonItems = pgTable(
@@ -54,8 +52,6 @@ export const emoticonItems = pgTable(
     keywords: text("keywords").array().notNull().default([]),
     // INFO: REQUIREMENTS.md § 13.1. Authoring order, shared by both users — item order is deliberately not per-user.
     sortOrder: smallint("sort_order").notNull(),
-    // TODO: RESTRUCTURE.md § 3.3. Superseded by the id, which carries its own timestamp, and read by nothing. It stays **declared** only so the schema matches the database until a follow-up change drops it — the drop is a § 6. rule 1 migration and must not run until the build that stopped naming it is live. Delete this line, `pnpm db:generate`, then migrate.
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     // WARN: REQUIREMENTS.md § 13.4. What the asset URL is versioned by. Editing an item swaps its R2 keys under an unchanged item id, and the asset redirect is cached (§ 9.), so without this the old image survives the edit.
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     // INFO: RESTRUCTURE.md § 4.4. 목록에서 내리기, which either participant may do — the picker is shared vocabulary. The item leaves the picker, search and 최근 사용, and every bubble that already carries it renders exactly as before.

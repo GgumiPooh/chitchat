@@ -19,13 +19,6 @@ export const users = pgTable("users", {
     (): AnyPgColumn => media.id,
     { onDelete: "set null" },
   ),
-  // TODO: REQUIREMENTS.md § 12.2. Dead — the wallpaper moved to `chat_settings` in `0025` and nothing reads or writes this any more. It stays **declared** only so the schema matches the database until `0026` drops it: the drop is a § 6. rule 1 migration that must not run until this build is live, and `pnpm db:migrate` applies every pending file in one go, so shipping the drop beside `0025` is the one sequence that takes the site down. Delete these four lines, `pnpm db:generate`, then migrate.
-  chatBackgroundMediaId: snowflake<MediaId>("chat_background_media_id").references(
-    (): AnyPgColumn => media.id,
-    {
-      onDelete: "set null",
-    },
-  ),
   // TODO: RESTRUCTURE.md § 3.5. Replaced by `last_read_message_id` below. Declared only until migration B drops it — the drop is a § 6. rule 1 migration and must not run until the build that stopped reading it is live.
   lastReadAt: timestamp("last_read_at", { withTimezone: true }).notNull(),
   // INFO: RESTRUCTURE.md § 3.5. The read cursor was always a message rather than an instant, and saying so is what lets § 8.8. compare `messages.id > last_read_message_id` — id to id, with no clock and no conversion in SQL.
@@ -34,8 +27,6 @@ export const users = pgTable("users", {
   lastReadMessageId: snowflake<MessageId>("last_read_message_id"),
   // INFO: REQUIREMENTS.md § 8.12. Governs whether this user *broadcasts* 입력 중, never whether they are typing right now — that signal is never stored.
   typingIndicatorEnabled: boolean("typing_indicator_enabled").notNull().default(true),
-  // TODO: RESTRUCTURE.md § 3.3. Superseded by the id, which carries its own timestamp, and read by nothing. It stays **declared** only so the schema matches the database until a follow-up change drops it — the drop is a § 6. rule 1 migration and must not run until the build that stopped naming it is live, and `pnpm db:migrate` applies every pending file in one go. Delete this line, `pnpm db:generate`, then migrate.
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export type User = typeof users.$inferSelect;

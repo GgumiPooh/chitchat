@@ -246,6 +246,13 @@
       "when": 1786723190616,
       "tag": "0034_fixed_warhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786732157837,
+      "tag": "0035_slippery_infant_terrible",
+      "breakpoints": true
     }
   ]
 }
