@@ -7,6 +7,7 @@ import {
   cn,
   isBareKey,
   isCommandKey,
+  isShiftKey,
   type EmoticonItemId,
   type Nullable,
   type Optional,
@@ -104,6 +105,20 @@ const CELL_KEYBOARD_RING =
 /** REQUIREMENTS.md § 8.14. `CELL_KEYBOARD_RING` for the tabs, which carry no fill of their own — the selected one already has `bg-primary-tint`. */
 const TAB_KEYBOARD_RING = "focus:ring-2 focus:ring-primary focus:outline-none";
 
+/**
+ * REQUIREMENTS.md § 8.14. A request to put focus inside the panel, and whether the
+ * hand that made it was on the keyboard.
+ */
+export type EmoticonFocusRequest = {
+  /** Bumped per request; `0` asks for nothing. */
+  token: number;
+  /** Whether the focus rings should be painted on arrival — see `EmoticonPickerProps.focusRequest`. */
+  viaKeyboard: boolean;
+};
+
+// INFO: A module constant so the default prop is one identity rather than a fresh object per render, which the focus effect below is keyed on.
+const NO_FOCUS_REQUEST: EmoticonFocusRequest = { token: 0, viaKeyboard: false };
+
 export type EmoticonPickerProps = {
   className?: string;
   /**
@@ -114,11 +129,14 @@ export type EmoticonPickerProps = {
    */
   isOpen: boolean;
   /**
-   * REQUIREMENTS.md § 8.14. Bumped by the room's `⌘E` to put focus inside this panel —
-   * one opened by a key is one nothing has focused, and the arrows cannot reach it.
-   * `0` is the resting value and asks for nothing.
+   * REQUIREMENTS.md § 8.14. Bumped by whatever opened this panel, to put focus inside
+   * it — a panel nothing has focused is one the arrows cannot reach, whichever way it
+   * was opened. A `token` of `0` is the resting value and asks for nothing.
+   *
+   * WARN: **Every** open bumps it, not only `⌘E`. The toggle is a `button`, so a mouse open leaves focus on the composer's own control and the whole panel is unreachable from the keyboard until the user finds their way back in with `Tab` — which is the bug this shape exists to answer, and the reason `viaKeyboard` rides along rather than being assumed.
+   * INFO: `viaKeyboard` decides the **ring** and nothing else (`isKeyboardDriven`). A pointer open focuses a cell silently: `:focus-visible` would not have painted for that user anyway, and a grid lit up by a mouse click is noise. The first key pressed inside the panel turns the rings on through `noteKeyboardUse`.
    */
-  focusRequest?: number;
+  focusRequest?: EmoticonFocusRequest;
   /**
    * REQUIREMENTS.md § 13.8. A word tapped in the composer, which opens the search
    * tab with the field already holding it.
@@ -158,7 +176,7 @@ export type EmoticonPickerProps = {
 export function EmoticonPicker({
   className,
   isOpen,
-  focusRequest = 0,
+  focusRequest = NO_FOCUS_REQUEST,
   searchRequest,
   revealRequest,
   onSearchTabChange,
@@ -376,11 +394,12 @@ export function EmoticonPicker({
    * the caret back out of the field.
    */
   useLayoutEffect(() => {
-    if (focusRequest !== 0 && focusRequest !== satisfiedFocusRequestRef.current) {
-      satisfiedFocusRequestRef.current = focusRequest;
+    if (focusRequest.token !== 0 && focusRequest.token !== satisfiedFocusRequestRef.current) {
+      satisfiedFocusRequestRef.current = focusRequest.token;
       pendingEntryRef.current = { index: 0 };
-      // WARN: § 8.14. A focus request only ever comes from a key, and `noteKeyboardUse` cannot hear that one — ⌘E is pressed with focus outside this panel, so the event never travels through it. Left unsaid, the cell this is about to focus paints no ring: `:focus-visible` judges a programmatic focus by whether the *previously* focused element had it, and on a freshly loaded page that is `<body>`, which never does. Reaching the panel from the composer hid it, a text field always matching.
-      setIsKeyboardDriven(true);
+      // WARN: § 8.14. `noteKeyboardUse` cannot hear the key that opened the panel — ⌘E is pressed with focus outside it, so the event never travels through it. Left unsaid, the cell this is about to focus paints no ring: `:focus-visible` judges a programmatic focus by whether the *previously* focused element had it, and on a freshly loaded page that is `<body>`, which never does. Reaching the panel from the composer hid it, a text field always matching.
+      // WARN: § 8.14. And it is set from the request rather than to `true`, because a pointer open makes one of these too now. The panel outlives every close, so a stale `true` from an earlier ⌘E would light the whole grid up for a mouse the moment it reopened.
+      setIsKeyboardDriven(focusRequest.viaKeyboard);
     }
 
     const entry = pendingEntryRef.current;
@@ -401,7 +420,7 @@ export function EmoticonPicker({
     }
     // WARN: `enterTab` is deliberately not a dependency. It closes over this render's tab and list, which is exactly what the deps below already state — listed, it would re-run the focus on every render of an open panel.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, focusRequest, isOpen, shown.length]);
+  }, [activeTab, focusRequest.token, isOpen, shown.length]);
 
   // WARN: § 13.8. The room exempts this tab from § 13.6.'s keyboard gate, so it has to be told on every change — reported off the tab rather than off the field's focus, or the frame between a blur and the keyboard actually retracting closes the panel underneath the user.
   useEffect(() => {
@@ -418,7 +437,7 @@ export function EmoticonPicker({
         isSearching ? "h-(--emoticon-search-panel-height)" : "h-(--emoticon-panel-height)",
         className,
       )}
-      onKeyDown={noteKeyboardUse}
+      onKeyDown={handlePanelKeys}
       // WARN: § 8.14. Capture, because the results row stops `pointerdown` propagating while it still has somewhere to scroll (`keepAxisWhileScrollable`) — bubbled, the one scroller a drag most often starts in would never report the pointer taking over.
       onPointerDownCapture={() => setIsKeyboardDriven(false)}
     >
@@ -685,6 +704,67 @@ export function EmoticonPicker({
    */
   function noteKeyboardUse() {
     setIsKeyboardDriven(true);
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.14. Every key pressed anywhere in the panel passes here: it
+   * turns the focus rings on, and it answers `⇧←/→` — the pack turn, from wherever
+   * inside the panel the user happens to be standing.
+   *
+   * INFO: The bare `←`/`→` already turn the pack, but only from the strip or off the end of a row. This is the same journey without having to be at an edge to make it, which is what a strip of forty packs needs.
+   * WARN: `Shift` alone, and the modifier is not a free choice: `⌘←/→` is browser Back and Forward on macOS, `⌥←/→` is word-motion and Back/Forward on Windows, `⌃←/→` is Spaces — the same survey § 8.14. ran for the tab switch, with the same one survivor.
+   * WARN: Never inside a text field. `Shift` plus an arrow is how every field on every platform extends a selection, and § 13.8.'s query is a field the user is typing into — so the search tab reaches this from its results row rather than from the input, by way of `↓`.
+   */
+  function handlePanelKeys(event: KeyboardEvent<HTMLDivElement>) {
+    noteKeyboardUse();
+
+    if (
+      event.defaultPrevented ||
+      event.nativeEvent.isComposing ||
+      !isShiftKey(event) ||
+      (event.key !== "ArrowLeft" && event.key !== "ArrowRight") ||
+      isTextField(event.target)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    turnPage(event.target, event.key === "ArrowRight" ? 1 : -1);
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.14. Turns the pack and leaves focus somewhere it can carry on
+   * from, which is a different place depending on where the key was pressed.
+   *
+   * INFO: On a cell it is the ordinary page turn (`crossToAdjacentTab`), so the reader lands on the same row at the opposite edge and neither the eye nor the scroller moves for it. On the strip it walks the strip, exactly as the bare arrows there do. Anywhere else there is nothing focused to preserve, so the tab simply changes.
+   */
+  function turnPage(target: EventTarget, direction: SwipeDirection) {
+    const strip = tabStripRef.current;
+    const scroller = cellScrollerRef.current;
+    const node = target instanceof Node ? target : null;
+
+    if (strip && node && strip.contains(node)) {
+      // WARN: `activeIndex < 0` is the window before the packs land, where the remembered tab is in no list — `goToAdjacentTab` refuses it for that reason, and stepping from `-1` here resolved to `tabIds[0]` and opened 검색, which nothing else arrives at by accident.
+      const next = activeIndex < 0 ? -1 : activeIndex + direction;
+
+      if (tabIds[next]) {
+        // WARN: § 13.8. `claimsField: false`, as the strip's own arrows pass — a walk that lands on 검색 must not have the field take the keyboard out from under it.
+        selectTab(tabIds[next], { claimsField: false });
+        focusItem(strip, next);
+      }
+
+      return;
+    }
+
+    const index = scroller && node && scroller.contains(node) ? readFocusIndex(node) : undefined;
+
+    if (index === undefined) {
+      goToAdjacentTab(direction);
+
+      return;
+    }
+
+    crossToAdjacentTab(index, direction);
   }
 
   /**
@@ -1314,6 +1394,11 @@ function TabButton({
 
 function findPack(packs: EmoticonPackSummary[], id: string) {
   return packs.find((pack) => pack.id === id);
+}
+
+// INFO: REQUIREMENTS.md § 8.14. What `⇧←/→` refuses to fire over, since `Shift` plus an arrow belongs to the field's own selection there.
+function isTextField(target: EventTarget): boolean {
+  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
 }
 
 /**

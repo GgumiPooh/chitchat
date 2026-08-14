@@ -65,6 +65,8 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
           { chord: [command], keys: ["E"], label: "이모티콘 패널 열기 / 닫기" },
           { chord: [command, shift], keys: ["E"], label: "이모티콘 검색" },
           { keys: ["←", "→", "↑", "↓"], label: "패널 안에서 이동" },
+          // INFO: § 8.14. Named separately from the arrows above, because it is the one that works from anywhere in the panel rather than only at an edge — which is the whole reason it exists.
+          { chord: [shift], keys: ["←", "→"], label: "이모티콘 묶음 넘기기" },
           { keys: ["Enter"], label: "담기, 두 번 누르면 보내기" },
           { keys: ["Esc"], label: "닫기, 담은 이모티콘 취소" },
         ])}

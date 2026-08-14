@@ -12,7 +12,28 @@ import { toChromeTint } from "@/widgets/chat-room";
  * INFO: Read bottom-up, because that is the edge the room opens on: the last entry is
  * the newest message and sits directly above the composer.
  */
+/**
+ * INFO: Counted to overflow the tallest viewport rather than to fill a phone's. The box below is `justify-end` and `overflow-hidden`, so a surplus row is clipped off the top at no cost, where a shortfall is a half-empty screen with the wallpaper showing through above the oldest bubble.
+ */
 const ROWS = [
+  { key: "s", isMine: true, isFirstOfGroup: true, widthClassName: "w-36" },
+  { key: "t", isMine: false, isFirstOfGroup: true, widthClassName: "w-48" },
+  { key: "u", isMine: false, isFirstOfGroup: false, widthClassName: "w-24" },
+  { key: "v", isMine: true, isFirstOfGroup: true, widthClassName: "w-28" },
+  { key: "w", isMine: false, isFirstOfGroup: true, widthClassName: "w-40" },
+  { key: "x", isMine: true, isFirstOfGroup: true, widthClassName: "w-52" },
+  { key: "m", isMine: true, isFirstOfGroup: false, widthClassName: "w-32" },
+  { key: "n", isMine: false, isFirstOfGroup: true, widthClassName: "w-28" },
+  { key: "o", isMine: true, isFirstOfGroup: true, widthClassName: "w-44" },
+  { key: "p", isMine: false, isFirstOfGroup: true, widthClassName: "w-36" },
+  { key: "q", isMine: false, isFirstOfGroup: false, widthClassName: "w-52" },
+  { key: "r", isMine: true, isFirstOfGroup: true, widthClassName: "w-24" },
+  { key: "g", isMine: false, isFirstOfGroup: true, widthClassName: "w-32" },
+  { key: "h", isMine: true, isFirstOfGroup: true, widthClassName: "w-48" },
+  { key: "i", isMine: true, isFirstOfGroup: false, widthClassName: "w-28" },
+  { key: "j", isMine: false, isFirstOfGroup: true, widthClassName: "w-40" },
+  { key: "k", isMine: false, isFirstOfGroup: false, widthClassName: "w-44" },
+  { key: "l", isMine: true, isFirstOfGroup: true, widthClassName: "w-36" },
   { key: "a", isMine: false, isFirstOfGroup: true, widthClassName: "w-44" },
   { key: "b", isMine: true, isFirstOfGroup: true, widthClassName: "w-32" },
   { key: "c", isMine: true, isFirstOfGroup: false, widthClassName: "w-24" },

@@ -33,7 +33,8 @@ import { toEmoticonKeywordsQuery } from "../model/keywords-query";
  * padding, font or wrapping rule that reaches one and not the other slides the mark
  * off the word it belongs to.
  */
-const FIELD_BOX = "px-2xs py-xs text-body-md leading-normal";
+// WARN: DESIGN.md § 6.6. The vertical padding is 10 rather than `py-xs` so the field's *natural* height clears the `min-h-11` beside it — 1+10+22.5+10+1 = 44.5. A textarea has no way to centre its text, so any height `min-height` adds over the intrinsic one is slack that lands entirely under the line: at 8 the box was 40.5 stretched to 44, and the single line the composer opens on sat 1.75px above the discs it shares the pill with.
+const FIELD_BOX = "px-2xs py-2.5 text-body-md leading-normal";
 
 // WARN: Hoisted so the pending query answers one array identity — an inline `= []` re-runs the match on every render of a field being typed into.
 const NO_KEYWORDS: string[] = [];

@@ -12,6 +12,7 @@ import {
   useEmoticonPreload,
   useRecentEmoticons,
   useSendMessage,
+  type EmoticonFocusRequest,
 } from "@/features/send-message";
 import { useSetBackground } from "@/features/set-background";
 import { useTypingSignal } from "@/features/typing-indicator";
@@ -196,6 +197,9 @@ const LIST_HEADER_HEIGHT = 40;
 // INFO: Rows here run from a 44px bubble to a 363px photo, so this is counted generously — eight of the tall ones is roughly the 600px of runway a flick covers before the next frame.
 const OVERSCAN_ROWS = 8;
 
+// INFO: REQUIREMENTS.md § 8.6.1. How many frames a jump may re-assert its offset over while the rows around it are measured. Four spans WebKit's post-paint `ResizeObserver` delivery with room for the correction it causes, and the loop stops early the moment two asserts agree.
+const JUMP_SETTLE_FRAMES = 4;
+
 // INFO: REQUIREMENTS.md § 8.3. Upward paging fires once the scroller is this close to the top — far enough out that the fetch and the wait for a still scroller both fit before the reader arrives.
 const LOAD_OLDER_THRESHOLD = 600;
 
@@ -249,8 +253,13 @@ export function ChatRoom({
   const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
   // INFO: REQUIREMENTS.md § 8.14. Bumped to put the caret back in the composer; `0` is the resting value the composer skips, so mounting the room focuses nothing.
   const [composerFocusRequest, setComposerFocusRequest] = useState(0);
-  // INFO: REQUIREMENTS.md § 8.14. The same token for the panel, bumped by ⌘E — an opened panel nothing has focused is one the arrow keys cannot reach.
-  const [pickerFocusRequest, setPickerFocusRequest] = useState(0);
+  // INFO: REQUIREMENTS.md § 8.14. The same token for the panel, bumped by **every** open — an opened panel nothing has focused is one the arrow keys cannot reach, and the toggle is a button, so a mouse open leaves focus on it rather than inside what it opened.
+  // INFO: REQUIREMENTS.md § 8.6.1. The frame `settleJumpScroll` has queued, so a newer jump — or an unmount — can take it back.
+  const jumpFrameRef = useRef<Nullable<number>>(null);
+  const [pickerFocusRequest, setPickerFocusRequest] = useState<EmoticonFocusRequest>({
+    token: 0,
+    viaKeyboard: false,
+  });
   // INFO: REQUIREMENTS.md § 8.14. Whether § 8.4.1.'s overlay is up, so waking from it can put focus back where it took it from.
   const isSleeping = useSyncExternalStore(subscribeDormancy, isDormant, () => false);
   const wasSleepingRef = useRef(false);
@@ -954,6 +963,9 @@ export function ChatRoom({
     if (initialJumpMessageId) {
       void jumpToMessage(initialJumpMessageId, { flash: true });
     }
+
+    // WARN: § 8.6.1. The jump's settle loop outlives this component otherwise, and it calls into a virtualizer whose scroller has gone.
+    return cancelJumpScroll;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -984,7 +996,8 @@ export function ChatRoom({
     wasSleepingRef.current = false;
 
     if (isEmoticonPanelOpen) {
-      setPickerFocusRequest((token) => token + 1);
+      // INFO: § 8.14. The mode is carried across rather than assumed — a panel a mouse opened is one a mouse should get back, without the rings a keyboard entry paints.
+      setPickerFocusRequest((request) => ({ ...request, token: request.token + 1 }));
     } else {
       focusComposer();
     }
@@ -1175,9 +1188,7 @@ export function ChatRoom({
               isEditing={editingId !== null}
               focusRequest={composerFocusRequest}
               // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
-              onToggleEmoticons={() =>
-                isEmoticonPanelOpen ? closeEmoticonPanel() : setIsEmoticonPickerOpen(true)
-              }
+              onToggleEmoticons={openEmoticonPanel}
               onAttach={() => setIsPickerOpen(true)}
               onEdit={signalEdit}
               onKeywordTap={openEmoticonSearch}
@@ -1425,6 +1436,29 @@ export function ChatRoom({
   }
 
   /**
+   * REQUIREMENTS.md § 8.14. The composer's toggle, which opens the panel **and puts
+   * focus inside it** — the half a pointer open was missing.
+   *
+   * WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
+   * INFO: `viaKeyboard: false`, because this is the pointer route and the rings belong to the keyboard one. A user who reached the toggle with `Tab` and pressed `Enter` lands unringed and gets them back on their first arrow key, through the panel's own `noteKeyboardUse`.
+   */
+  function openEmoticonPanel() {
+    if (isEmoticonPanelOpen) {
+      closeEmoticonPanel();
+
+      return;
+    }
+
+    setIsEmoticonPickerOpen(true);
+    requestPickerFocus(false);
+  }
+
+  // INFO: REQUIREMENTS.md § 8.14. One place the token is bumped from, so no caller can ask for the focus and forget to say which hand asked.
+  function requestPickerFocus(viaKeyboard: boolean) {
+    setPickerFocusRequest((request) => ({ token: request.token + 1, viaKeyboard }));
+  }
+
+  /**
    * REQUIREMENTS.md § 8.14. `Escape` — the panel away and the caret back in the
    * field, which is the only exit a keyboard has from the picker.
    *
@@ -1491,7 +1525,7 @@ export function ChatRoom({
     }
 
     setIsEmoticonPickerOpen(true);
-    setPickerFocusRequest((token) => token + 1);
+    requestPickerFocus(true);
   }
 
   /**
@@ -2047,8 +2081,7 @@ export function ChatRoom({
         return;
       }
 
-      // WARN: Not `behavior: "smooth"`. A jump crosses an arbitrary distance, so smooth animates through history the user did not ask to see, and the window it is animating over was replaced a frame ago.
-      virtualizer.scrollToIndex(index, { align: "center" });
+      settleJumpScroll(index);
 
       // WARN: DESIGN.md § 6.10. A property of the jump, never of whether a search happens to be open. The flash is for a jump with nothing else to point at — a quote, whose parent need not contain the query, so keying this on the search being open leaves such a jump marked by nothing at all.
       if (flash) {
@@ -2057,6 +2090,46 @@ export function ChatRoom({
         setHighlightedId(id);
       }
     });
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.3., § 8.6.1. Lands the jump, then re-asserts it until the
+   * offset stops moving — because the rows it scrolled past have not been measured yet.
+   *
+   * WARN: One `scrollToIndex` is right in Chrome and short in WebKit, and the difference is *when* the first measurement arrives. Rows are deliberately not measured in React's commit (see `measureElement`), so their real heights come from the `ResizeObserver`'s first delivery — which Blink runs before this frame's paint and WebKit runs after it. The estimate→actual corrections therefore land under a scroll that has already been committed against the estimates, and the target ends up below the fold: the reader has to scroll up to find the message the jump was for.
+   * WARN: Bounded, and it stops the moment two asserts agree. Every extra frame is one the reader could be scrolling in, and re-asserting on top of a real gesture would drag them back.
+   */
+  function settleJumpScroll(index: number) {
+    let remaining = JUMP_SETTLE_FRAMES;
+    let previous = Number.NaN;
+
+    // WARN: The loop in flight is cancelled rather than left to race this one. It closes over the *previous* target's index, and `jumpToMessage` names pressing § 8.6.1.'s arrows twice as the ordinary case — two jumps inside these few frames left the older loop re-asserting the match the reader had already stepped off, landing them back on it.
+    cancelJumpScroll();
+    assert();
+
+    function assert() {
+      // WARN: Not `behavior: "smooth"`. A jump crosses an arbitrary distance, so smooth animates through history the user did not ask to see, and the window it is animating over was replaced a frame ago — and a re-assert would then be measuring a scroll still in flight.
+      virtualizer.scrollToIndex(index, { align: "center" });
+
+      const offset = scrollerRef.current?.scrollTop ?? 0;
+
+      remaining -= 1;
+
+      if (offset === previous || remaining <= 0) {
+        return;
+      }
+
+      previous = offset;
+      jumpFrameRef.current = requestAnimationFrame(assert);
+    }
+  }
+
+  // INFO: Also the unmount cleanup — a frame left queued would call into a virtualizer whose scroller is gone.
+  function cancelJumpScroll() {
+    if (jumpFrameRef.current !== null) {
+      cancelAnimationFrame(jumpFrameRef.current);
+      jumpFrameRef.current = null;
+    }
   }
 
   /**

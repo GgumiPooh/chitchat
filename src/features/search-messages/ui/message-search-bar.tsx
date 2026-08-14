@@ -4,7 +4,7 @@ import { MAX_SEARCH_QUERY_LENGTH } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { AppHeader, HapticTarget, IconButton } from "@/shared/ui";
 import { LoaderCircle, Search, X } from "lucide-react";
-import { useRef } from "react";
+import { useRef, type KeyboardEvent } from "react";
 
 export type MessageSearchBarProps = {
   className?: string;
@@ -83,6 +83,7 @@ export function MessageSearchBar({
           placeholder="대화 내용 검색"
           aria-label="대화 내용 검색"
           onChange={(event) => onQueryChange(event.target.value)}
+          onKeyDown={handleFieldKeyDown}
         />
         {/* INFO: Clears the query without closing the search — 취소 beside it is the one that leaves. */}
         {/* WARN: `buttonClassName`, not `className` — `haptic` moves the latter onto the wrapper, and the size left there is a size the button never gets, which is what grew the pill to the default 44 circle. */}
@@ -117,6 +118,24 @@ export function MessageSearchBar({
         </HapticTarget>
       </form>
     );
+  }
+
+  /**
+   * AGENTS.md § 4.2. `Escape` is 취소 for the pointer — the field takes focus the
+   * moment the bar opens, so a desktop reader who opened it by mistake has the key
+   * under their hand and nothing else to reach for.
+   *
+   * WARN: `isComposing` first, and it is not decoration here: `Escape` is how a Hangul IME abandons the syllable being assembled, so unguarded the first correction a typist makes closes the search instead.
+   * WARN: `stopPropagation`, because the key would otherwise go on to whatever else is listening for it above — the § 12.3. overlay owner treats a bare `Escape` as "close the topmost thing", and the search is the topmost thing exactly once.
+   */
+  function handleFieldKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Escape" || event.nativeEvent.isComposing) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    onClose();
   }
 
   // INFO: A word rather than a back arrow — it dismisses a mode rather than navigating anywhere, and 취소 is what iOS puts beside a search field.

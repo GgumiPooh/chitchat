@@ -8,9 +8,12 @@ export type LibraryFallbackProps = {
   shelf: LibraryShelf;
 };
 
-// INFO: DESIGN.md § 7.8. Enough to reach the fold on a phone without claiming a page the response may not fill — a grid row is a third of a list row's height, so 갤러리 counts nine where the lists count six.
-const TILE_KEYS = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
-const ROW_KEYS = ["a", "b", "c", "d", "e", "f"];
+/**
+ * INFO: DESIGN.md § 7.8. Counted to overflow the tallest viewport rather than to reach a phone's fold — the block holding them is clipped to what is left of the screen, so a surplus costs nothing and a shortfall is a skeleton that stops halfway down with bare `canvas` under it.
+ * INFO: A tile is a third of the shell's width and a row is a fixed 56, so the two shapes need very different counts to cover the same height.
+ */
+const TILE_KEYS = Array.from({ length: 36 }, (_, index) => `tile-${index}`);
+const ROW_KEYS = Array.from({ length: 20 }, (_, index) => `row-${index}`);
 
 /**
  * The fallback every 보관함 shelf streams behind (REQUIREMENTS.md § 10.).
@@ -34,7 +37,8 @@ export function LibraryFallback({ className, shelf }: LibraryFallbackProps) {
       {/* INFO: DESIGN.md § 7.12. The same clearance the screens use, so nothing shifts when the real page swaps in. */}
       <div className="flex flex-1 flex-col p-md pt-[calc(var(--app-header-inset)+var(--spacing-xs))]">
         <LibrarySegments className="pb-sm" />
-        <div aria-hidden>
+        {/* WARN: `overflow-hidden` on a `flex-1` box is what lets the counts above be generous. The shelf is drawn to more than fill any screen, and this is what stops the surplus growing the document — DESIGN.md § 3.3. makes that column the page's own scroller, so an unclipped fallback would hand the reader a scrollbar over a screen with nothing in it yet. */}
+        <div className="min-h-0 flex-1 overflow-hidden" aria-hidden>
           {/* INFO: DESIGN.md § 7.10. Every shelf opens on a month section header, so the placeholder does too — without it the rows land `pb-xs` higher than the real ones and the whole screen steps up on the swap. */}
           <Skeleton className="mb-xs h-5 w-24 rounded-xs" />
           {shelf === "gallery" ? renderTiles() : renderRows()}

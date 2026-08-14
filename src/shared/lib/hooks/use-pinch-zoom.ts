@@ -18,6 +18,12 @@ const DOUBLE_TAP_WINDOW = A_SECOND / 3;
 // INFO: How much of the overshoot past a bound survives as movement. Low enough that the bound is felt, high enough that the pinch does not read as jammed.
 const RUBBER_BAND_FACTOR = 0.3;
 
+// INFO: Wheel delta that doubles the scale, tuned against a macOS trackpad pinch — which reports a stream of small deltas rather than the ~100 a mouse notch carries.
+const WHEEL_ZOOM_SENSITIVITY = 120;
+
+// INFO: A wheel gesture has no lift to settle on, so the stream going quiet is the release. Long enough to span the gaps inside one trackpad pinch, short enough that the clamp lands while the fingers are still on the glass.
+const WHEEL_SETTLE_DELAY = A_SECOND / 8;
+
 type Point = { x: number; y: number };
 
 type Transform = { scale: number; x: number; y: number };
@@ -51,6 +57,7 @@ export function usePinchZoom() {
   // WARN: Movement is tracked at every scale, not only while panning. At rest the finger is swiping the track, and two quick swipes land inside the double-tap window — untracked, they read as a double tap and zoom the slide the reader was leaving.
   const startPointRef = useRef<Nullable<Point>>(null);
   const elementRef = useRef<Nullable<HTMLElement>>(null);
+  const wheelSettleRef = useRef<Nullable<ReturnType<typeof setTimeout>>>(null);
 
   const isZoomed = transform.scale > MIN_ZOOM_SCALE;
 
@@ -74,9 +81,92 @@ export function usePinchZoom() {
     });
   }, []);
 
+  /**
+   * AGENTS.md § 4.2. The desktop half of the pinch: macOS reports a trackpad pinch as
+   * a `wheel` with `ctrlKey`, and every browser spends that on **page** zoom.
+   *
+   * WARN: Page zoom is what the viewer could not survive. It resizes the visual viewport under a `fixed` layer (`ShellOverlay`, DESIGN.md § 4.4.) while the layout viewport stays put, so the overlay is left offset from the screen it is supposed to be — the tearing the reader sees. Taking the gesture here is what keeps the browser out of it.
+   * INFO: Only `ctrlKey`. A bare wheel is the trackpad's two-finger scroll, which `MediaViewer` still wants for the track.
+   */
+  const zoomByWheel = useCallback(
+    (event: WheelEvent) => {
+      if (!event.ctrlKey) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const element = elementRef.current;
+
+      // WARN: The refusal above is unconditional and the zoom below is not. A slide with no gesture surface — a video, a placeholder — has nothing to scale, and scaling it anyway would set `isZoomed` and freeze the track over a photo that never moved.
+      if (!element) {
+        return;
+      }
+
+      const focus = toLocalPoint({ x: event.clientX, y: event.clientY }, element);
+
+      setIsGesturing(true);
+      setTransform((current) => {
+        const scale = clamp(
+          current.scale * Math.exp(-event.deltaY / WHEEL_ZOOM_SENSITIVITY),
+          MIN_ZOOM_SCALE,
+          MAX_ZOOM_SCALE,
+        );
+
+        return scale === MIN_ZOOM_SCALE
+          ? IDENTITY
+          : withClampedOffset(zoomAround(current, scale, focus), element);
+      });
+
+      if (wheelSettleRef.current !== null) {
+        clearTimeout(wheelSettleRef.current);
+      }
+
+      // INFO: There is no `pointerup` to end a wheel gesture, so the stream falling quiet stands in for the lift `settle` is otherwise called from.
+      wheelSettleRef.current = setTimeout(settle, WHEEL_SETTLE_DELAY);
+    },
+    [settle],
+  );
+
+  // INFO: The surface is the box every gesture is measured against, and nothing more — the `wheel` listener belongs on the root below.
+  const captureSurface = useCallback((element: Nullable<HTMLElement>) => {
+    elementRef.current = element;
+
+    return () => {
+      elementRef.current = null;
+    };
+  }, []);
+
+  /**
+   * Attaches the `ctrl`+`wheel` guard to the **whole overlay**, not to the gesture
+   * surface inside it.
+   *
+   * WARN: Page zoom has to be refused everywhere the overlay covers, or it is refused nowhere that matters. A `wheel` targets the topmost element under the cursor, so one over a video slide, over a placeholder, over the padding beside a photo or over a floating control never reaches the surface — and each of those was a page zoom tearing the `fixed` layer apart, which is the very thing this exists to stop.
+   * WARN: Attached by hand rather than through `onWheel`. React registers that one **passively** at the root, where `preventDefault` is ignored and the browser zooms the page anyway.
+   */
+  const captureRoot = useCallback(
+    (element: Nullable<HTMLElement>) => {
+      if (!element) {
+        return;
+      }
+
+      element.addEventListener("wheel", zoomByWheel, { passive: false });
+
+      return () => {
+        element.removeEventListener("wheel", zoomByWheel);
+
+        if (wheelSettleRef.current !== null) {
+          clearTimeout(wheelSettleRef.current);
+        }
+      };
+    },
+    [zoomByWheel],
+  );
+
   return {
     isZoomed,
     reset,
+    captureRoot,
     /**
      * The transform, for an element **inside** the one taking `surfaceProps`.
      *
@@ -90,6 +180,7 @@ export function usePinchZoom() {
       transition: isGesturing ? undefined : "transform var(--duration-state) var(--ease-press)",
     },
     surfaceProps: {
+      ref: captureSurface,
       /**
        * WARN: `pan-x` at rest, never `auto` and never `pinch-zoom`. `auto` lets the
        * browser claim the pinch itself, and it then stops dispatching the pointers this

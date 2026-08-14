@@ -12,6 +12,7 @@ import {
   useModalOverlay,
   usePinchZoom,
   useSettledCommit,
+  useSwipeDismiss,
   type MediaId,
   type MessageId,
   type Nullable,
@@ -27,6 +28,7 @@ import {
   type ComponentProps,
   type FC,
   type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { IconButton } from "./icon-button";
 import { toCellRatio, type MediaCell } from "./media-cell";
@@ -170,6 +172,29 @@ export function MediaViewer({
   const zoom = usePinchZoom();
   // INFO: Taken off the hook once, because the correction below has to depend on it and `zoom` itself is a fresh object on every render — `reset` is the stable half of it.
   const resetZoom = zoom.reset;
+  // INFO: DESIGN.md § 7.10. Pull the track down to close, the way iOS's own photo viewer does — the second way out, beside 닫기 and `Escape`, and the only one a thumb reaches without travelling to a corner.
+  // WARN: Withheld while the slide is zoomed, by the rule that freezes the swipe (REQUIREMENTS.md § 18. #6.) — the pan owns the finger there, and a downward one is how a reader reaches the bottom of a zoomed photo.
+  const dismiss = useSwipeDismiss({
+    isEnabled: !zoom.isZoomed,
+    canStart: (event) => !isOnPlayer(event.target, event.clientX, event.clientY),
+    onDismiss: onClose,
+  });
+  const captureRoot = zoom.captureRoot;
+  /**
+   * WARN: The two owners of this element are composed by hand, and both return a cleanup React has to be able to call. `useModalOverlay`'s attach **focuses** the container, so a fresh arrow here would re-run it on every render — and the viewer re-renders on every slide the reader crosses.
+   */
+  const captureOverlay = useCallback(
+    (element: HTMLDivElement) => {
+      const releaseOverlay = overlayRef(element);
+      const releaseWheel = captureRoot(element);
+
+      return () => {
+        releaseOverlay?.();
+        releaseWheel?.();
+      };
+    },
+    [overlayRef, captureRoot],
+  );
   /**
    * WARN: REQUIREMENTS.md § 8.1. The reader's position is the held slide's **id**, resolved on every render and never read out of the DOM offset. 채팅 swaps the bubble's cells for the conversation-wide track under the reader, and the offset that meant "the 3rd of 3" means "the 3rd of 300" in the new array — resolved after paint, one frame showed an unrelated photo with the wrong sender and caption, and its two neighbours started downloading their originals before being thrown away.
    * INFO: `-1` only while the track is empty, which is the caller's cue to unmount (§ 10.) rather than a state this draws.
@@ -317,12 +342,14 @@ export function MediaViewer({
     <ShellOverlay>
       {/* WARN: `role`/`aria-modal` by hand, because this composes no Radix primitive (§ 12.3.) — and required, not decoration: the hook focuses this element on open, so without them focus lands on an anonymous `div` and a reader is told nothing while the conversation behind stays exposed to it. */}
       <div
-        ref={overlayRef}
+        ref={captureOverlay}
         className={cn(
           "pointer-events-auto absolute inset-0 z-40 flex flex-col bg-scrim",
           className,
         )}
         role="dialog"
+        // INFO: DESIGN.md § 7.10. The scrim thins as the pull-to-close drag travels, and the chrome over it goes with it — what is being uncovered is the screen underneath, so nothing that belongs to the viewer may stay at full strength over it.
+        style={dismiss.scrimStyle}
         aria-modal="true"
         aria-label="첨부 크게 보기"
       >
@@ -330,7 +357,8 @@ export function MediaViewer({
         {/* WARN: `pointer-events-none` on the bar and `auto` on its controls. The bars span the full width over a photo whose own taps toggle them and whose hold is the OS's (§ 8.11.), so an inert strip that still swallowed pointers would kill both gestures across the top and bottom of every slide. */}
         <div
           className={cn(
-            "pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start gap-xs bg-gradient-to-b from-scrim/70 to-transparent p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))] transition-opacity duration-200",
+            // WARN: DESIGN.md § 7.10. The gradient runs well past the controls and fades through a midpoint rather than straight to nothing. It used to end at the bar's own padding, which put the caption where the wash had already thinned to about a third — unreadable over a white photo, which is the surface this exists for.
+            "pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start gap-xs bg-gradient-to-b from-scrim/85 via-scrim/45 to-transparent p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))] pb-2xl transition-opacity duration-200",
             // WARN: The descendants' `pointer-events` are revoked with the opacity, not just their `tabIndex`. `opacity-0` alone leaves every control here fully tappable while invisible — the tap that hid the chrome, repeated in the same corner, would close the viewer.
             !isChromeVisible && "opacity-0 [&_*]:pointer-events-none",
           )}
@@ -380,8 +408,13 @@ export function MediaViewer({
             "scrollbar-hidden flex min-h-0 flex-1 snap-x snap-mandatory overscroll-x-contain",
             zoom.isZoomed ? "overflow-x-hidden" : "overflow-x-auto",
           )}
+          // INFO: DESIGN.md § 7.10. The track is what follows the pull-to-close drag, since it is the whole of what the reader is holding — the chrome fades with the scrim on the root instead.
+          style={dismiss.contentStyle}
           onClick={handleSurfaceClick}
-          onPointerDown={cancelPendingStep}
+          onPointerDown={handleTrackPointerDown}
+          onPointerMove={dismiss.surfaceProps.onPointerMove}
+          onPointerUp={dismiss.surfaceProps.onPointerUp}
+          onPointerCancel={dismiss.surfaceProps.onPointerCancel}
           onScroll={handleScroll}
           onWheel={cancelPendingStep}
         >
@@ -389,7 +422,8 @@ export function MediaViewer({
             <div
               key={cell.id}
               // INFO: Vertical padding only. A side gutter reads as a frame around the photo, and the viewer's whole point is that the image is the screen.
-              className="flex w-full shrink-0 snap-center items-center justify-center py-md"
+              // WARN: REQUIREMENTS.md § 8.1. `snap-always` is what holds one drag to one slide. Without it a flick's momentum runs through every snap point it passes, and a track that spans the conversation answers a firm swipe with five photos gone by.
+              className="flex w-full shrink-0 snap-center snap-always items-center justify-center py-md"
             >
               {/* WARN: REQUIREMENTS.md § 10. Only the neighbours load their asset. Every slide used to request its original on mount, which was bounded by `MAX_MEDIA_PER_MESSAGE` in a chat bubble but is the whole loaded library here — opening one photo after three pages of scrolling started 180 requests for objects of up to `MAX_IMAGE_SIZE`. */}
               {Math.abs(slideIndex - index) > 1 ? (
@@ -415,7 +449,7 @@ export function MediaViewer({
           {/* WARN: `invisible` at the ends rather than unmounted, so the surviving arrow does not slide across the screen when the reader reaches the first or last slide. § 8.1.'s track also grows at both edges mid-open, which would make an unmounted control blink back into existence. */}
           <IconButton
             className={cn(
-              "pointer-events-auto shrink-0 bg-scrim/55 text-on-scrim shadow-floating backdrop-blur-sm hover:bg-scrim/70 hover:text-on-scrim",
+              "pointer-events-auto shrink-0 bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim",
               !canStepBack && "invisible",
             )}
             Icon={ChevronLeft}
@@ -425,7 +459,7 @@ export function MediaViewer({
           />
           <IconButton
             className={cn(
-              "pointer-events-auto shrink-0 bg-scrim/55 text-on-scrim shadow-floating backdrop-blur-sm hover:bg-scrim/70 hover:text-on-scrim",
+              "pointer-events-auto shrink-0 bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim",
               !canStepForward && "invisible",
             )}
             Icon={ChevronRight}
@@ -438,7 +472,8 @@ export function MediaViewer({
         {/* WARN: The middle group is one pill and the flanking controls are their own, which is what lets 삭제 and 배경으로 설정 come and go per slide without moving 공유 or 다운 under a travelling finger. Inside the pill their absence costs the pill its width and nothing else — the hole the old right-aligned row punched mid-swipe. */}
         <div
           className={cn(
-            "pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-sm p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] transition-opacity duration-200",
+            // WARN: DESIGN.md § 7.10. A gradient here too, which this bar deliberately went without for a long time on the argument that a second one frames the photo from below. The discs' own fill is what it relied on instead, and over the viewer's opaque `scrim` — which is most of the screen on a portrait slide — `scrim` on `scrim` is a control with no edge at all. The ring below answers that; the wash is what carries the group over a bright photo.
+            "pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-sm bg-gradient-to-t from-scrim/85 via-scrim/45 to-transparent p-md pt-2xl pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] transition-opacity duration-200",
             // WARN: As the top bar — hidden controls must stop receiving pointers, or an invisible 삭제 sits under the reader's next tap.
             !isChromeVisible && "opacity-0 [&_*]:pointer-events-none",
           )}
@@ -450,7 +485,7 @@ export function MediaViewer({
               // INFO: REQUIREMENTS.md § 8.1. A button, because the caller has the rest of the bubble to offer before anything is saved — the anchor below cannot ask a question first.
               <IconButton
                 className={cn(
-                  "pointer-events-auto shrink-0 bg-scrim/55 text-on-scrim shadow-floating backdrop-blur-sm hover:bg-scrim/70 hover:text-on-scrim",
+                  "pointer-events-auto shrink-0 bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim",
                   !downloadUrl && "invisible",
                 )}
                 Icon={Download}
@@ -462,7 +497,7 @@ export function MediaViewer({
               // WARN: No `download` attribute — the route 302s to R2 and the spec drops it once the navigation resolves cross-origin. `toMediaDownloadUrl` signs the disposition into the object instead.
               <a
                 className={cn(
-                  "pointer-events-auto inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-scrim/55 text-on-scrim shadow-floating backdrop-blur-sm transition-colors outline-none hover:bg-scrim/70 focus-visible:ring-2 focus-visible:ring-primary",
+                  "pointer-events-auto inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm transition-colors outline-none hover:bg-scrim/80 focus-visible:ring-2 focus-visible:ring-primary",
                   !downloadUrl && "invisible",
                 )}
                 href={downloadUrl ?? undefined}
@@ -473,7 +508,8 @@ export function MediaViewer({
               </a>
             ))}
           {(canDeleteCurrent || canWearAsBackground) && current && (
-            <div className="pointer-events-auto flex items-center rounded-full bg-scrim/55 px-2xs shadow-floating backdrop-blur-sm">
+            // WARN: No inner padding. Each control is a 44 circle in a 44-tall pill, so with the ends flush the hover disc *is* the pill's end cap — padded by `2xs` it stopped 4px short and left a sliver of pill outside a round highlight, which reads as the control being off-centre in its own group.
+            <div className="pointer-events-auto flex items-center overflow-hidden rounded-full bg-scrim/70 shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm">
               {deletion && canDeleteCurrent && (
                 // INFO: DESIGN.md § 7.10. Confirmed wherever it renders, since a control beside a per-slide save does not say its own reach — in 채팅 it is the same delete the § 8.11. action sheet reaches.
                 // INFO: REQUIREMENTS.md § 8.1. Unmounted rather than hidden, now that it sits in a group of its own — the pill simply narrows, where the old row left a 44px hole between two live controls on every slide the other participant sent.
@@ -500,7 +536,7 @@ export function MediaViewer({
           {handleSheet && current && (
             <IconButton
               className={cn(
-                "pointer-events-auto shrink-0 bg-scrim/55 text-on-scrim shadow-floating backdrop-blur-sm hover:bg-scrim/70 hover:text-on-scrim",
+                "pointer-events-auto shrink-0 bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim",
                 !downloadUrl && "invisible",
               )}
               Icon={isIosDevice ? Download : Share}
@@ -571,6 +607,12 @@ export function MediaViewer({
     steppedRef.current = null;
   }
 
+  // INFO: The track's own `pointerdown` does two unrelated things, and the pull-to-close gesture is the one that has to see every press rather than only the ones that interrupt a step.
+  function handleTrackPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    cancelPendingStep();
+    dismiss.surfaceProps.onPointerDown(event);
+  }
+
   function handleScroll() {
     const track = trackRef.current;
 
@@ -607,7 +649,12 @@ export function MediaViewer({
   function handleSurfaceClick(event: MouseEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
 
-    if (target.closest("a, button, video")) {
+    // WARN: A pull-to-close drag that sprang back still ends in a `click` on the surface it started over. Left unread it toggles the chrome away on every abandoned dismiss, which is a gesture readers make constantly while deciding.
+    if (dismiss.consumeClick()) {
+      return;
+    }
+
+    if (target.closest("a, button") || isOnPlayer(target, event.clientX, event.clientY)) {
       return;
     }
 
@@ -675,6 +722,37 @@ function toPosition(index: number, cells: MediaCell[]): string {
 }
 
 /**
+ * Whether a point lands on the **painted** part of a `<video>`, which is the only
+ * part of one that belongs to the player.
+ *
+ * WARN: The element and the picture are two different rectangles here, and they were not always. `VideoSlide` is `w-full` at the stored ratio so a clip narrower than the shell still fills it, which means a portrait one is a full-width `<video>` with the picture letterboxed inside — and the gutters are `<video>` to the DOM. Excluded whole, as the selector used to do, such a slide had no area left that toggled the chrome and none that could be pulled closed.
+ * INFO: DESIGN.md § 7.10.'s rule is unchanged: a tap between two controls is aimed at the player, so everything inside the picture — transport included — is still the player's.
+ * INFO: Before metadata lands there is no picture to measure, so the whole element answers `true` — which is exactly what it did before the box grew, and it lasts one round trip.
+ */
+function isOnPlayer(target: EventTarget, x: number, y: number): boolean {
+  const player = target instanceof Element ? target.closest("video") : null;
+
+  if (!player) {
+    return false;
+  }
+
+  const box = player.getBoundingClientRect();
+  const ratio = player.videoHeight > 0 ? player.videoWidth / player.videoHeight : 0;
+
+  if (ratio <= 0) {
+    return true;
+  }
+
+  const height = Math.min(box.height, box.width / ratio);
+  const width = height * ratio;
+
+  return (
+    Math.abs(x - (box.left + box.width / 2)) <= width / 2 &&
+    Math.abs(y - (box.top + box.height / 2)) <= height / 2
+  );
+}
+
+/**
  * DESIGN.md § 7.10. The slide a reader is left on when the one they were holding is
  * removed under them — the next one along, or the one before it where the track ended.
  *
@@ -719,10 +797,8 @@ function toSlideTimestamp(sentAt: string): string {
  */
 function SlidePlaceholder({ cell }: { cell: MediaCell }) {
   return (
-    <div
-      className="max-h-full w-full rounded-md bg-on-scrim/10"
-      style={{ aspectRatio: toCellRatio(cell) }}
-    />
+    // WARN: Square corners, matching the asset. A photo is never rounded here, so a rounded stand-in changes shape the instant it is replaced.
+    <div className="max-h-full w-full bg-on-scrim/10" style={{ aspectRatio: toCellRatio(cell) }} />
   );
 }
 
@@ -736,7 +812,6 @@ function ImageSlide({ cell, zoom }: { cell: MediaCell; zoom?: ReturnType<typeof 
         <PreloadImage
           className="max-h-full w-full"
           imgClassName="size-full object-contain"
-          placeholderClassName="rounded-md"
           style={{ aspectRatio: toCellRatio(cell) }}
           src={cell.originalUrl ?? cell.previewUrl}
           blurhash={cell.blurhash}
@@ -775,8 +850,10 @@ function VideoSlide({ cell }: { cell: MediaCell }) {
   }
 
   return (
+    // WARN: `w-full` with the stored ratio, exactly as `ImageSlide` is framed — `max-w-full` capped the element at the clip's own pixel width instead, so anything narrower than the shell sat inside gutters the photo beside it does not have. `object-contain` is what keeps a portrait clip from stretching once `max-h-full` clamps the box.
     <video
-      className="max-h-full max-w-full"
+      className="max-h-full w-full object-contain"
+      style={{ aspectRatio: toCellRatio(cell) }}
       src={cell.originalUrl ?? undefined}
       poster={cell.previewUrl ?? undefined}
       controls

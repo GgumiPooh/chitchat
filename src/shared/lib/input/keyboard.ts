@@ -62,6 +62,20 @@ export function isBareKey(event: Modifiers): boolean {
 }
 
 /**
+ * Whether this event carries `Shift` and nothing else.
+ *
+ * INFO: REQUIREMENTS.md § 8.14. `⇧←/→` turns the emoticon panel's pack, which is the
+ * one binding on this modifier alone — every arrow chord carrying the platform
+ * modifier is spoken for by the OS or the browser.
+ * WARN: A caller has to keep it out of text fields itself. `Shift` plus an arrow is
+ * how every field on every platform extends a selection, and no flag on the event
+ * says whether the target is one.
+ */
+export function isShiftKey(event: Modifiers): boolean {
+  return event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey;
+}
+
+/**
  * Whether this event carries `⌥`/`Alt` and nothing else.
  *
  * INFO: REQUIREMENTS.md § 8.14. The one modifier that needs no platform branch — `⌥`
