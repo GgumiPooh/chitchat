@@ -46,3 +46,6 @@ steiger.config.ts.*.mjs
 
 # Claude Code scratch — agent worktrees are clones of this repo, never content of it.
 .claude/
+
+# INFO: The restructure plan is working notes, not a shipped document.
+docs/RESTRUCTURE.md
