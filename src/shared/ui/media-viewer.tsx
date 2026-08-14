@@ -950,6 +950,8 @@ function ImageSlide({
   isMorphTarget: boolean;
   hasMorphSettled: boolean;
 }) {
+  const src = useDecodedOriginal(cell, hasMorphSettled);
+
   return (
     // WARN: REQUIREMENTS.md § 18. #6. The gesture surface, and it never scales — the hook measures its box for the pan bounds, so the transform belongs to the element inside it.
     <div className="flex max-h-full w-full items-center justify-center" {...zoom?.surfaceProps}>
@@ -959,10 +961,12 @@ function ImageSlide({
         <PreloadImage
           className="max-h-full w-full"
           imgClassName="size-full object-contain"
-          // WARN: DESIGN.md § 4.7.3. The original is not asked for until the opening morph has landed. Requested at mount it finishes mid-flight, and the swap lands as a pop at the instant the transition ends rather than as a photo sharpening under a reader who is already looking at it.
-          src={hasMorphSettled ? (cell.originalUrl ?? cell.previewUrl) : cell.previewUrl}
-          // INFO: DESIGN.md § 7.10. The thumbnail the grid tile — or the chat bubble — has already decoded, so the slide opens on the picture instead of on its blur while the original arrives, and stands under it again for the swap above.
+          // INFO: DESIGN.md § 7.10. Already decoded by the time it is named here — the hook below is what holds the thumbnail until then, so this element never enters a loading state for the original at all.
+          src={src}
+          // INFO: DESIGN.md § 7.10. The thumbnail the grid tile — or the chat bubble — has already decoded, so the slide opens on the picture instead of on its blur while the original arrives, and stands under it again across the swap.
           previewSrc={cell.previewUrl}
+          // WARN: DESIGN.md § 7.8. No skeleton on this surface, and it is the second half of the swap being invisible. `Skeleton` is an opaque `surface-strong` pulse filling the ratio box, where the picture inside it is `object-contain` — so on a portrait photo clamped by `max-h-full` it paints the letterbox the photo leaves, beside a thumbnail that is covering the middle perfectly well. A row with a hash never reached it; one without showed a plate down both sides for the length of the swap.
+          hasSkeleton={false}
           blurhash={cell.blurhash}
           blurhashRatio={toCellRatio(cell)}
           // WARN: DESIGN.md § 7.8. `contain`, matching the slide's own `object-contain` — the box carries the stored ratio but `max-h-full` clamps a portrait one on a short screen, and a `cover` blur would fill the width the letterboxed photo leaves as scrim.
@@ -977,6 +981,39 @@ function ImageSlide({
       </div>
     </div>
   );
+}
+
+/**
+ * DESIGN.md § 7.10. The source a slide draws: its thumbnail, and then the stored
+ * original — but **only once that original has actually decoded**.
+ *
+ * WARN: The swap is what this exists to hide, and pointing `src` at the original is what used to start it. `PreloadImage` resets to `loading` on a changed source, so the element gave up the picture it was holding and went back to a placeholder for the length of the download — which is exactly backwards, since a perfectly good copy of that photograph was already on screen. Decoded first, the element is handed a URL the browser can paint in the same frame.
+ * WARN: DESIGN.md § 4.7.3. Held until the opening morph has landed. Started at mount the decode finishes mid-flight, and the swap arrives as a pop at the instant the transition ends rather than as a photo sharpening under a reader already looking at it.
+ * WARN: No `crossOrigin`, deliberately — AGENTS.md § 5.3. `/api/media/{id}` answers a 302 into R2, and a CORS-mode request is cached separately from the plain one every `<img>` makes, so asking for one here would download the photograph twice.
+ * INFO: A rejected `decode` settles the same way as a resolved one. The failure belongs to `PreloadImage`, which has the retry and the § 7.8. ending for it; swallowing it here would leave the slide on a thumbnail with nothing ever saying why.
+ */
+function useDecodedOriginal(cell: MediaCell, isEnabled: boolean): Nullable<string> {
+  const [decoded, setDecoded] = useState<Nullable<string>>(null);
+  const original = cell.originalUrl;
+
+  useEffect(() => {
+    if (!isEnabled || !original) {
+      return;
+    }
+
+    let isActive = true;
+    const image = new Image();
+    const settle = () => isActive && setDecoded(original);
+
+    image.src = original;
+    void image.decode().then(settle, settle);
+
+    return () => {
+      isActive = false;
+    };
+  }, [isEnabled, original]);
+
+  return decoded ?? cell.previewUrl;
 }
 
 /**
