@@ -184,6 +184,31 @@ export const MAX_EMOTICON_KEYWORD_LENGTH = 20;
  */
 export const KEYWORD_SUGGESTION_BATCH = 3;
 
+const KEYWORD_SUGGESTION_CONCURRENCY_SETTING = Number.parseInt(
+  (process.env.NEXT_PUBLIC_KEYWORD_SUGGESTION_CONCURRENCY ?? "").trim(),
+  10,
+);
+
+/**
+ * How many `KEYWORD_SUGGESTION_BATCH` requests one run may keep in flight
+ * (REQUIREMENTS.md § 13.8.1.).
+ *
+ * WARN: Google's per-minute quota is what bounds this, never anything local — the
+ * free tier answers 15 a minute and a 36-item pack is 12, so a run is safe while it
+ * fits one minute's allowance and raising this cannot rescue one that does not.
+ *
+ * WARN: `NEXT_PUBLIC_` and read as a literal member access, exactly as § 13.7.1.'s
+ * switch is — a computed lookup resolves to `undefined` in the browser bundle, and
+ * changing the value needs a redeploy rather than an environment edit.
+ *
+ * INFO: A blank or unparseable value falls back to the default and not to 1, since `.env.example` ships every name empty.
+ */
+export const KEYWORD_SUGGESTION_CONCURRENCY =
+  Number.isInteger(KEYWORD_SUGGESTION_CONCURRENCY_SETTING) &&
+  KEYWORD_SUGGESTION_CONCURRENCY_SETTING > 0
+    ? KEYWORD_SUGGESTION_CONCURRENCY_SETTING
+    : 6;
+
 /**
  * How long an emoticon's presigned GET stays valid, and how long the 302 in front
  * of it may be cached.
