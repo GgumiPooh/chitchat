@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  isAllowedEmoticonAsset,
   isAllowedMediaMime,
   isFileMime,
   isVideoMime,
@@ -237,12 +238,17 @@ function toMediaKind(
  */
 function isAcceptableObject(scope: MediaScope) {
   return ({ mime, size }: StoredObject) => {
-    if (isAllowedMediaMime(mime)) {
-      return size <= maxSizeForScope(mime, scope);
+    // WARN: RESTRUCTURE.md § 5.2. The emoticon scope is answered by § 13.2.'s own rules and never by the media allow-list, which is **wider** in exactly the direction that matters: it admits `image/jpeg` and `image/heic`, and an emoticon is bubble-less transparent art (§ 13.3.) that a JPEG cannot carry. Falling through to `isAllowedMediaMime` would have let one register the moment § 5. started calling this with the scope.
+    // INFO: The slot is read off the mime because that is all this function has, and it is enough — § 13.2.'s two slots are an image and a sound, and nothing else reaches here under this scope.
+    if (scope === "emoticon") {
+      return isAllowedEmoticonAsset(
+        mime.startsWith("audio/") ? "audio" : "animated-image",
+        mime,
+        size,
+      );
     }
 
-    // INFO: RESTRUCTURE.md § 5.2. An emoticon's sound reaches this branch because § 9.3. keeps `audio/*` off the media allow-list, and it takes that scope's own ceiling rather than the file one.
-    if (scope === "emoticon" && mime.startsWith("audio/")) {
+    if (isAllowedMediaMime(mime)) {
       return size <= maxSizeForScope(mime, scope);
     }
 

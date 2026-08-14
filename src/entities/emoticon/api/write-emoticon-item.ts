@@ -1,5 +1,6 @@
 import "server-only";
 
+import { registerMedia } from "@/entities/media/@x/emoticon";
 import { isAllowedEmoticonAsset, normalizeKeywords, type EmoticonSlot } from "@/shared/config";
 import { emoticonItems, getDb, nextSnowflake } from "@/shared/db";
 import type { EmoticonItemId, EmoticonPackId, Maybe, Nullable, UserId } from "@/shared/lib";
@@ -47,6 +48,27 @@ export async function registerEmoticon({
     return null;
   }
 
+  // INFO: RESTRUCTURE.md § 5.2. The `media` rows behind this item, minted here so the FKs below have something to name. The columns beside them are still written and still authoritative — this is additive until § 5.'s read paths move over and migration D takes the old ones.
+  // WARN: The image lands in `animated_image_id` rather than `still_image_id`, because the one object an author uploads today is what the bubble plays: § 5.7.'s `image` alias means the animated slot, and it means it here too. `still_image_id` is filled by § 5.5.'s backfill and, once the authoring screen offers it, by the author.
+  // INFO: `registerMedia` is idempotent on `r2_key`, so the retry the `onConflictDoNothing` below answers for does not mint a second row for the same object.
+  const [animatedMedia, audioMedia] = await Promise.all([
+    registerMedia({ ownerId: uploaderId, r2Key: imageKey, width, height, scope: "emoticon" }),
+    audioKey
+      ? registerMedia({
+          ownerId: uploaderId,
+          r2Key: audioKey,
+          width: null,
+          height: null,
+          scope: "emoticon",
+        })
+      : Promise.resolve(null),
+  ]);
+
+  // WARN: § 14. `registerMedia` re-reads the object and applies § 13.2.'s own slot rules, so this refuses what `verifyAsset` above would have refused — and refusing here rather than writing the item without its FK is what keeps the two representations from disagreeing. An object left unreferenced is what § 13.3.'s discard endpoint exists to sweep.
+  if (!animatedMedia || (audioKey && !audioMedia)) {
+    return null;
+  }
+
   const [row] = await getDb()
     .insert(emoticonItems)
     .values({
@@ -56,6 +78,8 @@ export async function registerEmoticon({
       mime: image.mime,
       audioKey: audioKey ?? null,
       audioMime: audio?.mime ?? null,
+      animatedImageId: animatedMedia.id,
+      audioId: audioMedia?.id ?? null,
       width,
       height,
       // WARN: Normalized here as well as at the route, because § 13.7.'s import writes through this function without passing a request body through that schema.
