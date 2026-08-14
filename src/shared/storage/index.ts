@@ -6,7 +6,6 @@ export {
   deleteObjectsAfterCacheWindow,
   headAcceptableObject,
   headObject,
-  listObjectKeys,
   presignDownload,
   presignUpload,
   type PresignDownloadOptions,
