@@ -19,10 +19,6 @@ import { users } from "./users";
 export const emoticonPacks = pgTable("emoticon_packs", {
   id: snowflake<EmoticonPackId>("id").primaryKey(),
   name: text("name").notNull(),
-  // INFO: REQUIREMENTS.md § 13.1. A record of who created it, never a permission check — a pack belongs to the conversation.
-  createdBy: snowflake<UserId>("created_by")
-    .notNull()
-    .references(() => users.id),
   // WARN: REQUIREMENTS.md § 13.2. A cycle with `emoticon_items`, so the constraint is added by a separate ALTER TABLE. `set null`, because removing the item a pack uses as its tab icon must not remove the pack.
   thumbnailItemId: snowflake<EmoticonItemId>("thumbnail_item_id").references(
     (): AnyPgColumn => emoticonItems.id,

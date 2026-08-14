@@ -25,15 +25,18 @@
  *
  * Usage — dry run is the default and nothing writes without `--apply`:
  *
- *   pnpm emoticon-slots              # report what both passes would do
+ *   pnpm emoticon-slots --samples /tmp/stills   # dry run, and write every extracted frame there to look at
  *   pnpm emoticon-slots --apply      # run pass 1 and pass 2
  *   pnpm emoticon-slots --apply --link-only
  */
 import { registerMedia } from "@/entities/media/@x/emoticon";
 import { EMOTICON_MAX_EDGE } from "@/shared/config";
 import { emoticonItems, getDb, media } from "@/shared/db";
+import type { Nullable } from "@/shared/lib";
 import { buildStorageKey, presignDownload, presignUpload } from "@/shared/storage";
 import { eq, isNull, or } from "drizzle-orm";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import sharp from "sharp";
 
 /** § 5.5. At most eight pages are sampled — enough to pass a fade-in, cheap on a long loop. */
@@ -41,6 +44,15 @@ const MAX_SAMPLED_PAGES = 8;
 
 const isApply = process.argv.includes("--apply");
 const isLinkOnly = process.argv.includes("--link-only");
+/**
+ * Where a dry run writes the frames it picked, so they can be **looked at**.
+ *
+ * WARN: § 5.5.'s rule is measurable and its outcome is not. Alpha coverage says a frame
+ * is not half-empty; it cannot say the frame reads as the emoticon. Nothing in a report
+ * of numbers answers that, and this backfill fills a slot the picker is already drawing
+ * from — so the frames go somewhere a person can open them before `--apply` is run.
+ */
+const sampleDirectory = readOption("--samples");
 
 type Outcome = { itemId: string; note: string };
 
@@ -76,7 +88,18 @@ async function main() {
   const stilled: Outcome[] = [];
   const failed: Outcome[] = [];
 
+  let seen = 0;
+
   for (const row of rows) {
+    seen++;
+
+    // INFO: A progress line per item. Without one this script is a silent six-minute wait that cannot be told from a hang — which it was, twice.
+    if (seen % 25 === 0) {
+      console.log(
+        `  … ${seen}/${rows.length}  linked ${linked.length}  stills ${stilled.length}  failed ${failed.length}`,
+      );
+    }
+
     // INFO: The stored mime is the proxy `registerEmoticon` uses; pass 2 decodes and is what actually settles whether a thing animates.
     const isAnimatedMime = row.mime !== "image/png";
     const ownerId = toOwnerId(row.r2Key);
@@ -159,6 +182,14 @@ async function main() {
       }
 
       if (!isApply) {
+        // INFO: The coverage leads the filename so `ls` sorts the least confident extractions to the top — those are the ones worth opening.
+        if (sampleDirectory) {
+          const name = `${String(still.coverage).padStart(3, "0")}-${row.id}-p${still.page}of${still.pages}.png`;
+
+          await mkdir(sampleDirectory, { recursive: true });
+          await writeFile(join(sampleDirectory, name), still.body);
+        }
+
         stilled.push({
           itemId: row.id,
           note: `${row.mime} ${still.pages}p → frame ${still.page} (${still.coverage}% alpha), ${Math.round(still.body.byteLength / 1024)}KB`,
@@ -286,6 +317,12 @@ function toOwnerId(key: string) {
   const owner = key.split("/")[1];
 
   return owner && /^[1-9]\d{0,18}$/.test(owner) ? (owner as never) : null;
+}
+
+function readOption(flag: string): Nullable<string> {
+  const at = process.argv.indexOf(flag);
+
+  return at >= 0 ? (process.argv[at + 1] ?? null) : null;
 }
 
 function report(label: string, outcomes: Outcome[]) {

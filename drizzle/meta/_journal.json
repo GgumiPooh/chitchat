@@ -267,6 +267,20 @@
       "when": 1786735783317,
       "tag": "0037_cuddly_omega_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1786742149769,
+      "tag": "0038_cheerful_famine",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1786742220505,
+      "tag": "0039_overrated_terrax",
+      "breakpoints": true
     }
   ]
 }

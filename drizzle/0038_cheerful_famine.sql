@@ -1,0 +1,1 @@
+ALTER TABLE "emoticon_packs" ALTER COLUMN "created_by" DROP NOT NULL;

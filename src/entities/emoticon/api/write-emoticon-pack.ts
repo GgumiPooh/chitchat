@@ -1,7 +1,7 @@
 import "server-only";
 
 import { emoticonItems, emoticonPacks, getDb, messages, nextSnowflake } from "@/shared/db";
-import type { EmoticonItemId, EmoticonPackId, Nullable, UserId } from "@/shared/lib";
+import type { EmoticonItemId, EmoticonPackId, Nullable } from "@/shared/lib";
 import { and, eq } from "drizzle-orm";
 import type { EmoticonPackSummary } from "../model/types";
 
@@ -9,14 +9,16 @@ import type { EmoticonPackSummary } from "../model/types";
  * REQUIREMENTS.md § 13.4. A title is the whole form. An empty pack is a valid
  * state on purpose: the thumbnail is one of the pack's own items (§ 13.2.), so it
  * cannot be chosen until items exist.
+ *
+ * INFO: RESTRUCTURE.md § 6. It takes no author. `created_by` recorded one and nothing
+ * ever read it — § 13.1.'s "a record, never a permission check" was true of the column
+ * and of the parameter alike, and a pack belongs to the conversation rather than to
+ * whoever typed its name.
  */
-export async function createEmoticonPack(
-  name: string,
-  createdBy: UserId,
-): Promise<EmoticonPackSummary> {
+export async function createEmoticonPack(name: string): Promise<EmoticonPackSummary> {
   const [row] = await getDb()
     .insert(emoticonPacks)
-    .values({ id: nextSnowflake<EmoticonPackId>(), name, createdBy })
+    .values({ id: nextSnowflake<EmoticonPackId>(), name })
     .returning();
 
   return {
