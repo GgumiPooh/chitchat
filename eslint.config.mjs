@@ -104,6 +104,11 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  {
+    // INFO: A `.cjs` preload is loaded by `node --require` before any loader is registered, so it cannot be ESM and cannot be anything but `require()`. It is one file under `scripts/` and never reachable from `src/`.
+    files: ["scripts/**/*.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
   globalIgnores([
     // INFO: Default ignores of eslint-config-next:
     ".next/**",

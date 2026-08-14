@@ -1,7 +1,12 @@
 import "server-only";
 
 import { registerMedia } from "@/entities/media/@x/emoticon";
-import { isAllowedEmoticonAsset, normalizeKeywords, type EmoticonSlot } from "@/shared/config";
+import {
+  isAllowedEmoticonAsset,
+  isAnimatableEmoticonMime,
+  normalizeKeywords,
+  type EmoticonSlot,
+} from "@/shared/config";
 import { emoticonItems, getDb, nextSnowflake } from "@/shared/db";
 import type { EmoticonItemId, EmoticonPackId, Maybe, Nullable, UserId } from "@/shared/lib";
 import { headAcceptableObject } from "@/shared/storage";
@@ -49,9 +54,8 @@ export async function registerEmoticon({
   }
 
   // INFO: RESTRUCTURE.md § 5.2. The `media` rows behind this item, minted here so the FKs below have something to name. The columns beside them are still written and still authoritative — this is additive until § 5.'s read paths move over and migration D takes the old ones.
-  // WARN: The image lands in `animated_image_id` rather than `still_image_id`, because the one object an author uploads today is what the bubble plays: § 5.7.'s `image` alias means the animated slot, and it means it here too. `still_image_id` is filled by § 5.5.'s backfill and, once the authoring screen offers it, by the author.
   // INFO: `registerMedia` is idempotent on `r2_key`, so the retry the `onConflictDoNothing` below answers for does not mint a second row for the same object.
-  const [animatedMedia, audioMedia] = await Promise.all([
+  const [imageMedia, audioMedia] = await Promise.all([
     registerMedia({ ownerId: uploaderId, r2Key: imageKey, width, height, scope: "emoticon" }),
     audioKey
       ? registerMedia({
@@ -65,9 +69,13 @@ export async function registerEmoticon({
   ]);
 
   // WARN: § 14. `registerMedia` re-reads the object and applies § 13.2.'s own slot rules, so this refuses what `verifyAsset` above would have refused — and refusing here rather than writing the item without its FK is what keeps the two representations from disagreeing. An object left unreferenced is what § 13.3.'s discard endpoint exists to sweep.
-  if (!animatedMedia || (audioKey && !audioMedia)) {
+  if (!imageMedia || (audioKey && !audioMedia)) {
     return null;
   }
+
+  // WARN: RESTRUCTURE.md § 5.2. Which image slot the one uploaded object belongs in, and a `png` gets **`still_image_id` with `animated_image_id` left NULL** — it does not animate, so it has no animation, and saying otherwise would make the column mean "the image" all over again. § 5.2.'s CHECK is satisfied by either slot alone, and `toSlotAsset` falls back both ways, so the bubble asking for the animation is answered by the still.
+  // WARN: The stored mime is the test, which is a proxy rather than the truth: a **static** WebP is legal and lands in the animated slot with no still of its own. That costs it § 5.4.'s fallback in the picker and nothing else, where decoding here to be sure would put a frame extraction on the authoring path — § 5.5.'s backfill is where that cost belongs. An APNG is `image/png` on the wire (§ 13.4.) and lands in the still slot for the same reason, which is the one case this proxy gets wrong in the other direction.
+  const isAnimated = isAnimatableEmoticonMime(image.mime);
 
   const [row] = await getDb()
     .insert(emoticonItems)
@@ -78,7 +86,8 @@ export async function registerEmoticon({
       mime: image.mime,
       audioKey: audioKey ?? null,
       audioMime: audio?.mime ?? null,
-      animatedImageId: animatedMedia.id,
+      stillImageId: isAnimated ? null : imageMedia.id,
+      animatedImageId: isAnimated ? imageMedia.id : null,
       audioId: audioMedia?.id ?? null,
       width,
       height,
