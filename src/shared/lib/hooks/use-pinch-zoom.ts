@@ -288,6 +288,18 @@ export function usePinchZoom() {
         }
       },
 
+      /**
+       * Keeps the double **click** from selecting the photo it zooms.
+       *
+       * WARN: `detail > 1` is the second click of the pair and nothing else — that is the one the browser extends a selection from, so the first click keeps every default it has, focus included.
+       * WARN: Never `user-select: none`, and never `draggable={false}` (REQUIREMENTS.md § 8.11.). This is the one surface in the app that leaves the OS its own hold gesture, and iOS governs that menu off the same family of properties — suppressing the selection declaratively is how the 사진에 저장 route disappears on a change that looks purely cosmetic.
+       */
+      onMouseDown: (event: MouseEvent<HTMLElement>) => {
+        if (event.detail > 1) {
+          event.preventDefault();
+        }
+      },
+
       // WARN: Suppresses the `click` a pan or a double tap ends in, so the viewer's own backdrop handler never reads one as a tap past the photo.
       onClickCapture: (event: MouseEvent<HTMLElement>) => {
         if (hasMovedRef.current) {
