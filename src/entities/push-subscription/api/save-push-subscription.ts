@@ -32,9 +32,10 @@ export async function savePushSubscription({
     })
     // WARN: `userId` is part of the update on purpose. Two accounts can share one browser, and the endpoint follows the installation rather than the person — without this the row keeps pushing the new session's messages to the previous account.
     // WARN: `soundEnabled` is deliberately absent. It is the one column the client does not send, so listing it here would reset 알림 소리 to the column default on every launch (`REQUIREMENTS.md § 16.1.`).
+    // INFO: `lastSeenAt` is the abandonment lease (`REQUIREMENTS.md § 16.1.`), and this upsert is the only thing that renews it — one launch of the app on this installation.
     .onConflictDoUpdate({
       target: pushSubscriptions.endpoint,
-      set: { userId, p256dh, auth, userAgent },
+      set: { userId, p256dh, auth, userAgent, lastSeenAt: new Date() },
     })
     .returning({ soundEnabled: pushSubscriptions.soundEnabled });
 

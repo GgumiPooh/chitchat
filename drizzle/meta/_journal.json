@@ -225,6 +225,13 @@
       "when": 1786685439244,
       "tag": "0031_drop_user_id_map",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786720055940,
+      "tag": "0032_push_last_seen_at",
+      "breakpoints": true
     }
   ]
 }

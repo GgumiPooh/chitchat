@@ -19,8 +19,10 @@ export const pushSubscriptions = pgTable(
     // INFO: REQUIREMENTS.md § 16.1. 알림 소리 is a property of the installation, so it belongs on this row rather than on `users` — one person silences the laptop and keeps the phone audible.
     soundEnabled: boolean("sound_enabled").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    // INFO: Null until the first successful send — a subscription that never delivers is what a stale-device cleanup would look for.
+    // INFO: Diagnostics only. It is NOT what retires an abandoned device — `REQUIREMENTS.md § 16.1.` explains why a send to one still succeeds.
     lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    // INFO: REQUIREMENTS.md § 16.1. The launch upsert stamps this, so it dates the last time the app was OPENED on this installation — which is the only thing that distinguishes an abandoned device from a quiet one.
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("push_subscriptions_user_id_idx").on(table.userId)],
 );
