@@ -19,6 +19,12 @@ const ERROR_STATUS = {
   too_large: 413,
   unsupported_media: 415,
   unprocessable: 422,
+  /** REQUIREMENTS.md § 12.4. jandh-ops answered, and the answer was a failure. Its own push carries the reason; this side never repeats it. */
+  upstream_failed: 502,
+  /** REQUIREMENTS.md § 12.4. jandh-ops is unreachable or its address and tokens are not configured here. */
+  unavailable: 503,
+  /** REQUIREMENTS.md § 12.4. The connection to jandh-ops was cut while the run continued there — NOT a verdict on the run, which reports itself by push. */
+  upstream_timeout: 504,
 } as const;
 
 export type ApiErrorCode = keyof typeof ERROR_STATUS;

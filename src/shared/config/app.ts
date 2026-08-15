@@ -129,6 +129,9 @@ export const EMOTICON_SETTINGS_ROUTE = "/settings/emoticons";
 // INFO: REQUIREMENTS.md § 12. The device list, nested for the reason the line above is.
 export const DEVICE_SETTINGS_ROUTE = "/settings/devices";
 
+// INFO: REQUIREMENTS.md § 12.4. The ops console — backups and the orphan sweep, nested for the reason the line above is.
+export const SERVER_SETTINGS_ROUTE = "/settings/server";
+
 /**
  * jandh-emoticons' URL 임포트 screen, served from this origin as a multi-zone
  * (`next.config.ts`'s rewrite).
@@ -176,6 +179,15 @@ export const PROFILE_PATH = `${USERS_PATH}/me`;
 
 /** REQUIREMENTS.md § 12. One logged-in device, for the revocation the list offers. */
 export const SESSIONS_PATH = "/api/sessions";
+
+/**
+ * REQUIREMENTS.md § 12.4. The backup list, the 백업 생성 trigger, and `${path}/{filename}`
+ * for one backup's deletion — all proxied to jandh-ops, which is where the ops tokens stay.
+ */
+export const OPS_BACKUPS_PATH = "/api/ops/backups";
+
+/** REQUIREMENTS.md § 12.4. The orphan sweep, dry-run unless the body says otherwise. */
+export const OPS_CLEANUP_PATH = "/api/ops/cleanup-orphans";
 
 // INFO: REQUIREMENTS.md § 8.7. The name every bubble and system sentence is rendered from, so it is bounded by what a chat row can show rather than by the column.
 export const MAX_NICKNAME_LENGTH = 20;

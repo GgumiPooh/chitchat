@@ -32,6 +32,7 @@ const ROWS: { key: string; trailing?: ReactNode }[] = [
   { key: "push-sound", trailing: SWITCH },
   { key: "typing", trailing: SWITCH },
   { key: "devices" },
+  { key: "server" },
   ...(IS_DEV ? [{ key: "dev-refresh" }] : []),
 ];
 

@@ -23,7 +23,7 @@ export {
   type VoicePlayback,
   type VoiceSnapshot,
 } from "./audio/voice-playback";
-export { A_KILOBYTE, A_MEGABYTE, formatSize } from "./bytes";
+export { A_GIGABYTE, A_KILOBYTE, A_MEGABYTE, formatSize, formatStorageSize } from "./bytes";
 export { cn } from "./class-name";
 export {
   MILESTONE_DAY_STEP,

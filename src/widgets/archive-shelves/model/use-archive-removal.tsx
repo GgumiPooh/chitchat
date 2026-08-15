@@ -64,9 +64,8 @@ export function useArchiveRemoval({ noun, onRemoved }: ArchiveRemovalParams) {
         isOpen={isConfirming}
         header={{
           title: `${josa(subject, "을/를")} 삭제할까요?`,
-          // WARN: § 4.3. Both clauses need saying before the tap: it is irreversible, and it reaches a photo the *other* participant may be the one who sent.
           // INFO: § 4.3. The tombstone's own words, quoted, so the sentence shows what the reader will be left looking at rather than describing it.
-          description: `원본이 사라져 되돌릴 수 없어요. 대화 말풍선에는 '${toDeletedMediaText(subjectNoun)}'만 남아요`,
+          description: `대화 말풍선에는 '${toDeletedMediaText(subjectNoun)}'만 남아요`,
         }}
         onClose={close}
       >

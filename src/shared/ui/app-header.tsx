@@ -67,11 +67,20 @@ function useIsScrolled(): boolean {
 
   useEffect(() => {
     const sync = () => setIsScrolled(window.scrollY > SCROLLED_THRESHOLD);
+    let settled = 0;
 
-    // WARN: No sync on mount — arriving from a scrolled screen the router has not reset the document yet, so the fresh title would fade in and back out again. Its scroll-to-top and `ScrollMemory`'s restore both dispatch `scroll`.
+    // WARN: Two frames, and neither none nor one. `ScrollMemory` restores the position in a frame of its own, so a header that never syncs on mount misses it entirely — which is exactly what a screen streaming in behind `loading.tsx` does, since its own header mounts after that restore has already dispatched its `scroll`. Reading immediately is the other failure: the App Router has not reset the document yet, so the fresh title would start faded and fade back in.
+    const restore = requestAnimationFrame(() => {
+      settled = requestAnimationFrame(sync);
+    });
+
     window.addEventListener("scroll", sync, { passive: true });
 
-    return () => window.removeEventListener("scroll", sync);
+    return () => {
+      cancelAnimationFrame(restore);
+      cancelAnimationFrame(settled);
+      window.removeEventListener("scroll", sync);
+    };
   }, []);
 
   return isScrolled;

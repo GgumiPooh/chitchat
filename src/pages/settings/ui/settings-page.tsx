@@ -16,6 +16,7 @@ import { DevRefreshRow } from "./dev-refresh-row";
 import { DeviceSettingsRow } from "./device-settings-row";
 import { EmoticonSettingsRow } from "./emoticon-settings-row";
 import { ProfileCover } from "./profile-cover";
+import { ServerSettingsRow } from "./server-settings-row";
 import { ThemeSettingsRow } from "./theme-settings-row";
 
 export type SettingsPageProps = {
@@ -65,6 +66,8 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
       <TypingSettingsRow isEnabled={user.typingIndicatorEnabled} />
       {/* INFO: REQUIREMENTS.md § 12. Reads `sessions` — the push subscriptions in the 알림 row above are a different set, and not revocable. */}
       <DeviceSettingsRow />
+      {/* INFO: REQUIREMENTS.md § 12.4. Last of the 계정 group — the one screen here that acts on the deployment rather than on the account, and the one nobody opens twice a week. */}
+      <ServerSettingsRow />
       {/* INFO: REQUIREMENTS.md § 15.1. Dev only — a production client is refreshed by the stream's `build` event and never needs to be told by hand. */}
       {IS_DEV && <DevRefreshRow />}
       <div className="flex justify-center p-md">

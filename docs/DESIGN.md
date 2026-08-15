@@ -1240,6 +1240,8 @@ The header has no surface because it is not a region — it is a place to put co
 
 A screen whose content starts at the top offsets it by `--app-header-inset` itself. Chat does not: its messages are meant to run under the controls.
 
+**The fade is read one frame after the scroll is restored, never on mount alone.** `ScrollMemory` puts a returning screen back where it was in a frame of its own, and a screen streaming in behind its `loading.tsx` mounts its header after that — so a header that only listened for `scroll` came up unfaded over content that was already scrolled, which is what 캘린더 and 보관함 showed on the way back to them.
+
 The title fades on scroll because it is the one part of the header with no surface behind it — the controls are `icon-button-floating` and stay legible over anything, while a bare title collides with the text scrolling under it. Screens that scroll inside their own container (chat's virtualizer) never move the shell's scroller, so their title does not fade — and does not need to.
 
 The padding split follows from an `icon-button` already padding its 20px glyph by 12 inside a 44 target (§ 7.1.): `sm` on the row puts a bare title on the 16px gutter, and the button's own padding puts its glyph there too.
