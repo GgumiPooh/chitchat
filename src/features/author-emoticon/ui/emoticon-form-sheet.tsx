@@ -10,7 +10,6 @@ import {
 import {
   ALLOWED_EMOTICON_AUDIO_MIMES,
   toEmoticonAssetUrl,
-  type EmoticonImageSlot,
   type EmoticonSlot,
 } from "@/shared/config";
 import {
@@ -52,15 +51,17 @@ export type EmoticonFormSheetProps = {
 };
 
 /**
- * REQUIREMENTS.md § 13.4. Two image slots of which **either one alone is enough**,
- * and an optional sound. The same sheet edits an existing item, where every slot
- * left untouched keeps what the item already carries.
+ * REQUIREMENTS.md § 13.4. One image and an optional sound. The same sheet edits an
+ * existing item, where every slot left untouched keeps what the item already carries.
  *
- * WARN: A file goes in the slot its own bytes put it in, and a row refuses one that
- * belongs in the other (`useEmoticonDraft`). The alternative — filing it wherever it
- * really belongs — leaves the row the user tapped still empty and says nothing.
+ * WARN: One field, two slots. An animated pick fills both — its own bytes and a still
+ * extracted from them — and a static pick empties the animation the item was showing,
+ * because that animation is not a rendering of the picture that just replaced it.
  *
- * WARN: Only the still reaches `MediaEditor`. A canvas crop decodes one frame and
+ * WARN: The image has no clear button. `emoticon_items_has_image_check` forbids an item
+ * with no image, so replacing is the only operation the field has.
+ *
+ * WARN: Only a static pick reaches `MediaEditor`. A canvas crop decodes one frame and
  * re-encodes a still, which would turn an animation into a picture (§ 13.4.).
  */
 export function EmoticonFormSheet({
@@ -76,39 +77,27 @@ export function EmoticonFormSheet({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const draft = useEmoticonDraft();
   const { pickImage, setKeywords } = draft;
-  // INFO: REQUIREMENTS.md § 13.4. Each slot opens its own picker directly — none of them has a second kind of file to offer a choice between.
-  const stillPicker = useMediaPicker({
+  // INFO: REQUIREMENTS.md § 13.4. Opens the OS picker directly (`DESIGN.md § 7.5.`) — one image is the whole of the choice, so there is nothing for a sheet to frame.
+  const imagePicker = useMediaPicker({
     accept: "image/*",
-    onSelect: (files) => files[0] && void draft.pickImage(files[0], "still-image"),
-  });
-  const animatedPicker = useMediaPicker({
-    accept: "image/*",
-    onSelect: (files) => files[0] && void draft.pickImage(files[0], "animated-image"),
+    onSelect: (files) => files[0] && void draft.pickImage(files[0]),
   });
   const audioPicker = useMediaPicker({
     accept: AUDIO_ACCEPT,
     onSelect: (files) => files[0] && draft.pickAudio(files[0]),
   });
-  const stillUrl =
-    draft.still?.previewUrl ?? toExistingImageUrl(emoticon, "still-image", draft.isStillCleared);
-  const animatedUrl =
-    draft.animated?.previewUrl ??
-    toExistingImageUrl(emoticon, "animated-image", draft.isAnimatedCleared);
+  // INFO: The animation wherever there is one, so the box shows the emoticon moving rather than the frame it was reduced to.
+  const imageUrl =
+    draft.image?.animated?.previewUrl ??
+    draft.image?.still.previewUrl ??
+    toExistingImageUrl(emoticon);
   const audioUrl = draft.audio?.previewUrl ?? toExistingAudioUrl(emoticon, draft.isAudioCleared);
   const hasKeywordChange = !isSameKeywords(draft.keywords, emoticon?.keywords ?? []);
   const hasChange =
-    draft.still !== null ||
-    draft.animated !== null ||
-    draft.audio !== null ||
-    draft.isStillCleared ||
-    draft.isAnimatedCleared ||
-    draft.isAudioCleared ||
-    hasKeywordChange;
-  // INFO: `emoticon_items_has_image_check`, read off what the two rows are showing — either image satisfies it, and emptying the last one is what the button refuses.
-  const hasImage = stillUrl !== undefined || animatedUrl !== undefined;
-  const canSubmit = !isSubmitting && hasChange && hasImage;
+    draft.image !== null || draft.audio !== null || draft.isAudioCleared || hasKeywordChange;
+  const canSubmit = !isSubmitting && hasChange && imageUrl !== undefined;
 
-  // INFO: The pack screen picks a file before this opens (§ 13.4.), and it is read into whichever slot it belongs in rather than a slot the screen had to guess.
+  // INFO: The pack screen picks a file before this opens (§ 13.4.), so the form is already staged when it appears.
   useEffect(() => {
     if (isOpen && initialFile) {
       void pickImage(initialFile);
@@ -134,24 +123,13 @@ export function EmoticonFormSheet({
         onClose={handleClose}
       >
         <div className="space-y-sm pt-2xs">
-          {/* INFO: The one thing a reader cannot infer from two empty boxes — the CHECK takes either, so neither row may read as required. */}
-          <p className="text-body-sm text-meta">둘 중 하나만 올려도 돼요</p>
           <ImageRow
-            label="정지 이미지"
-            hint="목록과 답장 미리보기에 쓰여요"
-            previewUrl={stillUrl}
+            label="이미지"
+            hint="정적 또는 움직이는 이미지 · 움직이면 정지 이미지도 같이 만들어요"
+            previewUrl={imageUrl}
             isReading={draft.isReading}
-            onPick={stillPicker.open}
-            onClear={stillUrl ? () => draft.clearImage("still-image") : undefined}
-            onEdit={draft.still ? () => setIsEditing(true) : undefined}
-          />
-          <ImageRow
-            label="움직이는 이미지"
-            hint="말풍선에서 재생돼요"
-            previewUrl={animatedUrl}
-            isReading={draft.isReading}
-            onPick={animatedPicker.open}
-            onClear={animatedUrl ? () => draft.clearImage("animated-image") : undefined}
+            onPick={imagePicker.open}
+            onEdit={draft.image && !draft.image.animated ? () => setIsEditing(true) : undefined}
           />
           <AudioRow
             fileName={
@@ -172,14 +150,13 @@ export function EmoticonFormSheet({
           </Button>
         </div>
       </BottomSheet>
-      {stillPicker.input}
-      {animatedPicker.input}
+      {imagePicker.input}
       {audioPicker.input}
-      {isEditing && draft.still && (
+      {isEditing && draft.image && (
         // WARN: Keyed by draft — `MediaEditor` mints its source object URL once per mount, so editing a replaced image must be a second mount.
         <MediaEditor
-          key={draft.still.id}
-          draft={draft.still}
+          key={draft.image.still.id}
+          draft={draft.image.still}
           editOptions={EMOTICON_IMAGE_EDIT_OPTIONS}
           onDone={(edited) => {
             draft.replaceStill(edited);
@@ -215,8 +192,8 @@ export function EmoticonFormSheet({
     try {
       // INFO: REQUIREMENTS.md § 13.4. Every slot uploads on submit, never on pick, so an abandoned form leaves nothing in the bucket.
       const keys = await uploadSlots(uploaded, {
-        "still-image": draft.still?.file,
-        "animated-image": draft.animated?.file,
+        "still-image": draft.image?.still.file,
+        "animated-image": draft.image?.animated?.file,
         audio: draft.audio?.file,
       });
 
@@ -232,59 +209,42 @@ export function EmoticonFormSheet({
   }
 
   async function saveNew(keys: SlotKeys) {
-    const still = toImageBody(draft.still, keys.stillKey);
-    const animated = toImageBody(draft.animated, keys.animatedKey);
+    const still = toImageBody(draft.image?.still, keys.stillKey);
 
-    if (!still && !animated) {
+    if (!still) {
       throw new Error("emoticon image missing");
     }
 
+    const animated = toImageBody(draft.image?.animated, keys.animatedKey);
+
     return createEmoticon(packId, {
-      ...(still ? { still } : {}),
+      still,
       ...(animated ? { animated } : {}),
       audioKey: keys.audioKey,
       keywords: draft.keywords,
     });
   }
 
-  /** INFO: § 13.4. An untouched slot is left out of the body entirely, so the item keeps what it has; a slot the user emptied is an explicit `null`. */
+  /** INFO: § 13.4. An untouched slot is left out of the body entirely, so the item keeps what it has. */
   async function saveEdit(target: Emoticon, keys: SlotKeys) {
+    const still = toImageBody(draft.image?.still, keys.stillKey);
+    const animated = toImageBody(draft.image?.animated, keys.animatedKey);
+    // INFO: A static pick has to say so. An absent slot keeps what the item has, which would leave the bubble playing an animation of the picture the still just replaced.
+    const clearsAnimation = still !== null && animated === null && target.hasAnimated;
+
     return updateEmoticon(target.id, {
-      ...toImageEdit(
-        "still",
-        toImageBody(draft.still, keys.stillKey),
-        draft.isStillCleared,
-        target.hasStill,
-      ),
-      ...toImageEdit(
-        "animated",
-        toImageBody(draft.animated, keys.animatedKey),
-        draft.isAnimatedCleared,
-        target.hasAnimated,
-      ),
+      ...(still ? { still } : {}),
+      ...(animated ? { animated } : {}),
+      ...(clearsAnimation ? { animated: null } : {}),
       ...(keys.audioKey ? { audioKey: keys.audioKey } : {}),
       ...(draft.isAudioCleared && !keys.audioKey ? { audioKey: null } : {}),
       // INFO: § 13.8. Sent only when it actually changed, so an image-only edit leaves the column untouched rather than rewriting it to the same value.
       ...(hasKeywordChange ? { keywords: draft.keywords } : {}),
     });
   }
-
-  /** INFO: A slot the item held and the user emptied is an explicit `null`; one they never touched is left out entirely. */
-  function toImageEdit(
-    field: "still" | "animated",
-    body: Nullable<EmoticonImageBody>,
-    isCleared: boolean,
-    had: boolean,
-  ) {
-    if (body) {
-      return { [field]: body };
-    }
-
-    return isCleared && had ? { [field]: null } : {};
-  }
 }
 
-function toImageBody(draft: Nullable<MediaDraft>, key: Maybe<string>): Nullable<EmoticonImageBody> {
+function toImageBody(draft: Maybe<MediaDraft>, key: Maybe<string>): Nullable<EmoticonImageBody> {
   return draft && key ? { key, width: draft.width, height: draft.height } : null;
 }
 
@@ -333,16 +293,14 @@ async function uploadSlots(uploaded: string[], files: SlotFiles): Promise<SlotKe
   return { stillKey: still, animatedKey: animated, audioKey: audio };
 }
 
-/** INFO: Asks for the slot itself rather than letting the route fall back, so an empty row stays empty instead of showing the other slot's picture. */
-function toExistingImageUrl(
-  emoticon: Maybe<Emoticon>,
-  slot: EmoticonImageSlot,
-  isCleared: boolean,
-): Optional<string> {
-  const has = slot === "still-image" ? emoticon?.hasStill : emoticon?.hasAnimated;
-
-  return emoticon && has && !isCleared
-    ? toEmoticonAssetUrl(emoticon.id, slot, emoticon.version)
+/** INFO: The animation where the item has one, matching what a fresh pick previews — the box is showing the emoticon itself, not standing in for a picker cell. */
+function toExistingImageUrl(emoticon: Maybe<Emoticon>): Optional<string> {
+  return emoticon
+    ? toEmoticonAssetUrl(
+        emoticon.id,
+        emoticon.hasAnimated ? "animated-image" : "still-image",
+        emoticon.version,
+      )
     : undefined;
 }
 
@@ -364,7 +322,6 @@ type ImageRowProps = {
   isReading: boolean;
   onPick: () => void;
   onEdit?: () => void;
-  onClear?: () => void;
 };
 
 function ImageRow({
@@ -375,7 +332,6 @@ function ImageRow({
   isReading,
   onPick,
   onEdit,
-  onClear,
 }: ImageRowProps) {
   return (
     <div className={cn("flex items-center gap-sm", className)}>
@@ -401,24 +357,17 @@ function ImageRow({
       <div className="min-w-0 flex-1 space-y-2xs">
         <p className="text-title-sm text-ink">{label}</p>
         <p className="text-body-sm text-meta">{isReading ? "읽는 중이에요" : hint}</p>
-        {(onEdit || onClear) && (
-          <div className="flex items-center gap-2xs">
-            {onEdit && (
-              <Button
-                className="w-auto"
-                buttonClassName="h-9 min-h-9 w-auto px-sm"
-                variant="secondary"
-                haptic
-                onClick={onEdit}
-              >
-                <Pencil className="size-4" strokeWidth={1.75} />
-                편집
-              </Button>
-            )}
-            {onClear && (
-              <IconButton Icon={X} haptic aria-label={`${label} 제거`} onClick={onClear} />
-            )}
-          </div>
+        {onEdit && (
+          <Button
+            className="w-auto"
+            buttonClassName="h-9 min-h-9 w-auto px-sm"
+            variant="secondary"
+            haptic
+            onClick={onEdit}
+          >
+            <Pencil className="size-4" strokeWidth={1.75} />
+            편집
+          </Button>
         )}
       </div>
     </div>

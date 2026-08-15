@@ -1,6 +1,10 @@
 import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
-import { revokePreview, toEmoticonImagePick } from "@/features/upload-media/@x/author-emoticon";
+import {
+  revokePreview,
+  toEmoticonImageUpload,
+  type EmoticonImageUpload,
+} from "@/features/upload-media/@x/author-emoticon";
 import {
   MAX_EMOTICON_IMAGE_SIZE,
   MAX_UPLOAD_INFLIGHT_BYTES,
@@ -9,10 +13,10 @@ import {
   isAllowedEmoticonAsset,
   type EmoticonImageSlot,
 } from "@/shared/config";
-import type { EmoticonPackId } from "@/shared/lib";
+import type { EmoticonPackId, Nullable } from "@/shared/lib";
 import { formatSize, holdAwake, holdUnsentWork, mapPooled } from "@/shared/lib";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
-import { createEmoticon } from "../api/write-emoticon";
+import { createEmoticon, type EmoticonImageBody } from "../api/write-emoticon";
 
 /** REQUIREMENTS.md § 13.4. Named, so the screen can say which file failed rather than how many did. */
 export type BulkAddFailure = {
@@ -31,10 +35,13 @@ export type BulkAddHandlers = {
   onSettled?: () => void;
 };
 
-// INFO: The finished restructure. A bulk pile is one item per file, so the file's own bytes decide its slot and there is never a second one to fill.
-type Prepared =
-  | { slot: EmoticonImageSlot; uploadedKey: string; width: number; height: number }
-  | { reason: string };
+// INFO: One item per file, filled the way the form fills one — an animated file lands in both slots and a static one in the still alone.
+type PreparedImages = {
+  still: EmoticonImageBody;
+  animated: Nullable<EmoticonImageBody>;
+};
+
+type Prepared = PreparedImages | { reason: string };
 
 /**
  * REQUIREMENTS.md § 13.4. A pile of images, one item each — the path that exists so
@@ -111,17 +118,16 @@ export async function addEmoticonsFromFiles(
     }
 
     try {
-      const image = { key: prepared.uploadedKey, width: prepared.width, height: prepared.height };
-      const emoticon = await createEmoticon(
-        packId,
-        prepared.slot === "still-image" ? { still: image } : { animated: image },
-      );
+      const emoticon = await createEmoticon(packId, {
+        still: prepared.still,
+        ...(prepared.animated ? { animated: prepared.animated } : {}),
+      });
 
       added.push(emoticon);
       onAdded(emoticon);
     } catch {
       // INFO: § 13.3. An object that landed for an item that never got registered is unreachable, so it is given back rather than left in the bucket.
-      void discardEmoticonAssets([prepared.uploadedKey]);
+      void discardEmoticonAssets(toKeys(prepared));
       failed.push({ fileName: file.name, reason: "등록하지 못했어요" });
     } finally {
       onSettled?.();
@@ -130,39 +136,72 @@ export async function addEmoticonsFromFiles(
 }
 
 /**
- * Reads a picked file and puts its object in R2, answering either the key to
- * register it with or why it will not be registered.
+ * Reads a picked file and puts its objects in R2, answering either what to register
+ * the item with or why it will not be registered.
  *
  * WARN: Never rejects. It runs inside `mapPooled`, whose first rejection abandons
  * the batch — every file here has to be able to fail on its own.
  */
 async function prepare(file: File): Promise<Prepared> {
-  // WARN: Two `try` blocks and not one. A single block cannot tell the two failures apart — the key is only ever assigned by the upload that would have thrown, so it is always unset in the `catch` and every failure reads as an unreadable file (§ 13.4.).
-  let draft: MediaDraft;
-  let slot: EmoticonImageSlot;
+  // WARN: Two `try` blocks and not one. A single block cannot tell the two failures apart — a key is only ever assigned by the upload that would have thrown, so every failure would read as an unreadable file (§ 13.4.).
+  let upload: EmoticonImageUpload;
 
   try {
-    ({ draft, slot } = await toEmoticonImagePick(file));
+    upload = await toEmoticonImageUpload(file);
   } catch {
     return { reason: "파일을 읽지 못했어요" };
   }
 
-  // INFO: The preview is never rendered on this path — the grid reads the registered item back through its asset URL — so it is released as soon as the size has been read off it.
-  revokePreview(draft);
+  const slots = toSlotDrafts(upload);
 
-  // INFO: REQUIREMENTS.md § 14. A courtesy check, so an oversized file fails before it is uploaded rather than at registration.
-  if (!isAllowedEmoticonAsset(slot, draft.file.type, draft.file.size)) {
-    return { reason: describeRejection(slot, draft.file) };
+  // INFO: The previews are never rendered on this path — the grid reads the registered item back through its asset URL — so they are released as soon as the sizes have been read off them.
+  slots.forEach(([, draft]) => revokePreview(draft));
+
+  for (const [slot, draft] of slots) {
+    // INFO: REQUIREMENTS.md § 14. A courtesy check, so an oversized file fails before it is uploaded rather than at registration.
+    if (!isAllowedEmoticonAsset(slot, draft.file.type, draft.file.size)) {
+      return { reason: describeRejection(slot, draft.file) };
+    }
   }
+
+  const uploaded: string[] = [];
 
   try {
-    const uploadedKey = await uploadEmoticonAsset(slot, draft.file);
+    const still = await uploadImage(uploaded, "still-image", upload.still);
+    const animated = upload.animated
+      ? await uploadImage(uploaded, "animated-image", upload.animated)
+      : null;
 
-    return { slot, uploadedKey, width: draft.width, height: draft.height };
+    return { still, animated };
   } catch {
-    // INFO: Nothing to discard — an upload that threw never handed back a key, and § 13.3.'s cleanup has nothing to name.
+    // INFO: § 13.3. An animated file puts two objects in the bucket, so a still that landed before its sibling failed is referenced by nothing and has to be given back.
+    void discardEmoticonAssets(uploaded);
+
     return { reason: "업로드하지 못했어요" };
   }
+}
+
+/** INFO: `uploaded` is appended to as each object lands, so a failure halfway through can name what is already in the bucket. */
+async function uploadImage(
+  uploaded: string[],
+  slot: EmoticonImageSlot,
+  draft: MediaDraft,
+): Promise<EmoticonImageBody> {
+  const key = await uploadEmoticonAsset(slot, draft.file);
+
+  uploaded.push(key);
+
+  return { key, width: draft.width, height: draft.height };
+}
+
+function toSlotDrafts({ still, animated }: EmoticonImageUpload): [EmoticonImageSlot, MediaDraft][] {
+  const slots: [EmoticonImageSlot, MediaDraft][] = [["still-image", still]];
+
+  return animated ? [...slots, ["animated-image", animated]] : slots;
+}
+
+function toKeys({ still, animated }: PreparedImages): string[] {
+  return animated ? [still.key, animated.key] : [still.key];
 }
 
 // INFO: Split by which half of `isAllowedEmoticonAsset` refused it — "8MB를 넘어요" and "지원하지 않는 형식이에요" are acted on differently by whoever reads the list.

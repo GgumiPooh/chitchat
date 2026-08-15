@@ -3,8 +3,8 @@ export { applyEdit, type ApplyEditOptions, type CropArea } from "./model/apply-e
 export { toMediaDraft, toVoiceDraft, validateFile } from "./model/read-draft";
 export {
   EMOTICON_IMAGE_EDIT_OPTIONS,
-  toEmoticonImagePick,
-  type EmoticonImagePick,
+  toEmoticonImageUpload,
+  type EmoticonImageUpload,
 } from "./model/read-emoticon-image";
 export { revokePreview } from "./model/revoke-preview";
 export { isWithinDuration, trimVideo, type TrimRange } from "./model/trim-video";
