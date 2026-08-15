@@ -37,10 +37,36 @@ const SPENT_CLAIM_RETENTION = AN_HOUR;
  */
 export async function reclaimExpiredStorage(limit: number = RECLAIM_LIMIT): Promise<void> {
   await safelyRunAsync(async () => {
-    await purgeNow(await findPurgeableMedia(limit));
-    await purgeNow(await findExpiredClaims(limit));
-    await dropSpentClaims();
+    await reclaimExpiredStorageOnce(limit);
   });
+}
+
+/** What one pass finished. Both counts are **objects R2 confirmed**, never candidates. */
+export type ReclaimReport = {
+  media: number;
+  claims: number;
+};
+
+/**
+ * One pass of the same work, reporting what it finished and throwing what it could not.
+ *
+ * INFO: The scheduled reclaim is what needs both. It has to know when the queue is drained
+ * — `RECLAIM_LIMIT` bounds a pass, so a backlog takes several — and a run that could not
+ * reach the bucket has to fail loudly where the upload-triggered copy above must not.
+ *
+ * WARN: A pass reporting zero means "nothing more to do **this run**", which is drained
+ * and total failure alike. A caller looping on it therefore needs a ceiling of its own:
+ * a key R2 keeps refusing stays unstamped and is selected again by the very next pass.
+ */
+export async function reclaimExpiredStorageOnce(
+  limit: number = RECLAIM_LIMIT,
+): Promise<ReclaimReport> {
+  const media = await purgeNow(await findPurgeableMedia(limit));
+  const claims = await purgeNow(await findExpiredClaims(limit));
+
+  await dropSpentClaims();
+
+  return { media: media.length, claims: claims.length };
 }
 
 /** INFO: § 12. Soft-deleted past the window a peer may still replay a cached 302 inside; `media_pending_purge_idx` is the partial index this reads through. */

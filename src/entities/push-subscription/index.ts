@@ -1,5 +1,5 @@
 export { deletePushSubscription } from "./api/delete-push-subscription";
-export { pushToUser } from "./api/push-to-user";
+export { pushToUser, type PushToUserOptions } from "./api/push-to-user";
 export {
   savePushSubscription,
   type SavePushSubscriptionParams,

@@ -1,0 +1,30 @@
+name: Ops — purge deleted
+
+# REQUIREMENTS.md § 9., § 12.4. Reclaims the bytes behind soft-deleted media and expired
+# upload claims. jandh runs the same two passes off `POST /api/media/upload-url`; this is
+# the half that does not wait for somebody to upload something.
+
+on:
+  schedule:
+    # WARN: Ten minutes is what is asked for, not what is delivered. GitHub's scheduler runs
+    # late under load and skips runs, so treat this as "several times an hour". The work is
+    # idempotent and every pass resumes the last one, so a late run costs only latency.
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# WARN: Serialized. A pass that outlives its ten minutes would otherwise overlap the next,
+# and both would select the same unstamped rows.
+concurrency:
+  group: ops-purge
+  cancel-in-progress: false
+
+jobs:
+  purge:
+    uses: ./.github/workflows/ops-job.yml
+    with:
+      script: ops:purge
+      timeout-minutes: 20
+    secrets: inherit

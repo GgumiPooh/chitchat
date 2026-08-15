@@ -1,0 +1,75 @@
+import { reclaimExpiredStorageOnce } from "@/shared/storage";
+import { notifyOps } from "./notify";
+
+/**
+ * REQUIREMENTS.md § 9., § 12.4. Reclaims the bytes behind soft-deleted media and expired
+ * upload claims, on a schedule rather than off an upload.
+ *
+ * INFO: The same two passes `reclaimExpiredStorage` runs inside `POST /api/media/upload-url`.
+ * That copy is triggered by uploads and paid for by them, so a stretch of deleting without
+ * uploading leaves the bytes in the bucket — this is the schedule that does not depend on
+ * anybody uploading anything.
+ */
+
+/**
+ * WARN: The reason a drained queue is not the only stop condition. A key R2 keeps refusing
+ * stays unstamped, so the next pass selects it again — without a ceiling a bucket that is
+ * refusing writes turns one run into an endless loop that never reports.
+ */
+const MAX_PASSES = 50;
+
+/**
+ * WARN: Off unless `PURGE_NOTIFY` is exactly `true`, and the only one of the three runs
+ * that is. This one fires every ten minutes where the other two are daily, so a banner per
+ * run is a hundred-odd pushes a day — and a person notified that often stops reading the
+ * ones that matter, on the channel this app raises 메시지 on.
+ *
+ * WARN: It silences the FAILURE banner too, deliberately. A pass that throws is retried
+ * unchanged by the next one, and a red scheduled run already says so.
+ */
+function isNotifyEnabled(): boolean {
+  return process.env.PURGE_NOTIFY?.trim().toLowerCase() === "true";
+}
+
+async function main() {
+  let media = 0;
+  let claims = 0;
+  let passes = 0;
+
+  while (passes < MAX_PASSES) {
+    const report = await reclaimExpiredStorageOnce();
+
+    passes += 1;
+    media += report.media;
+    claims += report.claims;
+
+    // INFO: Zero is drained and total failure alike, and both mean this run is finished. A backlog the ceiling cut short is simply resumed ten minutes later.
+    if (report.media + report.claims === 0) {
+      break;
+    }
+  }
+
+  const reclaimed = media + claims;
+
+  console.log(`[purge] ${reclaimed} object(s) reclaimed over ${passes} pass(es)`);
+
+  if (isNotifyEnabled() && reclaimed > 0) {
+    await notifyOps("삭제 파일 회수 완료", `미디어 ${media}개 · 예약 ${claims}개 회수`);
+  }
+}
+
+main().then(
+  () => process.exit(0),
+  async (error: unknown) => {
+    console.error("[purge] failed", error);
+
+    if (isNotifyEnabled()) {
+      await notifyOps(
+        "삭제 파일 회수 실패",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+
+    process.exit(1);
+  },
+);
