@@ -20,7 +20,8 @@ import { z } from "zod";
 const paramsSchema = z.object({ id: snowflakeSchema<EmoticonItemId>() });
 
 // INFO: `v` is `Emoticon.version` and is read by nobody here — it is what keeps an edited item's cached redirect (§ 13.4.) from answering for the object it replaced.
-const querySchema = z.object({ slot: z.enum(EMOTICON_SLOTS).default("image") });
+// INFO: An absent slot means the animation, which is what a bubble asks for and what the deprecated `image` alias meant before it was removed.
+const querySchema = z.object({ slot: z.enum(EMOTICON_SLOTS).default("animated-image") });
 
 /**
  * REQUIREMENTS.md § 13.3. Redirects to a presigned GET after validating the

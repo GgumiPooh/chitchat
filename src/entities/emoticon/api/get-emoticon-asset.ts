@@ -59,7 +59,6 @@ export function toSlotAsset(
     return audioKey ? { key: audioKey, isFallback: false } : null;
   }
 
-  // WARN: § 5.7. `image` is the deprecated alias and means the **animated** slot, which is what it has always meant — a tab left open across the deploy goes on asking for it.
   const wants = slot === "still-image" ? stillKey : animatedKey;
   const other = slot === "still-image" ? animatedKey : stillKey;
   const key = wants ?? other;

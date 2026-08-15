@@ -78,21 +78,16 @@ export const EMOTICON_KEYWORDS_URL = `${EMOTICONS_API_ORIGIN}/api/emoticons/keyw
  * image": `still-image` is what a picker cell, a tab icon and a quote thumbnail draw,
  * and `animated-image` is what the bubble and the staged preview play.
  *
- * WARN: `image` is kept as a **deprecated alias for `animated-image`** and nothing new
- * may use it. A tab left open across the deploy goes on asking for it, and this
- * is the only thing between that tab and a `400` on every asset it draws. Removed in the
- * cycle after this one.
- *
  * INFO: `still` alone was rejected — this codebase already reads `still` as an adverb
  * (`isStillStored`, and the prose throughout), and the `-image` suffix is what fixes the
  * part of speech. `poster` was rejected as a `<video poster>` borrowing implying a
  * placeholder that is replaced on play, which never happens here.
  */
-export const EMOTICON_SLOTS = ["still-image", "animated-image", "audio", "image"] as const;
+export const EMOTICON_SLOTS = ["still-image", "animated-image", "audio"] as const;
 
 export type EmoticonSlot = (typeof EMOTICON_SLOTS)[number];
 
-/** INFO: The two an author fills, which is `EmoticonSlot` without the sound and without the deprecated alias. Either one alone is a whole emoticon. */
+/** INFO: The two an author fills, which is `EmoticonSlot` without the sound. Either one alone is a whole emoticon. */
 export type EmoticonImageSlot = "still-image" | "animated-image";
 
 /**
@@ -533,11 +528,10 @@ export type AllowedEmoticonImageMime = (typeof ALLOWED_EMOTICON_IMAGE_MIMES)[num
 
 export type AllowedEmoticonAudioMime = (typeof ALLOWED_EMOTICON_AUDIO_MIMES)[number];
 
-// INFO: The finished restructure. Both image slots take the same types and the same ceiling — they hold two renderings of one picture, not two kinds of thing. `image` is the deprecated alias and carries the animated slot's rules because that is what it always meant.
+// INFO: The finished restructure. Both image slots take the same types and the same ceiling — they hold two renderings of one picture, not two kinds of thing.
 const SLOT_RULES: Record<EmoticonSlot, { mimes: readonly string[]; maxSize: number }> = {
   "still-image": { mimes: ALLOWED_EMOTICON_IMAGE_MIMES, maxSize: MAX_EMOTICON_IMAGE_SIZE },
   "animated-image": { mimes: ALLOWED_EMOTICON_IMAGE_MIMES, maxSize: MAX_EMOTICON_IMAGE_SIZE },
-  image: { mimes: ALLOWED_EMOTICON_IMAGE_MIMES, maxSize: MAX_EMOTICON_IMAGE_SIZE },
   audio: { mimes: ALLOWED_EMOTICON_AUDIO_MIMES, maxSize: MAX_EMOTICON_AUDIO_SIZE },
 };
 
