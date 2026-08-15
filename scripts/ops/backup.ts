@@ -33,6 +33,22 @@ function readDatabaseUrl(): string {
   return process.env.DATABASE_URL_UNPOOLED?.trim() || ensureEnv("DATABASE_URL");
 }
 
+/**
+ * Percent-decodes one URL component, answering it unchanged when it is not valid encoding.
+ *
+ * WARN: `decodeURIComponent` throws `URIError` on a lone `%`, which a password written into
+ * the connection string unencoded legitimately contains — and a backup that dies parsing its
+ * own credentials before it reaches the database is a worse answer than one that tries them
+ * as written. libpq gets the raw form and says whether it works.
+ */
+function decodeComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 function toDumpName(databaseUrl: string): string {
   const database = new URL(databaseUrl).pathname.replace(/^\//, "") || "jandh";
   const stamp = new Date()
@@ -65,9 +81,9 @@ async function streamDump(databaseUrl: string, key: string): Promise<number> {
         ...process.env,
         PGHOST: url.hostname,
         PGPORT: url.port || "5432",
-        PGUSER: decodeURIComponent(url.username),
-        PGPASSWORD: decodeURIComponent(url.password),
-        PGDATABASE: url.pathname.replace(/^\//, ""),
+        PGUSER: decodeComponent(url.username),
+        PGPASSWORD: decodeComponent(url.password),
+        PGDATABASE: decodeComponent(url.pathname.replace(/^\//, "")),
         // INFO: The tunnel already carries the hop, and a runner-local endpoint has no certificate to verify.
         PGSSLMODE: url.searchParams.get("sslmode") ?? "prefer",
       },
@@ -93,8 +109,27 @@ async function streamDump(databaseUrl: string, key: string): Promise<number> {
     client: getR2(),
     params: { Bucket: getBucket(), Key: key, Body: dump.stdout },
   });
+  const uploaded = upload.done();
 
-  await Promise.all([upload.done(), exited]);
+  /**
+   * WARN: Both settle before this returns or throws, and the upload is ABORTED on the way
+   * out. `Promise.all` rejects the instant `pg_dump` does, while a multipart upload of the
+   * valid prefix it already wrote is still in flight — so the caller's cleanup would delete
+   * a key R2 does not hold yet (a `DeleteObject` on a missing key succeeds silently) and the
+   * truncated dump would land afterwards, into a staging prefix nothing ever reads again:
+   * `listBackups` hides it behind `Delimiter` and the orphan sweep whitelists only the four
+   * media prefixes. An abandoned multipart upload also keeps its parts, and its bill.
+   */
+  try {
+    await Promise.all([uploaded, exited]);
+  } catch (error) {
+    dump.kill();
+    await upload.abort().catch(() => {});
+    // INFO: Settled rather than left dangling, so its rejection cannot surface as an unhandled one after this throws.
+    await uploaded.catch(() => {});
+
+    throw error;
+  }
 
   const head = await getR2().send(new HeadObjectCommand({ Bucket: getBucket(), Key: key }));
 

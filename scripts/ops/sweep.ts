@@ -29,13 +29,34 @@ const MEDIA_PREFIXES = ["chat", "avatar", "emoticon", "background"] as const;
  */
 const MIN_AGE = AN_HOUR;
 
+const DEFAULT_MAX_DELETE_RATIO = 0.5;
+
 /**
  * WARN: The second safety net, for a keep set that is short rather than empty. A bug in the
  * reservation path answers exactly like a bucket full of garbage — and a healthy audit finds
  * nothing at all, so anything past this share of the bucket means the keep set is wrong
  * rather than that the bucket is.
+ *
+ * WARN: An unparseable value REFUSES to run rather than falling back. `Number("half")` is
+ * `NaN`, every `ratio > NaN` is false, and the net would be silently off — a typo in a
+ * repository variable would quietly license deleting the whole bucket. A safety limit that
+ * cannot be read is the one thing that must not degrade to permissive.
  */
-const MAX_DELETE_RATIO = Number(process.env.ORPHAN_MAX_DELETE_RATIO?.trim() || "0.5");
+function readMaxDeleteRatio(): number {
+  const raw = process.env.ORPHAN_MAX_DELETE_RATIO?.trim();
+
+  if (!raw) {
+    return DEFAULT_MAX_DELETE_RATIO;
+  }
+
+  const value = Number(raw);
+
+  if (!Number.isFinite(value) || value <= 0 || value > 1) {
+    throw new Error(`ORPHAN_MAX_DELETE_RATIO must be a number in (0, 1] — got "${raw}"`);
+  }
+
+  return value;
+}
 
 type BucketObject = {
   key: string;
@@ -148,8 +169,10 @@ function checkSafety(scanned: number, orphans: number, keepSetSize: number): str
 
   const ratio = orphans / scanned;
 
-  if (ratio > MAX_DELETE_RATIO) {
-    return `${orphans}/${scanned} objects (${(ratio * 100).toFixed(1)}%) look orphaned, above ORPHAN_MAX_DELETE_RATIO=${MAX_DELETE_RATIO}`;
+  const limit = readMaxDeleteRatio();
+
+  if (ratio > limit) {
+    return `${orphans}/${scanned} objects (${(ratio * 100).toFixed(1)}%) look orphaned, above ORPHAN_MAX_DELETE_RATIO=${limit}`;
   }
 
   return null;
@@ -157,6 +180,11 @@ function checkSafety(scanned: number, orphans: number, keepSetSize: number): str
 
 async function main() {
   const isDryRun = process.env.SWEEP_DRY_RUN?.trim().toLowerCase() === "true";
+
+  // WARN: Read before any work, though `checkSafety` reads it again where it is used. That
+  // call is reached only once something looks orphaned, so a typo'd limit would otherwise
+  // sit unnoticed through every healthy run and surface on the one day it has to hold.
+  readMaxDeleteRatio();
 
   // WARN: The bucket is read BEFORE the database, never after. A row written between the two reads then lands in the keep set, where a listing taken second would have shown its object with no row to hold it.
   const objects = await listMediaObjects();

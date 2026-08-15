@@ -78,7 +78,17 @@ export async function listBackups(): Promise<BackupObject[]> {
     for (const object of page.Contents ?? []) {
       const filename = object.Key?.slice(BACKUPS_PREFIX.length);
 
-      if (!filename || !isBackupFilename(filename)) {
+      if (!filename) {
+        continue;
+      }
+
+      // WARN: Logged, never skipped quietly. The dumps are still named by jandh-ops while
+      // this filter lives here, so a name that stops matching — an unescaped `:` out of an
+      // ISO stamp is the obvious one — would empty this screen while every backup reported
+      // success, and nothing would separate that from a bucket that is genuinely empty.
+      if (!isBackupFilename(filename)) {
+        console.warn(`[backups] ignoring an unrecognised key under ${BACKUPS_PREFIX}: ${filename}`);
+
         continue;
       }
 

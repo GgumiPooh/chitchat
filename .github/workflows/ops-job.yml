@@ -57,26 +57,46 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
 
+      # WARN: node writes both values to `$GITHUB_ENV` itself, and the shell never sees the
+      # connection string. Reading them back through `eval` was the obvious shape and is
+      # wrong twice over: `URL` leaves `(`, `)`, `'`, `!` and `*` unescaped in userinfo, so a
+      # password containing any of them is a bash syntax error — and the line bash echoes
+      # when it fails carries that password in clear. GitHub masks the exact secret it was
+      # given, never a substring of it, so the rewritten URL is masked here explicitly.
+      - name: Resolve the tunnel target
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          node -e '
+            const fs = require("node:fs");
+            const url = new URL(process.env.DATABASE_URL);
+            const target = `${url.hostname}:${url.port || 5432}`;
+
+            url.hostname = "127.0.0.1";
+            url.port = "15432";
+
+            const tunneled = url.toString();
+
+            // INFO: `decodeURIComponent` throws on a lone `%`, which a password written into the URL unencoded legitimately has. Masking the raw form is still worth doing, and failing the run over it is not.
+            if (url.password) {
+              let decoded = url.password;
+              try { decoded = decodeURIComponent(url.password); } catch {}
+              console.log(`::add-mask::${decoded}`);
+              console.log(`::add-mask::${url.password}`);
+            }
+            console.log(`::add-mask::${tunneled}`);
+
+            fs.appendFileSync(process.env.GITHUB_ENV, `FORWARD_TO=${target}\nDATABASE_URL=${tunneled}\n`);
+          '
+
       - name: Open a tunnel to the database
         env:
           SSH_KEY: ${{ secrets.INFRA_MONO_SSH_KEY }}
           SSH_HOST: ${{ secrets.INFRA_MONO_HOST }}
           SSH_USER: ${{ secrets.INFRA_MONO_USER }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           set -euo pipefail
-
-          # INFO: The secret holds the address the web server uses (`10.0.1.x:5432`), so the
-          # host to forward to is read out of it rather than duplicated in a second secret.
-          # `URL` keeps the password percent-encoded, which no shell split of the string does.
-          eval "$(node -e '
-            const url = new URL(process.env.DATABASE_URL);
-            const target = `${url.hostname}:${url.port || 5432}`;
-            url.hostname = "127.0.0.1";
-            url.port = "15432";
-            console.log(`FORWARD_TO=${target}`);
-            console.log(`TUNNELED_URL=${url.toString()}`);
-          ')"
 
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/ops
@@ -93,9 +113,6 @@ jobs:
               -L "127.0.0.1:15432:${FORWARD_TO}" "$SSH_USER@$SSH_HOST"
 
           timeout 15 bash -c 'until nc -z 127.0.0.1 15432; do sleep 0.5; done'
-
-          echo "::add-mask::$TUNNELED_URL"
-          echo "DATABASE_URL=$TUNNELED_URL" >> "$GITHUB_ENV"
 
       - name: ${{ inputs.script }}
         env:
