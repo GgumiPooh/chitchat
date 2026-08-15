@@ -21,10 +21,12 @@ export const MAX_DECODED_DISTANCE = 2;
 
 /**
  * WARN: § 13.6. The decoded working set and not the walk, which reaches fifteen tabs
- * either way. Eviction drops the element, and with it the decode that was paid for —
- * so anything below the five tabs `MAX_DECODED_DISTANCE` decodes would spend that work
- * and then throw it away. The far end of the walk is bytes in the browser's own cache,
- * which no map of ours has to hold.
+ * either way — **and only decoded tabs are ever put in here**, which is what keeps the
+ * two the same size. Holding the far end as well made eviction actively harmful: one
+ * walk inserts strictly near to far, so the oldest entries are always the thumbnails
+ * and the open tab, and the first overflow threw out precisely the decoded tabs to keep
+ * undecoded ones nobody had walked to yet.
+ * INFO: A far tab is released to the collector and its bytes stay in the browser's own cache, which is the state that end of the walk is meant to be in.
  */
 const MAX_WARMED_IMAGES = (2 * MAX_DECODED_DISTANCE + 1) * MAX_WARMED_PER_TAB;
 
@@ -98,16 +100,22 @@ function warmImage(url: string, decodes: boolean): Promise<void> {
   if (held) {
     retainWarmedImage(url, held);
 
-    // INFO: A tab first reached at a distance carries no decode; walking back to it is what asks for one, and the element is already in hand.
-    return decodes ? decodeWarmedImage(url, held) : Promise.resolve();
+    // INFO: Held means decoded (see `MAX_WARMED_IMAGES`), so a re-warm at any distance has nothing left to do but keep it at the head of the order.
+    return Promise.resolve();
   }
 
   return new Promise((resolve) => {
     const image = new Image();
 
     image.onload = () => {
+      if (!decodes) {
+        resolve();
+
+        return;
+      }
+
       retainWarmedImage(url, image);
-      void (decodes ? decodeWarmedImage(url, image) : Promise.resolve()).then(resolve);
+      void decodeWarmedImage(url, image).then(resolve);
     };
     image.onerror = () => resolve();
     image.decoding = "async";
@@ -150,7 +158,11 @@ async function decodeWarmedImage(url: string, image: HTMLImageElement): Promise<
 
   try {
     await image.decode();
-    decodedUrls.add(url);
+
+    // WARN: Only if the element is still the held one. A decode in flight when its URL is evicted would otherwise land after the eviction's own `delete`, leaving the set claiming a decode for an element nobody holds — and every later re-warm then returns early and never decodes it again.
+    if (warmedImages.get(url) === image) {
+      decodedUrls.add(url);
+    }
   } catch {
     // INFO: The tab stays warm in bytes, which is the state every tab past `MAX_DECODED_DISTANCE` is left in deliberately.
   }

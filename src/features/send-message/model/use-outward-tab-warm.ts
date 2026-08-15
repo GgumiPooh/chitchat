@@ -1,7 +1,7 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
-import { A_SECOND, runWhenIdle } from "@/shared/lib";
+import { A_MINUTE, A_SECOND, runWhenIdle } from "@/shared/lib";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { RECENTS_TAB, isPackTabId } from "./emoticon-tabs";
@@ -10,6 +10,9 @@ import { MAX_DECODED_DISTANCE, warmEmoticonImages, warmEmoticonUrls } from "./wa
 
 // INFO: § 13.6. Far shorter than the room's own warm, because this starts from a tap rather than from a screen loading — what it is waiting out is the panel's 200ms open, not a first paint.
 const OUTWARD_WARM_IDLE_DELAY = A_SECOND;
+
+// WARN: § 13.6. The walk restarts from wherever the reader lands, so without a window of its own every swipe re-asks for up to thirty-one lists as soon as the descriptor's own minute is past — a panel left open would do it indefinitely. `useEmoticonPreload` holds the pack list on the same terms and for the same reason.
+const WARM_ITEMS_STALE_TIME = 5 * A_MINUTE;
 
 /**
  * How many tabs out from the open one the walk goes before it stops.
@@ -118,7 +121,9 @@ export function useOutwardTabWarm({
         return [];
       }
 
-      return queryClient.fetchQuery(toEmoticonPackItemsQuery(tab)).catch(() => []);
+      return queryClient
+        .fetchQuery({ ...toEmoticonPackItemsQuery(tab), staleTime: WARM_ITEMS_STALE_TIME })
+        .catch(() => []);
     }
   }, [activeIndex, isOpen, queryClient, recentsCount, tabKey, thumbnailKey]);
 }

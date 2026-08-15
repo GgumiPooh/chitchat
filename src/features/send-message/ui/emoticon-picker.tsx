@@ -74,7 +74,7 @@ const PACKS_MOUNT_STALE_TIME = 5 * A_MINUTE;
  */
 const EAGER_CELL_COUNT = 5 * EMOTICON_GRID_COLUMNS;
 
-// INFO: § 13.6. `EAGER_CELL_COUNT`'s argument for the strip, which is one row: a tab is about 48px against a shell of at most 448, so this is what fits on screen with one to spare.
+// INFO: § 13.6. `EAGER_CELL_COUNT`'s argument for the strip, which is one row: a tab is about 48px against a shell of at most 448, so this is what fits on screen with one to spare. Counted over `tabIds`, which is why the pack index is offset past 검색 and 최근 사용 at the comparison.
 const EAGER_TAB_COUNT = 9;
 
 // INFO: § 13.9.1. One sentence for the two places a failed search is said — an empty pane, and the caption under a § 13.9. row that holds the tapped item and nothing the words found.
@@ -553,6 +553,7 @@ export function EmoticonPicker({
                       item={item}
                       index={index}
                       isFocusable={index === focusableIndex}
+                      isWarmed
                       isKeyboardDriven={isKeyboardDriven}
                       onSelect={handleSelect}
                     />
@@ -620,7 +621,7 @@ export function EmoticonPicker({
                 // INFO: § 13.6. Warmed and decoded before the panel opens, so the head of the strip is drawn rather than plated.
                 hasDeferredSkeleton
                 // WARN: § 13.3. Each of these is a session check, a row read and a presign, and the strip scrolls — past what fits on screen, every pack in the library would spend one on the frame the panel first opens.
-                loading={index < EAGER_TAB_COUNT ? "eager" : "lazy"}
+                loading={index + 2 < EAGER_TAB_COUNT ? "eager" : "lazy"}
                 src={toEmoticonAssetUrl(
                   pack.thumbnailItemId,
                   "still-image",
@@ -1130,6 +1131,12 @@ type EmoticonCellProps = {
   index: number;
   /** REQUIREMENTS.md § 8.14. Whether this is the one cell of the list in the tab sequence (ARIA's roving tabindex). */
   isFocusable: boolean;
+  /**
+   * § 13.6. Whether this list is one the warm covers, which decides how its images load.
+   *
+   * WARN: False for § 13.8.'s results row and that is not a detail. Nothing warms a search — `eager` there is up to twenty presigned fetches per answer for a row that shows about five, and the deferred skeleton is exactly what `PreloadFrameProps` documents it as being wrong for, since those cells really are being fetched.
+   */
+  isWarmed?: boolean;
   /** REQUIREMENTS.md § 8.14. Whether the panel is being driven by the keyboard, which is what puts the ring on plain `:focus` (`CELL_KEYBOARD_RING`). */
   isKeyboardDriven: boolean;
   /** REQUIREMENTS.md § 13.9. Whether this is the cell 따라하기 named, which is ringed until the panel is taken somewhere else. */
@@ -1145,6 +1152,7 @@ function EmoticonCell({
   scrollAxis = "y",
   index,
   isFocusable,
+  isWarmed = false,
   isKeyboardDriven,
   isRevealed = false,
   onSelect,
@@ -1186,9 +1194,9 @@ function EmoticonCell({
           placeholderClassName="rounded-sm"
           src={toEmoticonAssetUrl(item.id, "still-image", item.version)}
           alt=""
-          // INFO: § 13.6. The cells are warmed before the panel opens, so a skeleton here is almost always a plate over an image that was ready — `PreloadFrameProps` carries the argument.
-          hasDeferredSkeleton
-          loading={index < EAGER_CELL_COUNT ? "eager" : "lazy"}
+          // INFO: § 13.6. A warmed cell's skeleton is almost always a plate over an image that was ready — `PreloadFrameProps` carries the argument.
+          hasDeferredSkeleton={isWarmed}
+          loading={isWarmed && index < EAGER_CELL_COUNT ? "eager" : "lazy"}
           draggable={false}
         />
       </button>

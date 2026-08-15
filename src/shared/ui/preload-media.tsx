@@ -1,6 +1,6 @@
 "use client";
 
-import { cn, type Nullable, type Optional } from "@/shared/lib";
+import { A_SECOND, cn, type Nullable, type Optional } from "@/shared/lib";
 import type { ClassValue } from "clsx";
 import type { LucideIcon } from "lucide-react";
 import { useState, type CSSProperties, type PropsWithChildren } from "react";
@@ -16,8 +16,8 @@ export type LoadStatus = "loading" | "loaded" | "failed";
  */
 const MAX_RETRIES = 1;
 
-// INFO: DESIGN.md § 7.8. Long enough that a warmed asset (REQUIREMENTS.md § 13.6.) is drawn before the plate it would have stood behind, short enough that a genuine fetch still reserves its box within a frame or two of the reader looking at it.
-const PLACEHOLDER_DELAY = 120;
+// INFO: REQUIREMENTS.md § 13.6. Long enough that a warmed asset is drawn before the plate it would have stood behind, short enough that a genuine fetch still reserves its box within a frame or two of the reader looking at it.
+const PLACEHOLDER_DELAY = A_SECOND / 8;
 
 export type UseLoadStatusOptions = {
   src: Optional<string>;
@@ -98,7 +98,7 @@ export type PreloadFrameProps = PropsWithChildren<{
    * Holds the skeleton back for `PLACEHOLDER_DELAY`, so an asset that lands inside it
    * is never preceded by one.
    *
-   * WARN: DESIGN.md § 7.8. For a caller whose asset is normally **already cached** — REQUIREMENTS.md § 13.6.'s picker cells, warmed before the panel opens. A skeleton that appears and is faded out over an image that was ready reads as the panel being slower than it is. Off everywhere else: for an asset that really is being fetched, a delayed placeholder is an empty box where the reserved plate should be.
+   * WARN: REQUIREMENTS.md § 13.6. For a caller whose asset is normally **already cached** — the picker's cells, warmed before the panel opens. A skeleton that appears and is faded out over an image that was ready reads as the panel being slower than it is. Off everywhere else: for an asset that really is being fetched, a delayed placeholder is an empty box where the reserved plate should be.
    */
   hasDeferredSkeleton?: boolean;
   /** The asset's stored hash. Where there is one it **replaces** the skeleton, and `hasSkeleton` stops meaning anything; absent, every line below is what it was before blurs existed. */
@@ -140,6 +140,8 @@ export function PreloadFrame({
     fit: blurhashFit,
   });
   const hasBlur = blurStyle !== undefined;
+  // INFO: A blur is the placeholder's whole point where there is one, so it is never held back — only the skeleton is.
+  const isDeferred = hasDeferredSkeleton && !hasBlur;
 
   return (
     <span className={cn("grid", className)} style={style}>
@@ -153,9 +155,14 @@ export function PreloadFrame({
             status === "failed" && "bg-surface-strong",
             hasBlur && "transition-opacity duration-200 ease-out",
             hasBlur && isRevealed && "opacity-0",
+            // WARN: On the wrapper and **never on `Skeleton`**, which sets `animate-pulse`. Both are the `animation` shorthand at equal specificity and tailwind-merge does not know `animate-in` as a member of that group, so the two survive together and the later rule — the pulse — wins: the delay silently became "the pulse starts late" while the plate still painted at once.
+            isDeferred && "animate-in fill-mode-backwards fade-in",
             placeholderClassName,
           )}
-          style={blurStyle}
+          style={
+            // INFO: `isDeferred` excludes the blur case, so there is never a `blurStyle` to merge with here.
+            isDeferred ? { animationDelay: `${PLACEHOLDER_DELAY}ms` } : blurStyle
+          }
         >
           {status === "failed" ? (
             <span className="flex size-full items-center justify-center">
@@ -163,19 +170,7 @@ export function PreloadFrame({
             </span>
           ) : (
             // WARN: DESIGN.md § 7.8. A blur *replaces* the skeleton rather than layering under it — `Skeleton` is an opaque `surface-strong` pulse, so over a blur it hides the very thing it was drawn to stand in for, and a pulsing plate is louder than the swap it covers (`ChatBackdrop` withholds it over a flat floor for the same reason).
-            hasSkeleton &&
-            !hasBlur && (
-              // WARN: `fill-mode-backwards` is what makes the delay a delay — without it the element is drawn at full strength for the wait and the animation only runs afterwards, which is the plain skeleton plus a redundant fade.
-              <Skeleton
-                className={cn(
-                  "size-full rounded-[inherit]",
-                  hasDeferredSkeleton && "animate-in fill-mode-backwards fade-in",
-                )}
-                style={
-                  hasDeferredSkeleton ? { animationDelay: `${PLACEHOLDER_DELAY}ms` } : undefined
-                }
-              />
-            )
+            hasSkeleton && !hasBlur && <Skeleton className="size-full rounded-[inherit]" />
           )}
         </span>
       )}

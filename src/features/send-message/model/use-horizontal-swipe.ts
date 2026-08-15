@@ -131,6 +131,8 @@ export function useHorizontalSwipe(onSwipe: (direction: SwipeDirection) => void)
     }
 
     if (from.axis === "vertical") {
+      // WARN: Released here and not left to `end`, which returns early once the gesture is gone. A non-passive `touchmove` still registered is what takes the browser's fast path away from the plain vertical scroll this branch exists to hand back.
+      releasePanDenial();
       gesture.current = null;
 
       return;
