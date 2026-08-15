@@ -12,6 +12,7 @@ import { and, asc, ilike, inArray, isNull, type SQL } from "drizzle-orm";
 import { union } from "drizzle-orm/pg-core";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon } from "../model/types";
+import { selectEmoticons } from "./select-emoticons";
 import { toLikeLiteral } from "./to-like-literal";
 
 /**
@@ -34,9 +35,7 @@ export async function searchEmoticons(terms: string[]): Promise<Emoticon[]> {
     return [];
   }
 
-  const rows = await getDb()
-    .select()
-    .from(emoticonItems)
+  const rows = await selectEmoticons()
     // INFO: The finished restructure. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
     .where(and(inArray(emoticonItems.id, candidateIds), isNull(emoticonItems.retiredAt)))
     // INFO: § 13.9.1. Authoring order, which decides nothing about what is kept — the cut is upstream — and everything about which of two equally relevant items the stable sort below leaves first.
@@ -44,7 +43,10 @@ export async function searchEmoticons(terms: string[]): Promise<Emoticon[]> {
 
   return (
     rows
-      .map((row) => ({ item: toEmoticon(row), relevance: toKeywordRelevance(row.keywords, terms) }))
+      .map((row) => ({
+        item: toEmoticon(row),
+        relevance: toKeywordRelevance(row.item.keywords, terms),
+      }))
       // INFO: The ladder and the SQL above select the same set, so this drops nothing in practice — it is what keeps a drift between them out of the results rather than at the top of them.
       .filter((scored) => scored.relevance > 0)
       // WARN: A stable sort, so authoring order still decides inside one relevance step — an item must not change places with an equally relevant one between keystrokes.

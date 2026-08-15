@@ -1,21 +1,13 @@
 import "server-only";
 
 import type { EmoticonSlot } from "@/shared/config";
-import { emoticonItems, getDb, media, messages, type EmoticonItem } from "@/shared/db";
+import { emoticonItems, getDb, media, messages } from "@/shared/db";
 import type { EmoticonItemId, Nullable } from "@/shared/lib";
 import { eq, inArray, or } from "drizzle-orm";
 import { alias, type PgColumn } from "drizzle-orm/pg-core";
 
-/**
- * One item and the storage key behind each of its slots (the finished restructure).
- *
- * WARN: The keys are joined rather than read off the item, because the slots name `media`
- * rows. The item's own `r2_key` and `audio_key` are still here and still carry the
- * objects that predate them, which is what `toSlotAsset` falls back to — migration D is what makes
- * the join the only source.
- */
+/** The storage key behind each of one item's three slots (the finished restructure). */
 export type EmoticonItemAssets = {
-  item: EmoticonItem;
   stillKey: Nullable<string>;
   animatedKey: Nullable<string>;
   audioKey: Nullable<string>;
@@ -28,7 +20,6 @@ export async function getEmoticonItem(id: EmoticonItemId): Promise<Nullable<Emot
 
   const [row] = await getDb()
     .select({
-      item: emoticonItems,
       stillKey: still.r2Key,
       animatedKey: animated.r2Key,
       audioKey: audio.r2Key,
@@ -59,24 +50,18 @@ export async function getEmoticonItem(id: EmoticonItemId): Promise<Nullable<Emot
  * is the whole of that trap: an answer from the other slot must not be held for the days
  * a versioned URL earns, or a still written later is invisible for a week to every
  * browser that asked once. It reports the slot that **answered**, not the one asked for.
- *
- * INFO: The item's own `r2_key` is the last resort on both image slots and `audio_key` on
- * the sound. Those columns are pre-§ 5. and still authoritative for anything the § 5.5.
- * backfill has not reached; migration D is what removes them and this line with them.
  */
 export function toSlotAsset(
-  { item, stillKey, animatedKey, audioKey }: EmoticonItemAssets,
+  { stillKey, animatedKey, audioKey }: EmoticonItemAssets,
   slot: EmoticonSlot,
 ): Nullable<ResolvedSlotAsset> {
   if (slot === "audio") {
-    const key = audioKey ?? item.audioKey;
-
-    return key ? { key, isFallback: false } : null;
+    return audioKey ? { key: audioKey, isFallback: false } : null;
   }
 
   // WARN: § 5.7. `image` is the deprecated alias and means the **animated** slot, which is what it has always meant — a tab left open across the deploy goes on asking for it.
-  const wants = slot === "still-image" ? stillKey : (animatedKey ?? item.r2Key);
-  const other = slot === "still-image" ? (animatedKey ?? item.r2Key) : stillKey;
+  const wants = slot === "still-image" ? stillKey : animatedKey;
+  const other = slot === "still-image" ? animatedKey : stillKey;
   const key = wants ?? other;
 
   return key ? { key, isFallback: wants === null } : null;
@@ -97,23 +82,12 @@ export async function listUnregisteredEmoticonKeys(keys: string[]): Promise<stri
     return [];
   }
 
-  // WARN: The union of both representations, and it must stay a union until migration D. A key reached through a slot is invisible to the legacy columns — `r2_key` holds one image's worth of a row that carries two — and this list decides what gets **deleted**, so a still counted as unregistered is a live image removed out from under the item that names it.
-  const [legacy, slotted] = await Promise.all([
-    getDb()
-      .select({ r2Key: emoticonItems.r2Key, audioKey: emoticonItems.audioKey })
-      .from(emoticonItems)
-      .where(or(inArray(emoticonItems.r2Key, keys), inArray(emoticonItems.audioKey, keys))),
-    getDb()
-      .selectDistinct({ r2Key: media.r2Key })
-      .from(media)
-      .innerJoin(emoticonItems, isSlotOf(media.id))
-      .where(inArray(media.r2Key, keys)),
-  ]);
-
-  const registered = new Set([
-    ...legacy.flatMap((row) => [row.r2Key, row.audioKey]),
-    ...slotted.map((row) => row.r2Key),
-  ]);
+  const slotted = await getDb()
+    .selectDistinct({ r2Key: media.r2Key })
+    .from(media)
+    .innerJoin(emoticonItems, isSlotOf(media.id))
+    .where(inArray(media.r2Key, keys));
+  const registered = new Set(slotted.map((row) => row.r2Key));
 
   return keys.filter((key) => !registered.has(key));
 }
@@ -181,22 +155,17 @@ export async function deleteEmoticonItem(id: EmoticonItemId): Promise<DeleteEmot
     return retired ? { status: "retired" } : { status: "not_found" };
   }
 
-  // WARN: Read before the delete, because the keys live on the `media` rows the slots name and the join needs the item row to still be there. The legacy pair rides along until migration D — `r2_key` is one image's worth of a row that may hold two, so on its own it leaves the other object in the bucket forever.
+  // WARN: Read before the delete, because the keys live on the `media` rows the slots name and the join needs the item row to still be there.
   const slotKeys = await findItemSlotKeys([id]);
 
   const [row] = await getDb()
     .delete(emoticonItems)
     .where(eq(emoticonItems.id, id))
-    .returning({ r2Key: emoticonItems.r2Key, audioKey: emoticonItems.audioKey });
+    .returning({ id: emoticonItems.id });
 
   if (!row) {
     return { status: "not_found" };
   }
 
-  return {
-    status: "deleted",
-    orphanedKeys: [...new Set([...slotKeys, row.r2Key, row.audioKey])].filter(
-      (key): key is string => key !== null,
-    ),
-  };
+  return { status: "deleted", orphanedKeys: slotKeys };
 }

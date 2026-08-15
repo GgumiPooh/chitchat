@@ -13,6 +13,7 @@ import type {
   EmoticonPackWithItems,
 } from "../model/types";
 import { effectivePackPosition } from "./effective-pack-position";
+import { selectEmoticons } from "./select-emoticons";
 import { toLikeLiteral } from "./to-like-literal";
 
 /** Which packs a read is about, before any paging (REQUIREMENTS.md § 13.5.). */
@@ -157,9 +158,7 @@ export async function findKnownPackIds(packIds: EmoticonPackId[]): Promise<Set<s
  * to be handed every pack's items at once, which is the payload this replaced.
  */
 export async function listEmoticonPackItems(packId: EmoticonPackId): Promise<Emoticon[]> {
-  const rows = await getDb()
-    .select()
-    .from(emoticonItems)
+  const rows = await selectEmoticons()
     // INFO: The finished restructure. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
     .where(and(eq(emoticonItems.packId, packId), isNull(emoticonItems.retiredAt)))
     .orderBy(asc(emoticonItems.sortOrder), asc(emoticonItems.id));

@@ -4,13 +4,13 @@ import {
   boolean,
   check,
   index,
-  integer,
   numeric,
   pgTable,
   primaryKey,
   smallint,
   text,
   timestamp,
+  uniqueIndex,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { snowflake } from "../types";
@@ -42,17 +42,6 @@ export const emoticonItems = pgTable(
     stillImageId: snowflake<MediaId>("still_image_id").references(() => media.id),
     animatedImageId: snowflake<MediaId>("animated_image_id").references(() => media.id),
     audioId: snowflake<MediaId>("audio_id").references(() => media.id),
-    // INFO: REQUIREMENTS.md § 13.3. The R2 key itself, not a `media` row — an emoticon is neither library content nor a thumbnailed pair.
-    // TODO: The finished restructure. Replaced by the three slots above, and dropped once nothing reads them — the backfill has filled every row.
-    r2Key: text("r2_key").notNull().unique(),
-    // INFO: REQUIREMENTS.md § 13.2. One image slot for both kinds — an animated GIF or WebP is stored here exactly as a PNG is, and the renderer never branches on which it got.
-    mime: text("mime").notNull(),
-    // INFO: REQUIREMENTS.md § 13.2. The one optional companion. Audio does not imply animation and is played on tap only.
-    audioKey: text("audio_key").unique(),
-    audioMime: text("audio_mime"),
-    // WARN: REQUIREMENTS.md § 13.2. The image's own size, read in the browser — an animated file is measured from its first frame, which is the box every frame shares (§ 8.3.).
-    width: integer("width").notNull(),
-    height: integer("height").notNull(),
     // INFO: REQUIREMENTS.md § 13.8. What the composer matches a typed word against. Shared like `sort_order`, and empty for an item nobody has described yet.
     keywords: text("keywords").array().notNull().default([]),
     // INFO: REQUIREMENTS.md § 13.1. Authoring order, shared by both users — item order is deliberately not per-user.
@@ -65,6 +54,10 @@ export const emoticonItems = pgTable(
   },
   (table) => [
     index("emoticon_items_pack_id_sort_order_idx").on(table.packId, table.sortOrder),
+    // INFO: What makes a retried registration idempotent — `registerMedia` returns the same `media` row for a re-uploaded key, so the second insert conflicts on the slot it names.
+    uniqueIndex("emoticon_items_still_image_id_idx").on(table.stillImageId),
+    uniqueIndex("emoticon_items_animated_image_id_idx").on(table.animatedImageId),
+    uniqueIndex("emoticon_items_audio_id_idx").on(table.audioId),
     // WARN: The finished restructure. The floor under both nullable image slots. An author may register either one, and `toSlotAsset` falls back both ways — but an item with neither draws nothing anywhere, which no screen has a state for.
     check(
       "emoticon_items_has_image_check",

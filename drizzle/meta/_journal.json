@@ -288,6 +288,20 @@
       "when": 1786745707863,
       "tag": "0040_far_corsair",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1786753151019,
+      "tag": "0041_emoticon_slot_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1786753166540,
+      "tag": "0042_drop_emoticon_legacy_columns",
+      "breakpoints": true
     }
   ]
 }

@@ -20,9 +20,10 @@ import type {
   UserId,
 } from "@/shared/lib";
 import { headAcceptableObject, readObject, type StoredObject } from "@/shared/storage";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray, or, sql } from "drizzle-orm";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon } from "../model/types";
+import { selectEmoticons } from "./select-emoticons";
 
 /** INFO: § 8.3. The box travels with the key — new bytes are a new box, so neither is nameable without the other. */
 export type EmoticonImageUpload = {
@@ -80,15 +81,7 @@ export async function registerEmoticon({
   const [stillMedia, animatedMedia, audioMedia] = await Promise.all([
     registerImageMedia(uploaderId, still, stillObject),
     registerImageMedia(uploaderId, animated, animatedObject),
-    audioKey
-      ? registerMedia({
-          ownerId: uploaderId,
-          r2Key: audioKey,
-          width: null,
-          height: null,
-          scope: "emoticon",
-        })
-      : Promise.resolve(null),
+    registerAudioMedia(uploaderId, audioKey),
   ]);
 
   // WARN: § 14. `registerMedia` re-reads the object and applies § 13.2.'s own slot rules, so this refuses what the verification above would have refused — and refusing here rather than writing the item without its FK is what keeps the two representations from disagreeing. An object left unreferenced is what § 13.3.'s discard endpoint exists to sweep.
@@ -96,11 +89,13 @@ export async function registerEmoticon({
     return null;
   }
 
-  // WARN: The animation where there is one, because § 8.3. reserves the **bubble's** box and the bubble plays the animation. The legacy columns are one image's worth and the item may now hold two; they are dropped in migration D.
-  const primary = animated ?? still;
-  const primaryObject = animatedObject ?? stillObject;
+  const filledSlots = [
+    stillMedia ? eq(emoticonItems.stillImageId, stillMedia.id) : null,
+    animatedMedia ? eq(emoticonItems.animatedImageId, animatedMedia.id) : null,
+  ].filter((slot) => slot !== null);
 
-  if (!primary || !primaryObject) {
+  // WARN: `or()` over an empty list is an empty `WHERE`, which would answer the lookup below with an arbitrary item. The guards above already make this unreachable.
+  if (filledSlots.length === 0) {
     return null;
   }
 
@@ -109,15 +104,9 @@ export async function registerEmoticon({
     .values({
       id: nextSnowflake<EmoticonItemId>(),
       packId,
-      r2Key: primary.key,
-      mime: primaryObject.mime,
-      audioKey: audioKey ?? null,
-      audioMime: audio?.mime ?? null,
       stillImageId: stillMedia?.id ?? null,
       animatedImageId: animatedMedia?.id ?? null,
       audioId: audioMedia?.id ?? null,
-      width: primary.width,
-      height: primary.height,
       // WARN: Normalized here as well as at the route, because § 13.7.'s import writes through this function without passing a request body through that schema.
       keywords: normalizeKeywords(keywords ?? []),
       sortOrder: sql`(
@@ -126,21 +115,16 @@ export async function registerEmoticon({
         where ${emoticonItems.packId} = ${packId}
       )`,
     })
-    // INFO: `r2_key` is unique, so a retried submit returns nothing here rather than writing the item twice.
-    .onConflictDoNothing({ target: emoticonItems.r2Key })
-    .returning();
+    // WARN: Untargeted, because any of the three slot indexes may be the one a retry collides on — `registerMedia` is idempotent on `media.r2_key`, so re-uploading the same objects re-registers them to the same ids and the second insert names slots the first one took.
+    .onConflictDoNothing()
+    .returning({ id: emoticonItems.id });
 
-  if (row) {
-    return toEmoticon(row);
-  }
-
-  const [existing] = await getDb()
-    .select()
-    .from(emoticonItems)
-    .where(eq(emoticonItems.r2Key, primary.key))
+  // INFO: The row this call is answering for, whether it wrote it or the retry it repeats did — the slot ids are unique, so they name the same item either way.
+  const [written] = await selectEmoticons()
+    .where(row ? eq(emoticonItems.id, row.id) : or(...filledSlots))
     .limit(1);
 
-  return existing ? toEmoticon(existing) : null;
+  return written ? toEmoticon(written) : null;
 }
 
 function registerImageMedia(
@@ -156,6 +140,13 @@ function registerImageMedia(
         height: image.height,
         scope: "emoticon",
       })
+    : Promise.resolve(null);
+}
+
+// INFO: § 13.2. No box, because a sound has none — `registerMedia` reads the mime back off the object and files it as `audio`.
+function registerAudioMedia(ownerId: UserId, key: Maybe<string>) {
+  return key
+    ? registerMedia({ ownerId, r2Key: key, width: null, height: null, scope: "emoticon" })
     : Promise.resolve(null);
 }
 
@@ -219,42 +210,32 @@ export async function updateEmoticonItem({
     return { status: "unprocessable" };
   }
 
-  const [stillMedia, animatedMedia] = await Promise.all([
+  const [stillMedia, animatedMedia, audioMedia] = await Promise.all([
     registerImageMedia(uploaderId, still, stillObject),
     registerImageMedia(uploaderId, animated, animatedObject),
+    registerAudioMedia(uploaderId, audioKey),
   ]);
 
-  if ((still && !stillMedia) || (animated && !animatedMedia)) {
+  if ((still && !stillMedia) || (animated && !animatedMedia) || (audioKey && !audioMedia)) {
     return { status: "unprocessable" };
   }
 
   const hasImageChange = still !== undefined || animated !== undefined;
-  const primary = animated ?? still;
-  const primaryObject = animatedObject ?? stillObject;
 
-  const [row] = await getDb()
+  await getDb()
     .update(emoticonItems)
     .set({
       ...(still === undefined ? {} : { stillImageId: stillMedia?.id ?? null }),
       ...(animated === undefined ? {} : { animatedImageId: animatedMedia?.id ?? null }),
-      // WARN: The legacy columns hold one image's worth of a row that may now carry two, so they follow whichever slot this edit wrote — § 8.3.'s box preferring the animation, as the bubble does. Dropped in migration D.
-      ...(primary && primaryObject
-        ? {
-            r2Key: primary.key,
-            mime: primaryObject.mime,
-            width: primary.width,
-            height: primary.height,
-          }
-        : {}),
-      ...(audioKey === undefined
-        ? {}
-        : { audioKey, audioMime: audioKey === null ? null : (verifiedAudio?.mime ?? null) }),
+      ...(audioKey === undefined ? {} : { audioId: audioMedia?.id ?? null }),
       ...(keywords ? { keywords: normalizeKeywords(keywords) } : {}),
       // WARN: § 13.4. Only when an *asset* changed. `updated_at` is `Emoticon.version` and rides on every asset URL, so bumping it for a keywords-only write invalidates the cached 302 and its presigned GET for that item — and § 13.8.1. writes one per item, which would re-download a whole pack, chat history included, to record some text.
       ...(hasImageChange || audioKey !== undefined ? { updatedAt: new Date() } : {}),
     })
-    .where(eq(emoticonItems.id, itemId))
-    .returning();
+    .where(eq(emoticonItems.id, itemId));
+
+  // INFO: Read back rather than returned, because the box lives on the `media` rows the slots name and an edit of one slot keeps the other's.
+  const [row] = await selectEmoticons().where(eq(emoticonItems.id, itemId)).limit(1);
 
   if (!row) {
     return { status: "not_found" };
@@ -282,9 +263,10 @@ function willHoldAnImage(
 /**
  * The R2 keys this edit detached, read off the `media` rows the slots used to name.
  *
- * WARN: `current.r2Key` is not the answer any more. It holds one image's worth of a
- * row that may carry two, so a still-only edit would report the animation's key and
- * delete the object the bubble is still playing.
+ * WARN: The keys the edit is *keeping* are subtracted rather than assumed absent. A
+ * re-submitted key re-registers to the same `media` row (`registerMedia` is
+ * idempotent on `r2_key`), so the slot it names is unchanged and reporting it here
+ * would delete the object the item is still drawn from.
  */
 async function findDetachedKeys(
   current: EmoticonItem,
@@ -297,16 +279,22 @@ async function findDetachedKeys(
   const detached = [
     next.still === undefined ? null : current.stillImageId,
     next.animated === undefined ? null : current.animatedImageId,
+    next.audioKey === undefined ? null : current.audioId,
   ].filter((id): id is MediaId => id !== null);
 
-  const rows = detached.length
-    ? await getDb().select({ r2Key: media.r2Key }).from(media).where(inArray(media.id, detached))
-    : [];
+  if (detached.length === 0) {
+    return [];
+  }
 
-  return [
-    ...rows.map((row) => row.r2Key),
-    next.audioKey === undefined || current.audioKey === next.audioKey ? null : current.audioKey,
-  ].filter((key): key is string => key !== null);
+  const kept = new Set(
+    [next.still?.key, next.animated?.key, next.audioKey].filter((key) => typeof key === "string"),
+  );
+  const rows = await getDb()
+    .select({ r2Key: media.r2Key })
+    .from(media)
+    .where(inArray(media.id, detached));
+
+  return rows.map((row) => row.r2Key).filter((key) => !kept.has(key));
 }
 
 /**

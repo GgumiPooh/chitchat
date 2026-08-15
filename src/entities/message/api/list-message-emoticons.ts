@@ -1,8 +1,8 @@
 import type { EmoticonItemId } from "@/shared/lib";
 import "server-only";
 
-import { toEmoticon, type Emoticon } from "@/entities/emoticon/@x/message";
-import { emoticonItems, getDb } from "@/shared/db";
+import { selectEmoticons, toEmoticon, type Emoticon } from "@/entities/emoticon/@x/message";
+import { emoticonItems } from "@/shared/db";
 import { inArray } from "drizzle-orm";
 
 /**
@@ -21,10 +21,10 @@ export async function listMessageEmoticons(
     return byId;
   }
 
-  const rows = await getDb().select().from(emoticonItems).where(inArray(emoticonItems.id, itemIds));
+  const rows = await selectEmoticons().where(inArray(emoticonItems.id, itemIds));
 
   for (const row of rows) {
-    byId.set(row.id, toEmoticon(row));
+    byId.set(row.item.id, toEmoticon(row));
   }
 
   return byId;

@@ -110,11 +110,11 @@ export async function deleteEmoticonPack(
   }
 
   const items = await getDb()
-    .select({ id: emoticonItems.id, r2Key: emoticonItems.r2Key, audioKey: emoticonItems.audioKey })
+    .select({ id: emoticonItems.id })
     .from(emoticonItems)
     .where(eq(emoticonItems.packId, packId));
 
-  // WARN: The slots and the legacy pair both, for the reason `deleteEmoticonItem` gives — `r2_key` is one image's worth of a row that may hold two, so on its own every still in the pack is left in the bucket.
+  // WARN: Read before the delete, for the reason `deleteEmoticonItem` gives — the keys live on the `media` rows the slots name, and the join needs the item rows to still be there.
   const slotKeys = await findItemSlotKeys(items.map((item) => item.id));
 
   // WARN: The thumbnail FK points into the items about to cascade away. Clearing it first keeps the delete from depending on constraint evaluation order.
@@ -125,10 +125,5 @@ export async function deleteEmoticonPack(
 
   await getDb().delete(emoticonPacks).where(eq(emoticonPacks.id, packId));
 
-  return {
-    status: "deleted",
-    orphanedKeys: [
-      ...new Set([...slotKeys, ...items.flatMap((item) => [item.r2Key, item.audioKey])]),
-    ].filter((key): key is string => key !== null),
-  };
+  return { status: "deleted", orphanedKeys: slotKeys };
 }
