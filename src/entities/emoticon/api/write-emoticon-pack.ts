@@ -4,6 +4,7 @@ import { emoticonItems, emoticonPacks, getDb, messages, nextSnowflake } from "@/
 import type { EmoticonItemId, EmoticonPackId, Nullable } from "@/shared/lib";
 import { and, eq } from "drizzle-orm";
 import type { EmoticonPackSummary } from "../model/types";
+import { findItemSlotKeys } from "./get-emoticon-asset";
 
 /**
  * REQUIREMENTS.md § 13.4. A title is the whole form. An empty pack is a valid
@@ -109,9 +110,12 @@ export async function deleteEmoticonPack(
   }
 
   const items = await getDb()
-    .select({ r2Key: emoticonItems.r2Key, audioKey: emoticonItems.audioKey })
+    .select({ id: emoticonItems.id, r2Key: emoticonItems.r2Key, audioKey: emoticonItems.audioKey })
     .from(emoticonItems)
     .where(eq(emoticonItems.packId, packId));
+
+  // WARN: The slots and the legacy pair both, for the reason `deleteEmoticonItem` gives — `r2_key` is one image's worth of a row that may hold two, so on its own every still in the pack is left in the bucket.
+  const slotKeys = await findItemSlotKeys(items.map((item) => item.id));
 
   // WARN: The thumbnail FK points into the items about to cascade away. Clearing it first keeps the delete from depending on constraint evaluation order.
   await getDb()
@@ -123,8 +127,8 @@ export async function deleteEmoticonPack(
 
   return {
     status: "deleted",
-    orphanedKeys: items.flatMap((item) =>
-      [item.r2Key, item.audioKey].filter((key): key is string => key !== null),
-    ),
+    orphanedKeys: [
+      ...new Set([...slotKeys, ...items.flatMap((item) => [item.r2Key, item.audioKey])]),
+    ].filter((key): key is string => key !== null),
   };
 }
