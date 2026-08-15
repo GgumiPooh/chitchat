@@ -49,6 +49,8 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
             key={replayToken}
             className="size-full"
             imgClassName="size-full object-contain"
+            // INFO: `rounded-[inherit]` on the plate resolves against this wrapper, not the `rounded-sm` button above it — matched by hand so the skeleton is not a square inside a rounded card.
+            placeholderClassName="rounded-sm"
             alt=""
             width={box.width}
             height={box.height}
