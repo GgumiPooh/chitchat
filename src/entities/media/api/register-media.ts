@@ -20,7 +20,12 @@ import {
 } from "@/shared/config";
 import { getDb, media, nextSnowflake } from "@/shared/db";
 import type { MediaId, Nullable, UserId } from "@/shared/lib";
-import { headAcceptableObject, toThumbKey, type StoredObject } from "@/shared/storage";
+import {
+  consumeReservations,
+  headAcceptableObject,
+  toThumbKey,
+  type StoredObject,
+} from "@/shared/storage";
 import { and, eq } from "drizzle-orm";
 import { toArchiveMedia } from "../model/to-archive-media";
 import type { ArchiveMedia } from "../model/types";
@@ -48,7 +53,7 @@ export type RegisterMediaParams = {
    * will sign a ticket for and stays the three it always was; this is what a `media` row
    * may **be**, and it includes `emoticon` because those objects are signed by
    * `/api/emoticons/upload-url` instead and still have to register through here — one
-   * mechanism where there used to be `listUnregisteredEmoticonKeys` beside it.
+   * mechanism where there used to be a second, key-shaped one beside it.
    */
   scope: MediaScope;
 };
@@ -148,34 +153,51 @@ export async function registerMedia({
     return null;
   }
 
-  const [row] = await getDb()
-    .insert(media)
-    .values({
-      id: nextSnowflake<MediaId>(),
-      ownerId,
-      r2Key,
-      mime: object.mime,
-      size: object.size,
-      // INFO: The finished restructure. Decided above, from what the bytes turned out to be — never probed back out of the columns below, which is the ordering trap this column replaces.
-      kind,
-      scope,
-      // WARN: § 9.1., § 9.3. Nulled rather than trusted. The client has no box to measure for either kind, so whatever it sent is a guess the row would carry forever — and § 2.5.'s CHECK refuses a number here anyway.
-      width: hasNoBox ? null : width,
-      height: hasNoBox ? null : height,
-      // WARN: § 9.3. A voice message **keeps** its duration where a file drops one. It is not decoration: the player draws its progress against this figure rather than against `audio.duration`, which a `MediaRecorder` WebM reports as `Infinity`. Nulling it here is what left the waveform frozen at `0:00`.
-      durationMs: isFile ? null : (durationMs ?? null),
-      // INFO: § 9.1., § 9.3. Nulled across `hasNoBox` for one reason, not two: neither kind uploaded a `_thumb` object for a placeholder to stand in for, and neither is drawn in a box one could be painted into.
-      // WARN: Accepted as sent for everything else, and shape is all that was checked (`POST /api/media`). A forged hash blurs to a colour the thumbnail then replaces — the same bounded consequence § 9.3. accepts for client-supplied peaks, and unlike them this is not a discriminator, so nothing branches on it.
-      blurhash: hasNoBox ? null : (blurhash ?? null),
-      filename: storedName,
-      waveformPeaks: isVoice ? waveformPeaks : null,
-    })
-    // INFO: `r2_key` is unique, so a retried registration returns the row the first attempt wrote instead of failing the send.
-    .onConflictDoNothing({ target: media.r2Key })
-    .returning();
+  // WARN: § 9. The HEADs above stay outside this transaction. They are network round trips to R2, and holding a pooled connection across one is how a two-person app runs out of connections.
+  const registration = await getDb().transaction(async (tx) => {
+    const { expired } = await consumeReservations(tx, [r2Key]);
 
-  if (row) {
-    return toArchiveMedia(row);
+    // INFO: § 9. The claim lapsed, so a reclaim may already have taken the bytes this row would point at — a row written now would render a broken image forever.
+    if (expired.length > 0) {
+      return { isReclaimed: true, row: undefined };
+    }
+
+    // WARN: No reservation at all is **not** a refusal, and "the reservation is the proof" is the wrong inference to draw here. Registration is idempotent on `r2_key`, so a retry arrives after the first attempt consumed the claim — refusing it would fail every resend of a message whose upload already landed.
+    const [inserted] = await tx
+      .insert(media)
+      .values({
+        id: nextSnowflake<MediaId>(),
+        ownerId,
+        r2Key,
+        mime: object.mime,
+        size: object.size,
+        // INFO: The finished restructure. Decided above, from what the bytes turned out to be — never probed back out of the columns below, which is the ordering trap this column replaces.
+        kind,
+        scope,
+        // WARN: § 9.1., § 9.3. Nulled rather than trusted. The client has no box to measure for either kind, so whatever it sent is a guess the row would carry forever — and § 2.5.'s CHECK refuses a number here anyway.
+        width: hasNoBox ? null : width,
+        height: hasNoBox ? null : height,
+        // WARN: § 9.3. A voice message **keeps** its duration where a file drops one. It is not decoration: the player draws its progress against this figure rather than against `audio.duration`, which a `MediaRecorder` WebM reports as `Infinity`. Nulling it here is what left the waveform frozen at `0:00`.
+        durationMs: isFile ? null : (durationMs ?? null),
+        // INFO: § 9.1., § 9.3. Nulled across `hasNoBox` for one reason, not two: neither kind uploaded a `_thumb` object for a placeholder to stand in for, and neither is drawn in a box one could be painted into.
+        // WARN: Accepted as sent for everything else, and shape is all that was checked (`POST /api/media`). A forged hash blurs to a colour the thumbnail then replaces — the same bounded consequence § 9.3. accepts for client-supplied peaks, and unlike them this is not a discriminator, so nothing branches on it.
+        blurhash: hasNoBox ? null : (blurhash ?? null),
+        filename: storedName,
+        waveformPeaks: isVoice ? waveformPeaks : null,
+      })
+      // INFO: `r2_key` is unique, so a retried registration returns the row the first attempt wrote instead of failing the send.
+      .onConflictDoNothing({ target: media.r2Key })
+      .returning();
+
+    return { isReclaimed: false, row: inserted };
+  });
+
+  if (registration.isReclaimed) {
+    return null;
+  }
+
+  if (registration.row) {
+    return toArchiveMedia(registration.row);
   }
 
   return getMediaByKey(r2Key, ownerId);

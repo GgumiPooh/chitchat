@@ -4,6 +4,7 @@ import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
+import { useApplyPhoto } from "@/features/apply-photo";
 import { useChatStream, useChatStreamListener } from "@/features/chat-stream";
 import {
   EmoticonPicker,
@@ -14,7 +15,6 @@ import {
   useSendMessage,
   type EmoticonFocusRequest,
 } from "@/features/send-message";
-import { useSetBackground } from "@/features/set-background";
 import { useTypingSignal } from "@/features/typing-indicator";
 import {
   FileDropOverlay,
@@ -275,7 +275,7 @@ export function ChatRoom({
   const restoredWakeRef = useRef(visibleWakes);
   const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
   const { remember: rememberEmoticon } = useRecentEmoticons();
-  const setBackground = useSetBackground();
+  const applyPhoto = useApplyPhoto();
   // INFO: REQUIREMENTS.md § 13.6. The panel's list and images are warmed from here, since the tap this exists to make cheap can come before the panel has drawn anything.
   useEmoticonPreload();
   /**
@@ -1333,11 +1333,11 @@ export function ChatRoom({
           onClose={mediaTrack.close}
           onShare={(mediaId) => void sharing.share([mediaId])}
           onSave={(mediaId) => void sharing.save([mediaId])}
-          onSetBackground={setBackground.open}
+          onApplyPhoto={applyPhoto.open}
         />
       )}
-      {/* INFO: REQUIREMENTS.md § 12.1. Mounted outside the viewer conditional above, so dismissing the viewer cannot unmount the sheet mid-write — `useSetBackground` returns the two halves separately for exactly this. */}
-      {setBackground.sheet}
+      {/* INFO: REQUIREMENTS.md § 12.1. Mounted outside the viewer conditional above, so dismissing the viewer cannot unmount the sheet mid-write — `useApplyPhoto` returns the two halves separately for exactly this. */}
+      {applyPhoto.sheet}
       {/* INFO: REQUIREMENTS.md § 9.2. Last in the tree, so it covers the composer and the pill as well as the history — a drag reads as being over the conversation, not over whichever strip it happens to be crossing. */}
       <FileDropOverlay isActive={fileDrop.isDropping} label="여기에 놓으면 첨부돼요" />
     </div>

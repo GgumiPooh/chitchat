@@ -38,4 +38,5 @@ export {
 } from "./messages";
 export { pushSubscriptions, type StoredPushSubscription } from "./push-subscriptions";
 export { sessions, type Session } from "./sessions";
+export { storageReservations, type StorageReservation } from "./storage";
 export { users, type User } from "./users";

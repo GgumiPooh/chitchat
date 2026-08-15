@@ -1,7 +1,7 @@
 "use client";
 
 import type { ArchiveMedia } from "@/entities/media";
-import { useSetBackground } from "@/features/set-background";
+import { useApplyPhoto } from "@/features/apply-photo";
 import { useMediaPicker } from "@/features/upload-media";
 import { CHAT_MESSAGE_PARAM, CHAT_ROUTE, toMediaLabel } from "@/shared/config";
 import { cn, startMediaMorph, type MediaId, type Nullable } from "@/shared/lib";
@@ -71,7 +71,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
     },
   });
   const selection = useArchiveSelection();
-  const setBackground = useSetBackground();
+  const applyPhoto = useApplyPhoto();
   const saving = useMediaShare();
   // INFO: REQUIREMENTS.md § 9.2. Blocked while a selection is up — a drop would upload into the grid the bar is about to delete from, which is the very window § 10. closes by withholding selection during an upload. The viewer is the other cover; the editors are the hook's own business.
   // INFO: § 9.1. `acceptsFiles: false`, and this is the one shelf that says so. The grid draws thumbnails and a `.zip` has none, so a file dropped here is refused with copy the user can act on rather than quietly filed onto another shelf.
@@ -204,11 +204,11 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
           onDownload={(mediaId) => void downloadMedia([mediaId])}
           onShare={(mediaId) => void saving.share([mediaId])}
           onSave={(mediaId) => void saving.save([mediaId])}
-          onSetBackground={setBackground.open}
+          onApplyPhoto={applyPhoto.open}
         />
       )}
-      {/* INFO: REQUIREMENTS.md § 12.1. Mounted outside the viewer conditional above, so dismissing the viewer cannot unmount the sheet mid-write — `useSetBackground` returns the two halves separately for exactly this. */}
-      {setBackground.sheet}
+      {/* INFO: REQUIREMENTS.md § 12.1. Mounted outside the viewer conditional above, so dismissing the viewer cannot unmount the sheet mid-write — `useApplyPhoto` returns the two halves separately for exactly this. */}
+      {applyPhoto.sheet}
       {staging.overlay}
     </div>
   );

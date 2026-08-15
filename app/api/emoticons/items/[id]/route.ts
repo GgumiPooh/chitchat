@@ -7,7 +7,7 @@ import {
   snowflakeSchema,
 } from "@/shared/config";
 import type { EmoticonItemId } from "@/shared/lib";
-import { deleteObjects } from "@/shared/storage";
+import { purgeNow } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -79,8 +79,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return apiError("unprocessable");
   }
 
-  // WARN: Immediate, and a participant holding the pre-edit redirect does get a broken image for one load — `PreloadImage` retries past the cache (§ 13.4.), which is what pays for the multi-day asset cache the deferred delete could not have outlived.
-  await deleteObjects(result.orphanedKeys);
+  // WARN: § 13.4. Immediate and inline, with no grace and no `after()`. A participant holding the pre-edit redirect does get a broken image for one load — `PreloadImage` retries past the cache — which is what pays for the multi-day asset cache no deferred delete could have outlived.
+  await purgeNow(result.orphanedKeys);
 
   return NextResponse.json({ emoticon: result.emoticon });
 }
@@ -124,8 +124,8 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     return new NextResponse(null, { status: 204 });
   }
 
-  // INFO: REQUIREMENTS.md § 9. Cleanup behind a row that is already gone; `deleteObjects` never throws.
-  await deleteObjects(result.orphanedKeys);
+  // INFO: REQUIREMENTS.md § 9. The `media` rows went with the item; `purgeNow` takes the bytes and never throws. § 13.4. gives emoticons no grace — the redirect is cached for days.
+  await purgeNow(result.orphanedKeys);
 
   return new NextResponse(null, { status: 204 });
 }

@@ -5,18 +5,23 @@ import {
   MEDIA_ASSET_CACHE_CONTROL,
   MEDIA_CACHE_MAX_AGE,
   MEDIA_SIGNING_BUCKET,
+  isImageMime,
+  isVideoMime,
+  maxSizeForScope,
   snowflakeSchema,
 } from "@/shared/config";
+import type { Media } from "@/shared/db";
 import type { MediaId } from "@/shared/lib";
 import { A_SECOND } from "@/shared/lib";
-import { presignDownload } from "@/shared/storage";
+import { presignDownload, readObject } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const paramsSchema = z.object({ id: snowflakeSchema<MediaId>() });
 
 const querySchema = z.object({
-  variant: z.enum(["thumb", "original"]).default("thumb"),
+  // INFO: REQUIREMENTS.md § 12.1. `edit` is the original again, streamed instead of redirected — see `streamForEditing`.
+  variant: z.enum(["thumb", "original", "edit"]).default("thumb"),
   // INFO: `toMediaDownloadUrl` sets it. Only R2's own `Content-Disposition` survives the 302, so this is what "원본 저장" rides on.
   download: z.literal("1").optional(),
 });
@@ -52,6 +57,10 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     return apiError("not_found");
   }
 
+  if (query.data.variant === "edit") {
+    return streamForEditing(row);
+  }
+
   // WARN: REQUIREMENTS.md § 9.1. A file attachment is served as an attachment whatever the query says, and never as a thumb variant it has no object for. Nothing in the app renders one inline, so the only way this URL is ever opened is to save it.
   const isFile = row.filename !== null;
   // WARN: REQUIREMENTS.md § 9.3. A voice message has no `_thumb` sibling either — one PUT, like a file — so it is forced off the default variant for the same reason. It is **not** forced to an attachment: unlike a file it is meant to play inline, and `variant` defaulting to `thumb` is what would otherwise sign a URL for an object R2 never received.
@@ -71,5 +80,40 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     status: 302,
     // WARN: REQUIREMENTS.md § 9. Shorter than the signature's own lifetime, or the browser replays a cached redirect to a URL R2 has stopped honouring.
     headers: { "Cache-Control": `private, max-age=${MEDIA_CACHE_MAX_AGE / A_SECOND}` },
+  });
+}
+
+/**
+ * REQUIREMENTS.md § 12.1. The original as bytes on this origin, so 사진 사용하기 can
+ * crop it in a canvas.
+ *
+ * WARN: A stream and not the 302 above, and `CLAUDE.md § 5.3.` is the argument: an R2
+ * response is cross-origin, so a canvas drawn from it is tainted, and fetching it in
+ * CORS mode downloads the photo a second time under a separate cache entry, answers
+ * differently cold and warm, and fails outright under a bucket policy that does not
+ * name the origin.
+ *
+ * WARN: The display path keeps its redirect. This variant is asked for once, when the
+ * editor opens, so every `<img>` and preload still shares the cached 302.
+ */
+async function streamForEditing(row: Media) {
+  // WARN: § 9.1. The one branch that answers bytes from this origin instead of a 302, so it re-states the allow-list rather than inheriting the attachment forcing below. `isFileMime` is a shape test, not an allow-list — `image/svg+xml` is deliberately filed as an attachment (§ 14.) precisely so nothing renders it, and streaming one inline would run its script under the app's own origin and session.
+  if (row.filename !== null || !(isImageMime(row.mime) || isVideoMime(row.mime))) {
+    return apiError("not_found");
+  }
+
+  // INFO: § 14.'s `background` ceiling, since every target of 사진 사용하기 is a background or an avatar — it is what keeps a 500MB chat video from being buffered into a response.
+  const fetched = await readObject(row.r2Key, maxSizeForScope(row.mime, "background"));
+
+  if (!fetched) {
+    return apiError("not_found");
+  }
+
+  return new NextResponse(new Uint8Array(fetched.bytes), {
+    headers: {
+      "Content-Type": fetched.mime,
+      // INFO: § 9. The same immutable lifetime the presigned GET carries — the key holds a UUID, so these bytes never change.
+      "Cache-Control": MEDIA_ASSET_CACHE_CONTROL,
+    },
   });
 }

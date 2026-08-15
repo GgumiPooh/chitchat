@@ -1,2 +1,2 @@
-export { useSetBackground, type SetBackgroundControl } from "./model/use-set-background";
+export { useApplyPhoto, type ApplyPhotoControl } from "./model/use-apply-photo";
 export { ChatBackgroundRow, type ChatBackgroundRowProps } from "./ui/chat-background-row";

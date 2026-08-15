@@ -8,7 +8,7 @@ import {
   isFileMime,
   maxSizeForMime,
 } from "@/shared/config";
-import { buildStorageKey, presignUpload, toThumbKey } from "@/shared/storage";
+import { buildStorageKey, presignUpload, reserveKey, toThumbKey } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -59,6 +59,10 @@ export async function POST(request: Request) {
   }
 
   const r2Key = buildStorageKey(scope, user.id);
+
+  // WARN: § 9. The claim is written before the ticket is signed, never after. A signature handed out first is one the browser may redeem while this request is still in flight, and the object it lands would be one no row ever named — which is the whole of what the reservation makes impossible.
+  await reserveKey(r2Key, user.id);
+
   const [uploadUrl, thumbnailUploadUrl] = await Promise.all([
     presignUpload(r2Key, mime),
     isFile ? null : presignUpload(toThumbKey(r2Key), THUMBNAIL_MIME),

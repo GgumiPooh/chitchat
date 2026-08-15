@@ -21,7 +21,7 @@ import {
   type Nullable,
   type Optional,
 } from "@/shared/lib";
-import { ChevronLeft, ChevronRight, Download, Share, Trash2, Wallpaper, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, ImagePlus, Share, Trash2, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -112,13 +112,14 @@ export type MediaViewerProps = {
   /** REQUIREMENTS.md § 8.11. The 저장 route for the slide on screen. Used on iOS only, where the download beside it cannot reach the photo library. */
   onSave?: (mediaId: MediaId) => void;
   /**
-   * REQUIREMENTS.md § 12.1. Opens 배경으로 설정 for the slide on screen.
+   * REQUIREMENTS.md § 12.1. Opens 사진 사용하기 for the slide on screen — the profile
+   * image, the profile cover, or the chat wallpaper.
    *
    * INFO: Given the media id for `onShare`'s reason — the slide moves under the
    * control, so the id has to be read at the tap rather than captured at mount.
-   * INFO: `isVideo` rides along because the two backgrounds do not take the same kinds — a profile cover may be a video and the chat wallpaper may not (§ 12.2.), so the sheet has to know before it draws its rows.
+   * INFO: `isVideo` rides along because the three slots do not take the same kinds — a profile cover may be a video and the other two may not (§ 12.2.), so the sheet has to know before it draws its rows.
    */
-  onSetBackground?: (mediaId: MediaId, isVideo: boolean) => void;
+  onApplyPhoto?: (mediaId: MediaId, isVideo: boolean) => void;
   /**
    * REQUIREMENTS.md § 8.1. Takes 원본 저장 over, so the caller can do something before
    * the object is reached — 채팅 offers the rest of the bubble first (§ 8.1.), 보관함
@@ -158,7 +159,7 @@ export function MediaViewer({
   onOpenMessage,
   onShare,
   onSave,
-  onSetBackground,
+  onApplyPhoto,
   onDownload,
 }: MediaViewerProps) {
   const trackRef = useRef<Nullable<HTMLDivElement>>(null);
@@ -249,8 +250,8 @@ export function MediaViewer({
   const canStepForward = !zoom.isZoomed && index >= 0 && index < cells.length - 1;
   // INFO: A draft has no stored object yet, so there is nothing for either control to reach.
   const downloadUrl = current?.downloadUrl;
-  // INFO: REQUIREMENTS.md § 12.1. A stored image always fits a background; a video fits the profile cover alone, and only inside the caps a copy has no way to trim it down to.
-  const canWearAsBackground =
+  // INFO: REQUIREMENTS.md § 12.1. A stored image has all three slots open to it; a video reaches the profile cover alone, and only inside § 12.1.'s caps.
+  const canApplyPhoto =
     Boolean(downloadUrl) && (!current?.isVideo || isWearableBackgroundVideo(current));
   // INFO: REQUIREMENTS.md § 8.1. Withheld per slide in 채팅, where the track crosses bubbles; 보관함 offers no predicate, since its 삭제 reaches either participant's row (§ 10.).
   // WARN: `Boolean(deletion)` leads, because the `??` below answers `true` for a caller that passes no `deletion` at all — the § 7.7. profile-photo viewer, where it mounted the bottom bar's pill with nothing inside it and pushed the lone 원본 저장 off centre.
@@ -542,7 +543,7 @@ export function MediaViewer({
           />
         </div>
         {/* INFO: DESIGN.md § 7.10. The actions, at the bottom — the two save routes flank the pair that acts on the photo itself, so the destructive one is never at the row's outer edge where a thumb lands first. */}
-        {/* WARN: The middle group is one pill and the flanking controls are their own, which is what lets 삭제 and 배경으로 설정 come and go per slide without moving 공유 or 다운 under a travelling finger. Inside the pill their absence costs the pill its width and nothing else — the hole the old right-aligned row punched mid-swipe. */}
+        {/* WARN: The middle group is one pill and the flanking controls are their own, which is what lets 삭제 and 사진 사용하기 come and go per slide without moving 공유 or 다운 under a travelling finger. Inside the pill their absence costs the pill its width and nothing else — the hole the old right-aligned row punched mid-swipe. */}
         <div
           className={cn(
             // WARN: DESIGN.md § 7.10. A gradient here too, which this bar deliberately went without for a long time on the argument that a second one frames the photo from below. The discs' own fill is what it relied on instead, and over the viewer's opaque `scrim` — which is most of the screen on a portrait slide — `scrim` on `scrim` is a control with no edge at all. The ring below answers that; the wash is what carries the group over a bright photo.
@@ -581,7 +582,7 @@ export function MediaViewer({
                 <Download className="size-5" strokeWidth={1.75} />
               </a>
             ))}
-          {(canDeleteCurrent || canWearAsBackground) && current && (
+          {(canDeleteCurrent || canApplyPhoto) && current && (
             // WARN: No inner padding. Each control is a 44 circle in a 44-tall pill, so with the ends flush the hover disc *is* the pill's end cap — padded by `2xs` it stopped 4px short and left a sliver of pill outside a round highlight, which reads as the control being off-centre in its own group.
             <div className="pointer-events-auto flex items-center overflow-hidden rounded-full bg-scrim/70 shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm">
               {deletion && canDeleteCurrent && (
@@ -595,14 +596,14 @@ export function MediaViewer({
                   onClick={() => deletion.onSelect(current.id)}
                 />
               )}
-              {onSetBackground && canWearAsBackground && (
-                // INFO: REQUIREMENTS.md § 12.1. A video is offered too — a profile cover may be one. Absent on a draft, which has no stored object for the server-side copy to read, and on a video past § 12.1.'s caps: the copy path cannot trim, so that clip can be worn by neither background and the sheet would open on nothing.
+              {onApplyPhoto && canApplyPhoto && (
+                // INFO: REQUIREMENTS.md § 12.1. A video is offered too — a profile cover may be one. Absent on a draft, which has no stored object to crop, and on a video past § 12.1.'s caps: that clip fits no slot and the sheet would open on nothing.
                 <IconButton
                   className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
-                  Icon={Wallpaper}
+                  Icon={ImagePlus}
                   tabIndex={isChromeVisible ? undefined : -1}
-                  aria-label="배경으로 설정"
-                  onClick={() => onSetBackground(current.id, current.isVideo)}
+                  aria-label="사진 사용하기"
+                  onClick={() => onApplyPhoto(current.id, current.isVideo)}
                 />
               )}
             </div>

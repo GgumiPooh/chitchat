@@ -4,7 +4,7 @@ import { emoticonItems, emoticonPacks, getDb, messages, nextSnowflake } from "@/
 import type { EmoticonItemId, EmoticonPackId, Nullable } from "@/shared/lib";
 import { and, eq } from "drizzle-orm";
 import type { EmoticonPackSummary } from "../model/types";
-import { findItemSlotKeys } from "./get-emoticon-asset";
+import { detachEmoticonMedia, findItemSlotKeys } from "./get-emoticon-asset";
 
 /**
  * REQUIREMENTS.md § 13.4. A title is the whole form. An empty pack is a valid
@@ -117,13 +117,17 @@ export async function deleteEmoticonPack(
   // WARN: Read before the delete, for the reason `deleteEmoticonItem` gives — the keys live on the `media` rows the slots name, and the join needs the item rows to still be there.
   const slotKeys = await findItemSlotKeys(items.map((item) => item.id));
 
-  // WARN: The thumbnail FK points into the items about to cascade away. Clearing it first keeps the delete from depending on constraint evaluation order.
-  await getDb()
-    .update(emoticonPacks)
-    .set({ thumbnailItemId: null })
-    .where(eq(emoticonPacks.id, packId));
+  await getDb().transaction(async (tx) => {
+    // WARN: The thumbnail FK points into the items about to cascade away. Clearing it first keeps the delete from depending on constraint evaluation order.
+    await tx
+      .update(emoticonPacks)
+      .set({ thumbnailItemId: null })
+      .where(eq(emoticonPacks.id, packId));
 
-  await getDb().delete(emoticonPacks).where(eq(emoticonPacks.id, packId));
+    await tx.delete(emoticonPacks).where(eq(emoticonPacks.id, packId));
+
+    await detachEmoticonMedia(tx, slotKeys);
+  });
 
   return { status: "deleted", orphanedKeys: slotKeys };
 }

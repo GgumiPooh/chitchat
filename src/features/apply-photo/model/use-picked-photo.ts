@@ -1,19 +1,16 @@
 "use client";
 
 import type { MediaDraft } from "@/entities/media";
-import {
-  retainPreview,
-  toMediaDraft,
-  validateFile,
-} from "@/features/upload-media/@x/set-background";
+import { retainPreview, toMediaDraft, validateFile } from "@/features/upload-media/@x/apply-photo";
 import { isImageMime } from "@/shared/config";
-import type { Nullable } from "@/shared/lib";
+import type { MediaId, Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { readOriginalFile } from "../api/read-original";
 
 /**
- * The wallpaper being picked, held only long enough to reach the editor
- * (REQUIREMENTS.md § 12.2.).
+ * The photo being applied, held only long enough to reach the editor
+ * (REQUIREMENTS.md § 12.1., § 12.2.).
  *
  * INFO: Simpler than § 12.'s `usePhotoDraft`, and deliberately so. That hook stages
  * a photo against a 저장 button that may never be pressed; here the editor's 완료
@@ -66,6 +63,52 @@ export function usePickedPhoto() {
     }
   }, []);
 
+  /**
+   * REQUIREMENTS.md § 12.1. The same crop, over an object that is already stored —
+   * 사진 사용하기 reaches a photo by id rather than through a file dialog.
+   *
+   * INFO: No `validateFile` and no mime gate. The bytes came off a row § 14. already
+   * verified, and the sheet only offers a row the source kind can be worn in.
+   */
+  const readStored = useCallback(async (mediaId: MediaId): Promise<Nullable<MediaDraft>> => {
+    setIsReading(true);
+
+    try {
+      const draft = await toMediaDraft(await readOriginalFile(mediaId));
+
+      retainPreview(urlsRef.current, draft.previewUrl);
+      setCropping(draft);
+
+      return draft;
+    } catch {
+      toast.error("사진을 불러오지 못했어요");
+
+      return null;
+    } finally {
+      setIsReading(false);
+    }
+  }, []);
+
+  /**
+   * REQUIREMENTS.md § 12.1. A file an overlay produced, read back into a draft.
+   *
+   * INFO: Re-read rather than patched onto the old draft — the video crop answers a
+   * `File`, and its poster, box, duration and hash all belong to the new clip.
+   */
+  const readCropped = useCallback(async (file: File): Promise<Nullable<MediaDraft>> => {
+    try {
+      const draft = await toMediaDraft(file);
+
+      retainPreview(urlsRef.current, draft.previewUrl);
+
+      return draft;
+    } catch {
+      toast.error("영상을 읽지 못했어요");
+
+      return null;
+    }
+  }, []);
+
   const cancel = useCallback(() => setCropping(null), []);
 
   // WARN: The editor's 완료 hands back a *new* draft with a `previewUrl` of its own, which nothing else knows about — untracked it outlives every reset and leaks one thumbnail blob per wallpaper change. `usePhotoDraft.stage` tracks the same URL for the same reason.
@@ -81,5 +124,5 @@ export function usePickedPhoto() {
     setCropping(null);
   }, []);
 
-  return { cropping, isReading, read, cancel, commit, reset };
+  return { cropping, isReading, read, readStored, readCropped, cancel, commit, reset };
 }

@@ -13,12 +13,9 @@ import { and, eq, inArray, isNull, ne, notExists, sql } from "drizzle-orm";
  * A live message is the whole of 보관함 membership, so a withdrawn one already takes its
  * photos off the shelf — without this the rows would simply stop being reachable while
  * still claiming to be live, which is a state nothing can find again and nothing can
- * clean up. Stamping them is what keeps the table honest about what it holds.
- *
- * WARN: The R2 objects are deliberately **left**. Stamping `deleted_at` costs nothing and
- * is undone by clearing it; deleting the bytes is final, and withdrawing a message is the
- * sender's own act where destroying a shared object belongs to both (§ 18. #1.). The
- * objects are swept separately, against `deleted_at IS NOT NULL`.
+ * clean up. Stamping them is what keeps the table honest about what it holds, and it is
+ * also what hands the objects to the reclaim, which purges the bytes once
+ * `MEDIA_DELETE_GRACE` has run.
  */
 export async function deleteMessage(id: MessageId, senderId: UserId): Promise<boolean> {
   return await getDb().transaction(async (tx) => {
