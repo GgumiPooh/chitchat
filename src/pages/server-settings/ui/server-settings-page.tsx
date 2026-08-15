@@ -31,8 +31,9 @@ export function ServerSettingsPage({ className }: ServerSettingsPageProps) {
       />
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
       <div className="flex flex-col gap-md pt-(--app-header-inset) pb-lg">
-        <BackupPanel />
+        {/* INFO: 고아 파일 정리 first, and only because the backup list is the one block whose height arrives late — under it, every fetch nudged this section down the screen. */}
         <OrphanPanel />
+        <BackupPanel />
       </div>
     </div>
   );
