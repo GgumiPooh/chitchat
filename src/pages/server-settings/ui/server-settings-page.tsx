@@ -9,10 +9,17 @@ import { useRouter } from "next/navigation";
 
 export type ServerSettingsPageProps = {
   className?: string;
+  /**
+   * Whether this deployment has a jandh-ops to call (`OPS_API_URL`).
+   *
+   * INFO: REQUIREMENTS.md § 12.4. Only the work that service still owns is gated on it —
+   * the backup list and the per-backup deletion read R2 directly and are always offered.
+   */
+  isOpsAvailable: boolean;
 };
 
 /** REQUIREMENTS.md § 12.4. The ops console — backups and the orphan sweep, reached from a 설정 row. */
-export function ServerSettingsPage({ className }: ServerSettingsPageProps) {
+export function ServerSettingsPage({ className, isOpsAvailable }: ServerSettingsPageProps) {
   const router = useRouter();
 
   return (
@@ -32,8 +39,8 @@ export function ServerSettingsPage({ className }: ServerSettingsPageProps) {
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
       <div className="flex flex-col gap-md pt-(--app-header-inset) pb-lg">
         {/* INFO: 고아 파일 정리 first, and only because the backup list is the one block whose height arrives late — under it, every fetch nudged this section down the screen. */}
-        <OrphanPanel />
-        <BackupPanel />
+        {isOpsAvailable && <OrphanPanel />}
+        <BackupPanel isOpsAvailable={isOpsAvailable} />
       </div>
     </div>
   );

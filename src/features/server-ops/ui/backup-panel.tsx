@@ -11,6 +11,14 @@ import { OpsResultModal, type OpsResult } from "./ops-result-modal";
 
 export type BackupPanelProps = {
   className?: string;
+  /**
+   * Whether jandh-ops is reachable, which is what 백업 생성 needs and nothing else here does.
+   *
+   * INFO: REQUIREMENTS.md § 12.4. `pg_dump` is a binary this app does not carry, so a run
+   * has to be asked for. The list and the deletion read R2 directly and stay either way —
+   * a deployment without that service can still see its dumps and drop one.
+   */
+  isOpsAvailable: boolean;
 };
 
 const BACKUPS_QUERY_KEY = ["ops", "backups"];
@@ -26,7 +34,7 @@ const SKELETON_KEYS = ["a", "b", "c"];
  * optimistic, and the modal is the whole report — jandh-ops' push reaches one account
  * of the two, which need not be the one that pressed the button.
  */
-export function BackupPanel({ className }: BackupPanelProps) {
+export function BackupPanel({ className, isOpsAvailable }: BackupPanelProps) {
   const queryClient = useQueryClient();
   const backups = useQuery({ queryKey: BACKUPS_QUERY_KEY, queryFn: fetchBackups });
   const [result, setResult] = useState<Nullable<OpsResult>>(null);
@@ -37,11 +45,13 @@ export function BackupPanel({ className }: BackupPanelProps) {
   return (
     <section className={cn("flex flex-col", className)}>
       <h2 className="px-md pt-md pb-xs text-title-sm text-meta">백업</h2>
-      <div className="px-md pb-sm">
-        <Button disabled={isRunning} haptic onClick={() => void createBackup()}>
-          {isRunning ? "백업하는 중…" : "백업 생성"}
-        </Button>
-      </div>
+      {isOpsAvailable && (
+        <div className="px-md pb-sm">
+          <Button disabled={isRunning} haptic onClick={() => void createBackup()}>
+            {isRunning ? "백업하는 중…" : "백업 생성"}
+          </Button>
+        </div>
+      )}
       {renderList()}
       <Modal
         isOpen={pendingFilename !== null}

@@ -17,11 +17,18 @@ const TOKEN_ENV: Record<OpsCredential, string> = {
   cleanup: "CLEANUP_TOKEN",
 };
 
-// INFO: The deployed ops service. A variable with a real default rather than an `ensureEnv` (AGENTS.md § 6.2.) — the address is fixed by `infra/jandh-ops.caddy` in that repository, and only a local run overrides it.
-const OPS_API_URL = (process.env.OPS_API_URL ?? "https://jandh-ops.jeheecheon.com").replace(
-  /\/$/,
-  "",
-);
+/**
+ * REQUIREMENTS.md § 12.4. Whether this deployment has a jandh-ops to call.
+ *
+ * WARN: No default address any more, and that is what the 서버 관리 screen toggles its
+ * ops-only controls on. A default made the variable unfalsifiable — every deployment
+ * "had" an ops service, so the screen could only offer 백업 생성 and the sweep and let
+ * them fail. The list and the per-backup deletion do not consult this: they read R2
+ * directly and outlive that service.
+ */
+export function isOpsConfigured(): boolean {
+  return Boolean(process.env.OPS_API_URL?.trim());
+}
 
 export type OpsResponse = {
   isOk: boolean;
@@ -43,7 +50,9 @@ export async function callOps(
   path: string,
   { method, credential, body }: { method: string; credential: OpsCredential; body?: unknown },
 ): Promise<OpsResponse> {
-  const response = await fetch(`${OPS_API_URL}${path}`, {
+  const baseUrl = ensureEnv("OPS_API_URL").replace(/\/$/, "");
+
+  const response = await fetch(`${baseUrl}${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${ensureEnv(TOKEN_ENV[credential])}`,

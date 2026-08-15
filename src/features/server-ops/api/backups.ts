@@ -3,7 +3,7 @@ import { OPS_BACKUPS_PATH } from "@/shared/config";
 import { OpsRequestError } from "../model/ops-error";
 import type { BackupRunResult, BackupSummary } from "../model/types";
 
-/** REQUIREMENTS.md § 12.4. The stored dumps, newest first — jandh-ops sorts them, so this keeps the order it answers. */
+/** REQUIREMENTS.md § 12.4. The stored dumps, newest first — the route sorts them, so this keeps the order it answers. */
 export async function fetchBackups(): Promise<BackupSummary[]> {
   const response = await request(OPS_BACKUPS_PATH);
 

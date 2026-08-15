@@ -3,10 +3,13 @@ import "server-only";
 import { MEDIA_URL_EXPIRY, UPLOAD_URL_EXPIRY } from "@/shared/config";
 import { A_SECOND, safelyGetAsync, type Maybe, type Nullable, type Optional } from "@/shared/lib";
 import {
+  DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
+  type ListObjectsV2CommandOutput,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getBucket, getR2 } from "./client";
@@ -18,6 +21,104 @@ export type StoredObject = {
 
 // INFO: S3's own cap on one `DeleteObjects` payload, and jandh-ops batches its sweep at the same figure.
 const DELETE_BATCH_SIZE = 1000;
+
+/**
+ * REQUIREMENTS.md § 12.4. Where jandh-ops puts its dumps, in the bucket the app's own
+ * objects live in — which is why § 9.'s sweep whitelists the four media prefixes rather
+ * than blacklisting this one.
+ */
+const BACKUPS_PREFIX = "backups/";
+
+/**
+ * WARN: Anchored, and it bounds what the 서버 관리 screen can name. Every dump is written
+ * as `{db}_{ISO}.dump`, so a name that cannot match is not a name this prefix holds.
+ */
+const BACKUP_FILENAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(dump|sql\.gz)$/;
+
+/** Whether `filename` is shaped like a dump this prefix could hold. */
+export function isBackupFilename(filename: string): boolean {
+  return BACKUP_FILENAME_PATTERN.test(filename);
+}
+
+/** REQUIREMENTS.md § 12.4. One dump under `backups/`. */
+export type BackupObject = {
+  filename: string;
+  sizeBytes: number;
+  /** ISO 8601, from R2's own `LastModified`. */
+  lastModified: string;
+};
+
+/**
+ * Every dump directly under `backups/`, newest first.
+ *
+ * WARN: Throws when the bucket could not be listed, and does NOT fall back to an empty
+ * array. "The bucket is empty" and "the bucket could not be read" draw the same screen
+ * otherwise, and the second one would also report every backup as already deleted.
+ *
+ * INFO: `Delimiter` is what keeps jandh-ops' staging area out. That service uploads to
+ * `backups/tmp/` and promotes only once it has verified the size, so a half-written dump
+ * sits under a sub-prefix — which a delimited listing returns as `CommonPrefixes` and
+ * never as a row here.
+ */
+export async function listBackups(): Promise<BackupObject[]> {
+  const backups: BackupObject[] = [];
+  let continuationToken: Optional<string> = undefined;
+
+  do {
+    // INFO: The output is annotated because `send` is overloaded on its command, and inferring it here would resolve through the token this loop assigns from the result.
+    const page: ListObjectsV2CommandOutput = await getR2().send(
+      new ListObjectsV2Command({
+        Bucket: getBucket(),
+        Prefix: BACKUPS_PREFIX,
+        Delimiter: "/",
+        ContinuationToken: continuationToken,
+      }),
+    );
+
+    for (const object of page.Contents ?? []) {
+      const filename = object.Key?.slice(BACKUPS_PREFIX.length);
+
+      if (!filename || !isBackupFilename(filename)) {
+        continue;
+      }
+
+      backups.push({
+        filename,
+        sizeBytes: object.Size ?? 0,
+        lastModified: (object.LastModified ?? new Date(0)).toISOString(),
+      });
+    }
+
+    // INFO: Retention keeps ten, so the loop is for correctness rather than for a page anybody expects to see.
+    continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return backups.sort((a, b) => b.lastModified.localeCompare(a.lastModified));
+}
+
+/**
+ * Deletes one dump, answering the row it removed or `null` when no such dump exists.
+ *
+ * WARN: The listing is what makes the second answer possible. `DeleteObject` succeeds for
+ * a key that was never there, so deleting first and reporting success would tell the
+ * screen it had removed a backup that some other run had already dropped.
+ *
+ * WARN: Throws rather than reporting, unlike `deleteObjects`. That one is cleanup behind
+ * somebody else's request and may not fail it; this one IS the request.
+ */
+export async function deleteBackup(filename: string): Promise<Nullable<BackupObject>> {
+  const existing = (await listBackups()).find((backup) => backup.filename === filename);
+
+  if (existing === undefined) {
+    return null;
+  }
+
+  await getR2().send(
+    new DeleteObjectCommand({ Bucket: getBucket(), Key: `${BACKUPS_PREFIX}${filename}` }),
+  );
+
+  return existing;
+}
 
 /**
  * A URL the browser may `PUT` one object to (REQUIREMENTS.md § 9.), bypassing
