@@ -8,9 +8,9 @@ import { callOps, type OpsCredential } from "./request";
  * REQUIREMENTS.md § 12.4. Forwards one ops call and answers with jandh-ops' own JSON —
  * the 서버 관리 screen shows that body verbatim, which is the point of the screen.
  *
- * WARN: A failure is answered with an `apiError` code and nothing else (§ 14.). The
- * upstream message is an `aws` stderr line carrying bucket paths and key ids, and the
- * user already gets the readable reason as a push from jandh-ops itself.
+ * WARN: A failure is answered with an `apiError` code and nothing else (§ 14.) — the
+ * upstream message is an `aws` stderr line carrying bucket paths and key ids. The screen
+ * turns the code into a sentence; jandh-ops' log is where the reason stays.
  */
 export async function answerOps(
   path: string,

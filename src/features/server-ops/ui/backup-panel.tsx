@@ -23,8 +23,8 @@ const SKELETON_KEYS = ["a", "b", "c"];
  * a per-row deletion.
  *
  * INFO: A run takes as long as `pg_dump` takes, so the button stays busy rather than
- * optimistic — and the failure copy points at the push, which carries the reason this
- * screen deliberately never receives (§ 14.).
+ * optimistic, and the modal is the whole report — jandh-ops' push reaches one account
+ * of the two, which need not be the one that pressed the button.
  */
 export function BackupPanel({ className }: BackupPanelProps) {
   const queryClient = useQueryClient();
@@ -135,7 +135,7 @@ export function BackupPanel({ className }: BackupPanelProps) {
     } catch (error) {
       setResult({
         title: "백업 실패",
-        description: describeOpsFailure(error, "자세한 이유는 푸시 알림으로 알려드려요"),
+        description: describeOpsFailure(error),
         lines: [],
       });
     } finally {

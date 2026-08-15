@@ -88,7 +88,7 @@ export function OrphanPanel({ className }: OrphanPanelProps) {
     } catch (error) {
       setResult({
         title: "정리 실패",
-        description: describeOpsFailure(error, "자세한 이유는 푸시 알림으로 알려드려요"),
+        description: describeOpsFailure(error),
         lines: [],
       });
     } finally {
