@@ -43,9 +43,9 @@ import { ACTIVE_TAB_KEY, RECENTS_TAB, SEARCH_TAB, isPackTabId } from "../model/e
 import { toEmoticonsByIdsQuery } from "../model/emoticons-query";
 import { toEmoticonPackItemsQuery } from "../model/pack-items-query";
 import { toEmoticonPacksQuery } from "../model/packs-query";
-import { useAdjacentTabWarm } from "../model/use-adjacent-tab-warm";
 import { useEmoticonSearch } from "../model/use-emoticon-search";
 import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
+import { useOutwardTabWarm } from "../model/use-outward-tab-warm";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
 
 // INFO: REQUIREMENTS.md § 13.6. Two taps on the same cell inside this window are the shortcut past the preview.
@@ -385,8 +385,8 @@ export function EmoticonPicker({
   const tabIds = [SEARCH_TAB, RECENTS_TAB, ...visiblePacks.map((pack) => pack.id)];
   const activeIndex = tabIds.indexOf(activeTab);
 
-  // INFO: § 13.6. The room's warm covers the tab that opens and no further, so the tabs a swipe reaches are heated from here instead.
-  useAdjacentTabWarm({ isOpen, activeTab, tabIds, recents });
+  // INFO: § 13.6. The room's warm covers the tab that opens and no further, so the tabs around it are heated from here, outward.
+  useOutwardTabWarm({ isOpen, activeTab, tabIds, recents });
   // WARN: § 13.5. The open is what re-asks for the list, since the mount stopped being the tap (see the query above). Rising edge only — every render while open would re-ask on each one.
   useEffect(() => {
     if (isOpen) {
