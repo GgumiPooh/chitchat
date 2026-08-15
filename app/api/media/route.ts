@@ -45,31 +45,8 @@ export async function POST(request: Request) {
     return apiError("unauthorized");
   }
 
-  const payload: unknown = await request.json().catch(() => null);
-
-  /**
-   * TODO: § 18. #1. Removed in the following cycle, with `DELETE /api/archive`'s `mode`.
-   *
-   * WARN: Refused, never stripped — the schema would drop the unknown key silently.
-   * This is 보관함에만 추가 from a tab left open across the deploy, and letting it
-   * through registers a row that hangs off no message: reachable by no query, deletable
-   * by nothing, and shown to the user as a saved tile. The object is orphaned either
-   * way (see `filename` above); what the refusal buys is the screen saying so.
-   *
-   * WARN: `=== true`, never the key's presence. That build sent this field on **every**
-   * registration, `false` included, so refusing it by presence would 400 each of its
-   * ordinary chat attachments too.
-   */
-  if (
-    payload !== null &&
-    typeof payload === "object" &&
-    "addToGallery" in payload &&
-    payload.addToGallery === true
-  ) {
-    return apiError("invalid_request");
-  }
-
-  const body = bodySchema.safeParse(payload);
+  // WARN: § 18. #1. `addToGallery` is **accepted and ignored**, which the schema does by dropping an unknown key. Refusing it was tried and is wrong: the pre-deploy build sent `true` on every 보관함 upload — 대화에도 보내기 included, since only what it did *after* registering told the two apart — so a 400 here takes down a flow that is still entirely valid rather than only the library-only one. The two are indistinguishable at this endpoint, and the endpoint is the wrong place to try.
+  const body = bodySchema.safeParse(await request.json().catch(() => null));
 
   if (!body.success) {
     return apiError("invalid_request");

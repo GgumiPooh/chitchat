@@ -93,10 +93,9 @@ export function useArchiveUpload(
         const strandedItems = new Set(stranded);
 
         // WARN: § 18. #1. Rolled back off the screen, not merely reported. These rows reached R2 and `media` but no message, and a message is the whole of shelf membership now — so the tiles the pool prepended are drawing rows that `isInLibrary()` refuses, which a 삭제 aimed at them would answer with `삭제할 수 있는 사진이 없어요`.
+        // INFO: Every stranded id goes over, not just this shelf's. `remove` is a filter, so an id this list never held costs nothing — and narrowing here is what would put the rollback and the count below out of step.
         if (stranded.length > 0) {
-          onStranded(
-            stranded.filter(({ draft }) => toShelf(draft) === shelf).map(({ media }) => media.id),
-          );
+          onStranded(stranded.map(({ media }) => media.id));
         }
 
         // INFO: Only what actually landed, or the "went to another shelf" line names rows that went nowhere.
@@ -176,6 +175,7 @@ async function post(uploaded: Uploaded[]): Promise<Uploaded[]> {
       });
     } catch {
       // WARN: The bubbles are posted in order and stop at the first failure, so everything from here on is stranded — reporting only the failing bubble would leave the rest on screen as rows no query admits.
+      // TODO: A rejection is taken at face value, so a response lost on a request the server committed is reported as stranded and its tiles taken back — they are really in 보관함 and return on the next load. Closing it wants the `client_msg_id` reconciliation the § 8.12. send queue has and this path does not.
       return bubbles.slice(index).flat();
     }
   }
