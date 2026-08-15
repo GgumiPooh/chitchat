@@ -293,7 +293,7 @@ export const MEDIA_CACHE_MAX_AGE = 5 * A_MINUTE;
  * bucket with nothing naming it, which is the one orphan this table exists to make
  * impossible.
  *
- * WARN: Ten minutes of ticket is not the lower bound — § 13.7.'s Kakao import is. It
+ * WARN: Ten minutes of ticket is not the lower bound — § 13.7.'s set import is. It
  * reserves keys across chunks and finishes long after the first ticket has expired, so
  * the window has to cover the whole import rather than one signature.
  */
