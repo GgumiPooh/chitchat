@@ -46,6 +46,8 @@ export function useAdjacentTabWarm({
   );
   // INFO: A dependency the array identity cannot break, since `neighbours` is rebuilt every render.
   const neighbourKey = neighbours.join();
+  // WARN: A dependency because 최근 사용 has no request of its own to wait on here — read once from the ref a second after the open, an unresolved list warms nothing and nothing would ever ask again.
+  const recentsCount = recents.length;
 
   useEffect(() => {
     if (!isOpen || activeIndex < 0) {
@@ -83,5 +85,5 @@ export function useAdjacentTabWarm({
 
       return queryClient.fetchQuery(toEmoticonPackItemsQuery(tab)).catch(() => []);
     }
-  }, [activeIndex, isOpen, neighbourKey, queryClient]);
+  }, [activeIndex, isOpen, neighbourKey, queryClient, recentsCount]);
 }

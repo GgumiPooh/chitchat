@@ -3,6 +3,7 @@
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import { MAX_KEYWORD_QUERY_LENGTH, toEmoticonAssetUrl } from "@/shared/config";
 import {
+  A_MINUTE,
   A_SECOND,
   cn,
   isBareKey,
@@ -55,6 +56,23 @@ const NO_PACKS: EmoticonPackSummary[] = [];
 
 // WARN: Hoisted for `NO_PACKS`' reason — three queries below fall back to it, and an inline `= []` would hand a fresh identity to every render of the grid and of § 13.8.'s row.
 const NO_ITEMS: Emoticon[] = [];
+
+// WARN: § 13.5. Not the descriptor's `0`, and the pair is what keeps that guarantee: this holds the early mount back, `refetchPacks` on the open is what still lands an edit. Matches `PRELOAD_STALE_TIME`, since the two now mount on the same idle frame.
+const PACKS_MOUNT_STALE_TIME = 5 * A_MINUTE;
+
+/**
+ * How many cells load eagerly, counting from the head of whatever list they draw.
+ *
+ * WARN: § 13.6. `lazy` on a cell that is already warm is the whole skeleton. A lazy
+ * image starts loading after layout and its intersection check, so `img.complete` is
+ * false when `PreloadImage` reads it back on mount however cached the bytes are — the
+ * placeholder is committed and then faded out over an image that was ready all along.
+ *
+ * INFO: Five rows against a panel of at most 352px (`--emoticon-panel-height`), which is a row more than fits. The rest stay `lazy`, so a two-hundred item pack is still loaded by being scrolled through.
+ *
+ * WARN: These load while the panel is still collapsed, since § 13.6. now mounts it before the first open — and that is the same twenty URLs the room's warm is fetching on the same idle frame, so what it costs is their priority rather than the requests.
+ */
+const EAGER_CELL_COUNT = 5 * EMOTICON_GRID_COLUMNS;
 
 // INFO: § 13.9.1. One sentence for the two places a failed search is said — an empty pane, and the caption under a § 13.9. row that holds the tapped item and nothing the words found.
 const SEARCH_FAILED_MESSAGE = "검색하지 못했어요";
@@ -192,9 +210,9 @@ export function EmoticonPicker({
   const [forcedTab, setForcedTab] = useState<Nullable<string>>(null);
   const [query, setQuery] = useState("");
   // WARN: State and not a ref, though it is only ever compared. The adjustment below runs during render, where a ref may not be read at all — this is React's own "adjusting state when a prop changes", and the previous token has to be readable there.
-  // WARN: Seeded `undefined`, never from `searchRequest`. The panel does not exist until the tap that asks for it, so it mounts with the request already in hand — seeding from it marks that request as applied before anything applies it, and the tap opens the panel on the remembered pack with an empty field. That was the bug, and it is invisible on every later tap because by then the component is mounted.
+  // WARN: Seeded `undefined`, never from `searchRequest`. Seeding from it marks a request as applied before anything applies it, and the tap then opens the panel on the remembered pack with an empty field. § 13.6.'s idle mount now normally lands well before any tap, so the mount arrives with no request in hand — which makes the seed correct for the ordinary case as well as for the one this was written against, where the tap and the mount were the same moment.
   const [appliedSearchToken, setAppliedSearchToken] = useState<Optional<number>>(undefined);
-  // WARN: § 13.9. Seeded `undefined` for `appliedSearchToken`'s reason — the panel does not exist until the tap that asks for it, so it mounts with the request already in hand.
+  // WARN: § 13.9. Seeded `undefined` for `appliedSearchToken`'s reason.
   const [appliedRevealToken, setAppliedRevealToken] = useState<Optional<number>>(undefined);
   /**
    * INFO: § 13.9. The item 따라하기 named, which is scrolled to, ringed, and put
@@ -231,7 +249,7 @@ export function EmoticonPicker({
 
   /**
    * WARN: The release, and it is not optional. `chat-room.tsx` gates the panel's
-   * existence on a one-way `hasOpenedEmoticonPanel`, so this component never
+   * existence on a one-way `hasMountedEmoticonPanel`, so this component never
    * unmounts — without a reset the forced tab outlives the search forever. Two
    * things broke: the toggle reopened onto a finished search instead of the
    * remembered pack, and `onSearchTabChange(true)` stayed latched, which took
@@ -279,7 +297,12 @@ export function EmoticonPicker({
   const { recentIds } = useRecentEmoticons();
   // INFO: § 13.6. The same descriptor `useEmoticonPreload` warmed, so the panel opens on the cached list rather than on `isPending`.
   // WARN: § 13.8. Every pack, hidden ones included, and summaries only. The hidden ones are here because § 13.9.'s 따라하기 needs to name a pack this user has taken out of the strip; what makes such a pack's emoticons *findable* is that the server's search applies no `enabled` filter either.
-  const { data: packs = NO_PACKS, isPending } = useQuery(toEmoticonPacksQuery());
+  // WARN: § 13.5.'s "an edit lands the next time the panel opens" is `refetchOnOpen` below, and no longer this mount. The panel is mounted ~2s into the room now rather than by the tap, so the descriptor's own `staleTime: 0` put a packs request on every visit to a room nobody opened the panel in — the request `PRELOAD_STALE_TIME` exists to withhold.
+  const {
+    data: packs = NO_PACKS,
+    isPending,
+    refetch: refetchPacks,
+  } = useQuery({ ...toEmoticonPacksQuery(), staleTime: PACKS_MOUNT_STALE_TIME });
   const visiblePacks = packs.filter((pack) => pack.isEnabled);
 
   /**
@@ -364,6 +387,12 @@ export function EmoticonPicker({
 
   // INFO: § 13.6. The room's warm covers the tab that opens and no further, so the tabs a swipe reaches are heated from here instead.
   useAdjacentTabWarm({ isOpen, activeTab, tabIds, recents });
+  // WARN: § 13.5. The open is what re-asks for the list, since the mount stopped being the tap (see the query above). Rising edge only — every render while open would re-ask on each one.
+  useEffect(() => {
+    if (isOpen) {
+      void refetchPacks();
+    }
+  }, [isOpen, refetchPacks]);
 
   // WARN: § 8.14. Adjusted during render rather than in an effect. The tab's own cells render in this same commit, so a stop reset a frame later is one frame in which `tabIndex={0}` sits on a cell of the pack that just left.
   if (focusedTab !== activeTab) {
@@ -1140,7 +1169,9 @@ function EmoticonCell({
           placeholderClassName="rounded-sm"
           src={toEmoticonAssetUrl(item.id, "still-image", item.version)}
           alt=""
-          loading="lazy"
+          // INFO: § 13.6. The cells are warmed before the panel opens, so a skeleton here is almost always a plate over an image that was ready — `PreloadFrameProps` carries the argument.
+          hasDeferredSkeleton
+          loading={index < EAGER_CELL_COUNT ? "eager" : "lazy"}
           draggable={false}
         />
       </button>

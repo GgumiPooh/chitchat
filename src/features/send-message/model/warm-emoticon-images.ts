@@ -17,6 +17,18 @@ const MAX_WARMED_IMAGES = 3 * MAX_WARMED_PER_TAB;
 const warmedImages = new Map<string, HTMLImageElement>();
 
 /**
+ * Lets go of every held element, leaving the bytes to the browser's own caches.
+ *
+ * WARN: Called when the room unmounts, and it has to be. These are live elements held
+ * for the document's lifetime otherwise, and pinning three packs' decoded images inside
+ * an iOS tab that is already carrying the conversation's own media is how that tab gets
+ * reloaded out from under the reader.
+ */
+export function releaseWarmedImages(): void {
+  warmedImages.clear();
+}
+
+/**
  * REQUIREMENTS.md § 13.6. Puts a tab's still images in the browser's cache, and
  * keeps them there.
  *
@@ -42,7 +54,11 @@ export function warmEmoticonImages(items: Emoticon[], isCancelled: () => boolean
  * WARN: The loaded element is **held**, and dropping it is what left the panel opening on skeletons — a released `Image` takes the resource out of the memory cache with it, so a warm the network never repeated still cost the cell a disk read and a decode, both asynchronous and both after `PreloadImage` had already committed its placeholder.
  */
 function warmImage(url: string): Promise<void> {
-  if (warmedImages.has(url)) {
+  const held = warmedImages.get(url);
+
+  if (held) {
+    retainWarmedImage(url, held);
+
     return Promise.resolve();
   }
 
@@ -60,8 +76,15 @@ function warmImage(url: string): Promise<void> {
   });
 }
 
-// WARN: Eviction is insertion order, which is the oldest warm only because `warmImage` returns early on a URL already held — re-inserting one would move it to the end and evict a tab still in use instead.
+/**
+ * WARN: Least-recently-warmed, and a URL already held is re-inserted rather than left
+ * where it is — insertion order alone evicted a tab that was still in the working set.
+ * A swipe warms the neighbours of where it lands, which includes the tab it came from,
+ * so touching on a hit is what tells the two apart: land on P3 from P2 and the arriving
+ * P4 evicts P1, where before it evicted the P2 a swipe back was about to draw.
+ */
 function retainWarmedImage(url: string, image: HTMLImageElement): void {
+  warmedImages.delete(url);
   warmedImages.set(url, image);
 
   while (warmedImages.size > MAX_WARMED_IMAGES) {

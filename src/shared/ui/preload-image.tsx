@@ -31,6 +31,8 @@ export type PreloadImageProps = Omit<ComponentProps<"img">, "placeholder" | "sty
   previewSrc?: Nullable<string>;
   /** Off for an asset this app does not serve: the retry below cache-busts a URL we do not own, and a host that refused it once refuses it again. */
   canRetry?: boolean;
+  /** WARN: DESIGN.md § 7.8. Holds the skeleton back for a moment, for a caller whose asset is normally already cached — REQUIREMENTS.md § 13.6.'s picker cells. See `PreloadFrameProps`. */
+  hasDeferredSkeleton?: boolean;
   /** WARN: DESIGN.md § 7.8. Off for a full-bleed backdrop, where `placeholderClassName` is the flat surface the load is meant to hide behind — `Skeleton` is opaque `surface-strong` and would paint straight over it, turning the whole screen into a pulsing plate. */
   hasSkeleton?: boolean;
   /**
@@ -67,6 +69,7 @@ export function PreloadImage({
   previewSrc,
   canRetry = true,
   hasSkeleton = true,
+  hasDeferredSkeleton = false,
   blurhash,
   blurhashRatio,
   blurhashFit,
@@ -96,6 +99,7 @@ export function PreloadImage({
       status={status}
       isRevealed={isRevealed}
       hasSkeleton={hasSkeleton}
+      hasDeferredSkeleton={hasDeferredSkeleton}
       blurhash={blurhash}
       blurhashRatio={blurhashRatio}
       blurhashFit={blurhashFit}

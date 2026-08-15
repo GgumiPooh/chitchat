@@ -248,7 +248,8 @@ export const EMOTICON_CACHE_MAX_AGE = A_DAY;
  * WARN: The days above are earned by `v` addressing one immutable version of one slot,
  * and a fallback is exactly the case where that stops being true: an item with no still
  * serves its animation under `slot=still-image`, and a still given to it afterwards would
- * be six days behind every browser that had asked once.
+ * be a day behind every browser that had asked once — `EMOTICON_CACHE_MAX_AGE`'s window,
+ * which is far longer than "the same session" for a slot that is about to be filled.
  *
  * INFO: § 9.'s own window, because "short enough that a change lands the same session"
  * is the same question `MEDIA_CACHE_MAX_AGE` answers for an unversioned media URL.
