@@ -23,6 +23,14 @@ const MAX_WARM_DISTANCE = 15;
 // WARN: § 13.6. Half the walk where the reader is paying by the megabyte, and only where that can be *seen* — `isMeteredConnection` answers false on iOS, which has no such API, so this narrows the cost where it can and never withholds the warm on a guess.
 const METERED_WARM_DISTANCE = MAX_WARM_DISTANCE / 2;
 
+/**
+ * How far out a warmed tab is **decoded** as well as fetched.
+ *
+ * WARN: § 13.6. Decoding is what makes a warmed tab behave like one the reader has already seen, and it is also the expensive half — a decoded still is its pixels, roughly 700KB at `EMOTICON_MAX_EDGE`, against 17KB of PNG. At two either way that is five tabs, some 130 pictures; the whole fifteen-tab walk would be an order of magnitude more, inside an iOS tab already carrying the conversation's media.
+ * INFO: Two is what a swipe reaches without waiting. Past it a tab is bytes in the cache, which is a disk read rather than a round trip — the case the deferred skeleton covers.
+ */
+const MAX_DECODED_DISTANCE = 2;
+
 export type OutwardTabWarmOptions = {
   /** WARN: The warm runs from the **open**, never from the room. A user who does not reach for emoticons pays nothing for the tabs beside the one they would have landed on. */
   isOpen: boolean;
@@ -88,7 +96,11 @@ export function useOutwardTabWarm({
             return;
           }
 
-          await warmEmoticonImages(await fetchTabItems(tab), () => isCancelled);
+          await warmEmoticonImages(
+            await fetchTabItems(tab),
+            () => isCancelled,
+            distance <= MAX_DECODED_DISTANCE,
+          );
         }
       }
     }

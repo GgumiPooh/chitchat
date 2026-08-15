@@ -16,6 +16,9 @@ const MAX_WARMED_IMAGES = 3 * MAX_WARMED_PER_TAB;
 
 const warmedImages = new Map<string, HTMLImageElement>();
 
+// INFO: § 13.6. Held apart from the map above, because a URL can be warm without having been decoded — the near tabs are decoded and the far ones are only fetched.
+const decodedUrls = new Set<string>();
+
 /**
  * Lets go of every held element, leaving the bytes to the browser's own caches.
  *
@@ -26,6 +29,7 @@ const warmedImages = new Map<string, HTMLImageElement>();
  */
 export function releaseWarmedImages(): void {
   warmedImages.clear();
+  decodedUrls.clear();
 }
 
 /**
@@ -34,12 +38,16 @@ export function releaseWarmedImages(): void {
  *
  * INFO: Every task resolves, so one asset the § 13.3. route refuses cannot stop the queue on the rest of the tab.
  */
-export function warmEmoticonImages(items: Emoticon[], isCancelled: () => boolean): Promise<void> {
+export function warmEmoticonImages(
+  items: Emoticon[],
+  isCancelled: () => boolean,
+  decodes = false,
+): Promise<void> {
   const urls = items
     .slice(0, MAX_WARMED_PER_TAB)
     .map((item) => toEmoticonAssetUrl(item.id, "still-image", item.version));
 
-  return mapPooled(urls, (url) => (isCancelled() ? Promise.resolve() : warmImage(url)), {
+  return mapPooled(urls, (url) => (isCancelled() ? Promise.resolve() : warmImage(url, decodes)), {
     limit: WARM_CONCURRENCY,
   }).then(() => undefined);
 }
@@ -52,14 +60,17 @@ export function warmEmoticonImages(items: Emoticon[], isCancelled: () => boolean
  * WARN: `fetchPriority` is what actually keeps this behind the conversation. The whole app is one HTTP/2 connection, so a narrow pool only limits how many requests are outstanding — it does not put the room's own images in front of them. An out-of-DOM `new Image()` is dispatched at default priority without this.
  *
  * WARN: The loaded element is **held**, and dropping it is what left the panel opening on skeletons — a released `Image` takes the resource out of the memory cache with it, so a warm the network never repeated still cost the cell a disk read and a decode, both asynchronous and both after `PreloadImage` had already committed its placeholder.
+ *
+ * WARN: `decodes` is what separates a warm tab from one the reader has actually seen, and it is why a tab that was warmed still opened on skeletons. A detached `Image` puts the **bytes** in the cache and nothing more — the picture has never been in a render tree, so nothing has decoded it, and WebKit in particular keeps no decoded copy for an element it never painted. `decode()` here is the step that closes that, and it is rationed by distance for the reason `MAX_DECODED_DISTANCE` states.
  */
-function warmImage(url: string): Promise<void> {
+function warmImage(url: string, decodes: boolean): Promise<void> {
   const held = warmedImages.get(url);
 
   if (held) {
     retainWarmedImage(url, held);
 
-    return Promise.resolve();
+    // INFO: A tab first reached at a distance carries no decode; walking back to it is what asks for one, and the element is already in hand.
+    return decodes ? decodeWarmedImage(url, held) : Promise.resolve();
   }
 
   return new Promise((resolve) => {
@@ -67,7 +78,7 @@ function warmImage(url: string): Promise<void> {
 
     image.onload = () => {
       retainWarmedImage(url, image);
-      resolve();
+      void (decodes ? decodeWarmedImage(url, image) : Promise.resolve()).then(resolve);
     };
     image.onerror = () => resolve();
     image.decoding = "async";
@@ -95,5 +106,23 @@ function retainWarmedImage(url: string, image: HTMLImageElement): void {
     }
 
     warmedImages.delete(oldest);
+    decodedUrls.delete(oldest);
+  }
+}
+
+/**
+ * WARN: Swallows its own failure. A decode that cannot complete — a truncated object, or a tab the OS has pushed out of memory — costs this tab its head start and must never fail the walk behind it.
+ * INFO: Recorded per URL so a tab re-reached at a decoding distance is not decoded twice; eviction and `releaseWarmedImages` clear both sides together.
+ */
+async function decodeWarmedImage(url: string, image: HTMLImageElement): Promise<void> {
+  if (decodedUrls.has(url)) {
+    return;
+  }
+
+  try {
+    await image.decode();
+    decodedUrls.add(url);
+  } catch {
+    // INFO: The tab stays warm in bytes, which is the state every tab past `MAX_DECODED_DISTANCE` is left in deliberately.
   }
 }

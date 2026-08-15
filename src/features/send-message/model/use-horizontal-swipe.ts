@@ -39,6 +39,7 @@ export type SwipeDirection = 1 | -1;
 export function useHorizontalSwipe(onSwipe: (direction: SwipeDirection) => void) {
   const gesture = useRef<Nullable<Gesture>>(null);
   const swipedAt = useRef(0);
+  const panDenial = useRef<Nullable<{ element: EventTarget; deny: (event: Event) => void }>>(null);
 
   return {
     onPointerDown: begin,
@@ -75,6 +76,34 @@ export function useHorizontalSwipe(onSwipe: (direction: SwipeDirection) => void)
       axis: null,
       hasSwiped: false,
     };
+    denyVerticalPanWhileHorizontal(event.currentTarget);
+  }
+
+  /**
+   * WARN: `touch-action: pan-y` is what leaves this surface scrollable, and it is also what let WebKit spend the vertical component of a swipe on scrolling it — the wobble under the thumb on every tab change. A pointer event cannot refuse that; only a **non-passive `touchmove`** can, which React's own `onTouchMove` cannot be.
+   * WARN: Attached per gesture and removed with it, rather than once on the element. A listener that outlives the drag is a listener that answers for the vertical scroll this exists to protect.
+   * INFO: The first few pixels are still the browser's — the axis is not locked until `AXIS_LOCK_DISTANCE`, and WebKit stops sending cancelable moves once a pan is under way. What this removes is the rest of the sweep, which is all of it that reads as wobble.
+   */
+  function denyVerticalPanWhileHorizontal(element: EventTarget) {
+    releasePanDenial();
+
+    const deny = (touchEvent: Event) => {
+      if (gesture.current?.axis === "horizontal" && touchEvent.cancelable) {
+        touchEvent.preventDefault();
+      }
+    };
+
+    element.addEventListener("touchmove", deny, { passive: false });
+    panDenial.current = { element, deny };
+  }
+
+  function releasePanDenial() {
+    const held = panDenial.current;
+
+    if (held) {
+      held.element.removeEventListener("touchmove", held.deny);
+      panDenial.current = null;
+    }
   }
 
   // WARN: The swipe fires here rather than on `pointerup`, because a finger that also moved the scroller gets a `pointercancel` instead and the release is never measured.
@@ -123,6 +152,7 @@ export function useHorizontalSwipe(onSwipe: (direction: SwipeDirection) => void)
       return;
     }
 
+    releasePanDenial();
     gesture.current = null;
 
     // INFO: The suppression window (§ `TAP_SUPPRESSION_WINDOW`) is measured from the release, since a finger can rest for as long as it likes after the swipe already fired.
@@ -134,6 +164,7 @@ export function useHorizontalSwipe(onSwipe: (direction: SwipeDirection) => void)
   // WARN: What capture used to cover. A press released outside the panel delivers no `pointerup`, and the stale gesture would then block every later one — a gesture already on the horizontal axis holds capture and so is never abandoned here.
   function abandon(event: PointerEvent) {
     if (gesture.current?.pointerId === event.pointerId && gesture.current.axis !== "horizontal") {
+      releasePanDenial();
       gesture.current = null;
     }
   }
