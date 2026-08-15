@@ -1,7 +1,12 @@
 import { canReadMedia, getMediaRow, toVariantKey } from "@/entities/media";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { MEDIA_CACHE_MAX_AGE, snowflakeSchema } from "@/shared/config";
+import {
+  MEDIA_ASSET_CACHE_CONTROL,
+  MEDIA_CACHE_MAX_AGE,
+  MEDIA_SIGNING_BUCKET,
+  snowflakeSchema,
+} from "@/shared/config";
 import type { MediaId } from "@/shared/lib";
 import { A_SECOND } from "@/shared/lib";
 import { presignDownload } from "@/shared/storage";
@@ -51,11 +56,14 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const isFile = row.filename !== null;
   // WARN: REQUIREMENTS.md § 9.3. A voice message has no `_thumb` sibling either — one PUT, like a file — so it is forced off the default variant for the same reason. It is **not** forced to an attachment: unlike a file it is meant to play inline, and `variant` defaulting to `thumb` is what would otherwise sign a URL for an object R2 never received.
   const hasNoThumb = isFile || row.waveformPeaks !== null;
+  // WARN: § 9. `cacheControl` and `signingBucket` are a pair and neither works alone — the header gives the bytes a lifetime, the grid gives them a URL stable enough to be found under it again.
   const url = await presignDownload(
     toVariantKey(row, hasNoThumb ? "original" : query.data.variant),
     {
       asAttachment: isFile || query.data.download === "1",
       filename: row.filename,
+      cacheControl: MEDIA_ASSET_CACHE_CONTROL,
+      signingBucket: MEDIA_SIGNING_BUCKET,
     },
   );
 

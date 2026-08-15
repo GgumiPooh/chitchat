@@ -1,4 +1,4 @@
-import { A_MEGABYTE, A_MINUTE, A_SECOND, type Nullable } from "@/shared/lib";
+import { AN_HOUR, A_DAY, A_MEGABYTE, A_MINUTE, A_SECOND, type Nullable } from "@/shared/lib";
 // INFO: One-way — `emoticon.ts` imports nothing from here, so naming its ceilings in `maxSizeForScope` closes no cycle.
 import { MAX_EMOTICON_AUDIO_SIZE, MAX_EMOTICON_IMAGE_SIZE } from "./emoticon";
 
@@ -248,9 +248,43 @@ export const MAX_UPLOAD_INFLIGHT_BYTES = 32 * A_MEGABYTE;
 // INFO: Long enough for a 500MB upload on a slow connection to start, short enough that a leaked URL is worthless.
 export const UPLOAD_URL_EXPIRY = 10 * A_MINUTE;
 
-// WARN: REQUIREMENTS.md § 9. The `Cache-Control` on the 302 MUST stay below this, or the browser reuses a redirect whose signature has expired.
-export const MEDIA_URL_EXPIRY = 10 * A_MINUTE;
+/**
+ * How long a media download's signature stays valid.
+ *
+ * WARN: REQUIREMENTS.md § 9. `MEDIA_SIGNING_BUCKET` **and** the `Cache-Control` on the
+ * 302 are both spent out of this and their sum MUST stay under it, or the browser
+ * replays a cached redirect to a signature R2 has stopped honouring.
+ *
+ * INFO: An hour rather than the ten minutes it was, and the minutes bought nothing they were thought to. Ten was chosen so a leaked URL is short-lived; what it actually bounded was how long a *stable* URL could exist, and the signature rotating every request is what left the bytes uncacheable (§ 9.'s own note on the heuristic). An hour is still a link that dies while the photo does not.
+ */
+export const MEDIA_URL_EXPIRY = AN_HOUR;
 
+/**
+ * The grid a media download is signed against, so every request inside one window is
+ * answered with the byte-identical URL.
+ *
+ * WARN: § 9. Without it the signature carries the wall clock and the same object comes
+ * back under a different URL every time — measured on 보관함: two requests three seconds
+ * apart, two `X-Amz-Date`s. The browser's cache is keyed by URL, so each expiring 302
+ * cost the whole 158KB thumbnail again. This is `EMOTICON_SIGNING_BUCKET`'s argument
+ * (§ 13.3.) on the larger objects.
+ */
+export const MEDIA_SIGNING_BUCKET = 30 * A_MINUTE;
+
+/**
+ * The `Cache-Control` a media download's presigned GET answers with.
+ *
+ * WARN: § 9. R2 stores none of its own, and **that** is what made a recent photo
+ * re-fetch: with no header the browser falls back to a heuristic tenth of the object's
+ * age, which is a month for last year's picture and nearly nothing for yesterday's — so
+ * the newest month, the one 보관함 opens on, was the one that never cached.
+ * WARN: Safe as `immutable` because the key holds a UUID and nothing ever rewrites an
+ * object at one — a replaced avatar or wallpaper (§ 12.1.) is a new row at a new key,
+ * which is a different URL. `private`, matching the 302 in front of it.
+ */
+export const MEDIA_ASSET_CACHE_CONTROL = `private, max-age=${(365 * A_DAY) / A_SECOND}, immutable`;
+
+// WARN: § 12.1. Also the window `deleteObjectsAfterCacheWindow` waits out, so a replaced object outlives every 302 still pointing at it. Kept where it was: the widened windows above are the signature's, not this one's.
 export const MEDIA_CACHE_MAX_AGE = 5 * A_MINUTE;
 
 // INFO: The thumbnail is always JPEG — `canvas.toBlob` is the one encoder every iOS version implements, and both a resized photo and a video's poster frame go through it.
