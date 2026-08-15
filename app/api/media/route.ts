@@ -45,7 +45,31 @@ export async function POST(request: Request) {
     return apiError("unauthorized");
   }
 
-  const body = bodySchema.safeParse(await request.json().catch(() => null));
+  const payload: unknown = await request.json().catch(() => null);
+
+  /**
+   * TODO: § 18. #1. Removed in the following cycle, with `DELETE /api/archive`'s `mode`.
+   *
+   * WARN: Refused, never stripped — the schema would drop the unknown key silently.
+   * This is 보관함에만 추가 from a tab left open across the deploy, and letting it
+   * through registers a row that hangs off no message: reachable by no query, deletable
+   * by nothing, and shown to the user as a saved tile. The object is orphaned either
+   * way (see `filename` above); what the refusal buys is the screen saying so.
+   *
+   * WARN: `=== true`, never the key's presence. That build sent this field on **every**
+   * registration, `false` included, so refusing it by presence would 400 each of its
+   * ordinary chat attachments too.
+   */
+  if (
+    payload !== null &&
+    typeof payload === "object" &&
+    "addToGallery" in payload &&
+    payload.addToGallery === true
+  ) {
+    return apiError("invalid_request");
+  }
+
+  const body = bodySchema.safeParse(payload);
 
   if (!body.success) {
     return apiError("invalid_request");

@@ -54,6 +54,8 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
     acceptsFiles: true,
     isBlocked: selection.isSelecting || isRecording,
     onAdded: prepend,
+    // INFO: § 18. #1. An upload whose bubble never landed is on no shelf, so its row comes back off rather than sitting there as one `isInLibrary()` refuses.
+    onStranded: remove,
   });
   const selectedCount = selection.selectedIds.length;
 

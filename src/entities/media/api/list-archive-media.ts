@@ -192,9 +192,9 @@ async function findCursor(
  * `nickname` (REQUIREMENTS.md § 8.7.) — an empty nickname falls back to the email's
  * local part, and spelling that rule a second time here is how the two drift.
  *
- * INFO: A row with no answer here is the ordinary library-only upload (§ 10.), or
- * one whose message was deleted; both leave the control off the viewer rather than
- * offering a jump into nothing, and neither has anyone to name.
+ * INFO: A row with no answer here is one whose message was withdrawn between the two
+ * queries (§ 18. #1. left no other way onto a shelf). It leaves the control off the
+ * viewer rather than offering a jump into nothing, and has nobody to name.
  */
 async function findSendingMessages(mediaIds: MediaId[]): Promise<Map<string, ArchiveOrigin>> {
   if (mediaIds.length === 0) {

@@ -40,7 +40,7 @@ export function MediaTombstone({ className, iconClassName, cell }: MediaTombston
 /**
  * The finished restructure. The sentence a tombstone shows.
  *
- * WARN: Exported because 보관함's 완전히 삭제 confirmation quotes it, to show the reader
+ * WARN: Exported because 보관함's 삭제 confirmation quotes it, to show the reader
  * what the other participant will be left looking at. Spelled out a second time there it
  * drifted the moment the copula changed here, which is exactly what it now cannot do.
  *

@@ -10,7 +10,7 @@ import {
   toMediaCountUnit,
   type LibraryShelf,
 } from "@/shared/config";
-import { mapPooled, randomId } from "@/shared/lib";
+import { mapPooled, randomId, type MediaId } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { josa } from "es-hangul";
 import { useCallback, useState } from "react";
@@ -42,7 +42,11 @@ type Uploaded = {
  * never appears on the screen it was dropped on. That is what the closing toast is
  * for, and it is why `onAdded` is called only for the rows this shelf can list.
  */
-export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMedia) => void) {
+export function useArchiveUpload(
+  shelf: LibraryShelf,
+  onAdded: (media: ArchiveMedia) => void,
+  onStranded: (ids: MediaId[]) => void,
+) {
   // WARN: Every write to these two is relative, never absolute. A second pick while the first batch is running is an ordinary thing to do, and an absolute `setRemainingCount(n)` would wipe the batch already in flight — then the first batch finishing would zero the counter under the second and flip the screen to its empty state mid-upload.
   const [remainingCount, setRemainingCount] = useState(0);
   const [runningCount, setRunningCount] = useState(0);
@@ -85,24 +89,39 @@ export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMe
         const uploaded = results.filter((result): result is Uploaded => Boolean(result));
         const failedCount = results.length - uploaded.length;
 
-        if (uploaded.length > 0) {
-          await post(uploaded);
+        const stranded = uploaded.length > 0 ? await post(uploaded) : [];
+        const strandedItems = new Set(stranded);
+
+        // WARN: § 18. #1. Rolled back off the screen, not merely reported. These rows reached R2 and `media` but no message, and a message is the whole of shelf membership now — so the tiles the pool prepended are drawing rows that `isInLibrary()` refuses, which a 삭제 aimed at them would answer with `삭제할 수 있는 사진이 없어요`.
+        if (stranded.length > 0) {
+          onStranded(
+            stranded.filter(({ draft }) => toShelf(draft) === shelf).map(({ media }) => media.id),
+          );
         }
 
-        reportOtherShelves(uploaded, shelf);
+        // INFO: Only what actually landed, or the "went to another shelf" line names rows that went nowhere.
+        reportOtherShelves(
+          uploaded.filter((item) => !strandedItems.has(item)),
+          shelf,
+        );
 
+        // INFO: AGENTS.md § 0.4. `3장을` and `3개를` are the same sentence, so the particle is picked rather than written.
+        // INFO: The finished restructure. The counter follows the **noun**, not the shelf — 갤러리 counts its contents in 장 because they are 사진, which is the axis `toMediaCountUnit` takes.
         if (failedCount > 0) {
-          // INFO: AGENTS.md § 0.4. `3장을` and `3개를` are the same sentence, so the particle is picked rather than written.
-          // INFO: The finished restructure. The counter follows the **noun**, not the shelf — 갤러리 counts its contents in 장 because they are 사진, which is the axis `toMediaCountUnit` takes.
+          toast.error(`${josa(toCounted(failedCount, shelf), "을/를")} 올리지 못했어요`);
+        }
+
+        // WARN: Counted separately from `failedCount` above, because it is a different failure — these did upload, and what they never got is the bubble that would have put them on a shelf.
+        if (stranded.length > 0) {
           toast.error(
-            `${josa(`${failedCount}${toMediaCountUnit(shelf === "gallery" ? "photo" : shelf)}`, "을/를")} 올리지 못했어요`,
+            `${josa(toCounted(stranded.length, shelf), "을/를")} 대화에 보내지 못해 보관함에도 담기지 않았어요`,
           );
         }
       } finally {
         setRunningCount((current) => Math.max(current - 1, 0));
       }
     },
-    [shelf, onAdded],
+    [shelf, onAdded, onStranded],
   );
 
   // WARN: `isBusy` outlives `remainingCount`. It stays true through `post`, which is the window in which a prepended tile is on screen with no `message_media` child behind it — `isInLibrary()` does not admit it yet, so a 삭제 aimed at it would silently take nothing.
@@ -146,16 +165,25 @@ function reportOtherShelves(uploaded: Uploaded[], shelf: LibraryShelf): void {
  * the POST, so racing them with a `Promise.all` would reverse them on every other
  * client.
  */
-async function post(uploaded: Uploaded[]) {
-  try {
-    for (const bubble of toBubbles(uploaded, ({ draft }) => toDraftKind(draft))) {
+async function post(uploaded: Uploaded[]): Promise<Uploaded[]> {
+  const bubbles = toBubbles(uploaded, ({ draft }) => toDraftKind(draft));
+
+  for (const [index, bubble] of bubbles.entries()) {
+    try {
       await postMessage({
         clientMsgId: randomId(),
         mediaIds: bubble.map(({ media }) => media.id),
       });
+    } catch {
+      // WARN: The bubbles are posted in order and stop at the first failure, so everything from here on is stranded — reporting only the failing bubble would leave the rest on screen as rows no query admits.
+      return bubbles.slice(index).flat();
     }
-  } catch {
-    // WARN: § 18. #1. The bubble is the only thing that puts a row on the shelf, so a failed post leaves nothing behind to promise — the copy no longer names a 보관함 the upload never reached.
-    toast.error("대화에 보내지 못해서 보관함에도 담기지 않았어요");
   }
+
+  return [];
+}
+
+// INFO: The counter follows the **noun** rather than the shelf — 갤러리 counts its contents in 장 because they are 사진, which is the axis `toMediaCountUnit` takes.
+function toCounted(count: number, shelf: LibraryShelf): string {
+  return `${count}${toMediaCountUnit(shelf === "gallery" ? "photo" : shelf)}`;
 }

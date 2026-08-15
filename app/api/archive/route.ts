@@ -126,5 +126,9 @@ export async function DELETE(request: Request) {
     return apiError("invalid_request");
   }
 
-  return NextResponse.json({ deletedIds: await destroyArchiveMedia(body.data.ids) });
+  const deletedIds = await destroyArchiveMedia(body.data.ids);
+
+  // TODO: § 18. #1. Drop `hiddenIds` in the following cycle, with `mode` above.
+  // WARN: The empty array is load-bearing for one cycle. A tab left open across the deploy destructures **both** names and spreads them, so answering without this one throws in the client *after* the objects are already destroyed — reporting a failure for a delete that happened, over tiles it then leaves on screen.
+  return NextResponse.json({ hiddenIds: [], deletedIds });
 }

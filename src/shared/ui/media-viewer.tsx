@@ -61,9 +61,9 @@ export type MediaViewerProps = {
   findMorphOrigin?: (mediaId: MediaId) => Nullable<HTMLElement>;
   /**
    * REQUIREMENTS.md § 10. The 삭제 for the slide on screen, and the label saying how
-   * far it reaches — a chat bubble's takes the whole message with it (`메시지 삭제`),
-   * 보관함's takes the library row alone (`보관함에서 삭제`). Omitted where the reader
-   * has nothing to remove.
+   * far it reaches — a chat bubble's withdraws the whole message (`메시지 삭제`),
+   * 보관함's destroys the object the slide is drawn from and leaves the bubble around a
+   * tombstone (`삭제`). Omitted where the reader has nothing to remove.
    *
    * INFO: The label rides with the handler rather than standing beside it as a second prop, because DESIGN.md § 7.10. is that the reach is not readable from where the control sits — a handler that could arrive without one would draw the same trash over two different consequences.
    * INFO: `onSelect` is given the media id for `onShare`'s reason, the slide moving under the control. 채팅's viewer resolves it back to the message that carries that slide.

@@ -80,6 +80,8 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
     acceptsFiles: false,
     isBlocked: selection.isSelecting || viewer !== null,
     onAdded: prepend,
+    // INFO: § 18. #1. An upload whose bubble never landed is on no shelf, so its tile comes back off rather than sitting there as a row `isInLibrary()` refuses.
+    onStranded: remove,
   });
   // INFO: REQUIREMENTS.md § 10. 갤러리 추가 opens the album picker outright — this shelf takes photos and videos and nothing else, so there was never a choice for a sheet to offer.
   const picker = useMediaPicker({ isMultiple: true, onSelect: staging.add });
@@ -216,7 +218,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
    * just travelled to until the transition happened to unmount it.
    */
   function openInChat(cell: MediaCell) {
-    // INFO: REQUIREMENTS.md § 10. A row uploaded straight into the library hangs off no message, and neither does one whose message was withdrawn. The control stays where it is and says so — withheld per slide it would be a hole opening and closing in the bar as the reader swipes (`DESIGN.md § 7.10.`).
+    // INFO: REQUIREMENTS.md § 10. A tile prepended by an upload has no message until its POST lands, and one whose message was withdrawn has none again. The control stays where it is and says so — withheld per slide it would be a hole opening and closing in the bar as the reader swipes (`DESIGN.md § 7.10.`).
     if (cell.messageId === null || cell.messageId === undefined) {
       toast.error("이동할 대화가 없어요");
 

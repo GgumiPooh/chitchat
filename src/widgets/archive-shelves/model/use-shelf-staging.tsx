@@ -11,6 +11,7 @@ import {
   VideoTrimmer,
 } from "@/features/upload-media";
 import { isAllowedMediaMime, LIBRARY_SHELF_LABELS, type LibraryShelf } from "@/shared/config";
+import type { MediaId } from "@/shared/lib";
 import { BottomSheet, Button, ShellOverlay } from "@/shared/ui";
 import { useArchiveUpload } from "./use-archive-upload";
 
@@ -28,6 +29,8 @@ export type ShelfStagingParams = {
   /** Anything covering the tray a drop would land in — a selection, the viewer (REQUIREMENTS.md § 9.2.). */
   isBlocked: boolean;
   onAdded: (media: ArchiveMedia) => void;
+  /** § 18. #1. Rows that uploaded but never got their bubble, and so are on no shelf — the screen takes the tiles back off. */
+  onStranded: (ids: MediaId[]) => void;
 };
 
 /**
@@ -44,10 +47,16 @@ export type ShelfStagingParams = {
  * wires the whole flow with a spread of `dropHandlers` and three slots, which is what
  * keeps the three screens from each growing their own copy of the sheet.
  */
-export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: ShelfStagingParams) {
+export function useShelfStaging({
+  shelf,
+  acceptsFiles,
+  isBlocked,
+  onAdded,
+  onStranded,
+}: ShelfStagingParams) {
   const staging = useMediaSelection({ acceptsFiles });
   const editing = useAttachmentEditing(staging.replace);
-  const { remainingCount, isBusy, upload } = useArchiveUpload(shelf, onAdded);
+  const { remainingCount, isBusy, upload } = useArchiveUpload(shelf, onAdded, onStranded);
   // WARN: REQUIREMENTS.md § 9.2. Refused under an editor as well as behind `isBlocked`. React bubbles a drop through the *component* tree, so `MediaEditor` and `VideoTrimmer` deliver one here however they are portalled — and the sheet is suppressed for exactly their duration, so the drop would land in a tray the user cannot see.
   const drop = useFileDrop({
     isEnabled: !isBlocked && !editing.isEditing,

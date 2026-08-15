@@ -58,6 +58,8 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
     acceptsFiles: true,
     isBlocked: selection.isSelecting,
     onAdded: prepend,
+    // INFO: § 18. #1. An upload whose bubble never landed is on no shelf, so its row comes back off rather than sitting there as one `isInLibrary()` refuses.
+    onStranded: remove,
   });
   const selectedCount = selection.selectedIds.length;
   // WARN: REQUIREMENTS.md § 9.3. An audio row plays through the page-wide shared element, so leaving this screen has to stop it — exactly as the room and the 음성 shelf do. Nothing on the next tab draws a transport that could pause a clip still running.
