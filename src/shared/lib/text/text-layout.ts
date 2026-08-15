@@ -30,6 +30,7 @@ export function countTextLines(
   { size, weight, family }: FontSpec,
   maxWidth: number,
   whiteSpace: PrepareOptions["whiteSpace"] = "normal",
+  wordBreak: PrepareOptions["wordBreak"] = "keep-all",
 ): number {
   if (!text) {
     return 0;
@@ -42,8 +43,7 @@ export function countTextLines(
 
   const font = `${weight} ${size}px ${family}`;
   // WARN: The separator stays an escape. Written as a literal NUL byte it makes git read this whole file as binary — no line diff, no blame, no three-way merge.
-  // WARN: `wordBreak` is absent only because it is fixed below. The day it becomes a parameter it MUST join this key, or a string measured once answers in whichever mode reached it first.
-  const key = `${font}\u0000${whiteSpace}\u0000${maxWidth}\u0000${text}`;
+  const key = `${font}\u0000${whiteSpace}\u0000${wordBreak}\u0000${maxWidth}\u0000${text}`;
   const cached = lineCounts.get(key);
 
   if (cached !== undefined) {
@@ -52,12 +52,8 @@ export function countTextLines(
 
   configure();
 
-  // WARN: Never pretext's own default of `normal`. `word-break: keep-all` is app-wide (DESIGN.md § 4.2.3.), and under it a long 어절 is pushed down whole where `normal` splits it between syllables — a whole line of REQUIREMENTS.md § 8.3. drift, always in the same direction.
-  const { lineCount } = layout(
-    prepare(text, font, { whiteSpace, wordBreak: "keep-all" }),
-    maxWidth,
-    1,
-  );
+  // WARN: The default is the app's own `keep-all` (DESIGN.md § 4.2.3.) and not pretext's `normal`. Whichever the caller's element renders under, it MUST be the one passed here — the two disagree by a whole line on any long 어절, always in the same direction.
+  const { lineCount } = layout(prepare(text, font, { whiteSpace, wordBreak }), maxWidth, 1);
 
   if (lineCounts.size >= CACHE_LIMIT) {
     // INFO: A `Map` iterates in insertion order, so the first half is the oldest half.

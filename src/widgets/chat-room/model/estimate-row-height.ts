@@ -304,8 +304,10 @@ function toTextHeight(
     CHAT_BODY.size,
   );
   // INFO: `whitespace-pre-wrap` on the bubble, so a newline is a hard break and runs of spaces are kept rather than collapsed.
+  // INFO: DESIGN.md § 4.2.3. The bubble is the one place that opts out of `keep-all`, so it is measured broken between syllables too.
   return (
-    countTextLines(text, { ...CHAT_BODY, family: fontFamily }, available, "pre-wrap") * LINE.body()
+    countTextLines(text, { ...CHAT_BODY, family: fontFamily }, available, "pre-wrap", "normal") *
+    LINE.body()
   );
 }
 

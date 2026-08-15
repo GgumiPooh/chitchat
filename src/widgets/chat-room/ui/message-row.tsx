@@ -178,7 +178,8 @@ export function MessageRow({
             <LinkPreviewCard url={previewUrl} />
           </div>
         )}
-        <div className={cn("flex items-end gap-2xs", isMine && "flex-row-reverse")}>
+        {/* WARN: `max-w-full` is what holds the bubble inside the column's `max-w-[72%]`. The column aligns rather than stretches, so this stack is sized `fit-content` — and that floors at min-content, which a quote's `truncate` makes the whole width of its line. Only a max-width clamps below that; a `min-w-0` here does nothing. */}
+        <div className={cn("flex max-w-full items-end gap-2xs", isMine && "flex-row-reverse")}>
           {emoticon ? (
             // INFO: DESIGN.md § 6.5. An emoticon renders without a bubble, border or background, for the same reason an attachment does.
             // WARN: REQUIREMENTS.md § 13.9. The marker the room's panel dismissal looks for. A tap on the history closes the emoticon panel (§ 13.6.), and this tap re-aims it — without the exclusion the `pointerup` closes it a frame before the `click` opens it again.
@@ -222,7 +223,10 @@ export function MessageRow({
             // INFO: DESIGN.md § 6.2. The notch marks the sender's side and only on the first bubble of a group; the rest stay fully rounded.
             <div
               className={cn(
-                "rounded-bubble px-sm py-xs text-chat-body break-words wrap-anywhere whitespace-pre-wrap text-bubble-ink transition-colors select-text",
+                // INFO: DESIGN.md § 4.2.3. `break-normal` opts the bubble out of the app's `keep-all`: Korean body copy breaks between syllables, and a 72% column is where whole-어절 pushes leave the worst gaps.
+                // WARN: The arbitrary property and never `break-normal`, which also sets `overflow-wrap: normal` — that would leave `wrap-anywhere` winning on Tailwind's emission order alone, and a long URL overflowing the column the day it changes.
+                // WARN: `min-w-0` is the other half of the stack's `max-w-full`. A flex item does not shrink below its own min-content without it, and a quote's `truncate` is min-content the whole width of its line.
+                "min-w-0 rounded-bubble px-sm py-xs text-chat-body wrap-anywhere [word-break:normal] whitespace-pre-wrap text-bubble-ink transition-colors select-text",
                 LONG_PRESS_TARGET_CLASS,
                 isMine
                   ? "bg-bubble-mine active:bg-bubble-mine-pressed"
