@@ -81,12 +81,17 @@ export async function consumeReservations(
  * that registered — which is the property that used to be asserted by asking the
  * emoticon tables what was slotted, and got it wrong.
  *
- * WARN: Expire, purge, **then** delete, and none of the three may be collapsed into a
+ * WARN: Expire, then purge, and the two may not be collapsed into a
  * `DELETE … RETURNING`. The row is the only thing naming the object, so removing it
  * before R2 answers turns a crash into the orphan this table exists to make impossible;
- * expiring it first is what makes the middle step safe, because `consumeReservations`
+ * expiring it first is what makes the second step safe, because `consumeReservations`
  * refuses a lapsed claim and a registration racing this one therefore cannot end up
  * pointing at bytes about to go.
+ *
+ * WARN: The row is deliberately **left**, stamped, for `reclaimExpiredStorage` to drop
+ * an hour later. Deleting it here would take it out of § 12.4.'s keep set while its
+ * object may still be in a listing that sweep began before the purge — which reports a
+ * clean takeback as a writer bug.
  *
  * WARN: A key that already reached a `media` row is skipped by the `NOT EXISTS`, not
  * merely left un-deleted. Purging it would strip the object out from under a live row —
@@ -120,12 +125,5 @@ export async function releaseReservations(keys: string[], ownerId: UserId): Prom
     return;
   }
 
-  const purged = await purgeNow(lapsed.map((row) => row.r2Key));
-
-  if (purged.length === 0) {
-    return;
-  }
-
-  // INFO: Only what R2 confirmed. Anything it refused keeps its row, now expired, which is exactly the reclaim's candidate shape.
-  await getDb().delete(storageReservations).where(inArray(storageReservations.r2Key, purged));
+  await purgeNow(lapsed.map((row) => row.r2Key));
 }
