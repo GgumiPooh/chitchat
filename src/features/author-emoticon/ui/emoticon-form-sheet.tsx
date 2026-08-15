@@ -125,7 +125,7 @@ export function EmoticonFormSheet({
         <div className="space-y-sm pt-2xs">
           <ImageRow
             label="이미지"
-            hint="정적 또는 움직이는 이미지 · 움직이면 정지 이미지도 같이 만들어요"
+            hint="정적 또는 움직이는 이미지 중 하나만 올리면 돼요"
             previewUrl={imageUrl}
             isReading={draft.isReading}
             onPick={imagePicker.open}
