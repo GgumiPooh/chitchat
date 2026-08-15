@@ -3,6 +3,7 @@
 import type { CalendarEvent, EventOccurrence } from "@/entities/event";
 import { MAX_EVENT_DESCRIPTION_LENGTH, MAX_EVENT_TITLE_LENGTH } from "@/shared/config";
 import { cn, type Maybe } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { BottomSheet, Button, Chip, Input, Switch, Textarea, toast } from "@/shared/ui";
 import { useState, type PropsWithChildren } from "react";
 import { createEvent, updateEvent } from "../api/write-event";
@@ -52,6 +53,7 @@ export function EventFormSheet({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const issue = toDraftIssue(draft);
+  const { isBlocked, guard } = useOfflineGate(OFFLINE_MESSAGES.save);
 
   return (
     <BottomSheet
@@ -161,10 +163,17 @@ export function EventFormSheet({
               {issue}
             </p>
           )}
+          {/* INFO: `meta` rather than the line above's `semantic-error` — the draft is fine and nothing about it has to change, which is the opposite of what an error asks for. */}
+          {!issue && isBlocked && (
+            <p className="text-body-sm text-meta" role="status">
+              {OFFLINE_MESSAGES.save}
+            </p>
+          )}
+          {/* WARN: Left enabled on purpose, where a nav row would go `aria-disabled`. A dimmed 저장 under a draft the reader has just filled in is the form's worst moment twice over, and the sheet stays open on the refusal so nothing typed is lost. */}
           <Button
             disabled={!isDraftSubmittable(draft) || isSubmitting}
             haptic
-            onClick={() => void submit()}
+            onClick={guard(() => void submit())}
           >
             {occurrence ? "저장" : "추가"}
           </Button>

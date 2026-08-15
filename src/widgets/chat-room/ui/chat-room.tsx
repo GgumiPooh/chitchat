@@ -5,6 +5,7 @@ import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { useChatStream, useChatStreamListener } from "@/features/chat-stream";
+import { useWriteChatSnapshot } from "@/features/offline-snapshot";
 import {
   EmoticonPicker,
   EmoticonPreview,
@@ -67,6 +68,7 @@ import {
   type Optional,
   type UserId,
 } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import {
   MediaShareDialog,
   canShareText,
@@ -357,6 +359,8 @@ export function ChatRoom({
     catchUp,
     reconcile,
   } = useMessageHistory(initialMessages);
+  // INFO: REQUIREMENTS.md § 16. The room is the only place the loaded window exists, so the offline transcript is stored from here rather than from the screen above it.
+  useWriteChatSnapshot(messages, hasNewer);
   const { pending, send, sendMedia, sendEmoticon, retry, cancel, resolve } = useSendMessage({
     onSent: appendMessage,
   });
@@ -377,6 +381,11 @@ export function ChatRoom({
   const editing = useAttachmentEditing(selection.replace);
   // INFO: REQUIREMENTS.md § 8.11. The same route the library's 저장 takes (§ 10.), asked for by 공유 rather than by 저장.
   const sharing = useMediaShare();
+  // INFO: § 8.13. Both reach the server; 답장 and 복사 beside them in the same sheet do not, and are deliberately left live.
+  const editGate = useOfflineGate(OFFLINE_MESSAGES.save);
+  const deleteGate = useOfflineGate(OFFLINE_MESSAGES.remove);
+  // WARN: The media branch only. § 8.11. hands text straight to `navigator.share` with nothing fetched, so a text message shares perfectly well with no network — gating the label outright would refuse the one case that works.
+  const shareGate = useOfflineGate(OFFLINE_MESSAGES.share);
   const isKeyboardOpen = useIsVirtualKeyboardOpen();
   // INFO: REQUIREMENTS.md § 8.6. The composer's whole stack is put away for the length of a search, and everything it drives has to go with it.
   const isSearching = bottomBar !== undefined;
@@ -2047,7 +2056,15 @@ export function ChatRoom({
     }
 
     if (canShareMessage(target)) {
-      items.push({ label: "공유", Icon: Share, onSelect: () => void shareMessage(target) });
+      const isMediaShare = target.media.length > 0;
+
+      items.push({
+        label: "공유",
+        Icon: Share,
+        onSelect: isMediaShare
+          ? shareGate.guard(() => void shareMessage(target))
+          : () => void shareMessage(target),
+      });
     }
 
     // INFO: REQUIREMENTS.md § 8.13. Text only, which `messages_edited_is_text_check` says again at the database — an attachment or an emoticon has no prose to correct, and a system notice is nobody's to touch.
@@ -2057,7 +2074,7 @@ export function ChatRoom({
         label: "수정",
         Icon: Pencil,
         keepsFocus: true,
-        onSelect: () => startEdit(target),
+        onSelect: editGate.guard(() => startEdit(target)),
       });
     }
 
@@ -2067,10 +2084,11 @@ export function ChatRoom({
         Icon: Trash2,
         variant: "destructive",
         // INFO: DESIGN.md § 7.10. An attachment bubble is confirmed, wherever the delete was reached from — one row is every photo in it (§ 6.), which is the one thing neither the sheet nor the viewer shows.
-        onSelect: () =>
+        onSelect: deleteGate.guard(() =>
           target.media.length > 0
             ? setConfirmingDeleteId(target.id)
             : void deleteMessage(target.id),
+        ),
       });
     }
 

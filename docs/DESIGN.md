@@ -96,17 +96,17 @@ Touch-first geometry, full pointer states.
 
 ## 3.3. App Shell.
 
-| Property          | Value                                                                                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Max width         | `576px` — token `--container-app`                                                                                                                                  |
-| Bar heights       | `--tab-bar-height` and `--app-header-height`, both `56px`. Declared outside `@theme` because a screen may read them back through `calc()` rather than as a utility |
-| Narrow max width  | `448px` — token `--container-app-narrow`, `Container size="sm"`. Single-column entry screens (login) only                                                          |
-| Alignment         | Horizontally centered, full height                                                                                                                                 |
-| Shell background  | `canvas` (or `chat-canvas` on the chat screen — tinted by the wallpaper's own colour where one is set, below)                                                      |
-| Outside the shell | `canvas`, same as the shell. A 1px `hairline` down each side separates the column on desktop, drawn 1px outside the box by `shell-edge` so the phone never sees it |
-| Fixed children    | `AppHeader` and `BottomOverlay` (§ 3.5.), `ChatScreen` (§ 3.4.) and `ShellOverlay`'s layer, and nothing else without the argument `AGENTS.md § 4.4.` asks for      |
-| Safe areas        | `env(safe-area-inset-bottom)` on the tab bar, `env(safe-area-inset-top)` on the header                                                                             |
-| Column height     | `min-h-dvh`, and screens grow it — the document is the scroller everywhere but chat (§ 3.4.)                                                                       |
+| Property          | Value                                                                                                                                                                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Max width         | `576px` — token `--container-app`                                                                                                                                                                                                                                 |
+| Bar heights       | `--tab-bar-height` and `--app-header-height`, both `56px`. Declared outside `@theme` because a screen may read them back through `calc()` rather than as a utility                                                                                                |
+| Narrow max width  | `448px` — token `--container-app-narrow`, `Container size="sm"`. Single-column entry screens (login) only                                                                                                                                                         |
+| Alignment         | Horizontally centered, full height                                                                                                                                                                                                                                |
+| Shell background  | `canvas` (or `chat-canvas` on the chat screen — tinted by the wallpaper's own colour where one is set, below)                                                                                                                                                     |
+| Outside the shell | `canvas`, same as the shell. A 1px `hairline` down each side separates the column on desktop, drawn 1px outside the box by `shell-edge` so the phone never sees it                                                                                                |
+| Fixed children    | `AppHeader` and `BottomOverlay` (§ 3.5.), `ChatScreen` (§ 3.4.) and `ShellOverlay`'s layer, and nothing else without the argument `AGENTS.md § 4.4.` asks for. § 7.18.'s 오프라인 모드 pill is the worked example of not adding a fifth — it rides `ShellOverlay` |
+| Safe areas        | `env(safe-area-inset-bottom)` on the tab bar, `env(safe-area-inset-top)` on the header                                                                                                                                                                            |
+| Column height     | `min-h-dvh`, and screens grow it — the document is the scroller everywhere but chat (§ 3.4.)                                                                                                                                                                      |
 
 576px, not a tablet 768px: at 768 a 72%-width bubble spans 550px, which forces long lines and breaks the chat rhythm; the four tab-bar items also drift apart to the point of reading as a desktop nav. Screens MUST obtain this width from `Container`, never by hardcoding `max-w-*`.
 
@@ -1442,6 +1442,46 @@ Shown while the app is dormant **and the window is visible** (`REQUIREMENTS.md �
 **It says 서버 연결, not 실시간 연결**, though it only ever stands over 채팅. What a sleep shuts is every request the app makes (`REQUIREMENTS.md § 8.4.1.`), not just the stream behind this screen, and naming the socket would promise that the rest still works.
 
 **It appears over 채팅 and nowhere else**, because that is the only screen that sleeps. A revision in between raised it on all four tabs, when dormancy was app-wide and a dormant 보관함 refused every request with nothing on screen to explain why; scoping the sleep back to the room removed the screens that needed explaining rather than the explanation. The reader is still protected from being covered mid-use by the countdown rather than by scope: `pointerdown` and `keydown` reset it, so this reaches a conversation genuinely untouched for `SSE_IDLE_TIMEOUT`.
+
+## 7.18. 오프라인 모드 Pill.
+
+Shown while the device reports no network (`REQUIREMENTS.md § 16.2.`), on every screen including 채팅.
+
+| Property | Value                                                                                                                            |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Position | `absolute inset-x-0 top-(--app-header-inset)` through `ShellOverlay` — centred directly beneath the floating header              |
+| Surface  | `glass` `rounded-full` on a `hairline` border with `shadow-floating`, the § 7.13. install banner's treatment at pill scale       |
+| Content  | 16px `meta` `WifiOff` glyph and `오프라인 모드` in `body-sm` `body` — reporting a state, not titling one                         |
+| Colour   | Neutral, **never `semantic-warning`** — § 7.17. sets the precedent that a state the app is in is not a fault                     |
+| Pointers | `pointer-events-none`, inherited from the layer. It reports; it is not a control, and nothing beneath it may stop being tappable |
+| A11y     | An **always-mounted** `sr-only` `role="status"` region holds the copy; the pill itself is `aria-hidden`                          |
+| Mount    | The pill is unmounted whenever it is not needed. The live region is not — it is emptied instead                                  |
+
+**It is held below the header by geometry, and that is the whole of why it is safe.** § 3.3.: iOS 26 Safari tints its status bar from a viewport-constrained element **bordering the obscured content inset**, falling back to `body`. A strip pinned to the top chrome is exactly that element, so it would take the tint off `body` on three tabs and off `ChatScreen`'s wallpaper on the fourth. **Unmounting does not undo it** — Safari samples once and re-samples for nothing, so a pill mounted at that edge mid-session can leave the bars wearing its colour for the rest of the session. `--app-header-inset` puts it ~60px clear, where it can never be selected; `glass` rather than an opaque fill is the second line of defence, since what is read is the pixels and not the declared colour.
+
+**`ShellOverlay` rather than a fifth `fixed` element** (`AGENTS.md § 4.4.`), which also gets `--keyboard-pan` for free — the pill rides the keyboard with the header. No `z-` on the child: the layer seals it into a stacking context of its own (§ 3.5.1.), and `z-40` already sits above the bars and below § 7.17.'s `z-[45]`, which must keep winning.
+
+**The live region outlives the pill deliberately.** A live region inserted together with its text announces only intermittently, so the region is permanent and its content changes. It is `sr-only` — no `fixed`, no surface — so it takes no part in the paragraph above. `status` and not `alert`: nothing is lost by going offline, and an assertive region would cut the reader off to say what the pill already shows (§ 8.2., and `keyword-field`'s same reading).
+
+## 7.19. Offline States.
+
+What every other surface does while § 7.18.'s pill is up. The rule is that **the app refuses and explains; it never withdraws** — a control that vanishes or greys out of the tab order teaches nothing and cannot be asked why.
+
+| Case                                                   | Treatment                                                                                                                       |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Tab bar and 보관함's segments                          | **Untouched.** All four screens are readable offline, and dimming a tab whose screen works is a lie                             |
+| A row leading to a screen with no mirror               | `aria-disabled`, dimmed to `meta`, a trailing `CloudOff` in place of the chevron, and a toast on tap                            |
+| A write — 저장, 삭제, 업로드, 공유, a toggle, 로그아웃 | `aria-disabled` and a toast. A `Switch` **does not move its thumb**: flipping and snapping back is the worst available feedback |
+| A commit inside an open sheet (일정 저장, 프로필 저장) | **Stays enabled**, refuses in the handler, keeps the sheet open, and carries an inline `body-sm` `meta` reason above the button |
+| A text send                                            | **Queued.** The composer is never blocked                                                                                       |
+| A screen held with a snapshot                          | The 기준 stale label, and that screen's writes gated                                                                            |
+| A screen held with none                                | `EmptyState` (§ 7.6.) with a 다시 시도 `Button`                                                                                 |
+
+**`aria-disabled`, never the `disabled` attribute.** A `disabled` control leaves the tab order, is exempt from § 8.2.'s contrast floor, and answers nothing when tapped — so the refusal is suppressed in the handler instead, the control keeps its place, and `aria-describedby` points at one always-mounted node reading `인터넷에 연결되어 있지 않아요`. The dimming is `meta` and not an opacity wash, because an `aria-disabled` control still owes the contrast a `disabled` one is excused. Announcement and tap response are one pattern; either alone is half of it. The `disabled` already in the app means something else — "nothing typed", "nothing selected" — and stays.
+
+**The copy frame is `인터넷에 연결되면 {동사} 수 있어요`**, one fixed verb per site. It names the recovery condition rather than the state: the pill is already saying the state, and a control tapped inside the pill's own 1s settle still has to explain itself alone. The verb is a literal and takes no `josa` — the two strings that do interpolate are the subject-named row variant (`이모티콘은` against `서버 관리는`) and the empty state's subject, and both genuinely flip (`AGENTS.md § 0.4.`).
+
+**The stale label is `` `${relative} 기준` `` and takes no particle by design**, so it cannot break the day a relative-time string ends in a vowel. **Media is a blurhash and never a broken image** (`REQUIREMENTS.md § 16.2.`): a grid holds its placeholder with no glyph at all, since a `CloudOff` on every tile is noise across a whole month, while the full-screen viewer — where the reader explicitly asked for the bytes — earns a centred one.
 
 # 8. Rules.
 

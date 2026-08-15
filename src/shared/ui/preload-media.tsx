@@ -1,9 +1,10 @@
 "use client";
 
 import { A_SECOND, cn, type Nullable, type Optional } from "@/shared/lib";
+import { OFFLINE_MESSAGES } from "@/shared/offline-ux";
 import type { ClassValue } from "clsx";
-import type { LucideIcon } from "lucide-react";
-import { useState, type CSSProperties, type PropsWithChildren } from "react";
+import { CloudOff, type LucideIcon } from "lucide-react";
+import { useEffect, useState, type CSSProperties, type PropsWithChildren } from "react";
 import { useBlurhashStyle, type BlurhashFit } from "./blur-placeholder";
 import { Skeleton } from "./skeleton";
 
@@ -31,6 +32,8 @@ export type LoadStatusControls = {
   status: LoadStatus;
   /** Whether the element may already be painting something: loaded, or loading behind a poster. */
   isRevealed: boolean;
+  /** Loading only because the network is gone — the placeholder is standing in for an asset nothing is fetching. */
+  isAwaitingNetwork: boolean;
   /** The URL of the current attempt — `src` itself until a retry cache-busts it. */
   attemptSrc: Optional<string>;
   markLoaded: () => void;
@@ -55,23 +58,53 @@ export function useLoadStatus({
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [trackedSrc, setTrackedSrc] = useState(src);
   const [retryCount, setRetryCount] = useState(0);
+  const [networkAttempt, setNetworkAttempt] = useState(0);
+  const [isAwaitingNetwork, setIsAwaitingNetwork] = useState(false);
 
   if (trackedSrc !== src) {
     setTrackedSrc(src);
     setStatus("loading");
     setRetryCount(0);
+    setNetworkAttempt(0);
+    setIsAwaitingNetwork(false);
   }
+
+  useEffect(() => {
+    if (!isAwaitingNetwork) {
+      return;
+    }
+
+    const resume = () => {
+      setIsAwaitingNetwork(false);
+      setNetworkAttempt((attempt) => attempt + 1);
+    };
+
+    window.addEventListener("online", resume);
+
+    return () => window.removeEventListener("online", resume);
+  }, [isAwaitingNetwork]);
 
   return {
     status,
     // INFO: A poster is the placeholder once there is one, so the element is revealed at once and paints it while the media data is still arriving.
     isRevealed: status === "loaded" || (status === "loading" && hasPoster),
-    attemptSrc: toAttemptUrl(src, retryCount),
+    isAwaitingNetwork,
+    // INFO: The network attempt rides the same cache-buster the retry does, and is counted apart from it so waiting out a tunnel never spends the one retry a stale redirect needs.
+    attemptSrc: toAttemptUrl(src, retryCount + networkAttempt),
     markLoaded: () => setStatus("loaded"),
     markFailed,
   };
 
   function markFailed(): boolean {
+    // WARN: `navigator.onLine` rather than `useIsOffline`, and the settle delay is exactly why — a load that fails in the second after the network goes is the case this catches, and the hook still reads online for all of it.
+    // INFO: A blurhash holding is what a photo looks like while it loads, so an unreachable one goes on looking like that rather than ending on DESIGN.md § 7.8.'s glyph over a connection that is coming back.
+    if (isRetryable(src) && !navigator.onLine) {
+      setIsAwaitingNetwork(true);
+      setStatus("loading");
+
+      return true;
+    }
+
     if (!canRetry || retryCount >= MAX_RETRIES || !isRetryable(src)) {
       setStatus("failed");
 
@@ -107,6 +140,8 @@ export type PreloadFrameProps = PropsWithChildren<{
   blurhashRatio?: number;
   /** How the element below is fitted, since the blur has to be framed by the same rule. `cover` unless the media element carries `object-contain`. */
   blurhashFit?: BlurhashFit;
+  /** WARN: Opt-in, and only where the reader asked for this asset by name — DESIGN.md § 7.10.'s slide. Every tile in a month of 보관함 would say the same sentence at once. */
+  isOfflineHeld?: boolean;
   failureIcon: LucideIcon;
 }>;
 
@@ -131,6 +166,7 @@ export function PreloadFrame({
   blurhash,
   blurhashRatio,
   blurhashFit,
+  isOfflineHeld = false,
   failureIcon: FailureIcon,
   children,
 }: PreloadFrameProps) {
@@ -167,6 +203,12 @@ export function PreloadFrame({
           {status === "failed" ? (
             <span className="flex size-full items-center justify-center">
               <FailureIcon className="size-4 text-meta-soft" strokeWidth={1.75} />
+            </span>
+          ) : isOfflineHeld ? (
+            // INFO: Over the blur rather than in place of it, since the picture is not gone — it is the full-size copy that is not coming until the network does.
+            <span className="flex size-full flex-col items-center justify-center gap-2xs px-sm text-center">
+              <CloudOff className="size-5 text-on-scrim/70" strokeWidth={1.75} />
+              <span className="text-caption text-on-scrim/70">{OFFLINE_MESSAGES.view}</span>
             </span>
           ) : (
             // WARN: DESIGN.md § 7.8. A blur *replaces* the skeleton rather than layering under it — `Skeleton` is an opaque `surface-strong` pulse, so over a blur it hides the very thing it was drawn to stand in for, and a pulsing plate is louder than the swap it covers (`ChatBackdrop` withholds it over a flat floor for the same reason).

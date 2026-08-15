@@ -14,7 +14,7 @@ import {
   type MediaId,
   type Nullable,
 } from "@/shared/lib";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { postMessage, type PostMessageParams } from "../api/post-message";
 import { toBubbles, toDraftKind } from "./to-bubbles";
 
@@ -31,7 +31,10 @@ export type PendingMessage = {
   uploadedIds: Nullable<string>[];
   /** `0`–`1` across the whole bubble's bytes. Meaningless for a text message. */
   progress: number;
-  status: "sending" | "failed";
+  /**
+   * WARN: `queued` is its own member rather than a flag beside `sending`, and § 15.1. is why. `useUnsentWork` holds a deploy-forced reload open for whatever is in flight, and a bubble waiting on the network finishes no more on its own than a failed one does — counted as `sending` it pins the app to a stale bundle for as long as the tunnel lasts.
+   */
+  status: "sending" | "queued" | "failed";
   createdAt: string;
 };
 
@@ -157,7 +160,8 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
         onSent(sent);
         drop(clientMsgId);
       } catch {
-        patch(clientMsgId, { status: "failed" });
+        // WARN: `navigator.onLine` rather than `useIsOffline`, whose settle delay is the whole second this decision is made in — read through the hook, a send that fails the instant the network goes is filed as refused.
+        patch(clientMsgId, { status: navigator.onLine ? "failed" : "queued" });
       }
     },
     [drop, onSent, patch, uploadAll],
@@ -180,6 +184,25 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
     },
     [deliver],
   );
+
+  // INFO: What makes an offline send a send rather than an error — the outbox above holds the bubble, and this is the half that empties it.
+  useEffect(() => {
+    const flush = () => {
+      const queued = pendingRef.current.filter((entry) => entry.status === "queued");
+
+      if (queued.length === 0) {
+        return;
+      }
+
+      // WARN: Moved off `queued` before the chain is built, not inside it. A second `online` — WebKit fires one per interface change — would otherwise find the same rows still queued and enqueue every one of them twice.
+      queued.forEach(({ clientMsgId }) => patch(clientMsgId, { status: "sending" }));
+      enqueue(queued.map((entry) => ({ ...entry, status: "sending" as const })));
+    };
+
+    window.addEventListener("online", flush);
+
+    return () => window.removeEventListener("online", flush);
+  }, [enqueue, patch]);
 
   const send = useCallback(
     (text: string, replyTo: Nullable<ReplyPreview> = null) => {

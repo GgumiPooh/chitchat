@@ -415,6 +415,52 @@ export const ROOT_ROUTE = "/";
 // WARN: Must stay out of `proxy.ts`'s matcher and hold no user data — it is served from the cache to whoever asks, including a signed-out browser and the next account to use it.
 export const OFFLINE_ROUTE = "/offline";
 
+/**
+ * REQUIREMENTS.md § 16. The URL-inert mirror document, served from the cache in
+ * place of any `MIRRORED_ROUTES` navigation that fails offline.
+ *
+ * WARN: Nested under `OFFLINE_ROUTE` so it inherits that exclusion from `proxy.ts`'s
+ * matcher — the lookahead there tests a prefix, and a mirror anywhere else would be
+ * cached as a 307 to `/login`, which network-errors when a navigation replays it.
+ *
+ * WARN: Holds no user data, for `OFFLINE_ROUTE`'s reason and more sharply — it is
+ * prerendered once and served to every account on the browser. The screen it draws is
+ * filled from IndexedDB after mount, never baked into this HTML.
+ *
+ * WARN: Duplicated as a literal in `public/sw.js`, which is served raw from `public/`
+ * and can import nothing. The two have to move together.
+ */
+export const OFFLINE_SHELL_ROUTE = `${OFFLINE_ROUTE}/shell`;
+
+/**
+ * REQUIREMENTS.md § 16. The routes `OFFLINE_SHELL_ROUTE` can draw from a snapshot.
+ * Anything absent here — `/settings/devices`, `/settings/emoticons`, `/login` — falls
+ * through to `OFFLINE_ROUTE` instead.
+ *
+ * WARN: Matched as exact paths and never as prefixes, which is the whole reason
+ * `SETTINGS_ROUTE` can sit here while the three screens nested under it cannot.
+ *
+ * WARN: Duplicated as literals in `public/sw.js`, for `OFFLINE_SHELL_ROUTE`'s reason.
+ * A route added here without its twin there is a screen the mirror renders and the
+ * worker never serves.
+ *
+ * INFO: Seven routes for six screens — `ARCHIVE_ROUTE` earns its place by being the
+ * one entry with no screen of its own. Online it redirects to the 갤러리 shelf, and
+ * offline there is no redirect to run, so a bookmark or a typed URL would reach
+ * `OFFLINE_ROUTE` while the shelf it stands for sits in the snapshot.
+ */
+export const MIRRORED_ROUTES = [
+  CHAT_ROUTE,
+  CALENDAR_ROUTE,
+  ARCHIVE_ROUTE,
+  ARCHIVE_GALLERY_ROUTE,
+  ARCHIVE_FILES_ROUTE,
+  ARCHIVE_VOICE_ROUTE,
+  SETTINGS_ROUTE,
+] as const;
+
+export type MirroredRoute = (typeof MIRRORED_ROUTES)[number];
+
 /** Clears a cookie whose session no longer validates, then lands on `LOGIN_ROUTE`. REQUIREMENTS.md § 5.2. */
 export const SESSION_EXPIRE_ROUTE = "/api/auth/session/expire";
 

@@ -52,6 +52,8 @@ export type PreloadImageProps = Omit<ComponentProps<"img">, "placeholder" | "sty
   blurhashRatio?: number;
   /** How `imgClassName` fits the image, since the blur has to be framed by the same rule. `cover` unless the image carries `object-contain`. */
   blurhashFit?: BlurhashFit;
+  /** WARN: Opt-in, and only where the reader asked for this asset by name — DESIGN.md § 7.10.'s slide. Every tile in a month of 보관함 would say the same sentence at once. */
+  hasOfflineNotice?: boolean;
 };
 
 /**
@@ -73,15 +75,17 @@ export function PreloadImage({
   blurhash,
   blurhashRatio,
   blurhashFit,
+  hasOfflineNotice = false,
   onLoad,
   onError,
   ...props
 }: PreloadImageProps) {
   // INFO: Null is coerced here rather than inside the shell, so the shared hook keeps one absent-source notion instead of two.
-  const { status, isRevealed, attemptSrc, markLoaded, markFailed } = useLoadStatus({
-    src: src ?? undefined,
-    canRetry,
-  });
+  const { status, isRevealed, isAwaitingNetwork, attemptSrc, markLoaded, markFailed } =
+    useLoadStatus({
+      src: src ?? undefined,
+      canRetry,
+    });
   /**
    * INFO: Up until the element below reveals the picture the caller ultimately asked for. Past that it is either revealed — and the stand-in is what would show through it — or failed, where DESIGN.md § 7.8.'s glyph on its own plate is the documented ending rather than a thumbnail left standing in for an object that is gone.
    * WARN: The first arm is what keeps this **one element across the swap**. DESIGN.md § 4.7.3. has the viewer hold `src` at the preview until its opening morph lands and only then point it at the original, and that swap remounts the element below (it is keyed on the URL). Tested on `status` alone the layer would unmount on the same commit the original's element mounts empty — one element leaving as another arrives, with a blank frame between them if the cached decode does not land in that paint.
@@ -103,6 +107,8 @@ export function PreloadImage({
       blurhash={blurhash}
       blurhashRatio={blurhashRatio}
       blurhashFit={blurhashFit}
+      // WARN: Never while a preview is standing in — that thumbnail is the same picture, already on screen, so saying it cannot be shown is plainly contradicted by what the reader is looking at.
+      isOfflineHeld={hasOfflineNotice && isAwaitingNetwork && !hasPreview}
       failureIcon={ImageOff}
     >
       {/* INFO: Its lifetime and the reason it never fades are both on `hasPreview` above; a same-URL pair here is one request, since the second reads the first out of the memory cache. */}

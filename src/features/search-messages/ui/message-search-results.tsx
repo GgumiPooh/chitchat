@@ -2,9 +2,9 @@
 
 import type { MessageSearchResult } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import { cn, formatDate, type Nullable } from "@/shared/lib";
+import { cn, formatDate, useIsOffline, type Nullable } from "@/shared/lib";
 import { EmptyState, HapticTarget, ShellOverlay, Skeleton } from "@/shared/ui";
-import { LoaderCircle, Search, SearchX } from "lucide-react";
+import { CloudOff, LoaderCircle, Search, SearchX } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { SearchHighlight } from "./search-highlight";
 
@@ -48,6 +48,7 @@ export function MessageSearchResults({
   onSelect,
 }: MessageSearchResultsProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const isOffline = useIsOffline();
   const nameById = new Map(participants.map((participant) => [participant.id, participant.name]));
 
   // INFO: REQUIREMENTS.md § 8.6. Cursor paging, driven off the end of the list coming into view rather than off a scroll handler measuring distances.
@@ -105,6 +106,17 @@ export function MessageSearchResults({
     if (query.trim().length === 0) {
       return (
         <EmptyState className="mt-2xl" Icon={Search} description="대화 내용을 검색해 보세요" />
+      );
+    }
+
+    // WARN: Before the skeleton, not after it. § 8.6. searches the server, so offline the request never lands — a placeholder taking the shape of rows that are not coming is the one state worse than saying so.
+    if (isOffline) {
+      return (
+        <EmptyState
+          className="mt-2xl"
+          Icon={CloudOff}
+          description="인터넷에 연결되어 있지 않아 검색하지 못했어요"
+        />
       );
     }
 

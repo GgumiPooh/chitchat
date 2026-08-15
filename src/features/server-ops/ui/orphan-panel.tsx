@@ -1,6 +1,7 @@
 "use client";
 
 import { cn, formatStorageSize, type Nullable } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { Button, Modal } from "@/shared/ui";
 import { useState } from "react";
 import { sweepOrphans } from "../api/sweep-orphans";
@@ -23,6 +24,9 @@ export function OrphanPanel({ className }: OrphanPanelProps) {
   const [result, setResult] = useState<Nullable<OpsResult>>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [isSweeping, setIsSweeping] = useState(false);
+  // INFO: § 12.4. 미리보기 is a dry run, but it is still the deployment counting objects in R2 — it reaches the network exactly as the sweep beside it does.
+  const previewGate = useOfflineGate(OFFLINE_MESSAGES.preview);
+  const sweepGate = useOfflineGate(OFFLINE_MESSAGES.sweep);
 
   return (
     <section className={cn("flex flex-col", className)}>
@@ -35,8 +39,9 @@ export function OrphanPanel({ className }: OrphanPanelProps) {
           className="flex-1"
           variant="secondary"
           disabled={isSweeping}
-          haptic
-          onClick={() => void sweep(true)}
+          haptic={!previewGate.isBlocked}
+          {...previewGate.blockedProps}
+          onClick={previewGate.guard(() => void sweep(true))}
         >
           미리보기
         </Button>
@@ -44,8 +49,9 @@ export function OrphanPanel({ className }: OrphanPanelProps) {
           className="flex-1"
           variant="destructive"
           disabled={isSweeping}
-          haptic
-          onClick={() => setIsConfirming(true)}
+          haptic={!sweepGate.isBlocked}
+          {...sweepGate.blockedProps}
+          onClick={sweepGate.guard(() => setIsConfirming(true))}
         >
           정리 실행
         </Button>

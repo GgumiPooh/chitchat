@@ -2,6 +2,8 @@
 
 import { request } from "@/shared/api";
 import { LOGIN_ROUTE } from "@/shared/config";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
+import { clearAll } from "@/shared/snapshot";
 import { Button, toast } from "@/shared/ui";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -13,6 +15,8 @@ export type LogoutButtonProps = {
 export function LogoutButton({ className }: LogoutButtonProps) {
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
+  // WARN: § 5.2. revokes the session server-side, so an offline 로그아웃 leaves the cookie live and the snapshots cleared — the reader is signed in with nothing cached to read.
+  const { isBlocked, blockedProps, guard } = useOfflineGate(OFFLINE_MESSAGES.logOut);
 
   const logOut = async () => {
     setIsPending(true);
@@ -29,12 +33,22 @@ export function LogoutButton({ className }: LogoutButtonProps) {
       return;
     }
 
+    // INFO: REQUIREMENTS.md § 16. The cookie is what the server just cleared; the offline snapshots are the half only this browser can.
+    await clearAll();
+
     router.replace(LOGIN_ROUTE);
     router.refresh();
   };
 
   return (
-    <Button className={className} variant="ghost" disabled={isPending} haptic onClick={logOut}>
+    <Button
+      className={className}
+      variant="ghost"
+      disabled={isPending}
+      haptic={!isBlocked}
+      {...blockedProps}
+      onClick={guard(() => void logOut())}
+    >
       로그아웃
     </Button>
   );

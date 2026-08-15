@@ -1,10 +1,12 @@
 "use client";
 
 import type { ArchiveMedia } from "@/entities/media";
+import { useWriteArchiveSnapshot } from "@/features/offline-snapshot";
 import { useSetBackground } from "@/features/set-background";
 import { useMediaPicker } from "@/features/upload-media";
 import { CHAT_MESSAGE_PARAM, CHAT_ROUTE, toMediaLabel } from "@/shared/config";
 import { cn, startMediaMorph, type MediaId, type Nullable } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import {
   downloadMedia,
   isShareableSelection,
@@ -61,6 +63,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
     prepend,
     remove,
   } = useArchiveMedia(initialMedia, "gallery", targetId);
+  useWriteArchiveSnapshot("archive-gallery", media);
   // INFO: § 18. #1. 삭제, its confirmation and the reconciliation of what the server took — all three shelves share it (`useArchiveRemoval`).
   const removal = useArchiveRemoval({
     noun: "photo",
@@ -90,6 +93,9 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
   // INFO: REQUIREMENTS.md § 10. 갤러리 추가 opens the album picker outright — this shelf takes photos and videos and nothing else, so there was never a choice for a sheet to offer.
   const picker = useMediaPicker({ isMultiple: true, onSelect: staging.add });
   const selectedCount = selection.selectedIds.length;
+  const uploadGate = useOfflineGate(OFFLINE_MESSAGES.upload);
+  // INFO: REQUIREMENTS.md § 10. Every action the selection bar offers — 저장, 공유, 삭제 — needs the network, so entering selection offline is three dead ends and a count.
+  const selectGate = useOfflineGate(OFFLINE_MESSAGES.select);
 
   return (
     // INFO: REQUIREMENTS.md § 9.2. The drop target is the whole screen, so photos dragged anywhere over the grid stage rather than having to find the 갤러리 추가 control.
@@ -111,18 +117,20 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
               <IconButton
                 variant="floating"
                 Icon={ImagePlus}
-                haptic
+                haptic={!uploadGate.isBlocked}
                 aria-label="갤러리 추가"
-                onClick={picker.open}
+                {...uploadGate.blockedProps}
+                onClick={uploadGate.guard(picker.open)}
               />
               {/* WARN: Unavailable while an upload is in flight. A photo being posted is in the grid with no message behind it yet, which `isInLibrary()` does not admit — a 삭제 aimed at it would silently take nothing. */}
               <IconButton
                 variant="floating"
                 Icon={ListChecks}
                 disabled={media.length === 0 || staging.isUploading}
-                haptic
+                haptic={!selectGate.isBlocked}
                 aria-label="선택"
-                onClick={() => selection.start()}
+                {...selectGate.blockedProps}
+                onClick={selectGate.guard(() => selection.start())}
               />
             </>
           )

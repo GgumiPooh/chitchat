@@ -1,5 +1,6 @@
 import { cn } from "@/shared/lib";
-import { ChevronRight } from "lucide-react";
+import { OFFLINE_NOTICE_ID } from "@/shared/offline-ux";
+import { ChevronRight, CloudOff } from "lucide-react";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 import { HapticTarget } from "./haptic-target";
 
@@ -16,6 +17,8 @@ export type SettingsRowProps = {
   trailing?: ReactNode;
   /** Ticks the Taptic engine when a finger lands on the row. Ignored on a row with no `onClick`, which is not a target. */
   haptic?: boolean;
+  /** WARN: Wears the refusal only. Suppressing the tap is the caller's, through `useOfflineGate`'s `guard` — `aria-disabled` stops nothing on its own. */
+  isUnavailable?: boolean;
   onClick?: () => void;
 };
 
@@ -38,10 +41,12 @@ export function SettingsRow({
   Icon,
   trailing,
   haptic = false,
+  isUnavailable = false,
   onClick,
 }: SettingsRowProps) {
   const Tag = onClick ? "button" : "div";
-  const hasHaptic = haptic && Boolean(onClick);
+  // INFO: A row that refuses confirms nothing, so it must not tick either.
+  const hasHaptic = haptic && Boolean(onClick) && !isUnavailable;
 
   const row = (
     <Tag
@@ -52,14 +57,28 @@ export function SettingsRow({
         hasHaptic ? rowClassName : className,
       )}
       type={onClick ? "button" : undefined}
+      aria-disabled={isUnavailable || undefined}
+      aria-describedby={isUnavailable ? OFFLINE_NOTICE_ID : undefined}
       onClick={onClick}
     >
       {Icon && <Icon className={cn("size-[18px] shrink-0 text-meta", iconClassName)} />}
       <span className="flex min-w-0 flex-1 flex-col gap-2xs">
-        <span className={cn("text-title-md text-ink", labelClassName)}>{label}</span>
+        {/* WARN: A token rather than an opacity wash. `aria-disabled` keeps the contrast floor the `disabled` attribute is exempt from, and `meta` is the dimmest tone that still clears it. */}
+        <span
+          className={cn("text-title-md", isUnavailable ? "text-meta" : "text-ink", labelClassName)}
+        >
+          {label}
+        </span>
         {description && <span className="text-body-sm text-meta">{description}</span>}
       </span>
-      {trailing ?? (onClick && <ChevronRight className="size-4 shrink-0 text-meta" />)}
+      {/* INFO: The chevron promises a screen this tap cannot reach, so the glyph says which of the two it is instead. */}
+      {trailing ??
+        (onClick &&
+          (isUnavailable ? (
+            <CloudOff className="size-4 shrink-0 text-meta-soft" strokeWidth={1.75} />
+          ) : (
+            <ChevronRight className="size-4 shrink-0 text-meta" />
+          )))}
     </Tag>
   );
 

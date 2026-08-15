@@ -35,6 +35,7 @@ export function TypingSettingsRow({ className, isEnabled }: TypingSettingsRowPro
           checked={isChecked}
           disabled={isBusy}
           haptic
+          isOfflineGated
           aria-label="입력 중 표시 보내기"
           onCheckedChange={(next) => void toggle(next)}
         />

@@ -120,7 +120,7 @@ type Payload = {
   emoticon: Nullable<Emoticon>;
   replyTo: Nullable<ReplyPreview>;
   // INFO: DESIGN.md § 6.5. Only an optimistic bubble carries one; a message that landed is always sent.
-  status?: "sending" | "failed";
+  status?: "sending" | "queued" | "failed";
   // INFO: REQUIREMENTS.md § 9.1. `filename` is what tells the box arithmetic a stack of file cards from a grid of photos; a bubble never mixes the two (§ 6.).
   // INFO: REQUIREMENTS.md § 9.3. A voice bubble is one fixed-height row rather than a box with a ratio, and `toMediaBoxHeight` reads that before either of the others.
   // WARN: Both voice fields, because a pending row is `MediaDraft[]` and a sent one is `ChatMedia[]` — the draft carries `waveformPeaks` and no `voice`, so dropping it here estimates an optimistic recording from its `0 / 0` box.
@@ -276,7 +276,8 @@ function toPayloadHeight(
 }
 
 function toBesideHeight(payload: Payload, { besideLines }: RowFlags): number {
-  if (payload.status === "failed") {
+  // WARN: `queued` reserves the same box as `failed`, and must. REQUIREMENTS.md § 8.5.'s outbox draws the identical two-slot column for one — a clock over 전송 취소 — so estimating it as a timestamp is a row the virtualizer has to correct on measure.
+  if (hasControlColumn(payload.status)) {
     return FAILED_CONTROLS;
   }
 
@@ -298,7 +299,7 @@ function toTextHeight(
   const column = toColumnWidth(context);
   // INFO: DESIGN.md § 6.3., § 6.5. Whatever stands beside the bubble takes its width off the text: the retry/cancel column on a failed send, the timestamp otherwise.
   // WARN: `box-sizing: border-box`, so the other participant's hairline is width taken from the text and not added around it.
-  const beside = status === "failed" ? FAILED_SLOT : besideLines > 0 ? TIME_SLOT : 0;
+  const beside = hasControlColumn(status) ? FAILED_SLOT : besideLines > 0 ? TIME_SLOT : 0;
   const available = Math.max(
     column - beside - SPACING_SM * 2 - (isMine ? 0 : BUBBLE_BORDER),
     CHAT_BODY.size,
@@ -377,4 +378,9 @@ function toQuoteHeight(replyTo: ReplyPreview, variant: "rule" | "card"): number 
 
   // INFO: DESIGN.md § 6.10. `card` adds its own padding and border; `rule` marks itself with a hairline and a `py-px` indent alone.
   return variant === "card" ? content + SPACING_2XS * 2 + 2 : content + 2;
+}
+
+// INFO: DESIGN.md § 6.5. The two states that stand a control column beside the bubble in place of a clock.
+function hasControlColumn(status: Payload["status"]): boolean {
+  return status === "failed" || status === "queued";
 }

@@ -11,6 +11,7 @@ import {
   useUnsentWork,
   type Nullable,
 } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { HapticTarget, IconButton, Textarea } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUp, Plus, Smile } from "lucide-react";
@@ -110,6 +111,7 @@ export function MessageComposer({
   // INFO: § 13.8. What the last tap searched for, so a send can tell whether the field still holds only that.
   const tappedQueryRef = useRef<Nullable<string>>(null);
   const isCoarsePointer = useIsCoarsePointer();
+  const attachGate = useOfflineGate(OFFLINE_MESSAGES.upload);
   // INFO: REQUIREMENTS.md § 8.14. The shortcuts appear nowhere else on screen, so the one field every reader already looks at carries the one key that lists the rest.
   const isFinePointer = useIsFinePointer();
   const hasDraft = text.trim().length > 0;
@@ -212,7 +214,16 @@ export function MessageComposer({
       {/* INFO: DESIGN.md § 6.6. The tab bar's floating surface (§ 7.3.). One row, bottom-aligned — the field grows upward and the controls stay on the last line. */}
       <div className="pointer-events-auto flex items-end gap-2xs rounded-[calc(var(--tab-bar-height)/2)] border border-hairline glass p-2xs shadow-floating">
         {/* INFO: REQUIREMENTS.md § 8.13. Both staging controls go while a message is being corrected — `messages_edited_is_text_check` makes an edit text-only, so an attachment or an emoticon staged here would have nowhere to land. */}
-        {!isEditing && <IconButton Icon={Plus} haptic aria-label="첨부" onClick={onAttach} />}
+        {/* INFO: § 9. An attachment needs a presigned PUT for bytes held in memory, so it is the one send the outbox cannot promise — the text beside it queues instead (§ 8.5.). */}
+        {!isEditing && (
+          <IconButton
+            Icon={Plus}
+            haptic={!attachGate.isBlocked}
+            aria-label="첨부"
+            {...attachGate.blockedProps}
+            onClick={attachGate.guard(onAttach)}
+          />
+        )}
         {/* INFO: § 13.8. The field and its keyword layer are one stacking context, so the mark can be positioned against the field's own box rather than the pill's. */}
         <div className="relative min-w-0 flex-1">
           <Textarea

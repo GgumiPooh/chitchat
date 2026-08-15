@@ -33,6 +33,7 @@ export function PushSoundRow({ className }: PushSoundRowProps) {
           checked={isActionable && soundEnabled}
           disabled={isBusy || isSoundBusy || !isActionable}
           haptic
+          isOfflineGated
           aria-label="알림 소리 켜기"
           onCheckedChange={toggleSound}
         />

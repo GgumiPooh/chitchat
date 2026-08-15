@@ -4,6 +4,7 @@ import type { DeviceSession } from "@/entities/session";
 import { DeviceList } from "@/features/session";
 import { SETTINGS_ROUTE } from "@/shared/config";
 import { cn } from "@/shared/lib";
+import { OfflineStaleNotice } from "@/shared/offline-ux";
 import { AppHeader, IconButton } from "@/shared/ui";
 import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -33,6 +34,7 @@ export function DeviceSettingsPage({ className, sessions }: DeviceSettingsPagePr
       />
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
       <div className="pt-(--app-header-inset)">
+        <OfflineStaleNotice />
         <DeviceList sessions={sessions} />
       </div>
     </div>

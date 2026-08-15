@@ -87,6 +87,7 @@ export { useBfcacheRestore } from "./hooks/use-bfcache-restore";
 export { useHydrated } from "./hooks/use-hydrated";
 export { useIsCoarsePointer, useIsFinePointer } from "./hooks/use-is-coarse-pointer";
 export { isIos, useIsIos } from "./hooks/use-is-ios";
+export { useIsOffline } from "./hooks/use-is-offline";
 export { isStandalone, useIsStandalone } from "./hooks/use-is-standalone";
 export { useIsVirtualKeyboardOpen } from "./hooks/use-is-virtual-keyboard-open";
 export { useIsomorphicLayoutEffect } from "./hooks/use-isomorphic-layout-effect";

@@ -18,6 +18,7 @@ import {
   toMediaUrl,
 } from "@/shared/config";
 import type { Nullable, Optional } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { Avatar, BottomSheet, Button, HapticTarget, Input, toast } from "@/shared/ui";
 import { useState } from "react";
 import { updateProfile, type ProfileBody } from "../api/write-profile";
@@ -92,6 +93,7 @@ export function ProfileEditorSheet({
     background.isCleared;
   const isReading = avatar.isReading || background.isReading;
   const canSubmit = (hasNameChange || hasPhotoChange) && !isSubmitting && !isReading;
+  const { isBlocked, guard } = useOfflineGate(OFFLINE_MESSAGES.save);
   const avatarUrl = toAvatarUrl();
   const backgroundUrl = toBackgroundUrl();
 
@@ -186,7 +188,14 @@ export function ProfileEditorSheet({
               onChange={(event) => setName(event.target.value)}
             />
           </div>
-          <Button disabled={!canSubmit} haptic onClick={() => void submit()}>
+          {/* INFO: The pickers and the crop above stay live — every one of them is local until this button, so a draft can be built offline and committed when the connection is back. */}
+          {isBlocked && (
+            <p className="text-body-sm text-meta" role="status">
+              {OFFLINE_MESSAGES.save}
+            </p>
+          )}
+          {/* WARN: Left enabled, where a nav row would go `aria-disabled` — the sheet holds a name, a crop and a trim, and it stays open on the refusal so none of it is lost. */}
+          <Button disabled={!canSubmit} haptic onClick={guard(() => void submit())}>
             {isSubmitting ? "저장하는 중이에요" : "저장"}
           </Button>
         </div>

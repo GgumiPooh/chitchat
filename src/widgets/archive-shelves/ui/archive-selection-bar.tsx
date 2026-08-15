@@ -1,6 +1,7 @@
 "use client";
 
 import { cn, useIsIos } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { Button, ShellOverlay } from "@/shared/ui";
 import { Download, Share, Trash2 } from "lucide-react";
 
@@ -55,6 +56,10 @@ export function ArchiveSelectionBar({
   const isIosDevice = useIsIos();
   const isMerged = isIosDevice && savesToPhotoLibrary;
   const isDisabled = selectedCount === 0 || isBusy;
+  // INFO: REQUIREMENTS.md § 10. All three reach off the device — two for bytes § 16. never caches, one for the row itself.
+  const saveGate = useOfflineGate(isMerged ? OFFLINE_MESSAGES.share : OFFLINE_MESSAGES.save);
+  const shareGate = useOfflineGate(OFFLINE_MESSAGES.share);
+  const deleteGate = useOfflineGate(OFFLINE_MESSAGES.remove);
 
   return (
     <ShellOverlay>
@@ -75,11 +80,12 @@ export function ArchiveSelectionBar({
           <Button
             // WARN: `flex-1 w-auto` overrides `Button`'s own `w-full shrink-0` — two of those in a row each claim the full bar and the second is pushed off the edge. With `haptic` it is the wrapper that has to carry them, since the wrapper is what this row lays out.
             className="w-auto flex-1"
-            buttonClassName="min-h-11 rounded-full"
+            buttonClassName="min-h-11 rounded-full aria-disabled:opacity-50"
             variant="ghost"
             disabled={isDisabled}
-            haptic
-            onClick={onSave}
+            haptic={!saveGate.isBlocked}
+            {...saveGate.blockedProps}
+            onClick={saveGate.guard(onSave)}
           >
             <Download className="size-4" strokeWidth={1.75} />
             {isMerged ? "저장/공유" : "저장"}
@@ -87,11 +93,12 @@ export function ArchiveSelectionBar({
           {!isMerged && onShare && (
             <Button
               className="w-auto flex-1"
-              buttonClassName="min-h-11 rounded-full"
+              buttonClassName="min-h-11 rounded-full aria-disabled:opacity-50"
               variant="ghost"
               disabled={isDisabled}
-              haptic
-              onClick={onShare}
+              haptic={!shareGate.isBlocked}
+              {...shareGate.blockedProps}
+              onClick={shareGate.guard(onShare)}
             >
               <Share className="size-4" strokeWidth={1.75} />
               공유
@@ -100,11 +107,12 @@ export function ArchiveSelectionBar({
           {/* INFO: DESIGN.md § 7.5. A destructive action in a list of choices is the label in `semantic-error`, not a filled red button — the bar is a surface of equals, not a confirmation. */}
           <Button
             className="w-auto flex-1"
-            buttonClassName="min-h-11 rounded-full text-semantic-error"
+            buttonClassName="min-h-11 rounded-full text-semantic-error aria-disabled:opacity-50"
             variant="ghost"
             disabled={isDisabled}
-            haptic
-            onClick={onDelete}
+            haptic={!deleteGate.isBlocked}
+            {...deleteGate.blockedProps}
+            onClick={deleteGate.guard(onDelete)}
           >
             <Trash2 className="size-4" strokeWidth={1.75} />
             삭제

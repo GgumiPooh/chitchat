@@ -14,8 +14,9 @@ import {
   type Nullable,
   type Optional,
 } from "@/shared/lib";
+import { OFFLINE_QUEUED_SEND_TEXT } from "@/shared/offline-ux";
 import { Avatar, IconButton, MediaTombstone, VoicePlayer, type MediaCell } from "@/shared/ui";
-import { CornerUpLeft, RotateCcw, Share, X } from "lucide-react";
+import { Clock, CornerUpLeft, RotateCcw, Share, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
 import { EmoticonBubble } from "./emoticon-bubble";
@@ -56,7 +57,8 @@ export type MessageRowProps = {
   isHighlighted?: boolean;
   /** REQUIREMENTS.md § 8.6.1. The open search's query, lit inside the bubble. */
   searchQuery?: string;
-  status: "sent" | "sending" | "failed";
+  /** `queued` is REQUIREMENTS.md § 8.5.'s outbox holding a send the network went out from under — it retries itself, so it takes 전송 취소 without 다시 보내기. */
+  status: "sent" | "sending" | "queued" | "failed";
   onLongPress?: () => void;
   /** REQUIREMENTS.md § 13.9. A tap on the emoticon, which opens the picker where that emoticon is. */
   onFollowEmoticon?: () => void;
@@ -254,17 +256,29 @@ export function MessageRow({
               )}
             </div>
           )}
-          {status === "failed" ? (
+          {status === "failed" || status === "queued" ? (
             // INFO: DESIGN.md § 6.5. The failure affordance sits on the outer side of the bubble; cancel is beside retry so a send that cannot succeed can still be cleared.
             <div className="flex shrink-0 flex-col">
-              <IconButton
-                buttonClassName="size-9 text-semantic-error hover:bg-primary-tint hover:text-semantic-error-hover"
-                iconClassName="size-4"
-                Icon={RotateCcw}
-                haptic
-                aria-label="다시 보내기"
-                onClick={onRetry}
-              />
+              {status === "failed" ? (
+                <IconButton
+                  buttonClassName="size-9 text-semantic-error hover:bg-primary-tint hover:text-semantic-error-hover"
+                  iconClassName="size-4"
+                  Icon={RotateCcw}
+                  haptic
+                  aria-label="다시 보내기"
+                  onClick={onRetry}
+                />
+              ) : (
+                // WARN: A glyph and not a button. The outbox retries this itself on `online`, so a 다시 보내기 here would offer the reader work that is already promised — and in `semantic-error`, for a send nothing has refused.
+                <span
+                  className="inline-flex size-9 items-center justify-center text-meta"
+                  role="img"
+                  aria-label={OFFLINE_QUEUED_SEND_TEXT}
+                >
+                  <Clock className="size-4" strokeWidth={1.75} />
+                </span>
+              )}
+              {/* INFO: Reachable on both, and that is the whole of why `queued` renders a column at all — a message waiting out a tunnel is otherwise one the reader can neither send nor be rid of. */}
               <IconButton
                 className="size-9"
                 iconClassName="size-4"

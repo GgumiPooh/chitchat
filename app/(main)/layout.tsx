@@ -3,10 +3,12 @@ import { hasEventToday } from "@/entities/event";
 import { countUnreadMessages } from "@/entities/message";
 import { listUsers } from "@/entities/user";
 import { ChatStreamProvider } from "@/features/chat-stream";
+import { OfflineSnapshotSync } from "@/features/offline-snapshot";
 import { PushSync } from "@/features/push-notifications";
 import { ProfileViewerProvider } from "@/features/view-profile";
 import { requireUserOrRedirect } from "@/shared/auth";
 import { APP_SHELL_ID } from "@/shared/config";
+import { OfflineNotice } from "@/shared/offline-ux";
 import {
   BottomOverlay,
   Container,
@@ -16,6 +18,7 @@ import {
   VisualViewportSync,
 } from "@/shared/ui";
 import { InstallGuide } from "@/widgets/install-guide";
+import { OfflineBanner } from "@/widgets/offline-banner";
 import { TabBar } from "@/widgets/tab-bar";
 import { type PropsWithChildren } from "react";
 
@@ -63,6 +66,18 @@ export default async function MainLayout({ children }: PropsWithChildren) {
         {/* INFO: REQUIREMENTS.md § 9.2. Shell-level, because a stray drop navigates the PWA away from every screen — not only from the two that take one. */}
         <FileDropGuard />
         <ScrollMemory />
+        {/* INFO: Shell-level, so one mount covers all four tabs and 채팅 — it portals into the shell through `ShellOverlay` rather than sitting in any screen's header. */}
+        <OfflineBanner />
+        {/* WARN: Mounted unconditionally, and deliberately not inside the banner above. Every blocked control points `aria-describedby` here, and the banner only appears a second after the network goes — described against a node that does not exist yet, a control blocked before then reads out with no reason at all. */}
+        <OfflineNotice />
+        {/* INFO: REQUIREMENTS.md § 16. Shell-level, because the chrome it stores is what every mirror draws — and 설정's mirror is drawn from it alone. */}
+        <OfflineSnapshotSync
+          participants={participants}
+          currentUserId={user.id}
+          chatBackgroundMediaId={chatBackground?.mediaId ?? null}
+          chatBackgroundBlurhash={chatBackground?.blurhash ?? null}
+          hasEventToday={hasTodayEvent}
+        />
         {/* WARN: REQUIREMENTS.md § 16.1. Inside the session gate, and it must stay there. It sweeps Notification Center and POSTs this device's subscription on mount, and § 5.2.'s proxy proves only that a cookie exists — mounted above this layout's own check it would clear a revoked user's banners and spend a 401 on the way to `/login`. */}
         <PushSync />
       </ProfileViewerProvider>

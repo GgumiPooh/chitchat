@@ -40,7 +40,9 @@ export {
   MESSAGE_FLASH_DURATION,
   MESSAGE_PAGE_SIZE,
   MESSAGE_SEARCH_PATH,
+  MIRRORED_ROUTES,
   OFFLINE_ROUTE,
+  OFFLINE_SHELL_ROUTE,
   OPS_BACKUPS_PATH,
   OPS_CLEANUP_PATH,
   PROFILE_PATH,
@@ -81,6 +83,7 @@ export {
   typingEventSchema,
   unreadCountMessageSchema,
   type MessageArrival,
+  type MirroredRoute,
   type TabRoute,
   type TypingEvent,
 } from "./app";

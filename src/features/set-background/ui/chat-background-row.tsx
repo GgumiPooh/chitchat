@@ -9,6 +9,7 @@ import {
 } from "@/features/upload-media/@x/set-background";
 import { BACKGROUND_MAX_EDGE, toMediaUrl } from "@/shared/config";
 import type { MediaId, Nullable } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { ActionSheet, PreloadImage, SettingsRow, toast } from "@/shared/ui";
 import { Image as ImageIcon, Trash2, Wallpaper } from "lucide-react";
 import { useState } from "react";
@@ -38,6 +39,7 @@ export type ChatBackgroundRowProps = {
 export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
+  const { isBlocked, guard } = useOfflineGate(OFFLINE_MESSAGES.change);
   const { chatBackgroundMediaId, setChatBackgroundMediaId } = useChatStream();
   const photo = usePickedPhoto();
   // INFO: REQUIREMENTS.md § 12.2. 사진 고르기 already names one kind of file, so the row opens the OS picker itself rather than a second sheet offering the same thing again.
@@ -55,6 +57,8 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
         haptic
         // INFO: The row is the only surface still on screen while a photo is read and uploaded — the sheet closed itself at the tap and the editor comes down at 완료 — so it says so rather than sitting unchanged for several seconds.
         description={toDescription()}
+        // INFO: Both of the sheet's items write — one uploads, the other clears the shared row — so opening it offline is a sheet of two dead ends.
+        isUnavailable={isBlocked}
         trailing={
           chatBackgroundMediaId && (
             <PreloadImage
@@ -65,7 +69,7 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
             />
           )
         }
-        onClick={() => setIsActionsOpen(true)}
+        onClick={guard(() => setIsActionsOpen(true))}
       />
       <ActionSheet
         isOpen={isActionsOpen && !isBusy}

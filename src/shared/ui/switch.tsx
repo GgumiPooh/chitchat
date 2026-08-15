@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { Switch as SwitchPrimitive } from "radix-ui";
 import type { ComponentProps } from "react";
 import { HapticTarget } from "./haptic-target";
@@ -11,6 +12,8 @@ export type SwitchProps = ComponentProps<typeof SwitchPrimitive.Root> & {
   thumbClassName?: string;
   /** Ticks the Taptic engine when a finger lands on the track. */
   haptic?: boolean;
+  /** Refuses the tap while the device is offline, since every switch in the app writes to the server. */
+  isOfflineGated?: boolean;
 };
 
 // INFO: DESIGN.md § 7.11. A settings-row control: 28 tall so the 56 row keeps its vertical rhythm, and the track carries the state colour since the row itself never changes fill.
@@ -19,11 +22,17 @@ export function Switch({
   trackClassName,
   thumbClassName,
   haptic = false,
+  isOfflineGated = false,
   disabled,
+  onCheckedChange,
   ...props
 }: SwitchProps) {
+  const { isBlocked, blockedProps, refuse } = useOfflineGate(
+    OFFLINE_MESSAGES.change,
+    isOfflineGated,
+  );
   // INFO: A disabled track toggles nothing, and the overlay would still take the tap and tick.
-  const hasHaptic = haptic && !disabled;
+  const hasHaptic = haptic && !disabled && !isBlocked;
 
   return (
     // WARN: `Root` renders a `<button>`, and a native `input[switch]` inside one swallows the tap whole — the track stops toggling at all. `HapticTarget` is what keeps the overlay a sibling.
@@ -35,9 +44,13 @@ export function Switch({
           "bg-hairline-strong hover:bg-meta-soft data-[state=checked]:bg-primary data-[state=checked]:hover:bg-primary-hover",
           "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",
           "disabled:cursor-not-allowed disabled:opacity-50",
+          // WARN: It dims and the thumb below does **not** move. A switch that answers the tap and then snaps back reports a preference the server never took, and a wash keeps the state it is still truthfully reporting legible where a flat fill would erase it.
+          isBlocked && "cursor-not-allowed opacity-50",
           trackClassName,
         )}
         disabled={disabled}
+        {...blockedProps}
+        onCheckedChange={handleCheckedChange}
         {...props}
       >
         <SwitchPrimitive.Thumb
@@ -50,4 +63,14 @@ export function Switch({
       </SwitchPrimitive.Root>
     </HapticTarget>
   );
+
+  function handleCheckedChange(next: boolean) {
+    if (isBlocked) {
+      refuse();
+
+      return;
+    }
+
+    onCheckedChange?.(next);
+  }
 }

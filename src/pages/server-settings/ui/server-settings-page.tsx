@@ -3,6 +3,7 @@
 import { BackupPanel, OrphanPanel } from "@/features/server-ops";
 import { SETTINGS_ROUTE } from "@/shared/config";
 import { cn } from "@/shared/lib";
+import { OfflineStaleNotice } from "@/shared/offline-ux";
 import { AppHeader, IconButton } from "@/shared/ui";
 import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -31,6 +32,7 @@ export function ServerSettingsPage({ className }: ServerSettingsPageProps) {
       />
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
       <div className="flex flex-col gap-md pt-(--app-header-inset) pb-lg">
+        <OfflineStaleNotice />
         {/* INFO: 고아 파일 정리 first, and only because the backup list is the one block whose height arrives late — under it, every fetch nudged this section down the screen. */}
         <OrphanPanel />
         <BackupPanel />

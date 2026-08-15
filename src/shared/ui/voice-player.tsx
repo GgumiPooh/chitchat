@@ -1,6 +1,7 @@
 "use client";
 
 import { cn, formatDuration, useVoicePlayback, type Nullable } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { Pause, Play } from "lucide-react";
 import { useMemo, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 
@@ -47,6 +48,11 @@ export function VoicePlayer({
   const bars = useMemo(() => renderBars(peaks), [peaks]);
   // INFO: A pending bubble is still playable — REQUIREMENTS.md § 9.3. hands a recording its local blob as `originalUrl`, so the one clip in the app that has a source before it has an object is this one. What is missing is a source, never a landed upload.
   const isInert = src === null;
+  // INFO: A stored clip is bytes behind § 9.'s expiring presigned redirect; the local blob the line above describes is already here, so it is the one source this gate leaves alone.
+  const { isBlocked, blockedProps, guard } = useOfflineGate(
+    OFFLINE_MESSAGES.play,
+    src !== null && !src.startsWith("blob:"),
+  );
 
   return (
     <div
@@ -69,13 +75,14 @@ export function VoicePlayer({
         type="button"
         disabled={isInert}
         aria-label={isPlaying ? "일시정지" : "재생"}
-        onClick={toggle}
+        {...blockedProps}
+        onClick={guard(toggle)}
       >
         <span
           className={cn(
             // INFO: DESIGN.md § 4.7.2. The bloom sits on the disc rather than the 44 target, so the swell reads against the bubble around it.
             "inline-flex size-9 press-bloom items-center justify-center rounded-full text-on-primary",
-            isInert
+            isInert || isBlocked
               ? "bg-primary-disabled"
               : "bg-primary group-hover:bg-primary-hover group-active:bg-primary-pressed",
           )}
@@ -93,17 +100,20 @@ export function VoicePlayer({
           className={cn(
             // INFO: DESIGN.md § 3.2. The box is 32 tall against 24 of drawn waveform — the card is `h-14` and carries a clock, so this is as much hit area as there is to give, and it is padding rather than a taller graph.
             "relative h-8 w-full rounded-xs text-meta-soft transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary",
-            isInert ? "cursor-default" : "cursor-pointer hover:text-meta active:text-ink",
+            isInert || isBlocked
+              ? "cursor-default"
+              : "cursor-pointer hover:text-meta active:text-ink",
             waveformClassName,
           )}
           role="slider"
-          tabIndex={isInert ? -1 : 0}
+          tabIndex={isInert || isBlocked ? -1 : 0}
           aria-label="재생 위치"
           aria-valuemin={0}
           aria-valuemax={Math.round(durationMs)}
           aria-valuenow={Math.round(isActive ? positionMs : 0)}
           aria-valuetext={formatDuration(isActive ? positionMs : 0)}
-          aria-disabled={isInert}
+          aria-disabled={isInert || isBlocked}
+          aria-describedby={blockedProps["aria-describedby"]}
           onPointerDown={handlePointerDown}
           onKeyDown={handleKeyDown}
         >
@@ -132,7 +142,7 @@ export function VoicePlayer({
    * where it buys almost no precision.
    */
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (isInert || !event.isPrimary) {
+    if (isInert || isBlocked || !event.isPrimary) {
       return;
     }
 
@@ -144,7 +154,7 @@ export function VoicePlayer({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (isInert) {
+    if (isInert || isBlocked) {
       return;
     }
 

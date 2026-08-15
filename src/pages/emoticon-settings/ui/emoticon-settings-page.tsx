@@ -9,6 +9,7 @@ import {
 } from "@/features/emoticon-prefs";
 import { EMOTICON_IMPORT_ROUTE, EMOTICON_SETTINGS_ROUTE, SETTINGS_ROUTE } from "@/shared/config";
 import { cn, useBfcacheRestore, type EmoticonPackId, type Nullable } from "@/shared/lib";
+import { OFFLINE_MESSAGES, OfflineStaleNotice, useOfflineGate } from "@/shared/offline-ux";
 import { ActionSheet, AppHeader, Button, IconButton, Modal, toast } from "@/shared/ui";
 import { josa } from "es-hangul";
 import { ChevronLeft, EyeOff, Link2, Pencil, Plus, Trash2 } from "lucide-react";
@@ -63,6 +64,12 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
   // INFO: § 13.7. Returning from URL로 추가 is a bfcache restore, so the list comes back exactly as it was left — one import older than the packs it is drawing.
   useBfcacheRestore(router.refresh);
 
+  // INFO: § 13.5. The header opens 직접 만들기 and URL로 추가 together, so gating it covers both rather than repeating the refusal inside the sheet.
+  const createGate = useOfflineGate(OFFLINE_MESSAGES.create);
+  const renameGate = useOfflineGate(OFFLINE_MESSAGES.change);
+  const hideGate = useOfflineGate(OFFLINE_MESSAGES.hide);
+  const deleteGate = useOfflineGate(OFFLINE_MESSAGES.remove);
+
   return (
     <div className={cn("flex flex-1 flex-col", className)}>
       <AppHeader
@@ -82,12 +89,14 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
             Icon={Plus}
             haptic
             aria-label="새 이모티콘 묶음"
-            onClick={() => setIsAddMenuOpen(true)}
+            {...createGate.blockedProps}
+            onClick={createGate.guard(() => setIsAddMenuOpen(true))}
           />
         }
       />
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
       <div className="pt-(--app-header-inset)">
+        <OfflineStaleNotice />
         <EmoticonSettingsTabs className="mx-md mb-xs" tab={tab} onTabChange={changeTab} />
         {tab === "using" ? (
           // WARN: This list is the single source of truth for the order. `EmoticonPackManager` holds none of its own, so a rename or a delete here cannot roll back a drag it has already persisted.
@@ -128,13 +137,17 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
         isOpen={managed !== undefined}
         header={{ title: managed?.name ?? "" }}
         items={[
-          { label: "이름 바꾸기", Icon: Pencil, onSelect: () => setRenamingId(managedId) },
-          { label: "숨기기", Icon: EyeOff, onSelect: () => hidePack(managedId) },
+          {
+            label: "이름 바꾸기",
+            Icon: Pencil,
+            onSelect: renameGate.guard(() => setRenamingId(managedId)),
+          },
+          { label: "숨기기", Icon: EyeOff, onSelect: hideGate.guard(() => hidePack(managedId)) },
           {
             label: "이모티콘 묶음 삭제",
             Icon: Trash2,
             variant: "destructive",
-            onSelect: () => setDeletingId(managedId),
+            onSelect: deleteGate.guard(() => setDeletingId(managedId)),
           },
         ]}
         onClose={() => setManagedId(null)}

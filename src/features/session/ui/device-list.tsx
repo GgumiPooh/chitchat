@@ -2,6 +2,7 @@
 
 import type { DeviceSession } from "@/entities/session";
 import { cn, formatDate, type Nullable } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { Button, Modal, SettingsRow, toast } from "@/shared/ui";
 import { MonitorSmartphone } from "lucide-react";
 import { useState } from "react";
@@ -28,6 +29,8 @@ export function DeviceList({ className, sessions }: DeviceListProps) {
   const [known, setKnown] = useState(sessions);
   const [pendingId, setPendingId] = useState<Nullable<string>>(null);
   const [isRevoking, setIsRevoking] = useState(false);
+  // INFO: § 5.2. revokes server-side, so the confirmation is stopped at its entry rather than opened onto a 로그아웃 that can only fail.
+  const revokeGate = useOfflineGate(OFFLINE_MESSAGES.logOut);
   // INFO: Never empty — the session rendering this screen is one of the rows, which is also why there is no empty state.
   const pending = known.find((session) => session.id === pendingId) ?? null;
 
@@ -48,8 +51,9 @@ export function DeviceList({ className, sessions }: DeviceListProps) {
                 className="w-auto"
                 buttonClassName="min-h-9 px-sm text-button-sm"
                 variant="secondary"
-                haptic
-                onClick={() => setPendingId(session.id)}
+                haptic={!revokeGate.isBlocked}
+                {...revokeGate.blockedProps}
+                onClick={revokeGate.guard(() => setPendingId(session.id))}
               >
                 로그아웃
               </Button>

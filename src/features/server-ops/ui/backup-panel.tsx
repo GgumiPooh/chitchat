@@ -1,6 +1,7 @@
 "use client";
 
 import { cn, formatDate, formatStorageSize, formatTime, type Nullable } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { Button, EmptyState, Modal, SettingsRow, SettingsRowSkeleton, toast } from "@/shared/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DatabaseBackup } from "lucide-react";
@@ -31,6 +32,10 @@ export function BackupPanel({ className }: BackupPanelProps) {
   const backups = useQuery({ queryKey: BACKUPS_QUERY_KEY, queryFn: fetchBackups });
   const [result, setResult] = useState<Nullable<OpsResult>>(null);
   const [pendingFilename, setPendingFilename] = useState<Nullable<string>>(null);
+  // INFO: § 12.4. Every control on this panel is a round trip to the deployment; the confirmation below is reached only through the gated row, so it needs no gate of its own.
+  const createGate = useOfflineGate(OFFLINE_MESSAGES.create);
+  const deleteGate = useOfflineGate(OFFLINE_MESSAGES.remove);
+  const reloadGate = useOfflineGate(OFFLINE_MESSAGES.reload);
   const [isRunning, setIsRunning] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -38,7 +43,12 @@ export function BackupPanel({ className }: BackupPanelProps) {
     <section className={cn("flex flex-col", className)}>
       <h2 className="px-md pt-md pb-xs text-title-sm text-meta">백업</h2>
       <div className="px-md pb-sm">
-        <Button disabled={isRunning} haptic onClick={() => void createBackup()}>
+        <Button
+          disabled={isRunning}
+          haptic={!createGate.isBlocked}
+          {...createGate.blockedProps}
+          onClick={createGate.guard(() => void createBackup())}
+        >
           {isRunning ? "백업하는 중…" : "백업 생성"}
         </Button>
       </div>
@@ -83,7 +93,12 @@ export function BackupPanel({ className }: BackupPanelProps) {
           Icon={DatabaseBackup}
           description="백업 목록을 불러오지 못했어요"
           action={
-            <Button className="w-auto" variant="secondary" onClick={() => void backups.refetch()}>
+            <Button
+              className="w-auto"
+              variant="secondary"
+              {...reloadGate.blockedProps}
+              onClick={reloadGate.guard(() => void backups.refetch())}
+            >
               다시 시도
             </Button>
           }
@@ -108,8 +123,9 @@ export function BackupPanel({ className }: BackupPanelProps) {
             className="w-auto"
             buttonClassName="min-h-9 px-sm text-button-sm"
             variant="secondary"
-            haptic
-            onClick={() => setPendingFilename(backup.filename)}
+            haptic={!deleteGate.isBlocked}
+            {...deleteGate.blockedProps}
+            onClick={deleteGate.guard(() => setPendingFilename(backup.filename))}
           >
             삭제
           </Button>

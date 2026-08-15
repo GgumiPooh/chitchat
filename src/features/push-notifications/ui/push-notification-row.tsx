@@ -35,6 +35,7 @@ export function PushNotificationRow({ className }: PushNotificationRowProps) {
           checked={status === "on"}
           disabled={isBusy || !isActionable}
           haptic
+          isOfflineGated
           aria-label="알림 받기"
           onCheckedChange={toggle}
         />

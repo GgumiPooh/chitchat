@@ -1,8 +1,10 @@
 "use client";
 
 import type { ArchiveMedia } from "@/entities/media";
+import { useWriteArchiveSnapshot } from "@/features/offline-snapshot";
 import { MediaPickerSheet } from "@/features/upload-media";
 import { cn, stopVoice } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import {
   downloadMedia,
   isShareableSelection,
@@ -41,6 +43,8 @@ export type ArchiveFilesPageProps = {
 export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPageProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const { media, isLoadingMore, loadMore, prepend, remove } = useArchiveMedia(initialMedia, "file");
+
+  useWriteArchiveSnapshot("archive-files", media);
   // INFO: REQUIREMENTS.md § 9.1. `savesToPhotoLibrary: false` — a file downloads on iOS too, so neither the cap nor the merged 저장/공유 row of § 10. applies here.
   // INFO: § 18. #1. 삭제, its confirmation and the reconciliation of what the server took — shared with the other two shelves (`useArchiveRemoval`).
   const removal = useArchiveRemoval({
@@ -62,6 +66,9 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
     onStranded: remove,
   });
   const selectedCount = selection.selectedIds.length;
+  const uploadGate = useOfflineGate(OFFLINE_MESSAGES.upload);
+  // INFO: REQUIREMENTS.md § 10. Every action the selection bar offers — 저장, 공유, 삭제 — needs the network, so entering selection offline is three dead ends and a count.
+  const selectGate = useOfflineGate(OFFLINE_MESSAGES.select);
   // WARN: REQUIREMENTS.md § 9.3. An audio row plays through the page-wide shared element, so leaving this screen has to stop it — exactly as the room and the 음성 shelf do. Nothing on the next tab draws a transport that could pause a clip still running.
   useEffect(() => stopVoice, []);
   // WARN: REQUIREMENTS.md § 9.1. What names the `File` handed to the share sheet. R2 keys carry no name and the server's `Content-Disposition` is unreadable here (not CORS-safelisted, and the response has already redirected cross-origin), so without this the pair would be sent `9f3c….bin`.
@@ -90,17 +97,19 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
               <IconButton
                 variant="floating"
                 Icon={FilePlus}
-                haptic
+                haptic={!uploadGate.isBlocked}
                 aria-label="파일 추가"
-                onClick={() => setIsPickerOpen(true)}
+                {...uploadGate.blockedProps}
+                onClick={uploadGate.guard(() => setIsPickerOpen(true))}
               />
               <IconButton
                 variant="floating"
                 Icon={ListChecks}
                 disabled={media.length === 0 || staging.isUploading}
-                haptic
+                haptic={!selectGate.isBlocked}
                 aria-label="선택"
-                onClick={() => selection.start()}
+                {...selectGate.blockedProps}
+                onClick={selectGate.guard(() => selection.start())}
               />
             </>
           )

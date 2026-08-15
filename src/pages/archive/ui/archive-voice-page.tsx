@@ -1,8 +1,10 @@
 "use client";
 
 import type { ArchiveMedia } from "@/entities/media";
+import { useWriteArchiveSnapshot } from "@/features/offline-snapshot";
 import { toVoiceDraft, VoiceRecorderBar, type VoiceRecording } from "@/features/upload-media";
 import { cn, stopVoice } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { downloadMedia } from "@/shared/share";
 import { AppHeader, EmptyState, IconButton, ShellOverlay, toast } from "@/shared/ui";
 import {
@@ -38,6 +40,8 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
     initialMedia,
     "voice",
   );
+
+  useWriteArchiveSnapshot("archive-voice", media);
   // INFO: REQUIREMENTS.md § 9.3. `savesToPhotoLibrary: false` — a recording downloads on iOS too, so neither the § 10. cap nor the merged 저장/공유 row applies.
   // INFO: § 18. #1. 삭제, its confirmation and the reconciliation of what the server took — shared with the other two shelves (`useArchiveRemoval`).
   const removal = useArchiveRemoval({
@@ -58,6 +62,9 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
     onStranded: remove,
   });
   const selectedCount = selection.selectedIds.length;
+  const uploadGate = useOfflineGate(OFFLINE_MESSAGES.upload);
+  // INFO: REQUIREMENTS.md § 10. Every action the selection bar offers — 저장, 공유, 삭제 — needs the network, so entering selection offline is three dead ends and a count.
+  const selectGate = useOfflineGate(OFFLINE_MESSAGES.select);
 
   // WARN: REQUIREMENTS.md § 9.3. The shared element outlives the rows addressing it, so leaving this screen has to stop it — exactly as the room does. Nothing on the next tab draws a transport that could pause a clip still running.
   useEffect(() => stopVoice, []);
@@ -82,17 +89,19 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
                 variant="floating"
                 Icon={Mic}
                 disabled={isRecording}
-                haptic
+                haptic={!uploadGate.isBlocked}
                 aria-label="녹음"
-                onClick={() => setIsRecording(true)}
+                {...uploadGate.blockedProps}
+                onClick={uploadGate.guard(() => setIsRecording(true))}
               />
               <IconButton
                 variant="floating"
                 Icon={ListChecks}
                 disabled={media.length === 0 || staging.isUploading}
-                haptic
+                haptic={!selectGate.isBlocked}
                 aria-label="선택"
-                onClick={() => selection.start()}
+                {...selectGate.blockedProps}
+                onClick={selectGate.guard(() => selection.start())}
               />
             </>
           )

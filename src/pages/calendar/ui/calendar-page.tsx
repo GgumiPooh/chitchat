@@ -8,6 +8,7 @@ import {
   fetchCalendarSummary,
   fetchOccurrences,
 } from "@/features/manage-event";
+import { useWriteCalendarSnapshot } from "@/features/offline-snapshot";
 import { SSE_SYNC_COALESCE_WINDOW } from "@/shared/config";
 import {
   cn,
@@ -20,6 +21,7 @@ import {
   type Maybe,
   type Nullable,
 } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { ActionSheet, AppHeader, Container, IconButton, toast } from "@/shared/ui";
 import { CalendarMonth, toGridRange } from "@/widgets/calendar-month";
 import { Plus } from "lucide-react";
@@ -58,11 +60,15 @@ export function CalendarPage({
   const [summary, setSummary] = useState(initialSummary);
   const [monthKey, setMonthKey] = useState(initialMonthKey);
   const [occurrences, setOccurrences] = useState(initialOccurrences);
+  // INFO: REQUIREMENTS.md § 16. The loaded month, whichever it is — a mirror labels it stale rather than pretending it is this one.
+  useWriteCalendarSnapshot({ summary, monthKey, occurrences, holidays });
   // INFO: § 11.3. A day is always selected, because the agenda under the grid always has one to show — `null` used to mean "no sheet up" and there is no sheet any more.
   const [selectedDayKey, setSelectedDayKey] = useState(initialDayKey ?? initialSummary.todayKey);
   // INFO: The agenda asserts `이 날은 일정이 없어요`, so it must be able to say "not yet" instead — a month still in flight is not an empty day.
   const [isLoadingMonth, setIsLoadingMonth] = useState(false);
   const [actioned, setActioned] = useState<Nullable<EventOccurrence>>(null);
+  // INFO: 수정 and the header's 추가 both open a form whose own 저장 states the refusal inline (§ 11.4.), so this is the one item here with nowhere else to say it.
+  const deleteGate = useOfflineGate(OFFLINE_MESSAGES.remove);
   const [form, setForm] = useState<Nullable<FormState>>(null);
   // WARN: The month the server already rendered. Without this the mount effect refetches it immediately, replacing correct data with identical data and flashing the grid.
   const loadedMonthKey = useRef(initialMonthKey);
@@ -197,7 +203,11 @@ export function CalendarPage({
             label: "수정",
             onSelect: () => actioned && openForm(startDayKeyOf(actioned), actioned),
           },
-          { label: "삭제", variant: "destructive", onSelect: () => void remove(actioned) },
+          {
+            label: "삭제",
+            variant: "destructive",
+            onSelect: deleteGate.guard(() => void remove(actioned)),
+          },
         ]}
         onClose={() => setActioned(null)}
       />

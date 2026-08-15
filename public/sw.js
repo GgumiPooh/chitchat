@@ -1,10 +1,12 @@
 /**
  * Push and offline-cache service worker (REQUIREMENTS.md § 7., § 16., § 16.1.).
  *
- * WARN: Only two things may ever enter the cache — build output whose URL carries
- * a content hash, and `OFFLINE_URL`. Everything else in this app varies by user,
- * and `caches` is scoped to the origin rather than the session: § 16.1. has two
- * accounts sharing one browser, and logging out clears the cookie, not this.
+ * WARN: Only three things may ever enter the cache — build output whose URL carries
+ * a content hash, `OFFLINE_URL`, and `OFFLINE_SHELL_URL`. Everything else in this app
+ * varies by user, and `caches` is scoped to the origin rather than the session:
+ * § 16.1. has two accounts sharing one browser, and logging out clears the cookie,
+ * not this. The mirror qualifies only because it holds no user data of its own — it
+ * is filled from IndexedDB after mount, never prerendered with a snapshot in it.
  */
 
 // WARN: A worker is served raw from `public/`, outside the bundle, so nothing here can import `@/shared/config`. This file owns the § 16.1. tag; `FALLBACK_URL` duplicates `CHAT_ROUTE` and has to move with it.
@@ -20,8 +22,27 @@ const UNREAD_COUNT_MESSAGE = "unread-count";
 // WARN: Duplicates `OFFLINE_ROUTE` in `shared/config`, for the reason above. It is also excluded from `proxy.ts`'s matcher, so the two have to move together or the fallback starts redirecting to `/login`.
 const OFFLINE_URL = "/offline";
 
+// WARN: Duplicates `OFFLINE_SHELL_ROUTE` in `shared/config`, for the reason above. Nested under `OFFLINE_URL` so it inherits the same matcher exclusion.
+const OFFLINE_SHELL_URL = "/offline/shell";
+
+// WARN: Duplicates `MIRRORED_ROUTES` in `shared/config`, for the reason above. Exact paths, never prefixes — `/settings/devices` and `/settings/emoticons` have no mirror and must reach `OFFLINE_URL` instead.
+// INFO: `/archive` is here without a screen behind it — online it redirects to the 갤러리 shelf, and offline there is no redirect to run.
+const MIRRORED_PATHS = [
+  "/chat",
+  "/calendar",
+  "/archive",
+  "/archive/gallery",
+  "/archive/files",
+  "/archive/voice",
+  "/settings",
+];
+
+// WARN: Written by `scripts/generate-offline-precache.ts` after every build, and fetched rather than `importScripts`ed — `next.config.ts` gives a `no-cache` header to `/sw.js` alone, so a second script file would go stale the way § 16.1. describes. `cache: "reload"` on the read below is what answers that instead.
+// WARN: The `offline` prefix is load-bearing, not a naming choice — it is what keeps this path out of `proxy.ts`'s matcher. Renamed, a signed-out browser is served a 307 to `/login`, whose HTML fails `.json()` and empties the list with nothing reporting it.
+const PRECACHE_MANIFEST_URL = "/offline-precache.json";
+
 // WARN: Bump on any change to what is cached or how. `activate` deletes every other version, and that is the only thing that evicts a stale `OFFLINE_URL`.
-const CACHE_NAME = "jandh-v1";
+const CACHE_NAME = "jandh-v2";
 
 // INFO: REQUIREMENTS.md § 16. Content-hashed build output — a changed file gets a new URL, so a hit can never be the previous deploy's bytes. This is what makes caching safe here at all.
 // WARN: `/icons/` is deliberately absent. `pnpm icons` regenerates `icon-192.png` and the splash set **in place**, under fixed names, so a cache-first entry would serve the old artwork on every installed client until `CACHE_NAME` moved — and nothing ties the two together.
@@ -46,7 +67,7 @@ const IS_CACHING_ENABLED = new URL(self.location.href).searchParams.get("nocache
 
 self.addEventListener("install", (event) => {
   if (IS_CACHING_ENABLED) {
-    event.waitUntil(precacheOfflinePage());
+    event.waitUntil(precache());
   }
 
   // INFO: A new build takes over on the next launch rather than the one after it.
@@ -67,14 +88,43 @@ self.addEventListener("fetch", (event) => {
 });
 
 // WARN: Per-URL and swallowed, never `cache.addAll`. A rejected `waitUntil` fails the install, an unactivated worker rejects `register()`, and § 16.1. loses the push subscription with it — reported only as the Settings toggle sitting empty.
-async function precacheOfflinePage() {
+async function precache() {
   try {
     const cache = await caches.open(CACHE_NAME);
+    const assets = await readPrecacheManifest();
 
-    await cache.add(new Request(OFFLINE_URL, { cache: "reload" }));
+    await Promise.all([
+      // WARN: `reload` on the two documents alone. Neither URL carries a content hash, so only a bypass of the HTTP cache stops a redeployed mirror being precached as the previous build's HTML.
+      ...[OFFLINE_URL, OFFLINE_SHELL_URL].map((url) =>
+        addToCache(cache, new Request(url, { cache: "reload" })),
+      ),
+      // INFO: Hashed URLs, so a plain add lets the HTTP cache answer instead of re-downloading megabytes the page being installed from has already fetched.
+      ...assets.map((url) => addToCache(cache, url)),
+    ]);
   } catch {
     // INFO: A miss here costs the offline fallback and nothing else; push must still activate.
   }
+}
+
+/**
+ * REQUIREMENTS.md § 16. The build's own `/_next/static` list, which is what lets a
+ * route the reader has never opened boot offline.
+ *
+ * WARN: `serveImmutable` caches only what has already been requested, so a mirrored screen nobody has visited has never fetched its own `page-*.js` — it would serve HTML that cannot hydrate, which for a snapshot-driven mirror is a permanently empty screen.
+ */
+async function readPrecacheManifest() {
+  try {
+    const response = await fetch(PRECACHE_MANIFEST_URL, { cache: "reload" });
+
+    return response.ok ? await response.json() : [];
+  } catch {
+    // INFO: An absent manifest costs the never-visited routes and nothing else — the documents above still precache, and `serveImmutable` still warms whatever is actually opened.
+    return [];
+  }
+}
+
+function addToCache(cache, request) {
+  return cache.add(request).catch(() => undefined);
 }
 
 /**
@@ -138,6 +188,16 @@ async function serveNavigation(request) {
   try {
     return await fetch(request);
   } catch {
+    // INFO: REQUIREMENTS.md § 16. One URL-inert document answers every mirrored path — it reads `location.pathname` after mount, so serving it here leaves the address bar on the route the reader actually asked for.
+    const mirror = isMirrored(new URL(request.url).pathname)
+      ? await caches.match(OFFLINE_SHELL_URL)
+      : undefined;
+
+    if (mirror) {
+      return mirror;
+    }
+
+    // INFO: The fallback of the fallback — an unmirrored path, or a browser whose mirror precache missed.
     const cached = await caches.match(OFFLINE_URL);
 
     // WARN: Rethrowing rather than inventing a `Response` when the precache missed — a synthetic error page here would be indistinguishable from a real one the server sent.
@@ -147,6 +207,11 @@ async function serveNavigation(request) {
 
     return cached;
   }
+}
+
+// WARN: An exact match and never a prefix test — `/settings` mirrors while `/settings/devices`, `/settings/emoticons` and `/settings/server` do not, and a prefix would hand all three a screen with no snapshot behind it.
+function isMirrored(pathname) {
+  return MIRRORED_PATHS.includes(pathname);
 }
 
 self.addEventListener("push", (event) => {

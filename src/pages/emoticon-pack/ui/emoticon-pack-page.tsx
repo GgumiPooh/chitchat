@@ -14,6 +14,7 @@ import {
 import { useMediaPicker } from "@/features/upload-media";
 import { EMOTICON_SETTINGS_ROUTE } from "@/shared/config";
 import { cn, type EmoticonItemId, type Maybe, type Nullable } from "@/shared/lib";
+import { OFFLINE_MESSAGES, OfflineStaleNotice, useOfflineGate } from "@/shared/offline-ux";
 import { ActionSheet, AppHeader, Button, EmptyState, IconButton, Modal, toast } from "@/shared/ui";
 import { josa } from "es-hangul";
 import {
@@ -73,6 +74,12 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   const router = useRouter();
   // INFO: § 13.4. 여러 장 한 번에 추가 already names what it takes, so the row opens the album picker itself rather than a second sheet with one row in it.
   const picker = useMediaPicker({ accept: "image/*", isMultiple: true, onSelect: handlePick });
+  // INFO: § 13.4. The header opens 하나씩 추가 and 여러 장 한 번에 추가 together, so one gate covers both.
+  const addGate = useOfflineGate(OFFLINE_MESSAGES.add);
+  const fillGate = useOfflineGate(OFFLINE_MESSAGES.fill);
+  const editGate = useOfflineGate(OFFLINE_MESSAGES.edit);
+  const thumbnailGate = useOfflineGate(OFFLINE_MESSAGES.wear);
+  const deleteGate = useOfflineGate(OFFLINE_MESSAGES.remove);
   const selected = items.find((item) => item.id === selectedId);
   // INFO: § 13.8. Only the items nobody has described. Suggestions never overwrite a keyword somebody typed — the model is filling gaps, not revising work.
   const untagged = items.filter((item) => item.keywords.length === 0);
@@ -98,12 +105,16 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
             haptic
             disabled={addingCount > 0 || tagging !== null}
             aria-label="이모티콘 추가"
-            onClick={() => setIsAddMenuOpen(true)}
+            {...addGate.blockedProps}
+            onClick={addGate.guard(() => setIsAddMenuOpen(true))}
           />
         }
       />
+      <div className="pt-(--app-header-inset)">
+        <OfflineStaleNotice />
+      </div>
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
-      <div className="flex-1 p-md pt-[calc(var(--app-header-inset)+var(--spacing-md))]">
+      <div className="flex-1 p-md">
         {items.length === 0 && addingCount === 0 ? (
           <EmptyState Icon={Smile} description="아직 이모티콘이 없어요" />
         ) : (
@@ -125,8 +136,9 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
                 <Button
                   variant="secondary"
                   disabled={tagging !== null}
-                  haptic
-                  onClick={() => void fillKeywords()}
+                  haptic={!fillGate.isBlocked}
+                  {...fillGate.blockedProps}
+                  onClick={fillGate.guard(() => void fillKeywords())}
                 >
                   {tagging ? (
                     // INFO: The icon carries the wait on its own, so the label never has to say 기다려 주세요 — the same swap § 8.'s message search bar makes.
@@ -173,18 +185,18 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
           {
             label: "수정",
             Icon: Pencil,
-            onSelect: () => openEditor(selected),
+            onSelect: editGate.guard(() => openEditor(selected)),
           },
           {
             label: "대표 이미지로 지정",
             Icon: Smile,
-            onSelect: () => void setThumbnail(selectedId),
+            onSelect: thumbnailGate.guard(() => void setThumbnail(selectedId)),
           },
           {
             label: "삭제",
             Icon: Trash2,
             variant: "destructive",
-            onSelect: () => void removeItem(selectedId),
+            onSelect: deleteGate.guard(() => void removeItem(selectedId)),
           },
         ]}
         onClose={() => setSelectedId(null)}

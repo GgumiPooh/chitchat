@@ -21,6 +21,7 @@ import {
   type Nullable,
   type Optional,
 } from "@/shared/lib";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { ChevronLeft, ChevronRight, Download, Share, Trash2, Wallpaper, X } from "lucide-react";
 import {
   useCallback,
@@ -260,6 +261,12 @@ export function MediaViewer({
   const isIosDevice = useIsIos();
   // WARN: REQUIREMENTS.md § 8.11. The same sheet either way, but not the same intent — on iOS this control *is* 저장, and asking for it as 공유 would word the buffering wait and the re-tap dialog for a share the user never asked for.
   const handleSheet = isIosDevice ? onSave : onShare;
+  // INFO: § 16. caches the build and `/offline` and nothing else, so every one of these four reaches for bytes or a row that is not on the device.
+  const saveGate = useOfflineGate(OFFLINE_MESSAGES.save);
+  const deleteGate = useOfflineGate(OFFLINE_MESSAGES.remove);
+  const backgroundGate = useOfflineGate(OFFLINE_MESSAGES.wear);
+  // WARN: REQUIREMENTS.md § 8.11. Worded by the same rule that picks the control — on iOS the sheet is 저장, so promising a share is promising the wrong thing.
+  const sheetGate = useOfflineGate(isIosDevice ? OFFLINE_MESSAGES.save : OFFLINE_MESSAGES.share);
   // INFO: DESIGN.md § 7.10. Null for a library row uploaded rather than sent, and for one whose message has since been withdrawn — neither has a bubble for the identity block to travel to.
   const sentMessageId = current?.messageId ?? null;
   // INFO: DESIGN.md § 7.10. When the slide was sent and where it sits, on one line under the sender — both answer "where am I", and neither earns a row of its own on a mobile shell.
@@ -565,7 +572,8 @@ export function MediaViewer({
                 Icon={Download}
                 tabIndex={isChromeVisible && downloadUrl ? undefined : -1}
                 aria-label="원본 저장"
-                onClick={() => downloadUrl && onDownload(current.id)}
+                {...saveGate.blockedProps}
+                onClick={saveGate.guard(() => downloadUrl && onDownload(current.id))}
               />
             ) : (
               // WARN: No `download` attribute — the route 302s to R2 and the spec drops it once the navigation resolves cross-origin. `toMediaDownloadUrl` signs the disposition into the object instead.
@@ -577,6 +585,16 @@ export function MediaViewer({
                 href={downloadUrl ?? undefined}
                 tabIndex={isChromeVisible && downloadUrl ? undefined : -1}
                 aria-label="원본 저장"
+                {...saveGate.blockedProps}
+                // WARN: The anchor's own activation is what has to be stopped, and `aria-disabled` suppresses nothing — left to run, the href navigates the PWA at a 302 that cannot resolve.
+                onClick={(event) => {
+                  if (!saveGate.isBlocked) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  saveGate.refuse();
+                }}
               >
                 <Download className="size-5" strokeWidth={1.75} />
               </a>
@@ -592,7 +610,8 @@ export function MediaViewer({
                   Icon={Trash2}
                   tabIndex={isChromeVisible ? undefined : -1}
                   aria-label={deletion.label}
-                  onClick={() => deletion.onSelect(current.id)}
+                  {...deleteGate.blockedProps}
+                  onClick={deleteGate.guard(() => deletion.onSelect(current.id))}
                 />
               )}
               {onSetBackground && canWearAsBackground && (
@@ -602,7 +621,8 @@ export function MediaViewer({
                   Icon={Wallpaper}
                   tabIndex={isChromeVisible ? undefined : -1}
                   aria-label="배경으로 설정"
-                  onClick={() => onSetBackground(current.id, current.isVideo)}
+                  {...backgroundGate.blockedProps}
+                  onClick={backgroundGate.guard(() => onSetBackground(current.id, current.isVideo))}
                 />
               )}
             </div>
@@ -616,7 +636,8 @@ export function MediaViewer({
               Icon={isIosDevice ? Download : Share}
               tabIndex={isChromeVisible && downloadUrl ? undefined : -1}
               aria-label={isIosDevice ? "저장/공유" : "공유"}
-              onClick={() => handleSheet(current.id)}
+              {...sheetGate.blockedProps}
+              onClick={sheetGate.guard(() => handleSheet(current.id))}
             />
           )}
         </div>
@@ -945,6 +966,8 @@ function ImageSlide({
           blurhashRatio={toCellRatio(cell)}
           // WARN: DESIGN.md § 7.8. `contain`, matching the slide's own `object-contain` — the box carries the stored ratio but `max-h-full` clamps a portrait one on a short screen, and a `cover` blur would fill the width the letterboxed photo leaves as scrim.
           blurhashFit="contain"
+          // INFO: The one surface that earns the sentence — a reader who opened a slide asked for this picture at full size, where a grid tile was only scrolled past.
+          hasOfflineNotice
           alt=""
           // INFO: DESIGN.md § 4.7.3. The name rides the ratio box, so the morph lands on a rectangle that exists before a single byte of the original has arrived — the blurhash is what fills it, and the tile the reader tapped is the same picture.
           style={{
