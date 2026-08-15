@@ -22,6 +22,9 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { EmoticonSettingsTabs, type EmoticonSettingsTab } from "./emoticon-settings-tabs";
 
+// INFO: Module scope, as `ScrollMemory`'s map — opening a pack and coming back is a client navigation, so the tab outlives it, while a reload still opens on 사용중 (REQUIREMENTS.md § 13.5.).
+let lastTab: EmoticonSettingsTab = "using";
+
 export type EmoticonSettingsPageProps = {
   className?: string;
   /** REQUIREMENTS.md § 13.5. The 사용중 tab's whole list — enabled only, which is what keeps it small enough to drag. */
@@ -40,7 +43,7 @@ export type EmoticonSettingsPageProps = {
  * delete sat one thumb-width from 이모티콘 추가 (§ 13.4.).
  */
 export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageProps) {
-  const [tab, setTab] = useState<EmoticonSettingsTab>("using");
+  const [tab, setTab] = useState(lastTab);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [known, setKnown] = useState(packs);
@@ -183,6 +186,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
 
   // INFO: § 13.5. The seed is re-read on the way back to 사용중, so a pack enabled on the other tab is in the list — and in its own remembered place, since `enabled` was written and `position` was not.
   function changeTab(next: EmoticonSettingsTab) {
+    lastTab = next;
     setTab(next);
 
     if (next === "using" && hasStaleSeedRef.current) {

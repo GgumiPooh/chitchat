@@ -18,6 +18,9 @@ import { EMOTICON_PACK_ROW_HEIGHT } from "../model/pack-row-height";
 import { usePackBrowse } from "../model/use-pack-browse";
 import { EmoticonPackSearchRow } from "./emoticon-pack-search-row";
 
+// INFO: Module scope, as the tab this list is on — a word left in the field has to come back with it, or `ScrollMemory` restores an offset into a list the query no longer produces.
+let lastQuery = "";
+
 export type EmoticonPackBrowserProps = {
   className?: string;
   onOpenPack: (packId: EmoticonPackId) => void;
@@ -42,7 +45,7 @@ export function EmoticonPackBrowser({
   // WARN: Explicit, and it is not the bailout `useVirtualizer` gets for free. The React Compiler's list is keyed on that one name, and `useWindowVirtualizer` is not on it — compiled, this component memoizes `getVirtualItems` and stops re-windowing as the reader scrolls. `ArchiveGrid` carries the same line for the same reason.
   "use no memo";
 
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(lastQuery);
   const { packs, isPending, isLoadingMore, hasFailed, loadMore, toggle } = usePackBrowse(
     query,
     onEnabledChange,
@@ -121,13 +124,18 @@ export function EmoticonPackBrowser({
             value={query}
             placeholder="이모티콘 묶음 이름 검색"
             aria-label="이모티콘 묶음 이름 검색"
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => rememberQuery(event.target.value)}
           />
         </div>
       </div>
       {renderList()}
     </div>
   );
+
+  function rememberQuery(next: string) {
+    lastQuery = next;
+    setQuery(next);
+  }
 
   function renderList() {
     // WARN: The sentinel is deliberately absent from this branch. The skeleton is a screen's worth of rows at most, so one mounted alongside it is in view on every open and spends a page request before the first real row is drawn.
