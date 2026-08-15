@@ -56,6 +56,8 @@ export function usePinchZoom() {
   const hasMovedRef = useRef(false);
   // WARN: Movement is tracked at every scale, not only while panning. At rest the finger is swiping the track, and two quick swipes land inside the double-tap window — untracked, they read as a double tap and zoom the slide the reader was leaving.
   const startPointRef = useRef<Nullable<Point>>(null);
+  // WARN: `mousedown` cannot tell a mouse from iOS's compatibility event, and § 8.11. turns on that difference. `pointerdown` runs first and carries it.
+  const pointerTypeRef = useRef("");
   const elementRef = useRef<Nullable<HTMLElement>>(null);
   const wheelSettleRef = useRef<Nullable<ReturnType<typeof setTimeout>>>(null);
 
@@ -192,6 +194,7 @@ export function usePinchZoom() {
       style: { touchAction: isZoomed || isGesturing ? ("none" as const) : ("pan-x" as const) },
       onPointerDown: (event: PointerEvent<HTMLElement>) => {
         elementRef.current = event.currentTarget;
+        pointerTypeRef.current = event.pointerType;
 
         const pointers = pointersRef.current;
 
@@ -289,13 +292,18 @@ export function usePinchZoom() {
       },
 
       /**
-       * Keeps the double **click** from selecting the photo it zooms.
+       * Keeps the double **click**, and a mouse pan, from selecting the photo they move.
        *
        * WARN: `detail > 1` is the second click of the pair and nothing else — that is the one the browser extends a selection from, so the first click keeps every default it has, focus included.
+       * WARN: A mouse pan is the first click, so it is admitted on the zoom instead. Selection and the `<img>`'s native drag are both `mousedown` defaults, and a pointer-event pan does nothing to stop either.
+       * WARN: The primary button only. A cancelled right button takes desktop's own 이미지를 다른 이름으로 저장 away, which is the § 8.11. route this surface exists to leave alone; a cancelled middle one takes Windows autoscroll.
        * WARN: Never `user-select: none`, and never `draggable={false}` (REQUIREMENTS.md § 8.11.). This is the one surface in the app that leaves the OS its own hold gesture, and iOS governs that menu off the same family of properties — suppressing the selection declaratively is how the 사진에 저장 route disappears on a change that looks purely cosmetic.
        */
       onMouseDown: (event: MouseEvent<HTMLElement>) => {
-        if (event.detail > 1) {
+        if (
+          event.detail > 1 ||
+          (isZoomed && event.button === 0 && pointerTypeRef.current === "mouse")
+        ) {
           event.preventDefault();
         }
       },
