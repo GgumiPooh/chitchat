@@ -213,12 +213,33 @@ export const KEYWORD_SUGGESTION_CONCURRENCY =
  * and a long cache can never serve the wrong bytes — a `media` URL has no such
  * version and stays on the short window.
  *
- * WARN: Seven days is SigV4's ceiling; the cache MUST stay under it, or the browser
- * replays a cached redirect to a signature R2 has stopped honouring (§ 9.).
+ * WARN: Seven days is SigV4's ceiling and cannot be raised; `EMOTICON_SIGNING_BUCKET`
+ * and `EMOTICON_CACHE_MAX_AGE` are both spent out of it, and their sum MUST stay under
+ * it — or the browser replays a cached redirect to a signature R2 has stopped honouring (§ 9.).
  */
 export const EMOTICON_URL_EXPIRY = 7 * A_DAY;
 
-export const EMOTICON_CACHE_MAX_AGE = 6 * A_DAY;
+/**
+ * The grid an emoticon's presigned GET is signed against, so that every request
+ * inside one window is answered with the **byte-identical** URL.
+ *
+ * WARN: REQUIREMENTS.md § 13.3. Without this the signature carries the wall clock,
+ * so two requests a second apart address the same object at two different URLs — and
+ * the browser's cache is keyed by URL, so a redirect that expires costs the whole
+ * object again even though those bytes are already held under the previous one.
+ *
+ * WARN: This window and `EMOTICON_CACHE_MAX_AGE` are drawn from the same seven days
+ * and MUST stay under it together. A request arriving at the very end of a window is
+ * handed a URL already `EMOTICON_SIGNING_BUCKET` into its life.
+ */
+export const EMOTICON_SIGNING_BUCKET = 5 * A_DAY;
+
+/**
+ * WARN: § 13.3. Shorter than `EMOTICON_SIGNING_BUCKET` on purpose, and it is what
+ * makes the window above free rather than merely long: a browser that re-asks inside
+ * the window is handed the same URL, so it pays one 302 and keeps the bytes.
+ */
+export const EMOTICON_CACHE_MAX_AGE = A_DAY;
 
 /**
  * The finished restructure. How long a redirect for a **still** that was answered by the

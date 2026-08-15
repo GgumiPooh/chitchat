@@ -55,6 +55,8 @@ export type PresignDownloadOptions = {
   expiry?: number;
   /** INFO: REQUIREMENTS.md § 13.3. What R2 answers the bytes with, for objects it stores no `Cache-Control` of its own for — which is all of them. */
   cacheControl?: string;
+  /** INFO: REQUIREMENTS.md § 13.3. Rounds the signing time down to this grid, so every request inside one window gets the same URL back; `EMOTICON_SIGNING_BUCKET` is the only caller. */
+  signingBucket?: number;
 };
 
 /**
@@ -70,10 +72,20 @@ export type PresignDownloadOptions = {
  *
  * WARN: `cacheControl` is signed here rather than stored on the object at upload,
  * and it is the only way to set one that costs the browser nothing (§ 13.3.).
+ *
+ * WARN: `signingBucket` shortens the URL's life by its own size, since the signature
+ * is dated to the start of the window rather than to now. Whatever `Cache-Control`
+ * the caller puts on the 302 has to clear `expiry - signingBucket`, not `expiry`.
  */
 export function presignDownload(
   key: string,
-  { asAttachment, filename, expiry = MEDIA_URL_EXPIRY, cacheControl }: PresignDownloadOptions = {},
+  {
+    asAttachment,
+    filename,
+    expiry = MEDIA_URL_EXPIRY,
+    cacheControl,
+    signingBucket,
+  }: PresignDownloadOptions = {},
 ): Promise<string> {
   return getSignedUrl(
     getR2(),
@@ -83,8 +95,13 @@ export function presignDownload(
       ResponseContentDisposition: asAttachment ? toDisposition(filename) : undefined,
       ResponseCacheControl: cacheControl,
     }),
-    { expiresIn: expiry / A_SECOND },
+    { expiresIn: expiry / A_SECOND, signingDate: toBucketStart(signingBucket) },
   );
+}
+
+// INFO: REQUIREMENTS.md § 13.3. `undefined` leaves the SDK on `new Date()`, which is every caller that has not asked for a stable URL.
+function toBucketStart(bucket: Maybe<number>): Optional<Date> {
+  return bucket ? new Date(Math.floor(Date.now() / bucket) * bucket) : undefined;
 }
 
 /**

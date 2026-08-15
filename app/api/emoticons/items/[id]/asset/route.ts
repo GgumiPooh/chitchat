@@ -5,6 +5,7 @@ import {
   EMOTICON_ASSET_CACHE_CONTROL,
   EMOTICON_CACHE_MAX_AGE,
   EMOTICON_FALLBACK_CACHE_MAX_AGE,
+  EMOTICON_SIGNING_BUCKET,
   EMOTICON_SLOTS,
   EMOTICON_URL_EXPIRY,
   snowflakeSchema,
@@ -57,9 +58,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   }
 
   // WARN: § 13.3. The `Cache-Control` on the *bytes* is signed into this URL, not stored on the object — R2 holds none, and a browser cannot put one on the upload.
+  // WARN: § 13.3. `signingBucket` is what makes a redirect miss cost a 302 and nothing else — re-signed at the wall clock, the same object comes back under a new URL and the browser re-downloads bytes it already holds.
   const url = await presignDownload(asset.key, {
     expiry: EMOTICON_URL_EXPIRY,
     cacheControl: EMOTICON_ASSET_CACHE_CONTROL,
+    signingBucket: EMOTICON_SIGNING_BUCKET,
   });
 
   // WARN: Days are earned by `v` addressing one immutable version of the slot that was asked for, and `isFallback` is the narrow case where that is not what answered — an item with **no still**, drawn with its animation until an author gives it one. A missing animation is not that case and does not come here: a static emoticon is finished, so `toSlotAsset` leaves it on the full window.
