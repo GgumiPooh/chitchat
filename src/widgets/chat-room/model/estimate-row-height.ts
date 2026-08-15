@@ -34,7 +34,7 @@ const LINE = {
   quoteSummary: () => measureLineHeight("text-chat-name leading-snug", 12 * 1.375),
 };
 
-/** Every class `LINE` reads, for the room to hand `warmLineHeights` from a layout effect. */
+/** Every class `LINE` reads, for the room to hand `warmLineHeights` as it takes its scroller. */
 export const ROW_LINE_CLASSES = [
   "text-chat-body",
   "text-chat-name",

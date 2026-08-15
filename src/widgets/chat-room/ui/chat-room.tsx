@@ -250,6 +250,9 @@ export function ChatRoom({
   const [scroller, setScroller] = useState<Nullable<HTMLDivElement>>(null);
   // INFO: REQUIREMENTS.md § 8.3. The width every unmeasured row is wrapped against. It has to be state and not a `clientWidth` read at estimate time — a rotation changes it for thousands of offscreen rows at once, and nothing else in this component would notice.
   const [scrollerWidth, setScrollerWidth] = useState<Optional<number>>(undefined);
+  // INFO: REQUIREMENTS.md § 8.3. Whether the rows may be painted. False until the park below has answered the first real measurements, so the estimate→actual correction is not a jump the reader watches.
+  // WARN: Open from the start for a room that loaded empty. There is no window to park and nothing to correct, and the scroller only mounts when the first message lands — gating on it would hold that one arrival back for two frames, on the § 8.12. screen where an arrival is the whole event.
+  const [hasSettledFirstPark, setHasSettledFirstPark] = useState(initialMessages.length === 0);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isAtBottomRef = useRef(true);
   const [isAtTop, setIsAtTop] = useState(true);
@@ -570,6 +573,23 @@ export function ChatRoom({
   );
 
   /**
+   * REQUIREMENTS.md § 8.3. Takes the scroller, and with it the two DOM reads the row
+   * estimate needs before it wraps a single row.
+   *
+   * WARN: The width and the line heights are published from here rather than from a layout effect, and it is the difference between a first estimate against the real column and one against `DEFAULT_CONTENT_WIDTH`. A ref runs in the same commit as the `setScroller` beside it, so the render that first draws rows already has both — an effect is a commit later, which is a whole re-estimate of every unmeasured row and a re-park behind it.
+   * WARN: `useCallback` with no dependencies, and that is what makes the read affordable. React detaches and re-attaches a ref whose identity changed, so a function declared per render would take `clientWidth` — a forced synchronous layout — in the commit of *every* render, and the virtualizer renders this room on each scroll frame.
+   */
+  const captureScroller = useCallback((element: Nullable<HTMLDivElement>) => {
+    scrollerRef.current = element;
+    setScroller(element);
+
+    if (element) {
+      warmLineHeights(ROW_LINE_CLASSES);
+      setScrollerWidth(element.clientWidth);
+    }
+  }, []);
+
+  /**
    * REQUIREMENTS.md § 8.3. The newest message parked directly above the composer,
    * which is what every follow in this room means by "the bottom".
    *
@@ -794,6 +814,25 @@ export function ChatRoom({
   });
 
   /**
+   * REQUIREMENTS.md § 8.3. Releases the rows once the park above has run against real
+   * heights rather than estimates.
+   *
+   * WARN: Two frames, not one. The rows are deliberately not measured in React's commit (see `measureElement`), and WebKit delivers the `ResizeObserver` that does measure them *after* this frame's paint — so the correction, and the re-park that follows it, land during the second.
+   * WARN: A timer and never a measurement signal. Every candidate — `itemSizeCache`, a stable total size — is either already true before the first delivery or needs a commit that may never come, and a gate that waits for one it does not get leaves the room blank. Nothing here can fail to fire.
+   */
+  useEffect(() => {
+    if (!scroller) {
+      return;
+    }
+
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => setHasSettledFirstPark(true));
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [scroller]);
+
+  /**
    * REQUIREMENTS.md § 8.3. Puts the reader back on the row `insertOlder` wrote down,
    * now that the page is in front of it.
    *
@@ -850,10 +889,6 @@ export function ChatRoom({
     if (!scroller) {
       return;
     }
-
-    // INFO: REQUIREMENTS.md § 8.3. Here rather than from the estimate itself, so the probe's reflow never lands in a render pass.
-    warmLineHeights(ROW_LINE_CLASSES);
-    setScrollerWidth(scroller.clientWidth);
 
     const observer = new ResizeObserver(() => setScrollerWidth(scroller.clientWidth));
 
@@ -1073,9 +1108,10 @@ export function ChatRoom({
               <ListHeader isLoadingOlder={isLoadingOlder} />
               {/* INFO: `getTotalSize()` already nets off `scrollMargin`, so this is the rows' own height and the header above it is not counted twice. The row offsets do not — hence the subtraction on each `translateY` below. */}
               {/* WARN: Left off until the scroller exists, which is the one thing here the server cannot agree on. The estimate this resolves to is measured off the page (`measureLineHeight`), so the server computes it from literals and the browser from real layout — rendering that difference into an attribute is a hydration mismatch. No scroller also means no rows, so there is nothing for a height to hold up yet. */}
+              {/* WARN: REQUIREMENTS.md § 8.3. `invisible` and never `hidden`. The heights this is waiting for are delivered by a `ResizeObserver`, which reports nothing for a box that was taken out of layout — `display: none` is a gate holding itself shut. */}
               <div
                 ref={contentRef}
-                className="relative w-full"
+                className={cn("relative w-full", !hasSettledFirstPark && "invisible")}
                 style={{ height: scroller ? virtualizer.getTotalSize() : undefined }}
               >
                 {virtualizer.getVirtualItems().map((item) => (
@@ -1675,11 +1711,6 @@ export function ChatRoom({
     if (isAtBottomRef.current) {
       pinToBottom();
     }
-  }
-
-  function captureScroller(element: Nullable<HTMLDivElement>) {
-    scrollerRef.current = element;
-    setScroller(element);
   }
 
   /**
