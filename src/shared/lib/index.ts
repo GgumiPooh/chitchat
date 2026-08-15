@@ -138,6 +138,7 @@ export {
   type CommandKeyLabel,
 } from "./input/keyboard";
 export type { Maybe, Nullable, Optional } from "./nullish";
+export { runWhenIdle } from "./run/idle";
 export { mapPooled, type PoolOptions } from "./run/pool";
 export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./run/safely";
 export { measureLineHeight, warmLineHeights } from "./text/line-height";

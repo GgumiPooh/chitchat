@@ -43,12 +43,14 @@ import {
   type MessageArrival,
 } from "@/shared/config";
 import {
+  A_SECOND,
   GESTURE_SLOP,
   buildFadeMask,
   cn,
   compareId,
   composeEventNotice,
   isDormant,
+  runWhenIdle,
   startMediaMorph,
   stopVoice,
   subscribeDormancy,
@@ -187,6 +189,9 @@ export type ChatRoomProps = {
   bottomBar?: ReactNode;
 };
 
+// INFO: § 13.6. The ceiling the emoticon panel's mount is given, matching the warm's own — the two are the same idle frame and a panel that mounted first would build its cells against an empty cache.
+const PANEL_MOUNT_IDLE_DELAY = 2 * A_SECOND;
+
 // INFO: DESIGN.md § 6.7. The pill appears once the newest message is roughly this far away, and the same distance is what `scrollEndThreshold` treats as near enough to the end that a row re-measuring there should hold the end still rather than let it drift.
 const AT_BOTTOM_THRESHOLD = 200;
 
@@ -268,10 +273,15 @@ export function ChatRoom({
   const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
   const { remember: rememberEmoticon } = useRecentEmoticons();
   const setBackground = useSetBackground();
-  // INFO: REQUIREMENTS.md § 13.6. The panel's list and images are warmed from here, because the panel itself does not exist until the tap this exists to make cheap.
+  // INFO: REQUIREMENTS.md § 13.6. The panel's list and images are warmed from here, since the tap this exists to make cheap can come before the panel has drawn anything.
   useEmoticonPreload();
-  // INFO: The panel outlives its first open so the collapse has something to animate; until then it is not rendered at all.
-  const [hasOpenedEmoticonPanel, setHasOpenedEmoticonPanel] = useState(false);
+  /**
+   * Whether the panel is in the document at all. One-way, and true well before the
+   * first open (REQUIREMENTS.md § 13.6.).
+   *
+   * WARN: Mounted on an idle frame rather than on the tap, so the tap costs no mount of forty cells — and rather than at render, or § 8.3.'s first screenful of bubbles is measured against a grid mounting beside it.
+   */
+  const [hasMountedEmoticonPanel, setHasMountedEmoticonPanel] = useState(false);
   // INFO: REQUIREMENTS.md § 13.6. Staged rather than sent on selection, so it can be sent with a line of text the way an attachment can.
   const [stagedEmoticon, setStagedEmoticon] = useState<Nullable<Emoticon>>(null);
   // INFO: REQUIREMENTS.md § 13.8. A word tapped in the composer, handed to the picker's search tab.
@@ -517,8 +527,9 @@ export function ChatRoom({
     return instance.itemSizeCache.has(item.key) ? item.end <= fold : item.start < fold;
   };
 
-  if (isEmoticonPanelOpen && !hasOpenedEmoticonPanel) {
-    setHasOpenedEmoticonPanel(true);
+  // INFO: The idle mount below is the ordinary path; this is the tap that beats it there.
+  if (isEmoticonPanelOpen && !hasMountedEmoticonPanel) {
+    setHasMountedEmoticonPanel(true);
   }
 
   // INFO: My own send is not a new message to me — counting it flashes `새 메시지 1` on the pill for my own bubble.
@@ -573,6 +584,9 @@ export function ChatRoom({
   }, []);
 
   useComposerClearance({ containerRef, composerRef, scrollerRef, isAtBottomRef });
+
+  // INFO: § 13.6. The same idle frame `useEmoticonPreload` warms on, so the panel is built out of a cache that is filling rather than ahead of it.
+  useEffect(() => runWhenIdle(() => setHasMountedEmoticonPanel(true), PANEL_MOUNT_IDLE_DELAY), []);
 
   /**
    * REQUIREMENTS.md § 8.12. Holds the reader at the bottom while the 입력 중 slot
@@ -1166,7 +1180,7 @@ export function ChatRoom({
               inert={!isEmoticonPanelOpen}
               onTransitionEnd={settleAfterPanelTransition}
             >
-              {hasOpenedEmoticonPanel && (
+              {hasMountedEmoticonPanel && (
                 // INFO: § 13.6. `mt-xs` matches the composer's own top padding, so the panel clears the history by what the bar alone clears it by. The height above is this panel plus both margins.
                 // WARN: `shrink-0` or the collapsing strip compresses the panel instead of clipping it, and § 13.6.'s own `flex-1` scroller is what gives — the panel then reads as stretching open rather than rising.
                 // INFO: § 13.6. Promoted to its own layer so the strip's growing clip is a compositor crop — unpromoted, every frame of the 200ms repaints a grid of animated images against a moving clip rect, which is what the open stutters on.
@@ -1428,7 +1442,7 @@ export function ChatRoom({
   /**
    * WARN: REQUIREMENTS.md § 13.8. Closing the panel is what releases the search, and
    * every route out of it has to come through here. The picker never unmounts
-   * (`hasOpenedEmoticonPanel` is one-way), so a request left standing keeps it forced
+   * (`hasMountedEmoticonPanel` is one-way), so a request left standing keeps it forced
    * onto the search tab — which reopens on a finished search and, worse, latches the
    * § 13.6. keyboard exemption on for good.
    */

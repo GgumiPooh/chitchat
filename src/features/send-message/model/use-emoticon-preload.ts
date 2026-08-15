@@ -2,7 +2,7 @@
 
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { A_MINUTE, A_SECOND, mapPooled, type Nullable } from "@/shared/lib";
+import { A_MINUTE, A_SECOND, mapPooled, runWhenIdle } from "@/shared/lib";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { useStorageState } from "synced-storage/react";
@@ -56,26 +56,11 @@ export function useEmoticonPreload(): void {
 
   useEffect(() => {
     let isCancelled = false;
-    let idleHandle: Nullable<number> = null;
-    let timeoutHandle: Nullable<ReturnType<typeof setTimeout>> = null;
-    const start = () => void warmOpeningTab();
-
-    if (typeof window.requestIdleCallback === "function") {
-      idleHandle = window.requestIdleCallback(start, { timeout: PRELOAD_IDLE_DELAY });
-    } else {
-      timeoutHandle = setTimeout(start, PRELOAD_IDLE_DELAY);
-    }
+    const cancelIdle = runWhenIdle(() => void warmOpeningTab(), PRELOAD_IDLE_DELAY);
 
     return () => {
       isCancelled = true;
-
-      if (idleHandle !== null) {
-        window.cancelIdleCallback(idleHandle);
-      }
-
-      if (timeoutHandle !== null) {
-        clearTimeout(timeoutHandle);
-      }
+      cancelIdle();
     };
 
     async function warmOpeningTab() {
@@ -138,15 +123,44 @@ export function useEmoticonPreload(): void {
  * fetches the page itself as an image, which is the trap `stopSound` documents.
  *
  * WARN: `fetchPriority` is what actually keeps this behind the conversation. The whole app is one HTTP/2 connection, so a narrow pool only limits how many requests are outstanding — it does not put the room's own images in front of them. An out-of-DOM `new Image()` is dispatched at default priority without this.
+ *
+ * WARN: The loaded element is **held**, and dropping it is what left the panel opening on skeletons — a released `Image` takes the resource out of the memory cache with it, so a warm the network never repeated still cost the cell a disk read and a decode, both asynchronous and both after `PreloadImage` had already committed its placeholder.
  */
 function warmImage(url: string): Promise<void> {
+  if (warmedImages.has(url)) {
+    return Promise.resolve();
+  }
+
   return new Promise((resolve) => {
     const image = new Image();
 
-    image.onload = () => resolve();
+    image.onload = () => {
+      retainWarmedImage(url, image);
+      resolve();
+    };
     image.onerror = () => resolve();
     image.decoding = "async";
     image.fetchPriority = "low";
     image.src = url;
   });
+}
+
+// INFO: § 13.6. Two tabs' worth, so walking to a pack and back does not evict the one the panel will reopen on.
+const MAX_WARMED_IMAGES = 2 * MAX_PRELOADED_EMOTICONS;
+
+const warmedImages = new Map<string, HTMLImageElement>();
+
+// WARN: Eviction is insertion order, which is the oldest warm only because `warmImage` returns early on a URL already held — re-inserting one would move it to the end and evict a tab still in use instead.
+function retainWarmedImage(url: string, image: HTMLImageElement): void {
+  warmedImages.set(url, image);
+
+  while (warmedImages.size > MAX_WARMED_IMAGES) {
+    const oldest = warmedImages.keys().next().value;
+
+    if (oldest === undefined) {
+      return;
+    }
+
+    warmedImages.delete(oldest);
+  }
 }
