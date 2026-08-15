@@ -74,6 +74,9 @@ const PACKS_MOUNT_STALE_TIME = 5 * A_MINUTE;
  */
 const EAGER_CELL_COUNT = 5 * EMOTICON_GRID_COLUMNS;
 
+// INFO: § 13.6. `EAGER_CELL_COUNT`'s argument for the strip, which is one row: a tab is about 48px against a shell of at most 448, so this is what fits on screen with one to spare.
+const EAGER_TAB_COUNT = 9;
+
 // INFO: § 13.9.1. One sentence for the two places a failed search is said — an empty pane, and the caption under a § 13.9. row that holds the tapped item and nothing the words found.
 const SEARCH_FAILED_MESSAGE = "검색하지 못했어요";
 
@@ -384,9 +387,20 @@ export function EmoticonPicker({
   const shown = toShownItems();
   const tabIds = [SEARCH_TAB, RECENTS_TAB, ...visiblePacks.map((pack) => pack.id)];
   const activeIndex = tabIds.indexOf(activeTab);
+  const tabThumbnailUrls = visiblePacks.flatMap((pack) =>
+    pack.thumbnailItemId
+      ? [
+          toEmoticonAssetUrl(
+            pack.thumbnailItemId,
+            "still-image",
+            pack.thumbnailVersion ?? undefined,
+          ),
+        ]
+      : [],
+  );
 
   // INFO: § 13.6. The room's warm covers the tab that opens and no further, so the tabs around it are heated from here, outward.
-  useOutwardTabWarm({ isOpen, activeTab, tabIds, recents });
+  useOutwardTabWarm({ isOpen, activeTab, tabIds, recents, tabThumbnailUrls });
   // WARN: § 13.5. The open is what re-asks for the list, since the mount stopped being the tap (see the query above). Rising edge only — every render while open would re-ask on each one.
   useEffect(() => {
     if (isOpen) {
@@ -603,8 +617,10 @@ export function EmoticonPicker({
                 imgClassName="size-full object-contain"
                 placeholderClassName="rounded-sm"
                 alt=""
-                // WARN: § 13.3. Each of these is a session check, a row read and a presign, and the strip scrolls — without this every pack in the library spends one on the frame the panel first opens.
-                loading="lazy"
+                // INFO: § 13.6. Warmed and decoded before the panel opens, so the head of the strip is drawn rather than plated.
+                hasDeferredSkeleton
+                // WARN: § 13.3. Each of these is a session check, a row read and a presign, and the strip scrolls — past what fits on screen, every pack in the library would spend one on the frame the panel first opens.
+                loading={index < EAGER_TAB_COUNT ? "eager" : "lazy"}
                 src={toEmoticonAssetUrl(
                   pack.thumbnailItemId,
                   "still-image",

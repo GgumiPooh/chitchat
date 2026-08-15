@@ -24,33 +24,3 @@ export function isEditableElement(target: EventTarget | null): boolean {
   const tag = target.tagName;
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
 }
-
-/**
- * Whether the connection is known to be one the reader pays for by the megabyte.
- *
- * WARN: REQUIREMENTS.md § 13.6. **Three-valued, collapsed to false when unknown.** The
- * Network Information API is Chromium's alone — iOS Safari exposes no `connection`, so
- * this cannot answer there and must not guess. Every caller therefore reads it as "hold
- * back a background cost when we can see a reason to", never as a guarantee.
- *
- * INFO: `saveData` and a slow `effectiveType` count as well as `type`. `type` is the only one that names the radio, and it is also the least widely populated of the three.
- */
-export function isMeteredConnection(): boolean {
-  if (!isBrowser()) {
-    return false;
-  }
-
-  const connection = navigator.connection;
-
-  if (!connection) {
-    return false;
-  }
-  if (connection.saveData === true) {
-    return true;
-  }
-  if (connection.type) {
-    return connection.type === "cellular" || connection.type === "wimax";
-  }
-
-  return connection.effectiveType !== undefined && connection.effectiveType !== "4g";
-}

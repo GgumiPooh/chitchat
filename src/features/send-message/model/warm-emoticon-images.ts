@@ -9,10 +9,24 @@ import { mapPooled } from "@/shared/lib";
 const WARM_CONCURRENCY = 4;
 
 // INFO: § 13.6. The warm covers a tab rather than the library, so this is a guard against an unusually large pack — a hand-authored pack is a few dozen items and never reaches it. Past it a cell is loaded by being scrolled to, which is what every cell did before the warm existed.
-export const MAX_WARMED_PER_TAB = 120;
+const MAX_WARMED_PER_TAB = 120;
 
-// INFO: § 13.6. Three tabs' worth: the open one and the two a swipe reaches, which is exactly what is warmed.
-const MAX_WARMED_IMAGES = 3 * MAX_WARMED_PER_TAB;
+/**
+ * How far out a warmed tab is **decoded** as well as fetched.
+ *
+ * WARN: § 13.6. Decoding is what makes a warmed tab behave like one the reader has already seen, and it is also the expensive half — a decoded still is its pixels, roughly 700KB at `EMOTICON_MAX_EDGE`, against 17KB of PNG. At two either way that is five tabs, some 130 pictures; the whole walk (`MAX_WARM_DISTANCE`) would be an order of magnitude more, inside an iOS tab already carrying the conversation's media.
+ * INFO: Two is what a swipe reaches without waiting. Past it a tab is bytes in the cache, which is a disk read rather than a round trip — the case the deferred skeleton covers.
+ */
+export const MAX_DECODED_DISTANCE = 2;
+
+/**
+ * WARN: § 13.6. The decoded working set and not the walk, which reaches fifteen tabs
+ * either way. Eviction drops the element, and with it the decode that was paid for —
+ * so anything below the five tabs `MAX_DECODED_DISTANCE` decodes would spend that work
+ * and then throw it away. The far end of the walk is bytes in the browser's own cache,
+ * which no map of ours has to hold.
+ */
+const MAX_WARMED_IMAGES = (2 * MAX_DECODED_DISTANCE + 1) * MAX_WARMED_PER_TAB;
 
 const warmedImages = new Map<string, HTMLImageElement>();
 
@@ -47,6 +61,21 @@ export function warmEmoticonImages(
     .slice(0, MAX_WARMED_PER_TAB)
     .map((item) => toEmoticonAssetUrl(item.id, "still-image", item.version));
 
+  return warmEmoticonUrls(urls, isCancelled, decodes);
+}
+
+/**
+ * REQUIREMENTS.md § 13.6. The same warm for a list of URLs that are not one tab's
+ * items — the strip's own pack thumbnails, which are `still-image` assets like any
+ * other and were the one row nothing warmed.
+ *
+ * WARN: Uncapped, deliberately, where `warmEmoticonImages` slices. The strip is one row of one asset per pack, so the caller's own list is already the bound; slicing it at a tab's cap would leave the packs past that drawing from cold.
+ */
+export function warmEmoticonUrls(
+  urls: string[],
+  isCancelled: () => boolean,
+  decodes = false,
+): Promise<void> {
   return mapPooled(urls, (url) => (isCancelled() ? Promise.resolve() : warmImage(url, decodes)), {
     limit: WARM_CONCURRENCY,
   }).then(() => undefined);

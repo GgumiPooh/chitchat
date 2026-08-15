@@ -69,12 +69,7 @@ export {
   toTimeField,
   toWeekday,
 } from "./date/time";
-export {
-  hasDataTransferFiles,
-  isBrowser,
-  isEditableElement,
-  isMeteredConnection,
-} from "./dom/environment";
+export { hasDataTransferFiles, isBrowser, isEditableElement } from "./dom/environment";
 export {
   MEDIA_MORPH_NAME,
   MEDIA_VIEWER_NAME,

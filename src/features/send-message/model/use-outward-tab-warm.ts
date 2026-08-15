@@ -1,12 +1,12 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
-import { A_SECOND, isMeteredConnection, runWhenIdle } from "@/shared/lib";
+import { A_SECOND, runWhenIdle } from "@/shared/lib";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { RECENTS_TAB, isPackTabId } from "./emoticon-tabs";
 import { toEmoticonPackItemsQuery } from "./pack-items-query";
-import { warmEmoticonImages } from "./warm-emoticon-images";
+import { MAX_DECODED_DISTANCE, warmEmoticonImages, warmEmoticonUrls } from "./warm-emoticon-images";
 
 // INFO: § 13.6. Far shorter than the room's own warm, because this starts from a tap rather than from a screen loading — what it is waiting out is the panel's 200ms open, not a first paint.
 const OUTWARD_WARM_IDLE_DELAY = A_SECOND;
@@ -20,17 +20,6 @@ const OUTWARD_WARM_IDLE_DELAY = A_SECOND;
  */
 const MAX_WARM_DISTANCE = 15;
 
-// WARN: § 13.6. Half the walk where the reader is paying by the megabyte, and only where that can be *seen* — `isMeteredConnection` answers false on iOS, which has no such API, so this narrows the cost where it can and never withholds the warm on a guess.
-const METERED_WARM_DISTANCE = MAX_WARM_DISTANCE / 2;
-
-/**
- * How far out a warmed tab is **decoded** as well as fetched.
- *
- * WARN: § 13.6. Decoding is what makes a warmed tab behave like one the reader has already seen, and it is also the expensive half — a decoded still is its pixels, roughly 700KB at `EMOTICON_MAX_EDGE`, against 17KB of PNG. At two either way that is five tabs, some 130 pictures; the whole fifteen-tab walk would be an order of magnitude more, inside an iOS tab already carrying the conversation's media.
- * INFO: Two is what a swipe reaches without waiting. Past it a tab is bytes in the cache, which is a disk read rather than a round trip — the case the deferred skeleton covers.
- */
-const MAX_DECODED_DISTANCE = 2;
-
 export type OutwardTabWarmOptions = {
   /** WARN: The warm runs from the **open**, never from the room. A user who does not reach for emoticons pays nothing for the tabs beside the one they would have landed on. */
   isOpen: boolean;
@@ -39,6 +28,8 @@ export type OutwardTabWarmOptions = {
   tabIds: string[];
   /** REQUIREMENTS.md § 13.6. 최근 사용's items, which the panel already holds — the tab is ids alone and has no list of its own to fetch. */
   recents: Emoticon[];
+  /** § 13.6. The strip's own thumbnails, one per pack. Warmed before the walk, since the whole row is on screen from the moment the panel is. */
+  tabThumbnailUrls: string[];
 };
 
 /**
@@ -53,6 +44,7 @@ export function useOutwardTabWarm({
   activeTab,
   tabIds,
   recents,
+  tabThumbnailUrls,
 }: OutwardTabWarmOptions): void {
   const queryClient = useQueryClient();
   // WARN: A ref rather than a dependency: `recents` is a fresh array on every render, so listing it would re-schedule the warm on each one.
@@ -65,6 +57,8 @@ export function useOutwardTabWarm({
   const activeIndex = tabIds.indexOf(activeTab);
   // INFO: A dependency the array identity cannot break, since `tabIds` is rebuilt every render.
   const tabKey = tabIds.join();
+  // INFO: A dependency the array identity cannot break, as `tabKey` is.
+  const thumbnailKey = tabThumbnailUrls.join();
   // WARN: A dependency because 최근 사용 has no request of its own to wait on here — read once from the ref a second after the open, an unresolved list warms nothing and nothing would ever ask again.
   const recentsCount = recents.length;
 
@@ -87,10 +81,10 @@ export function useOutwardTabWarm({
      */
     async function warmOutward() {
       const tabs = tabKey.split(",");
-      // INFO: Read at the walk's start rather than per tab — a radio that changes mid-walk re-centres soon enough, and a distance that moved underneath the loop is a walk with no bound anyone can state.
-      const maxDistance = isMeteredConnection() ? METERED_WARM_DISTANCE : MAX_WARM_DISTANCE;
 
-      for (let distance = 0; distance <= maxDistance; distance++) {
+      // INFO: § 13.6. Before the walk and decoded, because the whole strip is on screen for as long as the panel is — a thumbnail arriving late is a row of empty plates under the reader's thumb, where a cold *tab* is at least a place they have not gone yet.
+      await warmEmoticonUrls(thumbnailKey ? thumbnailKey.split(",") : [], () => isCancelled, true);
+      for (let distance = 0; distance <= MAX_WARM_DISTANCE; distance++) {
         for (const tab of toTabsAtDistance(tabs, distance)) {
           if (isCancelled) {
             return;
@@ -126,5 +120,5 @@ export function useOutwardTabWarm({
 
       return queryClient.fetchQuery(toEmoticonPackItemsQuery(tab)).catch(() => []);
     }
-  }, [activeIndex, isOpen, queryClient, recentsCount, tabKey]);
+  }, [activeIndex, isOpen, queryClient, recentsCount, tabKey, thumbnailKey]);
 }

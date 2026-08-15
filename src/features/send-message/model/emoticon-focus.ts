@@ -162,6 +162,13 @@ export function focusItem(scroller: HTMLElement, index: number): boolean {
  * INFO: § 13.6. Also what the tab strip's own reveal is built on — one copy of the
  * `overflow: hidden` workaround above, and one margin, rather than a pair per
  * scroller that a later change would have to find both of.
+ *
+ * WARN: An axis with no room to move is never asked to. The margin is added to the
+ * clipping test, so a scroller whose item merely sits inside its padding still
+ * produces a non-zero term on that axis — and `scrollBy` moves an `overflow: hidden`
+ * box just as readily as a scrolling one. On the § 13.6. strip that was a few pixels
+ * of **vertical** travel on every tab pulled in from off the end, which is the wobble
+ * reported under the thumb on iOS.
  */
 export function revealWithin(
   scroller: HTMLElement,
@@ -171,16 +178,23 @@ export function revealWithin(
   const scrollerBox = scroller.getBoundingClientRect();
   const itemBox = item.getBoundingClientRect();
 
+  const canScrollY = scroller.scrollHeight > scroller.clientHeight;
+  const canScrollX = scroller.scrollWidth > scroller.clientWidth;
+
   scroller.scrollBy({
     behavior,
-    top: toScrollStep(
-      scrollerBox.top + REVEAL_MARGIN - itemBox.top,
-      itemBox.bottom + REVEAL_MARGIN - scrollerBox.bottom,
-    ),
-    left: toScrollStep(
-      scrollerBox.left + REVEAL_MARGIN - itemBox.left,
-      itemBox.right + REVEAL_MARGIN - scrollerBox.right,
-    ),
+    top: canScrollY
+      ? toScrollStep(
+          scrollerBox.top + REVEAL_MARGIN - itemBox.top,
+          itemBox.bottom + REVEAL_MARGIN - scrollerBox.bottom,
+        )
+      : 0,
+    left: canScrollX
+      ? toScrollStep(
+          scrollerBox.left + REVEAL_MARGIN - itemBox.left,
+          itemBox.right + REVEAL_MARGIN - scrollerBox.right,
+        )
+      : 0,
   });
 }
 
