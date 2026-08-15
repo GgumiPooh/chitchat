@@ -5,11 +5,24 @@ import {
   SSE_BUSY_RECHECK_INTERVAL,
   SSE_IDLE_TIMEOUT,
 } from "@/shared/config";
-import { isBusy, setDormant, type Optional } from "@/shared/lib";
+import { isBusy, isIos, setDormant, type Optional } from "@/shared/lib";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // INFO: REQUIREMENTS.md § 8.4.1. Keys that are never a keystroke on their own — pressing one is the first half of a shortcut, not typing.
 const MODIFIER_KEYS = new Set(["Meta", "Control", "Alt", "Shift", "CapsLock"]);
+
+/**
+ * REQUIREMENTS.md § 8.4.1. Whether this window is still on screen once it loses
+ * focus, which is what decides whether a departure is one the reader can see.
+ *
+ * WARN: Platform and pointer, never a viewport width (AGENTS.md § 4.2.). What the
+ * silent departure exists to avoid is a mobile app switcher photographing the
+ * overlay, and `isIos` is what separates an iPad on a trackpad — a fine pointer
+ * reporting a Macintosh user agent — from the desktop this is for.
+ */
+function isWindowedDesktop() {
+  return !isIos() && window.matchMedia("(pointer: fine)").matches;
+}
 
 export type DormancyState = {
   /** REQUIREMENTS.md § 8.4.1. The app is asleep and reaching our API is refused. */
@@ -125,15 +138,17 @@ export function useDormancy(isRoomOnScreen: boolean): DormancyState {
     }
 
     /**
-     * REQUIREMENTS.md § 8.4.1. The half the reader sees, and it is raised by the
-     * countdown alone — a departure leaves no one in front of the screen to explain
-     * the silence to, and the overlay it used to raise was still standing in the
-     * app-switcher snapshot when they came back.
+     * REQUIREMENTS.md § 8.4.1. The half the reader sees — raised by the countdown,
+     * and by a departure from a window that stays on screen without focus.
+     *
+     * WARN: Never on a hidden document. That window is gone, so the overlay is one
+     * nobody watched arrive, and it is the one iOS paints into the app-switcher
+     * snapshot. `handleVisibilityChange` conceals for the same reason after the fact.
      */
     function revealDormancy() {
       enterDormancy();
 
-      if (!isSleeping || isShowing) {
+      if (!isSleeping || isShowing || document.visibilityState !== "visible") {
         return;
       }
 
@@ -218,9 +233,13 @@ export function useDormancy(isRoomOnScreen: boolean): DormancyState {
      * REQUIREMENTS.md § 8.4.1. `blur` has no counterpart in § 8.4. — a desktop PWA
      * behind another window stays `visible`, so this is the only event that sees
      * that one go away.
+     *
+     * WARN: That window is also the one departure the reader can watch, and it is
+     * why this path is not silent: left bare it sits there showing a live
+     * conversation whose stream this very event has just closed.
      */
     function handleBlur() {
-      leave();
+      leave(isWindowedDesktop());
     }
 
     /**
@@ -228,8 +247,14 @@ export function useDormancy(isRoomOnScreen: boolean): DormancyState {
      * delivery queue would lose the rest of its chain to a closed request gate, and
      * on iOS a file picker and the share sheet both take focus away mid-task.
      */
-    function leave() {
+    function leave(isSeen = false) {
       if (isBusy()) {
+        return;
+      }
+
+      if (isSeen) {
+        revealDormancy();
+
         return;
       }
 

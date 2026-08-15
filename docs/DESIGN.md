@@ -1411,7 +1411,7 @@ Until one is picked, the wash stays at 45% and this is a known gap, not a decisi
 
 ## 7.17. 절전 모드 Overlay.
 
-Shown while the app is dormant **and the window is visible** (`REQUIREMENTS.md § 8.4.1.`) — a sleep the reader is not there for raises nothing. Dismissed by pressing it anywhere, and by the window getting focus back; either way that is what reopens the request gate.
+Shown while the app is dormant **and the window is visible** (`REQUIREMENTS.md § 8.4.1.`) — raised by the idle countdown, and on a desktop by losing focus, where the window stays on screen and would otherwise show a conversation whose stream has just been closed. A phone's departure raises nothing, because its window is gone. Dismissed by pressing it anywhere, and by the window getting focus back; either way that is what reopens the request gate.
 
 | Property         | Value                                                                                                                                                                                                                                                                    |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
