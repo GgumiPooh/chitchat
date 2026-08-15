@@ -1,8 +1,13 @@
-name: Ops job
+name: Ops — shared runner (no button; the other three call it)
 
 # REQUIREMENTS.md § 12.4. One scheduled ops run: open a tunnel to the database, then run
 # one of `scripts/ops/`. The database is on the private network behind the web server, so
 # every job here reaches it through a forward rather than over the internet.
+#
+# INFO: `workflow_call` and nothing else, so this has no Run workflow button of its own and
+# never appears as a run in its own right — the Actions sidebar lists every file in this
+# directory regardless, and the name is what says so. Its steps show up nested under
+# whichever of ops-backup / ops-purge / ops-sweep called it.
 
 on:
   workflow_call:
