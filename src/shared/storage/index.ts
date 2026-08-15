@@ -12,6 +12,7 @@ export {
   type StoredObject,
 } from "./objects";
 export { purgeNow } from "./purge";
+export { reclaimExpiredStorage } from "./reclaim";
 export {
   consumeReservations,
   releaseReservations,
