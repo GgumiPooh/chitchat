@@ -42,6 +42,7 @@ import { ACTIVE_TAB_KEY, RECENTS_TAB, SEARCH_TAB, isPackTabId } from "../model/e
 import { toEmoticonsByIdsQuery } from "../model/emoticons-query";
 import { toEmoticonPackItemsQuery } from "../model/pack-items-query";
 import { toEmoticonPacksQuery } from "../model/packs-query";
+import { useAdjacentTabWarm } from "../model/use-adjacent-tab-warm";
 import { useEmoticonSearch } from "../model/use-emoticon-search";
 import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
@@ -360,6 +361,9 @@ export function EmoticonPicker({
   const shown = toShownItems();
   const tabIds = [SEARCH_TAB, RECENTS_TAB, ...visiblePacks.map((pack) => pack.id)];
   const activeIndex = tabIds.indexOf(activeTab);
+
+  // INFO: § 13.6. The room's warm covers the tab that opens and no further, so the tabs a swipe reaches are heated from here instead.
+  useAdjacentTabWarm({ isOpen, activeTab, tabIds, recents });
 
   // WARN: § 8.14. Adjusted during render rather than in an effect. The tab's own cells render in this same commit, so a stop reset a frame later is one frame in which `tabIndex={0}` sits on a cell of the pack that just left.
   if (focusedTab !== activeTab) {
