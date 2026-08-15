@@ -5,6 +5,7 @@ import {
   BACKFILL_EVENT,
   CHANGE_EVENT,
   CHAT_STREAM_PATH,
+  IS_SSE_IDLE_SLEEP_ENABLED,
   SSE_RETRY_DELAY,
   SSE_STALE_AFTER,
   SSE_SYNC_COALESCE_WINDOW,
@@ -211,17 +212,22 @@ export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: b
     }
 
     /**
-     * REQUIREMENTS.md § 8.4. Closing on a departure belongs to this hook and is
-     * unconditional, because § 8.4.1.'s dormancy is not the only thing that can be
-     * true here: `isBusy` skips it, and `IS_SSE_IDLE_SLEEP_ENABLED` disables it
-     * outright.
+     * REQUIREMENTS.md § 8.4. `blur` is the only event a desktop PWA pushed behind
+     * another window produces — it stays `visible` — so this is the sole thing that
+     * reaches such a window, and with the switch on it closes whatever dormancy
+     * decides: `isBusy` skips that, and the departure still has to drop the stream.
      *
-     * WARN: Do not make this contingent on dormancy. `blur` is the only event a
-     * desktop PWA pushed behind another window produces — it stays `visible` — so a
-     * blur that closed nothing would hold an unpooled Neon connection open
-     * indefinitely, which is the whole cost § 8.4.1. was written to remove.
+     * WARN: § 8.4.1. With the switch **off** the socket is held instead, which is
+     * the point of turning it off — an unpooled Neon connection stays up for the
+     * life of the window, and that is the bill the switch exists to opt into.
+     * `pagehide` and the `hidden` branch below are not part of this and still close
+     * unconditionally: those mean the window is gone, not merely behind another.
      */
     function handleBlur() {
+      if (!IS_SSE_IDLE_SLEEP_ENABLED) {
+        return;
+      }
+
       close();
     }
 

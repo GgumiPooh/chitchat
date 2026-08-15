@@ -307,7 +307,7 @@ export const unreadCountMessageSchema = z.object({
 });
 
 /**
- * REQUIREMENTS.md § 8.4.1. The kill switch for the idle close and its overlay.
+ * REQUIREMENTS.md § 8.4.1. The kill switch for the idle close, its overlay, and § 8.4.'s `blur` close.
  *
  * WARN: Default **on** — absent, blank, or anything but an explicit off leaves it
  * enabled, so the cost control cannot be lost by forgetting a variable in a new
