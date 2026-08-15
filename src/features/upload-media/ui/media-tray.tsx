@@ -29,7 +29,7 @@ export function MediaTray({ className, drafts, isReading, onEdit, onRemove }: Me
     <div
       className={cn(
         // WARN: The horizontal inset is the first and last tile's margin, never the tray's `padding-inline` — WebKit leaves `padding-right` out of `scrollWidth` until the content overflows without it, so a padded scroller has a dead band that wide where it is over-full and will not scroll.
-        "pointer-events-auto flex gap-xs overflow-x-auto rounded-lg border border-hairline glass py-xs shadow-floating [&>*:first-child]:ml-xs [&>*:last-child]:mr-xs",
+        "pointer-events-auto flex touch-pan-x gap-xs overflow-x-auto overscroll-contain rounded-lg border border-hairline glass py-xs shadow-floating [&>*:first-child]:ml-xs [&>*:last-child]:mr-xs",
         "scrollbar-hidden",
         className,
       )}

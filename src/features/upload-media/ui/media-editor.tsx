@@ -116,7 +116,7 @@ export function MediaEditor({
         </div>
         <div className="space-y-xs p-sm pb-[max(var(--spacing-sm),env(safe-area-inset-bottom))]">
           {fixedAspectRatio === undefined && (
-            <div className="scrollbar-hidden flex gap-2xs overflow-x-auto">
+            <div className="scrollbar-hidden flex touch-pan-x gap-2xs overflow-x-auto overscroll-contain">
               {ASPECT_OPTIONS.map((option) => (
                 <Chip
                   key={option.id}
@@ -128,7 +128,7 @@ export function MediaEditor({
               ))}
             </div>
           )}
-          <div className="scrollbar-hidden flex gap-2xs overflow-x-auto">
+          <div className="scrollbar-hidden flex touch-pan-x gap-2xs overflow-x-auto overscroll-contain">
             {MEDIA_FILTERS.map((option) => (
               <Chip
                 key={option.id}

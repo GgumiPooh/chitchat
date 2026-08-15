@@ -552,9 +552,10 @@ export function EmoticonPicker({
       {/* INFO: § 13.6. Pack tabs along the bottom, matching where the thumb already is. */}
       {/* WARN: The horizontal inset is the first and last tab's margin, never the strip's `padding-inline`. WebKit reports `scrollWidth === clientWidth` until the content already overflows *without* `padding-right`, so a strip padded that way has a dead band the width of that padding where it is over-full and cannot be scrolled at all. */}
       {/* INFO: REQUIREMENTS.md § 8.14. ARIA's toolbar: one tab stop for the whole strip, and the bare arrows walking it — which open what they land on, exactly as § 13.6.'s swipe does. */}
+      {/* WARN: `touch-pan-x` and `overscroll-contain` are what § 13.8.'s results row already carries, and this strip is the one horizontal scroller that had neither. A drag here is never perfectly horizontal, so WebKit spent the vertical component on whatever ancestor would take it — the room panning a few pixels under every sweep of the thumb, which is the wobble reported on iOS. */}
       <div
         ref={tabStripRef}
-        className="scrollbar-hidden flex shrink-0 gap-2xs overflow-x-auto border-t border-hairline-soft py-2xs [&>*:first-child]:ml-2xs [&>*:last-child]:mr-2xs"
+        className="scrollbar-hidden flex shrink-0 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain border-t border-hairline-soft py-2xs [&>*:first-child]:ml-2xs [&>*:last-child]:mr-2xs"
         role="toolbar"
         aria-label="이모티콘 묶음"
         onKeyDown={handleTabStripKeys}
