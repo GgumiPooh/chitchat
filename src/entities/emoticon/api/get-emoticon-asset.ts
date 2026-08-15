@@ -46,10 +46,11 @@ export async function getEmoticonItem(id: EmoticonItemId): Promise<Nullable<Emot
  * by the animation and a missing animation by the still — which is what lets an author
  * register only one slot without a single render path branching on what an item carries.
  *
- * WARN: § 5.7. `isFallback` is what the asset route reads to shorten its cache, and it
- * is the whole of that trap: an answer from the other slot must not be held for the days
- * a versioned URL earns, or a still written later is invisible for a week to every
- * browser that asked once. It reports the slot that **answered**, not the one asked for.
+ * WARN: `isFallback` shortens the asset route's cache, and it is deliberately **not**
+ * every fallback — only a missing **still**, which is a gap an author can close. A
+ * missing animation is not a gap: a static emoticon is a whole emoticon and this is
+ * its permanent shape, so marking it would put the bubble of every static item on a
+ * five-minute cache, and each expiry re-presigns and re-downloads the bytes.
  */
 export function toSlotAsset(
   { stillKey, animatedKey, audioKey }: EmoticonItemAssets,
@@ -63,7 +64,7 @@ export function toSlotAsset(
   const other = slot === "still-image" ? animatedKey : stillKey;
   const key = wants ?? other;
 
-  return key ? { key, isFallback: wants === null } : null;
+  return key ? { key, isFallback: wants === null && slot === "still-image" } : null;
 }
 
 export type ResolvedSlotAsset = {

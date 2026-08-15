@@ -4,8 +4,8 @@ import type { MediaDraft } from "@/entities/media";
 import {
   releasePreview,
   retainPreview,
-  toEmoticonImageUpload,
-  type EmoticonImageUpload,
+  toEmoticonImageDrafts,
+  type EmoticonImageDrafts,
 } from "@/features/upload-media/@x/author-emoticon";
 import {
   allowedMimesForEmoticonSlot,
@@ -29,7 +29,7 @@ export type CompanionDraft = {
  * INFO: One image state and not two. A picked file answers both slots at once, so a slot can never hold a rendering of a picture the other slot is not showing.
  */
 export function useEmoticonDraft() {
-  const [image, setImage] = useState<Nullable<EmoticonImageUpload>>(null);
+  const [image, setImage] = useState<Nullable<EmoticonImageDrafts>>(null);
   const [audio, setAudio] = useState<Nullable<CompanionDraft>>(null);
   // WARN: REQUIREMENTS.md § 13.8. Held as the whole list rather than as a diff, and seeded by the sheet on open — the item being edited already has keywords, and this is the only slot where "unchanged" is a value rather than an absence.
   const [keywords, setKeywords] = useState<string[]>([]);
@@ -57,7 +57,7 @@ export function useEmoticonDraft() {
       setIsReading(true);
 
       try {
-        const upload = await toEmoticonImageUpload(file);
+        const upload = await toEmoticonImageDrafts(file);
 
         if (!validateUpload(upload)) {
           release(upload.still.previewUrl);
@@ -150,7 +150,7 @@ export function useEmoticonDraft() {
 }
 
 /** INFO: Both renderings are checked, because both are uploaded — the animation as the bytes that were picked, the still as what the canvas made of them. */
-function validateUpload({ still, animated }: EmoticonImageUpload): boolean {
+function validateUpload({ still, animated }: EmoticonImageDrafts): boolean {
   return (
     validateSlot("still-image", still.file) &&
     (!animated || validateSlot("animated-image", animated.file))

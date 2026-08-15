@@ -20,7 +20,7 @@ import type {
   UserId,
 } from "@/shared/lib";
 import { headAcceptableObject, readObject, type StoredObject } from "@/shared/storage";
-import { eq, inArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon } from "../model/types";
 import { selectEmoticons } from "./select-emoticons";
@@ -120,8 +120,13 @@ export async function registerEmoticon({
     .returning({ id: emoticonItems.id });
 
   // INFO: The row this call is answering for, whether it wrote it or the retry it repeats did — the slot ids are unique, so they name the same item either way.
+  // WARN: Scoped to the pack, because a conflict is not proof of a retry. The same uploader naming an object already slotted into an item of **another** pack collides identically, and an unscoped lookup would answer `201` with that pack's item — adding it to a grid it does not belong to.
   const [written] = await selectEmoticons()
-    .where(row ? eq(emoticonItems.id, row.id) : or(...filledSlots))
+    .where(
+      row
+        ? eq(emoticonItems.id, row.id)
+        : and(eq(emoticonItems.packId, packId), or(...filledSlots)),
+    )
     .limit(1);
 
   return written ? toEmoticon(written) : null;
@@ -220,6 +225,11 @@ export async function updateEmoticonItem({
     return { status: "unprocessable" };
   }
 
+  // WARN: The three slot indexes are unique, and this UPDATE has no `onConflictDoNothing` to fall back on — an edit naming an object another item already holds would raise a `23505` the route has no branch for, and answer 500 where every other refusal here answers `unprocessable`.
+  if (await isSlotTakenElsewhere(itemId, [stillMedia?.id, animatedMedia?.id, audioMedia?.id])) {
+    return { status: "unprocessable" };
+  }
+
   const hasImageChange = still !== undefined || animated !== undefined;
 
   await getDb()
@@ -246,6 +256,35 @@ export async function updateEmoticonItem({
   const orphanedKeys = await findDetachedKeys(current, { still, animated, audioKey });
 
   return { status: "updated", emoticon: toEmoticon(row), orphanedKeys };
+}
+
+/** INFO: Whether any of these `media` rows is already slotted into a **different** item, which is the one thing the slot indexes refuse and this UPDATE has no conflict clause to absorb. */
+async function isSlotTakenElsewhere(
+  itemId: EmoticonItemId,
+  mediaIds: Maybe<MediaId>[],
+): Promise<boolean> {
+  const named = mediaIds.filter((id): id is MediaId => id !== undefined && id !== null);
+
+  if (named.length === 0) {
+    return false;
+  }
+
+  const [taken] = await getDb()
+    .select({ id: emoticonItems.id })
+    .from(emoticonItems)
+    .where(
+      and(
+        ne(emoticonItems.id, itemId),
+        or(
+          inArray(emoticonItems.stillImageId, named),
+          inArray(emoticonItems.animatedImageId, named),
+          inArray(emoticonItems.audioId, named),
+        ),
+      ),
+    )
+    .limit(1);
+
+  return taken !== undefined;
 }
 
 /** INFO: What the row would hold after this edit — an absent slot keeps what it has, `null` empties it, a value fills it. */
@@ -335,17 +374,19 @@ async function verifyImage(
     return undefined;
   }
 
-  const object = await verifyAsset(slot, image.key, uploaderId);
-
-  if (!object) {
+  // WARN: The key prefix is the ownership proof, and it is checked before anything is read — `buildStorageKey` puts the uploader's id in the key (§ 9.), so a caller naming a key it did not upload is claiming someone else's object.
+  if (!image.key.startsWith(`emoticon/${uploaderId}/`)) {
     return undefined;
   }
 
+  // INFO: One read, not a HEAD and then a GET of the same object. `readObject` answers the stored mime and refuses anything past the ceiling, which is the whole of what the HEAD was checking.
   const fetched = await readObject(image.key, MAX_EMOTICON_IMAGE_SIZE);
 
-  if (!fetched) {
+  if (!fetched || !isAllowedEmoticonAsset(slot, fetched.mime, fetched.bytes.byteLength)) {
     return undefined;
   }
 
-  return isAnimatedImage(fetched.bytes) === (slot === "animated-image") ? object : undefined;
+  return isAnimatedImage(fetched.bytes) === (slot === "animated-image")
+    ? { mime: fetched.mime, size: fetched.bytes.byteLength }
+    : undefined;
 }

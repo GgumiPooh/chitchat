@@ -2,8 +2,8 @@ import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
 import {
   revokePreview,
-  toEmoticonImageUpload,
-  type EmoticonImageUpload,
+  toEmoticonImageDrafts,
+  type EmoticonImageDrafts,
 } from "@/features/upload-media/@x/author-emoticon";
 import {
   MAX_EMOTICON_IMAGE_SIZE,
@@ -15,6 +15,7 @@ import {
 } from "@/shared/config";
 import type { EmoticonPackId, Nullable } from "@/shared/lib";
 import { formatSize, holdAwake, holdUnsentWork, mapPooled } from "@/shared/lib";
+import { josa } from "es-hangul";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
 import { createEmoticon, type EmoticonImageBody } from "../api/write-emoticon";
 
@@ -144,10 +145,10 @@ export async function addEmoticonsFromFiles(
  */
 async function prepare(file: File): Promise<Prepared> {
   // WARN: Two `try` blocks and not one. A single block cannot tell the two failures apart — a key is only ever assigned by the upload that would have thrown, so every failure would read as an unreadable file (§ 13.4.).
-  let upload: EmoticonImageUpload;
+  let upload: EmoticonImageDrafts;
 
   try {
-    upload = await toEmoticonImageUpload(file);
+    upload = await toEmoticonImageDrafts(file);
   } catch {
     return { reason: "파일을 읽지 못했어요" };
   }
@@ -194,7 +195,7 @@ async function uploadImage(
   return { key, width: draft.width, height: draft.height };
 }
 
-function toSlotDrafts({ still, animated }: EmoticonImageUpload): [EmoticonImageSlot, MediaDraft][] {
+function toSlotDrafts({ still, animated }: EmoticonImageDrafts): [EmoticonImageSlot, MediaDraft][] {
   const slots: [EmoticonImageSlot, MediaDraft][] = [["still-image", still]];
 
   return animated ? [...slots, ["animated-image", animated]] : slots;
@@ -210,5 +211,6 @@ function describeRejection(slot: EmoticonImageSlot, file: Blob): string {
     return "지원하지 않는 형식이에요";
   }
 
-  return `${formatSize(MAX_EMOTICON_IMAGE_SIZE)}를 넘어요`;
+  // WARN: CLAUDE.md § 0.4. The particle follows an interpolated value, so `josa` chooses it — `8MB` reads vowel-final and `1GB` does not, and a baked `를` is wrong the day the ceiling moves.
+  return `${josa(formatSize(MAX_EMOTICON_IMAGE_SIZE), "을/를")} 넘어요`;
 }

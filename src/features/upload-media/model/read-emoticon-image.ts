@@ -1,6 +1,6 @@
 import type { MediaDraft } from "@/entities/media";
-import { EMOTICON_MAX_EDGE, isAnimatedImage } from "@/shared/config";
-import { ensure, randomId, type Nullable } from "@/shared/lib";
+import { EMOTICON_MAX_EDGE, isAnimatedImage, isGifImage } from "@/shared/config";
+import { A_KILOBYTE, ensure, randomId, type Nullable } from "@/shared/lib";
 import type { ApplyEditOptions } from "./apply-edit";
 import {
   TRANSPARENT_OUTPUT_MIME,
@@ -18,6 +18,9 @@ export const EMOTICON_IMAGE_EDIT_OPTIONS: ApplyEditOptions = {
   maxEdge: EMOTICON_MAX_EDGE,
 };
 
+// INFO: Past every header this has to reach — a PNG's `acTL` precedes the first `IDAT` and a WebP's `ANIM` is one of the first chunks after the RIFF header.
+const ANIMATION_SCAN_BYTES = 64 * A_KILOBYTE;
+
 const STILL_SAMPLE_FRAMES = 8;
 
 // INFO: Enough to rank one frame against another by how full it is, and small enough that eight `getImageData` reads cost nothing.
@@ -27,7 +30,7 @@ const COVERAGE_EDGE = 32;
 const OPAQUE_ALPHA = 128;
 
 /** Both renderings of one picked file: the still every file yields, and the animation only an animated one does. */
-export type EmoticonImageUpload = {
+export type EmoticonImageDrafts = {
   still: MediaDraft;
   animated: Nullable<MediaDraft>;
 };
@@ -50,22 +53,38 @@ export type EmoticonImageUpload = {
  * participant is not on iOS, and an un-downscaled photo would be megabytes of PNG
  * behind a 140px box.
  */
-export async function toEmoticonImageUpload(file: File): Promise<EmoticonImageUpload> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
+export async function toEmoticonImageDrafts(file: File): Promise<EmoticonImageDrafts> {
+  // WARN: A prefix first, and the whole file only where it settles nothing. `addEmoticonsFromFiles` runs this pool-wide under a byte budget that weighs each file **once**, so a buffer per in-flight file — plus the decoder's own copy of it — is several multiples of the ceiling the pool believes it is holding.
+  const bytes = await readAnimationEvidence(file);
 
   if (!isAnimatedImage(bytes)) {
     return { still: await toPickedStill(file), animated: null };
   }
 
+  const whole = bytes.byteLength === file.size ? bytes : new Uint8Array(await file.arrayBuffer());
   const animated = await toAnimatedDraft(file);
 
   try {
-    return { still: await toExtractedStill(file, bytes), animated };
+    return { still: await toExtractedStill(file, whole), animated };
   } catch (error) {
     revokePreview(animated);
 
     throw error;
   }
+}
+
+/**
+ * Enough of a file to say whether it animates.
+ *
+ * WARN: A GIF is the one format whose *absence* of animation cannot be read off a
+ * prefix — its second image descriptor may sit anywhere — so it is read whole. A
+ * PNG settles at the first `IDAT` and a WebP's `ANIM` sits in the first chunks, both
+ * of which are inside the slice.
+ */
+async function readAnimationEvidence(file: File): Promise<Uint8Array> {
+  const head = new Uint8Array(await file.slice(0, ANIMATION_SCAN_BYTES).arrayBuffer());
+
+  return isGifImage(head) ? new Uint8Array(await file.arrayBuffer()) : head;
 }
 
 /** INFO: The decoded first frame is what carries the size, and its box is the one every later frame shares — which is what § 8.3. reserves the row from. */
@@ -114,7 +133,7 @@ async function toPickedStill(file: File): Promise<MediaDraft> {
  *
  * WARN: The **fullest** sampled frame and not the first one. An animation that fades
  * in opens on a nearly empty frame, which reads as a half-transparent tile in the
- * picker; the server-side backfill chose the same way.
+ * picker.
  *
  * INFO: `ImageDecoder` is the only API that reaches past an animation's frame 0 — where it is unavailable, the first frame is all `createImageBitmap` can give.
  */

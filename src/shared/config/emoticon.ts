@@ -99,9 +99,6 @@ export type EmoticonImageSlot = "still-image" | "animated-image";
  */
 export const ALLOWED_EMOTICON_IMAGE_MIMES = ["image/png", "image/webp", "image/gif"] as const;
 
-// INFO: REQUIREMENTS.md § 13.4. Uploaded as it arrives — a canvas re-encode decodes one frame and would silently turn an animation into a picture, so a file that may animate never enters the editor.
-export const ANIMATABLE_EMOTICON_MIMES = ["image/webp", "image/gif", "image/apng"] as const;
-
 // INFO: `audio/mp4` and `audio/x-m4a` are what iOS hands over for the same `.m4a` file, depending on how it was picked.
 export const ALLOWED_EMOTICON_AUDIO_MIMES = [
   "audio/mpeg",
@@ -224,8 +221,8 @@ export const EMOTICON_URL_EXPIRY = 7 * A_DAY;
 export const EMOTICON_CACHE_MAX_AGE = 6 * A_DAY;
 
 /**
- * The finished restructure. How long a redirect that answered from the **other** image slot
- * may be held.
+ * The finished restructure. How long a redirect for a **still** that was answered by the
+ * animation may be held.
  *
  * WARN: The days above are earned by `v` addressing one immutable version of one slot,
  * and a fallback is exactly the case where that stops being true: an item with no still
@@ -536,20 +533,6 @@ const SLOT_RULES: Record<EmoticonSlot, { mimes: readonly string[]; maxSize: numb
 };
 
 /**
- * REQUIREMENTS.md § 13.4. Whether a picked file may be animated, and therefore must
- * be uploaded byte-for-byte instead of re-encoded.
- *
- * WARN: `image/apng` never comes off a `File` — the OS extension map answers
- * `image/png` for `.png` however it was encoded. It is the type `readEmoticonMime`
- * assigns after sniffing the `acTL` chunk, and nothing else may produce it: an APNG
- * is stored as the `image/png` R2 was sent, which is why it is absent from
- * `ALLOWED_EMOTICON_IMAGE_MIMES`.
- */
-export function isAnimatableEmoticonMime(mime: string): boolean {
-  return ANIMATABLE_EMOTICON_MIMES.includes(mime as (typeof ANIMATABLE_EMOTICON_MIMES)[number]);
-}
-
-/**
  * Whether these bytes actually animate.
  *
  * WARN: The only honest answer to "is this the still or the animation", and the
@@ -576,6 +559,11 @@ export function isAnimatedImage(bytes: Uint8Array): boolean {
   }
 
   return false;
+}
+
+/** INFO: The one format `isAnimatedImage` cannot clear from a prefix — a GIF's second image descriptor may sit anywhere in the file, so a caller reading a slice has to know to read the rest. */
+export function isGifImage(bytes: Uint8Array): boolean {
+  return startsWith(bytes, GIF_SIGNATURE);
 }
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];

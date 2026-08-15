@@ -102,7 +102,6 @@ export {
 export {
   ALLOWED_EMOTICON_AUDIO_MIMES,
   ALLOWED_EMOTICON_IMAGE_MIMES,
-  ANIMATABLE_EMOTICON_MIMES,
   EMOTICON_ASSET_CACHE_CONTROL,
   EMOTICON_CACHE_MAX_AGE,
   EMOTICON_FALLBACK_CACHE_MAX_AGE,
@@ -132,8 +131,8 @@ export {
   allowedMimesForEmoticonSlot,
   findKeywordMatch,
   isAllowedEmoticonAsset,
-  isAnimatableEmoticonMime,
   isAnimatedImage,
+  isGifImage,
   matchesKeywordQuery,
   maxSizeForEmoticonSlot,
   normalizeKeywords,

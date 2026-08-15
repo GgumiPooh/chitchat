@@ -62,7 +62,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     cacheControl: EMOTICON_ASSET_CACHE_CONTROL,
   });
 
-  // WARN: The finished restructure. Days are earned by `v` addressing one immutable version of the slot that was **asked for**, and a fallback is the case where that is not what answered. An item with no still serves its animation here, so holding that redirect for six days would hide the still § 5.5.'s backfill is about to give it from every browser that had asked once. Permanently correct rather than a migration patch — any item that gains a still later is the same case.
+  // WARN: Days are earned by `v` addressing one immutable version of the slot that was asked for, and `isFallback` is the narrow case where that is not what answered — an item with **no still**, drawn with its animation until an author gives it one. A missing animation is not that case and does not come here: a static emoticon is finished, so `toSlotAsset` leaves it on the full window.
   const maxAge = asset.isFallback ? EMOTICON_FALLBACK_CACHE_MAX_AGE : EMOTICON_CACHE_MAX_AGE;
 
   return NextResponse.redirect(url, {
