@@ -6,7 +6,7 @@ import {
   isBareKey,
   isCommandKey,
   isCommandShiftKey,
-  isDormant,
+  isDormantVisible,
   isLetterKey,
 } from "@/shared/lib";
 import { useEffect, useRef } from "react";
@@ -77,7 +77,7 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
       }
 
       // WARN: § 8.4.1. 절전 모드 takes focus on mount precisely so keystrokes cannot reach the composer behind it, and answering `Escape` here would hand that focus straight back. Read at the keystroke rather than passed in, because the flag is module state that no render observes.
-      if (handlers.current.isCovered || isDormant()) {
+      if (handlers.current.isCovered || isDormantVisible()) {
         return;
       }
 

@@ -12,7 +12,6 @@ import { SSE_SYNC_COALESCE_WINDOW } from "@/shared/config";
 import {
   cn,
   findHoliday,
-  isDormant as isAppDormant,
   listMilestonesInRange,
   toDayKey,
   toMonthKey,
@@ -55,7 +54,7 @@ export function CalendarPage({
   holidays,
   initialDayKey,
 }: CalendarPageProps) {
-  const { participants, isDormant } = useChatStream();
+  const { participants } = useChatStream();
   const [summary, setSummary] = useState(initialSummary);
   const [monthKey, setMonthKey] = useState(initialMonthKey);
   const [occurrences, setOccurrences] = useState(initialOccurrences);
@@ -69,8 +68,6 @@ export function CalendarPage({
   const loadedMonthKey = useRef(initialMonthKey);
   // WARN: Two quick swipes leave two fetches in flight, and the slower one may land last. Without this counter it wins, and the grid keeps the previous month's dots while `loadedMonthKey` claims the fetch is done — the effect below has already run and will not re-run.
   const requestId = useRef(0);
-  // INFO: REQUIREMENTS.md § 8.4.1. What the effect below compares against to catch the wake rather than the state.
-  const wasDormant = useRef(false);
   const lastSummaryFetchAt = useRef(0);
 
   const reload = useCallback(async (nextMonthKey: string) => {
@@ -113,14 +110,12 @@ export function CalendarPage({
    * across midnight stops showing yesterday's D-day. The count is the server's,
    * never recomputed here.
    *
-   * WARN: § 8.4.1. Waking is not the only way back, which is why this is not hung
-   * off dormancy alone. `isBusy` skips dormancy on a departure and
-   * `IS_SSE_IDLE_SLEEP_ENABLED` disables it outright — under either, a return
-   * produces no wake at all and the D-day would sit stale for the life of the page.
+   * INFO: § 8.4.1. The return is the whole trigger, with no dormancy beside it —
+   * this screen holds no stream, so it never sleeps and the gate is never shut
+   * under it.
    */
   const refreshSummary = useCallback(() => {
-    // INFO: § 8.4.1. Read from the module rather than the context boolean, because this callback is registered once and a reactive read would re-register both listeners on every wake.
-    if (isAppDormant() || document.visibilityState !== "visible") {
+    if (document.visibilityState !== "visible") {
       return;
     }
 
@@ -137,17 +132,6 @@ export function CalendarPage({
       .then(setSummary)
       .catch(() => undefined);
   }, []);
-
-  useEffect(() => {
-    // WARN: The transition, never the value. This also runs on mount, where the summary is the one the server rendered and a refetch would be a request per visit.
-    const hasWoken = wasDormant.current && !isDormant;
-
-    wasDormant.current = isDormant;
-
-    if (hasWoken) {
-      refreshSummary();
-    }
-  }, [isDormant, refreshSummary]);
 
   useEffect(() => {
     document.addEventListener("visibilitychange", refreshSummary);

@@ -11,8 +11,9 @@ export type DormantOverlayProps = {
 };
 
 /**
- * REQUIREMENTS.md § 8.4.1. Shown on every tab while the app is dormant, and
- * dismissed by touching it anywhere — the touch is what reopens the request gate.
+ * REQUIREMENTS.md § 8.4.1. Shown while the app is dormant **and** the window is
+ * visible, and dismissed by touching it anywhere — the touch reopens the request
+ * gate.
  *
  * WARN: `absolute`, never `fixed` — `ShellOverlay` owns the viewport-sized box this
  * fills (DESIGN.md § 3.3.), and it is what puts this over the floating header and the
@@ -40,7 +41,7 @@ export function DormantOverlay({ className, bodyClassName, onWake }: DormantOver
         <span className={cn("flex flex-col items-center gap-xs", bodyClassName)}>
           <Moon className="size-8 text-meta" aria-hidden />
           <span className="text-display-sm text-ink">절전 모드</span>
-          {/* INFO: DESIGN.md § 7.17. 실시간 연결 rather than 서버 연결 was true only while this lived on 채팅 — it now covers 캘린더 and 보관함, which never held a stream to drop. */}
+          {/* INFO: DESIGN.md § 7.17. 서버 연결 rather than 실시간 연결, though this only ever stands over 채팅 — what a sleep shuts is every request the app makes, not just the stream behind this screen. */}
           <span className="text-body-sm text-meta">
             한동안 쓰지 않아 서버 연결을 잠시 끊었어요.
           </span>

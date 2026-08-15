@@ -12,12 +12,10 @@ import { dismissDeliveredNotifications } from "./push-registration";
  * (§ 15.1.), so the launch every banner accumulated for is one a mount effect runs
  * on exactly once and never again for the life of the process.
  *
- * WARN: Deliberately **not** gated on § 8.4.1.'s dormancy, where `calendar-page`
- * gates the same shape. A departure enters dormancy, so nearly every return is a
- * dormant one — and the wake that would re-arm the sweep is a context this slice
- * cannot reach without a cross-import, which would leave the sweep skipped on the
- * exact resume it exists for. Returning into 절전 모드 is still entering the app: the
- * badge and the room carry the unread state the banners were standing in for.
+ * WARN: Deliberately **not** gated on § 8.4.1.'s dormancy. A departure sleeps, so
+ * nearly every return is a dormant one, and gating would skip the sweep on the exact
+ * resume it exists for. Returning into a sleeping app is still entering it: the badge
+ * and the room carry the unread state the banners were standing in for.
  */
 export function useNotificationSweep() {
   const lastSweptAt = useRef(0);

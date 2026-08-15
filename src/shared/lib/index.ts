@@ -1,6 +1,11 @@
-export { isDormant, setDormant, subscribeDormancy } from "./activity/dormancy";
+export {
+  countVisibleWakes,
+  isDormant,
+  isDormantVisible,
+  setDormant,
+  subscribeDormancy,
+} from "./activity/dormancy";
 export { hasUnsentWork, holdUnsentWork, useUnsentWork } from "./activity/unsent-work";
-export { markZoneDeparture, takeZoneDeparture } from "./activity/zone-departure";
 export { AssertionError, assert, ensure } from "./assert";
 export {
   declareAudioSession,

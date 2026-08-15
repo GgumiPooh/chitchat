@@ -10,6 +10,7 @@ import {
   type MessageArrival,
 } from "@/shared/config";
 import {
+  isDormant as isAppDormant,
   safelyGetAsync,
   safelyRunAsync,
   type MediaId,
@@ -159,10 +160,10 @@ export function ChatStreamProvider({
   const isReadingRef = useRef(false);
   const lastReadPostAt = useRef(0);
   const hasMessageDuringSync = useRef(false);
+  // INFO: REQUIREMENTS.md § 8.4.1. The conversation being on screen is what makes the app sleepable, so this is `isReadingRef`'s reactive half rather than a second signal.
+  const [isRoomOnScreen, setIsRoomOnScreen] = useState(false);
   // WARN: REQUIREMENTS.md § 8.4.1. First, and deliberately. Effects run in declaration order, so this is what registers the departure listener that shuts the request gate ahead of the read-cursor flush below.
-  const { isDormant, wake } = useDormancy();
-  // INFO: § 8.4.1. The listeners below are registered once and read this from a closure, so the state needs a ref beside it.
-  const isDormantRef = useRef(isDormant);
+  const { isDormant, isDormantVisible, wake } = useDormancy(isRoomOnScreen);
   // INFO: REQUIREMENTS.md § 15.1. Lives beside the stream because that is what carries the signal, not because refreshing is a chat concern.
   const handleBuild = useAppRefresh();
 
@@ -182,6 +183,7 @@ export function ChatStreamProvider({
 
   const setIsReading = useCallback((isReading: boolean) => {
     isReadingRef.current = isReading;
+    setIsRoomOnScreen(isReading);
 
     if (isReading) {
       setUnreadCount(0);
@@ -207,26 +209,6 @@ export function ChatStreamProvider({
   // INFO: The provider outlives every screen, so this only ever runs on a full teardown — but a timer left armed past it would call `setTypingUserIds` on an unmounted tree.
   useEffect(() => () => clearTimeout(typingSweep.current), []);
 
-  /**
-   * REQUIREMENTS.md § 8.4.1. The catch-up for a wake on a screen that holds no
-   * socket — 캘린더, 보관함, 설정 never mount `ChatStreamConnection`, so nothing else
-   * would correct a badge that went stale while the gate was shut.
-   *
-   * WARN: Gated on `isReadingRef` because that is what "the conversation is on
-   * screen" means here, and there the reopened stream's own `onopen` already syncs
-   * — running both would spend two `GET /api/chat/unread` on one tap.
-   */
-  useEffect(() => {
-    // WARN: The transition, never the value. This effect also runs on mount, where `isDormant` is already `false` and the count is the one the shell was server-rendered with — syncing there would be a request per launch that the § 8.4.2. seeding exists to avoid.
-    const wasDormant = isDormantRef.current;
-
-    isDormantRef.current = isDormant;
-
-    if (wasDormant && !isDormant && !isReadingRef.current) {
-      void syncUnreadCount();
-    }
-  }, [isDormant]);
-
   useEffect(() => {
     updateAppBadge(unreadCount);
   }, [unreadCount]);
@@ -247,8 +229,8 @@ export function ChatStreamProvider({
     function handleWorkerMessage(event: MessageEvent<unknown>) {
       const message = unreadCountMessageSchema.safeParse(event.data);
 
-      // WARN: § 8.4.1. Dormant beats reading. The gate exists because a reader's cursor is about to clear the count anyway — but under the 절전 모드 overlay the conversation is covered and the stream that would have delivered the message is closed, so the reader is not reading and the count is real.
-      if (message.success && (!isReadingRef.current || isDormantRef.current)) {
+      // WARN: § 8.4.1. Dormant beats reading. The gate exists because a reader's cursor is about to clear the count anyway — but a sleeping room delivers nothing, so the reader is not reading and the count is real. The module flag, since no render observes it.
+      if (message.success && (!isReadingRef.current || isAppDormant())) {
         setUnreadCount(message.data.unreadCount);
       }
     }
@@ -272,8 +254,8 @@ export function ChatStreamProvider({
       }
 
       // WARN: REQUIREMENTS.md § 8.4.2. The badge's only other mover is the § 16.1. push, and that has three states where it never arrives — denied, unsupported, and in flight. Without this a client in one of them shows the count it was rendered with until it next walks into 채팅.
-      // INFO: § 8.4.1. Dormant beats reading here for the same reason it does in the worker message above — the overlay is up and no stream is delivering anything.
-      if (!isReadingRef.current || isDormantRef.current) {
+      // INFO: § 8.4.1. Dormant beats reading here for the same reason it does in the worker message above — no stream is delivering anything.
+      if (!isReadingRef.current || isAppDormant()) {
         void syncUnreadCount();
       }
     }
@@ -302,8 +284,8 @@ export function ChatStreamProvider({
     >
       <ChatStreamHandlersContext.Provider value={handlers}>
         {children}
-        {/* INFO: REQUIREMENTS.md § 8.4.1. Rendered by the shell rather than the chat screen, because the request gate it stands for is shut on every tab and a screen that could not explain why nothing loads is worse than one that never sleeps. */}
-        {isDormant && <DormantOverlay onWake={wake} />}
+        {/* WARN: REQUIREMENTS.md § 8.4.1. The visible half, never `isDormant` — a departure sleeps silently, and an overlay raised on the way out is the one the app-switcher snapshot brings back. */}
+        {isDormantVisible && <DormantOverlay onWake={wake} />}
       </ChatStreamHandlersContext.Provider>
     </ChatStreamContext.Provider>
   );

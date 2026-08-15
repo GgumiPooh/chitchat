@@ -8,13 +8,7 @@ import {
   saveEmoticonPackEnabled,
 } from "@/features/emoticon-prefs";
 import { EMOTICON_IMPORT_ROUTE, EMOTICON_SETTINGS_ROUTE, SETTINGS_ROUTE } from "@/shared/config";
-import {
-  cn,
-  markZoneDeparture,
-  useBfcacheRestore,
-  type EmoticonPackId,
-  type Nullable,
-} from "@/shared/lib";
+import { cn, useBfcacheRestore, type EmoticonPackId, type Nullable } from "@/shared/lib";
 import { ActionSheet, AppHeader, Button, IconButton, Modal, toast } from "@/shared/ui";
 import { josa } from "es-hangul";
 import { ChevronLeft, EyeOff, Link2, Pencil, Plus, Trash2 } from "lucide-react";
@@ -202,8 +196,6 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
    * RSC payload that does not exist.
    */
   function openImport() {
-    // WARN: § 8.4.1. Before the navigation, not after — the assign below blurs the window, which is what takes the app dormant, and the note has to already be there for the return to be told apart from an app-switch.
-    markZoneDeparture();
     window.location.assign(EMOTICON_IMPORT_ROUTE);
   }
 

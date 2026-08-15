@@ -10,9 +10,9 @@ import { useChatEventSource } from "../model/use-chat-event-source";
  *
  * INFO: It renders nothing and takes no props (AGENTS.md § 1.1. governs components
  * that draw something). It exists so that "the socket is open" is a mount in the
- * chat screen's JSX rather than a hook call some other screen could copy. The
- * § 8.4.1. overlay moved up to `ChatStreamProvider` when dormancy stopped being
- * this socket's business and became the whole app's.
+ * chat screen's JSX rather than a hook call some other screen could copy. § 8.4.1.
+ * lives in `ChatStreamProvider`, which owns the state and is told the room is on
+ * screen by `ChatRoom`'s own mount rather than by this one.
  */
 export function ChatStreamConnection() {
   const { isDormant } = useChatStream();

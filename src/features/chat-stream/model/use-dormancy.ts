@@ -5,7 +5,7 @@ import {
   SSE_BUSY_RECHECK_INTERVAL,
   SSE_IDLE_TIMEOUT,
 } from "@/shared/config";
-import { isBusy, setDormant, takeZoneDeparture, type Optional } from "@/shared/lib";
+import { isBusy, setDormant, type Optional } from "@/shared/lib";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // INFO: REQUIREMENTS.md § 8.4.1. Keys that are never a keystroke on their own — pressing one is the first half of a shortcut, not typing.
@@ -14,32 +14,38 @@ const MODIFIER_KEYS = new Set(["Meta", "Control", "Alt", "Shift", "CapsLock"]);
 export type DormancyState = {
   /** REQUIREMENTS.md § 8.4.1. The app is asleep and reaching our API is refused. */
   isDormant: boolean;
+  /** § 8.4.1. Whether that sleep is on screen. Only one the reader can see wears 절전 모드. */
+  isDormantVisible: boolean;
   wake: () => void;
 };
 
 /**
- * REQUIREMENTS.md § 8.4.1. 절전 모드 — the countdown, the departure, and the one
- * way out.
+ * REQUIREMENTS.md § 8.4.1. 절전 모드 — the countdown, the departure, and the ways
+ * out.
  *
- * It lives in the shell rather than beside the socket, because dormancy closes the
- * request gate for the **whole** app (`shared/api`): 캘린더, 보관함 and 설정 hold no
- * `EventSource` and would otherwise keep waking Neon on every resume with nothing
- * on screen to show for it.
+ * It lives in the shell rather than beside the socket so that its listeners are
+ * registered before any other, but it sleeps only while the conversation is on
+ * screen: that stream is the whole of what an idle client costs, and the other
+ * three tabs poll nothing to be stopped from doing.
  *
  * WARN: Mount this before any other listener that fires on `blur` or
  * `visibilitychange`. Effects run in declaration order, so being first is what puts
  * the gate shut before the read-cursor flush in `ChatStreamProvider` reads it.
  */
-export function useDormancy(): DormancyState {
+export function useDormancy(isRoomOnScreen: boolean): DormancyState {
   const [isDormant, setIsDormant] = useState(false);
+  const [isDormantVisible, setIsDormantVisible] = useState(false);
   // WARN: The effect below runs once and owns the machine, so the only way out is a function it publishes here. Rebuilding the effect to expose one would re-arm the countdown on every wake.
   const leaveDormancy = useRef(() => undefined as void);
+  const holdRoom = useRef<(isOnScreen: boolean) => void>(() => undefined);
+  const roomRef = useRef(isRoomOnScreen);
   const wake = useCallback(() => leaveDormancy.current(), []);
 
   useEffect(() => {
     let idleTimer: Optional<ReturnType<typeof setTimeout>>;
     let lastInteractionAt = Date.now();
     let isSleeping = false;
+    let isShowing = false;
 
     function noteInteraction() {
       lastInteractionAt = Date.now();
@@ -51,7 +57,7 @@ export function useDormancy(): DormancyState {
 
     // INFO: § 8.4.1. Every path into dormancy — the first arm, an interaction, a departure — goes through here, so the kill switch only has to be honoured once.
     function armIdleTimer(delay = Math.max(lastInteractionAt + SSE_IDLE_TIMEOUT - Date.now(), 0)) {
-      if (!IS_SSE_IDLE_SLEEP_ENABLED) {
+      if (!IS_SSE_IDLE_SLEEP_ENABLED || !roomRef.current) {
         return;
       }
 
@@ -81,6 +87,13 @@ export function useDormancy(): DormancyState {
         return;
       }
 
+      // WARN: § 8.4.1. The overlay belongs to a window the reader is in front of. A page resumed from a freeze runs this same timer long past its deadline, and it has focus — only one still sitting behind another window does not.
+      if (isSleeping && document.hasFocus()) {
+        idleTimer = undefined;
+
+        return;
+      }
+
       // INFO: § 8.4.1. A recording, a playing clip, an open sheet or a send still in flight is a task the overlay would cover — so the countdown simply runs again.
       if (isBusy()) {
         armIdleTimer(SSE_BUSY_RECHECK_INTERVAL);
@@ -88,12 +101,12 @@ export function useDormancy(): DormancyState {
         return;
       }
 
-      enterDormancy();
+      revealDormancy();
     }
 
     /**
-     * REQUIREMENTS.md § 8.4.1. The one transition into 절전 모드, whatever led here —
-     * an idle stretch, a window left, or the app backgrounded.
+     * REQUIREMENTS.md § 8.4.1. The request gate, shut by whatever led here — an idle
+     * stretch, a window left, or the app backgrounded.
      *
      * WARN: The shared flag is written before the React state, and synchronously.
      * Later listeners on the same event read it to decide whether to send, so a
@@ -102,78 +115,102 @@ export function useDormancy(): DormancyState {
      */
     function enterDormancy() {
       // WARN: § 8.4.1. The kill switch is honoured here rather than in `armIdleTimer` alone. It governed only the countdown before, which was survivable while dormancy closed a socket — with the request gate behind it, an environment that had switched this off would still have every departure stop the app talking to the server.
-      if (isSleeping || !IS_SSE_IDLE_SLEEP_ENABLED) {
+      if (isSleeping || !IS_SSE_IDLE_SLEEP_ENABLED || !roomRef.current) {
         return;
       }
 
       isSleeping = true;
       setDormant(true);
-      clearTimeout(idleTimer);
-      idleTimer = undefined;
       setIsDormant(true);
     }
 
-    // INFO: § 8.4.1. The one way out, and it is always a deliberate act — returning focus does not qualify, or the overlay would be dismissed by the very switch that is meant to reveal it.
+    /**
+     * REQUIREMENTS.md § 8.4.1. The half the reader sees, and it is raised by the
+     * countdown alone — a departure leaves no one in front of the screen to explain
+     * the silence to, and the overlay it used to raise was still standing in the
+     * app-switcher snapshot when they came back.
+     */
+    function revealDormancy() {
+      enterDormancy();
+
+      if (!isSleeping || isShowing) {
+        return;
+      }
+
+      isShowing = true;
+      setDormant(true, true);
+      setIsDormantVisible(true);
+      clearTimeout(idleTimer);
+      idleTimer = undefined;
+    }
+
+    /**
+     * REQUIREMENTS.md § 8.4.1. Takes the overlay down without ending the sleep, for
+     * the app going away underneath it.
+     *
+     * WARN: The overlay is a visible window's state and nothing else. Left standing
+     * it is painted into iOS's app-switcher snapshot, and the reader comes back to
+     * a 절전 모드 they never watched arrive — which the silent departure below exists
+     * to have removed.
+     */
+    function concealDormancy() {
+      if (!isShowing) {
+        return;
+      }
+
+      isShowing = false;
+      setDormant(true, false);
+      setIsDormantVisible(false);
+    }
+
+    // INFO: § 8.4.1. A silent sleep ends by itself; only the overlay has to be pressed off, and only because it is standing in front of somebody.
     function awaken() {
       if (!isSleeping) {
         return;
       }
 
       isSleeping = false;
+      isShowing = false;
       setDormant(false);
       setIsDormant(false);
+      setIsDormantVisible(false);
       noteInteraction();
     }
 
     function handleVisibilityChange() {
       if (document.visibilityState === "hidden") {
         leave();
+        concealDormancy();
+        // WARN: § 8.4.1. A frozen page runs no timers, so one left armed here comes due on the resume — where `hasFocus` above is the only thing between it and an overlay raised on a reader who has just come back.
+        clearTimeout(idleTimer);
+        idleTimer = undefined;
 
         return;
       }
 
-      noteInteraction();
+      handleReturn();
     }
 
     /**
-     * WARN: § 8.4.1. Returning re-arms the countdown, and something has to — `sleep`
-     * disarms itself outright when it comes due on a window nobody has looked at,
-     * so without this the only thing left that could re-arm is a `pointerdown` or a
-     * `keydown`. A departure that skipped dormancy through `isBusy` (a clip
-     * playing) and came back to a reader who touches nothing would then never go
-     * dormant again for the life of the page.
+     * REQUIREMENTS.md § 8.4.1. Coming back ends the sleep, overlay or no overlay.
      *
-     * INFO: This does not wake. `noteInteraction` writes the deadline but leaves
-     * `isSleeping` alone, so returning focus still fails to dismiss the overlay —
-     * which is the § 8.4.1. rule it would otherwise break.
+     * WARN: This once refused to wake a *visible* sleep, on the reasoning that the
+     * reader had watched it arrive. They had not: a window fully behind another is
+     * still `visible`, so the overlay the countdown raises there is one nobody saw,
+     * and ⌘Tab back to it asked for a press to dismiss what the return had already
+     * answered. What still needs a press is a window that never lost focus, which
+     * reaches no branch here.
      *
-     * WARN: Returning from § 13.7.'s zone is the one exception, and it is narrowed
-     * to a departure this app announced rather than to bfcache at large. Leaving
-     * for `/emoticons/import` blurs the window and goes dormant on the way out, so
-     * the return put 절전 모드 over a screen the user never felt they had left. The
-     * event alone could not carry this: an iOS resume fires `pageshow` too
-     * (§ 8.4.), and waking on that is the app-switch dismissal § 8.4.1. refuses.
-     *
-     * INFO: The note is the whole test, with no `persisted` beside it. It is
-     * written once and taken by the first `pageshow` after — which *is* the return
-     * — so a restore finds the overlay and wakes, while a return that reloaded
-     * instead finds `awaken` a no-op on a document that was never sleeping.
-     *
-     * WARN: The read-and-clear runs on **every** `pageshow`, including the ones
-     * that go on to do nothing with it, or a note left by a departure whose
-     * navigation never committed would arm the next resume.
+     * WARN: Returning also re-arms the countdown, and something has to — `sleep`
+     * disarms itself outright when it comes due on a window nobody has looked at.
+     * `awaken` notes an interaction of its own, so this is idempotent within a tick.
      */
-    function handleReturn(event: Event) {
-      const isZoneReturn = event.type === "pageshow" && takeZoneDeparture();
-
+    function handleReturn() {
       if (document.visibilityState !== "visible") {
         return;
       }
-      if (isZoneReturn) {
-        awaken();
-      }
 
-      // INFO: Not an `else`. `awaken` notes an interaction of its own, and `noteInteraction` is idempotent within a tick — so a zone return that found nothing to wake still re-arms the countdown.
+      awaken();
       noteInteraction();
     }
 
@@ -187,10 +224,9 @@ export function useDormancy(): DormancyState {
     }
 
     /**
-     * WARN: § 8.4.1. A task in flight departs without going dormant. The overlay
-     * would cover the controls of a recording or an open sheet, on iOS a file
-     * picker and the share sheet both take focus away mid-task, and § 8.5.'s
-     * delivery queue would lose the rest of its chain to a closed request gate.
+     * WARN: § 8.4.1. A task in flight departs without going dormant. § 8.5.'s
+     * delivery queue would lose the rest of its chain to a closed request gate, and
+     * on iOS a file picker and the share sheet both take focus away mid-task.
      */
     function leave() {
       if (isBusy()) {
@@ -198,6 +234,35 @@ export function useDormancy(): DormancyState {
       }
 
       enterDormancy();
+    }
+
+    /**
+     * REQUIREMENTS.md § 8.4.1. Entering 채팅 starts the countdown and leaving ends
+     * it, because the stream it exists to close is open for exactly that long.
+     */
+    function holdForRoom(isOnScreen: boolean) {
+      roomRef.current = isOnScreen;
+
+      if (isOnScreen) {
+        noteInteraction();
+
+        return;
+      }
+
+      awaken();
+      clearTimeout(idleTimer);
+      idleTimer = undefined;
+    }
+
+    // WARN: § 8.4.1. A tap wakes a silent sleep rather than merely noting it. The overlay is what a press lands on when there is one, and when there is none the press must not fall onto a shut gate.
+    function handlePointerDown() {
+      if (isSleeping && !isShowing) {
+        awaken();
+
+        return;
+      }
+
+      noteInteraction();
     }
 
     // INFO: § 8.4.1. A key wakes as a tap does. Focus is usually still in the composer when the overlay arrives, so without this the keystrokes that follow go into a field the user can no longer see and nothing reconnects.
@@ -230,16 +295,17 @@ export function useDormancy(): DormancyState {
     window.addEventListener("pageshow", handleReturn);
     window.addEventListener("focus", handleReturn);
     // WARN: § 8.4.1. `pointerdown` and `keydown` only. `mousemove` and `scroll` would hand the countdown to a cursor crossing the window and to momentum the user is not driving, which is most of what this is meant to catch.
-    document.addEventListener("pointerdown", noteInteraction);
+    document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
     leaveDormancy.current = awaken;
+    holdRoom.current = holdForRoom;
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("pageshow", handleReturn);
       window.removeEventListener("focus", handleReturn);
-      document.removeEventListener("pointerdown", noteInteraction);
+      document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
       clearTimeout(idleTimer);
       // WARN: The flag outlives React, so a teardown that left it set would refuse every request for the rest of the document's life — including the ones a fresh mount makes.
@@ -247,5 +313,12 @@ export function useDormancy(): DormancyState {
     };
   }, []);
 
-  return { isDormant, wake };
+  /**
+   * WARN: A second effect rather than a dependency on the one above, which must
+   * keep the listener order its own comment describes — re-running it here would
+   * re-register its handlers behind the read-cursor flush that departs beside them.
+   */
+  useEffect(() => holdRoom.current(isRoomOnScreen), [isRoomOnScreen]);
+
+  return { isDormant, isDormantVisible, wake };
 }

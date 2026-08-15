@@ -49,7 +49,7 @@ import {
   cn,
   compareId,
   composeEventNotice,
-  isDormant,
+  countVisibleWakes,
   runWhenIdle,
   startMediaMorph,
   stopVoice,
@@ -270,9 +270,9 @@ export function ChatRoom({
     token: 0,
     viaKeyboard: false,
   });
-  // INFO: REQUIREMENTS.md § 8.14. Whether § 8.4.1.'s overlay is up, so waking from it can put focus back where it took it from.
-  const isSleeping = useSyncExternalStore(subscribeDormancy, isDormant, () => false);
-  const wasSleepingRef = useRef(false);
+  // WARN: REQUIREMENTS.md § 8.14. A count of the overlays the reader has dismissed, never the flag — `countVisibleWakes` records why the flag cannot answer this once the effect below is running.
+  const visibleWakes = useSyncExternalStore(subscribeDormancy, countVisibleWakes, () => 0);
+  const restoredWakeRef = useRef(visibleWakes);
   const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
   const { remember: rememberEmoticon } = useRecentEmoticons();
   const setBackground = useSetBackground();
@@ -1030,21 +1030,19 @@ export function ChatRoom({
    * thing the reader was in the middle of.
    *
    * INFO: Keyed on the wake rather than on every change, so a room that was never
-   * asleep never moves focus. `useSyncExternalStore` because the flag is module state
-   * `shared/api`'s request gate reads without a hook (§ 8.4.1.).
+   * asleep never moves focus. `useSyncExternalStore` because the count is module
+   * state `shared/api`'s request gate reads beside without a hook (§ 8.4.1.).
+   *
+   * WARN: The ref is seeded from the count at first render, not from `0` — the
+   * provider outlives this widget, so a room re-entered after a wake would otherwise
+   * open by seizing the caret.
    */
   useEffect(() => {
-    if (isSleeping) {
-      wasSleepingRef.current = true;
-
+    if (visibleWakes === restoredWakeRef.current) {
       return;
     }
 
-    if (!wasSleepingRef.current) {
-      return;
-    }
-
-    wasSleepingRef.current = false;
+    restoredWakeRef.current = visibleWakes;
 
     if (isEmoticonPanelOpen) {
       // INFO: § 8.14. The mode is carried across rather than assumed — a panel a mouse opened is one a mouse should get back, without the rings a keyboard entry paints.
@@ -1054,7 +1052,7 @@ export function ChatRoom({
     }
     // WARN: Keyed on the wake alone. `focusComposer` and the panel flag change on their own account all the time, and re-running on either would seize focus from whatever the reader had reached for since.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSleeping]);
+  }, [visibleWakes]);
 
   // INFO: DESIGN.md § 6.8. The flash is a moment, not a selection — nothing dismisses it but time.
   useEffect(() => {

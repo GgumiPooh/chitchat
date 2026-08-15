@@ -57,7 +57,7 @@ export function ChatScreen({
       // INFO: REQUIREMENTS.md § 12.2. Overrides `bg-chat-canvas` above, which stays as the no-wallpaper answer and as the fallback for a hash the base83 pass rejects.
       style={chromeTint ? { backgroundColor: chromeTint } : undefined}
     >
-      {/* INFO: REQUIREMENTS.md § 8.4.2. The app's one `EventSource`, open only while the conversation is. It renders nothing but the § 8.4.1. overlay. */}
+      {/* INFO: REQUIREMENTS.md § 8.4.2. The app's one `EventSource`, open only while the conversation is. It renders nothing. */}
       <ChatStreamConnection />
       {search.isOpen ? (
         <MessageSearchBar
