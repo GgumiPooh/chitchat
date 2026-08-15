@@ -12,11 +12,9 @@ import {
   exists,
   gt,
   inArray,
-  isNotNull,
   isNull,
   lt,
   lte,
-  or,
   sql,
   type SQL,
 } from "drizzle-orm";
@@ -224,13 +222,12 @@ async function findSendingMessages(mediaIds: MediaId[]): Promise<Map<string, Arc
 }
 
 /**
- * INFO: REQUIREMENTS.md § 10. `media` is the library's single source, so a row
- * belongs here either because a message that is still visible carries it, or
- * because it was uploaded straight in. An object with neither is an upload whose
- * send never landed, and it is not something the user ever saw.
+ * INFO: REQUIREMENTS.md § 10. `media` is the library's single source, so a row belongs
+ * here because a message that is still visible carries it. An object no live message
+ * carries is an upload whose send never landed, and it is not something the user saw.
  *
  * WARN: Membership only — which **shelf** a row lands on is `isOfShelf`, and the
- * two were one predicate until 파일 got a segment of its own. `removeArchiveMedia`
+ * two were one predicate until 파일 got a segment of its own. `destroyArchiveMedia`
  * wants this half alone, since 삭제 reaches every shelf.
  */
 export function isInLibrary(): Optional<SQL> {
@@ -242,14 +239,8 @@ export function isInLibrary(): Optional<SQL> {
       .where(and(eq(messageMedia.mediaId, media.id), isNull(messages.deletedAt))),
   );
 
-  // INFO: REQUIREMENTS.md § 18. #1. The library's own delete, and the only place it is read — a hidden row still renders in the bubble it was sent in.
-  // WARN: The finished restructure. `archive_*`, not the `gallery_*` pair it was renamed from — those still exist until migration B and hold the pre-deploy values, so a reader left on one of them and a writer moved to the other is a row that is in 보관함 by one column and not by the other.
-  // INFO: The finished restructure. A row the uploader destroyed leaves the shelf outright rather than being hidden — there is no object left to draw a tile from. The bubble it was sent in still holds its place and draws a tombstone.
-  return and(
-    isNull(media.deletedAt),
-    isNull(media.archiveHiddenAt),
-    or(isNotNull(media.archiveAddedAt), isPosted),
-  );
+  // INFO: REQUIREMENTS.md § 18. #1. A destroyed row leaves the shelf outright — there is no object left to draw a tile from, and the bubble it was sent in draws a tombstone in its place.
+  return and(isNull(media.deletedAt), isPosted);
 }
 
 /**

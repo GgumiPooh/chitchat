@@ -38,8 +38,6 @@ export type RegisterMediaParams = {
   filename?: Nullable<string>;
   /** REQUIREMENTS.md § 9.3. The waveform extracted while recording, and the thing that makes this row a voice message rather than an attached audio file. */
   waveformPeaks?: Nullable<number[]>;
-  // INFO: REQUIREMENTS.md § 10. Set by an upload that starts in the 보관함 tab. A chat attachment leaves it false and reaches the grid through the message it is sent in.
-  addToGallery?: boolean;
   /**
    * WARN: REQUIREMENTS.md § 12.1. Read from the key rather than trusted from the caller,
    * and it narrows the size ceiling — a `background` video is bounded far below
@@ -84,7 +82,6 @@ export async function registerMedia({
   blurhash,
   filename,
   waveformPeaks,
-  addToGallery = false,
   scope,
 }: RegisterMediaParams): Promise<Nullable<ArchiveMedia>> {
   // WARN: Both HEADs still go out together, including the one a file will not need. Deciding first would put the two round trips in series on the send path, and a miss on a key R2 holds nothing at costs a request rather than a correctness problem.
@@ -120,19 +117,12 @@ export async function registerMedia({
   const isFile = !isVoice && !isEmoticonAudio && isFileMime(object.mime);
   const storedName = isFile && filename ? toSafeFilename(filename) : null;
 
-  // WARN: § 9.1. `addToGallery` used to be refused here too, and that half is gone: the old reason was that a file carried by no message had nowhere in the app to be found again, not anything about files. § 10.'s 파일 shelf is that place, so a row filed straight into it is now reachable exactly as a photo is.
-  // INFO: § 9.1. `scope !== "chat"` stays, and it is the durable half — an avatar or a background is drawn from its own object, and a file has neither a box nor a tile to be drawn as.
+  // INFO: § 9.1. An avatar or a background is drawn from its own object, and a file has neither a box nor a tile to be drawn as.
   if (isFile && (scope !== "chat" || !storedName)) {
     return null;
   }
 
-  // WARN: § 9.3. Likewise. The 음성 shelf now holds a recording that rides no bubble, so 보관함에만 추가 is a real choice on that screen and the row it writes is listed by the 음성 shelf's own kind (§ 10.).
   if (isVoice && scope !== "chat") {
-    return null;
-  }
-
-  // WARN: The finished restructure. An emoticon asset is never a library row, and this is what makes that structural rather than remembered. It would hold "by construction" — `isInLibrary()` wants `archive_added_at` or a live message and an emoticon has neither — but `archive_added_at` is exactly what this flag sets, so construction only holds while nobody passes it. `POST /api/media` cannot: it resolves the scope out of `MEDIA_UPLOAD_SCOPES`, which has no `emoticon` in it. An emoticon's own registration path calls this function directly, with no route in between to refuse it.
-  if (scope === "emoticon" && addToGallery) {
     return null;
   }
 
@@ -179,8 +169,6 @@ export async function registerMedia({
       blurhash: hasNoBox ? null : (blurhash ?? null),
       filename: storedName,
       waveformPeaks: isVoice ? waveformPeaks : null,
-      // WARN: The finished restructure. `archive_*` is the pair `isInLibrary` reads. The `gallery_*` columns still exist until migration B and are no longer written, so anything moved back to them writes a row 보관함 cannot see.
-      archiveAddedAt: addToGallery ? new Date() : null,
     })
     // INFO: `r2_key` is unique, so a retried registration returns the row the first attempt wrote instead of failing the send.
     .onConflictDoNothing({ target: media.r2Key })

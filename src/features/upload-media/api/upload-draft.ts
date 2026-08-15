@@ -14,8 +14,6 @@ type UploadTicket = {
 export type UploadProgress = (loadedBytes: number) => void;
 
 export type UploadDraftOptions = {
-  // INFO: REQUIREMENTS.md § 10. What puts a photo in the library without a message behind it. A chat attachment leaves this alone and earns its place there through `message_media`.
-  addToGallery?: boolean;
   // INFO: REQUIREMENTS.md § 12. The key prefix the object lands under, which is also what its registration is authorized against.
   scope?: MediaUploadScope;
   onProgress?: UploadProgress;
@@ -32,7 +30,7 @@ const NO_PROGRESS: UploadProgress = () => {};
  */
 export async function uploadDraft(
   draft: MediaDraft,
-  { addToGallery = false, scope = "chat", onProgress = NO_PROGRESS }: UploadDraftOptions = {},
+  { scope = "chat", onProgress = NO_PROGRESS }: UploadDraftOptions = {},
 ): Promise<ArchiveMedia> {
   // WARN: REQUIREMENTS.md § 8.4.1. Held here rather than at each caller, because the bytes are already in R2 by the time the registration runs — a dormancy landing between the two would leave an object nothing points at and no way to retry it.
   const release = holdAwake();
@@ -52,7 +50,7 @@ export async function uploadDraft(
       );
     }
 
-    return await registerUpload(draft, ticket.r2Key, addToGallery);
+    return await registerUpload(draft, ticket.r2Key);
   } finally {
     release();
   }
@@ -72,11 +70,7 @@ async function requestTicket(draft: MediaDraft, scope: MediaUploadScope): Promis
   return response.json() as Promise<UploadTicket>;
 }
 
-async function registerUpload(
-  draft: MediaDraft,
-  r2Key: string,
-  addToGallery: boolean,
-): Promise<ArchiveMedia> {
+async function registerUpload(draft: MediaDraft, r2Key: string): Promise<ArchiveMedia> {
   const response = await request(MEDIA_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -90,7 +84,6 @@ async function registerUpload(
       filename: draft.filename,
       // INFO: REQUIREMENTS.md § 9.3. Already in the wire form the column stores — a draft carries integers, and only what renders converts to `0`–`1`.
       waveformPeaks: draft.waveformPeaks,
-      addToGallery,
     }),
   });
 

@@ -1,18 +1,14 @@
-export {
-  deleteArchiveMedia,
-  type ArchiveRemovalMode,
-  type ArchiveRemovalResult,
-} from "./api/delete-archive-media";
+export { deleteArchiveMedia, type ArchiveRemovalResult } from "./api/delete-archive-media";
 export { useArchiveMedia } from "./model/use-archive-media";
-// INFO: The finished restructure. The 숨기기 / 완전히 삭제 choice and both confirmations, shared by all three shelves so the two can never be described as degrees of one another.
+// INFO: § 18. #1. 삭제 and its confirmation, shared by all three shelves so the copy in front of an irreversible act cannot drift between them.
 export {
   useArchiveRemoval,
   type ArchiveRemovalParams,
   type ArchiveRemovalRequest,
 } from "./model/use-archive-removal";
 export { useArchiveSelection, type ArchiveSelectionOptions } from "./model/use-archive-selection";
-export { useArchiveUpload, type ArchiveUploadParams } from "./model/use-archive-upload";
-// INFO: REQUIREMENTS.md § 9.2. The drop, the tray and the two 갈래 under it, shared by all three shelves so the refusal rules cannot drift between them.
+export { useArchiveUpload } from "./model/use-archive-upload";
+// INFO: REQUIREMENTS.md § 9.2. The drop, the tray and the 보내기 under it, shared by all three shelves so the refusal rules cannot drift between them.
 export { useShelfStaging, type ShelfStagingParams } from "./model/use-shelf-staging";
 export { ArchiveFileList, type ArchiveFileListProps } from "./ui/archive-file-list";
 export { ArchiveGrid, type ArchiveGridProps } from "./ui/archive-grid";

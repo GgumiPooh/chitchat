@@ -31,8 +31,6 @@ const bodySchema = z.object({
     .array(z.number().int().min(0).max(VOICE_PEAK_SCALE))
     .length(VOICE_WAVEFORM_PEAKS)
     .nullish(),
-  // INFO: REQUIREMENTS.md § 10. An upload started in the 보관함 tab that is not being posted to the conversation. It needs a marker of its own, because the grid's other source is the `message_media` join.
-  addToGallery: z.boolean().optional(),
 });
 
 /**
@@ -59,11 +57,6 @@ export async function POST(request: Request) {
   );
 
   if (!scope) {
-    return apiError("invalid_request");
-  }
-
-  // WARN: REQUIREMENTS.md § 12. `addToGallery` is the caller's own claim, so it has to be refused rather than ignored for a scope the library does not own. An avatar filed into the grid is deleted outright by § 10.'s removal — nothing carries it in a message — and `users.avatar_media_id` is `ON DELETE SET NULL`, so the wearer's photo would silently disappear.
-  if (scope !== "chat" && body.data.addToGallery) {
     return apiError("invalid_request");
   }
 

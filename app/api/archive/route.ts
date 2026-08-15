@@ -1,4 +1,4 @@
-import { destroyArchiveMedia, listArchiveMedia, removeArchiveMedia } from "@/entities/media";
+import { destroyArchiveMedia, listArchiveMedia } from "@/entities/media";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
@@ -60,18 +60,14 @@ const querySchema = z.object({
 const bodySchema = z.object({
   ids: z.array(snowflakeSchema<MediaId>()).min(1).max(MAX_ARCHIVE_SELECTION),
   /**
-   * The finished restructure. Which of the two removals this is.
+   * TODO: § 18. #1. Removed in the following cycle, exactly as `kind` above is.
    *
-   * INFO: `hide` is the default so a client that has not been updated keeps the
-   * behaviour it had — the shelf is curated and nothing is destroyed, which is the
-   * safe half of the pair.
-   *
-   * WARN: § 4.1. The two are not degrees of the same action. `hide` takes a tile off the
-   * shared shelf and leaves the bubble and the bytes alone; `delete` destroys the object,
-   * and the bubble it was sent in draws a tombstone from then on. Both are open to either
-   * participant — the library belongs to the conversation — and neither is scoped here.
+   * WARN: `"hide"` is **refused**, never ignored. A tab left open across the deploy
+   * still offers 숨기기, whose whole promise was that the bytes survive — answering it
+   * with the destroy this route now performs would spend that tap on the irreversible
+   * act the dialog had just ruled out. A 400 costs that tab its 삭제 and nothing else.
    */
-  mode: z.enum(["hide", "delete"]).default("hide"),
+  mode: z.literal("delete").optional(),
 });
 
 // INFO: AGENTS.md § 6.4. A Route Handler answers its own 401 — the App Router does not honour a thrown `Response`.
@@ -106,16 +102,16 @@ export async function GET(request: Request) {
 }
 
 /**
- * REQUIREMENTS.md § 18. #1. Takes photos out of the library, and — on `mode: "delete"`
- * — destroys the objects behind them.
+ * REQUIREMENTS.md § 18. #1. Destroys the objects behind the ids it is given, which is
+ * 보관함's only removal.
  *
- * INFO: The finished restructure. Neither mode is scoped to the uploader: the library belongs
- * to the conversation (§ 6.), so curating it — including throwing something out for good —
- * belongs to both. What keeps 완전 삭제 answerable is that it never removes a bubble, only
- * the picture inside one, and § 4.3.s tombstone is what stands in its place.
+ * INFO: Not scoped to the uploader: the library belongs to the conversation (§ 6.), so
+ * curating it — including throwing something out for good — belongs to both. What keeps
+ * that answerable is that it never removes a bubble, only the picture inside one, and
+ * § 4.3.'s tombstone is what stands in its place.
  *
  * INFO: An id the caller may not act on simply does nothing — no per-id 404 to report,
- * and no way to probe with one. That holds for both modes.
+ * and no way to probe with one.
  */
 export async function DELETE(request: Request) {
   const user = await getCurrentUser();
@@ -130,13 +126,5 @@ export async function DELETE(request: Request) {
     return apiError("invalid_request");
   }
 
-  // INFO: The finished restructure. 완전 삭제 answers in the same shape as 숨기기 so the screen has one response to reconcile against — the ids it names have left the shelf either way.
-  if (body.data.mode === "delete") {
-    const deletedIds = await destroyArchiveMedia(body.data.ids);
-
-    return NextResponse.json({ hiddenIds: [], deletedIds });
-  }
-
-  // INFO: The finished restructure. No caller is passed: hiding is open to either participant and destroys nothing, so there is nothing here to scope.
-  return NextResponse.json(await removeArchiveMedia(body.data.ids));
+  return NextResponse.json({ deletedIds: await destroyArchiveMedia(body.data.ids) });
 }

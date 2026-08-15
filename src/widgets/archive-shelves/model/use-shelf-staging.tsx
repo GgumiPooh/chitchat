@@ -32,8 +32,7 @@ export type ShelfStagingParams = {
 
 /**
  * REQUIREMENTS.md § 9.2., § 10. One staging flow for all three shelves of 보관함:
- * a drop target, the tray it fills, the two editors, and the
- * `대화에도 보내기` / `보관함에만 추가` pair under it.
+ * a drop target, the tray it fills, the two editors, and the 대화에 보내기 under it.
  *
  * INFO: A shared hook rather than three copies, and the `isEnabled` predicate below
  * is the reason. § 9.2. makes it an invariant that a drop is refused for the length
@@ -110,21 +109,11 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
             onEdit={editing.open}
             onRemove={staging.remove}
           />
-          {/* INFO: REQUIREMENTS.md § 10. 보관함 is the shared album, so posting to the conversation is the default and not posting is the option beside it. Both rows are on every shelf: `registerMedia` used to refuse `addToGallery` for a file and a recording, and it no longer does (§ 9.1., § 9.3.). */}
-          {/* WARN: Both are held while a trim is being read back. The trimmer is already gone by then, so an upload started in that window would ship the untrimmed original and the `replace` behind it would land on a draft `takeAll` had removed. */}
-          <div className="space-y-xs">
-            <Button disabled={isHeld} haptic onClick={() => void start({ shouldPost: true })}>
-              대화에도 보내기
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={isHeld}
-              haptic
-              onClick={() => void start({ shouldPost: false })}
-            >
-              보관함에만 추가
-            </Button>
-          </div>
+          {/* INFO: § 18. #1. One control, because there is one outcome: a row reaches 보관함 by hanging off a live message, so an upload that is not posted lands nowhere at all. */}
+          {/* WARN: Held while a trim is being read back. The trimmer is already gone by then, so an upload started in that window would ship the untrimmed original and the `replace` behind it would land on a draft `takeAll` had removed. */}
+          <Button disabled={isHeld} haptic onClick={() => void start()}>
+            대화에 보내기
+          </Button>
         </div>
       </BottomSheet>
     );
@@ -174,13 +163,13 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
    * revoking the previews, and `upload` revokes each one as it settles — leaving the
    * hook to revoke them on unmount instead would kill the blob mid-upload.
    */
-  async function start({ shouldPost }: { shouldPost: boolean }) {
+  async function start() {
     const drafts = staging.takeAll();
 
     editing.close();
 
     if (drafts.length > 0) {
-      await upload(drafts, { shouldPost });
+      await upload(drafts);
     }
   }
 }

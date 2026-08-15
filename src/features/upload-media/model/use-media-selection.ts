@@ -12,10 +12,9 @@ export type UseMediaSelectionParams = {
    * Whether a § 9.1. file attachment may be staged. The composer says yes; the
    * library says no.
    *
-   * WARN: Off by default, and the library depends on that. `validateFile` admits
-   * anything shaped like a mime now, so a `.zip` would stage a tile the grid can
-   * never show — and `registerMedia` refuses a file under `addToGallery`, which
-   * would surface as a 422 with nothing in the UI naming the reason.
+   * WARN: Off by default, and the 갤러리 shelf depends on that. `validateFile` admits
+   * anything shaped like a mime now, so a `.zip` would stage a tile that grid can never
+   * show.
    */
   acceptsFiles?: boolean;
 };

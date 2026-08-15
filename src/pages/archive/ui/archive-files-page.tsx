@@ -42,7 +42,7 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const { media, isLoadingMore, loadMore, prepend, remove } = useArchiveMedia(initialMedia, "file");
   // INFO: REQUIREMENTS.md § 9.1. `savesToPhotoLibrary: false` — a file downloads on iOS too, so neither the cap nor the merged 저장/공유 row of § 10. applies here.
-  // INFO: The finished restructure. The 숨기기 / 완전히 삭제 choice, its two confirmations and the reconciliation of what the server took — shared with the other two shelves (`useArchiveRemoval`).
+  // INFO: § 18. #1. 삭제, its confirmation and the reconciliation of what the server took — shared with the other two shelves (`useArchiveRemoval`).
   const removal = useArchiveRemoval({
     noun: "file",
     onRemoved: (ids) => {
@@ -84,7 +84,7 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
             />
           ) : (
             <>
-              {/* INFO: REQUIREMENTS.md § 10. A file may now be filed here without being sent, because `registerMedia` no longer refuses `addToGallery` for one — the reason it did was that a file riding no bubble had nowhere to be found again, and this shelf is that place. */}
+              {/* INFO: REQUIREMENTS.md § 10. A file staged here is sent to the conversation like any other — § 18. #1. left the message as the only thing that puts a row on a shelf. */}
               <IconButton
                 variant="floating"
                 Icon={FilePlus}

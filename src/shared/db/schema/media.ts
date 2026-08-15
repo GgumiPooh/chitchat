@@ -35,11 +35,7 @@ export const media = pgTable(
     // WARN: § 9.3. Required for a voice message — the § 8.3. box is fixed, but the player's progress is drawn against this figure and a null reads as a waveform that never moves.
     durationMs: integer("duration_ms"),
     blurhash: text("blurhash"),
-    // INFO: REQUIREMENTS.md § 10. Set only for an object uploaded straight into the library. Everything else earns its place there by hanging off a live message, and an object that has neither is an abandoned upload rather than a photo.
-    archiveAddedAt: timestamp("archive_added_at", { withTimezone: true }),
-    // INFO: REQUIREMENTS.md § 18. #1. 보관함에서 숨기기, which either participant may do (the finished restructure) — the shelf is shared. The bubble the object was sent in keeps rendering it, and the bytes are never touched (§ 4.2.).
-    archiveHiddenAt: timestamp("archive_hidden_at", { withTimezone: true }),
-    // INFO: The finished restructure. 완전 삭제, which only the uploader may do. Soft, because `message_media`'s FK and § 8.13.'s resume reconciliation both need the row to survive — only the R2 objects are really removed.
+    // INFO: REQUIREMENTS.md § 18. #1. 삭제, which either participant may do — 보관함 is the shared album. Soft, because `message_media`'s FK and § 8.13.'s resume reconciliation both need the row to survive; only the R2 objects are really removed.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   () => [

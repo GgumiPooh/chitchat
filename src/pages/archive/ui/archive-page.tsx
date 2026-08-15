@@ -61,7 +61,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
     prepend,
     remove,
   } = useArchiveMedia(initialMedia, "gallery", targetId);
-  // INFO: The finished restructure. The 숨기기 / 완전히 삭제 choice, its two confirmations and the reconciliation of what the server took — all three shelves share it (`useArchiveRemoval`).
+  // INFO: § 18. #1. 삭제, its confirmation and the reconciliation of what the server took — all three shelves share it (`useArchiveRemoval`).
   const removal = useArchiveRemoval({
     noun: "photo",
     onRemoved: (ids) => {
@@ -109,7 +109,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
                 aria-label="갤러리 추가"
                 onClick={picker.open}
               />
-              {/* WARN: Unavailable while an upload is in flight. A photo being posted is in the grid with no message attached yet, which is exactly what `removeArchiveMedia` reads as "delete it outright" — deleting it there would take the row out from under the `postMessage` that was about to reference it. */}
+              {/* WARN: Unavailable while an upload is in flight. A photo being posted is in the grid with no message behind it yet, which `isInLibrary()` does not admit — a 삭제 aimed at it would silently take nothing. */}
               <IconButton
                 variant="floating"
                 Icon={ListChecks}
@@ -187,7 +187,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
           initialIndex={viewer.index}
           // INFO: DESIGN.md § 7.10. 채팅's own glyph, the one the tab bar and 대화하기 already use — the jump is named by where it lands, and this one lands on a message.
           jump={{ label: "대화에서 보기", Icon: MessageCircle, onSelect: openInChat }}
-          // WARN: REQUIREMENTS.md § 10. Withheld while an upload is in flight, for the reason the 선택 control is disabled — a row whose `postMessage` has not settled would be deleted out from under the send.
+          // WARN: REQUIREMENTS.md § 10. Withheld while an upload is in flight, for the reason the 선택 control is disabled — a row whose `postMessage` has not settled is not in the library yet, so the tap would take nothing.
           deletion={staging.isUploading ? undefined : { label: "삭제", onSelect: askToDeleteSlide }}
           // INFO: DESIGN.md § 4.7.3. The return journey — the slide collapses back into its tile wherever the grid still has one on screen, and fades where it stands otherwise.
           findMorphOrigin={findArchiveTile}
@@ -270,9 +270,9 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
   }
 
   /**
-   * REQUIREMENTS.md § 10. and the finished restructure. The viewer's 삭제, which opens the
-   * same two-way choice the selection bar's does — the slide is one row rather than a
-   * selection, so it is the one place the subject is named instead of counted.
+   * REQUIREMENTS.md § 10. The viewer's 삭제, which asks for the same destroy the selection
+   * bar's does — the slide is one row rather than a selection, so it is the one place the
+   * subject is named instead of counted.
    */
   function askToDeleteSlide(mediaId: MediaId) {
     const noun = viewer?.cells.find((item) => item.id === mediaId)?.isVideo ? "video" : "photo";

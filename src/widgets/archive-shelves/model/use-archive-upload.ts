@@ -15,11 +15,6 @@ import { toast } from "@/shared/ui";
 import { josa } from "es-hangul";
 import { useCallback, useState } from "react";
 
-export type ArchiveUploadParams = {
-  /** REQUIREMENTS.md § 10. Post what was uploaded to the conversation as well, rather than only filing it in 보관함. */
-  shouldPost: boolean;
-};
-
 type Uploaded = {
   draft: MediaDraft;
   media: ArchiveMedia;
@@ -27,6 +22,11 @@ type Uploaded = {
 
 /**
  * REQUIREMENTS.md § 10. Adding to 보관함, from any of its three shelves.
+ *
+ * WARN: § 18. #1. The post is what puts a row on the shelf, so it is no longer optional.
+ * A row earns its place in 보관함 by hanging off a live message and by nothing else now
+ * that `archive_added_at` is gone — an upload whose POST fails is reachable from no
+ * screen at all, which is what the failure copy has to say rather than promising a shelf.
  *
  * INFO: Not routed through `useSendMessage`. That queue exists to render an
  * optimistic bubble in a room this screen is not showing, and its failure state is
@@ -48,7 +48,7 @@ export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMe
   const [runningCount, setRunningCount] = useState(0);
 
   const upload = useCallback(
-    async (drafts: MediaDraft[], { shouldPost }: ArchiveUploadParams) => {
+    async (drafts: MediaDraft[]) => {
       setRunningCount((current) => current + 1);
       setRemainingCount((current) => current + drafts.length);
 
@@ -58,8 +58,7 @@ export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMe
           drafts,
           async (draft) => {
             try {
-              // WARN: `addToGallery` even when the item is also being posted. The user filed it in 보관함, so it must be there whether or not the POST that follows succeeds — and it must survive that message later being deleted. `registerMedia` accepts this for a file and a recording too now (§ 9.1., § 9.3.); it used to refuse both, because neither had a shelf to be found on.
-              const media = await uploadDraft(draft, { addToGallery: true });
+              const media = await uploadDraft(draft);
 
               // INFO: Only the rows this shelf lists are prepended. The others are real and are in 보관함, but `isOfShelf` puts them on a different segment, and pushing one into this list would draw a file card through the 갤러리 grid.
               if (toShelf(draft) === shelf) {
@@ -86,7 +85,7 @@ export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMe
         const uploaded = results.filter((result): result is Uploaded => Boolean(result));
         const failedCount = results.length - uploaded.length;
 
-        if (shouldPost && uploaded.length > 0) {
+        if (uploaded.length > 0) {
           await post(uploaded);
         }
 
@@ -106,7 +105,7 @@ export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMe
     [shelf, onAdded],
   );
 
-  // WARN: `isBusy` outlives `remainingCount`. It stays true through `post`, which is when the rows exist with no `message_media` child yet — `removeArchiveMedia` reads exactly that as "nothing renders it" and would delete them out from under the send.
+  // WARN: `isBusy` outlives `remainingCount`. It stays true through `post`, which is the window in which a prepended tile is on screen with no `message_media` child behind it — `isInLibrary()` does not admit it yet, so a 삭제 aimed at it would silently take nothing.
   return { remainingCount, isBusy: runningCount > 0, upload };
 }
 
@@ -156,7 +155,7 @@ async function post(uploaded: Uploaded[]) {
       });
     }
   } catch {
-    // INFO: The objects are registered with the 보관함 marker before this runs, so they are already on their shelf — only the bubble is missing, and that is what the copy says.
-    toast.error("보관함에는 저장했지만 대화에는 보내지 못했어요");
+    // WARN: § 18. #1. The bubble is the only thing that puts a row on the shelf, so a failed post leaves nothing behind to promise — the copy no longer names a 보관함 the upload never reached.
+    toast.error("대화에 보내지 못해서 보관함에도 담기지 않았어요");
   }
 }
