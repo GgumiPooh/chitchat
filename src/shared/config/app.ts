@@ -221,6 +221,9 @@ export const DELETED_MESSAGE_TEXT = "삭제된 메시지예요";
 /** REQUIREMENTS.md § 8.13.1. Which of a resuming client's loaded rows have been edited or deleted since it last saw them. */
 export const CHANGED_MESSAGES_PATH = "/api/messages/changed";
 
+/** REQUIREMENTS.md § 16.2. The route a client asks nothing of but an answer, to find out whether its requests reach anything. */
+export const HEALTH_PATH = "/api/health";
+
 // INFO: REQUIREMENTS.md § 8.13.1. A page size, and the client walks its upper bound down until a short page comes back. It cannot be a bare cap: what a truncation drops is the *oldest* changes inside the loaded window, and nothing else recovers those — `loadOlder` only ever fetches rows older than that window's start.
 export const CHANGED_MESSAGES_LIMIT = 200;
 

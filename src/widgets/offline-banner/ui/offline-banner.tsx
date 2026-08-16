@@ -1,5 +1,6 @@
 "use client";
 
+import { useNetworkProbe } from "@/shared/api";
 import { cn, useIsOffline } from "@/shared/lib";
 import { ShellOverlay } from "@/shared/ui";
 import { WifiOff } from "lucide-react";
@@ -19,6 +20,9 @@ export type OfflineBannerProps = {
  */
 export function OfflineBanner({ className, pillClassName }: OfflineBannerProps) {
   const isOffline = useIsOffline();
+
+  // INFO: REQUIREMENTS.md § 16.2. The evidence `useIsOffline` waits for, asked for rather than waited out — and here because this is the one component the shell and the mirror each mount exactly one of.
+  useNetworkProbe();
 
   return (
     <>
