@@ -5,7 +5,12 @@ import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { useApplyPhoto } from "@/features/apply-photo";
-import { useChatStream, useChatStreamListener, useInlineEmoticons } from "@/features/chat-stream";
+import {
+  rememberInlineEmoticons,
+  useChatStream,
+  useChatStreamListener,
+  useInlineEmoticons,
+} from "@/features/chat-stream";
 import { useWriteChatSnapshot } from "@/features/offline-snapshot";
 import {
   EmoticonPicker,
@@ -43,6 +48,7 @@ import {
   toMediaNoun,
   toMessageSummary,
   toQuoteThumbnail,
+  type InlineEmoticonMap,
   type MediaNoun,
   type MessageArrival,
 } from "@/shared/config";
@@ -197,6 +203,11 @@ export type ChatRoomProps = {
 };
 
 // INFO: § 13.6. The ceiling the emoticon panel's mount is given, matching the warm's own — the two are the same idle frame and a panel that mounted first would build its cells against an empty cache.
+// WARN: Hoisted, because a fresh `[]` or `{}` per render is a new identity on every one of `MessageRow`'s memo comparisons.
+const NO_INLINE_EMOTICONS: EmoticonItemId[] = [];
+
+const NO_INLINE_EMOTICON_MAP: InlineEmoticonMap = {};
+
 const PANEL_MOUNT_IDLE_DELAY = 2 * A_SECOND;
 
 // INFO: DESIGN.md § 6.7. The pill appears once the newest message is roughly this far away, and the same distance is what `scrollEndThreshold` treats as near enough to the end that a row re-measuring there should hold the end still rather than let it drift.
@@ -1621,6 +1632,8 @@ export function ChatRoom({
     if (text.trim() && !isConsumedByEmoticonSearch(text)) {
       // WARN: § 13.6. The minis in the draft are recorded at the send too, and `"mini"` is read off the payload rather than off the menu they were picked from: § 2.2. carries a mini as a fragment of this `text` and never as `messages.emoticon_item_id`, so nothing else can be in here.
       emoticons.forEach((emoticon) => rememberEmoticon(emoticon.id, "mini"));
+      // WARN: § 8.3. Published before the send, or the optimistic bubble's own emoticons are absent from the map the estimate reads and it prices the row without them — a correction on every send, which is the drift this estimate exists to avoid. The echo publishes the same entries again and they merge.
+      rememberInlineEmoticons(toInlineEmoticonMap(emoticons));
       send(text, emoticons, take());
     }
 
@@ -2052,6 +2065,9 @@ export function ChatRoom({
             text={row.pending.text}
             media={cells}
             emoticon={row.pending.emoticon}
+            inlineEmoticonItemIds={row.pending.inlineEmoticons.map(({ id }) => id)}
+            // WARN: § 8.3. Drawn from what the send is carrying rather than from the room's map, which only fills once the echo lands — read from there the optimistic bubble would reserve nothing and re-measure the moment it arrives.
+            inlineEmoticons={toInlineEmoticonMap(row.pending.inlineEmoticons)}
             replyTo={row.pending.replyTo}
             progress={row.pending.progress}
             createdAt={row.pending.createdAt}
@@ -2077,6 +2093,8 @@ export function ChatRoom({
           return (
             <MessageRow
               text={null}
+              inlineEmoticonItemIds={NO_INLINE_EMOTICONS}
+              inlineEmoticons={NO_INLINE_EMOTICON_MAP}
               createdAt={row.message.createdAt}
               sender={participantById.get(row.message.senderId)}
               isMine={row.isMine}
@@ -2098,6 +2116,9 @@ export function ChatRoom({
             text={row.message.text}
             media={cells}
             emoticon={row.message.emoticon}
+            inlineEmoticonItemIds={row.message.inlineEmoticonItemIds}
+            // WARN: REQUIREMENTS.md § 8.3. The same map `readInlineEmoticon` reads. Two sources and the estimate and the bubble disagree about the box by construction.
+            inlineEmoticons={inlineEmoticons}
             replyTo={quoted}
             replyToName={quoted ? participantById.get(quoted.senderId)?.name : undefined}
             createdAt={row.message.createdAt}
@@ -2124,6 +2145,16 @@ export function ChatRoom({
         );
       }
     }
+  }
+
+  // INFO: § 8.3. What an optimistic bubble draws from — the composer's own emoticons, in the shape the sent row reads from the page's map.
+  function toInlineEmoticonMap(emoticons: readonly ComposerEmoticon[]): InlineEmoticonMap {
+    return Object.fromEntries(
+      emoticons.map(({ width, height, version, name, id }) => [
+        id,
+        { width, height, version, name: name ?? null, isDeleted: false },
+      ]),
+    );
   }
 
   // INFO: REQUIREMENTS.md § 13.9. A row with no emoticon in it hands the bubble nothing, so a text row's tap is unchanged.

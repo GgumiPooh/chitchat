@@ -49,10 +49,18 @@ export type MessageRowProps = {
   className?: string;
   bubbleClassName?: string;
   text: Nullable<string>;
-  /** REQUIREMENTS.md § 13. One id per `OBJECT_PLACEHOLDER` in `text`. Absent for every message written before the format existed, which is the path that must not change. */
-  inlineEmoticonItemIds?: EmoticonItemId[];
-  /** REQUIREMENTS.md § 13. What those ids draw, out of the map the page came down with (§ 8.3.) — the same one `RowEstimateContext.readInlineEmoticon` reads. */
-  inlineEmoticons?: InlineEmoticonMap;
+  /** REQUIREMENTS.md § 13. One id per `OBJECT_PLACEHOLDER` in `text`, and empty for every message written before the format existed. */
+  inlineEmoticonItemIds: EmoticonItemId[];
+  /**
+   * REQUIREMENTS.md § 13. What those ids draw, out of the map the page came down with
+   * (§ 8.3.) — the same one `RowEstimateContext.readInlineEmoticon` reads.
+   *
+   * WARN: Required, both of them, and that is the whole of why. Optional, a caller that
+   * forgot them rendered every placeholder as the font's replacement glyph and neither
+   * the compiler nor the estimate said a word — which is exactly what shipped to the
+   * first run of this feature.
+   */
+  inlineEmoticons: InlineEmoticonMap;
   media?: MediaCell[];
   emoticon?: Nullable<Emoticon>;
   /** REQUIREMENTS.md § 8.10. The message this one quotes, already resolved by the room. */

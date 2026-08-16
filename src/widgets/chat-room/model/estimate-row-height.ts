@@ -231,10 +231,13 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
       });
     case "pending":
       // INFO: An optimistic bubble is always mine, so it never carries the avatar column or a sender name — nor the unread count, since it has not been sent and nobody could have read it.
-      return estimateMessageRow(row.pending, true, context, {
-        isFirstOfGroup: row.isFirstOfGroup,
-        besideLines: Number(row.isLastOfGroup),
-      });
+      // WARN: § 8.3. The ids are derived here because a pending row holds the emoticons *whole* and the sent one holds their ids — dropped, an optimistic bubble prices as though its emoticons were not in it and corrects the scroll the moment it renders.
+      return estimateMessageRow(
+        { ...row.pending, inlineEmoticonItemIds: row.pending.inlineEmoticons.map(({ id }) => id) },
+        true,
+        context,
+        { isFirstOfGroup: row.isFirstOfGroup, besideLines: Number(row.isLastOfGroup) },
+      );
   }
 }
 
