@@ -1,7 +1,6 @@
 export {
   deleteEmoticonItem,
   getEmoticonItem,
-  listUnregisteredEmoticonKeys,
   toSlotAsset,
   type DeleteEmoticonResult,
   type ResolvedSlotAsset,

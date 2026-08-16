@@ -18,7 +18,26 @@ const ABANDONED_AFTER = 90 * A_DAY;
  * Never throws. It runs in `after()` on the send path, where a rejection would
  * surface as an unhandled invocation failure long after the sender got their 201.
  */
-export async function pushToUser(userId: UserId, payload: PushPayload): Promise<void> {
+export type PushToUserOptions = {
+  /**
+   * Silences every device regardless of its 알림 소리 preference.
+   *
+   * WARN: For banners nobody is waiting on — the scheduled ops runs (REQUIREMENTS.md
+   * § 12.4.), which fire whether or not anything happened and at hours a sound is an
+   * intrusion. That preference is about **messages**, where a person is waiting, so an
+   * ops banner borrowing it would let a 05:00 backup ring a phone.
+   *
+   * INFO: Silent suppresses the sound and not the banner, and `sw.js` must still show
+   * one — WebKit revokes a subscription after three pushes that display nothing.
+   */
+  silent?: boolean;
+};
+
+export async function pushToUser(
+  userId: UserId,
+  payload: PushPayload,
+  { silent }: PushToUserOptions = {},
+): Promise<void> {
   const db = getDb();
   const targets = await db
     .select({
@@ -47,7 +66,7 @@ export async function pushToUser(userId: UserId, payload: PushPayload): Promise<
   const audible = JSON.stringify({ ...payload, silent: false });
   const muted = JSON.stringify({ ...payload, silent: true });
   const results = await Promise.all(
-    live.map((target) => sendPush(target, target.soundEnabled ? audible : muted)),
+    live.map((target) => sendPush(target, target.soundEnabled && !silent ? audible : muted)),
   );
   const retired = live
     .filter((_, index) => results[index] === "gone")

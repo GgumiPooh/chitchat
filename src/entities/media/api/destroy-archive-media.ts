@@ -2,7 +2,6 @@ import type { MediaId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, media } from "@/shared/db";
-import { deleteObjects, toThumbKey } from "@/shared/storage";
 import { and, inArray, isNull } from "drizzle-orm";
 import { isInLibrary } from "./list-archive-media";
 
@@ -26,7 +25,10 @@ import { isInLibrary } from "./list-archive-media";
  *
  * WARN: § 4.3. A soft delete, never a row delete. `message_media` holds a foreign key
  * that does not cascade, and § 8.13.'s resume reconciliation needs the row to survive so
- * the bubble can keep its place. Only the R2 objects actually go.
+ * the bubble can keep its place. Only the R2 objects actually go, and they go on the
+ * reclaim's own pass once `MEDIA_DELETE_GRACE` has run — one grace for every media-scope
+ * delete, so a peer replaying a cached 302 (§ 9.) gets the stale picture rather than a
+ * broken one.
  *
  * INFO: § 4.3. The geometry is deliberately left on the row. It is what lets the
  * tombstone occupy the box the picture did, so the § 8.3. virtualized list re-measures
@@ -43,9 +45,7 @@ export async function destroyArchiveMedia(ids: MediaId[]): Promise<MediaId[]> {
     .set({ deletedAt: new Date() })
     // INFO: Idempotent — a second device deleting the same object must not restamp it, and the guard is what makes that write a no-op.
     .where(and(inArray(media.id, ids), isNull(media.deletedAt), isInLibrary()))
-    .returning({ id: media.id, r2Key: media.r2Key });
-
-  await deleteObjects(deleted.flatMap((row) => [row.r2Key, toThumbKey(row.r2Key)]));
+    .returning({ id: media.id });
 
   return deleted.map((row) => row.id);
 }

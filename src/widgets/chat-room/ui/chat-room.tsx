@@ -4,6 +4,7 @@ import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
+import { useApplyPhoto } from "@/features/apply-photo";
 import { useChatStream, useChatStreamListener } from "@/features/chat-stream";
 import { useWriteChatSnapshot } from "@/features/offline-snapshot";
 import {
@@ -15,7 +16,6 @@ import {
   useSendMessage,
   type EmoticonFocusRequest,
 } from "@/features/send-message";
-import { useSetBackground } from "@/features/set-background";
 import { useTypingSignal } from "@/features/typing-indicator";
 import {
   FileDropOverlay,
@@ -265,6 +265,8 @@ export function ChatRoom({
   const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
   // INFO: REQUIREMENTS.md § 8.14. Bumped to put the caret back in the composer; `0` is the resting value the composer skips, so mounting the room focuses nothing.
   const [composerFocusRequest, setComposerFocusRequest] = useState(0);
+  // INFO: § 13.6. Whether a request arrived while the composer was yielded, to be handed over when the row comes back. A ref rather than state: nothing renders differently for it, and it is written from the handler that would otherwise spend the token on a hidden field.
+  const isComposerFocusHeldRef = useRef(false);
   // INFO: REQUIREMENTS.md § 8.14. The same token for the panel, bumped by **every** open — an opened panel nothing has focused is one the arrow keys cannot reach, and the toggle is a button, so a mouse open leaves focus on it rather than inside what it opened.
   // INFO: REQUIREMENTS.md § 8.6.1. The frame `settleJumpScroll` has queued, so a newer jump — or an unmount — can take it back.
   const jumpFrameRef = useRef<Nullable<number>>(null);
@@ -277,7 +279,7 @@ export function ChatRoom({
   const restoredWakeRef = useRef(visibleWakes);
   const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
   const { remember: rememberEmoticon } = useRecentEmoticons();
-  const setBackground = useSetBackground();
+  const applyPhoto = useApplyPhoto();
   // INFO: REQUIREMENTS.md § 13.6. The panel's list and images are warmed from here, since the tap this exists to make cheap can come before the panel has drawn anything.
   useEmoticonPreload();
   /**
@@ -390,8 +392,14 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 8.6. The composer's whole stack is put away for the length of a search, and everything it drives has to go with it.
   const isSearching = bottomBar !== undefined;
   // WARN: REQUIREMENTS.md § 13.8. The exemption outlives the tab by the length of the keyboard's retraction, which is what this latch holds. Leaving 검색 unmounts the field the panel had focused and the keyboard is only reported down some 250ms later — released with the tab, those frames are an unexempted panel that collapses to nothing and reopens by itself once the keys finish sliding.
-  if (isEmoticonSearchExempt !== isEmoticonSearchTab && (isEmoticonSearchTab || !isKeyboardOpen)) {
-    setIsEmoticonSearchExempt(isEmoticonSearchTab);
+  // WARN: § 13.8. `isEmoticonPickerOpen` is what the latch may be *set* by, and it is not decoration. The tab is reported off a picker that never unmounts, so a `forcedTab` that outlived a close — `EmoticonPicker` records that happening twice — or a stored `jandh:emoticon-tab` of `search` reports 검색 with nothing on screen. The release below is the keyboard alone, so a latch set that way is held by every keyboard the reader opens afterwards, and `isComposerYielded` hangs the composer's whole existence on it. Only the release is allowed to outlive the picker.
+  const isEmoticonSearchHeld = isEmoticonSearchTab && isEmoticonPickerOpen;
+
+  if (
+    isEmoticonSearchExempt !== isEmoticonSearchHeld &&
+    (isEmoticonSearchHeld || !isKeyboardOpen)
+  ) {
+    setIsEmoticonSearchExempt(isEmoticonSearchHeld);
   }
 
   // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
@@ -399,6 +407,88 @@ export function ChatRoom({
   // WARN: REQUIREMENTS.md § 13.8. The search tab is the one exemption from the keyboard gate, because its field is the keyboard's reason for being up — it is drawn one row tall precisely so it fits in what the keyboard leaves. Keyed on the tab and never on that field's focus: a blur and the keyboard's retraction are separate frames, and between them the unexempted panel closes underneath the user.
   const isEmoticonPanelOpen =
     isEmoticonPickerOpen && (!isKeyboardOpen || isEmoticonSearchExempt) && !isSearching;
+  /**
+   * REQUIREMENTS.md § 13.6. The composer stands down for as long as § 13.8.'s tab
+   * holds the keyboard, so what the keys leave is the panel and the staged preview
+   * alone.
+   *
+   * WARN: § 13.6.'s clamp on the preview is the whole reason. With the keys up the
+   * viewport is short enough that the `min()` below takes its second arm, so the
+   * preview is drawn overlapping the panel's top rows — on this tab by more than half
+   * its height, which is a staged emoticon the user cannot see at all. The composer is
+   * the one box in the stack nothing can reach at that moment: touching its field
+   * closes the panel (`onFieldFocus`), so it holds a row open for a control the
+   * keyboard has already taken the purpose out of. Out of the flow, the wrapper this
+   * hangs from is bottom-anchored, so everything above it moves down by its height and
+   * the clamp stops binding.
+   *
+   * WARN: Keyed on the tab and **never** additionally on `stagedEmoticon`, which is
+   * where this first went wrong. That term made the first tap of § 13.6.'s double tap
+   * the thing that hid the composer — so the results row dropped ~70px, out from under
+   * a finger inside a 333ms window, and the second tap landed on a different cell.
+   * `handleSelect` only sends on a repeated id, so quick-send simply stopped working.
+   *
+   * WARN: The row still moves once, and later than reading this suggests.
+   * `useIsVirtualKeyboardOpen` reports the keys up only after `visualViewport` has
+   * actually shrunk, so the hide lands at the *end* of the ~250ms slide rather than on
+   * arrival at the tab — by which time a 고민 tap has painted its results and they are
+   * tappable. A double tap begun in that window still splits across the drop. It is
+   * one shift per open instead of one per tap, and the cost of closing it is the room
+   * having to hear about the search field's focus to know the keys are on their way up.
+   * Recorded rather than solved.
+   *
+   * WARN: `isEmoticonSearchExempt` and not `isEmoticonSearchTab`, and — since the
+   * latch is what carries the retraction — the panel's own open flag is deliberately
+   * *not* a term beside it. Both spellings dropped the composer back the frame 검색 was
+   * left while the keyboard was still 250ms from being down, the composer popping into
+   * a viewport that had not grown yet, re-binding the clamp and throwing the preview
+   * behind the panel and out again. Written on the tab flag that was the tab change;
+   * written on `isEmoticonPanelOpen` it was every other exit — the § 13.9. tap on the
+   * history that closes the panel, and `peelComposerStack`'s Escape. The latch is
+   * released by the keyboard alone, so every exit now retracts on the one schedule.
+   *
+   * WARN: Which puts the whole existence of the composer on one latch, so that latch is
+   * guarded where it is set rather than here: `isEmoticonSearchHeld` will not arm it
+   * without an open picker behind the tab. Armed by a stale tab report alone it would be
+   * released by nothing the reader can still reach — the field, the toggle and
+   * `onFieldFocus` are all inside the box this hides — and every keyboard opened for the
+   * rest of the session would take the composer with it.
+   *
+   * INFO: `isKeyboardOpen` holds this to the case that has the problem. A pointer opens
+   * the same tab against the whole viewport, where the clamp never binds and the
+   * composer costs the preview nothing.
+   *
+   * WARN: `useIsVirtualKeyboardOpen` says it is never to branch layout (AGENTS.md
+   * § 4.2.), and this is inside that rule rather than an exception to it. What § 4.2.
+   * protects is the fine-pointer reader, shown the same UI and never a lesser one — and
+   * the flag is gated on `useIsCoarsePointer`, so it is false there and this composer
+   * never moves. It is also the term `isEmoticonPanelOpen` above is already written on,
+   * for § 13.6.'s reason: what the keyboard covers is this exact stack, so the stack is
+   * the one place the flag describes geometry rather than guessing at a device.
+   *
+   * WARN: § 13.8.'s two-bubble send is the cost, and it is a real one. `submit` is the
+   * only path that posts a sentence beside the emoticon it went looking for, and it is
+   * the composer's own — so while this holds, a draft is neither visible nor sendable
+   * and the reader has to put the keyboard down to reach it. Recorded rather than
+   * solved: against it, the preview was previously not visible at all.
+   */
+  const isComposerYielded = isEmoticonSearchExempt && isKeyboardOpen && editingId === null;
+  // INFO: REQUIREMENTS.md § 8.14. The request `focusComposer` held, handed over the frame the row is back in the document — the composer skips a token it has already acted on, so this is the one bump the field is there to receive.
+  // WARN: `isSearching` is `focusComposer`'s own refusal, repeated because this is the second way to reach that field. A § 8.6. search leaves § 13.8.'s tab and picker both standing, so the latch is released by the keyboard alone — put down mid-search, this would spend the held token on a stack that is `hidden` and `inert`, and 취소 would return to no caret. Held rather than dropped, so the search's own end replays it.
+  // WARN: The overlays drop the hold instead of deferring it. A sheet or the § 9.1. picker opened during the retraction is the reader having moved on, and a caret taken back under an open sheet re-raises the keyboard beneath it.
+  useEffect(() => {
+    if (!isComposerFocusHeldRef.current || isComposerYielded || isSearching) {
+      return;
+    }
+
+    isComposerFocusHeldRef.current = false;
+
+    if (actionTarget !== null || isPickerOpen) {
+      return;
+    }
+
+    setComposerFocusRequest((token) => token + 1);
+  }, [actionTarget, isComposerYielded, isPickerOpen, isSearching]);
   // WARN: REQUIREMENTS.md § 9.3. The shared element outlives every bubble that addresses it, so leaving the room has to stop it. Unlike § 13.6.'s two-second ping a recording runs for minutes, and no screen outside this one draws a transport that could pause it.
   useEffect(() => stopVoice, []);
   // WARN: REQUIREMENTS.md § 9.3. The recorder is closed by the search rather than hidden with the rest of the stack. `hidden` + `inert` leaves the microphone open with both 취소 and 완료 unreachable, and `MAX_VOICE_DURATION` then sends a recording the user walked away from two minutes earlier.
@@ -1195,6 +1285,7 @@ export function ChatRoom({
             )}
             {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
             {/* WARN: § 13.6. wants the preview above the open panel, but the panel is half the shell — `bottom-full` alone puts it behind the floating header on a short viewport and off the top of the screen below ~604px, which is the panel not appearing to stage at all. The `min()` stops it at the header and lets it overlap the panel's top rows instead, which only happens where something has to give. */}
+            {/* INFO: § 13.8. The search tab used to be where it gave the most — the keyboard takes the viewport down far enough that the second arm won by more than half this box, so the staged emoticon was covered rather than merely crowded. `isComposerYielded` buys that back out of the composer's own row instead. */}
             {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, for the reason the tray above is — it is still staged and it returns on cancel. */}
             {stagedEmoticon && editingId === null && (
               <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--viewport-height,100dvh)_-_var(--bottom-inset)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))]">
@@ -1239,7 +1330,9 @@ export function ChatRoom({
                 />
               )}
             </div>
+            {/* WARN: § 13.6. `hidden`, never a conditional subtree, for the reason the search's own hide above carries — the draft lives in this component's state and unmounting it discards a typed message along with its `useUnsentWork` hold. `display: none` is also the half that does the work: it takes the composer out of the wrapper `useComposerClearance` measures, which is what lowers the stack and hands the preview its room back. */}
             <MessageComposer
+              className={cn(isComposerYielded && "hidden")}
               hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
               isEmoticonPickerOpen={isEmoticonPanelOpen}
               keywordConsumeToken={keywordConsumeToken}
@@ -1342,11 +1435,11 @@ export function ChatRoom({
           onClose={mediaTrack.close}
           onShare={(mediaId) => void sharing.share([mediaId])}
           onSave={(mediaId) => void sharing.save([mediaId])}
-          onSetBackground={setBackground.open}
+          onApplyPhoto={applyPhoto.open}
         />
       )}
-      {/* INFO: REQUIREMENTS.md § 12.1. Mounted outside the viewer conditional above, so dismissing the viewer cannot unmount the sheet mid-write — `useSetBackground` returns the two halves separately for exactly this. */}
-      {setBackground.sheet}
+      {/* INFO: REQUIREMENTS.md § 12.1. Mounted outside the viewer conditional above, so dismissing the viewer cannot unmount the sheet mid-write — `useApplyPhoto` returns the two halves separately for exactly this. */}
+      {applyPhoto.sheet}
       {/* INFO: REQUIREMENTS.md § 9.2. Last in the tree, so it covers the composer and the pill as well as the history — a drag reads as being over the conversation, not over whichever strip it happens to be crossing. */}
       <FileDropOverlay isActive={fileDrop.isDropping} label="여기에 놓으면 첨부돼요" />
     </div>
@@ -1526,9 +1619,23 @@ export function ChatRoom({
    * WARN: The field's own invariant, beside the hook's `isCovered`: this stack is
    * `hidden` and `inert` for the length of a § 8.6. search, and `focus()` on an inert
    * field silently does nothing at all rather than failing.
+   *
+   * WARN: § 13.6.'s yield is the same invariant on a timer, and it is why the request
+   * is held rather than dropped. The composer is `display: none` for the length of the
+   * keyboard's retraction, `focus()` on that is the same silent no-op, and the token
+   * behind it is one-shot — `MessageComposer` acts on a change and nothing re-bumps it
+   * when the row comes back. Escape closing the panel and asking for the caret in one
+   * handler is exactly that render, so the caret would be lost on the one route
+   * REQUIREMENTS.md § 8.14. promises it on.
    */
   function focusComposer() {
     if (isSearching) {
+      return;
+    }
+
+    if (isComposerYielded) {
+      isComposerFocusHeldRef.current = true;
+
       return;
     }
 
@@ -1558,7 +1665,8 @@ export function ChatRoom({
       setStagedEmoticon(null);
     }
 
-    setComposerFocusRequest((token) => token + 1);
+    // WARN: Through `focusComposer` and never a bump of its own. Closing the panel is the one exit that leaves § 13.6.'s yield standing for the length of the retraction, so this is the caller that most needs the request held — a bump here reaches a `display: none` field and is spent on it.
+    focusComposer();
   }
 
   /**

@@ -309,6 +309,13 @@
       "when": 1786783513952,
       "tag": "0043_drop_archive_membership_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1786810986773,
+      "tag": "0044_storage_reservations_and_purge",
+      "breakpoints": true
     }
   ]
 }

@@ -3,13 +3,19 @@ import { getCurrentUser } from "@/shared/auth";
 import {
   ALLOWED_IMAGE_MIMES,
   ALLOWED_VIDEO_MIMES,
-  MEDIA_UPLOAD_SCOPES,
-  THUMBNAIL_MIME,
   isFileMime,
   maxSizeForMime,
+  MEDIA_UPLOAD_SCOPES,
+  THUMBNAIL_MIME,
 } from "@/shared/config";
-import { buildStorageKey, presignUpload, toThumbKey } from "@/shared/storage";
-import { NextResponse } from "next/server";
+import {
+  buildStorageKey,
+  presignUpload,
+  reclaimExpiredStorage,
+  reserveKey,
+  toThumbKey,
+} from "@/shared/storage";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
 const bodySchema = z.object({
@@ -59,10 +65,18 @@ export async function POST(request: Request) {
   }
 
   const r2Key = buildStorageKey(scope, user.id);
+
+  // WARN: § 9. The claim is written before the ticket is signed, never after. A signature handed out first is one the browser may redeem while this request is still in flight, and the object it lands would be one no row ever named — which is the whole of what the reservation makes impossible.
+  await reserveKey(r2Key, user.id);
+
   const [uploadUrl, thumbnailUploadUrl] = await Promise.all([
     presignUpload(r2Key, mime),
     isFile ? null : presignUpload(toThumbKey(r2Key), THUMBNAIL_MIME),
   ]);
+
+  // WARN: In `after`, and it may never move onto the response path — the sender of a photo would be waiting on somebody else's deleted bytes, against a bucket this request needs nothing from.
+  // INFO: § 9. An upload is the trigger because it is the one request guaranteed to precede the objects this cleans up; the ops service (§ 12.4.) keeps the interval, and `reclaimExpiredStorage` explains what that division costs.
+  after(() => reclaimExpiredStorage());
 
   return NextResponse.json({
     r2Key,

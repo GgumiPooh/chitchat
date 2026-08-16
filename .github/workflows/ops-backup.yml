@@ -1,0 +1,35 @@
+name: Ops — backup
+
+# REQUIREMENTS.md § 12.4. Dumps Postgres into R2 and trims to the ten most recent.
+
+on:
+  schedule:
+    # 05:00 KST. GitHub reads cron as UTC and KST is UTC+9, so this fires the day before.
+    # WARN: A scheduled workflow is delayed under load and is occasionally skipped outright,
+    # and GitHub disables the schedule after 60 days with no commit to the repository.
+    - cron: "0 20 * * *"
+  workflow_dispatch:
+    inputs:
+      notify-email:
+        description: Who to notify when this finishes. Left empty by a hand-started run from the Actions tab.
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+# INFO: Never cancelled. A run holding a half-streamed dump has staged an object that its own failure path is what removes.
+concurrency:
+  group: ops-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    uses: ./.github/workflows/ops-job.yml
+    with:
+      script: ops:backup
+      # INFO: The dump streams for as long as the database is large; this is a runaway ceiling rather than an expectation.
+      timeout-minutes: 60
+      # INFO: Set by 서버 관리 so the answer reaches whoever pressed the button; empty from the Actions tab, which falls back to the default account.
+      notify-email: ${{ inputs.notify-email || '' }}
+    secrets: inherit

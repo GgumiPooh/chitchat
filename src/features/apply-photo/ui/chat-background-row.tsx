@@ -1,12 +1,8 @@
 "use client";
 
 import type { MediaDraft } from "@/entities/media";
-import { useChatStream } from "@/features/chat-stream/@x/set-background";
-import {
-  MediaEditor,
-  uploadDraft,
-  useMediaPicker,
-} from "@/features/upload-media/@x/set-background";
+import { useChatStream } from "@/features/chat-stream/@x/apply-photo";
+import { MediaEditor, uploadDraft, useMediaPicker } from "@/features/upload-media/@x/apply-photo";
 import { BACKGROUND_MAX_EDGE, toMediaUrl } from "@/shared/config";
 import type { MediaId, Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";

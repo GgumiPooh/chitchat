@@ -1,20 +1,15 @@
 import "server-only";
 
-import { MEDIA_CACHE_MAX_AGE, MEDIA_URL_EXPIRY, UPLOAD_URL_EXPIRY } from "@/shared/config";
+import { MEDIA_URL_EXPIRY, UPLOAD_URL_EXPIRY } from "@/shared/config";
+import { A_SECOND, safelyGetAsync, type Maybe, type Nullable, type Optional } from "@/shared/lib";
 import {
-  A_SECOND,
-  safelyGetAsync,
-  safelyRunAsync,
-  type Maybe,
-  type Nullable,
-  type Optional,
-} from "@/shared/lib";
-import {
-  CopyObjectCommand,
+  DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
+  type ListObjectsV2CommandOutput,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getBucket, getR2 } from "./client";
@@ -23,6 +18,117 @@ export type StoredObject = {
   size: number;
   mime: string;
 };
+
+// INFO: S3's own cap on one `DeleteObjects` payload, and jandh-ops batches its sweep at the same figure.
+const DELETE_BATCH_SIZE = 1000;
+
+/**
+ * REQUIREMENTS.md § 12.4. Where jandh-ops puts its dumps, in the bucket the app's own
+ * objects live in — which is why § 9.'s sweep whitelists the four media prefixes rather
+ * than blacklisting this one.
+ */
+const BACKUPS_PREFIX = "backups/";
+
+/**
+ * WARN: Anchored, and it bounds what the 서버 관리 screen can name. Every dump is written
+ * as `{db}_{ISO}.dump`, so a name that cannot match is not a name this prefix holds.
+ */
+const BACKUP_FILENAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(dump|sql\.gz)$/;
+
+/** Whether `filename` is shaped like a dump this prefix could hold. */
+export function isBackupFilename(filename: string): boolean {
+  return BACKUP_FILENAME_PATTERN.test(filename);
+}
+
+/** REQUIREMENTS.md § 12.4. One dump under `backups/`. */
+export type BackupObject = {
+  filename: string;
+  sizeBytes: number;
+  /** ISO 8601, from R2's own `LastModified`. */
+  lastModified: string;
+};
+
+/**
+ * Every dump directly under `backups/`, newest first.
+ *
+ * WARN: Throws when the bucket could not be listed, and does NOT fall back to an empty
+ * array. "The bucket is empty" and "the bucket could not be read" draw the same screen
+ * otherwise, and the second one would also report every backup as already deleted.
+ *
+ * INFO: `Delimiter` is what keeps jandh-ops' staging area out. That service uploads to
+ * `backups/tmp/` and promotes only once it has verified the size, so a half-written dump
+ * sits under a sub-prefix — which a delimited listing returns as `CommonPrefixes` and
+ * never as a row here.
+ */
+export async function listBackups(): Promise<BackupObject[]> {
+  const backups: BackupObject[] = [];
+  let continuationToken: Optional<string> = undefined;
+
+  do {
+    // INFO: The output is annotated because `send` is overloaded on its command, and inferring it here would resolve through the token this loop assigns from the result.
+    const page: ListObjectsV2CommandOutput = await getR2().send(
+      new ListObjectsV2Command({
+        Bucket: getBucket(),
+        Prefix: BACKUPS_PREFIX,
+        Delimiter: "/",
+        ContinuationToken: continuationToken,
+      }),
+    );
+
+    for (const object of page.Contents ?? []) {
+      const filename = object.Key?.slice(BACKUPS_PREFIX.length);
+
+      if (!filename) {
+        continue;
+      }
+
+      // WARN: Logged, never skipped quietly. The dumps are still named by jandh-ops while
+      // this filter lives here, so a name that stops matching — an unescaped `:` out of an
+      // ISO stamp is the obvious one — would empty this screen while every backup reported
+      // success, and nothing would separate that from a bucket that is genuinely empty.
+      if (!isBackupFilename(filename)) {
+        console.warn(`[backups] ignoring an unrecognised key under ${BACKUPS_PREFIX}: ${filename}`);
+
+        continue;
+      }
+
+      backups.push({
+        filename,
+        sizeBytes: object.Size ?? 0,
+        lastModified: (object.LastModified ?? new Date(0)).toISOString(),
+      });
+    }
+
+    // INFO: Retention keeps ten, so the loop is for correctness rather than for a page anybody expects to see.
+    continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return backups.sort((a, b) => b.lastModified.localeCompare(a.lastModified));
+}
+
+/**
+ * Deletes one dump, answering the row it removed or `null` when no such dump exists.
+ *
+ * WARN: The listing is what makes the second answer possible. `DeleteObject` succeeds for
+ * a key that was never there, so deleting first and reporting success would tell the
+ * screen it had removed a backup that some other run had already dropped.
+ *
+ * WARN: Throws rather than reporting, unlike `deleteObjects`. That one is cleanup behind
+ * somebody else's request and may not fail it; this one IS the request.
+ */
+export async function deleteBackup(filename: string): Promise<Nullable<BackupObject>> {
+  const existing = (await listBackups()).find((backup) => backup.filename === filename);
+
+  if (existing === undefined) {
+    return null;
+  }
+
+  await getR2().send(
+    new DeleteObjectCommand({ Bucket: getBucket(), Key: `${BACKUPS_PREFIX}${filename}` }),
+  );
+
+  return existing;
+}
 
 /**
  * A URL the browser may `PUT` one object to (REQUIREMENTS.md § 9.), bypassing
@@ -205,72 +311,47 @@ export async function readObject(key: string, maxBytes: number): Promise<Optiona
 }
 
 /**
- * Duplicates a stored object under a second key, inside the bucket.
+ * Removes objects from the bucket, and answers **which of them R2 confirmed**.
  *
- * INFO: REQUIREMENTS.md § 12.1. What 배경으로 설정 runs on a photo that is already
- * in the conversation. It is a server-side copy — the bytes never leave R2 — which
- * is the whole reason the feature can afford to own its object rather than point at
- * somebody else's: `discardScopedMedia` may then delete it without reaching into
- * the `chat/` scope a bubble is still rendering (§ 12.).
+ * INFO: Still never throws. A failed cleanup must not fail the request that stamped
+ * the row, and the caller decides what an unconfirmed key means.
  *
- * WARN: Unlike `presignUpload`, this carries no `Content-Type` of its own.
- * `CopyObjectCommand` defaults to `COPY` metadata, so the destination inherits the
- * type § 14. already verified on the source — re-stating it here would be a second
- * claim about bytes this process has still never seen.
+ * WARN: It reports rather than swallows, and `purgeNow` is why. The swallow was right
+ * while the row was already gone and the § 12.4. sweep was the net; now the stamp is
+ * what retires the work, so a silently failed delete would stamp a row whose object is
+ * still there — an orphan produced by the one function meant to prevent them.
  *
- * WARN: Throws. A copy that half-lands leaves a key with no `media` row, which is
- * unreachable and costs bucket space alone (§ 9.) — but a caller that registered a
- * row for an object that is not there would render a broken image forever.
+ * WARN: Confirmations, never the complement of the failures. Anything R2 did not name
+ * is left unstamped and retried, which costs one no-op delete; inferring success from
+ * a missing error costs an orphan nothing looks for again.
+ *
+ * WARN: A `DeleteObjects` call fails **per key**, not as a whole — R2 answers `Deleted`
+ * and `Errors` side by side and a partial failure is still a 200.
+ *
+ * WARN: `Quiet` is left off deliberately. In quiet mode R2 omits `Deleted` entirely,
+ * which this would read as every key having failed.
  */
-export async function copyObject(sourceKey: string, destinationKey: string): Promise<void> {
-  await getR2().send(
-    new CopyObjectCommand({
-      Bucket: getBucket(),
-      // WARN: The source is `{bucket}/{key}`, and the key half must be URI-encoded. Ours are `{scope}/{uuid}/{uuid}` so nothing in them needs escaping today, but a key that ever carries one would silently copy the wrong object rather than fail.
-      // WARN: Per segment with `encodeURIComponent`, never `encodeURI` over the whole key. `encodeURI` preserves the URI-reserved set by design, so it leaves `?`, `#`, `&` and `+` intact — which is precisely the silent wrong-object copy above, not a guard against it. The `split`/`join` is what keeps the `/` separators literal.
-      CopySource: `${getBucket()}/${sourceKey.split("/").map(encodeURIComponent).join("/")}`,
-      Key: destinationKey,
-    }),
-  );
-}
+export async function deleteObjects(keys: string[]): Promise<string[]> {
+  const confirmed: string[] = [];
 
-/**
- * INFO: Never throws. Deleting the objects is cleanup behind a row that is already
- * gone, and failing it must not fail the request that removed the row.
- */
-export async function deleteObjects(keys: string[]): Promise<void> {
-  if (keys.length === 0) {
-    return;
-  }
+  // WARN: `DeleteObjects` refuses a payload over `DELETE_BATCH_SIZE` outright, and a refusal here confirms nothing — which would stamp nothing and retry the same oversized call forever. A pack delete reaches that size on a § 13.7. import.
+  for (let index = 0; index < keys.length; index += DELETE_BATCH_SIZE) {
+    const batch = keys.slice(index, index + DELETE_BATCH_SIZE);
 
-  await safelyRunAsync(async () => {
-    await getR2().send(
-      new DeleteObjectsCommand({
-        Bucket: getBucket(),
-        Delete: { Objects: keys.map((Key) => ({ Key })) },
-      }),
+    const result = await safelyGetAsync(() =>
+      getR2().send(
+        new DeleteObjectsCommand({
+          Bucket: getBucket(),
+          Delete: { Objects: batch.map((Key) => ({ Key })) },
+        }),
+      ),
     );
-  });
-}
 
-/**
- * Deletes objects that a *replacement* detached, once the read path has stopped
- * pointing at them (REQUIREMENTS.md § 12.).
- *
- * WARN: For § 9.'s media window only. It waits `MEDIA_CACHE_MAX_AGE`, so an
- * emoticon — whose redirect is cached for days (§ 13.3.) — MUST NOT use it: the
- * timer would have to outlive the process by most of a week. That path deletes
- * immediately and recovers on the read side instead (§ 13.4.).
- *
- * WARN: In-process, so a restart inside the window leaks the objects. That is the
- * accepted cost: they are replaced avatars, they are unreachable once the row is
- * gone, and the alternative is a durable queue for a two-person app.
- */
-export function deleteObjectsAfterCacheWindow(keys: string[]): void {
-  if (keys.length === 0) {
-    return;
+    // INFO: A refused batch confirms none of its own keys and leaves the rest of the run to carry on, so one bad batch costs a retry rather than the whole purge.
+    confirmed.push(
+      ...(result?.Deleted ?? []).flatMap(({ Key }) => (Key === undefined ? [] : [Key])),
+    );
   }
 
-  // INFO: Unreferenced, so the timer never keeps the process alive on its own.
-  setTimeout(() => void deleteObjects(keys), MEDIA_CACHE_MAX_AGE).unref?.();
+  return confirmed;
 }

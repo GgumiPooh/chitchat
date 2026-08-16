@@ -1,4 +1,3 @@
-import { listUnregisteredEmoticonKeys } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
@@ -6,7 +5,7 @@ import {
   allowedMimesForEmoticonSlot,
   maxSizeForEmoticonSlot,
 } from "@/shared/config";
-import { buildStorageKey, deleteObjects, presignUpload } from "@/shared/storage";
+import { buildStorageKey, presignUpload, releaseReservations, reserveKey } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -54,6 +53,9 @@ export async function POST(request: Request) {
   // WARN: Built from the caller's own id and never read off the request — a signature the browser could aim would let it overwrite any object in the bucket (§ 9.).
   const r2Key = buildStorageKey("emoticon", user.id);
 
+  // WARN: § 9. The claim is written before the ticket is signed, never after — a signature handed out first may be redeemed while this request is still in flight, landing an object no row ever named.
+  await reserveKey(r2Key, user.id);
+
   // INFO: § 13.3. No `Cache-Control` here — the asset route signs one into the presigned GET instead, which asks nothing of the browser or of the bucket's CORS policy.
   return NextResponse.json({ r2Key, uploadUrl: await presignUpload(r2Key, mime) });
 }
@@ -63,9 +65,15 @@ export async function POST(request: Request) {
  * (§ 13.3.). Nothing addresses R2 by key, so an unregistered object is unreachable
  * from the app and would otherwise sit in the bucket forever.
  *
- * WARN: The key prefix is the ownership proof, exactly as in `registerEmoticon` —
- * and a key an item already references is refused, so a failed *second* submit
- * cannot delete the assets of the emoticon a first one registered.
+ * WARN: The key prefix is the ownership proof, exactly as in `registerEmoticon`. The
+ * second half — that a failed *second* submit cannot delete the assets a first one
+ * registered — is now structural: registration consumes the reservation, so a key that
+ * reached a `media` row has none left for this to release. It used to be asserted by
+ * asking which keys were slotted into an item, which answered wrongly for a row that
+ * existed but had not been slotted yet.
+ *
+ * WARN: § 13.7.1. Same URL, same body, same 204 as before — jandh-emoticons mirrors
+ * this handler and the client protocol did not move.
  */
 export async function DELETE(request: Request) {
   const user = await getCurrentUser();
@@ -82,7 +90,7 @@ export async function DELETE(request: Request) {
 
   const own = body.data.r2Keys.filter((key) => key.startsWith(`emoticon/${user.id}/`));
 
-  await deleteObjects(await listUnregisteredEmoticonKeys(own));
+  await releaseReservations(own, user.id);
 
   return new NextResponse(null, { status: 204 });
 }

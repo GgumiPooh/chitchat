@@ -1,11 +1,11 @@
 import { resolveDisplayName } from "@/entities/user";
+import { ChatBackgroundRow } from "@/features/apply-photo";
 import {
   PushNotificationRow,
   PushSettingsProvider,
   PushSoundRow,
 } from "@/features/push-notifications";
 import { LogoutButton } from "@/features/session";
-import { ChatBackgroundRow } from "@/features/set-background";
 import { TypingSettingsRow } from "@/features/typing-indicator";
 import { ProfileSettingsRow } from "@/features/update-profile";
 import { IS_DEV } from "@/shared/config";

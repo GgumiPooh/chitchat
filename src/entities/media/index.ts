@@ -1,4 +1,3 @@
-export { copyMediaIntoScope, type CopyMediaIntoScopeParams } from "./api/copy-media-into-scope";
 export { destroyArchiveMedia } from "./api/destroy-archive-media";
 export { discardScopedMedia, discardUnwornScopedMedia } from "./api/discard-scoped-media";
 export { canReadMedia, getMediaRow, ownsAllMedia, toVariantKey } from "./api/get-media-object";

@@ -1,0 +1,41 @@
+name: Ops — orphan sweep
+
+# REQUIREMENTS.md § 9., § 12.4. Audits the bucket against the database and deletes what no
+# row can name. Zero is the normal result; a non-zero count names a writer that uploaded
+# before it registered.
+
+on:
+  schedule:
+    # 04:30 KST, half an hour ahead of the backup. See ops-backup.yml on scheduler drift.
+    - cron: "30 19 * * *"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Report what it would take without taking it
+        type: boolean
+        default: true
+      notify-email:
+        description: Who to notify when this finishes. Left empty by a hand-started run from the Actions tab.
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ops-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    uses: ./.github/workflows/ops-job.yml
+    with:
+      script: ops:sweep
+      timeout-minutes: 30
+      # WARN: The scheduled run deletes; a hand-started one previews unless it is told otherwise.
+      # A sweep subtracts the database from a whole bucket listing, so the preview is the only
+      # thing that shows what a run would take before it takes it.
+      dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+      # INFO: Set by 서버 관리 so the answer reaches whoever pressed the button; empty from the Actions tab, which falls back to the default account.
+      notify-email: ${{ inputs.notify-email || '' }}
+    secrets: inherit

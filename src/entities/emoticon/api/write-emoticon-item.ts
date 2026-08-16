@@ -23,6 +23,7 @@ import { headAcceptableObject, readObject, type StoredObject } from "@/shared/st
 import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon } from "../model/types";
+import { detachEmoticonMedia } from "./get-emoticon-asset";
 import { selectEmoticons } from "./select-emoticons";
 
 /** INFO: § 8.3. The box travels with the key — new bytes are a new box, so neither is nameable without the other. */
@@ -232,17 +233,25 @@ export async function updateEmoticonItem({
 
   const hasImageChange = still !== undefined || animated !== undefined;
 
-  await getDb()
-    .update(emoticonItems)
-    .set({
-      ...(still === undefined ? {} : { stillImageId: stillMedia?.id ?? null }),
-      ...(animated === undefined ? {} : { animatedImageId: animatedMedia?.id ?? null }),
-      ...(audioKey === undefined ? {} : { audioId: audioMedia?.id ?? null }),
-      ...(keywords ? { keywords: normalizeKeywords(keywords) } : {}),
-      // WARN: § 13.4. Only when an *asset* changed. `updated_at` is `Emoticon.version` and rides on every asset URL, so bumping it for a keywords-only write invalidates the cached 302 and its presigned GET for that item — and § 13.8.1. writes one per item, which would re-download a whole pack, chat history included, to record some text.
-      ...(hasImageChange || audioKey !== undefined ? { updatedAt: new Date() } : {}),
-    })
-    .where(eq(emoticonItems.id, itemId));
+  // INFO: § 9. The objects the edit detaches — nothing references them afterwards, and nothing in the app addresses R2 by key, so they are unreachable until they are purged.
+  // WARN: Read before the write, because it resolves the keys off the `media` rows the *current* slots name.
+  const orphanedKeys = await findDetachedKeys(current, { still, animated, audioKey });
+
+  await getDb().transaction(async (tx) => {
+    await tx
+      .update(emoticonItems)
+      .set({
+        ...(still === undefined ? {} : { stillImageId: stillMedia?.id ?? null }),
+        ...(animated === undefined ? {} : { animatedImageId: animatedMedia?.id ?? null }),
+        ...(audioKey === undefined ? {} : { audioId: audioMedia?.id ?? null }),
+        ...(keywords ? { keywords: normalizeKeywords(keywords) } : {}),
+        // WARN: § 13.4. Only when an *asset* changed. `updated_at` is `Emoticon.version` and rides on every asset URL, so bumping it for a keywords-only write invalidates the cached 302 and its presigned GET for that item — and § 13.8.1. writes one per item, which would re-download a whole pack, chat history included, to record some text.
+        ...(hasImageChange || audioKey !== undefined ? { updatedAt: new Date() } : {}),
+      })
+      .where(eq(emoticonItems.id, itemId));
+
+    await detachEmoticonMedia(tx, orphanedKeys);
+  });
 
   // INFO: Read back rather than returned, because the box lives on the `media` rows the slots name and an edit of one slot keeps the other's.
   const [row] = await selectEmoticons().where(eq(emoticonItems.id, itemId)).limit(1);
@@ -250,10 +259,6 @@ export async function updateEmoticonItem({
   if (!row) {
     return { status: "not_found" };
   }
-
-  // INFO: § 9. The objects the edit just detached — nothing references them any more, and nothing in the app addresses R2 by key, so they are unreachable until they are deleted.
-  // WARN: The detached `media` rows are left as they are. An orphan there costs a row and is what the sweep is for; deleting one an old page may still name would answer that page a 404 instead of the image it was already showing.
-  const orphanedKeys = await findDetachedKeys(current, { still, animated, audioKey });
 
   return { status: "updated", emoticon: toEmoticon(row), orphanedKeys };
 }

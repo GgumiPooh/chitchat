@@ -43,7 +43,7 @@ export type ShelfStagingParams = {
  * drift, and the shelf that drifted would be the one that uploads into a grid its
  * selection bar is about to delete from.
  *
- * INFO: It returns nodes as well as state, the way `useSetBackground` does — a shelf
+ * INFO: It returns nodes as well as state, the way `useApplyPhoto` does — a shelf
  * wires the whole flow with a spread of `dropHandlers` and three slots, which is what
  * keeps the three screens from each growing their own copy of the sheet.
  */

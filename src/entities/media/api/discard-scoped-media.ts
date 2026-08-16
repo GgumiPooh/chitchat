@@ -3,19 +3,20 @@ import "server-only";
 
 import type { MediaUploadScope } from "@/shared/config";
 import { getDb, media } from "@/shared/db";
-import { deleteObjectsAfterCacheWindow, toScopePrefix, toThumbKey } from "@/shared/storage";
-import { and, eq, like, not, type SQL } from "drizzle-orm";
+import { toScopePrefix } from "@/shared/storage";
+import { and, eq, isNull, like, not, type SQL } from "drizzle-orm";
 import { isWornAnywhere } from "./get-media-object";
 
 /**
  * Takes back the object a profile change replaced — an avatar (REQUIREMENTS.md
  * § 12.), a profile cover (§ 12.1.) or a chat wallpaper (§ 12.2.).
  *
- * WARN: The row goes now but the objects go on the § 13.4. delay. The other
+ * WARN: A soft delete, and the bytes are not this function's to take. The other
  * participant is holding the 302 this id resolved to, cached for
- * `MEDIA_CACHE_MAX_AGE` (§ 9.), so their browser replays it at R2 without asking
- * us again — deleting the object alongside the row turns the previous picture into
- * a broken image rather than a stale one for the rest of that window.
+ * `MEDIA_CACHE_MAX_AGE` (§ 9.), so their browser replays it at R2 without asking us
+ * again — deleting the object alongside the row turns the previous picture into a
+ * broken image rather than a stale one. Stamping `deleted_at` is what hands the object
+ * to the reclaim, which purges it once `MEDIA_DELETE_GRACE` has passed.
  *
  * WARN: Narrowed to the caller's own prefix for `scope`, not merely to their own
  * rows. A crafted `PATCH` can point any of those three columns at any object its
@@ -38,12 +39,12 @@ export async function discardScopedMedia(
  * (REQUIREMENTS.md § 12.1., § 12.2.).
  *
  * WARN: **Every `background/` discard MUST come through here**, and the guard is
- * inside the DELETE rather than a question asked before it. The two background slots
+ * inside the UPDATE rather than a question asked before it. The two background slots
  * live in different tables and accept the same object, so a cover change and a
  * wallpaper change can each detach an id the other has since taken — and asked as a
  * separate statement, both cleanups read a state that is already stale by the time
- * they act. `NOT EXISTS` in the DELETE's own qual is evaluated by the statement that
- * does the deleting, which is the only place the answer is still true when it is used.
+ * they act. `NOT EXISTS` in the UPDATE's own qual is evaluated by the statement that
+ * does the stamping, which is the only place the answer is still true when it is used.
  *
  * WARN: A function rather than a flag on `discardScopedMedia`, because a flag
  * defaults to the unguarded behaviour and this guard is the one a new caller must not
@@ -64,19 +65,17 @@ async function discard(
   scope: MediaUploadScope,
   unless?: SQL,
 ): Promise<void> {
-  const [discarded] = await getDb()
-    .delete(media)
+  await getDb()
+    .update(media)
+    .set({ deletedAt: new Date() })
     .where(
       and(
         eq(media.id, id),
         eq(media.ownerId, ownerId),
         like(media.r2Key, `${toScopePrefix(scope, ownerId)}%`),
+        // INFO: Idempotent — a second discard of the same row must not restamp it, which would restart `MEDIA_DELETE_GRACE` on bytes already past it.
+        isNull(media.deletedAt),
         unless,
       ),
-    )
-    .returning({ r2Key: media.r2Key });
-
-  if (discarded) {
-    deleteObjectsAfterCacheWindow([discarded.r2Key, toThumbKey(discarded.r2Key)]);
-  }
+    );
 }

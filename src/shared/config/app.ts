@@ -182,12 +182,18 @@ export const SESSIONS_PATH = "/api/sessions";
 
 /**
  * REQUIREMENTS.md § 12.4. The backup list, the 백업 생성 trigger, and `${path}/{filename}`
- * for one backup's deletion — all proxied to jandh-ops, which is where the ops tokens stay.
+ * for one backup's deletion.
+ *
+ * INFO: The list and the deletion read R2 here; only the run is proxied to jandh-ops,
+ * which is where the one remaining ops token stays.
  */
 export const OPS_BACKUPS_PATH = "/api/ops/backups";
 
 /** REQUIREMENTS.md § 12.4. The orphan sweep, dry-run unless the body says otherwise. */
 export const OPS_CLEANUP_PATH = "/api/ops/cleanup-orphans";
+
+/** REQUIREMENTS.md § 9., § 12.4. The reclaim the ten-minute schedule runs, asked for by hand. */
+export const OPS_PURGE_PATH = "/api/ops/purge-deleted";
 
 // INFO: REQUIREMENTS.md § 8.7. The name every bubble and system sentence is rendered from, so it is bounded by what a chat row can show rather than by the column.
 export const MAX_NICKNAME_LENGTH = 20;

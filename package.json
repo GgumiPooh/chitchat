@@ -10,6 +10,9 @@
     "format": "prettier --write .",
     "icons": "node node_modules/tsx/dist/cli.mjs scripts/generate-icons.ts",
     "holidays": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs scripts/generate-holidays.ts",
+    "ops:backup": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs --tsconfig tsconfig.ops.json scripts/ops/backup.ts",
+    "ops:purge": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs --tsconfig tsconfig.ops.json scripts/ops/purge.ts",
+    "ops:sweep": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs --tsconfig tsconfig.ops.json scripts/ops/sweep.ts",
     "dev": "concurrently -n app,steiger,tunnel -c blue,yellow,red \"pnpm dev:app\" \"pnpm dev:steiger\" \"pnpm dev:tunnel\"",
     "dev:app": "next dev",
     "dev:steiger": "steiger src --watch",
@@ -26,6 +29,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",
+    "@aws-sdk/lib-storage": "^3.1111.0",
     "@aws-sdk/s3-request-presigner": "^3.958.0",
     "@chenglou/pretext": "^0.0.8",
     "@dnd-kit/core": "^6.3.1",

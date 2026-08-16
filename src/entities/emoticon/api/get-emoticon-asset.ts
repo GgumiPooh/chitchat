@@ -3,7 +3,8 @@ import "server-only";
 import type { EmoticonSlot } from "@/shared/config";
 import { emoticonItems, getDb, media, messages } from "@/shared/db";
 import type { EmoticonItemId, Nullable } from "@/shared/lib";
-import { eq, inArray, or } from "drizzle-orm";
+import type { DbTransaction } from "@/shared/storage";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { alias, type PgColumn } from "drizzle-orm/pg-core";
 
 /** The storage key behind each of one item's three slots (the finished restructure). */
@@ -74,22 +75,22 @@ export type ResolvedSlotAsset = {
 };
 
 /**
- * The subset of `keys` that no item references, which is exactly the set that may
- * be deleted from the bucket without taking an emoticon down with it (§ 13.3.).
+ * Marks the `media` rows behind `keys` deleted, inside the caller's own write.
+ *
+ * WARN: § 13.4. The rows go with the bytes and in the same transaction. Left live, the
+ * owner's `GET /api/media/{id}` keeps 302ing at an object the purge has already taken —
+ * which is the state these paths were actually in, since they deleted the objects and
+ * left the rows behind.
  */
-export async function listUnregisteredEmoticonKeys(keys: string[]): Promise<string[]> {
+export async function detachEmoticonMedia(tx: DbTransaction, keys: string[]): Promise<void> {
   if (keys.length === 0) {
-    return [];
+    return;
   }
 
-  const slotted = await getDb()
-    .selectDistinct({ r2Key: media.r2Key })
-    .from(media)
-    .innerJoin(emoticonItems, isSlotOf(media.id))
-    .where(inArray(media.r2Key, keys));
-  const registered = new Set(slotted.map((row) => row.r2Key));
-
-  return keys.filter((key) => !registered.has(key));
+  await tx
+    .update(media)
+    .set({ deletedAt: new Date() })
+    .where(and(inArray(media.r2Key, keys), isNull(media.deletedAt)));
 }
 
 /** INFO: Any of the three slots, which is what "this `media` row belongs to an emoticon" means. */
@@ -158,12 +159,22 @@ export async function deleteEmoticonItem(id: EmoticonItemId): Promise<DeleteEmot
   // WARN: Read before the delete, because the keys live on the `media` rows the slots name and the join needs the item row to still be there.
   const slotKeys = await findItemSlotKeys([id]);
 
-  const [row] = await getDb()
-    .delete(emoticonItems)
-    .where(eq(emoticonItems.id, id))
-    .returning({ id: emoticonItems.id });
+  const isDeleted = await getDb().transaction(async (tx) => {
+    const [row] = await tx
+      .delete(emoticonItems)
+      .where(eq(emoticonItems.id, id))
+      .returning({ id: emoticonItems.id });
 
-  if (!row) {
+    if (!row) {
+      return false;
+    }
+
+    await detachEmoticonMedia(tx, slotKeys);
+
+    return true;
+  });
+
+  if (!isDeleted) {
     return { status: "not_found" };
   }
 

@@ -1,0 +1,2 @@
+// INFO: The FSD cross-import gate. REQUIREMENTS.md § 12.1.'s 프로필 이미지로 and 프로필 배경으로 write `users` columns, so they ride the one `PATCH /api/users/me` client this feature owns rather than growing a second copy of that contract. The 채팅방 배경으로 beside them does not come through here — § 12.2. made the wallpaper conversation-wide, and `apply-photo` owns that call itself.
+export { updateProfile, type ProfileBody } from "../api/write-profile";

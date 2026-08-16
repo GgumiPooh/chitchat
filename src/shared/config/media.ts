@@ -7,9 +7,6 @@ export const MEDIA_UPLOAD_URL_PATH = "/api/media/upload-url";
 
 export const MEDIA_PATH = "/api/media";
 
-/** REQUIREMENTS.md § 12.1. Duplicates a readable object into the caller's `background/` scope. */
-export const MEDIA_COPY_PATH = `${MEDIA_PATH}/copy`;
-
 /** REQUIREMENTS.md § 10. Lists the library and takes rows back out of it. */
 export const ARCHIVE_PATH = "/api/archive";
 
@@ -284,8 +281,34 @@ export const MEDIA_SIGNING_BUCKET = 30 * A_MINUTE;
  */
 export const MEDIA_ASSET_CACHE_CONTROL = `private, max-age=${(365 * A_DAY) / A_SECOND}, immutable`;
 
-// WARN: § 12.1. Also the window `deleteObjectsAfterCacheWindow` waits out, so a replaced object outlives every 302 still pointing at it. Kept where it was: the widened windows above are the signature's, not this one's.
+// WARN: § 12.1. The window a peer may still replay a cached 302 inside, which is what `MEDIA_DELETE_GRACE` is measured as. Kept where it was: the widened windows above are the signature's, not this one's.
 export const MEDIA_CACHE_MAX_AGE = 5 * A_MINUTE;
+
+/**
+ * REQUIREMENTS.md § 9. How long a `storage_reservations` row holds the key it names
+ * before a reclaim may take the object back.
+ *
+ * WARN: It MUST outlast `UPLOAD_URL_EXPIRY`. A reclaim that runs while the ticket
+ * covering the same key can still be redeemed leaves the late PUT sitting in the
+ * bucket with nothing naming it, which is the one orphan this table exists to make
+ * impossible.
+ *
+ * WARN: Ten minutes of ticket is not the lower bound — § 13.7.'s set import is. It
+ * reserves keys across chunks and finishes long after the first ticket has expired, so
+ * the window has to cover the whole import rather than one signature.
+ */
+export const STORAGE_RESERVATION_TTL = A_DAY;
+
+/**
+ * REQUIREMENTS.md § 12. How long a soft-deleted object's bytes survive the row.
+ *
+ * INFO: § 13.4. The peer is holding the 302 the id resolved to for
+ * `MEDIA_CACHE_MAX_AGE`, and replays it at R2 without asking us again — so the bytes
+ * have to outlive every redirect still pointing at them or the previous picture turns
+ * from stale into broken. Emoticons take no grace at all: their redirect is cached for
+ * days, which no delay could outlive, and the read side recovers instead.
+ */
+export const MEDIA_DELETE_GRACE = MEDIA_CACHE_MAX_AGE;
 
 // INFO: The thumbnail is always JPEG — `canvas.toBlob` is the one encoder every iOS version implements, and both a resized photo and a video's poster frame go through it.
 export const THUMBNAIL_MIME = "image/jpeg";
@@ -510,10 +533,10 @@ export function needsThumbnail(scope: MediaScope): boolean {
  * REQUIREMENTS.md § 12.1. Whether a stored video may be worn as a profile cover —
  * the size and duration caps above, plus a duration that was actually readable.
  *
- * WARN: Lives here so the viewer's control and `copyMediaIntoScope`'s refusal are
- * one rule. They cannot share a module otherwise: the check is needed in the browser
- * and in a `server-only` entity, and the two had already been written twice.
- * INFO: A missing duration is refused rather than admitted. It is what the cap is read from, and a copy is the one path where the bytes never pass through a client that could measure one.
+ * WARN: Lives here so the § 12.1. sheet's gate and the crop's own re-check are one
+ * rule. They cannot share a module otherwise: the check is needed in the browser and
+ * against a stored row, and the two had already been written twice.
+ * INFO: A missing duration is refused rather than admitted, since it is what the cap is read from.
  */
 export function isWearableBackgroundVideo(video: {
   sizeBytes: number;

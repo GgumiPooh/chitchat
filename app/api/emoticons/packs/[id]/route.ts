@@ -8,7 +8,7 @@ import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { MAX_EMOTICON_PACK_NAME_LENGTH, snowflakeSchema } from "@/shared/config";
 import type { EmoticonItemId, EmoticonPackId } from "@/shared/lib";
-import { deleteObjects } from "@/shared/storage";
+import { purgeNow } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -104,8 +104,8 @@ export async function DELETE(_request: Request, context: RouteContext) {
     return apiError("in_use");
   }
 
-  // INFO: REQUIREMENTS.md § 9. Cleanup behind a row that is already gone — `deleteObjects` never throws, so a bucket that refuses must not fail the delete.
-  await deleteObjects(result.orphanedKeys);
+  // INFO: REQUIREMENTS.md § 9. The `media` rows went with the pack; `purgeNow` takes the bytes and never throws, so a bucket that refuses must not fail the delete. § 13.4. gives emoticons no grace.
+  await purgeNow(result.orphanedKeys);
 
   return new NextResponse(null, { status: 204 });
 }

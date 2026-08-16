@@ -1,0 +1,147 @@
+name: Ops — shared runner (no button; the other three call it)
+
+# REQUIREMENTS.md § 12.4. One scheduled ops run: open a tunnel to the database, then run
+# one of `scripts/ops/`. The database is on the private network behind the web server, so
+# every job here reaches it through a forward rather than over the internet.
+#
+# INFO: `workflow_call` and nothing else, so this has no Run workflow button of its own and
+# never appears as a run in its own right — the Actions sidebar lists every file in this
+# directory regardless, and the name is what says so. Its steps show up nested under
+# whichever of ops-backup / ops-purge / ops-sweep called it.
+
+on:
+  workflow_call:
+    inputs:
+      script:
+        description: Which package script to run — ops:backup, ops:purge or ops:sweep
+        required: true
+        type: string
+      timeout-minutes:
+        description: A ceiling for the run, not an expectation of it
+        required: false
+        default: 30
+        type: number
+      dry-run:
+        description: Count what the run would take without taking it. The backup ignores it.
+        required: false
+        default: false
+        type: boolean
+      notify:
+        description: Push the purge's result. Ignored by the other two, which always notify.
+        required: false
+        default: false
+        type: boolean
+      notify-email:
+        description: Who to notify, when a person asked for this run. Empty means the default account.
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # INFO: Only the backup shells out to it, and installing it for all three keeps this
+      # workflow one path rather than three. The runner ships 16; a dump MUST be taken by a
+      # client at least as new as the server or `pg_dump` refuses outright.
+      - name: Install pg_dump 17
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      # WARN: node writes both values to `$GITHUB_ENV` itself, and the shell never sees the
+      # connection string. Reading them back through `eval` was the obvious shape and is
+      # wrong twice over: `URL` leaves `(`, `)`, `'`, `!` and `*` unescaped in userinfo, so a
+      # password containing any of them is a bash syntax error — and the line bash echoes
+      # when it fails carries that password in clear. GitHub masks the exact secret it was
+      # given, never a substring of it, so the rewritten URL is masked here explicitly.
+      - name: Resolve the tunnel target
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          node -e '
+            const fs = require("node:fs");
+            const url = new URL(process.env.DATABASE_URL);
+            const target = `${url.hostname}:${url.port || 5432}`;
+
+            url.hostname = "127.0.0.1";
+            url.port = "15432";
+
+            const tunneled = url.toString();
+
+            // INFO: `decodeURIComponent` throws on a lone `%`, which a password written into the URL unencoded legitimately has. Masking the raw form is still worth doing, and failing the run over it is not.
+            if (url.password) {
+              let decoded = url.password;
+              try { decoded = decodeURIComponent(url.password); } catch {}
+              console.log(`::add-mask::${decoded}`);
+              console.log(`::add-mask::${url.password}`);
+            }
+            console.log(`::add-mask::${tunneled}`);
+
+            fs.appendFileSync(process.env.GITHUB_ENV, `FORWARD_TO=${target}\nDATABASE_URL=${tunneled}\n`);
+          '
+
+      - name: Open a tunnel to the database
+        env:
+          SSH_KEY: ${{ secrets.INFRA_MONO_SSH_KEY }}
+          SSH_HOST: ${{ secrets.INFRA_MONO_HOST }}
+          SSH_USER: ${{ secrets.INFRA_MONO_USER }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/ops
+          chmod 600 ~/.ssh/ops
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # WARN: 15432, not 5432 — the runner image ships a Postgres of its own, and a
+          # forward onto an occupied port would point every query at the wrong database.
+          #
+          # WARN: `ExitOnForwardFailure` is what makes a refused forward fail HERE. Without
+          # it ssh backgrounds itself successfully and the run goes on to talk to whatever
+          # else answers on that port, or to nothing at all.
+          ssh -i ~/.ssh/ops -N -f -o ExitOnForwardFailure=yes \
+              -L "127.0.0.1:15432:${FORWARD_TO}" "$SSH_USER@$SSH_HOST"
+
+          timeout 15 bash -c 'until nc -z 127.0.0.1 15432; do sleep 0.5; done'
+
+      - name: ${{ inputs.script }}
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ vars.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+          # INFO: Defaulted here rather than required as repository variables — every one of
+          # these has a right answer for this deployment, and a variable that must be set to
+          # the only value it can hold is a step to forget rather than a decision to make.
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'jandh' }}
+          VAPID_SUBJECT: ${{ vars.VAPID_SUBJECT || 'mailto:jeheecheon@gmail.com' }}
+          BACKUP_NOTIFY_EMAIL: ${{ vars.BACKUP_NOTIFY_EMAIL || 'jeheecheon@gmail.com' }}
+          # INFO: Empty on a scheduled run, which then falls back to the address above.
+          OPS_NOTIFY_EMAIL: ${{ inputs.notify-email }}
+          ORPHAN_MAX_DELETE_RATIO: ${{ vars.ORPHAN_MAX_DELETE_RATIO || '0.5' }}
+          PURGE_NOTIFY: ${{ inputs.notify }}
+          SWEEP_DRY_RUN: ${{ inputs.dry-run }}
+          # INFO: The same input; each script reads only its own, so one flag serves both previews.
+          PURGE_DRY_RUN: ${{ inputs.dry-run }}
+        run: pnpm ${{ inputs.script }}

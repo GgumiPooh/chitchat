@@ -1,7 +1,7 @@
 import { MEDIA_KINDS, MEDIA_SCOPES, type MediaKind, type MediaScope } from "@/shared/config";
 import type { MediaId, UserId } from "@/shared/lib";
 import { sql } from "drizzle-orm";
-import { check, integer, pgTable, smallint, text, timestamp } from "drizzle-orm/pg-core";
+import { check, index, integer, pgTable, smallint, text, timestamp } from "drizzle-orm/pg-core";
 import { snowflake } from "../types";
 import { users } from "./users";
 
@@ -37,8 +37,15 @@ export const media = pgTable(
     blurhash: text("blurhash"),
     // INFO: REQUIREMENTS.md § 18. #1. 삭제, which either participant may do — 보관함 is the shared album. Soft, because `message_media`'s FK and § 8.13.'s resume reconciliation both need the row to survive; only the R2 objects are really removed.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    // INFO: REQUIREMENTS.md § 9. Stamped once the objects behind this row are gone, which is what keeps the row from being swept up again on the next pass.
+    // WARN: § 9. The row is what names the key, so it MUST outlive the bytes — stamp only after R2 has answered, and a failure then simply leaves the work for the next pass.
+    r2PurgedAt: timestamp("r2_purged_at", { withTimezone: true }),
   },
-  () => [
+  (table) => [
+    // INFO: REQUIREMENTS.md § 9. The purge queue is a query, not a table — this partial index is what makes it one, and it stays nearly empty.
+    index("media_pending_purge_idx")
+      .on(table.deletedAt)
+      .where(sql`"deleted_at" IS NOT NULL AND "r2_purged_at" IS NULL`),
     // WARN: The finished restructure. The kind's shape is held here rather than in `registerMedia` alone. That function still validates — it has to tell the user *why* — but two deployments write this table and neither can be the guarantee.
     check("media_kind_check", sql`"kind" in ${sql.raw(toSqlList(MEDIA_KINDS))}`),
     check("media_scope_check", sql`"scope" in ${sql.raw(toSqlList(MEDIA_SCOPES))}`),

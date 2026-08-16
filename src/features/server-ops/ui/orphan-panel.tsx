@@ -1,12 +1,11 @@
 "use client";
 
-import { cn, formatStorageSize, type Nullable } from "@/shared/lib";
+import { cn, type Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { Button, Modal } from "@/shared/ui";
 import { useState } from "react";
 import { sweepOrphans } from "../api/sweep-orphans";
 import { describeOpsFailure } from "../model/ops-error";
-import type { CleanupReport } from "../model/types";
 import { OpsResultModal, type OpsResult } from "./ops-result-modal";
 
 export type OrphanPanelProps = {
@@ -90,10 +89,17 @@ export function OrphanPanel({ className }: OrphanPanelProps) {
     setIsSweeping(true);
 
     try {
-      setResult(toResult(await sweepOrphans(dryRun)));
+      await sweepOrphans(dryRun);
+
+      // WARN: 요청, never a report. The dispatch answers once the run is QUEUED, and the sweep's own push carries the count it found.
+      setResult({
+        title: dryRun ? "미리보기를 요청했어요" : "정리를 요청했어요",
+        description: "결과는 알림으로 알려드릴게요",
+        lines: [],
+      });
     } catch (error) {
       setResult({
-        title: "정리 실패",
+        title: dryRun ? "미리보기를 요청하지 못했어요" : "정리를 요청하지 못했어요",
         description: describeOpsFailure(error),
         lines: [],
       });
@@ -101,32 +107,4 @@ export function OrphanPanel({ className }: OrphanPanelProps) {
       setIsSweeping(false);
     }
   }
-}
-
-function toResult(report: CleanupReport): OpsResult {
-  // WARN: Before the dry-run branch, as jandh-ops' own banner is. A blocked sweep deleted nothing for a reason that is not "there was nothing to delete".
-  const title = report.blocked
-    ? "정리 중단"
-    : report.dryRun
-      ? "정리 미리보기"
-      : "고아 파일 정리 완료";
-
-  return {
-    title,
-    description: report.blocked ? "안전장치가 삭제를 막았어요" : undefined,
-    lines: [
-      { label: "검사한 객체", value: `${report.scanned}개` },
-      { label: "고아 파일", value: `${report.orphans}개` },
-      // INFO: `deleted` stays 0 on a preview and on a blocked run, so it is only shown where it means something.
-      ...(report.dryRun || report.blocked
-        ? []
-        : [{ label: "지운 객체", value: `${report.deleted}개` }]),
-      {
-        // WARN: `reclaimedBytes` is the orphans' own total, counted before the delete — it is what a run *could* reclaim, which is all a preview has.
-        label: report.dryRun || report.blocked ? "확보 가능한 용량" : "확보한 용량",
-        value: formatStorageSize(report.reclaimedBytes),
-      },
-      ...(report.blocked ? [{ label: "중단 사유", value: report.blocked }] : []),
-    ],
-  };
 }
