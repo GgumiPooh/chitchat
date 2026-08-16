@@ -34,7 +34,7 @@ export default {
   // INFO: Only the container image wants a self-hosted server; Vercel and Netlify build through their own adapters, which a standalone output would cut out from under them.
   output: process.env.NEXT_OUTPUT_STANDALONE === "true" ? "standalone" : undefined,
   // INFO: `*.ts.net` is the Tailscale funnel `pnpm dev:tunnel` opens — the host is `<machine>.<tailnet>.ts.net`, which is minted per tailnet rather than configured here.
-  allowedDevOrigins: ["localhost", "192.168.*.*", "*.ts.net"],
+  allowedDevOrigins: ["localhost", "192.168.*.*", "*.*.ts.net", "jandh-dev.jeheecheon.com"],
   // INFO: Inlined into the bundle at build time. The `NEXT_PUBLIC_` prefix has no effect here and is deliberately absent — it means something only for values that come from the environment.
   env: { SERVICE_WORKER_VERSION },
   // WARN: No `cacheComponents`. It was on and was reversed — REQUIREMENTS.md § 1.1. has the whole account, and the short version is that it is project-wide, that `fetch`'s own `next.revalidate` never needed it, and that it costs the § 12.2. wallpaper its place in the first paint.
