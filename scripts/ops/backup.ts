@@ -1,6 +1,12 @@
 import { ensureEnv } from "@/shared/config";
+import { A_DAY, type Nullable } from "@/shared/lib";
 import { getBucket, getR2, listBackups } from "@/shared/storage";
-import { CopyObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import {
+  CopyObjectCommand,
+  DeleteObjectCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command,
+} from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import { spawn } from "node:child_process";
 import { formatBytes, notifyOps } from "./notify";
@@ -60,7 +66,7 @@ function toDumpName(databaseUrl: string): string {
 }
 
 /**
- * Streams `pg_dump` into R2 and answers the object's size.
+ * Streams `pg_dump` into R2. The size is verified separately, by `readStoredSize`.
  *
  * WARN: The exit code is awaited alongside the upload, and a non-zero one fails the run
  * even if the upload resolved. `pg_dump` writes a valid prefix before it discovers it
@@ -71,7 +77,7 @@ function toDumpName(databaseUrl: string): string {
  * there is no shell here at all — `spawn` without one cannot be talked into interpreting
  * a `$` or a backtick that a generated password legitimately contains.
  */
-async function streamDump(databaseUrl: string, key: string): Promise<number> {
+async function streamDump(databaseUrl: string, key: string): Promise<void> {
   const url = new URL(databaseUrl);
   const dump = spawn(
     "pg_dump",
@@ -130,10 +136,83 @@ async function streamDump(databaseUrl: string, key: string): Promise<number> {
 
     throw error;
   }
+}
 
-  const head = await getR2().send(new HeadObjectCommand({ Bucket: getBucket(), Key: key }));
+/**
+ * The size R2 stores at `key`, `0` when it holds nothing there, or `null` when R2 could not
+ * be asked.
+ *
+ * WARN: The last two are NOT the same answer and the caller must not collapse them. A key
+ * that is not there is a dump `pg_dump` never wrote; a throttle or a timeout is no verdict
+ * on the dump at all, and reading it as "0 bytes" throws away a multi-gigabyte upload that
+ * had already succeeded.
+ */
+async function readStoredSize(key: string): Promise<Nullable<number>> {
+  try {
+    const head = await getR2().send(new HeadObjectCommand({ Bucket: getBucket(), Key: key }));
 
-  return head.ContentLength ?? 0;
+    return head.ContentLength ?? 0;
+  } catch (error) {
+    if ((error as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode === 404) {
+      // INFO: Logged apart from a stored-but-empty object, which reaches the caller as the same 0. The two have different causes — nothing was written, against the bucket not holding what was — and only this line separates them for whoever reads the run.
+      console.error(`[backup] R2 does not hold ${key} at all`);
+
+      return 0;
+    }
+
+    console.error(`[backup] could not read the size of ${key}`, error);
+
+    return null;
+  }
+}
+
+/**
+ * How long a staged object survives before a later run reclaims it.
+ *
+ * WARN: Far longer than any dump takes, because the objects this collects are the ones a
+ * failed run deliberately LEFT for a person to look at. It is a floor under an inspection
+ * window, not a timeout on the upload.
+ */
+const STALE_STAGING_AGE = 7 * A_DAY;
+
+/**
+ * Drops staged objects old enough that no run could still be writing them.
+ *
+ * WARN: Age-bounded, and never a recursive wipe of the prefix. `readStoredSize` answering
+ * `null` leaves this run's object behind on purpose and nothing else ever removes it —
+ * `listBackups` hides the prefix behind `Delimiter` and the orphan sweep whitelists only
+ * the four media prefixes — so without this a run of transient R2 failures bills for
+ * multi-gigabyte dumps forever, invisible on the 서버 관리 screen.
+ *
+ * INFO: Never throws. This is housekeeping at the end of a backup that already succeeded,
+ * and a bucket that refuses it must not turn that into a failure.
+ */
+async function sweepStaleStaging(): Promise<number> {
+  const staleBefore = Date.now() - STALE_STAGING_AGE;
+  let dropped = 0;
+
+  try {
+    const page = await getR2().send(
+      new ListObjectsV2Command({ Bucket: getBucket(), Prefix: STAGING_PREFIX }),
+    );
+
+    for (const object of page.Contents ?? []) {
+      if (
+        object.Key === undefined ||
+        (object.LastModified?.getTime() ?? Date.now()) >= staleBefore
+      ) {
+        continue;
+      }
+
+      console.warn(`[backup] dropping a stale staged dump: ${object.Key}`);
+      await getR2().send(new DeleteObjectCommand({ Bucket: getBucket(), Key: object.Key }));
+      dropped += 1;
+    }
+  } catch (error) {
+    console.error("[backup] could not sweep the staging prefix", error);
+  }
+
+  return dropped;
 }
 
 /** Drops this run's staged object. Never throws — the failure that got here is the one worth reporting. */
@@ -186,22 +265,35 @@ async function main() {
 
   console.log(`[backup] dumping to ${stagedKey}`);
 
-  let sizeBytes: number;
-
   try {
-    sizeBytes = await streamDump(databaseUrl, stagedKey);
+    await streamDump(databaseUrl, stagedKey);
   } catch (error) {
     await removeStaged(stagedKey);
 
     throw error;
   }
 
-  // WARN: `pipefail` catches a crashed `pg_dump`, not a silent one. A pooled connection exits 0 having written nothing, and only the stored size tells the two apart.
+  const sizeBytes = await readStoredSize(stagedKey);
+
+  /**
+   * WARN: `null` is "R2 could not be asked", which is NOT a verdict on the dump — so the
+   * staged object is LEFT WHERE IT IS rather than deleted. The upload may well have been
+   * good, and a throttle on the size check is no reason to throw away a dump that took
+   * minutes to stream. It stays under `backups/tmp/`, out of `listBackups` and out of the
+   * retention count, for a person to look at.
+   */
+  if (sizeBytes === null) {
+    throw new Error(
+      `could not verify the staged dump — ${stagedKey} was left in place for inspection`,
+    );
+  }
+
+  // WARN: A crashed `pg_dump` is caught above; a SILENT one is caught here. A pooled connection exits 0 having written nothing, and only the stored size tells the two apart.
   if (sizeBytes === 0) {
     await removeStaged(stagedKey);
 
     throw new Error(
-      "pg_dump exited 0 but wrote 0 bytes — check that DATABASE_URL points at a direct connection",
+      `the staged dump is empty or absent — check that DATABASE_URL points at a direct connection, and the log above for whether R2 held ${stagedKey} at all`,
     );
   }
 
@@ -216,6 +308,7 @@ async function main() {
   await removeStaged(stagedKey);
 
   const dropped = await trimOldBackups();
+  await sweepStaleStaging();
 
   console.log(`[backup] ${filename} (${formatBytes(sizeBytes)}), trimmed ${dropped.length}`);
 
