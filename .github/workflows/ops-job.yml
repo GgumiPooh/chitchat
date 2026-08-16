@@ -1,4 +1,4 @@
-name: Ops — shared runner (no button; the other three call it)
+name: Ops — shared runner
 
 # REQUIREMENTS.md § 12.4. One scheduled ops run: open a tunnel to the database, then run
 # one of `scripts/ops/`. The database is on the private network behind the web server, so
