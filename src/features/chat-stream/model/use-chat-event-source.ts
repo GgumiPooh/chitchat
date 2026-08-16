@@ -44,6 +44,8 @@ const buildSchema = z.object({ id: z.string().min(1) });
 export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: boolean): void {
   // WARN: Read through a ref so a new handler identity cannot tear the connection down and reconnect it on every render.
   const handlers = useRef(events);
+  // INFO: § 8.4.1. A wake rebuilds this effect, and the resume events that carried the return were delivered while it held no listener at all.
+  const hasSlept = useRef(false);
 
   useEffect(() => {
     handlers.current = events;
@@ -52,6 +54,8 @@ export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: b
   useEffect(() => {
     // INFO: § 8.4.1. A dormant client holds no socket and syncs nothing — the catch-up below is several requests, and running them for a screen nobody has come back to is the cost that state exists to avoid.
     if (isDormant) {
+      hasSlept.current = true;
+
       return;
     }
 
@@ -182,8 +186,8 @@ export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: b
      * PWA restores the frozen page instead of navigating, so the Server
      * Component render does not re-run and cannot cover the gap.
      *
-     * INFO: § 8.4.1. Only a departure that found `isBusy` reaches this — any other
-     * one went dormant, and waking rebuilds this effect from scratch instead.
+     * INFO: § 8.4.1. A wake reaches this as well, from the rebuilt effect below and
+     * not from an event — the return was delivered while this held no listener.
      */
     function resume() {
       // WARN: The catch-up runs before the socket, never through it. `onopen` alone would strand the screen on stale messages for as long as the reconnect takes — and forever if it never lands.
@@ -231,7 +235,14 @@ export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: b
       close();
     }
 
-    open();
+    // WARN: § 8.4. A wake is a resume, so it catches up ahead of the socket like every other one. Left on `open` alone it waited for `onopen` — and an iOS return is exactly when Neon is autosuspended, so the room sat on stale messages for the cold start and forever when it never landed.
+    if (hasSlept.current) {
+      hasSlept.current = false;
+      resume();
+    } else {
+      open();
+    }
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
     // INFO: § 8.4. iOS is inconsistent about which of these a PWA app-switch produces, so all three are observed and `sync` coalesces the duplicates.
     window.addEventListener("pageshow", resume);
