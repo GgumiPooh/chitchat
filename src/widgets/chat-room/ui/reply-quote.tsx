@@ -4,6 +4,7 @@ import type { ReplyPreview } from "@/entities/message";
 import { toEmoticonAssetUrl, toMediaUrl, type QuoteThumbnail } from "@/shared/config";
 import { cn, type Optional } from "@/shared/lib";
 import { PreloadImage } from "@/shared/ui";
+import { Trash2 } from "lucide-react";
 import { toReplySummary } from "../model/to-reply-summary";
 
 export type ReplyQuoteProps = {
@@ -94,6 +95,18 @@ export function ReplyQuote({
    * rather than cropped and takes neither — a ring around it is a box drawn around nothing.
    */
   function renderThumbnail(thumbnail: QuoteThumbnail) {
+    // INFO: REQUIREMENTS.md § 10. The icon alone — at 32px there is no room for the sentence `MediaTombstone` draws, and the summary line beside it already names what the message was.
+    if (thumbnail.kind === "deleted") {
+      return (
+        <span
+          className="flex size-8 shrink-0 items-center justify-center rounded-xs bg-surface-soft ring-1 ring-hairline ring-inset"
+          aria-hidden
+        >
+          <Trash2 className="size-4 text-meta-soft" strokeWidth={1.75} />
+        </span>
+      );
+    }
+
     if (thumbnail.kind === "emoticon") {
       return (
         // WARN: `hasSkeleton={false}` for the reason the ring is off. `Skeleton` is an opaque `surface-strong` square, so the tile that refuses to frame transparent art would otherwise draw exactly that frame for as long as the asset takes to decode.

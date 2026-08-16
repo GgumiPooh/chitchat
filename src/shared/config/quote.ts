@@ -10,7 +10,9 @@ import type { Nullable, Optional } from "@/shared/lib";
 export type QuoteThumbnail =
   | { kind: "media"; mediaId: string }
   // WARN: REQUIREMENTS.md § 13.4. The version travels with the id, because `toEmoticonAssetUrl` cannot address an edited item without it — the edit swaps the object behind an unchanged id and the redirect in front of it is cached.
-  | { kind: "emoticon"; itemId: string; version: number };
+  | { kind: "emoticon"; itemId: string; version: number }
+  // INFO: REQUIREMENTS.md § 10. The attachment was destroyed from 보관함 and there is no object left to draw; the tile is still there, and it is the same 32px box the other two fill (§ 8.3.).
+  | { kind: "deleted" };
 
 /**
  * Which tile a quote of this bubble draws, if any (REQUIREMENTS.md § 8.10.).
@@ -41,17 +43,20 @@ export function toQuoteThumbnail(
  * `GET /api/media/{id}` now serves as the original — and reserved `QUOTE_THUMBNAIL`
  * in the § 8.3. estimate for a tile that can never draw.
  *
- * WARN: REQUIREMENTS.md § 10. And the deletion, which is a third way to have no tile.
- * A photo destroyed from 보관함 keeps its `media` row for the box its bubble reserves
- * (§ 9.), so the id here still resolves — but the object behind it is gone, and the
- * quote drew a broken 32px `<img>` for it and priced the tile into the § 8.3. estimate.
+ * WARN: REQUIREMENTS.md § 10. A destroyed attachment is the one case that keeps its
+ * tile. A photo deleted from 보관함 keeps its `media` row for the box its bubble
+ * reserves (§ 9.), so the id still resolves — but the object behind it is gone, and the
+ * quote drew a broken 32px `<img>` for it. It answers `deleted` rather than `null`
+ * precisely so the tile stays: the § 8.3. estimate prices the box off this being
+ * non-null, and a quote that lost its tile is a row that changes height when a photo is
+ * deleted somewhere else entirely.
  */
 function toAttachmentThumbnail(attachment: Optional<QuotedAttachment>): Nullable<QuoteThumbnail> {
-  if (!attachment || attachment.filename || attachment.voice || attachment.isDeleted) {
+  if (!attachment || attachment.filename || attachment.voice) {
     return null;
   }
 
-  return { kind: "media", mediaId: attachment.id };
+  return attachment.isDeleted ? { kind: "deleted" } : { kind: "media", mediaId: attachment.id };
 }
 
 // WARN: Structural, and that is what lets one copy serve both callers — the server holds database rows and the browser holds a `ChatMessage`, and `shared` may name neither.
