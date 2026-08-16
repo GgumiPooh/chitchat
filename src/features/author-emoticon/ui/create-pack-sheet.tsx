@@ -1,13 +1,20 @@
 "use client";
 
 import type { EmoticonPackSummary } from "@/entities/emoticon";
-import { MAX_EMOTICON_PACK_NAME_LENGTH } from "@/shared/config";
+import {
+  EMOTICON_KIND_NOUNS,
+  MAX_EMOTICON_PACK_NAME_LENGTH,
+  type EmoticonPackType,
+} from "@/shared/config";
 import { BottomSheet, Button, Input, toast } from "@/shared/ui";
+import { josa } from "es-hangul";
 import { useState } from "react";
 import { createEmoticonPack } from "../api/write-emoticon";
 
 export type CreatePackSheetProps = {
   className?: string;
+  /** WARN: REQUIREMENTS.md § 13. The kind is settled by this form and by nothing after it — no screen can move a pack between the two. */
+  type: EmoticonPackType;
   isOpen: boolean;
   onClose: () => void;
   onCreated: (pack: EmoticonPackSummary) => void;
@@ -18,16 +25,23 @@ export type CreatePackSheetProps = {
  * absent — it is one of the pack's own items (§ 13.2.), so it cannot be chosen
  * until items exist.
  */
-export function CreatePackSheet({ className, isOpen, onClose, onCreated }: CreatePackSheetProps) {
+export function CreatePackSheet({
+  className,
+  type,
+  isOpen,
+  onClose,
+  onCreated,
+}: CreatePackSheetProps) {
   const [name, setName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const packNoun = EMOTICON_KIND_NOUNS[type].pack;
 
   return (
     <BottomSheet
       className={className}
       isOpen={isOpen}
       header={{
-        title: "새 이모티콘 묶음 추가하기",
+        title: `새 ${packNoun} 추가하기`,
         description: "이름만 정하면 돼요.\n이미지는 이후에 하나씩 추가할 수 있어요",
       }}
       onClose={handleClose}
@@ -36,7 +50,7 @@ export function CreatePackSheet({ className, isOpen, onClose, onCreated }: Creat
         <Input
           value={name}
           maxLength={MAX_EMOTICON_PACK_NAME_LENGTH}
-          placeholder="이모티콘 묶음 이름"
+          placeholder={`${packNoun} 이름`}
           onChange={(event) => setName(event.target.value)}
         />
         <Button
@@ -59,10 +73,10 @@ export function CreatePackSheet({ className, isOpen, onClose, onCreated }: Creat
     setIsSubmitting(true);
 
     try {
-      onCreated(await createEmoticonPack(name.trim()));
+      onCreated(await createEmoticonPack(name.trim(), type));
       handleClose();
     } catch {
-      toast.error("이모티콘 묶음을 만들지 못했어요");
+      toast.error(`${josa(packNoun, "을/를")} 만들지 못했어요`);
     } finally {
       setIsSubmitting(false);
     }

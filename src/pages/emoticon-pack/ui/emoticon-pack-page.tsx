@@ -12,7 +12,7 @@ import {
   type KeywordRateLimit,
 } from "@/features/author-emoticon";
 import { useMediaPicker } from "@/features/upload-media";
-import { EMOTICON_SETTINGS_ROUTE } from "@/shared/config";
+import { EMOTICON_KIND_NOUNS, EMOTICON_SETTINGS_ROUTE, MINI_SETTINGS_ROUTE } from "@/shared/config";
 import { cn, type EmoticonItemId, type Maybe, type Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES, OfflineStaleNotice, useOfflineGate } from "@/shared/offline-ux";
 import { ActionSheet, AppHeader, Button, EmptyState, IconButton, Modal, toast } from "@/shared/ui";
@@ -60,6 +60,11 @@ export type EmoticonPackPageProps = {
  * belongs to the conversation, so there is no `created_by` branch anywhere.
  */
 export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
+  // INFO: § 13. The pack carries its own kind, so this screen is told which it is by the row it was opened from rather than by a prop of its own.
+  const { type } = pack;
+  const kindNoun = EMOTICON_KIND_NOUNS[type].kind;
+  // INFO: § 13. A mini's one keyword is its name rather than something to search for, so neither the suggester nor the words-help line below belongs on it (§ 2.6.).
+  const isSearchable = type === "emoticon";
   const [items, setItems] = useState(pack.items);
   const [thumbnailItemId, setThumbnailItemId] = useState(pack.thumbnailItemId);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
@@ -94,7 +99,9 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
             Icon={ChevronLeft}
             haptic
             aria-label="뒤로"
-            onClick={() => router.push(EMOTICON_SETTINGS_ROUTE)}
+            onClick={() =>
+              router.push(type === "mini" ? MINI_SETTINGS_ROUTE : EMOTICON_SETTINGS_ROUTE)
+            }
           />
         }
         trailing={
@@ -104,7 +111,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
             Icon={Plus}
             haptic
             disabled={addingCount > 0 || tagging !== null}
-            aria-label="이모티콘 추가"
+            aria-label={`${kindNoun} 추가`}
             {...addGate.blockedProps}
             onClick={addGate.guard(() => setIsAddMenuOpen(true))}
           />
@@ -116,10 +123,11 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
       <div className="flex-1 p-md">
         {items.length === 0 && addingCount === 0 ? (
-          <EmptyState Icon={Smile} description="아직 이모티콘이 없어요" />
+          <EmptyState Icon={Smile} description={`아직 ${josa(kindNoun, "이/가")} 없어요`} />
         ) : (
           <div className="space-y-sm">
             <EmoticonItemGrid
+              type={type}
               items={items}
               thumbnailItemId={thumbnailItemId}
               onSelect={openItemActions}
@@ -129,8 +137,8 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
                 {addingCount}개를 더 올리는 중이에요
               </p>
             )}
-            {/* INFO: REQUIREMENTS.md § 13.8.1. Withheld once every item has words, since the only thing it would offer then is overwriting them. */}
-            {(tagging !== null || untagged.length > 0) && addingCount === 0 && (
+            {/* INFO: REQUIREMENTS.md § 13.8.1. Withheld once every item has words, since the only thing it would offer then is overwriting them — and withheld from 미니이모티콘 outright, which no search reaches. */}
+            {isSearchable && (tagging !== null || untagged.length > 0) && addingCount === 0 && (
               <div className="space-y-2xs">
                 {/* WARN: § 13.8.1. No count until the first batch lands. `0/12개 채웠어요` is a completive sentence about nothing having happened, which reads as a failed press rather than as one still running — and at four images per request that frame is on screen for a couple of seconds every time. */}
                 <Button
@@ -162,7 +170,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
       {/* INFO: § 13.4. Two ways in: the authoring sheet, where one item gets a crop and a sound, or a pile of images that skips both. */}
       <ActionSheet
         isOpen={isAddMenuOpen}
-        header={{ title: "이모티콘 추가" }}
+        header={{ title: `${kindNoun} 추가` }}
         items={[
           { label: "하나씩 추가", Icon: Plus, onSelect: () => setIsFormOpen(true) },
           { label: "여러 장 한 번에 추가", Icon: Images, onSelect: picker.open },
@@ -172,6 +180,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
       {picker.input}
       <EmoticonFormSheet
         packId={pack.id}
+        type={type}
         isOpen={isFormOpen}
         emoticon={editing}
         initialFile={pendingFile}
@@ -180,7 +189,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
       />
       <ActionSheet
         isOpen={selected !== undefined}
-        header={{ title: "이모티콘" }}
+        header={{ title: kindNoun }}
         items={[
           {
             label: "수정",
@@ -204,7 +213,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
       <Modal
         isOpen={failures.length > 0}
         header={{
-          title: "추가하지 못한 이모티콘",
+          title: `추가하지 못한 ${kindNoun}`,
           description: `${failures.length}개를 추가하지 못했어요`,
         }}
         onClose={() => setFailures([])}
@@ -257,7 +266,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
       // INFO: § 13.4. A modal rather than a toast — a bulk add fails per file and for different reasons, and a count alone leaves the user re-picking twenty images to find the three that did not land.
       setFailures(failed);
     } catch {
-      toast.error("이모티콘을 추가하지 못했어요");
+      toast.error(`${josa(kindNoun, "을/를")} 추가하지 못했어요`);
     } finally {
       // WARN: In `finally`, or a rejection would strand the count above zero — which disables the `+` for the life of the screen and pins § 15.1.'s reload open with it.
       setAddingCount(0);
@@ -351,7 +360,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
     setSelectedId(null);
 
     try {
-      await updateEmoticonPack(pack.id, { thumbnailItemId: itemId });
+      await updateEmoticonPack(pack.id, type, { thumbnailItemId: itemId });
     } catch {
       setThumbnailItemId(previous);
       toast.error("대표 이미지를 바꾸지 못했어요");
@@ -374,14 +383,14 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
         setThumbnailItemId(null);
       }
     } catch (error) {
-      toast.error(toDeleteMessage(error));
+      toast.error(toDeleteMessage(error, kindNoun));
     }
   }
 }
 
 // INFO: § 13.6. An item already sent answers 409 — the user needs to be told why rather than shown a generic failure.
-function toDeleteMessage(error: unknown): string {
+function toDeleteMessage(error: unknown, kindNoun: string): string {
   return error instanceof Error && error.message === "409"
-    ? "이미 대화에서 보낸 이모티콘은 삭제할 수 없어요"
+    ? `이미 대화에서 보낸 ${josa(kindNoun, "은/는")} 삭제할 수 없어요`
     : "삭제하지 못했어요";
 }

@@ -1,3 +1,4 @@
+import type { EmoticonPackType } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { AppHeader, Skeleton } from "@/shared/ui";
 
@@ -6,6 +7,8 @@ const CELL_KEYS = Array.from({ length: 48 }, (_, index) => `cell-${index}`);
 
 export type EmoticonPackFallbackProps = {
   className?: string;
+  /** INFO: § 13. The column count the real grid will use, so the swap moves nothing sideways. */
+  type: EmoticonPackType;
 };
 
 /**
@@ -15,7 +18,7 @@ export type EmoticonPackFallbackProps = {
  * the very thing being fetched. The header is transparent and floats over the grid,
  * so a name arriving into an empty row moves nothing.
  */
-export function EmoticonPackFallback({ className }: EmoticonPackFallbackProps) {
+export function EmoticonPackFallback({ className, type }: EmoticonPackFallbackProps) {
   return (
     <div className={cn("flex flex-1 flex-col", className)}>
       <AppHeader />
@@ -24,7 +27,7 @@ export function EmoticonPackFallback({ className }: EmoticonPackFallbackProps) {
         {/* WARN: DESIGN.md § 7.8. `overflow-hidden` on a `flex-1` box is what lets the count above be generous — unclipped, the surplus would grow § 3.3.'s document scroller over a screen with nothing in it yet. */}
         <div className="min-h-0 flex-1 overflow-hidden" aria-hidden>
           {/* INFO: DESIGN.md § 9. The cell is a fixed square at `rounded-sm`, with one clamped keyword line beneath it. */}
-          <div className="grid grid-cols-4 gap-2xs">
+          <div className={cn("grid gap-2xs", type === "mini" ? "grid-cols-6" : "grid-cols-4")}>
             {CELL_KEYS.map((key) => (
               <div key={key} className="space-y-2xs">
                 {/* INFO: DESIGN.md § 7.8. The cell's frame is fixed geometry no query moves, so it is drawn rather than stood in for — only the still inside its `p-2xs` is pending, which is the box `PreloadImage` pulses in on the real screen. */}

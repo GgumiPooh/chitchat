@@ -1,11 +1,13 @@
 "use client";
 
 import type { EmoticonPackSummary } from "@/entities/emoticon";
+import { EMOTICON_KIND_NOUNS, type EmoticonPackType } from "@/shared/config";
 import { cn, useSortableSensors, type EmoticonPackId, type Nullable } from "@/shared/lib";
 import { EmptyState, toast } from "@/shared/ui";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { josa } from "es-hangul";
 import { Smile } from "lucide-react";
 import { useRef } from "react";
 import { saveEmoticonPackOrder } from "../api/write-prefs";
@@ -13,6 +15,8 @@ import { EmoticonPackRow } from "./emoticon-pack-row";
 
 export type EmoticonPackManagerProps = {
   className?: string;
+  /** REQUIREMENTS.md § 13. Which kind this list manages — it names itself in the empty state, and nothing else here differs. */
+  type: EmoticonPackType;
   packs: EmoticonPackSummary[];
   /** REQUIREMENTS.md § 13.5. The pack 숨기기 was chosen for, while its row collapses. */
   hidingId: Nullable<string>;
@@ -37,6 +41,7 @@ export type EmoticonPackManagerProps = {
  */
 export function EmoticonPackManager({
   className,
+  type,
   packs,
   hidingId,
   onOpenPack,
@@ -66,11 +71,13 @@ export function EmoticonPackManager({
   const orderWritesRef = useRef({ tail: Promise.resolve(), generation: 0 });
 
   if (packs.length === 0) {
+    const packNoun = EMOTICON_KIND_NOUNS[type].pack;
+
     return (
       <EmptyState
         className={className}
         Icon={Smile}
-        description="사용 중인 이모티콘 묶음이 없어요. 이모티콘 묶음 검색에서 켜거나 오른쪽 위 + 로 만들 수 있어요"
+        description={`사용 중인 ${josa(packNoun, "이/가")} 없어요. ${packNoun} 검색에서 켜거나 오른쪽 위 + 로 만들 수 있어요`}
       />
     );
   }

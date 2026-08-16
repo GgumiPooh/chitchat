@@ -1,7 +1,7 @@
 "use client";
 
 import type { EmoticonPackSummary } from "@/entities/emoticon";
-import { MAX_EMOTICON_PACK_NAME_LENGTH } from "@/shared/config";
+import { EMOTICON_KIND_NOUNS, MAX_EMOTICON_PACK_NAME_LENGTH } from "@/shared/config";
 import type { EmoticonPackId, Nullable } from "@/shared/lib";
 import { BottomSheet, Button, Input, toast } from "@/shared/ui";
 import { useState } from "react";
@@ -21,19 +21,21 @@ export function RenamePackSheet({ className, pack, onClose, onRenamed }: RenameP
   const [isSubmitting, setIsSubmitting] = useState(false);
   const trimmed = name.trim();
   const canSubmit = trimmed.length > 0 && trimmed !== pack?.name && !isSubmitting;
+  // INFO: § 13. Read off the pack rather than taken as a prop — the row that opened this sheet already carries its kind.
+  const packNoun = EMOTICON_KIND_NOUNS[pack?.type ?? "emoticon"].pack;
 
   return (
     <BottomSheet
       className={className}
       isOpen={pack !== null}
-      header={{ title: "이모티콘 묶음 이름 바꾸기" }}
+      header={{ title: `${packNoun} 이름 바꾸기` }}
       onClose={onClose}
     >
       <div className="space-y-sm pt-2xs">
         <Input
           value={name}
           maxLength={MAX_EMOTICON_PACK_NAME_LENGTH}
-          placeholder="이모티콘 묶음 이름"
+          placeholder={`${packNoun} 이름`}
           onChange={(event) => setName(event.target.value)}
         />
         <Button disabled={!canSubmit} haptic onClick={() => void submit()}>
@@ -51,7 +53,7 @@ export function RenamePackSheet({ className, pack, onClose, onRenamed }: RenameP
     setIsSubmitting(true);
 
     try {
-      await updateEmoticonPack(pack.id, { name: trimmed });
+      await updateEmoticonPack(pack.id, pack.type, { name: trimmed });
       onRenamed(pack.id, trimmed);
       onClose();
     } catch {

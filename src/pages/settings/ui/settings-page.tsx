@@ -15,6 +15,7 @@ import { AppHeader } from "@/shared/ui";
 import { DevRefreshRow } from "./dev-refresh-row";
 import { DeviceSettingsRow } from "./device-settings-row";
 import { EmoticonSettingsRow } from "./emoticon-settings-row";
+import { MiniSettingsRow } from "./mini-settings-row";
 import { ProfileCover } from "./profile-cover";
 import { ServerSettingsRow } from "./server-settings-row";
 import { ThemeSettingsRow } from "./theme-settings-row";
@@ -53,6 +54,8 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
         profileBackgroundMediaId={user.profileBackgroundMediaId}
       />
       <EmoticonSettingsRow />
+      {/* INFO: REQUIREMENTS.md § 13. Directly under 이모티콘 — the two screens are one component, and a reader looking for one will look for the other beside it. */}
+      <MiniSettingsRow />
       {/* INFO: REQUIREMENTS.md § 12.2. The wallpaper behind the conversation, and the one setting on this screen that changes what the *other* participant sees — the row says so, since nothing else on it does. It takes no id: the value is shared and live, so it comes from the stream rather than from this render. */}
       <ChatBackgroundRow />
       {/* INFO: DESIGN.md § 5.1. Per device, like 알림 — the choice lives in `localStorage`, so it describes this browser rather than the account. */}

@@ -9,7 +9,10 @@ import {
 } from "@/features/upload-media/@x/author-emoticon";
 import {
   ALLOWED_EMOTICON_AUDIO_MIMES,
+  EMOTICON_KIND_NOUNS,
+  MAX_EMOTICON_KEYWORD_LENGTH,
   toEmoticonAssetUrl,
+  type EmoticonPackType,
   type EmoticonSlot,
 } from "@/shared/config";
 import {
@@ -26,10 +29,12 @@ import {
   Button,
   HapticTarget,
   IconButton,
+  Input,
   KeywordField,
   PreloadImage,
   toast,
 } from "@/shared/ui";
+import { josa } from "es-hangul";
 import { ImagePlus, Music, Pencil, Play, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
@@ -41,6 +46,8 @@ const AUDIO_ACCEPT = ALLOWED_EMOTICON_AUDIO_MIMES.join(",");
 export type EmoticonFormSheetProps = {
   className?: string;
   packId: EmoticonPackId;
+  /** REQUIREMENTS.md § 13. Which kind is being authored — it decides what the words field is, and nothing else on the form. */
+  type: EmoticonPackType;
   isOpen: boolean;
   /** REQUIREMENTS.md § 13.4. The item being edited; absent authors a new one. */
   emoticon?: Nullable<Emoticon>;
@@ -67,12 +74,14 @@ export type EmoticonFormSheetProps = {
 export function EmoticonFormSheet({
   className,
   packId,
+  type,
   isOpen,
   emoticon,
   initialFile,
   onClose,
   onSaved,
 }: EmoticonFormSheetProps) {
+  const kindNoun = EMOTICON_KIND_NOUNS[type].kind;
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const draft = useEmoticonDraft();
@@ -119,7 +128,7 @@ export function EmoticonFormSheet({
       <BottomSheet
         className={className}
         isOpen={isOpen && !isEditing}
-        header={{ title: emoticon ? "이모티콘 편집" : "이모티콘 추가" }}
+        header={{ title: `${kindNoun} ${emoticon ? "편집" : "추가"}` }}
         onClose={handleClose}
       >
         <div className="space-y-sm pt-2xs">
@@ -139,12 +148,21 @@ export function EmoticonFormSheet({
             onPick={audioPicker.open}
             onClear={draft.clearAudio}
           />
-          <KeywordField
-            className="rounded-md bg-surface-soft p-sm"
-            keywords={draft.keywords}
-            isDisabled={isSubmitting}
-            onChange={draft.setKeywords}
-          />
+          {/* INFO: § 13. A mini carries one word and it is a name rather than a search term, so it takes a plain field — chips offer an 추가 button for words the index would never hold (§ 2.6.). */}
+          {type === "mini" ? (
+            <NameRow
+              name={draft.keywords[0] ?? ""}
+              isDisabled={isSubmitting}
+              onChange={(name) => draft.setKeywords(name.trim() ? [name] : [])}
+            />
+          ) : (
+            <KeywordField
+              className="rounded-md bg-surface-soft p-sm"
+              keywords={draft.keywords}
+              isDisabled={isSubmitting}
+              onChange={draft.setKeywords}
+            />
+          )}
           <Button disabled={!canSubmit} haptic onClick={() => void submit()}>
             {isSubmitting ? "올리는 중이에요" : emoticon ? "저장" : "추가"}
           </Button>
@@ -202,7 +220,7 @@ export function EmoticonFormSheet({
     } catch {
       // INFO: A slot that landed before its sibling failed — or before a 422 from the write — is referenced by nothing, and nothing in the app addresses R2 by key, so it is unreachable until it is deleted.
       void discardEmoticonAssets(uploaded);
-      toast.error(emoticon ? "이모티콘을 수정하지 못했어요" : "이모티콘을 추가하지 못했어요");
+      toast.error(`${josa(kindNoun, "을/를")} ${emoticon ? "수정" : "추가"}하지 못했어요`);
     } finally {
       setIsSubmitting(false);
     }
@@ -370,6 +388,36 @@ function ImageRow({
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+type NameRowProps = {
+  className?: string;
+  name: string;
+  isDisabled: boolean;
+  onChange: (name: string) => void;
+};
+
+/**
+ * REQUIREMENTS.md § 13. A mini's single keyword, presented as what it is — a name.
+ *
+ * INFO: The hint says where it is read, because nothing on this screen shows it: a
+ * message carrying only minis has no words of its own, so § 16.1.'s push body and
+ * § 8.10.'s quote line fall back to this.
+ */
+function NameRow({ className, name, isDisabled, onChange }: NameRowProps) {
+  return (
+    <div className={cn("space-y-2xs rounded-md bg-surface-soft p-sm", className)}>
+      <p className="text-title-sm text-ink">이름</p>
+      <Input
+        value={name}
+        maxLength={MAX_EMOTICON_KEYWORD_LENGTH}
+        disabled={isDisabled}
+        placeholder="예: 하트"
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <p className="text-body-sm text-meta">글자 없이 보냈을 때 알림에 이 이름이 보여요</p>
     </div>
   );
 }

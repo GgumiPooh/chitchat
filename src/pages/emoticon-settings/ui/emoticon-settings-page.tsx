@@ -7,7 +7,15 @@ import {
   EmoticonPackManager,
   saveEmoticonPackEnabled,
 } from "@/features/emoticon-prefs";
-import { EMOTICON_IMPORT_ROUTE, EMOTICON_SETTINGS_ROUTE, SETTINGS_ROUTE } from "@/shared/config";
+import {
+  EMOTICON_IMPORT_ROUTE,
+  EMOTICON_KIND_NOUNS,
+  EMOTICON_SETTINGS_ROUTE,
+  MINI_IMPORT_ROUTE,
+  MINI_SETTINGS_ROUTE,
+  SETTINGS_ROUTE,
+  type EmoticonPackType,
+} from "@/shared/config";
 import { cn, useBfcacheRestore, type EmoticonPackId, type Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES, OfflineStaleNotice, useOfflineGate } from "@/shared/offline-ux";
 import { ActionSheet, AppHeader, Button, IconButton, Modal, toast } from "@/shared/ui";
@@ -18,10 +26,22 @@ import { useRef, useState } from "react";
 import { EmoticonSettingsTabs, type EmoticonSettingsTab } from "./emoticon-settings-tabs";
 
 // INFO: Module scope, as `ScrollMemory`'s map — opening a pack and coming back is a client navigation, so the tab outlives it, while a reload still opens on 사용중 (REQUIREMENTS.md § 13.5.).
-let lastTab: EmoticonSettingsTab = "using";
+// WARN: § 13. Per kind, for the reason the browser's remembered word is — the two screens are two routes, and one variable would carry 이모티콘's tab into 미니이모티콘's.
+const lastTabByKind: Record<EmoticonPackType, EmoticonSettingsTab> = {
+  emoticon: "using",
+  mini: "using",
+};
+
+/** INFO: § 13. Where each kind's screens live and what its 묶음 추가 hands off to — the one place the two routes are paired with their zone entry. */
+const KIND_ROUTES = {
+  emoticon: { settings: EMOTICON_SETTINGS_ROUTE, import: EMOTICON_IMPORT_ROUTE },
+  mini: { settings: MINI_SETTINGS_ROUTE, import: MINI_IMPORT_ROUTE },
+} as const satisfies Record<EmoticonPackType, { settings: string; import: string }>;
 
 export type EmoticonSettingsPageProps = {
   className?: string;
+  /** REQUIREMENTS.md § 13. Which kind this screen manages. The two are one component and one set of strings, so a row added to either belongs in both (§ 13.5.). */
+  type: EmoticonPackType;
   /** REQUIREMENTS.md § 13.5. The 사용중 tab's whole list — enabled only, which is what keeps it small enough to drag. */
   packs: EmoticonPackSummary[];
 };
@@ -37,8 +57,10 @@ export type EmoticonSettingsPageProps = {
  * INFO: Rename and delete live here rather than on the pack's own screen, where
  * delete sat one thumb-width from 이모티콘 추가 (§ 13.4.).
  */
-export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageProps) {
-  const [tab, setTab] = useState(lastTab);
+export function EmoticonSettingsPage({ className, type, packs }: EmoticonSettingsPageProps) {
+  const [tab, setTab] = useState(lastTabByKind[type]);
+  const { kind: kindNoun, pack: packNoun } = EMOTICON_KIND_NOUNS[type];
+  const routes = KIND_ROUTES[type];
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [known, setKnown] = useState(packs);
@@ -73,7 +95,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
   return (
     <div className={cn("flex flex-1 flex-col", className)}>
       <AppHeader
-        title="이모티콘 관리"
+        title={`${kindNoun} 관리`}
         leading={
           <IconButton
             variant="floating"
@@ -88,7 +110,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
             variant="floating"
             Icon={Plus}
             haptic
-            aria-label="새 이모티콘 묶음"
+            aria-label={`새 ${packNoun}`}
             {...createGate.blockedProps}
             onClick={createGate.guard(() => setIsAddMenuOpen(true))}
           />
@@ -97,10 +119,16 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
       <div className="pt-(--app-header-inset)">
         <OfflineStaleNotice />
-        <EmoticonSettingsTabs className="mx-md mb-xs" tab={tab} onTabChange={changeTab} />
+        <EmoticonSettingsTabs
+          className="mx-md mb-xs"
+          type={type}
+          tab={tab}
+          onTabChange={changeTab}
+        />
         {tab === "using" ? (
           // WARN: This list is the single source of truth for the order. `EmoticonPackManager` holds none of its own, so a rename or a delete here cannot roll back a drag it has already persisted.
           <EmoticonPackManager
+            type={type}
             packs={known}
             hidingId={hidingId}
             onOpenPack={openPack}
@@ -110,6 +138,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
           />
         ) : (
           <EmoticonPackBrowser
+            type={type}
             onEnabledChange={() => {
               hasStaleSeedRef.current = true;
             }}
@@ -120,7 +149,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
       {/* INFO: REQUIREMENTS.md § 13.5. Two ways to make a pack — name one and fill it by hand, or hand it off to jandh-emoticons, which imports one whole. */}
       <ActionSheet
         isOpen={isAddMenuOpen}
-        header={{ title: "이모티콘 묶음 추가" }}
+        header={{ title: `${packNoun} 추가` }}
         items={[
           { label: "직접 만들기", Icon: Plus, onSelect: () => setIsCreating(true) },
           { label: "URL로 추가", Icon: Link2, onSelect: openImport },
@@ -128,6 +157,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
         onClose={() => setIsAddMenuOpen(false)}
       />
       <CreatePackSheet
+        type={type}
         isOpen={isCreating}
         onClose={() => setIsCreating(false)}
         onCreated={(pack) => setKnown((current) => [...current, pack])}
@@ -144,7 +174,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
           },
           { label: "숨기기", Icon: EyeOff, onSelect: hideGate.guard(() => hidePack(managedId)) },
           {
-            label: "이모티콘 묶음 삭제",
+            label: `${packNoun} 삭제`,
             Icon: Trash2,
             variant: "destructive",
             onSelect: deleteGate.guard(() => setDeletingId(managedId)),
@@ -164,7 +194,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
         isOpen={deleting !== undefined}
         header={{
           title: deleting ? `${josa(deleting.name, "을/를")} 삭제할까요?` : "",
-          description: "이모티콘 묶음과 그 안의 이모티콘이 모두 사라져요",
+          description: `${josa(packNoun, "와/과")} 그 안의 ${josa(kindNoun, "이/가")} 모두 사라져요`,
         }}
         onClose={() => setDeletingId(null)}
       >
@@ -188,12 +218,12 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
   );
 
   function openPack(packId: EmoticonPackId) {
-    router.push(`${EMOTICON_SETTINGS_ROUTE}/${packId}`);
+    router.push(`${routes.settings}/${packId}`);
   }
 
   // INFO: § 13.5. The seed is re-read on the way back to 사용중, so a pack enabled on the other tab is in the list — and in its own remembered place, since `enabled` was written and `position` was not.
   function changeTab(next: EmoticonSettingsTab) {
-    lastTab = next;
+    lastTabByKind[type] = next;
     setTab(next);
 
     if (next === "using" && hasStaleSeedRef.current) {
@@ -209,7 +239,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
    * RSC payload that does not exist.
    */
   function openImport() {
-    window.location.assign(EMOTICON_IMPORT_ROUTE);
+    window.location.assign(routes.import);
   }
 
   function handleRenamed(packId: EmoticonPackId, name: string) {
@@ -292,7 +322,7 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
       setKnown((current) => current.filter((pack) => pack.id !== packId));
       setDeletingId(null);
     } catch (error) {
-      toast.error(toDeleteMessage(error));
+      toast.error(toDeleteMessage(error, kindNoun));
     } finally {
       setIsRemoving(false);
     }
@@ -300,8 +330,8 @@ export function EmoticonSettingsPage({ className, packs }: EmoticonSettingsPageP
 }
 
 // INFO: § 13.6. A pack whose items have been sent answers 409 — the user needs to be told which of the two rules stopped them, not that something failed.
-function toDeleteMessage(error: unknown): string {
+function toDeleteMessage(error: unknown, kindNoun: string): string {
   return error instanceof Error && error.message === "409"
-    ? "이미 대화에서 보낸 이모티콘이 있어 삭제할 수 없어요"
+    ? `이미 대화에서 보낸 ${josa(kindNoun, "이/가")} 있어 삭제할 수 없어요`
     : "삭제하지 못했어요";
 }

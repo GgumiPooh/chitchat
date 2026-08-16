@@ -1,6 +1,7 @@
 "use client";
 
 import type { EmoticonPackSummary } from "@/entities/emoticon";
+import type { EmoticonPackType } from "@/shared/config";
 import type { EmoticonPackId } from "@/shared/lib";
 import { A_MINUTE, A_SECOND, type Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";
@@ -35,13 +36,18 @@ export type PackBrowse = {
  * happens to be looking at and leaves every other word's cached answer holding the
  * switch as it was before the tap.
  */
-export function usePackBrowse(query: string, onEnabledChange: () => void): PackBrowse {
+export function usePackBrowse(
+  type: EmoticonPackType,
+  query: string,
+  onEnabledChange: () => void,
+): PackBrowse {
   const debounced = useDebounced(query);
   const [switches, setSwitches] = useState<Record<string, boolean>>({});
   const { data, isPending, isFetchingNextPage, hasNextPage, isError, fetchNextPage } =
     useInfiniteQuery({
-      queryKey: ["emoticon-pack-browse", debounced] as const,
-      queryFn: ({ pageParam }) => fetchEmoticonPackPage(debounced, pageParam),
+      // WARN: § 13. The kind is part of the key. Shared, the two screens would page each other's cursors — the cursor is a position in one kind's ordering and means nothing in the other's.
+      queryKey: ["emoticon-pack-browse", type, debounced] as const,
+      queryFn: ({ pageParam }) => fetchEmoticonPackPage(type, debounced, pageParam),
       initialPageParam: null as Nullable<string>,
       getNextPageParam: (page) => page.nextCursor,
       // INFO: The library is written from § 13.4.'s own screens, which are routes this tab is not on — so backspacing to a word already asked costs nothing.

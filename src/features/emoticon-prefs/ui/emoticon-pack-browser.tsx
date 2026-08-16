@@ -1,9 +1,14 @@
 "use client";
 
-import { MAX_EMOTICON_PACK_NAME_LENGTH } from "@/shared/config";
+import {
+  EMOTICON_KIND_NOUNS,
+  MAX_EMOTICON_PACK_NAME_LENGTH,
+  type EmoticonPackType,
+} from "@/shared/config";
 import { cn, type EmoticonPackId, type Nullable } from "@/shared/lib";
 import { EmptyState, Skeleton } from "@/shared/ui";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import { josa } from "es-hangul";
 import { Search, Smile } from "lucide-react";
 import {
   useCallback,
@@ -19,10 +24,13 @@ import { usePackBrowse } from "../model/use-pack-browse";
 import { EmoticonPackSearchRow } from "./emoticon-pack-search-row";
 
 // INFO: Module scope, as the tab this list is on — a word left in the field has to come back with it, or `ScrollMemory` restores an offset into a list the query no longer produces.
-let lastQuery = "";
+// WARN: § 13. Per kind. One string shared by both screens would carry 이모티콘's word into 미니이모티콘's field, where it filters a library it was never typed against.
+const lastQueryByKind: Record<EmoticonPackType, string> = { emoticon: "", mini: "" };
 
 export type EmoticonPackBrowserProps = {
   className?: string;
+  /** REQUIREMENTS.md § 13. Which library this tab browses — the screen's own kind, never both. */
+  type: EmoticonPackType;
   onOpenPack: (packId: EmoticonPackId) => void;
   /** REQUIREMENTS.md § 13.5. A switch has been written, so the 사용중 tab's server seed is one edit out of date. */
   onEnabledChange: () => void;
@@ -39,14 +47,17 @@ export type EmoticonPackBrowserProps = {
  */
 export function EmoticonPackBrowser({
   className,
+  type,
   onOpenPack,
   onEnabledChange,
 }: EmoticonPackBrowserProps) {
   // WARN: Explicit, and it is not the bailout `useVirtualizer` gets for free. The React Compiler's list is keyed on that one name, and `useWindowVirtualizer` is not on it — compiled, this component memoizes `getVirtualItems` and stops re-windowing as the reader scrolls. `ArchiveGrid` carries the same line for the same reason.
   "use no memo";
 
-  const [query, setQuery] = useState(lastQuery);
+  const [query, setQuery] = useState(lastQueryByKind[type]);
+  const packNoun = EMOTICON_KIND_NOUNS[type].pack;
   const { packs, isPending, isLoadingMore, hasFailed, loadMore, toggle } = usePackBrowse(
+    type,
     query,
     onEnabledChange,
   );
@@ -122,8 +133,8 @@ export function EmoticonPackBrowser({
             // WARN: Not `type="search"`. WebKit draws its own clear glyph inside such a field, which this pill has no room for and no style to match.
             type="text"
             value={query}
-            placeholder="이모티콘 묶음 이름 검색"
-            aria-label="이모티콘 묶음 이름 검색"
+            placeholder={`${packNoun} 이름 검색`}
+            aria-label={`${packNoun} 이름 검색`}
             onChange={(event) => rememberQuery(event.target.value)}
           />
         </div>
@@ -133,7 +144,7 @@ export function EmoticonPackBrowser({
   );
 
   function rememberQuery(next: string) {
-    lastQuery = next;
+    lastQueryByKind[type] = next;
     setQuery(next);
   }
 
@@ -154,7 +165,11 @@ export function EmoticonPackBrowser({
 
     if (hasFailed) {
       return (
-        <EmptyState className="m-md" Icon={Smile} description="이모티콘 묶음을 불러오지 못했어요" />
+        <EmptyState
+          className="m-md"
+          Icon={Smile}
+          description={`${josa(packNoun, "을/를")} 불러오지 못했어요`}
+        />
       );
     }
 
@@ -164,7 +179,9 @@ export function EmoticonPackBrowser({
           className="m-md"
           Icon={Smile}
           description={
-            query.trim().length > 0 ? "검색 결과가 없어요" : "아직 이모티콘 묶음이 없어요"
+            query.trim().length > 0
+              ? "검색 결과가 없어요"
+              : `아직 ${josa(packNoun, "이/가")} 없어요`
           }
         />
       );

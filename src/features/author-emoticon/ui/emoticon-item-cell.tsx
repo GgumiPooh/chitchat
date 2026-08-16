@@ -1,12 +1,14 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
-import { toEmoticonAssetUrl } from "@/shared/config";
+import { toEmoticonAssetUrl, type EmoticonPackType } from "@/shared/config";
 import { cn, type EmoticonItemId } from "@/shared/lib";
 import { PreloadImage } from "@/shared/ui";
 
 export type EmoticonItemCellProps = {
   className?: string;
+  /** INFO: REQUIREMENTS.md § 13. Only the caption differs — a mini's one word is a name, not a keyword list. */
+  type: EmoticonPackType;
   item: Emoticon;
   isThumbnail: boolean;
   onSelect: (itemId: EmoticonItemId) => void;
@@ -17,6 +19,7 @@ export type EmoticonItemCellProps = {
  */
 export function EmoticonItemCell({
   className,
+  type,
   item,
   isThumbnail,
   onSelect,
@@ -29,7 +32,7 @@ export function EmoticonItemCell({
           isThumbnail ? "border-primary bg-primary-tint" : "border-hairline bg-canvas",
         )}
         type="button"
-        aria-label="이모티콘"
+        aria-label={item.keywords[0] ?? "이모티콘"}
         onClick={() => onSelect(item.id)}
       >
         <PreloadImage
@@ -49,7 +52,11 @@ export function EmoticonItemCell({
           item.keywords.length ? "text-meta" : "text-meta-soft",
         )}
       >
-        {item.keywords.length ? item.keywords.join(", ") : "키워드 없음"}
+        {item.keywords.length
+          ? item.keywords.join(", ")
+          : type === "mini"
+            ? "이름 없음"
+            : "키워드 없음"}
       </p>
     </div>
   );

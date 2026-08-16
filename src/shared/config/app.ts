@@ -126,6 +126,9 @@ export const SETTINGS_ROUTE = "/settings";
 // INFO: REQUIREMENTS.md § 13.5. Nested under settings, so the tab bar keeps 설정 active while the management screens are open.
 export const EMOTICON_SETTINGS_ROUTE = "/settings/emoticons";
 
+// INFO: REQUIREMENTS.md § 13. 미니이모티콘's own management screen — a sibling route rather than a mode of the one above, so both keep a static path for their back button, their remembered tab and their streaming fallback.
+export const MINI_SETTINGS_ROUTE = "/settings/minis";
+
 // INFO: REQUIREMENTS.md § 12. The device list, nested for the reason the line above is.
 export const DEVICE_SETTINGS_ROUTE = "/settings/devices";
 
@@ -145,6 +148,9 @@ export const SERVER_SETTINGS_ROUTE = "/settings/server";
  * `basePath` in the other repo rather than chosen here.
  */
 export const EMOTICON_IMPORT_ROUTE = "/emoticons/import";
+
+// INFO: § 13. The same screen in the same zone, told which kind of pack to write — the kind rides the path rather than a query, so the two entries are two addresses a bfcache restore can tell apart.
+export const MINI_IMPORT_ROUTE = "/emoticons/import/mini";
 
 /**
  * The tab routes in bar order — the single source of that order.
