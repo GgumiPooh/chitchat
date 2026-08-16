@@ -9,7 +9,7 @@ type RouteParams = { params: Promise<{ filename: string }> };
  * REQUIREMENTS.md § 12.4. Deletes one dump, straight from R2.
  *
  * INFO: No longer proxied to jandh-ops, and no longer carrying that service's
- * `CLEANUP_TOKEN`. The bucket is the app's own (§ 9.), so the deletion is one credential
+ * jandh-ops' `CLEANUP_TOKEN`. The bucket is the app's own (§ 9.), so this is one credential
  * fewer rather than one more.
  *
  * WARN: A missing dump is a 404 even though `DeleteObject` would have succeeded — the

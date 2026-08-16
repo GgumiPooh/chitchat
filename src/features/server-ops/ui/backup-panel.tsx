@@ -30,9 +30,10 @@ const SKELETON_KEYS = ["a", "b", "c"];
  * REQUIREMENTS.md § 12.4. The stored dumps, newest first, with 백업 생성 above them and
  * a per-row deletion.
  *
- * INFO: A run takes as long as `pg_dump` takes, so the button stays busy rather than
- * optimistic, and the modal is the whole report — jandh-ops' push reaches one account
- * of the two, which need not be the one that pressed the button.
+ * INFO: The list and the deletion act on R2 directly and report what they did. 백업 생성
+ * only ASKS — it starts the same workflow the 05:00 schedule runs — so its modal says so,
+ * and the run's push reaches one account of the two, which need not be the one that pressed
+ * the button.
  */
 export function BackupPanel({ className, isOpsAvailable }: BackupPanelProps) {
   const queryClient = useQueryClient();
@@ -48,7 +49,7 @@ export function BackupPanel({ className, isOpsAvailable }: BackupPanelProps) {
       {isOpsAvailable && (
         <div className="px-md pb-sm">
           <Button disabled={isRunning} haptic onClick={() => void createBackup()}>
-            {isRunning ? "백업하는 중…" : "백업 생성"}
+            {isRunning ? "요청하는 중…" : "백업 생성"}
           </Button>
         </div>
       )}
@@ -132,25 +133,23 @@ export function BackupPanel({ className, isOpsAvailable }: BackupPanelProps) {
     setIsRunning(true);
 
     try {
-      const run = await runBackup();
+      await runBackup();
 
+      // WARN: 요청, never 완료. The dispatch answers once the run is QUEUED — the dump streams for minutes afterwards, and its push notification is the only thing that knows how it went.
       setResult({
-        title: "백업 완료",
-        lines: [
-          { label: "파일", value: run.filename },
-          { label: "크기", value: formatStorageSize(run.sizeBytes) },
-          { label: "정리된 오래된 백업", value: `${run.deletedOldBackups.length}개` },
-        ],
+        title: "백업을 요청했어요",
+        description: "다 되면 알림으로 알려드릴게요",
+        lines: [],
       });
     } catch (error) {
       setResult({
-        title: "백업 실패",
+        title: "백업을 요청하지 못했어요",
         description: describeOpsFailure(error),
         lines: [],
       });
     } finally {
       setIsRunning(false);
-      // WARN: On the failed path too. A cut connection leaves a dump still streaming, so the list has to be re-read rather than assumed unchanged.
+      // INFO: The new dump is not there yet, so this only re-reads what a previous run may have changed while the screen was open.
       await queryClient.invalidateQueries({ queryKey: BACKUPS_QUERY_KEY });
     }
   }

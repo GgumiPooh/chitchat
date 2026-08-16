@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 export type ServerSettingsPageProps = {
   className?: string;
   /**
-   * Whether this deployment has a jandh-ops to call (`OPS_API_URL`).
+   * Whether this deployment can start an ops run (`OPS_GITHUB_TOKEN`).
    *
    * INFO: REQUIREMENTS.md § 12.4. Only the work that service still owns is gated on it —
    * the backup list and the per-backup deletion read R2 directly and are always offered.
