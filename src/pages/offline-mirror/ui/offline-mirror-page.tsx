@@ -14,6 +14,7 @@ import {
   type MirrorScreen,
 } from "@/widgets/offline-shell";
 import { MessageCircle } from "lucide-react";
+import { useReloadWhenReachable } from "../model/use-reload-when-reachable";
 import { MirrorArchive } from "./mirror-archive";
 import { MirrorCalendar } from "./mirror-calendar";
 import { MirrorChat } from "./mirror-chat";
@@ -43,6 +44,9 @@ export function OfflineMirrorPage({ className }: OfflineMirrorPageProps) {
   const isHydrated = useHydrated();
   const screen = isHydrated ? toMirrorScreen(window.location.pathname) : undefined;
   const shell = useSnapshot<ShellSnapshot>("shell");
+
+  // INFO: REQUIREMENTS.md § 16.2. The reader is on a frozen copy of a screen that works again the moment the network does, and nothing on it would say so — the pill leaving is the only signal, and it says the opposite of what the screen is.
+  useReloadWhenReachable();
 
   return (
     <Container

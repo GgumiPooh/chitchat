@@ -236,6 +236,9 @@ export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: b
     // INFO: § 8.4. iOS is inconsistent about which of these a PWA app-switch produces, so all three are observed and `sync` coalesces the duplicates.
     window.addEventListener("pageshow", resume);
     window.addEventListener("focus", resume);
+    // INFO: A returning network is a resume like any other, and without it the room waits out whatever is left of `SSE_RETRY_DELAY` before asking for the messages it missed.
+    // WARN: The `online` direction only. `offline` is the unreliable one (`useIsOffline`), and closing a working socket on a flag a VPN sets is the failure that costs something — a dropped transport already reopens itself through `onerror`.
+    window.addEventListener("online", resume);
     window.addEventListener("pagehide", close);
     window.addEventListener("blur", handleBlur);
 
@@ -243,6 +246,7 @@ export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: b
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pageshow", resume);
       window.removeEventListener("focus", resume);
+      window.removeEventListener("online", resume);
       window.removeEventListener("pagehide", close);
       window.removeEventListener("blur", handleBlur);
       close();

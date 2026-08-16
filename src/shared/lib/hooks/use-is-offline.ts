@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { getLastNetworkReachedAt, subscribeNetworkReached } from "../activity/network-reachability";
+import {
+  getLastNetworkFailedAt,
+  getLastNetworkReachedAt,
+  subscribeNetworkReached,
+} from "../activity/network-reachability";
 import { A_SECOND } from "../date/time";
 
 // INFO: Only the offline direction waits — a blip that flashes the banner is the failure worth paying a second for, where a second of silence while cached content reads normally costs nothing.
@@ -36,7 +40,7 @@ const getReachedServerSnapshot = () => 0;
  * Whether the device has reported no network for long enough, and with nothing
  * contradicting it, to say so.
  *
- * WARN: `navigator.onLine` alone is a hint and MDN says outright not to disable features on it — a VPN, a VM and several Linux stacks report `false` on a working connection, and this app refuses its whole write surface on this answer. So the flag is corroborated: a `false` is believed only once `CORROBORATION_WINDOW` has passed with no request of ours coming back. On a device where the flag is stuck, requests keep succeeding and the window keeps resetting, so the app never believes it; in a real outage nothing answers and the verdict lands as it always did.
+ * WARN: `navigator.onLine` alone is a hint and MDN says outright not to disable features on it — a VPN, a VM and several Linux stacks report `false` on a working connection, and this app refuses its whole write surface on this answer. So the flag is corroborated: a `false` is believed once `CORROBORATION_WINDOW` has passed with no request of ours coming back, **or** at once if a request has since failed to reach anything. On a device where the flag is stuck, requests keep succeeding and the window keeps resetting, so the app never believes it; in a real outage the first failure settles it inside `SETTLE_DELAY`, and the window is the fallback for an outage nothing has asked a question during.
  * WARN: This is the **presentational** answer, and the two places that classify a *failure* deliberately read `navigator.onLine` directly instead — the outbox's queued-versus-failed branch and `useLoadStatus`'s hold. Those run at the moment a request has already lost, where the flag is corroborated by the failure itself and a settle delay would file the answer wrongly.
  */
 export function useIsOffline(): boolean {
@@ -46,7 +50,28 @@ export function useIsOffline(): boolean {
     getLastNetworkReachedAt,
     getReachedServerSnapshot,
   );
+  // INFO: The same store — `markNetworkUnreachable` notifies the same listeners, so this needs no subscription of its own.
+  const lastFailedAt = useSyncExternalStore(
+    subscribeNetworkReached,
+    getLastNetworkFailedAt,
+    getReachedServerSnapshot,
+  );
   const [hasSettled, setHasSettled] = useState(false);
+
+  /**
+   * WARN: The reset is keyed on the flag **alone**, which is why it is an effect of its
+   * own. Carried on the timer's dependencies below it fired whenever those moved — and
+   * `lastFailedAt` moves on every failed request, so a real outage un-settled itself
+   * once per failure: the pill blinked, and every `useOfflineGate` control came
+   * unblocked for a second and ran a handler that could only fail.
+   */
+  useEffect(() => {
+    if (!isReportedOffline) {
+      return;
+    }
+
+    return () => setHasSettled(false);
+  }, [isReportedOffline]);
 
   useEffect(() => {
     if (!isReportedOffline) {
@@ -55,16 +80,15 @@ export function useIsOffline(): boolean {
 
     // INFO: A request that lands mid-wait re-runs this effect through `lastReachedAt`, which clears the timer and starts the full window again — so any evidence at all pushes the verdict back out.
     const elapsed = Date.now() - lastReachedAt;
+    // WARN: A failure newer than the last success is what the window was waiting to find out, so waiting the rest of it out only delays a verdict already corroborated. It cannot report an outage on its own — the flag has to be `false` to reach this at all, which is what keeps a CORS `TypeError` from standing in for one.
+    const isCorroborated = lastFailedAt > lastReachedAt;
     const timer = setTimeout(
       () => setHasSettled(true),
-      Math.max(SETTLE_DELAY, CORROBORATION_WINDOW - elapsed),
+      isCorroborated ? SETTLE_DELAY : Math.max(SETTLE_DELAY, CORROBORATION_WINDOW - elapsed),
     );
 
-    return () => {
-      clearTimeout(timer);
-      setHasSettled(false);
-    };
-  }, [isReportedOffline, lastReachedAt]);
+    return () => clearTimeout(timer);
+  }, [isReportedOffline, lastReachedAt, lastFailedAt]);
 
   // WARN: Both terms, so the return goes false in the render the network comes back rather than in the effect after it — the delay is owed to arriving offline, not to leaving it.
   return isReportedOffline && hasSettled;

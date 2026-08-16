@@ -6,8 +6,10 @@ export {
   subscribeDormancy,
 } from "./activity/dormancy";
 export {
+  getLastNetworkFailedAt,
   getLastNetworkReachedAt,
   markNetworkReached,
+  markNetworkUnreachable,
   subscribeNetworkReached,
 } from "./activity/network-reachability";
 export { hasUnsentWork, holdUnsentWork, useUnsentWork } from "./activity/unsent-work";

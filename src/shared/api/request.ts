@@ -1,4 +1,4 @@
-import { isDormant, markNetworkReached } from "@/shared/lib";
+import { isDormant, markNetworkReached, markNetworkUnreachable } from "@/shared/lib";
 
 /**
  * REQUIREMENTS.md § 8.4.1. Thrown instead of reaching the network while the app is
@@ -40,14 +40,26 @@ export function request(path: string, init?: RequestInit): Promise<Response> {
     return Promise.reject(new DormantRequestError(path));
   }
 
-  // INFO: The one place the app learns first-hand that the network works, which is what `useIsOffline` corroborates `navigator.onLine` against before anything refuses on it.
+  // INFO: The one place the app learns first-hand whether the network works, which is what `useIsOffline` corroborates `navigator.onLine` against before anything refuses on it.
   return fetch(path, isCrossOrigin(path) ? { credentials: "include", ...init } : init).then(
     (response) => {
       markNetworkReached();
 
       return response;
     },
+    (error: unknown) => {
+      // WARN: An abort is the caller changing its mind, not the network — a search keystroke cancels the request before it, and filing those as outages would corroborate a stuck flag on every fast typist.
+      if (!isAborted(error)) {
+        markNetworkUnreachable();
+      }
+
+      throw error;
+    },
   );
+}
+
+function isAborted(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
 }
 
 // WARN: § 13.7.1. An absolute URL is the signal, because every path this app writes is relative — so only a constant deliberately pointed at another origin reaches the credentialed branch, and it cannot be reached by a route of ours that merely redirects.
