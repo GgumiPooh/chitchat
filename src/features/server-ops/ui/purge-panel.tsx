@@ -32,7 +32,7 @@ export function PurgePanel({ className }: PurgePanelProps) {
     <section className={cn("flex flex-col", className)}>
       <h2 className="px-md pt-md pb-xs text-title-sm text-meta">삭제 파일 회수</h2>
       <p className="px-md pb-sm text-body-sm text-meta">
-        지운 사진과 파일이 차지하던 공간을 되찾아요. 10분마다 저절로 도니까 급할 때만 눌러도 돼요
+        지운 사진과 파일이 차지하던 공간을 되찾아요
       </p>
       <div className="px-md">
         <Button variant="secondary" disabled={isPurging} haptic onClick={() => void purge()}>
