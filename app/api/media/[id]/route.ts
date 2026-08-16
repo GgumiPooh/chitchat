@@ -78,7 +78,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
   return NextResponse.redirect(url, {
     status: 302,
-    // WARN: REQUIREMENTS.md § 9. Shorter than the signature's own lifetime, or the browser replays a cached redirect to a URL R2 has stopped honouring.
+    // WARN: REQUIREMENTS.md § 9. Shorter than `MEDIA_URL_EXPIRY - MEDIA_SIGNING_BUCKET` and not merely than the expiry — the URL above is dated to the start of its window — or the browser replays a cached redirect to a signature R2 has stopped honouring.
     headers: { "Cache-Control": `private, max-age=${MEDIA_CACHE_MAX_AGE / A_SECOND}` },
   });
 }

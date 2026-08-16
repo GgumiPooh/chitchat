@@ -11,12 +11,12 @@ import { isWornAnywhere } from "./get-media-object";
  * Takes back the object a profile change replaced — an avatar (REQUIREMENTS.md
  * § 12.), a profile cover (§ 12.1.) or a chat wallpaper (§ 12.2.).
  *
- * WARN: A soft delete, and the bytes are not this function's to take. The other
- * participant is holding the 302 this id resolved to, cached for
- * `MEDIA_CACHE_MAX_AGE` (§ 9.), so their browser replays it at R2 without asking us
- * again — deleting the object alongside the row turns the previous picture into a
- * broken image rather than a stale one. Stamping `deleted_at` is what hands the object
- * to the reclaim, which purges it once `MEDIA_DELETE_GRACE` has passed.
+ * WARN: A soft delete, and the bytes are not this function's to take. Stamping
+ * `deleted_at` hands the object to the reclaim, which purges it once
+ * `MEDIA_DELETE_GRACE` has passed — a read already in flight, and no longer the whole
+ * window a peer may replay a cached 302 inside (§ 9.). What makes that safe here is
+ * that a replacement is a new row at a new key, so `user_changed` moves the peer onto
+ * a different URL rather than leaving them re-asking for this one.
  *
  * WARN: Narrowed to the caller's own prefix for `scope`, not merely to their own
  * rows. A crafted `PATCH` can point any of those three columns at any object its

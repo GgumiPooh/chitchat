@@ -27,8 +27,8 @@ import { isInLibrary } from "./list-archive-media";
  * that does not cascade, and § 8.13.'s resume reconciliation needs the row to survive so
  * the bubble can keep its place. Only the R2 objects actually go, and they go on the
  * reclaim's own pass once `MEDIA_DELETE_GRACE` has run — one grace for every media-scope
- * delete, so a peer replaying a cached 302 (§ 9.) gets the stale picture rather than a
- * broken one.
+ * delete, and no longer one a peer's cached 302 (§ 9.) can be outwaited by: the bubble
+ * draws its tombstone off this stamp, and a load that beats it retries past the cache.
  *
  * INFO: § 4.3. The geometry is deliberately left on the row. It is what lets the
  * tombstone occupy the box the picture did, so the § 8.3. virtualized list re-measures

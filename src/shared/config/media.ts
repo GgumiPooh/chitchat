@@ -1,4 +1,4 @@
-import { AN_HOUR, A_DAY, A_MEGABYTE, A_MINUTE, A_SECOND, type Nullable } from "@/shared/lib";
+import { A_DAY, A_MEGABYTE, A_MINUTE, A_SECOND, type Nullable } from "@/shared/lib";
 // INFO: One-way — `emoticon.ts` imports nothing from here, so naming its ceilings in `maxSizeForScope` closes no cycle.
 import { MAX_EMOTICON_AUDIO_SIZE, MAX_EMOTICON_IMAGE_SIZE } from "./emoticon";
 
@@ -248,13 +248,14 @@ export const UPLOAD_URL_EXPIRY = 10 * A_MINUTE;
 /**
  * How long a media download's signature stays valid.
  *
- * WARN: REQUIREMENTS.md § 9. `MEDIA_SIGNING_BUCKET` **and** the `Cache-Control` on the
- * 302 are both spent out of this and their sum MUST stay under it, or the browser
- * replays a cached redirect to a signature R2 has stopped honouring.
+ * WARN: REQUIREMENTS.md § 9. Seven days is SigV4's ceiling and cannot be raised;
+ * `MEDIA_SIGNING_BUCKET` **and** the `Cache-Control` on the 302 are both spent out of
+ * this and their sum MUST stay under it, or the browser replays a cached redirect to a
+ * signature R2 has stopped honouring.
  *
- * INFO: An hour rather than the ten minutes it was, and the minutes bought nothing they were thought to. Ten was chosen so a leaked URL is short-lived; what it actually bounded was how long a *stable* URL could exist, and the signature rotating every request is what left the bytes uncacheable (§ 9.'s own note on the heuristic). An hour is still a link that dies while the photo does not.
+ * INFO: § 13.3.'s window on § 9.'s objects, reached by way of ten minutes and then an hour. Both bounded how long a *stable* URL could exist rather than anything an attacker had to beat, and an hour is shorter than any redirect cache worth keeping — so `MEDIA_ASSET_CACHE_CONTROL`'s year went on being a fresh cache entry per window.
  */
-export const MEDIA_URL_EXPIRY = AN_HOUR;
+export const MEDIA_URL_EXPIRY = 7 * A_DAY;
 
 /**
  * The grid a media download is signed against, so every request inside one window is
@@ -264,9 +265,10 @@ export const MEDIA_URL_EXPIRY = AN_HOUR;
  * back under a different URL every time — measured on 보관함: two requests three seconds
  * apart, two `X-Amz-Date`s. The browser's cache is keyed by URL, so each expiring 302
  * cost the whole 158KB thumbnail again. This is `EMOTICON_SIGNING_BUCKET`'s argument
- * (§ 13.3.) on the larger objects.
+ * (§ 13.3.) on the larger objects, at its size too: a grid shorter than the redirect
+ * cache in front of it is one nearly every re-ask falls out of.
  */
-export const MEDIA_SIGNING_BUCKET = 30 * A_MINUTE;
+export const MEDIA_SIGNING_BUCKET = 5 * A_DAY;
 
 /**
  * The `Cache-Control` a media download's presigned GET answers with.
@@ -281,8 +283,17 @@ export const MEDIA_SIGNING_BUCKET = 30 * A_MINUTE;
  */
 export const MEDIA_ASSET_CACHE_CONTROL = `private, max-age=${(365 * A_DAY) / A_SECOND}, immutable`;
 
-// WARN: § 12.1. The window a peer may still replay a cached 302 inside, which is what `MEDIA_DELETE_GRACE` is measured as. Kept where it was: the widened windows above are the signature's, not this one's.
-export const MEDIA_CACHE_MAX_AGE = 5 * A_MINUTE;
+/**
+ * How long the 302 in front of a media object may be cached.
+ *
+ * WARN: § 9. Shorter than `MEDIA_SIGNING_BUCKET` on purpose, and that is what makes the
+ * bytes' year reachable rather than merely long: a browser re-asking inside the window is
+ * handed the same URL, so it pays one 302 and keeps what it already holds.
+ * WARN: § 12.1. No longer what `MEDIA_DELETE_GRACE` is measured as — a redirect cached
+ * this long cannot be outwaited, so a deleted object is recovered from on the read side
+ * (`useLoadStatus`) exactly as § 13.3.'s is.
+ */
+export const MEDIA_CACHE_MAX_AGE = A_DAY;
 
 /**
  * REQUIREMENTS.md § 9. How long a `storage_reservations` row holds the key it names
@@ -302,13 +313,13 @@ export const STORAGE_RESERVATION_TTL = A_DAY;
 /**
  * REQUIREMENTS.md § 12. How long a soft-deleted object's bytes survive the row.
  *
- * INFO: § 13.4. The peer is holding the 302 the id resolved to for
- * `MEDIA_CACHE_MAX_AGE`, and replays it at R2 without asking us again — so the bytes
- * have to outlive every redirect still pointing at them or the previous picture turns
- * from stale into broken. Emoticons take no grace at all: their redirect is cached for
- * days, which no delay could outlive, and the read side recovers instead.
+ * WARN: § 9. Its own value now, and deliberately not raised with `MEDIA_CACHE_MAX_AGE`.
+ * It covers the read already in flight — a 302 answered just before the stamp whose GET
+ * at R2 has not landed — and nothing further: a redirect cached for a day is what
+ * `EMOTICON_CACHE_MAX_AGE` already takes no grace against, so past this the read side
+ * recovers instead. jandh-ops' `PURGE_GRACE` is the same five minutes.
  */
-export const MEDIA_DELETE_GRACE = MEDIA_CACHE_MAX_AGE;
+export const MEDIA_DELETE_GRACE = 5 * A_MINUTE;
 
 // INFO: The thumbnail is always JPEG — `canvas.toBlob` is the one encoder every iOS version implements, and both a resized photo and a video's poster frame go through it.
 export const THUMBNAIL_MIME = "image/jpeg";
