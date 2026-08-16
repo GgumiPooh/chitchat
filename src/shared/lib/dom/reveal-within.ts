@@ -6,8 +6,8 @@ const REVEAL_MARGIN = 8;
  *
  * WARN: Never `scrollIntoView` or `focus()`'s own scroll, which both walk *every*
  * scrollable ancestor — REQUIREMENTS.md § 13.6.'s strip is clipped by an
- * `overflow: hidden` box mid-collapse, and DESIGN.md § 7.10.'s filmstrip sits inside
- * an overlay whose ancestors include the app's own document scroller.
+ * `overflow: hidden` box mid-collapse, and walking out of one reaches the app's own
+ * document scroller (DESIGN.md § 3.3.).
  *
  * WARN: An axis with no room to move is never asked to. The margin is added to the
  * clipping test, so a scroller whose item merely sits inside its padding still

@@ -12,7 +12,7 @@ import {
   MEDIA_VIEWER_NAME,
   cn,
   endMediaMorph,
-  useDragScroll,
+  useInertialStrip,
   useIsIos,
   useModalOverlay,
   usePinchZoom,
@@ -44,7 +44,6 @@ import {
   type ComponentProps,
   type FC,
   type MouseEvent,
-  type PointerEvent,
 } from "react";
 import { HapticTap } from "./haptic-tap";
 import { HapticTarget } from "./haptic-target";
@@ -586,7 +585,7 @@ export function MediaViewer({
             <SlideFilmstrip
               cells={bubble}
               activeId={current.id}
-              isReachable={isChromeVisible}
+              isReachable={isChromeVisible && !zoom.isZoomed}
               onSelect={goToSlide}
             />
           )}
@@ -892,20 +891,25 @@ export type SlideFilmstripProps = {
   /** The bubble's own attachments, in send order (`toBubbleRun`). */
   cells: MediaCell[];
   activeId: MediaId;
-  /** Whether the chrome around it is up, so a hidden strip leaves the tab sequence with the bars. */
+  /**
+   * Whether the strip may be used at all — the chrome around it is up, and the slide
+   * is not zoomed.
+   *
+   * WARN: REQUIREMENTS.md § 18. #6. The zoom half is not decoration. `goToSlide` refuses a crossing made over a zoomed slide, exactly as `overflow-x-hidden` refuses the swipe, and this row has no way to hear that refusal — left live it moved under the reader's hand, reported a notch nobody acted on, and stranded the ring and the counter on a thumbnail the strip was no longer showing, for as long as the zoom lasted and past it. The step chevrons are withheld on the same condition, through `canStepBack` / `canStepForward`.
+   */
   isReachable: boolean;
-  /** `isLive` marks a crossing made **under a finger still on the strip**, which travels instantly rather than easing — see the notch's own WARN. */
+  /** `isLive` marks a crossing made **under a hand still on the strip**, which travels instantly rather than easing — see the notch's own WARN. */
   onSelect: (cell: MediaCell, isLive: boolean) => void;
 };
 
 /**
  * DESIGN.md § 7.10. The bubble laid out as thumbnails under the slide, with the
  * position beneath them — a tap crosses to a sibling without swiping through the ones
- * between.
+ * between, and the row itself is dragged under a notch at its centre.
  *
- * WARN: § 3.6. No `padding-inline` on the scroller and no `justify-center` on it either. The first is WebKit's overflow defect; the second hides the leading items past a scroll origin a scroller cannot reach. The end insets are the first and last child's margin instead.
- * WARN: The scroller spans the shell, and the band beside a short strip is therefore inside it rather than transparent to the slide behind. That is the price of the notch: the row **is** the control, so a drag anywhere along it has to move the film. The chrome toggle and the § 8.11. hold keep the rest of the screen, which is all of it above this bar.
- * INFO: AGENTS.md § 4.2. `useDragScroll` is the pointer's half — a finger already pans this, and a mouse has only the wheel until the strip can be taken hold of.
+ * WARN: The row is **not** a scroller, and `useInertialStrip` carries the whole argument — the short version is that a scroller's position belongs to the browser, so this component could only guess whether a `scroll` was the reader's or its own centring, and a wrong guess closed a loop with the viewer's track that froze the tab.
+ * WARN: The end insets are the first cell's **margin**, half the row's width less half a thumbnail — exactly the room the first and last slide need to reach the middle. A percentage margin resolves against the row, which is the shell's width, so it follows the shell rather than a number written twice.
+ * WARN: The row spans the shell, and the band beside a short strip is therefore inside it rather than transparent to the slide behind. That is the price of the notch: the row **is** the control, so a drag anywhere along it has to move the film. The chrome toggle and the § 8.11. hold keep the rest of the screen, which is all of it above this bar.
  */
 function SlideFilmstrip({
   className,
@@ -914,251 +918,124 @@ function SlideFilmstrip({
   isReachable,
   onSelect,
 }: SlideFilmstripProps) {
-  const stripRef = useRef<Nullable<HTMLDivElement>>(null);
-  // WARN: State beside the ref, because `useSettledCommit` takes the element as a value and the React Compiler forbids reading a ref during render — the same pair the track above keeps, for the same hook.
-  const [stripElement, setStripElement] = useState<Nullable<HTMLDivElement>>(null);
-  // INFO: The haptic wrapper rather than the button, since that is the element the strip lays out (DESIGN.md § 7.15.) — and the one the centring below has to measure.
-  const activeRef = useRef<Nullable<HTMLSpanElement>>(null);
-  // INFO: The open is a jump and every crossing after it is a follow, so the first centring is instant and the rest are eased — an animated one at mount would be read as the strip arriving already moving.
-  const hasCentredRef = useRef(false);
-  /**
-   * Whether the reader's own hand is on the strip, which is what tells a scroll they
-   * are making from one this component made.
-   *
-   * WARN: Touch is tracked by `touchstart` / `touchend` and never by the pointer events beside them. A native pan **cancels** the pointer stream at the moment the browser takes the gesture over — the finger is still down and still scrubbing — so a pointer-driven flag would go false exactly when it matters most.
-   */
-  const isHoldingRef = useRef(false);
-  const dragProps = useDragScroll();
-  const position = cells.findIndex((cell) => cell.id === activeId) + 1;
+  // INFO: The open is a jump and every crossing after it is a follow, so the first move is instant and the rest are eased — an animated one at mount would be read as the strip arriving already moving.
+  const hasSettledRef = useRef(false);
+  const index = cells.findIndex((cell) => cell.id === activeId);
   // INFO: § 10.'s unit, so a bubble that is all video counts in 개 — `toCellNoun` calls a mixed one a photo, which is the same latitude 장 takes there.
   const unit = toMediaCountUnit(cells.every((cell) => cell.isVideo) ? "video" : "photo");
-
-  /**
-   * DESIGN.md § 7.10. What the notch has landed on once the strip has gone still, and
-   * the centring that tidies up after whatever left it there.
-   *
-   * WARN: Memoized, and it is not optional. `useSettledCommit` rebuilds its wait from this identity and its cleanup clears the pending timer — so a fresh function per render would have every unrelated re-render of the viewer (the chrome toggle, a crossing, an offline gate) cancel a settle that `isPending: false` never re-arms, and the scrub would silently stop committing.
-   * INFO: It centres on **every** settle rather than only the ones that moved the reader, which is what recovers a strip left off the notch by a scrub that could not be committed — a drag made under a zoomed slide, where `goToSlide` refuses the crossing (§ 18. #6.).
-   */
-  const handleSettled = useCallback(() => {
-    const strip = stripRef.current;
-
-    if (!strip || isHoldingRef.current) {
-      return;
-    }
-
-    const notchedIndex = toNotchedIndex(strip);
-    const notched = strip.children[notchedIndex];
-
-    if (notched instanceof HTMLElement) {
-      centreWithin(strip, notched, "smooth");
-    }
-
-    const cell = cells[notchedIndex];
-
-    if (cell && cell.id !== activeId) {
-      onSelect(cell, false);
-    }
-  }, [cells, activeId, onSelect]);
-
-  /**
-   * DESIGN.md § 7.10. Puts the active thumbnail on the notch — on the open, where the
-   * reader may have tapped the last of nine, and on every crossing after it.
-   *
-   * WARN: Never while the reader is holding the strip. During a scrub the film is theirs and the slide follows it; centring here would drag the row out from under the finger that is moving it.
-   * WARN: A layout effect, so the strip is already on the right thumbnail in the frame it first paints — the opening morph (§ 4.7.3.) lands on a viewer whose chrome must not then be seen correcting itself.
-   * WARN: The run's own length is a dependency as well as the held slide. § 8.1.'s track is replaced as pages commit, so a bubble can gain the siblings that were past the window's edge while the reader stands still — and the thumbnails inserted before theirs push it off the notch with nothing to notice it.
-   */
-  useLayoutEffect(() => {
-    const strip = stripRef.current;
-    const active = activeRef.current;
-
-    if (!strip || !active || isHoldingRef.current) {
-      return;
-    }
-
-    centreWithin(strip, active, hasCentredRef.current ? "smooth" : "auto");
-    hasCentredRef.current = true;
-  }, [activeId, cells.length]);
-
-  // INFO: DESIGN.md § 7.10. The backstop for a gesture this component cannot see the end of — a touch flick, whose momentum runs on past `touchend`.
-  useSettledCommit({ scroller: stripElement, isPending: false, onSettled: handleSettled });
-
-  return (
-    // WARN: DESIGN.md § 7.10. Inert like the bar around it, with `pointer-events-auto` on the scroller alone. This block spans the bar's width, so claiming pointers here would swallow the chrome toggle and the § 8.11. hold across a band beside a two-thumbnail strip.
-    <div className={cn("flex flex-col items-center gap-2xs", className)}>
-      <div
-        ref={captureStrip}
-        // WARN: § 3.6. The end insets are the first and last child's **margin**, never the scroller's padding, and they are half its own width less half a thumbnail — which is exactly the room the first and last slide need to reach the middle. A percentage margin resolves against this box, so it follows the shell rather than a number written twice.
-        // WARN: No CSS scroll snapping, and it was tried. `useDragScroll` moves this by assigning `scrollLeft`, and `snap-mandatory` re-snaps after **every** scroll, a programmatic one included — so a mouse drag jumped thumbnail to thumbnail instead of tracking the cursor. The centring below is the snap, and it is the one this component can suspend while a hand is on the strip.
-        className="pointer-events-auto scrollbar-hidden flex w-full cursor-grab gap-2xs overflow-x-auto overscroll-x-contain active:cursor-grabbing [&>*:first-child]:ml-[calc(50%-1.5rem)] [&>*:last-child]:mr-[calc(50%-1.5rem)]"
-        role="group"
-        aria-label="이 메시지의 첨부"
-        {...dragProps}
-        onPointerDown={holdWithMouse}
-        onPointerUp={releaseMouse}
-        onPointerCancel={releaseMouse}
-        // WARN: Touch is held by its own events — see `isHoldingRef`. `touchend` settles nothing itself, because WebKit's momentum runs on afterwards and a scroll made into it is dropped (REQUIREMENTS.md § 8.3.); the settle above is what answers there.
-        onTouchStart={holdWithTouch}
-        onTouchEnd={releaseTouch}
-        onTouchCancel={releaseTouch}
-        // INFO: DESIGN.md § 7.10. The live half of the notch: while the strip is being held, whatever passes under the centre becomes the slide on screen at once.
-        onScroll={scrubToNotch}
-      >
-        {cells.map((cell) => {
-          const isActive = cell.id === activeId;
-
-          return (
-            // INFO: DESIGN.md § 7.15. A selection among peers, which is where the tick belongs — and `keepsScroll`, since these cells tile a scroller (§ 7.15.1.).
-            <HapticTarget
-              key={cell.id}
-              ref={isActive ? activeRef : null}
-              className="shrink-0 snap-center"
-              // WARN: DESIGN.md § 7.15. The strip's own `touch-action` repeated, since the gesture now starts on the overlay — without it a drag across the thumbnails cannot pan the strip on touch.
-              overlayClassName="touch-pan-x"
-              keepsScroll
-            >
-              <button
-                // INFO: A fixed square whatever the asset's shape is, so the strip reads as one row of equals rather than as a second, smaller track.
-                // WARN: The focus ring is an `outline` drawn inward, not a `ring`. An outward one is clipped by the scroller's edge on the end thumbnails, and `ring-inset` is a box-shadow — which paints *under* this element's own content, and the picture fills the box exactly. An outline is painted after the descendants, so a negative offset puts it over the photo where it can be seen.
-                className="relative block size-12 cursor-pointer overflow-hidden rounded-sm bg-on-scrim/10 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
-                type="button"
-                // WARN: AGENTS.md § 4.2. Roving tabindex over the strip, and the arrows that would move it are the viewer's own — `handleOverlayKeyDown` steps the track, which is what moves the mark here. Nine thumbnails in the tab sequence would put the bottom bar's controls nine stops away.
-                tabIndex={isReachable && isActive ? undefined : -1}
-                aria-current={isActive}
-                aria-label={`${cells.indexOf(cell) + 1}번째 ${toMediaLabel(cell.isVideo ? "video" : "photo")}`}
-                // INFO: Not live: a tap names its destination outright, so the track eases there as it does for the step controls.
-                onClick={() => onSelect(cell, false)}
-              >
-                {cell.previewUrl && (
-                  <PreloadImage
-                    className="size-full"
-                    imgClassName="size-full object-cover"
-                    src={cell.previewUrl}
-                    hasSkeleton={false}
-                    blurhash={cell.blurhash}
-                    blurhashRatio={toCellRatio(cell)}
-                    alt=""
-                  />
-                )}
-                {/* INFO: DESIGN.md § 7.10. The 2px `primary` mark on the slide being read, inset for the reason § 13.8.'s results row records — an outward ring on the first or last thumbnail is clipped away by the scroller's own edge. */}
-                {/* WARN: An element over the picture, never `ring-inset` on the button. An inset ring is a box-shadow, which paints under the element's own content — and the thumbnail fills the box exactly, so it covered the mark completely. */}
-                {isActive && (
-                  <span className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-primary ring-inset" />
-                )}
-                {/* INFO: DESIGN.md § 6.5. The video tile's own glyph, at the size this box has for one — a strip of squares says nothing else about which of them plays. */}
-                {cell.isVideo && (
-                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <Play className="size-4 fill-on-scrim text-on-scrim drop-shadow" />
-                  </span>
-                )}
-              </button>
-            </HapticTarget>
-          );
-        })}
-      </div>
-      {/* INFO: DESIGN.md § 7.10. The position, moved out of the top bar's caption to sit under the thumbnails it counts. */}
-      <p className="flex items-center gap-2xs text-caption text-on-scrim/75">
-        <Images className="size-3.5 shrink-0" strokeWidth={1.75} />
-        {`${cells.length}${unit} 중 ${position}번`}
-      </p>
-    </div>
-  );
-
-  function holdWithMouse(event: PointerEvent<HTMLDivElement>) {
-    dragProps.onPointerDown(event);
-
-    if (event.pointerType === "mouse") {
-      isHoldingRef.current = true;
-    }
-  }
-
-  /**
-   * INFO: A mouse has no momentum, so the notch settles the moment the button comes up rather than `SETTLE_DELAY` later — the strip glides to the thumbnail the reader left under the centre.
-   * WARN: The hook's own release runs first, or `handleSettled` measures a strip the drag still owns.
-   */
-  function releaseMouse(event: PointerEvent<HTMLDivElement>) {
-    dragProps.onPointerUp(event);
-
-    if (event.pointerType !== "mouse") {
-      return;
-    }
-
-    isHoldingRef.current = false;
-    handleSettled();
-  }
-
-  function holdWithTouch() {
-    isHoldingRef.current = true;
-  }
-
-  function releaseTouch() {
-    isHoldingRef.current = false;
-  }
-
   /**
    * DESIGN.md § 7.10. The crossing made **under the hand that is making it**, so the
    * photo above follows the film rather than waiting for it to be let go.
    *
-   * WARN: Only while the strip is held. Every other scroll here is this component's own centring, and answering that would be a loop — the centring moves the strip, the strip names a slide, the slide re-centres the strip.
    * INFO: Marked live, which is what makes the track travel instantly. A smooth scroll per crossing cannot keep up with a finger and lands on a slide the reader has already dragged past.
+   * INFO: Reported once per notch by the hook, whatever the frame rate — the dedupe is exact because the row's position is a value it owns rather than one React has yet to re-render with.
    */
-  function scrubToNotch() {
-    const strip = stripRef.current;
+  const { rowRef, moveTo, dragProps } = useInertialStrip<HTMLDivElement>({
+    count: cells.length,
+    onNotch: (notched) => {
+      const cell = cells[notched];
 
-    if (!strip || !isHoldingRef.current) {
+      if (cell) {
+        onSelect(cell, true);
+      }
+    },
+  });
+
+  /**
+   * DESIGN.md § 7.10. Puts the active thumbnail on the notch — on the open, where the
+   * reader may have tapped the last of nine, and on every crossing made anywhere else.
+   *
+   * WARN: A layout effect, so the row is already on the right thumbnail in the frame it first paints — the opening morph (§ 4.7.3.) lands on a viewer whose chrome must not then be seen correcting itself.
+   * WARN: The run's own length is a dependency as well as the held slide. § 8.1.'s track is replaced as pages commit, so a bubble can gain the siblings that were past the window's edge while the reader stands still — and the thumbnails inserted before theirs push it off the notch with nothing to notice it.
+   * INFO: A crossing the strip itself reported comes back through here and stops inside `moveTo`, which refuses an index it already holds.
+   */
+  useLayoutEffect(() => {
+    if (index < 0) {
       return;
     }
 
-    const notched = cells[toNotchedIndex(strip)];
+    moveTo(index, hasSettledRef.current);
+    hasSettledRef.current = true;
+  }, [index, cells.length, moveTo]);
 
-    if (notched && notched.id !== activeId) {
-      onSelect(notched, true);
-    }
-  }
+  return (
+    // WARN: DESIGN.md § 7.10. Inert like the bar around it, with `pointer-events-auto` on the row's viewport alone. This block spans the bar's width, so claiming pointers here would swallow the chrome toggle and the § 8.11. hold across a band beside a two-thumbnail strip.
+    <div className={cn("flex flex-col items-center gap-2xs", className)}>
+      {/* WARN: `touch-none`, because the row is dragged from JS — left at `pan-x` the browser looks for a scrollable ancestor to pan and takes the pointer stream away mid-scrub. Nothing is given up: the viewer's root already reserves the vertical axis (§ 7.10.). */}
+      {/* WARN: The gesture is withheld whole rather than refused inside `onNotch` — see `isReachable`. The row keeps its place and its ring, and a pinch that reaches past the photo finds nothing here to take it. */}
+      <div
+        className={cn(
+          // INFO: Left to inherit the bar's own `pointer-events-none` where the strip is withheld, which takes the thumbnails' taps with it — the `tabIndex` below already drops them from the tab sequence on the same condition.
+          "w-full touch-none overflow-hidden",
+          isReachable && "pointer-events-auto cursor-grab active:cursor-grabbing",
+        )}
+        role="group"
+        aria-label="이 메시지의 첨부"
+        {...(isReachable ? dragProps : {})}
+      >
+        <div
+          ref={rowRef}
+          className="flex w-full gap-2xs will-change-transform [&>*:first-child]:ml-[calc(50%-1.5rem)]"
+        >
+          {cells.map((cell) => {
+            const isActive = cell.id === activeId;
 
-  // INFO: The ref and the state are the same element read two ways — see the state's own WARN.
-  function captureStrip(element: Nullable<HTMLDivElement>) {
-    stripRef.current = element;
-    setStripElement(element);
-  }
-}
-
-/**
- * DESIGN.md § 7.10. Which of the strip's children the notch is on — the one whose
- * middle is nearest the scroller's own middle.
- *
- * INFO: Measured rather than derived from `scrollLeft`, so the answer is the same whatever left the strip where it is, and no arithmetic here can disagree with a changed cell size or gap.
- */
-function toNotchedIndex(strip: HTMLElement): number {
-  const stripBox = strip.getBoundingClientRect();
-  const centre = stripBox.left + stripBox.width / 2;
-  const toDistance = (element: Element) => {
-    const box = element.getBoundingClientRect();
-
-    return Math.abs(box.left + box.width / 2 - centre);
-  };
-
-  return [...strip.children].reduce(
-    (nearest, child, index, children) =>
-      toDistance(child) < toDistance(children[nearest]) ? index : nearest,
-    0,
+            return (
+              // INFO: DESIGN.md § 7.15. A selection among peers, which is where the tick belongs — and `keepsScroll`, since these cells tile a draggable row (§ 7.15.1.).
+              <HapticTarget
+                key={cell.id}
+                className="shrink-0"
+                // WARN: DESIGN.md § 7.15. The row's own `touch-action` repeated, since the gesture starts on the overlay — without it the browser claims the drag before `dragProps` sees it.
+                overlayClassName="touch-none"
+                keepsScroll
+              >
+                <button
+                  // INFO: A fixed square whatever the asset's shape is, so the strip reads as one row of equals rather than as a second, smaller track.
+                  // WARN: The focus ring is an `outline` drawn inward, not a `ring`. An outward one is clipped by the row's viewport on the end thumbnails, and `ring-inset` is a box-shadow — which paints *under* this element's own content, and the picture fills the box exactly. An outline is painted after the descendants, so a negative offset puts it over the photo where it can be seen.
+                  className="relative block size-12 cursor-pointer overflow-hidden rounded-sm bg-on-scrim/10 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+                  type="button"
+                  // WARN: AGENTS.md § 4.2. Roving tabindex over the strip, and the arrows that would move it are the viewer's own — `handleOverlayKeyDown` steps the track, which is what moves the mark here. Nine thumbnails in the tab sequence would put the bottom bar's controls nine stops away.
+                  tabIndex={isReachable && isActive ? undefined : -1}
+                  aria-current={isActive}
+                  aria-label={`${cells.indexOf(cell) + 1}번째 ${toMediaLabel(cell.isVideo ? "video" : "photo")}`}
+                  // INFO: Not live: a tap names its destination outright, so the track eases there as it does for the step controls.
+                  onClick={() => onSelect(cell, false)}
+                >
+                  {cell.previewUrl && (
+                    <PreloadImage
+                      className="size-full"
+                      imgClassName="size-full object-cover"
+                      src={cell.previewUrl}
+                      hasSkeleton={false}
+                      blurhash={cell.blurhash}
+                      blurhashRatio={toCellRatio(cell)}
+                      alt=""
+                    />
+                  )}
+                  {/* INFO: DESIGN.md § 7.10. The 2px `primary` mark on the slide being read, inset for the reason § 13.8.'s results row records — an outward ring on the first or last thumbnail is clipped away by the row's own viewport. */}
+                  {/* WARN: An element over the picture, never `ring-inset` on the button. An inset ring is a box-shadow, which paints under the element's own content — and the thumbnail fills the box exactly, so it covered the mark completely. */}
+                  {isActive && (
+                    <span className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-primary ring-inset" />
+                  )}
+                  {/* INFO: DESIGN.md § 6.5. The video tile's own glyph, at the size this box has for one — a strip of squares says nothing else about which of them plays. */}
+                  {cell.isVideo && (
+                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <Play className="size-4 fill-on-scrim text-on-scrim drop-shadow" />
+                    </span>
+                  )}
+                </button>
+              </HapticTarget>
+            );
+          })}
+        </div>
+      </div>
+      {/* INFO: DESIGN.md § 7.10. The position, moved out of the top bar's caption to sit under the thumbnails it counts. */}
+      <p className="flex items-center gap-2xs text-caption text-on-scrim/75">
+        <Images className="size-3.5 shrink-0" strokeWidth={1.75} />
+        {`${cells.length}${unit} 중 ${index + 1}번`}
+      </p>
+    </div>
   );
-}
-
-/**
- * Scrolls `item` to the middle of `scroller`.
- *
- * WARN: A delta off the two boxes rather than `offsetLeft`, which is measured from an `offsetParent` this component does not own — and never `scrollIntoView`, which walks every scrollable ancestor and would scroll the document behind the viewer (DESIGN.md § 3.3.).
- */
-function centreWithin(scroller: HTMLElement, item: HTMLElement, behavior: ScrollBehavior): void {
-  const scrollerBox = scroller.getBoundingClientRect();
-  const itemBox = item.getBoundingClientRect();
-
-  scroller.scrollBy({
-    left: itemBox.left + itemBox.width / 2 - (scrollerBox.left + scrollerBox.width / 2),
-    behavior,
-  });
 }
 
 /**
@@ -1335,8 +1212,10 @@ function useDecodedOriginal(cell: MediaCell, isEnabled: boolean): Nullable<strin
     image.src = original;
     void image.decode().then(settle, settle);
 
+    // WARN: The source is dropped, never just the flag. A slide left behind mid-download keeps fetching and decoding an object of up to `MAX_IMAGE_SIZE` otherwise, and DESIGN.md § 7.10.'s scrub crosses slides faster than any of them finishes — a strip dragged across a bubble of nine left WebKit holding every original the reader passed, which it answers by killing the tab.
     return () => {
       isActive = false;
+      image.removeAttribute("src");
     };
   }, [isEnabled, original]);
 
