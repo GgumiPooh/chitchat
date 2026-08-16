@@ -1,9 +1,14 @@
 import "server-only";
 
-import { EMOTICON_PACK_PAGE_SIZE, snowflakeSchema } from "@/shared/config";
+import {
+  EMOTICON_PACK_PAGE_SIZE,
+  snowflakeSchema,
+  type EmoticonPackScope,
+  type EmoticonPackType,
+} from "@/shared/config";
 import { emoticonItems, emoticonPacks, getDb, userEmoticonPrefs } from "@/shared/db";
 import type { EmoticonPackId, Nullable, UserId } from "@/shared/lib";
-import { and, asc, eq, ilike, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { toEmoticon } from "../model/to-emoticon";
 import type {
@@ -13,11 +18,23 @@ import type {
   EmoticonPackWithItems,
 } from "../model/types";
 import { effectivePackPosition } from "./effective-pack-position";
-import { selectEmoticons } from "./select-emoticons";
+import { isChoosable, selectEmoticons } from "./select-emoticons";
 import { toLikeLiteral } from "./to-like-literal";
 
 /** Which packs a read is about, before any paging (REQUIREMENTS.md § 13.5.). */
 export type EmoticonPackFilter = {
+  /**
+   * Which kind of pack the read is about (§ 13.).
+   *
+   * WARN: Required, and it MUST NOT be given a default. Every caller here is a list
+   * a user chooses from, and the one failure this feature really has is a mini
+   * reaching one of them — a filter that can be omitted is that leak written as an
+   * option, where a required field is a compile error at the call site instead.
+   *
+   * WARN: `"all"` is a value, not an omission — `EMOTICON_PACK_SCOPES` says who may
+   * ask for it and why the settings screens may not.
+   */
+  type: EmoticonPackScope;
   /** `coalesce(enabled, true)`, so a user with no prefs row still sees the pack (§ 13.1.). */
   enabledOnly?: boolean;
   /** Case-insensitive containment on the pack's name. Blank means no filter, never "match nothing". */
@@ -44,7 +61,7 @@ export type EmoticonPackPageQuery = EmoticonPackFilter & {
  */
 export async function listEmoticonPacks(
   userId: UserId,
-  filter: EmoticonPackFilter = {},
+  filter: EmoticonPackFilter,
 ): Promise<EmoticonPackSummary[]> {
   return (await selectPackRows(userId, filter)).map(toDrawnSummary);
 }
@@ -61,7 +78,7 @@ export async function listEmoticonPacks(
  */
 export async function listEmoticonPacksPage(
   userId: UserId,
-  query: EmoticonPackPageQuery = {},
+  query: EmoticonPackPageQuery,
 ): Promise<EmoticonPackPage> {
   const limit = query.limit ?? EMOTICON_PACK_PAGE_SIZE;
   const rows = await selectPackRows(userId, { ...query, limit: limit + 1 });
@@ -112,12 +129,17 @@ export function parseEmoticonPackCursor(cursor: string): Nullable<EmoticonPackCu
  * `listEmoticonPacks` resolves it. This is the screen the choice is made on, and it
  * marks the chosen cell — resolved, it would mark an item nobody picked as 대표 and
  * offer 대표로 지정 on a pack that has none.
+ *
+ * WARN: § 13. The kind is part of the lookup rather than a check made afterwards, so a
+ * pack of the other kind is simply absent — a 404 on the screen that asked, instead of
+ * a mini drawn into a grid sized for the other kind.
  */
 export async function getEmoticonPack(
   packId: EmoticonPackId,
   userId: UserId,
+  type: EmoticonPackType,
 ): Promise<Nullable<EmoticonPackWithItems>> {
-  const [row] = await selectPackRows(userId, { packId });
+  const [row] = await selectPackRows(userId, { packId, type });
 
   if (!row) {
     return null;
@@ -152,15 +174,37 @@ export async function findKnownPackIds(packIds: EmoticonPackId[]): Promise<Set<s
 }
 
 /**
+ * The kind of one pack, or null where the id names none (§ 13.).
+ *
+ * INFO: The one read here that answers the kind rather than taking it — the item write
+ * paths need it to know which keyword cap applies, and a required argument there would
+ * be the caller asserting the very thing it is asking about.
+ */
+export async function getEmoticonPackType(
+  packId: EmoticonPackId,
+): Promise<Nullable<EmoticonPackType>> {
+  const [row] = await getDb()
+    .select({ type: emoticonPacks.type })
+    .from(emoticonPacks)
+    .where(eq(emoticonPacks.id, packId))
+    .limit(1);
+
+  return row?.type ?? null;
+}
+
+/**
  * One pack's items in the shared authoring order (§ 13.1.).
  *
  * INFO: § 13.6. What a picker tab is filled from, one pack at a time — the panel used
  * to be handed every pack's items at once, which is the payload this replaced.
+ *
+ * INFO: § 13. No kind of its own — the items of one pack are that pack's kind, and the
+ * caller reached this id through a list that already named it.
  */
 export async function listEmoticonPackItems(packId: EmoticonPackId): Promise<Emoticon[]> {
   const rows = await selectEmoticons()
     // INFO: The finished restructure. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
-    .where(and(eq(emoticonItems.packId, packId), isNull(emoticonItems.retiredAt)))
+    .where(and(eq(emoticonItems.packId, packId), isChoosable(emoticonItems)))
     .orderBy(asc(emoticonItems.sortOrder), asc(emoticonItems.id));
 
   return rows.map(toEmoticon);
@@ -192,6 +236,7 @@ function selectPackPage(
   const cursor = query.cursor ? parseEmoticonPackCursor(query.cursor) : null;
   const conditions: Nullable<SQL>[] = [
     query.packId === undefined ? null : eq(emoticonPacks.id, query.packId),
+    query.type === "all" ? null : eq(emoticonPacks.type, query.type),
     query.enabledOnly ? sql`coalesce(${userEmoticonPrefs.enabled}, true) = true` : null,
     // WARN: `toLikeLiteral`, or a query of a single `%` answers with the whole library.
     query.query ? ilike(emoticonPacks.name, `%${toLikeLiteral(query.query)}%`) : null,
@@ -205,6 +250,7 @@ function selectPackPage(
     .select({
       id: emoticonPacks.id,
       name: emoticonPacks.name,
+      type: emoticonPacks.type,
       thumbnailItemId: emoticonPacks.thumbnailItemId,
       enabled: userEmoticonPrefs.enabled,
       // INFO: Selected because the cursor is this value — the browser cannot compute it, and a page's last row is where the next one starts.
@@ -237,7 +283,7 @@ function selectPackRows(
     .select({ id: firstItems.id, updatedAt: firstItems.updatedAt })
     .from(firstItems)
     // WARN: The finished restructure. The retirement filter belongs here as much as in `listEmoticonPackItems`. Without it the tab icon goes on drawing an item the picker no longer offers, and the fallback stops being "the first of what that list returns" — which is exactly what the line below asserts.
-    .where(and(eq(firstItems.packId, page.id), isNull(firstItems.retiredAt)))
+    .where(and(eq(firstItems.packId, page.id), isChoosable(firstItems)))
     // WARN: The same order `listEmoticonPackItems` returns, or the tab icon is not the cell the grid draws first.
     .orderBy(asc(firstItems.sortOrder), asc(firstItems.id))
     .limit(1)
@@ -247,13 +293,14 @@ function selectPackRows(
     .select({ value: sql<number>`count(*)::int` })
     .from(countedItems)
     // WARN: § 4.4. Retired items are not counted, for the reason the cover excludes them: a pack whose only item was retired would report `1개` over a grid that opens empty.
-    .where(and(eq(countedItems.packId, page.id), isNull(countedItems.retiredAt)));
+    .where(and(eq(countedItems.packId, page.id), isChoosable(countedItems)));
 
   return (
     getDb()
       .select({
         id: page.id,
         name: page.name,
+        type: page.type,
         thumbnailItemId: page.thumbnailItemId,
         thumbnailUpdatedAt: chosenThumbnails.updatedAt,
         firstItemId: firstItem.id,
@@ -290,6 +337,7 @@ function toSummary(row: PackRow): EmoticonPackSummary {
   return {
     id: row.id,
     name: row.name,
+    type: row.type,
     thumbnailItemId: row.thumbnailItemId,
     thumbnailVersion: toVersion(row.thumbnailUpdatedAt),
     itemCount: row.itemCount,

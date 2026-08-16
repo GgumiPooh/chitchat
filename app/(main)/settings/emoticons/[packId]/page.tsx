@@ -17,7 +17,7 @@ export default async function EmoticonPackRoute({
     notFound();
   }
 
-  const pack = await getEmoticonPack(packId.data, user.id);
+  const pack = await getEmoticonPack(packId.data, user.id, "emoticon");
 
   if (!pack) {
     notFound();

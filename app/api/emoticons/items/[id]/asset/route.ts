@@ -70,7 +70,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
   return NextResponse.redirect(url, {
     status: 302,
-    // WARN: REQUIREMENTS.md § 13.3. Days rather than § 9.'s minutes, because `v` makes this URL address one immutable version — and still shorter than the signature's own lifetime, or the browser replays a redirect R2 has stopped honouring.
+    // WARN: REQUIREMENTS.md § 13.3. Shorter than the signature's own lifetime, or the browser replays a redirect R2 has stopped honouring. `v` addressing one immutable version is what buys the length.
     headers: { "Cache-Control": `private, max-age=${maxAge / A_SECOND}` },
   });
 }

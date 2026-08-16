@@ -1,6 +1,11 @@
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import { request } from "@/shared/api";
-import { EMOTICON_ITEMS_URL, EMOTICON_KEYWORDS_URL, EMOTICON_PACKS_URL } from "@/shared/config";
+import {
+  EMOTICON_ITEMS_URL,
+  EMOTICON_KEYWORDS_URL,
+  EMOTICON_PACKS_URL,
+  type EmoticonPackType,
+} from "@/shared/config";
 import type { EmoticonItemId, EmoticonPackId, Maybe, Nullable } from "@/shared/lib";
 
 /** INFO: § 8.3. The box travels with the key, because new bytes are a new box — neither is editable on its own. */
@@ -85,8 +90,15 @@ export async function suggestEmoticonKeywords(
   return keywords;
 }
 
-export async function createEmoticonPack(name: string): Promise<EmoticonPackSummary> {
-  const { pack } = await send<{ pack: EmoticonPackSummary }>(EMOTICON_PACKS_URL, "POST", { name });
+// WARN: § 13. The kind is settled by this call and by nothing after it — the route refuses one in a PATCH body, so a pack created under the wrong kind can only be deleted.
+export async function createEmoticonPack(
+  name: string,
+  type: EmoticonPackType,
+): Promise<EmoticonPackSummary> {
+  const { pack } = await send<{ pack: EmoticonPackSummary }>(EMOTICON_PACKS_URL, "POST", {
+    name,
+    type,
+  });
 
   return pack;
 }
@@ -117,11 +129,13 @@ export async function updateEmoticon(
   return emoticon;
 }
 
+// WARN: § 13. `?type=` **selects** the pack and never sets it — the route answers 404 for a pack of the other kind, so a screen passing the wrong one edits nothing rather than the wrong thing.
 export async function updateEmoticonPack(
   packId: EmoticonPackId,
+  type: EmoticonPackType,
   body: { name?: string; thumbnailItemId?: Nullable<string> },
 ): Promise<void> {
-  await send(`${EMOTICON_PACKS_URL}/${packId}`, "PATCH", body);
+  await send(`${EMOTICON_PACKS_URL}/${packId}?type=${type}`, "PATCH", body);
 }
 
 export async function deleteEmoticonPack(packId: EmoticonPackId): Promise<void> {

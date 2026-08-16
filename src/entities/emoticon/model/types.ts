@@ -1,3 +1,4 @@
+import type { EmoticonPackType } from "@/shared/config";
 import type { EmoticonItemId, EmoticonPackId, Nullable } from "@/shared/lib";
 
 /**
@@ -22,6 +23,8 @@ export type Emoticon = {
 
 export type EmoticonPackSummary = {
   name: string;
+  // INFO: REQUIREMENTS.md § 13. Which grid, which settings screen and which picker tab the pack belongs to — an item has no kind of its own, so this is where every screen reads it.
+  type: EmoticonPackType;
   // INFO: REQUIREMENTS.md § 13.2. The item the pack is **drawn with** — its chosen tab icon, or its first item where nothing was chosen — resolved by `listEmoticonPacks`, since § 13.6.'s picker holds no items to fall back through. Null only for a pack that holds none.
   thumbnailItemId: Nullable<EmoticonItemId>;
   // INFO: REQUIREMENTS.md § 13.2. That item's own `Emoticon.version`, carried so a row holding no items can still build a versioned asset URL — without it the cached redirect outlives the edit that replaced the object, and points at one that is gone (§ 13.4.).

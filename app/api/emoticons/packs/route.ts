@@ -10,6 +10,8 @@ import {
   EMOTICON_PACK_PAGE_SIZE,
   MAX_EMOTICON_PACK_NAME_LENGTH,
   MAX_EMOTICON_PACK_PAGE_SIZE,
+  emoticonPackScopeSchema,
+  emoticonPackTypeSchema,
 } from "@/shared/config";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -18,9 +20,13 @@ import { z } from "zod";
 
 const bodySchema = z.object({
   name: z.string().trim().min(1).max(MAX_EMOTICON_PACK_NAME_LENGTH),
+  // WARN: § 13. Required, and settled once — nothing may change a pack's kind afterwards (`0045`), so this is the only request that decides it.
+  type: emoticonPackTypeSchema,
 });
 
 const querySchema = z.object({
+  // WARN: § 13. Required, never defaulted. A missing kind is a `400` rather than a list quietly holding both — `all` is how a caller says it wants both, and § 13.6.'s picker is the only one that may.
+  type: emoticonPackScopeSchema,
   enabled: z.literal("1").nullable(),
   // WARN: § 13.5. Truncated rather than refused, matching the field's own `maxLength`, and a blank one is **no filter** — never a filter nothing matches.
   q: z
@@ -36,8 +42,12 @@ const querySchema = z.object({
 });
 
 /**
- * Every pack in this user's own order (REQUIREMENTS.md § 13.1.), summaries and
- * nothing else.
+ * Every pack of one kind, in this user's own order (REQUIREMENTS.md § 13.1.),
+ * summaries and nothing else.
+ *
+ * WARN: § 13. `?type=` is required and has no default. Every caller is a list someone
+ * picks from, and each of them belongs to exactly one kind — a request that omits it is
+ * a caller that has not decided, which is answered as a bad one rather than with both.
  *
  * INFO: § 13.6. `?items=1` is gone with the picker's payload. The panel takes this
  * list and asks `packs/{id}/items` for the one tab it opens; each summary already
@@ -64,6 +74,7 @@ export async function GET(request: Request) {
 
   const params = new URL(request.url).searchParams;
   const query = querySchema.safeParse({
+    type: params.get("type"),
     enabled: params.get("enabled"),
     q: params.get("q"),
     cursor: params.get("cursor"),
@@ -74,7 +85,11 @@ export async function GET(request: Request) {
     return apiError("invalid_request");
   }
 
-  const filter = { enabledOnly: query.data.enabled === "1", query: query.data.q ?? undefined };
+  const filter = {
+    type: query.data.type,
+    enabledOnly: query.data.enabled === "1",
+    query: query.data.q ?? undefined,
+  };
 
   if (!isPaged(params)) {
     return NextResponse.json({ packs: await listEmoticonPacks(user.id, filter) });
@@ -103,7 +118,7 @@ export async function POST(request: Request) {
     return apiError("invalid_request");
   }
 
-  const pack = await createEmoticonPack(body.data.name);
+  const pack = await createEmoticonPack(body.data.name, body.data.type);
 
   return NextResponse.json({ pack }, { status: 201 });
 }

@@ -1,3 +1,4 @@
+import { EMOTICON_PACK_TYPES } from "@/shared/config";
 import type { EmoticonItemId, EmoticonPackId, MediaId, UserId } from "@/shared/lib";
 import { sql } from "drizzle-orm";
 import {
@@ -19,7 +20,8 @@ import { media } from "./media";
 import { users } from "./users";
 
 // INFO: REQUIREMENTS.md § 13. The only place the two kinds are distinguished — an item's kind is derived from its pack, so `emoticon_items` carries no column of its own.
-export const emoticonPackTypeEnum = pgEnum("emoticon_pack_type", ["emoticon", "mini"]);
+// INFO: Declared from the config list for the reason `media.kind` is, so a kind cannot be added to one and forgotten in the other.
+export const emoticonPackTypeEnum = pgEnum("emoticon_pack_type", EMOTICON_PACK_TYPES);
 
 // INFO: REQUIREMENTS.md § 13. Packs are authored in the app, never seeded — there is no `scripts/seed-emoticons.ts`.
 export const emoticonPacks = pgTable("emoticon_packs", {

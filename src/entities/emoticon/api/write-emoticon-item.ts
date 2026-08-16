@@ -5,6 +5,7 @@ import {
   MAX_EMOTICON_IMAGE_SIZE,
   isAllowedEmoticonAsset,
   isAnimatedImage,
+  maxKeywordsFor,
   normalizeKeywords,
   type EmoticonImageSlot,
   type EmoticonSlot,
@@ -24,6 +25,7 @@ import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon } from "../model/types";
 import { detachEmoticonMedia } from "./get-emoticon-asset";
+import { getEmoticonPackType } from "./get-emoticon-packs";
 import { selectEmoticons } from "./select-emoticons";
 
 /** INFO: § 8.3. The box travels with the key — new bytes are a new box, so neither is nameable without the other. */
@@ -61,6 +63,13 @@ export async function registerEmoticon({
   audioKey,
   keywords,
 }: RegisterEmoticonParams): Promise<Nullable<Emoticon>> {
+  // INFO: § 13. Read before anything is fetched from R2 — it decides the keyword cap below, and an id naming no pack has nothing to write anyway.
+  const packType = await getEmoticonPackType(packId);
+
+  if (!packType) {
+    return null;
+  }
+
   const [stillObject, animatedObject, audio] = await Promise.all([
     verifyImage("still-image", still, uploaderId),
     verifyImage("animated-image", animated, uploaderId),
@@ -109,7 +118,8 @@ export async function registerEmoticon({
       animatedImageId: animatedMedia?.id ?? null,
       audioId: audioMedia?.id ?? null,
       // WARN: Normalized here as well as at the route, because § 13.7.'s import writes through this function without passing a request body through that schema.
-      keywords: normalizeKeywords(keywords ?? []),
+      // WARN: § 13. The cap is the pack's, and this is the only place it can be applied — the route bounds the array at `MAX_EMOTICON_KEYWORDS` without knowing which kind of pack it is posting to.
+      keywords: normalizeKeywords(keywords ?? [], maxKeywordsFor(packType)),
       sortOrder: sql`(
         select coalesce(max(${emoticonItems.sortOrder}), -1) + 1
         from ${emoticonItems}
@@ -201,6 +211,12 @@ export async function updateEmoticonItem({
     return { status: "not_found" };
   }
 
+  const packType = await getEmoticonPackType(current.packId);
+
+  if (!packType) {
+    return { status: "not_found" };
+  }
+
   // INFO: `emoticon_items_has_image_check` against what the item actually holds — the route can only refuse a body emptying *both*, where emptying the only one it has reads as legal until the constraint says otherwise.
   if (!willHoldAnImage(current, still, animated)) {
     return { status: "unprocessable" };
@@ -244,7 +260,7 @@ export async function updateEmoticonItem({
         ...(still === undefined ? {} : { stillImageId: stillMedia?.id ?? null }),
         ...(animated === undefined ? {} : { animatedImageId: animatedMedia?.id ?? null }),
         ...(audioKey === undefined ? {} : { audioId: audioMedia?.id ?? null }),
-        ...(keywords ? { keywords: normalizeKeywords(keywords) } : {}),
+        ...(keywords ? { keywords: normalizeKeywords(keywords, maxKeywordsFor(packType)) } : {}),
         // WARN: § 13.4. Only when an *asset* changed. `updated_at` is `Emoticon.version` and rides on every asset URL, so bumping it for a keywords-only write invalidates the cached 302 and its presigned GET for that item — and § 13.8.1. writes one per item, which would re-download a whole pack, chat history included, to record some text.
         ...(hasImageChange || audioKey !== undefined ? { updatedAt: new Date() } : {}),
       })

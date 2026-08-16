@@ -1,8 +1,9 @@
 import "server-only";
 
+import type { EmoticonPackType } from "@/shared/config";
 import { emoticonItems, emoticonPacks, getDb, messages, nextSnowflake } from "@/shared/db";
 import type { EmoticonItemId, EmoticonPackId, Nullable } from "@/shared/lib";
-import { and, eq } from "drizzle-orm";
+import { and, arrayOverlaps, eq } from "drizzle-orm";
 import type { EmoticonPackSummary } from "../model/types";
 import { detachEmoticonMedia, findItemSlotKeys } from "./get-emoticon-asset";
 
@@ -15,16 +16,24 @@ import { detachEmoticonMedia, findItemSlotKeys } from "./get-emoticon-asset";
  * ever read it — § 13.1.'s "a record, never a permission check" was true of the column
  * and of the parameter alike, and a pack belongs to the conversation rather than to
  * whoever typed its name.
+ *
+ * WARN: § 13. The kind is settled here and nowhere else. Nothing may change it
+ * afterwards: the keyword index is maintained per item, so a pack that changed kind
+ * would strand every index row its items had already written (`0045`).
  */
-export async function createEmoticonPack(name: string): Promise<EmoticonPackSummary> {
+export async function createEmoticonPack(
+  name: string,
+  type: EmoticonPackType,
+): Promise<EmoticonPackSummary> {
   const [row] = await getDb()
     .insert(emoticonPacks)
-    .values({ id: nextSnowflake<EmoticonPackId>(), name })
+    .values({ id: nextSnowflake<EmoticonPackId>(), name, type })
     .returning();
 
   return {
     id: row.id,
     name: row.name,
+    type: row.type,
     thumbnailItemId: row.thumbnailItemId,
     thumbnailVersion: null,
     itemCount: 0,
@@ -84,6 +93,12 @@ export type DeleteEmoticonPackResult =
  * `emoticon_items`, but `messages.emoticon_item_id` carries none — so without this
  * the delete surfaces a foreign-key error as a 500, and the alternative (deleting
  * the messages too) is § 18. #1's open question rather than something to decide here.
+ *
+ * WARN: § 13. An item written into a message's text is refused by the **second**
+ * check, and it needs one because there is no constraint behind it — `pack_id`
+ * cascades, so the rows would simply go, and a bubble drawing one reads its box off the
+ * row that is no longer there. The item delete tombstones for that reason; a pack
+ * delete cannot, since keeping the items means keeping the pack.
  */
 export async function deleteEmoticonPack(
   packId: EmoticonPackId,
@@ -114,6 +129,10 @@ export async function deleteEmoticonPack(
     .from(emoticonItems)
     .where(eq(emoticonItems.packId, packId));
 
+  if (await isAnyItemInlined(items.map((item) => item.id))) {
+    return { status: "in_use" };
+  }
+
   // WARN: Read before the delete, for the reason `deleteEmoticonItem` gives — the keys live on the `media` rows the slots name, and the join needs the item rows to still be there.
   const slotKeys = await findItemSlotKeys(items.map((item) => item.id));
 
@@ -130,4 +149,26 @@ export async function deleteEmoticonPack(
   });
 
   return { status: "deleted", orphanedKeys: slotKeys };
+}
+
+/**
+ * Whether any of these items is written into a message's text (§ 13.).
+ *
+ * WARN: `&&` against `inline_emoticon_item_ids`, which has no index and cannot get a
+ * useful one — the id is an array element. It is a sequential scan of `messages`, paid
+ * once on an explicit delete, and it is what keeps a tombstone's box from being
+ * cascaded away.
+ */
+async function isAnyItemInlined(itemIds: EmoticonItemId[]): Promise<boolean> {
+  if (itemIds.length === 0) {
+    return false;
+  }
+
+  const [inlined] = await getDb()
+    .select({ id: messages.id })
+    .from(messages)
+    .where(arrayOverlaps(messages.inlineEmoticonItemIds, itemIds))
+    .limit(1);
+
+  return inlined !== undefined;
 }

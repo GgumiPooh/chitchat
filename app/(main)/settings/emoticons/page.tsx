@@ -10,5 +10,10 @@ import { requireUserOrRedirect } from "@/shared/auth";
 export default async function EmoticonSettingsRoute() {
   const user = await requireUserOrRedirect();
 
-  return <EmoticonSettingsPage packs={await listEmoticonPacks(user.id, { enabledOnly: true })} />;
+  return (
+    <EmoticonSettingsPage
+      type="emoticon"
+      packs={await listEmoticonPacks(user.id, { type: "emoticon", enabledOnly: true })}
+    />
+  );
 }

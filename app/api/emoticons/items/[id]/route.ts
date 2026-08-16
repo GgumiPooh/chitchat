@@ -124,6 +124,8 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     return new NextResponse(null, { status: 204 });
   }
 
+  // INFO: § 13. A mini kept its row and lost its objects, so the sweep below is the same one — what differs is that the row survives to size the replacement drawn in its place.
+
   // INFO: REQUIREMENTS.md § 9. The `media` rows went with the item; `purgeNow` takes the bytes and never throws. § 13.4. gives emoticons no grace — the redirect is cached for days.
   await purgeNow(result.orphanedKeys);
 

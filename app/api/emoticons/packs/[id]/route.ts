@@ -6,7 +6,11 @@ import {
 } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { MAX_EMOTICON_PACK_NAME_LENGTH, snowflakeSchema } from "@/shared/config";
+import {
+  MAX_EMOTICON_PACK_NAME_LENGTH,
+  emoticonPackTypeSchema,
+  snowflakeSchema,
+} from "@/shared/config";
 import type { EmoticonItemId, EmoticonPackId } from "@/shared/lib";
 import { purgeNow } from "@/shared/storage";
 import { NextResponse } from "next/server";
@@ -16,17 +20,23 @@ import { z } from "zod";
 
 const paramsSchema = z.object({ id: snowflakeSchema<EmoticonPackId>() });
 
+// WARN: § 13. Which kind of pack the caller believes this is, and it selects rather than sets — a pack of the other kind is a `404` here.
+const querySchema = z.object({ type: emoticonPackTypeSchema });
+
 // INFO: Both fields are optional and independent — the detail screen renames and re-thumbnails from two different controls. `null` clears the thumbnail back to the § 13.2. fallback.
 const bodySchema = z
   .object({
     name: z.string().trim().min(1).max(MAX_EMOTICON_PACK_NAME_LENGTH).optional(),
     thumbnailItemId: snowflakeSchema<EmoticonItemId>().nullish(),
+    // WARN: § 13. A pack's kind is fixed at creation, so a body carrying one is refused rather than ignored. Stripped silently instead, the caller would read a `200` as the change having been made, and the keyword index would be stranded if it ever were (`0045`).
+    // WARN: `.optional()` is load-bearing — `z.undefined()` alone makes the key **required** in zod 4, which refuses every patch that correctly omits it.
+    type: z.undefined().optional(),
   })
   .refine((body) => body.name !== undefined || body.thumbnailItemId !== undefined);
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -34,12 +44,13 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const params = paramsSchema.safeParse(await context.params);
+  const query = querySchema.safeParse({ type: new URL(request.url).searchParams.get("type") });
 
-  if (!params.success) {
+  if (!params.success || !query.success) {
     return apiError("invalid_request");
   }
 
-  const pack = await getEmoticonPack(params.data.id, user.id);
+  const pack = await getEmoticonPack(params.data.id, user.id, query.data.type);
 
   if (!pack) {
     return apiError("not_found");
@@ -57,9 +68,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const params = paramsSchema.safeParse(await context.params);
+  const query = querySchema.safeParse({ type: new URL(request.url).searchParams.get("type") });
   const body = bodySchema.safeParse(await request.json().catch(() => null));
 
-  if (!params.success || !body.success) {
+  if (!params.success || !query.success || !body.success) {
     return apiError("invalid_request");
   }
 
@@ -75,7 +87,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     return apiError("invalid_request");
   }
 
-  const pack = await getEmoticonPack(params.data.id, user.id);
+  const pack = await getEmoticonPack(params.data.id, user.id, query.data.type);
 
   return NextResponse.json({ pack });
 }

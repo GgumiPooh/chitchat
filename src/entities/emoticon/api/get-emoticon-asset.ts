@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { EmoticonSlot } from "@/shared/config";
-import { emoticonItems, getDb, media, messages } from "@/shared/db";
+import { emoticonItems, emoticonPacks, getDb, media, messages } from "@/shared/db";
 import type { EmoticonItemId, Nullable } from "@/shared/lib";
 import type { DbTransaction } from "@/shared/storage";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
@@ -118,7 +118,10 @@ export async function findItemSlotKeys(itemIds: EmoticonItemId[]): Promise<strin
 }
 
 export type DeleteEmoticonResult =
-  { status: "deleted"; orphanedKeys: string[] } | { status: "retired" } | { status: "not_found" };
+  | { status: "deleted"; orphanedKeys: string[] }
+  | { status: "tombstoned"; orphanedKeys: string[] }
+  | { status: "retired" }
+  | { status: "not_found" };
 
 /**
  * Takes an item out of the picker, and removes it outright where nothing has sent it —
@@ -138,8 +141,28 @@ export type DeleteEmoticonResult =
  *
  * WARN: § 4.1. Either participant may do this, unlike a media delete. The picker is
  * shared, and retiring changes no bubble.
+ *
+ * WARN: § 13. A mini takes neither branch. Its row is kept and stamped `deleted_at`
+ * while its objects go, because the box and the name a bubble draws its replacement
+ * from are on that row — and it is **not** asked whether anything sent it first, since
+ * that question is a scan of `messages` for an answer that changes nothing here.
  */
 export async function deleteEmoticonItem(id: EmoticonItemId): Promise<DeleteEmoticonResult> {
+  const [item] = await getDb()
+    .select({ type: emoticonPacks.type })
+    .from(emoticonItems)
+    .innerJoin(emoticonPacks, eq(emoticonPacks.id, emoticonItems.packId))
+    .where(eq(emoticonItems.id, id))
+    .limit(1);
+
+  if (!item) {
+    return { status: "not_found" };
+  }
+
+  if (item.type === "mini") {
+    return tombstoneEmoticonItem(id);
+  }
+
   const [sent] = await getDb()
     .select({ id: messages.id })
     .from(messages)
@@ -179,4 +202,34 @@ export async function deleteEmoticonItem(id: EmoticonItemId): Promise<DeleteEmot
   }
 
   return { status: "deleted", orphanedKeys: slotKeys };
+}
+
+/**
+ * Takes a mini's objects and leaves the row that describes them (§ 13.).
+ *
+ * WARN: The `media` rows are soft-deleted rather than removed, which is what keeps
+ * `width` and `height` readable — `MediaTombstone` reserves its box the same way. The
+ * item row keeps its keyword too, which is the name the replacement is labelled with.
+ */
+async function tombstoneEmoticonItem(id: EmoticonItemId): Promise<DeleteEmoticonResult> {
+  // WARN: Read before the write, for the reason the delete above gives — the keys are on the `media` rows the slots name.
+  const slotKeys = await findItemSlotKeys([id]);
+
+  const isTombstoned = await getDb().transaction(async (tx) => {
+    const [row] = await tx
+      .update(emoticonItems)
+      .set({ deletedAt: new Date() })
+      .where(eq(emoticonItems.id, id))
+      .returning({ id: emoticonItems.id });
+
+    if (!row) {
+      return false;
+    }
+
+    await detachEmoticonMedia(tx, slotKeys);
+
+    return true;
+  });
+
+  return isTombstoned ? { status: "tombstoned", orphanedKeys: slotKeys } : { status: "not_found" };
 }

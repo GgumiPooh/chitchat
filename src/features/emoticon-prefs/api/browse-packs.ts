@@ -1,6 +1,6 @@
 import type { EmoticonPackPage } from "@/entities/emoticon";
 import { request } from "@/shared/api";
-import { EMOTICON_PACKS_URL } from "@/shared/config";
+import { EMOTICON_PACKS_URL, type EmoticonPackType } from "@/shared/config";
 import type { Nullable } from "@/shared/lib";
 
 /**
@@ -15,12 +15,17 @@ import type { Nullable } from "@/shared/lib";
  *
  * WARN: No `enabled=1`. That parameter is § 13.5.'s *other* tab; this one is the
  * library, hidden packs included, since turning one back on is what the tab is for.
+ *
+ * WARN: § 13. One kind, never `all`. This tab belongs to a screen that manages exactly
+ * one of them, and the whole point of the kind column is that the other cannot appear
+ * in it.
  */
 export async function fetchEmoticonPackPage(
+  type: EmoticonPackType,
   query: string,
   cursor: Nullable<string>,
 ): Promise<EmoticonPackPage> {
-  const params = new URLSearchParams({ q: query });
+  const params = new URLSearchParams({ type, q: query });
 
   if (cursor) {
     params.set("cursor", cursor);

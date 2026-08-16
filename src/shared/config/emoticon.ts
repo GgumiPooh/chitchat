@@ -1,4 +1,5 @@
 import { A_DAY, A_MEGABYTE, A_MINUTE, A_SECOND, type Nullable } from "@/shared/lib";
+import { z } from "zod";
 
 // WARN: REQUIREMENTS.md § 13.7.1. Held apart from the fallback below, because the switch has to be able to tell a configured origin from a defaulted one.
 const EMOTICONS_ORIGIN_SETTING = (process.env.NEXT_PUBLIC_EMOTICONS_ORIGIN ?? "").trim();
@@ -123,6 +124,69 @@ export const MAX_EMOTICON_AUDIO_SIZE = 2 * A_MEGABYTE;
  */
 export const EMOTICON_MAX_EDGE = 420;
 
+/**
+ * The two kinds of pack, and what an item's own kind is derived from
+ * (REQUIREMENTS.md § 13.).
+ *
+ * WARN: The list `emoticon_pack_type` is declared from, so the enum and the app
+ * cannot drift — `media.kind` is built off `MEDIA_KINDS` for that same reason.
+ */
+export const EMOTICON_PACK_TYPES = ["emoticon", "mini"] as const;
+
+export type EmoticonPackType = (typeof EMOTICON_PACK_TYPES)[number];
+
+/** WARN: Required on every read that lists or resolves a pack (§ 13.), never defaulted — an omitted kind is a mini in the emoticon picker. */
+export const emoticonPackTypeSchema = z.enum(EMOTICON_PACK_TYPES);
+
+/**
+ * What a **list** read may ask for: one kind, or deliberately both (§ 13.).
+ *
+ * WARN: `"all"` is a third value a caller has to type, never an absent filter. It
+ * exists for § 13.6.'s picker alone, which draws 이모티콘 and 미니 as two menus of one
+ * panel and partitions the answer by `pack.type` itself — two requests there would be
+ * two caches for one payload the preload already warms.
+ *
+ * WARN: Do **not** reach for it anywhere a user picks from a single list. Every screen
+ * under 설정 names its own kind, and that is what keeps a mini out of 이모티콘 관리.
+ */
+export const EMOTICON_PACK_SCOPES = [...EMOTICON_PACK_TYPES, "all"] as const;
+
+export type EmoticonPackScope = (typeof EMOTICON_PACK_SCOPES)[number];
+
+export const emoticonPackScopeSchema = z.enum(EMOTICON_PACK_SCOPES);
+
+/**
+ * What each kind is called on screen (REQUIREMENTS.md § 13.).
+ *
+ * INFO: § 13.5. `pack` is the noun every management screen builds its titles, its
+ * empty states and its sheets from, so the two are declared together rather than
+ * composed at each call site.
+ */
+export const EMOTICON_KIND_NOUNS = {
+  emoticon: { kind: "이모티콘", pack: "이모티콘 묶음" },
+  mini: { kind: "미니이모티콘", pack: "미니이모티콘 묶음" },
+} as const satisfies Record<EmoticonPackType, { kind: string; pack: string }>;
+
+/**
+ * What a message's text needs about an emoticon standing inside it
+ * (REQUIREMENTS.md § 13.).
+ *
+ * WARN: Every field is here because the line is measured before anything loads — the
+ * box from `width`/`height`, and `isDeleted` because a deleted item still occupies one.
+ * `name` is the § 8.10. quote and the § 16.1. push body, which read it when removing
+ * the placeholders leaves the message no words of its own.
+ */
+export type InlineEmoticonInfo = {
+  width: number;
+  height: number;
+  version: number;
+  name: Nullable<string>;
+  isDeleted: boolean;
+};
+
+/** INFO: § 13. Keyed by item id and deduplicated, so a page repeating one emoticon carries it once. */
+export type InlineEmoticonMap = Record<string, InlineEmoticonInfo>;
+
 export const MAX_EMOTICON_PACK_NAME_LENGTH = 40;
 
 /**
@@ -153,6 +217,21 @@ export const MAX_EMOTICON_PACK_PAGE_SIZE = 50;
 export const MAX_EMOTICON_KEYWORDS = 12;
 
 export const MAX_EMOTICON_KEYWORD_LENGTH = 20;
+
+/**
+ * A mini carries a name rather than search terms, so it carries exactly one
+ * (REQUIREMENTS.md § 13.).
+ *
+ * WARN: `sync_emoticon_keywords` skips a mini's pack entirely (`0045`), so a second
+ * keyword would be a word no search can reach — the cap is what keeps the authoring
+ * screen from offering one.
+ */
+export const MAX_MINI_KEYWORDS = 1;
+
+/** INFO: What `normalizeKeywords` is capped to, by the kind of pack the item belongs to. */
+export function maxKeywordsFor(type: EmoticonPackType): number {
+  return type === "mini" ? MAX_MINI_KEYWORDS : MAX_EMOTICON_KEYWORDS;
+}
 
 /**
  * How many emoticons one keyword-suggestion request may carry (REQUIREMENTS.md
@@ -282,7 +361,10 @@ export const EMOTICON_ASSET_CACHE_CONTROL = `private, max-age=${(365 * A_DAY) / 
  * them folded would render `OK` back as `ok` in the sheet that authored it, and
  * comparing them unfolded would let one item carry `OK` and `ok` as two keywords.
  */
-export function normalizeKeywords(input: readonly string[]): string[] {
+export function normalizeKeywords(
+  input: readonly string[],
+  max: number = MAX_EMOTICON_KEYWORDS,
+): string[] {
   const seen = new Set<string>();
   const kept: string[] = [];
 
@@ -303,7 +385,7 @@ export function normalizeKeywords(input: readonly string[]): string[] {
     seen.add(folded);
     kept.push(keyword);
 
-    if (kept.length === MAX_EMOTICON_KEYWORDS) {
+    if (kept.length === max) {
       break;
     }
   }

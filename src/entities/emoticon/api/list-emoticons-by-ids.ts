@@ -3,10 +3,10 @@ import "server-only";
 
 import { MAX_EMOTICON_ID_LOOKUP } from "@/shared/config";
 import { emoticonItems } from "@/shared/db";
-import { and, asc, inArray, isNull } from "drizzle-orm";
+import { and, asc, inArray } from "drizzle-orm";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon } from "../model/types";
-import { selectEmoticons } from "./select-emoticons";
+import { isChoosable, selectEmoticons } from "./select-emoticons";
 
 /**
  * The items named by id (REQUIREMENTS.md § 13.6.).
@@ -30,10 +30,11 @@ export async function listEmoticonsByIds(ids: EmoticonItemId[]): Promise<Emotico
 
   const rows = await selectEmoticons()
     // INFO: The finished restructure. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
+    // WARN: § 13. A chooser's read, so a deleted item is absent — a bubble drawing one needs the row it still has, and MUST NOT be hydrated from here.
     .where(
       and(
         inArray(emoticonItems.id, ids.slice(0, MAX_EMOTICON_ID_LOOKUP)),
-        isNull(emoticonItems.retiredAt),
+        isChoosable(emoticonItems),
       ),
     )
     .orderBy(asc(emoticonItems.packId), asc(emoticonItems.sortOrder), asc(emoticonItems.id));
