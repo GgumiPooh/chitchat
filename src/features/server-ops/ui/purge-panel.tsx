@@ -51,7 +51,7 @@ export function PurgePanel({ className }: PurgePanelProps) {
           haptic
           onClick={() => void purge(false)}
         >
-          지금 회수하기
+          회수하기
         </Button>
       </div>
       <OpsResultModal result={result} onClose={() => setResult(null)} />
