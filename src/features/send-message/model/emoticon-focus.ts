@@ -1,7 +1,18 @@
 import type { Nullable, Optional } from "@/shared/lib";
 
-/** REQUIREMENTS.md § 13.6. The grid's column count, which is also its vertical arrow step. */
+/** REQUIREMENTS.md § 13.6. The 이모티콘 and 검색 grids' column count, which is also their vertical arrow step. */
 export const EMOTICON_GRID_COLUMNS = 4;
+
+/**
+ * REQUIREMENTS.md § 13.6. The 미니 grid's, which is the same number counted over a
+ * smaller cell.
+ *
+ * WARN: § 8.14. This and the `grid-cols-*` class are one decision written twice, and
+ * they MUST agree — the vertical arrows step by this, so a grid drawn at another width
+ * moves focus to a cell on the wrong row. Tailwind reads literals, so the class cannot
+ * be built from this value.
+ */
+export const MINI_GRID_COLUMNS = 6;
 
 /**
  * The attribute a focusable child carries its position in, so focus can be moved

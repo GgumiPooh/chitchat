@@ -2,6 +2,7 @@
 
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import { MAX_KEYWORD_QUERY_LENGTH, toEmoticonAssetUrl } from "@/shared/config";
+import type { EmoticonPackType } from "@/shared/db";
 import {
   A_MINUTE,
   A_SECOND,
@@ -14,8 +15,9 @@ import {
   type Nullable,
   type Optional,
 } from "@/shared/lib";
-import { EmptyState, HapticTarget, Input, PreloadImage } from "@/shared/ui";
+import { Chip, EmptyState, HapticTarget, Input, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
+import { josa } from "es-hangul";
 import { Clock, Search, Smile } from "lucide-react";
 import {
   useEffect,
@@ -25,7 +27,6 @@ import {
   type FocusEvent,
   type KeyboardEvent,
   type MouseEvent,
-  type PointerEvent,
   type PropsWithChildren,
   type Ref,
   type RefObject,
@@ -34,13 +35,21 @@ import { useStorageState } from "synced-storage/react";
 import {
   EMOTICON_GRID_COLUMNS,
   FOCUS_INDEX_ATTRIBUTE,
+  MINI_GRID_COLUMNS,
   focusItem,
   readFocusIndex,
   revealWithin,
   toCrossingIndex,
   toNextFocusIndex,
 } from "../model/emoticon-focus";
-import { ACTIVE_TAB_KEY, RECENTS_TAB, SEARCH_TAB, isPackTabId } from "../model/emoticon-tabs";
+import {
+  ACTIVE_TAB_KEY,
+  MINI_RECENTS_TAB,
+  RECENTS_TAB,
+  SEARCH_TAB,
+  isPackTabId,
+  isRecentsTabId,
+} from "../model/emoticon-tabs";
 import { toEmoticonsByIdsQuery } from "../model/emoticons-query";
 import { toEmoticonPackItemsQuery } from "../model/pack-items-query";
 import { toEmoticonPacksQuery } from "../model/packs-query";
@@ -73,10 +82,30 @@ const PACKS_MOUNT_STALE_TIME = 5 * A_MINUTE;
  *
  * WARN: These load while the panel is still collapsed, since § 13.6. now mounts it before the first open — and that is the same twenty URLs the room's warm is fetching on the same idle frame, so what it costs is their priority rather than the requests.
  */
-const EAGER_CELL_COUNT = 5 * EMOTICON_GRID_COLUMNS;
+const EAGER_CELL_ROWS = 5;
 
-// INFO: § 13.6. `EAGER_CELL_COUNT`'s argument for the strip, which is one row: a tab is about 48px against a shell of at most 448, so this is what fits on screen with one to spare. Counted over `tabIds`, which is why the pack index is offset past 검색 and 최근 사용 at the comparison.
+// INFO: § 13.6. `EAGER_CELL_ROWS`' argument for the strip, which is one row: a tab is about 48px against a shell of at most 448, so this is what fits on screen with one to spare. Counted over `tabIds`, which is why the pack index is offset past 최근 사용 at the comparison.
 const EAGER_TAB_COUNT = 9;
+
+/**
+ * REQUIREMENTS.md § 13.6. The panel's first region: which of the three menus is on
+ * screen, and therefore what the two below it hold.
+ *
+ * INFO: 검색 first because § 13.8.'s tap arrives there and the leading position is where the thumb starts, then the two kinds in the order a library grows them.
+ */
+const EMOTICON_MENUS = ["search", "emoticon", "mini"] as const;
+
+type EmoticonMenu = (typeof EMOTICON_MENUS)[number];
+
+// INFO: § 13.6. The menu bar's own labels. 이모티콘 and 미니 are the words § 13.5.'s own screens use for the two kinds.
+const MENU_LABELS: Record<EmoticonMenu, string> = {
+  search: "검색",
+  emoticon: "이모티콘",
+  mini: "미니",
+};
+
+/** REQUIREMENTS.md § 8.14. `CELL_KEYBOARD_RING` for the menu bar, whose selected chip already carries `bg-primary-tint`. */
+const MENU_KEYBOARD_RING = "focus:ring-2 focus:ring-primary focus:outline-none";
 
 // INFO: § 13.9.1. One sentence for the two places a failed search is said — an empty pane, and the caption under a § 13.9. row that holds the tapped item and nothing the words found.
 const SEARCH_FAILED_MESSAGE = "검색하지 못했어요";
@@ -277,6 +306,20 @@ export function EmoticonPicker({
   }
 
   const requestedTab = forcedTab ?? (typeof storedTab === "string" ? storedTab : RECENTS_TAB);
+  const menuBarRef = useRef<Nullable<HTMLDivElement>>(null);
+  /**
+   * REQUIREMENTS.md § 13.6. Where each kind's menu was last left, so stepping across the
+   * menu bar and back returns to the pack rather than to 최근 사용.
+   *
+   * WARN: A ref and deliberately not storage. `ACTIVE_TAB_KEY` remembers **one** tab
+   * across sessions and that is the whole of what § 13.6. promises; this is the shorter
+   * memory a single panel session needs, and writing it would mean two stored answers to
+   * "which tab" that can disagree.
+   */
+  const lastTabByKindRef = useRef<Record<EmoticonPackType, Nullable<string>>>({
+    emoticon: null,
+    mini: null,
+  });
   const tabStripRef = useRef<Nullable<HTMLDivElement>>(null);
   const activeTabRef = useRef<Nullable<HTMLSpanElement>>(null);
   // INFO: § 8.14. Whichever scroller currently holds the cells — the grid, or § 13.8.'s results row. One ref because the two are branches of the same ternary and never coexist.
@@ -333,12 +376,32 @@ export function EmoticonPicker({
   // INFO: The remembered pack can be gone or hidden (§ 13.1.) by the time the panel reopens, so it only holds while the loaded list still has it.
   // WARN: `isPackTabId` gates the pending branch, and it is the only thing that does. The stored tab is an unvalidated `localStorage` string, and while the list is in flight this expression is what hands it to `fetchPackItems` as a path segment.
   const activeTab =
-    requestedTab === RECENTS_TAB ||
+    isRecentsTabId(requestedTab) ||
     requestedTab === SEARCH_TAB ||
     (isPackTabId(requestedTab) && (isPending || findPack(visiblePacks, requestedTab)))
       ? requestedTab
       : RECENTS_TAB;
   const isSearching = activeTab === SEARCH_TAB;
+  // INFO: § 13.6. Every pack's kind, hidden ones included — a 따라하기 can name a pack this user has taken out of the strip, and the menu still has to be able to say which kind it was.
+  const packTypes = new Map(packs.map((pack) => [pack.id, pack.type] as const));
+  /**
+   * REQUIREMENTS.md § 13.6. The open menu, **derived from the open tab** rather than
+   * stored beside it.
+   *
+   * WARN: This is what keeps one `ACTIVE_TAB_KEY` answering for three menus. A pack id
+   * already says which kind it is, so a second stored value would be a copy that can
+   * disagree with it — and `useEmoticonPreload` reads that key too, so the copy would
+   * have to be kept in a hook that has no reason to know menus exist.
+   *
+   * INFO: A stored pack id resolves before its list lands (see `activeTab`), and a kind nobody has answered for yet reads as `emoticon` — so a remembered 미니 pack opens on 이모티콘 for the one frame before the packs arrive, exactly as its own tab does.
+   */
+  const activeMenu = toMenuOf(activeTab);
+  // INFO: § 13.6. Which kind the two regions below hold. 검색 draws neither, and reads as 이모티콘 so nothing has to branch on a third case.
+  const menuKind: EmoticonPackType = activeMenu === "mini" ? "mini" : "emoticon";
+  const menuPacks = visiblePacks.filter((pack) => pack.type === menuKind);
+  const recentsTab = menuKind === "mini" ? MINI_RECENTS_TAB : RECENTS_TAB;
+  // WARN: § 8.14. The arrow step **and** the `grid-cols-*` class below, which are one decision written twice — see `MINI_GRID_COLUMNS`.
+  const columns = menuKind === "mini" ? MINI_GRID_COLUMNS : EMOTICON_GRID_COLUMNS;
   // WARN: § 13.9.1. The results are the server's, ranked there — this component may filter the revealed item out of them but must never re-sort them.
   const {
     results: searchResults,
@@ -381,14 +444,21 @@ export function EmoticonPicker({
 
   const byId = new Map(recentItems.map((item) => [item.id, item] as const));
   // INFO: § 13.1. 최근 사용 is a tab like any other, so hiding a pack takes its items out of this list too — an emoticon sent through § 13.9. from a hidden pack is remembered and simply not drawn here.
+  // WARN: § 13.6. Cut to the open menu's kind as well, and it is one stored list rather than two. The kinds are drawn at different column counts, so a 최근 사용 holding both would have to pick one of them for a picture authored at the other — and the id list a send writes has no menu to belong to.
   const visiblePackIds = new Set(visiblePacks.map((pack) => pack.id));
   const recents = recentIds
     .map((id) => byId.get(id))
-    .filter((item): item is Emoticon => item !== undefined && visiblePackIds.has(item.packId));
+    .filter(
+      (item): item is Emoticon =>
+        item !== undefined &&
+        visiblePackIds.has(item.packId) &&
+        packTypes.get(item.packId) === menuKind,
+    );
   const shown = toShownItems();
-  const tabIds = [SEARCH_TAB, RECENTS_TAB, ...visiblePacks.map((pack) => pack.id)];
+  // INFO: § 13.6. The second region's own list, which is this menu's alone — 검색 has a field there instead and therefore no tabs at all.
+  const tabIds = isSearching ? [] : [recentsTab, ...menuPacks.map((pack) => pack.id)];
   const activeIndex = tabIds.indexOf(activeTab);
-  const tabThumbnailUrls = visiblePacks.flatMap((pack) =>
+  const tabThumbnailUrls = menuPacks.flatMap((pack) =>
     pack.thumbnailItemId
       ? [
           toEmoticonAssetUrl(
@@ -479,16 +549,47 @@ export function EmoticonPicker({
     <div
       className={cn(
         "pointer-events-auto flex flex-col rounded-lg border border-hairline bg-canvas",
-        // INFO: § 13.8. The search tab is the one tab that may share the screen with the keyboard, so it is drawn at a height that fits in what the keyboard leaves.
+        // INFO: § 13.8. 검색 is the one menu that may share the screen with the keyboard, so it is drawn at a height that fits in what the keyboard leaves rather than at the other two menus' half-shell.
         // WARN: The same 200ms `ease-out` the § 13.6. clipping strip animates its own height with, and the two MUST stay identical. Left instant here the asymmetry was visible only one way: growing, the taller panel is clipped by the strip and revealed as it opens, so it reads as smooth — shrinking, the panel collapses in one frame inside a strip that is still catching up.
         "transition-[height] duration-200 ease-out",
         isSearching ? "h-(--emoticon-search-panel-height)" : "h-(--emoticon-panel-height)",
         className,
       )}
       onKeyDown={handlePanelKeys}
-      // WARN: § 8.14. Capture, because the results row stops `pointerdown` propagating while it still has somewhere to scroll (`keepAxisWhileScrollable`) — bubbled, the one scroller a drag most often starts in would never report the pointer taking over.
+      // WARN: § 8.14. Capture and not the bubbled phase, so no child that stops `pointerdown` can hide a pointer press from the panel — which is how the rings stayed lit under a mouse once one scroller inside here did exactly that.
       onPointerDownCapture={() => setIsKeyboardDriven(false)}
     >
+      {/* INFO: § 13.6. The first region — which menu the two below it belong to. */}
+      {/* INFO: REQUIREMENTS.md § 8.14. ARIA's toolbar again: one tab stop for the row, the bare arrows walking it, and what they land on opening — the same automatic activation the strip below and § 13.6.'s swipe already use. */}
+      {/* INFO: DESIGN.md § 7.1. Chips rather than an underlined segmented control, for `LibrarySegments`' own reason — the strip below already runs a selection fill, and a second travelling indicator one row above it reads as two things moving at once. */}
+      <div
+        ref={menuBarRef}
+        className="flex shrink-0 gap-2xs border-b border-hairline-soft px-2xs py-2xs"
+        role="toolbar"
+        aria-label="이모티콘 메뉴"
+        onKeyDown={handleMenuKeys}
+      >
+        {EMOTICON_MENUS.map((menu, index) => (
+          <Chip
+            key={menu}
+            // WARN: DESIGN.md § 7.15.3. `haptic` is unconditional and `isSelected` is what silences the tick, exactly as `TabButton` records. Gated on the selection instead, the wrapper unmounts inside the very tap that earned the tick and the tick is lost.
+            chipClassName={cn("px-3", isKeyboardDriven && MENU_KEYBOARD_RING)}
+            haptic
+            isSelected={menu === activeMenu}
+            // WARN: § 8.14. The row's roving tab stop, so three menus are one stop rather than three between the panel and the composer.
+            tabIndex={menu === activeMenu ? 0 : -1}
+            type="button"
+            aria-pressed={menu === activeMenu}
+            {...{ [FOCUS_INDEX_ATTRIBUTE]: index }}
+            onClick={(event) => {
+              takeFocus(event);
+              selectMenu(menu);
+            }}
+          >
+            {MENU_LABELS[menu]}
+          </Chip>
+        ))}
+      </div>
       {isSearching ? (
         <SearchPane
           isOpen={isOpen}
@@ -508,133 +609,132 @@ export function EmoticonPicker({
           onFieldKeys={handleFieldKeys}
           onCellKeys={handleCellKeys}
           onCellFocus={trackCellFocus}
-          onSwipe={goToAdjacentTab}
         />
       ) : (
-        // WARN: `overflow-x-hidden` is what keeps the § 13.6. slide inside the panel — a vertical-only scroller still resolves its horizontal axis to `auto`.
-        // WARN: `touch-pan-y` leaves the vertical scroll native while denying the browser the horizontal axis, which it would otherwise consume before the § 13.6. swipe ever sees it.
-        <div
-          ref={cellScrollerRef}
-          className="scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain p-xs"
-          onKeyDown={handleCellKeys}
-          onFocus={trackCellFocus}
-          {...swipeHandlers}
-        >
-          {/* WARN: § 13.6. The tab's own items are a request now, so the grid waits for them as it waits for the list. Drawn before they land, a pack tab paints `이 묶음에는 이모티콘이 없어요` over a pack that has plenty — the verdict-before-the-answer § 13.9.1. removed from the search pane. */}
-          {/* WARN: § 13.6. 최근 사용 is the default tab and its ids resolve through a request of their own, so it needs the same guard — without it the panel flashes `최근 사용한 이모티콘이 여기에 보여요` every time it opens ahead of the preload. Every send used to do it too, a new id being a cold key; `emoticons-query.ts` holds the previous answer over for exactly that. */}
-          {/* INFO: § 13.6. A pack tab holds nothing over, deliberately, where 최근 사용 does. The key there is the same list plus one item; here it is a **different pack**, and what would slide in under the new tab is another pack's shelf, swapped out a round trip later. */}
-          {/* INFO: § 13.6. So the animation below decorates the arrival rather than the gesture — a warm tab slides at once, a cold one is blank for a round trip and slides after. Recorded and not fixed: waiting is still better than painting `이 묶음에는 이모티콘이 없어요` over a pack that is full. */}
-          {isPending ||
-          (activePackId !== null && isPackPending) ||
-          (activeTab === RECENTS_TAB && isRecentsPending) ? null : (
-            // WARN: Keyed by the tab so each pack mounts fresh — an enter animation on an updated subtree never replays.
-            <div
-              key={activeTab}
-              className={cn(
-                "animate-in duration-200",
-                slideFrom === 1 ? "slide-in-from-right-6" : "slide-in-from-left-6",
-              )}
-            >
-              {shown.length === 0 ? (
-                <EmptyState
-                  className="border-0 bg-transparent"
-                  Icon={Smile}
-                  description={toGridEmptyMessage()}
-                />
-              ) : (
-                // INFO: DESIGN.md § 9. Assets are user-authored, so their aspect ratios are arbitrary — the cell is a fixed square and the still is `object-contain` inside it.
-                // WARN: § 8.14. The column count is `EMOTICON_GRID_COLUMNS` as well as this class, and the two MUST agree — the vertical arrows step by that number, and a grid drawn at a different width moves focus to the wrong row.
-                // INFO: § 8.14. `group` and not `grid`. ARIA's grid role requires `row` elements this layout has nowhere to put — a `display: contents` wrapper is the only place, and that is the property browsers spent years dropping from the accessibility tree. The **keys** follow the grid pattern; the roles say what is true, which is a labelled group of buttons.
-                <div className="grid grid-cols-4 gap-2xs" role="group" aria-label="이모티콘">
-                  {shown.map((item, index) => (
-                    <EmoticonCell
-                      key={item.id}
-                      className="flex"
-                      buttonClassName="aspect-square w-full"
-                      item={item}
-                      index={index}
-                      isFocusable={index === focusableIndex}
-                      isWarmed
-                      isKeyboardDriven={isKeyboardDriven}
-                      onSelect={handleSelect}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-      {/* INFO: § 13.6. Pack tabs along the bottom, matching where the thumb already is. */}
-      {/* WARN: The horizontal inset is the first and last tab's margin, never the strip's `padding-inline`. WebKit reports `scrollWidth === clientWidth` until the content already overflows *without* `padding-right`, so a strip padded that way has a dead band the width of that padding where it is over-full and cannot be scrolled at all. */}
-      {/* INFO: REQUIREMENTS.md § 8.14. ARIA's toolbar: one tab stop for the whole strip, and the bare arrows walking it — which open what they land on, exactly as § 13.6.'s swipe does. */}
-      {/* WARN: `touch-pan-x` and `overscroll-contain` are what § 13.8.'s results row already carries, and this strip is the one horizontal scroller that had neither. A drag here is never perfectly horizontal, so WebKit spent the vertical component on whatever ancestor would take it — the room panning a few pixels under every sweep of the thumb, which is the wobble reported on iOS. */}
-      <div
-        ref={tabStripRef}
-        className="scrollbar-hidden flex shrink-0 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain border-t border-hairline-soft py-2xs [&>*:first-child]:ml-2xs [&>*:last-child]:mr-2xs"
-        role="toolbar"
-        aria-label="이모티콘 묶음"
-        onKeyDown={handleTabStripKeys}
-      >
-        {/* INFO: § 13.8. First, so a swipe left from 최근 사용 reaches it and the tap target sits where the thumb starts. */}
-        <TabButton
-          ref={isSearching ? activeTabRef : undefined}
-          index={0}
-          isActive={isSearching}
-          isFocusable={focusableTabId === SEARCH_TAB}
-          isKeyboardDriven={isKeyboardDriven}
-          label="이모티콘 검색"
-          onClick={() => selectTab(SEARCH_TAB)}
-        >
-          <Search className="size-5 text-meta" strokeWidth={1.75} />
-        </TabButton>
-        <TabButton
-          ref={activeTab === RECENTS_TAB ? activeTabRef : undefined}
-          index={1}
-          isActive={activeTab === RECENTS_TAB}
-          isFocusable={focusableTabId === RECENTS_TAB}
-          isKeyboardDriven={isKeyboardDriven}
-          label="최근 사용"
-          onClick={() => selectTab(RECENTS_TAB)}
-        >
-          <Clock className="size-5 text-meta" strokeWidth={1.75} />
-        </TabButton>
-        {/* WARN: § 13.1. `visiblePacks` and never `packs` — the list carries hidden packs so § 13.8. can search them, and a hidden pack drawn here is a tab `activeTab` resolves away from, so the tap does nothing but overwrite the remembered pack with an id that can never be restored. */}
-        {visiblePacks.map((pack, index) => (
-          <TabButton
-            key={pack.id}
-            ref={activeTab === pack.id ? activeTabRef : undefined}
-            // WARN: § 8.14. Offset past 검색 and 최근 사용, so it indexes `tabIds` — the array `goToAdjacentTab` and the strip's own arrows both step through.
-            index={index + 2}
-            isActive={activeTab === pack.id}
-            isFocusable={focusableTabId === pack.id}
-            isKeyboardDriven={isKeyboardDriven}
-            label={pack.name}
-            onClick={() => selectTab(pack.id)}
+        <>
+          {/* INFO: § 13.6. The second region — 최근 사용, then this menu's own packs. */}
+          {/* WARN: § 13.6. Above the grid now rather than under it, which is what the third region costs: the two navigation rows stack at the top and the cells take the rest. The thumb reaches the strip less easily than it did, and the grid — the thing actually being tapped — is what moved down to meet it. */}
+          {/* WARN: The horizontal inset is the first and last tab's margin, never the strip's `padding-inline`. WebKit reports `scrollWidth === clientWidth` until the content already overflows *without* `padding-right`, so a strip padded that way has a dead band the width of that padding where it is over-full and cannot be scrolled at all. */}
+          {/* INFO: REQUIREMENTS.md § 8.14. ARIA's toolbar: one tab stop for the whole strip, and the bare arrows walking it — which open what they land on, exactly as § 13.6.'s swipe does. */}
+          {/* WARN: `touch-pan-x` and `overscroll-contain` are what § 13.8.'s pane already carries, and this strip is the one horizontal scroller that had neither. A drag here is never perfectly horizontal, so WebKit spent the vertical component on whatever ancestor would take it — the room panning a few pixels under every sweep of the thumb, which is the wobble reported on iOS. */}
+          <div
+            ref={tabStripRef}
+            className="scrollbar-hidden flex shrink-0 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain border-b border-hairline-soft py-2xs [&>*:first-child]:ml-2xs [&>*:last-child]:mr-2xs"
+            role="toolbar"
+            aria-label={`${toKindNoun(menuKind)} 묶음`}
+            onKeyDown={handleTabStripKeys}
           >
-            {/* INFO: § 13.2. Already the item the pack is drawn with — the server resolves the fallback now, since this strip holds no items to look through. */}
-            {pack.thumbnailItemId ? (
-              <PreloadImage
-                className="size-full"
-                imgClassName="size-full object-contain"
-                placeholderClassName="rounded-sm"
-                alt=""
-                // INFO: § 13.6. Warmed and decoded before the panel opens, so the head of the strip is drawn rather than plated.
-                hasDeferredSkeleton
-                // WARN: § 13.3. Each of these is a session check, a row read and a presign, and the strip scrolls — past what fits on screen, every pack in the library would spend one on the frame the panel first opens.
-                loading={index + 2 < EAGER_TAB_COUNT ? "eager" : "lazy"}
-                src={toEmoticonAssetUrl(
-                  pack.thumbnailItemId,
-                  "still-image",
-                  pack.thumbnailVersion ?? undefined,
+            <TabButton
+              ref={activeTab === recentsTab ? activeTabRef : undefined}
+              index={0}
+              isActive={activeTab === recentsTab}
+              isFocusable={focusableTabId === recentsTab}
+              isKeyboardDriven={isKeyboardDriven}
+              label="최근 사용"
+              onClick={() => selectTab(recentsTab)}
+            >
+              <Clock className="size-5 text-meta" strokeWidth={1.75} />
+            </TabButton>
+            {/* WARN: § 13.1. `menuPacks` is `visiblePacks` cut to this menu's kind, and never `packs` — the list carries hidden packs so § 13.8. can search them, and a hidden pack drawn here is a tab `activeTab` resolves away from, so the tap does nothing but overwrite the remembered pack with an id that can never be restored. */}
+            {menuPacks.map((pack, index) => (
+              <TabButton
+                key={pack.id}
+                ref={activeTab === pack.id ? activeTabRef : undefined}
+                // WARN: § 8.14. Offset past 최근 사용, so it indexes `tabIds` — the array `goToAdjacentTab` and the strip's own arrows both step through. 검색 is a menu now and no longer sits in front of it.
+                index={index + 1}
+                isActive={activeTab === pack.id}
+                isFocusable={focusableTabId === pack.id}
+                isKeyboardDriven={isKeyboardDriven}
+                label={pack.name}
+                onClick={() => selectTab(pack.id)}
+              >
+                {/* INFO: § 13.2. Already the item the pack is drawn with — the server resolves the fallback now, since this strip holds no items to look through. */}
+                {pack.thumbnailItemId ? (
+                  <PreloadImage
+                    className="size-full"
+                    imgClassName="size-full object-contain"
+                    placeholderClassName="rounded-sm"
+                    alt=""
+                    // INFO: § 13.6. Warmed and decoded before the panel opens, so the head of the strip is drawn rather than plated.
+                    hasDeferredSkeleton
+                    // WARN: § 13.3. Each of these is a session check, a row read and a presign, and the strip scrolls — past what fits on screen, every pack in the library would spend one on the frame the panel first opens.
+                    loading={index + 1 < EAGER_TAB_COUNT ? "eager" : "lazy"}
+                    src={toEmoticonAssetUrl(
+                      pack.thumbnailItemId,
+                      "still-image",
+                      pack.thumbnailVersion ?? undefined,
+                    )}
+                  />
+                ) : (
+                  <Smile className="size-5 text-meta" strokeWidth={1.75} />
                 )}
-              />
-            ) : (
-              <Smile className="size-5 text-meta" strokeWidth={1.75} />
+              </TabButton>
+            ))}
+          </div>
+          {/* INFO: § 13.6. The third region — the cells, which is the only one of the three that scrolls vertically. */}
+          {/* WARN: `overflow-x-hidden` is what keeps the § 13.6. slide inside the panel — a vertical-only scroller still resolves its horizontal axis to `auto`. */}
+          {/* WARN: `touch-pan-y` leaves the vertical scroll native while denying the browser the horizontal axis, which it would otherwise consume before the § 13.6. swipe ever sees it. */}
+          <div
+            ref={cellScrollerRef}
+            className="scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain p-xs"
+            onKeyDown={handleCellKeys}
+            onFocus={trackCellFocus}
+            {...swipeHandlers}
+          >
+            {/* WARN: § 13.6. The tab's own items are a request now, so the grid waits for them as it waits for the list. Drawn before they land, a pack tab paints `이 묶음에는 이모티콘이 없어요` over a pack that has plenty — the verdict-before-the-answer § 13.9.1. removed from the search pane. */}
+            {/* WARN: § 13.6. 최근 사용 is the default tab and its ids resolve through a request of their own, so it needs the same guard — without it the panel flashes `최근 사용한 이모티콘이 여기에 보여요` every time it opens ahead of the preload. Every send used to do it too, a new id being a cold key; `emoticons-query.ts` holds the previous answer over for exactly that. */}
+            {/* INFO: § 13.6. A pack tab holds nothing over, deliberately, where 최근 사용 does. The key there is the same list plus one item; here it is a **different pack**, and what would slide in under the new tab is another pack's shelf, swapped out a round trip later. */}
+            {/* INFO: § 13.6. So the animation below decorates the arrival rather than the gesture — a warm tab slides at once, a cold one is blank for a round trip and slides after. Recorded and not fixed: waiting is still better than painting `이 묶음에는 이모티콘이 없어요` over a pack that is full. */}
+            {isPending ||
+            (activePackId !== null && isPackPending) ||
+            (isRecentsTabId(activeTab) && isRecentsPending) ? null : (
+              // WARN: Keyed by the tab so each pack mounts fresh — an enter animation on an updated subtree never replays.
+              <div
+                key={activeTab}
+                className={cn(
+                  "animate-in duration-200",
+                  slideFrom === 1 ? "slide-in-from-right-6" : "slide-in-from-left-6",
+                )}
+              >
+                {shown.length === 0 ? (
+                  <EmptyState
+                    className="border-0 bg-transparent"
+                    Icon={Smile}
+                    description={toGridEmptyMessage()}
+                  />
+                ) : (
+                  // INFO: DESIGN.md § 9. Assets are user-authored, so their aspect ratios are arbitrary — the cell is a fixed square and the still is `object-contain` inside it.
+                  // WARN: § 8.14. The column count is `columns` as well as this class, and the two MUST agree — the vertical arrows step by that number, and a grid drawn at a different width moves focus to the wrong row. Both spellings are literals because Tailwind reads literals.
+                  // INFO: § 8.14. `group` and not `grid`. ARIA's grid role requires `row` elements this layout has nowhere to put — a `display: contents` wrapper is the only place, and that is the property browsers spent years dropping from the accessibility tree. The **keys** follow the grid pattern; the roles say what is true, which is a labelled group of buttons.
+                  <div
+                    className={cn(
+                      "grid gap-2xs",
+                      menuKind === "mini" ? "grid-cols-6" : "grid-cols-4",
+                    )}
+                    role="group"
+                    aria-label={toKindNoun(menuKind)}
+                  >
+                    {shown.map((item, index) => (
+                      <EmoticonCell
+                        key={item.id}
+                        className="flex"
+                        buttonClassName="aspect-square w-full"
+                        item={item}
+                        index={index}
+                        isFocusable={index === focusableIndex}
+                        isWarmed
+                        eagerCount={EAGER_CELL_ROWS * columns}
+                        isKeyboardDriven={isKeyboardDriven}
+                        onSelect={handleSelect}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
-          </TabButton>
-        ))}
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 
@@ -681,11 +781,33 @@ export function EmoticonPicker({
       return [revealed, ...related.filter((item) => item.id !== revealed.id)];
     }
 
-    if (activeTab === RECENTS_TAB) {
+    // INFO: § 13.6. Either menu's 최근 사용 — the stored id list is one, and `recents` is already cut to this menu's kind.
+    if (isRecentsTabId(activeTab)) {
       return recents;
     }
 
     return activePackItems;
+  }
+
+  /**
+   * REQUIREMENTS.md § 13.6. Which menu a tab belongs to, which is the only place a menu
+   * is ever decided — `activeMenu` is this applied to the open tab.
+   *
+   * WARN: `MINI_RECENTS_TAB` has to be tested before the pack branch and cannot be
+   * folded into it — it is the one tab of the 미니 menu that names no pack, so a kind
+   * looked up from `packTypes` would answer `undefined` and drop the reader back onto
+   * 이모티콘 with their own 최근 사용 on screen.
+   */
+  function toMenuOf(id: string): EmoticonMenu {
+    if (id === SEARCH_TAB) {
+      return "search";
+    }
+
+    if (id === MINI_RECENTS_TAB) {
+      return "mini";
+    }
+
+    return isPackTabId(id) && packTypes.get(id) === "mini" ? "mini" : "emoticon";
   }
 
   /**
@@ -697,13 +819,22 @@ export function EmoticonPicker({
    * a pack that had plenty and the user had no way to tell.
    */
   function toGridEmptyMessage(): string {
-    if (activeTab === RECENTS_TAB) {
-      return hasRecentsFailed
-        ? "이모티콘을 불러오지 못했어요"
-        : "최근 사용한 이모티콘이 여기에 보여요";
+    const noun = toKindNoun(menuKind);
+
+    if (isRecentsTabId(activeTab)) {
+      if (hasRecentsFailed) {
+        return `${josa(noun, "을/를")} 불러오지 못했어요`;
+      }
+
+      // INFO: § 13.6. A menu with no packs at all says so instead, since 최근 사용 being empty is then the consequence rather than the thing to report — nothing has been sent because there is nothing to send.
+      return menuPacks.length === 0
+        ? `추가한 ${noun} 묶음이 없어요`
+        : `최근 사용한 ${josa(noun, "이/가")} 여기에 보여요`;
     }
 
-    return hasPackFailed ? "이모티콘을 불러오지 못했어요" : "이 묶음에는 이모티콘이 없어요";
+    return hasPackFailed
+      ? `${josa(noun, "을/를")} 불러오지 못했어요`
+      : `이 묶음에는 ${josa(noun, "이/가")} 없어요`;
   }
 
   /**
@@ -849,19 +980,7 @@ export function EmoticonPicker({
       return;
     }
 
-    // INFO: § 13.8. The results row is a single row, so its vertical arrows lead out of it — up to the field that filled it.
-    if (isSearching && event.key === "ArrowUp") {
-      event.preventDefault();
-      searchFieldRef.current?.focus();
-
-      return;
-    }
-
-    const next = toNextFocusIndex(event.key, {
-      index,
-      count: shown.length,
-      columns: isSearching ? 1 : EMOTICON_GRID_COLUMNS,
-    });
+    const next = toNextFocusIndex(event.key, { index, count: shown.length, columns });
 
     if (next !== undefined) {
       event.preventDefault();
@@ -870,10 +989,23 @@ export function EmoticonPicker({
       return;
     }
 
-    // INFO: § 8.14. Down off the end of the list is the way to the tabs, which is what makes the whole panel reachable with the arrows alone — the strip is the last thing on it, and reading the panel downwards is what arrives there.
-    if (event.key === "ArrowDown") {
+    /**
+     * INFO: § 8.14. Up off the **first row** is the way out of the cells, which is what
+     * makes the whole panel reachable with the arrows alone. It used to be `↓` off the
+     * last cell, and the third region is what inverted it: the strip sits above the grid
+     * now, so reading the panel *upwards* is what arrives at it — 검색 to its own field,
+     * every other menu to its strip.
+     *
+     * WARN: § 8.14. `↓` off the end therefore leads nowhere and is left unhandled. Handled anyway it would move focus **up** the screen, which is the one thing an arrow key must never do.
+     */
+    if (event.key === "ArrowUp") {
       event.preventDefault();
-      focusActiveTab();
+
+      if (isSearching) {
+        searchFieldRef.current?.focus();
+      } else {
+        focusActiveTab();
+      }
 
       return;
     }
@@ -902,12 +1034,7 @@ export function EmoticonPicker({
 
     pendingEntryRef.current = {
       tab: moved,
-      index: toCrossingIndex({
-        index,
-        count: shown.length,
-        columns: isSearching ? 1 : EMOTICON_GRID_COLUMNS,
-        direction,
-      }),
+      index: toCrossingIndex({ index, count: shown.length, columns, direction }),
       scrollTop,
     };
   }
@@ -932,12 +1059,13 @@ export function EmoticonPicker({
 
     const row = cellScrollerRef.current;
 
+    // WARN: § 8.14. The fallback is the **menu bar** now, and 검색 having no strip is why. The rule it answers is unchanged — a dead key on an empty search is exactly where the reader most needs to leave — but the only composite left below the field is the grid it just found nothing in.
     if (!row || !focusItem(row, Math.max(focusableIndex, 0))) {
-      focusActiveTab();
+      focusActiveMenu();
     }
   }
 
-  /** REQUIREMENTS.md § 8.14. Into the strip from the list above it. */
+  /** REQUIREMENTS.md § 8.14. Into the strip from the grid below it. */
   function focusActiveTab() {
     const strip = tabStripRef.current;
 
@@ -946,7 +1074,16 @@ export function EmoticonPicker({
     }
   }
 
-  /** REQUIREMENTS.md § 8.14. `ArrowUp` off the strip, back into what the tab holds. */
+  /** REQUIREMENTS.md § 8.14. Into the menu bar, which is the top of the panel and the end of the way up. */
+  function focusActiveMenu() {
+    const bar = menuBarRef.current;
+
+    if (bar) {
+      focusItem(bar, EMOTICON_MENUS.indexOf(activeMenu));
+    }
+  }
+
+  /** REQUIREMENTS.md § 8.14. `ArrowDown` off the strip, into what the tab holds. */
   function focusTabContent() {
     enterTab({ index: 0 });
   }
@@ -1041,7 +1178,15 @@ export function EmoticonPicker({
       return;
     }
 
+    // WARN: § 8.14. The strip sits between the menu bar and the grid now, so both of its vertical keys lead somewhere — `↑` to the menu it belongs to, `↓` into the cells it just opened. It used to have only `↑`, back into a grid that was above it.
     if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusActiveMenu();
+
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
       event.preventDefault();
       focusTabContent();
 
@@ -1066,6 +1211,83 @@ export function EmoticonPicker({
     focusItem(event.currentTarget, next);
   }
 
+  /**
+   * REQUIREMENTS.md § 8.14. `←`/`→` walk the menu bar and open what they land on, and
+   * `↓` goes into whatever that menu put in the region below.
+   *
+   * INFO: Automatic activation, for the strip's own reason — a menu is not a request of its own, and the panel already opens what an arrow lands on everywhere else.
+   * WARN: § 8.14. No `↑`. The menu bar is the first region, so up is off the top of the panel — and moving focus to the composer from here would be a key that closes the panel underneath itself (§ 13.6.).
+   */
+  function handleMenuKeys(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.defaultPrevented || event.nativeEvent.isComposing || !isBareKey(event)) {
+      return;
+    }
+
+    // WARN: § 8.14. Into the **second** region and never the third, which is why this is not `focusTabContent`. 검색's second region is its field; `enterTab` prefers a cell and only falls through to the field when the grid is empty, so it would step over the field on every search that found something.
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+
+      if (isSearching) {
+        searchFieldRef.current?.focus();
+      } else {
+        focusActiveTab();
+      }
+
+      return;
+    }
+
+    const index = readFocusIndex(event.target);
+
+    if (index === undefined) {
+      return;
+    }
+
+    const next = toNextFocusIndex(event.key, {
+      index,
+      count: EMOTICON_MENUS.length,
+      columns: 1,
+    });
+
+    if (next === undefined) {
+      return;
+    }
+
+    event.preventDefault();
+    // WARN: § 8.14. `claimsField: false` for the strip's own reason — a walk that lands on 검색 must not have the field take the keyboard out from under the walk.
+    selectMenu(EMOTICON_MENUS[next], { claimsField: false });
+    focusItem(event.currentTarget, next);
+  }
+
+  /**
+   * REQUIREMENTS.md § 13.6. Opens a menu, which is to say opens a tab inside it.
+   *
+   * INFO: A menu holds no state of its own — `activeMenu` is derived from the open tab — so switching one is choosing which tab to open. It returns to the tab that menu was last left on, and to its 최근 사용 the first time.
+   *
+   * WARN: The remembered tab is checked against **this** render's pack list before it is
+   * used. A pack disabled or deleted in § 13.5. while the panel was open is an id the
+   * strip no longer draws, and `activeTab` would resolve it away to `RECENTS_TAB` — the
+   * other menu's, since that fallback knows nothing about kinds.
+   */
+  function selectMenu(menu: EmoticonMenu, { claimsField = true }: { claimsField?: boolean } = {}) {
+    if (menu === activeMenu) {
+      return;
+    }
+
+    if (menu === "search") {
+      selectTab(SEARCH_TAB, { claimsField });
+
+      return;
+    }
+
+    const remembered = lastTabByKindRef.current[menu];
+    const fallback = menu === "mini" ? MINI_RECENTS_TAB : RECENTS_TAB;
+    const isStillThere =
+      remembered !== null &&
+      (isRecentsTabId(remembered) || visiblePacks.some((pack) => pack.id === remembered));
+
+    selectTab(isStillThere ? remembered : fallback, { claimsField });
+  }
+
   // INFO: § 13.9. Typing is the user taking the search over, so the item 따라하기 pinned to the front of the row stops being pinned.
   function changeQuery(next: string) {
     setQuery(next);
@@ -1084,7 +1306,7 @@ export function EmoticonPicker({
       return;
     }
 
-    setSlideFrom(tabIds.indexOf(id) < activeIndex ? -1 : 1);
+    setSlideFrom(toSlideDirection(id));
     setForcedTab(id === SEARCH_TAB ? SEARCH_TAB : null);
     // INFO: § 13.9. Walking to another tab ends the reveal — the ring belongs to the tap that asked for it, not to the panel.
     setRevealed(null);
@@ -1092,8 +1314,28 @@ export function EmoticonPicker({
 
     // WARN: § 13.8. The search tab is deliberately never remembered. It is a place the user passes through with a word in hand, so reopening the panel onto an empty search — days later, over the pack they actually use — would be answering a question nobody asked twice.
     if (id !== SEARCH_TAB) {
+      // INFO: § 13.6. The within-session half of the memory, so a step across the menu bar and back returns to this tab rather than to 최근 사용 (`lastTabByKindRef`).
+      lastTabByKindRef.current[toMenuOf(id) === "mini" ? "mini" : "emoticon"] = id;
       setRequestedTab(id);
     }
+  }
+
+  /**
+   * INFO: § 13.6. Which side the arriving list slides in from — its place in this menu's
+   * own strip, or the menu bar's order where the two menus differ.
+   *
+   * WARN: The menu comparison has to come first. A tab in another menu is in no `tabIds`
+   * this render holds, so `indexOf` answers `-1` and every menu switch would slide in
+   * from the left however the bar was walked.
+   */
+  function toSlideDirection(id: string): SwipeDirection {
+    const menu = toMenuOf(id);
+
+    if (menu !== activeMenu) {
+      return EMOTICON_MENUS.indexOf(menu) < EMOTICON_MENUS.indexOf(activeMenu) ? -1 : 1;
+    }
+
+    return tabIds.indexOf(id) < activeIndex ? -1 : 1;
   }
 
   // INFO: REQUIREMENTS.md § 13.6. The ends do not wrap — 최근 사용 and the last pack are where the gesture stops, so a swipe never rotates past what the tabs show.
@@ -1139,6 +1381,8 @@ type EmoticonCellProps = {
    * WARN: False for § 13.8.'s results row and that is not a detail. Nothing warms a search — `eager` there is up to twenty presigned fetches per answer for a row that shows about five, and the deferred skeleton is exactly what `PreloadFrameProps` documents it as being wrong for, since those cells really are being fetched.
    */
   isWarmed?: boolean;
+  /** § 13.6. How many cells from the head load `eager` — `EAGER_CELL_ROWS` rows of whatever column count this list is drawn at. Ignored unless `isWarmed`. */
+  eagerCount?: number;
   /** REQUIREMENTS.md § 8.14. Whether the panel is being driven by the keyboard, which is what puts the ring on plain `:focus` (`CELL_KEYBOARD_RING`). */
   isKeyboardDriven: boolean;
   /** REQUIREMENTS.md § 13.9. Whether this is the cell 따라하기 named, which is ringed until the panel is taken somewhere else. */
@@ -1155,6 +1399,7 @@ function EmoticonCell({
   index,
   isFocusable,
   isWarmed = false,
+  eagerCount = 0,
   isKeyboardDriven,
   isRevealed = false,
   onSelect,
@@ -1198,7 +1443,7 @@ function EmoticonCell({
           alt=""
           // INFO: § 13.6. A warmed cell's skeleton is almost always a plate over an image that was ready — `PreloadFrameProps` carries the argument.
           hasDeferredSkeleton={isWarmed}
-          loading={isWarmed && index < EAGER_CELL_COUNT ? "eager" : "lazy"}
+          loading={isWarmed && index < eagerCount ? "eager" : "lazy"}
           draggable={false}
         />
       </button>
@@ -1236,21 +1481,22 @@ type SearchPaneProps = {
   onFieldKeys: (event: KeyboardEvent<HTMLInputElement>) => void;
   onCellKeys: (event: KeyboardEvent<HTMLDivElement>) => void;
   onCellFocus: (event: FocusEvent<HTMLDivElement>) => void;
-  onSwipe: (direction: SwipeDirection) => void;
 };
 
 /**
- * REQUIREMENTS.md § 13.8. The search tab: a field, then one row of results that
- * scrolls sideways.
+ * REQUIREMENTS.md § 13.8. The 검색 menu: the field in the second region, then the
+ * results as a 4-column grid in the third.
  *
- * WARN: One row and never a grid, and that is what pays for the keyboard exemption
- * (§ 13.6.). This is the only tab that can be on screen with the keyboard up, so it
- * has to fit in what the keyboard leaves rather than claiming half the shell.
+ * WARN: What pays for the keyboard exemption (§ 13.6.) is now
+ * `--emoticon-search-panel-height` alone, and it is the only thing that does. This used
+ * to be a single sideways row, on the argument that one row is short enough to share the
+ * screen with the keys; the third region made it a grid like the other two menus, so the
+ * height is where "fits in what the keyboard leaves" is stated — see that property.
  *
- * WARN: § 13.6.'s tab swipe is attached here too, but the results row is carved out
- * of it: the two gestures share an axis, so a swipe over a row that still has
- * somewhere to scroll would take every drag meant to reach the results further along
- * it. The row gives the axis up only once it has nothing left to scroll.
+ * WARN: § 13.6.'s tab swipe is **not** attached here, and `keepAxisWhileScrollable` went
+ * with it. Both existed because the results row scrolled along the swipe's own axis; the
+ * grid scrolls vertically, and 검색 is a menu rather than a tab now, so there is no
+ * neighbouring tab for a swipe to reach in the first place.
  */
 function SearchPane({
   className,
@@ -1271,9 +1517,7 @@ function SearchPane({
   onFieldKeys,
   onCellKeys,
   onCellFocus,
-  onSwipe,
 }: SearchPaneProps) {
-  const swipeHandlers = useHorizontalSwipe(onSwipe);
   const trimmed = query.trim();
 
   // INFO: § 13.8. Keyed on the panel rather than on this pane's mount, which covers only one of the two ways in — the picker never unmounts, so reopening onto 검색 is a prop change with no mount to hang a focus on.
@@ -1288,15 +1532,15 @@ function SearchPane({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  // WARN: § 13.9. Keyed on the token, not on the item — the row keeps whatever offset a previous search left it at, so a second 따라하기 would put its emoticon at the head of a row still scrolled somewhere else. Instant, for the reason § 13.6. gives against a smooth scroll while the strip is animating.
+  // WARN: § 13.9. Keyed on the token, not on the item — the grid keeps whatever offset a previous search left it at, so a second 따라하기 would put its emoticon at the head of a grid still scrolled somewhere else. Instant, for the reason § 13.6. gives against a smooth scroll while the strip is animating.
+  // WARN: § 13.6. `top` now, where this was `left` while the results were one sideways row. A `scrollTo` naming the axis the scroller does not run on is a no-op, so the reveal silently stopped returning to the head of the list.
   // INFO: § 8.14. `rowRef` is listed because it is the panel's ref now rather than this pane's own, and a prop is a dependency the rule cannot see through. Its identity is stable, so it never re-runs on it.
   useLayoutEffect(() => {
-    rowRef.current?.scrollTo({ left: 0 });
+    rowRef.current?.scrollTo({ top: 0 });
   }, [revealToken, rowRef]);
 
   return (
-    // WARN: The swipe is taken here but `touch-pan-y` is **not** — a browser intersects `touch-action` down the whole ancestor chain, so reserving the horizontal axis on this box would meet the results row's `touch-pan-x` as `none` and that row would stop scrolling at all. Each child below declares its own axis instead.
-    <div className={cn("flex min-h-0 flex-1 flex-col gap-2xs p-xs", className)} {...swipeHandlers}>
+    <div className={cn("flex min-h-0 flex-1 flex-col gap-2xs p-xs", className)}>
       <div className="relative shrink-0 touch-pan-y">
         {/* WARN: The icon is inset by the field's own padding rather than sat against its edge — the pill's radius is half its height, so a glyph at `2xs` is inside the curve rather than beside the text. */}
         <Search
@@ -1324,30 +1568,30 @@ function SearchPane({
         </p>
       ) : (
         <>
-          {/* WARN: `touch-pan-x` is the mirror of the grid's `touch-pan-y` — this scroller runs on the horizontal axis, so that is the one the browser must keep. */}
+          {/* WARN: `overflow-x-hidden` keeps the § 13.6. slide inside the panel, as the other menus' scroller does — a vertical-only scroller still resolves its horizontal axis to `auto`. */}
+          {/* WARN: `touch-pan-y` now, where this was `touch-pan-x` while the results were one sideways row. The scroller runs on the vertical axis like every other grid in the panel, so that is the axis the browser must keep. */}
           <div
             ref={rowRef}
-            className="scrollbar-hidden flex min-h-0 flex-1 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain"
-            role="group"
-            aria-label="검색 결과"
-            onPointerDownCapture={keepAxisWhileScrollable}
+            className="scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain"
             onKeyDown={onCellKeys}
             onFocus={onCellFocus}
           >
-            {results.map((item, index) => (
-              <EmoticonCell
-                key={item.id}
-                className="flex shrink-0"
-                buttonClassName="size-(--emoticon-search-cell)"
-                item={item}
-                scrollAxis="x"
-                index={index}
-                isFocusable={index === focusableIndex}
-                isKeyboardDriven={isKeyboardDriven}
-                isRevealed={item.id === revealedId}
-                onSelect={onSelect}
-              />
-            ))}
+            {/* WARN: § 8.14. Four columns, and `EMOTICON_GRID_COLUMNS` is the same decision — 검색 is drawn at 이모티콘's width rather than 미니's, whatever kind the results happen to hold, because a row of mixed kinds has no one width to be right at. */}
+            <div className="grid grid-cols-4 gap-2xs" role="group" aria-label="검색 결과">
+              {results.map((item, index) => (
+                <EmoticonCell
+                  key={item.id}
+                  className="flex"
+                  buttonClassName="aspect-square w-full"
+                  item={item}
+                  index={index}
+                  isFocusable={index === focusableIndex}
+                  isKeyboardDriven={isKeyboardDriven}
+                  isRevealed={item.id === revealedId}
+                  onSelect={onSelect}
+                />
+              ))}
+            </div>
           </div>
           {/* WARN: § 13.9.1. A failed search still has a row when § 13.9. put the tapped item in it, and `toEmptyMessage` is only ever reached by an empty one — so without this the reveal was the one path where a failure said nothing at all. It costs the cells a line of height, and only while the sentence is up. */}
           {hasFailed && (
@@ -1381,19 +1625,6 @@ function SearchPane({
     }
 
     return isPending ? "" : "찾는 이모티콘이 없어요";
-  }
-
-  /**
-   * INFO: § 13.8. The row has first claim on the axis it scrolls, so the pane's swipe
-   * only ever sees a drag that started somewhere the row is not — or on a row short
-   * enough to have nothing to scroll, which is most searches.
-   */
-  function keepAxisWhileScrollable(event: PointerEvent<HTMLDivElement>) {
-    const row = event.currentTarget;
-
-    if (row.scrollWidth > row.clientWidth) {
-      event.stopPropagation();
-    }
   }
 }
 
@@ -1456,6 +1687,11 @@ function TabButton({
 
 function findPack(packs: EmoticonPackSummary[], id: string) {
   return packs.find((pack) => pack.id === id);
+}
+
+/** REQUIREMENTS.md § 13.6. What each kind is called in a sentence — the menu bar's own labels are shorter (`MENU_LABELS`). */
+function toKindNoun(kind: EmoticonPackType): string {
+  return kind === "mini" ? "미니이모티콘" : "이모티콘";
 }
 
 /**
