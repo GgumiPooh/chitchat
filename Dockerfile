@@ -36,7 +36,8 @@ ENV NEXT_PUBLIC_KEYWORD_SUGGESTION_CONCURRENCY=$NEXT_PUBLIC_KEYWORD_SUGGESTION_C
 ENV NEXT_OUTPUT_STANDALONE=true
 
 # WARN: REQUIREMENTS.md § 16. Build-time as well as runtime, and for a different reason than the runner's copy below: `next.config.ts` inlines it as the worker's script-URL version, so an image built without it falls back to a timestamp and reinstalls the worker on every deploy whether or not anything changed.
-ARG BUILD_SHA=development
+# WARN: Empty, and never a placeholder. `next.config.ts` picks the first *truthy* of three, so a default of `development` is itself the answer — the timestamp above is then unreachable, and any build that forgets the build-arg pins `/sw.js?v=development` forever: byte- and URL-identical every deploy, so `install` never fires again and the precache stays frozen at the first image. That is the exact failure this variable exists to prevent, wearing the shape of a sensible default.
+ARG BUILD_SHA=
 ENV BUILD_SHA=$BUILD_SHA
 
 # INFO: `pnpm build` is lint:steiger + next build, so an architecture violation fails the image rather than the deploy (REQUIREMENTS.md § 15.).

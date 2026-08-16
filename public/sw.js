@@ -46,8 +46,12 @@ const PRECACHE_MANIFEST_URL = "/offline-precache.json";
 // WARN: The `v` is part of the prefix and not an accident of the name below. Cut to `jandh-`, it matches a sibling's `jandh-emoticons-…` too, which is the bug this exists to prevent; kept, it still matches the `jandh-v1`/`jandh-v2` this app already shipped, so those are collected rather than stranded.
 const CACHE_PREFIX = "jandh-v";
 
-// WARN: Bump on any change to what is cached or how. `activate` deletes every other version, and that is the only thing that evicts a stale `OFFLINE_URL`.
-const CACHE_NAME = `${CACHE_PREFIX}3`;
+// WARN: Bump the literal on any change to what is cached or how. `activate` deletes every other version, and that is the only thing that evicts a stale `OFFLINE_URL`.
+// WARN: REQUIREMENTS.md § 16. The build stamp is part of the name, and it is what makes the precache a *replacement* rather than an accumulation. `install` runs on every deploy by design, and every build's chunks are new hashed filenames — under one fixed name they piled into the same cache with nothing ever removing them, ~4.3 MB per deploy until the origin quota refused a write. `addToCache` swallows that rejection, so the first thing to report it would be a mirrored screen the reader had never opened coming up blank, months later.
+// WARN: Read off this script's own URL, which is the only place the build exists here — `sw.js` is served raw so its bytes cannot carry it (`push-registration.ts` hangs it on the query instead). Dev registers `?nocache=1` and lands on the `0` below, which is stable, and correct, since caching is off there anyway.
+const CACHE_VERSION = new URL(self.location.href).searchParams.get("v") ?? "0";
+
+const CACHE_NAME = `${CACHE_PREFIX}3-${CACHE_VERSION}`;
 
 // INFO: REQUIREMENTS.md § 16. Content-hashed build output — a changed file gets a new URL, so a hit can never be the previous deploy's bytes. This is what makes caching safe here at all.
 // WARN: `/icons/` is deliberately absent. `pnpm icons` regenerates `icon-192.png` and the splash set **in place**, under fixed names, so a cache-first entry would serve the old artwork on every installed client until `CACHE_NAME` moved — and nothing ties the two together.
