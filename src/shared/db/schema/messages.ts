@@ -44,6 +44,13 @@ export const messages = pgTable(
     emoticonItemId: snowflake<EmoticonItemId>("emoticon_item_id").references(
       () => emoticonItems.id,
     ),
+    // INFO: REQUIREMENTS.md § 13. One id per U+FFFC in `text`, in that order and repeats included, so every message written before this column is already a valid empty case.
+    // WARN: Not a foreign key, and it cannot become one — Postgres constrains no array element. A deleted item keeps its `emoticon_items` row (§ 13.) precisely so the id here still resolves to a box.
+    inlineEmoticonItemIds: text("inline_emoticon_item_ids")
+      .array()
+      .$type<EmoticonItemId[]>()
+      .notNull()
+      .default([]),
     // WARN: `set null` — a deleted event still has its "deleted" system message, which then has nothing to navigate to.
     eventId: snowflake<EventId>("event_id").references(() => events.id, { onDelete: "set null" }),
     systemAction: systemActionEnum("system_action"),
@@ -81,6 +88,11 @@ export const messages = pgTable(
     check("messages_system_no_reply_check", sql`"type" <> 'system' OR "reply_to_id" IS NULL`),
     // INFO: REQUIREMENTS.md § 8.13. Only text is editable — an attachment and an emoticon carry no prose to correct, and a system notice is timeline furniture (DESIGN.md § 6.5.).
     check("messages_edited_is_text_check", sql`"edited_at" IS NULL OR "type" = 'text'`),
+    // INFO: Left out of the CASE above for the reason the two checks beside it are — it constrains one branch, and folding it in would mean restating all four.
+    check(
+      "messages_inline_emoticons_are_text_check",
+      sql`"type" = 'text' OR cardinality("inline_emoticon_item_ids") = 0`,
+    ),
   ],
 );
 

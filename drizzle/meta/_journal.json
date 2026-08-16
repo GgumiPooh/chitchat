@@ -316,6 +316,13 @@
       "when": 1786810986773,
       "tag": "0044_storage_reservations_and_purge",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1786892178812,
+      "tag": "0045_mini_emoticon_packs",
+      "breakpoints": true
     }
   ]
 }

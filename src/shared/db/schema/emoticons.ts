@@ -5,6 +5,7 @@ import {
   check,
   index,
   numeric,
+  pgEnum,
   pgTable,
   primaryKey,
   smallint,
@@ -17,10 +18,15 @@ import { snowflake } from "../types";
 import { media } from "./media";
 import { users } from "./users";
 
+// INFO: REQUIREMENTS.md § 13. The only place the two kinds are distinguished — an item's kind is derived from its pack, so `emoticon_items` carries no column of its own.
+export const emoticonPackTypeEnum = pgEnum("emoticon_pack_type", ["emoticon", "mini"]);
+
 // INFO: REQUIREMENTS.md § 13. Packs are authored in the app, never seeded — there is no `scripts/seed-emoticons.ts`.
 export const emoticonPacks = pgTable("emoticon_packs", {
   id: snowflake<EmoticonPackId>("id").primaryKey(),
   name: text("name").notNull(),
+  // WARN: Read it as a required argument rather than an optional filter (§ 13.). A caller that may omit it is a mini leaking into the picker, and that is the only real failure mode this column has.
+  type: emoticonPackTypeEnum("type").notNull().default("emoticon"),
   // WARN: REQUIREMENTS.md § 13.2. A cycle with `emoticon_items`, so the constraint is added by a separate ALTER TABLE. `set null`, because removing the item a pack uses as its tab icon must not remove the pack.
   thumbnailItemId: snowflake<EmoticonItemId>("thumbnail_item_id").references(
     (): AnyPgColumn => emoticonItems.id,
@@ -51,6 +57,9 @@ export const emoticonItems = pgTable(
     // INFO: The finished restructure. 목록에서 내리기, which either participant may do — the picker is shared vocabulary. The item leaves the picker, search and 최근 사용, and every bubble that already carries it renders exactly as before.
     // WARN: This is the whole answer to "a used emoticon cannot be deleted". `messages.emoticon_item_id` has no `onDelete`, so NO ACTION blocks the delete, and `messages_type_payload_check` forbids the `set null` that would otherwise resolve it — neither is changed, because an emoticon is nobody's record and a tombstone would mark both participants' bubbles at once (§ 4.4.). An item nothing has sent is still deleted outright, which already works.
     retiredAt: timestamp("retired_at", { withTimezone: true }),
+    // WARN: 삭제, and deliberately not `retired_at` above — that one keeps every bubble drawing the item, and reusing it would change what an emoticon's 목록에서 내리기 already does.
+    // INFO: Soft for the reason `media.deleted_at` is: the box a bubble reserves is on the row, so the replacement drawn in its place needs the row to survive the asset.
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
     index("emoticon_items_pack_id_sort_order_idx").on(table.packId, table.sortOrder),
@@ -117,5 +126,7 @@ export type EmoticonKeyword = typeof emoticonKeywords.$inferSelect;
 export type EmoticonItem = typeof emoticonItems.$inferSelect;
 
 export type EmoticonPack = typeof emoticonPacks.$inferSelect;
+
+export type EmoticonPackType = (typeof emoticonPackTypeEnum.enumValues)[number];
 
 export type UserEmoticonPref = typeof userEmoticonPrefs.$inferSelect;
