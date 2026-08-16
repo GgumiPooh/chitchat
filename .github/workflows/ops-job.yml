@@ -31,6 +31,11 @@ on:
         required: false
         default: false
         type: boolean
+      notify-email:
+        description: Who to notify, when a person asked for this run. Empty means the default account.
+        required: false
+        default: ""
+        type: string
 
 jobs:
   run:
@@ -132,6 +137,8 @@ jobs:
           R2_BUCKET: ${{ vars.R2_BUCKET || 'jandh' }}
           VAPID_SUBJECT: ${{ vars.VAPID_SUBJECT || 'mailto:jeheecheon@gmail.com' }}
           BACKUP_NOTIFY_EMAIL: ${{ vars.BACKUP_NOTIFY_EMAIL || 'jeheecheon@gmail.com' }}
+          # INFO: Empty on a scheduled run, which then falls back to the address above.
+          OPS_NOTIFY_EMAIL: ${{ inputs.notify-email }}
           ORPHAN_MAX_DELETE_RATIO: ${{ vars.ORPHAN_MAX_DELETE_RATIO || '0.5' }}
           PURGE_NOTIFY: ${{ inputs.notify }}
           SWEEP_DRY_RUN: ${{ inputs.dry-run }}

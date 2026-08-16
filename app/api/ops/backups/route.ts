@@ -1,6 +1,11 @@
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { dispatchOpsWorkflow, isOpsDispatchConfigured, OPS_BACKUP_WORKFLOW } from "@/shared/ops";
+import {
+  dispatchOpsWorkflow,
+  isOpsDispatchConfigured,
+  OPS_BACKUP_WORKFLOW,
+  toDispatchErrorCode,
+} from "@/shared/ops";
 import { listBackups } from "@/shared/storage";
 import { NextResponse } from "next/server";
 
@@ -33,7 +38,9 @@ export async function GET() {
  * screen says 요청했어요 and the run's push notification is what reports the outcome.
  */
 export async function POST() {
-  if (!(await getCurrentUser())) {
+  const requester = await getCurrentUser();
+
+  if (!requester) {
     return apiError("unauthorized");
   }
 
@@ -42,11 +49,16 @@ export async function POST() {
     return apiError("unavailable");
   }
 
+  /**
+   * WARN: The requester's own address, not the deployment default. 서버 관리 is reachable
+   * by BOTH allowlisted accounts and the modal promises the result by notification, so a
+   * fixed recipient answers on the other person's phone and leaves the presser with nothing.
+   */
   try {
-    await dispatchOpsWorkflow(OPS_BACKUP_WORKFLOW);
+    await dispatchOpsWorkflow(OPS_BACKUP_WORKFLOW, { "notify-email": requester.email });
 
     return NextResponse.json({ accepted: true }, { status: 202 });
-  } catch {
-    return apiError("upstream_failed");
+  } catch (error) {
+    return apiError(toDispatchErrorCode(error));
   }
 }

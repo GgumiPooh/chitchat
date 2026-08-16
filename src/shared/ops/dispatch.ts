@@ -80,3 +80,20 @@ export class OpsDispatchError extends Error {
     this.name = "OpsDispatchError";
   }
 }
+
+/**
+ * The § 14. code a refused dispatch answers with.
+ *
+ * WARN: A rejected or under-scoped token is `unavailable`, not `upstream_failed`. It is a
+ * misconfiguration of this deployment rather than a run that went wrong, and the screen
+ * turns the two into different sentences — "잠시 후 다시 시도해 주세요" is advice that can
+ * never come true for a token missing `actions: write`.
+ *
+ * WARN: A 404 belongs in that set. GitHub answers 404 rather than 403 for a repository a
+ * token may not see, so it is far likelier to be the token's scope than a missing workflow.
+ */
+export function toDispatchErrorCode(error: unknown): "unavailable" | "upstream_failed" {
+  const status = error instanceof OpsDispatchError ? error.status : 0;
+
+  return status === 401 || status === 403 || status === 404 ? "unavailable" : "upstream_failed";
+}

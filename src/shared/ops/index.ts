@@ -5,4 +5,5 @@ export {
   OpsDispatchError,
   dispatchOpsWorkflow,
   isOpsDispatchConfigured,
+  toDispatchErrorCode,
 } from "./dispatch";

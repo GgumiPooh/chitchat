@@ -1,6 +1,6 @@
 import { DormantRequestError } from "@/shared/api";
 
-/** REQUIREMENTS.md § 12.4. A non-2xx from this app's `/api/ops/` proxy, carrying the status the screen branches on. */
+/** REQUIREMENTS.md § 12.4. A non-2xx from this app's `/api/ops/` routes, carrying the status the screen branches on. */
 export class OpsRequestError extends Error {
   readonly status: number;
 
@@ -12,11 +12,11 @@ export class OpsRequestError extends Error {
 }
 
 /**
- * The sentence the result modal shows under a failed run.
+ * The sentence the result modal shows when a run could not be ASKED for.
  *
- * WARN: Never points at the push. jandh-ops sends its result to `BACKUP_NOTIFY_EMAIL`
- * alone (one account of the two), so whoever pressed the button may be the participant
- * that notification will never reach — this modal is the only report they are promised.
+ * INFO: These are all failures of the request, never of the run. A dispatch that GitHub
+ * accepted is reported by the run's own push, which now goes to whoever pressed the button
+ * (§ 12.4.) rather than to one fixed account.
  */
 export function describeOpsFailure(error: unknown): string {
   if (error instanceof DormantRequestError) {
@@ -30,11 +30,9 @@ export function describeOpsFailure(error: unknown): string {
   switch (error.status) {
     case 401:
       return "로그인이 만료됐어요. 다시 로그인해 주세요";
+    // INFO: § 12.4. Either no dispatch token is set, or the one that is cannot write to Actions — a deployment problem rather than a run that failed, and one no retry can fix.
     case 503:
-      return "서버에 연결하지 못했어요";
-    // INFO: § 14.'s `upstream_timeout` — the connection was cut while jandh-ops kept working, so this is the one failure that is not one.
-    case 504:
-      return "응답이 오래 걸려 결과를 받지 못했어요. 아직 진행 중일 수 있어요";
+      return "실행을 요청할 수 없는 상태예요. 설정을 확인해 주세요";
     default:
       return "잠시 후 다시 시도해 주세요";
   }

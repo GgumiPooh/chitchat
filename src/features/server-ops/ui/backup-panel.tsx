@@ -12,7 +12,7 @@ import { OpsResultModal, type OpsResult } from "./ops-result-modal";
 export type BackupPanelProps = {
   className?: string;
   /**
-   * Whether jandh-ops is reachable, which is what 백업 생성 needs and nothing else here does.
+   * Whether a run can be dispatched, which is what 백업 생성 needs and nothing else here does.
    *
    * INFO: REQUIREMENTS.md § 12.4. `pg_dump` is a binary this app does not carry, so a run
    * has to be asked for. The list and the deletion read R2 directly and stay either way —
@@ -23,7 +23,7 @@ export type BackupPanelProps = {
 
 const BACKUPS_QUERY_KEY = ["ops", "backups"];
 
-// INFO: The retention limit jandh-ops keeps, so the skeleton is never taller than the list it stands in for.
+// INFO: `MAX_BACKUPS` in `scripts/ops/backup.ts`, so the skeleton is never taller than the list it stands in for.
 const SKELETON_KEYS = ["a", "b", "c"];
 
 /**

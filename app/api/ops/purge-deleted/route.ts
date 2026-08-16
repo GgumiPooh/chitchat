@@ -1,6 +1,11 @@
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { dispatchOpsWorkflow, isOpsDispatchConfigured, OPS_PURGE_WORKFLOW } from "@/shared/ops";
+import {
+  dispatchOpsWorkflow,
+  isOpsDispatchConfigured,
+  OPS_PURGE_WORKFLOW,
+  toDispatchErrorCode,
+} from "@/shared/ops";
 import { NextResponse } from "next/server";
 
 /**
@@ -16,7 +21,9 @@ import { NextResponse } from "next/server";
  * schedule — see `ops-purge.yml`.
  */
 export async function POST() {
-  if (!(await getCurrentUser())) {
+  const requester = await getCurrentUser();
+
+  if (!requester) {
     return apiError("unauthorized");
   }
 
@@ -24,11 +31,16 @@ export async function POST() {
     return apiError("unavailable");
   }
 
+  /**
+   * WARN: The requester's own address, not the deployment default. 서버 관리 is reachable
+   * by BOTH allowlisted accounts and the modal promises the result by notification, so a
+   * fixed recipient answers on the other person's phone and leaves the presser with nothing.
+   */
   try {
-    await dispatchOpsWorkflow(OPS_PURGE_WORKFLOW);
+    await dispatchOpsWorkflow(OPS_PURGE_WORKFLOW, { "notify-email": requester.email });
 
     return NextResponse.json({ accepted: true }, { status: 202 });
-  } catch {
-    return apiError("upstream_failed");
+  } catch (error) {
+    return apiError(toDispatchErrorCode(error));
   }
 }

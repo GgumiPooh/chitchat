@@ -53,8 +53,18 @@ async function main() {
 
   console.log(`[purge] ${reclaimed} object(s) reclaimed over ${passes} pass(es)`);
 
-  if (isNotifyEnabled() && reclaimed > 0) {
-    await notifyOps("삭제 파일 회수 완료", `미디어 ${media}개 · 예약 ${claims}개 회수`);
+  /**
+   * WARN: A run that reclaimed NOTHING still notifies, and that is the case the button
+   * depends on. The schedule drains the queue every ten minutes, so 지금 회수하기 usually
+   * finds it already empty — guarding this on `reclaimed > 0` left the panel promising a
+   * banner that, in its most likely outcome, never came. Notifying is opt-in precisely so
+   * that whoever turned it on is waiting for an answer, and "nothing to reclaim" is one.
+   */
+  if (isNotifyEnabled()) {
+    await notifyOps(
+      "삭제 파일 회수 완료",
+      reclaimed === 0 ? "회수할 파일 없음" : `미디어 ${media}개 · 예약 ${claims}개 회수`,
+    );
   }
 }
 

@@ -5,7 +5,7 @@ import { Button, Modal } from "@/shared/ui";
 
 export type OpsResultLine = { label: string; value: string };
 
-/** REQUIREMENTS.md § 12.4. What jandh-ops answered, read back on the spot — the push it also sends can arrive on another device. */
+/** REQUIREMENTS.md § 12.4. What a control has to say on the spot. For the three dispatching ones that is the REQUEST — the run reports itself, by push. */
 export type OpsResult = {
   title: string;
   description?: string;

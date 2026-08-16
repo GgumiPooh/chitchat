@@ -13,13 +13,21 @@ import { pushToUser } from "../../src/entities/push-subscription/api/push-to-use
 /* eslint-enable no-restricted-imports */
 
 /**
- * REQUIREMENTS.md § 12.4. The account the scheduled ops runs report to, matched on
- * `users.email`.
+ * REQUIREMENTS.md § 12.4. The account this run reports to, matched on `users.email`.
  *
  * INFO: One of the two participants, deliberately. These banners are operational rather
  * than social, and the other person has no use for 백업 성공 at five in the morning.
+ *
+ * WARN: A hand-started run overrides it with the address of whoever pressed the button.
+ * 서버 관리 is reachable by BOTH allowlisted accounts and its modal promises the result by
+ * notification, so a fixed recipient sends the answer to the other person's phone and
+ * leaves the presser with nothing — which is the one failure the panels cannot survive,
+ * since the modal deliberately reports the request rather than the outcome.
  */
-const NOTIFY_EMAIL = process.env.BACKUP_NOTIFY_EMAIL?.trim() || "jeheecheon@gmail.com";
+const NOTIFY_EMAIL =
+  process.env.OPS_NOTIFY_EMAIL?.trim() ||
+  process.env.BACKUP_NOTIFY_EMAIL?.trim() ||
+  "jeheecheon@gmail.com";
 
 // Keep a failure reason readable in a banner instead of dumping a whole `pg_dump` stderr.
 const BODY_MAX_LENGTH = 200;
