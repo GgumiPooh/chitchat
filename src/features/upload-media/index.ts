@@ -7,6 +7,7 @@ export {
   type EmoticonImageDrafts,
 } from "./model/read-emoticon-image";
 export { revokePreview } from "./model/revoke-preview";
+export { toTransferFiles } from "./model/to-transfer-files";
 export { isWithinDuration, trimVideo, type TrimRange } from "./model/trim-video";
 export { useAttachmentEditing, type AttachmentEditing } from "./model/use-attachment-editing";
 export { useFileDrop, type FileDropHandlers } from "./model/use-file-drop";
