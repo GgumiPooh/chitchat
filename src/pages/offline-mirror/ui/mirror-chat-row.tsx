@@ -69,7 +69,8 @@ export function MirrorChatRow({
         {!isMine && isFirstOfGroup && (
           <span className="px-2xs text-chat-name text-chat-sender">{sender?.name}</span>
         )}
-        <div className={cn("flex items-end gap-2xs", isMine && "flex-row-reverse")}>
+        {/* WARN: DESIGN.md § 6.2. `max-w-full` is what holds the bubble inside the column's `max-w-[72%]` — the column aligns rather than stretches, so this stack is sized `fit-content`, which floors at min-content. */}
+        <div className={cn("flex max-w-full items-end gap-2xs", isMine && "flex-row-reverse")}>
           {renderBody()}
           {(isLastOfGroup || message.editedAt) && (
             <div className="flex w-14 shrink-0 flex-col items-end text-chat-time whitespace-nowrap text-chat-meta">
@@ -121,8 +122,10 @@ export function MirrorChatRow({
 
   function toBubbleClassName() {
     // INFO: DESIGN.md § 6.2. The notch marks the sender's side and only on the first bubble of a group.
+    // WARN: DESIGN.md § 4.2.3. The arbitrary property and never `break-normal`, which would take `overflow-wrap` with it and leave a long URL overflowing the column.
+    // WARN: `min-w-0` is the other half of the stack's `max-w-full` — a flex item does not shrink below its own min-content, and the quote's `truncate` is min-content the whole width of its line.
     return cn(
-      "rounded-bubble px-sm py-xs text-chat-body break-words wrap-anywhere whitespace-pre-wrap text-bubble-ink",
+      "min-w-0 rounded-bubble px-sm py-xs text-chat-body wrap-anywhere [word-break:normal] whitespace-pre-wrap text-bubble-ink",
       isMine ? "bg-bubble-mine" : "border border-hairline bg-bubble-theirs",
       isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
     );
@@ -159,7 +162,7 @@ export function MirrorChatRow({
     );
   }
 
-  function renderAttachment(media: ChatMedia) {
+  function renderAttachment(media: ChatMedia, index: number) {
     if (media.filename) {
       return <FileCard key={media.id} filename={media.filename} sizeBytes={media.size} disabled />;
     }
@@ -170,6 +173,8 @@ export function MirrorChatRow({
         className="rounded-bubble"
         cell={toMirrorCell(media)}
         maxWidth={ATTACHMENT_WIDTH}
+        // INFO: Once per bubble. The boxes are stacked rather than gridded here, so the second one down would be the same sentence twice on one message.
+        isIconOnly={index > 0}
       />
     );
   }

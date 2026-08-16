@@ -80,10 +80,13 @@ export function MirrorArchive({ className, shelf }: MirrorArchiveProps) {
     if (shelf === "gallery") {
       // INFO: A tile and not a control. The viewer it would open needs the object itself, which is never cached (§ 16.), so there is nothing behind the tap to offer.
       return (
+        // WARN: The icon alone. A shelf draws nine of these at once, and the sentence repeated down the grid reads as a wall of type rather than as nine photos — `MirrorMediaBox` keeps it as the tile's `aria-label`.
         <MirrorMediaBox
           key={item.id}
-          className="aspect-square rounded-sm"
+          className="rounded-sm"
           cell={toMirrorCell(item)}
+          isSquare
+          isIconOnly
         />
       );
     }
