@@ -390,6 +390,54 @@ export function ChatRoom({
   // WARN: REQUIREMENTS.md § 13.8. The search tab is the one exemption from the keyboard gate, because its field is the keyboard's reason for being up — it is drawn one row tall precisely so it fits in what the keyboard leaves. Keyed on the tab and never on that field's focus: a blur and the keyboard's retraction are separate frames, and between them the unexempted panel closes underneath the user.
   const isEmoticonPanelOpen =
     isEmoticonPickerOpen && (!isKeyboardOpen || isEmoticonSearchExempt) && !isSearching;
+  /**
+   * REQUIREMENTS.md § 13.6. The composer stands down for as long as § 13.8.'s tab
+   * holds the keyboard, so what the keys leave is the panel and the staged preview
+   * alone.
+   *
+   * WARN: § 13.6.'s clamp on the preview is the whole reason. With the keys up the
+   * viewport is short enough that the `min()` below takes its second arm, so the
+   * preview is drawn overlapping the panel's top rows — on this tab by more than half
+   * its height, which is a staged emoticon the user cannot see at all. The composer is
+   * the one box in the stack nothing can reach at that moment: touching its field
+   * closes the panel (`onFieldFocus`), so it holds a row open for a control the
+   * keyboard has already taken the purpose out of. Out of the flow, the wrapper this
+   * hangs from is bottom-anchored, so everything above it moves down by its height and
+   * the clamp stops binding.
+   *
+   * WARN: Keyed on the tab and **never** additionally on `stagedEmoticon`, which is
+   * where this first went wrong. That term made the first tap of § 13.6.'s double tap
+   * the thing that hid the composer — so the results row dropped ~70px, out from under
+   * a finger inside a 333ms window, and the second tap landed on a different cell.
+   * `handleSelect` only sends on a repeated id, so quick-send simply stopped working.
+   * Hiding on arrival at the tab moves the row while nothing is mid-gesture.
+   *
+   * WARN: `isEmoticonSearchExempt` and not `isEmoticonSearchTab`, so this retracts on
+   * the schedule the panel already retracts on. Read off the raw tab flag it dropped
+   * the frame 검색 was left, while the keyboard was still 250ms from being down — the
+   * composer popping back into a viewport that had not grown yet, re-binding the clamp
+   * and throwing the preview behind the panel and out again.
+   *
+   * INFO: `isKeyboardOpen` holds this to the case that has the problem. A pointer opens
+   * the same tab against the whole viewport, where the clamp never binds and the
+   * composer costs the preview nothing.
+   *
+   * WARN: `useIsVirtualKeyboardOpen` says it is never to branch layout (AGENTS.md
+   * § 4.2.), and this is inside that rule rather than an exception to it. What § 4.2.
+   * protects is the fine-pointer reader, shown the same UI and never a lesser one — and
+   * the flag is gated on `useIsCoarsePointer`, so it is false there and this composer
+   * never moves. It is also the term `isEmoticonPanelOpen` above is already written on,
+   * for § 13.6.'s reason: what the keyboard covers is this exact stack, so the stack is
+   * the one place the flag describes geometry rather than guessing at a device.
+   *
+   * WARN: § 13.8.'s two-bubble send is the cost, and it is a real one. `submit` is the
+   * only path that posts a sentence beside the emoticon it went looking for, and it is
+   * the composer's own — so while this holds, a draft is neither visible nor sendable
+   * and the reader has to put the keyboard down to reach it. Recorded rather than
+   * solved: against it, the preview was previously not visible at all.
+   */
+  const isComposerYielded =
+    isEmoticonPanelOpen && isEmoticonSearchExempt && isKeyboardOpen && editingId === null;
   // WARN: REQUIREMENTS.md § 9.3. The shared element outlives every bubble that addresses it, so leaving the room has to stop it. Unlike § 13.6.'s two-second ping a recording runs for minutes, and no screen outside this one draws a transport that could pause it.
   useEffect(() => stopVoice, []);
   // WARN: REQUIREMENTS.md § 9.3. The recorder is closed by the search rather than hidden with the rest of the stack. `hidden` + `inert` leaves the microphone open with both 취소 and 완료 unreachable, and `MAX_VOICE_DURATION` then sends a recording the user walked away from two minutes earlier.
@@ -1186,6 +1234,7 @@ export function ChatRoom({
             )}
             {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
             {/* WARN: § 13.6. wants the preview above the open panel, but the panel is half the shell — `bottom-full` alone puts it behind the floating header on a short viewport and off the top of the screen below ~604px, which is the panel not appearing to stage at all. The `min()` stops it at the header and lets it overlap the panel's top rows instead, which only happens where something has to give. */}
+            {/* INFO: § 13.8. The search tab used to be where it gave the most — the keyboard takes the viewport down far enough that the second arm won by more than half this box, so the staged emoticon was covered rather than merely crowded. `isComposerYielded` buys that back out of the composer's own row instead. */}
             {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, for the reason the tray above is — it is still staged and it returns on cancel. */}
             {stagedEmoticon && editingId === null && (
               <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--viewport-height,100dvh)_-_var(--bottom-inset)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))]">
@@ -1230,7 +1279,9 @@ export function ChatRoom({
                 />
               )}
             </div>
+            {/* WARN: § 13.6. `hidden`, never a conditional subtree, for the reason the search's own hide above carries — the draft lives in this component's state and unmounting it discards a typed message along with its `useUnsentWork` hold. `display: none` is also the half that does the work: it takes the composer out of the wrapper `useComposerClearance` measures, which is what lowers the stack and hands the preview its room back. */}
             <MessageComposer
+              className={cn(isComposerYielded && "hidden")}
               hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
               isEmoticonPickerOpen={isEmoticonPanelOpen}
               keywordConsumeToken={keywordConsumeToken}
