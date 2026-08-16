@@ -172,7 +172,7 @@ export function EditableField({
     <div className={cn("relative", className)}>
       <div
         ref={takeField}
-        className={cn("break-words whitespace-pre-wrap outline-none", fieldClassName)}
+        className={cn("whitespace-pre-wrap outline-none", fieldClassName)}
         contentEditable
         suppressContentEditableWarning
         role="textbox"

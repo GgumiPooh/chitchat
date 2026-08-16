@@ -37,7 +37,8 @@ import { toEmoticonKeywordsQuery } from "../model/keywords-query";
  * off the word it belongs to.
  */
 // WARN: DESIGN.md § 6.6. The vertical padding is what makes the field's *natural* height exactly the `min-h-11` beside it — 10.75+22.5+10.75 = 44. Nothing here can centre its text, so any height `min-height` adds over the intrinsic one is slack that lands entirely under the line, and the single line the composer opens on then sits above the discs it shares the pill with.
-const FIELD_BOX = "px-2xs py-[10.75px] text-body-md leading-normal";
+// WARN: DESIGN.md § 4.2.3. `break-all` is this field's departure from the app-wide `keep-all`, and it is stated here so it cannot reach the field without the layer.
+const FIELD_BOX = "px-2xs py-[10.75px] text-body-md leading-normal break-all";
 
 // WARN: Hoisted so the pending query answers one array identity — an inline `= []` re-runs the match on every render of a field being typed into.
 const NO_KEYWORDS: string[] = [];
@@ -473,8 +474,8 @@ function KeywordLayer({ ref, className, text, match, onTap }: KeywordLayerProps)
       ref={ref}
       className={cn(
         "pointer-events-none absolute inset-0 overflow-hidden text-transparent select-none",
-        // WARN: `whitespace-pre-wrap break-words` is the textarea's own wrapping. Anything else re-flows the runs and the mark drifts a word further off with every line.
-        "break-words whitespace-pre-wrap",
+        // WARN: The field's own whitespace rule, beside the word-break `FIELD_BOX` carries. Anything else re-flows the runs and the mark drifts a word further off with every line.
+        "whitespace-pre-wrap",
         FIELD_BOX,
         className,
       )}
