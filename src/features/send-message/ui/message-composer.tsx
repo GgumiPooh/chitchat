@@ -111,10 +111,10 @@ export type MessageComposerProps = {
    * emoticon chosen twice is two instructions, and comparing the item alone would make
    * the second one no change at all.
    *
-   * INFO: Appended to the draft rather than inserted at the caret — § 13.6.'s panel may
-   * not share the screen with the keyboard, so the field is blurred before anything in
-   * it can be chosen and there is no live caret to insert at. The field leaves the caret
-   * after the emoticon, so typing carries on past it.
+   * INFO: § 8.14. Put in at the caret the field last held, with no branch on whether
+   * that caret is live — § 13.6.'s panel blurs the field to open, and `EditableField`
+   * remembers the position across that. The field then leaves the caret past what was
+   * inserted, so a run of them goes in in order.
    */
   insertedEmoticon?: { emoticon: ComposerEmoticon; token: number };
   /** REQUIREMENTS.md § 8.13. The field is correcting a message rather than composing one, so the controls that stage a *new* payload have nothing to act on. */
@@ -194,6 +194,8 @@ export function MessageComposer({
     [exposedFieldRef],
   );
   const layerRef = useRef<Nullable<HTMLDivElement>>(null);
+  // INFO: § 8.14. Where the field last held its caret, which is where an emoticon from the picker goes in. Written by the field itself; null until it has held one.
+  const caretOffsetRef = useRef<Nullable<number>>(null);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   // INFO: REQUIREMENTS.md § 8.13. The last seed this component has taken, so the render-phase adjustment below fires once per instruction rather than on every render.
   const [seenSeedToken, setSeenSeedToken] = useState(seededDraft?.token);
@@ -284,17 +286,15 @@ export function MessageComposer({
    */
   if (insertedEmoticon !== undefined && insertedEmoticon.token !== seenInsertToken) {
     setSeenInsertToken(insertedEmoticon.token);
+
+    // WARN: Read outside the updater, which must stay pure — this is the field's own DOM position rather than anything derivable from the draft.
+    const caret = caretOffsetRef.current;
+
     setDraft((current) =>
       // INFO: REQUIREMENTS.md § 13. The send is refused past this many ids, so the field stops taking them rather than building a draft the server will not accept.
       current.emoticons.length >= MAX_EMOTICON_ID_LOOKUP
         ? current
-        : {
-            text: current.text + OBJECT_PLACEHOLDER,
-            emoticons: [
-              ...current.emoticons,
-              { ...insertedEmoticon.emoticon, key: `${insertedEmoticon.token}` },
-            ],
-          },
+        : toInsertedDraft(current, insertedEmoticon, caret),
     );
   }
 
@@ -374,6 +374,7 @@ export function MessageComposer({
           maxLength={MAX_MESSAGE_LENGTH}
           value={draft.text}
           objects={objects}
+          caretOffsetRef={caretOffsetRef}
           // INFO: § 8.14. The pointer decides it and nothing else: a mouse means a keyboard is there to press, and whether the app is installed says nothing about that. The hint alone, since `aria-label` below already names the field.
           // INFO: § 8.14. Read inside the ternary, which is what keeps `toCommandKeyLabel`'s platform guess out of the server's HTML.
           placeholder={isFinePointer ? `${toCommandKeyLabel()} + / 단축키 보기` : "메시지 입력"}
@@ -665,6 +666,36 @@ function toSurviving(emoticons: StagedEmoticon[], keys: string[]): StagedEmotico
   return keys
     .map((key) => byKey.get(key))
     .filter((emoticon): emoticon is StagedEmoticon => emoticon !== undefined);
+}
+
+/**
+ * REQUIREMENTS.md § 8.14. The draft with an emoticon written into it at `caret`, and at
+ * its end for a field that has never held one.
+ *
+ * WARN: Spliced into `emoticons` rather than pushed onto it. REQUIREMENTS.md § 6. pairs
+ * the Nth placeholder with the Nth id, so an emoticon inserted mid-draft and appended to
+ * the array renames every emoticon after it — the picture the reader put in the middle
+ * lands at the end of their sentence, and every other one shifts by one.
+ *
+ * WARN: The caret is clamped rather than trusted. It is a position in the draft the
+ * field last reported, and the send that empties this one goes nowhere near it.
+ */
+function toInsertedDraft(
+  current: Draft,
+  { emoticon, token }: NonNullable<MessageComposerProps["insertedEmoticon"]>,
+  caret: Nullable<number>,
+): Draft {
+  const at = Math.min(caret ?? current.text.length, current.text.length);
+  const index = toPlaceholderIndex(current.text, at);
+
+  return {
+    text: `${current.text.slice(0, at)}${OBJECT_PLACEHOLDER}${current.text.slice(at)}`,
+    emoticons: [
+      ...current.emoticons.slice(0, index),
+      { ...emoticon, key: `${token}` },
+      ...current.emoticons.slice(index),
+    ],
+  };
 }
 
 // INFO: REQUIREMENTS.md § 8.13. The seed's own token keys the emoticons it brings, so a re-seed of the same message is not two drafts holding one set of keys.

@@ -14,6 +14,7 @@ import {
   type PropsWithChildren,
   type ReactNode,
   type Ref,
+  type RefObject,
   type UIEvent,
 } from "react";
 import { createPortal } from "react-dom";
@@ -59,6 +60,16 @@ export type EditableFieldProps = PropsWithChildren<{
    * offset of everything after it belongs to the text, not to this array.
    */
   objects?: readonly EditableObject[];
+  /**
+   * Where the caret stands in `value`, published for a caller that writes *into* the
+   * draft — REQUIREMENTS.md § 13.6.'s mini.
+   *
+   * WARN: The caret the field last held, which is not always a live one: the panel that
+   * inserts is opened by blurring this field, and § 8.14. inserts at that position with
+   * no branch. Null only while the field has never held one, where the caller means the
+   * end of the draft.
+   */
+  caretOffsetRef?: RefObject<Nullable<number>>;
   placeholder?: string;
   maxLength?: number;
   "aria-label": string;
@@ -90,6 +101,7 @@ export function EditableField({
   placeholderClassName,
   value,
   objects = NO_OBJECTS,
+  caretOffsetRef,
   placeholder,
   maxLength,
   children,
@@ -148,13 +160,19 @@ export function EditableField({
 
       if (field.contains(range.commonAncestorContainer)) {
         caretRef.current = range.cloneRange();
+
+        const offset = toRangeOffset(field, range);
+
+        if (caretOffsetRef && offset !== null) {
+          caretOffsetRef.current = offset;
+        }
       }
     }
 
     document.addEventListener("selectionchange", remember);
 
     return () => document.removeEventListener("selectionchange", remember);
-  }, []);
+  }, [caretOffsetRef]);
 
   useEffect(() => {
     const field = fieldRef.current;
@@ -178,9 +196,15 @@ export function EditableField({
      * addressed were the ones just replaced — a field that is not focused restores from
      * it later.
      */
-    const caret = toRangeAt(field, toEditCaret(previous, value));
+    const offset = toEditCaret(previous, value);
+    const caret = toRangeAt(field, offset);
 
     caretRef.current = caret.cloneRange();
+
+    // WARN: Published here as well as from `remember`, and this is the write that matters for an insertion made with the field blurred — nothing selects, so no `selectionchange` follows to measure. It is what puts the *next* mini after the one just inserted.
+    if (caretOffsetRef) {
+      caretOffsetRef.current = offset;
+    }
 
     if (document.activeElement === field) {
       const selection = document.getSelection();
@@ -188,7 +212,7 @@ export function EditableField({
       selection?.removeAllRanges();
       selection?.addRange(caret);
     }
-  }, [value, objects]);
+  }, [value, objects, caretOffsetRef]);
 
   /**
    * WARN: A native listener rather than React's `onBeforeInput`, because the cancellation
@@ -442,31 +466,32 @@ function isSameHosts(current: readonly HTMLElement[], next: readonly HTMLElement
   return current.length === next.length && current.every((host, index) => host === next[index]);
 }
 
+/** Where the caret sits, counted in the same text `readEditableContent` reports. */
+function toCaretOffset(field: HTMLDivElement): Nullable<number> {
+  const selection = document.getSelection();
+
+  return selection && selection.rangeCount > 0
+    ? toRangeOffset(field, selection.getRangeAt(0))
+    : null;
+}
+
 /**
- * Where the caret sits, counted in the same text `readEditableContent` reports.
+ * Where `range` ends, in that same text.
  *
- * WARN: Measured by reading a clone of everything ahead of the caret rather than by
+ * WARN: Measured by reading a clone of everything ahead of it rather than by
  * `Range.toString()`, which drops the newlines the blocks around it stand for — and the
  * objects, which it reports as nothing at all. Off by one per line or per object, the
  * restored caret drifts a character further back on each of them.
  */
-function toCaretOffset(field: HTMLDivElement): Nullable<number> {
-  const selection = document.getSelection();
-
-  if (!selection || selection.rangeCount === 0) {
-    return null;
-  }
-
-  const caret = selection.getRangeAt(0);
-
-  if (!field.contains(caret.endContainer)) {
+function toRangeOffset(field: HTMLElement, range: Range): Nullable<number> {
+  if (!field.contains(range.endContainer)) {
     return null;
   }
 
   const ahead = document.createRange();
 
   ahead.selectNodeContents(field);
-  ahead.setEnd(caret.endContainer, caret.endOffset);
+  ahead.setEnd(range.endContainer, range.endOffset);
 
   return readEditableContent(ahead.cloneContents()).text.length;
 }

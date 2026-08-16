@@ -16,6 +16,7 @@ import {
   useSendMessage,
   type ComposerEmoticon,
   type EmoticonFocusRequest,
+  type EmoticonMenu,
 } from "@/features/send-message";
 import { useTypingSignal } from "@/features/typing-indicator";
 import {
@@ -314,6 +315,12 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 13.9. An emoticon tapped in the conversation. Where the panel opens is the picker's decision, since the pack list is what settles it.
   const [emoticonReveal, setEmoticonReveal] =
     useState<Nullable<{ emoticon: Emoticon; token: number }>>(null);
+  // INFO: REQUIREMENTS.md § 8.14. The menu `⌘1`/`⌘2`/`⌘3` asked for, carrying a token for `emoticonReveal`'s reason — the same digit twice is two requests, and the second means *close*.
+  const [menuRequest, setMenuRequest] =
+    useState<Nullable<{ menu: EmoticonMenu; token: number }>>(null);
+  // WARN: § 13. A mini the picker put into the draft. The token is the composer's key for it as well as the instruction, so it counts up rather than carrying `Date.now()` — two minis inside one millisecond would be one key, and the draft could no longer say which of them a Backspace took.
+  const [insertedEmoticon, setInsertedEmoticon] =
+    useState<Optional<{ emoticon: ComposerEmoticon; token: number }>>(undefined);
   // INFO: § 13.8. The one tab exempt from § 13.6.'s keyboard gate, reported by the picker because the tab is its own state.
   const [isEmoticonSearchTab, setIsEmoticonSearchTab] = useState(false);
   // INFO: § 13.8. The same exemption, held open for as long as the keyboard that tab raised takes to leave.
@@ -873,10 +880,31 @@ export function ChatRoom({
     onShowShortcuts: () => setIsShortcutHelpOpen(true),
     onToggleEmoticonPanel: toggleEmoticonPanel,
     onOpenEmoticonSearch: toggleEmoticonSearch,
+    onSelectEmoticonMenu: selectEmoticonMenu,
     onScrollHistory: scrollHistory,
     onTypeAhead: typeIntoComposer,
     onPasteText: pasteIntoComposer,
   });
+
+  /**
+   * REQUIREMENTS.md § 8.14. Focus into the panel a `⌘1`/`⌘2`/`⌘3` opened, which `⌘E`
+   * takes inside the keystroke itself.
+   *
+   * WARN: An effect rather than a line in `selectEmoticonMenu`, because the menu has to
+   * change first. The picker applies a menu request in an effect of its own — a child's,
+   * which runs ahead of this one in the same flush — where a request made in the same
+   * commit is answered a layout effect *earlier*, on the outgoing menu's first cell,
+   * which then unmounts and leaves focus on `<body>`.
+   *
+   * INFO: A request reaching a panel the digit closed is dropped by the picker, which
+   * takes no focus while it is shut.
+   */
+  useEffect(() => {
+    if (menuRequest) {
+      requestPickerFocus(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuRequest?.token]);
 
   // WARN: Scrolling inside the send handler resolves against the pre-send data, so a message sent from deep in history lands below the fold. The row only exists from this commit onward.
   // WARN: REQUIREMENTS.md § 13.6. A pin and never `scrollToBottom` — a smooth scroll started here outlives the emoticon panel's collapse and steers the history back to the offset the open panel implied.
@@ -1352,9 +1380,13 @@ export function ChatRoom({
                   focusRequest={pickerFocusRequest}
                   searchRequest={emoticonSearch}
                   revealRequest={emoticonReveal}
+                  menuRequest={menuRequest}
                   onSearchTabChange={reportEmoticonSearchTab}
+                  // INFO: § 8.14. The digit of the menu already on screen closes the panel, which is this room's state and never the picker's.
+                  onRequestClose={closeEmoticonPanel}
                   onSelect={stageEmoticon}
                   onQuickSend={sendStagedEmoticon}
+                  onInsert={insertEmoticon}
                 />
               )}
             </div>
@@ -1365,6 +1397,7 @@ export function ChatRoom({
               isEmoticonPickerOpen={isEmoticonPanelOpen}
               keywordConsumeToken={keywordConsumeToken}
               seededDraft={seededDraft}
+              insertedEmoticon={insertedEmoticon}
               isEditing={editingId !== null}
               focusRequest={composerFocusRequest}
               fieldRef={composerFieldRef}
@@ -1795,6 +1828,48 @@ export function ChatRoom({
 
     setIsEmoticonPickerOpen(true);
     requestPickerFocus(true);
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.14. `⌘1` / `⌘2` / `⌘3` — the panel on the menu the digit names.
+   *
+   * WARN: Opened here and closed by the picker's own `onRequestClose`, because only the
+   * panel knows which menu is on screen — a digit naming that one is a request to put it
+   * away. Setting the flag on a panel that is about to close is harmless: the close
+   * lands in the effect flush that follows this render.
+   *
+   * WARN: The blur is `toggleEmoticonPanel`'s, for its reason — § 13.6.'s panel is gated
+   * on the keyboard being down, and a key press lowers no keyboard on its own.
+   *
+   * WARN: § 8.13.'s guard, also `toggleEmoticonPanel`'s: the composer refuses these keys
+   * while correcting and therefore does not prevent them, so they fall straight through
+   * to this room.
+   */
+  function selectEmoticonMenu(menu: EmoticonMenu) {
+    if (isSearching || editingId !== null) {
+      return;
+    }
+
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    setMenuRequest((request) => ({ menu, token: (request?.token ?? 0) + 1 }));
+    setIsEmoticonPickerOpen(true);
+  }
+
+  /**
+   * REQUIREMENTS.md § 13. A mini from the picker, into the composer's draft rather than
+   * staged — § 2.2. stores one as a fragment of a `text` message and never in
+   * `messages.emoticon_item_id`.
+   *
+   * INFO: § 13.8. The name is the item's first keyword, which is all a mini has (§ 2.6.).
+   */
+  function insertEmoticon({ version, width, height, keywords, id }: Emoticon) {
+    setInsertedEmoticon((request) => ({
+      emoticon: { version, width, height, name: keywords[0] ?? null, id },
+      token: (request?.token ?? 0) + 1,
+    }));
   }
 
   /**
