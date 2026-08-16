@@ -49,9 +49,10 @@ export function Switch({
           trackClassName,
         )}
         disabled={disabled}
+        {...props}
+        // WARN: After `props`, never before. Spread ahead of it, a caller's own `aria-disabled` or `aria-describedby` would silently win over the gate's — the control would refuse the tap while telling a screen reader it is fine.
         {...blockedProps}
         onCheckedChange={handleCheckedChange}
-        {...props}
       >
         <SwitchPrimitive.Thumb
           className={cn(

@@ -89,7 +89,7 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
                 variant="floating"
                 Icon={Mic}
                 disabled={isRecording}
-                haptic={!uploadGate.isBlocked}
+                haptic
                 aria-label="녹음"
                 {...uploadGate.blockedProps}
                 onClick={uploadGate.guard(() => setIsRecording(true))}
@@ -98,7 +98,7 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
                 variant="floating"
                 Icon={ListChecks}
                 disabled={media.length === 0 || staging.isUploading}
-                haptic={!selectGate.isBlocked}
+                haptic
                 aria-label="선택"
                 {...selectGate.blockedProps}
                 onClick={selectGate.guard(() => selection.start())}

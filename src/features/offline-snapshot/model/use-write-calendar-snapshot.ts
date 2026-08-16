@@ -1,6 +1,6 @@
 "use client";
 
-import { useWriteSnapshot } from "@/shared/snapshot";
+import { useSnapshotOwner, useWriteSnapshot } from "@/shared/snapshot";
 import { useMemo } from "react";
 import type { CalendarSnapshot } from "./types";
 
@@ -15,10 +15,11 @@ export function useWriteCalendarSnapshot({
   occurrences,
   holidays,
 }: CalendarSnapshot): void {
+  const owner = useSnapshotOwner();
   const snapshot = useMemo<CalendarSnapshot>(
     () => ({ summary, monthKey, occurrences, holidays }),
     [summary, monthKey, occurrences, holidays],
   );
 
-  useWriteSnapshot("calendar", snapshot);
+  useWriteSnapshot(owner, "calendar", snapshot);
 }

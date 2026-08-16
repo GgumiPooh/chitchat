@@ -7,7 +7,7 @@
  * sharing one browser, and logging out clears the cookie and nothing else.
  */
 
-import { safelyGet, type Nullable, type Optional } from "@/shared/lib";
+import { safelyGet, type Nullable, type Optional, type UserId } from "@/shared/lib";
 
 const DB_NAME = "jandh-offline";
 
@@ -55,8 +55,40 @@ export function whenRequested<T>(request: IDBRequest<T>): Promise<T> {
   });
 }
 
+/** Drops every record belonging to an account other than `userId`, inside the caller's transaction. */
+export function deleteOtherUsers(store: IDBObjectStore, userId: UserId): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // WARN: `openKeyCursor`, so a snapshot this walks past is never deserialized into memory just to be left alone.
+    const request = store.index(SNAPSHOT_USER_INDEX).openKeyCursor();
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const cursor = request.result;
+
+      if (cursor === null) {
+        resolve();
+
+        return;
+      }
+
+      if (cursor.key !== userId) {
+        store.delete(cursor.primaryKey);
+      }
+
+      cursor.continue();
+    };
+  });
+}
+
 function connect(): Promise<Nullable<IDBDatabase>> {
-  connection ??= open();
+  connection ??= open().then((db) => {
+    // WARN: A failed open is never memoised. `onblocked` (another tab on an older version) and `onerror` (a private mode) both answer `null`, and the `db.onclose` that resets this is registered in `onsuccess` — so a remembered `null` would leave that tab reading no mirror and writing no snapshot for the rest of its life.
+    if (db === null) {
+      connection = undefined;
+    }
+
+    return db;
+  });
 
   return connection;
 }

@@ -11,10 +11,12 @@ import {
   mapPooled,
   randomId,
   stopVoice,
+  useBfcacheRestore,
   type MediaId,
   type Nullable,
 } from "@/shared/lib";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useSnapshot, useSnapshotOwner, useWriteSnapshot } from "@/shared/snapshot";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { postMessage, type PostMessageParams } from "../api/post-message";
 import { toBubbles, toDraftKind } from "./to-bubbles";
 
@@ -41,6 +43,16 @@ export type PendingMessage = {
 export type UseSendMessageParams = {
   onSent: (message: ChatMessage) => void;
 };
+
+/**
+ * REQUIREMENTS.md § 16. The queued rows that survive the tab, so a tunnel plus a
+ * reload is not silent message loss.
+ *
+ * WARN: Text and emoticons alone — a media row is deliberately never stored, for two independent reasons. Its `MediaDraft[]` holds real `File` objects, and `writeSnapshot` serialises through `JSON.stringify`, which turns a `File` into `{}` — so a restored media bubble would carry N empty attachments and nothing to upload. Reviving the half-finished upload behind it would also mean reviving § 9.'s presigned PUTs, which have expired by then.
+ */
+function toDurableQueue(pending: PendingMessage[]): PendingMessage[] {
+  return pending.filter((entry) => entry.status === "queued" && entry.media.length === 0);
+}
 
 /**
  * Optimistic sending. The bubble is rendered from `pending` the moment the user
@@ -185,24 +197,74 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
     [deliver],
   );
 
-  // INFO: What makes an offline send a send rather than an error — the outbox above holds the bubble, and this is the half that empties it.
-  useEffect(() => {
-    const flush = () => {
-      const queued = pendingRef.current.filter((entry) => entry.status === "queued");
+  /**
+   * What makes an offline send a send rather than an error — the outbox above holds
+   * the bubble, and this is the half that empties it.
+   *
+   * WARN: It does **not** test `navigator.onLine`, and must not. That flag is a hint (`AGENTS.md § 4.2.`) and it sticks false on a VPN, a VM and several Linux stacks — consulted here it would strand a queued bubble for good, since `queued` deliberately renders no 다시 보내기 and 전송 취소 would be the only way out. The cost of trying while genuinely offline is one rejected fetch that `deliver` re-files as `queued`.
+   * WARN: Idempotent through the ref, which is what lets three triggers share it. `patch` writes `pendingRef.current` **synchronously**, so a second call in the same tick — or one landing while a flush is still delivering — finds those rows already `sending` and filters them out. Nothing here may become async before that `forEach`.
+   */
+  const flushQueued = useCallback(() => {
+    const queued = pendingRef.current.filter((entry) => entry.status === "queued");
 
-      if (queued.length === 0) {
-        return;
-      }
+    if (queued.length === 0) {
+      return;
+    }
 
-      // WARN: Moved off `queued` before the chain is built, not inside it. A second `online` — WebKit fires one per interface change — would otherwise find the same rows still queued and enqueue every one of them twice.
-      queued.forEach(({ clientMsgId }) => patch(clientMsgId, { status: "sending" }));
-      enqueue(queued.map((entry) => ({ ...entry, status: "sending" as const })));
-    };
-
-    window.addEventListener("online", flush);
-
-    return () => window.removeEventListener("online", flush);
+    queued.forEach(({ clientMsgId }) => patch(clientMsgId, { status: "sending" }));
+    enqueue(queued.map((entry) => ({ ...entry, status: "sending" as const })));
   }, [enqueue, patch]);
+
+  useEffect(() => {
+    // WARN: `visibilitychange` and not `focus`. An iOS PWA resumed from suspension is the case with no `online` behind it, and it reports visibility rather than focus.
+    const resume = () => document.visibilityState === "visible" && flushQueued();
+
+    window.addEventListener("online", flushQueued);
+    document.addEventListener("visibilitychange", resume);
+
+    return () => {
+      window.removeEventListener("online", flushQueued);
+      document.removeEventListener("visibilitychange", resume);
+    };
+  }, [flushQueued]);
+
+  // WARN: A restore replays no render and fires neither of the two above, so without this a tab that left 채팅 and came back holds an outbox nothing empties — and `queued` deliberately renders no 다시 보내기, so 전송 취소 would be the only way out.
+  useBfcacheRestore(flushQueued);
+
+  // WARN: Memoized, and not a convenience. `useWriteSnapshot` keys its 2s debounce on the payload's identity, so a fresh array per render restarts that timer every render — and this hook lives in a screen the virtualizer re-renders constantly, where the write would then never fire at all. `pending` changes identity only on a commit, which is exactly when the queue can have moved.
+  const durableQueue = useMemo(() => toDurableQueue(pending), [pending]);
+
+  // INFO: REQUIREMENTS.md § 16. Level with the outbox on every change, so the queue outlives the tab rather than the render.
+  useWriteSnapshot(useSnapshotOwner(), "outbox", durableQueue);
+
+  const restored = useSnapshot<PendingMessage[]>("outbox");
+  const hasRestoredRef = useRef(false);
+
+  /**
+   * WARN: Latched to one pass, because `flushQueued` can change identity and re-run
+   * this. A second pass lands after the first has already sent and dropped those rows,
+   * so `pendingRef` no longer holds them and the id check below waves them through —
+   * resurrecting bubbles that are already delivered. § 8.5.'s `clientMsgId` keeps the
+   * server from storing them twice; it cannot keep them off this screen.
+   */
+  useEffect(() => {
+    if (hasRestoredRef.current || restored.status !== "hit" || restored.payload.length === 0) {
+      return;
+    }
+
+    hasRestoredRef.current = true;
+
+    const known = new Set(pendingRef.current.map((entry) => entry.clientMsgId));
+    const revived = restored.payload.filter((entry) => !known.has(entry.clientMsgId));
+
+    if (revived.length === 0) {
+      return;
+    }
+
+    commit((previous) => [...revived, ...previous]);
+    // INFO: The stored rows are older than anything this mount has staged, so they go in front and the flush sends them in that order.
+    flushQueued();
+  }, [restored, commit, flushQueued]);
 
   const send = useCallback(
     (text: string, replyTo: Nullable<ReplyPreview> = null) => {
@@ -263,9 +325,10 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
       }
 
       patch(clientMsgId, { status: "sending" });
-      void deliver({ ...target, status: "sending" });
+      // WARN: Through `enqueue` rather than straight to `deliver`. The single chain is what stops a text outrunning the attachments it captions, and `enqueue` is also where REQUIREMENTS.md § 8.4.1.'s `holdAwake` is taken — delivered bare, a retry could go dormant between an uploaded photo and the POST that references it.
+      enqueue([{ ...target, status: "sending" }]);
     },
-    [deliver, patch],
+    [enqueue, patch],
   );
 
   return { pending, send, sendMedia, sendEmoticon, retry, cancel: drop, resolve: drop };

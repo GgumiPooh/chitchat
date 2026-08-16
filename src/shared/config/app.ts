@@ -397,6 +397,21 @@ export const PUSH_SUBSCRIPTION_PATH = "/api/push/subscription";
 // WARN: Must stay at the origin root. A worker served from a subdirectory controls only that subdirectory, and the push subscription is bound to the scope it was created under.
 export const SERVICE_WORKER_PATH = "/sw.js";
 
+/**
+ * REQUIREMENTS.md § 16. What `push-registration.ts` hangs on the script URL so a
+ * deploy reaches an installed client at all.
+ *
+ * WARN: `sw.js` is served raw from `public/` and its bytes are identical across every
+ * deploy, so nothing else would ever fire `install` — and the precache runs only
+ * there. Without this the cached mirror and § 16.2.'s chunk list stay frozen at the
+ * build the worker first installed under, with the online app updating around them.
+ *
+ * WARN: Inlined by `next.config.ts`'s `env` block at build time, so it is a literal
+ * member access like every other build-time read here and does not exist in the
+ * environment at runtime.
+ */
+export const SERVICE_WORKER_VERSION = process.env.SERVICE_WORKER_VERSION ?? "development";
+
 // WARN: AGENTS.md § 6.2. `ensureEnv` cannot read this one — the client bundle has no `process.env`, so the key is inlined at build time and a missing one surfaces as a disabled toggle in Settings instead of a throw.
 export const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 

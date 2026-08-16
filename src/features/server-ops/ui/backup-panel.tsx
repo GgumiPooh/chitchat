@@ -45,7 +45,7 @@ export function BackupPanel({ className }: BackupPanelProps) {
       <div className="px-md pb-sm">
         <Button
           disabled={isRunning}
-          haptic={!createGate.isBlocked}
+          haptic
           {...createGate.blockedProps}
           onClick={createGate.guard(() => void createBackup())}
         >
@@ -123,7 +123,7 @@ export function BackupPanel({ className }: BackupPanelProps) {
             className="w-auto"
             buttonClassName="min-h-9 px-sm text-button-sm"
             variant="secondary"
-            haptic={!deleteGate.isBlocked}
+            haptic
             {...deleteGate.blockedProps}
             onClick={deleteGate.guard(() => setPendingFilename(backup.filename))}
           >

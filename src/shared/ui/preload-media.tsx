@@ -98,7 +98,8 @@ export function useLoadStatus({
   function markFailed(): boolean {
     // WARN: `navigator.onLine` rather than `useIsOffline`, and the settle delay is exactly why — a load that fails in the second after the network goes is the case this catches, and the hook still reads online for all of it.
     // INFO: A blurhash holding is what a photo looks like while it loads, so an unreachable one goes on looking like that rather than ending on DESIGN.md § 7.8.'s glyph over a connection that is coming back.
-    if (isRetryable(src) && !navigator.onLine) {
+    // WARN: `canRetry` gates this too, for the reason it gates the retry below. Off means an asset this app does not serve — CLAUDE.md § 4.2.1.'s cross-origin emoticon route — and the resume increments the same counter the cache-buster reads, so holding one here would come back asking that route for `?retry=1`, which it answers without CORS on purpose.
+    if (canRetry && isRetryable(src) && !navigator.onLine) {
       setIsAwaitingNetwork(true);
       setStatus("loading");
 

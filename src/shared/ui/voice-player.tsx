@@ -48,10 +48,11 @@ export function VoicePlayer({
   const bars = useMemo(() => renderBars(peaks), [peaks]);
   // INFO: A pending bubble is still playable — REQUIREMENTS.md § 9.3. hands a recording its local blob as `originalUrl`, so the one clip in the app that has a source before it has an object is this one. What is missing is a source, never a landed upload.
   const isInert = src === null;
-  // INFO: A stored clip is bytes behind § 9.'s expiring presigned redirect; the local blob the line above describes is already here, so it is the one source this gate leaves alone.
+  // INFO: A stored clip is bytes behind § 9.'s expiring presigned redirect; the local blob the line above describes is already here, so it is one of the two sources this gate leaves alone.
+  // WARN: `!isActive` is the other, and it is what keeps this a hint rather than a gate on a capability (`AGENTS.md § 4.2.`). Once the shared element is parked on this clip it holds the bytes, so pause, resume and scrub are local — a reader who walks into a tunnel mid-sentence has to be able to stop it. Only *starting* a clip nothing has fetched needs the network.
   const { isBlocked, blockedProps, guard } = useOfflineGate(
     OFFLINE_MESSAGES.play,
-    src !== null && !src.startsWith("blob:"),
+    src !== null && !src.startsWith("blob:") && !isActive,
   );
 
   return (

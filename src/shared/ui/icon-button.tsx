@@ -39,7 +39,9 @@ export function IconButton({
   ...props
 }: IconButtonProps) {
   // INFO: A disabled button confirms nothing, and the overlay would still take the tap and tick.
-  const isTicking = !disabled;
+  // INFO: `useOfflineGate`'s refusal is `aria-disabled` rather than `disabled`, and it confirms nothing either — honouring it here is what lets a gated caller keep `haptic` static.
+  const isTicking =
+    !disabled && props["aria-disabled"] !== true && props["aria-disabled"] !== "true";
 
   const button = (
     <button
@@ -47,7 +49,9 @@ export function IconButton({
         // INFO: DESIGN.md § 4.7.2. The bloom is what a round control has instead of a fill change large enough to see — the circle is 44px and the fill sits under the finger.
         "inline-flex size-11 shrink-0 press-bloom cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-40",
         VARIANT_CLASS_NAME[variant],
-        haptic ? buttonClassName : className,
+        // WARN: `buttonClassName` applies in **both** branches — see `Button`, where a toggled `haptic` dropped the control's own box and handed it the wrapper's layout instead.
+        !haptic && className,
+        buttonClassName,
       )}
       disabled={disabled}
       type={type}

@@ -37,12 +37,17 @@ const MIRRORED_PATHS = [
   "/settings",
 ];
 
-// WARN: Written by `scripts/generate-offline-precache.ts` after every build, and fetched rather than `importScripts`ed — `next.config.ts` gives a `no-cache` header to `/sw.js` alone, so a second script file would go stale the way § 16.1. describes. `cache: "reload"` on the read below is what answers that instead.
+// WARN: Written by `scripts/generate-offline-precache.ts` after every build, and read only during `install` — which is why `push-registration.ts` hangs the build on this worker's script URL. Nothing here re-reads it, so without a new install the list below is whatever the first install fetched, forever.
+// WARN: Data rather than an `importScripts`ed script, and not for freshness. WebKit is alone in skipping imported scripts in its byte-for-byte update check, so importing it would update the worker on Chrome and Firefox and silently never on iOS, which is the platform this app is installed on.
 // WARN: The `offline` prefix is load-bearing, not a naming choice — it is what keeps this path out of `proxy.ts`'s matcher. Renamed, a signed-out browser is served a 307 to `/login`, whose HTML fails `.json()` and empties the list with nothing reporting it.
 const PRECACHE_MANIFEST_URL = "/offline-precache.json";
 
+// WARN: Every cache this app owns starts with it, and `evictOtherVersions` deletes by this prefix alone — jandh-emoticons is a separate deployment on this same origin (AGENTS.md § 4.2.1.), and `caches.keys()` would otherwise hand us its storage to wipe.
+// WARN: The `v` is part of the prefix and not an accident of the name below. Cut to `jandh-`, it matches a sibling's `jandh-emoticons-…` too, which is the bug this exists to prevent; kept, it still matches the `jandh-v1`/`jandh-v2` this app already shipped, so those are collected rather than stranded.
+const CACHE_PREFIX = "jandh-v";
+
 // WARN: Bump on any change to what is cached or how. `activate` deletes every other version, and that is the only thing that evicts a stale `OFFLINE_URL`.
-const CACHE_NAME = "jandh-v2";
+const CACHE_NAME = `${CACHE_PREFIX}3`;
 
 // INFO: REQUIREMENTS.md § 16. Content-hashed build output — a changed file gets a new URL, so a hit can never be the previous deploy's bytes. This is what makes caching safe here at all.
 // WARN: `/icons/` is deliberately absent. `pnpm icons` regenerates `icon-192.png` and the splash set **in place**, under fixed names, so a cache-first entry would serve the old artwork on every installed client until `CACHE_NAME` moved — and nothing ties the two together.
@@ -91,16 +96,19 @@ self.addEventListener("fetch", (event) => {
 async function precache() {
   try {
     const cache = await caches.open(CACHE_NAME);
-    const assets = await readPrecacheManifest();
 
-    await Promise.all([
-      // WARN: `reload` on the two documents alone. Neither URL carries a content hash, so only a bypass of the HTTP cache stops a redeployed mirror being precached as the previous build's HTML.
-      ...[OFFLINE_URL, OFFLINE_SHELL_URL].map((url) =>
+    // WARN: Awaited to completion before the manifest is even read, so nothing downstream can decide whether the fallbacks land. Built as one array with the assets, these were already in flight when a malformed body threw at `.map` — un-awaited, which let `waitUntil` resolve through the catch and left the browser free to kill the worker mid-add.
+    // WARN: `reload` on the two documents alone. Neither URL carries a content hash, so only a bypass of the HTTP cache stops a redeployed mirror being precached as the previous build's HTML.
+    await Promise.all(
+      [OFFLINE_URL, OFFLINE_SHELL_URL].map((url) =>
         addToCache(cache, new Request(url, { cache: "reload" })),
       ),
-      // INFO: Hashed URLs, so a plain add lets the HTTP cache answer instead of re-downloading megabytes the page being installed from has already fetched.
-      ...assets.map((url) => addToCache(cache, url)),
-    ]);
+    );
+
+    const assets = await readPrecacheManifest();
+
+    // INFO: Hashed URLs, so a plain add lets the HTTP cache answer instead of re-downloading megabytes the page being installed from has already fetched.
+    await Promise.all(assets.map((url) => addToCache(cache, url)));
   } catch {
     // INFO: A miss here costs the offline fallback and nothing else; push must still activate.
   }
@@ -115,8 +123,10 @@ async function precache() {
 async function readPrecacheManifest() {
   try {
     const response = await fetch(PRECACHE_MANIFEST_URL, { cache: "reload" });
+    const manifest = response.ok ? await response.json() : null;
 
-    return response.ok ? await response.json() : [];
+    // WARN: A 200 is not a manifest. A captive portal, a CDN error body and a proxy interstitial all parse as JSON, so the shape is checked rather than trusted — anything else contributes nothing instead of reaching `.map` as a `TypeError`.
+    return Array.isArray(manifest) ? manifest.filter((url) => typeof url === "string") : [];
   } catch {
     // INFO: An absent manifest costs the never-visited routes and nothing else — the documents above still precache, and `serveImmutable` still warms whatever is actually opened.
     return [];
@@ -134,10 +144,12 @@ function addToCache(cache, request) {
  */
 async function evictOtherVersions() {
   const names = await caches.keys();
-  const kept = IS_CACHING_ENABLED ? [CACHE_NAME] : [];
+  const kept = IS_CACHING_ENABLED ? CACHE_NAME : null;
 
   await Promise.all(
-    names.filter((name) => !kept.includes(name)).map((name) => caches.delete(name)),
+    names
+      .filter((name) => name.startsWith(CACHE_PREFIX) && name !== kept)
+      .map((name) => caches.delete(name)),
   );
 }
 
@@ -175,9 +187,11 @@ async function serveImmutable(request) {
 
   // WARN: `response.ok` is not enough — an opaque cross-origin redirect reports `status` 0, and storing one serves an unreadable body back on the next hit.
   if (response.ok && response.type === "basic") {
-    const cache = await caches.open(CACHE_NAME);
-
-    await cache.put(request, response.clone());
+    // WARN: Swallowed, because storing is a convenience and the bytes are already in hand. A rejected `put` — `QuotaExceededError`, this cache holding every deploy's assets — would reject the handler, and `respondWith` turns that into a network error for a chunk that had already arrived.
+    await caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.put(request, response.clone()))
+      .catch(() => undefined);
   }
 
   return response;

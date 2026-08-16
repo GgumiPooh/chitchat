@@ -1,5 +1,10 @@
 import type { PushSubscriptionInput } from "@/entities/push-subscription";
-import { IS_DEV, SERVICE_WORKER_PATH, VAPID_PUBLIC_KEY } from "@/shared/config";
+import {
+  IS_DEV,
+  SERVICE_WORKER_PATH,
+  SERVICE_WORKER_VERSION,
+  VAPID_PUBLIC_KEY,
+} from "@/shared/config";
 import { safelyGetAsync, safelyRunAsync } from "@/shared/lib";
 import { deleteSubscription } from "../api/delete-subscription";
 import { saveSubscription } from "../api/save-subscription";
@@ -150,9 +155,17 @@ export async function setPushSoundEnabled(soundEnabled: boolean): Promise<void> 
  * WARN: This makes the script URL differ between dev and production, and therefore
  * the registration. That is the intended effect rather than a side one: a worker
  * carrying a development bundle can never be the one an installed app is running.
+ *
+ * WARN: REQUIREMENTS.md § 16. In production the URL carries the build instead, and it
+ * is what makes a deploy reach an installed client — a changed script URL is what the
+ * browser installs on, where `sw.js`'s own bytes never move. Dev deliberately carries
+ * no version: it would mint a registration per dev-server start, and § 16.1.'s push
+ * subscription is bound to the one it replaces.
  */
 function registerPushWorker(): Promise<ServiceWorkerRegistration> {
-  const path = IS_DEV ? `${SERVICE_WORKER_PATH}?nocache=1` : SERVICE_WORKER_PATH;
+  const path = IS_DEV
+    ? `${SERVICE_WORKER_PATH}?nocache=1`
+    : `${SERVICE_WORKER_PATH}?v=${SERVICE_WORKER_VERSION}`;
 
   // INFO: `updateViaCache: "none"` on top of the no-store header — the browser has its own worker cache that HTTP headers alone do not reach.
   return navigator.serviceWorker.register(path, {

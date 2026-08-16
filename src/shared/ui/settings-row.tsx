@@ -54,7 +54,9 @@ export function SettingsRow({
         "flex min-h-14 w-full items-center gap-sm border-b border-hairline-soft bg-canvas p-md text-left transition-colors",
         onClick &&
           "cursor-pointer outline-none group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-strong",
-        hasHaptic ? rowClassName : className,
+        // WARN: `rowClassName` applies in **both** branches — see `Button`. `hasHaptic` falls with `isUnavailable`, so a row styled through it lost its own box the moment it started refusing.
+        !hasHaptic && className,
+        rowClassName,
       )}
       type={onClick ? "button" : undefined}
       aria-disabled={isUnavailable || undefined}
@@ -71,14 +73,15 @@ export function SettingsRow({
         </span>
         {description && <span className="text-body-sm text-meta">{description}</span>}
       </span>
+      {trailing}
       {/* INFO: The chevron promises a screen this tap cannot reach, so the glyph says which of the two it is instead. */}
-      {trailing ??
-        (onClick &&
-          (isUnavailable ? (
-            <CloudOff className="size-4 shrink-0 text-meta-soft" strokeWidth={1.75} />
-          ) : (
-            <ChevronRight className="size-4 shrink-0 text-meta" />
-          )))}
+      {/* WARN: The refusal glyph rides **beside** `trailing` rather than being replaced by it. A row that carries its own trailing — § 12.2.'s wallpaper thumbnail — is still a row that refuses, and suppressing it there took the only visible mark of that away from exactly the readers who have a background set. */}
+      {onClick &&
+        (isUnavailable ? (
+          <CloudOff className="size-4 shrink-0 text-meta-soft" strokeWidth={1.75} />
+        ) : (
+          !trailing && <ChevronRight className="size-4 shrink-0 text-meta" />
+        ))}
     </Tag>
   );
 

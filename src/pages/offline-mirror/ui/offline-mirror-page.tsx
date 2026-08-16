@@ -6,6 +6,7 @@ import { cn, useHydrated, type Optional } from "@/shared/lib";
 import { OfflineNotice } from "@/shared/offline-ux";
 import { useSnapshot } from "@/shared/snapshot";
 import { BottomOverlay, Container } from "@/shared/ui";
+import { OfflineBanner } from "@/widgets/offline-banner";
 import {
   OfflineTabBar,
   SnapshotEmpty,
@@ -48,6 +49,8 @@ export function OfflineMirrorPage({ className }: OfflineMirrorPageProps) {
       className={cn("relative flex min-h-dvh flex-col bg-canvas px-0 shell-edge", className)}
       id={APP_SHELL_ID}
     >
+      {/* WARN: DESIGN.md § 7.18. The pill shows on every screen, and these six are the only ones that exist *while* offline — without it the mirror is the one place the reader is shown stale content and told nothing about why, and its `role="status"` is the only announcement a screen reader gets here. */}
+      <OfflineBanner />
       <main className="flex flex-1 flex-col">{renderScreen(screen)}</main>
       <BottomOverlay>
         <OfflineTabBar screen={screen} />

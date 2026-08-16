@@ -16,6 +16,14 @@ const EMOTICONS_ORIGIN = (
   process.env.NEXT_PUBLIC_EMOTICONS_ORIGIN ?? "http://localhost:3001"
 ).replace(/\/+$/, "");
 
+// WARN: REQUIREMENTS.md § 16. What `push-registration.ts` hangs on the worker's script URL, and the only thing that makes a deploy reach an installed client — `sw.js` is a static file whose bytes never move, so the browser's byte-for-byte check finds nothing to install and the precache stays frozen at the build it first installed under.
+// WARN: It rides the URL rather than an `importScripts`ed manifest because WebKit alone skips imported scripts in that check, so a changed import updates nothing on the one platform this app is installed on.
+// INFO: `Date.now()` is the last resort and costs only a redundant reinstall; every target above it supplies something stable per build, and `Dockerfile` passes `BUILD_SHA` for exactly that.
+const SERVICE_WORKER_VERSION =
+  [process.env.VERCEL_DEPLOYMENT_ID, process.env.VERCEL_GIT_COMMIT_SHA, process.env.BUILD_SHA]
+    .map((value) => value?.trim())
+    .find(Boolean) ?? `${Date.now()}`;
+
 const SERVICE_WORKER_HEADERS = [
   { key: "Content-Type", value: "application/javascript; charset=utf-8" },
   { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
@@ -26,6 +34,8 @@ export default {
   // INFO: Only the container image wants a self-hosted server; Vercel and Netlify build through their own adapters, which a standalone output would cut out from under them.
   output: process.env.NEXT_OUTPUT_STANDALONE === "true" ? "standalone" : undefined,
   allowedDevOrigins: ["localhost", "192.168.*.*", "jandh-dev.jeheecheon.com"],
+  // INFO: Inlined into the bundle at build time. The `NEXT_PUBLIC_` prefix has no effect here and is deliberately absent — it means something only for values that come from the environment.
+  env: { SERVICE_WORKER_VERSION },
   // WARN: No `cacheComponents`. It was on and was reversed — REQUIREMENTS.md § 1.1. has the whole account, and the short version is that it is project-wide, that `fetch`'s own `next.revalidate` never needed it, and that it costs the § 12.2. wallpaper its place in the first paint.
   experimental: {
     // WARN: `es-hangul` declares no `sideEffects: false`, so a bare `import { josa }` pulls its romanisation and standard-pronunciation tables into the bundle with it. Only the modules actually used survive this.

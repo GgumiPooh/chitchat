@@ -2,7 +2,6 @@
 
 import { request } from "@/shared/api";
 import { LOGIN_ROUTE } from "@/shared/config";
-import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { clearAll } from "@/shared/snapshot";
 import { Button, toast } from "@/shared/ui";
 import { useRouter } from "next/navigation";
@@ -15,8 +14,6 @@ export type LogoutButtonProps = {
 export function LogoutButton({ className }: LogoutButtonProps) {
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
-  // WARN: § 5.2. revokes the session server-side, so an offline 로그아웃 leaves the cookie live and the snapshots cleared — the reader is signed in with nothing cached to read.
-  const { isBlocked, blockedProps, guard } = useOfflineGate(OFFLINE_MESSAGES.logOut);
 
   const logOut = async () => {
     setIsPending(true);
@@ -40,15 +37,9 @@ export function LogoutButton({ className }: LogoutButtonProps) {
     router.refresh();
   };
 
+  // WARN: Never offline-gated, and it is the one control in the app that may not be. `navigator.onLine` sticks `false` on a working network, and refusing 로그아웃 there locks somebody out of signing out of a device they are holding — a security consequence no other refusal here carries. It attempts always; the failure below is what a real outage gets.
   return (
-    <Button
-      className={className}
-      variant="ghost"
-      disabled={isPending}
-      haptic={!isBlocked}
-      {...blockedProps}
-      onClick={guard(() => void logOut())}
-    >
+    <Button className={className} variant="ghost" disabled={isPending} haptic onClick={logOut}>
       로그아웃
     </Button>
   );

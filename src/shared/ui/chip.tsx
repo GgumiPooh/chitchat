@@ -25,7 +25,12 @@ export function Chip({
   ...props
 }: ChipProps) {
   const Comp = asChild ? Slot.Root : "button";
-  const isTicking = !isSelected && !disabled;
+  // INFO: A refusal confirms nothing, exactly as a selected chip and a disabled one do not — see `Button`.
+  const isTicking =
+    !isSelected &&
+    !disabled &&
+    props["aria-disabled"] !== true &&
+    props["aria-disabled"] !== "true";
 
   const chip = (
     <Comp
@@ -34,7 +39,9 @@ export function Chip({
         isSelected
           ? "bg-primary-tint text-primary group-active:bg-primary-tint/80 active:bg-primary-tint/80"
           : "bg-surface-soft text-body group-active:bg-surface-pressed hover:bg-surface-strong active:bg-surface-pressed",
-        haptic ? chipClassName : className,
+        // WARN: `chipClassName` applies in **both** branches — see `Button`, where a toggled `haptic` dropped the control's own box and handed it the wrapper's layout instead.
+        !haptic && className,
+        chipClassName,
       )}
       disabled={disabled}
       {...props}

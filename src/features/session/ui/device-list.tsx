@@ -51,7 +51,7 @@ export function DeviceList({ className, sessions }: DeviceListProps) {
                 className="w-auto"
                 buttonClassName="min-h-9 px-sm text-button-sm"
                 variant="secondary"
-                haptic={!revokeGate.isBlocked}
+                haptic
                 {...revokeGate.blockedProps}
                 onClick={revokeGate.guard(() => setPendingId(session.id))}
               >

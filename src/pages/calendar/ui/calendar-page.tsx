@@ -14,6 +14,7 @@ import {
   cn,
   findHoliday,
   listMilestonesInRange,
+  occursOnDay,
   toDayKey,
   toMonthKey,
   toMonthStart,
@@ -181,7 +182,7 @@ export function CalendarPage({
           isLoading={isLoadingMonth}
           holiday={findHoliday(selectedDayKey, holidays)}
           milestones={listMilestonesInRange(summary.startDate, selectedDayKey, selectedDayKey)}
-          occurrences={occurrencesOn(occurrences, selectedDayKey)}
+          occurrences={occurrences.filter((occurrence) => occursOnDay(occurrence, selectedDayKey))}
           participants={participants}
           onCreate={() => openForm(selectedDayKey, null)}
           onSelect={openActions}
@@ -201,7 +202,7 @@ export function CalendarPage({
         items={[
           {
             label: "수정",
-            onSelect: () => actioned && openForm(startDayKeyOf(actioned), actioned),
+            onSelect: () => actioned && openForm(toDayKey(actioned.startsAt), actioned),
           },
           {
             label: "삭제",
@@ -227,8 +228,8 @@ export function CalendarPage({
 
   /**
    * WARN: The month follows the day. The upcoming card reaches a year ahead and an
-   * adjacent-month cell reaches one month either way, while `occurrencesOn` can only
-   * see the grid range currently loaded — selecting outside it would leave the agenda
+   * adjacent-month cell reaches one month either way, while the agenda's own filter can
+   * only see the grid range currently loaded — selecting outside it would leave the agenda
    * on `이 날은 일정이 없어요` for a day the card just said had an event.
    */
   function selectDay(dayKey: string) {
@@ -291,15 +292,4 @@ export function CalendarPage({
       toast.error("일정을 삭제하지 못했어요");
     }
   }
-}
-
-// INFO: A multi-day event belongs to every day it covers, so the sheet cannot filter on its start alone.
-function occurrencesOn(occurrences: EventOccurrence[], dayKey: string): EventOccurrence[] {
-  return occurrences.filter(
-    (occurrence) => startDayKeyOf(occurrence) <= dayKey && toDayKey(occurrence.endsAt) >= dayKey,
-  );
-}
-
-function startDayKeyOf(occurrence: EventOccurrence): string {
-  return toDayKey(occurrence.startsAt);
 }

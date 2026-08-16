@@ -2,6 +2,7 @@ import type { ChatMessage } from "@/entities/message";
 import {
   A_DAY,
   formatDateWithWeekday,
+  parseDayKey,
   toDayKey,
   type Maybe,
   type Nullable,
@@ -69,7 +70,7 @@ export function formatMirrorDayLabel(dayKey: string): string {
     return "어제";
   }
 
-  return formatDateWithWeekday(`${dayKey}T00:00:00Z`);
+  return formatDateWithWeekday(parseDayKey(dayKey));
 }
 
 // INFO: DESIGN.md § 6.3. One sender inside one clock minute, which the ISO string's own prefix already is; a system notice joins no group.

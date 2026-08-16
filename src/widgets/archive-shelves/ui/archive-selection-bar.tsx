@@ -83,7 +83,7 @@ export function ArchiveSelectionBar({
             buttonClassName="min-h-11 rounded-full aria-disabled:opacity-50"
             variant="ghost"
             disabled={isDisabled}
-            haptic={!saveGate.isBlocked}
+            haptic
             {...saveGate.blockedProps}
             onClick={saveGate.guard(onSave)}
           >
@@ -96,7 +96,7 @@ export function ArchiveSelectionBar({
               buttonClassName="min-h-11 rounded-full aria-disabled:opacity-50"
               variant="ghost"
               disabled={isDisabled}
-              haptic={!shareGate.isBlocked}
+              haptic
               {...shareGate.blockedProps}
               onClick={shareGate.guard(onShare)}
             >
@@ -110,7 +110,7 @@ export function ArchiveSelectionBar({
             buttonClassName="min-h-11 rounded-full text-semantic-error aria-disabled:opacity-50"
             variant="ghost"
             disabled={isDisabled}
-            haptic={!deleteGate.isBlocked}
+            haptic
             {...deleteGate.blockedProps}
             onClick={deleteGate.guard(onDelete)}
           >

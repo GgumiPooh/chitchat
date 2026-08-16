@@ -1,3 +1,4 @@
+import type { Dirent } from "node:fs";
 import { readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -20,12 +21,7 @@ async function collectAssetUrls(): Promise<string[]> {
   const urls: string[] = [];
 
   for (const dir of ASSET_DIRS) {
-    const entries = await readdir(path.join(STATIC_DIR, dir), {
-      recursive: true,
-      withFileTypes: true,
-    });
-
-    for (const entry of entries) {
+    for (const entry of await readAssetDir(dir)) {
       if (!entry.isFile()) {
         continue;
       }
@@ -38,6 +34,21 @@ async function collectAssetUrls(): Promise<string[]> {
   }
 
   return urls.sort();
+}
+
+/**
+ * WARN: An absent directory contributes nothing rather than throwing, because `build` chains this step — `media` exists only while something still imports an asset, so an ENOENT here would make a fact about the current source into a hard build dependency. Every other error is rethrown: a permission failure or a half-written build must not ship a short list quietly.
+ */
+async function readAssetDir(dir: string): Promise<Dirent[]> {
+  try {
+    return await readdir(path.join(STATIC_DIR, dir), { recursive: true, withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw error;
+    }
+
+    return [];
+  }
 }
 
 async function main() {

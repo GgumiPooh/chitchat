@@ -136,7 +136,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
                 <Button
                   variant="secondary"
                   disabled={tagging !== null}
-                  haptic={!fillGate.isBlocked}
+                  haptic
                   {...fillGate.blockedProps}
                   onClick={fillGate.guard(() => void fillKeywords())}
                 >

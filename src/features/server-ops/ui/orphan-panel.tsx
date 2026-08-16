@@ -39,7 +39,7 @@ export function OrphanPanel({ className }: OrphanPanelProps) {
           className="flex-1"
           variant="secondary"
           disabled={isSweeping}
-          haptic={!previewGate.isBlocked}
+          haptic
           {...previewGate.blockedProps}
           onClick={previewGate.guard(() => void sweep(true))}
         >
@@ -49,7 +49,7 @@ export function OrphanPanel({ className }: OrphanPanelProps) {
           className="flex-1"
           variant="destructive"
           disabled={isSweeping}
-          haptic={!sweepGate.isBlocked}
+          haptic
           {...sweepGate.blockedProps}
           onClick={sweepGate.guard(() => setIsConfirming(true))}
         >

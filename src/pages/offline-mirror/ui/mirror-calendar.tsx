@@ -1,13 +1,14 @@
 "use client";
 
-import type { EventOccurrence } from "@/entities/event";
 import type { CalendarSnapshot } from "@/features/offline-snapshot";
 import {
   cn,
   findHoliday,
   formatDateWithWeekday,
-  formatTime,
+  formatMultiDaySpan,
+  formatOccurrenceTime,
   listMilestonesInRange,
+  occursOnDay,
   parseDayKey,
   toDayKey,
   type Nullable,
@@ -52,10 +53,7 @@ export function MirrorCalendar({ className }: MirrorCalendarProps) {
     const dayKey = pickedDayKey ?? payload.summary.todayKey;
     const holiday = findHoliday(dayKey, payload.holidays);
     const milestones = listMilestonesInRange(payload.summary.startDate, dayKey, dayKey);
-    const occurrences = payload.occurrences.filter(
-      (occurrence) =>
-        toDayKey(occurrence.startsAt) <= dayKey && toDayKey(occurrence.endsAt) >= dayKey,
-    );
+    const occurrences = payload.occurrences.filter((occurrence) => occursOnDay(occurrence, dayKey));
     const isEmpty = holiday === null && milestones.length === 0 && occurrences.length === 0;
 
     return (
@@ -99,8 +97,10 @@ export function MirrorCalendar({ className }: MirrorCalendarProps) {
               {occurrences.map((occurrence) => (
                 <MirrorAgendaRow
                   key={occurrence.event.id + occurrence.startsAt}
-                  caption={toWhen(occurrence, dayKey)}
+                  caption={formatOccurrenceTime(occurrence, dayKey)}
                   label={occurrence.event.title}
+                  // INFO: § 11.3. A multi-day event names its span, since the heading above only ever states the selected day.
+                  description={formatMultiDaySpan(occurrence)}
                 />
               ))}
             </ul>
@@ -115,11 +115,12 @@ type MirrorAgendaRowProps = {
   className?: string;
   caption: string;
   label: string;
+  description?: Nullable<string>;
   marker?: ReactNode;
 };
 
 // INFO: § 11.4. A row and never a button — the mirror offers no 수정 and no 삭제 for one to open.
-function MirrorAgendaRow({ className, caption, label, marker }: MirrorAgendaRowProps) {
+function MirrorAgendaRow({ className, caption, label, description, marker }: MirrorAgendaRowProps) {
   return (
     <li
       className={cn(
@@ -129,26 +130,10 @@ function MirrorAgendaRow({ className, caption, label, marker }: MirrorAgendaRowP
     >
       {marker}
       <span className="shrink-0 text-caption text-meta">{caption}</span>
-      <span className="min-w-0 flex-1 truncate text-body-md text-ink">{label}</span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-body-md text-ink">{label}</span>
+        {description && <span className="truncate text-caption text-meta">{description}</span>}
+      </span>
     </li>
   );
-}
-
-/** The time line a row carries on the day it is shown — `종일`, an instant, or one end of a span. */
-function toWhen(occurrence: EventOccurrence, dayKey: string): string {
-  if (occurrence.event.allDay) {
-    return "종일";
-  }
-
-  const startDayKey = toDayKey(occurrence.startsAt);
-  const endDayKey = toDayKey(occurrence.endsAt);
-
-  if (startDayKey === endDayKey) {
-    return formatTime(occurrence.startsAt);
-  }
-  if (dayKey === startDayKey) {
-    return `${formatTime(occurrence.startsAt)} 시작`;
-  }
-
-  return dayKey === endDayKey ? `${formatTime(occurrence.endsAt)} 종료` : "종일";
 }

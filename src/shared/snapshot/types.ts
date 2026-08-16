@@ -1,14 +1,9 @@
+import { ARCHIVE_PAGE_SIZE, CHANGED_MESSAGES_LIMIT } from "@/shared/config";
 import type { UserId } from "@/shared/lib";
 
-/** REQUIREMENTS.md § 16. One key per mirror screen, plus the shell chrome every mirror draws. */
+/** REQUIREMENTS.md § 16. One key per mirror screen carrying data of its own, plus the `shell` chrome every mirror draws and the `outbox` of sends still queued — 설정 has none, since it renders from `shell` alone. */
 export type SnapshotKey =
-  | "chat"
-  | "calendar"
-  | "archive-gallery"
-  | "archive-files"
-  | "archive-voice"
-  | "settings"
-  | "shell";
+  "chat" | "calendar" | "archive-gallery" | "archive-files" | "archive-voice" | "shell" | "outbox";
 
 /**
  * A snapshot as the `snapshots` store holds it.
@@ -31,8 +26,12 @@ export type SnapshotRead<TPayload> =
   | { status: "hit"; savedAt: number; payload: TPayload }
   | { status: "miss"; savedAt: undefined; payload: undefined };
 
-/** REQUIREMENTS.md § 8.3. The newest messages a `chat` snapshot may carry — `CHANGED_MESSAGES_LIMIT`'s figure. */
-export const OFFLINE_MESSAGE_LIMIT = 200;
+/** REQUIREMENTS.md § 8.3. The newest messages a `chat` snapshot may carry. */
+export const OFFLINE_MESSAGE_LIMIT = CHANGED_MESSAGES_LIMIT;
 
-/** REQUIREMENTS.md § 10. The newest rows an `archive-*` snapshot may carry — `ARCHIVE_PAGE_SIZE`'s figure. */
-export const OFFLINE_ARCHIVE_LIMIT = 60;
+/**
+ * REQUIREMENTS.md § 10. The newest rows an `archive-*` snapshot may carry.
+ *
+ * WARN: Equality with `ARCHIVE_PAGE_SIZE` is load-bearing rather than incidental — `useArchiveMedia` seeds `hasMore` from `initialMedia.length >= ARCHIVE_PAGE_SIZE`, so a copy of the figure that drifted would change whether a restored shelf believes it has another page, with nothing failing to say so.
+ */
+export const OFFLINE_ARCHIVE_LIMIT = ARCHIVE_PAGE_SIZE;

@@ -97,7 +97,7 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
               <IconButton
                 variant="floating"
                 Icon={FilePlus}
-                haptic={!uploadGate.isBlocked}
+                haptic
                 aria-label="파일 추가"
                 {...uploadGate.blockedProps}
                 onClick={uploadGate.guard(() => setIsPickerOpen(true))}
@@ -106,7 +106,7 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
                 variant="floating"
                 Icon={ListChecks}
                 disabled={media.length === 0 || staging.isUploading}
-                haptic={!selectGate.isBlocked}
+                haptic
                 aria-label="선택"
                 {...selectGate.blockedProps}
                 onClick={selectGate.guard(() => selection.start())}

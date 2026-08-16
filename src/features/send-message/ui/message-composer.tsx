@@ -218,7 +218,7 @@ export function MessageComposer({
         {!isEditing && (
           <IconButton
             Icon={Plus}
-            haptic={!attachGate.isBlocked}
+            haptic
             aria-label="첨부"
             {...attachGate.blockedProps}
             onClick={attachGate.guard(onAttach)}

@@ -5,6 +5,11 @@ export {
   setDormant,
   subscribeDormancy,
 } from "./activity/dormancy";
+export {
+  getLastNetworkReachedAt,
+  markNetworkReached,
+  subscribeNetworkReached,
+} from "./activity/network-reachability";
 export { hasUnsentWork, holdUnsentWork, useUnsentWork } from "./activity/unsent-work";
 export { AssertionError, assert, ensure } from "./assert";
 export {
@@ -38,6 +43,12 @@ export {
   type MilestoneKind,
   type UpcomingMilestone,
 } from "./date/calendar";
+export {
+  formatMultiDaySpan,
+  formatOccurrenceTime,
+  occursOnDay,
+  type TimedOccurrence,
+} from "./date/event-time";
 export {
   FALLBACK_HOLIDAYS,
   findHoliday,

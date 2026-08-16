@@ -109,8 +109,8 @@ export function MessageSearchResults({
       );
     }
 
-    // WARN: Before the skeleton, not after it. § 8.6. searches the server, so offline the request never lands — a placeholder taking the shape of rows that are not coming is the one state worse than saying so.
-    if (isOffline) {
+    // WARN: Before the skeleton and scoped to an empty list, and both halves are load-bearing. Before, because § 8.6. searches the server and offline the request never lands, so a placeholder shaped like rows that are not coming is worse than saying so. Scoped, because DESIGN.md § 7.19. forbids the offline signal **withdrawing** what the reader already has — unscoped it replaced a page of hits with this sentence while the strip above went on counting them.
+    if (isOffline && results.length === 0) {
       return (
         <EmptyState
           className="mt-2xl"

@@ -35,6 +35,10 @@ ENV NEXT_PUBLIC_KEYWORD_SUGGESTION_CONCURRENCY=$NEXT_PUBLIC_KEYWORD_SUGGESTION_C
 # INFO: next.config.ts leaves `output` unset without this, so Vercel and Netlify keep building through their own adapters from the same source.
 ENV NEXT_OUTPUT_STANDALONE=true
 
+# WARN: REQUIREMENTS.md § 16. Build-time as well as runtime, and for a different reason than the runner's copy below: `next.config.ts` inlines it as the worker's script-URL version, so an image built without it falls back to a timestamp and reinstalls the worker on every deploy whether or not anything changed.
+ARG BUILD_SHA=development
+ENV BUILD_SHA=$BUILD_SHA
+
 # INFO: `pnpm build` is lint:steiger + next build, so an architecture violation fails the image rather than the deploy (REQUIREMENTS.md § 15.).
 RUN pnpm build
 

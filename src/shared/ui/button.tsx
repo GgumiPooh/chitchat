@@ -32,7 +32,14 @@ export type ButtonProps = ComponentProps<"button"> &
     /** WARN: The button's own box, for anything `className` cannot reach once `haptic` moves that to the wrapper — padding, radius, colour. */
     buttonClassName?: string;
     asChild?: boolean;
-    /** Ticks the Taptic engine when a finger lands on the button. */
+    /**
+     * Ticks the Taptic engine when a finger lands on the button.
+     *
+     * WARN: Structural, so pass it statically — it decides whether the wrapper exists
+     * and therefore which prop `className` lands on. A refusal silences the tick
+     * through `aria-disabled` instead (see `isTicking` below); flipping this at
+     * runtime would re-route the styling underneath the reader.
+     */
     haptic?: boolean;
   };
 
@@ -48,10 +55,14 @@ export function Button({
   ...props
 }: ButtonProps) {
   const Comp = asChild ? Slot.Root : "button";
+  // INFO: `useOfflineGate`'s refusal, which is `aria-disabled` rather than `disabled` so the control keeps its place in the tab order and can still say why.
+  const isRefusing = props["aria-disabled"] === true || props["aria-disabled"] === "true";
 
   const button = (
     <Comp
-      className={cn(buttonVariants({ variant }), haptic ? buttonClassName : className)}
+      // WARN: `buttonClassName` applies in **both** branches, and that is what makes `haptic` safe to vary. Applied only under `haptic`, a caller that toggled it dropped the button's own box — `min-h-11`, `rounded-full`, `text-semantic-error` — and silently handed it the wrapper's layout classes instead.
+      // INFO: Without a wrapper the button *is* the outermost element, so `className` belongs on it too; `buttonClassName` stays last, where `twMerge` lets the box win over the layout.
+      className={cn(buttonVariants({ variant }), !haptic && className, buttonClassName)}
       disabled={disabled}
       type={asChild ? undefined : type}
       {...props}
@@ -69,7 +80,8 @@ export function Button({
     <HapticTarget
       className={cn("flex w-full", className)}
       overlayClassName="touch-pan-y"
-      isTicking={!disabled}
+      // INFO: A refusal confirms nothing either, so `aria-disabled` silences the tick exactly as `disabled` does — which is what lets a gated caller keep `haptic` static.
+      isTicking={!disabled && !isRefusing}
       keepsScroll
     >
       {button}

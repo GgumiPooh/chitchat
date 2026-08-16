@@ -36,7 +36,7 @@ export function OfflineSnapshotSync({
     [participants, currentUserId, chatBackgroundMediaId, chatBackgroundBlurhash, hasEventToday],
   );
 
-  useWriteSnapshot("shell", snapshot);
+  useWriteSnapshot(currentUserId, "shell", snapshot);
 
   return null;
 }

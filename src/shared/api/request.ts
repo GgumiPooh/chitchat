@@ -1,4 +1,4 @@
-import { isDormant } from "@/shared/lib";
+import { isDormant, markNetworkReached } from "@/shared/lib";
 
 /**
  * REQUIREMENTS.md § 8.4.1. Thrown instead of reaching the network while the app is
@@ -40,7 +40,14 @@ export function request(path: string, init?: RequestInit): Promise<Response> {
     return Promise.reject(new DormantRequestError(path));
   }
 
-  return fetch(path, isCrossOrigin(path) ? { credentials: "include", ...init } : init);
+  // INFO: The one place the app learns first-hand that the network works, which is what `useIsOffline` corroborates `navigator.onLine` against before anything refuses on it.
+  return fetch(path, isCrossOrigin(path) ? { credentials: "include", ...init } : init).then(
+    (response) => {
+      markNetworkReached();
+
+      return response;
+    },
+  );
 }
 
 // WARN: § 13.7.1. An absolute URL is the signal, because every path this app writes is relative — so only a constant deliberately pointed at another origin reaches the credentialed branch, and it cannot be reached by a route of ours that merely redirects.

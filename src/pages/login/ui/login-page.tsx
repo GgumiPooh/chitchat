@@ -1,4 +1,4 @@
-import { DevLoginForm, GoogleLoginButton } from "@/features/session";
+import { DevLoginForm, GoogleLoginButton, SessionEndSync } from "@/features/session";
 import { APP_NAME, IS_DEV_LOGIN_ENABLED } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { Container } from "@/shared/ui";
@@ -21,6 +21,8 @@ export function LoginPage({ className, error }: LoginPageProps) {
   return (
     // INFO: DESIGN.md § 3.3. The document is the scroller here too, so the column is in flow at `min-h-dvh` rather than a percentage of a body that no longer has a height.
     <main className={cn("flex min-h-dvh flex-col bg-canvas", className)}>
+      {/* INFO: REQUIREMENTS.md § 16.2. Here because `proxy.ts` turns a browser that still holds a session away, so this screen renders only for a device whose session has ended — however it ended. */}
+      <SessionEndSync />
       <Container className="flex flex-1 flex-col justify-between py-2xl" size="sm">
         <div className="flex flex-1 flex-col items-center justify-center gap-xs">
           <h1 className="text-display-lg text-ink">{APP_NAME}</h1>
