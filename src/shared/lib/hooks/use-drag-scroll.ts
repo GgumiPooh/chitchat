@@ -20,7 +20,10 @@ export function useDragScroll() {
   const originRef = useRef<Nullable<{ x: number; scrollLeft: number }>>(null);
   const hasDraggedRef = useRef(false);
 
-  return {
+  // INFO: A function rather than a value, so a caller can ask at the moment it acts without this hook re-rendering it on every frame of a drag — DESIGN.md § 7.10.'s filmstrip asks from a timer.
+  const isDragging = () => originRef.current !== null;
+
+  const dragProps = {
     onPointerDown(event: PointerEvent<HTMLElement>) {
       hasDraggedRef.current = false;
 
@@ -73,6 +76,8 @@ export function useDragScroll() {
       event.stopPropagation();
     },
   };
+
+  return { isDragging, dragProps };
 
   function release(event: PointerEvent<HTMLElement>) {
     originRef.current = null;

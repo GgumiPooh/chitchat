@@ -44,6 +44,7 @@ import {
   type ComponentProps,
   type FC,
   type MouseEvent,
+  type PointerEvent,
 } from "react";
 import { HapticTap } from "./haptic-tap";
 import { HapticTarget } from "./haptic-target";
@@ -911,11 +912,13 @@ function SlideFilmstrip({
   onSelect,
 }: SlideFilmstripProps) {
   const stripRef = useRef<Nullable<HTMLDivElement>>(null);
+  // WARN: State beside the ref, because `useSettledCommit` takes the element as a value and the React Compiler forbids reading a ref during render — the same pair the track above keeps, for the same hook.
+  const [stripElement, setStripElement] = useState<Nullable<HTMLDivElement>>(null);
   // INFO: The haptic wrapper rather than the button, since that is the element the strip lays out (DESIGN.md § 7.15.) — and the one the centring below has to measure.
   const activeRef = useRef<Nullable<HTMLSpanElement>>(null);
   // INFO: The open is a jump and every crossing after it is a follow, so the first reveal is instant and the rest are eased — an animated one at mount would be read as the strip arriving already moving.
   const hasRevealedRef = useRef(false);
-  const dragProps = useDragScroll();
+  const { isDragging, dragProps } = useDragScroll();
   const position = cells.findIndex((cell) => cell.id === activeId) + 1;
   // INFO: § 10.'s unit, so a bubble that is all video counts in 개 — `toCellNoun` calls a mixed one a photo, which is the same latitude 장 takes there.
   const unit = toMediaCountUnit(cells.every((cell) => cell.isVideo) ? "video" : "photo");
@@ -948,16 +951,30 @@ function SlideFilmstrip({
     hasRevealedRef.current = true;
   }, [activeId, cells.length]);
 
+  /**
+   * DESIGN.md § 7.10. The centre of the strip is a **notch**: whatever the reader
+   * pulls under it becomes the slide on screen, so a drag scrubs the bubble rather
+   * than merely moving a row of pictures around.
+   *
+   * WARN: Committed on the settle rather than per frame, through the hook § 8.1.'s track already pages by — a slide crossed on every scroll event would send the track a new destination faster than it can travel to one, and a finger resting mid-drag fires no `scroll` at all.
+   * WARN: A drag still in progress is refused even though the timer has fired. `useSettledCommit` watches touch, where a mouse press holding still for `SETTLE_DELAY` looks exactly like a settled strip — and committing there scrolls the strip out from under the cursor that is holding it.
+   */
+  useSettledCommit({ scroller: stripElement, isPending: false, onSettled: commitNotchedSlide });
+
   return (
     // WARN: DESIGN.md § 7.10. Inert like the bar around it, with `pointer-events-auto` on the scroller alone. This block spans the bar's width, so claiming pointers here would swallow the chrome toggle and the § 8.11. hold across a band beside a two-thumbnail strip.
     <div className={cn("flex flex-col items-center gap-2xs", className)}>
       <div
-        ref={stripRef}
+        ref={captureStrip}
         // WARN: § 3.6. The end insets are the first and last child's **margin**, never the scroller's padding, and they are half its own width less half a thumbnail — which is exactly the room the first and last slide need to reach the middle. A percentage margin resolves against this box, so it follows the shell rather than a number written twice.
-        className="pointer-events-auto scrollbar-hidden flex w-full cursor-grab gap-2xs overflow-x-auto overscroll-x-contain active:cursor-grabbing [&>*:first-child]:ml-[calc(50%-1.5rem)] [&>*:last-child]:mr-[calc(50%-1.5rem)]"
+        // INFO: DESIGN.md § 7.10. Snapping is what makes the centre read as a notch: a drag lands on a thumbnail rather than between two, and the platform's own momentum carries it there.
+        className="pointer-events-auto scrollbar-hidden flex w-full cursor-grab snap-x snap-mandatory gap-2xs overflow-x-auto overscroll-x-contain active:cursor-grabbing [&>*:first-child]:ml-[calc(50%-1.5rem)] [&>*:last-child]:mr-[calc(50%-1.5rem)]"
         role="group"
         aria-label="이 메시지의 첨부"
         {...dragProps}
+        // WARN: The release commits for itself. `useSettledCommit` waits on a `scroll`, and a mouse drag let go on a position the strip is already snapped to produces none — so the reader would have pulled a thumbnail under the notch and had nothing answer.
+        onPointerUp={releaseToNotch}
+        onPointerCancel={releaseToNotch}
       >
         {cells.map((cell) => {
           const isActive = cell.id === activeId;
@@ -967,7 +984,7 @@ function SlideFilmstrip({
             <HapticTarget
               key={cell.id}
               ref={isActive ? activeRef : null}
-              className="shrink-0"
+              className="shrink-0 snap-center"
               // WARN: DESIGN.md § 7.15. The strip's own `touch-action` repeated, since the gesture now starts on the overlay — without it a drag across the thumbnails cannot pan the strip on touch.
               overlayClassName="touch-pan-x"
               keepsScroll
@@ -1016,6 +1033,46 @@ function SlideFilmstrip({
       </p>
     </div>
   );
+
+  // INFO: The hook's own release first, so the drag is over before the notch is read — `commitNotchedSlide` refuses one that is still in progress.
+  function releaseToNotch(event: PointerEvent<HTMLDivElement>) {
+    dragProps.onPointerUp(event);
+    commitNotchedSlide();
+  }
+
+  // INFO: The ref and the state are the same element read two ways — see the state's own WARN.
+  function captureStrip(element: Nullable<HTMLDivElement>) {
+    stripRef.current = element;
+    setStripElement(element);
+  }
+
+  /**
+   * DESIGN.md § 7.10. Names the thumbnail the notch has landed on, and moves the
+   * reader there.
+   *
+   * INFO: Nearest to the centre rather than read off `scrollLeft`, so the answer is the same whether the strip was snapped, flicked or dragged — and it needs no arithmetic that a changed cell size or gap could get wrong.
+   * INFO: A no-op wherever the strip is already where the slide put it, which is every settle that this component's own centring caused. That is what keeps the two from driving each other in a circle.
+   */
+  function commitNotchedSlide() {
+    const strip = stripRef.current;
+
+    if (!strip || isDragging()) {
+      return;
+    }
+
+    const stripBox = strip.getBoundingClientRect();
+    const centre = stripBox.left + stripBox.width / 2;
+    const distances = [...strip.children].map((child) => {
+      const box = child.getBoundingClientRect();
+
+      return Math.abs(box.left + box.width / 2 - centre);
+    });
+    const notched = cells[distances.indexOf(Math.min(...distances))];
+
+    if (notched && notched.id !== activeId) {
+      onSelect(notched);
+    }
+  }
 }
 
 /**
