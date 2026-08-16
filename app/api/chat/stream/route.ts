@@ -1,4 +1,9 @@
-import { getMessage, listMessages, type ChatMessage } from "@/entities/message";
+import {
+  getMessage,
+  listMessageInlineEmoticons,
+  listMessages,
+  type ChatMessage,
+} from "@/entities/message";
 import { apiError } from "@/shared/api";
 import { getSessionContext, isSessionLive } from "@/shared/auth";
 import {
@@ -10,6 +15,7 @@ import {
   SSE_REPLAY_LIMIT,
   SSE_REPLAY_MARGIN,
   typingEventSchema,
+  type InlineEmoticonMap,
   type MessageArrival,
 } from "@/shared/config";
 import {
@@ -90,8 +96,12 @@ export async function GET(request: Request) {
           handleNotification,
         );
 
-        for (const message of await replayFrom(cursor)) {
-          write(toMessageEvent(message, "backfill"));
+        const replay = await replayFrom(cursor);
+        // INFO: REQUIREMENTS.md § 13. One query for the whole replay, and each event then carries only the entries its own row names — the alternative is a query per replayed message on every reconnect.
+        const replayEmoticons = await listMessageInlineEmoticons(replay);
+
+        for (const message of replay) {
+          write(toMessageEvent(message, "backfill", pickEmoticons(replayEmoticons, message)));
         }
 
         await whenAborted(ended.signal);
@@ -173,7 +183,13 @@ export async function GET(request: Request) {
 
             // INFO: REQUIREMENTS.md § 8.13. `null` now means the id names no row at all, which is nothing to report on either channel — a deletion resolves normally and arrives as a row whose `isDeleted` is set.
             if (message) {
-              write(isMutation ? toChangeEvent(message) : toMessageEvent(message, "live"));
+              const emoticons = await listMessageInlineEmoticons([message]);
+
+              write(
+                isMutation
+                  ? toChangeEvent(message, emoticons)
+                  : toMessageEvent(message, "live", emoticons),
+              );
             }
           })
           .catch(() => undefined);
@@ -194,10 +210,30 @@ export async function GET(request: Request) {
  * the client, and § 13.6.'s emoticon sound must not fire for a message the user
  * has already been shown.
  */
-function toMessageEvent(message: ChatMessage, arrival: MessageArrival): string {
+function toMessageEvent(
+  message: ChatMessage,
+  arrival: MessageArrival,
+  emoticons: InlineEmoticonMap,
+): string {
   const event = arrival === "live" ? "message" : BACKFILL_EVENT;
 
-  return `event: ${event}\nid: ${message.id}\ndata: ${JSON.stringify(message)}\n\n`;
+  // INFO: REQUIREMENTS.md § 13. The single-row form of the payload every other read path answers — the row, and what its text stands in.
+  return `event: ${event}\nid: ${message.id}\ndata: ${JSON.stringify({ message, emoticons })}\n\n`;
+}
+
+// INFO: The entries one row names, out of a map resolved for a whole replay.
+function pickEmoticons(emoticons: InlineEmoticonMap, message: ChatMessage): InlineEmoticonMap {
+  const picked: InlineEmoticonMap = {};
+
+  for (const itemId of message.inlineEmoticonItemIds) {
+    const emoticon = emoticons[itemId];
+
+    if (emoticon) {
+      picked[itemId] = emoticon;
+    }
+  }
+
+  return picked;
 }
 
 /**
@@ -213,8 +249,8 @@ function toMessageEvent(message: ChatMessage, arrival: MessageArrival): string {
  * WARN: No `id:`. A change names a row of any age, and stamping the cursor with it
  * would walk `Last-Event-ID` backwards into a replay the client already has.
  */
-function toChangeEvent(message: ChatMessage): string {
-  return `event: ${CHANGE_EVENT}\ndata: ${JSON.stringify(message)}\n\n`;
+function toChangeEvent(message: ChatMessage, emoticons: InlineEmoticonMap): string {
+  return `event: ${CHANGE_EVENT}\ndata: ${JSON.stringify({ message, emoticons })}\n\n`;
 }
 
 async function replayFrom(cursor: Nullable<MessageId>): Promise<ChatMessage[]> {

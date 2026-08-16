@@ -1,22 +1,30 @@
 "use client";
 
 import type { ChatMessage } from "@/entities/message";
-import { ChatStreamConnection, useChatStream } from "@/features/chat-stream";
+import {
+  ChatStreamConnection,
+  rememberInlineEmoticons,
+  useChatStream,
+} from "@/features/chat-stream";
 import {
   MessageSearchBar,
   MessageSearchNav,
   MessageSearchResults,
   useMessageSearch,
 } from "@/features/search-messages";
+import type { InlineEmoticonMap } from "@/shared/config";
 import { cn, type Maybe, type MessageId, type UserId } from "@/shared/lib";
 import { AppHeader, Container, IconButton } from "@/shared/ui";
 import { ChatRoom, toChromeTint } from "@/widgets/chat-room";
 import { Search } from "lucide-react";
+import { useEffect } from "react";
 
 export type ChatScreenProps = {
   className?: string;
   currentUserId: UserId;
   initialMessages: ChatMessage[];
+  /** REQUIREMENTS.md § 13. What the emoticons written into those messages draw, resolved by the same server render. */
+  initialEmoticons: InlineEmoticonMap;
   /** REQUIREMENTS.md § 10. A message 보관함 opened this screen on, if any. */
   jumpMessageId?: Maybe<MessageId>;
 };
@@ -33,10 +41,16 @@ export function ChatScreen({
   className,
   currentUserId,
   initialMessages,
+  initialEmoticons,
   jumpMessageId,
 }: ChatScreenProps) {
   const search = useMessageSearch();
   const { participants, chatBackgroundBlurhash } = useChatStream();
+
+  // WARN: REQUIREMENTS.md § 13. In an effect and never in the render, because the store is a module singleton this component is also rendered on the server against — written there it would be one request's emoticons handed to the next one's reader.
+  useEffect(() => {
+    rememberInlineEmoticons(initialEmoticons);
+  }, [initialEmoticons]);
 
   // INFO: REQUIREMENTS.md § 12.2. Read here rather than by the backdrop that draws the photo: the tint is *this* box's own background, so it belongs to this component and cannot outlive it.
   // WARN: In the render, so the colour is in the server's HTML and is what Safari samples at the first paint of a cold launch — an effect publishes it after that read, which iOS 26 never repeats (DESIGN.md § 3.3.).

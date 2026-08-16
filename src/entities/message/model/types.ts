@@ -2,7 +2,7 @@ import type { Emoticon } from "@/entities/emoticon/@x/message";
 import type { ChatMedia } from "@/entities/media/@x/message";
 import type { MediaNoun, QuoteThumbnail } from "@/shared/config";
 import type { MessageType, SystemAction } from "@/shared/db";
-import type { EventId, MessageId, Nullable, UserId } from "@/shared/lib";
+import type { EmoticonItemId, EventId, MessageId, Nullable, UserId } from "@/shared/lib";
 
 /**
  * The message a reply quotes, as the quote renders it (REQUIREMENTS.md § 8.10.).
@@ -57,6 +57,8 @@ export type ChatMessage = {
   senderId: UserId;
   clientMsgId: string;
   text: Nullable<string>;
+  // INFO: REQUIREMENTS.md § 13. One id per `OBJECT_PLACEHOLDER` in `text`, in that order and repeats included. What each id draws travels beside the page as an `InlineEmoticonMap`, keyed and deduplicated, rather than on every row that names it.
+  inlineEmoticonItemIds: EmoticonItemId[];
   // INFO: REQUIREMENTS.md § 6. One bubble is one row however many attachments it carries, so this is an array rather than a `mediaId` on the message.
   media: ChatMedia[];
   // INFO: REQUIREMENTS.md § 13.6. Resolved at read time from `emoticon_item_id`, never copied onto the row — an emoticon renamed in Settings updates every bubble that used it, the same way § 8.7. treats a sender's name.

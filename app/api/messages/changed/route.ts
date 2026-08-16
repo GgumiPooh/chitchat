@@ -1,4 +1,4 @@
-import { listChangedMessages } from "@/entities/message";
+import { listChangedMessages, toMessagePayload } from "@/entities/message";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { snowflakeCursorSchema } from "@/shared/config";
@@ -39,7 +39,8 @@ export async function GET(request: Request) {
     return apiError("invalid_request");
   }
 
-  return NextResponse.json({
-    messages: await listChangedMessages(query.data.from, query.data.to),
-  });
+  // INFO: REQUIREMENTS.md § 13. A correction can put an emoticon into a row the client already holds, so a change carries the same map a page does.
+  return NextResponse.json(
+    await toMessagePayload(await listChangedMessages(query.data.from, query.data.to)),
+  );
 }

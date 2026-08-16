@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getDb, messages, nextSnowflake } from "@/shared/db";
-import type { MessageId, Nullable, UserId } from "@/shared/lib";
+import type { EmoticonItemId, MessageId, Nullable, UserId } from "@/shared/lib";
 import { and, eq, isNull } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
@@ -11,6 +11,14 @@ export type CreateTextMessageParams = {
   senderId: UserId;
   clientMsgId: string;
   text: string;
+  /**
+   * REQUIREMENTS.md § 13. One id per `OBJECT_PLACEHOLDER` in `text`, in that order.
+   *
+   * WARN: A precondition, exactly as `replyToId` is. The pairing and the existence of
+   * every id are the route's to refuse — nothing here re-checks them, and the column
+   * carries no foreign key that would.
+   */
+  inlineEmoticonItemIds?: EmoticonItemId[];
   /**
    * REQUIREMENTS.md § 8.10. The message this one quotes.
    *
@@ -33,6 +41,7 @@ export async function createTextMessage({
   senderId,
   clientMsgId,
   text,
+  inlineEmoticonItemIds = [],
   replyToId,
 }: CreateTextMessageParams): Promise<Nullable<ChatMessage>> {
   const db = getDb();
@@ -43,6 +52,7 @@ export async function createTextMessage({
       senderId,
       type: "text",
       text,
+      inlineEmoticonItemIds,
       clientMsgId,
       replyToId,
     })

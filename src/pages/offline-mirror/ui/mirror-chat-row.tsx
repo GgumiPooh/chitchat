@@ -3,7 +3,7 @@
 import type { ChatMedia } from "@/entities/media";
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import { DELETED_MESSAGE_TEXT } from "@/shared/config";
+import { DELETED_MESSAGE_TEXT, toMessageSummary } from "@/shared/config";
 import { cn, formatTime, type Optional } from "@/shared/lib";
 import { Avatar, FileCard, MediaTombstone, VoicePlayer } from "@/shared/ui";
 import { Smile } from "lucide-react";
@@ -130,7 +130,9 @@ export function MirrorChatRow({
     return (
       <div className={toBubbleClassName()}>
         {message.replyTo && renderQuote("mb-2xs")}
-        {message.text}
+        {/* INFO: REQUIREMENTS.md § 13. The mirror reads `text` and draws no emoticons, so the placeholders come out rather than reaching the transcript as tofu — the same summary the § 16.1. banner and the § 8.10. quote take. */}
+        {/* WARN: No names to fall back through, because the snapshot carries no emoticon map — a message that was nothing but emoticons reads 이모티콘 here where the live row draws them. */}
+        {toMessageSummary(message.text ?? "")}
       </div>
     );
   }

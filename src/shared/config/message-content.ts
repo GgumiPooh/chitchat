@@ -22,6 +22,30 @@ export type MessageContent = {
   inlineEmoticonItemIds: EmoticonItemId[];
 };
 
+/**
+ * What the browser needs to draw one inline emoticon, and all it is given
+ * (REQUIREMENTS.md § 13.).
+ *
+ * INFO: The box comes down with the page rather than being asked for per emoticon, because REQUIREMENTS.md § 8.3. has to reserve the row's height before any asset has loaded.
+ */
+export type InlineEmoticonInfo = {
+  width: number;
+  height: number;
+  /** REQUIREMENTS.md § 13.4. The item's `updated_at` in milliseconds — an edit keeps the id, so nothing else tells the cached asset URL apart from the new one. */
+  version: number;
+  name: Nullable<string>;
+  /** REQUIREMENTS.md § 13. The item's objects are gone and the box draws a replacement; the row survives so there is a box to draw it in. */
+  isDeleted: boolean;
+};
+
+/**
+ * The emoticons standing in a page of messages, keyed by item id.
+ *
+ * WARN: Keyed and deduplicated, never one entry per placeholder. A page repeats the
+ * same emoticon freely, and the alternative is the same row shipped a dozen times.
+ */
+export type InlineEmoticonMap = Record<string, InlineEmoticonInfo>;
+
 /** One run of a message, as everything that draws `MessageContent` walks it. */
 export type MessageSegment =
   { kind: "text"; text: string } | { kind: "emoticon"; itemId: EmoticonItemId };

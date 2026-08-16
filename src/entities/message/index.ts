@@ -1,3 +1,4 @@
+export { areInlineEmoticonsKnown } from "./api/check-inline-emoticons";
 export { countUnreadMessages } from "./api/count-unread";
 export {
   createEmoticonMessage,
@@ -17,5 +18,12 @@ export {
   searchMessages,
   type SearchMessagesParams,
 } from "./api/search-messages";
+export {
+  listMessageInlineEmoticons,
+  toMessagePayload,
+  toSingleMessagePayload,
+  type MessagePayload,
+  type SingleMessagePayload,
+} from "./api/to-message-payload";
 // WARN: Everything above touches the database. A client module may import from this barrel with `import type` only — a value import drags `server-only` into its bundle.
 export type { ChatMessage, MessageSearchResult, ReplyPreview } from "./model/types";

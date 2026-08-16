@@ -1,5 +1,7 @@
 import type { ChatMessage } from "@/entities/message";
+import { rememberInlineEmoticons } from "@/features/chat-stream";
 import { request } from "@/shared/api";
+import type { InlineEmoticonMap } from "@/shared/config";
 import type { MessageId } from "@/shared/lib";
 
 export type FetchMessagesParams = {
@@ -23,7 +25,13 @@ export async function fetchMessages(params: FetchMessagesParams): Promise<ChatMe
     throw new Error(`GET /api/messages responded ${response.status}`);
   }
 
-  const { messages } = (await response.json()) as { messages: ChatMessage[] };
+  const { messages, emoticons } = (await response.json()) as {
+    messages: ChatMessage[];
+    emoticons: InlineEmoticonMap;
+  };
+
+  // WARN: REQUIREMENTS.md § 13. Taken here rather than returned beside the page, so no caller can hold the rows without it — a page whose emoticons were dropped draws boxes of the wrong size and § 8.3. corrects the scroll under the reader.
+  rememberInlineEmoticons(emoticons);
 
   return messages;
 }

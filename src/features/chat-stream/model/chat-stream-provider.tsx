@@ -31,8 +31,9 @@ import { fetchChatContext } from "../api/fetch-chat-context";
 import { fetchUnreadCount } from "../api/fetch-unread-count";
 import { postRead } from "../api/post-read";
 import { DormantOverlay } from "../ui/dormant-overlay";
+import { rememberInlineEmoticons } from "./inline-emoticons";
 import { useAppRefresh } from "./use-app-refresh";
-import { type ChatEventSourceHandlers } from "./use-chat-event-source";
+import { type ChatEventSourceHandlers, type MessageEventData } from "./use-chat-event-source";
 import { useDormancy } from "./use-dormancy";
 
 export type ChatStreamListener = {
@@ -198,11 +199,11 @@ export function ChatStreamProvider({
 
   // WARN: Lazy initial state rather than a ref — the identity has to be stable *and* readable during render, and a ref read here is what React Compiler rejects. A fresh object would re-render the connection on every message that lands.
   const [handlers] = useState<ChatEventSourceHandlers>(() => ({
-    onMessage: (message, arrival) => handleMessage(message, arrival),
+    onMessage: (data, arrival) => handleMessage(data, arrival),
     onUserChanged: () => void refreshChatContext(),
     onResume: () => handleResume(),
     onTyping: (userId, isTyping) => handleTyping(userId, isTyping),
-    onChange: (message) => handleChange(message),
+    onChange: (data) => handleChange(data),
     onBuild: (id) => handleBuild(id),
   }));
 
@@ -345,7 +346,9 @@ export function ChatStreamProvider({
       nextExpiresAt === Infinity ? undefined : setTimeout(sweepTyping, nextExpiresAt - now);
   }
 
-  function handleMessage(message: ChatMessage, arrival: MessageArrival) {
+  function handleMessage({ message, emoticons }: MessageEventData, arrival: MessageArrival) {
+    // WARN: REQUIREMENTS.md § 13. Before the listeners, never after. A row reaches the window in the same tick this runs, and a bubble drawn against a map that has not taken its emoticons yet reserves the wrong height — which § 8.3. then corrects under the reader.
+    rememberInlineEmoticons(emoticons);
     listeners.current.forEach((listener) => listener.onMessage?.(message, arrival));
 
     // INFO: REQUIREMENTS.md § 8.5. The stream echoes my own message back to me; alerting myself to it is not a notification.
@@ -376,7 +379,9 @@ export function ChatStreamProvider({
    * tell whether the withdrawn row was one of the unread ones, which is exactly what
    * `syncUnreadCount` replaces wholesale.
    */
-  function handleChange(message: ChatMessage) {
+  function handleChange({ message, emoticons }: MessageEventData) {
+    // WARN: § 13. Before the listeners, for `handleMessage`'s reason — a correction can put an emoticon into a row that had none.
+    rememberInlineEmoticons(emoticons);
     listeners.current.forEach((listener) => listener.onChange?.(message));
 
     // INFO: A reader's cursor is about to clear the count anyway, and § 8.8.'s write is what moves it.

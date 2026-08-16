@@ -19,6 +19,7 @@ export {
 export { EmoticonPreview, type EmoticonPreviewProps } from "./ui/emoticon-preview";
 export {
   MessageComposer,
+  type ComposedMessage,
   type ComposerEmoticon,
   type MessageComposerProps,
 } from "./ui/message-composer";

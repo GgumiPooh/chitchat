@@ -40,9 +40,14 @@ export function toQuoteThumbnail(
  * so testing that one field pointed the quote's `<img>` at an audio object — which
  * `GET /api/media/{id}` now serves as the original — and reserved `QUOTE_THUMBNAIL`
  * in the § 8.3. estimate for a tile that can never draw.
+ *
+ * WARN: REQUIREMENTS.md § 10. And the deletion, which is a third way to have no tile.
+ * A photo destroyed from 보관함 keeps its `media` row for the box its bubble reserves
+ * (§ 9.), so the id here still resolves — but the object behind it is gone, and the
+ * quote drew a broken 32px `<img>` for it and priced the tile into the § 8.3. estimate.
  */
 function toAttachmentThumbnail(attachment: Optional<QuotedAttachment>): Nullable<QuoteThumbnail> {
-  if (!attachment || attachment.filename || attachment.voice) {
+  if (!attachment || attachment.filename || attachment.voice || attachment.isDeleted) {
     return null;
   }
 
@@ -51,7 +56,13 @@ function toAttachmentThumbnail(attachment: Optional<QuotedAttachment>): Nullable
 
 // WARN: Structural, and that is what lets one copy serve both callers — the server holds database rows and the browser holds a `ChatMessage`, and `shared` may name neither.
 // WARN: `voice` is **required**, which is the whole of what keeps a `MediaDraft[]` out of here — REQUIREMENTS.md § 9.3. flags a draft recording as `waveformPeaks` and never as `voice`, so an optional field would take one, read `undefined`, and hand the tile an audio object.
-type QuotedAttachment = { filename: Nullable<string>; voice: Nullable<unknown>; id: string };
+// WARN: `isDeleted` is required for `voice`'s reason — a draft has none, and an optional one would read `undefined` on the very shape this is written to keep out.
+type QuotedAttachment = {
+  filename: Nullable<string>;
+  voice: Nullable<unknown>;
+  isDeleted: boolean;
+  id: string;
+};
 
 /** @see QuotedAttachment — the emoticon half, whose `version` is `emoticon_items.updated_at` in milliseconds (§ 13.4.). */
 type QuotedEmoticon = { version: number; id: string };

@@ -1,4 +1,4 @@
-import { listMessages } from "@/entities/message";
+import { listMessages, toMessagePayload } from "@/entities/message";
 import { toMediaUrl } from "@/shared/config";
 import type { Maybe, MessageId, Nullable, UserId } from "@/shared/lib";
 import { preload } from "react-dom";
@@ -32,13 +32,15 @@ export async function ChatPage({
   }
 
   // INFO: The newest page comes from the server render, so opening the tab costs no client round trip before the first paint. Participants are the shell's (§ 8.4.), since every tab needs them for the in-app banner.
-  const initialMessages = await listMessages();
+  // INFO: REQUIREMENTS.md § 13. Through the payload builder, so this path carries its emoticons exactly as the fetched pages do — it is the only one whose map arrives as props rather than as a response.
+  const { messages, emoticons } = await toMessagePayload(await listMessages());
 
   return (
     <ChatScreen
       className={className}
       currentUserId={currentUserId}
-      initialMessages={initialMessages}
+      initialMessages={messages}
+      initialEmoticons={emoticons}
       jumpMessageId={jumpMessageId}
     />
   );

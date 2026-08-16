@@ -5,7 +5,7 @@ import type { MediaDraft } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { useApplyPhoto } from "@/features/apply-photo";
-import { useChatStream, useChatStreamListener } from "@/features/chat-stream";
+import { useChatStream, useChatStreamListener, useInlineEmoticons } from "@/features/chat-stream";
 import { useWriteChatSnapshot } from "@/features/offline-snapshot";
 import {
   EmoticonPicker,
@@ -14,6 +14,7 @@ import {
   useEmoticonPreload,
   useRecentEmoticons,
   useSendMessage,
+  type ComposerEmoticon,
   type EmoticonFocusRequest,
 } from "@/features/send-message";
 import { useTypingSignal } from "@/features/typing-indicator";
@@ -39,6 +40,7 @@ import {
   toMediaCountUnit,
   toMediaLabel,
   toMediaNoun,
+  toMessageSummary,
   toQuoteThumbnail,
   type MediaNoun,
   type MessageArrival,
@@ -62,6 +64,7 @@ import {
   useSoundUnlock,
   useUnsentWork,
   warmLineHeights,
+  type EmoticonItemId,
   type Maybe,
   type MediaId,
   type MessageId,
@@ -345,7 +348,9 @@ export function ChatRoom({
   const [editingId, setEditingId] = useState<Nullable<MessageId>>(null);
   // WARN: § 8.13. The composer owns its draft, so text only reaches it through this. A token rather than the string alone — cancelling an edit seeds `""`, and so does cancelling the next one, which as a bare value is no instruction at all.
   const [seededDraft, setSeededDraft] =
-    useState<Optional<{ text: string; token: number }>>(undefined);
+    useState<Optional<{ text: string; emoticons: ComposerEmoticon[]; token: number }>>(undefined);
+  // INFO: REQUIREMENTS.md § 13. What the placeholders in a message draw, for the one thing this component does with them — handing a correction back to the composer whole.
+  const inlineEmoticons = useInlineEmoticons();
   const seedTokenRef = useRef(0);
   // INFO: The newest id the user had in view when they last left the bottom — everything past it is what the § 6.7. pill counts.
   const [seenId, setSeenId] = useState(initialMessages.at(-1)?.id ?? 0);
@@ -585,8 +590,10 @@ export function ChatRoom({
         ),
       // INFO: REQUIREMENTS.md § 8.8. The same test `renderRow` uses, so the estimate knows the row has a column beside it.
       countUnreadReaders,
+      // WARN: REQUIREMENTS.md § 8.3. The same map `renderRow` hands the bubble, and it MUST stay the same one — fed from two sources the estimate and the row disagree about the box by construction, which is the miss this whole estimate exists to avoid.
+      readInlineEmoticon: (itemId: EmoticonItemId) => inlineEmoticons[itemId],
     }),
-    [scroller, scrollerWidth, readPreview, participantById, countUnreadReaders],
+    [scroller, scrollerWidth, readPreview, participantById, countUnreadReaders, inlineEmoticons],
   );
   // WARN: Written during render rather than in an effect, and read through a ref rather than closed over. `getItemKey` has to be one stable function: virtual-core memoizes the whole measurement pass on its identity, and a fresh closure per render re-runs `estimateSize` for every row that is not currently mounted — thousands of canvas text layouts on every SSE tick. It also has to see *this* render's rows, which `rowsRef` is deliberately one commit behind on.
   const keyedRowsRef = useRef(rows);
@@ -1367,8 +1374,7 @@ export function ChatRoom({
               onEdit={signalEdit}
               onKeywordTap={openEmoticonSearch}
               onFieldFocus={closeEmoticonPanel}
-              // TODO: Carry `inlineEmoticonItemIds` into the send, which needs `useSendMessage` and `POST /api/messages` to take them first. Nothing can stage one yet, so the drop is unreachable rather than silent.
-              onSend={(content) => submit(content.text)}
+              onSend={({ text, emoticons }) => submit(text, emoticons)}
             />
           </>
         </div>
@@ -1549,10 +1555,10 @@ export function ChatRoom({
    *
    * WARN: The order survives because `useSendMessage` delivers on one promise chain. Firing these in parallel would let the text win the race for `messages.id` and land above them on every other client and every reload.
    */
-  function submit(text: string) {
+  function submit(text: string, emoticons: ComposerEmoticon[]) {
     // WARN: REQUIREMENTS.md § 8.13. Ahead of everything below, and it returns. A correction sends nothing — the staged quote, the tray and the emoticon all belong to a message that is not being composed, and falling through would post them beside the edit.
     if (editingId !== null) {
-      void applyEdit(editingId, text);
+      void applyEdit(editingId, text, emoticons);
 
       return;
     }
@@ -1585,7 +1591,7 @@ export function ChatRoom({
 
     // WARN: REQUIREMENTS.md § 13.8. A draft that is nothing but the word the emoticon was found by was a search term, not a message — sending it would put 고민 in the conversation beside the picture it was only ever used to reach. Anything else keeps § 13.6.'s second bubble.
     if (text.trim() && !isConsumedByEmoticonSearch(text)) {
-      send(text, take());
+      send(text, emoticons, take());
     }
 
     // WARN: § 13.8. The word is spent here, and the search is left standing — see `sendStagedEmoticon`.
@@ -2306,7 +2312,8 @@ export function ChatRoom({
     setReplyTarget({
       senderId: message.senderId,
       kind: message.type,
-      text: message.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null,
+      // WARN: REQUIREMENTS.md § 13. The same summary `listReplyPreviews` answers with, for the reason the thumbnail below is the same call — the quote has one line and no room to draw an emoticon, and an optimistic quote that kept the placeholders would disagree with the echoed one about its own text.
+      text: toQuotedText(message),
       // INFO: REQUIREMENTS.md § 8.10. The same call `listReplyPreviews` makes on the server, so the optimistic quote and the echoed one cannot disagree about whether the row has a tile.
       thumbnail: message.isDeleted ? null : toQuoteThumbnail(message.emoticon, message.media),
       // WARN: REQUIREMENTS.md § 8.13. A withdrawn parent surrenders its payload here too. Nothing routes 답장 onto a tombstone today, but that is the row it is rendered on rather than a property of this function — and `listReplyPreviews` nulls all four, so staging them live would be the optimistic/echo disagreement `toQuoteThumbnail` exists to rule out.
@@ -2315,6 +2322,25 @@ export function ChatRoom({
       isDeleted: message.isDeleted,
       id: message.id,
     });
+  }
+
+  /**
+   * REQUIREMENTS.md § 13. A message as one line of prose: its emoticons out, and their
+   * names standing in where nothing else is left of it.
+   *
+   * INFO: The client's copy of what `listReplyPreviews` does server-side. Both read the
+   * same names — those come down with the page — so the staged quote, the optimistic
+   * bubble and the echoed row all say the same sentence.
+   */
+  function toQuotedText(message: ChatMessage): Nullable<string> {
+    if (message.type !== "text") {
+      return message.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null;
+    }
+
+    return toMessageSummary(
+      message.text ?? "",
+      message.inlineEmoticonItemIds.map((itemId) => inlineEmoticons[itemId]?.name ?? null),
+    ).slice(0, REPLY_PREVIEW_MAX_LENGTH);
   }
 
   /**
@@ -2430,7 +2456,8 @@ export function ChatRoom({
       return;
     }
 
-    const text = message.text ?? "";
+    // INFO: REQUIREMENTS.md § 13. A share sheet and a clipboard have no room for an emoticon either, so what leaves the app is the § 16.1. summary rather than the placeholders themselves.
+    const text = toQuotedText(message) ?? "";
 
     // WARN: A refusal falls back the same way a missing `navigator.share` does. The files path answers a spent activation with the § 8.11. retry dialog, but there is nothing buffered here to hold for a second tap — the clipboard is what is left, and it is the same recovery the sheet's own 복사 would have been.
     if (!canShareText() || (await shareText(text)) === "blocked") {
@@ -2561,7 +2588,17 @@ export function ChatRoom({
   /** REQUIREMENTS.md § 8.13. Hands the message's current text to the composer and puts it in the correcting mode. */
   function startEdit(message: ChatMessage) {
     setEditingId(message.id);
-    seedDraft(message.text ?? "");
+    // WARN: REQUIREMENTS.md § 13. The emoticons go back with the text. Seeded without them the correction holds placeholders nothing is paired to — blank boxes to read, and a body the route refuses on submit.
+    seedDraft(message.text ?? "", toComposerEmoticons(message));
+  }
+
+  // INFO: REQUIREMENTS.md § 13. The row's ids against what this tab has been told they draw; an id the store has never heard of is dropped rather than seeded as a box nothing fills.
+  function toComposerEmoticons(message: ChatMessage): ComposerEmoticon[] {
+    return message.inlineEmoticonItemIds.flatMap((itemId) => {
+      const emoticon = inlineEmoticons[itemId];
+
+      return emoticon ? [{ ...emoticon, id: itemId }] : [];
+    });
   }
 
   // INFO: REQUIREMENTS.md § 8.13. Leaves the field empty rather than restoring whatever was half-typed before the edit — the draft the composer held is the one that has just been abandoned.
@@ -2582,7 +2619,7 @@ export function ChatRoom({
    * database's, so the echo corrects it a moment later — one extra key revision
    * (§ 8.3.) and nothing else, since the label only ever asks whether it is null.
    */
-  async function applyEdit(id: MessageId, text: string) {
+  async function applyEdit(id: MessageId, text: string, emoticons: ComposerEmoticon[]) {
     const current = messages.find((entry) => entry.id === id);
     const edited = text.trim();
 
@@ -2594,23 +2631,30 @@ export function ChatRoom({
     }
 
     try {
-      await requestMessageEdit(id, edited);
+      const inlineEmoticonItemIds = emoticons.map(({ id: itemId }) => itemId);
+
+      await requestMessageEdit(id, edited, inlineEmoticonItemIds);
 
       if (current) {
-        replaceMessage({ ...current, text: edited, editedAt: new Date().toISOString() });
+        replaceMessage({
+          ...current,
+          text: edited,
+          inlineEmoticonItemIds,
+          editedAt: new Date().toISOString(),
+        });
       }
     } catch {
       toast.error("메시지를 수정하지 못했어요");
       // WARN: The composer clears the field on submit, so a failure has to hand the correction back — otherwise the user's rewrite is gone and the only recovery is to type it again.
       setEditingId(id);
-      seedDraft(edited);
+      seedDraft(edited, emoticons);
     }
   }
 
   // WARN: The token is what makes a repeat an instruction. Two cancels both seed `""`, and a bare value would make the second one no change at all.
-  function seedDraft(text: string) {
+  function seedDraft(text: string, emoticons: ComposerEmoticon[] = []) {
     seedTokenRef.current += 1;
-    setSeededDraft({ text, token: seedTokenRef.current });
+    setSeededDraft({ text, emoticons, token: seedTokenRef.current });
   }
 
   function handleAtBottomChange(atBottom: boolean) {

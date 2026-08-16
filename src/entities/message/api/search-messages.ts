@@ -1,7 +1,7 @@
 import { idToDate, type MessageId } from "@/shared/lib";
 import "server-only";
 
-import { SEARCH_PAGE_SIZE } from "@/shared/config";
+import { SEARCH_PAGE_SIZE, toPlainMessageText } from "@/shared/config";
 import { getDb, messages } from "@/shared/db";
 import { and, count, desc, eq, ilike, isNull, lt } from "drizzle-orm";
 import { toSearchExcerpt } from "../model/to-search-excerpt";
@@ -52,7 +52,8 @@ export async function searchMessages({
     id: row.id,
     senderId: row.senderId,
     createdAt: idToDate(row.id).toISOString(),
-    excerpt: toSearchExcerpt(row.text ?? "", query),
+    // INFO: REQUIREMENTS.md § 13. A result row is one line of prose with nothing to draw an emoticon in, so the placeholders come out before the window is cut — left in, they reach the row as tofu and shift the offsets the highlight is measured at.
+    excerpt: toSearchExcerpt(toPlainMessageText(row.text ?? ""), query),
   }));
 }
 

@@ -8,6 +8,7 @@ export {
 export {
   findKnownPackIds,
   getEmoticonPack,
+  getEmoticonPackType,
   listEmoticonPackItems,
   listEmoticonPacks,
   listEmoticonPacksPage,
@@ -17,6 +18,7 @@ export {
 } from "./api/get-emoticon-packs";
 export { listEmoticonKeywords } from "./api/list-emoticon-keywords";
 export { listEmoticonsByIds } from "./api/list-emoticons-by-ids";
+export { listInlineEmoticons } from "./api/list-inline-emoticons";
 export { searchEmoticons } from "./api/search-emoticons";
 export {
   registerEmoticon,

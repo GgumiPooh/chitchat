@@ -18,6 +18,8 @@ export function toChatMessage(
     clientMsgId: row.clientMsgId,
     // WARN: REQUIREMENTS.md § 8.13. A deleted row surrenders its text **here**, on the way out. The tombstone renders a fixed line and never this, so shipping it would put the withdrawn message in every payload for anyone reading the network tab — which is the one thing deleting it was meant to take back. The row keeps it (§ 6. is append-only); the wire does not.
     text: isDeleted ? null : row.text,
+    // WARN: § 8.13. Surrendered with the text, and for its reason — the ids are what the withdrawn sentence was written around, and the tombstone draws none of them.
+    inlineEmoticonItemIds: isDeleted ? [] : row.inlineEmoticonItemIds,
     media,
     emoticon,
     eventId: row.eventId,

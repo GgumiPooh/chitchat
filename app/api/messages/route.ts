@@ -1,17 +1,22 @@
 import { getEmoticonItem } from "@/entities/emoticon";
 import { ownsAllMedia } from "@/entities/media";
 import {
+  areInlineEmoticonsKnown,
   createEmoticonMessage,
   createMediaMessage,
   createTextMessage,
   isQuotable,
   listMessages,
+  toMessagePayload,
+  toSingleMessagePayload,
   type ChatMessage,
 } from "@/entities/message";
 import { notifyMessageRecipients } from "@/features/notify-chat";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
+  isMessageContentPaired,
+  MAX_EMOTICON_ID_LOOKUP,
   MAX_MEDIA_PER_MESSAGE,
   MAX_MESSAGE_LENGTH,
   MAX_MESSAGE_PAGE_SIZE,
@@ -21,6 +26,8 @@ import {
   snowflakeSchema,
   toMediaLabel,
   toMediaNoun,
+  toMessageSummary,
+  type InlineEmoticonMap,
 } from "@/shared/config";
 import {
   safelyRunAsync,
@@ -30,7 +37,7 @@ import {
   type Optional,
   type UserId,
 } from "@/shared/lib";
-import { NextResponse, after } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
 const cursorSchema = snowflakeSchema<MessageId>().optional();
@@ -49,11 +56,26 @@ const querySchema = z.object({
 const replySchema = z.object({ replyToId: snowflakeSchema<MessageId>().optional() });
 
 // INFO: REQUIREMENTS.md § 6. A row is text or attachments, never both — the CHECK constraint says the same thing at the database.
+// INFO: REQUIREMENTS.md § 13. Bounded by the lookup the existence check runs — a body past it is refused rather than checked in part.
+const inlineEmoticonsSchema = z
+  .array(snowflakeSchema<EmoticonItemId>())
+  .max(MAX_EMOTICON_ID_LOOKUP)
+  .optional();
+
 const bodySchema = z.union([
-  replySchema.extend({
-    clientMsgId: z.uuid(),
-    text: z.string().trim().min(1).max(MAX_MESSAGE_LENGTH),
-  }),
+  replySchema
+    .extend({
+      clientMsgId: z.uuid(),
+      text: z.string().trim().min(1).max(MAX_MESSAGE_LENGTH),
+      inlineEmoticonItemIds: inlineEmoticonsSchema,
+    })
+    // WARN: REQUIREMENTS.md § 13. One id per placeholder, refused rather than repaired — the pair is positional, so a body whose halves disagree names emoticons the sender never wrote and cannot be guessed back into shape.
+    .refine((body) =>
+      isMessageContentPaired({
+        text: body.text,
+        inlineEmoticonItemIds: body.inlineEmoticonItemIds ?? [],
+      }),
+    ),
   replySchema.extend({
     clientMsgId: z.uuid(),
     mediaIds: z.array(snowflakeSchema<MediaId>()).min(1).max(MAX_MEDIA_PER_MESSAGE),
@@ -83,14 +105,17 @@ export async function GET(request: Request) {
 
   const { before, after, around, limit } = query.data;
 
-  return NextResponse.json({
-    messages: await listMessages({
-      before,
-      after,
-      around,
-      limit: Math.min(limit ?? MESSAGE_PAGE_SIZE, MAX_MESSAGE_PAGE_SIZE),
-    }),
-  });
+  // INFO: REQUIREMENTS.md § 13. Through the payload builder, which is what pairs the page with the emoticons its text stands in — every read path answers this one shape.
+  return NextResponse.json(
+    await toMessagePayload(
+      await listMessages({
+        before,
+        after,
+        around,
+        limit: Math.min(limit ?? MESSAGE_PAGE_SIZE, MAX_MESSAGE_PAGE_SIZE),
+      }),
+    ),
+  );
 }
 
 export async function POST(request: Request) {
@@ -118,6 +143,11 @@ export async function POST(request: Request) {
     return apiError("invalid_request");
   }
 
+  // INFO: REQUIREMENTS.md § 13. The array carries no foreign key of its own, so a stale client naming an item that never existed would be stored rather than refused — this is what makes it the 400 the two checks above give.
+  if ("text" in payload && !(await areInlineEmoticonsKnown(payload.inlineEmoticonItemIds ?? []))) {
+    return apiError("invalid_request");
+  }
+
   // INFO: REQUIREMENTS.md § 8.10. `reply_to_id` is a foreign key and a CHECK refuses a system parent, so either would surface as a 500 without this. A soft-deleted parent is refused here rather than at the database — the row is still there, so nothing but this stops a stale client quoting it.
   if (!(await canReplyTo(payload.replyToId))) {
     return apiError("invalid_request");
@@ -130,10 +160,15 @@ export async function POST(request: Request) {
     return apiError("conflict");
   }
 
-  // WARN: REQUIREMENTS.md § 16.1. `after`, so the fan-out's round trips to the push services never sit between the sender and their 201. It still runs inside this invocation, on a database that is already awake — which is why push costs Neon's autosuspend nothing, unlike the cron § 16.1. rejected.
-  after(() => safelyRunAsync(() => notifyMessageRecipients(user, toPushBody(message))));
+  // INFO: REQUIREMENTS.md § 13. The echo carries the same map a page does, so the sender's own row draws from what the server resolved rather than from whatever the composer happened to hold.
+  const echo = await toSingleMessagePayload(message);
 
-  return NextResponse.json({ message }, { status: 201 });
+  // WARN: REQUIREMENTS.md § 16.1. `after`, so the fan-out's round trips to the push services never sit between the sender and their 201. It still runs inside this invocation, on a database that is already awake — which is why push costs Neon's autosuspend nothing, unlike the cron § 16.1. rejected.
+  after(() =>
+    safelyRunAsync(() => notifyMessageRecipients(user, toPushBody(message, echo.emoticons))),
+  );
+
+  return NextResponse.json(echo, { status: 201 });
 }
 
 async function canReplyTo(replyToId: Optional<MessageId>): Promise<boolean> {
@@ -153,14 +188,18 @@ function createMessage(senderId: UserId, payload: z.infer<typeof bodySchema>) {
 }
 
 // INFO: A notification has no room for a thumbnail, so an attachment is announced by kind. `사진` covers a mixed send too — naming both would read as a manifest.
-function toPushBody(message: ChatMessage): string {
+function toPushBody(message: ChatMessage, emoticons: InlineEmoticonMap): string {
   if (message.type === "emoticon") {
     // INFO: REQUIREMENTS.md § 16.1. The banner cannot show the art, and the item name is authored by these two users rather than by a vendor, so the kind is what carries.
     return "이모티콘";
   }
 
   if (message.type !== "media") {
-    return (message.text ?? "").slice(0, PUSH_BODY_MAX_LENGTH);
+    // INFO: REQUIREMENTS.md § 13. A banner has no room to draw one either, so the placeholders come out and whatever sentence is left carries — falling back to the emoticons' own names, and past those to the same 이모티콘 the branch above answers with.
+    return toMessageSummary(
+      message.text ?? "",
+      message.inlineEmoticonItemIds.map((itemId) => emoticons[itemId]?.name ?? null),
+    ).slice(0, PUSH_BODY_MAX_LENGTH);
   }
 
   return toMediaLabel(toMediaNoun(message.media));

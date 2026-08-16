@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChatMessage } from "@/entities/message";
+import type { InlineEmoticonMap } from "@/shared/config";
 import {
   BACKFILL_EVENT,
   CHANGE_EVENT,
@@ -17,15 +18,18 @@ import { safelyGet, type Nullable, type Optional } from "@/shared/lib";
 import { useEffect, useRef } from "react";
 import { z } from "zod";
 
+/** REQUIREMENTS.md § 13. One row and the emoticons its text stands in, which is how every read path answers. */
+export type MessageEventData = { message: ChatMessage; emoticons: InlineEmoticonMap };
+
 export type ChatEventSourceHandlers = {
-  onMessage: (message: ChatMessage, arrival: MessageArrival) => void;
+  onMessage: (data: MessageEventData, arrival: MessageArrival) => void;
   /** REQUIREMENTS.md § 8.4. Named for its channel, but it invalidates the whole payload behind it — the participant set and the § 12.2. shared wallpaper alike, since `chat_settings` publishes on the same channel. */
   onUserChanged: () => void;
   onResume: () => void;
   /** Someone started or stopped composing. REQUIREMENTS.md § 8.12. */
   onTyping: (userId: UserId, isTyping: boolean) => void;
   /** REQUIREMENTS.md § 8.13. A row already on screen, changed — corrected, or withdrawn and now a tombstone. Whole, so the client replaces rather than patches. */
-  onChange: (message: ChatMessage) => void;
+  onChange: (data: MessageEventData) => void;
   /** The deployment serving this connection. REQUIREMENTS.md § 15.1. */
   onBuild: (id: string) => void;
 };
@@ -105,10 +109,10 @@ export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: b
       opened.addEventListener(CHANGE_EVENT, (event) => {
         markAlive();
 
-        const message = safelyGet(() => JSON.parse(event.data) as ChatMessage);
+        const data = safelyGet(() => JSON.parse(event.data) as MessageEventData);
 
-        if (message) {
-          handlers.current.onChange(message);
+        if (data?.message) {
+          handlers.current.onChange(data);
         }
       });
       // INFO: REQUIREMENTS.md § 8.4. The heartbeat is a named event rather than a `:ping` comment so it lands here — this is the client's only evidence that the socket underneath is still real.
@@ -135,10 +139,10 @@ export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: b
     function deliver(event: MessageEvent<string>, arrival: MessageArrival) {
       markAlive();
 
-      const message = safelyGet(() => JSON.parse(event.data) as ChatMessage);
+      const data = safelyGet(() => JSON.parse(event.data) as MessageEventData);
 
-      if (message) {
-        handlers.current.onMessage(message, arrival);
+      if (data?.message) {
+        handlers.current.onMessage(data, arrival);
       }
     }
 

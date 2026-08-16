@@ -1,4 +1,4 @@
-import type { MessageId, UserId } from "@/shared/lib";
+import type { EmoticonItemId, MessageId, UserId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, messages } from "@/shared/db";
@@ -8,14 +8,23 @@ import { and, eq, isNull } from "drizzle-orm";
  * REQUIREMENTS.md § 8.13. Rewrites a text message's body and stamps `edited_at`,
  * which is what the 수정됨 label reads.
  *
+ * INFO: REQUIREMENTS.md § 13. The emoticons are rewritten with the text and never
+ * left as they were — the pair is positional, so a correction that removed one of
+ * them would leave every id after it standing at the wrong placeholder.
+ *
  * Scoped the way `deleteMessage` is, so the `false` return covers "not mine",
  * "not text", "already deleted" and "never existed" without telling the caller
  * which. There is no time limit: an edit is allowed for as long as the row lives.
  */
-export async function editMessage(id: MessageId, senderId: UserId, text: string): Promise<boolean> {
+export async function editMessage(
+  id: MessageId,
+  senderId: UserId,
+  text: string,
+  inlineEmoticonItemIds: EmoticonItemId[] = [],
+): Promise<boolean> {
   const edited = await getDb()
     .update(messages)
-    .set({ text, editedAt: new Date() })
+    .set({ text, inlineEmoticonItemIds, editedAt: new Date() })
     .where(
       and(
         eq(messages.id, id),

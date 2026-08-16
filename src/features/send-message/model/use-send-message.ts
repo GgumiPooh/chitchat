@@ -20,6 +20,7 @@ import {
 import { useSnapshot, useSnapshotOwner, useWriteSnapshot } from "@/shared/snapshot";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { postMessage, type PostMessageParams } from "../api/post-message";
+import type { ComposerEmoticon } from "../ui/message-composer";
 import { toBubbles, toDraftKind } from "./to-bubbles";
 
 /** An outgoing message the server has not echoed back yet (REQUIREMENTS.md § 8.5.). */
@@ -29,6 +30,14 @@ export type PendingMessage = {
   media: MediaDraft[];
   // INFO: REQUIREMENTS.md § 13.6. Carried on the pending row so the optimistic bubble renders the art immediately — the asset is already in the browser's cache from the picker.
   emoticon: Nullable<Emoticon>;
+  /**
+   * REQUIREMENTS.md § 13. The emoticons written into `text`, one per placeholder.
+   *
+   * WARN: Carried whole rather than as ids, and § 8.3. is why — the optimistic bubble
+   * has to reserve the same box the echoed row will, and the box comes from these.
+   * The composer already holds them, so nothing is fetched to draw the send.
+   */
+  inlineEmoticons: ComposerEmoticon[];
   // INFO: REQUIREMENTS.md § 8.10. Carried on the pending row so the optimistic bubble quotes immediately — the client staged the preview, so nothing has to be fetched to draw it.
   replyTo: Nullable<ReplyPreview>;
   // WARN: Indexed alongside `media`. A retry re-uploads only the slots still null, so a failure on the last of nine photos does not re-send the eight that landed.
@@ -40,6 +49,15 @@ export type PendingMessage = {
    */
   status: "sending" | "queued" | "failed";
   createdAt: string;
+};
+
+/**
+ * WARN: REQUIREMENTS.md § 16. What an *earlier build* wrote, which is the only shape a
+ * restore ever reads. A field added to the queue is absent from every row already in
+ * storage, and `toPostParams` maps over this one on the way out.
+ */
+type StoredPendingMessage = Omit<PendingMessage, "inlineEmoticons"> & {
+  inlineEmoticons?: ComposerEmoticon[];
 };
 
 export type UseSendMessageParams = {
@@ -247,7 +265,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
   useWriteSnapshot(owner, "outbox", durableQueue);
 
   // WARN: The same owner the write above uses, never `useSnapshot`'s `localStorage` default. This one is read *inside* a signed-in tree, and two browsing contexts share that key — a restore taken from it revives the other account's queued rows, which `flushQueued` then posts under this session.
-  const restored = useSnapshot<PendingMessage[]>("outbox", owner);
+  const restored = useSnapshot<StoredPendingMessage[]>("outbox", owner);
   const hasRestoredRef = useRef(false);
 
   /**
@@ -265,7 +283,10 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
     hasRestoredRef.current = true;
 
     const known = new Set(pendingRef.current.map((entry) => entry.clientMsgId));
-    const revived = restored.payload.filter((entry) => !known.has(entry.clientMsgId));
+    // WARN: REQUIREMENTS.md § 13. A queue written by a build that had no inline emoticons revives with an empty list rather than an absent one — `toPostParams` maps over it, and a bubble restored from yesterday's bundle would throw on the way out.
+    const revived = restored.payload
+      .filter((entry) => !known.has(entry.clientMsgId))
+      .map((entry) => ({ ...entry, inlineEmoticons: entry.inlineEmoticons ?? [] }));
 
     if (revived.length === 0) {
       return;
@@ -277,14 +298,14 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
   }, [restored, commit, flushQueued]);
 
   const send = useCallback(
-    (text: string, replyTo: Nullable<ReplyPreview> = null) => {
+    (text: string, emoticons: ComposerEmoticon[] = [], replyTo: Nullable<ReplyPreview> = null) => {
       const trimmed = text.trim();
 
       if (!trimmed) {
         return;
       }
 
-      const message = { ...createPending(trimmed, []), replyTo };
+      const message = { ...createPending(trimmed, []), inlineEmoticons: emoticons, replyTo };
 
       commit((previous) => [...previous, message]);
       enqueue([message]);
@@ -351,6 +372,7 @@ function createPending(text: Nullable<string>, media: MediaDraft[]): PendingMess
     text,
     media,
     emoticon: null,
+    inlineEmoticons: [],
     replyTo: null,
     uploadedIds: media.map(() => null),
     progress: 0,
@@ -375,7 +397,13 @@ async function toPostParams(
     return { clientMsgId, replyToId, mediaIds: await uploadAll(message) };
   }
 
-  return { clientMsgId, replyToId, text: message.text };
+  return {
+    clientMsgId,
+    replyToId,
+    text: message.text,
+    // INFO: REQUIREMENTS.md § 13. In placeholder order, which is the order the composer staged them in — the route refuses a body where the two disagree.
+    inlineEmoticonItemIds: message.inlineEmoticons.map(({ id }) => id),
+  };
 }
 
 function sum(values: number[]): number {

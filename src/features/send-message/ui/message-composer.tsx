@@ -2,11 +2,11 @@
 
 import {
   findKeywordMatch,
+  MAX_EMOTICON_ID_LOOKUP,
   MAX_MESSAGE_LENGTH,
   OBJECT_PLACEHOLDER,
   toPlaceholderIndex,
   type KeywordMatch,
-  type MessageContent,
 } from "@/shared/config";
 import {
   cn,
@@ -75,6 +75,9 @@ type StagedEmoticon = ComposerEmoticon & { key: string };
 
 // INFO: One state and not two. The text and the emoticons standing in it are read as a pair (`isMessageContentPaired`), so nothing may re-render holding one of them from before an edit.
 type Draft = { text: string; emoticons: StagedEmoticon[] };
+
+/** What a send hands over: the text with its placeholders, and what each one stands for. */
+export type ComposedMessage = { text: string; emoticons: ComposerEmoticon[] };
 
 const EMPTY_DRAFT: Draft = { text: "", emoticons: [] };
 
@@ -146,8 +149,8 @@ export type MessageComposerProps = {
   onToggleEmoticons?: () => void;
   /** REQUIREMENTS.md § 13.8. A tap on the underlined word, carrying what was typed rather than the keyword it hit. */
   onKeywordTap?: (query: string) => void;
-  // TODO: The room still calls this with a bare string — the send path has to take the pair and post `inline_emoticon_item_ids` beside the text (REQUIREMENTS.md § 6.).
-  onSend: (content: MessageContent) => void;
+  // INFO: REQUIREMENTS.md § 13. The emoticons whole rather than their ids alone — the optimistic bubble has to reserve the box the echoed row will, and only these carry it.
+  onSend: (message: ComposedMessage) => void;
 };
 
 // INFO: DESIGN.md § 6.6. A floating bar over the message column, not a flow child — the messages are meant to pass under it, which is also what gives the glass something to blur.
@@ -281,13 +284,18 @@ export function MessageComposer({
    */
   if (insertedEmoticon !== undefined && insertedEmoticon.token !== seenInsertToken) {
     setSeenInsertToken(insertedEmoticon.token);
-    setDraft((current) => ({
-      text: current.text + OBJECT_PLACEHOLDER,
-      emoticons: [
-        ...current.emoticons,
-        { ...insertedEmoticon.emoticon, key: `${insertedEmoticon.token}` },
-      ],
-    }));
+    setDraft((current) =>
+      // INFO: REQUIREMENTS.md § 13. The send is refused past this many ids, so the field stops taking them rather than building a draft the server will not accept.
+      current.emoticons.length >= MAX_EMOTICON_ID_LOOKUP
+        ? current
+        : {
+            text: current.text + OBJECT_PLACEHOLDER,
+            emoticons: [
+              ...current.emoticons,
+              { ...insertedEmoticon.emoticon, key: `${insertedEmoticon.token}` },
+            ],
+          },
+    );
   }
 
   /**
@@ -441,7 +449,7 @@ export function MessageComposer({
       return;
     }
 
-    onSend({ text: draft.text, inlineEmoticonItemIds: draft.emoticons.map(({ id }) => id) });
+    onSend({ text: draft.text, emoticons: draft.emoticons });
     setDraft(EMPTY_DRAFT);
     // WARN: REQUIREMENTS.md § 8.12. The send is the end of composing, and it clears the field without going through `onChange` — so nothing else here would ever retract the broadcast, and 입력 중 would sit under the message that had just arrived.
     onEdit?.(false);
