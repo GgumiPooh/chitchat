@@ -14,15 +14,15 @@ export type PurgePanelProps = {
 /**
  * REQUIREMENTS.md § 9., § 12.4. Brings the ten-minute reclaim forward.
  *
- * INFO: One button, no preview and no confirmation — the two things the sweep beside it
- * needs and this does not. That pass subtracts the database from the bucket and can be
- * wrong about what it finds; this one acts only on rows the database has ALREADY marked
- * deleted, so there is nothing to decide and the schedule would have done the same thing
- * within minutes. A confirmation here would be ceremony over a no-op, and asking twice
- * about a safe action teaches people to dismiss the dialog that guards the unsafe one.
+ * INFO: A preview beside it, and no confirmation — the two are different questions. 미리보기
+ * counts what a run would take, which is worth knowing before spending one and is the same
+ * courtesy the sweep offers. A confirmation would be ceremony: every row here is one the
+ * database has ALREADY marked deleted, the schedule would have taken it within minutes, and
+ * asking twice about a safe action teaches people to dismiss the dialog that guards the
+ * unsafe one below.
  *
- * INFO: `secondary`, not `destructive`, for the same reason — the colour on this screen
- * means "this removes something you may want", and these bytes are already unreachable.
+ * INFO: `secondary` on both, not `destructive` — the colour on this screen means "this
+ * removes something you may want", and these bytes are already unreachable.
  */
 export function PurgePanel({ className }: PurgePanelProps) {
   const [result, setResult] = useState<Nullable<OpsResult>>(null);
@@ -34,30 +34,45 @@ export function PurgePanel({ className }: PurgePanelProps) {
       <p className="px-md pb-sm text-body-sm text-meta">
         지운 사진과 파일이 차지하던 공간을 되찾아요
       </p>
-      <div className="px-md">
-        <Button variant="secondary" disabled={isPurging} haptic onClick={() => void purge()}>
-          {isPurging ? "요청하는 중…" : "지금 회수하기"}
+      <div className="flex gap-xs px-md">
+        <Button
+          className="flex-1"
+          variant="secondary"
+          disabled={isPurging}
+          haptic
+          onClick={() => void purge(true)}
+        >
+          미리보기
+        </Button>
+        <Button
+          className="flex-1"
+          variant="secondary"
+          disabled={isPurging}
+          haptic
+          onClick={() => void purge(false)}
+        >
+          지금 회수하기
         </Button>
       </div>
       <OpsResultModal result={result} onClose={() => setResult(null)} />
     </section>
   );
 
-  async function purge() {
+  async function purge(dryRun: boolean) {
     setIsPurging(true);
 
     try {
-      await purgeDeleted();
+      await purgeDeleted(dryRun);
 
       // WARN: 요청, never a count. The dispatch answers once the run is QUEUED, and a hand-started reclaim is the one the workflow turns its push on for — so the number arrives as a banner.
       setResult({
-        title: "회수를 요청했어요",
+        title: dryRun ? "점검을 요청했어요" : "회수를 요청했어요",
         description: "결과는 알림으로 알려드릴게요",
         lines: [],
       });
     } catch (error) {
       setResult({
-        title: "회수를 요청하지 못했어요",
+        title: dryRun ? "점검을 요청하지 못했어요" : "회수를 요청하지 못했어요",
         description: describeOpsFailure(error),
         lines: [],
       });

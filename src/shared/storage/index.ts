@@ -16,7 +16,12 @@ export {
   type StoredObject,
 } from "./objects";
 export { purgeNow } from "./purge";
-export { reclaimExpiredStorage, reclaimExpiredStorageOnce, type ReclaimReport } from "./reclaim";
+export {
+  countReclaimable,
+  reclaimExpiredStorage,
+  reclaimExpiredStorageOnce,
+  type ReclaimReport,
+} from "./reclaim";
 export {
   consumeReservations,
   releaseReservations,

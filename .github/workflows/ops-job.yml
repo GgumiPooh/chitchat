@@ -22,7 +22,7 @@ on:
         default: 30
         type: number
       dry-run:
-        description: Report what the sweep would take without taking it. Ignored by the other two.
+        description: Count what the run would take without taking it. The backup ignores it.
         required: false
         default: false
         type: boolean
@@ -142,4 +142,6 @@ jobs:
           ORPHAN_MAX_DELETE_RATIO: ${{ vars.ORPHAN_MAX_DELETE_RATIO || '0.5' }}
           PURGE_NOTIFY: ${{ inputs.notify }}
           SWEEP_DRY_RUN: ${{ inputs.dry-run }}
+          # INFO: The same input; each script reads only its own, so one flag serves both previews.
+          PURGE_DRY_RUN: ${{ inputs.dry-run }}
         run: pnpm ${{ inputs.script }}

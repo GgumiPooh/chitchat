@@ -3,7 +3,7 @@ import "server-only";
 import { MEDIA_DELETE_GRACE } from "@/shared/config";
 import { getDb, media, storageReservations } from "@/shared/db";
 import { AN_HOUR, A_SECOND, safelyRunAsync } from "@/shared/lib";
-import { and, eq, isNotNull, isNull, lte, notExists, sql } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull, lte, notExists, sql } from "drizzle-orm";
 import { purgeNow } from "./purge";
 
 // WARN: One call's ceiling per pass, so an upload can never pay for a month of deletes. The work is idempotent and the next call resumes it, so a short pass is a slow drain rather than a lost one.
@@ -69,18 +69,46 @@ export async function reclaimExpiredStorageOnce(
   return { media: media.length, claims: claims.length };
 }
 
-/** INFO: § 12. Soft-deleted past the window a peer may still replay a cached 302 inside; `media_pending_purge_idx` is the partial index this reads through. */
+/**
+ * How much a run would reclaim right now, without reclaiming any of it.
+ *
+ * INFO: What 미리보기 asks. Unlike the orphan sweep's preview this is not a safety gate —
+ * nothing here can be wrong about what it found, since every row it counts is one the
+ * database has already marked deleted. It answers "is there anything to do", which is the
+ * question worth having before spending a run.
+ *
+ * WARN: Counted, never `LIMIT`ed. `RECLAIM_LIMIT` bounds one pass of the real work, and a
+ * preview reporting that ceiling would answer "200" for a backlog of thousands.
+ */
+export async function countReclaimable(): Promise<ReclaimReport> {
+  const [mediaRows, claimRows] = await Promise.all([
+    getDb().select({ count: count() }).from(media).where(isPurgeableMedia()),
+    getDb().select({ count: count() }).from(storageReservations).where(isExpiredClaim()),
+  ]);
+
+  return { media: mediaRows[0]?.count ?? 0, claims: claimRows[0]?.count ?? 0 };
+}
+
+/**
+ * INFO: § 12. Soft-deleted past the window a peer may still replay a cached 302 inside;
+ * `media_pending_purge_idx` is the partial index this reads through.
+ *
+ * WARN: One predicate, shared with `countReclaimable`. A preview that asked a differently
+ * worded question would report a number the run then does not match.
+ */
+function isPurgeableMedia() {
+  return and(
+    isNotNull(media.deletedAt),
+    lte(media.deletedAt, sinceNow(MEDIA_DELETE_GRACE)),
+    isNull(media.r2PurgedAt),
+  );
+}
+
 function findPurgeableMedia(limit: number): Promise<string[]> {
   return getDb()
     .select({ r2Key: media.r2Key })
     .from(media)
-    .where(
-      and(
-        isNotNull(media.deletedAt),
-        lte(media.deletedAt, sinceNow(MEDIA_DELETE_GRACE)),
-        isNull(media.r2PurgedAt),
-      ),
-    )
+    .where(isPurgeableMedia())
     .limit(limit)
     .then(toKeys);
 }
@@ -93,22 +121,24 @@ function findPurgeableMedia(limit: number): Promise<string[]> {
  * strip the bytes out from under a **live** `media` row, which nothing can repair. Both
  * services state it, so all copies of this query agree.
  */
+function isExpiredClaim() {
+  return and(
+    lte(storageReservations.expiresAt, sql`now()`),
+    isNull(storageReservations.r2PurgedAt),
+    notExists(
+      getDb()
+        .select({ one: sql`1` })
+        .from(media)
+        .where(eq(media.r2Key, storageReservations.r2Key)),
+    ),
+  );
+}
+
 function findExpiredClaims(limit: number): Promise<string[]> {
   return getDb()
     .select({ r2Key: storageReservations.r2Key })
     .from(storageReservations)
-    .where(
-      and(
-        lte(storageReservations.expiresAt, sql`now()`),
-        isNull(storageReservations.r2PurgedAt),
-        notExists(
-          getDb()
-            .select({ one: sql`1` })
-            .from(media)
-            .where(eq(media.r2Key, storageReservations.r2Key)),
-        ),
-      ),
-    )
+    .where(isExpiredClaim())
     .limit(limit)
     .then(toKeys);
 }

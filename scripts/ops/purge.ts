@@ -1,4 +1,4 @@
-import { reclaimExpiredStorageOnce } from "@/shared/storage";
+import { countReclaimable, reclaimExpiredStorageOnce } from "@/shared/storage";
 import { notifyOps } from "./notify";
 
 /**
@@ -31,7 +31,33 @@ function isNotifyEnabled(): boolean {
   return process.env.PURGE_NOTIFY?.trim().toLowerCase() === "true";
 }
 
+/**
+ * WARN: A preview counts and returns; it must reach neither `purgeNow` nor a stamp. The
+ * whole value of 미리보기 is that pressing it cannot change anything.
+ */
+function isDryRun(): boolean {
+  return process.env.PURGE_DRY_RUN?.trim().toLowerCase() === "true";
+}
+
 async function main() {
+  if (isDryRun()) {
+    const { media, claims } = await countReclaimable();
+    const candidates = media + claims;
+
+    console.log(`[purge] ${candidates} object(s) would be reclaimed`);
+
+    if (isNotifyEnabled()) {
+      await notifyOps(
+        "삭제 파일 회수 점검",
+        candidates === 0
+          ? "회수 대상 없음"
+          : `회수 대상 ${candidates}개 · 미디어 ${media} · 예약 ${claims}`,
+      );
+    }
+
+    return;
+  }
+
   let media = 0;
   let claims = 0;
   let passes = 0;

@@ -31,12 +31,13 @@ export function ServerSettingsFallback({ className, isOpsAvailable }: ServerSett
       <AppHeader title="서버 관리" />
       {/* INFO: DESIGN.md § 7.12. The same clearance the screen uses, so nothing steps on the swap. */}
       <div className="flex flex-col gap-md pt-(--app-header-inset) pb-lg">
-        {/* 삭제 파일 회수 — heading, one line, one button. */}
+        {/* 삭제 파일 회수 — heading, one line, 미리보기 and 지금 회수하기 side by side. */}
         {isOpsAvailable && (
           <section className="flex flex-col">
             <SectionHeading />
             <SectionDescription />
-            <div className="px-md">
+            <div className="flex gap-xs px-md">
+              <ControlSkeleton />
               <ControlSkeleton />
             </div>
           </section>

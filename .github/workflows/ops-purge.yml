@@ -12,6 +12,10 @@ on:
     - cron: "*/10 * * * *"
   workflow_dispatch:
     inputs:
+      dry-run:
+        description: Count what would be reclaimed without reclaiming it
+        type: boolean
+        default: false
       notify-email:
         description: Who to notify when this finishes. Left empty by a hand-started run from the Actions tab.
         type: string
@@ -40,6 +44,8 @@ jobs:
     with:
       script: ops:purge
       timeout-minutes: 20
+      # INFO: A schedule never previews — `github.event_name` is not `workflow_dispatch`, so this is false there whatever the input says.
+      dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
       # WARN: A hand-started run notifies; the schedule does not. Somebody pressed 지금 회수하기
       # and is waiting for an answer, where the ten-minute schedule fires whether or not there
       # was anything to do — and a banner per run is a hundred-odd pushes a day, on the channel
