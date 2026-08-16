@@ -218,6 +218,11 @@ function toHardLines(runs: readonly InlineRun[]): InlineRun[][] {
     });
   }
 
+  // WARN: CSS lays out **no** line box for a newline that ends the block, where a split produces one — `오늘\n` is one line and not two. Measured against the DOM, and `countTextLines` already answers it this way, so without this the two paths disagree by a line on exactly the drafts a Return key ends. Only the last empty line and never the only one: a *leading* newline's empty line does render.
+  if (lines.length > 1 && lines[lines.length - 1].length === 0) {
+    lines.pop();
+  }
+
   return lines;
 }
 
