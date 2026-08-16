@@ -592,6 +592,27 @@ export function ChatRoom({
       url ? (queryClient.getQueryData(toLinkPreviewQuery(url).queryKey) ?? undefined) : undefined,
     [queryClient],
   );
+  /**
+   * REQUIREMENTS.md § 8.3. What the sends in flight are carrying, in the shape the page's
+   * own map has — the estimate's second place to look for a box.
+   *
+   * WARN: Belt to `submit`'s braces, and it covers the one case that publish cannot: a
+   * queued send revived from § 16.'s snapshot was published by a page that has since been
+   * closed, so the map starts empty and its row would draw a box the estimate priced at
+   * nothing. Derived from the queue itself, this cannot be forgotten by a send path.
+   *
+   * WARN: Written during render and read through a ref, for `keyedRowsRef`'s reason:
+   * `pending` takes a new identity on every upload progress tick, and a dependency here
+   * would re-estimate every row in the room on each of them.
+   */
+  const pendingInlineEmoticonsRef = useRef<InlineEmoticonMap>(NO_INLINE_EMOTICON_MAP);
+
+  // INFO: The empty map is the constant rather than a fresh one, since a room with nothing in flight passes here on every scroll frame.
+  pendingInlineEmoticonsRef.current =
+    pending.length === 0
+      ? NO_INLINE_EMOTICON_MAP
+      : toInlineEmoticonMap(pending.flatMap((entry) => entry.inlineEmoticons));
+
   // INFO: REQUIREMENTS.md § 8.3. Resolved off the surface the bubbles are drawn on, so the wrap estimate counts glyphs in the font they will actually be laid out in rather than in a ratio per glyph class.
   const estimateContext = useMemo(
     () => ({
@@ -609,7 +630,9 @@ export function ChatRoom({
       // INFO: REQUIREMENTS.md § 8.8. The same test `renderRow` uses, so the estimate knows the row has a column beside it.
       countUnreadReaders,
       // WARN: REQUIREMENTS.md § 8.3. The same map `renderRow` hands the bubble, and it MUST stay the same one — fed from two sources the estimate and the row disagree about the box by construction, which is the miss this whole estimate exists to avoid.
-      readInlineEmoticon: (itemId: EmoticonItemId) => inlineEmoticons[itemId],
+      // WARN: The page's map first and the sends in flight second, never one of the two — the echoed row is the authority on a version bump or a deletion (§ 13.4.), and the optimistic row is the only place its own emoticons exist at all.
+      readInlineEmoticon: (itemId: EmoticonItemId) =>
+        inlineEmoticons[itemId] ?? pendingInlineEmoticonsRef.current[itemId],
     }),
     [scroller, scrollerWidth, readPreview, participantById, countUnreadReaders, inlineEmoticons],
   );
