@@ -88,6 +88,7 @@ export {
   toWeekday,
 } from "./date/time";
 export { hasDataTransferFiles, isBrowser, isEditableElement } from "./dom/environment";
+export { revealWithin } from "./dom/reveal-within";
 export {
   MEDIA_MORPH_NAME,
   MEDIA_VIEWER_NAME,
@@ -97,6 +98,7 @@ export {
 } from "./dom/view-transition";
 export { buildFadeMask, type FadeMaskOptions } from "./fade-mask";
 export { useBfcacheRestore } from "./hooks/use-bfcache-restore";
+export { useDragScroll } from "./hooks/use-drag-scroll";
 export { useHydrated } from "./hooks/use-hydrated";
 export { useIsCoarsePointer, useIsFinePointer } from "./hooks/use-is-coarse-pointer";
 export { isIos, useIsIos } from "./hooks/use-is-ios";

@@ -9,6 +9,7 @@ import {
   isBareKey,
   isCommandKey,
   isShiftKey,
+  revealWithin,
   type EmoticonItemId,
   type Nullable,
   type Optional,
@@ -35,7 +36,6 @@ import {
   FOCUS_INDEX_ATTRIBUTE,
   focusItem,
   readFocusIndex,
-  revealWithin,
   toCrossingIndex,
   toNextFocusIndex,
 } from "../model/emoticon-focus";
