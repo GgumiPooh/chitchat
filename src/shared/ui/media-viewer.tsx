@@ -12,7 +12,6 @@ import {
   MEDIA_VIEWER_NAME,
   cn,
   endMediaMorph,
-  revealWithin,
   useDragScroll,
   useIsIos,
   useModalOverlay,
@@ -912,7 +911,7 @@ function SlideFilmstrip({
   onSelect,
 }: SlideFilmstripProps) {
   const stripRef = useRef<Nullable<HTMLDivElement>>(null);
-  // INFO: The haptic wrapper rather than the button, since that is the element the strip lays out (DESIGN.md § 7.15.) — and the one `revealWithin` has to measure.
+  // INFO: The haptic wrapper rather than the button, since that is the element the strip lays out (DESIGN.md § 7.15.) — and the one the centring below has to measure.
   const activeRef = useRef<Nullable<HTMLSpanElement>>(null);
   // INFO: The open is a jump and every crossing after it is a follow, so the first reveal is instant and the rest are eased — an animated one at mount would be read as the strip arriving already moving.
   const hasRevealedRef = useRef(false);
@@ -922,12 +921,14 @@ function SlideFilmstrip({
   const unit = toMediaCountUnit(cells.every((cell) => cell.isVideo) ? "video" : "photo");
 
   /**
-   * DESIGN.md § 7.10. Keeps the active thumbnail on screen — on the open, where the
-   * reader may have tapped the last of nine, and on every crossing after it.
+   * DESIGN.md § 7.10. Puts the active thumbnail in the **middle of the screen** — on
+   * the open, where the reader may have tapped the last of nine, and on every crossing
+   * after it.
    *
+   * WARN: Centred, not merely revealed. `revealWithin` moves by the least it can, which leaves the current thumbnail sitting against whichever edge it was pulled in from — and the strip's own end margins mean the first and last slide can reach the middle too, so there is no position where the mark is anywhere but under the photo it belongs to.
    * WARN: A layout effect, so the strip is already on the right thumbnail in the frame it first paints — the opening morph (§ 4.7.3.) lands on a viewer whose chrome must not then be seen correcting itself.
-   * WARN: `revealWithin` and never `scrollIntoView`, which walks every scrollable ancestor and would scroll the document behind the viewer (§ 3.3.).
-   * WARN: The run's own length is a dependency as well as the held slide. § 8.1.'s track is replaced as pages commit, so a bubble can gain the siblings that were past the window's edge while the reader stands still — and the thumbnails inserted before theirs push it off the strip with nothing to notice it.
+   * WARN: A delta off the two boxes rather than `offsetLeft`, which is measured from an `offsetParent` this component does not own — and never `scrollIntoView`, which walks every scrollable ancestor and would scroll the document behind the viewer (§ 3.3.).
+   * WARN: The run's own length is a dependency as well as the held slide. § 8.1.'s track is replaced as pages commit, so a bubble can gain the siblings that were past the window's edge while the reader stands still — and the thumbnails inserted before theirs push it off centre with nothing to notice it.
    */
   useLayoutEffect(() => {
     const strip = stripRef.current;
@@ -937,7 +938,13 @@ function SlideFilmstrip({
       return;
     }
 
-    revealWithin(strip, active, hasRevealedRef.current ? "smooth" : "auto");
+    const stripBox = strip.getBoundingClientRect();
+    const activeBox = active.getBoundingClientRect();
+
+    strip.scrollBy({
+      left: activeBox.left + activeBox.width / 2 - (stripBox.left + stripBox.width / 2),
+      behavior: hasRevealedRef.current ? "smooth" : "auto",
+    });
     hasRevealedRef.current = true;
   }, [activeId, cells.length]);
 
@@ -946,8 +953,8 @@ function SlideFilmstrip({
     <div className={cn("flex flex-col items-center gap-2xs", className)}>
       <div
         ref={stripRef}
-        // WARN: `w-fit max-w-full` rather than a full-width row — see the component's own WARN on centring a scroller.
-        className="pointer-events-auto scrollbar-hidden flex w-fit max-w-full cursor-grab gap-2xs overflow-x-auto overscroll-x-contain active:cursor-grabbing"
+        // WARN: § 3.6. The end insets are the first and last child's **margin**, never the scroller's padding, and they are half its own width less half a thumbnail — which is exactly the room the first and last slide need to reach the middle. A percentage margin resolves against this box, so it follows the shell rather than a number written twice.
+        className="pointer-events-auto scrollbar-hidden flex w-full cursor-grab gap-2xs overflow-x-auto overscroll-x-contain active:cursor-grabbing [&>*:first-child]:ml-[calc(50%-1.5rem)] [&>*:last-child]:mr-[calc(50%-1.5rem)]"
         role="group"
         aria-label="이 메시지의 첨부"
         {...dragProps}
