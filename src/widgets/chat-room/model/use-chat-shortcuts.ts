@@ -1,5 +1,6 @@
 "use client";
 
+import { EMOTICON_MENUS, type EmoticonMenu } from "@/features/send-message";
 import { toTransferFiles } from "@/features/upload-media";
 import {
   OPEN_OVERLAY_SELECTOR,
@@ -9,6 +10,7 @@ import {
   isCommandShiftKey,
   isDormantVisible,
   isLetterKey,
+  type Optional,
 } from "@/shared/lib";
 import { useEffect, useRef } from "react";
 
@@ -42,6 +44,16 @@ export type ChatShortcuts = {
   onToggleEmoticonPanel: () => void;
   /** `⌘⇧E` with focus on neither the composer nor the picker, both of which answer it themselves. */
   onOpenEmoticonSearch: () => void;
+  /**
+   * REQUIREMENTS.md § 8.14. `⌘1` / `⌘2` / `⌘3` — § 13.6.'s three menus, in the order
+   * the bar draws them.
+   *
+   * WARN: The toggle is the room's for `⌘E`'s reason: the digit of the menu already on
+   * screen **closes the panel**, which is this room's state and not the panel's — so the
+   * room forwards the menu and decides what it means, and `EmoticonPicker` is told
+   * through `menuRequest` rather than reading the keys itself.
+   */
+  onSelectEmoticonMenu?: (menu: EmoticonMenu) => void;
   /** `⌥↑` / `⌥↓` — the conversation, a step at a time. `-1` is towards older messages. */
   onScrollHistory: (direction: -1 | 1) => void;
   /**
@@ -138,6 +150,9 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
       // WARN: § 8.14. Prevented, and it is not belt-and-braces. The focus lands a microtask later, and the default action of this keydown is still pending — unprevented it puts a newline into the field the moment it arrives.
       event.preventDefault();
 
+      // WARN: § 8.14. Tested ahead of `⌘E` below, which is the same `isCommandKey` with no key of its own left to name — a digit reaching that branch would toggle the panel instead of choosing a menu.
+      const menu = toEmoticonMenu(event);
+
       if (isAltKey(event)) {
         handlers.current.onScrollHistory(event.key === "ArrowDown" ? 1 : -1);
       } else if (event.key === "Enter") {
@@ -146,6 +161,8 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
         handlers.current.onGoToNewest();
       } else if (event.key === "/") {
         handlers.current.onShowShortcuts();
+      } else if (menu !== undefined) {
+        handlers.current.onSelectEmoticonMenu?.(menu);
       } else if (isCommandKey(event)) {
         handlers.current.onToggleEmoticonPanel();
       } else {
@@ -273,6 +290,11 @@ function isOwnedKey(event: KeyboardEvent): boolean {
     return isCommandKey(event) || isCommandShiftKey(event);
   }
 
+  // INFO: § 8.14. `⌘1`/`⌘2`/`⌘3` — § 13.6.'s menu bar, which is what these digits mean in every app that has a row of peers to switch between.
+  if (toEmoticonMenu(event) !== undefined) {
+    return isCommandKey(event);
+  }
+
   // INFO: § 8.14. `⌥`/`Alt` is the one modifier that needs no platform branch — the same physical key and the same flag on both — so the scroll is one binding rather than a pair.
   if (event.key === "ArrowUp") {
     return isAltKey(event);
@@ -283,6 +305,19 @@ function isOwnedKey(event: KeyboardEvent): boolean {
   }
 
   return isCommandKey(event) && event.key === "/";
+}
+
+/**
+ * REQUIREMENTS.md § 8.14. Which of § 13.6.'s menus this digit names, or `undefined` for
+ * every other key.
+ *
+ * INFO: Read off `EMOTICON_MENUS` rather than from a table of its own, so the bar's order and the digits' cannot come apart.
+ * WARN: § 8.14. By `key` **and** `code`, which is `isLetterKey`'s rule pointed at the digit row: on AZERTY the unshifted `Digit1` produces `&`, and that physical key is still the one a reader presses for the first menu.
+ */
+function toEmoticonMenu(event: KeyboardEvent): Optional<EmoticonMenu> {
+  return EMOTICON_MENUS.find(
+    (_, index) => event.key === `${index + 1}` || event.code === `Digit${index + 1}`,
+  );
 }
 
 // INFO: § 8.14. `<body>` is where focus sits after a click on a bubble, on the wallpaper, or on anything else the conversation is made of.

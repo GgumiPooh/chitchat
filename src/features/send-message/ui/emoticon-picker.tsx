@@ -44,11 +44,14 @@ import {
 } from "../model/emoticon-focus";
 import {
   ACTIVE_TAB_KEY,
+  EMOTICON_MENUS,
+  MENU_LABELS,
   MINI_RECENTS_TAB,
   RECENTS_TAB,
   SEARCH_TAB,
   isPackTabId,
   isRecentsTabId,
+  type EmoticonMenu,
 } from "../model/emoticon-tabs";
 import { toEmoticonsByIdsQuery } from "../model/emoticons-query";
 import { toEmoticonPackItemsQuery } from "../model/pack-items-query";
@@ -86,23 +89,6 @@ const EAGER_CELL_ROWS = 5;
 
 // INFO: § 13.6. `EAGER_CELL_ROWS`' argument for the strip, which is one row: a tab is about 48px against a shell of at most 448, so this is what fits on screen with one to spare. Counted over `tabIds`, which is why the pack index is offset past 최근 사용 at the comparison.
 const EAGER_TAB_COUNT = 9;
-
-/**
- * REQUIREMENTS.md § 13.6. The panel's first region: which of the three menus is on
- * screen, and therefore what the two below it hold.
- *
- * INFO: 검색 first because § 13.8.'s tap arrives there and the leading position is where the thumb starts, then the two kinds in the order a library grows them.
- */
-const EMOTICON_MENUS = ["search", "emoticon", "mini"] as const;
-
-type EmoticonMenu = (typeof EMOTICON_MENUS)[number];
-
-// INFO: § 13.6. The menu bar's own labels. 이모티콘 and 미니 are the words § 13.5.'s own screens use for the two kinds.
-const MENU_LABELS: Record<EmoticonMenu, string> = {
-  search: "검색",
-  emoticon: "이모티콘",
-  mini: "미니",
-};
 
 /** REQUIREMENTS.md § 8.14. `CELL_KEYBOARD_RING` for the menu bar, whose selected chip already carries `bg-primary-tint`. */
 const MENU_KEYBOARD_RING = "focus:ring-2 focus:ring-primary focus:outline-none";
@@ -210,10 +196,30 @@ export type EmoticonPickerProps = {
    * twice is two requests, and keyed on the item alone the second one is no change.
    */
   revealRequest?: Nullable<{ emoticon: Emoticon; token: number }>;
+  /**
+   * REQUIREMENTS.md § 8.14. `⌘1` / `⌘2` / `⌘3`, which the room forwards because two of
+   * the three outcomes are its own state — the panel opening, and the panel closing.
+   *
+   * WARN: Carries a token for `searchRequest`'s reason: pressing the same digit twice
+   * is two requests, and keyed on the menu alone the second is no change to see.
+   */
+  menuRequest?: Nullable<{ menu: EmoticonMenu; token: number }>;
   /** REQUIREMENTS.md § 13.8. Whether the search tab is the one on screen — the room exempts it from § 13.6.'s keyboard gate. */
   onSearchTabChange?: (isOnSearchTab: boolean) => void;
+  /** REQUIREMENTS.md § 8.14. `⌘n` pressed on the menu already open, which closes the panel — the panel cannot close itself. */
+  onRequestClose?: () => void;
   onSelect: (emoticon: Emoticon) => void;
   onQuickSend: (emoticon: Emoticon) => void;
+  /**
+   * REQUIREMENTS.md § 13. A mini goes into the **draft** rather than being staged as a
+   * preview.
+   *
+   * WARN: § 2.2. stores a mini as a fragment of a `text` message and never in
+   * `messages.emoticon_item_id`, so staging one would promise a send that has no row to
+   * land in. That makes this the pointer's path as well as the keyboard's — see
+   * `handleSelect`.
+   */
+  onInsert?: (emoticon: Emoticon) => void;
 };
 
 /**
@@ -231,9 +237,12 @@ export function EmoticonPicker({
   focusRequest = NO_FOCUS_REQUEST,
   searchRequest,
   revealRequest,
+  menuRequest,
   onSearchTabChange,
+  onRequestClose,
   onSelect,
   onQuickSend,
+  onInsert,
 }: EmoticonPickerProps) {
   // WARN: Read straight from storage rather than seeded into `useState` — the panel can mount during hydration, where the first snapshot is still the fallback and a seeded state would never pick the stored tab up.
   const [storedTab, setRequestedTab] = useStorageState<string>(ACTIVE_TAB_KEY, RECENTS_TAB, {
@@ -262,6 +271,18 @@ export function EmoticonPicker({
   const [focusedIndex, setFocusedIndex] = useState(0);
   // WARN: State and not a ref, for `appliedSearchToken`'s reason — the reset below runs during render, where a ref may not be read at all.
   const [focusedTab, setFocusedTab] = useState<Nullable<string>>(null);
+  /**
+   * REQUIREMENTS.md § 8.14. Which menu chip holds the bar's one tab stop, which is
+   * **not** the open menu while the arrows are walking it.
+   *
+   * WARN: The menu bar activates manually where the strip below it activates
+   * automatically, and the two are different on purpose: crossing 미니 to reach 검색
+   * would swap the whole panel — a different kind at a different column count — for a
+   * menu the reader was only passing through, where crossing a pack costs one list.
+   */
+  const [focusedMenu, setFocusedMenu] = useState<Nullable<EmoticonMenu>>(null);
+  /** @see focusedMenu — the menu the stop was last synced to, so the reset fires on a change rather than on a difference. */
+  const [syncedMenu, setSyncedMenu] = useState<Nullable<EmoticonMenu>>(null);
   // INFO: REQUIREMENTS.md § 8.14. Whether § 13.8.'s field may take the keyboard as its tab arrives. False only for a walk along the strip, which that focus would end.
   const [fieldClaimsFocus, setFieldClaimsFocus] = useState(true);
   // INFO: REQUIREMENTS.md § 8.14. Whether the panel is being driven by the keyboard, which is what paints `CELL_KEYBOARD_RING`. A pointer press anywhere in it ends that, and the next key begins it again.
@@ -325,6 +346,18 @@ export function EmoticonPicker({
   // INFO: § 8.14. Whichever scroller currently holds the cells — the grid, or § 13.8.'s results row. One ref because the two are branches of the same ternary and never coexist.
   const cellScrollerRef = useRef<Nullable<HTMLDivElement>>(null);
   const searchFieldRef = useRef<Nullable<HTMLInputElement>>(null);
+  /**
+   * REQUIREMENTS.md § 8.14. The last `menuRequest` that has been acted on.
+   *
+   * WARN: A ref where the two token comparisons above are state, and the difference is
+   * where each is made: those are render-phase adjustments, where a ref may not be read
+   * at all, and this one is an effect. Seeded from the prop rather than empty, because
+   * this request has an outcome they do not — a repeat **closes the panel** — so a picker
+   * mounting with one in hand would close a panel the same keystroke had just opened.
+   */
+  const appliedMenuTokenRef = useRef(menuRequest?.token);
+  // INFO: § 8.14. Whether the menu request being applied was `⌘1`, which is the one route onto 검색 that asks for the keyboard at a panel that is already open.
+  const wantsFieldFocusRef = useRef(false);
   // INFO: § 8.14. The last `focusRequest` that has been turned into a `pendingEntryRef`, so one already acted on is told apart from a new one.
   const satisfiedFocusRequestRef = useRef(0);
   /**
@@ -485,6 +518,14 @@ export function EmoticonPicker({
     setFocusedIndex(0);
   }
 
+  // WARN: § 8.14. Keyed on the menu **changing**, never on it differing from the stop — walking the bar deliberately leaves the stop off the open menu, and a plain inequality would snap it back on the next render and make the arrows appear dead.
+  if (syncedMenu !== activeMenu) {
+    setSyncedMenu(activeMenu);
+    setFocusedMenu(activeMenu);
+  }
+
+  const focusableMenu = focusedMenu ?? activeMenu;
+
   // WARN: § 8.14. Clamped rather than reset by every change to the list. A search narrows its results on each keystroke while focus stays in the field, and a stop past the end would leave the row with no tab stop at all.
   const focusableIndex = Math.min(focusedIndex, shown.length - 1);
   /**
@@ -545,6 +586,49 @@ export function EmoticonPicker({
     onSearchTabChange?.(isSearching);
   }, [isSearching, onSearchTabChange]);
 
+  /**
+   * REQUIREMENTS.md § 8.14. `⌘1` / `⌘2` / `⌘3`, applied here rather than during render
+   * for the one reason the other two requests are not: a repeat calls **back into the
+   * room**, and a parent callback fired from a render is a side effect in one.
+   *
+   * INFO: The frame it costs is invisible, because the same keystroke has already asked the room to open the panel — the request and the open land together.
+   */
+  useEffect(() => {
+    if (!menuRequest || menuRequest.token === appliedMenuTokenRef.current) {
+      return;
+    }
+
+    appliedMenuTokenRef.current = menuRequest.token;
+
+    // INFO: § 8.14. The toggle. A digit pressed on the menu already showing is a request to put the panel away; from anywhere else it is a request to go there.
+    if (isOpen && menuRequest.menu === activeMenu) {
+      onRequestClose?.();
+
+      return;
+    }
+
+    // WARN: § 8.14. 검색 takes the keyboard on arrival here, unlike a walk along the bar — `⌘1` is a request to type, which is the whole of what separates it from an arrow landing on the same chip.
+    wantsFieldFocusRef.current = menuRequest.menu === "search";
+    selectMenu(menuRequest.menu);
+    // WARN: `selectMenu` is deliberately not a dependency — it closes over this render's tabs, which is what the deps already state, and listing it would re-run the request on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuRequest?.token, isOpen, activeMenu, onRequestClose]);
+
+  /**
+   * REQUIREMENTS.md § 8.14. `⌘1`'s focus, which cannot ride `SearchPane`'s own — that
+   * one is keyed on the panel opening, and this arrives at a panel already open.
+   *
+   * WARN: A layout effect, for `SearchPane`'s reason: WebKit raises the keyboard only
+   * for a `focus()` still covered by the user activation, and a passive effect lands a
+   * scheduler task past it.
+   */
+  useLayoutEffect(() => {
+    if (wantsFieldFocusRef.current && isOpen && isSearching) {
+      wantsFieldFocusRef.current = false;
+      searchFieldRef.current?.focus();
+    }
+  }, [isOpen, isSearching]);
+
   return (
     <div
       className={cn(
@@ -576,13 +660,14 @@ export function EmoticonPicker({
             chipClassName={cn("px-3", isKeyboardDriven && MENU_KEYBOARD_RING)}
             haptic
             isSelected={menu === activeMenu}
-            // WARN: § 8.14. The row's roving tab stop, so three menus are one stop rather than three between the panel and the composer.
-            tabIndex={menu === activeMenu ? 0 : -1}
+            // WARN: § 8.14. The row's roving tab stop, so three menus are one stop rather than three between the panel and the composer. It follows the **focused** menu rather than the open one, because the arrows walk this bar without opening what they land on.
+            tabIndex={menu === focusableMenu ? 0 : -1}
             type="button"
             aria-pressed={menu === activeMenu}
             {...{ [FOCUS_INDEX_ATTRIBUTE]: index }}
             onClick={(event) => {
               takeFocus(event);
+              setFocusedMenu(menu);
               selectMenu(menu);
             }}
           >
@@ -841,12 +926,24 @@ export function EmoticonPicker({
    * INFO: REQUIREMENTS.md § 13.6. The second tap of a double tap sends what the first one staged.
    *
    * WARN: Counted off `click` rather than `dblclick`, which never arrives on touch — `HapticTap` takes the tap on its overlay and replays it as a scripted `control.click()`, and a scripted click starts no double-click sequence.
+   *
+   * @param pairExpires REQUIREMENTS.md § 8.14. False for the keyboard, which is one rule
+   * with the thumb's and keeps no window: `DOUBLE_TAP_WINDOW` exists to tell a double tap
+   * apart from two deliberate taps, and a key pressed twice on a cell focus never left is
+   * already unambiguous — timed, the second `Enter` staged the item it had just staged.
    */
-  function handleSelect(item: Emoticon) {
+  function handleSelect(item: Emoticon, { pairExpires = true }: { pairExpires?: boolean } = {}) {
+    // WARN: § 13. A mini is inserted rather than staged, on the pointer as well as the keyboard, and that is not a keyboard rule leaking. § 2.2. stores a mini as a fragment of a `text` message and never in `messages.emoticon_item_id`, so a staged one would promise a send with no row to land in.
+    if (isMini(item)) {
+      onInsert?.(item);
+
+      return;
+    }
+
     const lastTap = lastTapRef.current;
     const now = Date.now();
 
-    if (lastTap?.id === item.id && now - lastTap.at < DOUBLE_TAP_WINDOW) {
+    if (lastTap?.id === item.id && (!pairExpires || now - lastTap.at < DOUBLE_TAP_WINDOW)) {
       // INFO: Cleared so a third tap opens a fresh pair rather than sending again off the second one.
       lastTapRef.current = null;
       onQuickSend(item);
@@ -856,6 +953,11 @@ export function EmoticonPicker({
 
     lastTapRef.current = { id: item.id, at: now };
     onSelect(item);
+  }
+
+  /** REQUIREMENTS.md § 13. Which kind this item is, read off its pack — an item carries no kind of its own (§ 2.5.). */
+  function isMini(item: Emoticon): boolean {
+    return packTypes.get(item.packId) === "mini";
   }
 
   /**
@@ -906,6 +1008,8 @@ export function EmoticonPicker({
       event.nativeEvent.isComposing ||
       !isShiftKey(event) ||
       (event.key !== "ArrowLeft" && event.key !== "ArrowRight") ||
+      // WARN: § 8.14. 이모티콘 and 미니 only, which narrows what this combination already did. 검색's second region is a field rather than a strip, so there is no tab beside the open one to turn to.
+      isSearching ||
       // WARN: REQUIREMENTS.md § 8.14. What `⇧←/→` refuses to fire over, since `Shift` plus an arrow belongs to the field's own selection there — and it has to recognise a `contenteditable`, which is what the composer's field now is (§ 13.6.).
       isEditableElement(event.target)
     ) {
@@ -1042,7 +1146,8 @@ export function EmoticonPicker({
   /**
    * REQUIREMENTS.md § 8.14. `↓` out of § 13.8.'s field and into what it filled — the
    * results row where the words found something, and the tabs where they did not, so
-   * the key navigates on an empty search as readily as on a full one.
+   * the key navigates on an empty search as readily as on a full one. `↑` is the way
+   * back to the first region, which 검색 has no strip to reach it through.
    *
    * WARN: `isComposing` and the bare key only, through `isBareKey` rather than
    * `!isCommandKey`. A Hangul IME steers its candidate list with this key; ⌘↓ is the
@@ -1051,7 +1156,19 @@ export function EmoticonPicker({
    * so asking it here would have taken that selection away.
    */
   function handleFieldKeys(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== "ArrowDown" || !isBareKey(event) || event.nativeEvent.isComposing) {
+    if (!isBareKey(event) || event.nativeEvent.isComposing) {
+      return;
+    }
+
+    // INFO: § 8.14. What it costs is `↑`'s own meaning in a one-line field, which is the caret to offset 0 — `Home` still spells that, and without this the menu bar is reachable from below on every menu but the one the arrows most need it on.
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusActiveMenu();
+
+      return;
+    }
+
+    if (event.key !== "ArrowDown") {
       return;
     }
 
@@ -1079,7 +1196,8 @@ export function EmoticonPicker({
     const bar = menuBarRef.current;
 
     if (bar) {
-      focusItem(bar, EMOTICON_MENUS.indexOf(activeMenu));
+      // INFO: § 8.14. The focused chip and not the open one, so arriving from below lands where the bar's stop already is.
+      focusItem(bar, EMOTICON_MENUS.indexOf(focusableMenu));
     }
   }
 
@@ -1119,12 +1237,13 @@ export function EmoticonPicker({
   }
 
   /**
-   * INFO: REQUIREMENTS.md § 8.14. `Enter` is § 13.6.'s tap: once stages a preview, and
-   * twice inside `DOUBLE_TAP_WINDOW` sends. `⌘Enter` is the same send in one press,
-   * kept because it is what every other app spells it with.
+   * INFO: REQUIREMENTS.md § 8.14. `Enter`/`Space` is § 13.6.'s tap: once stages a
+   * preview, and again on the same cell sends. `⌘Enter` is that send in one press, kept
+   * because it is what every other app spells it with.
    *
-   * WARN: The pair goes through `handleSelect`, so the keyboard and the thumb count
-   * against **one** window rather than two — which is what makes the rule one rule.
+   * WARN: The pair goes through `handleSelect`, so the keyboard and the thumb are one
+   * rule rather than two — and `pairExpires` is what that one rule costs, since the
+   * keyboard's half of it keeps no window (see there).
    *
    * WARN: § 8.14. The repeat guard is what keeps a *held* key out of that pair. The
    * browser fires this per repeat, so without it a key left down stages, sends, and
@@ -1140,7 +1259,8 @@ export function EmoticonPicker({
       return;
     }
 
-    if (isCommandKey(event)) {
+    // WARN: § 13. A mini has no staged form and therefore no quick send to skip to either, so `⌘Enter` on one is the same insertion the bare key makes — sent outright it would be a `messages.emoticon_item_id` § 2.2. never writes.
+    if (isCommandKey(event) && !isMini(item)) {
       // WARN: § 13.6. The standing pair is cleared, or a press landing after this send would pair with one the send already spent.
       lastTapRef.current = null;
       onQuickSend(item);
@@ -1148,7 +1268,7 @@ export function EmoticonPicker({
       return;
     }
 
-    handleSelect(item);
+    handleSelect(item, { pairExpires: false });
   }
 
   // INFO: § 8.14. `onFocus` rather than a handler per cell: React's is `focusin`, which bubbles where the DOM's `focus` does not.
@@ -1242,6 +1362,14 @@ export function EmoticonPicker({
       return;
     }
 
+    // WARN: § 8.14. `Enter`/`Space` is what opens a menu here, and the arrows below deliberately do not — see `focusedMenu`. `Space` needs no repeat guard of its own, activating on `keyup`, but it does need this branch or the native click would arrive as a second activation.
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      selectMenu(EMOTICON_MENUS[index]);
+
+      return;
+    }
+
     const next = toNextFocusIndex(event.key, {
       index,
       count: EMOTICON_MENUS.length,
@@ -1253,8 +1381,8 @@ export function EmoticonPicker({
     }
 
     event.preventDefault();
-    // WARN: § 8.14. `claimsField: false` for the strip's own reason — a walk that lands on 검색 must not have the field take the keyboard out from under the walk.
-    selectMenu(EMOTICON_MENUS[next], { claimsField: false });
+    // WARN: § 8.14. Focus alone, where the strip below activates what it lands on. Crossing a pack costs one list request; crossing a **menu** swaps the kind, the column count and the whole second region, which is not something a reader passing through asked for.
+    setFocusedMenu(EMOTICON_MENUS[next]);
     focusItem(event.currentTarget, next);
   }
 

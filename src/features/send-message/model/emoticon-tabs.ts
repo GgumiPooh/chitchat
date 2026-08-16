@@ -27,6 +27,24 @@ export const SEARCH_TAB = "search";
 
 export const ACTIVE_TAB_KEY = "jandh:emoticon-tab";
 
+/**
+ * REQUIREMENTS.md § 13.6. The panel's first region: which of the three menus is on
+ * screen, and therefore what the two below it hold.
+ *
+ * INFO: 검색 first because § 13.8.'s tap arrives there and the leading position is where the thumb starts, then the two kinds in the order a library grows them.
+ * WARN: § 8.14. The order is also `⌘1`/`⌘2`/`⌘3`'s, so the digits are this array's index and never a table of their own.
+ */
+export const EMOTICON_MENUS = ["search", "emoticon", "mini"] as const;
+
+export type EmoticonMenu = (typeof EMOTICON_MENUS)[number];
+
+// INFO: § 13.6. The menu bar's own labels. 이모티콘 and 미니 are the words § 13.5.'s screens use for the two kinds.
+export const MENU_LABELS: Record<EmoticonMenu, string> = {
+  search: "검색",
+  emoticon: "이모티콘",
+  mini: "미니",
+};
+
 /** REQUIREMENTS.md § 13.6. Whether this tab is one of the two 최근 사용 tabs rather than a pack. */
 export function isRecentsTabId(id: string): boolean {
   return id === RECENTS_TAB || id === MINI_RECENTS_TAB;

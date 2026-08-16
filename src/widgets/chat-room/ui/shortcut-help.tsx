@@ -63,11 +63,19 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
         {/* INFO: § 8.14. The strip, the grid and the field are one surface to the reader, so the sheet names the arrows once rather than each edge between them — the edges are what the arrows do, not something to be learnt separately. */}
         {renderGroup("이모티콘", [
           { chord: [command], keys: ["E"], label: "이모티콘 패널 열기 / 닫기" },
+          // INFO: § 8.14. One row for the three digits, in the menu bar's own order — three rows would say the same thing three times and cost the sheet its length.
+          {
+            chord: [command],
+            keys: ["1", "2", "3"],
+            label: "검색 / 이모티콘 / 미니, 다시 누르면 닫기",
+          },
           { chord: [command, shift], keys: ["E"], label: "이모티콘 검색" },
           { keys: ["←", "→", "↑", "↓"], label: "패널 안에서 이동" },
           // INFO: § 8.14. Named separately from the arrows above, because it is the one that works from anywhere in the panel rather than only at an edge — which is the whole reason it exists.
-          { chord: [shift], keys: ["←", "→"], label: "이모티콘 묶음 넘기기" },
-          { keys: ["Enter"], label: "담기, 두 번 누르면 보내기" },
+          { chord: [shift], keys: ["←", "→"], label: "묶음 넘기기 (이모티콘 · 미니)" },
+          // INFO: § 8.14. Two rows on the same keys, because the panel's regions mean different things by them — the menu bar switches, the cells stage, and a mini has no staged form to reach.
+          { keys: ["Enter", "Space"], label: "메뉴 바꾸기, 이모티콘 담기 · 두 번 누르면 보내기" },
+          { keys: ["Enter", "Space"], label: "미니를 입력창에 넣기" },
           { keys: ["Esc"], label: "닫기, 담은 이모티콘 취소" },
         ])}
       </div>
