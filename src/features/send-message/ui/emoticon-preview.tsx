@@ -48,7 +48,8 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
             // WARN: Keyed by the replay token so a tap remounts the element. A GIF or animated WebP has no seek API — reassigning the same `src` is ignored by the cache, and only a fresh element restarts the loop.
             key={replayToken}
             className="size-full"
-            imgClassName="size-full object-contain"
+            // INFO: The plate's radius, for the plate's reason. `toBox` sizes this box to the asset's own ratio, so `object-contain` fills it exactly — and at `2xs` padding a square corner clears the card's 16px curve by under half a pixel, which is flush. A transparent sticker has nothing in that corner to clip; a full-bleed one is the case this is for.
+            imgClassName="size-full object-contain rounded-sm"
             // INFO: `rounded-[inherit]` on the plate resolves against this wrapper, not the `rounded-sm` button above it — matched by hand so the skeleton is not a square inside a rounded card.
             placeholderClassName="rounded-sm"
             alt=""
