@@ -263,6 +263,8 @@ export function ChatRoom({
   const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
   // INFO: REQUIREMENTS.md § 8.14. Bumped to put the caret back in the composer; `0` is the resting value the composer skips, so mounting the room focuses nothing.
   const [composerFocusRequest, setComposerFocusRequest] = useState(0);
+  // INFO: § 13.6. Whether a request arrived while the composer was yielded, to be handed over when the row comes back. A ref rather than state: nothing renders differently for it, and it is written from the handler that would otherwise spend the token on a hidden field.
+  const isComposerFocusHeldRef = useRef(false);
   // INFO: REQUIREMENTS.md § 8.14. The same token for the panel, bumped by **every** open — an opened panel nothing has focused is one the arrow keys cannot reach, and the toggle is a button, so a mouse open leaves focus on it rather than inside what it opened.
   // INFO: REQUIREMENTS.md § 8.6.1. The frame `settleJumpScroll` has queued, so a newer jump — or an unmount — can take it back.
   const jumpFrameRef = useRef<Nullable<number>>(null);
@@ -381,8 +383,14 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 8.6. The composer's whole stack is put away for the length of a search, and everything it drives has to go with it.
   const isSearching = bottomBar !== undefined;
   // WARN: REQUIREMENTS.md § 13.8. The exemption outlives the tab by the length of the keyboard's retraction, which is what this latch holds. Leaving 검색 unmounts the field the panel had focused and the keyboard is only reported down some 250ms later — released with the tab, those frames are an unexempted panel that collapses to nothing and reopens by itself once the keys finish sliding.
-  if (isEmoticonSearchExempt !== isEmoticonSearchTab && (isEmoticonSearchTab || !isKeyboardOpen)) {
-    setIsEmoticonSearchExempt(isEmoticonSearchTab);
+  // WARN: § 13.8. `isEmoticonPickerOpen` is what the latch may be *set* by, and it is not decoration. The tab is reported off a picker that never unmounts, so a `forcedTab` that outlived a close — `EmoticonPicker` records that happening twice — or a stored `jandh:emoticon-tab` of `search` reports 검색 with nothing on screen. The release below is the keyboard alone, so a latch set that way is held by every keyboard the reader opens afterwards, and `isComposerYielded` hangs the composer's whole existence on it. Only the release is allowed to outlive the picker.
+  const isEmoticonSearchHeld = isEmoticonSearchTab && isEmoticonPickerOpen;
+
+  if (
+    isEmoticonSearchExempt !== isEmoticonSearchHeld &&
+    (isEmoticonSearchHeld || !isKeyboardOpen)
+  ) {
+    setIsEmoticonSearchExempt(isEmoticonSearchHeld);
   }
 
   // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
@@ -410,13 +418,32 @@ export function ChatRoom({
    * the thing that hid the composer — so the results row dropped ~70px, out from under
    * a finger inside a 333ms window, and the second tap landed on a different cell.
    * `handleSelect` only sends on a repeated id, so quick-send simply stopped working.
-   * Hiding on arrival at the tab moves the row while nothing is mid-gesture.
    *
-   * WARN: `isEmoticonSearchExempt` and not `isEmoticonSearchTab`, so this retracts on
-   * the schedule the panel already retracts on. Read off the raw tab flag it dropped
-   * the frame 검색 was left, while the keyboard was still 250ms from being down — the
-   * composer popping back into a viewport that had not grown yet, re-binding the clamp
-   * and throwing the preview behind the panel and out again.
+   * WARN: The row still moves once, and later than reading this suggests.
+   * `useIsVirtualKeyboardOpen` reports the keys up only after `visualViewport` has
+   * actually shrunk, so the hide lands at the *end* of the ~250ms slide rather than on
+   * arrival at the tab — by which time a 고민 tap has painted its results and they are
+   * tappable. A double tap begun in that window still splits across the drop. It is
+   * one shift per open instead of one per tap, and the cost of closing it is the room
+   * having to hear about the search field's focus to know the keys are on their way up.
+   * Recorded rather than solved.
+   *
+   * WARN: `isEmoticonSearchExempt` and not `isEmoticonSearchTab`, and — since the
+   * latch is what carries the retraction — the panel's own open flag is deliberately
+   * *not* a term beside it. Both spellings dropped the composer back the frame 검색 was
+   * left while the keyboard was still 250ms from being down, the composer popping into
+   * a viewport that had not grown yet, re-binding the clamp and throwing the preview
+   * behind the panel and out again. Written on the tab flag that was the tab change;
+   * written on `isEmoticonPanelOpen` it was every other exit — the § 13.9. tap on the
+   * history that closes the panel, and `peelComposerStack`'s Escape. The latch is
+   * released by the keyboard alone, so every exit now retracts on the one schedule.
+   *
+   * WARN: Which puts the whole existence of the composer on one latch, so that latch is
+   * guarded where it is set rather than here: `isEmoticonSearchHeld` will not arm it
+   * without an open picker behind the tab. Armed by a stale tab report alone it would be
+   * released by nothing the reader can still reach — the field, the toggle and
+   * `onFieldFocus` are all inside the box this hides — and every keyboard opened for the
+   * rest of the session would take the composer with it.
    *
    * INFO: `isKeyboardOpen` holds this to the case that has the problem. A pointer opens
    * the same tab against the whole viewport, where the clamp never binds and the
@@ -436,8 +463,23 @@ export function ChatRoom({
    * and the reader has to put the keyboard down to reach it. Recorded rather than
    * solved: against it, the preview was previously not visible at all.
    */
-  const isComposerYielded =
-    isEmoticonPanelOpen && isEmoticonSearchExempt && isKeyboardOpen && editingId === null;
+  const isComposerYielded = isEmoticonSearchExempt && isKeyboardOpen && editingId === null;
+  // INFO: REQUIREMENTS.md § 8.14. The request `focusComposer` held, handed over the frame the row is back in the document — the composer skips a token it has already acted on, so this is the one bump the field is there to receive.
+  // WARN: `isSearching` is `focusComposer`'s own refusal, repeated because this is the second way to reach that field. A § 8.6. search leaves § 13.8.'s tab and picker both standing, so the latch is released by the keyboard alone — put down mid-search, this would spend the held token on a stack that is `hidden` and `inert`, and 취소 would return to no caret. Held rather than dropped, so the search's own end replays it.
+  // WARN: The overlays drop the hold instead of deferring it. A sheet or the § 9.1. picker opened during the retraction is the reader having moved on, and a caret taken back under an open sheet re-raises the keyboard beneath it.
+  useEffect(() => {
+    if (!isComposerFocusHeldRef.current || isComposerYielded || isSearching) {
+      return;
+    }
+
+    isComposerFocusHeldRef.current = false;
+
+    if (actionTarget !== null || isPickerOpen) {
+      return;
+    }
+
+    setComposerFocusRequest((token) => token + 1);
+  }, [actionTarget, isComposerYielded, isPickerOpen, isSearching]);
   // WARN: REQUIREMENTS.md § 9.3. The shared element outlives every bubble that addresses it, so leaving the room has to stop it. Unlike § 13.6.'s two-second ping a recording runs for minutes, and no screen outside this one draws a transport that could pause it.
   useEffect(() => stopVoice, []);
   // WARN: REQUIREMENTS.md § 9.3. The recorder is closed by the search rather than hidden with the rest of the stack. `hidden` + `inert` leaves the microphone open with both 취소 and 완료 unreachable, and `MAX_VOICE_DURATION` then sends a recording the user walked away from two minutes earlier.
@@ -1568,9 +1610,23 @@ export function ChatRoom({
    * WARN: The field's own invariant, beside the hook's `isCovered`: this stack is
    * `hidden` and `inert` for the length of a § 8.6. search, and `focus()` on an inert
    * field silently does nothing at all rather than failing.
+   *
+   * WARN: § 13.6.'s yield is the same invariant on a timer, and it is why the request
+   * is held rather than dropped. The composer is `display: none` for the length of the
+   * keyboard's retraction, `focus()` on that is the same silent no-op, and the token
+   * behind it is one-shot — `MessageComposer` acts on a change and nothing re-bumps it
+   * when the row comes back. Escape closing the panel and asking for the caret in one
+   * handler is exactly that render, so the caret would be lost on the one route
+   * REQUIREMENTS.md § 8.14. promises it on.
    */
   function focusComposer() {
     if (isSearching) {
+      return;
+    }
+
+    if (isComposerYielded) {
+      isComposerFocusHeldRef.current = true;
+
       return;
     }
 
@@ -1600,7 +1656,8 @@ export function ChatRoom({
       setStagedEmoticon(null);
     }
 
-    setComposerFocusRequest((token) => token + 1);
+    // WARN: Through `focusComposer` and never a bump of its own. Closing the panel is the one exit that leaves § 13.6.'s yield standing for the length of the retraction, so this is the caller that most needs the request held — a bump here reaches a `display: none` field and is spent on it.
+    focusComposer();
   }
 
   /**
