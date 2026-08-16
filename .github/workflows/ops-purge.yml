@@ -27,4 +27,9 @@ jobs:
     with:
       script: ops:purge
       timeout-minutes: 20
+      # WARN: A hand-started run notifies; the schedule does not. Somebody pressed 지금 회수하기
+      # and is waiting for an answer, where the ten-minute schedule fires whether or not there
+      # was anything to do — and a banner per run is a hundred-odd pushes a day, on the channel
+      # this app raises 메시지 on. `PURGE_NOTIFY=true` opts the schedule in anyway.
+      notify: ${{ github.event_name == 'workflow_dispatch' || vars.PURGE_NOTIFY == 'true' }}
     secrets: inherit

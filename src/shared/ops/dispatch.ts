@@ -14,6 +14,7 @@ const OPS_REF = process.env.OPS_GITHUB_REF?.trim() || "main";
 
 export const OPS_BACKUP_WORKFLOW = "ops-backup.yml";
 export const OPS_SWEEP_WORKFLOW = "ops-sweep.yml";
+export const OPS_PURGE_WORKFLOW = "ops-purge.yml";
 
 /**
  * REQUIREMENTS.md § 12.4. Whether this deployment can start an ops run.

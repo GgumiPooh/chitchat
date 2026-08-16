@@ -1,6 +1,6 @@
 "use client";
 
-import { BackupPanel, OrphanPanel } from "@/features/server-ops";
+import { BackupPanel, OrphanPanel, PurgePanel } from "@/features/server-ops";
 import { SETTINGS_ROUTE } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { AppHeader, IconButton } from "@/shared/ui";
@@ -38,7 +38,9 @@ export function ServerSettingsPage({ className, isOpsAvailable }: ServerSettings
       />
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
       <div className="flex flex-col gap-md pt-(--app-header-inset) pb-lg">
-        {/* INFO: 고아 파일 정리 first, and only because the backup list is the one block whose height arrives late — under it, every fetch nudged this section down the screen. */}
+        {/* INFO: The backup list is the one block whose height arrives late, so it stays last — under it, every fetch nudged the sections above down the screen. */}
+        {/* INFO: 삭제 파일 회수 above 고아 파일 정리, routine before exceptional: the safe button is the one a thumb lands on first, and the destructive pair sits below where it has to be reached for. */}
+        {isOpsAvailable && <PurgePanel />}
         {isOpsAvailable && <OrphanPanel />}
         <BackupPanel isOpsAvailable={isOpsAvailable} />
       </div>

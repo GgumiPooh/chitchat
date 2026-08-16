@@ -26,6 +26,11 @@ on:
         required: false
         default: false
         type: boolean
+      notify:
+        description: Push the purge's result. Ignored by the other two, which always notify.
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   run:
@@ -128,6 +133,6 @@ jobs:
           VAPID_SUBJECT: ${{ vars.VAPID_SUBJECT || 'mailto:jeheecheon@gmail.com' }}
           BACKUP_NOTIFY_EMAIL: ${{ vars.BACKUP_NOTIFY_EMAIL || 'jeheecheon@gmail.com' }}
           ORPHAN_MAX_DELETE_RATIO: ${{ vars.ORPHAN_MAX_DELETE_RATIO || '0.5' }}
-          PURGE_NOTIFY: ${{ vars.PURGE_NOTIFY || 'false' }}
+          PURGE_NOTIFY: ${{ inputs.notify }}
           SWEEP_DRY_RUN: ${{ inputs.dry-run }}
         run: pnpm ${{ inputs.script }}
