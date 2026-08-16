@@ -140,8 +140,15 @@ export function MediaGrid({
         {cells.map((cell, index) =>
           cell.isDeleted ? (
             // WARN: The finished restructure. The cell stays in the grid rather than being filtered out of it. A bubble of three with one deleted draws two tiles and a tombstone; two tiles would silently rewrite what the other participant remembers seeing.
-            <div key={cell.id} className="aspect-square">
-              <MediaTombstone className="rounded-sm" cell={cell} />
+            // INFO: `overflow-hidden` is the backstop and not the plan — the column below is sized to fit, and `justify-center` means anything that did outgrow the tile would be clipped at *both* ends. The tile is `MEDIA_EDGE_REM`, so a reader's enlarged root size grows this box while the `px` type inside it stays put; the fit only ever gets looser.
+            <div key={cell.id} className="aspect-square overflow-hidden rounded-sm">
+              {/* WARN: Three columns leave the sentence a ~63px line, which `삭제된 동영상이에요` — the longest of them — wraps to three of. `micro`, `size-4` and `px-2xs` are what fit those three lines plus the icon inside a 70.7px tile; `caption` at `size-5` stands ~13px taller than the tile and is clipped. */}
+              <MediaTombstone
+                className="rounded-sm px-2xs"
+                iconClassName="size-4"
+                textClassName="text-micro"
+                cell={cell}
+              />
             </div>
           ) : (
             <button

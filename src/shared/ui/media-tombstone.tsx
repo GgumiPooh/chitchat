@@ -7,6 +7,8 @@ import { toCellNoun, type MediaCell } from "./media-cell";
 export type MediaTombstoneProps = {
   className?: string;
   iconClassName?: string;
+  /** The sentence's own type scale, for a box too narrow to read `caption` in — the § 8.1. grid's square tile. */
+  textClassName?: string;
   cell: MediaCell;
 };
 
@@ -22,17 +24,25 @@ export type MediaTombstoneProps = {
  *
  * INFO: Not interactive, and it takes no handler. There is nothing behind it to open, which is also why the § 7.10. viewer never receives one.
  */
-export function MediaTombstone({ className, iconClassName, cell }: MediaTombstoneProps) {
+export function MediaTombstone({
+  className,
+  iconClassName,
+  textClassName,
+  cell,
+}: MediaTombstoneProps) {
   return (
     <div
       className={cn(
-        "flex size-full flex-col items-center justify-center gap-2xs rounded-md bg-surface-soft px-sm text-center ring-1 ring-hairline select-none ring-inset",
+        // WARN: `h-full w-full` and never `size-full`. The two fixed-height rows override this through `className`, and `cn`'s merge does not read `size-*` as the conflict — both declarations survive, and which one wins is the order Tailwind happens to emit them in. Spelled as the pair it is a merge rather than a coin toss.
+        "flex h-full w-full flex-col items-center justify-center gap-2xs rounded-md bg-surface-soft px-sm text-center ring-1 ring-hairline select-none ring-inset",
         className,
       )}
     >
       <Trash2 className={cn("size-5 shrink-0 text-meta-soft", iconClassName)} strokeWidth={1.75} />
       {/* INFO: DESIGN.md § 6.5. `meta` rather than the bubble's own ink — a tombstone is the room telling the reader what is missing, not the message speaking. */}
-      <p className="text-caption text-meta">{toDeletedMediaText(toCellNoun(cell))}</p>
+      <p className={cn("text-caption text-meta", textClassName)}>
+        {toDeletedMediaText(toCellNoun(cell))}
+      </p>
     </div>
   );
 }
