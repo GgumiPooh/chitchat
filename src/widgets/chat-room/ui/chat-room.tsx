@@ -315,7 +315,7 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 13.9. An emoticon tapped in the conversation. Where the panel opens is the picker's decision, since the pack list is what settles it.
   const [emoticonReveal, setEmoticonReveal] =
     useState<Nullable<{ emoticon: Emoticon; token: number }>>(null);
-  // INFO: REQUIREMENTS.md § 8.14. The menu `⌘1`/`⌘2`/`⌘3` asked for, carrying a token for `emoticonReveal`'s reason — the same digit twice is two requests, and the second means *close*.
+  // INFO: REQUIREMENTS.md § 8.14. The menu `⌥1`/`⌥2`/`⌥3` — and `⌘E`'s own open — asked for, carrying a token for `emoticonReveal`'s reason: pressing the same key twice is two requests, and keyed on the menu alone the second would be no change to see.
   const [menuRequest, setMenuRequest] =
     useState<Nullable<{ menu: EmoticonMenu; token: number }>>(null);
   // WARN: § 13. A mini the picker put into the draft. The token is the composer's key for it as well as the instruction, so it counts up rather than carrying `Date.now()` — two minis inside one millisecond would be one key, and the draft could no longer say which of them a Backspace took.
@@ -879,7 +879,6 @@ export function ChatRoom({
     onGoToNewest: () => void goToNewest(),
     onShowShortcuts: () => setIsShortcutHelpOpen(true),
     onToggleEmoticonPanel: toggleEmoticonPanel,
-    onOpenEmoticonSearch: toggleEmoticonSearch,
     onSelectEmoticonMenu: selectEmoticonMenu,
     onScrollHistory: scrollHistory,
     onTypeAhead: typeIntoComposer,
@@ -887,17 +886,14 @@ export function ChatRoom({
   });
 
   /**
-   * REQUIREMENTS.md § 8.14. Focus into the panel a `⌘1`/`⌘2`/`⌘3` opened, which `⌘E`
-   * takes inside the keystroke itself.
+   * REQUIREMENTS.md § 8.14. Focus into the panel a menu key opened — every key that
+   * opens it makes one of these requests, `⌘E` included.
    *
    * WARN: An effect rather than a line in `selectEmoticonMenu`, because the menu has to
    * change first. The picker applies a menu request in an effect of its own — a child's,
    * which runs ahead of this one in the same flush — where a request made in the same
    * commit is answered a layout effect *earlier*, on the outgoing menu's first cell,
    * which then unmounts and leaves focus on `<body>`.
-   *
-   * INFO: A request reaching a panel the digit closed is dropped by the picker, which
-   * takes no focus while it is shut.
    */
   useEffect(() => {
     if (menuRequest) {
@@ -1382,8 +1378,6 @@ export function ChatRoom({
                   revealRequest={emoticonReveal}
                   menuRequest={menuRequest}
                   onSearchTabChange={reportEmoticonSearchTab}
-                  // INFO: § 8.14. The digit of the menu already on screen closes the panel, which is this room's state and never the picker's.
-                  onRequestClose={closeEmoticonPanel}
                   onSelect={stageEmoticon}
                   onQuickSend={sendStagedEmoticon}
                   onInsert={insertEmoticon}
@@ -1549,7 +1543,8 @@ export function ChatRoom({
     setStagedEmoticon(null);
     // WARN: REQUIREMENTS.md § 13.6. Synchronously inside the tap, like `submit` — iOS grants audio to this call stack alone.
     playEmoticonSound(emoticon);
-    rememberEmoticon(emoticon.id);
+    // INFO: § 13.6. Never a mini — `handleSelect` inserts one into the draft rather than staging it, so no quick send can reach here with one.
+    rememberEmoticon(emoticon.id, "emoticon");
     sendEmoticon(emoticon, replyTarget);
     // INFO: § 13.8. This path never goes through `submit`, so the field is still holding the word that found this emoticon — the composer clears it if that is all it holds.
     setKeywordConsumeToken((token) => token + 1);
@@ -1613,7 +1608,7 @@ export function ChatRoom({
       // WARN: REQUIREMENTS.md § 13.6. Here rather than on the echo, and synchronously inside the tap — the send is the moment KakaoTalk sounds, and iOS grants audio to this call stack alone.
       playEmoticonSound(stagedEmoticon);
       // INFO: REQUIREMENTS.md § 13.6. 최근 사용 is recorded here rather than at the pick, so an emoticon staged and then abandoned never enters the list.
-      rememberEmoticon(stagedEmoticon.id);
+      rememberEmoticon(stagedEmoticon.id, "emoticon");
       sendEmoticon(stagedEmoticon, take());
       setStagedEmoticon(null);
     }
@@ -1624,6 +1619,8 @@ export function ChatRoom({
 
     // WARN: REQUIREMENTS.md § 13.8. A draft that is nothing but the word the emoticon was found by was a search term, not a message — sending it would put 고민 in the conversation beside the picture it was only ever used to reach. Anything else keeps § 13.6.'s second bubble.
     if (text.trim() && !isConsumedByEmoticonSearch(text)) {
+      // WARN: § 13.6. The minis in the draft are recorded at the send too, and `"mini"` is read off the payload rather than off the menu they were picked from: § 2.2. carries a mini as a fragment of this `text` and never as `messages.emoticon_item_id`, so nothing else can be in here.
+      emoticons.forEach((emoticon) => rememberEmoticon(emoticon.id, "mini"));
       send(text, emoticons, take());
     }
 
@@ -1803,8 +1800,15 @@ export function ChatRoom({
   }
 
   /**
-   * REQUIREMENTS.md § 8.14. `⌘E` — REQUIREMENTS.md § 13.6.'s panel, on the tab it was
-   * last left on, and focus moved into it so the arrows have something to move.
+   * REQUIREMENTS.md § 8.14. `⌘E` — § 13.6.'s panel, opened on 이모티콘 or closed. It is
+   * the **only** key that closes it; the digits below choose a menu and never do.
+   *
+   * WARN: It names 이모티콘 rather than restoring the remembered tab, so it goes through
+   * the same `menuRequest` the digits do — which is also what carries the focus, an
+   * effect later (see `menuRequest`'s own bump). A `requestPickerFocus` here as well
+   * would land a frame early, on the first cell of whatever menu was left open.
+   *
+   * INFO: It returns to 이모티콘's own last tab, since that is what a menu request means.
    *
    * WARN: § 13.6. The blur is the same one the toggle button makes and for the same
    * reason: the panel is gated on the keyboard being down, and iOS lowers it for a blur
@@ -1812,38 +1816,35 @@ export function ChatRoom({
    * gets to act on it.
    */
   function toggleEmoticonPanel() {
-    if (isSearching || editingId !== null) {
-      return;
-    }
-
     if (isEmoticonPanelOpen) {
       peelComposerStack();
 
       return;
     }
 
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-
-    setIsEmoticonPickerOpen(true);
-    requestPickerFocus(true);
+    selectEmoticonMenu("emoticon");
   }
 
   /**
-   * REQUIREMENTS.md § 8.14. `⌘1` / `⌘2` / `⌘3` — the panel on the menu the digit names.
+   * REQUIREMENTS.md § 8.14. `⌥1` / `⌥2` / `⌥3` — § 13.6.'s panel on the menu the digit
+   * names, opened if it is shut. `⌘E`'s open is this too, naming 이모티콘.
    *
-   * WARN: Opened here and closed by the picker's own `onRequestClose`, because only the
-   * panel knows which menu is on screen — a digit naming that one is a request to put it
-   * away. Setting the flag on a panel that is about to close is harmless: the close
-   * lands in the effect flush that follows this render.
+   * WARN: A digit never closes the panel, so the digit of the menu already on screen is
+   * not a special case — the request reaches a panel that is already there and already
+   * on that menu, and `selectMenu` sees no change to make. `⌘E` is the one key that
+   * closes.
    *
-   * WARN: The blur is `toggleEmoticonPanel`'s, for its reason — § 13.6.'s panel is gated
-   * on the keyboard being down, and a key press lowers no keyboard on its own.
+   * WARN: § 13.6. The blur is the same one the toggle button makes and for the same
+   * reason: the panel is gated on the keyboard being down, and iOS lowers it for a blur
+   * alone — a key press is not one, so without this the flag flips and the panel never
+   * gets to act on it.
    *
-   * WARN: § 8.13.'s guard, also `toggleEmoticonPanel`'s: the composer refuses these keys
-   * while correcting and therefore does not prevent them, so they fall straight through
-   * to this room.
+   * WARN: § 8.13. The correction guard is needed for a reason that is easy to miss: the
+   * composer refuses `⌥1` while editing and therefore does not prevent it, so the press
+   * falls straight through to this room — where the panel would stage a payload the edit
+   * has no row to send, invisibly, since § 8.13. hides the tray that would have shown it.
+   *
+   * WARN: § 13.8. 검색's exemption is armed here rather than waited for. `isEmoticonPanelOpen` reads the flag in the same commit the panel is asked to open in, and the picker reports the tab an effect later — that frame is an unexempted panel opening against a keyboard still on its way down, which closes it again.
    */
   function selectEmoticonMenu(menu: EmoticonMenu) {
     if (isSearching || editingId !== null) {
@@ -1852,6 +1853,10 @@ export function ChatRoom({
 
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
+    }
+
+    if (menu === "search") {
+      setIsEmoticonSearchTab(true);
     }
 
     setMenuRequest((request) => ({ menu, token: (request?.token ?? 0) + 1 }));
@@ -1870,39 +1875,6 @@ export function ChatRoom({
       emoticon: { version, width, height, name: keywords[0] ?? null, id },
       token: (request?.token ?? 0) + 1,
     }));
-  }
-
-  /**
-   * REQUIREMENTS.md § 8.14. `⌘⇧E` — § 13.8.'s search, or away again if it is what is
-   * already on screen.
-   *
-   * WARN: The toggle is here rather than in the panel, and that is why the panel no
-   * longer answers this key at all. Whether 검색 is the tab on screen is this room's
-   * state, so a copy inside `EmoticonPicker` could only ever open and never close.
-   *
-   * INFO: § 8.6. No word to seed it with — the composer owns the draft and is not what
-   * is focused when this fallback is reached.
-   *
-   * WARN: § 8.13. The correction guard is `toggleEmoticonPanel`'s and it is needed
-   * **here too**, for a reason that is easy to miss: the composer refuses this key
-   * while editing and therefore does not `preventDefault` it, so the press falls
-   * straight through to this fallback — and the hook's own `isCovered` is about the
-   * *attachment* editor, not a message being corrected. Without it the panel opened
-   * mid-edit and staged an emoticon the correction has no row to send, invisibly,
-   * since § 8.13. hides the tray that would have shown it.
-   */
-  function toggleEmoticonSearch() {
-    if (isSearching || editingId !== null) {
-      return;
-    }
-
-    if (isEmoticonPanelOpen && isEmoticonSearchTab) {
-      peelComposerStack();
-
-      return;
-    }
-
-    openEmoticonSearch("");
   }
 
   /**
@@ -1960,7 +1932,7 @@ export function ChatRoom({
    * REQUIREMENTS.md § 13.8. A word tapped in the composer opens the picker on its
    * search tab, already holding it.
    *
-   * WARN: § 8.14. `⌘E` reaches this with an empty query where no word is underlined,
+   * WARN: § 8.14. `⌥1` reaches this with an empty query where no word is underlined,
    * and an empty `searchedWordRef` is not a word the send may spend — `""` is what a
    * cleared draft trims to, so the next quick send would swallow whatever had been
    * typed since.

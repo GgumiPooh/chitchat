@@ -149,6 +149,7 @@ export {
   isBareKey,
   isCommandKey,
   isCommandShiftKey,
+  isDigitKey,
   isLetterKey,
   isShiftKey,
   toAltKeyLabel,

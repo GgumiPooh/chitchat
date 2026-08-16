@@ -7,7 +7,7 @@ import {
   isAltKey,
   isBareKey,
   isCommandKey,
-  isCommandShiftKey,
+  isDigitKey,
   isDormantVisible,
   isLetterKey,
   type Optional,
@@ -42,18 +42,20 @@ export type ChatShortcuts = {
   onShowShortcuts: () => void;
   /** `⌘E` — REQUIREMENTS.md § 13.6.'s panel, opened on the tab it was last left on, or closed. */
   onToggleEmoticonPanel: () => void;
-  /** `⌘⇧E` with focus on neither the composer nor the picker, both of which answer it themselves. */
-  onOpenEmoticonSearch: () => void;
   /**
-   * REQUIREMENTS.md § 8.14. `⌘1` / `⌘2` / `⌘3` — § 13.6.'s three menus, in the order
-   * the bar draws them.
+   * REQUIREMENTS.md § 8.14. `⌥1` / `⌥2` / `⌥3` — § 13.6.'s three menus, in the order the
+   * bar draws them, opening the panel where it is shut.
    *
-   * WARN: The toggle is the room's for `⌘E`'s reason: the digit of the menu already on
-   * screen **closes the panel**, which is this room's state and not the panel's — so the
-   * room forwards the menu and decides what it means, and `EmoticonPicker` is told
-   * through `menuRequest` rather than reading the keys itself.
+   * WARN: These **never close it**. `⌘E` is the one key that does, which is the whole
+   * division: one key for whether the panel is on screen, three for which menu it holds.
+   * The digit of the menu already open is therefore not a special case at all — the
+   * panel is already there and already on it.
+   *
+   * WARN: `⌥1` reaches here only where the composer did not claim it first — it seeds
+   * 검색 with the word it has underlined (§ 13.8.), which is the one thing this room
+   * cannot do from a keystroke, having no draft.
    */
-  onSelectEmoticonMenu?: (menu: EmoticonMenu) => void;
+  onSelectEmoticonMenu: (menu: EmoticonMenu) => void;
   /** `⌥↑` / `⌥↓` — the conversation, a step at a time. `-1` is towards older messages. */
   onScrollHistory: (direction: -1 | 1) => void;
   /**
@@ -90,16 +92,15 @@ export type ChatShortcuts = {
  * control inside it, so they answer wherever focus happens to be — including nowhere,
  * which is where a click on a bubble leaves it.
  *
- * WARN: `⌘⇧E` is here **last**, behind the one handler that means something more
- * specific by it: the composer seeds the search with the word it has underlined and
+ * WARN: `⌥1` is here **last**, behind the one handler that means something more
+ * specific by it: the composer seeds 검색 with the word it has underlined and
  * `preventDefault`s, being a React handler on the root container, which is inside
  * `document`. Answered here first it would ignore that word — so this is the fallback
  * for every press the composer does not claim.
  *
- * INFO: `EmoticonPicker` answers neither key, having answered both at first. Both
- * **toggle**, and what each toggles — whether the panel is open, and whether 검색 is
- * the tab on screen — is this room's state, so a copy in the panel could only ever
- * open and never close.
+ * INFO: `EmoticonPicker` answers none of these, having answered `⌘E` at first. Whether
+ * the panel is open is this room's state, so a copy in the panel could only ever open
+ * and never close.
  */
 export function useChatShortcuts(shortcuts: ChatShortcuts) {
   const handlers = useRef(shortcuts);
@@ -150,10 +151,12 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
       // WARN: § 8.14. Prevented, and it is not belt-and-braces. The focus lands a microtask later, and the default action of this keydown is still pending — unprevented it puts a newline into the field the moment it arrives.
       event.preventDefault();
 
-      // WARN: § 8.14. Tested ahead of `⌘E` below, which is the same `isCommandKey` with no key of its own left to name — a digit reaching that branch would toggle the panel instead of choosing a menu.
       const menu = toEmoticonMenu(event);
 
-      if (isAltKey(event)) {
+      // WARN: § 8.14. Ahead of `isAltKey`, which the digits also satisfy — that branch reads every key but `ArrowDown` as a scroll towards older messages, so `⌥1` walked the conversation backwards instead of opening a menu.
+      if (menu !== undefined) {
+        handlers.current.onSelectEmoticonMenu(menu);
+      } else if (isAltKey(event)) {
         handlers.current.onScrollHistory(event.key === "ArrowDown" ? 1 : -1);
       } else if (event.key === "Enter") {
         handlers.current.onFocusComposer();
@@ -161,13 +164,9 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
         handlers.current.onGoToNewest();
       } else if (event.key === "/") {
         handlers.current.onShowShortcuts();
-      } else if (menu !== undefined) {
-        handlers.current.onSelectEmoticonMenu?.(menu);
-      } else if (isCommandKey(event)) {
-        handlers.current.onToggleEmoticonPanel();
       } else {
-        // WARN: § 8.14. Only reached where neither the composer nor the picker answered `⌘⇧E` first. Both `preventDefault` when they do, and both are React handlers on the root container — which is inside `document`, so they have already run by the time this listener sees the event.
-        handlers.current.onOpenEmoticonSearch();
+        // INFO: § 8.14. What is left is `⌘E` — `isOwnedKey` admits no other key this far, so a new binding needs a test of its own above rather than a share of this one.
+        handlers.current.onToggleEmoticonPanel();
       }
     }
 
@@ -285,14 +284,14 @@ function isOwnedKey(event: KeyboardEvent): boolean {
     return isBareKey(event) && !hasFocusedControl();
   }
 
-  // INFO: § 8.14. `⌘E` opens the panel and `⌘⇧E` opens its search — the `⌘F`/`⌘⇧F` idiom, where `Shift` spells the more specific of the pair.
+  // INFO: § 8.14. `⌘E` opens § 13.6.'s panel and closes it, and it is the only key that closes it — which menu is on screen is the digits' business below.
   if (isLetterKey(event, "e")) {
-    return isCommandKey(event) || isCommandShiftKey(event);
+    return isCommandKey(event);
   }
 
-  // INFO: § 8.14. `⌘1`/`⌘2`/`⌘3` — § 13.6.'s menu bar, which is what these digits mean in every app that has a row of peers to switch between.
+  // INFO: § 8.14. `⌥1`/`⌥2`/`⌥3` — § 13.6.'s menu bar, on the modifier this app already spells `⌥↑`/`⌥↓` with, so there is one rule for it and one label in the sheet.
   if (toEmoticonMenu(event) !== undefined) {
-    return isCommandKey(event);
+    return true;
   }
 
   // INFO: § 8.14. `⌥`/`Alt` is the one modifier that needs no platform branch — the same physical key and the same flag on both — so the scroll is one binding rather than a pair.
@@ -308,16 +307,18 @@ function isOwnedKey(event: KeyboardEvent): boolean {
 }
 
 /**
- * REQUIREMENTS.md § 8.14. Which of § 13.6.'s menus this digit names, or `undefined` for
+ * REQUIREMENTS.md § 8.14. Which of § 13.6.'s menus this chord names, or `undefined` for
  * every other key.
  *
  * INFO: Read off `EMOTICON_MENUS` rather than from a table of its own, so the bar's order and the digits' cannot come apart.
- * WARN: § 8.14. By `key` **and** `code`, which is `isLetterKey`'s rule pointed at the digit row: on AZERTY the unshifted `Digit1` produces `&`, and that physical key is still the one a reader presses for the first menu.
+ * WARN: § 8.14. `⌘` spelled these first and may not have them back: `⌘1`/`⌘2`/`⌘3` is the browser's own tab switch, and where it reserves them the page is never sent the keystroke — the shortcut is dead in everything but an installed PWA. `⌥` is bound by nothing on either platform and is already this room's scroll modifier (`⌥↑`/`⌥↓`).
  */
 function toEmoticonMenu(event: KeyboardEvent): Optional<EmoticonMenu> {
-  return EMOTICON_MENUS.find(
-    (_, index) => event.key === `${index + 1}` || event.code === `Digit${index + 1}`,
-  );
+  if (!isAltKey(event)) {
+    return undefined;
+  }
+
+  return EMOTICON_MENUS.find((_, index) => isDigitKey(event, index + 1));
 }
 
 // INFO: § 8.14. `<body>` is where focus sits after a click on a bubble, on the wallpaper, or on anything else the conversation is made of.

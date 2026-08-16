@@ -10,8 +10,8 @@ import {
 } from "@/shared/config";
 import {
   cn,
-  isCommandShiftKey,
-  isLetterKey,
+  isAltKey,
+  isDigitKey,
   toCommandKeyLabel,
   useIsCoarsePointer,
   useIsFinePointer,
@@ -487,8 +487,10 @@ export function MessageComposer({
   }
 
   /**
-   * REQUIREMENTS.md § 8.14. ⌘⇧E is the underlined word's tap, for a keyboard — and it
-   * works with no word underlined too, opening § 13.8.'s search on an empty field.
+   * REQUIREMENTS.md § 8.14. ⌥1 is the underlined word's tap, for a keyboard — the same
+   * key that reaches 검색 from anywhere else, carrying the draft's word where the room
+   * has none. It works with no word underlined too, opening § 13.8.'s search on an
+   * empty field.
    *
    * INFO: Unconditional on purpose. Offered only where a word happens to match, the
    * shortcut answers on one draft in ten and reads as broken on the rest, so there is
@@ -530,13 +532,8 @@ export function MessageComposer({
     }
 
     // WARN: REQUIREMENTS.md § 8.14. Withheld while correcting, exactly as the underline is — the panel this opens stages a payload § 8.13.'s edit has no row for.
-    // WARN: § 8.14. And withheld while the panel is up, so the room's copy answers instead and the key **closes**. Seeding a search from here is only ever the way *in*; there is nothing about a panel already on screen for this field to say.
-    if (
-      isCommandShiftKey(event) &&
-      isLetterKey(event, "e") &&
-      !isEditing &&
-      !isEmoticonPickerOpen
-    ) {
+    // WARN: § 8.14. And withheld while the panel is up, so the room's copy answers instead. Seeding a search from here is only ever the way *in*; there is nothing about a panel already on screen for this field to say.
+    if (isAltKey(event) && isDigitKey(event, 1) && !isEditing && !isEmoticonPickerOpen) {
       event.preventDefault();
       openEmoticonSearch(match?.query ?? null);
 

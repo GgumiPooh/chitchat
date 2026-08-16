@@ -5,7 +5,7 @@ import { A_MINUTE, A_SECOND, runWhenIdle } from "@/shared/lib";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { useStorageState } from "synced-storage/react";
-import { ACTIVE_TAB_KEY, RECENTS_TAB, isPackTabId } from "./emoticon-tabs";
+import { ACTIVE_TAB_KEY, MINI_RECENTS_TAB, RECENTS_TAB, isPackTabId } from "./emoticon-tabs";
 import { toEmoticonsByIdsQuery } from "./emoticons-query";
 import { toEmoticonKeywordsQuery } from "./keywords-query";
 import { toEmoticonPackItemsQuery } from "./pack-items-query";
@@ -35,7 +35,7 @@ export function useEmoticonPreload(): void {
   const { recentIds } = useRecentEmoticons();
   /**
    * WARN: Held in a ref rather than listed as a dependency, and both halves of that
-   * matter. `recentIds` is a fresh array every render, so a dependency would
+   * matter. `recentIds` is a fresh object every render, so a dependency would
    * re-schedule the warm on each one; and read at *setup* instead of inside the
    * callback, `storedTab` is still the hydration fallback — the trap the panel
    * documents on its own `useStorageState`. The idle callback lands well after both
@@ -95,12 +95,15 @@ export function useEmoticonPreload(): void {
         return queryClient.fetchQuery(toEmoticonPackItemsQuery(tab)).catch(() => []);
       }
 
+      // INFO: § 13.6. Each kind keeps its own 최근 사용, and the remembered tab is what says which of the two this open will land on.
+      const recents = tab === MINI_RECENTS_TAB ? ids.mini : ids.emoticon;
+
       // INFO: § 13.8. The search tab is never remembered, so it is not a case here — an empty 최근 사용 is, and it has nothing to ask for.
-      if (ids.length === 0) {
+      if (recents.length === 0) {
         return [];
       }
 
-      return queryClient.fetchQuery(toEmoticonsByIdsQuery(ids)).catch(() => []);
+      return queryClient.fetchQuery(toEmoticonsByIdsQuery(recents)).catch(() => []);
     }
   }, [queryClient]);
 }

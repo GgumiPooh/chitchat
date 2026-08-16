@@ -64,12 +64,13 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
         {renderGroup("이모티콘", [
           { chord: [command], keys: ["E"], label: "이모티콘 패널 열기 / 닫기" },
           // INFO: § 8.14. One row for the three digits, in the menu bar's own order — three rows would say the same thing three times and cost the sheet its length.
+          // INFO: § 8.14. On the same `⌥` the 대화 group above spells its scroll with, so the sheet names one modifier twice rather than teaching a second one.
+          // INFO: § 13.8. The seed is named on this row rather than given one of its own, because it is the same key doing the same thing with a draft in front of it.
           {
-            chord: [command],
+            chord: [alt],
             keys: ["1", "2", "3"],
-            label: "검색 / 이모티콘 / 미니, 다시 누르면 닫기",
+            label: "검색 / 이모티콘 / 미니, 검색은 입력창의 단어로",
           },
-          { chord: [command, shift], keys: ["E"], label: "이모티콘 검색" },
           { keys: ["←", "→", "↑", "↓"], label: "패널 안에서 이동" },
           // INFO: § 8.14. Named separately from the arrows above, because it is the one that works from anywhere in the panel rather than only at an edge — which is the whole reason it exists.
           { chord: [shift], keys: ["←", "→"], label: "묶음 넘기기 (이모티콘 · 미니)" },

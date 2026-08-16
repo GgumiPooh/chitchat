@@ -11,14 +11,13 @@ import { isSnowflake, type EmoticonPackId } from "@/shared/lib";
 export const RECENTS_TAB = "recents";
 
 /**
- * REQUIREMENTS.md § 13.6. 미니's own 최근 사용, which is the same stored id list read
- * through the other kind.
+ * REQUIREMENTS.md § 13.6. 미니's own 최근 사용, holding its own stored ids
+ * (`useRecentEmoticons`) so a run of minis cannot evict the other kind's list.
  *
- * WARN: A **third** value under `ACTIVE_TAB_KEY` and deliberately not a second storage
- * key. `useEmoticonPreload` reads that key and branches on `isPackTabId`, so a value
+ * WARN: A **third** value under `ACTIVE_TAB_KEY` and deliberately not a tab key of its
+ * own. `useEmoticonPreload` reads that key and branches on `isPackTabId`, so a value
  * that is neither a pack nor `RECENTS_TAB` falls through to the recents branch it
- * already has — which warms the one id list both menus draw from. A key of its own
- * would have needed that hook changed to know the menu even exists.
+ * already has — which this value then tells apart from the other kind's.
  */
 export const MINI_RECENTS_TAB = "recents:mini";
 
@@ -32,7 +31,7 @@ export const ACTIVE_TAB_KEY = "jandh:emoticon-tab";
  * screen, and therefore what the two below it hold.
  *
  * INFO: 검색 first because § 13.8.'s tap arrives there and the leading position is where the thumb starts, then the two kinds in the order a library grows them.
- * WARN: § 8.14. The order is also `⌘1`/`⌘2`/`⌘3`'s, so the digits are this array's index and never a table of their own.
+ * WARN: § 8.14. The order is also `⌥1`/`⌥2`/`⌥3`'s, so the digits are this array's index and never a table of their own.
  */
 export const EMOTICON_MENUS = ["search", "emoticon", "mini"] as const;
 

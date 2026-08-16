@@ -101,7 +101,7 @@ type TabEntry = {
   /**
    * The tab this entry belongs to, where it belongs to one.
    *
-   * WARN: § 8.14. Absent for `⌘E`, which asks for **the panel** rather than a tab —
+   * WARN: § 8.14. Absent for a menu key, which asks for **a menu** rather than a tab —
    * and on a freshly loaded page the tab underneath it is still settling, since the
    * remembered pack id is only checked against the list once that list lands (see
    * `activeTab`). Named there, the entry was dropped by that resolution and the panel
@@ -197,8 +197,9 @@ export type EmoticonPickerProps = {
    */
   revealRequest?: Nullable<{ emoticon: Emoticon; token: number }>;
   /**
-   * REQUIREMENTS.md § 8.14. `⌘1` / `⌘2` / `⌘3`, which the room forwards because two of
-   * the three outcomes are its own state — the panel opening, and the panel closing.
+   * REQUIREMENTS.md § 8.14. `⌥1` / `⌥2` / `⌥3` and `⌘E`'s own open, which the room
+   * forwards because the outcome it shares with them is its own state — the panel being
+   * on screen at all.
    *
    * WARN: Carries a token for `searchRequest`'s reason: pressing the same digit twice
    * is two requests, and keyed on the menu alone the second is no change to see.
@@ -206,8 +207,6 @@ export type EmoticonPickerProps = {
   menuRequest?: Nullable<{ menu: EmoticonMenu; token: number }>;
   /** REQUIREMENTS.md § 13.8. Whether the search tab is the one on screen — the room exempts it from § 13.6.'s keyboard gate. */
   onSearchTabChange?: (isOnSearchTab: boolean) => void;
-  /** REQUIREMENTS.md § 8.14. `⌘n` pressed on the menu already open, which closes the panel — the panel cannot close itself. */
-  onRequestClose?: () => void;
   onSelect: (emoticon: Emoticon) => void;
   onQuickSend: (emoticon: Emoticon) => void;
   /**
@@ -239,7 +238,6 @@ export function EmoticonPicker({
   revealRequest,
   menuRequest,
   onSearchTabChange,
-  onRequestClose,
   onSelect,
   onQuickSend,
   onInsert,
@@ -297,7 +295,7 @@ export function EmoticonPicker({
     setRevealed(null);
     // WARN: § 8.14. The row is about to be a different list, and the tab has not changed — so the reset keyed on the tab does not fire here. Left alone the one `tabIndex={0}` cell is wherever the previous search's stop was, which `SearchPane` has just scrolled off the right edge.
     setFocusedIndex(0);
-    // INFO: § 8.14. This route is always a request to type — ⌘E, or a tap on the underlined word — so the field takes the keyboard however the previous arrival on this tab left the flag.
+    // INFO: § 8.14. This route is always a request to type — ⌥1, or a tap on the underlined word — so the field takes the keyboard however the previous arrival on this tab left the flag.
     setFieldClaimsFocus(true);
   }
 
@@ -351,12 +349,16 @@ export function EmoticonPicker({
    *
    * WARN: A ref where the two token comparisons above are state, and the difference is
    * where each is made: those are render-phase adjustments, where a ref may not be read
-   * at all, and this one is an effect. Seeded from the prop rather than empty, because
-   * this request has an outcome they do not — a repeat **closes the panel** — so a picker
-   * mounting with one in hand would close a panel the same keystroke had just opened.
+   * at all, and this one is an effect.
+   *
+   * WARN: Empty rather than seeded from the prop, and it was the other way round while a
+   * repeated key still closed the panel — a picker mounting with such a request in hand
+   * would have closed one the same keystroke had just opened. The panel is mounted by
+   * that keystroke whenever it beats § 13.6.'s idle mount, so seeded it now drops the
+   * only request that open will ever get and lands on the stored tab instead.
    */
-  const appliedMenuTokenRef = useRef(menuRequest?.token);
-  // INFO: § 8.14. Whether the menu request being applied was `⌘1`, which is the one route onto 검색 that asks for the keyboard at a panel that is already open.
+  const appliedMenuTokenRef = useRef<Optional<number>>(undefined);
+  // INFO: § 8.14. Whether the menu request being applied was `⌥1`, which is the one route onto 검색 that asks for the keyboard at a panel that is already open.
   const wantsFieldFocusRef = useRef(false);
   // INFO: § 8.14. The last `focusRequest` that has been turned into a `pendingEntryRef`, so one already acted on is told apart from a new one.
   const satisfiedFocusRequestRef = useRef(0);
@@ -374,7 +376,7 @@ export function EmoticonPicker({
   const lastTapRef = useRef<Nullable<{ at: number; id: EmoticonItemId }>>(null);
   const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
   // WARN: § 13.6. Read only. `remember` belongs to the send, not to the tap — recording it here re-sorts 최근 사용 between the two taps of a double tap, moving the cell out from under the second one.
-  const { recentIds } = useRecentEmoticons();
+  const { recentIds: recentIdsByKind } = useRecentEmoticons();
   // INFO: § 13.6. The same descriptor `useEmoticonPreload` warmed, so the panel opens on the cached list rather than on `isPending`.
   // WARN: § 13.8. Every pack, hidden ones included, and summaries only. The hidden ones are here because § 13.9.'s 따라하기 needs to name a pack this user has taken out of the strip; what makes such a pack's emoticons *findable* is that the server's search applies no `enabled` filter either.
   // WARN: § 13.5.'s "an edit lands the next time the panel opens" is `refetchOnOpen` below, and no longer this mount. The panel is mounted ~2s into the room now rather than by the tap, so the descriptor's own `staleTime: 0` put a packs request on every visit to a room nobody opened the panel in — the request `PRELOAD_STALE_TIME` exists to withhold.
@@ -433,6 +435,8 @@ export function EmoticonPicker({
   const menuKind: EmoticonPackType = activeMenu === "mini" ? "mini" : "emoticon";
   const menuPacks = visiblePacks.filter((pack) => pack.type === menuKind);
   const recentsTab = menuKind === "mini" ? MINI_RECENTS_TAB : RECENTS_TAB;
+  // INFO: § 13.6. This menu's own stored list, which is the whole of the kind filter — `useRecentEmoticons` keeps one per kind, written from what the send carried.
+  const recentIds = recentIdsByKind[menuKind];
   // WARN: § 8.14. The arrow step **and** the `grid-cols-*` class below, which are one decision written twice — see `MINI_GRID_COLUMNS`.
   const columns = menuKind === "mini" ? MINI_GRID_COLUMNS : EMOTICON_GRID_COLUMNS;
   // WARN: § 13.9.1. The results are the server's, ranked there — this component may filter the revealed item out of them but must never re-sort them.
@@ -477,16 +481,11 @@ export function EmoticonPicker({
 
   const byId = new Map(recentItems.map((item) => [item.id, item] as const));
   // INFO: § 13.1. 최근 사용 is a tab like any other, so hiding a pack takes its items out of this list too — an emoticon sent through § 13.9. from a hidden pack is remembered and simply not drawn here.
-  // WARN: § 13.6. Cut to the open menu's kind as well, and it is one stored list rather than two. The kinds are drawn at different column counts, so a 최근 사용 holding both would have to pick one of them for a picture authored at the other — and the id list a send writes has no menu to belong to.
+  // WARN: § 13.6. The kind is **not** filtered here as well. `recentIds` is already this kind's own list, and a second cut through `packTypes` would drop every recent for as long as the pack summaries are still in flight — a 최근 사용 that draws nothing on the frame the panel opens.
   const visiblePackIds = new Set(visiblePacks.map((pack) => pack.id));
   const recents = recentIds
     .map((id) => byId.get(id))
-    .filter(
-      (item): item is Emoticon =>
-        item !== undefined &&
-        visiblePackIds.has(item.packId) &&
-        packTypes.get(item.packId) === menuKind,
-    );
+    .filter((item): item is Emoticon => item !== undefined && visiblePackIds.has(item.packId));
   const shown = toShownItems();
   // INFO: § 13.6. The second region's own list, which is this menu's alone — 검색 has a field there instead and therefore no tabs at all.
   const tabIds = isSearching ? [] : [recentsTab, ...menuPacks.map((pack) => pack.id)];
@@ -587,9 +586,12 @@ export function EmoticonPicker({
   }, [isSearching, onSearchTabChange]);
 
   /**
-   * REQUIREMENTS.md § 8.14. `⌘1` / `⌘2` / `⌘3`, applied here rather than during render
-   * for the one reason the other two requests are not: a repeat calls **back into the
-   * room**, and a parent callback fired from a render is a side effect in one.
+   * REQUIREMENTS.md § 8.14. `⌥1` / `⌥2` / `⌥3`, applied here rather than during render
+   * because the token it is compared against is a ref, which a render-phase adjustment
+   * may not read (see `appliedMenuTokenRef`).
+   *
+   * INFO: A request for the menu already on screen is not a case of its own — nothing
+   * closes from here, and `selectMenu` finds nothing to change.
    *
    * INFO: The frame it costs is invisible, because the same keystroke has already asked the room to open the panel — the request and the open land together.
    */
@@ -599,23 +601,15 @@ export function EmoticonPicker({
     }
 
     appliedMenuTokenRef.current = menuRequest.token;
-
-    // INFO: § 8.14. The toggle. A digit pressed on the menu already showing is a request to put the panel away; from anywhere else it is a request to go there.
-    if (isOpen && menuRequest.menu === activeMenu) {
-      onRequestClose?.();
-
-      return;
-    }
-
-    // WARN: § 8.14. 검색 takes the keyboard on arrival here, unlike a walk along the bar — `⌘1` is a request to type, which is the whole of what separates it from an arrow landing on the same chip.
+    // WARN: § 8.14. 검색 takes the keyboard on arrival here, unlike a walk along the bar — `⌥1` is a request to type, which is the whole of what separates it from an arrow landing on the same chip.
     wantsFieldFocusRef.current = menuRequest.menu === "search";
     selectMenu(menuRequest.menu);
     // WARN: `selectMenu` is deliberately not a dependency — it closes over this render's tabs, which is what the deps already state, and listing it would re-run the request on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menuRequest?.token, isOpen, activeMenu, onRequestClose]);
+  }, [menuRequest?.token]);
 
   /**
-   * REQUIREMENTS.md § 8.14. `⌘1`'s focus, which cannot ride `SearchPane`'s own — that
+   * REQUIREMENTS.md § 8.14. `⌥1`'s focus, which cannot ride `SearchPane`'s own — that
    * one is keyed on the panel opening, and this arrives at a panel already open.
    *
    * WARN: A layout effect, for `SearchPane`'s reason: WebKit raises the keyboard only
@@ -982,9 +976,8 @@ export function EmoticonPicker({
    * REQUIREMENTS.md § 8.14. What the panel hears from every key pressed anywhere
    * inside it, and the only thing it does with one.
    *
-   * INFO: § 8.14. Neither `⌘E` nor `⌘⇧E` is answered here, and both used to be. Both
-   * **toggle** now, and what each of them toggles — whether the panel is open, and
-   * whether 검색 is the tab on screen — is the room's state, so a copy in here could
+   * INFO: § 8.14. `⌘E` is not answered here, and used to be. It **toggles**, and what it
+   * toggles — whether the panel is open — is the room's state, so a copy in here could
    * only ever open and never close.
    */
   function noteKeyboardUse() {

@@ -43,10 +43,11 @@ export function isCommandKey(event: Modifiers): boolean {
 
 /**
  * Whether this event carries the platform's shortcut modifier **and `Shift`**, which is
- * how a binding spells the more specific form of the one beside it.
+ * how a binding spells the more specific form of the one beside it — the `⌘F`/`⌘⇧F` and
+ * `⌘Z`/`⌘⇧Z` idiom.
  *
- * INFO: REQUIREMENTS.md § 8.14. `⌘E` opens the emoticon panel and `⌘⇧E` opens its
- * search, on the idiom `⌘F`/`⌘⇧F` and `⌘Z`/`⌘⇧Z` already use.
+ * INFO: REQUIREMENTS.md § 8.14. No shortcut is on this shape today; `⌘⇧E` was and its
+ * menu is `⌥1` now.
  */
 export function isCommandShiftKey(event: Modifiers): boolean {
   return hasCommandModifier(event) && event.shiftKey && !event.altKey;
@@ -100,6 +101,22 @@ export function isLetterKey(event: Pick<KeyboardEvent, "code" | "key">, letter: 
   return event.key.toLowerCase() === letter || event.code === `Key${letter.toUpperCase()}`;
 }
 
+/**
+ * Whether this is the given digit of the number row, by the character it produced **or**
+ * by the key it sits on.
+ *
+ * WARN: § 8.14. Both, for `isLetterKey`'s reason, and on `⌥1`/`⌥2`/`⌥3` it is the `code`
+ * half that carries the binding: macOS spends `⌥` on the character, so the digits arrive
+ * as `¡`, `™` and `£` and a `key` test alone matches nothing at all. AZERTY's unshifted
+ * `&` on `Digit1` is the same problem from the other side.
+ *
+ * INFO: Shared because two layers ask it of the same keystroke — the room's shortcuts and
+ * the composer's own claim on `⌥1` (REQUIREMENTS.md § 13.8.).
+ */
+export function isDigitKey(event: Pick<KeyboardEvent, "code" | "key">, digit: number): boolean {
+  return event.key === `${digit}` || event.code === `Digit${digit}`;
+}
+
 /** How this platform's shortcut modifier is written. */
 export function toCommandKeyLabel(): CommandKeyLabel {
   return usesMetaKey() ? "⌘" : "Ctrl";
@@ -110,7 +127,7 @@ export function toAltKeyLabel(): "⌥" | "Alt" {
   return usesMetaKey() ? "⌥" : "Alt";
 }
 
-/** How this platform writes `Shift`, which only `⌘⇧E` spells out (`REQUIREMENTS.md § 8.14.`). */
+/** How this platform writes `Shift`, which only `⇧←`/`⇧→` spells out (`REQUIREMENTS.md § 8.14.`). */
 export function toShiftKeyLabel(): "⇧" | "Shift" {
   return usesMetaKey() ? "⇧" : "Shift";
 }
