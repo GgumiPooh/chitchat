@@ -457,9 +457,12 @@ export function MediaViewer({
             (!isChromeVisible || !hasMorphSettled) && "opacity-0 [&_*]:pointer-events-none",
           )}
         >
+          {/* INFO: DESIGN.md § 7.15. Leaving a full-screen surface ticks, as a route's 뒤로 already does — what stays silent there is a sheet or a dialog's dismissal. */}
           <IconButton
-            className="pointer-events-auto shrink-0 text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
+            className="pointer-events-auto shrink-0"
+            buttonClassName="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
             Icon={X}
+            haptic
             tabIndex={isChromeVisible ? undefined : -1}
             aria-label="닫기"
             onClick={handleClose}
@@ -963,13 +966,8 @@ function SlideFilmstrip({
               keepsScroll
             >
               <button
-                className={cn(
-                  // INFO: A fixed square whatever the asset's shape is, so the strip reads as one row of equals rather than as a second, smaller track.
-                  "relative block size-12 cursor-pointer overflow-hidden rounded-sm bg-on-scrim/10 transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                  // INFO: DESIGN.md § 7.10. The 2px `primary` ring the § 10. grid marks a jump landing with, for the same reason: a photograph fills the box, so nothing but a ring on top of it can say which one is being read.
-                  // WARN: `ring-inset`, since an outward ring on the first or last thumbnail is clipped by the scroller's own edge and reads as a mark drawn on three sides.
-                  isActive ? "ring-2 ring-primary ring-inset" : "opacity-60 hover:opacity-100",
-                )}
+                // INFO: A fixed square whatever the asset's shape is, so the strip reads as one row of equals rather than as a second, smaller track.
+                className="relative block size-12 cursor-pointer overflow-hidden rounded-sm bg-on-scrim/10 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
                 type="button"
                 // WARN: AGENTS.md § 4.2. Roving tabindex over the strip, and the arrows that would move it are the viewer's own — `handleOverlayKeyDown` steps the track, which is what moves the mark here. Nine thumbnails in the tab sequence would put the bottom bar's controls nine stops away.
                 tabIndex={isReachable && isActive ? undefined : -1}
@@ -987,6 +985,11 @@ function SlideFilmstrip({
                     blurhashRatio={toCellRatio(cell)}
                     alt=""
                   />
+                )}
+                {/* INFO: DESIGN.md § 7.10. The 2px `primary` mark on the slide being read, inset for the reason § 13.8.'s results row records — an outward ring on the first or last thumbnail is clipped away by the scroller's own edge. */}
+                {/* WARN: An element over the picture, never `ring-inset` on the button. An inset ring is a box-shadow, which paints under the element's own content — and the thumbnail fills the box exactly, so it covered the mark completely. */}
+                {isActive && (
+                  <span className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-primary ring-inset" />
                 )}
                 {/* INFO: DESIGN.md § 6.5. The video tile's own glyph, at the size this box has for one — a strip of squares says nothing else about which of them plays. */}
                 {cell.isVideo && (
