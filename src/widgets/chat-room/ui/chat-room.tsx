@@ -1367,7 +1367,8 @@ export function ChatRoom({
               onEdit={signalEdit}
               onKeywordTap={openEmoticonSearch}
               onFieldFocus={closeEmoticonPanel}
-              onSend={submit}
+              // TODO: Carry `inlineEmoticonItemIds` into the send, which needs `useSendMessage` and `POST /api/messages` to take them first. Nothing can stage one yet, so the drop is unreachable rather than silent.
+              onSend={(content) => submit(content.text)}
             />
           </>
         </div>

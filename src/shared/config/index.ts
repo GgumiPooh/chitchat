@@ -119,6 +119,7 @@ export {
   EMOTICON_MAX_EDGE,
   EMOTICON_PACKS_URL,
   EMOTICON_PACK_PAGE_SIZE,
+  EMOTICON_PACK_TYPES,
   EMOTICON_PREFS_URL,
   EMOTICON_SEARCH_CANDIDATE_LIMIT,
   EMOTICON_SEARCH_PAGE_SIZE,
@@ -137,13 +138,16 @@ export {
   MAX_EMOTICON_PACK_NAME_LENGTH,
   MAX_EMOTICON_PACK_PAGE_SIZE,
   MAX_KEYWORD_QUERY_LENGTH,
+  MAX_MINI_KEYWORDS,
   MIN_KEYWORD_LENGTH,
   allowedMimesForEmoticonSlot,
+  emoticonPackTypeSchema,
   findKeywordMatch,
   isAllowedEmoticonAsset,
   isAnimatedImage,
   isGifImage,
   matchesKeywordQuery,
+  maxKeywordsFor,
   maxSizeForEmoticonSlot,
   normalizeKeywords,
   splitKeywordQuery,
@@ -152,6 +156,7 @@ export {
   type AllowedEmoticonAudioMime,
   type AllowedEmoticonImageMime,
   type EmoticonImageSlot,
+  type EmoticonPackType,
   type EmoticonSlot,
   type KeywordMatch,
 } from "./emoticon";
@@ -238,6 +243,17 @@ export {
   type MediaUploadScope,
   type MediaVariant,
 } from "./media";
+export {
+  OBJECT_PLACEHOLDER,
+  countObjectPlaceholders,
+  isMessageContentPaired,
+  toMessageSegments,
+  toMessageSummary,
+  toPlaceholderIndex,
+  toPlainMessageText,
+  type MessageContent,
+  type MessageSegment,
+} from "./message-content";
 export { APPLE_SPLASH_DIR, APPLE_SPLASH_LINKS, type AppleSplashLink } from "./pwa";
 export { toQuoteThumbnail, type QuoteThumbnail } from "./quote";
 export {

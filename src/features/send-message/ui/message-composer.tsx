@@ -1,6 +1,13 @@
 "use client";
 
-import { findKeywordMatch, MAX_MESSAGE_LENGTH, type KeywordMatch } from "@/shared/config";
+import {
+  findKeywordMatch,
+  MAX_MESSAGE_LENGTH,
+  OBJECT_PLACEHOLDER,
+  toPlaceholderIndex,
+  type KeywordMatch,
+  type MessageContent,
+} from "@/shared/config";
 import {
   cn,
   isCommandShiftKey,
@@ -9,13 +16,21 @@ import {
   useIsCoarsePointer,
   useIsFinePointer,
   useUnsentWork,
+  type EmoticonItemId,
   type Nullable,
 } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
-import { EditableField, HapticTarget, IconButton } from "@/shared/ui";
+import {
+  EditableField,
+  HapticTarget,
+  IconButton,
+  InlineEmoticon,
+  type EditableObject,
+} from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUp, Plus, Smile } from "lucide-react";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -23,6 +38,7 @@ import {
   useState,
   type KeyboardEvent,
   type PointerEvent,
+  type ReactNode,
   type Ref,
   type RefObject,
 } from "react";
@@ -42,6 +58,25 @@ const FIELD_BOX = "px-2xs py-[10.75px] text-body-md leading-normal break-all";
 
 // WARN: Hoisted so the pending query answers one array identity — an inline `= []` re-runs the match on every render of a field being typed into.
 const NO_KEYWORDS: string[] = [];
+
+/** An emoticon the draft can hold inside its text — REQUIREMENTS.md § 6.'s `OBJECT_PLACEHOLDER`, with what it takes to draw one. */
+export type ComposerEmoticon = {
+  /** REQUIREMENTS.md § 13.4. `updated_at` in milliseconds, which is what an edited item's asset URL is told apart by. */
+  version: number;
+  /** The asset's own pixels; the box is one line tall and takes only their ratio. */
+  width: number;
+  height: number;
+  name?: Nullable<string>;
+  id: EmoticonItemId;
+};
+
+// WARN: The key is the draft's own, never the item id — the same emoticon twice is two placeholders, and a deletion has to say which of them went.
+type StagedEmoticon = ComposerEmoticon & { key: string };
+
+// INFO: One state and not two. The text and the emoticons standing in it are read as a pair (`isMessageContentPaired`), so nothing may re-render holding one of them from before an edit.
+type Draft = { text: string; emoticons: StagedEmoticon[] };
+
+const EMPTY_DRAFT: Draft = { text: "", emoticons: [] };
 
 export type MessageComposerProps = {
   className?: string;
@@ -65,7 +100,20 @@ export type MessageComposerProps = {
    * one. Correcting the same message twice is two instructions, and comparing the
    * text alone would make the second one no change at all.
    */
-  seededDraft?: { text: string; token: number };
+  seededDraft?: { text: string; emoticons?: readonly ComposerEmoticon[]; token: number };
+  /**
+   * REQUIREMENTS.md § 13.6. An emoticon the picker chose, put into the draft.
+   *
+   * WARN: A token beside it, for the reason `seededDraft` carries one: the same
+   * emoticon chosen twice is two instructions, and comparing the item alone would make
+   * the second one no change at all.
+   *
+   * INFO: Appended to the draft rather than inserted at the caret — § 13.6.'s panel may
+   * not share the screen with the keyboard, so the field is blurred before anything in
+   * it can be chosen and there is no live caret to insert at. The field leaves the caret
+   * after the emoticon, so typing carries on past it.
+   */
+  insertedEmoticon?: { emoticon: ComposerEmoticon; token: number };
   /** REQUIREMENTS.md § 8.13. The field is correcting a message rather than composing one, so the controls that stage a *new* payload have nothing to act on. */
   isEditing?: boolean;
   /**
@@ -98,7 +146,8 @@ export type MessageComposerProps = {
   onToggleEmoticons?: () => void;
   /** REQUIREMENTS.md § 13.8. A tap on the underlined word, carrying what was typed rather than the keyword it hit. */
   onKeywordTap?: (query: string) => void;
-  onSend: (text: string) => void;
+  // TODO: The room still calls this with a bare string — the send path has to take the pair and post `inline_emoticon_item_ids` beside the text (REQUIREMENTS.md § 6.).
+  onSend: (content: MessageContent) => void;
 };
 
 // INFO: DESIGN.md § 6.6. A floating bar over the message column, not a flow child — the messages are meant to pass under it, which is also what gives the glass something to blur.
@@ -109,6 +158,7 @@ export function MessageComposer({
   isEmoticonPickerOpen = false,
   keywordConsumeToken,
   seededDraft,
+  insertedEmoticon,
   isEditing = false,
   focusRequest = 0,
   fieldRef: exposedFieldRef,
@@ -141,16 +191,18 @@ export function MessageComposer({
     [exposedFieldRef],
   );
   const layerRef = useRef<Nullable<HTMLDivElement>>(null);
-  const [text, setText] = useState("");
+  const [draft, setDraft] = useState(EMPTY_DRAFT);
   // INFO: REQUIREMENTS.md § 8.13. The last seed this component has taken, so the render-phase adjustment below fires once per instruction rather than on every render.
   const [seenSeedToken, setSeenSeedToken] = useState(seededDraft?.token);
+  // INFO: § 13.6. The last emoticon taken from the picker, for the reason the seed keeps a token — the adjustment below is the same one.
+  const [seenInsertToken, setSeenInsertToken] = useState(insertedEmoticon?.token);
   // INFO: § 13.8. What the last tap searched for, so a send can tell whether the field still holds only that.
   const tappedQueryRef = useRef<Nullable<string>>(null);
   const isCoarsePointer = useIsCoarsePointer();
   const attachGate = useOfflineGate(OFFLINE_MESSAGES.upload);
   // INFO: REQUIREMENTS.md § 8.14. The shortcuts appear nowhere else on screen, so the one field every reader already looks at carries the one key that lists the rest.
   const isFinePointer = useIsFinePointer();
-  const hasDraft = text.trim().length > 0;
+  const hasDraft = draft.text.trim().length > 0;
   // INFO: REQUIREMENTS.md § 8.13. An edit sends text and only text, so a tray left staged behind the mode cannot arm the button — emptying the field has to disable it, or the correction would submit nothing.
   const canSend = hasDraft || (hasAttachments && !isEditing);
   // INFO: § 13.8. Hidden packs count here, exactly as they do in the panel's search — the underline offers a word the search can answer, and the search looks across the whole library.
@@ -160,7 +212,18 @@ export function MessageComposer({
     ...toEmoticonKeywordsQuery(),
     enabled: false,
   });
-  const match = useMemo(() => findKeywordMatch(text, keywords), [text, keywords]);
+  const match = useMemo(() => findKeywordMatch(draft.text, keywords), [draft.text, keywords]);
+  // INFO: The emoticons as the field draws them, one per placeholder in `draft.text` and in that order.
+  const objects = useMemo<EditableObject[]>(
+    () =>
+      draft.emoticons.map(({ key, version, width, height, name, id }) => ({
+        key,
+        node: (
+          <InlineEmoticon itemId={id} version={version} width={width} height={height} name={name} />
+        ),
+      })),
+    [draft.emoticons],
+  );
 
   // INFO: REQUIREMENTS.md § 15.1. Declared here rather than lifted to the screen — the draft never leaves this component, and a forced refresh must not discard it.
   useUnsentWork(hasDraft);
@@ -180,14 +243,14 @@ export function MessageComposer({
       return;
     }
 
-    // WARN: Read outside the updater. A `setText` callback must be pure, and StrictMode double-invokes it — the § 8.12. retraction fired twice per consume from in there.
-    setText((current) => (current.trim() === tapped ? "" : current));
+    // WARN: Read outside the updater. A `setDraft` callback must be pure, and StrictMode double-invokes it — the § 8.12. retraction fired twice per consume from in there.
+    setDraft((current) => (current.text.trim() === tapped ? EMPTY_DRAFT : current));
 
-    if (text.trim() === tapped) {
+    if (draft.text.trim() === tapped) {
       // WARN: The clear never goes through `onChange`, so the § 8.12. broadcast has to be retracted by hand or 입력 중 outlives the send.
       onEdit?.(false);
     }
-    // WARN: Keyed on the token alone. Adding `onEdit` or `text` re-runs the clear whenever the room re-renders it, which wipes a draft typed after the send.
+    // WARN: Keyed on the token alone. Adding `onEdit` or `draft` re-runs the clear whenever the room re-renders it, which wipes a draft typed after the send.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keywordConsumeToken]);
 
@@ -205,7 +268,26 @@ export function MessageComposer({
    */
   if (seededDraft !== undefined && seededDraft.token !== seenSeedToken) {
     setSeenSeedToken(seededDraft.token);
-    setText(seededDraft.text);
+    setDraft(toSeededDraft(seededDraft));
+  }
+
+  /**
+   * REQUIREMENTS.md § 13.6. The picker's emoticon, standing in the draft.
+   *
+   * WARN: Adjusted during render and keyed on the token, for the seed's reasons above.
+   * The key is minted from the token rather than from a counter, so the adjustment
+   * stays pure and StrictMode's second pass appends the same emoticon rather than a
+   * second one.
+   */
+  if (insertedEmoticon !== undefined && insertedEmoticon.token !== seenInsertToken) {
+    setSeenInsertToken(insertedEmoticon.token);
+    setDraft((current) => ({
+      text: current.text + OBJECT_PLACEHOLDER,
+      emoticons: [
+        ...current.emoticons,
+        { ...insertedEmoticon.emoticon, key: `${insertedEmoticon.token}` },
+      ],
+    }));
   }
 
   /**
@@ -230,6 +312,14 @@ export function MessageComposer({
     fieldRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seededDraft?.token]);
+
+  // WARN: § 8.12. The insertion above never goes through `onChange` either, and an emoticon put into the draft is composing — without this 입력 중 only starts at the next keystroke, and never for a message that is nothing but emoticons.
+  useEffect(() => {
+    if (insertedEmoticon !== undefined) {
+      onEdit?.(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [insertedEmoticon?.token]);
 
   /**
    * REQUIREMENTS.md § 8.14. The room asking for the caret back.
@@ -272,15 +362,21 @@ export function MessageComposer({
             fieldClassName,
           )}
           placeholderClassName={cn("text-meta-soft", FIELD_BOX)}
+          // INFO: An emoticon costs one character of it, because it is one character of the `messages.text` this limit guards (REQUIREMENTS.md § 6.).
           maxLength={MAX_MESSAGE_LENGTH}
-          value={text}
+          value={draft.text}
+          objects={objects}
           // INFO: § 8.14. The pointer decides it and nothing else: a mouse means a keyboard is there to press, and whether the app is installed says nothing about that. The hint alone, since `aria-label` below already names the field.
           // INFO: § 8.14. Read inside the ternary, which is what keeps `toCommandKeyLabel`'s platform guess out of the server's HTML.
           placeholder={isFinePointer ? `${toCommandKeyLabel()} + / 단축키 보기` : "메시지 입력"}
           aria-label="메시지 입력"
           // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
-          onChange={(next) => {
-            setText(next);
+          // WARN: The keys are what say *which* emoticons a deletion took — the text only says one of them is gone, and a Backspace in the middle of a draft would otherwise drop the last.
+          onChange={(next, keys) => {
+            setDraft((current) => ({
+              text: next,
+              emoticons: toSurviving(current.emoticons, keys),
+            }));
             // WARN: § 13.8. Any edit ends the search the tap started. The tap blurs the field, so nothing is typed between it and the send it belongs to — a keystroke after it means the draft is a message now, and consuming it would delete what the user wrote.
             tappedQueryRef.current = null;
             onEdit?.(next.trim().length > 0);
@@ -291,7 +387,13 @@ export function MessageComposer({
         >
           {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, like the two staging controls. The tap opens § 13.8.'s picker, whose staging clears the attachment tray this mode deliberately preserved and arms a quick-send that would post a **new** emoticon message beside the pending correction — and the emoticon it staged is invisible and unsendable here anyway. A correction is very likely to contain the keyword, since it is the text the user already typed. */}
           {match && onKeywordTap && !isEditing && (
-            <KeywordLayer ref={layerRef} text={text} match={match} onTap={handleKeywordTap} />
+            <KeywordLayer
+              ref={layerRef}
+              text={draft.text}
+              emoticons={draft.emoticons}
+              match={match}
+              onTap={handleKeywordTap}
+            />
           )}
         </EditableField>
         {/* INFO: DESIGN.md § 6.6. The toggle stays put once text is typed — an emoticon is staged beside a line of text now (REQUIREMENTS.md § 13.6.), so replacing it with send would put the panel out of reach exactly when it is wanted. */}
@@ -339,8 +441,8 @@ export function MessageComposer({
       return;
     }
 
-    onSend(text);
-    setText("");
+    onSend({ text: draft.text, inlineEmoticonItemIds: draft.emoticons.map(({ id }) => id) });
+    setDraft(EMPTY_DRAFT);
     // WARN: REQUIREMENTS.md § 8.12. The send is the end of composing, and it clears the field without going through `onChange` — so nothing else here would ever retract the broadcast, and 입력 중 would sit under the message that had just arrived.
     onEdit?.(false);
 
@@ -446,6 +548,7 @@ type KeywordLayerProps = {
   ref?: Ref<HTMLDivElement>;
   className?: string;
   text: string;
+  emoticons: StagedEmoticon[];
   match: KeywordMatch;
   onTap: () => void;
 };
@@ -468,7 +571,7 @@ type KeywordLayerProps = {
  * layer would swallow every tap meant to place a caret and the field would stop
  * being editable.
  */
-function KeywordLayer({ ref, className, text, match, onTap }: KeywordLayerProps) {
+function KeywordLayer({ ref, className, text, emoticons, match, onTap }: KeywordLayerProps) {
   return (
     <div
       ref={ref}
@@ -481,7 +584,7 @@ function KeywordLayer({ ref, className, text, match, onTap }: KeywordLayerProps)
       )}
       aria-hidden
     >
-      {text.slice(0, match.start)}
+      {toLayerRuns(text.slice(0, match.start), emoticons, 0)}
       {/* INFO: DESIGN.md § 3.2. A pointer affordance on a span that is not a control by shape — the underline is what says it can be pressed. */}
       <span
         className="pointer-events-auto cursor-pointer underline decoration-primary decoration-2 underline-offset-4"
@@ -489,9 +592,81 @@ function KeywordLayer({ ref, className, text, match, onTap }: KeywordLayerProps)
         tabIndex={-1}
         onClick={onTap}
       >
-        {text.slice(match.start, match.end)}
+        {toLayerRuns(
+          text.slice(match.start, match.end),
+          emoticons,
+          toPlaceholderIndex(text, match.start),
+        )}
       </span>
-      {text.slice(match.end)}
+      {toLayerRuns(text.slice(match.end), emoticons, toPlaceholderIndex(text, match.end))}
     </div>
   );
+}
+
+/**
+ * WARN: § 13.8. The emoticons are drawn into the layer as well, invisible. A
+ * placeholder left as text is a glyph the width of whatever the font has for it, where
+ * the field draws a box a line tall — and the layer wraps by the field's rules only
+ * while the two hold the same boxes, so every mark past the first emoticon would sit
+ * further off its word.
+ *
+ * INFO: `InlineEmoticon` itself rather than a spacer built to match it, so there is one
+ * statement of the box. The picture is already loaded and answers from the cache.
+ */
+function toLayerRuns(text: string, emoticons: StagedEmoticon[], from: number): ReactNode[] {
+  const runs = text.split(OBJECT_PLACEHOLDER);
+
+  return runs.map((run, index) => {
+    const emoticon = index < runs.length - 1 ? emoticons[from + index] : undefined;
+
+    return (
+      <Fragment key={index}>
+        {run}
+        {emoticon && (
+          <InlineEmoticon
+            className="invisible"
+            itemId={emoticon.id}
+            version={emoticon.version}
+            width={emoticon.width}
+            height={emoticon.height}
+          />
+        )}
+      </Fragment>
+    );
+  });
+}
+
+/**
+ * The staged emoticons the field still holds, in its order.
+ *
+ * WARN: Keyed rather than sliced. A deletion can take any of them — and the same
+ * emoticon may be staged twice — so the surviving keys are the only account of which
+ * ones are left that a repeated id cannot confuse.
+ */
+function toSurviving(emoticons: StagedEmoticon[], keys: string[]): StagedEmoticon[] {
+  // INFO: The identity is kept where nothing changed, which is every keystroke — a new array would rebuild the field's objects and re-render the layer on each of them.
+  if (
+    keys.length === emoticons.length &&
+    keys.every((key, index) => emoticons[index]?.key === key)
+  ) {
+    return emoticons;
+  }
+
+  const byKey = new Map(emoticons.map((emoticon) => [emoticon.key, emoticon]));
+
+  return keys
+    .map((key) => byKey.get(key))
+    .filter((emoticon): emoticon is StagedEmoticon => emoticon !== undefined);
+}
+
+// INFO: REQUIREMENTS.md § 8.13. The seed's own token keys the emoticons it brings, so a re-seed of the same message is not two drafts holding one set of keys.
+function toSeededDraft({
+  text,
+  emoticons = [],
+  token,
+}: NonNullable<MessageComposerProps["seededDraft"]>): Draft {
+  return {
+    text,
+    emoticons: emoticons.map((emoticon, index) => ({ ...emoticon, key: `${token}:${index}` })),
+  };
 }
