@@ -3,7 +3,7 @@
 import type { ChatMedia } from "@/entities/media";
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import { DELETED_MESSAGE_TEXT, toMessageSummary } from "@/shared/config";
+import { DELETED_MESSAGE_TEXT, toMessageSummary, type InlineEmoticonMap } from "@/shared/config";
 import { cn, formatTime, type Optional } from "@/shared/lib";
 import { Avatar, FileCard, MediaTombstone, VoicePlayer } from "@/shared/ui";
 import { Smile } from "lucide-react";
@@ -13,6 +13,14 @@ import { MirrorMediaBox } from "./mirror-media-box";
 export type MirrorChatRowProps = {
   className?: string;
   message: ChatMessage;
+  /**
+   * REQUIREMENTS.md § 13. What the emoticons written into `message.text` were, out of the
+   * map the snapshot was stored with (§ 2.4.).
+   *
+   * WARN: Required, for `MessageRowProps`' reason — a caller that forgot it would leave
+   * every all-emoticon bubble reading 이모티콘 with nothing to say so.
+   */
+  inlineEmoticons: InlineEmoticonMap;
   sender: Optional<Participant>;
   /** The quoted message's sender, resolved from the same snapshot participant set (REQUIREMENTS.md § 8.7.). */
   replyToName: Optional<string>;
@@ -38,6 +46,7 @@ const ATTACHMENT_WIDTH = 220;
 export function MirrorChatRow({
   className,
   message,
+  inlineEmoticons,
   sender,
   replyToName,
   isMine,
@@ -131,8 +140,11 @@ export function MirrorChatRow({
       <div className={toBubbleClassName()}>
         {message.replyTo && renderQuote("mb-2xs")}
         {/* INFO: REQUIREMENTS.md § 13. The mirror reads `text` and draws no emoticons, so the placeholders come out rather than reaching the transcript as tofu — the same summary the § 16.1. banner and the § 8.10. quote take. */}
-        {/* WARN: No names to fall back through, because the snapshot carries no emoticon map — a message that was nothing but emoticons reads 이모티콘 here where the live row draws them. */}
-        {toMessageSummary(message.text ?? "")}
+        {/* WARN: § 16. The names, and never the pictures — an emoticon's asset is the other deployment's (AGENTS.md § 4.2.1.) and carries no hash to fall back through, so a mirror that drew one would be requesting a byte it cannot have. The stored map is read for `name` alone; nothing here loads or measures an emoticon. */}
+        {toMessageSummary(
+          message.text ?? "",
+          message.inlineEmoticonItemIds.map((itemId) => inlineEmoticons[itemId]?.name ?? null),
+        )}
       </div>
     );
   }

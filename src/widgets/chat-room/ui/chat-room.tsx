@@ -389,7 +389,8 @@ export function ChatRoom({
     reconcile,
   } = useMessageHistory(initialMessages);
   // INFO: REQUIREMENTS.md § 16. The room is the only place the loaded window exists, so the offline transcript is stored from here rather than from the screen above it.
-  useWriteChatSnapshot(messages, hasNewer);
+  // INFO: REQUIREMENTS.md § 13. The map goes with the transcript — § 2.4.'s sixth path is this one, and it is the only delivery that has to survive the page it arrived on.
+  useWriteChatSnapshot(messages, inlineEmoticons, hasNewer);
   const { pending, send, sendMedia, sendEmoticon, retry, cancel, resolve } = useSendMessage({
     onSent: appendMessage,
   });

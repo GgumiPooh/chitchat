@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChatSnapshot, ShellSnapshot } from "@/features/offline-snapshot";
+import type { InlineEmoticonMap } from "@/shared/config";
 import { composeEventNotice, type UserId } from "@/shared/lib";
 import { useSnapshot } from "@/shared/snapshot";
 import { AppHeader, Container } from "@/shared/ui";
@@ -16,6 +17,9 @@ export type MirrorChatProps = {
   shell: ShellSnapshot;
 };
 
+// WARN: Hoisted so a snapshot without one passes the same identity to every row, rather than a fresh object per render.
+const NO_EMOTICONS: InlineEmoticonMap = {};
+
 /**
  * 채팅 as it was last received (REQUIREMENTS.md § 16.).
  *
@@ -26,6 +30,8 @@ export type MirrorChatProps = {
 export function MirrorChat({ className, shell }: MirrorChatProps) {
   const snapshot = useSnapshot<ChatSnapshot>("chat");
   const messages = snapshot.status === "hit" ? snapshot.payload.messages : undefined;
+  // INFO: REQUIREMENTS.md § 13. Absent from every snapshot an earlier build wrote, which reads as a transcript whose emoticons have no names — exactly what this screen did before the map was stored.
+  const emoticons = snapshot.payload?.emoticons ?? NO_EMOTICONS;
   const participantById = useMemo(
     () => new Map(shell.participants.map((participant) => [participant.id, participant])),
     [shell.participants],
@@ -88,6 +94,7 @@ export function MirrorChat({ className, shell }: MirrorChatProps) {
       <MirrorChatRow
         key={row.key}
         message={row.message}
+        inlineEmoticons={emoticons}
         sender={participantById.get(row.message.senderId)}
         replyToName={row.message.replyTo ? toName(row.message.replyTo.senderId) : undefined}
         isMine={row.isMine}
