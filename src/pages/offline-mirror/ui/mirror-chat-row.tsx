@@ -5,7 +5,7 @@ import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { DELETED_MESSAGE_TEXT } from "@/shared/config";
 import { cn, formatTime, type Optional } from "@/shared/lib";
-import { Avatar, FileCard, VoicePlayer } from "@/shared/ui";
+import { Avatar, FileCard, MediaTombstone, VoicePlayer } from "@/shared/ui";
 import { Smile } from "lucide-react";
 import { toMirrorCell } from "../model/to-mirror-cell";
 import { MirrorMediaBox } from "./mirror-media-box";
@@ -69,6 +69,11 @@ export function MirrorChatRow({
         {!isMine && isFirstOfGroup && (
           <span className="px-2xs text-chat-name text-chat-sender">{sender?.name}</span>
         )}
+        {/* INFO: DESIGN.md § 6.10. A bubble-less message quotes above itself, exactly as the live row does — a text one quotes inside its bubble, where the fill already frames it. Without this a photo sent as a reply showed its quote online and dropped it here, and the mirror is meant to be the same transcript. */}
+        {!message.isDeleted &&
+          message.replyTo &&
+          (message.emoticon || hasMedia) &&
+          renderQuote("max-w-55")}
         {/* WARN: DESIGN.md § 6.2. `max-w-full` is what holds the bubble inside the column's `max-w-[72%]` — the column aligns rather than stretches, so this stack is sized `fit-content`, which floors at min-content. */}
         <div className={cn("flex max-w-full items-end gap-2xs", isMine && "flex-row-reverse")}>
           {renderBody()}
@@ -98,6 +103,16 @@ export function MirrorChatRow({
       return renderEmoticon();
     }
     if (voiceCell) {
+      // INFO: The live row routes a withdrawn clip to the tombstone too — the peaks are still on the row, so without this the one destroyed object in the app still draws its own contents here. `VOICE_CARD_HEIGHT`'s own `h-14` and the player's radius, so the row keeps its height and its shape.
+      if (voiceCell.isDeleted) {
+        return (
+          <MediaTombstone
+            className="h-14 w-55 flex-row rounded-bubble"
+            cell={toMirrorCell(voiceCell)}
+          />
+        );
+      }
+
       // WARN: REQUIREMENTS.md § 9.3. `src` is null on purpose: the waveform and the running time are stored on the row, and the object behind them is not cached (§ 16.).
       return (
         <VoicePlayer
@@ -114,7 +129,7 @@ export function MirrorChatRow({
 
     return (
       <div className={toBubbleClassName()}>
-        {message.replyTo && renderQuote()}
+        {message.replyTo && renderQuote("mb-2xs")}
         {message.text}
       </div>
     );
@@ -132,9 +147,12 @@ export function MirrorChatRow({
   }
 
   // INFO: DESIGN.md § 6.10. One line of the quoted message, without the tap that would jump to it — the row it names may be outside the snapshot entirely.
-  function renderQuote() {
+  // INFO: The card above the bubble caps at § 6.5.'s 220px attachment width; left to the column's 72% a long quote would stretch past the photo it sits on.
+  function renderQuote(className: string) {
     return (
-      <div className="mb-2xs border-l-2 border-hairline-strong pl-xs text-caption text-meta">
+      <div
+        className={cn("border-l-2 border-hairline-strong pl-xs text-caption text-meta", className)}
+      >
         <p className="truncate">{replyToName}</p>
         <p className="truncate">{message.replyTo?.text ?? DELETED_MESSAGE_TEXT}</p>
       </div>
