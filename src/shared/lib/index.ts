@@ -162,7 +162,12 @@ export { mapPooled, type PoolOptions } from "./run/pool";
 export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./run/safely";
 export { measureLineHeight, warmLineHeights } from "./text/line-height";
 export { findQueryIndex, splitTextByQuery, type QuerySegment } from "./text/query-match";
-export { countTextLines, type FontSpec } from "./text/text-layout";
+export {
+  countInlineLines,
+  countTextLines,
+  type FontSpec,
+  type InlineRun,
+} from "./text/text-layout";
 export {
   findFirstUrl,
   isHttpUrl,

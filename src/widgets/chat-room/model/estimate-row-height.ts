@@ -1,16 +1,24 @@
 import type { Emoticon } from "@/entities/emoticon";
 import type { LinkPreview } from "@/entities/link-preview";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
-import { DELETED_MESSAGE_TEXT } from "@/shared/config";
 import {
+  DELETED_MESSAGE_TEXT,
+  type InlineEmoticonInfo,
+  type MessageSegment,
+} from "@/shared/config";
+import {
+  countInlineLines,
   countTextLines,
   findFirstUrl,
   measureLineHeight,
+  type EmoticonItemId,
+  type InlineRun,
   type Maybe,
   type Nullable,
   type Optional,
 } from "@/shared/lib";
 import { toEmoticonBox } from "./to-emoticon-box";
+import { toInlineContent, type InlineContent } from "./to-inline-content";
 import { MEDIA_EDGE, toMediaBoxHeight } from "./to-media-box";
 import type { ChatRow } from "./types";
 
@@ -84,12 +92,31 @@ const CARD_BODY = { size: 13, weight: 400, line: LINE.cardBody, maxLines: 2 };
 /** Reads an already-scraped § 8.9. preview out of the cache. `undefined` for a link nothing has answered for yet, and for a page that described itself with nothing. */
 export type PreviewReader = (url: Maybe<string>) => Optional<LinkPreview>;
 
+/**
+ * REQUIREMENTS.md § 13. Reads one inline emoticon's box out of the map the page came
+ * down with. `undefined` for an id that page did not carry.
+ *
+ * WARN: § 8.3. Synchronous and never a fetch, exactly as `readPreview` is. The estimate
+ * runs inside `getItemKey`'s memoized measurement pass for every row in the window; an
+ * answer that arrives later is a re-measure of a row the reader is already looking at.
+ * That is what § 2.4. sends the map down with the messages for.
+ */
+export type InlineEmoticonReader = (itemId: EmoticonItemId) => Optional<InlineEmoticonInfo>;
+
 export type RowEstimateContext = {
   /** The scroller's own width, which the § 6.5. column is a percentage of. Absent until the scroller mounts. */
   contentWidth?: number;
   /** As `getComputedStyle` reports it on the chat surface, so a wrap is counted in the font the bubble is drawn in. Blank on the server, where the width falls back to a ratio per glyph class. */
   fontFamily: string;
   readPreview: PreviewReader;
+  /**
+   * @see InlineEmoticonReader
+   *
+   * WARN: Required, and it MUST read the same map `MessageRow` draws from. Fed from two
+   * sources the estimate and the bubble disagree about the box by construction, which is
+   * the miss REQUIREMENTS.md § 8.3. exists to avoid.
+   */
+  readInlineEmoticon: InlineEmoticonReader;
   /** REQUIREMENTS.md § 11.5. The notice a system row renders, which is composed from the live nickname and so cannot be derived from the message alone. */
   readNotice: NoticeReader;
   /**
@@ -110,6 +137,7 @@ export type NoticeReader = (message: ChatMessage) => string;
 const DEFAULT_CONTEXT: RowEstimateContext = {
   fontFamily: "",
   readPreview: () => undefined,
+  readInlineEmoticon: () => undefined,
   readNotice: () => "",
   countUnreadReaders: () => 0,
 };
@@ -117,6 +145,8 @@ const DEFAULT_CONTEXT: RowEstimateContext = {
 // INFO: The half of a message a height follows from — `ChatMessage` and `PendingMessage` differ elsewhere, and an optimistic bubble is drawn at exactly the size the sent one will be.
 type Payload = {
   text: Nullable<string>;
+  // INFO: REQUIREMENTS.md § 13. Optional, because the tombstone payload below carries none and an optimistic bubble may predate the field — `toInlineContent` reads an absent list as "no emoticon in this text", which is the pre-format path.
+  inlineEmoticonItemIds?: EmoticonItemId[];
   emoticon: Nullable<Emoticon>;
   replyTo: Nullable<ReplyPreview>;
   // INFO: DESIGN.md § 6.5. Only an optimistic bubble carries one; a message that landed is always sent.
@@ -215,7 +245,9 @@ function estimateMessageRow(
   flags: RowFlags,
 ): number {
   const hasMedia = payload.media.length > 0;
-  const isBubbleless = hasMedia || payload.emoticon !== null;
+  // WARN: § 8.3. The same call `MessageRow` makes, and the reason it lives in one function — a lone inline emoticon draws bubble-less like an emoticon message, so it changes the quote's variant and withholds the § 8.9. card exactly as an attachment does.
+  const inline = toInlineContent(payload.text, payload.inlineEmoticonItemIds);
+  const isBubbleless = hasMedia || payload.emoticon !== null || inline.kind === "solo";
   let column = 0;
 
   // INFO: REQUIREMENTS.md § 8.7. The sender's name, on the first bubble of the other participant's group only.
@@ -235,7 +267,7 @@ function estimateMessageRow(
     column += toLinkCardHeight(preview, context) + SPACING_2XS;
   }
 
-  column += toPayloadHeight(payload, isMine, isBubbleless, context, flags);
+  column += toPayloadHeight(payload, isMine, isBubbleless, inline, context, flags);
 
   // INFO: DESIGN.md § 6.1. The gap between rows is this padding, so it belongs to the row below it.
   const top = flags.isFirstOfGroup ? SPACING_SM : SPACING_2XS;
@@ -248,6 +280,7 @@ function toPayloadHeight(
   payload: Payload,
   isMine: boolean,
   isBubbleless: boolean,
+  inline: InlineContent,
   context: RowEstimateContext,
   flags: RowFlags,
 ): number {
@@ -256,6 +289,14 @@ function toPayloadHeight(
 
   if (payload.emoticon) {
     return Math.max(toEmoticonBox(payload.emoticon).height, beside);
+  }
+
+  // INFO: § 13. The same `toEmoticonBox` an emoticon message takes, since that is what a lone one is drawn as — and a deleted item keeps its stored box, so the tombstone standing in its place measures identically.
+  if (inline.kind === "solo") {
+    const info = context.readInlineEmoticon?.(inline.itemId);
+
+    // WARN: § 8.3. An id the page's map does not carry draws **nothing**, here and in the bubble alike — `MessageRow` skips it on the same missing answer. Priced at a box the row does not draw, this would be the miss the whole file exists to avoid.
+    return Math.max(info ? toEmoticonBox(info).height : 0, beside);
   }
 
   if (payload.media.length > 0) {
@@ -270,7 +311,7 @@ function toPayloadHeight(
   }
 
   return Math.max(
-    height + toTextHeight(payload.text, isMine, context, flags, payload.status),
+    height + toTextHeight(payload.text, isMine, inline, context, flags, payload.status),
     beside,
   );
 }
@@ -287,6 +328,7 @@ function toBesideHeight(payload: Payload, { besideLines }: RowFlags): number {
 function toTextHeight(
   text: Nullable<string>,
   isMine: boolean,
+  inline: InlineContent,
   context: RowEstimateContext,
   { besideLines }: RowFlags,
   status?: Payload["status"],
@@ -304,12 +346,43 @@ function toTextHeight(
     column - beside - SPACING_SM * 2 - (isMine ? 0 : BUBBLE_BORDER),
     CHAT_BODY.size,
   );
+  const font = { ...CHAT_BODY, family: fontFamily };
+  const line = LINE.body();
+
+  // WARN: § 8.3. The inline path is entered **only** for text that actually holds an emoticon, so every message written before this format keeps `countTextLines` byte for byte. The two measurers agree on `word-break: normal` but not on whitespace or on `keep-all`, so routing plain text through the new one would re-price the whole history for nothing.
+  if (inline.kind === "inline") {
+    return countInlineLines(toInlineRuns(inline.segments, context, line), font, available) * line;
+  }
+
   // INFO: `whitespace-pre-wrap` on the bubble, so a newline is a hard break and runs of spaces are kept rather than collapsed.
   // INFO: DESIGN.md § 4.2.3. The bubble is the one place that opts out of `keep-all`, so it is measured broken between syllables too.
-  return (
-    countTextLines(text, { ...CHAT_BODY, family: fontFamily }, available, "pre-wrap", "normal") *
-    LINE.body()
-  );
+  return countTextLines(text, font, available, "pre-wrap", "normal") * line;
+}
+
+/**
+ * REQUIREMENTS.md § 13. The bubble's own runs, with each emoticon standing as the box it
+ * will draw at.
+ *
+ * WARN: `InlineEmoticon` is `1lh` tall with the ratio doing the width, so the box is
+ * `lineHeight × width / height` — and it is that **before** the asset loads, which is the
+ * whole reason this is knowable here at all. A box derived from the loaded image would
+ * re-wrap the text under the reader.
+ */
+function toInlineRuns(
+  segments: readonly MessageSegment[],
+  { readInlineEmoticon }: RowEstimateContext,
+  lineHeight: number,
+): InlineRun[] {
+  return segments.flatMap<InlineRun>((segment) => {
+    if (segment.kind === "text") {
+      return [{ text: segment.text }];
+    }
+
+    const info = readInlineEmoticon?.(segment.itemId);
+
+    // WARN: Skipped rather than given a guessed box, and `MessageText` skips the same id — an emoticon nothing can size is one neither of them draws.
+    return info && info.height > 0 ? [{ boxWidth: (lineHeight * info.width) / info.height }] : [];
+  });
 }
 
 /**

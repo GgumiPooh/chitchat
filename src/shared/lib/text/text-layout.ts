@@ -1,6 +1,11 @@
 "use client";
 
 import { clearCache, layout, prepare, setLocale, type PrepareOptions } from "@chenglou/pretext";
+import {
+  measureRichInlineStats,
+  prepareRichInline,
+  type RichInlineItem,
+} from "@chenglou/pretext/rich-inline";
 import { LOCALE } from "../date/time";
 
 export type FontSpec = {
@@ -17,7 +22,24 @@ const NARROW_RATIO = 0.55;
 const CACHE_LIMIT = 4000;
 
 const lineCounts = new Map<string, number>();
+const inlineLineCounts = new Map<string, number>();
+const boxGlyphWidths = new Map<string, number>();
 let isConfigured = false;
+
+/**
+ * One piece of a line that mixes text with atomic boxes — a run of characters, or a box
+ * of a known width that the line breaks around but never inside.
+ */
+export type InlineRun = { text: string } | { boxWidth: number };
+
+/**
+ * WARN: A **non-empty**, non-whitespace stand-in for a box, and it cannot be `""`.
+ * `prepareRichInline` drops any item whose text trims to nothing and takes its
+ * `extraWidth` with it — so the documented `{ text: "", extraWidth }` shape silently
+ * measures a line with no box in it at all. The glyph's own advance is measured once per
+ * font and subtracted below, so which character this is never reaches the answer.
+ */
+const BOX_GLYPH = "￼";
 
 /**
  * How many lines `text` wraps to at `maxWidth`, broken the way the browser will
@@ -67,17 +89,173 @@ export function countTextLines(
   return lineCount;
 }
 
-// INFO: Arithmetic rather than line breaking, so it models neither mode — the whole-어절 pushes DESIGN.md § 4.2.3. produces are invisible to it, and the count above replaces them the moment a family resolves.
-function approximateLines(text: string, size: number, maxWidth: number): number {
-  return text.split("\n").reduce((total, line) => {
-    let width = 0;
+/**
+ * How many lines a run of text mixed with atomic boxes wraps to at `maxWidth` — what an
+ * inline emoticon standing between the characters of a bubble costs (REQUIREMENTS.md
+ * § 8.3.).
+ *
+ * WARN: The `rich-inline` subpath is `white-space: normal` only, so the hard lines are
+ * split here and measured one at a time. A bubble is `pre-wrap` (§ 6.5.), and left to the
+ * measurer every `\n` would be one more collapsed space rather than a break.
+ *
+ * WARN: Its `word-break` is the library's own default, which is `normal` — the same mode
+ * the bubble opts into (DESIGN.md § 4.2.3.) and deliberately **not** `countTextLines`'
+ * app-wide `keep-all`. It takes no option for it, so a bubble that stopped opting out
+ * would silently be measured in the wrong mode with nothing here to change.
+ *
+ * WARN: Runs of spaces are pre-expanded, because `normal` collapses them and `pre-wrap`
+ * keeps them. Collapsed, the text measures narrower than it draws and the estimate lands
+ * **short**, which is § 8.3.'s accumulating direction.
+ */
+export function countInlineLines(
+  runs: readonly InlineRun[],
+  { size, weight, family }: FontSpec,
+  maxWidth: number,
+): number {
+  if (runs.length === 0) {
+    return 0;
+  }
 
-    for (const character of line) {
-      width += character.codePointAt(0)! < 0x80 ? size * NARROW_RATIO : size;
+  if (!family || typeof document === "undefined") {
+    return approximateInlineLines(runs, size, maxWidth);
+  }
+
+  const font = `${weight} ${size}px ${family}`;
+  // WARN: Both separators stay escapes, exactly as `countTextLines`' key does. Written as literal control bytes they make git read this whole file as binary — no line diff, no blame, no three-way merge — and nothing in the diff says so.
+  const key = `${font}\u0000${maxWidth}\u0000${runs.map(toRunKey).join("\u0001")}`;
+  const cached = inlineLineCounts.get(key);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  configure();
+
+  const width = Math.max(maxWidth, 1);
+  const glyph = toBoxGlyphWidth(font);
+  let lineCount = 0;
+
+  for (const line of toHardLines(runs)) {
+    // INFO: An empty hard line is one line — the blank line a sender left between paragraphs.
+    if (line.length === 0) {
+      lineCount += 1;
+
+      continue;
     }
+
+    const items = line.map<RichInlineItem>((run) =>
+      "text" in run
+        ? { text: toNonCollapsingRun(run.text), font }
+        : // WARN: `naturalWidth + extraWidth` is what the item occupies, so the stand-in glyph's own advance comes back out here. Clamped, since a box narrower than that glyph would otherwise occupy a negative width.
+          {
+            text: BOX_GLYPH,
+            font,
+            break: "never",
+            extraWidth: Math.max(-glyph, run.boxWidth - glyph),
+          },
+    );
+
+    lineCount += Math.max(1, measureRichInlineStats(prepareRichInline(items), width).lineCount);
+  }
+
+  if (inlineLineCounts.size >= CACHE_LIMIT) {
+    for (const stale of [...inlineLineCounts.keys()].slice(0, CACHE_LIMIT / 2)) {
+      inlineLineCounts.delete(stale);
+    }
+  }
+
+  inlineLineCounts.set(key, lineCount);
+
+  return lineCount;
+}
+
+function toRunKey(run: InlineRun): string {
+  return "text" in run ? `t${run.text}` : `b${run.boxWidth}`;
+}
+
+/** INFO: The advance of `BOX_GLYPH` in this font, so a box can be given the width it actually draws at rather than that width plus a glyph. */
+function toBoxGlyphWidth(font: string): number {
+  const cached = boxGlyphWidths.get(font);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const { maxLineWidth } = measureRichInlineStats(
+    prepareRichInline([{ text: BOX_GLYPH, font, break: "never" }]),
+    Number.MAX_SAFE_INTEGER,
+  );
+
+  boxGlyphWidths.set(font, maxLineWidth);
+
+  return maxLineWidth;
+}
+
+/** INFO: `pre-wrap` keeps every space and `normal` keeps one, so all but the first of a run are made non-collapsible — the first stays a space to leave the break opportunity where the browser has one. */
+function toNonCollapsingRun(text: string): string {
+  return text.replace(/ {2,}/gu, (run) => ` ${" ".repeat(run.length - 1)}`);
+}
+
+/** INFO: The runs cut at every `\n`, since the measurer has no `pre-wrap` of its own. A box never carries one, so only the text runs are split. */
+function toHardLines(runs: readonly InlineRun[]): InlineRun[][] {
+  const lines: InlineRun[][] = [[]];
+
+  for (const run of runs) {
+    if (!("text" in run)) {
+      lines[lines.length - 1].push(run);
+
+      continue;
+    }
+
+    run.text.split("\n").forEach((piece, index) => {
+      if (index > 0) {
+        lines.push([]);
+      }
+
+      if (piece) {
+        lines[lines.length - 1].push({ text: piece });
+      }
+    });
+  }
+
+  return lines;
+}
+
+// INFO: `approximateLines`' arithmetic with the boxes added in, for the server and for the first paint before a family resolves.
+function approximateInlineLines(
+  runs: readonly InlineRun[],
+  size: number,
+  maxWidth: number,
+): number {
+  return toHardLines(runs).reduce((total, line) => {
+    const width = line.reduce(
+      (sum, run) => sum + ("text" in run ? toApproximateWidth(run.text, size) : run.boxWidth),
+      0,
+    );
 
     return total + Math.max(1, Math.ceil(width / Math.max(maxWidth, size)));
   }, 0);
+}
+
+function toApproximateWidth(text: string, size: number): number {
+  let width = 0;
+
+  for (const character of text) {
+    width += character.codePointAt(0)! < 0x80 ? size * NARROW_RATIO : size;
+  }
+
+  return width;
+}
+
+// INFO: Arithmetic rather than line breaking, so it models neither mode — the whole-어절 pushes DESIGN.md § 4.2.3. produces are invisible to it, and the count above replaces them the moment a family resolves.
+function approximateLines(text: string, size: number, maxWidth: number): number {
+  return text
+    .split("\n")
+    .reduce(
+      (total, line) =>
+        total + Math.max(1, Math.ceil(toApproximateWidth(line, size) / Math.max(maxWidth, size))),
+      0,
+    );
 }
 
 function configure() {
@@ -94,6 +272,9 @@ function configure() {
     void document.fonts.ready.then(() => {
       clearCache();
       lineCounts.clear();
+      // WARN: All three, or an inline count and a box advance measured in the fallback font outlive the swap that invalidated the plain one beside them.
+      inlineLineCounts.clear();
+      boxGlyphWidths.clear();
     });
   }
 }

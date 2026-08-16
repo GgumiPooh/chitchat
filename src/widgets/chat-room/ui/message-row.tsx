@@ -4,22 +4,37 @@ import type { Emoticon } from "@/entities/emoticon";
 import type { ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { useProfileViewer } from "@/features/view-profile";
-import { DELETED_MESSAGE_TEXT, MESSAGE_FLASH_DURATION } from "@/shared/config";
+import {
+  DELETED_MESSAGE_TEXT,
+  MESSAGE_FLASH_DURATION,
+  type InlineEmoticonMap,
+} from "@/shared/config";
 import {
   LONG_PRESS_TARGET_CLASS,
   cn,
   findFirstUrl,
   formatTime,
   useLongPress,
+  type EmoticonItemId,
   type Nullable,
   type Optional,
 } from "@/shared/lib";
 import { OFFLINE_QUEUED_SEND_TEXT } from "@/shared/offline-ux";
-import { Avatar, IconButton, MediaTombstone, VoicePlayer, type MediaCell } from "@/shared/ui";
+import {
+  Avatar,
+  IconButton,
+  InlineEmoticon,
+  MediaTombstone,
+  VoicePlayer,
+  type MediaCell,
+} from "@/shared/ui";
 import { Clock, CornerUpLeft, RotateCcw, Share, X } from "lucide-react";
 import type { CSSProperties } from "react";
+import { toEmoticonBox } from "../model/to-emoticon-box";
+import { toInlineContent } from "../model/to-inline-content";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
 import { EmoticonBubble } from "./emoticon-bubble";
+import { InlineEmoticonTombstone } from "./inline-emoticon-tombstone";
 import { LinkPreviewCard } from "./link-preview-card";
 import { MediaGrid } from "./media-grid";
 import { MessageText } from "./message-text";
@@ -34,6 +49,10 @@ export type MessageRowProps = {
   className?: string;
   bubbleClassName?: string;
   text: Nullable<string>;
+  /** REQUIREMENTS.md § 13. One id per `OBJECT_PLACEHOLDER` in `text`. Absent for every message written before the format existed, which is the path that must not change. */
+  inlineEmoticonItemIds?: EmoticonItemId[];
+  /** REQUIREMENTS.md § 13. What those ids draw, out of the map the page came down with (§ 8.3.) — the same one `RowEstimateContext.readInlineEmoticon` reads. */
+  inlineEmoticons?: InlineEmoticonMap;
   media?: MediaCell[];
   emoticon?: Nullable<Emoticon>;
   /** REQUIREMENTS.md § 8.10. The message this one quotes, already resolved by the room. */
@@ -78,6 +97,8 @@ export function MessageRow({
   className,
   bubbleClassName,
   text,
+  inlineEmoticonItemIds,
+  inlineEmoticons,
   media = [],
   emoticon,
   replyTo,
@@ -110,9 +131,17 @@ export function MessageRow({
   const hasMedia = media.length > 0;
   // INFO: REQUIREMENTS.md § 9.3. A voice message is one attachment and § 6. keeps a bubble's attachments all of one kind, so the first cell answers for the bubble exactly as `filename` does for a file card.
   const voiceCell = media[0]?.voice ? media[0] : null;
+  // WARN: REQUIREMENTS.md § 8.3. The same call `estimateRowHeight` makes, off the same two props. A lone emoticon draws bubble-less like an emoticon message, so it decides the quote's variant and the link card below exactly as an attachment does — and the estimate has already priced whichever answer this returns.
+  const inline = toInlineContent(text, inlineEmoticonItemIds);
+  const soloInfo = inline.kind === "solo" ? inlineEmoticons?.[inline.itemId] : undefined;
+  // INFO: The id and its box together, so the branch below needs no re-narrowing of `inline` to reach either.
+  const soloEmoticon =
+    inline.kind === "solo" && soloInfo ? { itemId: inline.itemId, info: soloInfo } : undefined;
+  const soloBox = soloEmoticon ? toEmoticonBox(soloEmoticon.info) : undefined;
+  const isBubbleless = Boolean(emoticon) || hasMedia || inline.kind === "solo";
   // INFO: REQUIREMENTS.md § 8.9. One card per bubble — the first link, not every link, because a message pasted from a share sheet routinely carries several.
   // INFO: DESIGN.md § 6.5. A bubble-less message carries an attachment rather than text, so there is no link in it to preview.
-  const previewUrl = emoticon || hasMedia ? undefined : findFirstUrl(text);
+  const previewUrl = isBubbleless ? undefined : findFirstUrl(text);
 
   return (
     // INFO: DESIGN.md § 6.10. The flash is on the row rather than on the bubble's own fill, so a media or emoticon message — which has no fill — highlights the same way a text one does.
@@ -158,7 +187,7 @@ export function MessageRow({
           <span className="px-2xs text-chat-name text-chat-sender">{sender?.name}</span>
         )}
         {/* INFO: DESIGN.md § 6.10. A bubble-less message quotes in a card of its own; a text one quotes inside its bubble, where the fill already frames it. */}
-        {replyTo && (emoticon || hasMedia) && (
+        {replyTo && isBubbleless && (
           // WARN: Capped at DESIGN.md § 6.5.'s 220px attachment width. Left to the column's 72%, a long quote would stretch the card well past the photo it sits on top of.
           <ReplyQuote
             className="max-w-55"
@@ -191,6 +220,27 @@ export function MessageRow({
               {...longPressHandlers}
             >
               <EmoticonBubble emoticon={emoticon} onFollow={onFollowEmoticon} />
+            </div>
+          ) : soloEmoticon && soloBox ? (
+            // INFO: § 13. One emoticon and no words, drawn at `toEmoticonBox` — the same box, and the same absence of a bubble, an emoticon message takes. A mini never occupies `messages.emoticon_item_id`, so this is a rendering rule read off the content rather than a second kind of row.
+            // WARN: § 8.3. The box is the **stored** one and never the loaded asset's, so it is the same before and after the image arrives — and `estimateRowHeight` prices it through the identical `toEmoticonBox` call.
+            // WARN: `lineHeight` is what resizes the shared `InlineEmoticon`, whose own `1lh` is otherwise one line of body text. It is an inline style there, so no class could win it — setting the line-height this box inherits is the one lever that reaches it, and it lands exactly: `1lh × width/height` is `toEmoticonBox`'s own width by construction.
+            <div
+              className={cn(LONG_PRESS_TARGET_CLASS, status !== "sent" && "opacity-60")}
+              style={{ ...soloBox, lineHeight: `${soloBox.height}px` }}
+              {...longPressHandlers}
+            >
+              {soloEmoticon.info.isDeleted ? (
+                <InlineEmoticonTombstone className="rounded-md" iconClassName="size-5" />
+              ) : (
+                <InlineEmoticon
+                  itemId={soloEmoticon.itemId}
+                  version={soloEmoticon.info.version}
+                  width={soloEmoticon.info.width}
+                  height={soloEmoticon.info.height}
+                  name={soloEmoticon.info.name}
+                />
+              )}
             </div>
           ) : voiceCell ? (
             // INFO: REQUIREMENTS.md § 9.3. `VoicePlayer` draws its own fill, so the row hands it only the notch corner the group rule asks for (DESIGN.md § 6.2.).
@@ -255,7 +305,14 @@ export function MessageRow({
                       onOpen={onOpenReply}
                     />
                   )}
-                  {text && <MessageText text={text} query={searchQuery} />}
+                  {text && (
+                    <MessageText
+                      text={text}
+                      inlineEmoticonItemIds={inlineEmoticonItemIds}
+                      inlineEmoticons={inlineEmoticons}
+                      query={searchQuery}
+                    />
+                  )}
                 </>
               )}
             </div>
