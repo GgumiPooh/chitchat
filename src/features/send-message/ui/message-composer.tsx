@@ -16,6 +16,7 @@ import { HapticTarget, IconButton, Textarea } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUp, Plus, Smile } from "lucide-react";
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -23,6 +24,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
   type Ref,
+  type RefObject,
 } from "react";
 import { toEmoticonKeywordsQuery } from "../model/keywords-query";
 
@@ -75,6 +77,18 @@ export type MessageComposerProps = {
    * so a mounting composer does not steal focus from the screen it mounted with.
    */
   focusRequest?: number;
+  /**
+   * REQUIREMENTS.md § 8.14. The field itself, for the one caller `focusRequest` cannot
+   * serve.
+   *
+   * WARN: A ref beside the token rather than in place of it, because the two are
+   * asked for at different moments. A token is answered an effect later, which is
+   * everything Escape and § 8.13.'s correction want and is exactly what a keystroke
+   * with nothing focused cannot use: the character is inserted by the default action
+   * of the very `keydown` that asked, so the focus has to have moved before that
+   * handler returns or it is typed into nothing and lost.
+   */
+  fieldRef?: RefObject<Nullable<HTMLTextAreaElement>>;
   onAttach: () => void;
   /** REQUIREMENTS.md § 13.6. Reaching for the field is a request for the keyboard, which the picker would then be buried under. */
   onFieldFocus?: () => void;
@@ -96,6 +110,7 @@ export function MessageComposer({
   seededDraft,
   isEditing = false,
   focusRequest = 0,
+  fieldRef: exposedFieldRef,
   onAttach,
   onFieldFocus,
   onEdit,
@@ -104,6 +119,26 @@ export function MessageComposer({
   onSend,
 }: MessageComposerProps) {
   const fieldRef = useRef<Nullable<HTMLTextAreaElement>>(null);
+  /**
+   * Both refs off one callback. The field is this component's to drive; the room only
+   * ever reads the node, to reach it inside the event that needs it.
+   *
+   * WARN: Memoized, and the room is why. An inline callback is a new ref on every
+   * render — and this component re-renders on every keystroke — so React would detach
+   * it with `null` and reattach it on each of those commits. The room reads this node
+   * from inside a `keydown`, where a ref that is momentarily `null` is a character
+   * typed into nothing.
+   */
+  const takeField = useCallback(
+    (node: Nullable<HTMLTextAreaElement>) => {
+      fieldRef.current = node;
+
+      if (exposedFieldRef) {
+        exposedFieldRef.current = node;
+      }
+    },
+    [exposedFieldRef],
+  );
   const layerRef = useRef<Nullable<HTMLDivElement>>(null);
   const [text, setText] = useState("");
   // INFO: REQUIREMENTS.md § 8.13. The last seed this component has taken, so the render-phase adjustment below fires once per instruction rather than on every render.
@@ -227,7 +262,7 @@ export function MessageComposer({
         {/* INFO: § 13.8. The field and its keyword layer are one stacking context, so the mark can be positioned against the field's own box rather than the pill's. */}
         <div className="relative min-w-0 flex-1">
           <Textarea
-            ref={fieldRef}
+            ref={takeField}
             className={cn(
               // INFO: DESIGN.md § 6.6. No shape of its own — the pill is the field's surface, so no border, no radius, and no focus ring.
               // WARN: `min-w-0` is what keeps the round controls round. A flex item's default `min-width: auto` refuses to shrink below its content, so on a browser without `field-sizing-content` (WebKit) the field pushes and the 44×44 buttons absorb the overflow as ovals.

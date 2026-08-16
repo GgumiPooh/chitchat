@@ -55,6 +55,7 @@ import {
   startMediaMorph,
   stopVoice,
   subscribeDormancy,
+  useIsFinePointer,
   useIsVirtualKeyboardOpen,
   useIsomorphicLayoutEffect,
   useSettledCommit,
@@ -267,6 +268,8 @@ export function ChatRoom({
   const [composerFocusRequest, setComposerFocusRequest] = useState(0);
   // INFO: § 13.6. Whether a request arrived while the composer was yielded, to be handed over when the row comes back. A ref rather than state: nothing renders differently for it, and it is written from the handler that would otherwise spend the token on a hidden field.
   const isComposerFocusHeldRef = useRef(false);
+  // INFO: REQUIREMENTS.md § 8.14. The composer's field, for the two things `composerFocusRequest` is a render too late for — a character typed with nothing focused, and the clipboard behind ⌘V.
+  const composerFieldRef = useRef<Nullable<HTMLTextAreaElement>>(null);
   // INFO: REQUIREMENTS.md § 8.14. The same token for the panel, bumped by **every** open — an opened panel nothing has focused is one the arrow keys cannot reach, and the toggle is a button, so a mouse open leaves focus on it rather than inside what it opened.
   // INFO: REQUIREMENTS.md § 8.6.1. The frame `settleJumpScroll` has queued, so a newer jump — or an unmount — can take it back.
   const jumpFrameRef = useRef<Nullable<number>>(null);
@@ -390,6 +393,8 @@ export function ChatRoom({
   // WARN: The media branch only. § 8.11. hands text straight to `navigator.share` with nothing fetched, so a text message shares perfectly well with no network — gating the label outright would refuse the one case that works.
   const shareGate = useOfflineGate(OFFLINE_MESSAGES.share);
   const isKeyboardOpen = useIsVirtualKeyboardOpen();
+  // INFO: REQUIREMENTS.md § 8.14. Whether there is a keyboard to type at, which is what holds § 8.14.'s type-ahead and its paste to the desktop.
+  const isFinePointer = useIsFinePointer();
   // INFO: REQUIREMENTS.md § 8.6. The composer's whole stack is put away for the length of a search, and everything it drives has to go with it.
   const isSearching = bottomBar !== undefined;
   // WARN: REQUIREMENTS.md § 13.8. The exemption outlives the tab by the length of the keyboard's retraction, which is what this latch holds. Leaving 검색 unmounts the field the panel had focused and the keyboard is only reported down some 250ms later — released with the tab, those frames are an unexempted panel that collapses to nothing and reopens by itself once the keys finish sliding.
@@ -862,6 +867,8 @@ export function ChatRoom({
     onToggleEmoticonPanel: toggleEmoticonPanel,
     onOpenEmoticonSearch: toggleEmoticonSearch,
     onScrollHistory: scrollHistory,
+    onTypeAhead: typeIntoComposer,
+    onPasteText: pasteIntoComposer,
   });
 
   // WARN: Scrolling inside the send handler resolves against the pre-send data, so a message sent from deep in history lands below the fold. The row only exists from this commit onward.
@@ -1353,6 +1360,7 @@ export function ChatRoom({
               seededDraft={seededDraft}
               isEditing={editingId !== null}
               focusRequest={composerFocusRequest}
+              fieldRef={composerFieldRef}
               // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
               onToggleEmoticons={openEmoticonPanel}
               onAttach={() => setIsPickerOpen(true)}
@@ -1654,6 +1662,77 @@ export function ChatRoom({
     }
 
     setComposerFocusRequest((token) => token + 1);
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.14. A character typed into the conversation, taken by the field
+   * it was meant for.
+   *
+   * WARN: The node and not `focusComposer`'s token, and the difference is the whole
+   * behaviour. A token is answered an effect later, by which time this `keydown`'s
+   * default action has been spent on `body` and the character is gone. Reaching the
+   * field inside the handler moves the focus first, so the engine inserts into it —
+   * which is also why nothing here prevents the event.
+   *
+   * WARN: `reachesComposer` and not the hook's `isCovered`, which says the same thing
+   * one commit later. That flag rides a passive effect, so between the render that
+   * opens § 8.6.'s search and the effect that reports it, a keystroke arrives here with
+   * the field already `hidden` and `inert` — and `focus()` on that is the silent no-op
+   * `focusComposer` refuses for, with the character typed into nothing.
+   *
+   * INFO: Guarded on the pointer rather than on the keyboard flag. The behaviour is the
+   * desktop's, where a stray key means someone at a keyboard is starting a message; on a
+   * phone there is no key to strike until something has already been focused.
+   *
+   * INFO: `onFieldFocus` carries the rest — § 13.6.'s panel closes on the focus this
+   * takes, exactly as it does for a click into the field.
+   */
+  function typeIntoComposer() {
+    if (!reachesComposer()) {
+      return;
+    }
+
+    composerFieldRef.current?.focus();
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.14. ⌘V with nothing focused — the caret into the composer and
+   * the clipboard's text with it. Answers whether it took the paste, which is what
+   * spends its default action.
+   *
+   * WARN: Inserted through `execCommand` rather than by setting the value, and the
+   * deprecation is known. It is the one insertion the field's own undo stack survives,
+   * and it raises the `input` the composer is controlled by — a value written past that
+   * would be a paste ⌘Z could not take back, and a draft React would overwrite on its
+   * next render.
+   *
+   * INFO: Appended at the caret, which a field the reader has not touched puts at the
+   * end of whatever was already drafted. Pasting into a room mid-draft adds to it
+   * rather than replacing it, as pasting anywhere else would.
+   */
+  function pasteIntoComposer(text: string): boolean {
+    const field = composerFieldRef.current;
+
+    if (!reachesComposer() || !field) {
+      return false;
+    }
+
+    field.focus();
+
+    return document.execCommand("insertText", false, text);
+  }
+
+  /**
+   * Whether a keystroke may reach the composer's field at all — the invariant
+   * `focusComposer` refuses on, asked of the two routes that hold the node rather than
+   * the token.
+   *
+   * INFO: § 13.6.'s yield is in it although the pointer test all but answers for it: a
+   * fine pointer and a virtual keyboard is a tablet with a keyboard case, and the field
+   * is `display: none` there for the same 250ms it is on a phone.
+   */
+  function reachesComposer(): boolean {
+    return isFinePointer && !isSearching && !isComposerYielded;
   }
 
   /**

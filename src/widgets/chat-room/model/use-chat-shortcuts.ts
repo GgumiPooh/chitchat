@@ -1,5 +1,6 @@
 "use client";
 
+import { toTransferFiles } from "@/features/upload-media";
 import {
   OPEN_OVERLAY_SELECTOR,
   isAltKey,
@@ -43,6 +44,33 @@ export type ChatShortcuts = {
   onOpenEmoticonSearch: () => void;
   /** `⌥↑` / `⌥↓` — the conversation, a step at a time. `-1` is towards older messages. */
   onScrollHistory: (direction: -1 | 1) => void;
+  /**
+   * REQUIREMENTS.md § 8.14. A character typed with nothing focused — the caret to the
+   * composer, **synchronously**, so the keystroke that asked lands in it.
+   *
+   * WARN: The one handler here whose event is deliberately *not* prevented. Everything
+   * else on this hook answers a chord that has no meaning in a field; this one answers
+   * the reader typing a message, and the character is put there by the default action
+   * of the same `keydown`. Prevented, the caret would arrive and the letter would not.
+   *
+   * INFO: Absent where there is no keyboard to type on, which is what keeps this off
+   * the phone: a coarse pointer has no keys to strike until something is focused, and
+   * a hardware one there reaches the composer through `Enter` as it always did.
+   */
+  onTypeAhead?: () => void;
+  /**
+   * REQUIREMENTS.md § 8.14. The clipboard's plain text, pasted with nothing focused.
+   *
+   * WARN: Text only, and § 9.2.'s file paste is answered ahead of it — a clipboard
+   * carrying both is an attachment, and inserting its text half beside the staged file
+   * is what `useFilePaste` prevents the default for.
+   *
+   * WARN: Answers whether it took the text, and the default action is spent on that
+   * answer alone. The room refuses a paste it has nowhere to put — no keyboard behind
+   * the pointer, or § 13.6. holding the composer away — and a `void` here would leave
+   * those refusals looking exactly like a ⌘V the app had swallowed.
+   */
+  onPasteText?: (text: string) => boolean;
 };
 
 /**
@@ -71,8 +99,16 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented || event.isComposing) {
+        return;
+      }
+
+      const isOwned = isOwnedKey(event);
+      // WARN: § 8.14. `hasFocusedControl` before anything else this branch could ask, and that ordering is the point. Every keystroke typed into the composer is a typing key, so this is the read that turns them all away — one `activeElement` lookup, where `isDormantVisible` and the `querySelector` below are what the original ordering was written to keep off the typing path.
+      const isTypeAhead = !isOwned && isTypingKey(event) && !hasFocusedControl();
+
       // WARN: The cheapest test first, and that ordering is the point — this runs on every keystroke typed into the composer, and the two reads below must not.
-      if (!isOwnedKey(event) || event.defaultPrevented || event.isComposing) {
+      if (!isOwned && !isTypeAhead) {
         return;
       }
 
@@ -83,6 +119,13 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
 
       // WARN: § 8.4.1. An overlay above the room owns the keyboard while it is up — a sheet, a dialog, or one of the two screens `useModalOverlay` marks. `Escape` there is its own dismissal, and answering it here would take the room's panel down underneath it.
       if (document.querySelector(OPEN_OVERLAY_SELECTOR)) {
+        return;
+      }
+
+      // WARN: § 8.14. Ahead of the `preventDefault` below and returning past it. The default action of this keydown is the character itself, and the whole behaviour is that it lands in the field the handler has just focused.
+      if (isTypeAhead) {
+        handlers.current.onTypeAhead?.();
+
         return;
       }
 
@@ -111,10 +154,92 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
       }
     }
 
-    document.addEventListener("keydown", handleKeyDown);
+    /**
+     * REQUIREMENTS.md § 8.14. A paste with nothing focused, which the engine dispatches
+     * at `body` — the same case the typing above answers, arriving as a clipboard
+     * rather than a character.
+     *
+     * WARN: The insertion is the caller's, not the default action's. Unlike a keystroke
+     * a paste cannot be redirected by focusing inside it: this event was already
+     * dispatched at `body`, so its default would insert into `body` however the focus
+     * moves, which is nowhere.
+     *
+     * WARN: § 9.2. Whether the clipboard carries files is the test, and
+     * `defaultPrevented` cannot stand in for it. `useFilePaste` prevents such a paste
+     * for the express purpose of keeping its text half out of the composer — but it
+     * listens on `window` and this listens on `document`, which the paste reaches
+     * first, so this would insert that text and only then watch the file be staged
+     * beside it.
+     *
+     * WARN: § 9.2. Asked with `toTransferFiles` and never `clipboardData.files`,
+     * because the two disagree and the one that stages is the one that decides. A
+     * folder copied in Finder is a `File` in that list and no file at all to
+     * `toTransferFiles`, so a clipboard carrying a folder and its name as text would be
+     * refused here, staged by nothing there, and read as ⌘V having done nothing.
+     *
+     * WARN: The default is spent only once the room says it took the text. Prevented
+     * ahead of that, a room that answers no paste — the pointer is coarse, or § 13.6.
+     * has the composer put away — would have a ⌘V that is dead rather than merely
+     * unanswered.
+     */
+    function handlePaste(event: ClipboardEvent) {
+      if (event.defaultPrevented || hasFocusedControl()) {
+        return;
+      }
 
-    return () => document.removeEventListener("keydown", handleKeyDown);
+      if (handlers.current.isCovered || isDormantVisible()) {
+        return;
+      }
+
+      if (document.querySelector(OPEN_OVERLAY_SELECTOR)) {
+        return;
+      }
+
+      const clipboard = event.clipboardData;
+      const text =
+        clipboard && toTransferFiles(clipboard).length === 0 ? clipboard.getData("text/plain") : "";
+
+      if (text && handlers.current.onPasteText?.(text)) {
+        event.preventDefault();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    // WARN: Not `passive`. A passive listener may not `preventDefault`, and the insertion here replaces a default that would go nowhere.
+    document.addEventListener("paste", handlePaste);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("paste", handlePaste);
+    };
   }, []);
+}
+
+/**
+ * REQUIREMENTS.md § 8.14. Whether this keystroke would have put a character on
+ * screen, which is what the composer is fetched for.
+ *
+ * WARN: The modifiers are refused rather than ignored — `⌘S`, `Ctrl+R` and `⌥F` are
+ * the browser's and the OS's, and a room that swallowed them into a draft would eat
+ * every shortcut this app does not define. `Shift` is the exception it has to be: it
+ * is how a capital letter is typed.
+ *
+ * INFO: A one-character `key` is nearly the whole test. Every named key — `Tab`, `F5`,
+ * `ArrowLeft`, the modifiers themselves — spells itself out, and none of them types
+ * anything.
+ *
+ * WARN: `Process` is the exception, and it is the one this app's readers type in. An
+ * input source that composes reports it in place of the character while it is still
+ * deciding what that character is, and `isComposing` cannot stand in for it — there is
+ * no composition yet with nothing focused. Turned away here, a room entered in 한글
+ * would swallow the first jamo of every message and answer only the Latin ones.
+ */
+function isTypingKey(event: KeyboardEvent): boolean {
+  if (event.altKey || event.ctrlKey || event.metaKey) {
+    return false;
+  }
+
+  return event.key.length === 1 || event.key === "Process";
 }
 
 /**
