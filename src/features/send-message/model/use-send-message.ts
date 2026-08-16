@@ -234,10 +234,13 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
   // WARN: Memoized, and not a convenience. `useWriteSnapshot` keys its 2s debounce on the payload's identity, so a fresh array per render restarts that timer every render — and this hook lives in a screen the virtualizer re-renders constantly, where the write would then never fire at all. `pending` changes identity only on a commit, which is exactly when the queue can have moved.
   const durableQueue = useMemo(() => toDurableQueue(pending), [pending]);
 
-  // INFO: REQUIREMENTS.md § 16. Level with the outbox on every change, so the queue outlives the tab rather than the render.
-  useWriteSnapshot(useSnapshotOwner(), "outbox", durableQueue);
+  const owner = useSnapshotOwner();
 
-  const restored = useSnapshot<PendingMessage[]>("outbox");
+  // INFO: REQUIREMENTS.md § 16. Level with the outbox on every change, so the queue outlives the tab rather than the render.
+  useWriteSnapshot(owner, "outbox", durableQueue);
+
+  // WARN: The same owner the write above uses, never `useSnapshot`'s `localStorage` default. This one is read *inside* a signed-in tree, and two browsing contexts share that key — a restore taken from it revives the other account's queued rows, which `flushQueued` then posts under this session.
+  const restored = useSnapshot<PendingMessage[]>("outbox", owner);
   const hasRestoredRef = useRef(false);
 
   /**
