@@ -6,6 +6,8 @@ import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import { revokePreview, uploadDraft } from "@/features/upload-media/@x/send-message";
 import { MAX_UPLOAD_INFLIGHT_BYTES, UPLOAD_CONCURRENCY } from "@/shared/config";
 import {
+  getLastNetworkFailedAt,
+  getLastNetworkReachedAt,
   holdAwake,
   isVoiceActive,
   mapPooled,
@@ -173,7 +175,12 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
         drop(clientMsgId);
       } catch {
         // WARN: `navigator.onLine` rather than `useIsOffline`, whose settle delay is the whole second this decision is made in — read through the hook, a send that fails the instant the network goes is filed as refused.
-        patch(clientMsgId, { status: navigator.onLine ? "failed" : "queued" });
+        // WARN: And never that flag alone. `postMessage` throws for a rejected *status* as well as for a dead network, so on a device where the flag sticks false — the VPN and VM case this codebase cites throughout — a message the server refused was filed `queued`, which renders no 다시 보내기 and leaves 전송 취소 as the only way out of a bubble nothing will ever retry. `markNetworkReached` fires on a status of any kind, so this tells the two apart by what the request actually did.
+        const isUnreachable = getLastNetworkFailedAt() > getLastNetworkReachedAt();
+
+        patch(clientMsgId, {
+          status: !navigator.onLine && isUnreachable ? "queued" : "failed",
+        });
       }
     },
     [drop, onSent, patch, uploadAll],
