@@ -6,7 +6,15 @@ import {
   MESSAGE_PAGE_SIZE,
   REPLY_PREVIEW_MAX_LENGTH,
 } from "@/shared/config";
-import { compareId, idBefore, maxId, safelyRunAsync, toId, type MessageId } from "@/shared/lib";
+import {
+  A_SECOND,
+  compareId,
+  idBefore,
+  maxId,
+  safelyRunAsync,
+  toId,
+  type MessageId,
+} from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useRef, useState } from "react";
 import { fetchChangedMessages } from "../api/fetch-changed-messages";
@@ -17,6 +25,11 @@ import { fetchMessages } from "../api/fetch-messages";
  * jump replaced the window while this one was in flight (REQUIREMENTS.md § 8.6.1.).
  */
 export type LoadAroundResult = "ok" | "missing" | "superseded";
+
+/** How long a failed upward page is left alone before the scroller may ask for it again. */
+const OLDER_RETRY_DELAY = 5 * A_SECOND;
+
+const OLDER_FAILURE_TOAST_ID = "chat-older-failed";
 
 /**
  * The loaded window of the conversation. Older pages are keyset-paginated on the
@@ -42,6 +55,8 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
   // WARN: § 8.6.1.'s jump moves the *window* into the past and leaves this alone. They are two different questions: what is on screen, and what this client has already been told about.
   // INFO: REQUIREMENTS.md § 8.4. `"0"` is the "from the start of the conversation" cursor — below every id the generator can mint.
   const newestKnownIdRef = useRef(initialMessages.at(-1)?.id ?? toId<MessageId>("0"));
+  // WARN: The room asks again the moment a load ends, so a failed page that left nothing behind is re-requested on the next render — fetch, fail, ask, at whatever rate the network refuses, one toast per turn until the tab dies. This is what makes the failure cost a wait instead of a loop.
+  const retryOlderAfter = useRef(0);
   // WARN: § 8.6.1. Bumped by everything that replaces the window whole. `discardPendingOlder` drops a page already *held*, but a fetch still in flight was started against the window that is now gone, and letting it land is what leaves `hasNewerRef` true while `hasNewer` reads false — live arrivals dropped from then on, and the pill that would fix it hidden.
   const windowId = useRef(0);
 
@@ -86,7 +101,8 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
       isLoadingRef.current ||
       pendingOlderRef.current.length > 0 ||
       !hasOlderRef.current ||
-      !oldest
+      !oldest ||
+      Date.now() < retryOlderAfter.current
     ) {
       return;
     }
@@ -114,7 +130,9 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
       }
     } catch {
       if (generation === windowId.current) {
-        toast.error("이전 메시지를 불러오지 못했어요");
+        retryOlderAfter.current = Date.now() + OLDER_RETRY_DELAY;
+        // INFO: A fixed id, so a reader parked at the top through a long outage keeps one toast that refreshes rather than a stack that grows.
+        toast.error("이전 메시지를 불러오지 못했어요", { id: OLDER_FAILURE_TOAST_ID });
       }
     } finally {
       endLoad(generation);
@@ -123,6 +141,15 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     // INFO: Only the paths that hold nothing land here — a page that is waiting keeps the header up until it is committed.
     setIsLoadingOlder(false);
   }, [endLoad]);
+
+  /**
+   * Drops the cooldown above so the next edge check may ask again.
+   *
+   * WARN: The cooldown otherwise has nothing to wake it. Its only caller runs on scroll and on a load finishing, so a reader parked at the very top through a failed page gets no further attempt until they move — the transcript stops there, with the toast long dismissed.
+   */
+  const clearOlderCooldown = useCallback(() => {
+    retryOlderAfter.current = 0;
+  }, []);
 
   /** REQUIREMENTS.md § 8.3. Inserts the held page. The caller owns the timing, and the timing is the fix. */
   const commitPendingOlder = useCallback(() => {
@@ -487,6 +514,7 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     pendingOlder,
     hasNewer,
     loadOlder,
+    clearOlderCooldown,
     commitPendingOlder,
     loadNewer,
     loadAround,

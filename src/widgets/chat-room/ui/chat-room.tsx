@@ -352,6 +352,7 @@ export function ChatRoom({
     pendingOlder,
     hasNewer,
     loadOlder,
+    clearOlderCooldown,
     commitPendingOlder,
     loadNewer,
     loadAround,
@@ -890,6 +891,19 @@ export function ChatRoom({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoadingOlder]);
+
+  // WARN: A returning network moves no finger either, and a reader parked at the top through a failed page is exactly who is waiting on it. Both halves are needed: the cooldown drops the wait `loadOlder` is still serving, and the edge check is what asks again — nothing else would until the reader scrolls.
+  useEffect(() => {
+    function retryPagesOnReconnect() {
+      clearOlderCooldown();
+      syncScrollEdges();
+    }
+
+    window.addEventListener("online", retryPagesOnReconnect);
+
+    return () => window.removeEventListener("online", retryPagesOnReconnect);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearOlderCooldown]);
 
   /**
    * WARN: `anchorTo: "end"` keeps the viewport at the end once it is there; it does
