@@ -290,8 +290,10 @@ export const MEDIA_ASSET_CACHE_CONTROL = `private, max-age=${(365 * A_DAY) / A_S
  * bytes' year reachable rather than merely long: a browser re-asking inside the window is
  * handed the same URL, so it pays one 302 and keeps what it already holds.
  * WARN: § 12.1. No longer what `MEDIA_DELETE_GRACE` is measured as — a redirect cached
- * this long cannot be outwaited, so a deleted object is recovered from on the read side
- * (`useLoadStatus`) exactly as § 13.3.'s is.
+ * this long cannot be outwaited. A stale one fails at R2 and spends `useLoadStatus`'s one
+ * cache-busted retry, which `GET /api/media/{id}` answers 404 for a deleted row rather
+ * than re-signing the key. The tombstone drawn in its place is `isDeleted` on the payload
+ * and owes nothing to either.
  */
 export const MEDIA_CACHE_MAX_AGE = A_DAY;
 

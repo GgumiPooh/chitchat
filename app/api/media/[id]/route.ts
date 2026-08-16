@@ -53,7 +53,9 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const row = await getMediaRow(params.data.id);
 
   // INFO: The same answer for an object that does not exist and one this user may not read — a distinguishable 403 would confirm the id.
-  if (!row || !(await canReadMedia(row, user.id))) {
+  // WARN: § 9. A soft-deleted row is refused rather than signed: its bytes are the reclaim's once `MEDIA_DELETE_GRACE` has run, so a signature for that key is one we minted for an object we deleted — and `MEDIA_CACHE_MAX_AGE` now leaves it replayable for a day. The grace is untouched by this, since it covers a 302 already answered rather than a request arriving now.
+  // WARN: § 9. It takes the same 404 for the same reason the clause above does, and a 410 was rejected on it — "this id existed and is gone" is exactly what the indistinguishable answer exists to withhold. Nothing could read the difference anyway: an `<img>` hands `onError` no status.
+  if (!row || row.deletedAt !== null || !(await canReadMedia(row, user.id))) {
     return apiError("not_found");
   }
 
