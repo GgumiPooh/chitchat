@@ -10,6 +10,7 @@ export { BottomSheet, type BottomSheetProps } from "./bottom-sheet";
 export { Button, type ButtonProps } from "./button";
 export { Chip, type ChipProps } from "./chip";
 export { Container, type ContainerProps } from "./container";
+export { EditableField, type EditableFieldProps } from "./editable-field";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
 export { FileCard, type FileCardProps } from "./file-card";
 export { FileDropGuard } from "./file-drop-guard";

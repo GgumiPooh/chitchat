@@ -8,6 +8,7 @@ import {
   cn,
   isBareKey,
   isCommandKey,
+  isEditableElement,
   isShiftKey,
   type EmoticonItemId,
   type Nullable,
@@ -774,7 +775,8 @@ export function EmoticonPicker({
       event.nativeEvent.isComposing ||
       !isShiftKey(event) ||
       (event.key !== "ArrowLeft" && event.key !== "ArrowRight") ||
-      isTextField(event.target)
+      // WARN: REQUIREMENTS.md § 8.14. What `⇧←/→` refuses to fire over, since `Shift` plus an arrow belongs to the field's own selection there — and it has to recognise a `contenteditable`, which is what the composer's field now is (§ 13.6.).
+      isEditableElement(event.target)
     ) {
       return;
     }
@@ -1454,11 +1456,6 @@ function TabButton({
 
 function findPack(packs: EmoticonPackSummary[], id: string) {
   return packs.find((pack) => pack.id === id);
-}
-
-// INFO: REQUIREMENTS.md § 8.14. What `⇧←/→` refuses to fire over, since `Shift` plus an arrow belongs to the field's own selection there.
-function isTextField(target: EventTarget): boolean {
-  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
 }
 
 /**

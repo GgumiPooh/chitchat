@@ -12,7 +12,7 @@ import {
   type Nullable,
 } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
-import { HapticTarget, IconButton, Textarea } from "@/shared/ui";
+import { EditableField, HapticTarget, IconButton } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUp, Plus, Smile } from "lucide-react";
 import {
@@ -36,8 +36,8 @@ import { toEmoticonKeywordsQuery } from "../model/keywords-query";
  * padding, font or wrapping rule that reaches one and not the other slides the mark
  * off the word it belongs to.
  */
-// WARN: DESIGN.md § 6.6. The vertical padding is 10 rather than `py-xs` so the field's *natural* height clears the `min-h-11` beside it — 1+10+22.5+10+1 = 44.5. A textarea has no way to centre its text, so any height `min-height` adds over the intrinsic one is slack that lands entirely under the line: at 8 the box was 40.5 stretched to 44, and the single line the composer opens on sat 1.75px above the discs it shares the pill with.
-const FIELD_BOX = "px-2xs py-2.5 text-body-md leading-normal";
+// WARN: DESIGN.md § 6.6. The vertical padding is what makes the field's *natural* height exactly the `min-h-11` beside it — 10.75+22.5+10.75 = 44. Nothing here can centre its text, so any height `min-height` adds over the intrinsic one is slack that lands entirely under the line, and the single line the composer opens on then sits above the discs it shares the pill with.
+const FIELD_BOX = "px-2xs py-[10.75px] text-body-md leading-normal";
 
 // WARN: Hoisted so the pending query answers one array identity — an inline `= []` re-runs the match on every render of a field being typed into.
 const NO_KEYWORDS: string[] = [];
@@ -88,7 +88,7 @@ export type MessageComposerProps = {
    * of the very `keydown` that asked, so the focus has to have moved before that
    * handler returns or it is typed into nothing and lost.
    */
-  fieldRef?: RefObject<Nullable<HTMLTextAreaElement>>;
+  fieldRef?: RefObject<Nullable<HTMLDivElement>>;
   onAttach: () => void;
   /** REQUIREMENTS.md § 13.6. Reaching for the field is a request for the keyboard, which the picker would then be buried under. */
   onFieldFocus?: () => void;
@@ -118,7 +118,7 @@ export function MessageComposer({
   onKeywordTap,
   onSend,
 }: MessageComposerProps) {
-  const fieldRef = useRef<Nullable<HTMLTextAreaElement>>(null);
+  const fieldRef = useRef<Nullable<HTMLDivElement>>(null);
   /**
    * Both refs off one callback. The field is this component's to drive; the room only
    * ever reads the node, to reach it inside the event that needs it.
@@ -130,7 +130,7 @@ export function MessageComposer({
    * typed into nothing.
    */
   const takeField = useCallback(
-    (node: Nullable<HTMLTextAreaElement>) => {
+    (node: Nullable<HTMLDivElement>) => {
       fieldRef.current = node;
 
       if (exposedFieldRef) {
@@ -260,39 +260,39 @@ export function MessageComposer({
           />
         )}
         {/* INFO: § 13.8. The field and its keyword layer are one stacking context, so the mark can be positioned against the field's own box rather than the pill's. */}
-        <div className="relative min-w-0 flex-1">
-          <Textarea
-            ref={takeField}
-            className={cn(
-              // INFO: DESIGN.md § 6.6. No shape of its own — the pill is the field's surface, so no border, no radius, and no focus ring.
-              // WARN: `min-w-0` is what keeps the round controls round. A flex item's default `min-width: auto` refuses to shrink below its content, so on a browser without `field-sizing-content` (WebKit) the field pushes and the 44×44 buttons absorb the overflow as ovals.
-              "max-h-34 min-h-11 w-full min-w-0 resize-none rounded-none border-transparent bg-transparent hover:border-transparent focus-visible:border-transparent focus-visible:ring-0",
-              FIELD_BOX,
-              fieldClassName,
-            )}
-            maxLength={MAX_MESSAGE_LENGTH}
-            rows={1}
-            value={text}
-            // INFO: § 8.14. The pointer decides it and nothing else: a mouse means a keyboard is there to press, and whether the app is installed says nothing about that. The hint alone, since `aria-label` below already names the field.
-            // INFO: § 8.14. Read inside the ternary, which is what keeps `toCommandKeyLabel`'s platform guess out of the server's HTML.
-            placeholder={isFinePointer ? `${toCommandKeyLabel()} + / 단축키 보기` : "메시지 입력"}
-            aria-label="메시지 입력"
-            // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
-            onChange={(event) => {
-              setText(event.target.value);
-              // WARN: § 13.8. Any edit ends the search the tap started. The tap blurs the field, so nothing is typed between it and the send it belongs to — a keystroke after it means the draft is a message now, and consuming it would delete what the user wrote.
-              tappedQueryRef.current = null;
-              onEdit?.(event.target.value.trim().length > 0);
-            }}
-            onFocus={onFieldFocus}
-            onKeyDown={handleKeyDown}
-            onScroll={syncKeywordLayer}
-          />
+        {/* WARN: `min-w-0` is what keeps the round controls round. A flex item's default `min-width: auto` refuses to shrink below its content, so the field pushes and the 44×44 buttons absorb the overflow as ovals. */}
+        <EditableField
+          ref={takeField}
+          className="min-w-0 flex-1"
+          // INFO: DESIGN.md § 6.6. No shape of its own — the pill is the field's surface, so no border, no radius, and no focus ring.
+          fieldClassName={cn(
+            "scrollbar-hidden max-h-34 min-h-11 w-full overflow-y-auto",
+            FIELD_BOX,
+            fieldClassName,
+          )}
+          placeholderClassName={cn("text-meta-soft", FIELD_BOX)}
+          maxLength={MAX_MESSAGE_LENGTH}
+          value={text}
+          // INFO: § 8.14. The pointer decides it and nothing else: a mouse means a keyboard is there to press, and whether the app is installed says nothing about that. The hint alone, since `aria-label` below already names the field.
+          // INFO: § 8.14. Read inside the ternary, which is what keeps `toCommandKeyLabel`'s platform guess out of the server's HTML.
+          placeholder={isFinePointer ? `${toCommandKeyLabel()} + / 단축키 보기` : "메시지 입력"}
+          aria-label="메시지 입력"
+          // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
+          onChange={(next) => {
+            setText(next);
+            // WARN: § 13.8. Any edit ends the search the tap started. The tap blurs the field, so nothing is typed between it and the send it belongs to — a keystroke after it means the draft is a message now, and consuming it would delete what the user wrote.
+            tappedQueryRef.current = null;
+            onEdit?.(next.trim().length > 0);
+          }}
+          onFocus={onFieldFocus}
+          onKeyDown={handleKeyDown}
+          onScroll={syncKeywordLayer}
+        >
           {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, like the two staging controls. The tap opens § 13.8.'s picker, whose staging clears the attachment tray this mode deliberately preserved and arms a quick-send that would post a **new** emoticon message beside the pending correction — and the emoticon it staged is invisible and unsendable here anyway. A correction is very likely to contain the keyword, since it is the text the user already typed. */}
           {match && onKeywordTap && !isEditing && (
             <KeywordLayer ref={layerRef} text={text} match={match} onTap={handleKeywordTap} />
           )}
-        </div>
+        </EditableField>
         {/* INFO: DESIGN.md § 6.6. The toggle stays put once text is typed — an emoticon is staged beside a line of text now (REQUIREMENTS.md § 13.6.), so replacing it with send would put the panel out of reach exactly when it is wanted. */}
         {!isEditing && (
           <IconButton
@@ -411,7 +411,7 @@ export function MessageComposer({
     event.preventDefault();
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     // WARN: § 8.14. First, and it covers every branch below. A Hangul IME fires `keydown` for the keystrokes that settle a syllable — including the Enter that closes a composition, which is the trap `KeywordField` records.
     if (event.nativeEvent.isComposing) {
       return;
