@@ -738,8 +738,9 @@ export function MediaViewer({
    *
    * INFO: The pending destination is recorded for `step`'s reason — an arrow key pressed while this scroll is still running has to measure from where the tap sent the reader, not from the slide it has not left yet.
    * WARN: The tap is refused against the **pending** slide, never `index` alone. `index` follows `heldId`, which does not move until the track has crossed half a slide — so a tap on the thumbnail still marked active, made while a previous tap's scroll runs, would be dropped and leave the reader travelling to the slide they had just changed their mind about.
+   * WARN: A **live** crossing travels instantly. It is one frame of a scrub the reader's own hand is making, and a smooth scroll per frame both lags the film and queues behind the crossings after it — the photo would arrive at slides the finger left long ago, one after another.
    */
-  function goToSlide(cell: MediaCell) {
+  function goToSlide(cell: MediaCell, isLive: boolean) {
     const track = trackRef.current;
     const next = cells.findIndex((slide) => slide.id === cell.id);
 
@@ -749,7 +750,7 @@ export function MediaViewer({
     }
 
     steppedRef.current = next;
-    track.scrollTo({ left: track.clientWidth * next, behavior: "smooth" });
+    track.scrollTo({ left: track.clientWidth * next, behavior: isLive ? "auto" : "smooth" });
   }
 
   /**
@@ -893,7 +894,8 @@ export type SlideFilmstripProps = {
   activeId: MediaId;
   /** Whether the chrome around it is up, so a hidden strip leaves the tab sequence with the bars. */
   isReachable: boolean;
-  onSelect: (cell: MediaCell) => void;
+  /** `isLive` marks a crossing made **under a finger still on the strip**, which travels instantly rather than easing — see the notch's own WARN. */
+  onSelect: (cell: MediaCell, isLive: boolean) => void;
 };
 
 /**
@@ -901,7 +903,8 @@ export type SlideFilmstripProps = {
  * position beneath them — a tap crosses to a sibling without swiping through the ones
  * between.
  *
- * WARN: § 3.6. No `padding-inline` on the scroller and no `justify-center` on it either. The first is WebKit's overflow defect; the second hides the leading items past a scroll origin a scroller cannot reach. The box is sized to its content and centred as a block instead, so a short strip sits in the middle and a long one fills the shell and scrolls.
+ * WARN: § 3.6. No `padding-inline` on the scroller and no `justify-center` on it either. The first is WebKit's overflow defect; the second hides the leading items past a scroll origin a scroller cannot reach. The end insets are the first and last child's margin instead.
+ * WARN: The scroller spans the shell, and the band beside a short strip is therefore inside it rather than transparent to the slide behind. That is the price of the notch: the row **is** the control, so a drag anywhere along it has to move the film. The chrome toggle and the § 8.11. hold keep the rest of the screen, which is all of it above this bar.
  * INFO: AGENTS.md § 4.2. `useDragScroll` is the pointer's half — a finger already pans this, and a mouse has only the wheel until the strip can be taken hold of.
  */
 function SlideFilmstrip({
@@ -916,50 +919,70 @@ function SlideFilmstrip({
   const [stripElement, setStripElement] = useState<Nullable<HTMLDivElement>>(null);
   // INFO: The haptic wrapper rather than the button, since that is the element the strip lays out (DESIGN.md § 7.15.) — and the one the centring below has to measure.
   const activeRef = useRef<Nullable<HTMLSpanElement>>(null);
-  // INFO: The open is a jump and every crossing after it is a follow, so the first reveal is instant and the rest are eased — an animated one at mount would be read as the strip arriving already moving.
-  const hasRevealedRef = useRef(false);
-  const { isDragging, dragProps } = useDragScroll();
+  // INFO: The open is a jump and every crossing after it is a follow, so the first centring is instant and the rest are eased — an animated one at mount would be read as the strip arriving already moving.
+  const hasCentredRef = useRef(false);
+  /**
+   * Whether the reader's own hand is on the strip, which is what tells a scroll they
+   * are making from one this component made.
+   *
+   * WARN: Touch is tracked by `touchstart` / `touchend` and never by the pointer events beside them. A native pan **cancels** the pointer stream at the moment the browser takes the gesture over — the finger is still down and still scrubbing — so a pointer-driven flag would go false exactly when it matters most.
+   */
+  const isHoldingRef = useRef(false);
+  const dragProps = useDragScroll();
   const position = cells.findIndex((cell) => cell.id === activeId) + 1;
   // INFO: § 10.'s unit, so a bubble that is all video counts in 개 — `toCellNoun` calls a mixed one a photo, which is the same latitude 장 takes there.
   const unit = toMediaCountUnit(cells.every((cell) => cell.isVideo) ? "video" : "photo");
 
   /**
-   * DESIGN.md § 7.10. Puts the active thumbnail in the **middle of the screen** — on
-   * the open, where the reader may have tapped the last of nine, and on every crossing
-   * after it.
+   * DESIGN.md § 7.10. What the notch has landed on once the strip has gone still, and
+   * the centring that tidies up after whatever left it there.
    *
-   * WARN: Centred, not merely revealed. `revealWithin` moves by the least it can, which leaves the current thumbnail sitting against whichever edge it was pulled in from — and the strip's own end margins mean the first and last slide can reach the middle too, so there is no position where the mark is anywhere but under the photo it belongs to.
+   * WARN: Memoized, and it is not optional. `useSettledCommit` rebuilds its wait from this identity and its cleanup clears the pending timer — so a fresh function per render would have every unrelated re-render of the viewer (the chrome toggle, a crossing, an offline gate) cancel a settle that `isPending: false` never re-arms, and the scrub would silently stop committing.
+   * INFO: It centres on **every** settle rather than only the ones that moved the reader, which is what recovers a strip left off the notch by a scrub that could not be committed — a drag made under a zoomed slide, where `goToSlide` refuses the crossing (§ 18. #6.).
+   */
+  const handleSettled = useCallback(() => {
+    const strip = stripRef.current;
+
+    if (!strip || isHoldingRef.current) {
+      return;
+    }
+
+    const notchedIndex = toNotchedIndex(strip);
+    const notched = strip.children[notchedIndex];
+
+    if (notched instanceof HTMLElement) {
+      centreWithin(strip, notched, "smooth");
+    }
+
+    const cell = cells[notchedIndex];
+
+    if (cell && cell.id !== activeId) {
+      onSelect(cell, false);
+    }
+  }, [cells, activeId, onSelect]);
+
+  /**
+   * DESIGN.md § 7.10. Puts the active thumbnail on the notch — on the open, where the
+   * reader may have tapped the last of nine, and on every crossing after it.
+   *
+   * WARN: Never while the reader is holding the strip. During a scrub the film is theirs and the slide follows it; centring here would drag the row out from under the finger that is moving it.
    * WARN: A layout effect, so the strip is already on the right thumbnail in the frame it first paints — the opening morph (§ 4.7.3.) lands on a viewer whose chrome must not then be seen correcting itself.
-   * WARN: A delta off the two boxes rather than `offsetLeft`, which is measured from an `offsetParent` this component does not own — and never `scrollIntoView`, which walks every scrollable ancestor and would scroll the document behind the viewer (§ 3.3.).
-   * WARN: The run's own length is a dependency as well as the held slide. § 8.1.'s track is replaced as pages commit, so a bubble can gain the siblings that were past the window's edge while the reader stands still — and the thumbnails inserted before theirs push it off centre with nothing to notice it.
+   * WARN: The run's own length is a dependency as well as the held slide. § 8.1.'s track is replaced as pages commit, so a bubble can gain the siblings that were past the window's edge while the reader stands still — and the thumbnails inserted before theirs push it off the notch with nothing to notice it.
    */
   useLayoutEffect(() => {
     const strip = stripRef.current;
     const active = activeRef.current;
 
-    if (!strip || !active) {
+    if (!strip || !active || isHoldingRef.current) {
       return;
     }
 
-    const stripBox = strip.getBoundingClientRect();
-    const activeBox = active.getBoundingClientRect();
-
-    strip.scrollBy({
-      left: activeBox.left + activeBox.width / 2 - (stripBox.left + stripBox.width / 2),
-      behavior: hasRevealedRef.current ? "smooth" : "auto",
-    });
-    hasRevealedRef.current = true;
+    centreWithin(strip, active, hasCentredRef.current ? "smooth" : "auto");
+    hasCentredRef.current = true;
   }, [activeId, cells.length]);
 
-  /**
-   * DESIGN.md § 7.10. The centre of the strip is a **notch**: whatever the reader
-   * pulls under it becomes the slide on screen, so a drag scrubs the bubble rather
-   * than merely moving a row of pictures around.
-   *
-   * WARN: Committed on the settle rather than per frame, through the hook § 8.1.'s track already pages by — a slide crossed on every scroll event would send the track a new destination faster than it can travel to one, and a finger resting mid-drag fires no `scroll` at all.
-   * WARN: A drag still in progress is refused even though the timer has fired. `useSettledCommit` watches touch, where a mouse press holding still for `SETTLE_DELAY` looks exactly like a settled strip — and committing there scrolls the strip out from under the cursor that is holding it.
-   */
-  useSettledCommit({ scroller: stripElement, isPending: false, onSettled: commitNotchedSlide });
+  // INFO: DESIGN.md § 7.10. The backstop for a gesture this component cannot see the end of — a touch flick, whose momentum runs on past `touchend`.
+  useSettledCommit({ scroller: stripElement, isPending: false, onSettled: handleSettled });
 
   return (
     // WARN: DESIGN.md § 7.10. Inert like the bar around it, with `pointer-events-auto` on the scroller alone. This block spans the bar's width, so claiming pointers here would swallow the chrome toggle and the § 8.11. hold across a band beside a two-thumbnail strip.
@@ -967,14 +990,20 @@ function SlideFilmstrip({
       <div
         ref={captureStrip}
         // WARN: § 3.6. The end insets are the first and last child's **margin**, never the scroller's padding, and they are half its own width less half a thumbnail — which is exactly the room the first and last slide need to reach the middle. A percentage margin resolves against this box, so it follows the shell rather than a number written twice.
-        // INFO: DESIGN.md § 7.10. Snapping is what makes the centre read as a notch: a drag lands on a thumbnail rather than between two, and the platform's own momentum carries it there.
-        className="pointer-events-auto scrollbar-hidden flex w-full cursor-grab snap-x snap-mandatory gap-2xs overflow-x-auto overscroll-x-contain active:cursor-grabbing [&>*:first-child]:ml-[calc(50%-1.5rem)] [&>*:last-child]:mr-[calc(50%-1.5rem)]"
+        // WARN: No CSS scroll snapping, and it was tried. `useDragScroll` moves this by assigning `scrollLeft`, and `snap-mandatory` re-snaps after **every** scroll, a programmatic one included — so a mouse drag jumped thumbnail to thumbnail instead of tracking the cursor. The centring below is the snap, and it is the one this component can suspend while a hand is on the strip.
+        className="pointer-events-auto scrollbar-hidden flex w-full cursor-grab gap-2xs overflow-x-auto overscroll-x-contain active:cursor-grabbing [&>*:first-child]:ml-[calc(50%-1.5rem)] [&>*:last-child]:mr-[calc(50%-1.5rem)]"
         role="group"
         aria-label="이 메시지의 첨부"
         {...dragProps}
-        // WARN: The release commits for itself. `useSettledCommit` waits on a `scroll`, and a mouse drag let go on a position the strip is already snapped to produces none — so the reader would have pulled a thumbnail under the notch and had nothing answer.
-        onPointerUp={releaseToNotch}
-        onPointerCancel={releaseToNotch}
+        onPointerDown={holdWithMouse}
+        onPointerUp={releaseMouse}
+        onPointerCancel={releaseMouse}
+        // WARN: Touch is held by its own events — see `isHoldingRef`. `touchend` settles nothing itself, because WebKit's momentum runs on afterwards and a scroll made into it is dropped (REQUIREMENTS.md § 8.3.); the settle above is what answers there.
+        onTouchStart={holdWithTouch}
+        onTouchEnd={releaseTouch}
+        onTouchCancel={releaseTouch}
+        // INFO: DESIGN.md § 7.10. The live half of the notch: while the strip is being held, whatever passes under the centre becomes the slide on screen at once.
+        onScroll={scrubToNotch}
       >
         {cells.map((cell) => {
           const isActive = cell.id === activeId;
@@ -991,13 +1020,15 @@ function SlideFilmstrip({
             >
               <button
                 // INFO: A fixed square whatever the asset's shape is, so the strip reads as one row of equals rather than as a second, smaller track.
-                className="relative block size-12 cursor-pointer overflow-hidden rounded-sm bg-on-scrim/10 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                // WARN: The focus ring is an `outline` drawn inward, not a `ring`. An outward one is clipped by the scroller's edge on the end thumbnails, and `ring-inset` is a box-shadow — which paints *under* this element's own content, and the picture fills the box exactly. An outline is painted after the descendants, so a negative offset puts it over the photo where it can be seen.
+                className="relative block size-12 cursor-pointer overflow-hidden rounded-sm bg-on-scrim/10 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
                 type="button"
                 // WARN: AGENTS.md § 4.2. Roving tabindex over the strip, and the arrows that would move it are the viewer's own — `handleOverlayKeyDown` steps the track, which is what moves the mark here. Nine thumbnails in the tab sequence would put the bottom bar's controls nine stops away.
                 tabIndex={isReachable && isActive ? undefined : -1}
                 aria-current={isActive}
                 aria-label={`${cells.indexOf(cell) + 1}번째 ${toMediaLabel(cell.isVideo ? "video" : "photo")}`}
-                onClick={() => onSelect(cell)}
+                // INFO: Not live: a tap names its destination outright, so the track eases there as it does for the step controls.
+                onClick={() => onSelect(cell, false)}
               >
                 {cell.previewUrl && (
                   <PreloadImage
@@ -1034,10 +1065,56 @@ function SlideFilmstrip({
     </div>
   );
 
-  // INFO: The hook's own release first, so the drag is over before the notch is read — `commitNotchedSlide` refuses one that is still in progress.
-  function releaseToNotch(event: PointerEvent<HTMLDivElement>) {
+  function holdWithMouse(event: PointerEvent<HTMLDivElement>) {
+    dragProps.onPointerDown(event);
+
+    if (event.pointerType === "mouse") {
+      isHoldingRef.current = true;
+    }
+  }
+
+  /**
+   * INFO: A mouse has no momentum, so the notch settles the moment the button comes up rather than `SETTLE_DELAY` later — the strip glides to the thumbnail the reader left under the centre.
+   * WARN: The hook's own release runs first, or `handleSettled` measures a strip the drag still owns.
+   */
+  function releaseMouse(event: PointerEvent<HTMLDivElement>) {
     dragProps.onPointerUp(event);
-    commitNotchedSlide();
+
+    if (event.pointerType !== "mouse") {
+      return;
+    }
+
+    isHoldingRef.current = false;
+    handleSettled();
+  }
+
+  function holdWithTouch() {
+    isHoldingRef.current = true;
+  }
+
+  function releaseTouch() {
+    isHoldingRef.current = false;
+  }
+
+  /**
+   * DESIGN.md § 7.10. The crossing made **under the hand that is making it**, so the
+   * photo above follows the film rather than waiting for it to be let go.
+   *
+   * WARN: Only while the strip is held. Every other scroll here is this component's own centring, and answering that would be a loop — the centring moves the strip, the strip names a slide, the slide re-centres the strip.
+   * INFO: Marked live, which is what makes the track travel instantly. A smooth scroll per crossing cannot keep up with a finger and lands on a slide the reader has already dragged past.
+   */
+  function scrubToNotch() {
+    const strip = stripRef.current;
+
+    if (!strip || !isHoldingRef.current) {
+      return;
+    }
+
+    const notched = cells[toNotchedIndex(strip)];
+
+    if (notched && notched.id !== activeId) {
+      onSelect(notched, true);
+    }
   }
 
   // INFO: The ref and the state are the same element read two ways — see the state's own WARN.
@@ -1045,34 +1122,43 @@ function SlideFilmstrip({
     stripRef.current = element;
     setStripElement(element);
   }
+}
 
-  /**
-   * DESIGN.md § 7.10. Names the thumbnail the notch has landed on, and moves the
-   * reader there.
-   *
-   * INFO: Nearest to the centre rather than read off `scrollLeft`, so the answer is the same whether the strip was snapped, flicked or dragged — and it needs no arithmetic that a changed cell size or gap could get wrong.
-   * INFO: A no-op wherever the strip is already where the slide put it, which is every settle that this component's own centring caused. That is what keeps the two from driving each other in a circle.
-   */
-  function commitNotchedSlide() {
-    const strip = stripRef.current;
+/**
+ * DESIGN.md § 7.10. Which of the strip's children the notch is on — the one whose
+ * middle is nearest the scroller's own middle.
+ *
+ * INFO: Measured rather than derived from `scrollLeft`, so the answer is the same whatever left the strip where it is, and no arithmetic here can disagree with a changed cell size or gap.
+ */
+function toNotchedIndex(strip: HTMLElement): number {
+  const stripBox = strip.getBoundingClientRect();
+  const centre = stripBox.left + stripBox.width / 2;
+  const toDistance = (element: Element) => {
+    const box = element.getBoundingClientRect();
 
-    if (!strip || isDragging()) {
-      return;
-    }
+    return Math.abs(box.left + box.width / 2 - centre);
+  };
 
-    const stripBox = strip.getBoundingClientRect();
-    const centre = stripBox.left + stripBox.width / 2;
-    const distances = [...strip.children].map((child) => {
-      const box = child.getBoundingClientRect();
+  return [...strip.children].reduce(
+    (nearest, child, index, children) =>
+      toDistance(child) < toDistance(children[nearest]) ? index : nearest,
+    0,
+  );
+}
 
-      return Math.abs(box.left + box.width / 2 - centre);
-    });
-    const notched = cells[distances.indexOf(Math.min(...distances))];
+/**
+ * Scrolls `item` to the middle of `scroller`.
+ *
+ * WARN: A delta off the two boxes rather than `offsetLeft`, which is measured from an `offsetParent` this component does not own — and never `scrollIntoView`, which walks every scrollable ancestor and would scroll the document behind the viewer (DESIGN.md § 3.3.).
+ */
+function centreWithin(scroller: HTMLElement, item: HTMLElement, behavior: ScrollBehavior): void {
+  const scrollerBox = scroller.getBoundingClientRect();
+  const itemBox = item.getBoundingClientRect();
 
-    if (notched && notched.id !== activeId) {
-      onSelect(notched);
-    }
-  }
+  scroller.scrollBy({
+    left: itemBox.left + itemBox.width / 2 - (scrollerBox.left + scrollerBox.width / 2),
+    behavior,
+  });
 }
 
 /**
