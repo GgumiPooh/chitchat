@@ -488,10 +488,20 @@ export const SESSION_EXPIRE_ROUTE = "/api/auth/session/expire";
 /** REQUIREMENTS.md § 5.4. Email-only login, so a dev machine needs no Google consent screen. */
 export const DEV_LOGIN_ROUTE = "/api/auth/login/dev";
 
-// WARN: `NODE_ENV` is compiled in, not read at runtime — a production build cannot flip this on however the environment is set.
-export const IS_DEV_LOGIN_ENABLED = process.env.NODE_ENV === "development";
+const ENABLE_DEV_LOGIN = (process.env.ENABLE_DEV_LOGIN ?? "").trim().toLowerCase();
 
-// WARN: Same compile-time guarantee as `IS_DEV_LOGIN_ENABLED`. Kept separate because it gates developer tooling rather than an auth path, and the two must be free to diverge.
+/**
+ * REQUIREMENTS.md § 5.4. Gates both the `/login` form and `DEV_LOGIN_ROUTE` itself.
+ *
+ * WARN: `ENABLE_DEV_LOGIN` outranks the `NODE_ENV` default in both directions, which is what lets a production build be signed into without a Google consent screen while § 16.'s offline behaviour is tested on a device. Only `true`, `1` or `on` enable it; absent or blank falls back to the default.
+ * WARN: `/login` prerenders, so a production build reads this at BUILD time for the form and at request time for the route — set it before `next build`, or the two disagree.
+ */
+export const IS_DEV_LOGIN_ENABLED =
+  ENABLE_DEV_LOGIN === ""
+    ? process.env.NODE_ENV === "development"
+    : ["true", "1", "on"].includes(ENABLE_DEV_LOGIN);
+
+// WARN: `NODE_ENV` alone, deliberately — it gates developer tooling rather than an auth path, so it must not follow `IS_DEV_LOGIN_ENABLED`'s override onto a production build.
 export const IS_DEV = process.env.NODE_ENV === "development";
 
 /**
