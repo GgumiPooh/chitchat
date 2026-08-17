@@ -341,7 +341,7 @@ function toSummary(row: PackRow): EmoticonPackSummary {
     thumbnailItemId: row.thumbnailItemId,
     thumbnailVersion: toVersion(row.thumbnailUpdatedAt),
     itemCount: row.itemCount,
-    // INFO: REQUIREMENTS.md § 13.1. No row means enabled, so creating a pack fans out no rows per user.
+    // INFO: REQUIREMENTS.md § 13.1. No row means enabled — every pack predating the creation-time fan-out is here.
     isEnabled: row.enabled ?? true,
   };
 }

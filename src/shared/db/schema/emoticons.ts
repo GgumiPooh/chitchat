@@ -106,7 +106,7 @@ export const emoticonKeywords = pgTable(
   ],
 );
 
-// INFO: REQUIREMENTS.md § 13.1. Per-user and pack-level. An absent row means enabled, so creating a pack fans out no rows.
+// INFO: REQUIREMENTS.md § 13.1. Per-user and pack-level. An absent row means enabled, which is why a pack that must start hidden fans out a row per user at creation.
 export const userEmoticonPrefs = pgTable(
   "user_emoticon_prefs",
   {

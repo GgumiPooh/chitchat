@@ -6,6 +6,7 @@ import type { EmoticonItemId, EmoticonPackId, Nullable } from "@/shared/lib";
 import { and, arrayOverlaps, eq } from "drizzle-orm";
 import type { EmoticonPackSummary } from "../model/types";
 import { detachEmoticonMedia, findItemSlotKeys } from "./get-emoticon-asset";
+import { hideNewPack } from "./write-emoticon-prefs";
 
 /**
  * REQUIREMENTS.md § 13.4. A title is the whole form. An empty pack is a valid
@@ -25,10 +26,17 @@ export async function createEmoticonPack(
   name: string,
   type: EmoticonPackType,
 ): Promise<EmoticonPackSummary> {
-  const [row] = await getDb()
-    .insert(emoticonPacks)
-    .values({ id: nextSnowflake<EmoticonPackId>(), name, type })
-    .returning();
+  const row = await getDb().transaction(async (tx) => {
+    const [pack] = await tx
+      .insert(emoticonPacks)
+      .values({ id: nextSnowflake<EmoticonPackId>(), name, type })
+      .returning();
+
+    // INFO: § 13.1. A pack arrives hidden and is turned on once it is worth showing — the picker never gains a tab nobody asked for.
+    await hideNewPack(tx, pack.id);
+
+    return pack;
+  });
 
   return {
     id: row.id,
@@ -37,7 +45,7 @@ export async function createEmoticonPack(
     thumbnailItemId: row.thumbnailItemId,
     thumbnailVersion: null,
     itemCount: 0,
-    isEnabled: true,
+    isEnabled: false,
   };
 }
 

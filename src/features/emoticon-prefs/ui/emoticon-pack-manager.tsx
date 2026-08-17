@@ -77,7 +77,7 @@ export function EmoticonPackManager({
       <EmptyState
         className={className}
         Icon={Smile}
-        description={`사용 중인 ${josa(packNoun, "이/가")} 없어요. ${packNoun} 검색에서 켜거나 오른쪽 위 + 로 만들 수 있어요`}
+        description={`사용 중인 ${josa(packNoun, "이/가")} 없어요. ${packNoun} 검색에서 켜거나 오른쪽 위 + 로 만든 뒤 켤 수 있어요`}
       />
     );
   }

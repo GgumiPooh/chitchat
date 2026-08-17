@@ -160,7 +160,8 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
         type={type}
         isOpen={isCreating}
         onClose={() => setIsCreating(false)}
-        onCreated={(pack) => setKnown((current) => [...current, pack])}
+        // INFO: § 13.1. A new pack is hidden, so it belongs to neither tab's list yet — the screen it is filled on is where the reader is taken instead.
+        onCreated={(pack) => openPack(pack.id)}
       />
       {/* WARN: § 13.5. No 수정 among these. Tapping the row already opens the pack, and two controls called 수정 on one row cannot be told apart. */}
       <ActionSheet
