@@ -1202,7 +1202,7 @@ function ImageSlide({
  * WARN: The swap is what this exists to hide, and pointing `src` at the original is what used to start it. `PreloadImage` resets to `loading` on a changed source, so the element gave up the picture it was holding and went back to a placeholder for the length of the download — which is exactly backwards, since a perfectly good copy of that photograph was already on screen. Decoded first, the element is handed a URL the browser can paint in the same frame.
  * WARN: DESIGN.md § 4.7.3. Held until the opening morph has landed. Started at mount the decode finishes mid-flight, and the swap arrives as a pop at the instant the transition ends rather than as a photo sharpening under a reader already looking at it.
  * WARN: No `crossOrigin`, deliberately — AGENTS.md § 5.3. `/api/media/{id}` answers a 302 into R2, and a CORS-mode request is cached separately from the plain one every `<img>` makes, so asking for one here would download the photograph twice.
- * INFO: A rejected `decode` settles the same way as a resolved one. The failure belongs to `PreloadImage`, which has the retry and the § 7.8. ending for it; swallowing it here would leave the slide on a thumbnail with nothing ever saying why.
+ * WARN: Only a **resolved** decode is promoted. A rejection used to settle the same way, on the argument that the failure belonged to `PreloadImage` and its § 7.8. ending — but the element's own load then succeeds off the same bytes and reports the right `naturalWidth`, so that ending never arrives: it goes to `loaded`, drops the preview and fades the blur out over a picture the browser has run out of room to paint. Held here the reader keeps the thumbnail, and 원본 저장 still reaches the object.
  */
 function useDecodedOriginal(cell: MediaCell, isEnabled: boolean): Nullable<string> {
   const [decoded, setDecoded] = useState<Nullable<string>>(null);
@@ -1215,10 +1215,13 @@ function useDecodedOriginal(cell: MediaCell, isEnabled: boolean): Nullable<strin
 
     let isActive = true;
     const image = new Image();
-    const settle = () => isActive && setDecoded(original);
 
     image.src = original;
-    void image.decode().then(settle, settle);
+    void image.decode().then(
+      () => isActive && setDecoded(original),
+      // INFO: The cleanup below rejects every decode it interrupts, so the swallow is the ordinary path out rather than the failure one.
+      () => undefined,
+    );
 
     // WARN: The source is dropped, never just the flag. A slide left behind mid-download keeps fetching and decoding an object of up to `MAX_IMAGE_SIZE` otherwise, and DESIGN.md § 7.10.'s scrub crosses slides faster than any of them finishes — a strip dragged across a bubble of nine left WebKit holding every original the reader passed, which it answers by killing the tab.
     return () => {
