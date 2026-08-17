@@ -285,7 +285,7 @@ export function ChatRoom({
   // INFO: § 13.6. Whether a request arrived while the composer was yielded, to be handed over when the row comes back. A ref rather than state: nothing renders differently for it, and it is written from the handler that would otherwise spend the token on a hidden field.
   const isComposerFocusHeldRef = useRef(false);
   // INFO: REQUIREMENTS.md § 8.14. The composer's field, for the two things `composerFocusRequest` is a render too late for — a character typed with nothing focused, and the clipboard behind ⌘V.
-  const composerFieldRef = useRef<Nullable<HTMLDivElement>>(null);
+  const composerFieldRef = useRef<Nullable<HTMLDivElement | HTMLTextAreaElement>>(null);
   // INFO: REQUIREMENTS.md § 8.14. The same token for the panel, bumped by **every** open — an opened panel nothing has focused is one the arrow keys cannot reach, and the toggle is a button, so a mouse open leaves focus on it rather than inside what it opened.
   // INFO: REQUIREMENTS.md § 8.6.1. The frame `settleJumpScroll` has queued, so a newer jump — or an unmount — can take it back.
   const jumpFrameRef = useRef<Nullable<number>>(null);

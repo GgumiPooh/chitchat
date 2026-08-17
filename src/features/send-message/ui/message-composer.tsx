@@ -25,6 +25,7 @@ import {
   HapticTarget,
   IconButton,
   InlineEmoticon,
+  Textarea,
   type EditableObject,
 } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
@@ -36,11 +37,13 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
   type Ref,
   type RefObject,
+  type SyntheticEvent,
 } from "react";
 import { toEmoticonKeywordsQuery } from "../model/keywords-query";
 
@@ -140,7 +143,7 @@ export type MessageComposerProps = {
    * of the very `keydown` that asked, so the focus has to have moved before that
    * handler returns or it is typed into nothing and lost.
    */
-  fieldRef?: RefObject<Nullable<HTMLDivElement>>;
+  fieldRef?: RefObject<Nullable<HTMLDivElement | HTMLTextAreaElement>>;
   onAttach: () => void;
   /** REQUIREMENTS.md § 13.6. Reaching for the field is a request for the keyboard, which the picker would then be buried under. */
   onFieldFocus?: () => void;
@@ -172,7 +175,7 @@ export function MessageComposer({
   onKeywordTap,
   onSend,
 }: MessageComposerProps) {
-  const fieldRef = useRef<Nullable<HTMLDivElement>>(null);
+  const fieldRef = useRef<Nullable<HTMLDivElement | HTMLTextAreaElement>>(null);
   /**
    * Both refs off one callback. The field is this component's to drive; the room only
    * ever reads the node, to reach it inside the event that needs it.
@@ -184,7 +187,7 @@ export function MessageComposer({
    * typed into nothing.
    */
   const takeField = useCallback(
-    (node: Nullable<HTMLDivElement>) => {
+    (node: Nullable<HTMLDivElement | HTMLTextAreaElement>) => {
       fieldRef.current = node;
 
       if (exposedFieldRef) {
@@ -197,6 +200,19 @@ export function MessageComposer({
   // INFO: § 8.14. Where the field last held its caret, which is where an emoticon from the picker goes in. Written by the field itself; null until it has held one.
   const caretOffsetRef = useRef<Nullable<number>>(null);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
+  /**
+   * Whether this draft session has ever staged a mini emoticon. `false` renders a plain
+   * `Textarea` and keeps mobile Safari's caret painting correct for every draft that
+   * never touches the picker; the first insertion promotes the field to `EditableField`
+   * for the rest of the draft, since that is the only element that can hold one.
+   *
+   * WARN: Never downgraded by deleting the last emoticon back out of the draft — that
+   * deletion is a live keystroke on a focused, possibly IME-composing field, and
+   * remounting a different element under it mid-composition would corrupt the
+   * syllable in flight. It resets only where the draft itself resets: `submit` and a
+   * fresh `seededDraft`.
+   */
+  const [isElevated, setIsElevated] = useState(false);
   // INFO: REQUIREMENTS.md § 8.13. The last seed this component has taken, so the render-phase adjustment below fires once per instruction rather than on every render.
   const [seenSeedToken, setSeenSeedToken] = useState(seededDraft?.token);
   // INFO: § 13.6. The last emoticon taken from the picker, for the reason the seed keeps a token — the adjustment below is the same one.
@@ -273,7 +289,11 @@ export function MessageComposer({
    */
   if (seededDraft !== undefined && seededDraft.token !== seenSeedToken) {
     setSeenSeedToken(seededDraft.token);
-    setDraft(toSeededDraft(seededDraft));
+
+    const seeded = toSeededDraft(seededDraft);
+
+    setDraft(seeded);
+    setIsElevated(seeded.emoticons.length > 0);
   }
 
   /**
@@ -288,11 +308,13 @@ export function MessageComposer({
     setSeenInsertToken(insertedEmoticon.token);
 
     // WARN: Read outside the updater, which must stay pure — this is the field's own DOM position rather than anything derivable from the draft.
+    // INFO: `handleTextareaSelect` keeps this the same ref's job while the field is not yet elevated, so this read never has to branch on which element wrote it.
     const caret = caretOffsetRef.current;
 
     setDraft((current) =>
       hasRoomForEmoticon(current) ? toInsertedDraft(current, insertedEmoticon, caret) : current,
     );
+    setIsElevated(true);
   }
 
   /**
@@ -357,51 +379,84 @@ export function MessageComposer({
         )}
         {/* INFO: § 13.8. The field and its keyword layer are one stacking context, so the mark can be positioned against the field's own box rather than the pill's. */}
         {/* WARN: `min-w-0` is what keeps the round controls round. A flex item's default `min-width: auto` refuses to shrink below its content, so the field pushes and the 44×44 buttons absorb the overflow as ovals. */}
-        <EditableField
-          ref={takeField}
-          className="min-w-0 flex-1"
-          // INFO: DESIGN.md § 6.6. No shape of its own — the pill is the field's surface, so no border, no radius, and no focus ring.
-          fieldClassName={cn(
-            "scrollbar-hidden max-h-34 min-h-11 w-full overflow-y-auto",
-            FIELD_BOX,
-            fieldClassName,
-          )}
-          placeholderClassName={cn("text-meta-soft", FIELD_BOX)}
-          // INFO: An emoticon costs one character of it, because it is one character of the `messages.text` this limit guards (REQUIREMENTS.md § 6.).
-          maxLength={MAX_MESSAGE_LENGTH}
-          value={draft.text}
-          objects={objects}
-          caretOffsetRef={caretOffsetRef}
-          // INFO: § 8.14. The pointer decides it and nothing else: a mouse means a keyboard is there to press, and whether the app is installed says nothing about that. The hint alone, since `aria-label` below already names the field.
-          // INFO: § 8.14. Read inside the ternary, which is what keeps `toCommandKeyLabel`'s platform guess out of the server's HTML.
-          placeholder={isFinePointer ? `${toCommandKeyLabel()} + / 단축키 보기` : "메시지 입력"}
-          aria-label="메시지 입력"
-          // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
-          // WARN: The keys are what say *which* emoticons a deletion took — the text only says one of them is gone, and a Backspace in the middle of a draft would otherwise drop the last.
-          onChange={(next, keys) => {
-            setDraft((current) => ({
-              text: next,
-              emoticons: toSurviving(current.emoticons, keys),
-            }));
-            // WARN: § 13.8. Any edit ends the search the tap started. The tap blurs the field, so nothing is typed between it and the send it belongs to — a keystroke after it means the draft is a message now, and consuming it would delete what the user wrote.
-            tappedQueryRef.current = null;
-            onEdit?.(next.trim().length > 0);
-          }}
-          onFocus={onFieldFocus}
-          onKeyDown={handleKeyDown}
-          onScroll={syncKeywordLayer}
-        >
-          {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, like the two staging controls. The tap opens § 13.8.'s picker, whose staging clears the attachment tray this mode deliberately preserved and arms a quick-send that would post a **new** emoticon message beside the pending correction — and the emoticon it staged is invisible and unsendable here anyway. A correction is very likely to contain the keyword, since it is the text the user already typed. */}
-          {match && onKeywordTap && !isEditing && (
-            <KeywordLayer
-              ref={layerRef}
-              text={draft.text}
-              emoticons={draft.emoticons}
-              match={match}
-              onTap={handleKeywordTap}
+        {isElevated ? (
+          <EditableField
+            ref={takeField}
+            className="min-w-0 flex-1"
+            // INFO: DESIGN.md § 6.6. No shape of its own — the pill is the field's surface, so no border, no radius, and no focus ring.
+            fieldClassName={cn(
+              "scrollbar-hidden max-h-34 min-h-11 w-full overflow-y-auto",
+              FIELD_BOX,
+              fieldClassName,
+            )}
+            placeholderClassName={cn("text-meta-soft", FIELD_BOX)}
+            // INFO: An emoticon costs one character of it, because it is one character of the `messages.text` this limit guards (REQUIREMENTS.md § 6.).
+            maxLength={MAX_MESSAGE_LENGTH}
+            value={draft.text}
+            objects={objects}
+            caretOffsetRef={caretOffsetRef}
+            // INFO: § 8.14. The pointer decides it and nothing else: a mouse means a keyboard is there to press, and whether the app is installed says nothing about that. The hint alone, since `aria-label` below already names the field.
+            // INFO: § 8.14. Read inside the ternary, which is what keeps `toCommandKeyLabel`'s platform guess out of the server's HTML.
+            placeholder={isFinePointer ? `${toCommandKeyLabel()} + / 단축키 보기` : "메시지 입력"}
+            aria-label="메시지 입력"
+            // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
+            // WARN: The keys are what say *which* emoticons a deletion took — the text only says one of them is gone, and a Backspace in the middle of a draft would otherwise drop the last.
+            onChange={(next, keys) => {
+              setDraft((current) => ({
+                text: next,
+                emoticons: toSurviving(current.emoticons, keys),
+              }));
+              // WARN: § 13.8. Any edit ends the search the tap started. The tap blurs the field, so nothing is typed between it and the send it belongs to — a keystroke after it means the draft is a message now, and consuming it would delete what the user wrote.
+              tappedQueryRef.current = null;
+              onEdit?.(next.trim().length > 0);
+            }}
+            onFocus={onFieldFocus}
+            onKeyDown={handleKeyDown}
+            onScroll={syncKeywordLayer}
+          >
+            {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, like the two staging controls. The tap opens § 13.8.'s picker, whose staging clears the attachment tray this mode deliberately preserved and arms a quick-send that would post a **new** emoticon message beside the pending correction — and the emoticon it staged is invisible and unsendable here anyway. A correction is very likely to contain the keyword, since it is the text the user already typed. */}
+            {match && onKeywordTap && !isEditing && (
+              <KeywordLayer
+                ref={layerRef}
+                text={draft.text}
+                emoticons={draft.emoticons}
+                match={match}
+                onTap={handleKeywordTap}
+              />
+            )}
+          </EditableField>
+        ) : (
+          // INFO: No mini emoticon has entered this draft yet, so a plain `<textarea>` stands in — mobile Safari paints its caret correctly, where `EditableField`'s contenteditable caret can drift after a newline. The first insertion promotes the field above.
+          <div className="relative min-w-0 flex-1">
+            <Textarea
+              ref={takeField}
+              // INFO: DESIGN.md § 6.6. No shape of its own, for the reason `EditableField` carries it — the pill is the field's surface.
+              className={cn(
+                "scrollbar-hidden max-h-34 min-h-11 w-full resize-none overflow-y-auto rounded-none border-none bg-transparent shadow-none outline-none focus-visible:ring-0",
+                FIELD_BOX,
+                fieldClassName,
+              )}
+              maxLength={MAX_MESSAGE_LENGTH}
+              value={draft.text}
+              placeholder={isFinePointer ? `${toCommandKeyLabel()} + / 단축키 보기` : "메시지 입력"}
+              aria-label="메시지 입력"
+              onChange={handlePlainChange}
+              onFocus={onFieldFocus}
+              onKeyDown={handleKeyDown}
+              onScroll={syncKeywordLayer}
+              onSelect={handleTextareaSelect}
             />
-          )}
-        </EditableField>
+            {match && onKeywordTap && !isEditing && (
+              <KeywordLayer
+                ref={layerRef}
+                text={draft.text}
+                emoticons={draft.emoticons}
+                match={match}
+                onTap={handleKeywordTap}
+              />
+            )}
+          </div>
+        )}
         {/* INFO: DESIGN.md § 6.6. The toggle stays put once text is typed — an emoticon is staged beside a line of text now (REQUIREMENTS.md § 13.6.), so replacing it with send would put the panel out of reach exactly when it is wanted. */}
         {!isEditing && (
           <IconButton
@@ -449,6 +504,7 @@ export function MessageComposer({
 
     onSend({ text: draft.text, emoticons: draft.emoticons });
     setDraft(EMPTY_DRAFT);
+    setIsElevated(false);
     // WARN: REQUIREMENTS.md § 8.12. The send is the end of composing, and it clears the field without going through `onChange` — so nothing else here would ever retract the broadcast, and 입력 중 would sit under the message that had just arrived.
     onEdit?.(false);
 
@@ -525,7 +581,21 @@ export function MessageComposer({
     event.preventDefault();
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+  // INFO: The un-elevated `Textarea`'s own `onChange`, mirroring `EditableField`'s but with no placeholders or objects to carry — this draft has never held one.
+  function handlePlainChange(event: ChangeEvent<HTMLTextAreaElement>) {
+    const next = event.target.value;
+
+    setDraft({ text: next, emoticons: [] });
+    tappedQueryRef.current = null;
+    onEdit?.(next.trim().length > 0);
+  }
+
+  // INFO: § 8.14. `EditableField` keeps `caretOffsetRef` current off its own `selectionchange` listener; a plain `Textarea` has no such element to listen on, so this stands in for as long as the field is not yet elevated.
+  function handleTextareaSelect(event: SyntheticEvent<HTMLTextAreaElement>) {
+    caretOffsetRef.current = event.currentTarget.selectionStart;
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement | HTMLTextAreaElement>) {
     // WARN: § 8.14. First, and it covers every branch below. A Hangul IME fires `keydown` for the keystrokes that settle a syllable — including the Enter that closes a composition, which is the trap `KeywordField` records.
     if (event.nativeEvent.isComposing) {
       return;
