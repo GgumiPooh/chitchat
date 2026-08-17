@@ -126,18 +126,11 @@ export function toPlainMessageText(text: string): string {
 }
 
 /**
- * What a message reads as in one line, when there may be nothing left of it but
- * emoticons — the § 16.1. push body and the § 8.10. quote take this.
+ * What a message reads as in one line — the § 16.1. push body and the § 8.10. quote
+ * take this.
  *
- * INFO: `names` is the emoticons' own, in `inlineEmoticonItemIds` order; the first one
- * that has a name speaks for the message, and 이모티콘 covers a set nobody described.
+ * INFO: Every emoticon reads as the same `(이모티콘)`, so a line made of nothing else still says what it is without any of them having to be looked up.
  */
-export function toMessageSummary(text: string, names: readonly Nullable<string>[] = []): string {
-  const plain = toPlainMessageText(text);
-
-  if (plain) {
-    return plain;
-  }
-
-  return names.find((name) => name) ?? "이모티콘";
+export function toMessageSummary(text: string): string {
+  return text.replaceAll(OBJECT_PLACEHOLDER, "(이모티콘)");
 }

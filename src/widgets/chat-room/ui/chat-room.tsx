@@ -389,8 +389,7 @@ export function ChatRoom({
     reconcile,
   } = useMessageHistory(initialMessages);
   // INFO: REQUIREMENTS.md § 16. The room is the only place the loaded window exists, so the offline transcript is stored from here rather than from the screen above it.
-  // INFO: REQUIREMENTS.md § 13. The map goes with the transcript — § 2.4.'s sixth path is this one, and it is the only delivery that has to survive the page it arrived on.
-  useWriteChatSnapshot(messages, inlineEmoticons, hasNewer);
+  useWriteChatSnapshot(messages, hasNewer);
   const { pending, send, sendMedia, sendEmoticon, retry, cancel, resolve } = useSendMessage({
     onSent: appendMessage,
   });
@@ -2426,22 +2425,18 @@ export function ChatRoom({
   }
 
   /**
-   * REQUIREMENTS.md § 13. A message as one line of prose: its emoticons out, and their
-   * names standing in where nothing else is left of it.
+   * REQUIREMENTS.md § 13. A message as one line of prose, every emoticon in it reading
+   * as `(이모티콘)`.
    *
-   * INFO: The client's copy of what `listReplyPreviews` does server-side. Both read the
-   * same names — those come down with the page — so the staged quote, the optimistic
-   * bubble and the echoed row all say the same sentence.
+   * INFO: The client's copy of what `listReplyPreviews` does server-side, so the staged
+   * quote, the optimistic bubble and the echoed row all say the same sentence.
    */
   function toQuotedText(message: ChatMessage): Nullable<string> {
     if (message.type !== "text") {
       return message.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null;
     }
 
-    return toMessageSummary(
-      message.text ?? "",
-      message.inlineEmoticonItemIds.map((itemId) => inlineEmoticons[itemId]?.name ?? null),
-    ).slice(0, REPLY_PREVIEW_MAX_LENGTH);
+    return toMessageSummary(message.text ?? "").slice(0, REPLY_PREVIEW_MAX_LENGTH);
   }
 
   /**

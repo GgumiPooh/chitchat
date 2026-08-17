@@ -2,7 +2,6 @@ import type { CalendarSummary, EventOccurrence } from "@/entities/event";
 import type { ArchiveMedia } from "@/entities/media";
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import type { InlineEmoticonMap } from "@/shared/config";
 import type { HolidayTable, MediaId, Nullable, UserId } from "@/shared/lib";
 import type { SnapshotKey } from "@/shared/snapshot";
 
@@ -25,16 +24,6 @@ export type ShellSnapshot = {
 /** What the mirror hands `buildChatRows`, with no pending queue of its own. */
 export type ChatSnapshot = {
   messages: ChatMessage[];
-  /**
-   * REQUIREMENTS.md § 13. What the emoticons written into those messages are, narrowed
-   * to the ids the stored transcript names — this is § 2.4.'s map on the one delivery
-   * path that outlives the page it arrived on.
-   *
-   * WARN: Optional because it is read from whatever an **earlier build** wrote, which is
-   * the only shape a restore ever sees (`StoredPendingMessage` records the same rule).
-   * The writer's own argument is required, so no new caller can leave it out.
-   */
-  emoticons?: InlineEmoticonMap;
 };
 
 export type CalendarSnapshot = {

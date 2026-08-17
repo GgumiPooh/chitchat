@@ -1,12 +1,10 @@
 import "server-only";
 
-import { listInlineEmoticons } from "@/entities/emoticon/@x/message";
 import {
   REPLY_PREVIEW_MAX_LENGTH,
   toMediaNoun,
   toMessageSummary,
   toQuoteThumbnail,
-  type InlineEmoticonMap,
 } from "@/shared/config";
 import { emoticonItems, getDb, messages } from "@/shared/db";
 import type { EmoticonItemId, MessageId, Nullable } from "@/shared/lib";
@@ -53,7 +51,6 @@ export async function listReplyPreviews(
       senderId: messages.senderId,
       type: messages.type,
       text: messages.text,
-      inlineEmoticonItemIds: messages.inlineEmoticonItemIds,
       deletedAt: messages.deletedAt,
       emoticonItemId: messages.emoticonItemId,
       // INFO: REQUIREMENTS.md § 13.4. Joined for this column alone — the tile's URL is versioned by it, and the join is what keeps the quote showing an edited emoticon's correction (§ 8.10.).
@@ -67,11 +64,6 @@ export async function listReplyPreviews(
   const byMessage = await listMessageMedia(
     rows.filter((row) => row.type === "media" && !row.deletedAt).map((row) => row.id),
   );
-  // INFO: REQUIREMENTS.md § 13. Their names, for the quoted line that has nothing else left in it — one query for the page's quotes, and none at all where no quoted message holds an emoticon.
-  const inlineEmoticons = await listInlineEmoticons(
-    rows.filter((row) => !row.deletedAt).flatMap((row) => row.inlineEmoticonItemIds),
-  );
-
   for (const row of rows) {
     const attachments = byMessage.get(row.id) ?? [];
 
@@ -79,7 +71,7 @@ export async function listReplyPreviews(
       senderId: row.senderId,
       kind: row.type,
       // INFO: A deleted parent surrenders its content and keeps only its identity — the quote replaces both with 삭제된 메시지예요.
-      text: row.deletedAt ? null : toQuotedText(row, inlineEmoticons),
+      text: row.deletedAt ? null : toQuotedText(row),
       // WARN: The deletion is tested here rather than left to the helper, because only the media half gets it for free — `listMessageMedia` is never asked about a deleted row, where the emoticon join above is on `messages` itself and answers for one.
       thumbnail: row.deletedAt ? null : toQuoteThumbnail(toQuotedEmoticon(row), attachments),
       // INFO: The same rule the § 16.1. push body applies — 동영상 only when there is no photo in the bubble to contradict it.
@@ -96,25 +88,18 @@ export async function listReplyPreviews(
 
 /**
  * REQUIREMENTS.md § 13. The quoted line, which is one line with no room to draw an
- * emoticon — so the placeholders come out, and a message that was nothing but
- * emoticons is quoted by their name.
+ * emoticon — so every placeholder reads as `(이모티콘)`.
  *
  * WARN: Text rows only. Every other kind carries no text and is named by its own kind
  * in `toReplySummary`, where a 이모티콘 answered here for a nine-photo bubble would
  * never be read but would sit in the payload contradicting it.
  */
-function toQuotedText(
-  row: { type: string; text: Nullable<string>; inlineEmoticonItemIds: EmoticonItemId[] },
-  inlineEmoticons: InlineEmoticonMap,
-): Nullable<string> {
+function toQuotedText(row: { type: string; text: Nullable<string> }): Nullable<string> {
   if (row.type !== "text") {
     return row.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null;
   }
 
-  return toMessageSummary(
-    row.text ?? "",
-    row.inlineEmoticonItemIds.map((itemId) => inlineEmoticons[itemId]?.name ?? null),
-  ).slice(0, REPLY_PREVIEW_MAX_LENGTH);
+  return toMessageSummary(row.text ?? "").slice(0, REPLY_PREVIEW_MAX_LENGTH);
 }
 
 /**

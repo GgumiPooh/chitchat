@@ -27,7 +27,6 @@ import {
   toMediaLabel,
   toMediaNoun,
   toMessageSummary,
-  type InlineEmoticonMap,
 } from "@/shared/config";
 import {
   safelyRunAsync,
@@ -164,9 +163,7 @@ export async function POST(request: Request) {
   const echo = await toSingleMessagePayload(message);
 
   // WARN: REQUIREMENTS.md § 16.1. `after`, so the fan-out's round trips to the push services never sit between the sender and their 201. It still runs inside this invocation, on a database that is already awake — which is why push costs Neon's autosuspend nothing, unlike the cron § 16.1. rejected.
-  after(() =>
-    safelyRunAsync(() => notifyMessageRecipients(user, toPushBody(message, echo.emoticons))),
-  );
+  after(() => safelyRunAsync(() => notifyMessageRecipients(user, toPushBody(message))));
 
   return NextResponse.json(echo, { status: 201 });
 }
@@ -188,18 +185,15 @@ function createMessage(senderId: UserId, payload: z.infer<typeof bodySchema>) {
 }
 
 // INFO: A notification has no room for a thumbnail, so an attachment is announced by kind. `사진` covers a mixed send too — naming both would read as a manifest.
-function toPushBody(message: ChatMessage, emoticons: InlineEmoticonMap): string {
+function toPushBody(message: ChatMessage): string {
   if (message.type === "emoticon") {
     // INFO: REQUIREMENTS.md § 16.1. The banner cannot show the art, and the item name is authored by these two users rather than by a vendor, so the kind is what carries.
     return "이모티콘";
   }
 
   if (message.type !== "media") {
-    // INFO: REQUIREMENTS.md § 13. A banner has no room to draw one either, so the placeholders come out and whatever sentence is left carries — falling back to the emoticons' own names, and past those to the same 이모티콘 the branch above answers with.
-    return toMessageSummary(
-      message.text ?? "",
-      message.inlineEmoticonItemIds.map((itemId) => emoticons[itemId]?.name ?? null),
-    ).slice(0, PUSH_BODY_MAX_LENGTH);
+    // INFO: REQUIREMENTS.md § 13. A banner has no room to draw one either, so every placeholder reads as `(이모티콘)` inside whatever sentence carries it.
+    return toMessageSummary(message.text ?? "").slice(0, PUSH_BODY_MAX_LENGTH);
   }
 
   return toMediaLabel(toMediaNoun(message.media));
