@@ -15,7 +15,7 @@ import {
   type Nullable,
   type Optional,
 } from "@/shared/lib";
-import { Chip, EmptyState, HapticTarget, Input, PreloadImage } from "@/shared/ui";
+import { EmptyState, HapticTarget, Input, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { josa } from "es-hangul";
 import { Clock, Search, Smile } from "lucide-react";
@@ -90,8 +90,25 @@ const EAGER_CELL_ROWS = 5;
 // INFO: § 13.6. `EAGER_CELL_ROWS`' argument for the strip, which is one row: a tab is about 48px against a shell of at most 448, so this is what fits on screen with one to spare. Counted over `tabIds`, which is why the pack index is offset past 최근 사용 at the comparison.
 const EAGER_TAB_COUNT = 9;
 
-/** REQUIREMENTS.md § 8.14. `CELL_KEYBOARD_RING` for the menu bar, whose selected chip already carries `bg-primary-tint`. */
-const MENU_KEYBOARD_RING = "focus:ring-2 focus:ring-primary focus:outline-none";
+/**
+ * REQUIREMENTS.md § 8.14. The menu bar's focus ring, traced on the **pill** rather than
+ * on the 44 target around it (`MenuChip`), so it is drawn where the control is seen.
+ *
+ * WARN: A named group, because `HapticTarget` is an unnamed one — the press replay on
+ * the same element reads that, and a bare `group-focus:` here would take whichever of
+ * the two the markup happened to nest closest.
+ *
+ * WARN: `ring-inset`, where DESIGN.md § 3.2. spells an offset one. The pill is inset from
+ * its track by the track's 4px padding and nothing else, so an offset ring lands on the
+ * track's own edge — and `ring-offset-canvas` would paint a notch of the panel's colour
+ * through it. This is `CELL_KEYBOARD_RING`'s exception for a second reason.
+ */
+const MENU_FOCUS_RING =
+  "group-focus-visible/menu:ring-2 group-focus-visible/menu:ring-primary group-focus-visible/menu:ring-inset";
+
+/** @see MENU_FOCUS_RING — `CELL_KEYBOARD_RING`'s plain `:focus` for the same pill, for as long as the panel is being driven by the keyboard. */
+const MENU_KEYBOARD_RING =
+  "group-focus/menu:ring-2 group-focus/menu:ring-primary group-focus/menu:ring-inset";
 
 // INFO: § 13.9.1. One sentence for the two places a failed search is said — an empty pane, and the caption under a § 13.9. row that holds the tapped item and nothing the words found.
 const SEARCH_FAILED_MESSAGE = "검색하지 못했어요";
@@ -660,34 +677,32 @@ export function EmoticonPicker({
     >
       {/* INFO: § 13.6. The first region — which menu the two below it belong to. */}
       {/* INFO: REQUIREMENTS.md § 8.14. ARIA's toolbar again: one tab stop for the row, the bare arrows walking it, and what they land on opening — the same automatic activation the strip below and § 13.6.'s swipe already use. */}
-      {/* INFO: DESIGN.md § 7.1. Chips rather than an underlined segmented control, for `LibrarySegments`' own reason — the strip below already runs a selection fill, and a second travelling indicator one row above it reads as two things moving at once. */}
+      {/* INFO: DESIGN.md § 7.1. One track with the fill inside it rather than three separate chips, so the three menus read as one control choosing between them. */}
+      {/* WARN: The fill does not travel, which is what keeps `LibrarySegments`' objection answered — the strip below runs a selection fill of its own, and a second *animated* indicator one row above it is what reads as two things moving at once. `transition-colors` and never a sliding thumb. */}
+      {/* INFO: No rule under it: the track already separates itself from what follows, and the strip below keeps its own so the three regions are still told apart. */}
+      {/* INFO: The track is as wide as the three labels and no wider (`w-fit`), then centred in the panel — `self-center`, since a flex column would otherwise stretch it to the full width. */}
       <div
         ref={menuBarRef}
-        className="flex shrink-0 gap-2xs border-b border-hairline-soft px-2xs py-2xs"
+        className="m-2xs flex w-fit shrink-0 items-center gap-2xs self-center rounded-full bg-surface-soft p-2xs"
         role="toolbar"
         aria-label="이모티콘 메뉴"
         onKeyDown={handleMenuKeys}
       >
         {EMOTICON_MENUS.map((menu, index) => (
-          <Chip
+          <MenuSegment
             key={menu}
-            // WARN: DESIGN.md § 7.15.3. `haptic` is unconditional and `isSelected` is what silences the tick, exactly as `TabButton` records. Gated on the selection instead, the wrapper unmounts inside the very tap that earned the tick and the tick is lost.
-            chipClassName={cn("px-3", isKeyboardDriven && MENU_KEYBOARD_RING)}
-            haptic
+            index={index}
             isSelected={menu === activeMenu}
             // WARN: § 8.14. The row's roving tab stop, so three menus are one stop rather than three between the panel and the composer. It follows the **focused** menu rather than the open one, because the arrows walk this bar without opening what they land on.
-            tabIndex={menu === focusableMenu ? 0 : -1}
-            type="button"
-            aria-pressed={menu === activeMenu}
-            {...{ [FOCUS_INDEX_ATTRIBUTE]: index }}
-            onClick={(event) => {
-              takeFocus(event);
+            isFocusable={menu === focusableMenu}
+            isKeyboardDriven={isKeyboardDriven}
+            onClick={() => {
               setFocusedMenu(menu);
               selectMenu(menu);
             }}
           >
             {MENU_LABELS[menu]}
-          </Chip>
+          </MenuSegment>
         ))}
       </div>
       {isSearching ? (
@@ -1742,6 +1757,69 @@ function SearchPane({
 
     return isPending ? "" : "찾는 이모티콘이 없어요";
   }
+}
+
+type MenuSegmentProps = PropsWithChildren<{
+  className?: string;
+  /** REQUIREMENTS.md § 8.14. This menu's place in `EMOTICON_MENUS`, which the bar's arrow keys step through. */
+  index: number;
+  isSelected: boolean;
+  /** REQUIREMENTS.md § 8.14. Whether this is the bar's one tab stop (ARIA's roving tabindex). */
+  isFocusable: boolean;
+  /** REQUIREMENTS.md § 8.14. Whether the panel is being driven by the keyboard, which is what puts the ring on plain `:focus` (`MENU_KEYBOARD_RING`). */
+  isKeyboardDriven: boolean;
+  onClick: () => void;
+}>;
+
+/**
+ * REQUIREMENTS.md § 13.6. One segment of the first region's track, sized by its own label,
+ * with the selected one wearing a raised pill inside it.
+ *
+ * INFO: DESIGN.md § 7.1. It keeps `chip`'s 36 height and 14px padding, so the target is the
+ * box the menus already had — the shape around it changed and the thumb's share did not.
+ */
+function MenuSegment({
+  className,
+  index,
+  isSelected,
+  isFocusable,
+  isKeyboardDriven,
+  children,
+  onClick,
+}: MenuSegmentProps) {
+  return (
+    // WARN: DESIGN.md § 7.15.3. `isTicking` and never a gate on the wrapper, exactly as `TabButton` records — the selection lands synchronously, so unmounting the wrapper on it loses the tick on the very tap that earned it.
+    <HapticTarget className={cn("flex h-9 shrink-0", className)} isTicking={!isSelected}>
+      <button
+        className="group/menu flex h-full w-full cursor-pointer items-center justify-center outline-none"
+        type="button"
+        tabIndex={isFocusable ? 0 : -1}
+        aria-pressed={isSelected}
+        {...{ [FOCUS_INDEX_ATTRIBUTE]: index }}
+        onClick={(event) => {
+          takeFocus(event);
+          onClick();
+        }}
+      >
+        {/* WARN: The pointer states are read off the **target** (`/menu`) rather than off this box, since the two are the same size only while the segment is selected. The unnamed `group-active:` beside them is `HapticTarget`'s replay, which is a different ancestor. */}
+        <span
+          className={cn(
+            // INFO: DESIGN.md § 7.1. `chip`'s own 14px horizontal padding, which is what gives each segment its width — they are sized by their labels rather than by an equal share of the track.
+            "flex h-full w-full items-center justify-center rounded-full px-3.5 text-button-sm whitespace-nowrap transition-colors",
+            MENU_FOCUS_RING,
+            isKeyboardDriven && MENU_KEYBOARD_RING,
+            // INFO: DESIGN.md § 5.3. The raised surface **and** `shadow-raised`, which is one lift written twice on purpose — the shadow is dropped on dark (`theme.css`), where the surface ladder is the whole of elevation.
+            // INFO: DESIGN.md § 7.1. The selected segment takes no hover: selection is a state, not a hover target.
+            isSelected
+              ? "bg-surface-raised font-semibold text-ink shadow-raised"
+              : "text-meta group-hover/menu:text-body group-active:text-body group-active/menu:text-body",
+          )}
+        >
+          {children}
+        </span>
+      </button>
+    </HapticTarget>
+  );
 }
 
 type TabButtonProps = PropsWithChildren<{
