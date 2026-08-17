@@ -259,6 +259,7 @@ export {
   toMessageSummary,
   toPlaceholderIndex,
   toPlainMessageText,
+  toSoloInlineEmoticonId,
   type MessageContent,
   type MessageSegment,
 } from "./message-content";

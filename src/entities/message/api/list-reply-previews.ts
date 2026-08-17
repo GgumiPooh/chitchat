@@ -1,10 +1,12 @@
 import "server-only";
 
+import { listInlineEmoticons } from "@/entities/emoticon/@x/message";
 import {
   REPLY_PREVIEW_MAX_LENGTH,
   toMediaNoun,
   toMessageSummary,
   toQuoteThumbnail,
+  toSoloInlineEmoticonId,
 } from "@/shared/config";
 import { emoticonItems, getDb, messages } from "@/shared/db";
 import type { EmoticonItemId, MessageId, Nullable } from "@/shared/lib";
@@ -51,6 +53,7 @@ export async function listReplyPreviews(
       senderId: messages.senderId,
       type: messages.type,
       text: messages.text,
+      inlineEmoticonItemIds: messages.inlineEmoticonItemIds,
       deletedAt: messages.deletedAt,
       emoticonItemId: messages.emoticonItemId,
       // INFO: REQUIREMENTS.md § 13.4. Joined for this column alone — the tile's URL is versioned by it, and the join is what keeps the quote showing an edited emoticon's correction (§ 8.10.).
@@ -64,8 +67,26 @@ export async function listReplyPreviews(
   const byMessage = await listMessageMedia(
     rows.filter((row) => row.type === "media" && !row.deletedAt).map((row) => row.id),
   );
+  // INFO: REQUIREMENTS.md § 13. A mini sent alone is a `type: "text"` row with no `emoticon_item_id`, so its tile is resolved off `inline_emoticon_item_ids` instead — one extra batch query, on the same `listInlineEmoticons` the message payload itself uses.
+  const soloInlineIds = new Map<MessageId, EmoticonItemId>();
+  for (const row of rows) {
+    if (row.type !== "text" || row.deletedAt) {
+      continue;
+    }
+    const soloId = toSoloInlineEmoticonId({
+      text: row.text ?? "",
+      inlineEmoticonItemIds: row.inlineEmoticonItemIds,
+    });
+    if (soloId) {
+      soloInlineIds.set(row.id, soloId);
+    }
+  }
+  const soloInlineEmoticons = await listInlineEmoticons([...soloInlineIds.values()]);
+
   for (const row of rows) {
     const attachments = byMessage.get(row.id) ?? [];
+    const soloId = soloInlineIds.get(row.id);
+    const soloInfo = soloId ? soloInlineEmoticons[soloId] : undefined;
 
     byId.set(row.id, {
       senderId: row.senderId,
@@ -73,7 +94,13 @@ export async function listReplyPreviews(
       // INFO: A deleted parent surrenders its content and keeps only its identity — the quote replaces both with 삭제된 메시지예요.
       text: row.deletedAt ? null : toQuotedText(row),
       // WARN: The deletion is tested here rather than left to the helper, because only the media half gets it for free — `listMessageMedia` is never asked about a deleted row, where the emoticon join above is on `messages` itself and answers for one.
-      thumbnail: row.deletedAt ? null : toQuoteThumbnail(toQuotedEmoticon(row), attachments),
+      thumbnail: row.deletedAt
+        ? null
+        : toQuoteThumbnail(
+            toQuotedEmoticon(row),
+            attachments,
+            soloId && soloInfo ? { id: soloId, version: soloInfo.version } : null,
+          ),
       // INFO: The same rule the § 16.1. push body applies — 동영상 only when there is no photo in the bubble to contradict it.
       mediaKind: toMediaNoun(attachments),
       // INFO: DESIGN.md § 6.10. The summary counts what the tile cannot show — it is the first attachment alone, however many were sent.

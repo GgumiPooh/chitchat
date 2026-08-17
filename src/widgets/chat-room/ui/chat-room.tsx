@@ -48,6 +48,7 @@ import {
   toMediaNoun,
   toMessageSummary,
   toQuoteThumbnail,
+  toSoloInlineEmoticonId,
   type InlineEmoticonMap,
   type MediaNoun,
   type MessageArrival,
@@ -2415,7 +2416,9 @@ export function ChatRoom({
       // WARN: REQUIREMENTS.md § 13. The same summary `listReplyPreviews` answers with, for the reason the thumbnail below is the same call — the quote has one line and no room to draw an emoticon, and an optimistic quote that kept the placeholders would disagree with the echoed one about its own text.
       text: toQuotedText(message),
       // INFO: REQUIREMENTS.md § 8.10. The same call `listReplyPreviews` makes on the server, so the optimistic quote and the echoed one cannot disagree about whether the row has a tile.
-      thumbnail: message.isDeleted ? null : toQuoteThumbnail(message.emoticon, message.media),
+      thumbnail: message.isDeleted
+        ? null
+        : toQuoteThumbnail(message.emoticon, message.media, toSoloInlineQuoteEmoticon(message)),
       // WARN: REQUIREMENTS.md § 8.13. A withdrawn parent surrenders its payload here too. Nothing routes 답장 onto a tombstone today, but that is the row it is rendered on rather than a property of this function — and `listReplyPreviews` nulls all four, so staging them live would be the optimistic/echo disagreement `toQuoteThumbnail` exists to rule out.
       mediaKind: message.isDeleted ? null : toMediaNoun(message.media),
       mediaCount: message.isDeleted ? 0 : message.media.length,
@@ -2437,6 +2440,26 @@ export function ChatRoom({
     }
 
     return toMessageSummary(message.text ?? "").slice(0, REPLY_PREVIEW_MAX_LENGTH);
+  }
+
+  /**
+   * REQUIREMENTS.md § 13. The client's copy of `listReplyPreviews`'s own solo-inline
+   * resolution, off the same `inlineEmoticons` map `readInlineEmoticon` reads.
+   */
+  function toSoloInlineQuoteEmoticon(
+    message: ChatMessage,
+  ): Nullable<{ version: number; id: EmoticonItemId }> {
+    if (message.type !== "text") {
+      return null;
+    }
+
+    const soloId = toSoloInlineEmoticonId({
+      text: message.text ?? "",
+      inlineEmoticonItemIds: message.inlineEmoticonItemIds,
+    });
+    const info = soloId ? inlineEmoticons[soloId] : undefined;
+
+    return soloId && info ? { id: soloId, version: info.version } : null;
   }
 
   /**

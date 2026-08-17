@@ -18,8 +18,9 @@ export function toReplySummary(replyTo: ReplyPreview): string {
       return toMediaSummary(replyTo);
     case "emoticon":
       return "이모티콘";
+    // INFO: A mini sent alone is `kind: "text"` (§ 13.), so its tile alone marks it — the summary reads the same as a full pack's rather than the `(이모티콘)` a placeholder mid-sentence gets.
     default:
-      return replyTo.text ?? "";
+      return replyTo.thumbnail?.kind === "emoticon" ? "이모티콘" : (replyTo.text ?? "");
   }
 }
 

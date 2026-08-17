@@ -134,3 +134,21 @@ export function toPlainMessageText(text: string): string {
 export function toMessageSummary(text: string): string {
   return text.replaceAll(OBJECT_PLACEHOLDER, "(이모티콘)");
 }
+
+/**
+ * The one emoticon a message is, if it carries no words beside it — a mini sent
+ * alone, which lives inline (§ 13.) rather than through `emoticon_item_id` and so
+ * needs its own detection wherever a quote's tile (`QuoteThumbnail`) is built.
+ */
+export function toSoloInlineEmoticonId({
+  text,
+  inlineEmoticonItemIds,
+}: MessageContent): Nullable<EmoticonItemId> {
+  const segments = toMessageSegments({ text, inlineEmoticonItemIds });
+  const emoticonSegments = segments.filter((segment) => segment.kind === "emoticon");
+  const hasWords = segments.some(
+    (segment) => segment.kind === "text" && segment.text.trim() !== "",
+  );
+
+  return emoticonSegments.length === 1 && !hasWords ? emoticonSegments[0].itemId : null;
+}

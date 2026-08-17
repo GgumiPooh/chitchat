@@ -28,10 +28,13 @@ export type QuoteThumbnail =
 export function toQuoteThumbnail(
   emoticon: Nullable<QuotedEmoticon>,
   attachments: QuotedAttachment[],
+  // INFO: REQUIREMENTS.md § 13. A mini sent alone carries no `emoticon_item_id` — it lives in `text` as one `OBJECT_PLACEHOLDER` — so the caller resolves it separately and hands it here as the same `{id, version}` shape.
+  soloInlineEmoticon: Nullable<QuotedEmoticon> = null,
 ): Nullable<QuoteThumbnail> {
   // INFO: REQUIREMENTS.md § 6. A row carries one payload or the other, so the order settles nothing — an emoticon message has no attachments to reach the test below.
-  if (emoticon) {
-    return { kind: "emoticon", itemId: emoticon.id, version: emoticon.version };
+  const resolved = emoticon ?? soloInlineEmoticon;
+  if (resolved) {
+    return { kind: "emoticon", itemId: resolved.id, version: resolved.version };
   }
 
   return toAttachmentThumbnail(attachments[0]);
