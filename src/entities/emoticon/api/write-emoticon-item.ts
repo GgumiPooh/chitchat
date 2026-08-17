@@ -17,6 +17,7 @@ import {
   media,
   nextSnowflake,
   type EmoticonItem,
+  type EmoticonPackType,
 } from "@/shared/db";
 import type {
   EmoticonItemId,
@@ -32,7 +33,6 @@ import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon } from "../model/types";
 import { detachEmoticonMedia } from "./get-emoticon-asset";
-import { getEmoticonPackType } from "./get-emoticon-packs";
 import { selectEmoticons } from "./select-emoticons";
 
 /** INFO: § 8.3. The box travels with the key — new bytes are a new box, so neither is nameable without the other. */
@@ -45,6 +45,7 @@ export type EmoticonImageUpload = {
 
 export type RegisterEmoticonParams = {
   packId: EmoticonPackId;
+  packType: EmoticonPackType;
   uploaderId: UserId;
   // INFO: The finished restructure. Either one alone is a whole emoticon; both absent is refused.
   still?: Maybe<EmoticonImageUpload>;
@@ -64,19 +65,13 @@ export type RegisterEmoticonParams = {
  */
 export async function registerEmoticon({
   packId,
+  packType,
   uploaderId,
   still,
   animated,
   audioKey,
   keywords,
 }: RegisterEmoticonParams): Promise<Nullable<Emoticon>> {
-  // INFO: § 13. Read before anything is fetched from R2 — it decides the keyword cap below, and an id naming no pack has nothing to write anyway.
-  const packType = await getEmoticonPackType(packId);
-
-  if (!packType) {
-    return null;
-  }
-
   const [stillObject, animatedObject, audio] = await Promise.all([
     verifyImage("still-image", still, uploaderId),
     verifyImage("animated-image", animated, uploaderId),

@@ -1,5 +1,6 @@
 import {
   findKnownPackIds,
+  getEmoticonPackType,
   listEmoticonPackItems,
   registerEmoticon,
   setEmoticonItemOrder,
@@ -89,12 +90,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return apiError("invalid_request");
   }
 
-  if (!(await isKnownPack(params.data.id))) {
+  const packType = await getEmoticonPackType(params.data.id);
+
+  if (!packType) {
     return apiError("not_found");
   }
 
   const emoticon = await registerEmoticon({
     packId: params.data.id,
+    packType,
     uploaderId: user.id,
     ...body.data,
   });
@@ -142,11 +146,12 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 }
 
 /**
- * WARN: § 13.1. `findKnownPackIds` and deliberately not `getEmoticonPack`, which the
- * two writes above used to ask. That function is the pack **screen's** read — a
- * lateral join and a `GROUP BY` for the thumbnail and the count, plus a second query
- * for every item in the pack — and all either write needs of it is that the id names
- * a row. § 13.5.'s prefs handlers were moved off the same pattern.
+ * WARN: § 13.1. `findKnownPackIds` and deliberately not `getEmoticonPack`, which is
+ * the pack **screen's** read — a lateral join and a `GROUP BY` for the thumbnail and
+ * the count, plus a second query for every item in the pack — and all this write
+ * needs of it is that the id names a row. § 13.5.'s prefs handlers were moved off the
+ * same pattern. `POST` asks `getEmoticonPackType` instead, since it needs the kind
+ * either way and that single read stands in for the existence check as well.
  */
 async function isKnownPack(packId: EmoticonPackId): Promise<boolean> {
   return (await findKnownPackIds([packId])).has(packId);
