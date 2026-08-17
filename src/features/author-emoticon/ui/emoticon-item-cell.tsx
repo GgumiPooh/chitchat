@@ -7,7 +7,7 @@ import { PreloadImage } from "@/shared/ui";
 
 export type EmoticonItemCellProps = {
   className?: string;
-  /** INFO: REQUIREMENTS.md § 13. Only the caption differs — a mini's one word is a name, not a keyword list. */
+  /** INFO: REQUIREMENTS.md § 13. Only the caption differs — a mini carries no words, so it has nothing to put under the cell. */
   type: EmoticonPackType;
   item: Emoticon;
   isThumbnail: boolean;
@@ -46,18 +46,16 @@ export function EmoticonItemCell({
         />
       </button>
       {/* INFO: § 13.8.1. One line, clamped. The grid is four columns wide, so a full chip row per cell would be taller than the emoticon it describes — and 키워드 없음 is what makes 자동으로 채우기's count legible on the grid rather than only in its label. */}
-      <p
-        className={cn(
-          "truncate text-center text-caption",
-          item.keywords.length ? "text-meta" : "text-meta-soft",
-        )}
-      >
-        {item.keywords.length
-          ? item.keywords.join(", ")
-          : type === "mini"
-            ? "이름 없음"
-            : "키워드 없음"}
-      </p>
+      {type !== "mini" && (
+        <p
+          className={cn(
+            "truncate text-center text-caption",
+            item.keywords.length ? "text-meta" : "text-meta-soft",
+          )}
+        >
+          {item.keywords.length ? item.keywords.join(", ") : "키워드 없음"}
+        </p>
+      )}
     </div>
   );
 }

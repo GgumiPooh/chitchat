@@ -10,7 +10,6 @@ import {
 import {
   ALLOWED_EMOTICON_AUDIO_MIMES,
   EMOTICON_KIND_NOUNS,
-  MAX_EMOTICON_KEYWORD_LENGTH,
   toEmoticonAssetUrl,
   type EmoticonPackType,
   type EmoticonSlot,
@@ -29,7 +28,6 @@ import {
   Button,
   HapticTarget,
   IconButton,
-  Input,
   KeywordField,
   PreloadImage,
   toast,
@@ -46,7 +44,7 @@ const AUDIO_ACCEPT = ALLOWED_EMOTICON_AUDIO_MIMES.join(",");
 export type EmoticonFormSheetProps = {
   className?: string;
   packId: EmoticonPackId;
-  /** REQUIREMENTS.md § 13. Which kind is being authored — it decides what the words field is, and nothing else on the form. */
+  /** REQUIREMENTS.md § 13. Which kind is being authored — it decides whether the form has a words field at all, and nothing else. */
   type: EmoticonPackType;
   isOpen: boolean;
   /** REQUIREMENTS.md § 13.4. The item being edited; absent authors a new one. */
@@ -148,14 +146,8 @@ export function EmoticonFormSheet({
             onPick={audioPicker.open}
             onClear={draft.clearAudio}
           />
-          {/* INFO: § 13. A mini carries one word and it is a name rather than a search term, so it takes a plain field — chips offer an 추가 button for words the index would never hold (§ 2.6.). */}
-          {type === "mini" ? (
-            <NameRow
-              name={draft.keywords[0] ?? ""}
-              isDisabled={isSubmitting}
-              onChange={(name) => draft.setKeywords(name.trim() ? [name] : [])}
-            />
-          ) : (
+          {/* INFO: § 13. A mini carries no words — no search reaches one (§ 2.6.), so the form has nothing to offer between the sound and the button. */}
+          {type !== "mini" && (
             <KeywordField
               className="rounded-md bg-surface-soft p-sm"
               keywords={draft.keywords}
@@ -388,36 +380,6 @@ function ImageRow({
           </Button>
         )}
       </div>
-    </div>
-  );
-}
-
-type NameRowProps = {
-  className?: string;
-  name: string;
-  isDisabled: boolean;
-  onChange: (name: string) => void;
-};
-
-/**
- * REQUIREMENTS.md § 13. A mini's single keyword, presented as what it is — a name.
- *
- * INFO: The hint says where it is read, because nothing on this screen shows it: a
- * message carrying only minis has no words of its own, so § 16.1.'s push body and
- * § 8.10.'s quote line fall back to this.
- */
-function NameRow({ className, name, isDisabled, onChange }: NameRowProps) {
-  return (
-    <div className={cn("space-y-2xs rounded-md bg-surface-soft p-sm", className)}>
-      <p className="text-title-sm text-ink">이름</p>
-      <Input
-        value={name}
-        maxLength={MAX_EMOTICON_KEYWORD_LENGTH}
-        disabled={isDisabled}
-        placeholder="예: 하트"
-        onChange={(event) => onChange(event.target.value)}
-      />
-      <p className="text-body-sm text-meta">글자 없이 보냈을 때 알림에 이 이름이 보여요</p>
     </div>
   );
 }
