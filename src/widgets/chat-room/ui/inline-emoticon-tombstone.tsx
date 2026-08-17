@@ -4,10 +4,13 @@ import { Trash2 } from "lucide-react";
 export type InlineEmoticonTombstoneProps = {
   className?: string;
   iconClassName?: string;
+  /** What a reader with no eye on the box is told instead. The default says the item was withdrawn, which only the caller knows to be true. */
+  label?: string;
 };
 
 /**
- * REQUIREMENTS.md § 13. What stands where a deleted inline emoticon was.
+ * REQUIREMENTS.md § 13. What stands where an inline emoticon's picture cannot be drawn —
+ * withdrawn by its sender, or never sized by the page that carried it.
  *
  * WARN: It fills the box its caller gives it and sizes nothing itself, exactly as
  * `MediaTombstone` does and for the same reason — the item's row survives its objects so
@@ -21,6 +24,7 @@ export type InlineEmoticonTombstoneProps = {
 export function InlineEmoticonTombstone({
   className,
   iconClassName,
+  label = "삭제된 이모티콘",
 }: InlineEmoticonTombstoneProps) {
   return (
     <span
@@ -30,7 +34,7 @@ export function InlineEmoticonTombstone({
       )}
       role="img"
       // INFO: The one thing a reader cannot get from an icon in a line of text, and it is on the box rather than beside it — there is no room for a caption.
-      aria-label="삭제된 이모티콘"
+      aria-label={label}
     >
       <Trash2 className={cn("size-3 shrink-0 text-meta-soft", iconClassName)} strokeWidth={1.75} />
     </span>

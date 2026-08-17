@@ -112,7 +112,7 @@ export function countInlineLines(
   { size, weight, family }: FontSpec,
   maxWidth: number,
 ): number {
-  // INFO: No runs is no line box, and CSS agrees — an inline holding no text and no preserved space lays out at zero height, which is what a bubble whose every emoticon went unresolved draws.
+  // INFO: Nothing to lay out is no line, which is `countTextLines`' own answer to `""`. No bubble reaches it — every segment contributes a run, an emoticon the page never sized included — so this holds the exported contract rather than a case the room produces.
   if (runs.length === 0) {
     return 0;
   }

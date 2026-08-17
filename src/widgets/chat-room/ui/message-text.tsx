@@ -5,6 +5,7 @@ import { cn, splitTextByQuery, splitTextByUrls, type EmoticonItemId } from "@/sh
 import { InlineEmoticon } from "@/shared/ui";
 import { Fragment } from "react";
 import { toInlineContent } from "../model/to-inline-content";
+import { toInlineEmoticonBox } from "../model/to-inline-emoticon-box";
 import { InlineEmoticonTombstone } from "./inline-emoticon-tombstone";
 
 export type MessageTextProps = {
@@ -57,28 +58,27 @@ export function MessageText({
     }
 
     const info = inlineEmoticons[segment.itemId];
+    // WARN: § 8.3. The box comes from here and `toInlineRuns` prices the same call — an id sized in one and guessed in the other is a bubble wider than the estimate reserved.
+    const box = toInlineEmoticonBox(info);
 
-    // WARN: § 8.3. An id the page's map does not carry draws nothing, and `toInlineRuns` skips the same id when it measures — the two must agree or the bubble is a box wider than the estimate priced.
-    if (!info) {
-      return null;
+    if (info && box.isKnown && !info.isDeleted) {
+      return (
+        <InlineEmoticon
+          itemId={segment.itemId}
+          version={info.version}
+          width={info.width}
+          height={info.height}
+          name={info.name}
+        />
+      );
     }
 
-    // INFO: § 13. The box is the stored one either way, so the replacement occupies exactly what the picture did and nothing re-measures.
-    return info.isDeleted ? (
-      <span
-        className="inline-block align-bottom"
-        style={{ height: "1lh", aspectRatio: `${info.width} / ${info.height}` }}
-      >
-        <InlineEmoticonTombstone />
+    // INFO: § 13. A deleted item keeps its stored box, so the replacement occupies exactly what the picture did; an id the page never sized takes the square `toInlineEmoticonBox` falls back to.
+    // WARN: An unsized id is not a withdrawn one, and only this caller knows which it is — the tombstone's default copy would tell a screen reader an item was deleted when it may be perfectly alive.
+    return (
+      <span className="inline-block align-bottom" style={{ height: "1lh", aspectRatio: box.ratio }}>
+        <InlineEmoticonTombstone label={info?.isDeleted ? undefined : "이모티콘"} />
       </span>
-    ) : (
-      <InlineEmoticon
-        itemId={segment.itemId}
-        version={info.version}
-        width={info.width}
-        height={info.height}
-        name={info.name}
-      />
     );
   }
 

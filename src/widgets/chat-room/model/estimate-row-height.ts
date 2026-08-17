@@ -19,6 +19,7 @@ import {
 } from "@/shared/lib";
 import { toEmoticonBox } from "./to-emoticon-box";
 import { toInlineContent, type InlineContent } from "./to-inline-content";
+import { toInlineEmoticonBox } from "./to-inline-emoticon-box";
 import { MEDIA_EDGE, toMediaBoxHeight } from "./to-media-box";
 import type { ChatRow } from "./types";
 
@@ -250,7 +251,7 @@ function estimateMessageRow(
   const hasMedia = payload.media.length > 0;
   // WARN: § 8.3. The same call `MessageRow` makes, and the reason it lives in one function — a lone inline emoticon draws bubble-less like an emoticon message, so it changes the quote's variant and withholds the § 8.9. card exactly as an attachment does.
   const inline = toInlineContent(payload.text, payload.inlineEmoticonItemIds);
-  // WARN: § 8.3. The box decides this and not the kind, exactly as `MessageRow`'s does: an id the page's map does not carry draws no picture, so that row is a bubble holding whatever its segments render — which here is nothing at all.
+  // WARN: § 8.3. The box decides this and not the kind, exactly as `MessageRow`'s does: an id the page's map does not carry has no picture to draw large, so that row is an ordinary bubble holding a one-line tombstone.
   const solo = inline.kind === "solo" ? context.readInlineEmoticon?.(inline.itemId) : undefined;
   const isBubbleless = hasMedia || payload.emoticon !== null || solo !== undefined;
   let column = 0;
@@ -368,25 +369,24 @@ function toTextHeight(
  * will draw at.
  *
  * WARN: `InlineEmoticon` is `1lh` tall with the ratio doing the width, so the box is
- * `lineHeight × width / height` — and it is that **before** the asset loads, which is the
- * whole reason this is knowable here at all. A box derived from the loaded image would
- * re-wrap the text under the reader.
+ * `lineHeight × ratio` — and it is that **before** the asset loads, which is the whole
+ * reason this is knowable here at all. A box derived from the loaded image would re-wrap
+ * the text under the reader.
+ *
+ * WARN: Every segment answers with a run, an id the page never sized included.
+ * `MessageText` draws that one as a square tombstone through the same
+ * `toInlineEmoticonBox`, and skipping it here would price a line the bubble does not have.
  */
 function toInlineRuns(
   segments: readonly MessageSegment[],
   { readInlineEmoticon }: RowEstimateContext,
   lineHeight: number,
 ): InlineRun[] {
-  return segments.flatMap<InlineRun>((segment) => {
-    if (segment.kind === "text") {
-      return [{ text: segment.text }];
-    }
-
-    const info = readInlineEmoticon?.(segment.itemId);
-
-    // WARN: Skipped rather than given a guessed box, and `MessageText` skips the same id — an emoticon nothing can size is one neither of them draws.
-    return info && info.height > 0 ? [{ boxWidth: (lineHeight * info.width) / info.height }] : [];
-  });
+  return segments.map<InlineRun>((segment) =>
+    segment.kind === "text"
+      ? { text: segment.text }
+      : { boxWidth: lineHeight * toInlineEmoticonBox(readInlineEmoticon?.(segment.itemId)).ratio },
+  );
 }
 
 /**
