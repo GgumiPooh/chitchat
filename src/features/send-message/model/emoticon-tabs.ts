@@ -31,7 +31,7 @@ export const ACTIVE_TAB_KEY = "jandh:emoticon-tab";
  * screen, and therefore what the two below it hold.
  *
  * INFO: 검색 first because § 13.8.'s tap arrives there and the leading position is where the thumb starts, then the two kinds in the order a library grows them.
- * WARN: § 8.14. The order is also `⌥1`/`⌥2`/`⌥3`'s, so the digits are this array's index and never a table of their own.
+ * WARN: § 8.14. The order is also the menu shortcuts', so their digits are this array's index and never a table of their own.
  */
 export const EMOTICON_MENUS = ["search", "emoticon", "mini"] as const;
 

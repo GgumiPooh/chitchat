@@ -1,6 +1,6 @@
 "use client";
 
-import { toAltKeyLabel, toCommandKeyLabel, toShiftKeyLabel } from "@/shared/lib";
+import { toAltKeyLabel, toCommandKeyLabel, toMenuKeyLabel, toShiftKeyLabel } from "@/shared/lib";
 import { Modal } from "@/shared/ui";
 import { Fragment } from "react";
 
@@ -42,6 +42,8 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
   const command = toCommandKeyLabel();
   // INFO: § 8.14. One physical key, two names — `⌥` on a Mac and `Alt` everywhere else. `⇧`/`Shift` is the same, and a glyph nobody outside macOS reads is worse than no sheet at all.
   const alt = toAltKeyLabel();
+  // INFO: § 8.14. The menus' own modifier, which is `⌃` where `alt` is `⌥` and the same `Alt` everywhere else — a second label the sheet has to carry because `⌥`+digit types a character on macOS.
+  const menu = toMenuKeyLabel();
   const shift = toShiftKeyLabel();
 
   return (
@@ -64,10 +66,9 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
         {renderGroup("이모티콘", [
           { chord: [command], keys: ["E"], label: "이모티콘 패널 열기 / 닫기" },
           // INFO: § 8.14. One row for the three digits, in the menu bar's own order — three rows would say the same thing three times and cost the sheet its length.
-          // INFO: § 8.14. On the same `⌥` the 대화 group above spells its scroll with, so the sheet names one modifier twice rather than teaching a second one.
           // INFO: § 13.8. The seed is named on this row rather than given one of its own, because it is the same key doing the same thing with a draft in front of it.
           {
-            chord: [alt],
+            chord: [menu],
             keys: ["1", "2", "3"],
             label: "검색 / 이모티콘 / 미니, 검색은 입력창의 단어로",
           },

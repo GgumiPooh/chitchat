@@ -10,6 +10,7 @@ import {
   isDigitKey,
   isDormantVisible,
   isLetterKey,
+  isMenuKey,
   type Optional,
 } from "@/shared/lib";
 import { useEffect, useRef } from "react";
@@ -43,17 +44,18 @@ export type ChatShortcuts = {
   /** `⌘E` — REQUIREMENTS.md § 13.6.'s panel, opened on the tab it was last left on, or closed. */
   onToggleEmoticonPanel: () => void;
   /**
-   * REQUIREMENTS.md § 8.14. `⌥1` / `⌥2` / `⌥3` — § 13.6.'s three menus, in the order the
-   * bar draws them, opening the panel where it is shut.
+   * REQUIREMENTS.md § 8.14. `⌃1` / `⌃2` / `⌃3`, and `Alt` for the `⌃` off an Apple
+   * platform — § 13.6.'s three menus, in the order the bar draws them, opening the panel
+   * where it is shut.
    *
    * WARN: These **never close it**. `⌘E` is the one key that does, which is the whole
    * division: one key for whether the panel is on screen, three for which menu it holds.
    * The digit of the menu already open is therefore not a special case at all — the
    * panel is already there and already on it.
    *
-   * WARN: `⌥1` reaches here only where the composer did not claim it first — it seeds
-   * 검색 with the word it has underlined (§ 13.8.), which is the one thing this room
-   * cannot do from a keystroke, having no draft.
+   * WARN: The 검색 digit reaches here only where the composer did not claim it first —
+   * it seeds 검색 with the word it has underlined (§ 13.8.), which is the one thing this
+   * room cannot do from a keystroke, having no draft.
    */
   onSelectEmoticonMenu: (menu: EmoticonMenu) => void;
   /** `⌥↑` / `⌥↓` — the conversation, a step at a time. `-1` is towards older messages. */
@@ -92,7 +94,7 @@ export type ChatShortcuts = {
  * control inside it, so they answer wherever focus happens to be — including nowhere,
  * which is where a click on a bubble leaves it.
  *
- * WARN: `⌥1` is here **last**, behind the one handler that means something more
+ * WARN: The 검색 digit is here **last**, behind the one handler that means something more
  * specific by it: the composer seeds 검색 with the word it has underlined and
  * `preventDefault`s, being a React handler on the root container, which is inside
  * `document`. Answered here first it would ignore that word — so this is the fallback
@@ -153,7 +155,8 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
 
       const menu = toEmoticonMenu(event);
 
-      // WARN: § 8.14. Ahead of `isAltKey`, which the digits also satisfy — that branch reads every key but `ArrowDown` as a scroll towards older messages, so `⌥1` walked the conversation backwards instead of opening a menu.
+      // WARN: § 8.14. Ahead of `isAltKey`, which off an Apple platform is the very same modifier the digits carry — that branch reads every key but `ArrowDown` as a step towards older messages, so `Alt+1` walks the conversation backwards instead of opening a menu.
+      // WARN: § 8.14. macOS spells these with `⌃` and never reaches that branch, so this ordering is now broken only where nobody developing on a Mac will see it — which makes it more load-bearing than when it was broken everywhere, not less.
       if (menu !== undefined) {
         handlers.current.onSelectEmoticonMenu(menu);
       } else if (isAltKey(event)) {
@@ -289,7 +292,7 @@ function isOwnedKey(event: KeyboardEvent): boolean {
     return isCommandKey(event);
   }
 
-  // INFO: § 8.14. `⌥1`/`⌥2`/`⌥3` — § 13.6.'s menu bar, on the modifier this app already spells `⌥↑`/`⌥↓` with, so there is one rule for it and one label in the sheet.
+  // INFO: § 8.14. § 13.6.'s menu bar, on the one modifier that can be pressed inside a text field on both platforms — which is not the one `⌥↑`/`⌥↓` scrolls with, and so costs the sheet a second label.
   if (toEmoticonMenu(event) !== undefined) {
     return true;
   }
@@ -311,10 +314,10 @@ function isOwnedKey(event: KeyboardEvent): boolean {
  * every other key.
  *
  * INFO: Read off `EMOTICON_MENUS` rather than from a table of its own, so the bar's order and the digits' cannot come apart.
- * WARN: § 8.14. `⌘` spelled these first and may not have them back: `⌘1`/`⌘2`/`⌘3` is the browser's own tab switch, and where it reserves them the page is never sent the keystroke — the shortcut is dead in everything but an installed PWA. `⌥` is bound by nothing on either platform and is already this room's scroll modifier (`⌥↑`/`⌥↓`).
+ * WARN: § 8.14. Two modifiers spelled these before `isMenuKey` did and neither may have them back. `⌘1`/`⌘2`/`⌘3` is the browser's own tab switch, so where it reserves them the page is never sent the keystroke at all. `⌥1` is `¡` on macOS — a character, and therefore unpressable in the composer, in § 13.8.'s search field and in a correction, which are the three places this shortcut is most wanted.
  */
 function toEmoticonMenu(event: KeyboardEvent): Optional<EmoticonMenu> {
-  if (!isAltKey(event)) {
+  if (!isMenuKey(event)) {
     return undefined;
   }
 

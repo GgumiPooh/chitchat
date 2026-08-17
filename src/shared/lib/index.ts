@@ -150,9 +150,11 @@ export {
   isCommandKey,
   isDigitKey,
   isLetterKey,
+  isMenuKey,
   isShiftKey,
   toAltKeyLabel,
   toCommandKeyLabel,
+  toMenuKeyLabel,
   toShiftKeyLabel,
   type CommandKeyLabel,
 } from "./input/keyboard";

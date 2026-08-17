@@ -76,6 +76,26 @@ export function isAltKey(event: Modifiers): boolean {
 }
 
 /**
+ * Whether this event carries the modifier this platform spells a **menu** with — `⌃` on
+ * an Apple platform and `Alt` everywhere else — and no other.
+ *
+ * WARN: REQUIREMENTS.md § 8.14. Neither `isCommandKey`'s modifier nor `isAltKey`'s, and
+ * the platform split is the binding rather than a detail of it: `⌥` types a character on
+ * macOS, so `⌥1` is `¡` and the digit cannot be typed at all while a field holds the
+ * caret. `⌃` types nothing there and Cocoa's emacs bindings are letters, so it takes
+ * nothing away from the composer the way `isCommandKey` warns a loose `Ctrl` would.
+ *
+ * WARN: § 8.14. An exact match, and it is refusing two real chords rather than being
+ * tidy. `⌃⌥` is VoiceOver's own modifier, and Windows reports `AltGr` as `Ctrl`+`Alt` —
+ * where the digit row types characters on half of Europe's layouts.
+ */
+export function isMenuKey(event: Modifiers): boolean {
+  return usesMetaKey()
+    ? event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey
+    : event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+}
+
+/**
  * Whether this is the given Latin letter, by the character it produced **or** by the
  * key it sits on.
  *
@@ -93,13 +113,13 @@ export function isLetterKey(event: Pick<KeyboardEvent, "code" | "key">, letter: 
  * Whether this is the given digit of the number row, by the character it produced **or**
  * by the key it sits on.
  *
- * WARN: § 8.14. Both, for `isLetterKey`'s reason, and on `⌥1`/`⌥2`/`⌥3` it is the `code`
- * half that carries the binding: macOS spends `⌥` on the character, so the digits arrive
- * as `¡`, `™` and `£` and a `key` test alone matches nothing at all. AZERTY's unshifted
- * `&` on `Digit1` is the same problem from the other side.
+ * WARN: § 8.14. Both, for `isLetterKey`'s reason, and `code` is the fallback here rather
+ * than the binding — neither modifier `isMenuKey` reads types a character over the digit
+ * row, so `key` answers the ordinary layouts. What is left for `code` is AZERTY, whose
+ * unshifted `Digit1` is `&`.
  *
  * INFO: Shared because two layers ask it of the same keystroke — the room's shortcuts and
- * the composer's own claim on `⌥1` (REQUIREMENTS.md § 13.8.).
+ * the composer's own claim on the 검색 menu (REQUIREMENTS.md § 13.8.).
  */
 export function isDigitKey(event: Pick<KeyboardEvent, "code" | "key">, digit: number): boolean {
   return event.key === `${digit}` || event.code === `Digit${digit}`;
@@ -113,6 +133,11 @@ export function toCommandKeyLabel(): CommandKeyLabel {
 /** How this platform writes the key `isAltKey` reads — one key, two names. */
 export function toAltKeyLabel(): "⌥" | "Alt" {
   return usesMetaKey() ? "⌥" : "Alt";
+}
+
+/** How this platform writes the key `isMenuKey` reads — two keys, and never the same one. */
+export function toMenuKeyLabel(): "⌃" | "Alt" {
+  return usesMetaKey() ? "⌃" : "Alt";
 }
 
 /** How this platform writes `Shift`, which only `⇧←`/`⇧→` spells out (`REQUIREMENTS.md § 8.14.`). */

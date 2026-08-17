@@ -197,7 +197,7 @@ export type EmoticonPickerProps = {
    */
   revealRequest?: Nullable<{ emoticon: Emoticon; token: number }>;
   /**
-   * REQUIREMENTS.md § 8.14. `⌥1` / `⌥2` / `⌥3` and `⌘E`'s own open, which the room
+   * REQUIREMENTS.md § 8.14. The three menu digits and `⌘E`'s own open, which the room
    * forwards because the outcome it shares with them is its own state — the panel being
    * on screen at all.
    *
@@ -355,12 +355,12 @@ export function EmoticonPicker({
    */
   const appliedMenuTokenRef = useRef<Optional<number>>(undefined);
   /**
-   * REQUIREMENTS.md § 8.14. The last `⌥1` whose field focus has been given.
+   * REQUIREMENTS.md § 8.14. The last 검색 menu key whose field focus has been given.
    *
    * WARN: § 8.14. The token and never a flag set where the request is applied. A flag was
-   * only ever read by an effect keyed on `isOpen`/`isSearching`, so `⌥1` at a panel
-   * already open on 검색 changed neither, never re-ran it, and left the flag raised to
-   * fire on whichever later arrival on the tab did change one.
+   * only ever read by an effect keyed on `isOpen`/`isSearching`, so the key pressed at a
+   * panel already open on 검색 changed neither, never re-ran it, and left the flag raised
+   * to fire on whichever later arrival on the tab did change one.
    */
   const focusedFieldTokenRef = useRef<Optional<number>>(undefined);
   // INFO: § 8.14. The last `focusRequest` that has been turned into a `pendingEntryRef`, so one already acted on is told apart from a new one.
@@ -571,7 +571,7 @@ export function EmoticonPicker({
     }
 
     // WARN: § 8.14. Dropped on a tab that is no longer the one asked for, and on a closed panel — reaching for the composer closes it (§ 13.6.), and a pack landing after that would pull the caret back out of the field.
-    // WARN: § 8.14. And dropped to an unanswered `⌥1`. The room bumps this request off that keystroke too, and `enterTab` prefers a cell — answered here it takes the caret to the first search result rather than to the field the key asked for.
+    // WARN: § 8.14. And dropped to an unanswered 검색 menu key. The room bumps this request off that keystroke too, and `enterTab` prefers a cell — answered here it takes the caret to the first search result rather than to the field the key asked for.
     if (
       !isOpen ||
       (entry.tab !== undefined && entry.tab !== activeTab) ||
@@ -595,7 +595,7 @@ export function EmoticonPicker({
   }, [isSearching, onSearchTabChange]);
 
   /**
-   * REQUIREMENTS.md § 8.14. `⌥1` / `⌥2` / `⌥3`, applied here rather than during render
+   * REQUIREMENTS.md § 8.14. The three menu digits, applied here rather than during render
    * because the token it is compared against is a ref, which a render-phase adjustment
    * may not read (see `appliedMenuTokenRef`).
    *
@@ -616,8 +616,9 @@ export function EmoticonPicker({
   }, [menuRequest?.token]);
 
   /**
-   * REQUIREMENTS.md § 8.14. `⌥1`'s focus, which cannot ride `SearchPane`'s own — that
-   * one is keyed on the panel opening, and this arrives at a panel already open.
+   * REQUIREMENTS.md § 8.14. The 검색 menu key's focus, which cannot ride `SearchPane`'s
+   * own — that one is keyed on the panel opening, and this arrives at a panel already
+   * open.
    *
    * WARN: A layout effect, for `SearchPane`'s reason: WebKit raises the keyboard only
    * for a `focus()` still covered by the user activation, and a passive effect lands a
