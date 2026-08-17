@@ -542,7 +542,7 @@ export function MessageComposer({
               previewUrl && (
                 // eslint-disable-next-line @next/next/no-img-element -- The exact `Image` warmEmoticonUrls decoded, so the browser's decode cache paints it with nothing for `next/image` to wait on.
                 <img
-                  className="pointer-events-none size-5 object-contain"
+                  className="pointer-events-none size-11 object-contain"
                   src={previewUrl}
                   alt=""
                   draggable={false}
