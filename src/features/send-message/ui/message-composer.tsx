@@ -620,11 +620,25 @@ export function MessageComposer({
 
   // INFO: The un-elevated `Textarea`'s own `onChange`, mirroring `EditableField`'s but with no placeholders or objects to carry — this draft has never held one.
   function handlePlainChange(event: ChangeEvent<HTMLTextAreaElement>) {
-    const next = event.target.value;
+    const field = event.target;
+    const next = field.value;
 
     setDraft({ text: next, emoticons: [] });
     tappedQueryRef.current = null;
     onEdit?.(next.trim().length > 0);
+
+    /**
+     * WARN: `field-sizing: content` (`Textarea`'s own base style) is what grows the box
+     * to fit its lines up to `max-h-34`, and Chromium/WebKit do not carry the caret into
+     * view once that growth caps out and the box starts scrolling instead — typing past
+     * the visible lines leaves the caret under the fold with nothing to bring it back.
+     * Scrolled here by hand, and only while the caret sits at the very end: a value
+     * changed by an edit further back must not yank the view down to text the reader
+     * is not looking at.
+     */
+    if (field.selectionStart === next.length) {
+      field.scrollTop = field.scrollHeight;
+    }
   }
 
   // INFO: § 8.14. `EditableField` keeps `caretOffsetRef` current off its own `selectionchange` listener; a plain `Textarea` has no such element to listen on, so this stands in for as long as the field is not yet elevated.
