@@ -383,8 +383,11 @@ export function EditableField({
     }
 
     const replaced = document.getSelection()?.toString().length ?? 0;
+    // WARN: Floored at zero. A `value` written in from outside is never trimmed, so a draft past the limit leaves a negative room — and `slice` counts one of those from the *end*, pasting the clipboard's tail where the refusal was meant to be.
     const room =
-      maxLength === undefined ? undefined : maxLength - shownRef.current.length + replaced;
+      maxLength === undefined
+        ? undefined
+        : Math.max(0, maxLength - shownRef.current.length + replaced);
     // WARN: The placeholder is stripped out of pasted text. It would be a character the caller has no object for — one the draft counts, the limit charges for, and nothing draws.
     const text = event.clipboardData
       .getData("text/plain")
