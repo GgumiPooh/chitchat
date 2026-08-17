@@ -1796,8 +1796,8 @@ type MenuSegmentProps = PropsWithChildren<{
  * REQUIREMENTS.md § 13.6. One segment of the first region's track, sized by its own label,
  * with the selected one wearing a raised pill inside it.
  *
- * INFO: DESIGN.md § 7.1. It keeps `chip`'s 36 height and 14px padding, so the target is the
- * box the menus already had — the shape around it changed and the thumb's share did not.
+ * INFO: DESIGN.md § 7.1. It keeps `chip`'s 14px padding but not its 36 height — trimmed to 24
+ * so the track leaves more of the panel to the grid below it.
  */
 function MenuSegment({
   className,
@@ -1810,7 +1810,7 @@ function MenuSegment({
 }: MenuSegmentProps) {
   return (
     // WARN: DESIGN.md § 7.15.3. `isTicking` and never a gate on the wrapper, exactly as `TabButton` records — the selection lands synchronously, so unmounting the wrapper on it loses the tick on the very tap that earned it.
-    <HapticTarget className={cn("flex h-9 shrink-0", className)} isTicking={!isSelected}>
+    <HapticTarget className={cn("flex h-6 shrink-0", className)} isTicking={!isSelected}>
       <button
         className="group/menu flex h-full w-full cursor-pointer items-center justify-center outline-none"
         type="button"
