@@ -13,7 +13,7 @@ import {
   useMessageSearch,
 } from "@/features/search-messages";
 import type { InlineEmoticonMap } from "@/shared/config";
-import { cn, type Maybe, type MessageId, type UserId } from "@/shared/lib";
+import { cn, usePinnedDocument, type Maybe, type MessageId, type UserId } from "@/shared/lib";
 import { AppHeader, Container, IconButton } from "@/shared/ui";
 import { ChatRoom, toChromeTint } from "@/widgets/chat-room";
 import { Search } from "lucide-react";
@@ -46,6 +46,9 @@ export function ChatScreen({
 }: ChatScreenProps) {
   const search = useMessageSearch();
   const { participants, chatBackgroundBlurhash } = useChatStream();
+
+  // WARN: DESIGN.md § 3.4. This box is sized from the visual viewport, so the document beneath it may never carry an offset of its own — see `usePinnedDocument` for the one iOS gives it anyway.
+  usePinnedDocument(true);
 
   // WARN: REQUIREMENTS.md § 13. In an effect and never in the render, because the store is a module singleton this component is also rendered on the server against — written there it would be one request's emoticons handed to the next one's reader.
   useEffect(() => {
