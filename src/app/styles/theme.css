@@ -263,8 +263,9 @@
   /* WARN: DESIGN.md § 6.6. `useComposerClearance` overwrites this on the chat container one frame after mount; without the default here the list's trailing spacer is invalid until then and the first bottom-anchored paint parks the newest message behind the composer. */
   --chat-bottom-gap: 0px;
   /* INFO: REQUIREMENTS.md § 13.6. The 검색 / 이모티콘 / 미니 menu bar, which every menu draws above its own second region. */
-  /* WARN: The whole region and **not** the track drawn in it — the 36 segment, the track's 4px padding around it, and the 4px the track is inset from the panel by. Written to the track alone the panel is short by 8 and the grid below it is clipped by exactly that. */
-  --emoticon-menu-height: calc(36px + var(--spacing-2xs) * 4);
+  /* WARN: The whole region and **not** the track drawn in it — the 36 segment, the track's own padding, and the margins above and below it. Written to the track alone the panel is short by that last term and the grid below is clipped by exactly as much. */
+  /* INFO: The margins are 6 and 2 rather than 4 and 4 (see the track in `emoticon-picker.tsx`), which is why they are one `xs` here rather than two more `2xs`. */
+  --emoticon-menu-height: calc(36px + var(--spacing-2xs) * 2 + var(--spacing-xs));
   /* INFO: REQUIREMENTS.md § 13.6. The emoticon panel's own height, shared so the chat room can animate the strip open against the same value the panel is drawn at. */
   /* WARN: The cap is `px` and never `rem`. A reader's enlarged default font size scales `rem` but not `--viewport-height`, so a `rem` cap wins the `min()` on exactly the devices that can least afford it and the panel overruns the shell. */
   /* WARN: § 13.6. The menu bar is added **outside** the `min()` on purpose. The cap is what the strip and the grid were measured at, and the third region charged to it cost the cells a full row on a 393px screen — three rows of a 4-column grid fit in what was left before it, two after. */

@@ -681,9 +681,10 @@ export function EmoticonPicker({
       {/* WARN: The fill does not travel, which is what keeps `LibrarySegments`' objection answered — the strip below runs a selection fill of its own, and a second *animated* indicator one row above it is what reads as two things moving at once. `transition-colors` and never a sliding thumb. */}
       {/* INFO: No rule under it: the track already separates itself from what follows, and the strip below keeps its own so the three regions are still told apart. */}
       {/* INFO: The track is as wide as the three labels and no wider (`w-fit`), then centred in the panel — `self-center`, since a flex column would otherwise stretch it to the full width. */}
+      {/* WARN: The two margins are deliberately unequal. What sits under the track is not the panel's edge but the strip's own `py-2xs`, so an even `m-2xs` reads as 4px above against 8px below; 6 and 2 are what put the same 6px of air on both sides. Their sum is unchanged, which is why `--emoticon-menu-height` is. */}
       <div
         ref={menuBarRef}
-        className="m-2xs flex w-fit shrink-0 items-center gap-2xs self-center rounded-full bg-surface-soft p-2xs"
+        className="mt-1.5 mb-0.5 flex w-fit shrink-0 items-center gap-2xs self-center rounded-full bg-surface-soft p-2xs"
         role="toolbar"
         aria-label="이모티콘 메뉴"
         onKeyDown={handleMenuKeys}
