@@ -35,7 +35,7 @@ export type EmoticonPackFilter = {
    * ask for it and why the settings screens may not.
    */
   type: EmoticonPackScope;
-  /** `coalesce(enabled, true)`, so a user with no prefs row still sees the pack (§ 13.1.). */
+  /** `coalesce(enabled, false)`, so a pack nobody has switched on is hidden (§ 13.1.). */
   enabledOnly?: boolean;
   /** Case-insensitive containment on the pack's name. Blank means no filter, never "match nothing". */
   query?: string;
@@ -216,10 +216,10 @@ export async function listEmoticonPackItems(packId: EmoticonPackId): Promise<Emo
  *
  * WARN: A `LEFT JOIN` onto the prefs, not an inner one. A user who has never
  * reordered anything has no `user_emoticon_prefs` rows at all, and an inner join
- * would show them an empty list rather than every pack — the absent row is the
- * default, not a gap. `effectivePackPosition` is what orders the two kinds together.
+ * would show them an empty list rather than every pack — the absent row is a state of
+ * its own, not a gap. `effectivePackPosition` is what orders the two kinds together.
  *
- * WARN: `coalesce(enabled, true)`, never `enabled = true`, for that same missing row.
+ * WARN: `coalesce(enabled, false)`, never `enabled = false`, for that same missing row.
  *
  * WARN: The two-phase shape is what keeps the library's size off the page. Everything a
  * summary carries beyond the pack's own row — the item count, the thumbnail — is read
@@ -237,7 +237,7 @@ function selectPackPage(
   const conditions: Nullable<SQL>[] = [
     query.packId === undefined ? null : eq(emoticonPacks.id, query.packId),
     query.type === "all" ? null : eq(emoticonPacks.type, query.type),
-    query.enabledOnly ? sql`coalesce(${userEmoticonPrefs.enabled}, true) = true` : null,
+    query.enabledOnly ? sql`coalesce(${userEmoticonPrefs.enabled}, false) = true` : null,
     // WARN: `toLikeLiteral`, or a query of a single `%` answers with the whole library.
     query.query ? ilike(emoticonPacks.name, `%${toLikeLiteral(query.query)}%`) : null,
     // WARN: One row-value comparison against the **same** pair the `ORDER BY` uses, and the casts are load-bearing — a bind parameter arrives as text, where the key is `numeric` and `bigint`.
@@ -341,8 +341,8 @@ function toSummary(row: PackRow): EmoticonPackSummary {
     thumbnailItemId: row.thumbnailItemId,
     thumbnailVersion: toVersion(row.thumbnailUpdatedAt),
     itemCount: row.itemCount,
-    // INFO: REQUIREMENTS.md § 13.1. No row means enabled — every pack predating the creation-time fan-out is here.
-    isEnabled: row.enabled ?? true,
+    // INFO: REQUIREMENTS.md § 13.1. No row means hidden — a pack is in this user's picker only once they have said so.
+    isEnabled: row.enabled ?? false,
   };
 }
 

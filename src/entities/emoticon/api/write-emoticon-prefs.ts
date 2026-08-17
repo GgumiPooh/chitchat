@@ -1,25 +1,9 @@
 import "server-only";
 
-import { emoticonPacks, getDb, userEmoticonPrefs, users } from "@/shared/db";
+import { emoticonPacks, getDb, userEmoticonPrefs } from "@/shared/db";
 import type { EmoticonPackId, Nullable, UserId } from "@/shared/lib";
-import type { DbTransaction } from "@/shared/storage";
 import { and, eq, sql } from "drizzle-orm";
 import { effectivePackPosition } from "./effective-pack-position";
-
-/**
- * REQUIREMENTS.md § 13.1. Starts a newly created pack hidden, for both participants.
- *
- * WARN: The one write that fans out a row per user, and it cannot be avoided: an
- * absent row reads as enabled, so "off until someone turns it on" has nothing to say
- * it by. `position` is left null, so the pack still sorts by its own creation time.
- */
-export async function hideNewPack(tx: DbTransaction, packId: EmoticonPackId): Promise<void> {
-  const participants = await tx.select({ id: users.id }).from(users);
-
-  await tx
-    .insert(userEmoticonPrefs)
-    .values(participants.map(({ id }) => ({ userId: id, packId, enabled: false })));
-}
 
 /**
  * Moves one pack in this user's order (REQUIREMENTS.md § 13.5.). `after` is the pack
@@ -40,10 +24,10 @@ export async function setEmoticonPackOrder(
 
   await getDb()
     .insert(userEmoticonPrefs)
-    .values({ userId, packId, position })
+    .values({ userId, packId, position, enabled: true })
     .onConflictDoUpdate({
       target: [userEmoticonPrefs.userId, userEmoticonPrefs.packId],
-      // WARN: `enabled` is deliberately untouched. Reordering must not un-hide a pack, and the insert branch's default of `true` is only ever reached by a pack that had no row and was therefore already enabled.
+      // WARN: `enabled` is deliberately untouched on conflict. Reordering must not hide or un-hide a pack, and the insert branch states `true` rather than leaning on the column default — § 13.1. reads a missing row as hidden, and only a pack the user can see is draggable at all.
       set: { position },
     });
 }

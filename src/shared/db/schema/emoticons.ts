@@ -106,7 +106,7 @@ export const emoticonKeywords = pgTable(
   ],
 );
 
-// INFO: REQUIREMENTS.md § 13.1. Per-user and pack-level. An absent row means enabled, which is why a pack that must start hidden fans out a row per user at creation.
+// INFO: REQUIREMENTS.md § 13.1. Per-user and pack-level. An absent row means **hidden**, so a pack is in a user's picker only once they have written one — which is why creating a pack fans out no rows.
 export const userEmoticonPrefs = pgTable(
   "user_emoticon_prefs",
   {
@@ -116,6 +116,7 @@ export const userEmoticonPrefs = pgTable(
     packId: snowflake<EmoticonPackId>("pack_id")
       .notNull()
       .references(() => emoticonPacks.id, { onDelete: "cascade" }),
+    // WARN: § 13.1. The column default is not the feature's default — a missing row is hidden, and every writer states `enabled` rather than letting this decide.
     enabled: boolean("enabled").notNull().default(true),
     // WARN: REQUIREMENTS.md § 13.5. A sparse key, not an index — nullable on purpose, because `effectivePackPosition` falls a pack that has never been moved back onto its creation time in this same numeric space. A NOT NULL default would put every untouched pack on one value and reinstate the reshuffle the sparse key exists to remove.
     position: numeric("position"),
