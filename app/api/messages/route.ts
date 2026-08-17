@@ -27,6 +27,7 @@ import {
   toMediaLabel,
   toMediaNoun,
   toMessageSummary,
+  toSoloInlineEmoticonId,
 } from "@/shared/config";
 import {
   safelyRunAsync,
@@ -186,15 +187,20 @@ function createMessage(senderId: UserId, payload: z.infer<typeof bodySchema>) {
 
 // INFO: A notification has no room for a thumbnail, so an attachment is announced by kind. `사진` covers a mixed send too — naming both would read as a manifest.
 function toPushBody(message: ChatMessage): string {
-  if (message.type === "emoticon") {
-    // INFO: REQUIREMENTS.md § 16.1. The banner cannot show the art, and the item name is authored by these two users rather than by a vendor, so the kind is what carries.
+  if (message.type === "media") {
+    return toMediaLabel(toMediaNoun(message.media));
+  }
+
+  // INFO: REQUIREMENTS.md § 16.1. The banner cannot show the art, and the item name is authored by these two users rather than by a vendor, so the kind is what carries.
+  // INFO: § 13. A mini sent alone is `text` rather than `emoticon`, and reads as the kind too — the parentheses below mark a substitution *inside* a sentence, and a message that is one emoticon and nothing else has none. `toReplySummary` draws the same line for the same reason, so a quote and a banner cannot disagree about the same message.
+  if (message.type === "emoticon" || isSoloMini(message)) {
     return "이모티콘";
   }
 
-  if (message.type !== "media") {
-    // INFO: REQUIREMENTS.md § 13. A banner has no room to draw one either, so every placeholder reads as `(이모티콘)` inside whatever sentence carries it.
-    return toMessageSummary(message.text ?? "").slice(0, PUSH_BODY_MAX_LENGTH);
-  }
+  // INFO: REQUIREMENTS.md § 13. A banner has no room to draw one either, so every placeholder reads as `(이모티콘)` inside whatever sentence carries it.
+  return toMessageSummary(message.text ?? "").slice(0, PUSH_BODY_MAX_LENGTH);
+}
 
-  return toMediaLabel(toMediaNoun(message.media));
+function isSoloMini({ text, inlineEmoticonItemIds }: ChatMessage): boolean {
+  return toSoloInlineEmoticonId({ text: text ?? "", inlineEmoticonItemIds }) !== null;
 }
