@@ -515,29 +515,34 @@ export function MediaViewer({
           onScroll={handleScroll}
           onWheel={cancelPendingStep}
         >
-          {cells.map((cell, slideIndex) => (
-            <div
-              key={cell.id}
-              // INFO: DESIGN.md § 7.10. No padding on either axis. The slide *is* the screen, and the asset's own `object-contain` is what keeps it inside — a gutter only makes the picture smaller than the screen can hold.
-              // WARN: REQUIREMENTS.md § 8.1. `snap-always` is what holds one drag to one slide. Without it a flick's momentum runs through every snap point it passes, and a track that spans the conversation answers a firm swipe with five photos gone by.
-              className="flex w-full shrink-0 snap-center snap-always items-center justify-center"
-            >
-              {/* WARN: REQUIREMENTS.md § 10. Only the neighbours load their asset. Every slide used to request its original on mount, which was bounded by `MAX_MEDIA_PER_MESSAGE` in a chat bubble but is the whole loaded library here — opening one photo after three pages of scrolling started 180 requests for objects of up to `MAX_IMAGE_SIZE`. */}
-              {Math.abs(slideIndex - index) > 1 ? (
-                <SlidePlaceholder cell={cell} />
-              ) : cell.isVideo ? (
-                <VideoSlide cell={cell} isMorphTarget={slideIndex === index} />
-              ) : (
-                // WARN: REQUIREMENTS.md § 18. #6. Only the slide on screen takes the gesture. A neighbour is half a swipe away and mounted, so handlers on it would answer a pinch that started over the photo the reader can see.
-                <ImageSlide
-                  cell={cell}
-                  zoom={slideIndex === index ? zoom : undefined}
-                  isMorphTarget={slideIndex === index}
-                  hasMorphSettled={hasMorphSettled}
-                />
-              )}
-            </div>
-          ))}
+          {cells.map((cell, slideIndex) => {
+            const isCurrent = slideIndex === index;
+
+            return (
+              <div
+                key={cell.id}
+                // INFO: DESIGN.md § 7.10. No padding on either axis. The slide *is* the screen, and the asset's own `object-contain` is what keeps it inside — a gutter only makes the picture smaller than the screen can hold.
+                // WARN: REQUIREMENTS.md § 8.1. `snap-always` is what holds one drag to one slide. Without it a flick's momentum runs through every snap point it passes, and a track that spans the conversation answers a firm swipe with five photos gone by.
+                className="flex w-full shrink-0 snap-center snap-always items-center justify-center"
+              >
+                {/* WARN: REQUIREMENTS.md § 10. Only the neighbours are mounted at all. Every slide used to request its original on mount, which was bounded by `MAX_MEDIA_PER_MESSAGE` in a chat bubble but is the whole loaded library here — opening one photo after three pages of scrolling started 180 requests for objects of up to `MAX_IMAGE_SIZE`. */}
+                {Math.abs(slideIndex - index) > 1 ? (
+                  <SlidePlaceholder cell={cell} />
+                ) : cell.isVideo ? (
+                  <VideoSlide cell={cell} isMorphTarget={isCurrent} />
+                ) : (
+                  // WARN: REQUIREMENTS.md § 18. #6. Only the slide on screen takes the gesture. A neighbour is half a swipe away and mounted, so handlers on it would answer a pinch that started over the photo the reader can see.
+                  <ImageSlide
+                    cell={cell}
+                    zoom={isCurrent ? zoom : undefined}
+                    isCurrent={isCurrent}
+                    isMorphTarget={isCurrent}
+                    hasMorphSettled={hasMorphSettled}
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
         {/* INFO: DESIGN.md § 7.10. The step controls, for a pointer that has no swipe — the desktop reader's equivalent of the arrow keys `handleOverlayKeyDown` answers. */}
         {/* WARN: AGENTS.md § 4.2. Drawn on every pointer, never gated on `hover`. A control that exists only where `@media (hover: hover)` matches is a different control set per device, which § 4.2. allows for `useIsIos` alone — so these ride the chrome instead, appearing and fading with the bars on the same tap. On touch they are simply a second way to do what the swipe already does. */}
@@ -1143,15 +1148,18 @@ function SlidePlaceholder({ cell }: { cell: MediaCell }) {
 function ImageSlide({
   cell,
   zoom,
+  isCurrent,
   isMorphTarget,
   hasMorphSettled,
 }: {
   cell: MediaCell;
   zoom?: ReturnType<typeof usePinchZoom>;
+  isCurrent: boolean;
   isMorphTarget: boolean;
   hasMorphSettled: boolean;
 }) {
-  const src = useDecodedOriginal(cell, hasMorphSettled);
+  // WARN: REQUIREMENTS.md § 10. The slide on screen and no other reaches for its original — a neighbour stays on the thumbnail it is already drawn from.
+  const src = useDecodedOriginal(cell, hasMorphSettled && isCurrent);
 
   return (
     // WARN: REQUIREMENTS.md § 18. #6. The gesture surface, and it never scales — the hook measures its box for the pan bounds, so the transform belongs to the element inside it.
