@@ -1,11 +1,11 @@
 "use client";
 
-import type { EmoticonPackSummary } from "@/entities/emoticon";
+import type { EmoticonPackPage, EmoticonPackSummary } from "@/entities/emoticon";
 import type { EmoticonPackType } from "@/shared/config";
 import type { EmoticonPackId } from "@/shared/lib";
 import { A_MINUTE, A_SECOND, type Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { type InfiniteData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchEmoticonPackPage } from "../api/browse-packs";
 import { saveEmoticonPackEnabled } from "../api/write-prefs";
@@ -29,12 +29,11 @@ export type PackBrowse = {
 
 /**
  * REQUIREMENTS.md § 13.5. The 이모티콘 묶음 검색 tab's data — the whole library, one
- * cursor page at a time, with this user's switches applied on top.
+ * cursor page at a time.
  *
- * WARN: A toggle is held here rather than written into the query cache. The key
- * carries the word that was asked, so a cache edit reaches the one page list the user
- * happens to be looking at and leaves every other word's cached answer holding the
- * switch as it was before the tap.
+ * WARN: A toggle is written straight into every cached page for this `type`, across
+ * every word already asked — not just the one the user is currently looking at, and
+ * not held in component state, which a tab switch would unmount and lose.
  */
 export function usePackBrowse(
   type: EmoticonPackType,
@@ -42,7 +41,7 @@ export function usePackBrowse(
   onEnabledChange: () => void,
 ): PackBrowse {
   const debounced = useDebounced(query);
-  const [switches, setSwitches] = useState<Record<string, boolean>>({});
+  const queryClient = useQueryClient();
   const { data, isPending, isFetchingNextPage, hasNextPage, isError, fetchNextPage } =
     useInfiniteQuery({
       // WARN: § 13. The kind is part of the key. Shared, the two screens would page each other's cursors — the cursor is a position in one kind's ordering and means nothing in the other's.
@@ -53,15 +52,7 @@ export function usePackBrowse(
       // INFO: The library is written from § 13.4.'s own screens, which are routes this tab is not on — so backspacing to a word already asked costs nothing.
       staleTime: A_MINUTE,
     });
-  const packs = useMemo(
-    () =>
-      (data?.pages ?? []).flatMap((page) =>
-        page.packs.map((pack) =>
-          pack.id in switches ? { ...pack, isEnabled: switches[pack.id] } : pack,
-        ),
-      ),
-    [data, switches],
-  );
+  const packs = useMemo(() => (data?.pages ?? []).flatMap((page) => page.packs), [data]);
   const loadMore = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
       void fetchNextPage();
@@ -78,14 +69,28 @@ export function usePackBrowse(
   };
 
   function toggle(packId: EmoticonPackId, isEnabled: boolean) {
-    setSwitches((current) => ({ ...current, [packId]: isEnabled }));
+    setCachedEnabled(packId, isEnabled);
     // INFO: § 13.5. The other tab is seeded by the server and cannot hear this write, so it is told to re-read before it is next looked at.
     onEnabledChange();
 
     void saveEmoticonPackEnabled(packId, isEnabled).catch(() => {
-      setSwitches((current) => ({ ...current, [packId]: !isEnabled }));
+      setCachedEnabled(packId, !isEnabled);
       toast.error("설정을 저장하지 못했어요");
     });
+  }
+
+  function setCachedEnabled(packId: EmoticonPackId, isEnabled: boolean) {
+    queryClient.setQueriesData<InfiniteData<EmoticonPackPage>>(
+      { queryKey: ["emoticon-pack-browse", type] },
+      (data) =>
+        data && {
+          ...data,
+          pages: data.pages.map((page) => ({
+            ...page,
+            packs: page.packs.map((pack) => (pack.id === packId ? { ...pack, isEnabled } : pack)),
+          })),
+        },
+    );
   }
 }
 
