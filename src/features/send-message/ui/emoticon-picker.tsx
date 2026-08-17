@@ -19,10 +19,10 @@ import {
   type Nullable,
   type Optional,
 } from "@/shared/lib";
-import { EmptyState, HapticTarget, Input, PreloadImage } from "@/shared/ui";
+import { EmptyState, HapticTarget, IconButton, Input, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { josa } from "es-hangul";
-import { Clock, Search, Smile } from "lucide-react";
+import { Clock, Delete, Search, Smile } from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
@@ -242,6 +242,8 @@ export type EmoticonPickerProps = {
    * `handleSelect`.
    */
   onInsert?: (emoticon: Emoticon) => void;
+  /** 미니's own 지우기 — removes one character or one mini from the end of the draft, exactly what a Backspace on the field would take. */
+  onDeleteLast?: () => void;
 };
 
 /**
@@ -264,6 +266,7 @@ export function EmoticonPicker({
   onSelect,
   onQuickSend,
   onInsert,
+  onDeleteLast,
 }: EmoticonPickerProps) {
   // WARN: Read straight from storage rather than seeded into `useState` — the panel can mount during hydration, where the first snapshot is still the fallback and a seeded state would never pick the stored tab up.
   const [storedTab, setRequestedTab] = useStorageState<string>(ACTIVE_TAB_KEY, RECENTS_TAB, {
@@ -743,59 +746,75 @@ export function EmoticonPicker({
           {/* WARN: The horizontal inset is the first and last tab's margin, never the strip's `padding-inline`. WebKit reports `scrollWidth === clientWidth` until the content already overflows *without* `padding-right`, so a strip padded that way has a dead band the width of that padding where it is over-full and cannot be scrolled at all. */}
           {/* INFO: REQUIREMENTS.md § 8.14. ARIA's toolbar: one tab stop for the whole strip, and the bare arrows walking it — which open what they land on, exactly as § 13.6.'s swipe does. */}
           {/* WARN: `touch-pan-x` and `overscroll-contain` are what § 13.8.'s pane already carries, and this strip is the one horizontal scroller that had neither. A drag here is never perfectly horizontal, so WebKit spent the vertical component on whatever ancestor would take it — the room panning a few pixels under every sweep of the thumb, which is the wobble reported on iOS. */}
-          <div
-            ref={tabStripRef}
-            className="scrollbar-hidden flex shrink-0 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain border-b border-hairline-soft py-2xs [&>*:first-child]:ml-2xs [&>*:last-child]:mr-2xs"
-            role="toolbar"
-            aria-label={kindNouns.pack}
-            onKeyDown={handleTabStripKeys}
-          >
-            <TabButton
-              ref={activeTab === recentsTab ? activeTabRef : undefined}
-              index={0}
-              isActive={activeTab === recentsTab}
-              isFocusable={focusableTabId === recentsTab}
-              isKeyboardDriven={isKeyboardDriven}
-              label={RECENTS_LABEL}
-              onClick={() => selectTab(recentsTab)}
+          <div className="flex shrink-0 items-center border-b border-hairline-soft">
+            <div
+              ref={tabStripRef}
+              className="scrollbar-hidden flex min-w-0 flex-1 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain py-2xs [&>*:first-child]:ml-2xs [&>*:last-child]:mr-2xs"
+              role="toolbar"
+              aria-label={kindNouns.pack}
+              onKeyDown={handleTabStripKeys}
             >
-              <Clock className="size-5 text-meta" strokeWidth={1.75} />
-            </TabButton>
-            {/* WARN: § 13.1. `menuPacks` is `visiblePacks` cut to this menu's kind, and never `packs` — the list carries hidden packs so § 13.8. can search them, and a hidden pack drawn here is a tab `activeTab` resolves away from, so the tap does nothing but overwrite the remembered pack with an id that can never be restored. */}
-            {menuPacks.map((pack, index) => (
               <TabButton
-                key={pack.id}
-                ref={activeTab === pack.id ? activeTabRef : undefined}
-                // WARN: § 8.14. Offset past 최근 사용, so it indexes `tabIds` — the array `goToAdjacentTab` and the strip's own arrows both step through. 검색 is a menu now and no longer sits in front of it.
-                index={index + 1}
-                isActive={activeTab === pack.id}
-                isFocusable={focusableTabId === pack.id}
+                ref={activeTab === recentsTab ? activeTabRef : undefined}
+                index={0}
+                isActive={activeTab === recentsTab}
+                isFocusable={focusableTabId === recentsTab}
                 isKeyboardDriven={isKeyboardDriven}
-                label={pack.name}
-                onClick={() => selectTab(pack.id)}
+                label={RECENTS_LABEL}
+                onClick={() => selectTab(recentsTab)}
               >
-                {/* INFO: § 13.2. Already the item the pack is drawn with — the server resolves the fallback now, since this strip holds no items to look through. */}
-                {pack.thumbnailItemId ? (
-                  <PreloadImage
-                    className="size-full"
-                    imgClassName="size-full object-contain"
-                    placeholderClassName="rounded-sm"
-                    alt=""
-                    // INFO: § 13.6. Warmed and decoded before the panel opens, so the head of the strip is drawn rather than plated.
-                    hasDeferredSkeleton
-                    // WARN: § 13.3. Each of these is a session check, a row read and a presign, and the strip scrolls — past what fits on screen, every pack in the library would spend one on the frame the panel first opens.
-                    loading={index + 1 < EAGER_TAB_COUNT ? "eager" : "lazy"}
-                    src={toEmoticonAssetUrl(
-                      pack.thumbnailItemId,
-                      "still-image",
-                      pack.thumbnailVersion ?? undefined,
-                    )}
-                  />
-                ) : (
-                  <Smile className="size-5 text-meta" strokeWidth={1.75} />
-                )}
+                <Clock className="size-5 text-meta" strokeWidth={1.75} />
               </TabButton>
-            ))}
+              {/* WARN: § 13.1. `menuPacks` is `visiblePacks` cut to this menu's kind, and never `packs` — the list carries hidden packs so § 13.8. can search them, and a hidden pack drawn here is a tab `activeTab` resolves away from, so the tap does nothing but overwrite the remembered pack with an id that can never be restored. */}
+              {menuPacks.map((pack, index) => (
+                <TabButton
+                  key={pack.id}
+                  ref={activeTab === pack.id ? activeTabRef : undefined}
+                  // WARN: § 8.14. Offset past 최근 사용, so it indexes `tabIds` — the array `goToAdjacentTab` and the strip's own arrows both step through. 검색 is a menu now and no longer sits in front of it.
+                  index={index + 1}
+                  isActive={activeTab === pack.id}
+                  isFocusable={focusableTabId === pack.id}
+                  isKeyboardDriven={isKeyboardDriven}
+                  label={pack.name}
+                  onClick={() => selectTab(pack.id)}
+                >
+                  {/* INFO: § 13.2. Already the item the pack is drawn with — the server resolves the fallback now, since this strip holds no items to look through. */}
+                  {pack.thumbnailItemId ? (
+                    <PreloadImage
+                      className="size-full"
+                      imgClassName="size-full object-contain"
+                      placeholderClassName="rounded-sm"
+                      alt=""
+                      // INFO: § 13.6. Warmed and decoded before the panel opens, so the head of the strip is drawn rather than plated.
+                      hasDeferredSkeleton
+                      // WARN: § 13.3. Each of these is a session check, a row read and a presign, and the strip scrolls — past what fits on screen, every pack in the library would spend one on the frame the panel first opens.
+                      loading={index + 1 < EAGER_TAB_COUNT ? "eager" : "lazy"}
+                      src={toEmoticonAssetUrl(
+                        pack.thumbnailItemId,
+                        "still-image",
+                        pack.thumbnailVersion ?? undefined,
+                      )}
+                    />
+                  ) : (
+                    <Smile className="size-5 text-meta" strokeWidth={1.75} />
+                  )}
+                </TabButton>
+              ))}
+            </div>
+            {/* INFO: 미니 only — a mini is written into the composer's draft rather than staged, so this is the picker's own Backspace for it. */}
+            {menuKind === "mini" && (
+              <>
+                <div className="mr-2xs h-6 w-px shrink-0 bg-hairline-soft" aria-hidden />
+                <IconButton
+                  className="mr-2xs"
+                  Icon={Delete}
+                  haptic
+                  keepsFocus
+                  aria-label="지우기"
+                  onClick={onDeleteLast}
+                />
+              </>
+            )}
           </div>
           {/* INFO: § 13.6. The third region — the cells, which is the only one of the three that scrolls vertically. */}
           {/* WARN: `overflow-x-hidden` is what keeps the § 13.6. slide inside the panel — a vertical-only scroller still resolves its horizontal axis to `auto`. */}

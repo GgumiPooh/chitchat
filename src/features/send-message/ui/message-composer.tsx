@@ -128,6 +128,15 @@ export type MessageComposerProps = {
    * inserted, so a run of them goes in in order.
    */
   insertedEmoticon?: { emoticon: ComposerEmoticon; token: number };
+  /**
+   * REQUIREMENTS.md § 13. 미니's own 지우기 button, asking for the same Backspace the
+   * field's own key would take — one placeholder and its emoticon together, or one
+   * grapheme cluster of plain text.
+   *
+   * WARN: A token, for `insertedEmoticon`'s reason — two presses are two instructions,
+   * and there is nothing about the second for a boolean to report.
+   */
+  deleteRequest?: { token: number };
   /** REQUIREMENTS.md § 8.13. The field is correcting a message rather than composing one, so the controls that stage a *new* payload have nothing to act on. */
   isEditing?: boolean;
   /**
@@ -175,6 +184,7 @@ export function MessageComposer({
   keywordConsumeToken,
   seededDraft,
   insertedEmoticon,
+  deleteRequest,
   isEditing = false,
   focusRequest = 0,
   fieldRef: exposedFieldRef,
@@ -235,6 +245,8 @@ export function MessageComposer({
   const [seenSeedToken, setSeenSeedToken] = useState(seededDraft?.token);
   // INFO: § 13.6. The last emoticon taken from the picker, for the reason the seed keeps a token — the adjustment below is the same one.
   const [seenInsertToken, setSeenInsertToken] = useState(insertedEmoticon?.token);
+  // INFO: § 13. 미니's 지우기, for the reason `seenInsertToken` keeps one — the adjustment below is the same shape, run in reverse.
+  const [seenDeleteToken, setSeenDeleteToken] = useState(deleteRequest?.token);
   // INFO: § 13.8. What the last tap searched for, so a send can tell whether the field still holds only that.
   const tappedQueryRef = useRef<Nullable<string>>(null);
   const isCoarsePointer = useIsCoarsePointer();
@@ -423,6 +435,19 @@ export function MessageComposer({
   }
 
   /**
+   * REQUIREMENTS.md § 13. 미니's own 지우기 button — the same Backspace the field's own
+   * key would take, applied for `insertedEmoticon`'s reasons: during render, keyed on
+   * the token.
+   */
+  if (deleteRequest !== undefined && deleteRequest.token !== seenDeleteToken) {
+    setSeenDeleteToken(deleteRequest.token);
+
+    const caret = caretOffsetRef.current;
+
+    setDraft((current) => toDeletedDraft(current, caret));
+  }
+
+  /**
    * WARN: REQUIREMENTS.md § 8.12. The seed never goes through `onChange`, so the
    * broadcast has to be raised — and retracted on the empty seed that ends an edit
    * — by hand, exactly as the send below does it.
@@ -452,6 +477,14 @@ export function MessageComposer({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [insertedEmoticon?.token]);
+
+  // WARN: § 8.12. The deletion above never goes through `onChange` either. Read here rather than closed over above — this runs after the render-phase adjustment has committed, so `draft` is the one it left behind, and a 지우기 that empties the field reports `false` exactly as the last Backspace on the field itself would.
+  useEffect(() => {
+    if (deleteRequest !== undefined) {
+      onEdit?.(draft.text.trim().length > 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deleteRequest?.token]);
 
   /**
    * REQUIREMENTS.md § 8.14. The room asking for the caret back.
@@ -921,6 +954,54 @@ function toInsertedDraft(
       ...current.emoticons.slice(index),
     ],
   };
+}
+
+/**
+ * REQUIREMENTS.md § 13. The draft with one unit taken off its end, or off `caret` when
+ * the field last held one — a placeholder and the emoticon it stands for together, or
+ * one grapheme cluster of plain text.
+ *
+ * WARN: A code unit is not a character and a code point is not a grapheme — `slice(0,
+ * -1)` cuts a surrogate pair in half, and even a full code point splits a flag or a
+ * ZWJ family emoji into pieces neither side can render. `GRAPHEME_SEGMENTER` is what
+ * finds the boundary a single Backspace is meant to clear in one press.
+ */
+function toDeletedDraft(current: Draft, caret: Nullable<number>): Draft {
+  const at = Math.min(caret ?? current.text.length, current.text.length);
+
+  if (at === 0) {
+    return current;
+  }
+
+  if (current.text[at - 1] === OBJECT_PLACEHOLDER) {
+    const index = toPlaceholderIndex(current.text, at) - 1;
+
+    return {
+      text: `${current.text.slice(0, at - 1)}${current.text.slice(at)}`,
+      emoticons: [...current.emoticons.slice(0, index), ...current.emoticons.slice(index + 1)],
+    };
+  }
+
+  const start = toGraphemeStart(current.text, at);
+
+  return {
+    text: `${current.text.slice(0, start)}${current.text.slice(at)}`,
+    emoticons: current.emoticons,
+  };
+}
+
+// WARN: Hoisted — a fresh `Intl.Segmenter` per keystroke of 지우기 rebuilds its Unicode tables for nothing they change between presses.
+const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+/** The start of the grapheme cluster ending at `at`, so a deletion takes a whole emoji or combining sequence rather than one UTF-16 code unit off it. */
+function toGraphemeStart(text: string, at: number): number {
+  let start = 0;
+
+  for (const { index } of GRAPHEME_SEGMENTER.segment(text.slice(0, at))) {
+    start = index;
+  }
+
+  return start;
 }
 
 // INFO: REQUIREMENTS.md § 8.13. The seed's own token keys the emoticons it brings, so a re-seed of the same message is not two drafts holding one set of keys.

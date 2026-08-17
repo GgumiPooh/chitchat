@@ -334,6 +334,8 @@ export function ChatRoom({
   // WARN: § 13. A mini the picker put into the draft. The token is the composer's key for it as well as the instruction, so it counts up rather than carrying `Date.now()` — two minis inside one millisecond would be one key, and the draft could no longer say which of them a Backspace took.
   const [insertedEmoticon, setInsertedEmoticon] =
     useState<Optional<{ emoticon: ComposerEmoticon; token: number }>>(undefined);
+  // INFO: § 13. 미니's own 지우기, asking the composer's draft for the same Backspace its own field would take.
+  const [deleteRequest, setDeleteRequest] = useState<Optional<{ token: number }>>(undefined);
   // INFO: § 13.8. The one tab exempt from § 13.6.'s keyboard gate, reported by the picker because the tab is its own state.
   const [isEmoticonSearchTab, setIsEmoticonSearchTab] = useState(false);
   // INFO: § 13.8. The same exemption, held open for as long as the keyboard that tab raised takes to leave.
@@ -1418,6 +1420,7 @@ export function ChatRoom({
                   onSelect={stageEmoticon}
                   onQuickSend={sendStagedEmoticon}
                   onInsert={insertEmoticon}
+                  onDeleteLast={deleteLastComposerUnit}
                 />
               )}
             </div>
@@ -1429,6 +1432,7 @@ export function ChatRoom({
               keywordConsumeToken={keywordConsumeToken}
               seededDraft={seededDraft}
               insertedEmoticon={insertedEmoticon}
+              deleteRequest={deleteRequest}
               isEditing={editingId !== null}
               focusRequest={composerFocusRequest}
               fieldRef={composerFieldRef}
@@ -1914,6 +1918,11 @@ export function ChatRoom({
       emoticon: { version, width, height, name: keywords[0] ?? null, id },
       token: (request?.token ?? 0) + 1,
     }));
+  }
+
+  // INFO: § 13. 미니's own 지우기 button — the composer takes it exactly as a Backspace on the field.
+  function deleteLastComposerUnit() {
+    setDeleteRequest((request) => ({ token: (request?.token ?? 0) + 1 }));
   }
 
   /**
