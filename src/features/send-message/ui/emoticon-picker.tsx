@@ -1,7 +1,7 @@
 "use client";
 
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
-import { MAX_KEYWORD_QUERY_LENGTH, toEmoticonAssetUrl } from "@/shared/config";
+import { EMOTICON_KIND_NOUNS, MAX_KEYWORD_QUERY_LENGTH, toEmoticonAssetUrl } from "@/shared/config";
 import type { EmoticonPackType } from "@/shared/db";
 import {
   A_MINUTE,
@@ -281,8 +281,6 @@ export function EmoticonPicker({
   const [focusedMenu, setFocusedMenu] = useState<Nullable<EmoticonMenu>>(null);
   /** @see focusedMenu — the menu the stop was last synced to, so the reset fires on a change rather than on a difference. */
   const [syncedMenu, setSyncedMenu] = useState<Nullable<EmoticonMenu>>(null);
-  // INFO: REQUIREMENTS.md § 8.14. Whether § 13.8.'s field may take the keyboard as its tab arrives. False only for a walk along the strip, which that focus would end.
-  const [fieldClaimsFocus, setFieldClaimsFocus] = useState(true);
   // INFO: REQUIREMENTS.md § 8.14. Whether the panel is being driven by the keyboard, which is what paints `CELL_KEYBOARD_RING`. A pointer press anywhere in it ends that, and the next key begins it again.
   const [isKeyboardDriven, setIsKeyboardDriven] = useState(false);
 
@@ -295,8 +293,6 @@ export function EmoticonPicker({
     setRevealed(null);
     // WARN: § 8.14. The row is about to be a different list, and the tab has not changed — so the reset keyed on the tab does not fire here. Left alone the one `tabIndex={0}` cell is wherever the previous search's stop was, which `SearchPane` has just scrolled off the right edge.
     setFocusedIndex(0);
-    // INFO: § 8.14. This route is always a request to type — ⌥1, or a tap on the underlined word — so the field takes the keyboard however the previous arrival on this tab left the flag.
-    setFieldClaimsFocus(true);
   }
 
   /**
@@ -358,8 +354,15 @@ export function EmoticonPicker({
    * only request that open will ever get and lands on the stored tab instead.
    */
   const appliedMenuTokenRef = useRef<Optional<number>>(undefined);
-  // INFO: § 8.14. Whether the menu request being applied was `⌥1`, which is the one route onto 검색 that asks for the keyboard at a panel that is already open.
-  const wantsFieldFocusRef = useRef(false);
+  /**
+   * REQUIREMENTS.md § 8.14. The last `⌥1` whose field focus has been given.
+   *
+   * WARN: § 8.14. The token and never a flag set where the request is applied. A flag was
+   * only ever read by an effect keyed on `isOpen`/`isSearching`, so `⌥1` at a panel
+   * already open on 검색 changed neither, never re-ran it, and left the flag raised to
+   * fire on whichever later arrival on the tab did change one.
+   */
+  const focusedFieldTokenRef = useRef<Optional<number>>(undefined);
   // INFO: § 8.14. The last `focusRequest` that has been turned into a `pendingEntryRef`, so one already acted on is told apart from a new one.
   const satisfiedFocusRequestRef = useRef(0);
   /**
@@ -433,6 +436,7 @@ export function EmoticonPicker({
   const activeMenu = toMenuOf(activeTab);
   // INFO: § 13.6. Which kind the two regions below hold. 검색 draws neither, and reads as 이모티콘 so nothing has to branch on a third case.
   const menuKind: EmoticonPackType = activeMenu === "mini" ? "mini" : "emoticon";
+  const kindNouns = EMOTICON_KIND_NOUNS[menuKind];
   const menuPacks = visiblePacks.filter((pack) => pack.type === menuKind);
   const recentsTab = menuKind === "mini" ? MINI_RECENTS_TAB : RECENTS_TAB;
   // INFO: § 13.6. This menu's own stored list, which is the whole of the kind filter — `useRecentEmoticons` keeps one per kind, written from what the send carried.
@@ -567,7 +571,12 @@ export function EmoticonPicker({
     }
 
     // WARN: § 8.14. Dropped on a tab that is no longer the one asked for, and on a closed panel — reaching for the composer closes it (§ 13.6.), and a pack landing after that would pull the caret back out of the field.
-    if (!isOpen || (entry.tab !== undefined && entry.tab !== activeTab)) {
+    // WARN: § 8.14. And dropped to an unanswered `⌥1`. The room bumps this request off that keystroke too, and `enterTab` prefers a cell — answered here it takes the caret to the first search result rather than to the field the key asked for.
+    if (
+      !isOpen ||
+      (entry.tab !== undefined && entry.tab !== activeTab) ||
+      (menuRequest?.menu === "search" && menuRequest.token !== focusedFieldTokenRef.current)
+    ) {
       pendingEntryRef.current = null;
 
       return;
@@ -578,7 +587,7 @@ export function EmoticonPicker({
     }
     // WARN: `enterTab` is deliberately not a dependency. It closes over this render's tab and list, which is exactly what the deps below already state — listed, it would re-run the focus on every render of an open panel.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, focusRequest.token, isOpen, shown.length]);
+  }, [activeTab, focusRequest.token, isOpen, menuRequest, shown.length]);
 
   // WARN: § 13.8. The room exempts this tab from § 13.6.'s keyboard gate, so it has to be told on every change — reported off the tab rather than off the field's focus, or the frame between a blur and the keyboard actually retracting closes the panel underneath the user.
   useEffect(() => {
@@ -601,8 +610,6 @@ export function EmoticonPicker({
     }
 
     appliedMenuTokenRef.current = menuRequest.token;
-    // WARN: § 8.14. 검색 takes the keyboard on arrival here, unlike a walk along the bar — `⌥1` is a request to type, which is the whole of what separates it from an arrow landing on the same chip.
-    wantsFieldFocusRef.current = menuRequest.menu === "search";
     selectMenu(menuRequest.menu);
     // WARN: `selectMenu` is deliberately not a dependency — it closes over this render's tabs, which is what the deps already state, and listing it would re-run the request on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -615,13 +622,26 @@ export function EmoticonPicker({
    * WARN: A layout effect, for `SearchPane`'s reason: WebKit raises the keyboard only
    * for a `focus()` still covered by the user activation, and a passive effect lands a
    * scheduler task past it.
+   *
+   * WARN: § 8.14. It reads `menuRequest` itself rather than a flag the effect above
+   * raises, because that effect is a passive one and runs *after* this — on the commit
+   * the token arrives in, which is the only commit a panel already open on 검색 has. It
+   * therefore waits for `isOpen` instead: a press made with the keys up opens nothing
+   * until they retract (§ 13.6.).
    */
   useLayoutEffect(() => {
-    if (wantsFieldFocusRef.current && isOpen && isSearching) {
-      wantsFieldFocusRef.current = false;
-      searchFieldRef.current?.focus();
+    if (
+      menuRequest?.menu !== "search" ||
+      menuRequest.token === focusedFieldTokenRef.current ||
+      !isOpen ||
+      !isSearching
+    ) {
+      return;
     }
-  }, [isOpen, isSearching]);
+
+    focusedFieldTokenRef.current = menuRequest.token;
+    searchFieldRef.current?.focus();
+  }, [isOpen, isSearching, menuRequest]);
 
   return (
     <div
@@ -678,7 +698,6 @@ export function EmoticonPicker({
           hasFailed={hasSearchFailed}
           revealedId={revealedId}
           revealToken={appliedRevealToken}
-          takesFocus={fieldClaimsFocus}
           focusableIndex={focusableIndex}
           isKeyboardDriven={isKeyboardDriven}
           fieldRef={searchFieldRef}
@@ -700,7 +719,7 @@ export function EmoticonPicker({
             ref={tabStripRef}
             className="scrollbar-hidden flex shrink-0 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain border-b border-hairline-soft py-2xs [&>*:first-child]:ml-2xs [&>*:last-child]:mr-2xs"
             role="toolbar"
-            aria-label={`${toKindNoun(menuKind)} 묶음`}
+            aria-label={kindNouns.pack}
             onKeyDown={handleTabStripKeys}
           >
             <TabButton
@@ -791,7 +810,7 @@ export function EmoticonPicker({
                       menuKind === "mini" ? "grid-cols-6" : "grid-cols-4",
                     )}
                     role="group"
-                    aria-label={toKindNoun(menuKind)}
+                    aria-label={kindNouns.kind}
                   >
                     {shown.map((item, index) => (
                       <EmoticonCell
@@ -898,22 +917,22 @@ export function EmoticonPicker({
    * a pack that had plenty and the user had no way to tell.
    */
   function toGridEmptyMessage(): string {
-    const noun = toKindNoun(menuKind);
+    const { kind, pack } = kindNouns;
 
     if (isRecentsTabId(activeTab)) {
       if (hasRecentsFailed) {
-        return `${josa(noun, "을/를")} 불러오지 못했어요`;
+        return `${josa(kind, "을/를")} 불러오지 못했어요`;
       }
 
       // INFO: § 13.6. A menu with no packs at all says so instead, since 최근 사용 being empty is then the consequence rather than the thing to report — nothing has been sent because there is nothing to send.
       return menuPacks.length === 0
-        ? `추가한 ${noun} 묶음이 없어요`
-        : `최근 사용한 ${josa(noun, "이/가")} 여기에 보여요`;
+        ? `추가한 ${josa(pack, "이/가")} 없어요`
+        : `최근 사용한 ${josa(kind, "이/가")} 여기에 보여요`;
     }
 
     return hasPackFailed
-      ? `${josa(noun, "을/를")} 불러오지 못했어요`
-      : `이 묶음에는 ${josa(noun, "이/가")} 없어요`;
+      ? `${josa(kind, "을/를")} 불러오지 못했어요`
+      : `이 묶음에는 ${josa(kind, "이/가")} 없어요`;
   }
 
   /**
@@ -1029,8 +1048,7 @@ export function EmoticonPicker({
       const next = activeIndex < 0 ? -1 : activeIndex + direction;
 
       if (tabIds[next]) {
-        // WARN: § 13.8. `claimsField: false`, as the strip's own arrows pass — a walk that lands on 검색 must not have the field take the keyboard out from under it.
-        selectTab(tabIds[next], { claimsField: false });
+        selectTab(tabIds[next]);
         focusItem(strip, next);
       }
 
@@ -1319,8 +1337,7 @@ export function EmoticonPicker({
     }
 
     event.preventDefault();
-    // WARN: § 13.8. The tab is opened without letting 검색 claim the keyboard. A walk along the strip is a walk, and a field that grabs focus on arrival ends it — which is exactly what forced a reach for the mouse.
-    selectTab(tabIds[next], { claimsField: false });
+    selectTab(tabIds[next]);
     focusItem(event.currentTarget, next);
   }
 
@@ -1389,13 +1406,13 @@ export function EmoticonPicker({
    * strip no longer draws, and `activeTab` would resolve it away to `RECENTS_TAB` — the
    * other menu's, since that fallback knows nothing about kinds.
    */
-  function selectMenu(menu: EmoticonMenu, { claimsField = true }: { claimsField?: boolean } = {}) {
+  function selectMenu(menu: EmoticonMenu) {
     if (menu === activeMenu) {
       return;
     }
 
     if (menu === "search") {
-      selectTab(SEARCH_TAB, { claimsField });
+      selectTab(SEARCH_TAB);
 
       return;
     }
@@ -1406,7 +1423,7 @@ export function EmoticonPicker({
       remembered !== null &&
       (isRecentsTabId(remembered) || visiblePacks.some((pack) => pack.id === remembered));
 
-    selectTab(isStillThere ? remembered : fallback, { claimsField });
+    selectTab(isStillThere ? remembered : fallback);
   }
 
   // INFO: § 13.9. Typing is the user taking the search over, so the item 따라하기 pinned to the front of the row stops being pinned.
@@ -1417,11 +1434,7 @@ export function EmoticonPicker({
     setFocusedIndex(0);
   }
 
-  /**
-   * @param claimsField REQUIREMENTS.md § 8.14. Whether 검색 may take the keyboard as it
-   * arrives (§ 13.8.). False for a walk along the strip, which the field would end.
-   */
-  function selectTab(id: string, { claimsField = true }: { claimsField?: boolean } = {}) {
+  function selectTab(id: string) {
     // WARN: Not merely a wasted render — `setRequestedTab` writes `localStorage` and broadcasts to every hook instance and tab, on every tap of the pack that is already open.
     if (id === activeTab) {
       return;
@@ -1431,7 +1444,6 @@ export function EmoticonPicker({
     setForcedTab(id === SEARCH_TAB ? SEARCH_TAB : null);
     // INFO: § 13.9. Walking to another tab ends the reveal — the ring belongs to the tap that asked for it, not to the panel.
     setRevealed(null);
-    setFieldClaimsFocus(claimsField);
 
     // WARN: § 13.8. The search tab is deliberately never remembered. It is a place the user passes through with a word in hand, so reopening the panel onto an empty search — days later, over the pack they actually use — would be answering a question nobody asked twice.
     if (id !== SEARCH_TAB) {
@@ -1482,16 +1494,6 @@ type EmoticonCellProps = {
   className?: string;
   buttonClassName?: string;
   item: Emoticon;
-  /**
-   * The axis the scroller **around** this cell runs on, which is the axis
-   * `touch-action` has to leave to the browser (`DESIGN.md § 7.15.1.`).
-   *
-   * WARN: Not a detail with a safe default — a cell tiles its scroller, so every
-   * drag meant for it starts here, and a browser intersects `touch-action` down the
-   * whole ancestor chain. Declaring `pan-y` inside § 13.8.'s `pan-x` row resolves to
-   * `none` and the row cannot be dragged at all, which is exactly how it shipped.
-   */
-  scrollAxis?: "x" | "y";
   /** REQUIREMENTS.md § 8.14. This cell's place in the list its scroller holds, which is what the arrow keys step through. */
   index: number;
   /** REQUIREMENTS.md § 8.14. Whether this is the one cell of the list in the tab sequence (ARIA's roving tabindex). */
@@ -1511,12 +1513,11 @@ type EmoticonCellProps = {
   onSelect: (item: Emoticon) => void;
 };
 
-/** INFO: § 13.6. The grid and § 13.8.'s row draw the same cell — only the box around it, and the axis it scrolls on, differ. */
+/** INFO: § 13.6. The grid and § 13.8.'s results draw the same cell — only the box around it differs. */
 function EmoticonCell({
   className,
   buttonClassName,
   item,
-  scrollAxis = "y",
   index,
   isFocusable,
   isWarmed = false,
@@ -1525,17 +1526,14 @@ function EmoticonCell({
   isRevealed = false,
   onSelect,
 }: EmoticonCellProps) {
-  // WARN: One value for both boxes below, never two spellings — they are intersected, so a pair that disagrees is `touch-action: none` and neither scroller moves.
-  const panAxis = scrollAxis === "x" ? "touch-pan-x" : "touch-pan-y";
-
   return (
-    // WARN: The axis is repeated on the overlay, not inherited — `touch-action` applies to the element a gesture starts on, and the overlay is now that element.
+    // WARN: `touch-pan-y` is repeated on the overlay rather than inherited — `touch-action` applies to the element the gesture starts on, and a cell tiles its scroller. The two are intersected (`DESIGN.md § 7.15.1.`), so a pair that disagreed would resolve to `none` and the panel would not scroll at all.
     // WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the panel would stop scrolling (`DESIGN.md § 7.15.`).
-    <HapticTarget className={className} overlayClassName={panAxis} keepsScroll>
+    <HapticTarget className={className} overlayClassName="touch-pan-y" keepsScroll>
       {/* WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it. */}
       <button
         className={cn(
-          panAxis,
+          "touch-pan-y",
           // WARN: REQUIREMENTS.md § 8.14. `ring-inset`, and a `primary-tint` fill under it. DESIGN.md § 3.2.'s offset ring is unreadable here for two reasons at once: the cells tile their scroller, which is `overflow-x-hidden` in the grid and `overflow-y-hidden` in § 13.8.'s row, so an outward ring is clipped away on every edge cell — the same trap § 7.5. records — and 2px of `primary` over an arbitrary user-authored picture is not a contrast anyone can rely on. The fill is what makes it legible; the ring is what makes it a focus ring.
           "rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] group-active:bg-surface-strong hover:bg-surface-soft focus-visible:bg-primary-tint focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-inset active:bg-surface-strong",
           // INFO: § 8.14. Additive to the `focus-visible` set above, which still answers a `Tab` arriving from outside the panel before any arrow has been pressed.
@@ -1586,8 +1584,6 @@ type SearchPaneProps = {
   revealedId: Nullable<EmoticonItemId>;
   /** REQUIREMENTS.md § 13.9. The reveal this pane is showing, which the row is scrolled back to the head of — and the one way onto this tab that does not ask for the keyboard. */
   revealToken: Optional<number>;
-  /** REQUIREMENTS.md § 8.14. Whether arriving here is a request to type. False for a walk along the tab strip, which this field taking the keyboard would end. */
-  takesFocus: boolean;
   /** REQUIREMENTS.md § 8.14. Which cell of the row is the one in the tab sequence. */
   focusableIndex: number;
   /** REQUIREMENTS.md § 8.14. Whether the panel is being driven by the keyboard, which is what paints the cells' focus ring. */
@@ -1628,7 +1624,6 @@ function SearchPane({
   hasFailed,
   revealedId,
   revealToken,
-  takesFocus,
   focusableIndex,
   isKeyboardDriven,
   fieldRef,
@@ -1644,9 +1639,8 @@ function SearchPane({
   // INFO: § 13.8. Keyed on the panel rather than on this pane's mount, which covers only one of the two ways in — the picker never unmounts, so reopening onto 검색 is a prop change with no mount to hang a focus on.
   // WARN: A layout effect and never the passive one. React flushes this inside the commit the tap renders, and WebKit raises the keyboard only for a `focus()` the user activation still covers — a frame later the field comes up focused with no keyboard, exactly as `message-search-bar.tsx` records.
   // WARN: § 13.9. And not when 따라하기 is what brought the tab up. Every other way onto this tab is a request to type; that one is a request to *look*, at an emoticon already sitting first in the row — raising the keyboard there puts the panel behind it and the thumb has further to travel than before the tap.
-  // WARN: § 8.14. And not when the tab was reached by walking the strip with the arrows. That walk is a walk, and a field that claims the keyboard on arrival ends it mid-stride — leaving the strip only reachable again with a pointer, which is the one thing the arrows exist to avoid.
   useLayoutEffect(() => {
-    if (isOpen && takesFocus && revealedId === null) {
+    if (isOpen && revealedId === null) {
       fieldRef.current?.focus();
     }
     // WARN: § 13.9. The reveal is deliberately not a dependency. It is cleared by the user typing, which is a keystroke the field already has focus for — listed here it would re-fire the focus on the frame the reveal is released and fight an IME mid-composition.
@@ -1808,11 +1802,6 @@ function TabButton({
 
 function findPack(packs: EmoticonPackSummary[], id: string) {
   return packs.find((pack) => pack.id === id);
-}
-
-/** REQUIREMENTS.md § 13.6. What each kind is called in a sentence — the menu bar's own labels are shorter (`MENU_LABELS`). */
-function toKindNoun(kind: EmoticonPackType): string {
-  return kind === "mini" ? "미니이모티콘" : "이모티콘";
 }
 
 /**
