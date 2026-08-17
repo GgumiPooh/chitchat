@@ -73,8 +73,8 @@ function hasScrollableAncestor(node: Node): boolean {
   let element = node instanceof Element ? node : node.parentElement;
 
   while (element && element !== document.body) {
-    // INFO: Both halves are needed — a declared scroller holding less than it shows cannot consume the drag either, and the pan happens instead.
-    if (element.scrollHeight > element.clientHeight && isScroller(element)) {
+    // WARN: Either axis counts — the picker's pack strip scrolls only sideways, and reading `overflowY` alone cancelled every drag across it.
+    if (isScrollableOn(element, "x") || isScrollableOn(element, "y")) {
       return true;
     }
 
@@ -84,8 +84,17 @@ function hasScrollableAncestor(node: Node): boolean {
   return false;
 }
 
-function isScroller(element: Element): boolean {
-  const { overflowY } = getComputedStyle(element);
+/** Whether `element` declares a scroller on `axis` and holds more than it shows there. */
+function isScrollableOn(element: Element, axis: "x" | "y"): boolean {
+  const style = getComputedStyle(element);
+  const overflow = axis === "x" ? style.overflowX : style.overflowY;
 
-  return overflowY === "auto" || overflowY === "scroll";
+  if (overflow !== "auto" && overflow !== "scroll") {
+    return false;
+  }
+
+  // INFO: Both halves are needed — a declared scroller holding less than it shows cannot consume the drag either, and the pan happens instead.
+  return axis === "x"
+    ? element.scrollWidth > element.clientWidth
+    : element.scrollHeight > element.clientHeight;
 }
