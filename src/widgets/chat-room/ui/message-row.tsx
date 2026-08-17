@@ -30,7 +30,7 @@ import {
 } from "@/shared/ui";
 import { Clock, CornerUpLeft, RotateCcw, Share, X } from "lucide-react";
 import type { CSSProperties } from "react";
-import { toEmoticonBox } from "../model/to-emoticon-box";
+import { toSoloEmoticonBox } from "../model/to-emoticon-box";
 import { toInlineContent } from "../model/to-inline-content";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
 import { EmoticonBubble } from "./emoticon-bubble";
@@ -145,7 +145,7 @@ export function MessageRow({
   // INFO: The id and its box together, so the branch below needs no re-narrowing of `inline` to reach either.
   const soloEmoticon =
     inline.kind === "solo" && soloInfo ? { itemId: inline.itemId, info: soloInfo } : undefined;
-  const soloBox = soloEmoticon ? toEmoticonBox(soloEmoticon.info) : undefined;
+  const soloBox = soloEmoticon ? toSoloEmoticonBox(soloEmoticon.info) : undefined;
   // WARN: § 8.3. The resolved box and not `inline.kind`. An id the page's map does not carry has nothing to draw large, so it falls through to the bubble below — and a row that still called itself bubble-less would quote twice and be priced at a picture it never draws.
   const isBubbleless = Boolean(emoticon) || hasMedia || Boolean(soloEmoticon);
   // INFO: REQUIREMENTS.md § 8.9. One card per bubble — the first link, not every link, because a message pasted from a share sheet routinely carries several.
@@ -231,9 +231,9 @@ export function MessageRow({
               <EmoticonBubble emoticon={emoticon} onFollow={onFollowEmoticon} />
             </div>
           ) : soloEmoticon && soloBox ? (
-            // INFO: § 13. One emoticon and no words, drawn at `toEmoticonBox` — the same box, and the same absence of a bubble, an emoticon message takes. A mini never occupies `messages.emoticon_item_id`, so this is a rendering rule read off the content rather than a second kind of row.
-            // WARN: § 8.3. The box is the **stored** one and never the loaded asset's, so it is the same before and after the image arrives — and `estimateRowHeight` prices it through the identical `toEmoticonBox` call.
-            // WARN: `lineHeight` is what resizes the shared `InlineEmoticon`, whose own `1lh` is otherwise one line of body text. It is an inline style there, so no class could win it — setting the line-height this box inherits is the one lever that reaches it, and it lands exactly: `1lh × width/height` is `toEmoticonBox`'s own width by construction.
+            // INFO: § 13. One emoticon and no words, drawn at `toSoloEmoticonBox` — the same absence of a bubble an emoticon message takes, but a smaller ceiling than `toEmoticonBox`'s so the two kinds read apart. A mini never occupies `messages.emoticon_item_id`, so this is a rendering rule read off the content rather than a second kind of row.
+            // WARN: § 8.3. The box is the **stored** one and never the loaded asset's, so it is the same before and after the image arrives — and `estimateRowHeight` prices it through the identical `toSoloEmoticonBox` call.
+            // WARN: `lineHeight` is what resizes the shared `InlineEmoticon`, whose own `1lh` is otherwise one line of body text. It is an inline style there, so no class could win it — setting the line-height this box inherits is the one lever that reaches it, and it lands exactly: `1lh × width/height` is `toSoloEmoticonBox`'s own width by construction.
             <div
               className={cn(LONG_PRESS_TARGET_CLASS, status !== "sent" && "opacity-60")}
               style={{ ...soloBox, lineHeight: `${soloBox.height}px` }}
@@ -248,6 +248,7 @@ export function MessageRow({
                   width={soloEmoticon.info.width}
                   height={soloEmoticon.info.height}
                   name={soloEmoticon.info.name}
+                  isTappable
                 />
               )}
             </div>

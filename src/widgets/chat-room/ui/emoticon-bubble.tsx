@@ -2,9 +2,8 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn } from "@/shared/lib";
+import { cn, useViewportReplay } from "@/shared/lib";
 import { PreloadImage } from "@/shared/ui";
-import { useState } from "react";
 import { playEmoticonSound } from "../model/play-emoticon-sound";
 import { toEmoticonBox } from "../model/to-emoticon-box";
 
@@ -22,7 +21,8 @@ export type EmoticonBubbleProps = {
  * item animates — an animated file plays because the browser plays it. A tap
  * restarts it and replays the sound; the sound a newly arrived emoticon makes by
  * itself is the room's business, not the bubble's (§ 13.6.), so scrolling past
- * four of them still plays nothing.
+ * four of them still plays nothing. § 13. It also replays whenever it re-enters
+ * the viewport, silently — `useViewportReplay` is the same remount, without the sound.
  *
  * INFO: REQUIREMENTS.md § 13.9. That one tap now also opens the picker on this
  * emoticon. The replay and the sound are kept rather than traded away — they are two
@@ -30,11 +30,15 @@ export type EmoticonBubbleProps = {
  * be answering a different question than the one that was asked.
  */
 export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubbleProps) {
-  const [replayToken, setReplayToken] = useState(0);
+  const { ref, replayToken, replay } = useViewportReplay();
   const box = toEmoticonBox(emoticon);
 
   return (
-    <div className={cn("flex", className)} style={{ width: box.width, height: box.height }}>
+    <div
+      ref={ref}
+      className={cn("flex", className)}
+      style={{ width: box.width, height: box.height }}
+    >
       <button
         className="size-full cursor-pointer rounded-sm transition-transform focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:scale-[0.96]"
         type="button"
@@ -57,7 +61,7 @@ export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubble
   );
 
   function handleTap() {
-    setReplayToken((current) => current + 1);
+    replay();
     // WARN: Inside the click handler with nothing awaited before it — iOS grants the gesture's audio permission to this call stack alone, so any `await` first loses it.
     playEmoticonSound(emoticon);
     onFollow?.();

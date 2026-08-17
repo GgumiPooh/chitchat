@@ -17,7 +17,7 @@ import {
   type Nullable,
   type Optional,
 } from "@/shared/lib";
-import { toEmoticonBox } from "./to-emoticon-box";
+import { toEmoticonBox, toSoloEmoticonBox } from "./to-emoticon-box";
 import { toInlineContent, type InlineContent } from "./to-inline-content";
 import { toInlineEmoticonBox } from "./to-inline-emoticon-box";
 import { MEDIA_EDGE, toMediaBoxHeight } from "./to-media-box";
@@ -298,9 +298,9 @@ function toPayloadHeight(
     return Math.max(toEmoticonBox(payload.emoticon).height, beside);
   }
 
-  // INFO: § 13. The same `toEmoticonBox` an emoticon message takes, since that is what a lone one is drawn as — and a deleted item keeps its stored box, so the tombstone standing in its place measures identically.
+  // INFO: § 13. `toSoloEmoticonBox`, not `toEmoticonBox` — a solo mini draws smaller than an emoticon message. A deleted item keeps its stored box, so the tombstone standing in its place measures identically.
   if (solo) {
-    return Math.max(toEmoticonBox(solo).height, beside);
+    return Math.max(toSoloEmoticonBox(solo).height, beside);
   }
 
   if (payload.media.length > 0) {

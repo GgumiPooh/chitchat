@@ -12,7 +12,7 @@ export type InlineEmoticonBox = {
  * REQUIREMENTS.md § 13. The box one inline emoticon occupies, for the bubble that draws
  * it and the § 8.3. estimate that prices it.
  *
- * WARN: Both read it from here, exactly as a lone one reads `toEmoticonBox` — the two
+ * WARN: Both read it from here, exactly as a lone one reads `toSoloEmoticonBox` — the two
  * are one answer to "how wide is this", and priced apart they re-wrap the sentence the
  * moment it renders.
  *
