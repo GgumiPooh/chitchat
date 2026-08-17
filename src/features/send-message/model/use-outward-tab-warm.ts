@@ -1,6 +1,7 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
+import type { EmoticonPackType } from "@/shared/config";
 import { A_MINUTE, A_SECOND, runWhenIdle } from "@/shared/lib";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
@@ -29,6 +30,8 @@ export type OutwardTabWarmOptions = {
   activeTab: string;
   /** The strip's own order, which is the order a swipe steps through. */
   tabIds: string[];
+  /** REQUIREMENTS.md § 13. The open menu's own kind — every tab in `tabIds` is one menu's, so this is one value for the whole walk rather than a per-tab lookup. */
+  kind: EmoticonPackType;
   /** REQUIREMENTS.md § 13.6. 최근 사용's items, which the panel already holds — the tab is ids alone and has no list of its own to fetch. */
   recents: Emoticon[];
   /** § 13.6. The strip's own thumbnails, one per pack. Warmed before the walk, since the whole row is on screen from the moment the panel is. */
@@ -48,6 +51,7 @@ export function useOutwardTabWarm({
   tabIds,
   recents,
   tabThumbnailUrls,
+  kind,
 }: OutwardTabWarmOptions): void {
   const queryClient = useQueryClient();
   // WARN: A ref rather than a dependency: `recents` is a fresh array on every render, so listing it would re-schedule the warm on each one.
@@ -97,6 +101,7 @@ export function useOutwardTabWarm({
             await fetchTabItems(tab),
             () => isCancelled,
             distance <= MAX_DECODED_DISTANCE,
+            kind,
           );
         }
       }
@@ -125,5 +130,5 @@ export function useOutwardTabWarm({
         .fetchQuery({ ...toEmoticonPackItemsQuery(tab), staleTime: WARM_ITEMS_STALE_TIME })
         .catch(() => []);
     }
-  }, [activeIndex, isOpen, queryClient, recentsCount, tabKey, thumbnailKey]);
+  }, [activeIndex, isOpen, kind, queryClient, recentsCount, tabKey, thumbnailKey]);
 }

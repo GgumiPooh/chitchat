@@ -6,13 +6,16 @@ import type { EmoticonPackType } from "@/shared/db";
 import {
   A_MINUTE,
   A_SECOND,
+  MINI_ANIMATION_LOOP_INTERVAL,
   cn,
   isBareKey,
   isCommandKey,
   isEditableElement,
   isShiftKey,
   revealWithin,
+  useViewportReplay,
   type EmoticonItemId,
+  type EmoticonPackId,
   type Nullable,
   type Optional,
 } from "@/shared/lib";
@@ -531,7 +534,7 @@ export function EmoticonPicker({
   );
 
   // INFO: § 13.6. The room's warm covers the tab that opens and no further, so the tabs around it are heated from here, outward.
-  useOutwardTabWarm({ isOpen, activeTab, tabIds, recents, tabThumbnailUrls });
+  useOutwardTabWarm({ isOpen, activeTab, tabIds, recents, tabThumbnailUrls, kind: menuKind });
   // WARN: § 13.5. The open is what re-asks for the list, since the mount stopped being the tap (see the query above). Rising edge only — every render while open would re-ask on each one.
   useEffect(() => {
     if (isOpen) {
@@ -718,6 +721,7 @@ export function EmoticonPicker({
           isOpen={isOpen}
           query={query}
           results={shown}
+          packTypes={packTypes}
           isPending={isSearchPending}
           hasFailed={hasSearchFailed}
           revealedId={revealedId}
@@ -830,7 +834,7 @@ export function EmoticonPicker({
                     description={toGridEmptyMessage()}
                   />
                 ) : (
-                  // INFO: DESIGN.md § 9. Assets are user-authored, so their aspect ratios are arbitrary — the cell is a fixed square and the still is `object-contain` inside it.
+                  // INFO: DESIGN.md § 9. Assets are user-authored, so their aspect ratios are arbitrary — the cell is a fixed square and the picture is `object-contain` inside it.
                   // WARN: § 8.14. The column count is `columns` as well as this class, and the two MUST agree — the vertical arrows step by that number, and a grid drawn at a different width moves focus to the wrong row. Both spellings are literals because Tailwind reads literals.
                   // INFO: § 8.14. `group` and not `grid`. ARIA's grid role requires `row` elements this layout has nowhere to put — a `display: contents` wrapper is the only place, and that is the property browsers spent years dropping from the accessibility tree. The **keys** follow the grid pattern; the roles say what is true, which is a labelled group of buttons.
                   <div
@@ -852,6 +856,7 @@ export function EmoticonPicker({
                         isWarmed
                         eagerCount={EAGER_CELL_ROWS * columns}
                         isKeyboardDriven={isKeyboardDriven}
+                        isMini={menuKind === "mini"}
                         onSelect={handleSelect}
                       />
                     ))}
@@ -1539,6 +1544,8 @@ type EmoticonCellProps = {
   isKeyboardDriven: boolean;
   /** REQUIREMENTS.md § 13.9. Whether this is the cell 따라하기 named, which is ringed until the panel is taken somewhere else. */
   isRevealed?: boolean;
+  /** REQUIREMENTS.md § 13. A mini draws its `animated-image` slot, not `still-image` — a mini is only ever played, never a frozen frame, so the grid shows exactly what a tap would insert. */
+  isMini?: boolean;
   onSelect: (item: Emoticon) => void;
 };
 
@@ -1553,14 +1560,19 @@ function EmoticonCell({
   eagerCount = 0,
   isKeyboardDriven,
   isRevealed = false,
+  isMini = false,
   onSelect,
 }: EmoticonCellProps) {
+  // WARN: § 13. A GIF/WebP/APNG's own loop count is not always infinite, so a mini cell fakes forever by remounting on a timer while it is actually on screen — `MINI_ANIMATION_LOOP_INTERVAL`. Not mini, this is `useViewportReplay`'s plain view-entry behavior, a harmless no-op remount of a still.
+  const { ref, replayToken } = useViewportReplay(isMini ? MINI_ANIMATION_LOOP_INTERVAL : undefined);
+
   return (
     // WARN: `touch-pan-y` is repeated on the overlay rather than inherited — `touch-action` applies to the element the gesture starts on, and a cell tiles its scroller. The two are intersected (`DESIGN.md § 7.15.1.`), so a pair that disagreed would resolve to `none` and the panel would not scroll at all.
     // WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the panel would stop scrolling (`DESIGN.md § 7.15.`).
     <HapticTarget className={className} overlayClassName="touch-pan-y" keepsScroll>
       {/* WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it. */}
       <button
+        ref={ref}
         className={cn(
           "touch-pan-y",
           // WARN: REQUIREMENTS.md § 8.14. `ring-inset`, and a `primary-tint` fill under it. DESIGN.md § 3.2.'s offset ring is unreadable here for two reasons at once: the cells tile their scroller, which is `overflow-x-hidden` in the grid and `overflow-y-hidden` in § 13.8.'s row, so an outward ring is clipped away on every edge cell — the same trap § 7.5. records — and 2px of `primary` over an arbitrary user-authored picture is not a contrast anyone can rely on. The fill is what makes it legible; the ring is what makes it a focus ring.
@@ -1584,10 +1596,12 @@ function EmoticonCell({
         }}
       >
         <PreloadImage
+          // WARN: Keyed by the replay token — a mini's own loop count is not always infinite, and only a fresh element restarts one (`useViewportReplay`).
+          key={replayToken}
           className="size-full"
           imgClassName="size-full object-contain"
           placeholderClassName="rounded-sm"
-          src={toEmoticonAssetUrl(item.id, "still-image", item.version)}
+          src={toEmoticonAssetUrl(item.id, isMini ? "animated-image" : "still-image", item.version)}
           alt=""
           // INFO: § 13.6. A warmed cell's skeleton is almost always a plate over an image that was ready — `PreloadFrameProps` carries the argument.
           hasDeferredSkeleton={isWarmed}
@@ -1605,6 +1619,8 @@ type SearchPaneProps = {
   isOpen: boolean;
   query: string;
   results: Emoticon[];
+  /** REQUIREMENTS.md § 13. A search result's kind, read off its pack — an item carries no kind of its own (§ 2.5.), and a search row can mix both. */
+  packTypes: Map<EmoticonPackId, EmoticonPackType>;
   /** REQUIREMENTS.md § 13.9. Whether the field has asked something the results do not yet answer. */
   isPending: boolean;
   /** REQUIREMENTS.md § 13.9.1. Whether what the field asked came back an error, which is neither pending nor a verdict. */
@@ -1649,6 +1665,7 @@ function SearchPane({
   isOpen,
   query,
   results,
+  packTypes,
   isPending,
   hasFailed,
   revealedId,
@@ -1740,6 +1757,7 @@ function SearchPane({
                   isFocusable={index === focusableIndex}
                   isKeyboardDriven={isKeyboardDriven}
                   isRevealed={item.id === revealedId}
+                  isMini={packTypes.get(item.packId) === "mini"}
                   onSelect={onSelect}
                 />
               ))}

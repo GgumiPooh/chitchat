@@ -1,7 +1,7 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
-import { toEmoticonAssetUrl } from "@/shared/config";
+import { toEmoticonAssetUrl, type EmoticonPackType } from "@/shared/config";
 import { mapPooled } from "@/shared/lib";
 
 // INFO: REQUIREMENTS.md § 13.6. Wide enough that a pack is warm in a few round trips, narrow enough that the § 13.3. route is not handed the whole library at once — each hit is a session check, an item read and a presign.
@@ -49,19 +49,27 @@ export function releaseWarmedImages(): void {
 }
 
 /**
- * REQUIREMENTS.md § 13.6. Puts a tab's still images in the browser's cache, and
- * keeps them there.
+ * REQUIREMENTS.md § 13.6. Puts a tab's images in the browser's cache, and keeps
+ * them there.
  *
  * INFO: Every task resolves, so one asset the § 13.3. route refuses cannot stop the queue on the rest of the tab.
+ *
+ * WARN: § 13. `kind` picks the **slot**, not just what the cell later draws — a mini
+ * tab is warmed at `animated-image` and never touches `still-image` at all, since a
+ * mini item is only ever drawn animated (`toEmoticonAssetUrl`'s own fallback still
+ * answers a still-only mini with its still). Warming both would fetch a slot a mini
+ * grid never requests.
  */
 export function warmEmoticonImages(
   items: Emoticon[],
   isCancelled: () => boolean,
   decodes = false,
+  kind: EmoticonPackType = "emoticon",
 ): Promise<void> {
+  const slot = kind === "mini" ? "animated-image" : "still-image";
   const urls = items
     .slice(0, MAX_WARMED_PER_TAB)
-    .map((item) => toEmoticonAssetUrl(item.id, "still-image", item.version));
+    .map((item) => toEmoticonAssetUrl(item.id, slot, item.version));
 
   return warmEmoticonUrls(urls, isCancelled, decodes);
 }

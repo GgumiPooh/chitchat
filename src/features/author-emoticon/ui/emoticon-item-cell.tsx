@@ -2,7 +2,12 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl, type EmoticonPackType } from "@/shared/config";
-import { cn, type EmoticonItemId } from "@/shared/lib";
+import {
+  MINI_ANIMATION_LOOP_INTERVAL,
+  cn,
+  useViewportReplay,
+  type EmoticonItemId,
+} from "@/shared/lib";
 import { PreloadImage } from "@/shared/ui";
 
 export type EmoticonItemCellProps = {
@@ -24,9 +29,14 @@ export function EmoticonItemCell({
   isThumbnail,
   onSelect,
 }: EmoticonItemCellProps) {
+  const isMini = type === "mini";
+  // WARN: § 13. Same fake-infinite loop as the send-message picker's mini grid — a GIF/WebP/APNG's own loop count is not always infinite, so this remounts on a timer while the cell is actually on screen.
+  const { ref, replayToken } = useViewportReplay(isMini ? MINI_ANIMATION_LOOP_INTERVAL : undefined);
+
   return (
     <div className={cn("space-y-2xs", className)}>
       <button
+        ref={ref}
         className={cn(
           "relative aspect-square w-full rounded-sm border p-2xs transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong",
           isThumbnail ? "border-primary bg-primary-tint" : "border-hairline bg-canvas",
@@ -36,10 +46,13 @@ export function EmoticonItemCell({
         onClick={() => onSelect(item.id)}
       >
         <PreloadImage
+          // WARN: Keyed by the replay token — a mini's own loop count is not always infinite, and only a fresh element restarts one (`useViewportReplay`).
+          key={replayToken}
           className="size-full"
           imgClassName="size-full object-contain"
           placeholderClassName="rounded-sm"
-          src={toEmoticonAssetUrl(item.id, "still-image", item.version)}
+          // INFO: REQUIREMENTS.md § 13. A mini is only ever shown moving — the send-message picker's own rule — so this grid draws the same slot rather than the still an 이모티콘 pack's cell draws.
+          src={toEmoticonAssetUrl(item.id, isMini ? "animated-image" : "still-image", item.version)}
           alt=""
           draggable={false}
           loading="lazy"

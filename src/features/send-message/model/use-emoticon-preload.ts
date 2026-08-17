@@ -1,6 +1,7 @@
 "use client";
 
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
+import type { EmoticonPackType } from "@/shared/config";
 import { A_MINUTE, A_SECOND, runWhenIdle } from "@/shared/lib";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
@@ -73,13 +74,13 @@ export function useEmoticonPreload(): void {
         return;
       }
 
-      const items = await fetchOpeningTabItems(packs);
+      const { items, kind } = await fetchOpeningTabItems(packs);
 
       if (isCancelled) {
         return;
       }
 
-      await warmEmoticonImages(items, () => isCancelled);
+      await warmEmoticonImages(items, () => isCancelled, false, kind);
     }
 
     /**
@@ -87,23 +88,35 @@ export function useEmoticonPreload(): void {
      * been deleted or hidden since, and this has to make the same choice — warming
      * the pack the panel resolves away from heats a tab that never opens and leaves
      * the one that does cold.
+     *
+     * INFO: § 13. `kind` travels with the items rather than being re-derived at the
+     * warm call, since a pack tab's kind and a recents tab's kind (`MINI_RECENTS_TAB`
+     * vs `RECENTS_TAB`) are resolved by two different branches here.
      */
-    async function fetchOpeningTabItems(packs: EmoticonPackSummary[]): Promise<Emoticon[]> {
+    async function fetchOpeningTabItems(
+      packs: EmoticonPackSummary[],
+    ): Promise<{ items: Emoticon[]; kind: EmoticonPackType }> {
       const { storedTab: tab, recentIds: ids } = openingTabRef.current;
+      const pack = packs.find((candidate) => candidate.id === tab);
 
-      if (isPackTabId(tab) && packs.some((pack) => pack.id === tab && pack.isEnabled)) {
-        return queryClient.fetchQuery(toEmoticonPackItemsQuery(tab)).catch(() => []);
+      if (isPackTabId(tab) && pack?.isEnabled) {
+        const items = await queryClient.fetchQuery(toEmoticonPackItemsQuery(tab)).catch(() => []);
+
+        return { items, kind: pack.type };
       }
 
       // INFO: § 13.6. Each kind keeps its own 최근 사용, and the remembered tab is what says which of the two this open will land on.
-      const recents = tab === MINI_RECENTS_TAB ? ids.mini : ids.emoticon;
+      const kind: EmoticonPackType = tab === MINI_RECENTS_TAB ? "mini" : "emoticon";
+      const recents = kind === "mini" ? ids.mini : ids.emoticon;
 
       // INFO: § 13.8. The search tab is never remembered, so it is not a case here — an empty 최근 사용 is, and it has nothing to ask for.
       if (recents.length === 0) {
-        return [];
+        return { items: [], kind };
       }
 
-      return queryClient.fetchQuery(toEmoticonsByIdsQuery(recents)).catch(() => []);
+      const items = await queryClient.fetchQuery(toEmoticonsByIdsQuery(recents)).catch(() => []);
+
+      return { items, kind };
     }
   }, [queryClient]);
 }

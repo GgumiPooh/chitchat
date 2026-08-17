@@ -122,7 +122,7 @@ export {
 } from "./hooks/use-pinch-zoom";
 export { useSettledCommit, type SettledCommitOptions } from "./hooks/use-settled-commit";
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
-export { useViewportReplay } from "./hooks/use-viewport-replay";
+export { MINI_ANIMATION_LOOP_INTERVAL, useViewportReplay } from "./hooks/use-viewport-replay";
 export {
   SNOWFLAKE_EPOCH,
   SNOWFLAKE_PATTERN,
