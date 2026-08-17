@@ -1,5 +1,5 @@
 import { cn } from "@/shared/lib";
-import type { ComponentProps, FC } from "react";
+import type { ComponentProps, FC, ReactNode } from "react";
 import { HapticTarget } from "./haptic-target";
 
 export type IconButtonProps = Omit<ComponentProps<"button">, "aria-label"> & {
@@ -7,7 +7,9 @@ export type IconButtonProps = Omit<ComponentProps<"button">, "aria-label"> & {
   /** WARN: The button's own box, for anything `className` cannot reach once `haptic` moves that to the wrapper — size, radius, colour. */
   buttonClassName?: string;
   iconClassName?: string;
-  Icon: FC<ComponentProps<"svg">>;
+  Icon?: FC<ComponentProps<"svg">>;
+  /** A drawn-in-place replacement for `Icon` — a decoded picture the button stands in for rather than a static glyph. */
+  icon?: ReactNode;
   variant?: "plain" | "floating";
   /** Ticks the Taptic engine when a finger lands on the button. */
   haptic?: boolean;
@@ -31,6 +33,7 @@ export function IconButton({
   buttonClassName,
   iconClassName,
   Icon,
+  icon,
   variant = "plain",
   haptic = false,
   keepsFocus = false,
@@ -57,7 +60,10 @@ export function IconButton({
       type={type}
       {...props}
     >
-      <Icon className={cn("pointer-events-none size-5", iconClassName)} strokeWidth={1.75} />
+      {icon ??
+        (Icon && (
+          <Icon className={cn("pointer-events-none size-5", iconClassName)} strokeWidth={1.75} />
+        ))}
     </button>
   );
 

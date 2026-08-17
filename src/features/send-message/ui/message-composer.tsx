@@ -5,6 +5,7 @@ import {
   MAX_EMOTICON_ID_LOOKUP,
   MAX_MESSAGE_LENGTH,
   OBJECT_PLACEHOLDER,
+  toEmoticonAssetUrl,
   toPlaceholderIndex,
   type KeywordMatch,
 } from "@/shared/config";
@@ -47,6 +48,8 @@ import {
   type SyntheticEvent,
 } from "react";
 import { toEmoticonKeywordsQuery } from "../model/keywords-query";
+import { useEmoticonSearch } from "../model/use-emoticon-search";
+import { warmEmoticonUrls } from "../model/warm-emoticon-images";
 
 /**
  * The box the field and its keyword layer must both be drawn in.
@@ -242,6 +245,38 @@ export function MessageComposer({
     enabled: false,
   });
   const match = useMemo(() => findKeywordMatch(draft.text, keywords), [draft.text, keywords]);
+  // INFO: § 13.8. The toggle's own preview — the underlined word's top hit, decoded before it is ever drawn (`warmEmoticonUrls(decodes: true)`), so the swap never shows a skeleton in the button's place.
+  const { results: previewResults } = useEmoticonSearch(match?.query ?? "", !isEditing, false);
+  const previewResult = previewResults[0] ?? null;
+  const [decodedPreview, setDecodedPreview] =
+    useState<Nullable<{ version: number; url: string; id: EmoticonItemId }>>(null);
+
+  useEffect(() => {
+    if (!previewResult) {
+      return;
+    }
+
+    let cancelled = false;
+    const url = toEmoticonAssetUrl(previewResult.id, "animated-image", previewResult.version);
+
+    void warmEmoticonUrls([url], () => cancelled, true).then(() => {
+      if (!cancelled) {
+        setDecodedPreview({ id: previewResult.id, version: previewResult.version, url });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [previewResult]);
+
+  // INFO: Derived rather than cleared from the effect above — a result that disappears (the field emptied, or the debounce moved on) must drop the button's preview on the very render it does, not a tick later through a second `setState`.
+  const previewUrl =
+    previewResult &&
+    decodedPreview?.id === previewResult.id &&
+    decodedPreview.version === previewResult.version
+      ? decodedPreview.url
+      : null;
   // INFO: The emoticons as the field draws them, one per placeholder in `draft.text` and in that order.
   const objects = useMemo<EditableObject[]>(
     () =>
@@ -499,11 +534,22 @@ export function MessageComposer({
         {!isEditing && (
           <IconButton
             buttonClassName={cn(isEmoticonPickerOpen && "bg-primary-tint text-primary")}
-            Icon={Smile}
+            Icon={previewUrl ? undefined : Smile}
             haptic
             aria-label="이모티콘"
             aria-pressed={isEmoticonPickerOpen}
-            onClick={toggleEmoticons}
+            icon={
+              previewUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- The exact `Image` warmEmoticonUrls decoded, so the browser's decode cache paints it with nothing for `next/image` to wait on.
+                <img
+                  className="pointer-events-none size-5 object-contain"
+                  src={previewUrl}
+                  alt=""
+                  draggable={false}
+                />
+              )
+            }
+            onClick={previewUrl ? handleKeywordTap : toggleEmoticons}
           />
         )}
         {/* WARN: `keepsFocus` repeats `keepFieldFocused` on the overlay. It takes the tap the button would have taken, so without it the textarea blurs and iOS drops the keyboard on every send. */}
