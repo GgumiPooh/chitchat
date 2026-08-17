@@ -59,9 +59,9 @@ import { ShellOverlay } from "./shell-overlay";
  * nothing at all.
  *
  * WARN: The abort in `useDecodedOriginal`'s cleanup does not stand in for this, and the two are not alternatives. It stops the bytes that have not arrived yet; the request itself has already been made, and `/api/media/{id}` validates the session, reads the row and signs a URL before it answers. A reader flipping between three photos was paying that round trip per crossing, for objects they never looked at.
- * INFO: Half a second rather than a frame or two, because the flipping is what it is for. A slide crossed in a filmstrip scrub is held for tens of milliseconds, but one crossed in a quick there-and-back swipe is held for two or three hundred — and that is the pattern the § 10. blank slide was reported from.
+ * INFO: A whole second rather than a frame or two, because the flipping is what it is for. A slide crossed in a filmstrip scrub is held for tens of milliseconds, and one crossed in a quick there-and-back swipe for two or three hundred — the pattern the § 10. blank slide was reported from, and a reader searching for a photo stays under it for several crossings in a row.
  */
-const ARRIVAL_DWELL = A_SECOND / 2;
+const ARRIVAL_DWELL = A_SECOND;
 
 export type MediaViewerProps = {
   className?: string;
