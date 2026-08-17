@@ -30,8 +30,10 @@ type Modifiers = Pick<KeyboardEvent, "altKey" | "ctrlKey" | "metaKey" | "shiftKe
  * Whether this event carries the platform's shortcut modifier and **no other**.
  *
  * WARN: REQUIREMENTS.md § 8.14. One modifier per platform, never `metaKey || ctrlKey`.
- * WebKit honours Cocoa's emacs bindings inside a text field, so a `Ctrl` accepted on
- * a Mac takes `Ctrl+E` (line end) and `Ctrl+A` (line start) away from the composer.
+ * WebKit honours Cocoa's emacs bindings inside a text field, so a `Ctrl` accepted here on
+ * a Mac would take `Ctrl+A` (line start) away from the composer along with every other
+ * letter in that table. `⌃E` is the one this app spends deliberately — `isMenuKey` claims
+ * it for § 13.6.'s panel and the composer loses line-end for it.
  *
  * WARN: § 8.14. `Shift` and `Alt` are refused for the same reason rather than ignored.
  * `⌘⇧↓` is macOS's select-to-end-of-document and `⌥⌘↓` is its own chord — matched
@@ -82,8 +84,9 @@ export function isAltKey(event: Modifiers): boolean {
  * WARN: REQUIREMENTS.md § 8.14. Neither `isCommandKey`'s modifier nor `isAltKey`'s, and
  * the platform split is the binding rather than a detail of it: `⌥` types a character on
  * macOS, so `⌥1` is `¡` and the digit cannot be typed at all while a field holds the
- * caret. `⌃` types nothing there and Cocoa's emacs bindings are letters, so it takes
- * nothing away from the composer the way `isCommandKey` warns a loose `Ctrl` would.
+ * caret. `⌃` types nothing there, and Cocoa's emacs bindings are letters — so the digits
+ * cost the composer nothing. `⌃E` is the one letter this modifier spends, and line-end
+ * goes with it: a stated price rather than the accident `isCommandKey` refuses.
  *
  * WARN: § 8.14. An exact match, and it is refusing two real chords rather than being
  * tidy. `⌃⌥` is VoiceOver's own modifier, and Windows reports `AltGr` as `Ctrl`+`Alt` —

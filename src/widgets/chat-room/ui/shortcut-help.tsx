@@ -64,7 +64,7 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
         ])}
         {/* INFO: § 8.14. The strip, the grid and the field are one surface to the reader, so the sheet names the arrows once rather than each edge between them — the edges are what the arrows do, not something to be learnt separately. */}
         {renderGroup("이모티콘", [
-          { chord: [command], keys: ["E"], label: "이모티콘 패널 열기 / 닫기" },
+          { chord: [menu], keys: ["E"], label: "이모티콘 패널 열기 / 닫기" },
           // INFO: § 8.14. One row for the three digits, in the menu bar's own order — three rows would say the same thing three times and cost the sheet its length.
           // INFO: § 13.8. The seed is named on this row rather than given one of its own, because it is the same key doing the same thing with a draft in front of it.
           {

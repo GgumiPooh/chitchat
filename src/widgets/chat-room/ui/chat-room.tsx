@@ -326,7 +326,7 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 13.9. An emoticon tapped in the conversation. Where the panel opens is the picker's decision, since the pack list is what settles it.
   const [emoticonReveal, setEmoticonReveal] =
     useState<Nullable<{ emoticon: Emoticon; token: number }>>(null);
-  // INFO: REQUIREMENTS.md § 8.14. The menu the digits — and `⌘E`'s own open — asked for, carrying a token for `emoticonReveal`'s reason: pressing the same key twice is two requests, and keyed on the menu alone the second would be no change to see.
+  // INFO: REQUIREMENTS.md § 8.14. The menu the digits — and `⌃E`'s own open — asked for, carrying a token for `emoticonReveal`'s reason: pressing the same key twice is two requests, and keyed on the menu alone the second would be no change to see.
   const [menuRequest, setMenuRequest] =
     useState<Nullable<{ menu: EmoticonMenu; token: number }>>(null);
   // WARN: § 13. A mini the picker put into the draft. The token is the composer's key for it as well as the instruction, so it counts up rather than carrying `Date.now()` — two minis inside one millisecond would be one key, and the draft could no longer say which of them a Backspace took.
@@ -922,7 +922,7 @@ export function ChatRoom({
 
   /**
    * REQUIREMENTS.md § 8.14. Focus into the panel a menu key opened — every key that
-   * opens it makes one of these requests, `⌘E` included.
+   * opens it makes one of these requests, `⌃E` included.
    *
    * WARN: An effect rather than a line in `selectEmoticonMenu`, because the menu has to
    * change first. The picker applies a menu request in an effect of its own — a child's,
@@ -1837,7 +1837,7 @@ export function ChatRoom({
   }
 
   /**
-   * REQUIREMENTS.md § 8.14. `⌘E` — § 13.6.'s panel, opened on 이모티콘 or closed. It is
+   * REQUIREMENTS.md § 8.14. `⌃E` — § 13.6.'s panel, opened on 이모티콘 or closed. It is
    * the **only** key that closes it; the digits below choose a menu and never do.
    *
    * WARN: It names 이모티콘 rather than restoring the remembered tab, so it goes through
@@ -1864,11 +1864,11 @@ export function ChatRoom({
 
   /**
    * REQUIREMENTS.md § 8.14. `⌃1` / `⌃2` / `⌃3` — § 13.6.'s panel on the menu the digit
-   * names, opened if it is shut. `⌘E`'s open is this too, naming 이모티콘.
+   * names, opened if it is shut. `⌃E`'s open is this too, naming 이모티콘.
    *
    * WARN: A digit never closes the panel, so the digit of the menu already on screen
    * changes no menu — the request reaches a panel that is already there and already on
-   * that menu, and `selectMenu` finds nothing to do. `⌘E` is the one key that closes.
+   * that menu, and `selectMenu` finds nothing to do. `⌃E` is the one key that closes.
    *
    * WARN: § 13.6. The blur is the same one the toggle button makes and for the same
    * reason: the panel is gated on the keyboard being down, and iOS lowers it for a blur

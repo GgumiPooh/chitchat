@@ -41,17 +41,17 @@ export type ChatShortcuts = {
   onGoToNewest: () => void;
   /** `⌘/` — the sheet that says what the other keys are. */
   onShowShortcuts: () => void;
-  /** `⌘E` — REQUIREMENTS.md § 13.6.'s panel, opened on the tab it was last left on, or closed. */
+  /** `⌃E` — REQUIREMENTS.md § 13.6.'s panel, opened on the tab it was last left on, or closed. */
   onToggleEmoticonPanel: () => void;
   /**
    * REQUIREMENTS.md § 8.14. `⌃1` / `⌃2` / `⌃3`, and `Alt` for the `⌃` off an Apple
    * platform — § 13.6.'s three menus, in the order the bar draws them, opening the panel
    * where it is shut.
    *
-   * WARN: These **never close it**. `⌘E` is the one key that does, which is the whole
+   * WARN: These **never close it**. `⌃E` is the one key that does, which is the whole
    * division: one key for whether the panel is on screen, three for which menu it holds.
-   * The digit of the menu already open is therefore not a special case at all — the
-   * panel is already there and already on it.
+   * The digit of the menu already open therefore changes no menu — the panel is already
+   * there and already on it.
    *
    * WARN: The 검색 digit reaches here only where the composer did not claim it first —
    * it seeds 검색 with the word it has underlined (§ 13.8.), which is the one thing this
@@ -100,7 +100,7 @@ export type ChatShortcuts = {
  * `document`. Answered here first it would ignore that word — so this is the fallback
  * for every press the composer does not claim.
  *
- * INFO: `EmoticonPicker` answers none of these, having answered `⌘E` at first. Whether
+ * INFO: `EmoticonPicker` answers none of these, having answered `⌃E` at first. Whether
  * the panel is open is this room's state, so a copy in the panel could only ever open
  * and never close.
  */
@@ -155,21 +155,21 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
 
       const menu = toEmoticonMenu(event);
 
-      // WARN: § 8.14. Ahead of `isAltKey`, which off an Apple platform is the very same modifier the digits carry — that branch reads every key but `ArrowDown` as a step towards older messages, so `Alt+1` walks the conversation backwards instead of opening a menu.
-      // WARN: § 8.14. macOS spells these with `⌃` and never reaches that branch, so this ordering is now broken only where nobody developing on a Mac will see it — which makes it more load-bearing than when it was broken everywhere, not less.
+      // WARN: § 8.14. Both `isMenuKey` branches run ahead of `isAltKey`, which off an Apple platform is the very same modifier they carry — that branch reads every key but `ArrowDown` as a step towards older messages, so `Alt+1` and `Alt+E` walk the conversation backwards instead of reaching the panel.
+      // WARN: § 8.14. macOS spells them with `⌃` and never reaches that branch, so this ordering is broken only where nobody developing on a Mac will see it — which makes it more load-bearing than when it was broken everywhere, not less.
       if (menu !== undefined) {
         handlers.current.onSelectEmoticonMenu(menu);
+      } else if (isMenuKey(event) && isLetterKey(event, "e")) {
+        handlers.current.onToggleEmoticonPanel();
       } else if (isAltKey(event)) {
         handlers.current.onScrollHistory(event.key === "ArrowDown" ? 1 : -1);
       } else if (event.key === "Enter") {
         handlers.current.onFocusComposer();
       } else if (event.key === "ArrowDown") {
         handlers.current.onGoToNewest();
-      } else if (event.key === "/") {
-        handlers.current.onShowShortcuts();
       } else {
-        // INFO: § 8.14. What is left is `⌘E` — `isOwnedKey` admits no other key this far, so a new binding needs a test of its own above rather than a share of this one.
-        handlers.current.onToggleEmoticonPanel();
+        // INFO: § 8.14. What is left is `⌘/` — `isOwnedKey` admits no other key this far, so a new binding needs a test of its own above rather than a share of this one.
+        handlers.current.onShowShortcuts();
       }
     }
 
@@ -287,9 +287,10 @@ function isOwnedKey(event: KeyboardEvent): boolean {
     return isBareKey(event) && !hasFocusedControl();
   }
 
-  // INFO: § 8.14. `⌘E` opens § 13.6.'s panel and closes it, and it is the only key that closes it — which menu is on screen is the digits' business below.
+  // INFO: § 8.14. `⌃E` opens § 13.6.'s panel and closes it, and it is the only key that closes it — which menu is on screen is the digits' business below.
+  // WARN: § 8.14. On `isMenuKey` rather than the platform modifier, and macOS pays for it: `⌃E` is Cocoa's `moveToEndOfParagraph`, so the composer loses line-end. That is the deliberate price of one modifier for the whole panel; `⌃A` is untouched.
   if (isLetterKey(event, "e")) {
-    return isCommandKey(event);
+    return isMenuKey(event);
   }
 
   // INFO: § 8.14. § 13.6.'s menu bar, on the one modifier that can be pressed inside a text field on both platforms — which is not the one `⌥↑`/`⌥↓` scrolls with, and so costs the sheet a second label.
