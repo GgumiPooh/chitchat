@@ -113,6 +113,9 @@ const MENU_KEYBOARD_RING =
 // INFO: § 13.9.1. One sentence for the two places a failed search is said — an empty pane, and the caption under a § 13.9. row that holds the tapped item and nothing the words found.
 const SEARCH_FAILED_MESSAGE = "검색하지 못했어요";
 
+// INFO: § 13.6. The tab's own label and the heading over its cells, which are the same words in two places.
+const RECENTS_LABEL = "최근 사용";
+
 /** REQUIREMENTS.md § 8.14. A tab, the cell focus is to land on in it, and the offset to read it at. */
 type TabEntry = {
   /**
@@ -188,7 +191,7 @@ export type EmoticonPickerProps = {
    * it — a panel nothing has focused is one the arrows cannot reach, whichever way it
    * was opened. A `token` of `0` is the resting value and asks for nothing.
    *
-   * WARN: **Every** open bumps it, not only `⌘E`. The toggle is a `button`, so a mouse open leaves focus on the composer's own control and the whole panel is unreachable from the keyboard until the user finds their way back in with `Tab` — which is the bug this shape exists to answer, and the reason `viaKeyboard` rides along rather than being assumed.
+   * WARN: **Every** open bumps it, not only `⌃E`. The toggle is a `button`, so a mouse open leaves focus on the composer's own control and the whole panel is unreachable from the keyboard until the user finds their way back in with `Tab` — which is the bug this shape exists to answer, and the reason `viaKeyboard` rides along rather than being assumed.
    * INFO: `viaKeyboard` decides the **ring** and nothing else (`isKeyboardDriven`). A pointer open focuses a cell silently: `:focus-visible` would not have painted for that user anyway, and a grid lit up by a mouse click is noise. The first key pressed inside the panel turns the rings on through `noteKeyboardUse`.
    */
   focusRequest?: EmoticonFocusRequest;
@@ -214,7 +217,7 @@ export type EmoticonPickerProps = {
    */
   revealRequest?: Nullable<{ emoticon: Emoticon; token: number }>;
   /**
-   * REQUIREMENTS.md § 8.14. The three menu digits and `⌘E`'s own open, which the room
+   * REQUIREMENTS.md § 8.14. The three menu digits and `⌃E`'s own open, which the room
    * forwards because the outcome it shares with them is its own state — the panel being
    * on screen at all.
    *
@@ -456,6 +459,10 @@ export function EmoticonPicker({
   const kindNouns = EMOTICON_KIND_NOUNS[menuKind];
   const menuPacks = visiblePacks.filter((pack) => pack.type === menuKind);
   const recentsTab = menuKind === "mini" ? MINI_RECENTS_TAB : RECENTS_TAB;
+  // WARN: § 13.6. Empty while the summaries are still in flight, which is the one case the heading is withheld — a pack tab knows its own name a round trip before it knows its items.
+  const activeTabLabel = isRecentsTabId(activeTab)
+    ? RECENTS_LABEL
+    : (findPack(menuPacks, activeTab)?.name ?? "");
   // INFO: § 13.6. This menu's own stored list, which is the whole of the kind filter — `useRecentEmoticons` keeps one per kind, written from what the send carried.
   const recentIds = recentIdsByKind[menuKind];
   // WARN: § 8.14. The arrow step **and** the `grid-cols-*` class below, which are one decision written twice — see `MINI_GRID_COLUMNS`.
@@ -563,7 +570,7 @@ export function EmoticonPicker({
   useEffect(revealActiveTab, [activeTab, packs]);
 
   /**
-   * REQUIREMENTS.md § 8.14. Focus into the panel when `⌘E` opened it, since a key that
+   * REQUIREMENTS.md § 8.14. Focus into the panel when `⌃E` opened it, since a key that
    * opens a panel and leaves focus behind has opened one the arrows cannot reach.
    *
    * WARN: Keyed on the item count as well, because a cold pack is a round trip from
@@ -576,8 +583,8 @@ export function EmoticonPicker({
     if (focusRequest.token !== 0 && focusRequest.token !== satisfiedFocusRequestRef.current) {
       satisfiedFocusRequestRef.current = focusRequest.token;
       pendingEntryRef.current = { index: 0 };
-      // WARN: § 8.14. `noteKeyboardUse` cannot hear the key that opened the panel — ⌘E is pressed with focus outside it, so the event never travels through it. Left unsaid, the cell this is about to focus paints no ring: `:focus-visible` judges a programmatic focus by whether the *previously* focused element had it, and on a freshly loaded page that is `<body>`, which never does. Reaching the panel from the composer hid it, a text field always matching.
-      // WARN: § 8.14. And it is set from the request rather than to `true`, because a pointer open makes one of these too now. The panel outlives every close, so a stale `true` from an earlier ⌘E would light the whole grid up for a mouse the moment it reopened.
+      // WARN: § 8.14. `noteKeyboardUse` cannot hear the key that opened the panel — ⌃E is pressed with focus outside it, so the event never travels through it. Left unsaid, the cell this is about to focus paints no ring: `:focus-visible` judges a programmatic focus by whether the *previously* focused element had it, and on a freshly loaded page that is `<body>`, which never does. Reaching the panel from the composer hid it, a text field always matching.
+      // WARN: § 8.14. And it is set from the request rather than to `true`, because a pointer open makes one of these too now. The panel outlives every close, so a stale `true` from an earlier ⌃E would light the whole grid up for a mouse the moment it reopened.
       setIsKeyboardDriven(focusRequest.viaKeyboard);
     }
 
@@ -745,7 +752,7 @@ export function EmoticonPicker({
               isActive={activeTab === recentsTab}
               isFocusable={focusableTabId === recentsTab}
               isKeyboardDriven={isKeyboardDriven}
-              label="최근 사용"
+              label={RECENTS_LABEL}
               onClick={() => selectTab(recentsTab)}
             >
               <Clock className="size-5 text-meta" strokeWidth={1.75} />
@@ -796,6 +803,11 @@ export function EmoticonPicker({
             onFocus={trackCellFocus}
             {...swipeHandlers}
           >
+            {/* INFO: DESIGN.md § 7.10. 보관함's month header — `title-sm` `meta`, inside the scroller so it travels with the cells rather than pinning above them. */}
+            {/* WARN: § 8.14. Not a focus target, so it carries no `FOCUS_INDEX_ATTRIBUTE` — the arrows read cells off that attribute and a heading in the list would be a step onto nothing. */}
+            {activeTabLabel !== "" && (
+              <h2 className="pb-xs text-title-sm text-meta">{activeTabLabel}</h2>
+            )}
             {/* WARN: § 13.6. The tab's own items are a request now, so the grid waits for them as it waits for the list. Drawn before they land, a pack tab paints `이 묶음에는 이모티콘이 없어요` over a pack that has plenty — the verdict-before-the-answer § 13.9.1. removed from the search pane. */}
             {/* WARN: § 13.6. 최근 사용 is the default tab and its ids resolve through a request of their own, so it needs the same guard — without it the panel flashes `최근 사용한 이모티콘이 여기에 보여요` every time it opens ahead of the preload. Every send used to do it too, a new id being a cold key; `emoticons-query.ts` holds the previous answer over for exactly that. */}
             {/* INFO: § 13.6. A pack tab holds nothing over, deliberately, where 최근 사용 does. The key there is the same list plus one item; here it is a **different pack**, and what would slide in under the new tab is another pack's shelf, swapped out a round trip later. */}
@@ -1012,7 +1024,7 @@ export function EmoticonPicker({
    * REQUIREMENTS.md § 8.14. What the panel hears from every key pressed anywhere
    * inside it, and the only thing it does with one.
    *
-   * INFO: § 8.14. `⌘E` is not answered here, and used to be. It **toggles**, and what it
+   * INFO: § 8.14. `⌃E` is not answered here, and used to be. It **toggles**, and what it
    * toggles — whether the panel is open — is the room's state, so a copy in here could
    * only ever open and never close.
    */
@@ -1239,7 +1251,7 @@ export function EmoticonPicker({
    * whether it landed.
    *
    * INFO: § 8.14. The head of the list is where every way *in* lands — the `ArrowUp`
-   * off the strip and the `⌘E` that opened the panel both pass `0`. Only a page turn
+   * off the strip and the `⌃E` that opened the panel both pass `0`. Only a page turn
    * (`crossToAdjacentTab`) names a cell of its own, because that one is continuing a
    * row rather than starting a list.
    *
@@ -1605,7 +1617,7 @@ type SearchPaneProps = {
   focusableIndex: number;
   /** REQUIREMENTS.md § 8.14. Whether the panel is being driven by the keyboard, which is what paints the cells' focus ring. */
   isKeyboardDriven: boolean;
-  /** REQUIREMENTS.md § 8.14. Held by the panel, which focuses it for ⌘E and for the row's `ArrowUp`. */
+  /** REQUIREMENTS.md § 8.14. Held by the panel, which focuses it for ⌃E and for the row's `ArrowUp`. */
   fieldRef: RefObject<Nullable<HTMLInputElement>>;
   /** REQUIREMENTS.md § 8.14. The row is also the scroller the panel moves cell focus inside, so the ref is the panel's rather than this pane's. */
   rowRef: RefObject<Nullable<HTMLDivElement>>;
@@ -1652,6 +1664,7 @@ function SearchPane({
   onCellFocus,
 }: SearchPaneProps) {
   const trimmed = query.trim();
+  const emptyMessage = toEmptyMessage();
 
   // INFO: § 13.8. Keyed on the panel rather than on this pane's mount, which covers only one of the two ways in — the picker never unmounts, so reopening onto 검색 is a prop change with no mount to hang a focus on.
   // WARN: A layout effect and never the passive one. React flushes this inside the commit the tap renders, and WebKit raises the keyboard only for a `focus()` the user activation still covers — a frame later the field comes up focused with no keyboard, exactly as `message-search-bar.tsx` records.
@@ -1695,9 +1708,16 @@ function SearchPane({
       </div>
       {results.length === 0 ? (
         // INFO: § 13.8. The whole pane below the field, and with no row to scroll it is where the tab swipe has the most room to be made.
-        <p className="flex flex-1 touch-pan-y items-center justify-center text-body-sm text-meta">
-          {toEmptyMessage()}
-        </p>
+        <div className="flex flex-1 touch-pan-y items-center justify-center">
+          {/* WARN: § 13.9.1. Nothing at all while the answer is in flight, where `toEmptyMessage` answers `""` — an icon standing over a blank line is the verdict this pane exists to withhold. */}
+          {emptyMessage !== "" && (
+            <EmptyState
+              className="border-0 bg-transparent"
+              Icon={Search}
+              description={emptyMessage}
+            />
+          )}
+        </div>
       ) : (
         <>
           {/* WARN: `overflow-x-hidden` keeps the § 13.6. slide inside the panel, as the other menus' scroller does — a vertical-only scroller still resolves its horizontal axis to `auto`. */}
