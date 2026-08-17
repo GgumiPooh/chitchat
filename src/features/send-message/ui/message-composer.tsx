@@ -34,6 +34,7 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -201,18 +202,25 @@ export function MessageComposer({
   const caretOffsetRef = useRef<Nullable<number>>(null);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   /**
-   * Whether this draft session has ever staged a mini emoticon. `false` renders a plain
-   * `Textarea` and keeps mobile Safari's caret painting correct for every draft that
-   * never touches the picker; the first insertion promotes the field to `EditableField`
-   * for the rest of the draft, since that is the only element that can hold one.
-   *
-   * WARN: Never downgraded by deleting the last emoticon back out of the draft — that
-   * deletion is a live keystroke on a focused, possibly IME-composing field, and
-   * remounting a different element under it mid-composition would corrupt the
-   * syllable in flight. It resets only where the draft itself resets: `submit` and a
-   * fresh `seededDraft`.
+   * Whether the field is a plain `Textarea` (`false`) or an `EditableField` (`true`).
+   * Mobile Safari mispaints the contenteditable caret after a newline, so a draft with
+   * nothing to hold between its characters stays on `Textarea`; the moment a mini
+   * emoticon enters — or is still there in a seeded correction — the field has to be
+   * the one element that can draw one.
    */
-  const [isElevated, setIsElevated] = useState(false);
+  const isElevated = draft.emoticons.length > 0;
+  // INFO: What the effect below saw `isElevated` as last time it ran, so it can tell a demotion apart from every other render.
+  const wasElevatedRef = useRef(isElevated);
+  /**
+   * Whether the field held focus at the moment its last edit was reported, so the
+   * effect below knows a demotion is one to chase with focus rather than leave alone.
+   *
+   * WARN: A Backspace that empties the object list is never mid-IME-composition —
+   * `EditableField.report` only reaches the object-deletion path outside a
+   * composition — so a demotion always lands between keystrokes and this effect
+   * always has a settled DOM to hand focus back into.
+   */
+  const pendingRefocusRef = useRef(false);
   // INFO: REQUIREMENTS.md § 8.13. The last seed this component has taken, so the render-phase adjustment below fires once per instruction rather than on every render.
   const [seenSeedToken, setSeenSeedToken] = useState(seededDraft?.token);
   // INFO: § 13.6. The last emoticon taken from the picker, for the reason the seed keeps a token — the adjustment below is the same one.
@@ -245,6 +253,39 @@ export function MessageComposer({
       })),
     [draft.emoticons],
   );
+
+  /**
+   * REQUIREMENTS.md § 8.14. A Backspace that empties the object list demotes the field
+   * to `Textarea` on the very render it triggers — this is what picks focus back up on
+   * the node that replaces it, so typing carries on rather than landing on nothing.
+   *
+   * WARN: A layout effect and not an effect, so the swap settles before the browser
+   * paints the frame — iOS Safari reads a focus change that straddles a paint as the
+   * keyboard going down and back up, which is the flicker `Textarea` was chosen to
+   * avoid causing in the first place.
+   *
+   * INFO: Never fires for the opposite direction. § 13.6.'s picker is the only way an
+   * emoticon enters the draft, and it blurs the field to open — `EditableField`'s own
+   * mount effect already restores that caret once focus returns, with nothing here to add.
+   */
+  useLayoutEffect(() => {
+    const wasElevated = wasElevatedRef.current;
+
+    wasElevatedRef.current = isElevated;
+
+    if (wasElevated && !isElevated && pendingRefocusRef.current) {
+      pendingRefocusRef.current = false;
+
+      const field = fieldRef.current;
+
+      if (field instanceof HTMLTextAreaElement) {
+        const caret = Math.min(caretOffsetRef.current ?? field.value.length, field.value.length);
+
+        field.focus();
+        field.setSelectionRange(caret, caret);
+      }
+    }
+  }, [isElevated]);
 
   // INFO: REQUIREMENTS.md § 15.1. Declared here rather than lifted to the screen — the draft never leaves this component, and a forced refresh must not discard it.
   useUnsentWork(hasDraft);
@@ -289,11 +330,7 @@ export function MessageComposer({
    */
   if (seededDraft !== undefined && seededDraft.token !== seenSeedToken) {
     setSeenSeedToken(seededDraft.token);
-
-    const seeded = toSeededDraft(seededDraft);
-
-    setDraft(seeded);
-    setIsElevated(seeded.emoticons.length > 0);
+    setDraft(toSeededDraft(seededDraft));
   }
 
   /**
@@ -314,7 +351,6 @@ export function MessageComposer({
     setDraft((current) =>
       hasRoomForEmoticon(current) ? toInsertedDraft(current, insertedEmoticon, caret) : current,
     );
-    setIsElevated(true);
   }
 
   /**
@@ -406,6 +442,8 @@ export function MessageComposer({
                 text: next,
                 emoticons: toSurviving(current.emoticons, keys),
               }));
+              // INFO: § 8.14. Read here rather than in the effect above — by the time that runs, the node this checks against may already be gone.
+              pendingRefocusRef.current = document.activeElement === fieldRef.current;
               // WARN: § 13.8. Any edit ends the search the tap started. The tap blurs the field, so nothing is typed between it and the send it belongs to — a keystroke after it means the draft is a message now, and consuming it would delete what the user wrote.
               tappedQueryRef.current = null;
               onEdit?.(next.trim().length > 0);
@@ -504,7 +542,6 @@ export function MessageComposer({
 
     onSend({ text: draft.text, emoticons: draft.emoticons });
     setDraft(EMPTY_DRAFT);
-    setIsElevated(false);
     // WARN: REQUIREMENTS.md § 8.12. The send is the end of composing, and it clears the field without going through `onChange` — so nothing else here would ever retract the broadcast, and 입력 중 would sit under the message that had just arrived.
     onEdit?.(false);
 
