@@ -81,7 +81,7 @@ const PACKS_MOUNT_STALE_TIME = 5 * A_MINUTE;
  * false when `PreloadImage` reads it back on mount however cached the bytes are — the
  * placeholder is committed and then faded out over an image that was ready all along.
  *
- * INFO: Five rows against a panel of at most 352px (`--emoticon-panel-height`), which is a row more than fits. The rest stay `lazy`, so a two-hundred item pack is still loaded by being scrolled through.
+ * INFO: Five rows against the ~283px `--emoticon-panel-height` leaves the grid, which is more than fits at either column count. The rest stay `lazy`, so a two-hundred item pack is still loaded by being scrolled through.
  *
  * WARN: These load while the panel is still collapsed, since § 13.6. now mounts it before the first open — and that is the same twenty URLs the room's warm is fetching on the same idle frame, so what it costs is their priority rather than the requests.
  */

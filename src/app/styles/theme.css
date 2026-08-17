@@ -259,11 +259,14 @@
   --bar-lift: calc(env(safe-area-inset-bottom) + var(--bar-float-gap));
   /* WARN: DESIGN.md § 6.6. `useComposerClearance` overwrites this on the chat container one frame after mount; without the default here the list's trailing spacer is invalid until then and the first bottom-anchored paint parks the newest message behind the composer. */
   --chat-bottom-gap: 0px;
-  /* INFO: REQUIREMENTS.md § 13.6. The emoticon panel's own height, shared so the chat room can animate the strip open against the same value the panel is drawn at. */
-  /* WARN: The cap is `px` and never `rem`. A reader's enlarged default font size scales `rem` but not `--viewport-height`, so a `rem` cap wins the `min()` on exactly the devices that can least afford it and the panel overruns the shell. */
-  --emoticon-panel-height: min(352px, calc(var(--viewport-height, 100dvh) * 0.5));
   /* INFO: REQUIREMENTS.md § 13.6. The 검색 / 이모티콘 / 미니 menu bar, which every menu draws above its own second region. */
   --emoticon-menu-height: calc(36px + var(--spacing-2xs) * 2 + 1px);
+  /* INFO: REQUIREMENTS.md § 13.6. The emoticon panel's own height, shared so the chat room can animate the strip open against the same value the panel is drawn at. */
+  /* WARN: The cap is `px` and never `rem`. A reader's enlarged default font size scales `rem` but not `--viewport-height`, so a `rem` cap wins the `min()` on exactly the devices that can least afford it and the panel overruns the shell. */
+  /* WARN: § 13.6. The menu bar is added **outside** the `min()` on purpose. The cap is what the strip and the grid were measured at, and the third region charged to it cost the cells a full row on a 393px screen — three rows of a 4-column grid fit in what was left before it, two after. */
+  --emoticon-panel-height: calc(
+    min(352px, calc(var(--viewport-height, 100dvh) * 0.5)) + var(--emoticon-menu-height)
+  );
   /* INFO: REQUIREMENTS.md § 13.8. The 검색 menu's own height: the menu bar, the field, and a grid of the same 4 columns 이모티콘 draws. */
   /* WARN: § 13.8. The `min()` is the whole constraint and neither half may be dropped. 검색 is the one menu allowed on screen with the keyboard, so the second term is what makes it **fit in what the keyboard leaves** — `--viewport-height` is the visual viewport and already shrinks by the keys — while the first caps it at about two rows once there is room. A share of the viewport alone would claim half of a viewport the keyboard has already halved. */
   /* WARN: § 13.6. No longer a sum of its parts, and it must not go back to being one. A 4-column cell is a share of the shell's width rather than a constant, so the hand-summed height was wrong by a row on every screen width but the one it was measured on — and it read as correct because the grid simply clipped. */
