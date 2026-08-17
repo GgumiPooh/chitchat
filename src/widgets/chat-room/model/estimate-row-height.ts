@@ -250,7 +250,9 @@ function estimateMessageRow(
   const hasMedia = payload.media.length > 0;
   // WARN: § 8.3. The same call `MessageRow` makes, and the reason it lives in one function — a lone inline emoticon draws bubble-less like an emoticon message, so it changes the quote's variant and withholds the § 8.9. card exactly as an attachment does.
   const inline = toInlineContent(payload.text, payload.inlineEmoticonItemIds);
-  const isBubbleless = hasMedia || payload.emoticon !== null || inline.kind === "solo";
+  // WARN: § 8.3. The box decides this and not the kind, exactly as `MessageRow`'s does: an id the page's map does not carry draws no picture, so that row is a bubble holding whatever its segments render — which here is nothing at all.
+  const solo = inline.kind === "solo" ? context.readInlineEmoticon?.(inline.itemId) : undefined;
+  const isBubbleless = hasMedia || payload.emoticon !== null || solo !== undefined;
   let column = 0;
 
   // INFO: REQUIREMENTS.md § 8.7. The sender's name, on the first bubble of the other participant's group only.
@@ -270,7 +272,7 @@ function estimateMessageRow(
     column += toLinkCardHeight(preview, context) + SPACING_2XS;
   }
 
-  column += toPayloadHeight(payload, isMine, isBubbleless, inline, context, flags);
+  column += toPayloadHeight(payload, isMine, isBubbleless, inline, solo, context, flags);
 
   // INFO: DESIGN.md § 6.1. The gap between rows is this padding, so it belongs to the row below it.
   const top = flags.isFirstOfGroup ? SPACING_SM : SPACING_2XS;
@@ -284,6 +286,7 @@ function toPayloadHeight(
   isMine: boolean,
   isBubbleless: boolean,
   inline: InlineContent,
+  solo: Optional<InlineEmoticonInfo>,
   context: RowEstimateContext,
   flags: RowFlags,
 ): number {
@@ -295,11 +298,8 @@ function toPayloadHeight(
   }
 
   // INFO: § 13. The same `toEmoticonBox` an emoticon message takes, since that is what a lone one is drawn as — and a deleted item keeps its stored box, so the tombstone standing in its place measures identically.
-  if (inline.kind === "solo") {
-    const info = context.readInlineEmoticon?.(inline.itemId);
-
-    // WARN: § 8.3. An id the page's map does not carry draws **nothing**, here and in the bubble alike — `MessageRow` skips it on the same missing answer. Priced at a box the row does not draw, this would be the miss the whole file exists to avoid.
-    return Math.max(info ? toEmoticonBox(info).height : 0, beside);
+  if (solo) {
+    return Math.max(toEmoticonBox(solo).height, beside);
   }
 
   if (payload.media.length > 0) {
@@ -352,8 +352,9 @@ function toTextHeight(
   const font = { ...CHAT_BODY, family: fontFamily };
   const line = LINE.body();
 
+  // WARN: § 8.3. `MessageText`'s own split. A `solo` reaches this bubble only when its box was missing, and the walk it draws through prints no placeholder glyph — measured as raw text it would cost a line the row does not have.
   // WARN: § 8.3. The inline path is entered **only** for text that actually holds an emoticon, so every message written before this format keeps `countTextLines` byte for byte. The two measurers agree on `word-break: normal` but not on whitespace or on `keep-all`, so routing plain text through the new one would re-price the whole history for nothing.
-  if (inline.kind === "inline") {
+  if (inline.kind !== "none") {
     return countInlineLines(toInlineRuns(inline.segments, context, line), font, available) * line;
   }
 

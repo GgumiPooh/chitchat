@@ -146,7 +146,8 @@ export function MessageRow({
   const soloEmoticon =
     inline.kind === "solo" && soloInfo ? { itemId: inline.itemId, info: soloInfo } : undefined;
   const soloBox = soloEmoticon ? toEmoticonBox(soloEmoticon.info) : undefined;
-  const isBubbleless = Boolean(emoticon) || hasMedia || inline.kind === "solo";
+  // WARN: § 8.3. The resolved box and not `inline.kind`. An id the page's map does not carry has nothing to draw large, so it falls through to the bubble below — and a row that still called itself bubble-less would quote twice and be priced at a picture it never draws.
+  const isBubbleless = Boolean(emoticon) || hasMedia || Boolean(soloEmoticon);
   // INFO: REQUIREMENTS.md § 8.9. One card per bubble — the first link, not every link, because a message pasted from a share sheet routinely carries several.
   // INFO: DESIGN.md § 6.5. A bubble-less message carries an attachment rather than text, so there is no link in it to preview.
   const previewUrl = isBubbleless ? undefined : findFirstUrl(text);

@@ -112,6 +112,7 @@ export function countInlineLines(
   { size, weight, family }: FontSpec,
   maxWidth: number,
 ): number {
+  // INFO: No runs is no line box, and CSS agrees — an inline holding no text and no preserved space lays out at zero height, which is what a bubble whose every emoticon went unresolved draws.
   if (runs.length === 0) {
     return 0;
   }
