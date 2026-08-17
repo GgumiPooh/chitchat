@@ -1603,9 +1603,10 @@ function EmoticonCell({
           placeholderClassName="rounded-sm"
           src={toEmoticonAssetUrl(item.id, isMini ? "animated-image" : "still-image", item.version)}
           alt=""
-          // INFO: § 13.6. A warmed cell's skeleton is almost always a plate over an image that was ready — `PreloadFrameProps` carries the argument.
-          hasDeferredSkeleton={isWarmed}
-          loading={isWarmed && index < eagerCount ? "eager" : "lazy"}
+          // INFO: § 13.6. A warmed cell's skeleton is almost always a plate over an image that was ready — `PreloadFrameProps` carries the argument. A replay remount (`replayToken > 0`) is the same case even where the list itself is not warmed: `useViewportReplay` only bumps the token while the cell is in view, so the element it is remounting was already painted once and sits in the browser's own cache.
+          hasDeferredSkeleton={isWarmed || replayToken > 0}
+          // WARN: § 13. `lazy` on a replay remount is what caused the flicker below `EAGER_CELL_ROWS` — a freshly inserted lazy `<img>` re-runs the browser's own viewport check before it starts loading, which is slower than `PLACEHOLDER_DELAY` even for a cached asset, and the deferred skeleton above is not enough to hide it. `replayToken > 0` only ever happens while the cell is in view (see `useViewportReplay`), so `eager` there is always correct.
+          loading={(isWarmed && index < eagerCount) || replayToken > 0 ? "eager" : "lazy"}
           draggable={false}
         />
       </button>

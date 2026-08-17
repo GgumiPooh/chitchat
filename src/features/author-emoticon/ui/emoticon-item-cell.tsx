@@ -55,7 +55,9 @@ export function EmoticonItemCell({
           src={toEmoticonAssetUrl(item.id, isMini ? "animated-image" : "still-image", item.version)}
           alt=""
           draggable={false}
-          loading="lazy"
+          // WARN: § 13. `replayToken > 0` only happens while the cell is in view (`useViewportReplay`), so the element being remounted already painted once and sits in the browser's own cache — `lazy` there re-runs the viewport check on the fresh `<img>` and reads as a reload; `eager` plus the deferred skeleton is what the send-message picker's grid uses for the same remount.
+          hasDeferredSkeleton={replayToken > 0}
+          loading={replayToken > 0 ? "eager" : "lazy"}
         />
       </button>
       {/* INFO: § 13.8.1. One line, clamped. The grid is four columns wide, so a full chip row per cell would be taller than the emoticon it describes — and 키워드 없음 is what makes 자동으로 채우기's count legible on the grid rather than only in its label. */}
