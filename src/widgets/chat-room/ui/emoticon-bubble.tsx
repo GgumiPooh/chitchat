@@ -2,7 +2,7 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn, useViewportReplay } from "@/shared/lib";
+import { cn, toReplaySrc, useViewportReplay } from "@/shared/lib";
 import { PreloadImage } from "@/shared/ui";
 import { playEmoticonSound } from "../model/play-emoticon-sound";
 import { toEmoticonBox } from "../model/to-emoticon-box";
@@ -46,7 +46,7 @@ export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubble
         onClick={handleTap}
       >
         <PreloadImage
-          // WARN: Keyed by the replay token so a tap remounts the element. A GIF or animated WebP has no seek API — reassigning the same `src` is ignored by the cache, and only a fresh element restarts the loop.
+          // WARN: Keyed by the replay token so a tap remounts the element, and the token also rides the URL (`toReplaySrc`) — iOS Safari ties a GIF/WebP's running loop to the request URL rather than the element, so a fresh element on an unchanged `src` restarts nothing there.
           key={replayToken}
           className="size-full"
           imgClassName="size-full object-contain"
@@ -54,7 +54,10 @@ export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubble
           width={box.width}
           height={box.height}
           draggable={false}
-          src={toEmoticonAssetUrl(emoticon.id, "animated-image", emoticon.version)}
+          src={toReplaySrc(
+            toEmoticonAssetUrl(emoticon.id, "animated-image", emoticon.version),
+            replayToken,
+          )}
         />
       </button>
     </div>

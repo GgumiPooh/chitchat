@@ -13,6 +13,7 @@ import {
   isEditableElement,
   isShiftKey,
   revealWithin,
+  toReplaySrc,
   useViewportReplay,
   type EmoticonItemId,
   type EmoticonPackId,
@@ -1615,18 +1616,21 @@ function EmoticonCell({
         }}
       >
         <PreloadImage
-          // WARN: Keyed by the replay token — a mini's own loop count is not always infinite, and only a fresh element restarts one (`useViewportReplay`).
+          // WARN: Keyed by the replay token, and the token also rides the URL (`toReplaySrc`) — a mini's own loop count is not always infinite, and a fresh element alone does not restart one on iOS Safari (`useViewportReplay`).
           key={replayToken}
           className="size-full"
           imgClassName="size-full object-contain"
           placeholderClassName="rounded-sm"
-          src={toEmoticonAssetUrl(item.id, isMini ? "animated-image" : "still-image", item.version)}
           alt=""
           // INFO: § 13.6. A warmed cell's skeleton is almost always a plate over an image that was ready — `PreloadFrameProps` carries the argument. A replay remount (`replayToken > 0`) is the same case even where the list itself is not warmed: `useViewportReplay` only bumps the token while the cell is in view, so the element it is remounting was already painted once and sits in the browser's own cache.
           hasDeferredSkeleton={isWarmed || replayToken > 0}
           // WARN: § 13. `lazy` on a replay remount is what caused the flicker below `EAGER_CELL_ROWS` — a freshly inserted lazy `<img>` re-runs the browser's own viewport check before it starts loading, which is slower than `PLACEHOLDER_DELAY` even for a cached asset, and the deferred skeleton above is not enough to hide it. `replayToken > 0` only ever happens while the cell is in view (see `useViewportReplay`), so `eager` there is always correct.
           loading={(isWarmed && index < eagerCount) || replayToken > 0 ? "eager" : "lazy"}
           draggable={false}
+          src={toReplaySrc(
+            toEmoticonAssetUrl(item.id, isMini ? "animated-image" : "still-image", item.version),
+            replayToken,
+          )}
         />
       </button>
     </HapticTarget>

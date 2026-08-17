@@ -2,7 +2,7 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn, playSound } from "@/shared/lib";
+import { cn, playSound, toReplaySrc } from "@/shared/lib";
 import { IconButton, PreloadImage } from "@/shared/ui";
 import { X } from "lucide-react";
 import { useState } from "react";
@@ -45,7 +45,7 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
           onClick={handleTap}
         >
           <PreloadImage
-            // WARN: Keyed by the replay token so a tap remounts the element. A GIF or animated WebP has no seek API — reassigning the same `src` is ignored by the cache, and only a fresh element restarts the loop.
+            // WARN: Keyed by the replay token so a tap remounts the element, and the token also rides the URL (`toReplaySrc`) — iOS Safari ties a GIF/WebP's running loop to the request URL rather than the element, so a fresh element on an unchanged `src` restarts nothing there.
             key={replayToken}
             className="size-full"
             // INFO: The plate's radius, for the plate's reason. `toBox` sizes this box to the asset's own ratio, so `object-contain` fills it exactly — and at `2xs` padding a square corner clears the card's 16px curve by under half a pixel, which is flush. A transparent sticker has nothing in that corner to clip; a full-bleed one is the case this is for.
@@ -56,7 +56,10 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
             width={box.width}
             height={box.height}
             draggable={false}
-            src={toEmoticonAssetUrl(emoticon.id, "animated-image", emoticon.version)}
+            src={toReplaySrc(
+              toEmoticonAssetUrl(emoticon.id, "animated-image", emoticon.version),
+              replayToken,
+            )}
           />
         </button>
         {/* INFO: `className` positions the haptic wrapper and `buttonClassName` styles the disc inside it — the split `IconButton` exposes precisely so a positioned control can still ask for `haptic` (`AGENTS.md § 1.2.`). */}

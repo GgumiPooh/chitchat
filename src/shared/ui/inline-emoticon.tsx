@@ -1,7 +1,13 @@
 "use client";
 
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn, useViewportReplay, type EmoticonItemId, type Nullable } from "@/shared/lib";
+import {
+  cn,
+  toReplaySrc,
+  useViewportReplay,
+  type EmoticonItemId,
+  type Nullable,
+} from "@/shared/lib";
 import { PreloadImage } from "./preload-image";
 
 export type InlineEmoticonProps = {
@@ -50,7 +56,7 @@ export function InlineEmoticon({
 
   const image = (
     <PreloadImage
-      // WARN: Keyed by the replay token, same as `EmoticonBubble` — a GIF or animated WebP has no seek API, so only a fresh element restarts the loop.
+      // WARN: Keyed by the replay token, same as `EmoticonBubble`, and the token also rides the URL (`toReplaySrc`) — iOS Safari ties a GIF/WebP's running loop to the request URL rather than the element, so a fresh element on an unchanged `src` restarts nothing there.
       key={replayToken}
       className="size-full"
       // INFO: `object-contain`, since an emoticon is not square and a crop would cut the drawing rather than letterbox it.
@@ -60,7 +66,7 @@ export function InlineEmoticon({
       alt={name ?? ""}
       draggable={false}
       // INFO: The animated slot, which the asset route falls back from when the item holds only a still (REQUIREMENTS.md § 13.3.).
-      src={toEmoticonAssetUrl(itemId, "animated-image", version)}
+      src={toReplaySrc(toEmoticonAssetUrl(itemId, "animated-image", version), replayToken)}
     />
   );
 

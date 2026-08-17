@@ -52,3 +52,26 @@ export function useViewportReplay(loopIntervalMs?: number) {
 
   return { ref, replayToken, replay: () => setReplayToken((token) => token + 1) };
 }
+
+/**
+ * Folds a replay token into an emoticon asset URL, for a consumer to pass as `src`
+ * alongside keying its `<img>` by the same token.
+ *
+ * WARN: iOS Safari — including an installed PWA — ties an animated GIF/WebP/APNG's
+ * decode and its running loop to the **request URL**, not to the `<img>` element: a
+ * fresh element pointed at the identical `src` picks up whatever frame that shared
+ * timeline already sits on rather than restarting, so the remount alone (which is
+ * all other browsers need) is silently a no-op there. Folding the token into the
+ * URL gives Safari a genuinely different resource to load. It costs nothing extra
+ * downstream — REQUIREMENTS.md § 13.3.'s presigned redirect is quantised to a
+ * signing window, so the same immutable R2 URL comes back and the browser's own
+ * cache answers it; only the asset route's redirect (a session check and a row
+ * read) is repeated.
+ */
+export function toReplaySrc(src: string, replayToken: number): string {
+  if (replayToken === 0) {
+    return src;
+  }
+
+  return `${src}${src.includes("?") ? "&" : "?"}replay=${replayToken}`;
+}

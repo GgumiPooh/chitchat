@@ -5,6 +5,7 @@ import { toEmoticonAssetUrl, type EmoticonPackType } from "@/shared/config";
 import {
   MINI_ANIMATION_LOOP_INTERVAL,
   cn,
+  toReplaySrc,
   useViewportReplay,
   type EmoticonItemId,
 } from "@/shared/lib";
@@ -46,18 +47,21 @@ export function EmoticonItemCell({
         onClick={() => onSelect(item.id)}
       >
         <PreloadImage
-          // WARN: Keyed by the replay token — a mini's own loop count is not always infinite, and only a fresh element restarts one (`useViewportReplay`).
+          // WARN: Keyed by the replay token, and the token also rides the URL (`toReplaySrc`) — a mini's own loop count is not always infinite, and a fresh element alone does not restart one on iOS Safari (`useViewportReplay`).
           key={replayToken}
           className="size-full"
           imgClassName="size-full object-contain"
           placeholderClassName="rounded-sm"
-          // INFO: REQUIREMENTS.md § 13. A mini is only ever shown moving — the send-message picker's own rule — so this grid draws the same slot rather than the still an 이모티콘 pack's cell draws.
-          src={toEmoticonAssetUrl(item.id, isMini ? "animated-image" : "still-image", item.version)}
           alt=""
           draggable={false}
           // WARN: § 13. `replayToken > 0` only happens while the cell is in view (`useViewportReplay`), so the element being remounted already painted once and sits in the browser's own cache — `lazy` there re-runs the viewport check on the fresh `<img>` and reads as a reload; `eager` plus the deferred skeleton is what the send-message picker's grid uses for the same remount.
           hasDeferredSkeleton={replayToken > 0}
           loading={replayToken > 0 ? "eager" : "lazy"}
+          // INFO: REQUIREMENTS.md § 13. A mini is only ever shown moving — the send-message picker's own rule — so this grid draws the same slot rather than the still an 이모티콘 pack's cell draws.
+          src={toReplaySrc(
+            toEmoticonAssetUrl(item.id, isMini ? "animated-image" : "still-image", item.version),
+            replayToken,
+          )}
         />
       </button>
       {/* INFO: § 13.8.1. One line, clamped. The grid is four columns wide, so a full chip row per cell would be taller than the emoticon it describes — and 키워드 없음 is what makes 자동으로 채우기's count legible on the grid rather than only in its label. */}
