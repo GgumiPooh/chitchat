@@ -25,7 +25,7 @@ export type PreloadImageProps = Omit<ComponentProps<"img">, "placeholder" | "sty
    * loaded, painted at once and left underneath while `src` arrives.
    *
    * INFO: DESIGN.md § 7.10. 보관함's tile is `previewUrl` and the viewer's slide is `originalUrl` — two different objects, so opening a photo starts a cold download however long the reader spent looking at the grid. The blurhash covered that gap with a blur of a picture already decoded one screen away.
-   * WARN: Dropped outright the instant `src` has pixels, and the element below gives up its own 200ms reveal fade while this is standing in — the two are the same picture, so a crossfade between them is the picture blended with itself. On an animated original that is every frame it has moved on to, showing through a still one. This is where it differs from the blur, which does fade and must.
+   * WARN: The element below gives up its own 200ms reveal fade while this is standing in — the two are the same picture, so a crossfade between them is the picture blended with itself. On an animated original that is every frame it has moved on to, showing through a still one. This is where it differs from the blur, which does fade and must, and it is why this layer may be left mounted at all: at full opacity the original is opaque and nothing under it shows.
    * WARN: Decorative — `alt=""` and `aria-hidden`. It is the same picture as the element below it, and announced twice a reader hears the photo named twice.
    */
   previewSrc?: Nullable<string>;
@@ -87,13 +87,11 @@ export function PreloadImage({
       canRetry,
     });
   /**
-   * INFO: Up until the element below reveals the picture the caller ultimately asked for. Past that it is either revealed — and the stand-in is what would show through it — or failed, where DESIGN.md § 7.8.'s glyph on its own plate is the documented ending rather than a thumbnail left standing in for an object that is gone.
-   * WARN: The first arm is what keeps this **one element across the swap**. DESIGN.md § 4.7.3. has the viewer hold `src` at the preview until its opening morph lands and only then point it at the original, and that swap remounts the element below (it is keyed on the URL). Tested on `status` alone the layer would unmount on the same commit the original's element mounts empty — one element leaving as another arrives, with a blank frame between them if the cached decode does not land in that paint.
+   * INFO: It stays underneath for as long as the element below is drawing, rather than being dropped the instant that one reports pixels.
+   * WARN: DESIGN.md § 7.10. It used to unmount on the reveal, and REQUIREMENTS.md § 10.'s blank slide is what that cost. A browser out of room for a full-size decode does not say so — the element reports `load` and the right `naturalWidth` and paints nothing — so the stand-in was pulled out from under a picture that was never going to arrive, leaving the reader on bare `scrim`. Left in place the same failure is a soft photograph instead, and it costs nothing while the original does paint: that one is opaque and covers this exactly.
+   * WARN: Withheld on `failed` alone, where DESIGN.md § 7.8.'s glyph on its own plate is the documented ending — a thumbnail standing in for an object that is gone says the opposite of it.
    */
-  const hasPreview =
-    Boolean(previewSrc) &&
-    (previewSrc === attemptSrc || status === "loading") &&
-    status !== "failed";
+  const hasPreview = Boolean(previewSrc) && status !== "failed";
 
   return (
     <PreloadFrame

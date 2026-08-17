@@ -11,6 +11,7 @@ import {
   isCommandKey,
   isEditableElement,
   isShiftKey,
+  revealWithin,
   type EmoticonItemId,
   type Nullable,
   type Optional,
@@ -38,7 +39,6 @@ import {
   MINI_GRID_COLUMNS,
   focusItem,
   readFocusIndex,
-  revealWithin,
   toCrossingIndex,
   toNextFocusIndex,
 } from "../model/emoticon-focus";

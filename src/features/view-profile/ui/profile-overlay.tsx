@@ -77,9 +77,11 @@ export function ProfileOverlay({ className, userId, currentUserId, onClose }: Pr
         {/* INFO: Two stops, not one. The top darkens the strip the close control sits in and the bottom darkens the name; a flat wash over the whole photo would dim the part the user came to look at. */}
         <div className="absolute inset-0 bg-gradient-to-b from-scrim/60 via-transparent to-scrim/85" />
         <div className="relative flex items-start justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
+          {/* INFO: DESIGN.md § 7.15. The exit from a full-screen surface, which ticks — the same rule the § 7.10. viewer's 닫기 and a route's 뒤로 follow. */}
           <IconButton
-            className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
+            buttonClassName="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
             Icon={X}
+            haptic
             aria-label="닫기"
             onClick={onClose}
           />

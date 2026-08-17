@@ -94,7 +94,8 @@ export function useDormancy(isRoomOnScreen: boolean): DormancyState {
       }
 
       // WARN: § 8.4.1. A tab opened in the background starts `hidden` and fires no `visibilitychange` until it is first viewed, so nothing else would stop the countdown going dormant unseen and greeting its first viewer with the overlay.
-      if (document.visibilityState !== "visible") {
+      // WARN: Focus is read here for the same reason `handleReturn` reads it, and it is what lets a window woken on focus alone sleep again — left on visibility, the countdown it re-armed would disarm itself and hold an unpooled connection for the whole background stretch.
+      if (document.visibilityState !== "visible" && !document.hasFocus()) {
         idleTimer = undefined;
 
         return;
@@ -221,7 +222,8 @@ export function useDormancy(isRoomOnScreen: boolean): DormancyState {
      * `awaken` notes an interaction of its own, so this is idempotent within a tick.
      */
     function handleReturn() {
-      if (document.visibilityState !== "visible") {
+      // WARN: § 8.4. Focus is the second piece of evidence, as it is in `sleep` — iOS can restore a frozen PWA on `pageshow` / `focus` alone, and a `visibilityState` still reading `hidden` would leave the gate shut until a tap.
+      if (document.visibilityState !== "visible" && !document.hasFocus()) {
         return;
       }
 

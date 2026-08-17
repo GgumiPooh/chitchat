@@ -3,14 +3,17 @@
 import {
   CHAT_MEDIA_PAGE_MARGIN,
   isWearableBackgroundVideo,
+  toMediaCountUnit,
   toMediaLabel,
   type ChatTrackEdge,
 } from "@/shared/config";
 import {
+  A_SECOND,
   MEDIA_MORPH_NAME,
   MEDIA_VIEWER_NAME,
   cn,
   endMediaMorph,
+  useInertialStrip,
   useIsIos,
   useModalOverlay,
   usePinchZoom,
@@ -22,7 +25,17 @@ import {
   type Optional,
 } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
-import { ChevronLeft, ChevronRight, Download, ImagePlus, Share, Trash2, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  ImagePlus,
+  Images,
+  Play,
+  Share,
+  Trash2,
+  X,
+} from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -33,10 +46,22 @@ import {
   type FC,
   type MouseEvent,
 } from "react";
+import { HapticTap } from "./haptic-tap";
+import { HapticTarget } from "./haptic-target";
 import { IconButton } from "./icon-button";
 import { toCellRatio, type MediaCell } from "./media-cell";
 import { PreloadImage } from "./preload-image";
 import { ShellOverlay } from "./shell-overlay";
+
+/**
+ * How long the reader has to stay on a slide they arrived at before its original is
+ * asked for — long enough that a slide crossed on the way somewhere else asks for
+ * nothing at all.
+ *
+ * WARN: The abort in `useDecodedOriginal`'s cleanup does not stand in for this, and the two are not alternatives. It stops the bytes that have not arrived yet; the request itself has already been made, and `/api/media/{id}` validates the session, reads the row and signs a URL before it answers. A reader flipping between three photos was paying that round trip per crossing, for objects they never looked at.
+ * INFO: A whole second rather than a frame or two, because the flipping is what it is for. A slide crossed in a filmstrip scrub is held for tens of milliseconds, and one crossed in a quick there-and-back swipe for two or three hundred — the pattern the § 10. blank slide was reported from, and a reader searching for a photo stays under it for several crossings in a row.
+ */
+const ARRIVAL_DWELL = A_SECOND;
 
 export type MediaViewerProps = {
   className?: string;
@@ -270,10 +295,10 @@ export function MediaViewer({
   const sheetGate = useOfflineGate(isIosDevice ? OFFLINE_MESSAGES.save : OFFLINE_MESSAGES.share);
   // INFO: DESIGN.md § 7.10. Null for a library row uploaded rather than sent, and for one whose message has since been withdrawn — neither has a bubble for the identity block to travel to.
   const sentMessageId = current?.messageId ?? null;
-  // INFO: DESIGN.md § 7.10. When the slide was sent and where it sits, on one line under the sender — both answer "where am I", and neither earns a row of its own on a mobile shell.
-  const caption = [current?.sentAt && toSlideTimestamp(current.sentAt), toPosition(index, cells)]
-    .filter(Boolean)
-    .join(" · ");
+  // INFO: DESIGN.md § 7.10. When the slide was sent, under the sender. Where it sits used to join it here and is the filmstrip's line at the foot of the screen now, beside the thumbnails it counts.
+  const caption = current?.sentAt ? toSlideTimestamp(current.sentAt) : "";
+  // INFO: DESIGN.md § 7.10. The bubble the slide was sent in, which is what the filmstrip draws and what the position counts — empty on a bubble of one and on a slide with no bubble at all.
+  const bubble = toBubbleRun(index, cells);
   // INFO: REQUIREMENTS.md § 8.1. Every branch below falls away with the prop, which is how 보관함 gets a track that does not page.
   const { hasHeldPage = false, onLoadEdge, onCommit } = paging ?? {};
   const commitHeldPages = useCallback(() => onCommit?.(), [onCommit]);
@@ -442,9 +467,12 @@ export function MediaViewer({
             (!isChromeVisible || !hasMorphSettled) && "opacity-0 [&_*]:pointer-events-none",
           )}
         >
+          {/* INFO: DESIGN.md § 7.15. Leaving a full-screen surface ticks, as a route's 뒤로 already does — what stays silent there is a sheet or a dialog's dismissal. */}
           <IconButton
-            className="pointer-events-auto shrink-0 text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
+            className="pointer-events-auto shrink-0"
+            buttonClassName="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
             Icon={X}
+            haptic
             tabIndex={isChromeVisible ? undefined : -1}
             aria-label="닫기"
             onClick={handleClose}
@@ -452,16 +480,19 @@ export function MediaViewer({
           {/* INFO: DESIGN.md § 7.10. Who sent the slide and when — the identity half of the bar, where the action icons used to be. The position joins the caption because both answer "where am I", and neither earns a row of its own on a mobile shell. */}
           {/* WARN: A `button` only where there is somewhere to go, and a `div` otherwise. A pressable-looking block that answered nothing is worse here than in the bars, because the chevron is the only thing saying it travels at all. */}
           {sentMessageId !== null && onOpenMessage ? (
-            <button
-              className="pointer-events-auto min-w-0 flex-1 cursor-pointer rounded-sm py-2xs text-left transition-colors outline-none hover:bg-on-scrim/10 focus-visible:ring-2 focus-visible:ring-primary active:bg-on-scrim/10"
-              type="button"
-              tabIndex={isChromeVisible ? undefined : -1}
-              // INFO: The noun follows the slide, since the track mixes photos and videos — a reader hearing 사진 over a video is the § 10. defect the bundle prompt beside it already avoids.
-              aria-label={`이 ${toMediaLabel(current?.isVideo ? "video" : "photo")}을 보낸 메시지로 이동`}
-              onClick={() => onOpenMessage(sentMessageId)}
-            >
-              <SlideIdentity caption={caption} senderName={current?.senderName} hasChevron />
-            </button>
+            // INFO: DESIGN.md § 7.15. The block travels to another screen, which is the switch the tab bar already ticks for. `group-active:` beside its own `active:`, since the tap lands on the overlay.
+            <HapticTarget className="pointer-events-auto flex min-w-0 flex-1">
+              <button
+                className="w-full min-w-0 cursor-pointer rounded-sm py-2xs text-left transition-colors outline-none group-active:bg-on-scrim/10 hover:bg-on-scrim/10 focus-visible:ring-2 focus-visible:ring-primary active:bg-on-scrim/10"
+                type="button"
+                tabIndex={isChromeVisible ? undefined : -1}
+                // INFO: The noun follows the slide, since the track mixes photos and videos — a reader hearing 사진 over a video is the § 10. defect the bundle prompt beside it already avoids.
+                aria-label={`이 ${toMediaLabel(current?.isVideo ? "video" : "photo")}을 보낸 메시지로 이동`}
+                onClick={() => onOpenMessage(sentMessageId)}
+              >
+                <SlideIdentity caption={caption} senderName={current?.senderName} hasChevron />
+              </button>
+            </HapticTarget>
           ) : (
             <div className="min-w-0 flex-1 py-2xs">
               <SlideIdentity caption={caption} senderName={current?.senderName} />
@@ -471,8 +502,10 @@ export function MediaViewer({
             // INFO: DESIGN.md § 7.10. The jump, at the top right — 보관함's viewer travels to the message, 채팅's to the library, so neither offers a jump to the surface it is already on.
             // WARN: Rendered on every slide, including one with nowhere to go. It answers with a toast instead of vanishing, which is what keeps a control out of the bar's own layout while the reader swipes past a library-only upload.
             <IconButton
-              className="pointer-events-auto shrink-0 text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
+              className="pointer-events-auto shrink-0"
+              buttonClassName="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
               Icon={jump.Icon}
+              haptic
               tabIndex={isChromeVisible ? undefined : -1}
               aria-label={jump.label}
               onClick={() => jump.onSelect(current)}
@@ -493,29 +526,34 @@ export function MediaViewer({
           onScroll={handleScroll}
           onWheel={cancelPendingStep}
         >
-          {cells.map((cell, slideIndex) => (
-            <div
-              key={cell.id}
-              // INFO: DESIGN.md § 7.10. No padding on either axis. The slide *is* the screen, and the asset's own `object-contain` is what keeps it inside — a gutter only makes the picture smaller than the screen can hold.
-              // WARN: REQUIREMENTS.md § 8.1. `snap-always` is what holds one drag to one slide. Without it a flick's momentum runs through every snap point it passes, and a track that spans the conversation answers a firm swipe with five photos gone by.
-              className="flex w-full shrink-0 snap-center snap-always items-center justify-center"
-            >
-              {/* WARN: REQUIREMENTS.md § 10. Only the neighbours load their asset. Every slide used to request its original on mount, which was bounded by `MAX_MEDIA_PER_MESSAGE` in a chat bubble but is the whole loaded library here — opening one photo after three pages of scrolling started 180 requests for objects of up to `MAX_IMAGE_SIZE`. */}
-              {Math.abs(slideIndex - index) > 1 ? (
-                <SlidePlaceholder cell={cell} />
-              ) : cell.isVideo ? (
-                <VideoSlide cell={cell} isMorphTarget={slideIndex === index} />
-              ) : (
-                // WARN: REQUIREMENTS.md § 18. #6. Only the slide on screen takes the gesture. A neighbour is half a swipe away and mounted, so handlers on it would answer a pinch that started over the photo the reader can see.
-                <ImageSlide
-                  cell={cell}
-                  zoom={slideIndex === index ? zoom : undefined}
-                  isMorphTarget={slideIndex === index}
-                  hasMorphSettled={hasMorphSettled}
-                />
-              )}
-            </div>
-          ))}
+          {cells.map((cell, slideIndex) => {
+            const isCurrent = slideIndex === index;
+
+            return (
+              <div
+                key={cell.id}
+                // INFO: DESIGN.md § 7.10. No padding on either axis. The slide *is* the screen, and the asset's own `object-contain` is what keeps it inside — a gutter only makes the picture smaller than the screen can hold.
+                // WARN: REQUIREMENTS.md § 8.1. `snap-always` is what holds one drag to one slide. Without it a flick's momentum runs through every snap point it passes, and a track that spans the conversation answers a firm swipe with five photos gone by.
+                className="flex w-full shrink-0 snap-center snap-always items-center justify-center"
+              >
+                {/* WARN: REQUIREMENTS.md § 10. Only the neighbours are mounted at all. Every slide used to request its original on mount, which was bounded by `MAX_MEDIA_PER_MESSAGE` in a chat bubble but is the whole loaded library here — opening one photo after three pages of scrolling started 180 requests for objects of up to `MAX_IMAGE_SIZE`. */}
+                {Math.abs(slideIndex - index) > 1 ? (
+                  <SlidePlaceholder cell={cell} />
+                ) : cell.isVideo ? (
+                  <VideoSlide cell={cell} isMorphTarget={isCurrent} />
+                ) : (
+                  // WARN: REQUIREMENTS.md § 18. #6. Only the slide on screen takes the gesture. A neighbour is half a swipe away and mounted, so handlers on it would answer a pinch that started over the photo the reader can see.
+                  <ImageSlide
+                    cell={cell}
+                    zoom={isCurrent ? zoom : undefined}
+                    isCurrent={isCurrent}
+                    isMorphTarget={isCurrent}
+                    hasMorphSettled={hasMorphSettled}
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
         {/* INFO: DESIGN.md § 7.10. The step controls, for a pointer that has no swipe — the desktop reader's equivalent of the arrow keys `handleOverlayKeyDown` answers. */}
         {/* WARN: AGENTS.md § 4.2. Drawn on every pointer, never gated on `hover`. A control that exists only where `@media (hover: hover)` matches is a different control set per device, which § 4.2. allows for `useIsIos` alone — so these ride the chrome instead, appearing and fading with the bars on the same tap. On touch they are simply a second way to do what the swipe already does. */}
@@ -529,21 +567,19 @@ export function MediaViewer({
         >
           {/* WARN: `invisible` at the ends rather than unmounted, so the surviving arrow does not slide across the screen when the reader reaches the first or last slide. § 8.1.'s track also grows at both edges mid-open, which would make an unmounted control blink back into existence. */}
           <IconButton
-            className={cn(
-              "pointer-events-auto shrink-0 bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim",
-              !canStepBack && "invisible",
-            )}
+            className={cn("pointer-events-auto shrink-0", !canStepBack && "invisible")}
+            buttonClassName="bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim"
             Icon={ChevronLeft}
+            haptic
             tabIndex={isChromeVisible && canStepBack ? undefined : -1}
             aria-label="이전 항목"
             onClick={() => step(-1)}
           />
           <IconButton
-            className={cn(
-              "pointer-events-auto shrink-0 bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim",
-              !canStepForward && "invisible",
-            )}
+            className={cn("pointer-events-auto shrink-0", !canStepForward && "invisible")}
+            buttonClassName="bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim"
             Icon={ChevronRight}
+            haptic
             tabIndex={isChromeVisible && canStepForward ? undefined : -1}
             aria-label="다음 항목"
             onClick={() => step(1)}
@@ -554,93 +590,106 @@ export function MediaViewer({
         <div
           className={cn(
             // WARN: DESIGN.md § 7.10. A gradient here too, which this bar deliberately went without for a long time on the argument that a second one frames the photo from below. The discs' own fill is what it relied on instead, and over the viewer's opaque `scrim` — which is most of the screen on a portrait slide — `scrim` on `scrim` is a control with no edge at all. The ring below answers that; the wash is what carries the group over a bright photo.
-            "pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-sm bg-gradient-to-t from-scrim/85 via-scrim/45 to-transparent p-md pt-2xl pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] transition-opacity duration-200",
+            "pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col gap-sm bg-gradient-to-t from-scrim/85 via-scrim/45 to-transparent p-md pt-2xl pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] transition-opacity duration-200",
             // WARN: As the top bar — hidden controls must stop receiving pointers, or an invisible 삭제 sits under the reader's next tap.
             // INFO: DESIGN.md § 4.7.3. Held back until the opening morph has landed, with the floor above — the chrome is what says "you are in the viewer", and said while the picture is still crossing the screen it arrives before the thing it describes.
             (!isChromeVisible || !hasMorphSettled) && "opacity-0 [&_*]:pointer-events-none",
           )}
         >
-          {/* WARN: REQUIREMENTS.md § 8.11. Withheld on iOS alone, where it lands in Files rather than the photo library the control beside it reaches — and where holding the slide is already the OS's own route to 사진에 저장. */}
-          {!isIosDevice &&
-            current &&
-            (onDownload ? (
-              // INFO: REQUIREMENTS.md § 8.1. A button, because the caller has the rest of the bubble to offer before anything is saved — the anchor below cannot ask a question first.
-              <IconButton
-                className={cn(
-                  "pointer-events-auto shrink-0 bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim",
-                  !downloadUrl && "invisible",
-                )}
-                Icon={Download}
-                tabIndex={isChromeVisible && downloadUrl ? undefined : -1}
-                aria-label="원본 저장"
-                {...saveGate.blockedProps}
-                onClick={saveGate.guard(() => downloadUrl && onDownload(current.id))}
-              />
-            ) : (
-              // WARN: No `download` attribute — the route 302s to R2 and the spec drops it once the navigation resolves cross-origin. `toMediaDownloadUrl` signs the disposition into the object instead.
-              <a
-                className={cn(
-                  "pointer-events-auto inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm transition-colors outline-none hover:bg-scrim/80 focus-visible:ring-2 focus-visible:ring-primary",
-                  !downloadUrl && "invisible",
-                )}
-                href={downloadUrl ?? undefined}
-                tabIndex={isChromeVisible && downloadUrl ? undefined : -1}
-                aria-label="원본 저장"
-                {...saveGate.blockedProps}
-                // WARN: The anchor's own activation is what has to be stopped, and `aria-disabled` suppresses nothing — left to run, the href navigates the PWA at a 302 that cannot resolve.
-                onClick={(event) => {
-                  if (!saveGate.isBlocked) {
-                    return;
-                  }
-
-                  event.preventDefault();
-                  saveGate.refuse();
-                }}
-              >
-                <Download className="size-5" strokeWidth={1.75} />
-              </a>
-            ))}
-          {(canDeleteCurrent || canApplyPhoto) && current && (
-            // WARN: No inner padding. Each control is a 44 circle in a 44-tall pill, so with the ends flush the hover disc *is* the pill's end cap — padded by `2xs` it stopped 4px short and left a sliver of pill outside a round highlight, which reads as the control being off-centre in its own group.
-            <div className="pointer-events-auto flex items-center overflow-hidden rounded-full bg-scrim/70 shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm">
-              {deletion && canDeleteCurrent && (
-                // INFO: DESIGN.md § 7.10. Confirmed wherever it renders, since a control beside a per-slide save does not say its own reach — in 채팅 it is the same delete the § 8.11. action sheet reaches.
-                // INFO: REQUIREMENTS.md § 8.1. Unmounted rather than hidden, now that it sits in a group of its own — the pill simply narrows, where the old row left a 44px hole between two live controls on every slide the other participant sent.
-                <IconButton
-                  className="text-semantic-error hover:bg-on-scrim/15 hover:text-semantic-error-hover"
-                  Icon={Trash2}
-                  tabIndex={isChromeVisible ? undefined : -1}
-                  aria-label={deletion.label}
-                  {...deleteGate.blockedProps}
-                  onClick={deleteGate.guard(() => deletion.onSelect(current.id))}
-                />
-              )}
-              {onApplyPhoto && canApplyPhoto && (
-                // INFO: REQUIREMENTS.md § 12.1. A video is offered too — a profile cover may be one. Absent on a draft, which has no stored object to crop, and on a video past § 12.1.'s caps: that clip fits no slot and the sheet would open on nothing.
-                <IconButton
-                  className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
-                  Icon={ImagePlus}
-                  tabIndex={isChromeVisible ? undefined : -1}
-                  aria-label="사진 사용하기"
-                  {...applyPhotoGate.blockedProps}
-                  onClick={applyPhotoGate.guard(() => onApplyPhoto(current.id, current.isVideo))}
-                />
-              )}
-            </div>
-          )}
-          {handleSheet && current && (
-            <IconButton
-              className={cn(
-                "pointer-events-auto shrink-0 bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim",
-                !downloadUrl && "invisible",
-              )}
-              Icon={isIosDevice ? Download : Share}
-              tabIndex={isChromeVisible && downloadUrl ? undefined : -1}
-              aria-label={isIosDevice ? "저장/공유" : "공유"}
-              {...sheetGate.blockedProps}
-              onClick={sheetGate.guard(() => handleSheet(current.id))}
+          {/* INFO: DESIGN.md § 7.10. The bubble the reader is inside, and where in it they are — withheld on a bubble of one, exactly as the count it carries always was. */}
+          {current && bubble.length > 1 && (
+            <SlideFilmstrip
+              cells={bubble}
+              activeId={current.id}
+              isReachable={isChromeVisible && !zoom.isZoomed}
+              onSelect={goToSlide}
             />
           )}
+          <div className="flex items-center justify-center gap-sm">
+            {/* WARN: REQUIREMENTS.md § 8.11. Withheld on iOS alone, where it lands in Files rather than the photo library the control beside it reaches — and where holding the slide is already the OS's own route to 사진에 저장. */}
+            {!isIosDevice &&
+              current &&
+              (onDownload ? (
+                // INFO: REQUIREMENTS.md § 8.1. A button, because the caller has the rest of the bubble to offer before anything is saved — the anchor below cannot ask a question first.
+                <IconButton
+                  className={cn("pointer-events-auto shrink-0", !downloadUrl && "invisible")}
+                  buttonClassName="bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim"
+                  Icon={Download}
+                  haptic
+                  tabIndex={isChromeVisible && downloadUrl ? undefined : -1}
+                  aria-label="원본 저장"
+                  {...saveGate.blockedProps}
+                  onClick={saveGate.guard(() => downloadUrl && onDownload(current.id))}
+                />
+              ) : (
+                // WARN: No `download` attribute — the route 302s to R2 and the spec drops it once the navigation resolves cross-origin. `toMediaDownloadUrl` signs the disposition into the object instead.
+                <a
+                  className={cn(
+                    "pointer-events-auto relative inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm transition-colors outline-none hover:bg-scrim/80 focus-visible:ring-2 focus-visible:ring-primary",
+                    !downloadUrl && "invisible",
+                  )}
+                  href={downloadUrl ?? undefined}
+                  tabIndex={isChromeVisible && downloadUrl ? undefined : -1}
+                  aria-label="원본 저장"
+                  {...saveGate.blockedProps}
+                  // WARN: The anchor's own activation is what has to be stopped, and `aria-disabled` suppresses nothing — left to run, the href navigates the PWA at a 302 that cannot resolve.
+                  onClick={(event) => {
+                    if (!saveGate.isBlocked) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    saveGate.refuse();
+                  }}
+                >
+                  <Download className="size-5" strokeWidth={1.75} />
+                  {/* WARN: DESIGN.md § 7.15. Inside an `<a>` it is the last child and takes no `forwardsTap` — the click bubbles to the anchor on its own, and a forwarded one would fire the navigation twice. */}
+                  {!saveGate.isBlocked && <HapticTap />}
+                </a>
+              ))}
+            {(canDeleteCurrent || canApplyPhoto) && current && (
+              // WARN: No inner padding. Each control is a 44 circle in a 44-tall pill, so with the ends flush the hover disc *is* the pill's end cap — padded by `2xs` it stopped 4px short and left a sliver of pill outside a round highlight, which reads as the control being off-centre in its own group.
+              <div className="pointer-events-auto flex items-center overflow-hidden rounded-full bg-scrim/70 shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm">
+                {deletion && canDeleteCurrent && (
+                  // INFO: DESIGN.md § 7.10. Confirmed wherever it renders, since a control beside a per-slide save does not say its own reach — in 채팅 it is the same delete the § 8.11. action sheet reaches.
+                  // INFO: REQUIREMENTS.md § 8.1. Unmounted rather than hidden, now that it sits in a group of its own — the pill simply narrows, where the old row left a 44px hole between two live controls on every slide the other participant sent.
+                  <IconButton
+                    buttonClassName="text-semantic-error hover:bg-on-scrim/15 hover:text-semantic-error-hover"
+                    Icon={Trash2}
+                    haptic
+                    tabIndex={isChromeVisible ? undefined : -1}
+                    aria-label={deletion.label}
+                    {...deleteGate.blockedProps}
+                    onClick={deleteGate.guard(() => deletion.onSelect(current.id))}
+                  />
+                )}
+                {onApplyPhoto && canApplyPhoto && (
+                  // INFO: REQUIREMENTS.md § 12.1. A video is offered too — a profile cover may be one. Absent on a draft, which has no stored object to crop, and on a video past § 12.1.'s caps: that clip fits no slot and the sheet would open on nothing.
+                  <IconButton
+                    buttonClassName="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
+                    Icon={ImagePlus}
+                    haptic
+                    tabIndex={isChromeVisible ? undefined : -1}
+                    aria-label="사진 사용하기"
+                    {...applyPhotoGate.blockedProps}
+                    onClick={applyPhotoGate.guard(() => onApplyPhoto(current.id, current.isVideo))}
+                  />
+                )}
+              </div>
+            )}
+            {handleSheet && current && (
+              <IconButton
+                className={cn("pointer-events-auto shrink-0", !downloadUrl && "invisible")}
+                buttonClassName="bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim"
+                Icon={isIosDevice ? Download : Share}
+                haptic
+                tabIndex={isChromeVisible && downloadUrl ? undefined : -1}
+                aria-label={isIosDevice ? "저장/공유" : "공유"}
+                {...sheetGate.blockedProps}
+                onClick={sheetGate.guard(() => handleSheet(current.id))}
+              />
+            )}
+          </div>
         </div>
       </div>
     </ShellOverlay>
@@ -696,6 +745,27 @@ export function MediaViewer({
 
     steppedRef.current = next;
     track.scrollTo({ left: track.clientWidth * next, behavior: "smooth" });
+  }
+
+  /**
+   * DESIGN.md § 7.10. Where a thumbnail tap lands, and it is `step`'s arithmetic with
+   * the destination named rather than counted.
+   *
+   * INFO: The pending destination is recorded for `step`'s reason — an arrow key pressed while this scroll is still running has to measure from where the tap sent the reader, not from the slide it has not left yet.
+   * WARN: The tap is refused against the **pending** slide, never `index` alone. `index` follows `heldId`, which does not move until the track has crossed half a slide — so a tap on the thumbnail still marked active, made while a previous tap's scroll runs, would be dropped and leave the reader travelling to the slide they had just changed their mind about.
+   * WARN: A **live** crossing travels instantly. It is one frame of a scrub the reader's own hand is making, and a smooth scroll per frame both lags the film and queues behind the crossings after it — the photo would arrive at slides the finger left long ago, one after another.
+   */
+  function goToSlide(cell: MediaCell, isLive: boolean) {
+    const track = trackRef.current;
+    const next = cells.findIndex((slide) => slide.id === cell.id);
+
+    // INFO: § 18. #6. A zoomed slide freezes the track, and a tap on the strip is the same crossing the swipe is.
+    if (!track || zoom.isZoomed || next < 0 || next === (steppedRef.current ?? index)) {
+      return;
+    }
+
+    steppedRef.current = next;
+    track.scrollTo({ left: track.clientWidth * next, behavior: isLive ? "auto" : "smooth" });
   }
 
   /**
@@ -803,19 +873,19 @@ function SlideIdentity({ className, caption, senderName, hasChevron }: SlideIden
 }
 
 /**
- * DESIGN.md § 7.10. Where the slide sits **in the bubble it was sent in**, not in the
- * track — `2 / 3` on the second of three attachments, becoming `1 / 4` the moment a
- * swipe crosses into a bubble of four.
+ * DESIGN.md § 7.10. The stretch of the track the slide's **own bubble** occupies —
+ * what the filmstrip draws and what the position counts, so both answer `2장 중 1번`
+ * on the first of two and re-count the moment a swipe crosses into a bubble of four.
  *
  * WARN: Counting the track instead would answer a question nobody asked. § 8.1.'s track spans the conversation, so it reads `137 / 300` — a number that changes meaning with how far back the reader has scrolled and tells them nothing about the group they are looking at. The bubble is the only grouping the sender chose and the reader ever saw (§ 6.).
  * INFO: The run is contiguous because both tracks are ordered so that one send's attachments sit together — § 8.1. by `(message_id, sort_order)`, and § 10. by a `created_at` every attachment of one send shares.
- * INFO: Empty on a slide with no bubble (a library-only upload, or a draft before § 8.1.'s track arrives) and on a bubble of one — `1 / 1` is a count of nothing.
+ * INFO: Empty on a slide with no bubble (a library-only upload, or a draft before § 8.1.'s track arrives) and on a bubble of one — a strip of one thumbnail is a count of nothing.
  */
-function toPosition(index: number, cells: MediaCell[]): string {
+function toBubbleRun(index: number, cells: MediaCell[]): MediaCell[] {
   const messageId = cells[index]?.messageId;
 
   if (messageId === null || messageId === undefined) {
-    return "";
+    return [];
   }
 
   let start = index;
@@ -829,7 +899,159 @@ function toPosition(index: number, cells: MediaCell[]): string {
     end += 1;
   }
 
-  return end > start ? `${index - start + 1} / ${end - start + 1}` : "";
+  return end > start ? cells.slice(start, end + 1) : [];
+}
+
+export type SlideFilmstripProps = {
+  className?: string;
+  /** The bubble's own attachments, in send order (`toBubbleRun`). */
+  cells: MediaCell[];
+  activeId: MediaId;
+  /**
+   * Whether the strip may be used at all — the chrome around it is up, and the slide
+   * is not zoomed.
+   *
+   * WARN: REQUIREMENTS.md § 18. #6. The zoom half is not decoration. `goToSlide` refuses a crossing made over a zoomed slide, exactly as `overflow-x-hidden` refuses the swipe, and this row has no way to hear that refusal — left live it moved under the reader's hand, reported a notch nobody acted on, and stranded the ring and the counter on a thumbnail the strip was no longer showing, for as long as the zoom lasted and past it. The step chevrons are withheld on the same condition, through `canStepBack` / `canStepForward`.
+   */
+  isReachable: boolean;
+  /** `isLive` marks a crossing made **under a hand still on the strip**, which travels instantly rather than easing — see the notch's own WARN. */
+  onSelect: (cell: MediaCell, isLive: boolean) => void;
+};
+
+/**
+ * DESIGN.md § 7.10. The bubble laid out as thumbnails under the slide, with the
+ * position beneath them — a tap crosses to a sibling without swiping through the ones
+ * between, and the row itself is dragged under a notch at its centre.
+ *
+ * WARN: The row is **not** a scroller, and `useInertialStrip` carries the whole argument — the short version is that a scroller's position belongs to the browser, so this component could only guess whether a `scroll` was the reader's or its own centring, and a wrong guess closed a loop with the viewer's track that froze the tab.
+ * WARN: The end insets are the first cell's **margin**, half the row's width less half a thumbnail — exactly the room the first and last slide need to reach the middle. A percentage margin resolves against the row, which is the shell's width, so it follows the shell rather than a number written twice.
+ * WARN: The row spans the shell, and the band beside a short strip is therefore inside it rather than transparent to the slide behind. That is the price of the notch: the row **is** the control, so a drag anywhere along it has to move the film. The chrome toggle and the § 8.11. hold keep the rest of the screen, which is all of it above this bar.
+ */
+function SlideFilmstrip({
+  className,
+  cells,
+  activeId,
+  isReachable,
+  onSelect,
+}: SlideFilmstripProps) {
+  // INFO: The open is a jump and every crossing after it is a follow, so the first move is instant and the rest are eased — an animated one at mount would be read as the strip arriving already moving.
+  const hasSettledRef = useRef(false);
+  const index = cells.findIndex((cell) => cell.id === activeId);
+  // INFO: § 10.'s unit, so a bubble that is all video counts in 개 — `toCellNoun` calls a mixed one a photo, which is the same latitude 장 takes there.
+  const unit = toMediaCountUnit(cells.every((cell) => cell.isVideo) ? "video" : "photo");
+  /**
+   * DESIGN.md § 7.10. The crossing made **under the hand that is making it**, so the
+   * photo above follows the film rather than waiting for it to be let go.
+   *
+   * INFO: Marked live, which is what makes the track travel instantly. A smooth scroll per crossing cannot keep up with a finger and lands on a slide the reader has already dragged past.
+   * INFO: Reported once per notch by the hook, whatever the frame rate — the dedupe is exact because the row's position is a value it owns rather than one React has yet to re-render with.
+   */
+  const { rowRef, moveTo, dragProps } = useInertialStrip<HTMLDivElement>({
+    count: cells.length,
+    onNotch: (notched) => {
+      const cell = cells[notched];
+
+      if (cell) {
+        onSelect(cell, true);
+      }
+    },
+  });
+
+  /**
+   * DESIGN.md § 7.10. Puts the active thumbnail on the notch — on the open, where the
+   * reader may have tapped the last of nine, and on every crossing made anywhere else.
+   *
+   * WARN: A layout effect, so the row is already on the right thumbnail in the frame it first paints — the opening morph (§ 4.7.3.) lands on a viewer whose chrome must not then be seen correcting itself.
+   * WARN: The run's own length is a dependency as well as the held slide. § 8.1.'s track is replaced as pages commit, so a bubble can gain the siblings that were past the window's edge while the reader stands still — and the thumbnails inserted before theirs push it off the notch with nothing to notice it.
+   * INFO: A crossing the strip itself reported comes back through here and stops inside `moveTo`, which refuses an index it already holds.
+   */
+  useLayoutEffect(() => {
+    if (index < 0) {
+      return;
+    }
+
+    moveTo(index, hasSettledRef.current);
+    hasSettledRef.current = true;
+  }, [index, cells.length, moveTo]);
+
+  return (
+    // WARN: DESIGN.md § 7.10. Inert like the bar around it, with `pointer-events-auto` on the row's viewport alone. This block spans the bar's width, so claiming pointers here would swallow the chrome toggle and the § 8.11. hold across a band beside a two-thumbnail strip.
+    <div className={cn("flex flex-col items-center gap-2xs", className)}>
+      {/* WARN: `touch-none`, because the row is dragged from JS — left at `pan-x` the browser looks for a scrollable ancestor to pan and takes the pointer stream away mid-scrub. Nothing is given up: the viewer's root already reserves the vertical axis (§ 7.10.). */}
+      {/* WARN: The gesture is withheld whole rather than refused inside `onNotch` — see `isReachable`. The row keeps its place and its ring, and a pinch that reaches past the photo finds nothing here to take it. */}
+      <div
+        className={cn(
+          // INFO: Left to inherit the bar's own `pointer-events-none` where the strip is withheld, which takes the thumbnails' taps with it — the `tabIndex` below already drops them from the tab sequence on the same condition.
+          "w-full touch-none overflow-hidden",
+          isReachable && "pointer-events-auto cursor-grab active:cursor-grabbing",
+        )}
+        role="group"
+        aria-label="이 메시지의 첨부"
+        {...(isReachable ? dragProps : {})}
+      >
+        <div
+          ref={rowRef}
+          className="flex w-full gap-2xs will-change-transform [&>*:first-child]:ml-[calc(50%-1.5rem)]"
+        >
+          {cells.map((cell) => {
+            const isActive = cell.id === activeId;
+
+            return (
+              // INFO: DESIGN.md § 7.15. A selection among peers, which is where the tick belongs — and `keepsScroll`, since these cells tile a draggable row (§ 7.15.1.).
+              <HapticTarget
+                key={cell.id}
+                className="shrink-0"
+                // WARN: DESIGN.md § 7.15. The row's own `touch-action` repeated, since the gesture starts on the overlay — without it the browser claims the drag before `dragProps` sees it.
+                overlayClassName="touch-none"
+                keepsScroll
+              >
+                <button
+                  // INFO: A fixed square whatever the asset's shape is, so the strip reads as one row of equals rather than as a second, smaller track.
+                  // WARN: The focus ring is an `outline` drawn inward, not a `ring`. An outward one is clipped by the row's viewport on the end thumbnails, and `ring-inset` is a box-shadow — which paints *under* this element's own content, and the picture fills the box exactly. An outline is painted after the descendants, so a negative offset puts it over the photo where it can be seen.
+                  className="relative block size-12 cursor-pointer overflow-hidden rounded-sm bg-on-scrim/10 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+                  type="button"
+                  // WARN: AGENTS.md § 4.2. Roving tabindex over the strip, and the arrows that would move it are the viewer's own — `handleOverlayKeyDown` steps the track, which is what moves the mark here. Nine thumbnails in the tab sequence would put the bottom bar's controls nine stops away.
+                  tabIndex={isReachable && isActive ? undefined : -1}
+                  aria-current={isActive}
+                  aria-label={`${cells.indexOf(cell) + 1}번째 ${toMediaLabel(cell.isVideo ? "video" : "photo")}`}
+                  // INFO: Not live: a tap names its destination outright, so the track eases there as it does for the step controls.
+                  onClick={() => onSelect(cell, false)}
+                >
+                  {cell.previewUrl && (
+                    <PreloadImage
+                      className="size-full"
+                      imgClassName="size-full object-cover"
+                      src={cell.previewUrl}
+                      hasSkeleton={false}
+                      blurhash={cell.blurhash}
+                      blurhashRatio={toCellRatio(cell)}
+                      alt=""
+                    />
+                  )}
+                  {/* INFO: DESIGN.md § 7.10. The 2px `primary` mark on the slide being read, inset for the reason § 13.8.'s results row records — an outward ring on the first or last thumbnail is clipped away by the row's own viewport. */}
+                  {/* WARN: An element over the picture, never `ring-inset` on the button. An inset ring is a box-shadow, which paints under the element's own content — and the thumbnail fills the box exactly, so it covered the mark completely. */}
+                  {isActive && (
+                    <span className="pointer-events-none absolute inset-0 rounded-sm ring-2 ring-primary ring-inset" />
+                  )}
+                  {/* INFO: DESIGN.md § 6.5. The video tile's own glyph, at the size this box has for one — a strip of squares says nothing else about which of them plays. */}
+                  {cell.isVideo && (
+                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <Play className="size-4 fill-on-scrim text-on-scrim drop-shadow" />
+                    </span>
+                  )}
+                </button>
+              </HapticTarget>
+            );
+          })}
+        </div>
+      </div>
+      {/* INFO: DESIGN.md § 7.10. The position, moved out of the top bar's caption to sit under the thumbnails it counts. */}
+      <p className="flex items-center gap-2xs text-caption text-on-scrim/75">
+        <Images className="size-3.5 shrink-0" strokeWidth={1.75} />
+        {`${cells.length}${unit} 중 ${index + 1}번`}
+      </p>
+    </div>
+  );
 }
 
 /**
@@ -937,15 +1159,24 @@ function SlidePlaceholder({ cell }: { cell: MediaCell }) {
 function ImageSlide({
   cell,
   zoom,
+  isCurrent,
   isMorphTarget,
   hasMorphSettled,
 }: {
   cell: MediaCell;
   zoom?: ReturnType<typeof usePinchZoom>;
+  isCurrent: boolean;
   isMorphTarget: boolean;
   hasMorphSettled: boolean;
 }) {
-  const src = useDecodedOriginal(cell, hasMorphSettled);
+  // INFO: DESIGN.md § 7.10. The slide the viewer opened on is already where the reader meant to be, so it waits for nothing but the morph — every other one is arrived at, and may be arrived at on the way past.
+  const [isOpeningSlide] = useState(isCurrent);
+  // WARN: REQUIREMENTS.md § 10. The slide on screen and no other reaches for its original — a neighbour stays on the thumbnail it is already drawn from.
+  const src = useDecodedOriginal(
+    cell,
+    hasMorphSettled && isCurrent,
+    isOpeningSlide ? 0 : ARRIVAL_DWELL,
+  );
 
   return (
     // WARN: REQUIREMENTS.md § 18. #6. The gesture surface, and it never scales — the hook measures its box for the pan bounds, so the transform belongs to the element inside it.
@@ -988,9 +1219,10 @@ function ImageSlide({
  * WARN: The swap is what this exists to hide, and pointing `src` at the original is what used to start it. `PreloadImage` resets to `loading` on a changed source, so the element gave up the picture it was holding and went back to a placeholder for the length of the download — which is exactly backwards, since a perfectly good copy of that photograph was already on screen. Decoded first, the element is handed a URL the browser can paint in the same frame.
  * WARN: DESIGN.md § 4.7.3. Held until the opening morph has landed. Started at mount the decode finishes mid-flight, and the swap arrives as a pop at the instant the transition ends rather than as a photo sharpening under a reader already looking at it.
  * WARN: No `crossOrigin`, deliberately — AGENTS.md § 5.3. `/api/media/{id}` answers a 302 into R2, and a CORS-mode request is cached separately from the plain one every `<img>` makes, so asking for one here would download the photograph twice.
- * INFO: A rejected `decode` settles the same way as a resolved one. The failure belongs to `PreloadImage`, which has the retry and the § 7.8. ending for it; swallowing it here would leave the slide on a thumbnail with nothing ever saying why.
+ * WARN: Only a **resolved** decode is promoted. A rejection used to settle the same way, on the argument that the failure belonged to `PreloadImage` and its § 7.8. ending — but the element's own load then succeeds off the same bytes and reports the right `naturalWidth`, so that ending never arrives: it goes to `loaded`, drops the preview and fades the blur out over a picture the browser has run out of room to paint. Held here the reader keeps the thumbnail, and 원본 저장 still reaches the object.
+ * WARN: `dwell` is what tells arriving from passing through, and the abort below cannot stand in for it — see `ARRIVAL_DWELL`.
  */
-function useDecodedOriginal(cell: MediaCell, isEnabled: boolean): Nullable<string> {
+function useDecodedOriginal(cell: MediaCell, isEnabled: boolean, dwell: number): Nullable<string> {
   const [decoded, setDecoded] = useState<Nullable<string>>(null);
   const original = cell.originalUrl;
 
@@ -1001,15 +1233,23 @@ function useDecodedOriginal(cell: MediaCell, isEnabled: boolean): Nullable<strin
 
     let isActive = true;
     const image = new Image();
-    const settle = () => isActive && setDecoded(original);
 
-    image.src = original;
-    void image.decode().then(settle, settle);
+    const timer = window.setTimeout(() => {
+      image.src = original;
+      void image.decode().then(
+        () => isActive && setDecoded(original),
+        // INFO: The cleanup below rejects every decode it interrupts, so the swallow is the ordinary path out rather than the failure one.
+        () => undefined,
+      );
+    }, dwell);
 
+    // WARN: The source is dropped, never just the flag. A slide left behind mid-download keeps fetching and decoding an object of up to `MAX_IMAGE_SIZE` otherwise, and DESIGN.md § 7.10.'s scrub crosses slides faster than any of them finishes — a strip dragged across a bubble of nine left WebKit holding every original the reader passed, which it answers by killing the tab.
     return () => {
       isActive = false;
+      clearTimeout(timer);
+      image.removeAttribute("src");
     };
-  }, [isEnabled, original]);
+  }, [isEnabled, original, dwell]);
 
   return decoded ?? cell.previewUrl;
 }

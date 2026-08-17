@@ -64,7 +64,8 @@ export function usePinchZoom() {
   const isZoomed = transform.scale > MIN_ZOOM_SCALE;
 
   const reset = useCallback(() => {
-    setTransform(IDENTITY);
+    // WARN: The shared `IDENTITY` rather than a fresh object, so React bails out where there was no zoom to drop. This is called on **every** crossing (DESIGN.md § 7.10.), and a new object each time re-rendered the whole viewer per slide a scrub passed.
+    setTransform((current) => (current === IDENTITY ? current : IDENTITY));
     setIsGesturing(false);
     pointersRef.current.clear();
     pinchOriginRef.current = null;
