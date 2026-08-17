@@ -13,7 +13,7 @@ import { A_SECOND } from "../date/time";
  * enough that a finite-loop asset never visibly freezes, and long enough that an
  * infinite one is never cut mid-loop often enough to read as a stutter.
  */
-export const MINI_ANIMATION_LOOP_INTERVAL = 3 * A_SECOND;
+export const MINI_ANIMATION_LOOP_INTERVAL = 6 * A_SECOND;
 
 /**
  * A token that bumps whenever the observed element re-enters the viewport, plus
