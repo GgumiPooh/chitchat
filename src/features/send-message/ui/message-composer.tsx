@@ -10,6 +10,7 @@ import {
   type KeywordMatch,
 } from "@/shared/config";
 import {
+  A_SECOND,
   cn,
   isDigitKey,
   isMenuKey,
@@ -65,6 +66,9 @@ const FIELD_BOX = "px-2xs py-[10.75px] text-body-md leading-normal break-all";
 
 // WARN: Hoisted so the pending query answers one array identity — an inline `= []` re-runs the match on every render of a field being typed into.
 const NO_KEYWORDS: string[] = [];
+
+// INFO: § 13.8. Only the toggle's preview *disappearing* waits this out — a hit is shown the moment it decodes, but losing one mid-word (still typing past it, or the debounce chasing a faster hand) reverts to 스마일 and back on almost every keystroke without it.
+const TOGGLE_PREVIEW_HIDE_DEBOUNCE = A_SECOND / 3;
 
 /** An emoticon the draft can hold inside its text — REQUIREMENTS.md § 6.'s `OBJECT_PLACEHOLDER`, with what it takes to draw one. */
 export type ComposerEmoticon = {
@@ -156,6 +160,8 @@ export type MessageComposerProps = {
   onToggleEmoticons?: () => void;
   /** REQUIREMENTS.md § 13.8. A tap on the underlined word, carrying what was typed rather than the keyword it hit. */
   onKeywordTap?: (query: string) => void;
+  /** REQUIREMENTS.md § 13.8. A tap on the toggle while it stands in for the matched word's top hit — the room keeps this search past a walk to another tab, where `onKeywordTap`'s does not. */
+  onPreviewTap?: (query: string) => void;
   // INFO: REQUIREMENTS.md § 13. The emoticons whole rather than their ids alone — the optimistic bubble has to reserve the box the echoed row will, and only these carry it.
   onSend: (message: ComposedMessage) => void;
 };
@@ -177,6 +183,7 @@ export function MessageComposer({
   onEdit,
   onToggleEmoticons,
   onKeywordTap,
+  onPreviewTap,
   onSend,
 }: MessageComposerProps) {
   const fieldRef = useRef<Nullable<HTMLDivElement | HTMLTextAreaElement>>(null);
@@ -257,7 +264,9 @@ export function MessageComposer({
     }
 
     let cancelled = false;
-    const url = toEmoticonAssetUrl(previewResult.id, "animated-image", previewResult.version);
+    // INFO: § 13.8. Read off the item's own flags rather than always asking `still-image` — asking the slot it does not carry is exactly what `toSlotAsset` marks `isFallback` and shortens the cache for (`get-emoticon-asset.ts`), and every item here carries one or the other.
+    const slot = previewResult.hasStill ? "still-image" : "animated-image";
+    const url = toEmoticonAssetUrl(previewResult.id, slot, previewResult.version);
 
     void warmEmoticonUrls([url], () => cancelled, true).then(() => {
       if (!cancelled) {
@@ -277,6 +286,31 @@ export function MessageComposer({
     decodedPreview.version === previewResult.version
       ? decodedPreview.url
       : null;
+  const [displayedPreviewUrl, setDisplayedPreviewUrl] = useState<Nullable<string>>(null);
+  const prevPreviewUrlRef = useRef(previewUrl);
+
+  // WARN: § 13.8. Adjusted during render rather than in an effect, for `seededDraft`'s reason above — a hit has to swap in on the very render it decodes, and an effect lands a frame later.
+  if (previewUrl !== prevPreviewUrlRef.current) {
+    prevPreviewUrlRef.current = previewUrl;
+
+    if (previewUrl) {
+      setDisplayedPreviewUrl(previewUrl);
+    }
+  }
+
+  // WARN: § 13.8. Only the *disappearing* half goes through a timer, and only here — a delay is a side effect, where the render-phase swap above is instant on purpose.
+  useEffect(() => {
+    if (previewUrl) {
+      return;
+    }
+
+    const timer = setTimeout(() => setDisplayedPreviewUrl(null), TOGGLE_PREVIEW_HIDE_DEBOUNCE);
+
+    return () => clearTimeout(timer);
+  }, [previewUrl]);
+
+  // INFO: § 13.6. Held back while the panel is open — the panel this button now closes is what the sticker's own tab already shows, so the toggle reads by its usual glyph rather than repeating the pack behind it.
+  const showsPreview = displayedPreviewUrl !== null && !isEmoticonPickerOpen;
   // INFO: The emoticons as the field draws them, one per placeholder in `draft.text` and in that order.
   const objects = useMemo<EditableObject[]>(
     () =>
@@ -533,23 +567,28 @@ export function MessageComposer({
         {/* INFO: DESIGN.md § 6.6. The toggle stays put once text is typed — an emoticon is staged beside a line of text now (REQUIREMENTS.md § 13.6.), so replacing it with send would put the panel out of reach exactly when it is wanted. */}
         {!isEditing && (
           <IconButton
-            buttonClassName={cn(isEmoticonPickerOpen && "bg-primary-tint text-primary")}
-            Icon={previewUrl ? undefined : Smile}
+            buttonClassName={cn(
+              isEmoticonPickerOpen && "bg-primary-tint text-primary",
+              // INFO: A sticker standing free rather than a glyph on a control — the round hover/press fill this button always carries would otherwise show through past the picture's own edges.
+              showsPreview &&
+                "rounded-none group-active:bg-transparent hover:bg-transparent active:bg-transparent",
+            )}
+            Icon={showsPreview ? undefined : Smile}
             haptic
             aria-label="이모티콘"
             aria-pressed={isEmoticonPickerOpen}
             icon={
-              previewUrl && (
+              showsPreview ? (
                 // eslint-disable-next-line @next/next/no-img-element -- The exact `Image` warmEmoticonUrls decoded, so the browser's decode cache paints it with nothing for `next/image` to wait on.
                 <img
                   className="pointer-events-none size-11 object-contain"
-                  src={previewUrl}
+                  src={displayedPreviewUrl ?? undefined}
                   alt=""
                   draggable={false}
                 />
-              )
+              ) : undefined
             }
-            onClick={previewUrl ? handleKeywordTap : toggleEmoticons}
+            onClick={showsPreview ? handlePreviewTap : toggleEmoticons}
           />
         )}
         {/* WARN: `keepsFocus` repeats `keepFieldFocused` on the overlay. It takes the tap the button would have taken, so without it the textarea blurs and iOS drops the keyboard on every send. */}
@@ -620,6 +659,17 @@ export function MessageComposer({
     // WARN: § 13.6. Before the request and not after, which is the order this has always been in — the blur is what lowers the keyboard, and the panel is asked to open against a viewport that is already on its way back.
     fieldRef.current?.blur();
     openEmoticonSearch(match.query);
+  }
+
+  /** WARN: § 13.8. The toggle's own tap, kept apart from `handleKeywordTap` so the room can tell the two open requests apart and hold this one past a walk to another tab. */
+  function handlePreviewTap() {
+    if (!match) {
+      return;
+    }
+
+    fieldRef.current?.blur();
+    tappedQueryRef.current = match.query;
+    onPreviewTap?.(match.query);
   }
 
   /**
