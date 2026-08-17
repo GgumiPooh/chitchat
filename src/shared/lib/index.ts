@@ -148,7 +148,6 @@ export {
   isAltKey,
   isBareKey,
   isCommandKey,
-  isCommandShiftKey,
   isDigitKey,
   isLetterKey,
   isShiftKey,

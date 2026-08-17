@@ -41,18 +41,6 @@ export function isCommandKey(event: Modifiers): boolean {
   return hasCommandModifier(event) && !event.altKey && !event.shiftKey;
 }
 
-/**
- * Whether this event carries the platform's shortcut modifier **and `Shift`**, which is
- * how a binding spells the more specific form of the one beside it — the `⌘F`/`⌘⇧F` and
- * `⌘Z`/`⌘⇧Z` idiom.
- *
- * INFO: REQUIREMENTS.md § 8.14. No shortcut is on this shape today; `⌘⇧E` was and its
- * menu is `⌥1` now.
- */
-export function isCommandShiftKey(event: Modifiers): boolean {
-  return hasCommandModifier(event) && event.shiftKey && !event.altKey;
-}
-
 function hasCommandModifier(event: Modifiers): boolean {
   return usesMetaKey() ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
 }
