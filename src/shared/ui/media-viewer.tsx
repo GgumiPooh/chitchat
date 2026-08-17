@@ -8,6 +8,7 @@ import {
   type ChatTrackEdge,
 } from "@/shared/config";
 import {
+  A_SECOND,
   MEDIA_MORPH_NAME,
   MEDIA_VIEWER_NAME,
   cn,
@@ -51,6 +52,16 @@ import { IconButton } from "./icon-button";
 import { toCellRatio, type MediaCell } from "./media-cell";
 import { PreloadImage } from "./preload-image";
 import { ShellOverlay } from "./shell-overlay";
+
+/**
+ * How long the reader has to stay on a slide they arrived at before its original is
+ * asked for — long enough that a slide crossed on the way somewhere else asks for
+ * nothing at all.
+ *
+ * WARN: The abort in `useDecodedOriginal`'s cleanup does not stand in for this, and the two are not alternatives. It stops the bytes that have not arrived yet; the request itself has already been made, and `/api/media/{id}` validates the session, reads the row and signs a URL before it answers. A reader flipping between three photos was paying that round trip per crossing, for objects they never looked at.
+ * INFO: Half a second rather than a frame or two, because the flipping is what it is for. A slide crossed in a filmstrip scrub is held for tens of milliseconds, but one crossed in a quick there-and-back swipe is held for two or three hundred — and that is the pattern the § 10. blank slide was reported from.
+ */
+const ARRIVAL_DWELL = A_SECOND / 2;
 
 export type MediaViewerProps = {
   className?: string;
@@ -1158,8 +1169,14 @@ function ImageSlide({
   isMorphTarget: boolean;
   hasMorphSettled: boolean;
 }) {
+  // INFO: DESIGN.md § 7.10. The slide the viewer opened on is already where the reader meant to be, so it waits for nothing but the morph — every other one is arrived at, and may be arrived at on the way past.
+  const [isOpeningSlide] = useState(isCurrent);
   // WARN: REQUIREMENTS.md § 10. The slide on screen and no other reaches for its original — a neighbour stays on the thumbnail it is already drawn from.
-  const src = useDecodedOriginal(cell, hasMorphSettled && isCurrent);
+  const src = useDecodedOriginal(
+    cell,
+    hasMorphSettled && isCurrent,
+    isOpeningSlide ? 0 : ARRIVAL_DWELL,
+  );
 
   return (
     // WARN: REQUIREMENTS.md § 18. #6. The gesture surface, and it never scales — the hook measures its box for the pan bounds, so the transform belongs to the element inside it.
@@ -1203,8 +1220,9 @@ function ImageSlide({
  * WARN: DESIGN.md § 4.7.3. Held until the opening morph has landed. Started at mount the decode finishes mid-flight, and the swap arrives as a pop at the instant the transition ends rather than as a photo sharpening under a reader already looking at it.
  * WARN: No `crossOrigin`, deliberately — AGENTS.md § 5.3. `/api/media/{id}` answers a 302 into R2, and a CORS-mode request is cached separately from the plain one every `<img>` makes, so asking for one here would download the photograph twice.
  * WARN: Only a **resolved** decode is promoted. A rejection used to settle the same way, on the argument that the failure belonged to `PreloadImage` and its § 7.8. ending — but the element's own load then succeeds off the same bytes and reports the right `naturalWidth`, so that ending never arrives: it goes to `loaded`, drops the preview and fades the blur out over a picture the browser has run out of room to paint. Held here the reader keeps the thumbnail, and 원본 저장 still reaches the object.
+ * WARN: `dwell` is what tells arriving from passing through, and the abort below cannot stand in for it — see `ARRIVAL_DWELL`.
  */
-function useDecodedOriginal(cell: MediaCell, isEnabled: boolean): Nullable<string> {
+function useDecodedOriginal(cell: MediaCell, isEnabled: boolean, dwell: number): Nullable<string> {
   const [decoded, setDecoded] = useState<Nullable<string>>(null);
   const original = cell.originalUrl;
 
@@ -1216,19 +1234,22 @@ function useDecodedOriginal(cell: MediaCell, isEnabled: boolean): Nullable<strin
     let isActive = true;
     const image = new Image();
 
-    image.src = original;
-    void image.decode().then(
-      () => isActive && setDecoded(original),
-      // INFO: The cleanup below rejects every decode it interrupts, so the swallow is the ordinary path out rather than the failure one.
-      () => undefined,
-    );
+    const timer = window.setTimeout(() => {
+      image.src = original;
+      void image.decode().then(
+        () => isActive && setDecoded(original),
+        // INFO: The cleanup below rejects every decode it interrupts, so the swallow is the ordinary path out rather than the failure one.
+        () => undefined,
+      );
+    }, dwell);
 
     // WARN: The source is dropped, never just the flag. A slide left behind mid-download keeps fetching and decoding an object of up to `MAX_IMAGE_SIZE` otherwise, and DESIGN.md § 7.10.'s scrub crosses slides faster than any of them finishes — a strip dragged across a bubble of nine left WebKit holding every original the reader passed, which it answers by killing the tab.
     return () => {
       isActive = false;
+      clearTimeout(timer);
       image.removeAttribute("src");
     };
-  }, [isEnabled, original]);
+  }, [isEnabled, original, dwell]);
 
   return decoded ?? cell.previewUrl;
 }
