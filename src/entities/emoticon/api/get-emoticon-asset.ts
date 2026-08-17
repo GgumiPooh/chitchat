@@ -4,7 +4,7 @@ import type { EmoticonSlot } from "@/shared/config";
 import { emoticonItems, emoticonPacks, getDb, media, messages } from "@/shared/db";
 import type { EmoticonItemId, Nullable } from "@/shared/lib";
 import type { DbTransaction } from "@/shared/storage";
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { alias, type PgColumn } from "drizzle-orm/pg-core";
 
 /** The storage key behind each of one item's three slots (the finished restructure). */
@@ -149,7 +149,11 @@ export type DeleteEmoticonResult =
  */
 export async function deleteEmoticonItem(id: EmoticonItemId): Promise<DeleteEmoticonResult> {
   const [item] = await getDb()
-    .select({ type: emoticonPacks.type })
+    .select({
+      type: emoticonPacks.type,
+      // WARN: Inside the `CASE` so a mini never runs it, which is what the note above asks for — `messages.emoticon_item_id` carries no index, so the miss is a full scan.
+      isSent: sql<boolean>`case when ${emoticonPacks.type} = 'emoticon' then exists (select 1 from ${messages} where ${messages.emoticonItemId} = ${emoticonItems.id}) else false end`,
+    })
     .from(emoticonItems)
     .innerJoin(emoticonPacks, eq(emoticonPacks.id, emoticonItems.packId))
     .where(eq(emoticonItems.id, id))
@@ -163,13 +167,7 @@ export async function deleteEmoticonItem(id: EmoticonItemId): Promise<DeleteEmot
     return tombstoneEmoticonItem(id);
   }
 
-  const [sent] = await getDb()
-    .select({ id: messages.id })
-    .from(messages)
-    .where(eq(messages.emoticonItemId, id))
-    .limit(1);
-
-  if (sent) {
+  if (item.isSent) {
     const [retired] = await getDb()
       .update(emoticonItems)
       .set({ retiredAt: new Date() })

@@ -10,7 +10,14 @@ import {
   type EmoticonImageSlot,
   type EmoticonSlot,
 } from "@/shared/config";
-import { emoticonItems, getDb, media, nextSnowflake, type EmoticonItem } from "@/shared/db";
+import {
+  emoticonItems,
+  emoticonPacks,
+  getDb,
+  media,
+  nextSnowflake,
+  type EmoticonItem,
+} from "@/shared/db";
 import type {
   EmoticonItemId,
   EmoticonPackId,
@@ -201,21 +208,18 @@ export async function updateEmoticonItem({
   audioKey,
   keywords,
 }: UpdateEmoticonParams): Promise<UpdateEmoticonResult> {
-  const [current] = await getDb()
-    .select()
+  const [found] = await getDb()
+    .select({ item: emoticonItems, packType: emoticonPacks.type })
     .from(emoticonItems)
+    .innerJoin(emoticonPacks, eq(emoticonPacks.id, emoticonItems.packId))
     .where(eq(emoticonItems.id, itemId))
     .limit(1);
 
-  if (!current) {
+  if (!found) {
     return { status: "not_found" };
   }
 
-  const packType = await getEmoticonPackType(current.packId);
-
-  if (!packType) {
-    return { status: "not_found" };
-  }
+  const { item: current, packType } = found;
 
   // INFO: `emoticon_items_has_image_check` against what the item actually holds — the route can only refuse a body emptying *both*, where emptying the only one it has reads as legal until the constraint says otherwise.
   if (!willHoldAnImage(current, still, animated)) {
