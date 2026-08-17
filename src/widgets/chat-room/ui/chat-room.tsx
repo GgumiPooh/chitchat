@@ -326,7 +326,7 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 13.9. An emoticon tapped in the conversation. Where the panel opens is the picker's decision, since the pack list is what settles it.
   const [emoticonReveal, setEmoticonReveal] =
     useState<Nullable<{ emoticon: Emoticon; token: number }>>(null);
-  // INFO: REQUIREMENTS.md § 8.14. The menu `⌥1`/`⌥2`/`⌥3` — and `⌘E`'s own open — asked for, carrying a token for `emoticonReveal`'s reason: pressing the same key twice is two requests, and keyed on the menu alone the second would be no change to see.
+  // INFO: REQUIREMENTS.md § 8.14. The menu the digits — and `⌘E`'s own open — asked for, carrying a token for `emoticonReveal`'s reason: pressing the same key twice is two requests, and keyed on the menu alone the second would be no change to see.
   const [menuRequest, setMenuRequest] =
     useState<Nullable<{ menu: EmoticonMenu; token: number }>>(null);
   // WARN: § 13. A mini the picker put into the draft. The token is the composer's key for it as well as the instruction, so it counts up rather than carrying `Date.now()` — two minis inside one millisecond would be one key, and the draft could no longer say which of them a Backspace took.
@@ -1863,13 +1863,12 @@ export function ChatRoom({
   }
 
   /**
-   * REQUIREMENTS.md § 8.14. `⌥1` / `⌥2` / `⌥3` — § 13.6.'s panel on the menu the digit
+   * REQUIREMENTS.md § 8.14. `⌃1` / `⌃2` / `⌃3` — § 13.6.'s panel on the menu the digit
    * names, opened if it is shut. `⌘E`'s open is this too, naming 이모티콘.
    *
-   * WARN: A digit never closes the panel, so the digit of the menu already on screen is
-   * not a special case — the request reaches a panel that is already there and already
-   * on that menu, and `selectMenu` sees no change to make. `⌘E` is the one key that
-   * closes.
+   * WARN: A digit never closes the panel, so the digit of the menu already on screen
+   * changes no menu — the request reaches a panel that is already there and already on
+   * that menu, and `selectMenu` finds nothing to do. `⌘E` is the one key that closes.
    *
    * WARN: § 13.6. The blur is the same one the toggle button makes and for the same
    * reason: the panel is gated on the keyboard being down, and iOS lowers it for a blur
@@ -1877,7 +1876,7 @@ export function ChatRoom({
    * gets to act on it.
    *
    * WARN: § 8.13. The correction guard is needed for a reason that is easy to miss: the
-   * composer refuses `⌥1` while editing and therefore does not prevent it, so the press
+   * composer refuses the 검색 digit while editing and therefore does not prevent it, so the press
    * falls straight through to this room — where the panel would stage a payload the edit
    * has no row to send, invisibly, since § 8.13. hides the tray that would have shown it.
    *
@@ -1969,7 +1968,7 @@ export function ChatRoom({
    * REQUIREMENTS.md § 13.8. A word tapped in the composer opens the picker on its
    * search tab, already holding it.
    *
-   * WARN: § 8.14. `⌥1` reaches this with an empty query where no word is underlined,
+   * WARN: § 8.14. `⌃1` reaches this with an empty query where no word is underlined,
    * and an empty `searchedWordRef` is not a word the send may spend — `""` is what a
    * cleared draft trims to, so the next quick send would swallow whatever had been
    * typed since.
