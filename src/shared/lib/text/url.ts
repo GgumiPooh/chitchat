@@ -1,7 +1,8 @@
 import type { Nullable } from "../nullish";
 
 // WARN: `http(s)` only, and deliberately no bare-domain rule — `1.5.` or `가.나` would otherwise linkify, and a false positive is a bubble that navigates away on a mis-tap.
-const URL_PATTERN = /https?:\/\/[^\s<>"']+/gi;
+// WARN: U+FFFC ends the run as surely as a space does — it is REQUIREMENTS.md § 13.'s inline emoticon, an object standing in the text rather than a character of the address. Left in the class, an emoticon typed straight after a link makes the two one match, and § 8.9.'s card is scraped for a URL nobody wrote.
+const URL_PATTERN = /https?:\/\/[^\s<>"'\uFFFC]+/gi;
 
 // INFO: Sentence punctuation belongs to the sentence, not to the URL — `봤어? https://a.com/b.` ends in a full stop that is not part of the path.
 const TRAILING_PUNCTUATION = /[.,!?;:'"·…]+$/;
