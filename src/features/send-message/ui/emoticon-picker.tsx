@@ -803,10 +803,10 @@ export function EmoticonPicker({
             onFocus={trackCellFocus}
             {...swipeHandlers}
           >
-            {/* INFO: DESIGN.md § 7.10. 보관함's month header — `title-sm` `meta`, inside the scroller so it travels with the cells rather than pinning above them. */}
+            {/* INFO: DESIGN.md § 7.10. 보관함's month header pattern, sized down from `title-sm` to `body-sm` for this panel's tighter grid — `meta`, inside the scroller so it travels with the cells rather than pinning above them. */}
             {/* WARN: § 8.14. Not a focus target, so it carries no `FOCUS_INDEX_ATTRIBUTE` — the arrows read cells off that attribute and a heading in the list would be a step onto nothing. */}
             {activeTabLabel !== "" && (
-              <h2 className="pb-xs text-title-sm text-meta">{activeTabLabel}</h2>
+              <h2 className="pb-xs text-body-sm text-meta">{activeTabLabel}</h2>
             )}
             {/* WARN: § 13.6. The tab's own items are a request now, so the grid waits for them as it waits for the list. Drawn before they land, a pack tab paints `이 묶음에는 이모티콘이 없어요` over a pack that has plenty — the verdict-before-the-answer § 13.9.1. removed from the search pane. */}
             {/* WARN: § 13.6. 최근 사용 is the default tab and its ids resolve through a request of their own, so it needs the same guard — without it the panel flashes `최근 사용한 이모티콘이 여기에 보여요` every time it opens ahead of the preload. Every send used to do it too, a new id being a cold key; `emoticons-query.ts` holds the previous answer over for exactly that. */}

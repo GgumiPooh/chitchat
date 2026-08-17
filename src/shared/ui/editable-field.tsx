@@ -1,7 +1,7 @@
 "use client";
 
 import { OBJECT_PLACEHOLDER, countObjectPlaceholders } from "@/shared/config";
-import { cn, hasDataTransferFiles, type Nullable } from "@/shared/lib";
+import { A_SECOND, cn, hasDataTransferFiles, type Nullable } from "@/shared/lib";
 import {
   useCallback,
   useEffect,
@@ -11,6 +11,7 @@ import {
   type ClipboardEvent,
   type DragEvent,
   type KeyboardEvent,
+  type PointerEvent,
   type PropsWithChildren,
   type ReactNode,
   type Ref,
@@ -24,6 +25,30 @@ const BLOCK_TAGS = new Set(["DIV", "P", "LI", "BLOCKQUOTE", "PRE"]);
 
 // INFO: Carried on the host element rather than in a ref beside it, because the browser owns these nodes once they are written — a deletion is only ever visible in the DOM.
 const OBJECT_KEY_ATTRIBUTE = "data-object-key";
+
+// WARN: How recent a press has to be for `handleFocus` to read the caret out of its coordinates. A programmatic `focus()` gets no press at all, and must not inherit one from a tap the reader made a moment earlier somewhere else.
+const PRESS_FRESHNESS = A_SECOND;
+
+/**
+ * A zero-width space standing wherever the caret would otherwise have no text to be measured
+ * in: immediately after every object, and on an empty last line.
+ *
+ * WARN: WebKit derives the caret's screen rect from the inline box beside it, and neither of
+ * those places offers one — an object is a `contenteditable="false"` atom, and an empty last line
+ * holds only the browser's filler `<br>`. Left with nothing to measure it falls back to a box
+ * somewhere else entirely: the field's own left or right edge beside a mini, and the *previous*
+ * line after an Enter. That is the whole family of iOS caret bugs here, and in every one of them
+ * the selection was already correct — only the painted caret was wrong, which is why typing
+ * always landed where the reader meant it to.
+ *
+ * WARN: Never a character of the draft. It is stripped from everything this component reports
+ * and from every offset it counts, so `value`, `maxLength` and the stored row never see it.
+ *
+ * WARN: One per position and always *after* the character that needs it, never on both sides.
+ * Two anchors meeting between adjacent objects are two Backspaces that delete nothing the reader
+ * can see, which is the bug an anchor on each side shipped.
+ */
+const CARET_ANCHOR = "\u200b";
 
 // WARN: Hoisted so a field with no objects passes one array identity — an inline `= []` re-runs the memo below on every keystroke.
 const NO_OBJECTS: readonly EditableObject[] = [];
@@ -121,6 +146,8 @@ export function EditableField({
   const shownRef = useRef("");
   // INFO: The caret as it stood when the field last lost it, so a programmatic `focus()` resumes rather than jumping to the front.
   const caretRef = useRef<Nullable<Range>>(null);
+  // INFO: Where the press that is about to focus this field landed, so the caret can be read out of the tap rather than out of `caretRef`.
+  const pressRef = useRef<Nullable<{ x: number; y: number; at: number }>>(null);
   // WARN: Nothing may rewrite the field while this is true. A Hangul IME owns the nodes it is composing into, and replacing them settles the syllable in flight twice.
   const isComposingRef = useRef(false);
   // INFO: The hosts now in the field, in document order. Each caller's object is drawn into its own through a portal, so the browser goes on owning the nodes the caret moves through.
@@ -239,7 +266,8 @@ export function EditableField({
         return;
       }
 
-      const replaced = document.getSelection()?.toString().length ?? 0;
+      // WARN: Stripped, or a selection that swept past an object would charge the limit for anchors the draft does not hold.
+      const replaced = toStripped(document.getSelection()?.toString() ?? "").length;
 
       if (shownRef.current.length - replaced + inserted.length > limit) {
         event.preventDefault();
@@ -264,6 +292,7 @@ export function EditableField({
         onInput={report}
         onCompositionStart={startComposition}
         onCompositionEnd={endComposition}
+        onPointerDown={rememberPress}
         onFocus={handleFocus}
         onKeyDown={onKeyDown}
         onPaste={handlePaste}
@@ -302,19 +331,90 @@ export function EditableField({
       return;
     }
 
-    let { text: next, keys } = readEditableContent(field);
+    /**
+     * WARN: One trailing newline is the browser's own filler and is dropped here, exactly as
+     * `toAtoms` drops a trailing `<br>` for the same reason. Under `white-space: pre-wrap` both
+     * Chrome and WebKit answer a line break with **two** `\n` characters, the second only there
+     * to give the new empty line something to be — measured, the field renders one new line, not
+     * two. Read as written it counted every first break twice, and the anchor this component then
+     * wrote onto that phantom line turned the miscount into a real third line.
+     *
+     * WARN: Only when no `<br>` closed the content, because the filler is one form or the other
+     * and never both. Deleting the anchor off an empty last line leaves `…\n` plus a `<br>` — the
+     * newline there is the reader's own and `toAtoms` has already dropped the `<br>` standing in
+     * for it, so trimming again ate the break out of the draft while the DOM went on painting it.
+     * That is one Backspace that changed nothing on screen and a second one to finish the job.
+     *
+     * WARN: Trimmed here and never inside `readEditableContent`, which also measures the content
+     * *ahead of* the caret for `toRangeOffset` — a partial read legitimately ends at a newline,
+     * and trimming that one puts every caret sitting just past a break one character too early.
+     *
+     * INFO: Unambiguous because this component's own canonical form never ends in a newline: a
+     * draft that does gets a `CARET_ANCHOR` after it (`toAnchored`), so the field's last character
+     * is the anchor rather than the break.
+     */
+    const read = readEditableContent(field);
+    const hasFiller = read.raw.endsWith("\n") && !endsWithBreakElement(field);
+    const raw = hasFiller ? read.raw.slice(0, -1) : read.raw;
+    let next = toStripped(raw);
+    let keys = read.keys;
+    // WARN: Read before anything below rewrites the field, never `collapseToEnd`. A trim takes the overflow off the *end*, so a paste into the middle of a nearly full draft leaves the caret well short of it — sent to the end, the next character typed lands at the far side of the message instead of after what was just pasted.
+    const caret = document.activeElement === field ? toCaretOffset(field) : null;
+    // INFO: Where the caret has to be put back when this function rewrites the field, in the draft's own coordinates. Null leaves it wherever the browser's own edit left it.
+    let placeAt: Nullable<number> = null;
+
+    /**
+     * WARN: A Backspace beside an object, or on an empty last line, reaches that position's
+     * `CARET_ANCHOR` first — and deleting an anchor is not an edit the draft can show, so the
+     * press is credited to the character the anchor stood after. Without this it takes two
+     * presses to remove one mini or one blank line: one that appears to do nothing, then one
+     * that works.
+     *
+     * WARN: Only when the text is otherwise unchanged. A selection that took the object *and*
+     * text around it already reported the deletion, and the normalisation below is all it needs.
+     */
+    if (!isComposingRef.current && next === shownRef.current) {
+      const missing = toMissingAnchor(raw, next);
+
+      if (missing > 0) {
+        const at = missing - 1;
+        // INFO: Read before the slice, and only an object costs a key — the empty line's anchor stands after a newline, which owns none.
+        const index = countObjectPlaceholders(next.slice(0, at));
+        const isObject = next[at] === OBJECT_PLACEHOLDER;
+
+        next = `${next.slice(0, at)}${next.slice(at + 1)}`;
+
+        if (isObject) {
+          keys = [...keys.slice(0, index), ...keys.slice(index + 1)];
+        }
+
+        placeAt = at;
+      }
+    }
 
     if (maxLength !== undefined && next.length > maxLength && !isComposingRef.current) {
-      // WARN: Read before the rewrite and restored after it, never `collapseToEnd`. The overflow is trimmed off the *end*, so a paste into the middle of a nearly full draft leaves the caret well short of it — sent to the end, the next character typed lands at the far side of the message instead of after what was just pasted.
-      const caret = document.activeElement === field ? toCaretOffset(field) : null;
-
       next = next.slice(0, maxLength);
       // WARN: The keys the trimmed text still has placeholders for, and the rewrite carries them — writing the text alone would draw every surviving object as the raw placeholder character.
       keys = keys.slice(0, countObjectPlaceholders(next));
+      placeAt = caret;
+    }
+
+    /**
+     * WARN: The DOM is put back the way `writeNodes` spells it whenever the browser's own
+     * editing has left it spelled differently — a stray anchor where the object it belonged to
+     * is gone, or a missing one this press has just been credited for. Left alone, the next
+     * Backspace lands on a character that stands for nothing again.
+     *
+     * WARN: Never while a composition is in flight, for the reason the sync effect above skips
+     * one: replacing the nodes a Hangul IME owns settles the syllable twice.
+     */
+    if (!isComposingRef.current && (placeAt !== null || raw !== toAnchored(next))) {
       writeNodes(field, next, keys.map(toHostedObject));
 
-      if (caret !== null) {
-        placeCaret(field, Math.min(caret, next.length));
+      const at = placeAt ?? caret;
+
+      if (at !== null && document.activeElement === field) {
+        placeCaret(field, Math.min(at, next.length));
       }
     }
 
@@ -338,6 +438,11 @@ export function EditableField({
     report();
   }
 
+  // INFO: `pointerdown` rather than `click`, because focus is handled by the press and this has to be on record before it.
+  function rememberPress(event: PointerEvent<HTMLDivElement>) {
+    pressRef.current = { x: event.clientX, y: event.clientY, at: Date.now() };
+  }
+
   /**
    * WARN: The caret is only placed when it is not already inside. A click has set the
    * selection by the time this fires, and moving it would make every tap into the middle
@@ -354,7 +459,26 @@ export function EditableField({
     onFocus?.();
   }
 
+  /**
+   * WARN: The press is consulted before `caretRef`, and a draft of nothing but objects is
+   * why. `writeNodes` gives an empty run no text node, so three minis in a row are three
+   * `contenteditable="false"` spans with no editable text anywhere between them — WebKit
+   * sets no selection at all for a tap that lands on one, `isCaretInside` is false, and the
+   * remembered caret then puts every such tap back where the last insertion left it: the
+   * end of the draft. Reading the tap's own coordinates is what makes the middle reachable.
+   */
   function restoreCaret(field: HTMLDivElement, selection: Selection) {
+    const pressed = toPressedCaret(field, pressRef.current);
+
+    pressRef.current = null;
+
+    if (pressed) {
+      selection.removeAllRanges();
+      selection.addRange(pressed);
+
+      return;
+    }
+
     const saved = caretRef.current;
 
     if (saved && field.contains(saved.commonAncestorContainer)) {
@@ -382,15 +506,16 @@ export function EditableField({
       return;
     }
 
-    const replaced = document.getSelection()?.toString().length ?? 0;
+    // WARN: Stripped, for the reason the `beforeinput` guard strips it.
+    const replaced = toStripped(document.getSelection()?.toString() ?? "").length;
     // WARN: Floored at zero. A `value` written in from outside is never trimmed, so a draft past the limit leaves a negative room — and `slice` counts one of those from the *end*, pasting the clipboard's tail where the refusal was meant to be.
     const room =
       maxLength === undefined
         ? undefined
         : Math.max(0, maxLength - shownRef.current.length + replaced);
     // WARN: The placeholder is stripped out of pasted text. It would be a character the caller has no object for — one the draft counts, the limit charges for, and nothing draws.
-    const text = event.clipboardData
-      .getData("text/plain")
+    // WARN: And the anchor with it, or a draft copied out of this very field would paste anchors standing after no object — which `report` then reads as objects deleted and starts removing.
+    const text = toStripped(event.clipboardData.getData("text/plain"))
       .replaceAll(OBJECT_PLACEHOLDER, "")
       .slice(0, room);
 
@@ -408,6 +533,95 @@ export function EditableField({
 
 function isLineBreak(inputType: string): boolean {
   return inputType === "insertParagraph" || inputType === "insertLineBreak";
+}
+
+/**
+ * The caret a press at these coordinates asks for, or null when there is no fresh press to
+ * read one out of.
+ *
+ * WARN: A press that landed on an object is snapped to one side of it rather than used as
+ * it comes back. `caretRangeFromPoint` reports a position *inside* the host for a tap on
+ * the picture, which is a place the caret may not stand — the host is
+ * `contenteditable="false"` — so WebKit resolves it to whichever end of the field it likes.
+ * The half of the box that was tapped is what says which side the reader meant.
+ */
+function toPressedCaret(
+  field: HTMLDivElement,
+  press: Nullable<{ x: number; y: number; at: number }>,
+): Nullable<Range> {
+  if (!press || Date.now() - press.at > PRESS_FRESHNESS) {
+    return null;
+  }
+
+  const range = toRangeFromPoint(press.x, press.y);
+
+  if (!range || !field.contains(range.startContainer)) {
+    return null;
+  }
+
+  const host = toEnclosingHost(range.startContainer);
+
+  if (!host) {
+    range.collapse(true);
+
+    return range;
+  }
+
+  const box = host.getBoundingClientRect();
+  const snapped = document.createRange();
+
+  if (press.x < box.left + box.width / 2) {
+    snapped.setStartBefore(host);
+  } else {
+    snapped.setStartAfter(host);
+  }
+
+  snapped.collapse(true);
+
+  return snapped;
+}
+
+// WARN: `caretRangeFromPoint` is the WebKit/Blink spelling and the one iOS answers; `caretPositionFromPoint` is the standardised name Firefox ships. Neither is on every engine, so both are tried.
+function toRangeFromPoint(x: number, y: number): Nullable<Range> {
+  if (document.caretRangeFromPoint) {
+    return document.caretRangeFromPoint(x, y);
+  }
+
+  const position = document.caretPositionFromPoint?.(x, y);
+
+  if (!position) {
+    return null;
+  }
+
+  const range = document.createRange();
+
+  range.setStart(position.offsetNode, position.offset);
+
+  return range;
+}
+
+/** The object host `node` sits in, if it sits in one at all. */
+function toEnclosingHost(node: Node): Nullable<HTMLElement> {
+  const element = node instanceof HTMLElement ? node : node.parentElement;
+
+  return element?.closest<HTMLElement>(`[${OBJECT_KEY_ATTRIBUTE}]`) ?? null;
+}
+
+/**
+ * Whether the field's content ends in a `<br>` — the other shape the browser's last-line filler
+ * comes in, and the one `toAtoms` has already dropped by the time `report` reads the text.
+ *
+ * WARN: The deepest last child, not `lastChild`. A browser that answered the break by splitting
+ * the field into blocks puts its filler inside the final one.
+ */
+function endsWithBreakElement(field: HTMLDivElement): boolean {
+  let node: Nullable<Node> = field.lastChild;
+
+  while (node?.lastChild) {
+    node = node.lastChild;
+  }
+
+  return node instanceof HTMLElement && node.tagName === "BR";
 }
 
 function isCaretInside(field: HTMLDivElement, selection: Selection): boolean {
@@ -428,18 +642,124 @@ function writeNodes(field: HTMLDivElement, text: string, objects: readonly Edita
   const nodes: Node[] = [];
   // INFO: N placeholders split into N+1 runs, so the last run is the only one no object follows.
   const runs = text.split(OBJECT_PLACEHOLDER);
+  /**
+   * The hosts already standing in the field, so an object that survives this write keeps the
+   * element it was drawn into.
+   *
+   * WARN: Reused rather than rebuilt, and the normalisation in `report` is why it matters now:
+   * that runs on every Enter, and a fresh host each time is React unmounting and remounting
+   * every emoticon — `PreloadImage`, its `<img>`, and the deferred skeleton with it — once per
+   * newline. `replaceChildren` moves an existing element rather than copying it, so the portal
+   * inside goes on living and `isSameHosts` finds nothing to re-render.
+   */
+  const standing = new Map(
+    toHosts(field).map((host) => [host.getAttribute(OBJECT_KEY_ATTRIBUTE) ?? "", host]),
+  );
 
   runs.forEach((run, index) => {
-    if (run) {
-      nodes.push(document.createTextNode(run));
+    const isLast = index === runs.length - 1;
+    // WARN: Prepended to the run rather than pushed as a node of its own, so the text after an object is one node whose first character is the anchor — two adjacent text nodes are one the browser may merge and one it may not, and the readers below would have to agree with both.
+    const lead = index === 0 ? run : `${CARET_ANCHOR}${run}`;
+    // WARN: Appended inside the same node, for that reason again. An anchor of its own on the empty line would leave the caret at the end of the *previous* node, which is the box it was painting against to begin with.
+    const content = isLast && text.endsWith("\n") ? `${lead}${CARET_ANCHOR}` : lead;
+
+    if (content) {
+      nodes.push(document.createTextNode(content));
     }
 
-    if (index < runs.length - 1) {
-      nodes.push(toObjectHost(objects[index]?.key ?? ""));
+    if (!isLast) {
+      const key = objects[index]?.key ?? "";
+      const kept = standing.get(key);
+
+      // WARN: Taken out of the map on use, so a key the caller has twice cannot put one element in two places — a node moved to its second position would silently vanish from its first.
+      standing.delete(key);
+      nodes.push(kept ?? toObjectHost(key));
     }
   });
 
   field.replaceChildren(...nodes);
+}
+
+/** `text` as the field's DOM spells it — the one statement of where a `CARET_ANCHOR` belongs. */
+function toAnchored(text: string): string {
+  const anchored = text.replaceAll(OBJECT_PLACEHOLDER, `${OBJECT_PLACEHOLDER}${CARET_ANCHOR}`);
+
+  return text.endsWith("\n") ? `${anchored}${CARET_ANCHOR}` : anchored;
+}
+
+/** `value` with every `CARET_ANCHOR` removed — the text the draft actually holds. */
+function toStripped(value: string): string {
+  return value.replaceAll(CARET_ANCHOR, "");
+}
+
+/**
+ * The raw index into `value` of its `strippedOffset`-th character, counting past any
+ * `CARET_ANCHOR` on the way.
+ *
+ * WARN: Leading anchors are skipped rather than landed on, which is what puts the caret
+ * *after* the anchor that follows an object. Landed in front of it, the next character typed
+ * would go in before the anchor and every keystroke beside an object would need the DOM
+ * rewritten to put the two back in order.
+ */
+function toRawIndex(value: string, strippedOffset: number): number {
+  let seen = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    if (value[index] === CARET_ANCHOR) {
+      continue;
+    }
+
+    if (seen === strippedOffset) {
+      return index;
+    }
+
+    seen += 1;
+  }
+
+  return value.length;
+}
+
+/**
+ * Where a `CARET_ANCHOR` the DOM should be holding has gone, counted as the draft reads, or
+ * `-1` when none is missing.
+ *
+ * INFO: That anchor is the character a Backspace beside an object — or on an empty last line —
+ * reaches first, so its absence is how a press meant for the character *before* it is recognised
+ * after the fact. Deleting the anchor alone is not an edit the reader can see, which is why the
+ * press has to be credited to something.
+ *
+ * WARN: `-1` for a raw form that diverges on real content too. That is an edit which already
+ * reported itself — a selection swept over the object, say — and needs only the normalisation.
+ */
+function toMissingAnchor(raw: string, text: string): number {
+  const canonical = toAnchored(text);
+  let at = 0;
+  let stripped = 0;
+
+  for (const expected of canonical) {
+    if (expected === CARET_ANCHOR) {
+      if (raw[at] !== CARET_ANCHOR) {
+        return stripped;
+      }
+
+      at += 1;
+      continue;
+    }
+
+    // INFO: Any anchor the raw form holds where canonical wants none is a stray, left behind by whatever took the character it used to follow; stepping over it lets the comparison reach the real divergence.
+    while (raw[at] === CARET_ANCHOR) {
+      at += 1;
+    }
+
+    if (raw[at] !== expected) {
+      return -1;
+    }
+
+    at += 1;
+    stripped += 1;
+  }
+
+  return -1;
 }
 
 /**
@@ -523,10 +843,12 @@ function toRangeAt(field: HTMLElement, offset: number): Range {
 
   for (const atom of toAtoms(field, { hasEmitted: false })) {
     if (atom.kind === "text") {
-      const length = atom.node.nodeValue?.length ?? 0;
+      const value = atom.node.nodeValue ?? "";
+      // WARN: Counted stripped, since `CARET_ANCHOR` is not a character of the draft — raw lengths would drift the caret one further back per object it passed.
+      const length = toStripped(value).length;
 
       if (remaining <= length) {
-        range.setStart(atom.node, remaining);
+        range.setStart(atom.node, toRawIndex(value, remaining));
         range.collapse(true);
 
         return range;
@@ -561,7 +883,7 @@ function toRangeAt(field: HTMLElement, offset: number): Range {
  * WARN: Not `textContent`, which concatenates the lines with nothing between them and
  * reads an object as nothing at all.
  */
-function readEditableContent(root: Node): { text: string; keys: string[] } {
+function readEditableContent(root: Node): { text: string; raw: string; keys: string[] } {
   const parts: string[] = [];
   const keys: string[] = [];
 
@@ -580,7 +902,10 @@ function readEditableContent(root: Node): { text: string; keys: string[] } {
     parts.push("\n");
   }
 
-  return { text: parts.join(""), keys };
+  // INFO: `raw` keeps the anchors, and is only ever compared against `toAnchored` to tell whether the DOM still spells the draft the way `writeNodes` would.
+  const raw = parts.join("");
+
+  return { text: toStripped(raw), raw, keys };
 }
 
 type EditableAtom =
@@ -615,16 +940,48 @@ function* toAtoms(node: Node, state: { hasEmitted: boolean }): Generator<Editabl
     }
 
     if (child.tagName === "BR") {
-      // WARN: A `<br>` with nothing after it is the browser's own filler, keeping an empty block visible — read, it appends a newline the user never typed to every draft.
-      if (child.nextSibling !== null) {
+      /**
+       * WARN: A `<br>` is the browser's own filler whenever nothing *inline* follows it — the end
+       * of its parent, or a block that starts the next line itself. Read as a break either way it
+       * appends a newline the user never typed, and the second case is how iOS answers Enter:
+       * `insertParagraph` leaves `<br>` beside `<div><br></div>`, which paints two lines, where
+       * counting both the `<br>` and the block gave three.
+       *
+       * WARN: A filler still marks that a line exists, or the block after it is taken for the
+       * first one and yields no break at all — that `<br>` is the empty first line's whole content.
+       */
+      const following = child.nextSibling;
+      const isFiller =
+        following === null ||
+        (following instanceof HTMLElement && BLOCK_TAGS.has(following.tagName));
+
+      state.hasEmitted = true;
+
+      if (!isFiller) {
         yield { kind: "break", node: child };
       }
 
       continue;
     }
 
-    if (BLOCK_TAGS.has(child.tagName) && state.hasEmitted) {
-      yield { kind: "break", node: child };
+    if (BLOCK_TAGS.has(child.tagName)) {
+      if (state.hasEmitted) {
+        yield { kind: "break", node: child };
+      }
+
+      /**
+       * WARN: A block counts as content even when it is empty, and nothing else here would say
+       * so — only a text node or an object used to set this, and an empty block holds neither.
+       * Chrome answers Enter on a field whose DOM this component has never written by splitting
+       * it into blocks, so a first break gives `<div><br></div><div><br></div>`: every `<br>` is
+       * its block's last child and skipped as filler, `hasEmitted` never turns true, and the
+       * second block's newline is dropped along with it. The draft then reads empty while the
+       * browser paints two lines — and because that reports no change, the normalisation below
+       * never runs to put the DOM back, so the two stay out of step until something else edits.
+       */
+      state.hasEmitted = true;
+      yield* toAtoms(child, state);
+      continue;
     }
 
     yield* toAtoms(child, state);
