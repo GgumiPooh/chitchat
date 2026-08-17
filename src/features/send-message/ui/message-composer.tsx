@@ -291,10 +291,7 @@ export function MessageComposer({
     const caret = caretOffsetRef.current;
 
     setDraft((current) =>
-      // INFO: REQUIREMENTS.md § 13. The send is refused past this many ids, so the field stops taking them rather than building a draft the server will not accept.
-      current.emoticons.length >= MAX_EMOTICON_ID_LOOKUP
-        ? current
-        : toInsertedDraft(current, insertedEmoticon, caret),
+      hasRoomForEmoticon(current) ? toInsertedDraft(current, insertedEmoticon, caret) : current,
     );
   }
 
@@ -663,6 +660,17 @@ function toSurviving(emoticons: StagedEmoticon[], keys: string[]): StagedEmotico
   return keys
     .map((key) => byKey.get(key))
     .filter((emoticon): emoticon is StagedEmoticon => emoticon !== undefined);
+}
+
+/**
+ * Whether one more emoticon still fits, on both counts the send is refused past.
+ *
+ * WARN: REQUIREMENTS.md § 13. A placeholder is a character of `messages.text` (§ 6.), and
+ * one written in through `value` passes neither of `EditableField`'s length guards — so
+ * the length half is refused here, or the route answers 400 and the bubble stays failed.
+ */
+function hasRoomForEmoticon({ text, emoticons }: Draft): boolean {
+  return emoticons.length < MAX_EMOTICON_ID_LOOKUP && text.length < MAX_MESSAGE_LENGTH;
 }
 
 /**
