@@ -940,34 +940,45 @@ export function EmoticonPicker({
                               role="group"
                               aria-label="최근 사용한 이모티콘"
                             >
-                              {recents.slice(0, recentsVisibleRows * columns).map((item, index) => (
-                                <EmoticonCell
-                                  key={item.id}
-                                  className="flex"
-                                  buttonClassName="aspect-square w-full"
-                                  item={item}
-                                  index={index}
-                                  isFocusable={index === focusableIndex}
-                                  isWarmed
-                                  eagerCount={EAGER_CELL_ROWS * columns}
-                                  isKeyboardDriven={isKeyboardDriven}
-                                  isMini={false}
-                                  onSelect={handleSelect}
-                                />
-                              ))}
+                              {(() => {
+                                const hasMore = recents.length > recentsVisibleRows * columns;
+                                const sliceCount = hasMore
+                                  ? recentsVisibleRows * columns - 1
+                                  : recentsVisibleRows * columns;
+                                const displayedRecents = recents.slice(0, sliceCount);
+
+                                return (
+                                  <>
+                                    {displayedRecents.map((item, index) => (
+                                      <EmoticonCell
+                                        key={item.id}
+                                        className="flex"
+                                        buttonClassName="aspect-square w-full"
+                                        item={item}
+                                        index={index}
+                                        isFocusable={index === focusableIndex}
+                                        isWarmed
+                                        eagerCount={EAGER_CELL_ROWS * columns}
+                                        isKeyboardDriven={isKeyboardDriven}
+                                        isMini={false}
+                                        onSelect={handleSelect}
+                                      />
+                                    ))}
+                                    {hasMore && (
+                                      <button
+                                        className="flex aspect-square w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-sm text-body-sm text-meta transition-colors hover:bg-surface-soft hover:text-body active:bg-surface-soft active:text-body"
+                                        type="button"
+                                        aria-label="최근 사용한 이모티콘 더보기"
+                                        onClick={() => setRecentsVisibleRows((r) => r + 3)}
+                                      >
+                                        <span>더보기</span>
+                                        <ChevronDown className="size-4" strokeWidth={1.75} />
+                                      </button>
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </div>
-                            {recents.length > recentsVisibleRows * columns && (
-                              <div className="mt-xs flex justify-end">
-                                <button
-                                  className="flex items-center gap-0.5 rounded px-xs py-0.5 text-body-sm text-meta transition-colors hover:text-body active:text-body"
-                                  type="button"
-                                  onClick={() => setRecentsVisibleRows((r) => r + 3)}
-                                >
-                                  더보기
-                                  <ChevronDown className="size-3.5" strokeWidth={1.75} />
-                                </button>
-                              </div>
-                            )}
                           </>
                         )}
                       </section>
