@@ -307,7 +307,8 @@ function isOwnedKey(event: KeyboardEvent): boolean {
     return isAltKey(event) || isCommandKey(event);
   }
 
-  return isCommandKey(event) && event.key === "/";
+  // INFO: § 8.14. `Ctrl + /` or `Cmd + /` opens the shortcut help modal.
+  return (isCommandKey(event) || (event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey)) && event.key === "/";
 }
 
 /**
