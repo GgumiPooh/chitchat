@@ -114,7 +114,8 @@ export function PreloadImage({
       style={style}
       status={status}
       isRevealed={isRevealed}
-      hasSkeleton={hasSkeleton}
+      // WARN: Never while a preview is standing in — `object-contain` on a non-square asset lets the pulse show through the preview's own letterbox bars, which read as loading behind an image already on screen.
+      hasSkeleton={hasSkeleton && !hasPreview}
       hasDeferredSkeleton={hasDeferredSkeleton}
       blurhash={blurhash}
       blurhashRatio={blurhashRatio}
