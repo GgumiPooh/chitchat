@@ -30,13 +30,18 @@ export type EmoticonBubbleProps = {
  * be answering a different question than the one that was asked.
  */
 export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubbleProps) {
+  const { hasAnimated } = emoticon;
   const { ref, replayToken, replay } = useViewportReplay();
   const box = toEmoticonBox(emoticon);
-  const emoticonAssetUrl = toEmoticonAssetUrl(emoticon.id, "animated-image", emoticon.version);
+  const emoticonAssetUrl = toEmoticonAssetUrl(
+    emoticon.id,
+    hasAnimated ? "animated-image" : "still-image",
+    emoticon.version,
+  );
 
   return (
     <div
-      ref={ref}
+      ref={hasAnimated ? ref : undefined}
       className={cn("flex", className)}
       style={{ width: box.width, height: box.height }}
     >
@@ -48,7 +53,7 @@ export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubble
       >
         <PreloadImage
           // WARN: Keyed by the replay token so a tap remounts the element, and the token also rides the URL (`toReplaySrc`) — iOS Safari ties a GIF/WebP's running loop to the request URL rather than the element, so a fresh element on an unchanged `src` restarts nothing there.
-          key={replayToken}
+          key={hasAnimated ? replayToken : undefined}
           className="size-full"
           imgClassName="size-full object-contain"
           alt=""
@@ -56,16 +61,18 @@ export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubble
           height={box.height}
           draggable={false}
           // WARN: The previous replay's own frame stands in while this one decodes (`toPreviousReplaySrc`), so a tap or a re-entry never shows a skeleton over a bubble that was already on screen. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
-          previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
-          hidesPreviewOnReveal
-          src={toReplaySrc(emoticonAssetUrl, replayToken)}
+          previewSrc={hasAnimated ? toPreviousReplaySrc(emoticonAssetUrl, replayToken) : undefined}
+          hidesPreviewOnReveal={hasAnimated}
+          src={hasAnimated ? toReplaySrc(emoticonAssetUrl, replayToken) : emoticonAssetUrl}
         />
       </button>
     </div>
   );
 
   function handleTap() {
-    replay();
+    if (hasAnimated) {
+      replay();
+    }
     // WARN: Inside the click handler with nothing awaited before it — iOS grants the gesture's audio permission to this call stack alone, so any `await` first loses it.
     playEmoticonSound(emoticon);
     onFollow?.();

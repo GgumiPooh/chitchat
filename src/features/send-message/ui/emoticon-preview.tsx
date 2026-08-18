@@ -24,8 +24,14 @@ export type EmoticonPreviewProps = {
  * replays it and plays the audio, which is the bubble's gesture (§ 13.6.).
  */
 export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPreviewProps) {
+  const { hasAnimated } = emoticon;
   const [replayToken, setReplayToken] = useState(0);
   const box = toBox(emoticon);
+  const emoticonAssetUrl = toEmoticonAssetUrl(
+    emoticon.id,
+    hasAnimated ? "animated-image" : "still-image",
+    emoticon.version,
+  );
 
   return (
     // INFO: REQUIREMENTS.md § 13.6. Centered rather than aligned to the send side — this is what is about to be sent, not a rehearsal of where its bubble lands.
@@ -46,7 +52,7 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
         >
           <PreloadImage
             // WARN: Keyed by the replay token so a tap remounts the element, and the token also rides the URL (`toReplaySrc`) — iOS Safari ties a GIF/WebP's running loop to the request URL rather than the element, so a fresh element on an unchanged `src` restarts nothing there.
-            key={replayToken}
+            key={hasAnimated ? replayToken : undefined}
             className="size-full"
             // INFO: The plate's radius, for the plate's reason. `toBox` sizes this box to the asset's own ratio, so `object-contain` fills it exactly — and at `2xs` padding a square corner clears the card's 16px curve by under half a pixel, which is flush. A transparent sticker has nothing in that corner to clip; a full-bleed one is the case this is for.
             imgClassName="size-full object-contain rounded-sm"
@@ -56,10 +62,7 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
             width={box.width}
             height={box.height}
             draggable={false}
-            src={toReplaySrc(
-              toEmoticonAssetUrl(emoticon.id, "animated-image", emoticon.version),
-              replayToken,
-            )}
+            src={hasAnimated ? toReplaySrc(emoticonAssetUrl, replayToken) : emoticonAssetUrl}
           />
         </button>
         {/* INFO: `className` positions the haptic wrapper and `buttonClassName` styles the disc inside it — the split `IconButton` exposes precisely so a positioned control can still ask for `haptic` (`AGENTS.md § 1.2.`). */}
@@ -77,7 +80,9 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
   );
 
   function handleTap() {
-    setReplayToken((current) => current + 1);
+    if (hasAnimated) {
+      setReplayToken((current) => current + 1);
+    }
 
     if (emoticon.hasAudio) {
       // WARN: Inside the click handler with nothing awaited before it — iOS grants the gesture's audio permission to this call stack alone, so any `await` first loses it.
