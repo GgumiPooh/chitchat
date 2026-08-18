@@ -662,20 +662,30 @@ export function ChatRoom({
     // WARN: The list does not start at the top of the scroller — the loading header sits above it, and without this the virtualizer resolves every offset that much too high.
     scrollMargin: LIST_HEADER_HEIGHT,
     overscan: OVERSCAN_ROWS,
+    // WARN: A `ResizeObserver` callback can still land inside React's own render call stack — nothing in the DOM spec rules that out, only that it comes after layout. When it does, the library's synchronous `notify` reaches for `flushSync` while React is already rendering, which is the exact warning this option exists to route around: it defers the callback's own work into a `requestAnimationFrame`, the same escape hatch `jumpToMessage` already uses to leave React's call stack (§ 8.6.1.).
+    useAnimationFrameWithResizeObserver: true,
     /**
      * WARN: REQUIREMENTS.md § 8.3. The whole point is *not* measuring here. `virtualizer.measureElement` is a `ref`, so it runs in React's commit — and the default measures the DOM right there, which on a row whose estimate was wrong applies a scroll correction and asks for a synchronous re-render. React cannot flush mid-commit, so it warns and schedules instead: the correction lands, the rows that move with it land a frame later, and the two are briefly out of step.
      *
      * WARN: Returning what is already believed makes the delta zero, so the ref registers the element with the `ResizeObserver` and does nothing else. The observer's first delivery then measures it for real, outside any React phase, where the library's synchronous flush actually works.
+     *
+     * WARN: `entry` is what tells the two callers apart, not whether the row has been measured before. A row already in `itemSizeCache` still mounts a fresh DOM node whenever it re-enters the window — a remount, not a resize — and `entry` is `undefined` for that ref call the same as for a genuinely new row. Reading the DOM there, even to confirm a cached size, still calls back into React from inside its own commit.
+     * WARN: The believed size comes from `measurementsCache`, never a fresh call to `estimateSize`. `measurementsCache` is rebuilt by a memo keyed on `count` and a few other options — not on row content — so a row whose estimate legitimately changed (its neighbor's grouping changed, its text resolved from a draft) can leave the memo untouched while `estimateSize(index)` for the same index now answers differently. Recomputing here reintroduces exactly the delta this override exists to zero out; reading what the library already committed to cannot diverge from it.
      */
     measureElement: (element, entry, instance) => {
-      const index = entry ? -1 : instance.indexFromElement(element);
-      // INFO: The library already answers a cached size when it is handed no entry; the one case it reads the DOM for — and so the only case worth overriding — is a row it has never measured.
-      const isFirstMount =
-        index >= 0 && !instance.itemSizeCache.has(instance.options.getItemKey(index));
+      if (!entry) {
+        const index = instance.indexFromElement(element);
+        const key = index >= 0 ? instance.options.getItemKey(index) : undefined;
+        const believed = key !== undefined ? instance.itemSizeCache.get(key) : undefined;
 
-      return isFirstMount
-        ? instance.options.estimateSize(index)
-        : measureRenderedElement(element, entry, instance);
+        return (
+          believed ??
+          instance.measurementsCache[index]?.size ??
+          instance.options.estimateSize(index)
+        );
+      }
+
+      return measureRenderedElement(element, entry, instance);
     },
   });
 
