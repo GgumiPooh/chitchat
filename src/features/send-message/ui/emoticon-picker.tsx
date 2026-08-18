@@ -966,13 +966,13 @@ export function EmoticonPicker({
                                     ))}
                                     {hasMore && (
                                       <button
-                                        className="flex aspect-square w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-sm text-body-sm text-meta transition-colors hover:bg-surface-soft hover:text-body active:bg-surface-soft active:text-body"
+                                        className="flex aspect-square w-full cursor-pointer flex-col items-center justify-center rounded-sm text-body-sm text-meta transition-colors hover:bg-surface-soft hover:text-body active:bg-surface-soft active:text-body"
                                         type="button"
                                         aria-label="최근 사용한 이모티콘 더보기"
                                         onClick={() => setRecentsVisibleRows((r) => r + 3)}
                                       >
-                                        <span>더보기</span>
-                                        <ChevronDown className="size-4" strokeWidth={1.75} />
+                                        <span className="leading-tight">더보기</span>
+                                        <ChevronDown className="-mt-1 size-6" strokeWidth={1.5} />
                                       </button>
                                     )}
                                   </>

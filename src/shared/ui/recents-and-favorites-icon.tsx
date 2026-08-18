@@ -9,7 +9,7 @@ export function RecentsAndFavoritesIcon({ className }: RecentsAndFavoritesIconPr
   return (
     <div className={cn("relative size-5 text-meta", className)}>
       {/* Top-left Clock */}
-      <Clock className="absolute -top-0.5 -left-0.5 size-3" strokeWidth={2} />
+      <Clock className="absolute -top-1 -left-1 size-3.5" strokeWidth={1.75} />
 
       {/* Diagonal dividing line */}
       <svg
@@ -19,18 +19,18 @@ export function RecentsAndFavoritesIcon({ className }: RecentsAndFavoritesIconPr
         aria-hidden="true"
       >
         <line
-          x1="5"
-          y1="15"
-          x2="15"
-          y2="5"
+          x1="3.5"
+          y1="16.5"
+          x2="16.5"
+          y2="3.5"
           strokeWidth="1.25"
           strokeLinecap="round"
-          opacity={0.6}
+          opacity={0.35}
         />
       </svg>
 
       {/* Bottom-right Star */}
-      <Star className="absolute -right-0.5 -bottom-0.5 size-3" strokeWidth={2} />
+      <Star className="absolute -right-1 -bottom-1 size-3.5" strokeWidth={1.75} />
     </div>
   );
 }
