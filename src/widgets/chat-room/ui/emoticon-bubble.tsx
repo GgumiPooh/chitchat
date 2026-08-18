@@ -2,7 +2,7 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn, toReplaySrc, useViewportReplay } from "@/shared/lib";
+import { cn, toPreviousReplaySrc, toReplaySrc, useViewportReplay } from "@/shared/lib";
 import { PreloadImage } from "@/shared/ui";
 import { playEmoticonSound } from "../model/play-emoticon-sound";
 import { toEmoticonBox } from "../model/to-emoticon-box";
@@ -32,6 +32,7 @@ export type EmoticonBubbleProps = {
 export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubbleProps) {
   const { ref, replayToken, replay } = useViewportReplay();
   const box = toEmoticonBox(emoticon);
+  const emoticonAssetUrl = toEmoticonAssetUrl(emoticon.id, "animated-image", emoticon.version);
 
   return (
     <div
@@ -54,10 +55,10 @@ export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubble
           width={box.width}
           height={box.height}
           draggable={false}
-          src={toReplaySrc(
-            toEmoticonAssetUrl(emoticon.id, "animated-image", emoticon.version),
-            replayToken,
-          )}
+          // WARN: The previous replay's own frame stands in while this one decodes (`toPreviousReplaySrc`), so a tap or a re-entry never shows a skeleton over a bubble that was already on screen. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
+          previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
+          hidesPreviewOnReveal
+          src={toReplaySrc(emoticonAssetUrl, replayToken)}
         />
       </button>
     </div>

@@ -3,6 +3,7 @@
 import { toEmoticonAssetUrl } from "@/shared/config";
 import {
   cn,
+  toPreviousReplaySrc,
   toReplaySrc,
   useViewportReplay,
   type EmoticonItemId,
@@ -53,6 +54,7 @@ export function InlineEmoticon({
   isTappable = false,
 }: InlineEmoticonProps) {
   const { ref, replayToken, replay } = useViewportReplay();
+  const emoticonAssetUrl = toEmoticonAssetUrl(itemId, "animated-image", version);
 
   const image = (
     <PreloadImage
@@ -65,8 +67,11 @@ export function InlineEmoticon({
       hasDeferredSkeleton
       alt={name ?? ""}
       draggable={false}
+      // WARN: The previous replay's own frame stands in while this one decodes (`toPreviousReplaySrc`), so a tap or a re-entry never shows a skeleton either. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
+      previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
+      hidesPreviewOnReveal
       // INFO: The animated slot, which the asset route falls back from when the item holds only a still (REQUIREMENTS.md § 13.3.).
-      src={toReplaySrc(toEmoticonAssetUrl(itemId, "animated-image", version), replayToken)}
+      src={toReplaySrc(emoticonAssetUrl, replayToken)}
     />
   );
 

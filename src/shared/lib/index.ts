@@ -125,6 +125,7 @@ export { useSettledCommit, type SettledCommitOptions } from "./hooks/use-settled
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
 export {
   MINI_ANIMATION_LOOP_INTERVAL,
+  toPreviousReplaySrc,
   toReplaySrc,
   useViewportReplay,
 } from "./hooks/use-viewport-replay";

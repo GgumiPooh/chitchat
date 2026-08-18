@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useInView } from "react-intersection-observer";
 import { A_SECOND } from "../date/time";
+import type { Optional } from "../nullish";
 
 /**
  * WARN: A GIF's own Netscape loop extension, or an animated WebP/APNG's own loop
@@ -74,4 +75,17 @@ export function toReplaySrc(src: string, replayToken: number): string {
   }
 
   return `${src}${src.includes("?") ? "&" : "?"}replay=${replayToken}`;
+}
+
+/**
+ * The previous replay's URL, for a caller to pass as `PreloadImage`'s `previewSrc`
+ * so the frame it already decoded stands in for the one a replay remount is
+ * decoding, instead of the skeleton.
+ *
+ * WARN: That previous URL is what the browser just finished painting as the
+ * element this replaced — its own cache answers this one at once, which is the
+ * whole reason it stands in cleanly rather than triggering a load of its own.
+ */
+export function toPreviousReplaySrc(src: string, replayToken: number): Optional<string> {
+  return replayToken > 0 ? toReplaySrc(src, replayToken - 1) : undefined;
 }

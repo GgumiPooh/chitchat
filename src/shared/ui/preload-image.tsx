@@ -29,6 +29,18 @@ export type PreloadImageProps = Omit<ComponentProps<"img">, "placeholder" | "sty
    * WARN: Decorative — `alt=""` and `aria-hidden`. It is the same picture as the element below it, and announced twice a reader hears the photo named twice.
    */
   previewSrc?: Nullable<string>;
+  /**
+   * Unmounts `previewSrc` the instant the element below reports pixels, instead of
+   * holding it for as long as that element draws.
+   *
+   * WARN: Off (the default) is wrong for a `previewSrc` with any transparency — an
+   * emoticon's replay remount (`useViewportReplay`) is the same picture only in the
+   * photo-preview sense that `previewSrc` was written for; frame to frame it is not
+   * the same pixels, and holding the old one under the new only reads as "nothing
+   * under it shows" against an opaque photo. Two transparent frames stack their
+   * alpha instead, so a moved character doubles into a ghost of where it stood.
+   */
+  hidesPreviewOnReveal?: boolean;
   /** Off for an asset this app does not serve: the retry below cache-busts a URL we do not own, and a host that refused it once refuses it again. */
   canRetry?: boolean;
   /** WARN: DESIGN.md § 7.8. Holds the skeleton back for a moment, for a caller whose asset is normally already cached — REQUIREMENTS.md § 13.6.'s picker cells. See `PreloadFrameProps`. */
@@ -69,6 +81,7 @@ export function PreloadImage({
   style,
   src,
   previewSrc,
+  hidesPreviewOnReveal = false,
   canRetry = true,
   hasSkeleton = true,
   hasDeferredSkeleton = false,
@@ -87,11 +100,12 @@ export function PreloadImage({
       canRetry,
     });
   /**
-   * INFO: It stays underneath for as long as the element below is drawing, rather than being dropped the instant that one reports pixels.
-   * WARN: DESIGN.md § 7.10. It used to unmount on the reveal, and REQUIREMENTS.md § 10.'s blank slide is what that cost. A browser out of room for a full-size decode does not say so — the element reports `load` and the right `naturalWidth` and paints nothing — so the stand-in was pulled out from under a picture that was never going to arrive, leaving the reader on bare `scrim`. Left in place the same failure is a soft photograph instead, and it costs nothing while the original does paint: that one is opaque and covers this exactly.
+   * INFO: It stays underneath for as long as the element below is drawing, rather than being dropped the instant that one reports pixels — unless `hidesPreviewOnReveal` says otherwise.
+   * WARN: DESIGN.md § 7.10. It used to unmount on the reveal unconditionally, and REQUIREMENTS.md § 10.'s blank slide is what that cost. A browser out of room for a full-size decode does not say so — the element reports `load` and the right `naturalWidth` and paints nothing — so the stand-in was pulled out from under a picture that was never going to arrive, leaving the reader on bare `scrim`. Left in place the same failure is a soft photograph instead, and it costs nothing while the original does paint: that one is opaque and covers this exactly, for a caller with no reason to unmount early. `hidesPreviewOnReveal`'s callers do have one — see its own doc.
    * WARN: Withheld on `failed` alone, where DESIGN.md § 7.8.'s glyph on its own plate is the documented ending — a thumbnail standing in for an object that is gone says the opposite of it.
    */
-  const hasPreview = Boolean(previewSrc) && status !== "failed";
+  const hasPreview =
+    Boolean(previewSrc) && status !== "failed" && (!hidesPreviewOnReveal || !isRevealed);
 
   return (
     <PreloadFrame

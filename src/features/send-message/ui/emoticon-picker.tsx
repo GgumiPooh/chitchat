@@ -13,6 +13,7 @@ import {
   isEditableElement,
   isShiftKey,
   revealWithin,
+  toPreviousReplaySrc,
   toReplaySrc,
   useViewportReplay,
   type EmoticonItemId,
@@ -1658,8 +1659,15 @@ function EmoticonCell({
   isMini = false,
   onSelect,
 }: EmoticonCellProps) {
-  // WARN: § 13. A GIF/WebP/APNG's own loop count is not always infinite, so a mini cell fakes forever by remounting on a timer while it is actually on screen — `MINI_ANIMATION_LOOP_INTERVAL`. Not mini, this is `useViewportReplay`'s plain view-entry behavior, a harmless no-op remount of a still.
-  const { ref, replayToken } = useViewportReplay(isMini ? MINI_ANIMATION_LOOP_INTERVAL : undefined);
+  // WARN: § 13. A GIF/WebP/APNG's own loop count is not always infinite, so a mini cell fakes forever by remounting on a timer while it is actually on screen — `MINI_ANIMATION_LOOP_INTERVAL`. Not mini, the cell draws a still (below), which has nothing to replay — the hook is not wired to it at all.
+  const { ref: replayRef, replayToken } = useViewportReplay(
+    isMini ? MINI_ANIMATION_LOOP_INTERVAL : undefined,
+  );
+  const emoticonAssetUrl = toEmoticonAssetUrl(
+    item.id,
+    isMini ? "animated-image" : "still-image",
+    item.version,
+  );
 
   return (
     // WARN: `touch-pan-y` is repeated on the overlay rather than inherited — `touch-action` applies to the element the gesture starts on, and a cell tiles its scroller. The two are intersected (`DESIGN.md § 7.15.1.`), so a pair that disagreed would resolve to `none` and the panel would not scroll at all.
@@ -1667,7 +1675,7 @@ function EmoticonCell({
     <HapticTarget className={className} overlayClassName="touch-pan-y" keepsScroll>
       {/* WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it. */}
       <button
-        ref={ref}
+        ref={isMini ? replayRef : undefined}
         className={cn(
           "touch-pan-y",
           // WARN: REQUIREMENTS.md § 8.14. `ring-inset`, and a `primary-tint` fill under it. DESIGN.md § 3.2.'s offset ring is unreadable here for two reasons at once: the cells tile their scroller, which is `overflow-x-hidden` in the grid and `overflow-y-hidden` in § 13.8.'s row, so an outward ring is clipped away on every edge cell — the same trap § 7.5. records — and 2px of `primary` over an arbitrary user-authored picture is not a contrast anyone can rely on. The fill is what makes it legible; the ring is what makes it a focus ring.
@@ -1697,15 +1705,15 @@ function EmoticonCell({
           imgClassName="size-full object-contain"
           placeholderClassName="rounded-sm"
           alt=""
-          // INFO: § 13.6. A warmed cell's skeleton is almost always a plate over an image that was ready — `PreloadFrameProps` carries the argument. A replay remount (`replayToken > 0`) is the same case even where the list itself is not warmed: `useViewportReplay` only bumps the token while the cell is in view, so the element it is remounting was already painted once and sits in the browser's own cache.
-          hasDeferredSkeleton={isWarmed || replayToken > 0}
-          // WARN: § 13. `lazy` on a replay remount is what caused the flicker below `EAGER_CELL_ROWS` — a freshly inserted lazy `<img>` re-runs the browser's own viewport check before it starts loading, which is slower than `PLACEHOLDER_DELAY` even for a cached asset, and the deferred skeleton above is not enough to hide it. `replayToken > 0` only ever happens while the cell is in view (see `useViewportReplay`), so `eager` there is always correct.
+          // WARN: The previous replay's own frame stands in while this one decodes — `toPreviousReplaySrc` — which is what keeps a replay remount from ever showing the skeleton at all, mini or not. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
+          previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
+          hidesPreviewOnReveal
+          // INFO: § 13.6. A warmed cell's skeleton is almost always a plate over an image that was ready — `PreloadFrameProps` carries the argument.
+          hasDeferredSkeleton={isWarmed}
+          // WARN: § 13. `lazy` on a replay remount is what caused the flicker below `EAGER_CELL_ROWS` — a freshly inserted lazy `<img>` re-runs the browser's own viewport check before it starts loading, which is slower than `PLACEHOLDER_DELAY` even for a cached asset. `replayToken > 0` only ever happens while the cell is in view (see `useViewportReplay`), so `eager` there is always correct.
           loading={(isWarmed && index < eagerCount) || replayToken > 0 ? "eager" : "lazy"}
           draggable={false}
-          src={toReplaySrc(
-            toEmoticonAssetUrl(item.id, isMini ? "animated-image" : "still-image", item.version),
-            replayToken,
-          )}
+          src={toReplaySrc(emoticonAssetUrl, replayToken)}
         />
       </button>
     </HapticTarget>
