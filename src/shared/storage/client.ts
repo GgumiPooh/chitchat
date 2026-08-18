@@ -20,6 +20,8 @@ export function getR2(): S3Client {
         accessKeyId: ensureEnv("R2_ACCESS_KEY_ID"),
         secretAccessKey: ensureEnv("R2_SECRET_ACCESS_KEY"),
       },
+      // WARN: SDK v3 defaults to WHEN_SUPPORTED, which injects x-amz-checksum-crc32=AAAAAA== into every presigned PUT URL. The browser sends only Content-Type (§ 9.), so R2 receives a URL asserting a zero CRC32 with no matching header — rejected uploads. WHEN_REQUIRED omits the checksum param unless the command explicitly requests one.
+      requestChecksumCalculation: "WHEN_REQUIRED",
     });
   }
 
