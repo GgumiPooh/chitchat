@@ -30,8 +30,8 @@ export type ChatShortcuts = {
    * `Escape` — one layer off the composer's stack, and the caret back in it.
    *
    * WARN: REQUIREMENTS.md § 8.14. Held apart from `onFocusComposer` although both end
-   * with the caret in the field. `Escape` **discards** something on the way — an open
-   * panel, then a staged emoticon — and `Enter` must never do that: it is pressed by
+   * with the caret in the field. `Escape` **discards** something on the way — a staged
+   * emoticon, then an open panel — and `Enter` must never do that: it is pressed by
    * someone who wants to start typing, not to throw away what they staged.
    */
   onEscape: () => void;
