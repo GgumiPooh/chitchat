@@ -667,6 +667,10 @@ export function EmoticonPicker({
    * the token arrives in, which is the only commit a panel already open on 검색 has. It
    * therefore waits for `isOpen` instead: a press made with the keys up opens nothing
    * until they retract (§ 13.6.).
+   *
+   * WARN: § 8.14. `enterTab` and never the field where a query already has results —
+   * ⌃1/⌃E/토글 raising the keyboard over a grid the reader only meant to look back at is
+   * the cost, not the point, of the field-focus below.
    */
   useLayoutEffect(() => {
     if (
@@ -679,8 +683,15 @@ export function EmoticonPicker({
     }
 
     focusedFieldTokenRef.current = menuRequest.token;
-    searchFieldRef.current?.focus();
-  }, [isOpen, isSearching, menuRequest]);
+
+    if (shown.length > 0) {
+      enterTab({ index: 0 });
+    } else {
+      searchFieldRef.current?.focus();
+    }
+    // WARN: `enterTab` is deliberately not a dependency, for the reason given where the other effect excludes it — it closes over this render's `shown`, which is already listed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isSearching, menuRequest, shown.length]);
 
   return (
     <div
@@ -1487,6 +1498,10 @@ export function EmoticonPicker({
 
       if (menu === "search" && activeMenu !== "search") {
         skipSearchAutofocusRef.current = true;
+        // WARN: § 8.14. `setTimeout` and not an effect. StrictMode runs a fresh mount's whole effect list — layout **and** passive — twice (setup, cleanup, setup) as one synchronous pass, so a passive effect clearing this flag still clears it before the *second* pass's layout effect gets to read it. A macrotask scheduled from here fires only once that whole synchronous double-mount has finished, so both passes see the flag exactly as this line left it.
+        setTimeout(() => {
+          skipSearchAutofocusRef.current = false;
+        }, 0);
       }
 
       selectMenu(menu);
@@ -1770,18 +1785,50 @@ function SearchPane({
   const trimmed = query.trim();
   const emptyMessage = toEmptyMessage();
 
+  /**
+   * REQUIREMENTS.md § 8.14. Whether this `isOpen` session has already put focus
+   * somewhere, so a result that only finishes loading after the mount still gets one
+   * decision — never a second, later one that would steal focus back from typing.
+   */
+  const hasResolvedFocusRef = useRef(false);
+
   // INFO: § 13.8. Keyed on the panel rather than on this pane's mount, which covers only one of the two ways in — the picker never unmounts, so reopening onto 검색 is a prop change with no mount to hang a focus on.
+  useLayoutEffect(() => {
+    hasResolvedFocusRef.current = false;
+  }, [isOpen]);
+
   // WARN: A layout effect and never the passive one. React flushes this inside the commit the tap renders, and WebKit raises the keyboard only for a `focus()` the user activation still covers — a frame later the field comes up focused with no keyboard, exactly as `message-search-bar.tsx` records.
   // WARN: § 13.9. And not when 따라하기 is what brought the tab up. Every other way onto this tab is a request to type; that one is a request to *look*, at an emoticon already sitting first in the row — raising the keyboard there puts the panel behind it and the thumb has further to travel than before the tap.
+  // WARN: § 8.14. `Space`/`Enter` on 검색's own menu button sets `skipAutofocusRef` — and clears it back with a `setTimeout`, not an effect — just ahead of the mount this effect belongs to, so the reader's focus stays on the button that opened this pane instead of being pulled into the field. Marked resolved without focusing anything, so a fetch that later settles does not reopen the question.
+  // WARN: § 13.8. A query that already has `results` is the same case as the reveal above by the same argument, and reaches here rather than the parent's `menuRequest` effect: the composer's preview toggle carries its match through `searchRequest`, not `menuRequest`, so this is the only place that request's mount is seen at all.
+  // WARN: § 8.14. `isPending` held open rather than decided against on the first, empty-`results` render — the composer's preview tap seeds a query already known to match something, and a cold cache would otherwise read as "nothing found" for exactly as long as the fetch takes, focusing the field and raising a keyboard for a query the reader never asked to type.
   useLayoutEffect(() => {
+    if (hasResolvedFocusRef.current || !isOpen || revealedId !== null) {
+      return;
+    }
+
     if (skipAutofocusRef.current) {
-      skipAutofocusRef.current = false;
-    } else if (isOpen && revealedId === null) {
+      hasResolvedFocusRef.current = true;
+
+      return;
+    }
+
+    if (isPending) {
+      return;
+    }
+
+    hasResolvedFocusRef.current = true;
+
+    const scroller = rowRef.current;
+
+    if (results.length > 0 && scroller) {
+      focusItem(scroller, 0);
+    } else {
       fieldRef.current?.focus();
     }
-    // WARN: § 13.9. The reveal is deliberately not a dependency. It is cleared by the user typing, which is a keystroke the field already has focus for — listed here it would re-fire the focus on the frame the reveal is released and fight an IME mid-composition.
+    // WARN: § 13.9. `revealedId` is deliberately not a dependency, for the reason given above it — it is cleared by a keystroke the field already has focus for. `results.length`, `rowRef`, `fieldRef` and `skipAutofocusRef` are read once `hasResolvedFocusRef` lets this branch run at all, which is the guard that makes the omission safe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, isPending]);
 
   // WARN: § 13.9. Keyed on the token, not on the item — the grid keeps whatever offset a previous search left it at, so a second 따라하기 would put its emoticon at the head of a grid still scrolled somewhere else. Instant, for the reason § 13.6. gives against a smooth scroll while the strip is animating.
   // WARN: § 13.6. `top` now, where this was `left` while the results were one sideways row. A `scrollTo` naming the axis the scroller does not run on is a no-op, so the reveal silently stopped returning to the head of the list.
