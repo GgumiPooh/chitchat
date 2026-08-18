@@ -418,6 +418,8 @@ export function EmoticonPicker({
    * ask for.
    */
   const pendingEntryRef = useRef<Nullable<TabEntry>>(null);
+  // INFO: § 8.14. After the recents 더보기 expands, focus the emoticon that filled its old slot.
+  const pendingExpandFocusRef = useRef<Optional<number>>(undefined);
   const [slideFrom, setSlideFrom] = useState<SwipeDirection>(1);
   const lastTapRef = useRef<Nullable<{ at: number; id: EmoticonItemId }>>(null);
   const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
@@ -531,7 +533,7 @@ export function EmoticonPicker({
   const isRecentsPending = recentIds.length > 0 && isRecentsQueryPending;
 
   const { favorites: allFavorites = [] } = useEmoticonFavorites();
-  const [recentsVisibleRows, setRecentsVisibleRows] = useState(3);
+  const [recentsVisibleRows, setRecentsVisibleRows] = useState(2);
 
   const byId = new Map(recentItems.map((item) => [item.id, item] as const));
   // INFO: § 13.1. 최근 사용 is a tab like any other, so hiding a pack takes its items out of this list too — an emoticon sent through § 13.9. from a hidden pack is remembered and 침착하게 not drawn here.
@@ -545,6 +547,22 @@ export function EmoticonPicker({
     (item) => packTypes.get(item.packId) === menuKind && visiblePackIds.has(item.packId),
   );
   const shown = toShownItems();
+  const hasMoreRecents = recents.length > recentsVisibleRows * columns;
+  const recentsSliceCount = hasMoreRecents
+    ? recentsVisibleRows * columns - 1
+    : recentsVisibleRows * columns;
+  const displayedRecents = recents.slice(0, recentsSliceCount);
+  const recentsSectionCount =
+    recents.length === 0
+      ? 0
+      : hasMoreRecents
+        ? recentsVisibleRows * columns
+        : recents.length;
+  const totalRecentsAndFavoritesCount = recentsSectionCount + favorites.length;
+  const gridItemCount =
+    isRecentsTabId(activeTab) && menuKind !== "mini"
+      ? totalRecentsAndFavoritesCount
+      : shown.length;
   // INFO: § 13.6. The second region's own list, which is this menu's alone — 검색 has a field there instead and therefore no tabs at all.
   const tabIds = isSearching ? [] : [recentsTab, ...menuPacks.map((pack) => pack.id)];
   const activeIndex = tabIds.indexOf(activeTab);
@@ -573,6 +591,8 @@ export function EmoticonPicker({
   if (focusedTab !== activeTab) {
     setFocusedTab(activeTab);
     setFocusedIndex(0);
+    // INFO: Collapse the 더보기 expansion back to the initial 2 rows whenever the user navigates to a different tab.
+    setRecentsVisibleRows(2);
   }
 
   // WARN: § 8.14. Keyed on the menu **changing**, never on it differing from the stop — walking the bar deliberately leaves the stop off the open menu, and a plain inequality would snap it back on the next render and make the arrows appear dead.
@@ -584,7 +604,7 @@ export function EmoticonPicker({
   const focusableMenu = focusedMenu ?? activeMenu;
 
   // WARN: § 8.14. Clamped rather than reset by every change to the list. A search narrows its results on each keystroke while focus stays in the field, and a stop past the end would leave the row with no tab stop at all.
-  const focusableIndex = Math.min(focusedIndex, shown.length - 1);
+  const focusableIndex = Math.min(focusedIndex, gridItemCount - 1);
   /**
    * INFO: § 8.14. The strip's stop is simply the open tab, because the arrows there
    * activate what they land on — focus and selection cannot come apart.
@@ -641,7 +661,7 @@ export function EmoticonPicker({
     }
     // WARN: `enterTab` is deliberately not a dependency. It closes over this render's tab and list, which is exactly what the deps below already state — listed, it would re-run the focus on every render of an open panel.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, focusRequest.token, isOpen, menuRequest, shown.length]);
+  }, [activeTab, focusRequest.token, gridItemCount, isOpen, menuRequest]);
 
   // WARN: § 13.8. The room exempts this tab from § 13.6.'s keyboard gate, so it has to be told on every change — reported off the tab rather than off the field's focus, or the frame between a blur and the keyboard actually retracting closes the panel underneath the user.
   useEffect(() => {
@@ -708,6 +728,19 @@ export function EmoticonPicker({
     // WARN: `enterTab` is deliberately not a dependency, for the reason given where the other effect excludes it — it closes over this render's `shown`, which is already listed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isSearching, menuRequest, shown.length]);
+
+  // INFO: § 8.14. After 더보기 expands the recents rows, focus the emoticon that now occupies the slot where 더보기 was — a useLayoutEffect so the DOM is updated before focus() is called.
+  useLayoutEffect(() => {
+    if (pendingExpandFocusRef.current === undefined) {
+      return;
+    }
+    const targetIndex = pendingExpandFocusRef.current;
+    pendingExpandFocusRef.current = undefined;
+    const scroller = cellScrollerRef.current;
+    if (scroller) {
+      focusItem(scroller, targetIndex);
+    }
+  }, [recentsVisibleRows]);
 
   return (
     <div
@@ -940,44 +973,40 @@ export function EmoticonPicker({
                               role="group"
                               aria-label="최근 사용한 이모티콘"
                             >
-                              {(() => {
-                                const hasMore = recents.length > recentsVisibleRows * columns;
-                                const sliceCount = hasMore
-                                  ? recentsVisibleRows * columns - 1
-                                  : recentsVisibleRows * columns;
-                                const displayedRecents = recents.slice(0, sliceCount);
-
-                                return (
-                                  <>
-                                    {displayedRecents.map((item, index) => (
-                                      <EmoticonCell
-                                        key={item.id}
-                                        className="flex"
-                                        buttonClassName="aspect-square w-full"
-                                        item={item}
-                                        index={index}
-                                        isFocusable={index === focusableIndex}
-                                        isWarmed
-                                        eagerCount={EAGER_CELL_ROWS * columns}
-                                        isKeyboardDriven={isKeyboardDriven}
-                                        isMini={false}
-                                        onSelect={handleSelect}
-                                      />
-                                    ))}
-                                    {hasMore && (
-                                      <button
-                                        className="flex aspect-square w-full cursor-pointer flex-col items-center justify-center rounded-sm text-body-sm text-meta transition-colors hover:bg-surface-soft hover:text-body active:bg-surface-soft active:text-body"
-                                        type="button"
-                                        aria-label="최근 사용한 이모티콘 더보기"
-                                        onClick={() => setRecentsVisibleRows((r) => r + 3)}
-                                      >
-                                        <span className="leading-tight">더보기</span>
-                                        <ChevronDown className="-mt-1 size-6" strokeWidth={1.5} />
-                                      </button>
-                                    )}
-                                  </>
-                                );
-                              })()}
+                              {displayedRecents.map((item, index) => (
+                                <EmoticonCell
+                                  key={item.id}
+                                  className="flex"
+                                  buttonClassName="aspect-square w-full"
+                                  item={item}
+                                  index={index}
+                                  isFocusable={index === focusableIndex}
+                                  isWarmed
+                                  eagerCount={EAGER_CELL_ROWS * columns}
+                                  isKeyboardDriven={isKeyboardDriven}
+                                  isMini={false}
+                                  onSelect={handleSelect}
+                                />
+                              ))}
+                              {hasMoreRecents && (
+                                <button
+                                  className={cn(
+                                    "flex aspect-square w-full cursor-pointer flex-col items-center justify-center rounded-sm text-body-sm text-meta transition-colors select-none [-webkit-touch-callout:none] hover:bg-surface-soft hover:text-body focus-visible:bg-primary-tint focus-visible:text-body focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-inset active:bg-surface-soft active:text-body",
+                                    isKeyboardDriven && CELL_KEYBOARD_RING,
+                                  )}
+                                  type="button"
+                                  tabIndex={recentsSliceCount === focusableIndex ? 0 : -1}
+                                  aria-label="최근 사용한 이모티콘 더보기"
+                                  {...{ [FOCUS_INDEX_ATTRIBUTE]: recentsSliceCount }}
+                                  onClick={(event) => {
+                                    takeFocus(event);
+                                    setRecentsVisibleRows((r) => r + 3);
+                                  }}
+                                >
+                                  <span className="leading-tight">더보기</span>
+                                  <ChevronDown className="-mt-1 size-6" strokeWidth={1.5} />
+                                </button>
+                              )}
                             </div>
                           </>
                         )}
@@ -998,8 +1027,7 @@ export function EmoticonPicker({
                             aria-label="즐겨찾기한 이모티콘"
                           >
                             {favorites.map((item, i) => {
-                              const index =
-                                Math.min(recents.length, recentsVisibleRows * columns) + i;
+                              const index = recentsSectionCount + i;
                               return (
                                 <EmoticonCell
                                   key={item.id}
@@ -1113,6 +1141,22 @@ export function EmoticonPicker({
     }
 
     return activePackItems;
+  }
+
+  function getEmoticonAtIndex(index: number): Optional<Emoticon> {
+    if (isRecentsTabId(activeTab) && menuKind !== "mini") {
+      if (index < recentsSliceCount) {
+        return recents[index];
+      }
+      if (hasMoreRecents && index === recentsSliceCount) {
+        return undefined;
+      }
+      const favoriteIndex = index - recentsSectionCount;
+
+      return favorites[favoriteIndex];
+    }
+
+    return shown[index];
   }
 
   /**
@@ -1313,7 +1357,25 @@ export function EmoticonPicker({
 
     // WARN: § 8.14. `Space` as well as `Enter`. It activates on `keyup` rather than repeating, so it needs no guard of its own — but left to the native click it reaches `handleSelect` and two presses inside `DOUBLE_TAP_WINDOW` send, which is the pair this route exists to keep out of the keyboard.
     if (event.key === "Enter" || event.key === " ") {
-      activateCell(event, shown[index]);
+      if (
+        isRecentsTabId(activeTab) &&
+        menuKind !== "mini" &&
+        hasMoreRecents &&
+        index === recentsSliceCount
+      ) {
+        event.preventDefault();
+        // INFO: § 8.14. Record the slot index before expanding so the useLayoutEffect below can focus the emoticon that fills it.
+        pendingExpandFocusRef.current = recentsSliceCount;
+        setRecentsVisibleRows((r) => r + 3);
+
+        return;
+      }
+
+      const item = getEmoticonAtIndex(index);
+
+      if (item) {
+        activateCell(event, item);
+      }
 
       return;
     }
@@ -1323,11 +1385,26 @@ export function EmoticonPicker({
       return;
     }
 
-    const next = toNextFocusIndex(event.key, { index, count: shown.length, columns });
+    const next = toNextFocusIndex(event.key, { index, count: gridItemCount, columns });
 
     if (next !== undefined) {
       event.preventDefault();
       focusItem(event.currentTarget, next);
+
+      return;
+    }
+
+    // INFO: § 8.14. ↓ from 더보기 (always in the last column) when the same column has no item in the favorites row — jump to the first favorite instead, since the section starts at column 0 and a column-aligned step leaves it unreachable with 0–3 favorites.
+    if (
+      event.key === "ArrowDown" &&
+      isRecentsTabId(activeTab) &&
+      menuKind !== "mini" &&
+      hasMoreRecents &&
+      index === recentsSliceCount &&
+      favorites.length > 0
+    ) {
+      event.preventDefault();
+      focusItem(event.currentTarget, recentsSectionCount);
 
       return;
     }
@@ -1377,7 +1454,7 @@ export function EmoticonPicker({
 
     pendingEntryRef.current = {
       tab: moved,
-      index: toCrossingIndex({ index, count: shown.length, columns, direction }),
+      index: toCrossingIndex({ index, count: gridItemCount, columns, direction }),
       scrollTop,
     };
   }
@@ -1461,12 +1538,12 @@ export function EmoticonPicker({
   function enterTab(entry: TabEntry): boolean {
     const scroller = cellScrollerRef.current;
 
-    if (scroller && shown.length > 0) {
+    if (scroller && gridItemCount > 0) {
       if (entry.scrollTop !== undefined) {
         scroller.scrollTop = entry.scrollTop;
       }
 
-      return focusItem(scroller, Math.min(entry.index, shown.length - 1));
+      return focusItem(scroller, Math.min(entry.index, gridItemCount - 1));
     }
 
     searchFieldRef.current?.focus();
@@ -1673,8 +1750,17 @@ export function EmoticonPicker({
     }
 
     event.preventDefault();
-    // WARN: § 8.14. Focus alone, where the strip below activates what it lands on. Crossing a pack costs one list request; crossing a **menu** swaps the kind, the column count and the whole second region, which is not something a reader passing through asked for.
-    setFocusedMenu(EMOTICON_MENUS[next]);
+    const nextMenu = EMOTICON_MENUS[next];
+    setFocusedMenu(nextMenu);
+    if (nextMenu !== activeMenu) {
+      if (nextMenu === "search") {
+        skipSearchAutofocusRef.current = true;
+        setTimeout(() => {
+          skipSearchAutofocusRef.current = false;
+        }, 0);
+      }
+      selectMenu(nextMenu);
+    }
     focusItem(event.currentTarget, next);
   }
 
