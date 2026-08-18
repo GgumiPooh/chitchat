@@ -231,7 +231,7 @@ export type EmoticonPickerProps = {
    */
   menuRequest?: Nullable<{ menu: EmoticonMenu; token: number }>;
   /** REQUIREMENTS.md § 13.8. Whether the search tab is the one on screen — the room exempts it from § 13.6.'s keyboard gate. */
-  onSearchTabChange?: (isOnSearchTab: boolean) => void;
+  onSearchTabChange?: (isOnSearchTab: boolean, query: string) => void;
   onSelect: (emoticon: Emoticon) => void;
   onQuickSend: (emoticon: Emoticon) => void;
   /**
@@ -630,8 +630,8 @@ export function EmoticonPicker({
 
   // WARN: § 13.8. The room exempts this tab from § 13.6.'s keyboard gate, so it has to be told on every change — reported off the tab rather than off the field's focus, or the frame between a blur and the keyboard actually retracting closes the panel underneath the user.
   useEffect(() => {
-    onSearchTabChange?.(isSearching);
-  }, [isSearching, onSearchTabChange]);
+    onSearchTabChange?.(isSearching, query);
+  }, [isSearching, query, onSearchTabChange]);
 
   /**
    * REQUIREMENTS.md § 8.14. The three menu digits, applied here rather than during render

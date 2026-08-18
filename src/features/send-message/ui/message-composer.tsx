@@ -170,7 +170,7 @@ export type MessageComposerProps = {
   onToggleEmoticons?: () => void;
   /** REQUIREMENTS.md § 13.8. A tap on the underlined word, carrying what was typed rather than the keyword it hit. */
   onKeywordTap?: (query: string) => void;
-  /** REQUIREMENTS.md § 13.8. A tap on the toggle while it stands in for the matched word's top hit — the room keeps this search past a walk to another tab, where `onKeywordTap`'s does not. */
+  /** REQUIREMENTS.md § 13.8. A tap on the toggle while it stands in for the matched word's top hit. */
   onPreviewTap?: (query: string) => void;
   // INFO: REQUIREMENTS.md § 13. The emoticons whole rather than their ids alone — the optimistic bubble has to reserve the box the echoed row will, and only these carry it.
   onSend: (message: ComposedMessage) => void;
@@ -695,7 +695,7 @@ export function MessageComposer({
     openEmoticonSearch(match.query);
   }
 
-  /** WARN: § 13.8. The toggle's own tap, kept apart from `handleKeywordTap` so the room can tell the two open requests apart and hold this one past a walk to another tab. */
+  /** WARN: § 13.8. The toggle's own tap, kept apart from `handleKeywordTap` so the room can tell the two open requests apart. */
   function handlePreviewTap() {
     if (!match) {
       return;

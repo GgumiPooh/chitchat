@@ -311,9 +311,8 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 13.6. Staged rather than sent on selection, so it can be sent with a line of text the way an attachment can.
   const [stagedEmoticon, setStagedEmoticon] = useState<Nullable<Emoticon>>(null);
   // INFO: REQUIREMENTS.md § 13.8. A word tapped in the composer, handed to the picker's search tab.
-  // INFO: § 13.8. `sticky` marks the toggle's own tap — that entry keeps the search past a walk to another tab, where the underlined word's does not (`reportEmoticonSearchTab`).
   const [emoticonSearch, setEmoticonSearch] =
-    useState<Nullable<{ query: string; token: number; sticky?: boolean }>>(null);
+    useState<Nullable<{ query: string; token: number }>>(null);
   /**
    * INFO: REQUIREMENTS.md § 13.8. The word a send takes out of the draft, held apart
    * from the request above because a send spends **this** and leaves that standing —
@@ -341,13 +340,12 @@ export function ChatRoom({
   // INFO: § 13.8. The same exemption, held open for as long as the keyboard that tab raised takes to leave.
   const [isEmoticonSearchExempt, setIsEmoticonSearchExempt] = useState(false);
   // WARN: § 13.8. Memoized because the picker's own effect depends on it — a fresh identity every render re-runs that effect on every render of this room.
-  const reportEmoticonSearchTab = useCallback((isOnSearchTab: boolean) => {
+  const reportEmoticonSearchTab = useCallback((isOnSearchTab: boolean, query: string) => {
     setIsEmoticonSearchTab(isOnSearchTab);
 
-    // WARN: § 13.8. Leaving 검색 ends the search, exactly as closing the panel does. The word is only consumed beside an emoticon the search itself produced, so a request surviving a walk to another pack swallows a typed word that merely equals it.
-    // WARN: § 13.8. `sticky` is the one exception — the toggle's own tap asks for the opposite, a search that survives the walk, so this only spends the request when it is not one.
-    if (!isOnSearchTab) {
-      setEmoticonSearch((current) => (current?.sticky ? current : null));
+    // WARN: § 13.8. Leaving 검색 ends the search, exactly as closing the panel does — unless the field still holds something the reader typed, which a walk to another tab and back should find undisturbed regardless of which tap opened it.
+    if (!isOnSearchTab && query.trim() === "") {
+      setEmoticonSearch(null);
       searchedWordRef.current = null;
     }
   }, []);
@@ -1451,7 +1449,7 @@ export function ChatRoom({
               onAttach={() => setIsPickerOpen(true)}
               onEdit={signalEdit}
               onKeywordTap={openEmoticonSearch}
-              onPreviewTap={openPreviewEmoticonSearch}
+              onPreviewTap={openEmoticonSearch}
               onFieldFocus={closeEmoticonPanel}
               onSend={({ text, emoticons }) => submit(text, emoticons)}
             />
@@ -1995,17 +1993,12 @@ export function ChatRoom({
    * cleared draft trims to, so the next quick send would swallow whatever had been
    * typed since.
    */
-  function openEmoticonSearch(query: string, sticky = false) {
-    setEmoticonSearch({ query, token: Date.now(), sticky });
+  function openEmoticonSearch(query: string) {
+    setEmoticonSearch({ query, token: Date.now() });
     searchedWordRef.current = query === "" ? null : query;
     // WARN: Set here as well as reported back by the picker's own effect. The gate above reads it in the same commit the panel is asked to open in, and waiting for the effect leaves one frame where the panel is open, the keyboard is still retracting and the exemption is not in yet — which closes it again.
     setIsEmoticonSearchTab(true);
     setIsEmoticonPickerOpen(true);
-  }
-
-  /** REQUIREMENTS.md § 13.8. The composer's own toggle, standing in for the matched word's top hit — `openEmoticonSearch`'s `sticky`, so a walk to another tab and back finds the word still in the field. */
-  function openPreviewEmoticonSearch(query: string) {
-    openEmoticonSearch(query, true);
   }
 
   // INFO: The draft is bound here rather than read back inside the callback — `applyTrim` clears `editing.trimming`, so a callback reading it again would be handed `null`.
