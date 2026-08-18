@@ -2,7 +2,7 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn, playSound, toReplaySrc } from "@/shared/lib";
+import { cn, playSound, toPreviousReplaySrc, toReplaySrc } from "@/shared/lib";
 import { IconButton, PreloadImage } from "@/shared/ui";
 import { Star, X } from "lucide-react";
 import { useState } from "react";
@@ -77,7 +77,12 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
             width={box.width}
             height={box.height}
             draggable={false}
+            hidesPreviewOnReveal={hasAnimated}
             src={hasAnimated ? toReplaySrc(emoticonAssetUrl, replayToken) : emoticonAssetUrl}
+            // WARN: The previous replay's own frame stands in while this one decodes (`toPreviousReplaySrc`), which is what keeps the remount from ever showing the skeleton. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
+            previewSrc={
+              hasAnimated ? toPreviousReplaySrc(emoticonAssetUrl, replayToken) : undefined
+            }
           />
         </button>
 
