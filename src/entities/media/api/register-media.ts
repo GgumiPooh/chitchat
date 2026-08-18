@@ -143,7 +143,7 @@ export async function registerMedia({
 
   // INFO: § 9.1. A file attachment has no sibling to require — nothing renders it, and `toVariantKey` never asks for a thumb variant of a row carrying a filename. A voice message has none either (§ 9.3.), for the same reason and by the same single PUT.
   // WARN: The finished restructure. A scope question rather than a kind one. An emoticon **is** a drawn image and still uploads no `_thumb`: the thumbnail rule is a fixed 720px JPEG, which is larger than `EMOTICON_MAX_EDGE` and would flatten the alpha the bubble-less art is drawn with (`REQUIREMENTS.md § 13.3.`). Its own object is already tile-sized, so it is served as `original` everywhere.
-  if (needsThumbnail(scope) && !thumbnail) {
+  if (needsThumbnail(scope) && !hasNoBox && !thumbnail) {
     return null;
   }
 
