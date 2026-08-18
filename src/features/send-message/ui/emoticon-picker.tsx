@@ -364,6 +364,13 @@ export function EmoticonPicker({
   });
   const tabStripRef = useRef<Nullable<HTMLDivElement>>(null);
   const activeTabRef = useRef<Nullable<HTMLSpanElement>>(null);
+  const deleteButtonRef = useRef<Nullable<HTMLButtonElement>>(null);
+  /**
+   * REQUIREMENTS.md § 8.14. Set the one time 검색 is opened by `Space`/`Enter` on its
+   * own menu button, so `SearchPane`'s mount effect below leaves focus where the reader
+   * put it instead of pulling it into the field.
+   */
+  const skipSearchAutofocusRef = useRef(false);
   // INFO: § 8.14. Whichever scroller currently holds the cells — the grid, or § 13.8.'s results row. One ref because the two are branches of the same ternary and never coexist.
   const cellScrollerRef = useRef<Nullable<HTMLDivElement>>(null);
   const searchFieldRef = useRef<Nullable<HTMLInputElement>>(null);
@@ -734,6 +741,7 @@ export function EmoticonPicker({
           isKeyboardDriven={isKeyboardDriven}
           fieldRef={searchFieldRef}
           rowRef={cellScrollerRef}
+          skipAutofocusRef={skipSearchAutofocusRef}
           onQueryChange={changeQuery}
           onSelect={handleSelect}
           onFieldKeys={handleFieldKeys}
@@ -807,12 +815,14 @@ export function EmoticonPicker({
               <>
                 <div className="mr-2xs h-6 w-px shrink-0 bg-hairline-soft" aria-hidden />
                 <IconButton
+                  ref={deleteButtonRef}
                   className="mr-2xs"
                   Icon={Delete}
                   haptic
                   keepsFocus
                   aria-label="지우기"
                   onClick={onDeleteLast}
+                  onKeyDown={handleDeleteButtonKeys}
                 />
               </>
             )}
@@ -1387,12 +1397,55 @@ export function EmoticonPicker({
     const next = toNextFocusIndex(event.key, { index, count: tabIds.length, columns: 1 });
 
     if (next === undefined) {
+      // WARN: § 8.14. 미니's own 지우기 sits right of the strip and outside its `role="toolbar"`, so `→` off the last tab has to hand focus off by hand — nothing else reaches it from the keyboard.
+      if (event.key === "ArrowRight" && menuKind === "mini" && index === tabIds.length - 1) {
+        event.preventDefault();
+        deleteButtonRef.current?.focus();
+      }
+
       return;
     }
 
     event.preventDefault();
     selectTab(tabIds[next]);
     focusItem(event.currentTarget, next);
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.14. `←` off 지우기, back onto the strip's roving tab stop —
+   * and `↑`/`↓`, the same as the strip's own, since this button sits in that row.
+   */
+  function handleDeleteButtonKeys(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.defaultPrevented || event.nativeEvent.isComposing || !isBareKey(event)) {
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusActiveMenu();
+
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusTabContent();
+
+      return;
+    }
+
+    if (event.key !== "ArrowLeft") {
+      return;
+    }
+
+    const strip = tabStripRef.current;
+
+    if (!strip) {
+      return;
+    }
+
+    event.preventDefault();
+    focusItem(strip, tabIds.indexOf(focusableTabId));
   }
 
   /**
@@ -1429,7 +1482,14 @@ export function EmoticonPicker({
     // WARN: § 8.14. `Enter`/`Space` is what opens a menu here, and the arrows below deliberately do not — see `focusedMenu`. `Space` needs no repeat guard of its own, activating on `keyup`, but it does need this branch or the native click would arrive as a second activation.
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      selectMenu(EMOTICON_MENUS[index]);
+
+      const menu = EMOTICON_MENUS[index];
+
+      if (menu === "search" && activeMenu !== "search") {
+        skipSearchAutofocusRef.current = true;
+      }
+
+      selectMenu(menu);
 
       return;
     }
@@ -1659,6 +1719,8 @@ type SearchPaneProps = {
   isKeyboardDriven: boolean;
   /** REQUIREMENTS.md § 8.14. Held by the panel, which focuses it for ⌃E and for the row's `ArrowUp`. */
   fieldRef: RefObject<Nullable<HTMLInputElement>>;
+  /** REQUIREMENTS.md § 8.14. Set by the panel when `Space`/`Enter` on the 검색 menu button opened this pane, so the mount effect below leaves focus on it instead. */
+  skipAutofocusRef: RefObject<boolean>;
   /** REQUIREMENTS.md § 8.14. The row is also the scroller the panel moves cell focus inside, so the ref is the panel's rather than this pane's. */
   rowRef: RefObject<Nullable<HTMLDivElement>>;
   onQueryChange: (query: string) => void;
@@ -1698,6 +1760,7 @@ function SearchPane({
   isKeyboardDriven,
   fieldRef,
   rowRef,
+  skipAutofocusRef,
   onQueryChange,
   onSelect,
   onFieldKeys,
@@ -1711,7 +1774,9 @@ function SearchPane({
   // WARN: A layout effect and never the passive one. React flushes this inside the commit the tap renders, and WebKit raises the keyboard only for a `focus()` the user activation still covers — a frame later the field comes up focused with no keyboard, exactly as `message-search-bar.tsx` records.
   // WARN: § 13.9. And not when 따라하기 is what brought the tab up. Every other way onto this tab is a request to type; that one is a request to *look*, at an emoticon already sitting first in the row — raising the keyboard there puts the panel behind it and the thumb has further to travel than before the tap.
   useLayoutEffect(() => {
-    if (isOpen && revealedId === null) {
+    if (skipAutofocusRef.current) {
+      skipAutofocusRef.current = false;
+    } else if (isOpen && revealedId === null) {
       fieldRef.current?.focus();
     }
     // WARN: § 13.9. The reveal is deliberately not a dependency. It is cleared by the user typing, which is a keystroke the field already has focus for — listed here it would re-fire the focus on the frame the reveal is released and fight an IME mid-composition.
