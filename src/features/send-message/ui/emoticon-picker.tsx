@@ -31,7 +31,7 @@ import {
 } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { josa } from "es-hangul";
-import { ChevronDown, Delete, Search, Smile } from "lucide-react";
+import { ChevronDown, Clock, Delete, Search, Smile } from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
@@ -799,7 +799,11 @@ export function EmoticonPicker({
                 label={RECENTS_LABEL}
                 onClick={() => selectTab(recentsTab)}
               >
-                <RecentsAndFavoritesIcon className="size-5 text-meta" />
+                {menuKind === "mini" ? (
+                  <Clock className="size-5 text-meta" strokeWidth={1.75} />
+                ) : (
+                  <RecentsAndFavoritesIcon className="size-5 text-meta" />
+                )}
               </TabButton>
               {/* WARN: § 13.1. `menuPacks` is `visiblePacks` cut to this menu's kind, and never `packs` — the list carries hidden packs so § 13.8. can search them, and a hidden pack drawn here is a tab `activeTab` resolves away from, so the tap does nothing but overwrite the remembered pack with an id that can never be restored. */}
               {menuPacks.map((pack, index) => (
@@ -885,104 +889,127 @@ export function EmoticonPicker({
                 )}
               >
                 {isRecentsTabId(activeTab) ? (
-                  // INFO: § 13.6. 최근 사용 탭은 두 섹션(최근사용 / 즐겨찾기)으로 분리 렌더링한다.
-                  <div className="flex flex-col gap-xs">
-                    <section>
-                      {/* WARN: § 8.14. Not a focus target — see the pack tab heading comment above. */}
-                      <h2 className="pb-xs text-body-sm text-meta">최근 사용</h2>
-                      {recents.length === 0 ? (
-                        <EmptyState
-                          className="border-0 bg-transparent"
-                          Icon={Smile}
-                          description="최근 사용한 이모티콘이 여기에 보여요"
-                        />
-                      ) : (
-                        <>
-                          {/* WARN: § 8.14. `focusableIndex` is a flat index across both recents and favorites — recents come first, so their indices are 0…recentsSlice.length−1. */}
-                          <div
-                            className={cn(
-                              "grid gap-2xs",
-                              menuKind === "mini" ? "grid-cols-6" : "grid-cols-4",
-                            )}
-                            role="group"
-                            aria-label="최근 사용한 이모티콘"
-                          >
-                            {recents.slice(0, recentsVisibleRows * columns).map((item, index) => (
-                              <EmoticonCell
-                                key={item.id}
-                                className="flex"
-                                buttonClassName="aspect-square w-full"
-                                item={item}
-                                index={index}
-                                isFocusable={index === focusableIndex}
-                                isWarmed
-                                eagerCount={EAGER_CELL_ROWS * columns}
-                                isKeyboardDriven={isKeyboardDriven}
-                                isMini={menuKind === "mini"}
-                                onSelect={handleSelect}
-                              />
-                            ))}
-                          </div>
-                          {recents.length > recentsVisibleRows * columns && (
-                            <div className="mt-xs flex justify-end">
-                              <button
-                                className="flex items-center gap-0.5 rounded px-xs py-0.5 text-body-sm text-meta transition-colors hover:text-body active:text-body"
-                                type="button"
-                                onClick={() => setRecentsVisibleRows((r) => r + 3)}
-                              >
-                                더보기
-                                <ChevronDown className="size-3.5" strokeWidth={1.75} />
-                              </button>
+                  menuKind === "mini" ? (
+                    // INFO: § 13.6. 미니 메뉴의 최근 사용은 즐겨찾기 없이 최근 사용 목록만 표시한다.
+                    recents.length === 0 ? (
+                      <EmptyState
+                        className="border-0 bg-transparent"
+                        Icon={Smile}
+                        description="최근 사용한 미니이모티콘이 여기에 보여요"
+                      />
+                    ) : (
+                      <div
+                        className="grid grid-cols-6 gap-2xs"
+                        role="group"
+                        aria-label="최근 사용한 미니이모티콘"
+                      >
+                        {recents.map((item, index) => (
+                          <EmoticonCell
+                            key={item.id}
+                            className="flex"
+                            buttonClassName="aspect-square w-full"
+                            item={item}
+                            index={index}
+                            isFocusable={index === focusableIndex}
+                            isWarmed
+                            eagerCount={EAGER_CELL_ROWS * columns}
+                            isKeyboardDriven={isKeyboardDriven}
+                            isMini
+                            onSelect={handleSelect}
+                          />
+                        ))}
+                      </div>
+                    )
+                  ) : (
+                    // INFO: § 13.6. 이모티콘 메뉴의 최근 사용 탭은 두 섹션(최근사용 / 즐겨찾기)으로 분리 렌더링한다.
+                    <div className="flex flex-col gap-xs">
+                      <section>
+                        {/* WARN: § 8.14. Not a focus target — see the pack tab heading comment above. */}
+                        <h2 className="pb-xs text-body-sm text-meta">최근 사용</h2>
+                        {recents.length === 0 ? (
+                          <EmptyState
+                            className="border-0 bg-transparent"
+                            Icon={Smile}
+                            description="최근 사용한 이모티콘이 여기에 보여요"
+                          />
+                        ) : (
+                          <>
+                            {/* WARN: § 8.14. `focusableIndex` is a flat index across both recents and favorites — recents come first, so their indices are 0…recentsSlice.length−1. */}
+                            <div
+                              className="grid grid-cols-4 gap-2xs"
+                              role="group"
+                              aria-label="최근 사용한 이모티콘"
+                            >
+                              {recents.slice(0, recentsVisibleRows * columns).map((item, index) => (
+                                <EmoticonCell
+                                  key={item.id}
+                                  className="flex"
+                                  buttonClassName="aspect-square w-full"
+                                  item={item}
+                                  index={index}
+                                  isFocusable={index === focusableIndex}
+                                  isWarmed
+                                  eagerCount={EAGER_CELL_ROWS * columns}
+                                  isKeyboardDriven={isKeyboardDriven}
+                                  isMini={false}
+                                  onSelect={handleSelect}
+                                />
+                              ))}
                             </div>
-                          )}
-                        </>
-                      )}
-                    </section>
-                    <section>
-                      <h2 className="pb-xs text-body-sm text-meta">즐겨찾기</h2>
-                      {favorites.length === 0 ? (
-                        <EmptyState
-                          className="border-0 bg-transparent"
-                          Icon={Smile}
-                          description={
-                            menuKind === "mini"
-                              ? "즐겨찾기한 미니이모티콘이 여기에 보여요"
-                              : "즐겨찾기한 이모티콘이 여기에 보여요"
-                          }
-                        />
-                      ) : (
-                        // WARN: § 8.14. Favorites are indexed right after the recents slice — offset by `recentsSlice.length` so arrows move seamlessly between the two sections.
-                        <div
-                          className={cn(
-                            "grid gap-2xs",
-                            menuKind === "mini" ? "grid-cols-6" : "grid-cols-4",
-                          )}
-                          role="group"
-                          aria-label="즐겨찾기한 이모티콘"
-                        >
-                          {favorites.map((item, i) => {
-                            const index =
-                              Math.min(recents.length, recentsVisibleRows * columns) + i;
-                            return (
-                              <EmoticonCell
-                                key={item.id}
-                                className="flex"
-                                buttonClassName="aspect-square w-full"
-                                item={item}
-                                index={index}
-                                isFocusable={index === focusableIndex}
-                                isWarmed
-                                eagerCount={EAGER_CELL_ROWS * columns}
-                                isKeyboardDriven={isKeyboardDriven}
-                                isMini={menuKind === "mini"}
-                                onSelect={handleSelect}
-                              />
-                            );
-                          })}
-                        </div>
-                      )}
-                    </section>
-                  </div>
+                            {recents.length > recentsVisibleRows * columns && (
+                              <div className="mt-xs flex justify-end">
+                                <button
+                                  className="flex items-center gap-0.5 rounded px-xs py-0.5 text-body-sm text-meta transition-colors hover:text-body active:text-body"
+                                  type="button"
+                                  onClick={() => setRecentsVisibleRows((r) => r + 3)}
+                                >
+                                  더보기
+                                  <ChevronDown className="size-3.5" strokeWidth={1.75} />
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </section>
+                      <section>
+                        <h2 className="pb-xs text-body-sm text-meta">즐겨찾기</h2>
+                        {favorites.length === 0 ? (
+                          <EmptyState
+                            className="border-0 bg-transparent"
+                            Icon={Smile}
+                            description="즐겨찾기한 이모티콘이 여기에 보여요"
+                          />
+                        ) : (
+                          // WARN: § 8.14. Favorites are indexed right after the recents slice — offset by `recentsSlice.length` so arrows move seamlessly between the two sections.
+                          <div
+                            className="grid grid-cols-4 gap-2xs"
+                            role="group"
+                            aria-label="즐겨찾기한 이모티콘"
+                          >
+                            {favorites.map((item, i) => {
+                              const index =
+                                Math.min(recents.length, recentsVisibleRows * columns) + i;
+                              return (
+                                <EmoticonCell
+                                  key={item.id}
+                                  className="flex"
+                                  buttonClassName="aspect-square w-full"
+                                  item={item}
+                                  index={index}
+                                  isFocusable={index === focusableIndex}
+                                  isWarmed
+                                  eagerCount={EAGER_CELL_ROWS * columns}
+                                  isKeyboardDriven={isKeyboardDriven}
+                                  isMini={false}
+                                  onSelect={handleSelect}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
+                      </section>
+                    </div>
+                  )
                 ) : shown.length === 0 ? (
                   <EmptyState
                     className="border-0 bg-transparent"
@@ -1071,7 +1098,7 @@ export function EmoticonPicker({
 
     // INFO: § 13.6. Either menu's 최근 사용 — the stored id list is one, and `recents` is already cut to this menu's kind.
     if (isRecentsTabId(activeTab)) {
-      return [...recents, ...favorites];
+      return menuKind === "mini" ? recents : [...recents, ...favorites];
     }
 
     return activePackItems;
