@@ -561,6 +561,11 @@ export const EMOTICON_SEARCH_CANDIDATE_LIMIT = 5000;
 export const EMOTICON_SEARCH_PAGE_SIZE = 30;
 
 /**
+ * Maximum number of user-preferred (most frequently used) emoticons boosted to the top of search results (REQUIREMENTS.md § 13.9.2.).
+ */
+export const MAX_EMOTICON_SEARCH_USER_MATCHES = 3;
+
+/**
  * How many distinct keywords `GET /api/emoticons/items?keywords=1` may answer with
  * (REQUIREMENTS.md § 13.8.).
  *

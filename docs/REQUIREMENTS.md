@@ -873,23 +873,23 @@ The SSE event only reaches a client that is connected. A backgrounded tab holds 
 
 Every `⌘` below is `Ctrl` off an Apple platform, through `isCommandKey`; `⌥` is `Alt`, and is the same physical key either way. `⌃` is the menu modifier, through `isMenuKey`, and off an Apple platform it is `Alt` **as well** — the one binding here that is a different physical key on each, for the reason below the table.
 
-| Key                       | Does                                                           | Owned by                               |
-| ------------------------- | -------------------------------------------------------------- | -------------------------------------- |
-| `⌥↑` / `⌥↓`               | The conversation, a step at a time                             | `useChatShortcuts`                     |
-| `⌘↓`                      | § 6.7.'s pill — jump to the newest row                         | `useChatShortcuts`                     |
-| `Esc`                     | One layer off the composer's stack, caret back in it           | `useChatShortcuts`                     |
-| `Enter` (nothing focused) | Caret to the composer, and nothing else                        | `useChatShortcuts`                     |
-| `⌘/`                      | The sheet that lists these keys                                | `useChatShortcuts` → `ShortcutHelp`    |
+| Key                       | Does                                                                                                | Owned by                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `⌥↑` / `⌥↓`               | The conversation, a step at a time                                                                  | `useChatShortcuts`                     |
+| `⌘↓`                      | § 6.7.'s pill — jump to the newest row                                                              | `useChatShortcuts`                     |
+| `Esc`                     | One layer off the composer's stack, caret back in it                                                | `useChatShortcuts`                     |
+| `Enter` (nothing focused) | Caret to the composer, and nothing else                                                             | `useChatShortcuts`                     |
+| `⌘/`                      | The sheet that lists these keys                                                                     | `useChatShortcuts` → `ShortcutHelp`    |
 | `⌃E`                      | § 13.6.'s panel open or closed — on 이모티콘, or on 검색 with the draft's word if one is underlined | `useChatShortcuts` / `MessageComposer` |
-| `⌃1` / `⌃2` / `⌃3`        | 검색 / 이모티콘 / 미니, opening the panel but never closing it | `useChatShortcuts` / `MessageComposer` |
-| `←` `→` `↑` `↓`           | Move focus, across all three of § 13.6.'s regions              | `EmoticonPicker`                       |
-| `←` `→` off a row's end   | The pack beside this one, same row, opposite edge              | `EmoticonPicker`                       |
-| `↑` / `↓`                 | Between the regions — grid, strip or field, menu bar           | `EmoticonPicker`                       |
-| `←` `→` (on the strip)    | Previous / next tab, opened as it is reached                   | `EmoticonPicker`                       |
-| `⇧←` / `⇧→`               | Previous / next pack, in 이모티콘 and 미니 only                | `EmoticonPicker`                       |
-| `Enter` / `Space`         | Switch menu, stage an emoticon, insert a mini                  | `EmoticonPicker`                       |
-| That key again            | Send what the press before it staged                           | `EmoticonPicker`                       |
-| `⌘Enter`                  | That send in one press; not in the sheet                       | `EmoticonPicker`                       |
+| `⌃1` / `⌃2` / `⌃3`        | 검색 / 이모티콘 / 미니, opening the panel but never closing it                                      | `useChatShortcuts` / `MessageComposer` |
+| `←` `→` `↑` `↓`           | Move focus, across all three of § 13.6.'s regions                                                   | `EmoticonPicker`                       |
+| `←` `→` off a row's end   | The pack beside this one, same row, opposite edge                                                   | `EmoticonPicker`                       |
+| `↑` / `↓`                 | Between the regions — grid, strip or field, menu bar                                                | `EmoticonPicker`                       |
+| `←` `→` (on the strip)    | Previous / next tab, opened as it is reached                                                        | `EmoticonPicker`                       |
+| `⇧←` / `⇧→`               | Previous / next pack, in 이모티콘 and 미니 only                                                     | `EmoticonPicker`                       |
+| `Enter` / `Space`         | Switch menu, stage an emoticon, insert a mini                                                       | `EmoticonPicker`                       |
+| That key again            | Send what the press before it staged                                                                | `EmoticonPicker`                       |
+| `⌘Enter`                  | That send in one press; not in the sheet                                                            | `EmoticonPicker`                       |
 
 - **One modifier per platform, never `metaKey || ctrlKey`.** `isCommandKey` reads `⌘` on Apple platforms and `Ctrl` everywhere else. Accepting both looks harmless and is not: WebKit honours Cocoa's emacs bindings inside a text field, so a `Ctrl` taken here on a Mac would take `Ctrl+A` (line start) and the rest of that table away from the composer wholesale. `⌃E` is the single exception and it is spent knowingly — `isMenuKey` claims it below. It is a user-agent read for `useIsIos`' reason — nothing exposes which key an OS spells its shortcuts with
 - **It is an exact match and refuses `Shift` and `Alt` as well**, which is the same rule pointed the other way. `⌘⇧↓` is macOS's select-to-end-of-document and `⌥⌘↓` is a chord of its own — matched loosely, `⌘↓` answers both and a draft can no longer be selected to its end. `Esc` is the one binding with no modifier, and `isBareKey` holds it to that: `⌥Esc` and `Ctrl+Esc` are OS chords, and answering one closes the panel on the way out of the app
@@ -1493,11 +1493,11 @@ Tapping an avatar opens a full-screen profile, KakaoTalk-style: the § 12.1. cov
 
 One item is **two image slots plus one optional sound**, each its own object in R2, and **either image alone is a whole emoticon**.
 
-| Slot     | Column              | Required | Notes                                                                            |
-| -------- | ------------------- | -------- | -------------------------------------------------------------------------------- |
-| Still    | `still_image_id`    | either   | One frame. What an 이모티콘 picker cell, a tab icon and a quote thumbnail draw   |
+| Slot     | Column              | Required | Notes                                                                                                                                        |
+| -------- | ------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Still    | `still_image_id`    | either   | One frame. What an 이모티콘 picker cell, a tab icon and a quote thumbnail draw                                                               |
 | Animated | `animated_image_id` | either   | The same types, animating. What the bubble, the staged preview, and a 미니 picker cell play — a mini is only ever shown moving, never frozen |
-| Audio    | `audio_id`          | no       | Played on tap only (§ 13.6.). An item may carry audio whether or not it animates |
+| Audio    | `audio_id`          | no       | Played on tap only (§ 13.6.). An item may carry audio whether or not it animates                                                             |
 
 - **A slot names a `media` row rather than an R2 key**, so an emoticon's objects are the same rows every other upload writes (§ 9.). The `r2_key`, `mime`, `audio_key`, `audio_mime`, `width` and `height` columns the single-image era stored beside them are gone, dropped by `0042`
 - **`emoticon_items_has_image_check` is the floor**: `still_image_id IS NOT NULL OR animated_image_id IS NOT NULL`. § 13.3.'s asset route falls back **both ways**, so an item holding one slot answers a request for the other and no screen has to test which it has
@@ -1830,6 +1830,12 @@ Emoticon objects ride § 9.'s presigned-PUT pipeline — client → R2 directly,
 - **A mini's keyword never enters `emoticon_keywords`, and it is kept out at the index rather than at the readers.** `sync_emoticon_keywords()` carries a pack-type condition (`0045`), so a name a mini is managed under is not a word this search can answer. Both repositories query that table, so a filter written into the queries instead would be exactly the two copies `0026` chose a trigger to avoid. **The migration rebuilds the table in full** rather than deleting the mini rows, so it is provably level with the function as written whatever it held before — and the condition rests on a pack's kind being immutable (§ 6.), since nothing on `emoticon_packs` fires this trigger and a statement that changed one would strand these rows
 - **The freshly built table is `ANALYZE`d by the migration that fills it.** A table created and backfilled inside one migration has `relpages = 0` until autovacuum reaches it, so the planner costs both arms off its defaults — a stretch of wrong plans beginning at the moment of deploy, on the search's hottest path. It was reached in practice: `EXPLAIN` was meaningless against the backfilled table until it had been analyzed. `ANALYZE` is transactional, unlike `VACUUM`, so it is a last statement rather than a runbook step
 - **The ladder folds each candidate's keywords once, not once per term.** `toKeywordRelevance` scores up to `EMOTICON_SEARCH_CANDIDATE_LIMIT` items against up to `MAX_EMOTICON_KEYWORDS` terms, so folding inside the per-term loop repeated the same `toLowerCase` twelve times over every keyword of every candidate — the same answer for eleven twelfths more work
+
+#### 13.9.2. User preference ranking boosts frequently used emoticons ✅
+
+- **Up to `MAX_EMOTICON_SEARCH_USER_MATCHES` (3) of the user's most frequently sent emoticons are boosted to the top of search results.** `user_emoticon_usage` records `(user_id, item_id, use_count, last_used_at)` maintained by a trigger on `messages` (`0046`).
+- **A minimum relevance threshold (`MIN_USER_BOOST_RELEVANCE = 4`) is required for the boost.** Only exact matches (`6`) or strong keyword containment (`4`) are eligible for the top-3 boost. Loosely matching items (e.g. term holding keyword `3`) cannot hijack the top ranks merely due to high `use_count` and are ranked naturally in the general pool instead.
+- **Within the boosted tier, items are sorted by `relevance DESC`, then `use_count DESC`, then `last_used_at DESC`.** The remaining results are filled from the general candidate pool up to `EMOTICON_SEARCH_PAGE_SIZE` (30).
 
 ---
 

@@ -5,11 +5,13 @@ export {
   emoticonPackTypeEnum,
   emoticonPacks,
   userEmoticonPrefs,
+  userEmoticonUsage,
   type EmoticonItem,
   type EmoticonKeyword,
   type EmoticonPack,
   type EmoticonPackType,
   type UserEmoticonPref,
+  type UserEmoticonUsage,
 } from "./emoticons";
 export {
   eventRecurrenceEnum,

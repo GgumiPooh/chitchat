@@ -5,6 +5,7 @@ import {
   boolean,
   check,
   index,
+  integer,
   numeric,
   pgEnum,
   pgTable,
@@ -124,6 +125,28 @@ export const userEmoticonPrefs = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.packId] })],
 );
 
+export const userEmoticonUsage = pgTable(
+  "user_emoticon_usage",
+  {
+    userId: snowflake<UserId>("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    itemId: snowflake<EmoticonItemId>("item_id")
+      .notNull()
+      .references(() => emoticonItems.id, { onDelete: "cascade" }),
+    useCount: integer("use_count").notNull().default(1),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.itemId] }),
+    index("user_emoticon_usage_user_id_use_count_idx").on(
+      table.userId,
+      table.useCount.desc(),
+      table.lastUsedAt.desc(),
+    ),
+  ],
+);
+
 export type EmoticonKeyword = typeof emoticonKeywords.$inferSelect;
 
 export type EmoticonItem = typeof emoticonItems.$inferSelect;
@@ -133,3 +156,5 @@ export type EmoticonPack = typeof emoticonPacks.$inferSelect;
 export type EmoticonPackType = (typeof emoticonPackTypeEnum.enumValues)[number];
 
 export type UserEmoticonPref = typeof userEmoticonPrefs.$inferSelect;
+
+export type UserEmoticonUsage = typeof userEmoticonUsage.$inferSelect;

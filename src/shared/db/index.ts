@@ -29,6 +29,7 @@ export {
   storageReservations,
   systemActionEnum,
   userEmoticonPrefs,
+  userEmoticonUsage,
   users,
   type ChatSettings,
   type EmoticonItem,
@@ -51,5 +52,6 @@ export {
   type SystemAction,
   type User,
   type UserEmoticonPref,
+  type UserEmoticonUsage,
 } from "./schema";
 export { nextSnowflake } from "./snowflake";

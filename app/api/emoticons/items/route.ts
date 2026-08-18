@@ -53,7 +53,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ emoticons: [] });
   }
 
-  return NextResponse.json({ emoticons: await searchEmoticons(terms) });
+  return NextResponse.json({ emoticons: await searchEmoticons(terms, user.id) });
 }
 
 /**

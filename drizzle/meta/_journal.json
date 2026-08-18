@@ -323,6 +323,13 @@
       "when": 1786892178812,
       "tag": "0045_mini_emoticon_packs",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1786930000000,
+      "tag": "0046_user_emoticon_usage",
+      "breakpoints": true
     }
   ]
 }

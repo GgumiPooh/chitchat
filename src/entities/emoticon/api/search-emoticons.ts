@@ -4,19 +4,24 @@ import {
   EMOTICON_SEARCH_CANDIDATE_LIMIT,
   EMOTICON_SEARCH_PAGE_SIZE,
   MAX_EMOTICON_KEYWORD_LENGTH,
+  MAX_EMOTICON_SEARCH_USER_MATCHES,
   MIN_KEYWORD_LENGTH,
   toKeywordRelevance,
 } from "@/shared/config";
-import { emoticonItems, emoticonKeywords, getDb } from "@/shared/db";
-import { and, asc, ilike, inArray, type SQL } from "drizzle-orm";
+import { emoticonItems, emoticonKeywords, getDb, userEmoticonUsage } from "@/shared/db";
+import type { Nullable, UserId } from "@/shared/lib";
+import { and, asc, desc, eq, ilike, inArray, type SQL } from "drizzle-orm";
 import { union } from "drizzle-orm/pg-core";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon } from "../model/types";
 import { isChoosable, selectEmoticons } from "./select-emoticons";
 import { toLikeLiteral } from "./to-like-literal";
 
+// INFO: REQUIREMENTS.md § 13.9.2. Threshold for user-preference boost — exact (6) or strong keyword containment (4).
+const MIN_USER_BOOST_RELEVANCE = 4;
+
 /**
- * REQUIREMENTS.md § 13.9. The picker's search, ranked (§ 13.9.1.).
+ * REQUIREMENTS.md § 13.9. The picker's search, ranked (§ 13.9.1., § 13.9.2.).
  *
  * WARN: § 13.8. No `enabled` filter, deliberately. Hiding a pack takes it out of the
  * tab strip and withdraws no answer — filtered here, an emoticon the other
@@ -27,34 +32,85 @@ import { toLikeLiteral } from "./to-like-literal";
  * the candidate ids off its indexes, and the items are then read whole so
  * `toKeywordRelevance` can rank them against the authored `keywords` array — which
  * is the case-preserving list the ladder is defined over.
+ *
+ * INFO: § 13.9.2. Boosts up to `MAX_EMOTICON_SEARCH_USER_MATCHES` of the user's most
+ * frequently used emoticons with strong keyword match to the top of the results.
  */
-export async function searchEmoticons(terms: string[]): Promise<Emoticon[]> {
+export async function searchEmoticons(
+  terms: string[],
+  userId?: Nullable<UserId>,
+): Promise<Emoticon[]> {
   const candidateIds = toCandidateIds(terms);
 
   if (!candidateIds) {
     return [];
   }
 
-  const rows = await selectEmoticons()
-    // INFO: The finished restructure. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
-    // INFO: § 13. A mini never reaches here at all — `sync_emoticon_keywords` keeps its pack out of the index the candidates come from (`0045`).
-    .where(and(inArray(emoticonItems.id, candidateIds), isChoosable(emoticonItems)))
-    // INFO: § 13.9.1. Authoring order, which decides nothing about what is kept — the cut is upstream — and everything about which of two equally relevant items the stable sort below leaves first.
-    .orderBy(asc(emoticonItems.packId), asc(emoticonItems.sortOrder), asc(emoticonItems.id));
+  const [userUsageRows, rows] = await Promise.all([
+    userId ? fetchUserUsage(userId) : Promise.resolve([]),
+    selectEmoticons()
+      // INFO: The finished restructure. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
+      // INFO: § 13. A mini never reaches here at all — `sync_emoticon_keywords` keeps its pack out of the index the candidates come from (`0045`).
+      .where(and(inArray(emoticonItems.id, candidateIds), isChoosable(emoticonItems)))
+      // INFO: § 13.9.1. Authoring order, which decides nothing about what is kept — the cut is upstream — and everything about which of two equally relevant items the stable sort below leaves first.
+      .orderBy(asc(emoticonItems.packId), asc(emoticonItems.sortOrder), asc(emoticonItems.id)),
+  ]);
 
-  return (
-    rows
-      .map((row) => ({
-        item: toEmoticon(row),
-        relevance: toKeywordRelevance(row.item.keywords, terms),
-      }))
-      // INFO: The ladder and the SQL above select the same set, so this drops nothing in practice — it is what keeps a drift between them out of the results rather than at the top of them.
-      .filter((scored) => scored.relevance > 0)
-      // WARN: A stable sort, so authoring order still decides inside one relevance step — an item must not change places with an equally relevant one between keystrokes.
-      .sort((left, right) => right.relevance - left.relevance)
-      .slice(0, EMOTICON_SEARCH_PAGE_SIZE)
-      .map((scored) => scored.item)
-  );
+  const usageByItemId = new Map(userUsageRows.map((row) => [row.itemId, row] as const));
+
+  const scoredItems = rows
+    .map((row) => {
+      const item = toEmoticon(row);
+      const relevance = toKeywordRelevance(row.item.keywords, terms);
+      const usage = usageByItemId.get(item.id);
+
+      return {
+        item,
+        relevance,
+        useCount: usage?.useCount ?? 0,
+        lastUsedAt: usage?.lastUsedAt.getTime() ?? 0,
+      };
+    })
+    .filter((scored) => scored.relevance > 0);
+
+  // INFO: § 13.9.2. Filter top frequently-used items that satisfy the minimum relevance threshold.
+  const userBoosted = scoredItems
+    .filter((scored) => scored.useCount > 0 && scored.relevance >= MIN_USER_BOOST_RELEVANCE)
+    .sort((left, right) => {
+      if (right.relevance !== left.relevance) {
+        return right.relevance - left.relevance;
+      }
+      if (right.useCount !== left.useCount) {
+        return right.useCount - left.useCount;
+      }
+      return right.lastUsedAt - left.lastUsedAt;
+    })
+    .slice(0, MAX_EMOTICON_SEARCH_USER_MATCHES);
+
+  const boostedIds = new Set(userBoosted.map((scored) => scored.item.id));
+
+  const generalRanked = scoredItems
+    .filter((scored) => !boostedIds.has(scored.item.id))
+    // WARN: A stable sort, so authoring order still decides inside one relevance step — an item must not change places with an equally relevant one between keystrokes.
+    .sort((left, right) => right.relevance - left.relevance)
+    .slice(0, EMOTICON_SEARCH_PAGE_SIZE - userBoosted.length);
+
+  return [
+    ...userBoosted.map((scored) => scored.item),
+    ...generalRanked.map((scored) => scored.item),
+  ];
+}
+
+async function fetchUserUsage(userId: UserId) {
+  return getDb()
+    .select({
+      itemId: userEmoticonUsage.itemId,
+      useCount: userEmoticonUsage.useCount,
+      lastUsedAt: userEmoticonUsage.lastUsedAt,
+    })
+    .from(userEmoticonUsage)
+    .where(eq(userEmoticonUsage.userId, userId))
+    .orderBy(desc(userEmoticonUsage.useCount), desc(userEmoticonUsage.lastUsedAt));
 }
 
 /**
