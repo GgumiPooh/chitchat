@@ -1,4 +1,10 @@
 export {
+  addEmoticonFavorite,
+  listUserEmoticonFavoriteIds,
+  listUserEmoticonFavorites,
+  removeEmoticonFavorite,
+} from "./api/emoticon-favorites";
+export {
   deleteEmoticonItem,
   getEmoticonItem,
   toSlotAsset,

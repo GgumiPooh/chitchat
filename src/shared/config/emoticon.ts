@@ -56,6 +56,8 @@ export const EMOTICON_ITEMS_URL = `${EMOTICON_API_BASE}/api/emoticons/items`;
 
 export const EMOTICON_PREFS_URL = `${EMOTICON_API_BASE}/api/emoticons/prefs`;
 
+export const EMOTICON_FAVORITES_URL = `${EMOTICON_API_BASE}/api/emoticons/favorites`;
+
 /**
  * The keyword suggester, which is **jandh-emoticons' route rather than this app's**
  * (REQUIREMENTS.md § 13.8.1.).

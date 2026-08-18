@@ -330,6 +330,13 @@
       "when": 1786930000000,
       "tag": "0046_user_emoticon_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1787074000000,
+      "tag": "0047_user_emoticon_favorites",
+      "breakpoints": true
     }
   ]
 }

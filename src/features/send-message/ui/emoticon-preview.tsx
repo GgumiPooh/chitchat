@@ -4,8 +4,9 @@ import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import { cn, playSound, toReplaySrc } from "@/shared/lib";
 import { IconButton, PreloadImage } from "@/shared/ui";
-import { X } from "lucide-react";
+import { Star, X } from "lucide-react";
 import { useState } from "react";
+import { useEmoticonFavorites } from "../model/use-emoticon-favorites";
 
 // INFO: Smaller than the § 6.5. bubble — this is a staged attachment, and it sits above the composer where `MediaTray`'s thumbnails do.
 const MAX_EDGE = 96;
@@ -26,6 +27,8 @@ export type EmoticonPreviewProps = {
 export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPreviewProps) {
   const { hasAnimated } = emoticon;
   const [replayToken, setReplayToken] = useState(0);
+  const { isFavorite, toggleFavorite } = useEmoticonFavorites();
+  const favorited = isFavorite(emoticon.id);
   const box = toBox(emoticon);
   const emoticonAssetUrl = toEmoticonAssetUrl(
     emoticon.id,
@@ -42,9 +45,23 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
         className,
       )}
     >
-      <div className="pointer-events-auto relative rounded-lg border border-hairline glass p-2xs shadow-floating">
+      <div className="pointer-events-auto flex items-start gap-1 rounded-2xl border border-hairline bg-surface-soft/90 p-xs shadow-floating backdrop-blur-md">
+        {/* Top-left Star button */}
+        <IconButton
+          buttonClassName={cn(
+            "size-7 transition-colors hover:bg-canvas/60",
+            favorited ? "fill-primary text-primary" : "text-meta",
+          )}
+          iconClassName={cn("size-4", favorited && "fill-primary text-primary")}
+          Icon={Star}
+          haptic
+          aria-label={favorited ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+          onClick={() => toggleFavorite(emoticon)}
+        />
+
+        {/* Emoticon asset button */}
         <button
-          className="flex cursor-pointer items-center justify-center rounded-sm transition-transform focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:scale-[0.96]"
+          className="flex cursor-pointer items-center justify-center rounded-lg transition-transform focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:scale-[0.96]"
           type="button"
           style={{ width: box.width, height: box.height }}
           aria-label="이모티콘 다시 재생"
@@ -54,10 +71,8 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
             // WARN: Keyed by the replay token so a tap remounts the element, and the token also rides the URL (`toReplaySrc`) — iOS Safari ties a GIF/WebP's running loop to the request URL rather than the element, so a fresh element on an unchanged `src` restarts nothing there.
             key={hasAnimated ? replayToken : undefined}
             className="size-full"
-            // INFO: The plate's radius, for the plate's reason. `toBox` sizes this box to the asset's own ratio, so `object-contain` fills it exactly — and at `2xs` padding a square corner clears the card's 16px curve by under half a pixel, which is flush. A transparent sticker has nothing in that corner to clip; a full-bleed one is the case this is for.
-            imgClassName="size-full object-contain rounded-sm"
-            // INFO: `rounded-[inherit]` on the plate resolves against this wrapper, not the `rounded-sm` button above it — matched by hand so the skeleton is not a square inside a rounded card.
-            placeholderClassName="rounded-sm"
+            imgClassName="size-full object-contain rounded-md"
+            placeholderClassName="rounded-md"
             alt=""
             width={box.width}
             height={box.height}
@@ -65,11 +80,11 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
             src={hasAnimated ? toReplaySrc(emoticonAssetUrl, replayToken) : emoticonAssetUrl}
           />
         </button>
-        {/* INFO: `className` positions the haptic wrapper and `buttonClassName` styles the disc inside it — the split `IconButton` exposes precisely so a positioned control can still ask for `haptic` (`AGENTS.md § 1.2.`). */}
+
+        {/* Top-right Close button */}
         <IconButton
-          className="absolute -top-2xs -right-2xs"
-          buttonClassName="size-7 border border-hairline bg-canvas shadow-floating hover:bg-surface-soft"
-          iconClassName="size-3.5"
+          buttonClassName="size-7 text-meta transition-colors hover:bg-canvas/60"
+          iconClassName="size-4"
           Icon={X}
           haptic
           aria-label="이모티콘 취소"

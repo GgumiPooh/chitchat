@@ -140,6 +140,7 @@ export {
   isSnowflake,
   maxId,
   toId,
+  type EmoticonFavoriteId,
   type EmoticonItemId,
   type EmoticonPackId,
   type EventId,

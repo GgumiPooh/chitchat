@@ -28,6 +28,7 @@ export {
   sessions,
   storageReservations,
   systemActionEnum,
+  userEmoticonFavorites,
   userEmoticonPrefs,
   userEmoticonUsage,
   users,
@@ -51,6 +52,7 @@ export {
   type StoredPushSubscription,
   type SystemAction,
   type User,
+  type UserEmoticonFavorite,
   type UserEmoticonPref,
   type UserEmoticonUsage,
 } from "./schema";

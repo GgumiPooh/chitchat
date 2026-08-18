@@ -20,7 +20,7 @@ const STORAGE_KEYS: Record<EmoticonPackType, string> = {
 };
 
 // INFO: § 13.6. Per kind, so neither can starve the other however hard it is used.
-const MAX_RECENTS = 16;
+const MAX_RECENTS = 48;
 
 const NO_RECENTS: EmoticonItemId[] = [];
 

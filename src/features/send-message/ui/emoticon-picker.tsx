@@ -21,10 +21,17 @@ import {
   type Nullable,
   type Optional,
 } from "@/shared/lib";
-import { EmptyState, HapticTarget, IconButton, Input, PreloadImage } from "@/shared/ui";
+import {
+  EmptyState,
+  HapticTarget,
+  IconButton,
+  Input,
+  PreloadImage,
+  RecentsAndFavoritesIcon,
+} from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { josa } from "es-hangul";
-import { Clock, Delete, Search, Smile } from "lucide-react";
+import { ChevronDown, Delete, Search, Smile } from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
@@ -61,6 +68,7 @@ import {
 import { toEmoticonsByIdsQuery } from "../model/emoticons-query";
 import { toEmoticonPackItemsQuery } from "../model/pack-items-query";
 import { toEmoticonPacksQuery } from "../model/packs-query";
+import { useEmoticonFavorites } from "../model/use-emoticon-favorites";
 import { useEmoticonSearch } from "../model/use-emoticon-search";
 import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
 import { useOutwardTabWarm } from "../model/use-outward-tab-warm";
@@ -522,13 +530,20 @@ export function EmoticonPicker({
   // WARN: § 13.6. `skipToken` leaves a query pending for as long as it is skipped, so an empty 최근 사용 — which has nothing to ask — must not be read as an answer still in flight, or its tab would never draw its own placeholder.
   const isRecentsPending = recentIds.length > 0 && isRecentsQueryPending;
 
+  const { favorites: allFavorites = [] } = useEmoticonFavorites();
+  const [recentsVisibleRows, setRecentsVisibleRows] = useState(3);
+
   const byId = new Map(recentItems.map((item) => [item.id, item] as const));
-  // INFO: § 13.1. 최근 사용 is a tab like any other, so hiding a pack takes its items out of this list too — an emoticon sent through § 13.9. from a hidden pack is remembered and simply not drawn here.
+  // INFO: § 13.1. 최근 사용 is a tab like any other, so hiding a pack takes its items out of this list too — an emoticon sent through § 13.9. from a hidden pack is remembered and 침착하게 not drawn here.
   // WARN: § 13.6. The kind is **not** filtered here as well. `recentIds` is already this kind's own list, and a second cut through `packTypes` would drop every recent for as long as the pack summaries are still in flight — a 최근 사용 that draws nothing on the frame the panel opens.
   const visiblePackIds = new Set(visiblePacks.map((pack) => pack.id));
   const recents = recentIds
     .map((id) => byId.get(id))
     .filter((item): item is Emoticon => item !== undefined && visiblePackIds.has(item.packId));
+
+  const favorites = allFavorites.filter(
+    (item) => packTypes.get(item.packId) === menuKind && visiblePackIds.has(item.packId),
+  );
   const shown = toShownItems();
   // INFO: § 13.6. The second region's own list, which is this menu's alone — 검색 has a field there instead and therefore no tabs at all.
   const tabIds = isSearching ? [] : [recentsTab, ...menuPacks.map((pack) => pack.id)];
@@ -784,7 +799,7 @@ export function EmoticonPicker({
                 label={RECENTS_LABEL}
                 onClick={() => selectTab(recentsTab)}
               >
-                <Clock className="size-5 text-meta" strokeWidth={1.75} />
+                <RecentsAndFavoritesIcon className="size-5 text-meta" />
               </TabButton>
               {/* WARN: § 13.1. `menuPacks` is `visiblePacks` cut to this menu's kind, and never `packs` — the list carries hidden packs so § 13.8. can search them, and a hidden pack drawn here is a tab `activeTab` resolves away from, so the tap does nothing but overwrite the remembered pack with an id that can never be restored. */}
               {menuPacks.map((pack, index) => (
@@ -851,7 +866,7 @@ export function EmoticonPicker({
           >
             {/* INFO: DESIGN.md § 7.10. 보관함's month header pattern, sized down from `title-sm` to `body-sm` for this panel's tighter grid — `meta`, inside the scroller so it travels with the cells rather than pinning above them. */}
             {/* WARN: § 8.14. Not a focus target, so it carries no `FOCUS_INDEX_ATTRIBUTE` — the arrows read cells off that attribute and a heading in the list would be a step onto nothing. */}
-            {activeTabLabel !== "" && (
+            {!isRecentsTabId(activeTab) && activeTabLabel !== "" && (
               <h2 className="pb-xs text-body-sm text-meta">{activeTabLabel}</h2>
             )}
             {/* WARN: § 13.6. The tab's own items are a request now, so the grid waits for them as it waits for the list. Drawn before they land, a pack tab paints `이 묶음에는 이모티콘이 없어요` over a pack that has plenty — the verdict-before-the-answer § 13.9.1. removed from the search pane. */}
@@ -869,7 +884,106 @@ export function EmoticonPicker({
                   slideFrom === 1 ? "slide-in-from-right-6" : "slide-in-from-left-6",
                 )}
               >
-                {shown.length === 0 ? (
+                {isRecentsTabId(activeTab) ? (
+                  // INFO: § 13.6. 최근 사용 탭은 두 섹션(최근사용 / 즐겨찾기)으로 분리 렌더링한다.
+                  <div className="flex flex-col gap-xs">
+                    <section>
+                      {/* WARN: § 8.14. Not a focus target — see the pack tab heading comment above. */}
+                      <h2 className="pb-xs text-body-sm text-meta">최근 사용</h2>
+                      {recents.length === 0 ? (
+                        <EmptyState
+                          className="border-0 bg-transparent"
+                          Icon={Smile}
+                          description="최근 사용한 이모티콘이 여기에 보여요"
+                        />
+                      ) : (
+                        <>
+                          {/* WARN: § 8.14. `focusableIndex` is a flat index across both recents and favorites — recents come first, so their indices are 0…recentsSlice.length−1. */}
+                          <div
+                            className={cn(
+                              "grid gap-2xs",
+                              menuKind === "mini" ? "grid-cols-6" : "grid-cols-4",
+                            )}
+                            role="group"
+                            aria-label="최근 사용한 이모티콘"
+                          >
+                            {recents.slice(0, recentsVisibleRows * columns).map((item, index) => (
+                              <EmoticonCell
+                                key={item.id}
+                                className="flex"
+                                buttonClassName="aspect-square w-full"
+                                item={item}
+                                index={index}
+                                isFocusable={index === focusableIndex}
+                                isWarmed
+                                eagerCount={EAGER_CELL_ROWS * columns}
+                                isKeyboardDriven={isKeyboardDriven}
+                                isMini={menuKind === "mini"}
+                                onSelect={handleSelect}
+                              />
+                            ))}
+                          </div>
+                          {recents.length > recentsVisibleRows * columns && (
+                            <div className="mt-xs flex justify-end">
+                              <button
+                                className="flex items-center gap-0.5 rounded px-xs py-0.5 text-body-sm text-meta transition-colors hover:text-body active:text-body"
+                                type="button"
+                                onClick={() => setRecentsVisibleRows((r) => r + 3)}
+                              >
+                                더보기
+                                <ChevronDown className="size-3.5" strokeWidth={1.75} />
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </section>
+                    <section>
+                      <h2 className="pb-xs text-body-sm text-meta">즐겨찾기</h2>
+                      {favorites.length === 0 ? (
+                        <EmptyState
+                          className="border-0 bg-transparent"
+                          Icon={Smile}
+                          description={
+                            menuKind === "mini"
+                              ? "즐겨찾기한 미니이모티콘이 여기에 보여요"
+                              : "즐겨찾기한 이모티콘이 여기에 보여요"
+                          }
+                        />
+                      ) : (
+                        // WARN: § 8.14. Favorites are indexed right after the recents slice — offset by `recentsSlice.length` so arrows move seamlessly between the two sections.
+                        <div
+                          className={cn(
+                            "grid gap-2xs",
+                            menuKind === "mini" ? "grid-cols-6" : "grid-cols-4",
+                          )}
+                          role="group"
+                          aria-label="즐겨찾기한 이모티콘"
+                        >
+                          {favorites.map((item, i) => {
+                            const index =
+                              Math.min(recents.length, recentsVisibleRows * columns) + i;
+                            return (
+                              <EmoticonCell
+                                key={item.id}
+                                className="flex"
+                                buttonClassName="aspect-square w-full"
+                                item={item}
+                                index={index}
+                                isFocusable={index === focusableIndex}
+                                isWarmed
+                                eagerCount={EAGER_CELL_ROWS * columns}
+                                isKeyboardDriven={isKeyboardDriven}
+                                isMini={menuKind === "mini"}
+                                onSelect={handleSelect}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                ) : shown.length === 0 ? (
                   <EmptyState
                     className="border-0 bg-transparent"
                     Icon={Smile}
@@ -957,7 +1071,7 @@ export function EmoticonPicker({
 
     // INFO: § 13.6. Either menu's 최근 사용 — the stored id list is one, and `recents` is already cut to this menu's kind.
     if (isRecentsTabId(activeTab)) {
-      return recents;
+      return [...recents, ...favorites];
     }
 
     return activePackItems;

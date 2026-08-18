@@ -1,5 +1,11 @@
 import { EMOTICON_PACK_TYPES } from "@/shared/config";
-import type { EmoticonItemId, EmoticonPackId, MediaId, UserId } from "@/shared/lib";
+import type {
+  EmoticonFavoriteId,
+  EmoticonItemId,
+  EmoticonPackId,
+  MediaId,
+  UserId,
+} from "@/shared/lib";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -147,6 +153,23 @@ export const userEmoticonUsage = pgTable(
   ],
 );
 
+export const userEmoticonFavorites = pgTable(
+  "user_emoticon_favorites",
+  {
+    id: snowflake<EmoticonFavoriteId>("id").primaryKey(),
+    userId: snowflake<UserId>("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    itemId: snowflake<EmoticonItemId>("item_id")
+      .notNull()
+      .references(() => emoticonItems.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("user_emoticon_favorites_user_id_item_id_idx").on(table.userId, table.itemId),
+    index("user_emoticon_favorites_user_id_id_idx").on(table.userId, table.id.desc()),
+  ],
+);
+
 export type EmoticonKeyword = typeof emoticonKeywords.$inferSelect;
 
 export type EmoticonItem = typeof emoticonItems.$inferSelect;
@@ -158,3 +181,5 @@ export type EmoticonPackType = (typeof emoticonPackTypeEnum.enumValues)[number];
 export type UserEmoticonPref = typeof userEmoticonPrefs.$inferSelect;
 
 export type UserEmoticonUsage = typeof userEmoticonUsage.$inferSelect;
+
+export type UserEmoticonFavorite = typeof userEmoticonFavorites.$inferSelect;

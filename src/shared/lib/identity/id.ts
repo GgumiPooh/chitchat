@@ -43,6 +43,8 @@ export type EmoticonPackId = Id<"EmoticonPackId">;
 
 export type EmoticonItemId = Id<"EmoticonItemId">;
 
+export type EmoticonFavoriteId = Id<"EmoticonFavoriteId">;
+
 export type PushSubscriptionId = Id<"PushSubscriptionId">;
 
 /**
@@ -61,6 +63,7 @@ export type SnowflakeId =
   | EventId
   | EmoticonPackId
   | EmoticonItemId
+  | EmoticonFavoriteId
   | PushSubscriptionId
   | StorageObjectId;
 
