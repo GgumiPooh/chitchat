@@ -231,6 +231,17 @@ export async function updateEmoticonItem({
     return { status: "unprocessable" };
   }
 
+  // WARN: Checked by key, before `registerMedia` ever inserts a row. Checking by id
+  // afterwards (below) refused the edit but left a slot that lost the race already
+  // registered and unreferenced — this is what closed that leak.
+  const candidateKeys = [still?.key, animated?.key, audioKey].filter(
+    (key): key is string => typeof key === "string",
+  );
+
+  if (await isKeyTakenElsewhere(itemId, candidateKeys)) {
+    return { status: "unprocessable" };
+  }
+
   const [stillMedia, animatedMedia, audioMedia] = await Promise.all([
     registerImageMedia(uploaderId, still, stillObject),
     registerImageMedia(uploaderId, animated, animatedObject),
@@ -276,6 +287,29 @@ export async function updateEmoticonItem({
   }
 
   return { status: "updated", emoticon: toEmoticon(row), orphanedKeys };
+}
+
+/** INFO: The same question as `isSlotTakenElsewhere`, asked before a `media` row exists to name — by the R2 key a slot would register to, not the id it would get. */
+async function isKeyTakenElsewhere(itemId: EmoticonItemId, keys: string[]): Promise<boolean> {
+  if (keys.length === 0) {
+    return false;
+  }
+
+  const [taken] = await getDb()
+    .select({ id: emoticonItems.id })
+    .from(emoticonItems)
+    .innerJoin(
+      media,
+      or(
+        eq(emoticonItems.stillImageId, media.id),
+        eq(emoticonItems.animatedImageId, media.id),
+        eq(emoticonItems.audioId, media.id),
+      ),
+    )
+    .where(and(ne(emoticonItems.id, itemId), inArray(media.r2Key, keys)))
+    .limit(1);
+
+  return taken !== undefined;
 }
 
 /** INFO: Whether any of these `media` rows is already slotted into a **different** item, which is the one thing the slot indexes refuse and this UPDATE has no conflict clause to absorb. */
