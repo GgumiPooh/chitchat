@@ -1,7 +1,13 @@
 "use client";
 
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
-import { EMOTICON_KIND_NOUNS, MAX_KEYWORD_QUERY_LENGTH, toEmoticonAssetUrl } from "@/shared/config";
+import {
+  EMOTICON_KIND_NOUNS,
+  EMOTICON_SETTINGS_ROUTE,
+  MAX_KEYWORD_QUERY_LENGTH,
+  MINI_SETTINGS_ROUTE,
+  toEmoticonAssetUrl,
+} from "@/shared/config";
 import type { EmoticonPackType } from "@/shared/db";
 import {
   A_MINUTE,
@@ -31,7 +37,8 @@ import {
 } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { josa } from "es-hangul";
-import { ChevronDown, Clock, Delete, Search, Smile } from "lucide-react";
+import { ChevronDown, Clock, Delete, Search, Settings, Smile } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   useEffect,
   useLayoutEffect,
@@ -357,6 +364,7 @@ export function EmoticonPicker({
   }
 
   const requestedTab = forcedTab ?? (typeof storedTab === "string" ? storedTab : RECENTS_TAB);
+  const router = useRouter();
   const menuBarRef = useRef<Nullable<HTMLDivElement>>(null);
   /**
    * REQUIREMENTS.md § 13.6. Where each kind's menu was last left, so stepping across the
@@ -373,6 +381,7 @@ export function EmoticonPicker({
   });
   const tabStripRef = useRef<Nullable<HTMLDivElement>>(null);
   const activeTabRef = useRef<Nullable<HTMLSpanElement>>(null);
+  const settingsButtonRef = useRef<Nullable<HTMLButtonElement>>(null);
   const deleteButtonRef = useRef<Nullable<HTMLButtonElement>>(null);
   /**
    * REQUIREMENTS.md § 8.14. Set the one time 검색 is opened by `Space`/`Enter` on its
@@ -873,6 +882,19 @@ export function EmoticonPicker({
                   )}
                 </TabButton>
               ))}
+              <IconButton
+                ref={settingsButtonRef}
+                className="shrink-0 text-meta"
+                Icon={Settings}
+                haptic
+                aria-label={menuKind === "mini" ? "미니 관리" : "이모티콘 관리"}
+                onClick={() =>
+                  router.push(
+                    menuKind === "mini" ? MINI_SETTINGS_ROUTE : EMOTICON_SETTINGS_ROUTE,
+                  )
+                }
+                onKeyDown={handleSettingsButtonKeys}
+              />
             </div>
             {/* INFO: 미니 only — a mini is written into the composer's draft rather than staged, so this is the picker's own Backspace for it. */}
             {menuKind === "mini" && (
@@ -1638,10 +1660,10 @@ export function EmoticonPicker({
     const next = toNextFocusIndex(event.key, { index, count: tabIds.length, columns: 1 });
 
     if (next === undefined) {
-      // WARN: § 8.14. 미니's own 지우기 sits right of the strip and outside its `role="toolbar"`, so `→` off the last tab has to hand focus off by hand — nothing else reaches it from the keyboard.
-      if (event.key === "ArrowRight" && menuKind === "mini" && index === tabIds.length - 1) {
+      // INFO: § 8.14. `→` off the last tab moves to the settings button at the end of the strip.
+      if (event.key === "ArrowRight" && index === tabIds.length - 1) {
         event.preventDefault();
-        deleteButtonRef.current?.focus();
+        settingsButtonRef.current?.focus();
       }
 
       return;
@@ -1653,7 +1675,50 @@ export function EmoticonPicker({
   }
 
   /**
-   * REQUIREMENTS.md § 8.14. `←` off 지우기, back onto the strip's roving tab stop —
+   * REQUIREMENTS.md § 8.14. `←` off 설정, back onto the strip's roving tab stop (or last tab) —
+   * `→` off 설정 moves to 미니's 지우기 (if mini) —
+   * and `↑`/`↓`, the same as the strip's own, since this button sits in that row.
+   */
+  function handleSettingsButtonKeys(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.defaultPrevented || event.nativeEvent.isComposing || !isBareKey(event)) {
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusActiveMenu();
+
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusTabContent();
+
+      return;
+    }
+
+    if (event.key === "ArrowLeft") {
+      const strip = tabStripRef.current;
+
+      if (!strip) {
+        return;
+      }
+
+      event.preventDefault();
+      focusItem(strip, tabIds.indexOf(focusableTabId));
+
+      return;
+    }
+
+    if (event.key === "ArrowRight" && menuKind === "mini") {
+      event.preventDefault();
+      deleteButtonRef.current?.focus();
+    }
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.14. `←` off 지우기, back onto 설정 (or strip's roving tab stop) —
    * and `↑`/`↓`, the same as the strip's own, since this button sits in that row.
    */
   function handleDeleteButtonKeys(event: KeyboardEvent<HTMLButtonElement>) {
@@ -1679,14 +1744,15 @@ export function EmoticonPicker({
       return;
     }
 
-    const strip = tabStripRef.current;
-
-    if (!strip) {
-      return;
-    }
-
     event.preventDefault();
-    focusItem(strip, tabIds.indexOf(focusableTabId));
+    if (settingsButtonRef.current) {
+      settingsButtonRef.current.focus();
+    } else {
+      const strip = tabStripRef.current;
+      if (strip) {
+        focusItem(strip, tabIds.indexOf(focusableTabId));
+      }
+    }
   }
 
   /**
