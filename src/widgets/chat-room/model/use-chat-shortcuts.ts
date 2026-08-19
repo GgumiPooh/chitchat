@@ -323,7 +323,7 @@ function isOwnedKey(event: KeyboardEvent): boolean {
  * WARN: § 8.14. Two modifiers spelled these before `isMenuKey` did and neither may have them back. `⌘1`/`⌘2`/`⌘3` is the browser's own tab switch, so where it reserves them the page is never sent the keystroke at all. `⌥1` is `¡` on macOS — a character, and therefore unpressable in the composer, in § 13.8.'s search field and in a correction, which are the three places this shortcut is most wanted.
  */
 function toEmoticonMenu(event: KeyboardEvent): Optional<EmoticonMenu> {
-  if (!isMenuKey(event)) {
+  if (!isMenuKey(event) && !isCommandKey(event)) {
     return undefined;
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { toAltKeyLabel, toCommandKeyLabel, toMenuKeyLabel, toShiftKeyLabel } from "@/shared/lib";
+import { toAltKeyLabel, toCommandKeyLabel } from "@/shared/lib";
 import { Modal } from "@/shared/ui";
 import { Fragment } from "react";
 
@@ -40,11 +40,8 @@ type ShortcutRow = {
 export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) {
   // INFO: § 8.14. Read in the render rather than through a hook, because a closed `Modal` renders nothing at all — there is no server HTML for the label to disagree with.
   const command = toCommandKeyLabel();
-  // INFO: § 8.14. One physical key, two names — `⌥` on a Mac and `Alt` everywhere else. `⇧`/`Shift` is the same, and a glyph nobody outside macOS reads is worse than no sheet at all.
+  // INFO: § 8.14. One physical key, two names — `⌥` on a Mac and `Alt` everywhere else.
   const alt = toAltKeyLabel();
-  // INFO: § 8.14. The menus' own modifier, which is `⌃` where `alt` is `⌥` and the same `Alt` everywhere else — a second label the sheet has to carry because `⌥`+digit types a character on macOS.
-  const menu = toMenuKeyLabel();
-  const shift = toShiftKeyLabel();
 
   return (
     <Modal
@@ -63,12 +60,12 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
         ])}
         {/* INFO: § 8.14. The strip, the grid and the field are one surface to the reader, so the sheet names the arrows once rather than each edge between them — the edges are what the arrows do, not something to be learnt separately. */}
         {renderGroup("이모티콘", [
-          { chord: [menu], keys: ["E"], label: "이모티콘 패널 열기 / 닫기" },
+          { chord: [command], keys: ["E"], label: "이모티콘 패널 열기 / 닫기" },
           // INFO: § 8.14. One row for the three digits, in the menu bar's own order — three rows would say the same thing three times and cost the sheet its length.
-          { chord: [menu], keys: ["1", "2", "3"], label: "검색 / 이모티콘 / 미니" },
+          { chord: [command], keys: ["1", "2", "3"], label: "검색 / 이모티콘 / 미니" },
           { keys: ["←", "→", "↑", "↓"], label: "패널 안에서 이동" },
           // INFO: § 8.14. Named separately from the arrows above, because it is the one that works from anywhere in the panel rather than only at an edge — which is the whole reason it exists.
-          { chord: [shift], keys: ["←", "→"], label: "이모티콘 슬라이드 넘기기" },
+          { chord: ["Shift"], keys: ["←", "→"], label: "이모티콘 슬라이드 넘기기" },
           { keys: ["Enter", "Space"], label: "선택하기" },
           { keys: ["Esc"], label: "닫기 또는 취소" },
         ])}
