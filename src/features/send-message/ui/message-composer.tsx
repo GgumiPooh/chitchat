@@ -77,6 +77,7 @@ export type ComposerEmoticon = {
   /** The asset's own pixels; the box is one line tall and takes only their ratio. */
   width: number;
   height: number;
+  hasAudio: boolean;
   name?: Nullable<string>;
   id: EmoticonItemId;
 };

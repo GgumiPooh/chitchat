@@ -248,6 +248,7 @@ export function MessageRow({
                   width={soloEmoticon.info.width}
                   height={soloEmoticon.info.height}
                   name={soloEmoticon.info.name}
+                  hasAudio={soloEmoticon.info.hasAudio}
                   isTappable
                 />
               )}

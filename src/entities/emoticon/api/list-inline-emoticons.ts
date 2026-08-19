@@ -34,6 +34,7 @@ export async function listInlineEmoticons(
       width,
       height,
       version: item.updatedAt.getTime(),
+      hasAudio: item.audioId !== null,
       // INFO: REQUIREMENTS.md § 13. One keyword is the item's name; the § 16.1. push body and the § 8.10. quote read it when the message has no words of its own left.
       name: item.keywords[0] ?? null,
       isDeleted: item.deletedAt !== null,

@@ -33,6 +33,8 @@ export type InlineEmoticonInfo = {
   height: number;
   /** REQUIREMENTS.md § 13.4. The item's `updated_at` in milliseconds — an edit keeps the id, so nothing else tells the cached asset URL apart from the new one. */
   version: number;
+  /** Whether the item's optional companion sound is available to standalone playback. */
+  hasAudio: boolean;
   name: Nullable<string>;
   /** REQUIREMENTS.md § 13. The item's objects are gone and the box draws a replacement; the row survives so there is a box to draw it in. */
   isDeleted: boolean;

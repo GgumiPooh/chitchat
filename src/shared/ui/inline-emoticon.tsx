@@ -3,6 +3,7 @@
 import { toEmoticonAssetUrl } from "@/shared/config";
 import {
   cn,
+  playSound,
   toPreviousReplaySrc,
   toReplaySrc,
   useViewportReplay,
@@ -21,6 +22,7 @@ export type InlineEmoticonProps = {
   width: number;
   height: number;
   name?: Nullable<string>;
+  hasAudio?: boolean;
   /** REQUIREMENTS.md § 13. `MessageRow`'s solo (bubble-less, box-drawn) rendering is a tap target that restarts the animation, matching `EmoticonBubble`; an inline run and the composer draft are not. */
   isTappable?: boolean;
 };
@@ -51,6 +53,7 @@ export function InlineEmoticon({
   width,
   height,
   name,
+  hasAudio = false,
   isTappable = false,
 }: InlineEmoticonProps) {
   const { ref, replayToken, replay } = useViewportReplay();
@@ -86,7 +89,12 @@ export function InlineEmoticon({
           className="size-full cursor-pointer focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:scale-[0.96]"
           type="button"
           aria-label="이모티콘"
-          onClick={replay}
+          onClick={() => {
+            replay();
+            if (hasAudio) {
+              playSound(toEmoticonAssetUrl(itemId, "audio", version));
+            }
+          }}
         >
           {image}
         </button>

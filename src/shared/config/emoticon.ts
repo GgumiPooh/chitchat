@@ -183,6 +183,7 @@ export type InlineEmoticonInfo = {
   height: number;
   version: number;
   name: Nullable<string>;
+  hasAudio: boolean;
   isDeleted: boolean;
 };
 

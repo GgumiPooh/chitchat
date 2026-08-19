@@ -721,10 +721,22 @@ export function ChatRoom({
 
       // INFO: REQUIREMENTS.md § 13.6. My own emoticon already sounded at the tap that sent it, so the echo of it is silent.
       if (isNew && arrival === "live" && message.senderId !== currentUserId) {
-        playEmoticonSound(message.emoticon);
+        if (message.emoticon) {
+          playEmoticonSound(message.emoticon);
+        } else {
+          const soloId = toSoloInlineEmoticonId({
+            text: message.text ?? "",
+            inlineEmoticonItemIds: message.inlineEmoticonItemIds,
+          });
+          const solo = soloId ? inlineEmoticons[soloId] : undefined;
+
+          if (soloId && solo) {
+            playEmoticonSound({ id: soloId, version: solo.version, hasAudio: solo.hasAudio });
+          }
+        }
       }
     },
-    [appendMessage, resolve, currentUserId],
+    [appendMessage, resolve, currentUserId, inlineEmoticons],
   );
 
   // INFO: REQUIREMENTS.md § 15.1. Staged attachments and sends still in flight both die with the document, so a refresh forced by a new deployment waits them out.
@@ -1669,6 +1681,15 @@ export function ChatRoom({
 
     // WARN: REQUIREMENTS.md § 13.8. A draft that is nothing but the word the emoticon was found by was a search term, not a message — sending it would put 고민 in the conversation beside the picture it was only ever used to reach. Anything else keeps § 13.6.'s second bubble.
     if (text.trim() && !isConsumedByEmoticonSearch(text)) {
+      const soloId = toSoloInlineEmoticonId({
+        text,
+        inlineEmoticonItemIds: emoticons.map(({ id }) => id),
+      });
+      const solo = soloId ? emoticons.find(({ id }) => id === soloId) : undefined;
+
+      if (solo) {
+        playEmoticonSound(solo);
+      }
       // WARN: § 13.6. The minis in the draft are recorded at the send too, and `"mini"` is read off the payload rather than off the menu they were picked from: § 2.2. carries a mini as a fragment of this `text` and never as `messages.emoticon_item_id`, so nothing else can be in here.
       emoticons.forEach((emoticon) => rememberEmoticon(emoticon.id, "mini"));
       // WARN: § 8.3. Published before the send, or the optimistic bubble's own emoticons are absent from the map the estimate reads and it prices the row without them — a correction on every send, which is the drift this estimate exists to avoid. The echo publishes the same entries again and they merge.
@@ -1930,9 +1951,9 @@ export function ChatRoom({
    *
    * INFO: § 13.8. The name is the item's first keyword, which is all a mini has (§ 2.6.).
    */
-  function insertEmoticon({ version, width, height, keywords, id }: Emoticon) {
+  function insertEmoticon({ version, width, height, keywords, hasAudio, id }: Emoticon) {
     setInsertedEmoticon((request) => ({
-      emoticon: { version, width, height, name: keywords[0] ?? null, id },
+      emoticon: { version, width, height, name: keywords[0] ?? null, hasAudio, id },
       token: (request?.token ?? 0) + 1,
     }));
   }
@@ -2202,9 +2223,9 @@ export function ChatRoom({
   // INFO: § 8.3. What an optimistic bubble draws from — the composer's own emoticons, in the shape the sent row reads from the page's map.
   function toInlineEmoticonMap(emoticons: readonly ComposerEmoticon[]): InlineEmoticonMap {
     return Object.fromEntries(
-      emoticons.map(({ width, height, version, name, id }) => [
+      emoticons.map(({ width, height, version, name, hasAudio, id }) => [
         id,
-        { width, height, version, name: name ?? null, isDeleted: false },
+        { width, height, version, name: name ?? null, hasAudio, isDeleted: false },
       ]),
     );
   }
