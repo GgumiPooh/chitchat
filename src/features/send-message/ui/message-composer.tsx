@@ -48,6 +48,7 @@ import {
   type RefObject,
   type SyntheticEvent,
 } from "react";
+import { findKeywordTypo, isOneJamoEdit } from "../model/find-keyword-typo";
 import { toEmoticonKeywordsQuery } from "../model/keywords-query";
 import { useEmoticonSearch } from "../model/use-emoticon-search";
 import { warmEmoticonUrls } from "../model/warm-emoticon-images";
@@ -260,14 +261,47 @@ export function MessageComposer({
   // INFO: § 13.8. Hidden packs count here, exactly as they do in the panel's search — the underline offers a word the search can answer, and the search looks across the whole library.
   // INFO: § 13.8. Deduplicated by the `DISTINCT` that produced it, so there is no `Set` to build — `findKeywordMatch` only ever iterates what it is given.
   // WARN: § 13.6. A cache read and never a fetch. This component mounts with the room, so an enabled query put `?keywords=1` on every room entry — the path `useEmoticonPreload` was written to keep clear; that hook warms this same descriptor from its idle callback and the underline appears when it lands.
-  const { data: keywords = NO_KEYWORDS } = useQuery({
+  const {
+    data: keywords = NO_KEYWORDS,
+    refetch: refetchKeywords,
+    isFetched: hasFetchedKeywords,
+  } = useQuery({
     ...toEmoticonKeywordsQuery(),
     enabled: false,
   });
+
+  useEffect(() => {
+    if (draft.text.trim() !== "" && !hasFetchedKeywords) {
+      void refetchKeywords();
+    }
+  }, [draft.text, hasFetchedKeywords, refetchKeywords]);
+
   const match = useMemo(() => findKeywordMatch(draft.text, keywords), [draft.text, keywords]);
+  const typoKeywordQuery = useMemo(
+    () => (match ? null : findKeywordTypo(draft.text, keywords)),
+    [draft.text, keywords, match],
+  );
+  // INFO: § 13.8. A completed word can turn into an IME slip as its final consonant settles (`어디` → `어딩`), so the toggle keeps the last answer while the reader is still adding to that word. A deletion starts a new search instead.
+  const [fallbackKeywordQuery, setFallbackKeywordQuery] = useState<Nullable<string>>(null);
+  const discoveredKeywordQuery = match?.query ?? typoKeywordQuery;
+  const keywordQuery = discoveredKeywordQuery ?? fallbackKeywordQuery ?? "";
   // INFO: § 13.8. The toggle's own preview — the underlined word's top hit, decoded before it is ever drawn (`warmEmoticonUrls(decodes: true)`), so the swap never shows a skeleton in the button's place.
-  const { results: previewResults } = useEmoticonSearch(match?.query ?? "", !isEditing, false);
+  const { results: previewResults, isPending: isPreviewSearchPending } = useEmoticonSearch(
+    keywordQuery,
+    !isEditing,
+    false,
+  );
   const previewResult = previewResults[0] ?? null;
+
+  // WARN: Adjusted during render rather than by an effect. A query can settle in the same commit as the IME turns `어디` into `어딩`; an effect would leave the fallback unset for that one render and drop the toggle's preview.
+  if (
+    discoveredKeywordQuery &&
+    !isPreviewSearchPending &&
+    previewResults.length > 0 &&
+    fallbackKeywordQuery !== discoveredKeywordQuery
+  ) {
+    setFallbackKeywordQuery(discoveredKeywordQuery);
+  }
   const [decodedPreview, setDecodedPreview] =
     useState<Nullable<{ version: number; url: string; id: EmoticonItemId }>>(null);
 
@@ -540,6 +574,13 @@ export function MessageComposer({
             // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
             // WARN: The keys are what say *which* emoticons a deletion took — the text only says one of them is gone, and a Backspace in the middle of a draft would otherwise drop the last.
             onChange={(next, keys) => {
+              if (
+                next.length < draft.text.length ||
+                (!next.startsWith(draft.text) && !isOneJamoEdit(draft.text, next))
+              ) {
+                setFallbackKeywordQuery(null);
+              }
+
               setDraft((current) => ({
                 text: next,
                 emoticons: toSurviving(current.emoticons, keys),
@@ -660,6 +701,7 @@ export function MessageComposer({
 
     onSend({ text: draft.text, emoticons: draft.emoticons });
     setDraft(EMPTY_DRAFT);
+    setFallbackKeywordQuery(null);
     // WARN: REQUIREMENTS.md § 8.12. The send is the end of composing, and it clears the field without going through `onChange` — so nothing else here would ever retract the broadcast, and 입력 중 would sit under the message that had just arrived.
     onEdit?.(false);
 
@@ -696,13 +738,13 @@ export function MessageComposer({
 
   /** WARN: § 13.8. The toggle's own tap, kept apart from `handleKeywordTap` so the room can tell the two open requests apart. */
   function handlePreviewTap() {
-    if (!match) {
+    if (keywordQuery === "") {
       return;
     }
 
     fieldRef.current?.blur();
-    tappedQueryRef.current = match.query;
-    onPreviewTap?.(match.query);
+    tappedQueryRef.current = keywordQuery;
+    onPreviewTap?.(keywordQuery);
   }
 
   /**
@@ -751,6 +793,17 @@ export function MessageComposer({
   function handlePlainChange(event: ChangeEvent<HTMLTextAreaElement>) {
     const field = event.target;
     const next = field.value;
+    const isComposing =
+      typeof InputEvent !== "undefined" &&
+      event.nativeEvent instanceof InputEvent &&
+      event.nativeEvent.isComposing;
+
+    if (
+      next.length < draft.text.length ||
+      (!isComposing && !next.startsWith(draft.text) && !isOneJamoEdit(draft.text, next))
+    ) {
+      setFallbackKeywordQuery(null);
+    }
 
     setDraft({ text: next, emoticons: [] });
     tappedQueryRef.current = null;
@@ -785,7 +838,7 @@ export function MessageComposer({
     // WARN: § 8.14. And withheld while the panel is up, so the room's copy answers instead. Seeding a search from here is only ever the way *in*; there is nothing about a panel already on screen for this field to say.
     if (isMenuKey(event) && isDigitKey(event, 1) && !isEditing && !isEmoticonPickerOpen) {
       event.preventDefault();
-      openEmoticonSearch(match?.query ?? null);
+      openEmoticonSearch(keywordQuery || null);
 
       return;
     }
