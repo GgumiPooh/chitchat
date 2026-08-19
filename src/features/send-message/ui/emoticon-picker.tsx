@@ -237,14 +237,15 @@ export type EmoticonPickerProps = {
    */
   revealRequest?: Nullable<{ emoticon: Emoticon; token: number }>;
   /**
-   * REQUIREMENTS.md § 8.14. The three menu digits and `⌃E`'s own open, which the room
-   * forwards because the outcome it shares with them is its own state — the panel being
-   * on screen at all.
+   * REQUIREMENTS.md § 8.14. The three menu digits, forwarded because the chosen menu is
+   * the picker's own state.
    *
    * WARN: Carries a token for `searchRequest`'s reason: pressing the same digit twice
    * is two requests, and keyed on the menu alone the second is no change to see.
    */
   menuRequest?: Nullable<{ menu: EmoticonMenu; token: number }>;
+  /** REQUIREMENTS.md § 13.8. The composer's current suggestion, used only to seed an otherwise empty manually opened search field. */
+  suggestedSearchQuery?: string;
   /** REQUIREMENTS.md § 13.8. Whether the search tab is the one on screen — the room exempts it from § 13.6.'s keyboard gate. */
   onSearchTabChange?: (isOnSearchTab: boolean, query: string) => void;
   onSelect: (emoticon: Emoticon) => void;
@@ -279,6 +280,7 @@ export function EmoticonPicker({
   searchRequest,
   revealRequest,
   menuRequest,
+  suggestedSearchQuery = "",
   onSearchTabChange,
   onSelect,
   onQuickSend,
@@ -1838,6 +1840,10 @@ export function EmoticonPicker({
     }
 
     if (menu === "search") {
+      if (query === "" && suggestedSearchQuery !== "") {
+        setQuery(suggestedSearchQuery);
+      }
+
       selectTab(SEARCH_TAB);
 
       return;

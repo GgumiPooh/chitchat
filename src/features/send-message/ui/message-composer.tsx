@@ -173,6 +173,8 @@ export type MessageComposerProps = {
   onKeywordTap?: (query: string) => void;
   /** REQUIREMENTS.md § 13.8. A tap on the toggle while it stands in for the matched word's top hit. */
   onPreviewTap?: (query: string) => void;
+  /** REQUIREMENTS.md § 13.8. The current keyword suggestion, kept by the room so a later manual move to 검색 can seed its field. */
+  onSuggestedSearchQueryChange?: (query: string) => void;
   // INFO: REQUIREMENTS.md § 13. The emoticons whole rather than their ids alone — the optimistic bubble has to reserve the box the echoed row will, and only these carry it.
   onSend: (message: ComposedMessage) => void;
 };
@@ -196,6 +198,7 @@ export function MessageComposer({
   onToggleEmoticons,
   onKeywordTap,
   onPreviewTap,
+  onSuggestedSearchQueryChange,
   onSend,
 }: MessageComposerProps) {
   const fieldRef = useRef<Nullable<HTMLDivElement | HTMLTextAreaElement>>(null);
@@ -285,6 +288,11 @@ export function MessageComposer({
   const [fallbackKeywordQuery, setFallbackKeywordQuery] = useState<Nullable<string>>(null);
   const discoveredKeywordQuery = match?.query ?? typoKeywordQuery;
   const keywordQuery = discoveredKeywordQuery ?? fallbackKeywordQuery ?? "";
+
+  useEffect(() => {
+    onSuggestedSearchQueryChange?.(keywordQuery);
+  }, [keywordQuery, onSuggestedSearchQueryChange]);
+
   // INFO: § 13.8. The toggle's own preview — the underlined word's top hit, decoded before it is ever drawn (`warmEmoticonUrls(decodes: true)`), so the swap never shows a skeleton in the button's place.
   const { results: previewResults, isPending: isPreviewSearchPending } = useEmoticonSearch(
     keywordQuery,

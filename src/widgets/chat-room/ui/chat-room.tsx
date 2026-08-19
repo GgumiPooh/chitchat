@@ -313,6 +313,7 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 13.8. A word tapped in the composer, handed to the picker's search tab.
   const [emoticonSearch, setEmoticonSearch] =
     useState<Nullable<{ query: string; token: number }>>(null);
+  const [suggestedEmoticonSearchQuery, setSuggestedEmoticonSearchQuery] = useState("");
   /**
    * INFO: REQUIREMENTS.md § 13.8. The word a send takes out of the draft, held apart
    * from the request above because a send spends **this** and leaves that standing —
@@ -327,7 +328,7 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 13.9. An emoticon tapped in the conversation. Where the panel opens is the picker's decision, since the pack list is what settles it.
   const [emoticonReveal, setEmoticonReveal] =
     useState<Nullable<{ emoticon: Emoticon; token: number }>>(null);
-  // INFO: REQUIREMENTS.md § 8.14. The menu the digits — and `⌃E`'s own open — asked for, carrying a token for `emoticonReveal`'s reason: pressing the same key twice is two requests, and keyed on the menu alone the second would be no change to see.
+  // INFO: REQUIREMENTS.md § 8.14. The menu the digits asked for, carrying a token for `emoticonReveal`'s reason: pressing the same key twice is two requests, and keyed on the menu alone the second would be no change to see.
   const [menuRequest, setMenuRequest] =
     useState<Nullable<{ menu: EmoticonMenu; token: number }>>(null);
   // WARN: § 13. A mini the picker put into the draft. The token is the composer's key for it as well as the instruction, so it counts up rather than carrying `Date.now()` — two minis inside one millisecond would be one key, and the draft could no longer say which of them a Backspace took.
@@ -945,8 +946,7 @@ export function ChatRoom({
   });
 
   /**
-   * REQUIREMENTS.md § 8.14. Focus into the panel a menu key opened — every key that
-   * opens it makes one of these requests, `⌃E` included.
+   * REQUIREMENTS.md § 8.14. Focus into the panel after a menu digit chose its tab.
    *
    * WARN: An effect rather than a line in `selectEmoticonMenu`, because the menu has to
    * change first. The picker applies a menu request in an effect of its own — a child's,
@@ -1436,6 +1436,7 @@ export function ChatRoom({
                   searchRequest={emoticonSearch}
                   revealRequest={emoticonReveal}
                   menuRequest={menuRequest}
+                  suggestedSearchQuery={suggestedEmoticonSearchQuery}
                   onSearchTabChange={reportEmoticonSearchTab}
                   onSelect={stageEmoticon}
                   onQuickSend={sendStagedEmoticon}
@@ -1462,6 +1463,7 @@ export function ChatRoom({
               onEdit={signalEdit}
               onKeywordTap={openEmoticonSearch}
               onPreviewTap={openEmoticonSearch}
+              onSuggestedSearchQueryChange={setSuggestedEmoticonSearchQuery}
               onFieldFocus={closeEmoticonPanel}
               onSend={({ text, emoticons }) => submit(text, emoticons)}
             />
@@ -1881,15 +1883,12 @@ export function ChatRoom({
   }
 
   /**
-   * REQUIREMENTS.md § 8.14. `⌃E` — § 13.6.'s panel, opened on 이모티콘 or closed. It is
-   * the **only** key that closes it; the digits below choose a menu and never do.
+   * REQUIREMENTS.md § 8.14. `⌃E` — § 13.6.'s panel, opened on its remembered tab or
+   * closed. It is the **only** key that closes it; the digits below choose a menu and
+   * never do.
    *
-   * WARN: It names 이모티콘 rather than restoring the remembered tab, so it goes through
-   * the same `menuRequest` the digits do — which is also what carries the focus, an
-   * effect later (see `menuRequest`'s own bump). A `requestPickerFocus` here as well
-   * would land a frame early, on the first cell of whatever menu was left open.
-   *
-   * INFO: It returns to 이모티콘's own last tab, since that is what a menu request means.
+   * INFO: With no menu request, the picker restores `ACTIVE_TAB_KEY`; a stored 미니 pack
+   * therefore reopens in 미니 rather than falling back through 이모티콘's 최근 사용 tab.
    *
    * WARN: § 13.6. The blur is the same one the toggle button makes and for the same
    * reason: the panel is gated on the keyboard being down, and iOS lowers it for a blur
@@ -1904,12 +1903,17 @@ export function ChatRoom({
       return;
     }
 
-    selectEmoticonMenu("emoticon");
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    setIsEmoticonPickerOpen(true);
+    requestPickerFocus(true);
   }
 
   /**
    * REQUIREMENTS.md § 8.14. `⌃1` / `⌃2` / `⌃3` — § 13.6.'s panel on the menu the digit
-   * names, opened if it is shut. `⌃E`'s open is this too, naming 이모티콘.
+   * names, opened if it is shut.
    *
    * WARN: A digit never closes the panel, so the digit of the menu already on screen
    * changes no menu — the request reaches a panel that is already there and already on
