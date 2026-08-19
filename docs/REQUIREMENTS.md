@@ -1684,7 +1684,7 @@ Emoticon objects ride § 9.'s presigned-PUT pipeline — client → R2 directly,
 - **The tab icon on the 이모티콘 menu changed** from a plain clock to `RecentsAndFavoritesIcon` (split clock and star), while the 미니 menu keeps `Clock`.
 - **The preview card carries a ★ button** (top-left) that toggles the current emoticon's favorite status with an optimistic update, alongside the existing ✕ dismiss button (top-right).
 - **Favorites are fetched via `GET /api/emoticons/favorites`** and mutated with `POST` (add) / `DELETE /api/emoticons/favorites/{id}` (remove by `item_id`). The client hook `useEmoticonFavorites` manages this with React Query optimistic updates, a 5-minute `staleTime`, and rollback on error.
-- **`EMOTICON_FAVORITES_URL` is declared in `shared/config/emoticon.ts`** alongside the other emoticon URL constants. It is **not** a mirrored route (it does not exist in jandh-emoticons, which has no concept of favorites), so single-copy changes here are correct.
+- **`EMOTICON_FAVORITES_URL` is declared in `shared/config/emoticon.ts`** alongside the other emoticon URL constants and follows § 13.7.1.'s `EMOTICON_API_BASE` switch. The route exists in both apps — `favorites` and `favorites/{id}` — and both copies MUST be changed together.
 
 ---
 
