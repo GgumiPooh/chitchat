@@ -420,7 +420,7 @@ export function MessageComposer({
       return;
     }
 
-    const tapped = tappedQueryRef.current;
+    const tapped = tappedQueryRef.current ?? (keywordQuery !== "" ? keywordQuery : null);
 
     // WARN: Spent on use, and that is what stops it deleting a message nobody searched for. The room bumps this token on **every** quick send, so a ref left holding `고민` from a search minutes ago would silently swallow a later draft that happened to read `고민` — typed as an actual message — the next time any emoticon was double-tapped.
     tappedQueryRef.current = null;
@@ -431,6 +431,7 @@ export function MessageComposer({
 
     // WARN: Read outside the updater. A `setDraft` callback must be pure, and StrictMode double-invokes it — the § 8.12. retraction fired twice per consume from in there.
     setDraft((current) => (current.text.trim() === tapped ? EMPTY_DRAFT : current));
+    setFallbackKeywordQuery(null);
 
     if (draft.text.trim() === tapped) {
       // WARN: The clear never goes through `onChange`, so the § 8.12. broadcast has to be retracted by hand or 입력 중 outlives the send.
@@ -730,6 +731,11 @@ export function MessageComposer({
    */
   function toggleEmoticons() {
     fieldRef.current?.blur();
+
+    if (keywordQuery !== "") {
+      tappedQueryRef.current = keywordQuery;
+    }
+
     onToggleEmoticons?.();
   }
 
