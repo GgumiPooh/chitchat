@@ -53,6 +53,8 @@ export function EmoticonPackRow({
     <div
       ref={setNodeRef}
       className={cn(
+        // WARN: DESIGN.md § 3.2. The grip's touch hold owns the whole row, so its title and thumbnail must not begin iOS selection or native image dragging while the reorder sensor waits.
+        "[@media(pointer:coarse)]:select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none]",
         // INFO: DESIGN.md § 4.5. The lifted row is the one moment a list row may carry a shadow — it is genuinely floating above the others.
         isDragging && "relative z-10 shadow-raised",
         className,
@@ -85,6 +87,7 @@ export function EmoticonPackRow({
                 className="size-full"
                 imgClassName="size-full object-contain"
                 alt=""
+                draggable={false}
                 src={toEmoticonAssetUrl(
                   pack.thumbnailItemId,
                   "still-image",
