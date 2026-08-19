@@ -577,7 +577,7 @@ export function MessageComposer({
             objects={objects}
             caretOffsetRef={caretOffsetRef}
             // INFO: § 8.14. The pointer decides it and nothing else: a mouse means a keyboard is there to press, and whether the app is installed says nothing about that. The hint alone, since `aria-label` below already names the field.
-            placeholder={isFinePointer ? "Ctrl + / 단축키 보기" : "메시지 입력"}
+            placeholder={isFinePointer ? "Ctrl + / 로 단축키 보기" : "메시지 입력"}
             aria-label="메시지 입력"
             // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
             // WARN: The keys are what say *which* emoticons a deletion took — the text only says one of them is gone, and a Backspace in the middle of a draft would otherwise drop the last.
@@ -627,7 +627,7 @@ export function MessageComposer({
               )}
               maxLength={MAX_MESSAGE_LENGTH}
               value={draft.text}
-              placeholder={isFinePointer ? "Ctrl + / 단축키 보기" : "메시지 입력"}
+              placeholder={isFinePointer ? "Ctrl + / 로 단축키 보기" : "메시지 입력"}
               aria-label="메시지 입력"
               onChange={handlePlainChange}
               onFocus={onFieldFocus}
