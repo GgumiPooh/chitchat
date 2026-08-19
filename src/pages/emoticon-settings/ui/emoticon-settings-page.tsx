@@ -174,7 +174,7 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
             Icon: Pencil,
             onSelect: renameGate.guard(() => setRenamingPack(managedPack)),
           },
-          ...(managedPack?.isEnabled
+          ...(tab === "using" && managedPack?.isEnabled
             ? [
                 {
                   label: "숨기기",
