@@ -34,6 +34,7 @@ export {
   type RecentsAndFavoritesIconProps,
 } from "./recents-and-favorites-icon";
 export { RelativeTime, type RelativeTimeProps } from "./relative-time";
+export { ReorderHandleIcon, type ReorderHandleIconProps } from "./reorder-handle-icon";
 export { RouteTransition, type RouteTransitionProps } from "./route-transition";
 export { ScrollMemory } from "./scroll-memory";
 export { ScrollReset } from "./scroll-reset";

@@ -19,6 +19,7 @@ import {
 import { cn, useBfcacheRestore, type EmoticonPackId, type Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES, OfflineStaleNotice, useOfflineGate } from "@/shared/offline-ux";
 import { ActionSheet, AppHeader, Button, IconButton, Modal, toast } from "@/shared/ui";
+import { useQueryClient } from "@tanstack/react-query";
 import { josa } from "es-hangul";
 import { ChevronLeft, EyeOff, Link2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -42,7 +43,7 @@ export type EmoticonSettingsPageProps = {
   className?: string;
   /** REQUIREMENTS.md § 13. Which kind this screen manages. The two are one component and one set of strings, so a row added to either belongs in both (§ 13.5.). */
   type: EmoticonPackType;
-  /** REQUIREMENTS.md § 13.5. The 사용중 tab's whole list — enabled only, which is what keeps it small enough to drag. */
+  /** REQUIREMENTS.md § 13. The 사용중 tab's whole list — enabled only, which is what keeps it small enough to drag. */
   packs: EmoticonPackSummary[];
 };
 
@@ -65,17 +66,15 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
   const [isCreating, setIsCreating] = useState(false);
   const [known, setKnown] = useState(packs);
   const [seeded, setSeeded] = useState(packs);
-  const [managedId, setManagedId] = useState<Nullable<EmoticonPackId>>(null);
-  const [renamingId, setRenamingId] = useState<Nullable<EmoticonPackId>>(null);
+  const [managedPack, setManagedPack] = useState<Nullable<EmoticonPackSummary>>(null);
+  const [renamingPack, setRenamingPack] = useState<Nullable<EmoticonPackSummary>>(null);
   const [hidingId, setHidingId] = useState<Nullable<EmoticonPackId>>(null);
-  const [deletingId, setDeletingId] = useState<Nullable<EmoticonPackId>>(null);
+  const [deletingPack, setDeletingPack] = useState<Nullable<EmoticonPackSummary>>(null);
   const [isRemoving, setIsRemoving] = useState(false);
+  const queryClient = useQueryClient();
   // INFO: § 13.5. A switch thrown on the other tab is a write this list was seeded before — the seed is re-read on the way back rather than on every toggle.
   const hasStaleSeedRef = useRef(false);
   const router = useRouter();
-  const managed = known.find((pack) => pack.id === managedId);
-  const renaming = known.find((pack) => pack.id === renamingId) ?? null;
-  const deleting = known.find((pack) => pack.id === deletingId);
 
   // WARN: § 13.7. `router.refresh()` alone would change nothing — `known` is seeded from `packs` once and every edit since has been its own, so a screen returning from the import would re-render against state it never re-read.
   if (seeded !== packs) {
@@ -128,11 +127,13 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
         {tab === "using" ? (
           // WARN: This list is the single source of truth for the order. `EmoticonPackManager` holds none of its own, so a rename or a delete here cannot roll back a drag it has already persisted.
           <EmoticonPackManager
-            type={type}
-            packs={known}
             hidingId={hidingId}
+            packs={known}
+            type={type}
+            onManagePack={(packId) =>
+              setManagedPack(known.find((pack) => pack.id === packId) ?? null)
+            }
             onOpenPack={openPack}
-            onManagePack={setManagedId}
             onPackHidden={commitHide}
             onPacksChange={setKnown}
           />
@@ -143,6 +144,7 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
               hasStaleSeedRef.current = true;
             }}
             onOpenPack={openPack}
+            onManagePack={setManagedPack}
           />
         )}
       </div>
@@ -163,45 +165,52 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
         // INFO: § 13.1. A new pack is hidden, so it belongs to neither tab's list yet — the screen it is filled on is where the reader is taken instead.
         onCreated={(pack) => openPack(pack.id)}
       />
-      {/* WARN: § 13.5. No 수정 among these. Tapping the row already opens the pack, and two controls called 수정 on one row cannot be told apart. */}
       <ActionSheet
-        isOpen={managed !== undefined}
-        header={{ title: managed?.name ?? "" }}
+        isOpen={managedPack !== null}
+        header={{ title: managedPack?.name ?? "" }}
         items={[
           {
             label: "이름 바꾸기",
             Icon: Pencil,
-            onSelect: renameGate.guard(() => setRenamingId(managedId)),
+            onSelect: renameGate.guard(() => setRenamingPack(managedPack)),
           },
-          { label: "숨기기", Icon: EyeOff, onSelect: hideGate.guard(() => hidePack(managedId)) },
+          ...(managedPack?.isEnabled
+            ? [
+                {
+                  label: "숨기기",
+                  Icon: EyeOff,
+                  onSelect: hideGate.guard(() => hidePack(managedPack)),
+                },
+              ]
+            : []),
           {
             label: `${packNoun} 삭제`,
             Icon: Trash2,
             variant: "destructive",
-            onSelect: deleteGate.guard(() => setDeletingId(managedId)),
+            onSelect: deleteGate.guard(() => setDeletingPack(managedPack)),
           },
         ]}
-        onClose={() => setManagedId(null)}
+        onClose={() => setManagedPack(null)}
       />
       {/* WARN: Keyed by the pack — the sheet seeds its field from the name once, so a second pack has to be a second mount. */}
       <RenamePackSheet
-        key={renaming?.id}
-        pack={renaming}
-        onClose={() => setRenamingId(null)}
+        key={renamingPack?.id}
+        pack={renamingPack}
+        onClose={() => setRenamingPack(null)}
         onRenamed={handleRenamed}
       />
       {/* INFO: § 13.5. 삭제 is the one that asks, and 숨기기 beside it is why it can afford to — hiding destroys nothing and offers 실행 취소, where this takes the pack from the other user as well. */}
       <Modal
-        isOpen={deleting !== undefined}
+        isOpen={deletingPack !== null}
         header={{
-          title: deleting ? `${josa(deleting.name, "을/를")} 삭제할까요?` : "",
+          title: deletingPack ? `${josa(deletingPack.name, "을/를")} 삭제할까요?` : "",
           description: `${josa(packNoun, "와/과")} 그 안의 ${josa(kindNoun, "이/가")} 모두 사라져요`,
         }}
-        onClose={() => setDeletingId(null)}
+        onClose={() => setDeletingPack(null)}
       >
         {/* WARN: `flex-1` on both — `Button` is `w-full shrink-0`, so a bare pair in a row would push the second one off the modal. */}
         <div className="flex gap-xs">
-          <Button className="flex-1" variant="secondary" onClick={() => setDeletingId(null)}>
+          <Button className="flex-1" variant="secondary" onClick={() => setDeletingPack(null)}>
             취소
           </Button>
           <Button
@@ -209,7 +218,7 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
             variant="destructive"
             disabled={isRemoving}
             haptic
-            onClick={() => void removePack(deletingId)}
+            onClick={() => void removePack(deletingPack)}
           >
             삭제
           </Button>
@@ -245,6 +254,7 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
 
   function handleRenamed(packId: EmoticonPackId, name: string) {
     setKnown((current) => current.map((pack) => (pack.id === packId ? { ...pack, name } : pack)));
+    void queryClient.invalidateQueries({ queryKey: ["emoticon-pack-browse", type] });
   }
 
   /**
@@ -255,15 +265,17 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
    * WARN: `enabled` is written and `position` is not, so the undo needs no order of its
    * own — the row goes back exactly where it was.
    */
-  function hidePack(packId: Nullable<EmoticonPackId>) {
-    const index = known.findIndex((pack) => pack.id === packId);
-    const pack = known[index];
-
+  function hidePack(pack: Nullable<EmoticonPackSummary>) {
     if (!pack) {
       return;
     }
 
-    setHidingId(pack.id);
+    const index = known.findIndex((p) => p.id === pack.id);
+
+    if (index >= 0) {
+      setHidingId(pack.id);
+    }
+
     // INFO: AGENTS.md § 0.4. A pack name is arbitrary user text and may end in a Latin letter or a digit, so the particle is chosen rather than written into the sentence.
     toast(`${josa(pack.name, "을/를")} 숨겼어요`, {
       action: { label: "실행 취소", onClick: () => void undoHide(pack, index) },
@@ -273,10 +285,16 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
       },
     });
 
-    void saveEmoticonPackEnabled(pack.id, false).catch(() => {
-      restorePack(pack, index);
-      toast.error("숨기지 못했어요");
-    });
+    void saveEmoticonPackEnabled(pack.id, false)
+      .then(() => {
+        void queryClient.invalidateQueries({ queryKey: ["emoticon-pack-browse", type] });
+      })
+      .catch(() => {
+        if (index >= 0) {
+          restorePack(pack, index);
+        }
+        toast.error("숨기지 못했어요");
+      });
   }
 
   // WARN: The row is dropped only when its collapse lands, and both writes are one update — clearing `hidingId` on its own would expand the row again for a frame before the filter reached it.
@@ -286,12 +304,17 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
   }
 
   async function undoHide(pack: EmoticonPackSummary, index: number) {
-    restorePack(pack, index);
+    if (index >= 0) {
+      restorePack(pack, index);
+    }
 
     try {
       await saveEmoticonPackEnabled(pack.id, true);
+      void queryClient.invalidateQueries({ queryKey: ["emoticon-pack-browse", type] });
     } catch {
-      setKnown((current) => current.filter((row) => row.id !== pack.id));
+      if (index >= 0) {
+        setKnown((current) => current.filter((row) => row.id !== pack.id));
+      }
       toast.error("다시 표시하지 못했어요");
     }
   }
@@ -311,17 +334,18 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
     );
   }
 
-  async function removePack(packId: Nullable<EmoticonPackId>) {
-    if (!packId) {
+  async function removePack(pack: Nullable<EmoticonPackSummary>) {
+    if (!pack) {
       return;
     }
 
     setIsRemoving(true);
 
     try {
-      await deleteEmoticonPack(packId);
-      setKnown((current) => current.filter((pack) => pack.id !== packId));
-      setDeletingId(null);
+      await deleteEmoticonPack(pack.id);
+      setKnown((current) => current.filter((p) => p.id !== pack.id));
+      void queryClient.invalidateQueries({ queryKey: ["emoticon-pack-browse", type] });
+      setDeletingPack(null);
     } catch (error) {
       toast.error(toDeleteMessage(error, kindNoun));
     } finally {

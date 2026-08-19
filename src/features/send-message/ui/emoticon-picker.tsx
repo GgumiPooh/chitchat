@@ -562,16 +562,10 @@ export function EmoticonPicker({
     : recentsVisibleRows * columns;
   const displayedRecents = recents.slice(0, recentsSliceCount);
   const recentsSectionCount =
-    recents.length === 0
-      ? 0
-      : hasMoreRecents
-        ? recentsVisibleRows * columns
-        : recents.length;
+    recents.length === 0 ? 0 : hasMoreRecents ? recentsVisibleRows * columns : recents.length;
   const totalRecentsAndFavoritesCount = recentsSectionCount + favorites.length;
   const gridItemCount =
-    isRecentsTabId(activeTab) && menuKind !== "mini"
-      ? totalRecentsAndFavoritesCount
-      : shown.length;
+    isRecentsTabId(activeTab) && menuKind !== "mini" ? totalRecentsAndFavoritesCount : shown.length;
   // INFO: § 13.6. The second region's own list, which is this menu's alone — 검색 has a field there instead and therefore no tabs at all.
   const tabIds = isSearching ? [] : [recentsTab, ...menuPacks.map((pack) => pack.id)];
   const activeIndex = tabIds.indexOf(activeTab);
@@ -889,9 +883,7 @@ export function EmoticonPicker({
                 haptic
                 aria-label={menuKind === "mini" ? "미니 관리" : "이모티콘 관리"}
                 onClick={() =>
-                  router.push(
-                    menuKind === "mini" ? MINI_SETTINGS_ROUTE : EMOTICON_SETTINGS_ROUTE,
-                  )
+                  router.push(menuKind === "mini" ? MINI_SETTINGS_ROUTE : EMOTICON_SETTINGS_ROUTE)
                 }
                 onKeyDown={handleSettingsButtonKeys}
               />

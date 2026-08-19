@@ -8,7 +8,7 @@ import {
 } from "@/shared/config";
 import { emoticonItems, emoticonPacks, getDb, userEmoticonPrefs } from "@/shared/db";
 import type { EmoticonPackId, Nullable, UserId } from "@/shared/lib";
-import { and, asc, eq, ilike, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { toEmoticon } from "../model/to-emoticon";
 import type {
@@ -44,6 +44,7 @@ export type EmoticonPackFilter = {
 export type EmoticonPackPageQuery = EmoticonPackFilter & {
   cursor?: Nullable<string>;
   limit?: number;
+  sortBy?: "recent" | "position";
 };
 
 /**
@@ -67,27 +68,25 @@ export async function listEmoticonPacks(
 }
 
 /**
- * One page of § 13.5.'s 이모티콘 묶음 검색 tab, keyed on the order the list is drawn in.
+ * One page of § 13.5.'s 이모티콘 묶음 검색 tab, ordered by creation date descending (newest first).
  *
  * INFO: `limit + 1` rows are read and the extra one is dropped — whether it arrived is
  * the whole of what `nextCursor` reports, and it costs nothing over asking for `limit`.
  *
- * WARN: The cursor is the sort key itself (`effectivePackPosition`, then id), so a pack
- * moved or created between two pages shifts nothing already read — which an offset does
- * not, and § 13.5.'s drag rewrites those positions while the list is open.
+ * INFO: The cursor is the snowflake id itself, descending by creation date.
  */
 export async function listEmoticonPacksPage(
   userId: UserId,
   query: EmoticonPackPageQuery,
 ): Promise<EmoticonPackPage> {
   const limit = query.limit ?? EMOTICON_PACK_PAGE_SIZE;
-  const rows = await selectPackRows(userId, { ...query, limit: limit + 1 });
+  const rows = await selectPackRows(userId, { ...query, sortBy: "recent", limit: limit + 1 });
   const page = rows.slice(0, limit);
   const last = page.at(-1);
 
   return {
     packs: page.map(toDrawnSummary),
-    nextCursor: rows.length > limit && last ? toPackCursor(last.position, last.id) : null,
+    nextCursor: rows.length > limit && last ? last.id : null,
   };
 }
 
@@ -98,28 +97,24 @@ export async function listEmoticonPacksPage(
  * INFO: Exported for the route, which validates the parameter before answering
  * `invalid_request` — the cursor stays opaque to it, and this is the only thing it may
  * ask about one.
- *
- * WARN: The id half goes through `snowflakeSchema` (`CLAUDE.md § 3.2.`) and MUST NOT go
- * back to a shape written out here. It was a uuid pattern, and `0030` renumbered every id
- * to a snowflake without it — so this server issued cursors it then refused, and the tab
- * answered `400` on every page past the first. Nothing caught it because production holds
- * 29 packs against a page of 30, so page two had never been asked for.
  */
-export function parseEmoticonPackCursor(cursor: string): Nullable<EmoticonPackCursor> {
+export function parseEmoticonPackCursor(cursor: string): Nullable<string> {
+  const directId = packCursorIdSchema.safeParse(cursor);
+
+  if (directId.success) {
+    return directId.data;
+  }
+
   const separator = cursor.indexOf(":");
 
-  if (separator < 0) {
-    return null;
+  if (separator >= 0) {
+    const id = packCursorIdSchema.safeParse(cursor.slice(separator + 1));
+    if (id.success) {
+      return id.data;
+    }
   }
 
-  const position = cursor.slice(0, separator);
-  const id = packCursorIdSchema.safeParse(cursor.slice(separator + 1));
-
-  if (!POSITION_PATTERN.test(position) || !id.success) {
-    return null;
-  }
-
-  return { position, id: id.data };
+  return null;
 }
 
 /**
@@ -233,6 +228,7 @@ function selectPackPage(
   userId: UserId,
   query: EmoticonPackPageQuery & { packId?: EmoticonPackId },
 ) {
+  const isRecent = query.sortBy === "recent";
   const cursor = query.cursor ? parseEmoticonPackCursor(query.cursor) : null;
   const conditions: Nullable<SQL>[] = [
     query.packId === undefined ? null : eq(emoticonPacks.id, query.packId),
@@ -242,7 +238,9 @@ function selectPackPage(
     query.query ? ilike(emoticonPacks.name, `%${toLikeLiteral(query.query)}%`) : null,
     // WARN: One row-value comparison against the **same** pair the `ORDER BY` uses, and the casts are load-bearing — a bind parameter arrives as text, where the key is `numeric` and `bigint`.
     cursor
-      ? sql`(${effectivePackPosition()}, ${emoticonPacks.id}) > (${cursor.position}::numeric, ${cursor.id}::bigint)`
+      ? isRecent
+        ? sql`${emoticonPacks.id} < ${cursor}::bigint`
+        : sql`(${effectivePackPosition()}, ${emoticonPacks.id}) > (${cursor}::numeric, ${cursor}::bigint)`
       : null,
   ];
 
@@ -262,8 +260,11 @@ function selectPackPage(
       and(eq(userEmoticonPrefs.packId, emoticonPacks.id), eq(userEmoticonPrefs.userId, userId)),
     )
     .where(and(...conditions.filter((condition) => condition !== null)))
-    // INFO: § 13.5. `created_at` needs no tiebreaker of its own — it is already inside the fallback half of `effectivePackPosition`.
-    .orderBy(effectivePackPosition(), asc(emoticonPacks.id))
+    .orderBy(
+      isRecent
+        ? desc(emoticonPacks.id)
+        : sql`${effectivePackPosition()} asc, ${emoticonPacks.id} asc`,
+    )
     .$dynamic();
 
   return (query.limit === undefined ? page : page.limit(query.limit)).as("pack_page");
@@ -273,6 +274,7 @@ function selectPackRows(
   userId: UserId,
   query: EmoticonPackPageQuery & { packId?: EmoticonPackId },
 ) {
+  const isRecent = query.sortBy === "recent";
   const page = selectPackPage(userId, query);
   // INFO: One alias of `emoticon_items` per question asked of it — the item the pack points at (§ 13.2.), the item it falls back to, and how many it holds.
   const chosenThumbnails = alias(emoticonItems, "chosen_thumbnails");
@@ -314,22 +316,11 @@ function selectPackRows(
       // WARN: `LATERAL` is what lets the subquery name the page's `id`, and the `on true` is the join's whole condition — the correlation is inside it.
       .leftJoinLateral(firstItem, sql`true`)
       // WARN: Repeated out here, and not decoration — a join is free to return its input in any order, so the subquery's own `ORDER BY` decides which rows the page holds and this one decides how they are drawn.
-      .orderBy(asc(page.position), asc(page.id))
+      .orderBy(isRecent ? desc(page.id) : asc(page.position), asc(page.id))
   );
 }
 
-type EmoticonPackCursor = {
-  position: string;
-  id: EmoticonPackId;
-};
-
-// WARN: The position is `numeric` and reaches the cursor as the digits Postgres printed, which `::numeric` reads back exactly. Parsing it into a JS number would round the scale off and put the cursor between two packs rather than on one.
-const POSITION_PATTERN = /^-?\d+(?:\.\d+)?$/;
 const packCursorIdSchema = snowflakeSchema<EmoticonPackId>();
-
-function toPackCursor(position: string, id: string): string {
-  return `${position}:${id}`;
-}
 
 type PackRow = Awaited<ReturnType<typeof selectPackRows>>[number];
 

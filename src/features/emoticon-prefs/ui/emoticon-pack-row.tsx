@@ -3,9 +3,9 @@
 import type { EmoticonPackSummary } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import { cn, type EmoticonPackId } from "@/shared/lib";
-import { HapticTarget, IconButton, PreloadImage } from "@/shared/ui";
+import { HapticTarget, IconButton, PreloadImage, ReorderHandleIcon } from "@/shared/ui";
 import { useSortable } from "@dnd-kit/sortable";
-import { ChevronRight, GripVertical, MoreVertical, Smile } from "lucide-react";
+import { ChevronRight, MoreVertical, Smile } from "lucide-react";
 import type { TransitionEvent } from "react";
 import { EMOTICON_PACK_ROW_HEIGHT_CLASS } from "../model/pack-row-height";
 
@@ -113,6 +113,7 @@ export function EmoticonPackRow({
           <IconButton
             Icon={MoreVertical}
             haptic
+            keepsScroll
             aria-label={`${pack.name} 관리`}
             onClick={() => onManage(pack.id)}
           />
@@ -124,7 +125,7 @@ export function EmoticonPackRow({
             {...attributes}
             {...listeners}
           >
-            <GripVertical className="size-5" strokeWidth={1.75} />
+            <ReorderHandleIcon className="size-6" />
           </button>
         </div>
       </div>

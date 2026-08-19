@@ -15,6 +15,8 @@ export type IconButtonProps = Omit<ComponentProps<"button">, "aria-label"> & {
   haptic?: boolean;
   /** WARN: Only does anything alongside `haptic`, since it is the overlay it configures — the button alone never moves focus. Beside a focused field it is required, or the overlay takes the tap, the field blurs, and iOS drops the keyboard. */
   keepsFocus?: boolean;
+  /** Passes keepsScroll to HapticTarget so the touch overlay preserves scrolling on lists. */
+  keepsScroll?: boolean;
   "aria-label": string;
 };
 
@@ -37,6 +39,7 @@ export function IconButton({
   variant = "plain",
   haptic = false,
   keepsFocus = false,
+  keepsScroll = false,
   disabled,
   type = "button",
   ...props
@@ -76,6 +79,7 @@ export function IconButton({
       className={cn("inline-flex shrink-0", className)}
       isTicking={isTicking}
       keepsFocus={keepsFocus}
+      keepsScroll={keepsScroll}
     >
       {button}
     </HapticTarget>

@@ -3,8 +3,8 @@
 import type { EmoticonPackSummary } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import { cn, type EmoticonPackId } from "@/shared/lib";
-import { HapticTarget, PreloadImage, Switch } from "@/shared/ui";
-import { ChevronRight, Smile } from "lucide-react";
+import { HapticTarget, IconButton, PreloadImage, Switch } from "@/shared/ui";
+import { ChevronRight, MoreVertical, Smile } from "lucide-react";
 import { EMOTICON_PACK_ROW_HEIGHT_CLASS } from "../model/pack-row-height";
 
 export type EmoticonPackSearchRowProps = {
@@ -12,11 +12,12 @@ export type EmoticonPackSearchRowProps = {
   pack: EmoticonPackSummary;
   onOpen: (packId: EmoticonPackId) => void;
   onToggle: (packId: EmoticonPackId, isEnabled: boolean) => void;
+  onManage: (pack: EmoticonPackSummary) => void;
 };
 
 /**
  * One row of the § 13.5. 이모티콘 묶음 검색 tab — the same pack as the 사용중 row, with
- * the switch instead of the grip and the menu.
+ * the switch instead of the grip.
  *
  * WARN: Its height is `EMOTICON_PACK_ROW_HEIGHT` exactly and nothing here may grow
  * it. The list is windowed off that number and measures nothing, so a row that sizes
@@ -31,6 +32,7 @@ export function EmoticonPackSearchRow({
   pack,
   onOpen,
   onToggle,
+  onManage,
 }: EmoticonPackSearchRowProps) {
   return (
     <div
@@ -78,6 +80,13 @@ export function EmoticonPackSearchRow({
           <ChevronRight className="size-4 shrink-0 text-meta-soft" strokeWidth={1.75} />
         </button>
       </HapticTarget>
+      <IconButton
+        Icon={MoreVertical}
+        haptic
+        keepsScroll
+        aria-label={`${pack.name} 관리`}
+        onClick={() => onManage(pack)}
+      />
       <Switch
         checked={pack.isEnabled}
         haptic

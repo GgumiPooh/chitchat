@@ -1,5 +1,6 @@
 "use client";
 
+import type { EmoticonPackSummary } from "@/entities/emoticon";
 import {
   EMOTICON_KIND_NOUNS,
   MAX_EMOTICON_PACK_NAME_LENGTH,
@@ -32,6 +33,7 @@ export type EmoticonPackBrowserProps = {
   /** REQUIREMENTS.md § 13. Which library this tab browses — the screen's own kind, never both. */
   type: EmoticonPackType;
   onOpenPack: (packId: EmoticonPackId) => void;
+  onManagePack: (pack: EmoticonPackSummary) => void;
   /** REQUIREMENTS.md § 13.5. A switch has been written, so the 사용중 tab's server seed is one edit out of date. */
   onEnabledChange: () => void;
 };
@@ -49,6 +51,7 @@ export function EmoticonPackBrowser({
   className,
   type,
   onOpenPack,
+  onManagePack,
   onEnabledChange,
 }: EmoticonPackBrowserProps) {
   // WARN: Explicit, and it is not the bailout `useVirtualizer` gets for free. The React Compiler's list is keyed on that one name, and `useWindowVirtualizer` is not on it — compiled, this component memoizes `getVirtualItems` and stops re-windowing as the reader scrolls. `ArchiveGrid` carries the same line for the same reason.
@@ -208,7 +211,12 @@ export function EmoticonPackBrowser({
                     transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)`,
                   }}
                 >
-                  <EmoticonPackSearchRow pack={pack} onOpen={onOpenPack} onToggle={toggle} />
+                  <EmoticonPackSearchRow
+                    pack={pack}
+                    onOpen={onOpenPack}
+                    onToggle={toggle}
+                    onManage={onManagePack}
+                  />
                 </div>
               )
             );
