@@ -159,7 +159,7 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
       // WARN: § 8.14. macOS spells them with `⌃` and never reaches that branch, so this ordering is broken only where nobody developing on a Mac will see it — which makes it more load-bearing than when it was broken everywhere, not less.
       if (menu !== undefined) {
         handlers.current.onSelectEmoticonMenu(menu);
-      } else if (isMenuKey(event) && isLetterKey(event, "e")) {
+      } else if ((isMenuKey(event) || isCommandKey(event)) && isLetterKey(event, "e")) {
         handlers.current.onToggleEmoticonPanel();
       } else if (isAltKey(event)) {
         handlers.current.onScrollHistory(event.key === "ArrowDown" ? 1 : -1);
@@ -290,7 +290,7 @@ function isOwnedKey(event: KeyboardEvent): boolean {
   // INFO: § 8.14. `⌃E` opens § 13.6.'s panel and closes it, and it is the only key that closes it — which menu is on screen is the digits' business below.
   // WARN: § 8.14. On `isMenuKey` rather than the platform modifier, and macOS pays for it: `⌃E` is Cocoa's `moveToEndOfParagraph`, so the composer loses line-end. That is the deliberate price of one modifier for the whole panel; `⌃A` is untouched.
   if (isLetterKey(event, "e")) {
-    return isMenuKey(event);
+    return isMenuKey(event) || isCommandKey(event);
   }
 
   // INFO: § 8.14. § 13.6.'s menu bar, on the one modifier that can be pressed inside a text field on both platforms — which is not the one `⌥↑`/`⌥↓` scrolls with, and so costs the sheet a second label.

@@ -15,6 +15,7 @@ import {
   isDigitKey,
   isLetterKey,
   isMenuKey,
+  isCommandKey,
   useIsCoarsePointer,
   useIsFinePointer,
   useUnsentWork,
@@ -859,7 +860,7 @@ export function MessageComposer({
 
     // WARN: § 8.14. `⌃E` opens on 검색 rather than 이모티콘 where the draft already has a word underlined — claimed here, ahead of the room's own toggle, only for that one case; the room still owns opening on 이모티콘 and closing.
     if (
-      isMenuKey(event) &&
+      (isMenuKey(event) || isCommandKey(event)) &&
       isLetterKey(event, "e") &&
       !isEditing &&
       !isEmoticonPickerOpen &&
