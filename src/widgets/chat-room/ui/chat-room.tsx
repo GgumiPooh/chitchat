@@ -1851,31 +1851,25 @@ export function ChatRoom({
    * REQUIREMENTS.md § 8.14. `Escape` — one layer off the composer's stack, and the
    * caret back in the field either way.
    *
-   * INFO: The staged emoticon first and the panel second. One press undoes one thing,
-   * which is the only reading of `Escape` that stays predictable once a screen has more
-   * than one layer.
-   *
-   * WARN: § 13.6. This is not a route `Enter` may share, although both end with the
-   * caret in the field. Someone pressing `Enter` wants to start typing, and would lose
-   * the emoticon they had just staged to say it.
+   * INFO: The open panel first and the staged emoticon second.
    */
   function peelComposerStack() {
     if (isSearching) {
       return;
     }
 
-    if (stagedEmoticon) {
-      setStagedEmoticon(null);
-
-      if (!isEmoticonPanelOpen) {
-        focusComposer();
-      }
+    if (isEmoticonPanelOpen) {
+      closeEmoticonPanel();
+      focusComposer();
 
       return;
     }
 
-    if (isEmoticonPanelOpen) {
-      closeEmoticonPanel();
+    if (stagedEmoticon) {
+      setStagedEmoticon(null);
+      focusComposer();
+
+      return;
     }
 
     // WARN: Through `focusComposer` and never a bump of its own. Closing the panel is the one exit that leaves § 13.6.'s yield standing for the length of the retraction, so this is the caller that most needs the request held — a bump here reaches a `display: none` field and is spent on it.
