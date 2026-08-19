@@ -6,6 +6,8 @@ import {
   EMOTICON_IMAGE_EDIT_OPTIONS,
   MediaEditor,
   useMediaPicker,
+  VoiceRecorderBar,
+  type VoiceRecording,
 } from "@/features/upload-media/@x/author-emoticon";
 import {
   ALLOWED_EMOTICON_AUDIO_MIMES,
@@ -33,7 +35,7 @@ import {
   toast,
 } from "@/shared/ui";
 import { josa } from "es-hangul";
-import { ImagePlus, Music, Pencil, Play, X } from "lucide-react";
+import { ImagePlus, Mic, Music, Pencil, Play, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
 import { createEmoticon, updateEmoticon, type EmoticonImageBody } from "../api/write-emoticon";
@@ -81,6 +83,7 @@ export function EmoticonFormSheet({
 }: EmoticonFormSheetProps) {
   const kindNoun = EMOTICON_KIND_NOUNS[type].kind;
   const [isEditing, setIsEditing] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const draft = useEmoticonDraft();
   const { pickImage, setKeywords } = draft;
@@ -139,11 +142,15 @@ export function EmoticonFormSheet({
             onEdit={draft.image && !draft.image.animated ? () => setIsEditing(true) : undefined}
           />
           <AudioRow
+            isRecording={isRecording}
             fileName={
               draft.audio?.file.name ?? toExistingAudioLabel(emoticon, draft.isAudioCleared)
             }
             onPlay={playAudio}
             onPick={audioPicker.open}
+            onRecord={() => setIsRecording(true)}
+            onRecordingDone={handleRecordingDone}
+            onRecordingClose={() => setIsRecording(false)}
             onClear={draft.clearAudio}
           />
           {/* INFO: § 13. A mini carries no words — no search reaches one (§ 2.6.), so the form has nothing to offer between the sound and the button. */}
@@ -191,6 +198,10 @@ export function EmoticonFormSheet({
     stopSound();
     draft.reset();
     onClose();
+  }
+
+  function handleRecordingDone(recording: VoiceRecording) {
+    draft.pickAudio(recording.file);
   }
 
   async function submit() {
@@ -387,35 +398,68 @@ function ImageRow({
 type AudioRowProps = {
   className?: string;
   fileName?: string;
+  isRecording: boolean;
   onPlay: () => void;
   onPick: () => void;
+  onRecord: () => void;
+  onRecordingDone: (recording: VoiceRecording) => void;
+  onRecordingClose: () => void;
   onClear: () => void;
 };
 
-function AudioRow({ className, fileName, onPlay, onPick, onClear }: AudioRowProps) {
+function AudioRow({
+  className,
+  fileName,
+  isRecording,
+  onPlay,
+  onPick,
+  onRecord,
+  onRecordingDone,
+  onRecordingClose,
+  onClear,
+}: AudioRowProps) {
   return (
-    <div className={cn("flex items-center gap-sm rounded-md bg-surface-soft p-sm", className)}>
-      <Music className="size-5 shrink-0 text-meta" strokeWidth={1.75} />
-      <div className="min-w-0 flex-1">
-        <p className="text-title-sm text-ink">소리</p>
-        <p className="truncate text-body-sm text-meta">{fileName ?? "선택 · 탭할 때만 재생돼요"}</p>
+    <div className={cn("space-y-sm rounded-md bg-surface-soft p-sm", className)}>
+      <div className="flex items-center gap-sm">
+        <Music className="size-5 shrink-0 text-meta" strokeWidth={1.75} />
+        <div className="min-w-0 flex-1">
+          <p className="text-title-sm text-ink">소리</p>
+          <p className="truncate text-body-sm text-meta">
+            {fileName ?? "녹음하거나 파일을 선택해요"}
+          </p>
+        </div>
+        {fileName ? (
+          <>
+            <IconButton Icon={Play} haptic aria-label="소리 듣기" onClick={onPlay} />
+            <IconButton Icon={X} haptic aria-label="소리 제거" onClick={onClear} />
+          </>
+        ) : (
+          <div className="flex shrink-0 gap-2xs">
+            <Button
+              className="w-auto"
+              buttonClassName="h-9 min-h-9 w-auto px-sm"
+              variant="secondary"
+              haptic
+              disabled={isRecording}
+              onClick={onRecord}
+            >
+              <Mic className="size-4" strokeWidth={1.75} />
+              녹음
+            </Button>
+            <Button
+              className="w-auto"
+              buttonClassName="h-9 min-h-9 w-auto px-sm"
+              variant="secondary"
+              haptic
+              disabled={isRecording}
+              onClick={onPick}
+            >
+              파일
+            </Button>
+          </div>
+        )}
       </div>
-      {fileName ? (
-        <>
-          <IconButton Icon={Play} haptic aria-label="소리 듣기" onClick={onPlay} />
-          <IconButton Icon={X} haptic aria-label="소리 제거" onClick={onClear} />
-        </>
-      ) : (
-        <Button
-          className="w-auto"
-          buttonClassName="h-9 min-h-9 w-auto px-sm"
-          variant="secondary"
-          haptic
-          onClick={onPick}
-        >
-          선택
-        </Button>
-      )}
+      {isRecording && <VoiceRecorderBar onDone={onRecordingDone} onClose={onRecordingClose} />}
     </div>
   );
 }

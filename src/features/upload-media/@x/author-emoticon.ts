@@ -6,4 +6,6 @@ export {
 } from "../model/read-emoticon-image";
 export { releasePreview, retainPreview, revokePreview } from "../model/revoke-preview";
 export { useMediaPicker } from "../model/use-media-picker";
+export type { VoiceRecording } from "../model/use-voice-recorder";
 export { MediaEditor } from "../ui/media-editor";
+export { VoiceRecorderBar } from "../ui/voice-recorder-bar";
