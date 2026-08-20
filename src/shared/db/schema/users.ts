@@ -27,7 +27,10 @@ export const users = pgTable("users", {
   // INFO: REQUIREMENTS.md § 8.12. Governs whether this user *broadcasts* 입력 중, never whether they are typing right now — that signal is never stored.
   typingIndicatorEnabled: boolean("typing_indicator_enabled").notNull().default(true),
   // INFO: 단축어(Shortcuts) 연동 등 외부 앱 공유 시 백그라운드 인증에 사용되는 영구 키
-  shareKey: text("share_key").notNull().unique().default(sql`gen_random_uuid()::text`),
+  shareKey: text("share_key")
+    .notNull()
+    .unique()
+    .default(sql`gen_random_uuid()::text`),
 });
 
 export type User = typeof users.$inferSelect;

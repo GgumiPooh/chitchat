@@ -29,7 +29,14 @@ export type AppHeaderProps = {
  * is a transparent row pinned to the top of the visual viewport, and only the
  * controls inside it are visible. Content scrolls underneath.
  */
-export function AppHeader({ className, titleClassName, title, leading, leadingFills = false, trailing }: AppHeaderProps) {
+export function AppHeader({
+  className,
+  titleClassName,
+  title,
+  leading,
+  leadingFills = false,
+  trailing,
+}: AppHeaderProps) {
   const isScrolled = useIsScrolled();
 
   return (

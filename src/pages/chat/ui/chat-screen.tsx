@@ -13,13 +13,20 @@ import {
   useMessageSearch,
 } from "@/features/search-messages";
 import type { InlineEmoticonMap } from "@/shared/config";
-import { CALENDAR_ROUTE } from "@/shared/config";
-import { cn, usePinnedDocument, type Maybe, type MessageId, type UserId } from "@/shared/lib";
+import { CALENDAR_ROUTE, LOGIN_ROUTE } from "@/shared/config";
+import {
+  cn,
+  getPreviousAppRoute,
+  usePinnedDocument,
+  type Maybe,
+  type MessageId,
+  type UserId,
+} from "@/shared/lib";
 import { AppHeader, Container, IconButton } from "@/shared/ui";
 import { ChatRoom, toChromeTint } from "@/widgets/chat-room";
 import { ChevronLeft, Search } from "lucide-react";
-import { useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useCallback, useEffect } from "react";
 
 export type ChatScreenProps = {
   className?: string;
@@ -50,9 +57,11 @@ export function ChatScreen({
   const { participants, chatBackgroundBlurhash } = useChatStream();
   const router = useRouter();
 
-  // INFO: history가 없으면 캘린더로 폴백 — 채팅 링크를 직접 열거나 PWA 콜드 스타트 시 스택이 비어 있다.
+  // INFO: 이전 앱 라우트가 있고 로그인 페이지가 아니면 router.back(), 없으면 캘린더로 폴백.
   const goBack = useCallback(() => {
-    if (window.history.length > 1) {
+    const prevAppRoute = getPreviousAppRoute();
+
+    if (prevAppRoute && !prevAppRoute.includes(LOGIN_ROUTE)) {
       router.back();
     } else {
       router.push(CALENDAR_ROUTE);

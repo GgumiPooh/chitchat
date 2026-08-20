@@ -97,6 +97,11 @@ export {
   whenMediaMorphSettled,
 } from "./dom/view-transition";
 export { buildFadeMask, type FadeMaskOptions } from "./fade-mask";
+export {
+  clearAppRouteTracker,
+  getPreviousAppRoute,
+  useAppRouteTracker,
+} from "./hooks/use-app-route-tracker";
 export { useBfcacheRestore } from "./hooks/use-bfcache-restore";
 export { useHydrated } from "./hooks/use-hydrated";
 export { useInertialStrip, type InertialStripOptions } from "./hooks/use-inertial-strip";

@@ -17,9 +17,9 @@ import {
   ScrollMemory,
   VisualViewportSync,
 } from "@/shared/ui";
-import { ShortcutGuide } from "@/widgets/shortcut-guide";
 import { InstallGuide } from "@/widgets/install-guide";
 import { OfflineBanner } from "@/widgets/offline-banner";
+import { ShortcutGuide } from "@/widgets/shortcut-guide";
 import { TabBar } from "@/widgets/tab-bar";
 import { type PropsWithChildren } from "react";
 

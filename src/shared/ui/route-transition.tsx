@@ -1,7 +1,7 @@
 "use client";
 
 import { TAB_ROUTES, isUnderRoute } from "@/shared/config";
-import { cn } from "@/shared/lib";
+import { cn, useAppRouteTracker } from "@/shared/lib";
 import { usePathname } from "next/navigation";
 import { useState, type PropsWithChildren } from "react";
 
@@ -40,6 +40,8 @@ export type RouteTransitionProps = PropsWithChildren<{
  * as an opaque plate on WebKit. Snapshots are the whole problem; this has none.
  */
 export function RouteTransition({ className, children }: RouteTransitionProps) {
+  useAppRouteTracker();
+
   // INFO: `usePathname` is typed nullable for the Pages Router's pre-hydration render; an empty path is off the bar, which is exactly the "do not animate" case.
   const pathname = usePathname() ?? "";
   const [arrival, setArrival] = useState<Arrival>({ pathname, direction: "none", run: 0 });

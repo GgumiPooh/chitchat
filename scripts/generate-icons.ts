@@ -22,7 +22,7 @@ function smileChat(size: number, inset: number, stroke: string) {
   const cx = size / 2;
   const cy = size * 0.46;
   const r = size * (0.5 - inset) * 0.9;
-  
+
   const tailX1 = cx - r * 0.6;
   const tailY1 = cy + r * 0.75;
   const tailTipX = cx - r * 1.0;
@@ -81,7 +81,9 @@ async function generateSplashScreens() {
       render(SPLASH_DIR, fileName, splashSvg(pixelWidth, pixelHeight), { palette: true }),
     ),
   );
-  console.log(`Wrote ${written.length} splash screens to ${path.relative(process.cwd(), SPLASH_DIR)}`);
+  console.log(
+    `Wrote ${written.length} splash screens to ${path.relative(process.cwd(), SPLASH_DIR)}`,
+  );
 }
 
 Promise.all([generateIcons(), generateSplashScreens()]).catch((error) => {

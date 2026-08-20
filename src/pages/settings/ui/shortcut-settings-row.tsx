@@ -1,6 +1,6 @@
 "use client";
 
-import { cn, safelyRun, useHydrated, useIsIos, useIsStandalone } from "@/shared/lib";
+import { safelyRun, useHydrated, useIsIos, useIsStandalone } from "@/shared/lib";
 import { BottomSheet, Button, SettingsRow } from "@/shared/ui";
 import { Share } from "lucide-react";
 import { useState } from "react";
@@ -74,4 +74,3 @@ export function ShortcutSettingsRow({ shareKey, className }: ShortcutSettingsRow
     </>
   );
 }
-

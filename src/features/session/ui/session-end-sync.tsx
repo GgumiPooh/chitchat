@@ -1,6 +1,8 @@
 "use client";
 
+import { clearAppRouteTracker, useBfcacheRestore } from "@/shared/lib";
 import { clearAll } from "@/shared/snapshot";
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 /**
@@ -16,9 +18,15 @@ import { useEffect } from "react";
  * WARN: This screen is the signal precisely because `proxy.ts` redirects a browser that still holds a session cookie away from it, so nothing reaches here with data it is entitled to keep.
  */
 export function SessionEndSync() {
+  const router = useRouter();
+
   useEffect(() => {
+    clearAppRouteTracker();
     void clearAll();
   }, []);
+
+  // INFO: REQUIREMENTS.md § 8.4. Refresh to let the proxy redirect back to chat if bfcache restored this screen while signed in.
+  useBfcacheRestore(router.refresh);
 
   return null;
 }
