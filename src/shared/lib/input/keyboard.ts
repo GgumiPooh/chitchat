@@ -130,7 +130,7 @@ export function isDigitKey(event: Pick<KeyboardEvent, "code" | "key">, digit: nu
 
 /** How this platform's shortcut modifier is written. */
 export function toCommandKeyLabel(): CommandKeyLabel {
-  return usesMetaKey() ? "⌘" : "Ctrl";
+  return "Ctrl";
 }
 
 /** How this platform writes the key `isAltKey` reads — one key, two names. */
