@@ -13,11 +13,13 @@ import {
   useMessageSearch,
 } from "@/features/search-messages";
 import type { InlineEmoticonMap } from "@/shared/config";
+import { CALENDAR_ROUTE } from "@/shared/config";
 import { cn, usePinnedDocument, type Maybe, type MessageId, type UserId } from "@/shared/lib";
 import { AppHeader, Container, IconButton } from "@/shared/ui";
 import { ChatRoom, toChromeTint } from "@/widgets/chat-room";
-import { Search } from "lucide-react";
-import { useEffect } from "react";
+import { ChevronLeft, Search } from "lucide-react";
+import { useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export type ChatScreenProps = {
   className?: string;
@@ -46,6 +48,16 @@ export function ChatScreen({
 }: ChatScreenProps) {
   const search = useMessageSearch();
   const { participants, chatBackgroundBlurhash } = useChatStream();
+  const router = useRouter();
+
+  // INFO: history가 없으면 캘린더로 폴백 — 채팅 링크를 직접 열거나 PWA 콜드 스타트 시 스택이 비어 있다.
+  const goBack = useCallback(() => {
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      router.push(CALENDAR_ROUTE);
+    }
+  }, [router]);
 
   // WARN: DESIGN.md § 3.4. This box is sized from the visual viewport, so the document beneath it may never carry an offset of its own — see `usePinnedDocument` for the one iOS gives it anyway.
   usePinnedDocument(true);
@@ -72,7 +84,11 @@ export function ChatScreen({
         className,
       )}
       // INFO: REQUIREMENTS.md § 12.2. Overrides `bg-chat-canvas` above, which stays as the no-wallpaper answer and as the fallback for a hash the base83 pass rejects.
-      style={chromeTint ? { backgroundColor: chromeTint } : undefined}
+      // WARN: `--bottom-inset` is seeded here to match what `BottomOverlay` will measure once it runs. `theme.css` seeds it at tab-bar height because every other screen needs that clearance on first paint; the chat tab has no tab bar, so the seed is off by a full bar and the composer jumps down the frame the observer fires. `--bar-lift` (safe-area + float-gap) is exactly what the overlay will measure and write, so there is no jump.
+      style={{
+        ...(chromeTint ? { backgroundColor: chromeTint } : {}),
+        ["--bottom-inset" as string]: "var(--bar-lift)",
+      }}
     >
       {/* INFO: REQUIREMENTS.md § 8.4.2. The app's one `EventSource`, open only while the conversation is. It renders nothing. */}
       <ChatStreamConnection />
@@ -88,6 +104,15 @@ export function ChatScreen({
       ) : (
         // INFO: DESIGN.md § 7.12. No title — the tab bar already says which screen this is, and the messages read better with the full column.
         <AppHeader
+          leading={
+            <IconButton
+              Icon={ChevronLeft}
+              variant="floating"
+              haptic
+              aria-label="뒤로"
+              onClick={goBack}
+            />
+          }
           trailing={
             <IconButton
               Icon={Search}

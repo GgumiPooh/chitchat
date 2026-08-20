@@ -37,6 +37,11 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
     setPendingTab(null);
   }
 
+  // INFO: 채팅 화면은 전용 헤더·뒤로가기 버튼을 갖는 독립 뷰이므로 탭바를 노출하지 않는다.
+  if (isUnderRoute(pathname, CHAT_ROUTE)) {
+    return null;
+  }
+
   const activePath = pendingTab?.route ?? pathname;
   const activeIndex = TABS.findIndex(({ route }) => isUnderRoute(activePath, route));
 

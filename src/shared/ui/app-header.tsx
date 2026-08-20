@@ -12,6 +12,15 @@ export type AppHeaderProps = {
   titleClassName?: string;
   title?: string;
   leading?: ReactNode;
+  /**
+   * Set `true` when `leading` is a flex-growing element (e.g. a search field)
+   * that fills the row itself. The header then omits its own spacer so the two
+   * `flex-1` children don't split the available width in half.
+   *
+   * INFO: Defaults to `false` — an icon button in `leading` is not a row filler,
+   * and the spacer is still needed to push `trailing` to the far edge.
+   */
+  leadingFills?: boolean;
   trailing?: ReactNode;
 };
 
@@ -20,7 +29,7 @@ export type AppHeaderProps = {
  * is a transparent row pinned to the top of the visual viewport, and only the
  * controls inside it are visible. Content scrolls underneath.
  */
-export function AppHeader({ className, titleClassName, title, leading, trailing }: AppHeaderProps) {
+export function AppHeader({ className, titleClassName, title, leading, leadingFills = false, trailing }: AppHeaderProps) {
   const isScrolled = useIsScrolled();
 
   return (
@@ -51,9 +60,9 @@ export function AppHeader({ className, titleClassName, title, leading, trailing 
             {title}
           </h1>
         ) : (
-          // INFO: The spacer exists to push `trailing` to the far edge when there is no title to do it. A `leading` that came without a title is a caller filling the row itself (REQUIREMENTS.md § 8.6.'s search field), and a second flexible child beside it would halve the width it asked for.
+          // INFO: The spacer pushes `trailing` to the far edge. When `leadingFills` is true the `leading` element is itself flex-growing (e.g. REQUIREMENTS.md § 8.6.'s search field) and adding a second `flex-1` child would halve the width it asked for — so the caller opts out via `leadingFills`.
           // WARN: `data-inert` for the title's reason and more plainly: it paints nothing at all, so every tap it takes is one the reader has no way to explain.
-          !leading && <div className="flex-1" data-inert />
+          !leadingFills && <div className="flex-1" data-inert />
         )}
         {trailing}
       </Container>

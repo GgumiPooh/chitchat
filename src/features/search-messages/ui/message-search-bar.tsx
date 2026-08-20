@@ -41,7 +41,7 @@ export function MessageSearchBar({
 }: MessageSearchBarProps) {
   const fieldRef = useRef<HTMLInputElement | null>(null);
 
-  return <AppHeader className={className} leading={renderField()} trailing={renderCancel()} />;
+  return <AppHeader className={className} leading={renderField()} leadingFills trailing={renderCancel()} />;
 
   /**
    * INFO: DESIGN.md § 6.6. The composer's pill, which is the app's one shape for a
