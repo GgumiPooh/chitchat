@@ -7,11 +7,11 @@ import { useState } from "react";
 const SHORTCUT_INSTALLED_KEY = "jandh:shortcut-installed";
 
 export type ShortcutGuideProps = {
-  shareKey: string;
   className?: string;
+  shareKey: string;
 };
 
-export function ShortcutGuide({ shareKey, className }: ShortcutGuideProps) {
+export function ShortcutGuide({ className, shareKey }: ShortcutGuideProps) {
   const isHydrated = useHydrated();
   const isIos = useIsIos();
   const [isDismissed, setIsDismissed] = useState(false);
@@ -37,7 +37,7 @@ export function ShortcutGuide({ shareKey, className }: ShortcutGuideProps) {
     safelyRun(() => localStorage.setItem(SHORTCUT_INSTALLED_KEY, "true"));
     setIsDismissed(true);
     // 단축어 딥링크 실행 - 단축어 내부에서 이 키를 받아 저장함
-    window.location.href = `shortcuts://run-shortcut?name=ChitChat&input=${shareKey}`;
+    window.location.href = `shortcuts://run-shortcut?name=ChitChat&input=${encodeURIComponent(`key: ${shareKey}`)}`;
   };
 
   return (
@@ -59,12 +59,18 @@ export function ShortcutGuide({ shareKey, className }: ShortcutGuideProps) {
           </p>
         </div>
         <div className="flex flex-col gap-xs pt-xs">
-          <Button variant="secondary" className="w-full" asChild>
-            <a href="https://www.icloud.com/shortcuts/" target="_blank" rel="noopener">
+          <Button className="w-full" asChild variant="secondary">
+            <a
+              rel="noopener"
+              target="_blank"
+              href={
+                process.env.NEXT_PUBLIC_SHORTCUT_ICLOUD_URL || "https://www.icloud.com/shortcuts/"
+              }
+            >
               1. 단축어 다운로드
             </a>
           </Button>
-          <Button variant="primary" className="w-full" onClick={handleConnect}>
+          <Button className="w-full" variant="primary" onClick={handleConnect}>
             2. 계정 자동 연결
           </Button>
         </div>

@@ -119,7 +119,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await getCurrentUser();
+  const user = await getCurrentUser({ allowShareKey: true });
 
   if (!user) {
     return apiError("unauthorized");

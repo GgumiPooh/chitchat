@@ -66,7 +66,7 @@ export function InstallGuide({ className }: InstallGuideProps) {
           </div>
         </div>
         <div className="pt-xs">
-          <Button variant="primary" className="w-full" onClick={dismiss}>
+          <Button className="w-full" variant="primary" onClick={dismiss}>
             확인했습니다
           </Button>
         </div>

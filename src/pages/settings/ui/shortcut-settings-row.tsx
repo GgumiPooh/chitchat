@@ -8,11 +8,11 @@ import { useState } from "react";
 const SHORTCUT_INSTALLED_KEY = "jandh:shortcut-installed";
 
 export type ShortcutSettingsRowProps = {
-  shareKey: string;
   className?: string;
+  shareKey: string;
 };
 
-export function ShortcutSettingsRow({ shareKey, className }: ShortcutSettingsRowProps) {
+export function ShortcutSettingsRow({ className, shareKey }: ShortcutSettingsRowProps) {
   const isHydrated = useHydrated();
   const isIos = useIsIos();
   const isStandalone = useIsStandalone();
@@ -30,7 +30,7 @@ export function ShortcutSettingsRow({ shareKey, className }: ShortcutSettingsRow
   const handleConnect = () => {
     safelyRun(() => localStorage.setItem(SHORTCUT_INSTALLED_KEY, "true"));
     setIsOpen(false);
-    window.location.href = `shortcuts://run-shortcut?name=ChitChat&input=${shareKey}`;
+    window.location.href = `shortcuts://run-shortcut?name=ChitChat&input=${encodeURIComponent(`key: ${shareKey}`)}`;
   };
 
   return (
@@ -60,12 +60,18 @@ export function ShortcutSettingsRow({ shareKey, className }: ShortcutSettingsRow
             </p>
           </div>
           <div className="flex flex-col gap-xs pt-xs">
-            <Button variant="secondary" className="w-full" asChild>
-              <a href="https://www.icloud.com/shortcuts/" target="_blank" rel="noopener">
+            <Button className="w-full" asChild variant="secondary">
+              <a
+                rel="noopener"
+                target="_blank"
+                href={
+                  process.env.NEXT_PUBLIC_SHORTCUT_ICLOUD_URL || "https://www.icloud.com/shortcuts/"
+                }
+              >
                 1. 단축어 다운로드
               </a>
             </Button>
-            <Button variant="primary" className="w-full" onClick={handleConnect}>
+            <Button className="w-full" variant="primary" onClick={handleConnect}>
               2. 계정 자동 연결
             </Button>
           </div>
