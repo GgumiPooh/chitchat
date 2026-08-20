@@ -22,7 +22,14 @@ export type EventColorPickerProps = {
  */
 export function EventColorPicker({ className, value, onChange }: EventColorPickerProps) {
   return (
-    <div className={cn("flex flex-wrap gap-xs", className)} role="radiogroup" aria-label="색상">
+    <div
+      className={cn(
+        "-mx-md -my-xs scrollbar-hidden flex touch-pan-x gap-xs overflow-x-auto overscroll-contain px-lg py-xs",
+        className,
+      )}
+      role="radiogroup"
+      aria-label="색상"
+    >
       <Swatch
         colorClassName={EVENT_FALLBACK_FILL_CLASS}
         label="색상 없음"
