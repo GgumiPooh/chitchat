@@ -2,7 +2,7 @@ import { A_DAY, A_MINUTE, A_SECOND, type Maybe, type UserId } from "@/shared/lib
 import { z } from "zod";
 import { snowflakeSchema } from "./id";
 
-export const APP_NAME = "J&H";
+export const APP_NAME = "ChitChat";
 
 // INFO: Comma-separated so one deployment can answer under more than one origin (a custom domain alongside the platform-assigned one, or mid-migration between two domains).
 export const APP_URLS = (process.env.APP_URL ?? "")
