@@ -1,8 +1,8 @@
 "use client";
 
-import { cn, safelyGet, safelyRun, useHydrated } from "@/shared/lib";
-import { IconButton } from "@/shared/ui";
-import { Share, X } from "lucide-react";
+import { safelyGet, safelyRun, useHydrated } from "@/shared/lib";
+import { BottomSheet, Button } from "@/shared/ui";
+import { PlusSquare, Share } from "lucide-react";
 import { useState } from "react";
 import { isIosBrowserTab } from "../model/is-ios-browser-tab";
 
@@ -20,16 +20,14 @@ export function InstallGuide({ className }: InstallGuideProps) {
 
   // INFO: localStorage is fine for a dismissal flag — REQUIREMENTS.md § 5.2. bans it for auth state only, where ITP eviction would sign the user out.
   // WARN: Blocked storage makes every `localStorage` access throw, and this renders inside the `(main)` layout — an unguarded read takes down all four tabs.
-  // INFO: DESIGN.md § 7.13. It goes with the tab bar while the keyboard is up, and `BottomOverlay` collapses the pair together rather than each unmounting itself.
+  // INFO: Mac/iOS 등 일반 브라우저 탭(미설치 상태)에서 가이드를 띄움
+  const isTargetTab = typeof window !== "undefined" && !window.matchMedia("(display-mode: standalone)").matches;
+
   const isVisible =
     isHydrated &&
     !isDismissed &&
     safelyGet(() => localStorage.getItem(DISMISSED_KEY)) !== "true" &&
-    isIosBrowserTab();
-
-  if (!isVisible) {
-    return null;
-  }
+    isTargetTab;
 
   const dismiss = () => {
     safelyRun(() => localStorage.setItem(DISMISSED_KEY, "true"));
@@ -37,17 +35,42 @@ export function InstallGuide({ className }: InstallGuideProps) {
   };
 
   return (
-    // INFO: DESIGN.md § 3.5. Inside `BottomOverlay`, directly above the floating tab bar.
-    <div className={cn("px-md pb-xs", className)}>
-      <div className="pointer-events-auto">
-        <div className="flex items-center gap-xs rounded-lg border border-hairline glass py-xs pr-2xs pl-sm shadow-floating">
-          <Share className="size-[18px] shrink-0 text-meta" strokeWidth={1.75} />
-          <p className="flex-1 text-body-sm text-body">
-            공유 버튼을 눌러 &lsquo;홈 화면에 추가&rsquo;를 선택하면 앱처럼 열려요
-          </p>
-          <IconButton Icon={X} aria-label="안내 닫기" onClick={dismiss} />
+    <BottomSheet
+      className={className}
+      isOpen={isVisible}
+      header={{
+        title: "홈 화면에 앱 추가하기",
+        description: "사파리에서 홈 화면에 추가하면 전체 화면 앱으로 편리하게 사용할 수 있어요.",
+      }}
+      onClose={dismiss}
+    >
+      <div className="flex flex-col gap-sm pt-xs">
+        <div className="flex flex-col gap-xs rounded-lg border border-hairline bg-surface-soft p-sm">
+          <div className="flex items-start gap-xs text-body-sm text-body">
+            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-surface-strong text-meta text-body-xs font-semibold">
+              1
+            </span>
+            <div className="flex-1 leading-relaxed">
+              사파리 하단 메뉴바의 <Share className="inline size-4 text-primary align-[-2px]" />{" "}
+              <strong>공유 버튼</strong>을 누르세요.
+            </div>
+          </div>
+          <div className="flex items-start gap-xs text-body-sm text-body">
+            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-surface-strong text-meta text-body-xs font-semibold">
+              2
+            </span>
+            <div className="flex-1 leading-relaxed">
+              메뉴에서 <PlusSquare className="inline size-4 text-primary align-[-2px]" />{" "}
+              <strong>&lsquo;홈 화면에 추가&rsquo;</strong>를 선택하세요.
+            </div>
+          </div>
+        </div>
+        <div className="pt-xs">
+          <Button variant="primary" className="w-full" onClick={dismiss}>
+            확인했습니다
+          </Button>
         </div>
       </div>
-    </div>
+    </BottomSheet>
   );
 }

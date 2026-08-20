@@ -1,8 +1,7 @@
 "use client";
 
-import { cn, isStandalone, safelyGet, safelyRun, useHydrated, useIsIos } from "@/shared/lib";
-import { Button, IconButton } from "@/shared/ui";
-import { Share, X } from "lucide-react";
+import { isStandalone, safelyGet, safelyRun, useHydrated, useIsIos } from "@/shared/lib";
+import { BottomSheet, Button } from "@/shared/ui";
 import { useState } from "react";
 
 const SHORTCUT_INSTALLED_KEY = "jandh:shortcut-installed";
@@ -17,17 +16,17 @@ export function ShortcutGuide({ shareKey, className }: ShortcutGuideProps) {
   const isIos = useIsIos();
   const [isDismissed, setIsDismissed] = useState(false);
 
-  // PWA(설치된 독립 앱)인 경우에만 단축어 가이드를 띄움
+  // INFO: Mac 여부 판별
+  const isMac = typeof window !== "undefined" && /Macintosh|Mac OS X/.test(navigator.userAgent);
+  const isTargetPlatform = isIos || isMac;
+
+  // PWA(설치된 독립 앱)인 경우에만 단축어 바텀시트 가이드를 띄움
   const isVisible =
     isHydrated &&
-    isIos &&
+    isTargetPlatform &&
     isStandalone() &&
     !isDismissed &&
     safelyGet(() => localStorage.getItem(SHORTCUT_INSTALLED_KEY)) !== "true";
-
-  if (!isVisible) {
-    return null;
-  }
 
   const handleDismiss = () => {
     // 앱을 다시 켤 때는 다시 보이도록 React 상태만 변경 (localStorage 저장 안 함)
@@ -42,33 +41,34 @@ export function ShortcutGuide({ shareKey, className }: ShortcutGuideProps) {
   };
 
   return (
-    <div className={cn("px-md pb-xs", className)}>
-      <div className="pointer-events-auto">
-        <div className="flex flex-col gap-xs rounded-lg border border-hairline glass p-sm shadow-floating">
-          <div className="flex items-start gap-xs">
-            <Share className="size-[18px] shrink-0 text-primary mt-[2px]" strokeWidth={1.75} />
-            <div className="flex-1">
-              <p className="text-body-sm text-body font-medium">
-                다른 앱에서 바로 공유해보세요
-              </p>
-              <p className="text-body-xs text-meta mt-1">
-                유튜브나 사파리에서 여기로 링크를 바로 보낼 수 있어요.
-              </p>
-            </div>
-            <IconButton Icon={X} aria-label="안내 닫기" onClick={handleDismiss} />
-          </div>
-          <div className="flex gap-2xs mt-xs">
-            <Button variant="secondary" className="flex-1" asChild>
-              <a href="https://www.icloud.com/shortcuts/" target="_blank" rel="noopener">
-                1. 단축어 다운로드
-              </a>
-            </Button>
-            <Button variant="primary" className="flex-1" onClick={handleConnect}>
-              2. 계정 자동 연결
-            </Button>
-          </div>
+    <BottomSheet
+      className={className}
+      isOpen={isVisible}
+      header={{
+        title: "공유 단축어 연동",
+        description: "사파리나 유튜브에서 ChitChat으로 링크를 바로 보낼 수 있어요.",
+      }}
+      onClose={handleDismiss}
+    >
+      <div className="flex flex-col gap-sm pt-xs">
+        <div className="flex flex-col gap-xs rounded-lg border border-hairline bg-surface-soft p-sm">
+          <p className="text-body-xs text-meta">
+            1. 아래 [단축어 다운로드] 버튼을 눌러 애플 단축어를 설치하세요.
+            <br />
+            2. [계정 자동 연결] 버튼을 눌러 내 ChitChat 계정과 단축어를 연결하세요.
+          </p>
+        </div>
+        <div className="flex flex-col gap-xs pt-xs">
+          <Button variant="secondary" className="w-full" asChild>
+            <a href="https://www.icloud.com/shortcuts/" target="_blank" rel="noopener">
+              1. 단축어 다운로드
+            </a>
+          </Button>
+          <Button variant="primary" className="w-full" onClick={handleConnect}>
+            2. 계정 자동 연결
+          </Button>
         </div>
       </div>
-    </div>
+    </BottomSheet>
   );
 }

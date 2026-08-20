@@ -18,6 +18,7 @@ import { EmoticonSettingsRow } from "./emoticon-settings-row";
 import { MiniSettingsRow } from "./mini-settings-row";
 import { ProfileCover } from "./profile-cover";
 import { ServerSettingsRow } from "./server-settings-row";
+import { ShortcutSettingsRow } from "./shortcut-settings-row";
 import { ThemeSettingsRow } from "./theme-settings-row";
 
 export type SettingsPageProps = {
@@ -67,6 +68,7 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
       </PushSettingsProvider>
       {/* INFO: REQUIREMENTS.md § 8.12. Per account, not per device like the row above — it governs what this user broadcasts, which is not a property of the browser they happen to be typing in. */}
       <TypingSettingsRow isEnabled={user.typingIndicatorEnabled} />
+      <ShortcutSettingsRow shareKey={user.shareKey} />
       {/* INFO: REQUIREMENTS.md § 12. Reads `sessions` — the push subscriptions in the 알림 row above are a different set, and not revocable. */}
       <DeviceSettingsRow />
       {/* INFO: REQUIREMENTS.md § 12.4. Last of the 계정 group — the one screen here that acts on the deployment rather than on the account, and the one nobody opens twice a week. */}
