@@ -46,7 +46,7 @@ export function ShortcutGuide({ className, shareKey }: ShortcutGuideProps) {
       isOpen={isVisible}
       header={{
         title: "공유 단축어 연동",
-        description: "사파리나 유튜브에서 ChitChat으로 링크를 바로 보낼 수 있어요.",
+        description: "인스타나 유튜브에서 ChitChat으로 공유할 수 있게돼요",
       }}
       onClose={handleDismiss}
     >
