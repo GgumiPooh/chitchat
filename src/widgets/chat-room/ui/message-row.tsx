@@ -436,7 +436,7 @@ export function MessageRow({
     return (
       <div
         className={cn(
-          "absolute top-1/2 flex -translate-y-1/2 items-center",
+          "absolute bottom-0 flex items-center",
           // INFO: `hover:` already resolves under `@media (hover: hover)`, so a touch device never reveals these and never has to.
           "pointer-events-none opacity-0 transition-opacity group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100",
           // INFO: 답장 stays the control nearest the bubble on either side, so the reach for it does not move with the sender.
