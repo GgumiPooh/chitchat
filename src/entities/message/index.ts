@@ -4,7 +4,11 @@ export {
   createEmoticonMessage,
   type CreateEmoticonMessageParams,
 } from "./api/create-emoticon-message";
-export { createMediaMessage, type CreateMediaMessageParams } from "./api/create-media-message";
+export {
+  createMediaMessage,
+  type CreateMediaMessageParams,
+  type CreateMediaMessageResult,
+} from "./api/create-media-message";
 export { createSystemMessage, type CreateSystemMessageParams } from "./api/create-system-message";
 export { createTextMessage, type CreateTextMessageParams } from "./api/create-text-message";
 export { deleteMessage } from "./api/delete-message";

@@ -36,7 +36,7 @@ export type VoiceSnapshot = {
    *
    * INFO: REQUIREMENTS.md § 9.1. For a recording this is redundant — `media.duration_ms`
    * is stored and is the figure § 9.3. draws against. It exists for an **attached**
-   * audio file, which has no stored duration at all: `registerMedia` nulls it for a
+   * audio file, which has no stored duration at all: `validateMediaUpload` nulls it for a
    * file, and extracting one would mean decoding a clip with no § 9.3. length cap.
    */
   elementDurationMs: number;

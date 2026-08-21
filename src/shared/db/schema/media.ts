@@ -18,7 +18,7 @@ export const media = pgTable(
     r2Key: text("r2_key").notNull().unique(),
     // INFO: The finished restructure. What this row is, decided at registration rather than probed back out of the nullable columns below.
     kind: text("kind").$type<MediaKind>().notNull(),
-    // INFO: The finished restructure. What it was uploaded for, which is what decides the rules `registerMedia` applies to it.
+    // INFO: The finished restructure. What it was uploaded for, which is what decides the rules `validateMediaUpload` applies to it.
     scope: text("scope").$type<MediaScope>().notNull(),
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
@@ -29,7 +29,7 @@ export const media = pgTable(
     // WARN: REQUIREMENTS.md § 9.1. The name a file attachment was sent under. No longer a discriminator — `kind` is — but still the payload, and still set by the server from the stored mime rather than taken as the client says it.
     filename: text("filename"),
     // WARN: REQUIREMENTS.md § 9.3. A voice message's waveform. No longer a discriminator either; `kind = 'voice'` is, and the CHECK below ties the two together so neither can appear without the other.
-    // WARN: Integers `0`–`VOICE_PEAK_SCALE`, not floats, and always `VOICE_WAVEFORM_PEAKS` of them. `registerMedia` refuses any other shape, and refuses peaks at all on a mime that is not one § 9.3. records into — otherwise a JPEG could be filed as a voice message and would vanish from the library.
+    // WARN: Integers `0`–`VOICE_PEAK_SCALE`, not floats, and always `VOICE_WAVEFORM_PEAKS` of them. `validateMediaUpload` refuses any other shape, and refuses peaks at all on a mime that is not one § 9.3. records into — otherwise a JPEG could be filed as a voice message and would vanish from the library.
     waveformPeaks: smallint("waveform_peaks").array(),
     // INFO: DESIGN.md § 6.5. A video cell draws its running time from this, read off the element that produced the poster frame.
     // WARN: § 9.3. Required for a voice message — the § 8.3. box is fixed, but the player's progress is drawn against this figure and a null reads as a waveform that never moves.
@@ -46,7 +46,7 @@ export const media = pgTable(
     index("media_pending_purge_idx")
       .on(table.deletedAt)
       .where(sql`"deleted_at" IS NOT NULL AND "r2_purged_at" IS NULL`),
-    // WARN: The finished restructure. The kind's shape is held here rather than in `registerMedia` alone. That function still validates — it has to tell the user *why* — but two deployments write this table and neither can be the guarantee.
+    // WARN: The finished restructure. The kind's shape is held here rather than in `validateMediaUpload` alone. That function still validates — it has to tell the user *why* — but two deployments write this table and neither can be the guarantee.
     check("media_kind_check", sql`"kind" in ${sql.raw(toSqlList(MEDIA_KINDS))}`),
     check("media_scope_check", sql`"scope" in ${sql.raw(toSqlList(MEDIA_SCOPES))}`),
     check("media_file_has_name_check", sql`"kind" <> 'file' OR "filename" IS NOT NULL`),
@@ -56,7 +56,7 @@ export const media = pgTable(
       sql`"kind" <> 'voice' OR ("waveform_peaks" IS NOT NULL AND "duration_ms" IS NOT NULL)`,
     ),
     check("media_peaks_are_voice_check", sql`"kind" = 'voice' OR "waveform_peaks" IS NULL`),
-    // INFO: The finished restructure. There is deliberately **no** `kind = 'video' → duration_ms IS NOT NULL` check beside the voice one. A recording measures its own duration off the wall clock, so `registerMedia` can insist on it; a picked video is measured by the browser, and `read-draft.ts` sends null wherever `video.duration` is not finite — a real case for a MediaRecorder WebM and for some `.mov` files. A constraint the producer cannot honour turns that upload into a 500 rather than a video with no duration badge.
+    // INFO: The finished restructure. There is deliberately **no** `kind = 'video' → duration_ms IS NOT NULL` check beside the voice one. A recording measures its own duration off the wall clock, so `validateMediaUpload` can insist on it; a picked video is measured by the browser, and `read-draft.ts` sends null wherever `video.duration` is not finite — a real case for a MediaRecorder WebM and for some `.mov` files. A constraint the producer cannot honour turns that upload into a 500 rather than a video with no duration badge.
     // WARN: § 2.4. Both halves are needed. The first keeps a drawn box measured; the second is what actually retires the `0` sentinel, and without it a file row may still carry the numbers that made every reader branch.
     check(
       "media_box_is_visual_check",

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { registerMedia } from "@/entities/media/@x/emoticon";
+import { insertMedia, validateMediaUpload } from "@/entities/media/@x/emoticon";
 import {
   MAX_EMOTICON_IMAGE_SIZE,
   isAllowedEmoticonAsset,
@@ -28,8 +28,13 @@ import type {
   Optional,
   UserId,
 } from "@/shared/lib";
-import { headAcceptableObject, readObject, type StoredObject } from "@/shared/storage";
-import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import {
+  headAcceptableObject,
+  readObject,
+  type DbTransaction,
+  type StoredObject,
+} from "@/shared/storage";
+import { and, eq, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon } from "../model/types";
 import { detachEmoticonMedia } from "./get-emoticon-asset";
@@ -55,6 +60,9 @@ export type RegisterEmoticonParams = {
   keywords?: Maybe<readonly string[]>;
 };
 
+// WARN: Rolls the transaction back rather than returning a sentinel — `insertMedia` may have already written rows this attempt owns, and leaving them committed unreferenced is the orphan this merge closes.
+class ReclaimedEmoticonMediaError extends Error {}
+
 /**
  * Turns uploaded objects into the row the picker and the chat bubble point at.
  *
@@ -62,6 +70,10 @@ export type RegisterEmoticonParams = {
  * emoticons. The upload went straight to R2 (§ 13.3.), so the server never saw the
  * bytes — every key is read back and checked against its slot's rule before a row
  * exists to reference it. Nothing without a row is reachable from the app.
+ *
+ * WARN: `validateMediaUpload`'s HEADs run ahead of the transaction below; only
+ * `insertMedia` — the write — joins it, so a refusal on the item insert rolls the
+ * `media` rows back instead of leaving them committed and unreferenced.
  */
 export async function registerEmoticon({
   packId,
@@ -88,83 +100,112 @@ export async function registerEmoticon({
     return null;
   }
 
-  // INFO: The finished restructure. The `media` rows behind this item, minted here so the FKs below have something to name.
-  // INFO: `registerMedia` is idempotent on `r2_key`, so the retry the `onConflictDoNothing` below answers for does not mint a second row for the same object.
-  const [stillMedia, animatedMedia, audioMedia] = await Promise.all([
-    registerImageMedia(uploaderId, still, stillObject),
-    registerImageMedia(uploaderId, animated, animatedObject),
-    registerAudioMedia(uploaderId, audioKey),
+  // WARN: § 14. `validateMediaUpload` re-reads the object and applies § 13.2.'s own slot rules, so this refuses what the verification above would have refused.
+  const [stillValidated, animatedValidated, audioValidated] = await Promise.all([
+    validateImageMedia(uploaderId, still, stillObject),
+    validateImageMedia(uploaderId, animated, animatedObject),
+    validateAudioMedia(uploaderId, audioKey),
   ]);
 
-  // WARN: § 14. `registerMedia` re-reads the object and applies § 13.2.'s own slot rules, so this refuses what the verification above would have refused — and refusing here rather than writing the item without its FK is what keeps the two representations from disagreeing. An object left unreferenced is what § 13.3.'s discard endpoint exists to sweep.
-  if ((still && !stillMedia) || (animated && !animatedMedia) || (audioKey && !audioMedia)) {
+  if (
+    (still && !stillValidated) ||
+    (animated && !animatedValidated) ||
+    (audioKey && !audioValidated)
+  ) {
     return null;
   }
 
-  const filledSlots = [
-    stillMedia ? eq(emoticonItems.stillImageId, stillMedia.id) : null,
-    animatedMedia ? eq(emoticonItems.animatedImageId, animatedMedia.id) : null,
-  ].filter((slot) => slot !== null);
+  let result: { filledSlots: SQL[]; id: Nullable<EmoticonItemId> };
 
-  // WARN: `or()` over an empty list is an empty `WHERE`, which would answer the lookup below with an arbitrary item. The guards above already make this unreachable.
-  if (filledSlots.length === 0) {
-    return null;
+  try {
+    result = await getDb().transaction(async (tx) => {
+      // INFO: `insertMedia` is idempotent on `r2_key`, so the retry the `onConflictDoNothing` below answers for does not mint a second row for the same object.
+      const [stillMedia, animatedMedia, audioMedia] = await Promise.all([
+        stillValidated ? insertMedia(tx, stillValidated) : Promise.resolve(null),
+        animatedValidated ? insertMedia(tx, animatedValidated) : Promise.resolve(null),
+        audioValidated ? insertMedia(tx, audioValidated) : Promise.resolve(null),
+      ]);
+
+      if ((still && !stillMedia) || (animated && !animatedMedia) || (audioKey && !audioMedia)) {
+        throw new ReclaimedEmoticonMediaError();
+      }
+
+      const filledSlots = [
+        stillMedia ? eq(emoticonItems.stillImageId, stillMedia.id) : null,
+        animatedMedia ? eq(emoticonItems.animatedImageId, animatedMedia.id) : null,
+      ].filter((slot) => slot !== null);
+
+      // WARN: `or()` over an empty list is an empty `WHERE`, which would answer the lookup below with an arbitrary item. The guards above already make this unreachable.
+      if (filledSlots.length === 0) {
+        throw new ReclaimedEmoticonMediaError();
+      }
+
+      const [row] = await tx
+        .insert(emoticonItems)
+        .values({
+          id: nextSnowflake<EmoticonItemId>(),
+          packId,
+          stillImageId: stillMedia?.id ?? null,
+          animatedImageId: animatedMedia?.id ?? null,
+          audioId: audioMedia?.id ?? null,
+          // WARN: Normalized here as well as at the route, because § 13.7.'s import writes through this function without passing a request body through that schema.
+          // WARN: § 13. The cap is the pack's, and this is the only place it can be applied — the route bounds the array at `MAX_EMOTICON_KEYWORDS` without knowing which kind of pack it is posting to.
+          keywords: normalizeKeywords(keywords ?? [], maxKeywordsFor(packType)),
+          sortOrder: sql`(
+            select coalesce(max(${emoticonItems.sortOrder}), -1) + 1
+            from ${emoticonItems}
+            where ${emoticonItems.packId} = ${packId}
+          )`,
+        })
+        // WARN: Untargeted, because any of the three slot indexes may be the one a retry collides on — `insertMedia` is idempotent on `media.r2_key`, so re-uploading the same objects re-registers them to the same ids and the second insert names slots the first one took.
+        .onConflictDoNothing()
+        .returning({ id: emoticonItems.id });
+
+      return { id: row?.id ?? null, filledSlots };
+    });
+  } catch (error) {
+    if (error instanceof ReclaimedEmoticonMediaError) {
+      return null;
+    }
+
+    throw error;
   }
-
-  const [row] = await getDb()
-    .insert(emoticonItems)
-    .values({
-      id: nextSnowflake<EmoticonItemId>(),
-      packId,
-      stillImageId: stillMedia?.id ?? null,
-      animatedImageId: animatedMedia?.id ?? null,
-      audioId: audioMedia?.id ?? null,
-      // WARN: Normalized here as well as at the route, because § 13.7.'s import writes through this function without passing a request body through that schema.
-      // WARN: § 13. The cap is the pack's, and this is the only place it can be applied — the route bounds the array at `MAX_EMOTICON_KEYWORDS` without knowing which kind of pack it is posting to.
-      keywords: normalizeKeywords(keywords ?? [], maxKeywordsFor(packType)),
-      sortOrder: sql`(
-        select coalesce(max(${emoticonItems.sortOrder}), -1) + 1
-        from ${emoticonItems}
-        where ${emoticonItems.packId} = ${packId}
-      )`,
-    })
-    // WARN: Untargeted, because any of the three slot indexes may be the one a retry collides on — `registerMedia` is idempotent on `media.r2_key`, so re-uploading the same objects re-registers them to the same ids and the second insert names slots the first one took.
-    .onConflictDoNothing()
-    .returning({ id: emoticonItems.id });
 
   // INFO: The row this call is answering for, whether it wrote it or the retry it repeats did — the slot ids are unique, so they name the same item either way.
   // WARN: Scoped to the pack, because a conflict is not proof of a retry. The same uploader naming an object already slotted into an item of **another** pack collides identically, and an unscoped lookup would answer `201` with that pack's item — adding it to a grid it does not belong to.
   const [written] = await selectEmoticons()
     .where(
-      row
-        ? eq(emoticonItems.id, row.id)
-        : and(eq(emoticonItems.packId, packId), or(...filledSlots)),
+      result.id
+        ? eq(emoticonItems.id, result.id)
+        : and(eq(emoticonItems.packId, packId), or(...result.filledSlots)),
     )
     .limit(1);
 
   return written ? toEmoticon(written) : null;
 }
 
-function registerImageMedia(
+function validateImageMedia(
   ownerId: UserId,
   image: Maybe<EmoticonImageUpload>,
   object: Optional<StoredObject>,
 ) {
   return image && object
-    ? registerMedia({
+    ? validateMediaUpload({
         ownerId,
-        r2Key: image.key,
-        width: image.width,
-        height: image.height,
         scope: "emoticon",
+        upload: { r2Key: image.key, width: image.width, height: image.height },
       })
     : Promise.resolve(null);
 }
 
-// INFO: § 13.2. No box, because a sound has none — `registerMedia` reads the mime back off the object and files it as `audio`.
-function registerAudioMedia(ownerId: UserId, key: Maybe<string>) {
+// INFO: § 13.2. No box, because a sound has none — `validateMediaUpload` reads the mime back off the object and files it as `audio`.
+function validateAudioMedia(ownerId: UserId, key: Maybe<string>) {
   return key
-    ? registerMedia({ ownerId, r2Key: key, width: null, height: null, scope: "emoticon" })
+    ? validateMediaUpload({
+        ownerId,
+        scope: "emoticon",
+        upload: { r2Key: key, width: 0, height: 0 },
+      })
     : Promise.resolve(null);
 }
 
@@ -238,7 +279,7 @@ export async function updateEmoticonItem({
     return { status: "unprocessable" };
   }
 
-  // WARN: Checked by key, before `registerMedia` ever inserts a row. Checking by id
+  // WARN: Checked by key, before `insertMedia` ever inserts a row. Checking by id
   // afterwards (below) refused the edit but left a slot that lost the race already
   // registered and unreferenced — this is what closed that leak.
   const candidateKeys = [still?.key, animated?.key, audioKey].filter(
@@ -249,18 +290,17 @@ export async function updateEmoticonItem({
     return { status: "unprocessable" };
   }
 
-  const [stillMedia, animatedMedia, audioMedia] = await Promise.all([
-    registerImageMedia(uploaderId, still, stillObject),
-    registerImageMedia(uploaderId, animated, animatedObject),
-    registerAudioMedia(uploaderId, audioKey),
+  const [stillValidated, animatedValidated, audioValidated] = await Promise.all([
+    validateImageMedia(uploaderId, still, stillObject),
+    validateImageMedia(uploaderId, animated, animatedObject),
+    validateAudioMedia(uploaderId, audioKey),
   ]);
 
-  if ((still && !stillMedia) || (animated && !animatedMedia) || (audioKey && !audioMedia)) {
-    return { status: "unprocessable" };
-  }
-
-  // WARN: The three slot indexes are unique, and this UPDATE has no `onConflictDoNothing` to fall back on — an edit naming an object another item already holds would raise a `23505` the route has no branch for, and answer 500 where every other refusal here answers `unprocessable`.
-  if (await isSlotTakenElsewhere(itemId, [stillMedia?.id, animatedMedia?.id, audioMedia?.id])) {
+  if (
+    (still && !stillValidated) ||
+    (animated && !animatedValidated) ||
+    (audioKey && !audioValidated)
+  ) {
     return { status: "unprocessable" };
   }
 
@@ -270,21 +310,46 @@ export async function updateEmoticonItem({
   // WARN: Read before the write, because it resolves the keys off the `media` rows the *current* slots name.
   const orphanedKeys = await findDetachedKeys(current, { still, animated, audioKey });
 
-  await getDb().transaction(async (tx) => {
-    await tx
-      .update(emoticonItems)
-      .set({
-        ...(still === undefined ? {} : { stillImageId: stillMedia?.id ?? null }),
-        ...(animated === undefined ? {} : { animatedImageId: animatedMedia?.id ?? null }),
-        ...(audioKey === undefined ? {} : { audioId: audioMedia?.id ?? null }),
-        ...(keywords ? { keywords: normalizeKeywords(keywords, maxKeywordsFor(packType)) } : {}),
-        // WARN: § 13.4. Only when an *asset* changed. `updated_at` is `Emoticon.version` and rides on every asset URL, so bumping it for a keywords-only write invalidates the cached 302 and its presigned GET for that item — and § 13.8.1. writes one per item, which would re-download a whole pack, chat history included, to record some text.
-        ...(hasImageChange || audioKey !== undefined ? { updatedAt: new Date() } : {}),
-      })
-      .where(eq(emoticonItems.id, itemId));
+  try {
+    await getDb().transaction(async (tx) => {
+      const [stillMedia, animatedMedia, audioMedia] = await Promise.all([
+        stillValidated ? insertMedia(tx, stillValidated) : Promise.resolve(null),
+        animatedValidated ? insertMedia(tx, animatedValidated) : Promise.resolve(null),
+        audioValidated ? insertMedia(tx, audioValidated) : Promise.resolve(null),
+      ]);
 
-    await detachEmoticonMedia(tx, orphanedKeys);
-  });
+      if ((still && !stillMedia) || (animated && !animatedMedia) || (audioKey && !audioMedia)) {
+        throw new ReclaimedEmoticonMediaError();
+      }
+
+      // WARN: The three slot indexes are unique, and this UPDATE has no `onConflictDoNothing` to fall back on — an edit naming an object another item already holds would raise a `23505` the route has no branch for, and answer 500 where every other refusal here answers `unprocessable`.
+      if (
+        await isSlotTakenElsewhere(tx, itemId, [stillMedia?.id, animatedMedia?.id, audioMedia?.id])
+      ) {
+        throw new ReclaimedEmoticonMediaError();
+      }
+
+      await tx
+        .update(emoticonItems)
+        .set({
+          ...(still === undefined ? {} : { stillImageId: stillMedia?.id ?? null }),
+          ...(animated === undefined ? {} : { animatedImageId: animatedMedia?.id ?? null }),
+          ...(audioKey === undefined ? {} : { audioId: audioMedia?.id ?? null }),
+          ...(keywords ? { keywords: normalizeKeywords(keywords, maxKeywordsFor(packType)) } : {}),
+          // WARN: § 13.4. Only when an *asset* changed. `updated_at` is `Emoticon.version` and rides on every asset URL, so bumping it for a keywords-only write invalidates the cached 302 and its presigned GET for that item — and § 13.8.1. writes one per item, which would re-download a whole pack, chat history included, to record some text.
+          ...(hasImageChange || audioKey !== undefined ? { updatedAt: new Date() } : {}),
+        })
+        .where(eq(emoticonItems.id, itemId));
+
+      await detachEmoticonMedia(tx, orphanedKeys);
+    });
+  } catch (error) {
+    if (error instanceof ReclaimedEmoticonMediaError) {
+      return { status: "unprocessable" };
+    }
+
+    throw error;
+  }
 
   // INFO: Read back rather than returned, because the box lives on the `media` rows the slots name and an edit of one slot keeps the other's.
   const [row] = await selectEmoticons().where(eq(emoticonItems.id, itemId)).limit(1);
@@ -321,6 +386,7 @@ async function isKeyTakenElsewhere(itemId: EmoticonItemId, keys: string[]): Prom
 
 /** INFO: Whether any of these `media` rows is already slotted into a **different** item, which is the one thing the slot indexes refuse and this UPDATE has no conflict clause to absorb. */
 async function isSlotTakenElsewhere(
+  tx: DbTransaction,
   itemId: EmoticonItemId,
   mediaIds: Maybe<MediaId>[],
 ): Promise<boolean> {
@@ -330,7 +396,7 @@ async function isSlotTakenElsewhere(
     return false;
   }
 
-  const [taken] = await getDb()
+  const [taken] = await tx
     .select({ id: emoticonItems.id })
     .from(emoticonItems)
     .where(
@@ -364,7 +430,7 @@ function willHoldAnImage(
  * The R2 keys this edit detached, read off the `media` rows the slots used to name.
  *
  * WARN: The keys the edit is *keeping* are subtracted rather than assumed absent. A
- * re-submitted key re-registers to the same `media` row (`registerMedia` is
+ * re-submitted key re-registers to the same `media` row (`insertMedia` is
  * idempotent on `r2_key`), so the slot it names is unchanged and reporting it here
  * would delete the object the item is still drawn from.
  */

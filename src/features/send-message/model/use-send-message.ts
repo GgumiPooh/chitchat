@@ -1,7 +1,7 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
-import type { MediaDraft } from "@/entities/media";
+import type { MediaDraft, MediaUpload } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import { revokePreview, uploadDraft } from "@/features/upload-media/@x/send-message";
 import { MAX_UPLOAD_INFLIGHT_BYTES, UPLOAD_CONCURRENCY } from "@/shared/config";
@@ -14,7 +14,6 @@ import {
   randomId,
   stopVoice,
   useBfcacheRestore,
-  type MediaId,
   type Nullable,
 } from "@/shared/lib";
 import { useSnapshot, useSnapshotOwner, useWriteSnapshot } from "@/shared/snapshot";
@@ -41,7 +40,7 @@ export type PendingMessage = {
   // INFO: REQUIREMENTS.md § 8.10. Carried on the pending row so the optimistic bubble quotes immediately — the client staged the preview, so nothing has to be fetched to draw it.
   replyTo: Nullable<ReplyPreview>;
   // WARN: Indexed alongside `media`. A retry re-uploads only the slots still null, so a failure on the last of nine photos does not re-send the eight that landed.
-  uploadedIds: Nullable<string>[];
+  uploadedMedia: Nullable<MediaUpload>[];
   /** `0`–`1` across the whole bubble's bytes. Meaningless for a text message. */
   progress: number;
   /**
@@ -125,12 +124,12 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
   );
 
   const uploadAll = useCallback(
-    async (message: PendingMessage): Promise<MediaId[]> => {
+    async (message: PendingMessage): Promise<MediaUpload[]> => {
       const totalBytes = message.media.reduce((total, draft) => total + draft.file.size, 0);
       const loaded = message.media.map((draft, index) =>
-        message.uploadedIds[index] ? draft.file.size : 0,
+        message.uploadedMedia[index] ? draft.file.size : 0,
       );
-      const uploaded = [...message.uploadedIds];
+      const uploaded = [...message.uploadedMedia];
 
       // WARN: `upload.onprogress` fires per network chunk and every patch re-renders the whole virtualized list. A 500MB video would otherwise reconcile it hundreds of times on the device least able to absorb it.
       let lastPercent = -1;
@@ -143,7 +142,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
             return;
           }
 
-          const media = await uploadDraft(draft, {
+          const upload = await uploadDraft(draft, {
             onProgress: (loadedBytes) => {
               loaded[index] = loadedBytes;
 
@@ -159,10 +158,10 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
             },
           });
 
-          uploaded[index] = media.id;
+          uploaded[index] = upload;
           loaded[index] = draft.file.size;
           // WARN: Recorded as each one lands, so a failure halfway through leaves the retry nothing to re-upload but the remainder. `mapPooled` settles everything in flight before it rethrows precisely so this holds.
-          patch(message.clientMsgId, { uploadedIds: [...uploaded] });
+          patch(message.clientMsgId, { uploadedMedia: [...uploaded] });
         },
         {
           limit: UPLOAD_CONCURRENCY,
@@ -172,8 +171,8 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
         },
       );
 
-      // WARN: Indexed, so `mediaIds` stays in the picked order however the uploads interleaved — § 6. renders the grid in exactly this order.
-      return uploaded.filter((id): id is MediaId => Boolean(id));
+      // WARN: Indexed, so `media` stays in the picked order however the uploads interleaved — § 6. renders the grid in exactly this order.
+      return uploaded.filter((upload): upload is MediaUpload => Boolean(upload));
     },
     [patch],
   );
@@ -187,7 +186,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
       const { clientMsgId } = message;
 
       try {
-        const sent = await postMessage(await toPostParams(message, uploadAll));
+        const { message: sent } = await postMessage(await toPostParams(message, uploadAll));
 
         onSent(sent);
         drop(clientMsgId);
@@ -374,7 +373,7 @@ function createPending(text: Nullable<string>, media: MediaDraft[]): PendingMess
     emoticon: null,
     inlineEmoticons: [],
     replyTo: null,
-    uploadedIds: media.map(() => null),
+    uploadedMedia: media.map(() => null),
     progress: 0,
     status: "sending",
     createdAt: new Date().toISOString(),
@@ -384,7 +383,7 @@ function createPending(text: Nullable<string>, media: MediaDraft[]): PendingMess
 // INFO: REQUIREMENTS.md § 6. A row is text, attachments, or one emoticon — never a combination, which is what the table's CHECK constraint says too.
 async function toPostParams(
   message: PendingMessage,
-  uploadAll: (message: PendingMessage) => Promise<MediaId[]>,
+  uploadAll: (message: PendingMessage) => Promise<MediaUpload[]>,
 ): Promise<PostMessageParams> {
   const { clientMsgId } = message;
   const replyToId = message.replyTo?.id;
@@ -394,7 +393,7 @@ async function toPostParams(
   }
 
   if (message.text === null) {
-    return { clientMsgId, replyToId, mediaIds: await uploadAll(message) };
+    return { clientMsgId, replyToId, media: await uploadAll(message) };
   }
 
   return {

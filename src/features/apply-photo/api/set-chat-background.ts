@@ -1,3 +1,4 @@
+import type { MediaUpload } from "@/entities/media";
 import { request } from "@/shared/api";
 import { CHAT_BACKGROUND_PATH } from "@/shared/config";
 import type { MediaId, Nullable } from "@/shared/lib";
@@ -9,12 +10,15 @@ import type { MediaId, Nullable } from "@/shared/lib";
  * INFO: Not a key on `PATCH /api/users/me`, and no longer reached through
  * `@x/update-profile`: the wallpaper stopped being a property of whoever set it when
  * it became shared, so it changes the other participant's screen too.
+ *
+ * WARN: The finished restructure. Takes what `uploadDraft` put in R2, not an id —
+ * registration and attachment happen inside this request now.
  */
-export async function setChatBackground(mediaId: Nullable<MediaId>): Promise<Nullable<MediaId>> {
+export async function setChatBackground(media: Nullable<MediaUpload>): Promise<Nullable<MediaId>> {
   const response = await request(CHAT_BACKGROUND_PATH, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mediaId }),
+    body: JSON.stringify({ media }),
   });
 
   if (!response.ok) {

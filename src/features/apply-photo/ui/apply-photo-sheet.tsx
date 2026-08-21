@@ -208,22 +208,22 @@ export function ApplyPhotoSheet({ className, source, onClose }: ApplyPhotoSheetP
 
   // WARN: Two kinds of write, not one, and REQUIREMENTS.md § 12.2. is why: the avatar and the cover are columns on the caller's own row and the wallpaper is a row of the room's, so they are different endpoints.
   async function uploadAndWear(draft: MediaDraft, slot: PhotoTarget) {
-    const media = await uploadDraft(draft, { scope: slot === "avatar" ? "avatar" : "background" });
+    const upload = await uploadDraft(draft, { scope: slot === "avatar" ? "avatar" : "background" });
 
     if (slot === "avatar") {
-      await updateProfile({ avatarMediaId: media.id });
+      await updateProfile({ avatar: upload });
 
       return;
     }
 
     if (slot === "profile") {
-      await updateProfile({ profileBackgroundMediaId: media.id });
+      await updateProfile({ profileBackground: upload });
 
       return;
     }
 
     // WARN: REQUIREMENTS.md § 12.2. Pushed into the stream state, exactly as the 설정 row does and for the same reason: this sheet is reached from 보관함 as well as 채팅, and § 8.4.2. mounts the socket in 채팅 alone — so on the library screen the write's own `user_changed` arrives nowhere.
-    setChatBackgroundMediaId(await setChatBackground(media.id));
+    setChatBackgroundMediaId(await setChatBackground(upload));
   }
 
   function toSuccess(slot: PhotoTarget): string {

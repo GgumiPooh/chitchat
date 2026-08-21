@@ -19,7 +19,7 @@ import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
 const bodySchema = z.object({
-  // INFO: REQUIREMENTS.md § 9.1. The media allow-list, or anything else that is shaped like a mime — the second branch is a file attachment, and `registerMedia` is still where the stored type is checked.
+  // INFO: REQUIREMENTS.md § 9.1. The media allow-list, or anything else that is shaped like a mime — the second branch is a file attachment, and `validateMediaUpload` is still where the stored type is checked.
   mime: z.union([
     z.enum([...ALLOWED_IMAGE_MIMES, ...ALLOWED_VIDEO_MIMES]),
     z.string().refine(isFileMime),
@@ -54,12 +54,12 @@ export async function POST(request: Request) {
   // INFO: REQUIREMENTS.md § 9.1. A file attachment is one PUT, not a pair — there is no frame to render a thumbnail from, so signing a second URL would only invite an object nothing ever reads.
   const isFile = isFileMime(mime);
 
-  // WARN: § 9.1. `registerMedia` refuses a file outside the `chat` scope, and refusing it here too is what keeps that from being a 422 arriving *after* the bytes landed — the ticket is live for `UPLOAD_URL_EXPIRY`, so a 500MB archive would sit in `background/` with no row able to name it and nothing to clean it up.
+  // WARN: § 9.1. `validateMediaUpload` refuses a file outside the `chat` scope, and refusing it here too is what keeps that from being a 422 arriving *after* the bytes landed — the ticket is live for `UPLOAD_URL_EXPIRY`, so a 500MB archive would sit in `background/` with no row able to name it and nothing to clean it up.
   if (isFile && scope !== "chat") {
     return apiError("invalid_request");
   }
 
-  // INFO: REQUIREMENTS.md § 14. A courtesy rejection on the client's own claim. R2 enforces neither the type nor the size of a presigned PUT, so `registerMedia` re-checks both against what actually landed.
+  // INFO: REQUIREMENTS.md § 14. A courtesy rejection on the client's own claim. R2 enforces neither the type nor the size of a presigned PUT, so `validateMediaUpload` re-checks both against what actually landed.
   if (size > maxSizeForMime(mime)) {
     return apiError("too_large");
   }

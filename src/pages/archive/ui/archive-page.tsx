@@ -83,12 +83,6 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
     acceptsFiles: false,
     isBlocked: selection.isSelecting || viewer !== null,
     onAdded: prepend,
-    // INFO: § 18. #1. An upload whose bubble never landed is on no shelf, so its tile comes back off rather than sitting there as a row `isInLibrary()` refuses.
-    // WARN: The viewer is dropped from too, exactly as `removal.onRemoved` does. A tile is tappable the moment it prepends — nothing gates `onOpen` on the upload — so the reader can be looking at a slide whose POST is still in flight, and `cells` is a snapshot that would go on showing it.
-    onStranded: (ids) => {
-      remove(ids);
-      dropFromViewer(ids);
-    },
   });
   // INFO: REQUIREMENTS.md § 10. 갤러리 추가 opens the album picker outright — this shelf takes photos and videos and nothing else, so there was never a choice for a sheet to offer.
   const picker = useMediaPicker({ isMultiple: true, onSelect: staging.add });

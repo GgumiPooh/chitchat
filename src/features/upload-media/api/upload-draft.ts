@@ -1,6 +1,6 @@
-import type { ArchiveMedia, MediaDraft } from "@/entities/media";
+import type { MediaDraft, MediaUpload } from "@/entities/media";
 import { request } from "@/shared/api";
-import { MEDIA_PATH, MEDIA_UPLOAD_URL_PATH, type MediaUploadScope } from "@/shared/config";
+import { MEDIA_UPLOAD_URL_PATH, type MediaUploadScope } from "@/shared/config";
 import { holdAwake, type Nullable } from "@/shared/lib";
 
 type UploadTicket = {
@@ -22,8 +22,8 @@ export type UploadDraftOptions = {
 const NO_PROGRESS: UploadProgress = () => {};
 
 /**
- * Puts one attachment in R2 and registers it, answering the `media` row the
- * message will point at (REQUIREMENTS.md § 9.).
+ * Puts one attachment in R2 and answers the `MediaUpload` its consumer request
+ * will register and attach in the same transaction (REQUIREMENTS.md § 9.).
  *
  * The bytes never pass through our server — a presigned PUT is what gets an
  * iPhone photo past Vercel's 4.5MB request body limit.
@@ -31,8 +31,8 @@ const NO_PROGRESS: UploadProgress = () => {};
 export async function uploadDraft(
   draft: MediaDraft,
   { scope = "chat", onProgress = NO_PROGRESS }: UploadDraftOptions = {},
-): Promise<ArchiveMedia> {
-  // WARN: REQUIREMENTS.md § 8.4.1. Held here rather than at each caller, because the bytes are already in R2 by the time the registration runs — a dormancy landing between the two would leave an object nothing points at and no way to retry it.
+): Promise<MediaUpload> {
+  // WARN: REQUIREMENTS.md § 8.4.1. Held here rather than at each caller, because a dormancy landing between the PUT and the consumer request that references its key would leave an object in R2 with no reservation left to retry against.
   const release = holdAwake();
 
   try {
@@ -50,7 +50,17 @@ export async function uploadDraft(
       );
     }
 
-    return await registerUpload(draft, ticket.r2Key);
+    return {
+      r2Key: ticket.r2Key,
+      width: draft.width,
+      height: draft.height,
+      durationMs: draft.durationMs,
+      // INFO: REQUIREMENTS.md § 9. Encoded from the very thumbnail the PUT above uploaded, so the placeholder and the object it stands in for cannot disagree.
+      blurhash: draft.blurhash,
+      filename: draft.filename,
+      // INFO: REQUIREMENTS.md § 9.3. Already in the wire form the column stores — a draft carries integers, and only what renders converts to `0`–`1`.
+      waveformPeaks: draft.waveformPeaks,
+    };
   } finally {
     release();
   }
@@ -68,32 +78,6 @@ async function requestTicket(draft: MediaDraft, scope: MediaUploadScope): Promis
   }
 
   return response.json() as Promise<UploadTicket>;
-}
-
-async function registerUpload(draft: MediaDraft, r2Key: string): Promise<ArchiveMedia> {
-  const response = await request(MEDIA_PATH, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      r2Key,
-      width: draft.width,
-      height: draft.height,
-      durationMs: draft.durationMs,
-      // INFO: REQUIREMENTS.md § 9. Encoded from the very thumbnail the PUT above uploaded, so the placeholder and the object it stands in for cannot disagree.
-      blurhash: draft.blurhash,
-      filename: draft.filename,
-      // INFO: REQUIREMENTS.md § 9.3. Already in the wire form the column stores — a draft carries integers, and only what renders converts to `0`–`1`.
-      waveformPeaks: draft.waveformPeaks,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`POST ${MEDIA_PATH} responded ${response.status}`);
-  }
-
-  const { media } = (await response.json()) as { media: ArchiveMedia };
-
-  return media;
 }
 
 /**

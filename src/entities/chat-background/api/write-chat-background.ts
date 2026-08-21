@@ -1,7 +1,8 @@
 import "server-only";
 
-import { chatSettings, getDb, media } from "@/shared/db";
+import { chatSettings, media } from "@/shared/db";
 import type { MediaId, Nullable, UserId } from "@/shared/lib";
+import type { DbTransaction } from "@/shared/storage";
 import { eq } from "drizzle-orm";
 
 /** The object this change detached, for the caller to take back out of R2. */
@@ -37,38 +38,39 @@ export type ChatBackgroundUpdate = {
  * INFO: Nothing broadcasts. The write lands on `chat_settings`, whose trigger fires
  * `user_changed` — the same channel § 12. rides — and § 8.4. carries it to the other
  * participant, who reads the new id off the participant payload.
+ *
+ * INFO: Runs on the caller's own transaction so a freshly uploaded wallpaper
+ * registers and attaches in the same commit as this write — the route resolves it
+ * with `validateMediaUpload` and `insertMedia` before calling this.
  */
 export async function writeChatBackground(
+  tx: DbTransaction,
   mediaId: Nullable<MediaId>,
 ): Promise<ChatBackgroundUpdate> {
-  return getDb().transaction(async (tx) => {
-    const [current] = await tx
-      .select({ backgroundMediaId: chatSettings.backgroundMediaId })
-      .from(chatSettings)
-      .for("update")
-      .limit(1);
+  const [current] = await tx
+    .select({ backgroundMediaId: chatSettings.backgroundMediaId })
+    .from(chatSettings)
+    .for("update")
+    .limit(1);
 
-    // WARN: REQUIREMENTS.md § 12.2. Self-healing rather than a 404. The row is seeded by `0025` and the CHECK leaves `true` as its only possible key, so the sole way it can be absent is a restore or a hand-run DELETE — and an UPDATE alone would then fail every wallpaper save forever, with a Settings screen showing 기본 배경 and no clue why. The trigger covers the INSERT for the same reason it covers the UPDATE.
-    if (!current) {
-      await tx.insert(chatSettings).values({ backgroundMediaId: mediaId });
+  // WARN: REQUIREMENTS.md § 12.2. Self-healing rather than a 404. The row is seeded by `0025` and the CHECK leaves `true` as its only possible key, so the sole way it can be absent is a restore or a hand-run DELETE — and an UPDATE alone would then fail every wallpaper save forever, with a Settings screen showing 기본 배경 and no clue why. The trigger covers the INSERT for the same reason it covers the UPDATE.
+  if (!current) {
+    await tx.insert(chatSettings).values({ backgroundMediaId: mediaId });
 
-      return { backgroundMediaId: mediaId, replaced: null };
-    }
+    return { backgroundMediaId: mediaId, replaced: null };
+  }
 
-    await tx.update(chatSettings).set({ backgroundMediaId: mediaId });
+  await tx.update(chatSettings).set({ backgroundMediaId: mediaId });
 
-    return {
-      backgroundMediaId: mediaId,
-      replaced: await toReplaced(tx, current.backgroundMediaId, mediaId),
-    };
-  });
+  return {
+    backgroundMediaId: mediaId,
+    replaced: await toReplaced(tx, current.backgroundMediaId, mediaId),
+  };
 }
-
-type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
 // INFO: Only an object that is actually gone is handed back. Re-submitting the same id is a no-op, and its object is still the one being drawn.
 async function toReplaced(
-  tx: Tx,
+  tx: DbTransaction,
   before: Nullable<MediaId>,
   after: Nullable<MediaId>,
 ): Promise<Nullable<ReplacedBackground>> {

@@ -22,8 +22,8 @@ export function toDraftKind(draft: MediaDraft): DraftKind {
  *
  * WARN: A bubble is photos **or** files **or** one recording, never a mix — the
  * three are drawn by different layouts at different heights, § 6. gives one
- * `messages` row one of them, and `ownsAllMedia` refuses a mixed set at the server
- * rather than trusting the client to have split it.
+ * `messages` row one of them, and the server refuses a mixed set (REQUIREMENTS.md
+ * § 9.1.) rather than trusting the client to have split it.
  *
  * WARN: Consecutive runs, never a partition by kind. A pick of photo, file, photo
  * stays in the order it was made instead of being sorted into two blocks the sender
@@ -35,7 +35,7 @@ export function toDraftKind(draft: MediaDraft): DraftKind {
  */
 export function toBubbles<T>(items: T[], toKind: (item: T) => DraftKind): T[][] {
   return groupConsecutive(items, toKind).flatMap((run) =>
-    // INFO: REQUIREMENTS.md § 9.3. A voice bubble is one clip. There is no layout for two, and `ownsAllMedia` refuses a longer set at the server anyway.
+    // INFO: REQUIREMENTS.md § 9.3. A voice bubble is one clip. There is no layout for two, and the server refuses a longer set anyway.
     chunk(run, toKind(run[0]) === "voice" ? 1 : MAX_MEDIA_PER_MESSAGE),
   );
 }

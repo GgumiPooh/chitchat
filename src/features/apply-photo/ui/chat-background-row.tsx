@@ -1,10 +1,10 @@
 "use client";
 
-import type { MediaDraft } from "@/entities/media";
+import type { MediaDraft, MediaUpload } from "@/entities/media";
 import { useChatStream } from "@/features/chat-stream/@x/apply-photo";
 import { MediaEditor, uploadDraft, useMediaPicker } from "@/features/upload-media/@x/apply-photo";
 import { BACKGROUND_MAX_EDGE, toMediaUrl } from "@/shared/config";
-import type { MediaId, Nullable } from "@/shared/lib";
+import type { Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { ActionSheet, PreloadImage, SettingsRow, toast } from "@/shared/ui";
 import { Image as ImageIcon, Trash2, Wallpaper } from "lucide-react";
@@ -126,7 +126,7 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
     try {
       const media = await uploadDraft(draft, { scope: "background" });
 
-      await save(media.id);
+      await save(media);
     } catch {
       toast.error("배경을 저장하지 못했어요");
     } finally {
@@ -148,13 +148,17 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
     }
   }
 
-  async function save(mediaId: Nullable<MediaId>) {
+  async function save(media: Nullable<MediaUpload>) {
     // WARN: REQUIREMENTS.md § 12.2. The id the server answered, pushed into the stream state by hand — and a `router.refresh()` would not do instead. 설정 mounts no `ChatStreamConnection` (§ 8.4.2.), so the write's own `user_changed` never reaches this screen, and the provider is seeded by the `(main)` shell, which a tab change does not re-render. Without this the thumbnail beside the row goes on showing the photo that was just replaced.
-    setChatBackgroundMediaId(await setChatBackground(mediaId));
+    const backgroundMediaId = await setChatBackground(media);
+
+    setChatBackgroundMediaId(backgroundMediaId);
     setIsActionsOpen(false);
     // INFO: § 12.2. Named for what actually happened. 되돌렸어요 alone would read as undoing a change this user made, when clearing it takes the wallpaper off the other participant's screen too.
     toast.success(
-      mediaId ? "상대방 화면에도 이 배경이 깔렸어요" : "상대방 화면도 기본 배경으로 돌아갔어요",
+      backgroundMediaId
+        ? "상대방 화면에도 이 배경이 깔렸어요"
+        : "상대방 화면도 기본 배경으로 돌아갔어요",
     );
   }
 }

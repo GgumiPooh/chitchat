@@ -70,7 +70,7 @@ export const emoticonItems = pgTable(
   },
   (table) => [
     index("emoticon_items_pack_id_sort_order_idx").on(table.packId, table.sortOrder),
-    // INFO: What makes a retried registration idempotent — `registerMedia` returns the same `media` row for a re-uploaded key, so the second insert conflicts on the slot it names.
+    // INFO: What makes a retried registration idempotent — `insertMedia` returns the same `media` row for a re-uploaded key, so the second insert conflicts on the slot it names.
     uniqueIndex("emoticon_items_still_image_id_idx").on(table.stillImageId),
     uniqueIndex("emoticon_items_animated_image_id_idx").on(table.animatedImageId),
     uniqueIndex("emoticon_items_audio_id_idx").on(table.audioId),

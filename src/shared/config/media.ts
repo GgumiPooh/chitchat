@@ -69,7 +69,7 @@ export const VISUAL_KINDS = ["image", "video"] as const satisfies readonly Media
  * storage key.
  *
  * WARN: The finished restructure. A column as well as a key prefix, because
- * `registerMedia`'s rules are about **use** rather than kind — whether a `_thumb`
+ * `validateMediaUpload`'s rules are about **use** rather than kind — whether a `_thumb`
  * sibling is required, whether the row is a library candidate, which cache policy the
  * route signs. `shared/storage`'s `StorageScope` is this list; it is declared here
  * rather than there so the browser can read it.
@@ -143,7 +143,7 @@ export function toMediaCountUnit(kind: Nullable<MediaNoun>): string {
 
 /**
  * The key prefixes `POST /api/media/upload-url` will sign for, and the set
- * `POST /api/media` accepts a registration under.
+ * `validateMediaUpload` accepts a registration under.
  *
  * WARN: A subset of `MEDIA_SCOPES`, not a copy of it, and `emoticon` stays absent for a
  * reason that has changed. It used to be that an emoticon object was not a `media` row

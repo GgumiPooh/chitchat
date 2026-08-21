@@ -1,7 +1,8 @@
 import "server-only";
 
-import { getDb, media, users } from "@/shared/db";
+import { media, users } from "@/shared/db";
 import type { Maybe, MediaId, Nullable, UserId } from "@/shared/lib";
+import type { DbTransaction } from "@/shared/storage";
 import { and, eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { toParticipant } from "../model/to-participant";
@@ -50,17 +51,24 @@ export type ProfileUpdate = {
  * `user_changed` and § 8.4. delivers it to every open screen — including this
  * user's other devices. A rename therefore reaches every past message, which
  * § 8.7. says is the point.
+ *
+ * INFO: Runs on the caller's own transaction so a freshly uploaded avatar or cover
+ * registers and attaches in the same commit as this write — the route resolves each
+ * with `validateMediaUpload` and `insertMedia` before calling this.
  */
-export async function updateUserProfile({
-  userId,
-  nickname,
-  avatarMediaId,
-  profileBackgroundMediaId,
-  typingIndicatorEnabled,
-}: UpdateUserProfileParams): Promise<Maybe<ProfileUpdate>> {
+export async function updateUserProfile(
+  tx: DbTransaction,
+  {
+    userId,
+    nickname,
+    avatarMediaId,
+    profileBackgroundMediaId,
+    typingIndicatorEnabled,
+  }: UpdateUserProfileParams,
+): Promise<Maybe<ProfileUpdate>> {
   // WARN: A self-join, so the photos being replaced are read in the same statement that replaces them. Postgres resolves `previous` against the pre-update snapshot, which a separate `SELECT` cannot promise: two devices saving different photos would both read the same row and neither would report the one that lost, orphaning its objects in R2 permanently — `canReadMedia` admits only a currently worn photo, so nothing could ever reach them again.
   const previous = alias(users, "previous");
-  const [row] = await getDb()
+  const [row] = await tx
     .update(users)
     // WARN: Spread, never `{ nickname, avatarMediaId }` — drizzle writes an explicit `undefined` as SQL `DEFAULT`, so a patch that only renames would blank every other column here.
     .set({
@@ -90,7 +98,7 @@ export async function updateUserProfile({
     // WARN: A second read, because `.returning()` cannot join. It is one indexed lookup on a primary key, and only when a cover is actually set — the alternative is shipping a participant whose `isProfileBackgroundVideo` is a guess.
     participant: toParticipant({
       ...row,
-      profileBackgroundMime: await readMime(row.profileBackgroundMediaId),
+      profileBackgroundMime: await readMime(tx, row.profileBackgroundMediaId),
     }),
     replaced: {
       avatar: toReplaced(row.previousAvatarMediaId, row.avatarMediaId),
@@ -99,12 +107,12 @@ export async function updateUserProfile({
   };
 }
 
-async function readMime(mediaId: Nullable<MediaId>): Promise<Nullable<string>> {
+async function readMime(tx: DbTransaction, mediaId: Nullable<MediaId>): Promise<Nullable<string>> {
   if (!mediaId) {
     return null;
   }
 
-  const [row] = await getDb()
+  const [row] = await tx
     .select({ mime: media.mime })
     .from(media)
     .where(eq(media.id, mediaId))

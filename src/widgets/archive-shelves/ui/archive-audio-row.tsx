@@ -41,7 +41,7 @@ export function ArchiveAudioRow({
   onDownload,
 }: ArchiveAudioRowProps) {
   const src = toMediaUrl(item.id, "original");
-  // INFO: § 9.1. `registerMedia` nulls `duration_ms` for a file, so there is nothing stored to pass — `useVoicePlayback` falls back to what the element resolves at `loadedmetadata`, which is exactly the figure this row can afford.
+  // INFO: § 9.1. `validateMediaUpload` nulls `duration_ms` for a file, so there is nothing stored to pass — `useVoicePlayback` falls back to what the element resolves at `loadedmetadata`, which is exactly the figure this row can afford.
   const { isActive, isPlaying, positionMs, progress, resolvedDurationMs, toggle } =
     useVoicePlayback(src, 0);
   const filename = item.filename ?? "";

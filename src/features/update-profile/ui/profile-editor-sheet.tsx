@@ -321,13 +321,13 @@ export function ProfileEditorSheet({
   // WARN: The parameter is named apart from the `slot` state above it. Shadowing it would compile and would mean the opposite thing — this runs for both slots regardless of which one the picker last worked for.
   async function toPhotoPatch(target: PhotoSlot): Promise<ProfileBody> {
     const draft = target === "avatar" ? avatar : background;
-    const key = target === "avatar" ? "avatarMediaId" : "profileBackgroundMediaId";
+    const key = target === "avatar" ? "avatar" : "profileBackground";
 
-    // WARN: A photo that lands and then a `PATCH` that fails leaves one registered object nothing points at. It is unreachable — `canReadMedia` admits a profile photo only while somebody wears it, and § 10.'s grid never had it — so it costs bucket space and nothing else, which is the same trade § 9. already takes on a re-PUT.
+    // WARN: The finished restructure. Registration and attachment happen inside `updateProfile` now, so a photo that lands and then a `PATCH` that fails leaves only an unreferenced R2 object behind, for the expired-claim sweep to collect.
     if (draft.staged) {
-      const media = await uploadDraft(draft.staged, { scope: target });
+      const upload = await uploadDraft(draft.staged, { scope: target });
 
-      return { [key]: media.id };
+      return { [key]: upload };
     }
 
     return draft.isCleared ? { [key]: null } : {};

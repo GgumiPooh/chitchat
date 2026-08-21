@@ -20,7 +20,7 @@ const BYTE_MASK = 0xff;
  *
  * WARN: Decoded by hand rather than through the package's own `decode`, which renders pixels: a 1×1 render is the top-left **corner**, where every basis function evaluates to 1, so the AC terms are summed into the answer. The package exports no DC accessor.
  *
- * WARN: Guarded rather than trusted. `registerMedia` validates the hash at the write (REQUIREMENTS.md § 9.), but a malformed one must yield nothing rather than a colour built from `NaN`.
+ * WARN: Guarded rather than trusted. `validateMediaUpload` validates the hash at the write (REQUIREMENTS.md § 9.), but a malformed one must yield nothing rather than a colour built from `NaN`.
  */
 export function toBlurhashAverage(hash: Maybe<string>): Optional<string> {
   if (!hash || hash.length < DC_END) {

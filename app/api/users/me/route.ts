@@ -1,9 +1,24 @@
-import { discardScopedMedia, discardUnwornScopedMedia, ownsAllMedia } from "@/entities/media";
+import {
+  discardScopedMedia,
+  discardUnwornScopedMedia,
+  insertMedia,
+  mediaUploadSchema,
+  validateMediaUpload,
+  type ValidatedMedia,
+} from "@/entities/media";
 import { updateUserProfile, type ReplacedMedia } from "@/entities/user";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { MAX_NICKNAME_LENGTH, snowflakeSchema } from "@/shared/config";
-import { safelyRunAsync, type Maybe, type MediaId, type UserId } from "@/shared/lib";
+import { MAX_NICKNAME_LENGTH } from "@/shared/config";
+import { getDb } from "@/shared/db";
+import {
+  safelyRunAsync,
+  type MediaId,
+  type Nullable,
+  type Optional,
+  type UserId,
+} from "@/shared/lib";
+import type { DbTransaction } from "@/shared/storage";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -11,10 +26,10 @@ const bodySchema = z
   .object({
     // WARN: Trimmed before the length check, or twenty spaces pass it and REQUIREMENTS.md § 8.7. falls back to the email local part for a name the user believes they set.
     nickname: z.string().trim().min(1).max(MAX_NICKNAME_LENGTH).optional(),
-    // INFO: REQUIREMENTS.md § 12. Absent keeps the current photo; an explicit `null` is 기본 이미지로 되돌리기.
-    avatarMediaId: snowflakeSchema<MediaId>().nullish(),
+    // INFO: REQUIREMENTS.md § 12. Absent keeps the current photo; an explicit `null` is 기본 이미지로 되돌리기; an upload registers and attaches a fresh photo in the same transaction as this write.
+    avatar: mediaUploadSchema.nullish(),
     // INFO: REQUIREMENTS.md § 12.1. The profile cover, published to the other participant.
-    profileBackgroundMediaId: snowflakeSchema<MediaId>().nullish(),
+    profileBackground: mediaUploadSchema.nullish(),
     // INFO: REQUIREMENTS.md § 8.12. The 입력 중 switch. It is a `users` column the owner may write, so it rides this patch rather than an endpoint of its own.
     typingIndicatorEnabled: z.boolean().optional(),
   })
@@ -42,19 +57,38 @@ export async function PATCH(request: Request) {
     return apiError("invalid_request");
   }
 
-  const { avatarMediaId, profileBackgroundMediaId } = body.data;
+  const { nickname, avatar, profileBackground, typingIndicatorEnabled } = body.data;
 
-  // WARN: REQUIREMENTS.md § 14. The same check `POST /api/messages` runs on `mediaIds`, scoped per column. Each of these is a foreign key, so an id that is only a well-formed UUID is a 500 rather than a 400; the ownership half stops one participant wearing the other's photograph, and the scope half stops a chat photo becoming an avatar or a background that `discardScopedMedia` would later delete out from under its bubble.
-  const isScoped = await Promise.all([
-    isOwnedInScope(avatarMediaId, user.id, "avatar"),
-    isOwnedInScope(profileBackgroundMediaId, user.id, "background"),
+  // WARN: § 9. The R2 HEADs stay outside the transaction — see `validateMediaUpload`.
+  const [avatarPatch, backgroundPatch] = await Promise.all([
+    resolvePhotoPatch(user.id, avatar, "avatar"),
+    resolvePhotoPatch(user.id, profileBackground, "background"),
   ]);
 
-  if (isScoped.includes(false)) {
-    return apiError("invalid_request");
+  if (avatarPatch === "unprocessable" || backgroundPatch === "unprocessable") {
+    return apiError("unprocessable");
   }
 
-  const update = await updateUserProfile({ userId: user.id, ...body.data });
+  const update = await getDb().transaction(async (tx) => {
+    const avatarMediaId = await toMediaId(tx, avatarPatch);
+    const profileBackgroundMediaId = await toMediaId(tx, backgroundPatch);
+
+    if (avatarMediaId === "reclaimed" || profileBackgroundMediaId === "reclaimed") {
+      return "reclaimed" as const;
+    }
+
+    return updateUserProfile(tx, {
+      userId: user.id,
+      nickname,
+      avatarMediaId,
+      profileBackgroundMediaId,
+      typingIndicatorEnabled,
+    });
+  });
+
+  if (update === "reclaimed") {
+    return apiError("unprocessable");
+  }
 
   if (!update) {
     return apiError("not_found");
@@ -65,12 +99,34 @@ export async function PATCH(request: Request) {
   return NextResponse.json({ user: update.participant });
 }
 
-async function isOwnedInScope(
-  mediaId: Maybe<MediaId>,
-  userId: UserId,
+/** `undefined` keeps the current photo; `null` is 기본 이미지로/없애기; a validated upload registers a fresh one. */
+type PhotoPatch = Optional<Nullable<ValidatedMedia>> | "unprocessable";
+
+async function resolvePhotoPatch(
+  ownerId: UserId,
+  upload: Optional<Nullable<z.infer<typeof mediaUploadSchema>>>,
   scope: "avatar" | "background",
-): Promise<boolean> {
-  return !mediaId || ownsAllMedia([mediaId], userId, scope);
+): Promise<PhotoPatch> {
+  if (upload === undefined || upload === null) {
+    return upload;
+  }
+
+  const validated = await validateMediaUpload({ ownerId, upload, scope });
+
+  return validated ?? "unprocessable";
+}
+
+async function toMediaId(
+  tx: DbTransaction,
+  patch: Exclude<PhotoPatch, "unprocessable">,
+): Promise<Optional<Nullable<MediaId>> | "reclaimed"> {
+  if (patch === undefined || patch === null) {
+    return patch;
+  }
+
+  const written = await insertMedia(tx, patch);
+
+  return written?.id ?? "reclaimed";
 }
 
 /**
@@ -80,11 +136,10 @@ async function isOwnedInScope(
  * and a retry uploaded a second photo.
  *
  * WARN: REQUIREMENTS.md § 12.2. The cover goes through `discardUnwornScopedMedia`,
- * which carries the guard inside its DELETE. `ownsAllMedia` admits any `background/`
- * object its owner holds, so a crafted patch can aim this column at the shared
- * wallpaper — and taking the replaced id at face value would then delete the photo
- * the room is still drawn from. The avatar needs no such guard: its scope is
- * `avatar/`, which no other column will accept.
+ * which carries the guard inside its DELETE. A crafted patch could otherwise aim
+ * this column at the shared wallpaper, and taking the replaced id at face value
+ * would then delete the photo the room is still drawn from. The avatar needs no
+ * such guard: its scope is `avatar/`, which no other column will accept.
  *
  * INFO: Concurrent, because the two touch different rows and different key prefixes.
  * Only the background leg pays for the guard, and it pays inside its own leg.

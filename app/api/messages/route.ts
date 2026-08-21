@@ -1,5 +1,5 @@
 import { getEmoticonItem } from "@/entities/emoticon";
-import { ownsAllMedia } from "@/entities/media";
+import { mediaUploadSchema, validateMediaUpload, type ArchiveMedia } from "@/entities/media";
 import {
   areInlineEmoticonsKnown,
   countUnreadMessages,
@@ -32,13 +32,13 @@ import {
   toMessageSummary,
   toSoloInlineEmoticonId,
 } from "@/shared/config";
+import type { User } from "@/shared/db";
 import {
   safelyRunAsync,
   type EmoticonItemId,
-  type MediaId,
   type MessageId,
+  type Nullable,
   type Optional,
-  type UserId,
 } from "@/shared/lib";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
@@ -79,9 +79,10 @@ const bodySchema = z.union([
         inlineEmoticonItemIds: body.inlineEmoticonItemIds ?? [],
       }),
     ),
+  // WARN: The finished restructure. `media`, not `mediaIds` — every attachment reaching this route is a fresh R2 object, so it is registered and attached inside the same transaction the message is created by (`createMediaMessage`) rather than trusted as an id from an earlier registration.
   replySchema.extend({
     clientMsgId: z.uuid(),
-    mediaIds: z.array(snowflakeSchema<MediaId>()).min(1).max(MAX_MEDIA_PER_MESSAGE),
+    media: z.array(mediaUploadSchema).min(1).max(MAX_MEDIA_PER_MESSAGE),
   }),
   // INFO: REQUIREMENTS.md § 13.6. One id and nothing else — an emoticon carries no caption of its own.
   replySchema.extend({
@@ -137,12 +138,7 @@ export async function POST(request: Request) {
 
   const payload = body.data;
 
-  // INFO: The ids are only shaped by the schema above. `createMediaMessage` attaches them behind a foreign key, so an unregistered one would leave the route as a 500 rather than the 400 every other bad body gets.
-  if ("mediaIds" in payload && !(await ownsAllMedia(payload.mediaIds, user.id, "chat"))) {
-    return apiError("invalid_request");
-  }
-
-  // INFO: `messages.emoticon_item_id` is a foreign key like the media ids above — a picker holding a list the other participant has since deleted (§ 13.6.) would otherwise send its way into a 500.
+  // INFO: `messages.emoticon_item_id` is a foreign key — a picker holding a list the other participant has since deleted (§ 13.6.) would otherwise send its way into a 500.
   if ("emoticonItemId" in payload && !(await getEmoticonItem(payload.emoticonItemId))) {
     return apiError("invalid_request");
   }
@@ -157,6 +153,10 @@ export async function POST(request: Request) {
     return apiError("invalid_request");
   }
 
+  if ("media" in payload) {
+    return postMediaMessage(user, payload, isShortcutShare);
+  }
+
   const message = await createMessage(user.id, payload);
 
   // INFO: The client id is already taken by a row this sender cannot claim, so echoing anything back would replace their optimistic bubble with a stranger's message.
@@ -167,7 +167,63 @@ export async function POST(request: Request) {
   // INFO: REQUIREMENTS.md § 13. The echo carries the same map a page does, so the sender's own row draws from what the server resolved rather than from whatever the composer happened to hold.
   const echo = await toSingleMessagePayload(message);
 
-  // WARN: REQUIREMENTS.md § 16.1. `after`, so the fan-out's round trips to the push services never sit between the sender and their 201. It still runs inside this invocation, on a database that is already awake — which is why push costs Neon's autosuspend nothing, unlike the cron § 16.1. rejected.
+  runAfterEffects(user, message, isShortcutShare);
+
+  return NextResponse.json(echo, { status: 201 });
+}
+
+async function postMediaMessage(
+  user: User,
+  payload: Extract<z.infer<typeof bodySchema>, { media: unknown[] }>,
+  isShortcutShare: boolean,
+): Promise<NextResponse> {
+  const validated = await Promise.all(
+    payload.media.map((upload) => validateMediaUpload({ ownerId: user.id, upload, scope: "chat" })),
+  );
+
+  if (validated.some((item) => item === null)) {
+    return apiError("unprocessable");
+  }
+
+  const result = await createMediaMessage({
+    senderId: user.id,
+    clientMsgId: payload.clientMsgId,
+    replyToId: payload.replyToId,
+    media: validated as NonNullable<(typeof validated)[number]>[],
+  });
+
+  if (result.status !== "created") {
+    return apiError(result.status);
+  }
+
+  const echo = await toSingleMessagePayload(result.message);
+
+  runAfterEffects(user, result.message, isShortcutShare);
+
+  // WARN: REQUIREMENTS.md § 9. The rows this request just registered, in send order — the sender's `uploadDraft` never got an id from a separate registration, so it takes this one to draw its own gallery tile and to map an upload slot back to the id `message_media` attached it under.
+  return NextResponse.json(
+    { ...echo, media: result.media satisfies ArchiveMedia[] },
+    { status: 201 },
+  );
+}
+
+async function canReplyTo(replyToId: Optional<MessageId>): Promise<boolean> {
+  return replyToId === undefined || isQuotable(replyToId);
+}
+
+function createMessage(
+  senderId: User["id"],
+  payload: Exclude<z.infer<typeof bodySchema>, { media: unknown[] }>,
+): Promise<Nullable<ChatMessage>> {
+  if ("text" in payload) {
+    return createTextMessage({ senderId, ...payload });
+  }
+
+  return createEmoticonMessage({ senderId, ...payload });
+}
+
+// WARN: REQUIREMENTS.md § 16.1. `after`, so the fan-out's round trips to the push services never sit between the sender and their 201. It still runs inside this invocation, on a database that is already awake — which is why push costs Neon's autosuspend nothing, unlike the cron § 16.1. rejected.
+function runAfterEffects(user: User, message: ChatMessage, isShortcutShare: boolean): void {
   after(() => safelyRunAsync(() => notifyMessageRecipients(user, toPushBody(message))));
 
   if (isShortcutShare) {
@@ -182,24 +238,6 @@ export async function POST(request: Request) {
       }),
     );
   }
-
-  return NextResponse.json(echo, { status: 201 });
-}
-
-async function canReplyTo(replyToId: Optional<MessageId>): Promise<boolean> {
-  return replyToId === undefined || isQuotable(replyToId);
-}
-
-function createMessage(senderId: UserId, payload: z.infer<typeof bodySchema>) {
-  if ("text" in payload) {
-    return createTextMessage({ senderId, ...payload });
-  }
-
-  if ("mediaIds" in payload) {
-    return createMediaMessage({ senderId, ...payload });
-  }
-
-  return createEmoticonMessage({ senderId, ...payload });
 }
 
 // INFO: A notification has no room for a thumbnail, so an attachment is announced by kind. `사진` covers a mixed send too — naming both would read as a manifest.

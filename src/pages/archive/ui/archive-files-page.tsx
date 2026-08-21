@@ -62,8 +62,6 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
     acceptsFiles: true,
     isBlocked: selection.isSelecting,
     onAdded: prepend,
-    // INFO: § 18. #1. An upload whose bubble never landed is on no shelf, so its row comes back off rather than sitting there as one `isInLibrary()` refuses.
-    onStranded: remove,
   });
   const selectedCount = selection.selectedIds.length;
   const uploadGate = useOfflineGate(OFFLINE_MESSAGES.upload);

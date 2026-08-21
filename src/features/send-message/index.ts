@@ -1,6 +1,6 @@
 // INFO: REQUIREMENTS.md § 10. The library posts what it uploaded without a composer to stage it in, so it reaches the endpoint directly rather than through `useSendMessage`'s optimistic queue.
 export { postMessage, type PostMessageParams } from "./api/post-message";
-// INFO: REQUIREMENTS.md § 9.1. The bubble split is the server's rule (`ownsAllMedia`), so 보관함's own post path takes it from here rather than restating it.
+// INFO: REQUIREMENTS.md § 9.1. The bubble split is the server's rule, so 보관함's own post path takes it from here rather than restating it.
 export { toBubbles, toDraftKind, type DraftKind } from "./model/to-bubbles";
 // INFO: REQUIREMENTS.md § 8.14. The menu digits are the room's, because whether the panel is on screen at all is its state — so the room needs the bar's own order to read them by.
 export { EMOTICON_MENUS, type EmoticonMenu } from "./model/emoticon-tabs";
