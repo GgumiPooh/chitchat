@@ -1389,7 +1389,7 @@ export function ChatRoom({
               <MediaTray
                 className="mx-md mt-xs mb-2xs"
                 drafts={selection.drafts}
-                isReading={selection.isReading}
+                pendingCount={selection.pendingCount}
                 onEdit={editing.open}
                 onRemove={selection.remove}
               />
@@ -1449,6 +1449,7 @@ export function ChatRoom({
             <MessageComposer
               className={cn(isComposerYielded && "hidden")}
               hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
+              isStaging={selection.pendingCount > 0}
               isEmoticonPickerOpen={isEmoticonPanelOpen}
               keywordConsumeToken={keywordConsumeToken}
               seededDraft={seededDraft}
@@ -2141,6 +2142,8 @@ export function ChatRoom({
             inlineEmoticons={toInlineEmoticonMap(row.pending.inlineEmoticons)}
             replyTo={row.pending.replyTo}
             progress={row.pending.progress}
+            encodingIndex={row.pending.encodingIndex}
+            encodeProgress={row.pending.encodeProgress}
             createdAt={row.pending.createdAt}
             sender={participantById.get(currentUserId)}
             isMine

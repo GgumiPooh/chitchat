@@ -101,6 +101,8 @@ export type MessageComposerProps = {
   fieldClassName?: string;
   /** Attachments and a staged emoticon both sit above the composer, so send stays available on an empty field. */
   hasAttachments?: boolean;
+  /** REQUIREMENTS.md § 9.1. Files still being decoded into the tray — the send is held until they land, never sent around them. */
+  isStaging?: boolean;
   isEmoticonPickerOpen?: boolean;
   /**
    * REQUIREMENTS.md § 13.8. Bumped by the room when an emoticon found this way is
@@ -186,6 +188,7 @@ export function MessageComposer({
   className,
   fieldClassName,
   hasAttachments = false,
+  isStaging = false,
   isEmoticonPickerOpen = false,
   keywordConsumeToken,
   seededDraft,
@@ -262,7 +265,8 @@ export function MessageComposer({
   const isFinePointer = useIsFinePointer();
   const hasDraft = draft.text.trim().length > 0;
   // INFO: REQUIREMENTS.md § 8.13. An edit sends text and only text, so a tray left staged behind the mode cannot arm the button — emptying the field has to disable it, or the correction would submit nothing.
-  const canSend = hasDraft || (hasAttachments && !isEditing);
+  // WARN: Held while a pick is still decoding, the way 보관함's own 대화에 보내기 is (`useShelfStaging`'s `isHeld`). Sent around them, `takeAll` empties a tray the remaining decodes then refill — the sender gets four of nine photos out and five back in the composer.
+  const canSend = (hasDraft || (hasAttachments && !isEditing)) && !isStaging;
   // INFO: § 13.8. Hidden packs count here, exactly as they do in the panel's search — the underline offers a word the search can answer, and the search looks across the whole library.
   // INFO: § 13.8. Deduplicated by the `DISTINCT` that produced it, so there is no `Set` to build — `findKeywordMatch` only ever iterates what it is given.
   // WARN: § 13.6. A cache read and never a fetch. This component mounts with the room, so an enabled query put `?keywords=1` on every room entry — the path `useEmoticonPreload` was written to keep clear; that hook warms this same descriptor from its idle callback and the underline appears when it lands.

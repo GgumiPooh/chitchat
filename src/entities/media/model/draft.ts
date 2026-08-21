@@ -1,3 +1,4 @@
+import type { ThumbnailMime } from "@/shared/config";
 import type { Nullable } from "@/shared/lib";
 
 /**
@@ -12,6 +13,16 @@ export type MediaDraft = {
   // INFO: REQUIREMENTS.md § 9. Uploaded alongside the original as `{key}_thumb`; for a video it is the poster frame.
   // INFO: § 9.1. Null for a file attachment, which has nothing to render a thumbnail from — the pair of PUTs is a single one there.
   thumbnail: Nullable<Blob>;
+  /**
+   * REQUIREMENTS.md § 9. What `thumbnail` was actually encoded as, and what the
+   * upload ticket is asked to sign the `_thumb` PUT for.
+   *
+   * WARN: Carried rather than assumed, because AVIF is not always what comes out —
+   * an engine with no AVIF encoder falls back to JPEG, and a presigned PUT pins
+   * `Content-Type`, so a fallback that went unreported would store JPEG bytes under
+   * an AVIF signature.
+   */
+  thumbnailMime: Nullable<ThumbnailMime>;
   previewUrl: Nullable<string>;
   mime: string;
   width: number;

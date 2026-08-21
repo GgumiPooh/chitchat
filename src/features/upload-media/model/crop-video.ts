@@ -8,10 +8,12 @@ import {
   Mp4OutputFormat,
   Output,
   QTFF,
+  Quality,
   WEBM,
   type CropRectangle,
 } from "mediabunny";
 import { fitWithin } from "./canvas";
+import { bitrateCeilingFor } from "./optimize-video";
 
 // INFO: REQUIREMENTS.md § 12.1. MP4 whatever the source was, for `trimVideo`'s reason — it is the one container every browser the app runs in plays back.
 const CROPPED_MIME = "video/mp4";
@@ -42,7 +44,14 @@ export async function cropVideo(file: File, crop: CropRectangle): Promise<File> 
     output,
     audio: { discard: true },
     // WARN: `fit: "fill"` and not `cover`. The box below is the crop's own aspect ratio, so there is nothing to letterbox or to trim off — but `cover` would re-crop a box that rounding left a pixel out of.
-    video: { crop, width: size.width, height: size.height, fit: "fill" },
+    // INFO: § 9. The same ceiling an attachment is cut to — this is already a full re-encode, so bounding the bitrate costs nothing further.
+    video: {
+      crop,
+      width: size.width,
+      height: size.height,
+      fit: "fill",
+      quality: new Quality({ bitrate: bitrateCeilingFor(Math.max(size.width, size.height)) }),
+    },
   });
 
   // INFO: `trimVideo`'s check. A source whose video track this browser cannot decode is reported rather than thrown as an opaque failure.

@@ -53,8 +53,9 @@ export const config = {
   // WARN: So must `sw.js` — the browser fetches the worker without following redirects, so gating it fails registration outright and silently takes push with it (§ 16.1.).
   // WARN: And so must `offline` — it is what the worker answers a failed navigation with, so gating it would redirect the fallback to a `/login` that is equally unreachable (§ 16.).
   // WARN: The exclusions above are anchored at the first segment, so they do not cover the multi-zone's copies of them — `emoticons/_next` and `emoticons/api` are named again or every asset that zone serves runs through this gate and redirects to `/login` while signed out (§ 13.7.).
+  // WARN: `ffmpeg` is § 9.'s wasm core, fetched by `toBlobURL` — gated, an expired session answers the `/login` HTML with a 200 that gets wrapped as the wasm and handed to ffmpeg. Both zones' copies are named, for the multi-zone reason above.
   // INFO: `/emoticons` pages are deliberately left in. The gate belongs on this side of the rewrite: answering the redirect here saves a round trip to the other origin only to be sent back.
   matcher: [
-    "/((?!api|emoticons/_next|emoticons/api|_next/static|_next/image|icons|favicon.ico|icon.svg|robots.txt|sw.js|offline|manifest.webmanifest).*)",
+    "/((?!api|emoticons/_next|emoticons/api|emoticons/ffmpeg|ffmpeg|_next/static|_next/image|icons|favicon.ico|icon.svg|robots.txt|sw.js|offline|manifest.webmanifest).*)",
   ],
 };

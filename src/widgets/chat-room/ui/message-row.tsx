@@ -69,6 +69,10 @@ export type MessageRowProps = {
   replyToName?: Optional<string>;
   /** `0`–`1` while attachments upload. Ignored for a text message. */
   progress?: number;
+  /** DESIGN.md § 6.5.1. The `media` index currently re-encoding, paired with `encodeProgress`. */
+  encodingIndex?: Nullable<number>;
+  /** `0`–`1` for the cell at `encodingIndex`. Ignored unless that index is set. */
+  encodeProgress?: Nullable<number>;
   createdAt: string;
   sender: Optional<Participant>;
   isMine: boolean;
@@ -112,6 +116,8 @@ export function MessageRow({
   replyTo,
   replyToName,
   progress = 1,
+  encodingIndex = null,
+  encodeProgress = null,
   createdAt,
   sender,
   isMine,
@@ -279,6 +285,8 @@ export function MessageRow({
                 cells={media}
                 progress={progress}
                 isPending={status !== "sent"}
+                encodingIndex={encodingIndex}
+                encodeProgress={encodeProgress}
                 onOpen={onOpenMedia}
               />
             </div>

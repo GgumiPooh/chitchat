@@ -194,6 +194,7 @@ export {
   CHAT_MEDIA_PATH,
   CHAT_MEDIA_TRACK_SPAN,
   FALLBACK_FILE_MIME,
+  IS_UPLOAD_OPTIMIZATION_ENABLED,
   LIBRARY_SHELF_LABELS,
   LIBRARY_SHELVES,
   MAX_ARCHIVE_PAGE_SIZE,
@@ -222,6 +223,7 @@ export {
   SHELF_KINDS,
   STORAGE_RESERVATION_TTL,
   THUMBNAIL_MIME,
+  THUMBNAIL_MIMES,
   UPLOAD_CONCURRENCY,
   UPLOAD_URL_EXPIRY,
   VISUAL_KINDS,
@@ -230,6 +232,7 @@ export {
   isAudioMime,
   isFileMime,
   isImageMime,
+  isThumbnailMime,
   isVideoMime,
   isWearableBackgroundVideo,
   maxSizeForMime,
@@ -252,6 +255,7 @@ export {
   type MediaScope,
   type MediaUploadScope,
   type MediaVariant,
+  type ThumbnailMime,
 } from "./media";
 export {
   OBJECT_PLACEHOLDER,

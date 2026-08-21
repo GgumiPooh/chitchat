@@ -26,6 +26,10 @@ export type MediaGridProps = {
   /** `0`–`1` while the bubble uploads; `1` once every byte has landed. */
   progress?: number;
   isPending?: boolean;
+  /** DESIGN.md § 6.5.1. The cell currently re-encoding, paired with `encodeProgress`. `null` outside that phase, e.g. once its upload has started or for a bubble of stills, which never encode. */
+  encodingIndex?: Nullable<number>;
+  /** `0`–`1` for the cell at `encodingIndex`. Ignored unless that index is set. */
+  encodeProgress?: Nullable<number>;
   /**
    * INFO: DESIGN.md § 4.7.3. `origin` is the cell's own box, which the viewer's opening morph expands out of. A file card passes none — it saves rather than opening a viewer.
    */
@@ -38,6 +42,8 @@ export function MediaGrid({
   cells,
   progress = 1,
   isPending = false,
+  encodingIndex = null,
+  encodeProgress = null,
   onOpen,
 }: MediaGridProps) {
   if (cells.length === 0) {
@@ -50,8 +56,9 @@ export function MediaGrid({
       style={{ width: MAX_EDGE }}
     >
       {renderCells()}
-      {isPending && progress < 1 && (
+      {isPending && progress < 1 && encodeProgress === null && (
         // INFO: The one progress affordance in the chat column. DESIGN.md § 6.5. dims an optimistic bubble rather than spinning it, so this reads as the dimmed bubble filling in.
+        // INFO: DESIGN.md § 6.5.1. Withheld while `encodeProgress` is set — the centred percentage over the encoding cell is the phase's own indicator, and the byte bar would otherwise sit at 0% beside it.
         <div className="absolute inset-x-0 bottom-0 h-1 bg-scrim/45">
           <div
             className="h-full bg-primary transition-[width] duration-200"
@@ -128,7 +135,7 @@ export function MediaGrid({
             // WARN: DESIGN.md § 3.2. Without it the hold on a bubble starts iOS's own image drag before the § 8.11. sheet can open.
             draggable={false}
           />
-          {renderVideoOverlay(cell)}
+          {renderVideoOverlay(cell, 0)}
         </span>
       </button>
     );
@@ -169,7 +176,7 @@ export function MediaGrid({
                 alt=""
                 draggable={false}
               />
-              {renderVideoOverlay(cell)}
+              {renderVideoOverlay(cell, index)}
             </button>
           ),
         )}
@@ -177,7 +184,17 @@ export function MediaGrid({
     );
   }
 
-  function renderVideoOverlay(cell: MediaCell) {
+  function renderVideoOverlay(cell: MediaCell, index: number) {
+    // WARN: Ahead of the `isVideo` gate, not inside it — an animated image re-encodes too (§ 9.), and gated on video it drew no indicator at all while the byte bar below stayed withheld.
+    if (encodingIndex === index && encodeProgress !== null) {
+      // INFO: DESIGN.md § 6.5.1. Replaces the play glyph rather than joining it — a draft mid-encode has nothing playable yet, and the two would otherwise compete for the same centre.
+      return (
+        <span className="absolute inset-0 flex items-center justify-center bg-scrim/45">
+          <span className="text-title-md text-on-scrim">{Math.round(encodeProgress * 100)}%</span>
+        </span>
+      );
+    }
+
     if (!cell.isVideo) {
       return null;
     }

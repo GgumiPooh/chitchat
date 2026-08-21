@@ -2,6 +2,8 @@ import type { MediaDraft, MediaUpload } from "@/entities/media";
 import { request } from "@/shared/api";
 import { MEDIA_UPLOAD_URL_PATH, type MediaUploadScope } from "@/shared/config";
 import { holdAwake, type Nullable } from "@/shared/lib";
+import { optimizeDraft } from "../model/optimize-draft";
+import type { EncodeProgress } from "../model/optimize-result";
 
 type UploadTicket = {
   r2Key: string;
@@ -17,6 +19,10 @@ export type UploadDraftOptions = {
   // INFO: REQUIREMENTS.md § 12. The key prefix the object lands under, which is also what its registration is authorized against.
   scope?: MediaUploadScope;
   onProgress?: UploadProgress;
+  // INFO: § 9. The re-encode that precedes the PUT, reported separately because it is its own phase — the bar below counts bytes reaching R2, which have not started moving yet.
+  onEncodeProgress?: EncodeProgress;
+  // WARN: § 9. What will actually be PUT, once the re-encode has settled it. `onProgress` counts bytes against this and not against the draft, so a caller totalling drafts would leave the bar stuck at the compression ratio.
+  onUploadSize?: (bytes: number) => void;
 };
 
 const NO_PROGRESS: UploadProgress = () => {};
@@ -30,15 +36,27 @@ const NO_PROGRESS: UploadProgress = () => {};
  */
 export async function uploadDraft(
   draft: MediaDraft,
-  { scope = "chat", onProgress = NO_PROGRESS }: UploadDraftOptions = {},
+  {
+    scope = "chat",
+    onProgress = NO_PROGRESS,
+    onEncodeProgress,
+    onUploadSize,
+  }: UploadDraftOptions = {},
 ): Promise<MediaUpload> {
   // WARN: REQUIREMENTS.md § 8.4.1. Held here rather than at each caller, because a dormancy landing between the PUT and the consumer request that references its key would leave an object in R2 with no reservation left to retry against.
   const release = holdAwake();
 
   try {
-    const ticket = await requestTicket(draft, scope);
+    // WARN: Before the ticket, not after. The ticket is signed against the mime and size of what is actually uploaded, so a re-encode that ran afterwards would be refused by R2 on the signature.
+    const optimized = await optimizeDraft(draft, scope, onEncodeProgress);
 
-    await putWithProgress(ticket.uploadUrl, draft.file, draft.mime, onProgress);
+    onUploadSize?.(optimized.file.size);
+
+    // WARN: `draft.mime` whenever the optimizer handed the original back — `File.type` is routinely empty for a pick the OS had no type for, and `toStoredMime` resolved that from the name at the pick. Signing the raw type instead 400s the ticket and fails the send outright.
+    const uploadMime = optimized.file === draft.file ? draft.mime : optimized.file.type;
+    const ticket = await requestTicket(uploadMime, optimized.file.size, draft, scope);
+
+    await putWithProgress(ticket.uploadUrl, optimized.file, uploadMime, onProgress);
 
     // INFO: No progress for the thumbnail — it is a few tens of KB against an original measured in MB, so it would only make the bar jump.
     if (draft.thumbnail && ticket.thumbnailUploadUrl && ticket.thumbnailMime) {
@@ -52,12 +70,15 @@ export async function uploadDraft(
 
     return {
       r2Key: ticket.r2Key,
-      width: draft.width,
-      height: draft.height,
+      // INFO: § 8.3. The optimizer's box wins whenever it re-encoded, since the row has to record the resolution the stored object actually has.
+      width: optimized.width ?? draft.width,
+      height: optimized.height ?? draft.height,
       durationMs: draft.durationMs,
       // INFO: REQUIREMENTS.md § 9. Encoded from the very thumbnail the PUT above uploaded, so the placeholder and the object it stands in for cannot disagree.
       blurhash: draft.blurhash,
-      filename: draft.filename,
+      // WARN: § 9.1. The optimizer's name whenever it replaced the file — `optimizeAudio` writes AAC/MP4 out as `.m4a`, and the draft still holds the `.mp3` the user picked, which is the name 보관함 would list and 저장 would hand over.
+      filename:
+        draft.filename && optimized.file !== draft.file ? optimized.file.name : draft.filename,
       // INFO: REQUIREMENTS.md § 9.3. Already in the wire form the column stores — a draft carries integers, and only what renders converts to `0`–`1`.
       waveformPeaks: draft.waveformPeaks,
     };
@@ -66,11 +87,22 @@ export async function uploadDraft(
   }
 }
 
-async function requestTicket(draft: MediaDraft, scope: MediaUploadScope): Promise<UploadTicket> {
+async function requestTicket(
+  mime: string,
+  size: number,
+  draft: MediaDraft,
+  scope: MediaUploadScope,
+): Promise<UploadTicket> {
   const response = await request(MEDIA_UPLOAD_URL_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mime: draft.mime, size: draft.file.size, scope }),
+    // WARN: `thumbnailMime` is what the browser actually encoded, and the ticket signs the `_thumb` PUT for it — omitting it takes the § 9. JPEG default, which is what an engine with no AVIF encoder produced.
+    body: JSON.stringify({
+      mime,
+      size,
+      scope,
+      ...(draft.thumbnailMime ? { thumbnailMime: draft.thumbnailMime } : {}),
+    }),
   });
 
   if (!response.ok) {

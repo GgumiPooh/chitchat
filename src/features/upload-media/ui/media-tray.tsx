@@ -10,7 +10,8 @@ export type MediaTrayProps = {
   className?: string;
   drafts: MediaDraft[];
   /** A pick is still being decoded — its tiles do not exist yet (REQUIREMENTS.md § 18. #10). */
-  isReading?: boolean;
+  /** How many picked files are still decoding — one placeholder is drawn per file, never one for the whole pick. */
+  pendingCount?: number;
   onEdit: (draft: MediaDraft) => void;
   onRemove: (id: string) => void;
 };
@@ -20,8 +21,14 @@ export type MediaTrayProps = {
  * control, and a photo or a video an edit one — a photo crops and filters, a video
  * trims. A file has neither editor and nothing to draw (REQUIREMENTS.md § 9.1.).
  */
-export function MediaTray({ className, drafts, isReading, onEdit, onRemove }: MediaTrayProps) {
-  if (drafts.length === 0 && !isReading) {
+export function MediaTray({
+  className,
+  drafts,
+  pendingCount = 0,
+  onEdit,
+  onRemove,
+}: MediaTrayProps) {
+  if (drafts.length === 0 && pendingCount === 0) {
     return null;
   }
 
@@ -49,8 +56,10 @@ export function MediaTray({ className, drafts, isReading, onEdit, onRemove }: Me
           </button>
         </div>
       ))}
-      {/* INFO: Decoding is serial and a large pick takes seconds, so the tray shows the wait rather than staying empty until the last file lands. */}
-      {isReading && <Skeleton className="size-16 shrink-0 rounded-sm" />}
+      {/* INFO: Decoding is serial and a large pick takes seconds, so the tray shows the whole wait rather than staying empty until the last file lands. */}
+      {Array.from({ length: pendingCount }, (_, index) => (
+        <Skeleton key={index} className="size-16 shrink-0 rounded-sm" />
+      ))}
     </div>
   );
 

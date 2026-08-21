@@ -1,14 +1,15 @@
 import type { MediaDraft } from "@/entities/media";
 import { ensure } from "@/shared/lib";
 import {
+  EDITED_AVIF_QUALITY,
   EDITED_MAX_EDGE,
-  OUTPUT_MIME,
+  STILL_IMAGE_MAX_EDGE,
   createCanvas,
+  encodeCanvas,
   fitWithin,
   loadImage,
   renderThumbnail,
   supportsCanvasFilter,
-  toBlob,
   toExtension,
 } from "./canvas";
 import { DEFAULT_FILTER, type MediaFilter } from "./filters";
@@ -31,7 +32,7 @@ export type CropArea = {
  */
 export type ApplyEditOptions = {
   filter?: MediaFilter;
-  // INFO: REQUIREMENTS.md § 13.4. `image/png` for an emoticon, so the crop keeps its alpha; chat keeps the default JPEG.
+  // WARN: REQUIREMENTS.md § 13.4. Set by the emoticon editor alone, to `image/png` so the crop keeps its alpha — every other caller leaves it unset and takes the § 9. still-image format, which is AVIF wherever the browser can encode one.
   outputMime?: string;
   maxEdge?: number;
 };
@@ -39,17 +40,14 @@ export type ApplyEditOptions = {
 export async function applyEdit(
   draft: MediaDraft,
   crop: CropArea,
-  {
-    filter = DEFAULT_FILTER,
-    outputMime = OUTPUT_MIME,
-    maxEdge = EDITED_MAX_EDGE,
-  }: ApplyEditOptions = {},
+  { filter = DEFAULT_FILTER, outputMime, maxEdge = STILL_IMAGE_MAX_EDGE }: ApplyEditOptions = {},
 ): Promise<MediaDraft> {
   const sourceUrl = URL.createObjectURL(draft.file);
 
   try {
     const image = await loadImage(sourceUrl);
-    const size = fitWithin(crop.width, crop.height, maxEdge);
+    // WARN: `EDITED_MAX_EDGE` is applied over whatever the caller asked for, never instead of it — it is the iOS canvas-pixel ceiling, so a caller's own cap may be smaller but must never exceed it.
+    const size = fitWithin(crop.width, crop.height, Math.min(maxEdge, EDITED_MAX_EDGE));
     const canvas = createCanvas(size.width, size.height);
     const context = ensure(canvas.getContext("2d"), "2d context unavailable");
 
@@ -69,20 +67,23 @@ export async function applyEdit(
       size.height,
     );
 
-    const blob = await toBlob(canvas, false, outputMime);
-    const { blob: thumbnail, blurhash } = await renderThumbnail(
-      canvas,
-      size.width,
-      size.height,
-      outputMime,
-    );
+    // WARN: § 13.4. A named mime is the **fallback**, not the target — the emoticon editor names PNG so a failed AVIF keeps its alpha, and a crop that forced PNG outright would undo the AVIF the pick had already produced.
+    const edited = await encodeCanvas(canvas, EDITED_AVIF_QUALITY, false, outputMime);
+    const {
+      blob: thumbnail,
+      blurhash,
+      mime: thumbnailMime,
+    } = await renderThumbnail(canvas, size.width, size.height, outputMime);
 
     return {
       id: draft.id,
-      file: new File([blob], toEditedName(draft.file.name, outputMime), { type: outputMime }),
+      file: new File([edited.blob], toEditedName(draft.file.name, edited.mime), {
+        type: edited.mime,
+      }),
       thumbnail,
+      thumbnailMime,
       previewUrl: URL.createObjectURL(thumbnail),
-      mime: outputMime,
+      mime: edited.mime,
       width: size.width,
       height: size.height,
       durationMs: null,

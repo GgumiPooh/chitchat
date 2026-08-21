@@ -125,6 +125,8 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
             {staging.remainingCount > 0 && (
               <p className="text-center text-body-sm text-meta">
                 {staging.remainingCount}개를 더 올리는 중이에요
+                {staging.encodeProgress !== null &&
+                  ` · 압축 ${Math.round(staging.encodeProgress * 100)}%`}
               </p>
             )}
           </div>

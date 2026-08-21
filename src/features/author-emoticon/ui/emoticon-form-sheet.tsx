@@ -94,7 +94,7 @@ export function EmoticonFormSheet({
   });
   const audioPicker = useMediaPicker({
     accept: AUDIO_ACCEPT,
-    onSelect: (files) => files[0] && draft.pickAudio(files[0]),
+    onSelect: (files) => files[0] && void draft.pickAudio(files[0]),
   });
   // INFO: The animation wherever there is one, so the box shows the emoticon moving rather than the frame it was reduced to.
   const imageUrl =
@@ -143,6 +143,7 @@ export function EmoticonFormSheet({
           />
           <AudioRow
             isRecording={isRecording}
+            isReading={draft.isReading}
             fileName={
               draft.audio?.file.name ?? toExistingAudioLabel(emoticon, draft.isAudioCleared)
             }
@@ -201,7 +202,7 @@ export function EmoticonFormSheet({
   }
 
   function handleRecordingDone(recording: VoiceRecording) {
-    draft.pickAudio(recording.file);
+    void draft.pickAudio(recording.file);
   }
 
   async function submit() {
@@ -399,6 +400,7 @@ type AudioRowProps = {
   className?: string;
   fileName?: string;
   isRecording: boolean;
+  isReading: boolean;
   onPlay: () => void;
   onPick: () => void;
   onRecord: () => void;
@@ -411,6 +413,7 @@ function AudioRow({
   className,
   fileName,
   isRecording,
+  isReading,
   onPlay,
   onPick,
   onRecord,
@@ -425,7 +428,7 @@ function AudioRow({
         <div className="min-w-0 flex-1">
           <p className="text-title-sm text-ink">소리</p>
           <p className="truncate text-body-sm text-meta">
-            {fileName ?? "녹음하거나 파일을 선택해요"}
+            {isReading ? "읽는 중이에요" : (fileName ?? "녹음하거나 파일을 선택해요")}
           </p>
         </div>
         {fileName ? (

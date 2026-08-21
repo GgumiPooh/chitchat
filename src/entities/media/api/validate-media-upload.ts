@@ -4,6 +4,7 @@ import {
   isAllowedEmoticonAsset,
   isAllowedMediaMime,
   isFileMime,
+  isThumbnailMime,
   isVideoMime,
   isVoiceMime,
   isWaveformPeaks,
@@ -12,7 +13,6 @@ import {
   MAX_VOICE_SIZE,
   maxSizeForScope,
   needsThumbnail,
-  THUMBNAIL_MIME,
   toSafeFilename,
   VISUAL_KINDS,
   type MediaKind,
@@ -94,7 +94,7 @@ export async function validateMediaUpload({
     // WARN: The thumbnail is checked as strictly as the original. It is what every chat cell, grid tile and video poster loads, so an unchecked `_thumb` key is the same hole in § 14. by another name.
     headAcceptableObject(
       toThumbKey(r2Key),
-      ({ mime, size }) => mime === THUMBNAIL_MIME && size <= MAX_THUMBNAIL_SIZE,
+      ({ mime, size }) => isThumbnailMime(mime) && size <= MAX_THUMBNAIL_SIZE,
     ),
   ]);
 

@@ -47,7 +47,7 @@ export type ShelfStagingParams = {
 export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: ShelfStagingParams) {
   const staging = useMediaSelection({ acceptsFiles });
   const editing = useAttachmentEditing(staging.replace);
-  const { remainingCount, isBusy, upload } = useArchiveUpload(shelf, onAdded);
+  const { remainingCount, encodeProgress, isBusy, upload } = useArchiveUpload(shelf, onAdded);
   // WARN: REQUIREMENTS.md § 9.2. Refused under an editor as well as behind `isBlocked`. React bubbles a drop through the *component* tree, so `MediaEditor` and `VideoTrimmer` deliver one here however they are portalled — and the sheet is suppressed for exactly their duration, so the drop would land in a tray the user cannot see.
   const drop = useFileDrop({
     isEnabled: !isBlocked && !editing.isEditing,
@@ -58,6 +58,7 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
   return {
     dropHandlers: drop.handlers,
     remainingCount,
+    encodeProgress,
     isUploading: isBusy,
     add: (files: File[]) => void staging.add(files),
     /** REQUIREMENTS.md § 9.3. What the 음성 shelf's recorder hands over — a finished draft rather than a file to decode. */
@@ -105,7 +106,7 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
         <div className="space-y-md">
           <MediaTray
             drafts={staging.drafts}
-            isReading={staging.isReading}
+            pendingCount={staging.pendingCount}
             onEdit={editing.open}
             onRemove={staging.remove}
           />

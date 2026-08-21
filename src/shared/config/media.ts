@@ -200,6 +200,21 @@ export const MAX_ARCHIVE_SHARE_FILES = 20;
 // WARN: Read from `Content-Length` before a body is buffered, so the ceiling holds even when the count does not — twenty 4K videos are not twenty photos.
 export const MAX_ARCHIVE_SHARE_BYTES = 200 * A_MEGABYTE;
 
+/**
+ * Whether an attachment is re-encoded in the browser before the § 9. upload.
+ *
+ * WARN: Default **on**, the polarity `IS_SSE_IDLE_SLEEP_ENABLED` was chosen for —
+ * a variable forgotten in a new environment has to leave the saving in place. Only
+ * `false`, `0` or `off` turn it off.
+ *
+ * WARN: `NEXT_PUBLIC_` and read as a literal member access. Next inlines these at
+ * build time, so a computed lookup resolves to `undefined` in the browser bundle
+ * and the switch would silently read as on everywhere.
+ */
+export const IS_UPLOAD_OPTIMIZATION_ENABLED = !["false", "0", "off"].includes(
+  (process.env.NEXT_PUBLIC_UPLOAD_OPTIMIZATION ?? "").trim().toLowerCase(),
+);
+
 // INFO: REQUIREMENTS.md § 14. iPhone ProRAW tops out around 50MB and a panorama around 15MB, so nothing from the camera roll is refused.
 export const MAX_IMAGE_SIZE = 50 * A_MEGABYTE;
 
@@ -323,8 +338,29 @@ export const STORAGE_RESERVATION_TTL = A_DAY;
  */
 export const MEDIA_DELETE_GRACE = 5 * A_MINUTE;
 
-// INFO: The thumbnail is always JPEG — `canvas.toBlob` is the one encoder every iOS version implements, and both a resized photo and a video's poster frame go through it.
-export const THUMBNAIL_MIME = "image/jpeg";
+/**
+ * What a `_thumb` sibling may be stored as, and what one is stored as when the
+ * uploader does not say.
+ *
+ * WARN: The uploader **declares** which of these it produced, and the ticket is
+ * signed for that type — a presigned PUT pins `Content-Type`, so the two cannot be
+ * decided in different places. Deciding it server-side alone is what makes a stale
+ * client dangerous: a cached PWA still encoding JPEG would PUT those bytes under an
+ * AVIF signature and store a broken thumbnail under the key every cell loads.
+ *
+ * WARN: JPEG is the default for that same reason, not a preference — it is what a
+ * client predating the declaration sends, and what one whose engine cannot encode
+ * AVIF falls back to.
+ */
+export const THUMBNAIL_MIMES = ["image/avif", "image/jpeg"] as const;
+
+export type ThumbnailMime = (typeof THUMBNAIL_MIMES)[number];
+
+export const THUMBNAIL_MIME: ThumbnailMime = "image/jpeg";
+
+export function isThumbnailMime(mime: string): mime is ThumbnailMime {
+  return (THUMBNAIL_MIMES as readonly string[]).includes(mime);
+}
 
 // WARN: REQUIREMENTS.md § 14. holds for the `_thumb` sibling too — R2 enforces nothing on a presigned PUT, so without this a client could park anything of any size at the key every chat cell and grid tile loads. A 720px JPEG at quality 0.82 is a small fraction of this.
 export const MAX_THUMBNAIL_SIZE = 4 * A_MEGABYTE;

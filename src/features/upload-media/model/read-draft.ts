@@ -90,6 +90,7 @@ export function toVoiceDraft({ file, mime, durationMs, peaks }: VoiceRecording):
     id: randomId(),
     file,
     thumbnail: null,
+    thumbnailMime: null,
     previewUrl: URL.createObjectURL(file),
     mime,
     // INFO: § 9.3. Fixed 56px height (DESIGN.md § 6.5.), so there is no ratio for § 8.3. to reserve and the row stores zeroes whatever this said.
@@ -109,6 +110,7 @@ function toFileDraft(file: File, mime: string): MediaDraft {
     id: randomId(),
     file,
     thumbnail: null,
+    thumbnailMime: null,
     previewUrl: null,
     mime,
     // INFO: § 9.1. The card is a fixed height (DESIGN.md § 6.5.), so § 8.3.'s estimate needs no dimensions from here — and the row stores zeroes whatever this said.
@@ -128,12 +130,17 @@ async function toImageDraft(file: File): Promise<MediaDraft> {
   try {
     const image = await loadImage(sourceUrl);
     const { naturalHeight: height, naturalWidth: width } = image;
-    const { blob: thumbnail, blurhash } = await renderThumbnail(image, width, height);
+    const {
+      blob: thumbnail,
+      blurhash,
+      mime: thumbnailMime,
+    } = await renderThumbnail(image, width, height);
 
     return {
       id: randomId(),
       file,
       thumbnail,
+      thumbnailMime,
       previewUrl: URL.createObjectURL(thumbnail),
       // WARN: The resolved type, never the raw `File.type`. A typeless file now reaches this branch on the strength of its name, and a blank mime signed into the PUT is refused at registration with the bytes already in R2.
       mime: toStoredMime(file),
@@ -161,12 +168,17 @@ async function toVideoDraft(file: File): Promise<MediaDraft> {
       throw new Error("video decode failed");
     }
 
-    const { blob: thumbnail, blurhash } = await renderThumbnail(video, width, height);
+    const {
+      blob: thumbnail,
+      blurhash,
+      mime: thumbnailMime,
+    } = await renderThumbnail(video, width, height);
 
     return {
       id: randomId(),
       file,
       thumbnail,
+      thumbnailMime,
       previewUrl: URL.createObjectURL(thumbnail),
       // WARN: The resolved type, for the reason `toImageDraft` carries — a `.mov` the OS declined to type reaches here now, and it must not be signed into the PUT as an empty string.
       mime: toStoredMime(file),

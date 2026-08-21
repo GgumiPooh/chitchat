@@ -3,13 +3,15 @@ import { EMOTICON_MAX_EDGE, isAnimatedImage, isGifImage } from "@/shared/config"
 import { A_KILOBYTE, ensure, randomId, type Nullable } from "@/shared/lib";
 import type { ApplyEditOptions } from "./apply-edit";
 import {
+  EDITED_AVIF_QUALITY,
   TRANSPARENT_OUTPUT_MIME,
   createCanvas,
+  encodeCanvas,
   fitWithin,
   loadImage,
-  toBlob,
   toExtension,
 } from "./canvas";
+import { optimizeAnimation } from "./optimize-animation";
 import { revokePreview } from "./revoke-preview";
 
 /** What `MediaEditor` must be given so an emoticon crop keeps its alpha (REQUIREMENTS.md § 13.4.). */
@@ -42,10 +44,11 @@ export type EmoticonImageDrafts = {
  * type. A `.webp` and a `.gif` are each legal for one frame, and an APNG arrives as
  * `image/png` — so the mime is wrong in both directions, and wrong silently.
  *
- * WARN: An animation is carried through **byte for byte**, and its still is a frame
- * lifted out of it rather than a second encode of the file. A canvas re-encode
- * decodes one frame — which is what the still slot wants and what would turn the
- * animated slot into a picture (§ 13.4.), so it can never enter `MediaEditor`.
+ * WARN: An animation is re-encoded to animated WebP rather than drawn, and its still
+ * is a frame lifted out of the original rather than a second encode of that output. A
+ * canvas re-encode decodes one frame — which is what the still slot wants and what
+ * would turn the animated slot into a picture (§ 13.4.), so it can never enter
+ * `MediaEditor`.
  *
  * WARN: A still is **always** re-encoded, even a PNG that would have passed through
  * untouched. An emoticon has no derivative to fall back on — it is rendered directly
@@ -62,7 +65,7 @@ export async function toEmoticonImageDrafts(file: File): Promise<EmoticonImageDr
   }
 
   const whole = bytes.byteLength === file.size ? bytes : new Uint8Array(await file.arrayBuffer());
-  const animated = await toAnimatedDraft(file);
+  const animated = await toAnimatedDraft(file, whole);
 
   try {
     return { still: await toExtractedStill(file, whole), animated };
@@ -88,20 +91,30 @@ async function readAnimationEvidence(file: File): Promise<Uint8Array> {
 }
 
 /** INFO: The decoded first frame is what carries the size, and its box is the one every later frame shares — which is what § 8.3. reserves the row from. */
-async function toAnimatedDraft(file: File): Promise<MediaDraft> {
-  const previewUrl = URL.createObjectURL(file);
+// WARN: `lossless: true`, unlike the chat path's lossy default — an emoticon is small art on transparency with no bubble behind it, and lossy WebP's separately-coded alpha frays those edges.
+async function toAnimatedDraft(file: File, bytes: Uint8Array): Promise<MediaDraft> {
+  const optimized = await optimizeAnimation(file, bytes, undefined, {
+    maxEdge: EMOTICON_MAX_EDGE,
+    lossless: true,
+  });
+  const previewUrl = URL.createObjectURL(optimized.file);
 
   try {
-    const image = await loadImage(previewUrl);
+    const size =
+      optimized.width != null && optimized.height != null
+        ? { width: optimized.width, height: optimized.height }
+        : await measureNaturalSize(previewUrl);
 
     return {
       id: randomId(),
-      file,
-      thumbnail: file,
+      file: optimized.file,
+      thumbnail: optimized.file,
+      // INFO: § 13.3. An emoticon uploads no `_thumb` sibling, so there is no format for the ticket to sign one for.
+      thumbnailMime: null,
       previewUrl,
-      mime: file.type,
-      width: image.naturalWidth,
-      height: image.naturalHeight,
+      mime: optimized.file.type,
+      width: size.width,
+      height: size.height,
       durationMs: null,
       // INFO: § 13.3. An emoticon is rendered directly and registers no `_thumb` sibling, so there is no placeholder for a hash to stand behind.
       blurhash: null,
@@ -114,6 +127,12 @@ async function toAnimatedDraft(file: File): Promise<MediaDraft> {
 
     throw error;
   }
+}
+
+async function measureNaturalSize(previewUrl: string): Promise<{ width: number; height: number }> {
+  const image = await loadImage(previewUrl);
+
+  return { width: image.naturalWidth, height: image.naturalHeight };
 }
 
 async function toPickedStill(file: File): Promise<MediaDraft> {
@@ -232,15 +251,23 @@ async function toStillDraft(
 
   context.drawImage(source, 0, 0, size.width, size.height);
 
-  const blob = await toBlob(canvas, false, TRANSPARENT_OUTPUT_MIME);
+  // INFO: § 13.4. PNG as the fallback mime, never `encodeCanvas`'s own JPEG default — JPEG has no alpha and an emoticon renders without a bubble (DESIGN.md § 6.5.).
+  const { blob, mime } = await encodeCanvas(
+    canvas,
+    EDITED_AVIF_QUALITY,
+    false,
+    TRANSPARENT_OUTPUT_MIME,
+  );
 
   return {
     id: randomId(),
-    file: new File([blob], toStillName(name), { type: TRANSPARENT_OUTPUT_MIME }),
+    file: new File([blob], toStillName(name, mime), { type: mime }),
     // INFO: An emoticon has no `_thumb` sibling (§ 13.3.), so the image stands in for one — nothing uploads it, and it is what the tray preview renders.
     thumbnail: blob,
+    // INFO: § 13.3. An emoticon uploads no `_thumb` sibling, so there is no format for the ticket to sign one for.
+    thumbnailMime: null,
     previewUrl: URL.createObjectURL(blob),
-    mime: TRANSPARENT_OUTPUT_MIME,
+    mime,
     width: size.width,
     height: size.height,
     durationMs: null,
@@ -251,6 +278,7 @@ async function toStillDraft(
   };
 }
 
-function toStillName(name: string): string {
-  return `${name.replace(/\.[^.]+$/, "")}.${toExtension(TRANSPARENT_OUTPUT_MIME)}`;
+// WARN: Named from the mime the encode actually produced, never PNG unconditionally — an engine with no AVIF encoder falls back to PNG, and a `.avif` holding PNG bytes is a file the tray hands over under the wrong name.
+function toStillName(name: string, mime: string): string {
+  return `${name.replace(/\.[^.]+$/, "")}.${toExtension(mime)}`;
 }

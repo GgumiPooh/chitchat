@@ -43,6 +43,10 @@ export type PendingMessage = {
   uploadedMedia: Nullable<MediaUpload>[];
   /** `0`–`1` across the whole bubble's bytes. Meaningless for a text message. */
   progress: number;
+  /** DESIGN.md § 6.5.1. The `media` index currently re-encoding — stills never report one, so this is `null` outside a video's encode phase. */
+  encodingIndex: Nullable<number>;
+  /** `0`–`1` for the attachment at `encodingIndex`. */
+  encodeProgress: Nullable<number>;
   /**
    * WARN: `queued` is its own member rather than a flag beside `sending`, and § 15.1. is why. `useUnsentWork` holds a deploy-forced reload open for whatever is in flight, and a bubble waiting on the network finishes no more on its own than a failed one does — counted as `sending` it pins the app to a stale bundle for as long as the tunnel lasts.
    */
@@ -125,14 +129,35 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
 
   const uploadAll = useCallback(
     async (message: PendingMessage): Promise<MediaUpload[]> => {
-      const totalBytes = message.media.reduce((total, draft) => total + draft.file.size, 0);
+      // WARN: § 9. Per slot and mutable, because a re-encode replaces the bytes that will actually be PUT — totalled off the drafts alone, the bar counts an optimized upload against the original's size and stalls at the compression ratio.
+      const totals = message.media.map((draft) => draft.file.size);
       const loaded = message.media.map((draft, index) =>
         message.uploadedMedia[index] ? draft.file.size : 0,
       );
       const uploaded = [...message.uploadedMedia];
+      // WARN: § 9. A video and an animated image both report; a still never does, so a bubble of stills leaves every slot `null` and `MediaGrid` stays on the upload bar throughout.
+      const encoding: Nullable<number>[] = message.media.map(() => null);
 
       // WARN: `upload.onprogress` fires per network chunk and every patch re-renders the whole virtualized list. A 500MB video would otherwise reconcile it hundreds of times on the device least able to absorb it.
       let lastPercent = -1;
+      let lastEncodeKey = "";
+
+      // INFO: DESIGN.md § 6.5.1. A bubble of several videos can have more than one mid-encode under the pool below; the lowest still-picked index is shown, so the reading order matches the grid's own top-to-bottom, left-to-right order.
+      const reportEncoding = () => {
+        const index = encoding.findIndex((ratio) => ratio !== null);
+        const ratio = index === -1 ? null : encoding[index];
+        const key = `${index}:${ratio}`;
+
+        if (key === lastEncodeKey) {
+          return;
+        }
+
+        lastEncodeKey = key;
+        patch(message.clientMsgId, {
+          encodingIndex: index === -1 ? null : index,
+          encodeProgress: ratio,
+        });
+      };
 
       // WARN: The byte budget is doing the work here, not the concurrency limit — nine slots of `MAX_VIDEO_SIZE` is what this path can be handed, and § 13.4.'s reason for not firing those at once still stands. Nine small photos do go out `UPLOAD_CONCURRENCY` wide.
       await mapPooled(
@@ -142,26 +167,50 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
             return;
           }
 
-          const upload = await uploadDraft(draft, {
-            onProgress: (loadedBytes) => {
-              loaded[index] = loadedBytes;
+          const clearEncoding = () => {
+            if (encoding[index] === null) {
+              return;
+            }
 
-              const progress = sum(loaded) / Math.max(totalBytes, 1);
-              const percent = Math.round(progress * 100);
+            encoding[index] = null;
+            reportEncoding();
+          };
 
-              if (percent === lastPercent) {
-                return;
-              }
+          try {
+            const upload = await uploadDraft(draft, {
+              onEncodeProgress: (ratio) => {
+                encoding[index] = ratio;
+                reportEncoding();
+              },
+              onUploadSize: (bytes) => {
+                totals[index] = bytes;
+              },
+              onProgress: (loadedBytes) => {
+                // INFO: The PUT moving bytes is what ends this slot's encode phase — the bar it hands over to is about to start.
+                clearEncoding();
 
-              lastPercent = percent;
-              patch(message.clientMsgId, { progress });
-            },
-          });
+                loaded[index] = loadedBytes;
 
-          uploaded[index] = upload;
-          loaded[index] = draft.file.size;
-          // WARN: Recorded as each one lands, so a failure halfway through leaves the retry nothing to re-upload but the remainder. `mapPooled` settles everything in flight before it rethrows precisely so this holds.
-          patch(message.clientMsgId, { uploadedMedia: [...uploaded] });
+                const progress = sum(loaded) / Math.max(sum(totals), 1);
+                const percent = Math.round(progress * 100);
+
+                if (percent === lastPercent) {
+                  return;
+                }
+
+                lastPercent = percent;
+                patch(message.clientMsgId, { progress });
+              },
+            });
+
+            uploaded[index] = upload;
+            loaded[index] = totals[index];
+            // WARN: Recorded as each one lands, so a failure halfway through leaves the retry nothing to re-upload but the remainder. `mapPooled` settles everything in flight before it rethrows precisely so this holds.
+            patch(message.clientMsgId, { uploadedMedia: [...uploaded] });
+          } finally {
+            // WARN: A send that fails between the encode and the first byte never reaches `onProgress`, and the cell would keep a stale percentage over it with the byte bar still withheld.
+            clearEncoding();
+          }
         },
         {
           limit: UPLOAD_CONCURRENCY,
@@ -375,6 +424,8 @@ function createPending(text: Nullable<string>, media: MediaDraft[]): PendingMess
     replyTo: null,
     uploadedMedia: media.map(() => null),
     progress: 0,
+    encodingIndex: null,
+    encodeProgress: null,
     status: "sending",
     createdAt: new Date().toISOString(),
   };

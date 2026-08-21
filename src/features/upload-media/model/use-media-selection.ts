@@ -26,7 +26,8 @@ export type UseMediaSelectionParams = {
  */
 export function useMediaSelection({ acceptsFiles = false }: UseMediaSelectionParams = {}) {
   const [drafts, setDrafts] = useState<MediaDraft[]>([]);
-  const [isReading, setIsReading] = useState(false);
+  // WARN: A count and not a flag, because the tray draws one placeholder per file still waiting — a boolean drew a single tile however many were picked, which read as "one photo is loading" for a pick of nine.
+  const [pendingCount, setPendingCount] = useState(0);
   const draftsRef = useRef<MediaDraft[]>([]);
 
   // INFO: The ref mirrors the state so the callbacks below read the current list without depending on it, the same shape `useSendMessage` uses for its pending queue.
@@ -46,13 +47,14 @@ export function useMediaSelection({ acceptsFiles = false }: UseMediaSelectionPar
         return;
       }
 
-      setIsReading(true);
+      // INFO: Additive, so a drop landing while an earlier pick is still decoding counts both rather than replacing the first.
+      setPendingCount((previous) => previous + files.length);
 
-      try {
-        const accepted: MediaDraft[] = [];
-        const rejections = new Set<string>();
+      const rejections = new Set<string>();
 
-        for (const file of files) {
+      for (const file of files) {
+        // WARN: One `finally` around the whole iteration, validation included — a decrement that only covers the decode leaves a placeholder on screen forever if `toStoredMime` is what threw.
+        try {
           // WARN: `toStoredMime`, never a raw `file.type`. An empty type is routine, and everything downstream resolves it to `FALLBACK_FILE_MIME` — reading it raw here let the same typeless JPEG stage as a file card in the composer and be refused outright in the library.
           const rejection =
             acceptsFiles || isAllowedMediaMime(toStoredMime(file))
@@ -64,19 +66,19 @@ export function useMediaSelection({ acceptsFiles = false }: UseMediaSelectionPar
             continue;
           }
 
-          try {
-            accepted.push(await toMediaDraft(file));
-          } catch {
-            rejections.add("파일을 읽지 못했어요");
-          }
-        }
+          // INFO: Committed as each one decodes rather than in a batch at the end, so a placeholder turns into its own tile instead of nine appearing at once.
+          const draft = await toMediaDraft(file);
 
-        commit((previous) => [...previous, ...accepted]);
-        // INFO: One toast per distinct reason, not per file — picking forty photos with three oversized ones must not stack forty banners.
-        rejections.forEach((rejection) => toast.error(rejection));
-      } finally {
-        setIsReading(false);
+          commit((previous) => [...previous, draft]);
+        } catch {
+          rejections.add("파일을 읽지 못했어요");
+        } finally {
+          setPendingCount((previous) => previous - 1);
+        }
       }
+
+      // INFO: One toast per distinct reason, not per file — picking forty photos with three oversized ones must not stack forty banners.
+      rejections.forEach((rejection) => toast.error(rejection));
     },
     [acceptsFiles, commit],
   );
@@ -154,5 +156,15 @@ export function useMediaSelection({ acceptsFiles = false }: UseMediaSelectionPar
     });
   }, [commit]);
 
-  return { drafts, isReading, add, addDraft, remove, replace, takeAll, clear };
+  return {
+    drafts,
+    pendingCount,
+    isReading: pendingCount > 0,
+    add,
+    addDraft,
+    remove,
+    replace,
+    takeAll,
+    clear,
+  };
 }

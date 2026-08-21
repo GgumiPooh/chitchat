@@ -10,7 +10,7 @@ import {
   toMediaCountUnit,
   type LibraryShelf,
 } from "@/shared/config";
-import { mapPooled, randomId } from "@/shared/lib";
+import { mapPooled, randomId, type Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { josa } from "es-hangul";
 import { useCallback, useState } from "react";
@@ -50,6 +50,8 @@ type Uploaded = {
 export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMedia) => void) {
   // WARN: Every write to these two is relative, never absolute. A second pick while the first batch is running is an ordinary thing to do, and an absolute `setRemainingCount(n)` would wipe the batch already in flight — then the first batch finishing would zero the counter under the second and flip the screen to its empty state mid-upload.
   const [remainingCount, setRemainingCount] = useState(0);
+  // INFO: § 9. The re-encode that precedes each PUT — a count alone does not move for the minutes a video spends being transcoded.
+  const [encodeProgress, setEncodeProgress] = useState<Nullable<number>>(null);
   const [runningCount, setRunningCount] = useState(0);
 
   const upload = useCallback(
@@ -63,13 +65,18 @@ export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMe
           drafts,
           async (draft) => {
             try {
-              const upload = await uploadDraft(draft);
+              const upload = await uploadDraft(draft, {
+                onEncodeProgress: setEncodeProgress,
+                // INFO: The PUT moving bytes ends this draft's encode phase, exactly as it does on the § 8. send path.
+                onProgress: () => setEncodeProgress(null),
+              });
 
               return { draft, upload };
             } catch {
               return null;
             } finally {
               revokePreview(draft);
+              setEncodeProgress(null);
               setRemainingCount((current) => Math.max(current - 1, 0));
             }
           },
@@ -110,7 +117,7 @@ export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMe
   );
 
   // WARN: `isBusy` outlives `remainingCount`. It stays true through `post`, which is the window in which the batch's bubbles are still landing.
-  return { remainingCount, isBusy: runningCount > 0, upload };
+  return { remainingCount, encodeProgress, isBusy: runningCount > 0, upload };
 }
 
 // INFO: The shelf a draft will be listed on once it is a row, which is `toDraftKind`'s answer under the § 2.7. name for the two kinds 갤러리 holds.

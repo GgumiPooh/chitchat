@@ -7,6 +7,7 @@ import {
   maxSizeForMime,
   MEDIA_UPLOAD_SCOPES,
   THUMBNAIL_MIME,
+  THUMBNAIL_MIMES,
 } from "@/shared/config";
 import {
   buildStorageKey,
@@ -27,6 +28,8 @@ const bodySchema = z.object({
   size: z.number().int().positive(),
   // INFO: REQUIREMENTS.md § 12. Only the profile editor asks for anything else; every other caller predates the scope and keeps the default.
   scope: z.enum(MEDIA_UPLOAD_SCOPES).default("chat"),
+  // WARN: The uploader declares what it actually encoded, and the default is what a client predating this field sends — see `THUMBNAIL_MIMES`.
+  thumbnailMime: z.enum(THUMBNAIL_MIMES).default(THUMBNAIL_MIME),
 });
 
 /**
@@ -50,7 +53,7 @@ export async function POST(request: Request) {
     return apiError("invalid_request");
   }
 
-  const { mime, size, scope } = body.data;
+  const { mime, size, scope, thumbnailMime } = body.data;
   // INFO: REQUIREMENTS.md § 9.1. A file attachment is one PUT, not a pair — there is no frame to render a thumbnail from, so signing a second URL would only invite an object nothing ever reads.
   const isFile = isFileMime(mime);
 
@@ -71,7 +74,7 @@ export async function POST(request: Request) {
 
   const [uploadUrl, thumbnailUploadUrl] = await Promise.all([
     presignUpload(r2Key, mime),
-    isFile ? null : presignUpload(toThumbKey(r2Key), THUMBNAIL_MIME),
+    isFile ? null : presignUpload(toThumbKey(r2Key), thumbnailMime),
   ]);
 
   // WARN: In `after`, and it may never move onto the response path — the sender of a photo would be waiting on somebody else's deleted bytes, against a bucket this request needs nothing from.
@@ -82,6 +85,6 @@ export async function POST(request: Request) {
     r2Key,
     uploadUrl,
     thumbnailUploadUrl,
-    thumbnailMime: isFile ? null : THUMBNAIL_MIME,
+    thumbnailMime: isFile ? null : thumbnailMime,
   });
 }

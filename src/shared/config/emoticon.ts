@@ -95,12 +95,17 @@ export type EmoticonImageSlot = "still-image" | "animated-image";
 
 /**
  * WARN: REQUIREMENTS.md § 13.2. One slot for both kinds of image. A still arrives
- * re-encoded to PNG, which is why `image/jpeg` is absent — an emoticon is rendered
- * directly, without a bubble (DESIGN.md § 6.5.), so JPEG would replace its
- * transparency with an opaque box and a `heic` would be unreadable to whichever
- * participant is not on iOS.
+ * re-encoded to AVIF, falling back to PNG, which is why `image/jpeg` is absent — an
+ * emoticon is rendered directly, without a bubble (DESIGN.md § 6.5.), so JPEG would
+ * replace its transparency with an opaque box and a `heic` would be unreadable to
+ * whichever participant is not on iOS.
  */
-export const ALLOWED_EMOTICON_IMAGE_MIMES = ["image/png", "image/webp", "image/gif"] as const;
+export const ALLOWED_EMOTICON_IMAGE_MIMES = [
+  "image/avif",
+  "image/png",
+  "image/webp",
+  "image/gif",
+] as const;
 
 // INFO: `audio/mp4` and `audio/x-m4a` are what iOS hands over for the same `.m4a` file, depending on how it was picked.
 export const ALLOWED_EMOTICON_AUDIO_MIMES = [

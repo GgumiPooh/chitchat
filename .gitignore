@@ -48,6 +48,9 @@ steiger.config.ts.*.mjs
 # INFO: Build output — `pnpm precache` writes it from .next/static after every build.
 /public/offline-precache.json
 
+# INFO: `pnpm ffmpeg-core` copies these from node_modules/@ffmpeg/core at build and dev time.
+/public/ffmpeg/
+
 # Claude Code scratch — agent worktrees are clones of this repo, never content of it.
 .claude/
 

@@ -2,6 +2,7 @@
 
 import type { MediaDraft } from "@/entities/media";
 import {
+  optimizeAudio,
   releasePreview,
   retainPreview,
   toEmoticonImageDrafts,
@@ -96,22 +97,30 @@ export function useEmoticonDraft() {
     [release, track],
   );
 
+  // INFO: `validateSlot` runs on the pick as-received, before optimizing (§ 14.) — a file over the cap must be rejected rather than silently shrunk under it.
   const pickAudio = useCallback(
-    (file: File) => {
+    async (file: File) => {
       if (!validateSlot("audio", file)) {
         return;
       }
 
-      const draft = { file, previewUrl: URL.createObjectURL(file) };
+      setIsReading(true);
 
-      track(draft.previewUrl);
+      try {
+        const { file: optimized } = await optimizeAudio(file);
+        const draft = { file: optimized, previewUrl: URL.createObjectURL(optimized) };
 
-      setIsAudioCleared(false);
-      setAudio((previous) => {
-        release(previous?.previewUrl);
+        track(draft.previewUrl);
 
-        return draft;
-      });
+        setIsAudioCleared(false);
+        setAudio((previous) => {
+          release(previous?.previewUrl);
+
+          return draft;
+        });
+      } finally {
+        setIsReading(false);
+      }
     },
     [release, track],
   );
