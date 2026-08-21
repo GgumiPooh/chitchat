@@ -56,10 +56,24 @@
   animation: route-enter var(--duration-route-enter) var(--ease-route) backwards;
 }
 
+/* INFO: DESIGN.md § 6.6., § 7.3. The other half of the 채팅 arrival: the tab bar drops past the bottom edge and the composer rises from below it. */
+/* WARN: `100%` is the stack's own height and the inset is what it floats above, so together they park it entirely below the shell's bottom edge — a bare `100%` leaves a bar's worth of it on screen. */
+@keyframes composer-enter {
+  from {
+    translate: 0 calc(100% + var(--bottom-inset));
+  }
+}
+
+/* WARN: No fill, where the route slide needs `backwards`. There is nothing to hold before the first frame, and a `forwards` fill would leave the composer a containing block for every `fixed` descendant of the room. */
+@utility composer-enter {
+  animation: composer-enter var(--duration-route-enter) var(--ease-route);
+}
+
 /* INFO: DESIGN.md § 4.7. Positional motion is the common motion-sensitivity trigger; without a duration the browser falls back to swapping content outright. */
 @media (prefers-reduced-motion: reduce) {
   .route-enter-forward,
-  .route-enter-back {
+  .route-enter-back,
+  .composer-enter {
     animation-duration: 0s !important;
   }
 }

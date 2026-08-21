@@ -79,9 +79,13 @@ export function ChatFallback({ className }: ChatFallbackProps) {
         "fixed inset-x-0 top-(--keyboard-pan) flex h-[var(--viewport-height,100dvh)] flex-col bg-chat-canvas px-0 shell-edge",
         className,
       )}
-      // INFO: REQUIREMENTS.md § 12.2. Overrides `bg-chat-canvas`, which stays as the no-wallpaper answer — the same pair `ChatScreen` carries, so the swap changes no colour.
-      style={chromeTint ? { backgroundColor: chromeTint } : undefined}
       aria-hidden
+      // INFO: REQUIREMENTS.md § 12.2. Overrides `bg-chat-canvas`, which stays as the no-wallpaper answer — the same pair `ChatScreen` carries, so the swap changes no colour.
+      // WARN: `--bottom-inset` is seeded exactly as `ChatScreen` seeds it, and it is what this box's own geometry is built on. The root value is the tab bar's, which is still standing (§ 7.3.), so without this the skeleton is a bar taller than the room that replaces it.
+      style={{
+        ...(chromeTint ? { backgroundColor: chromeTint } : {}),
+        ["--bottom-inset" as string]: "var(--bar-lift)",
+      }}
     >
       <AppHeader />
       {/* INFO: DESIGN.md § 6.1. Bottom-anchored, because the room opens on the newest message rather than the oldest. */}
@@ -107,7 +111,8 @@ export function ChatFallback({ className }: ChatFallbackProps) {
         ))}
       </div>
       {/* INFO: DESIGN.md § 6.6. The composer's own box, drawn for real — the glass pill, its gutters and its lift are all fixed geometry, so only the field and the send disc inside it stand in for anything. */}
-      <div className="mb-(--bottom-inset) px-md pt-xs pb-xs">
+      {/* WARN: DESIGN.md § 6.6. Laid out and then parked below the shell's bottom edge, never dropped. The room's own composer rises from exactly here once the messages land, and a skeleton that rose first would play that arrival twice — while removing the box would take the bubble stack's bottom edge with it. */}
+      <div className="mb-(--bottom-inset) translate-y-[calc(100%+var(--bottom-inset))] px-md pt-xs pb-xs">
         <div className="flex items-end gap-2xs rounded-[calc(var(--tab-bar-height)/2)] border border-hairline glass p-2xs shadow-floating">
           {/* INFO: 첨부, the field, 이모티콘 and 보내기 — four items at the 44px each of them occupies, so the pill resolves to exactly the height it will have. */}
           <Skeleton className="size-11 shrink-0 rounded-full" />

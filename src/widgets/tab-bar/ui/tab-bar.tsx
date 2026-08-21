@@ -38,9 +38,7 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
   }
 
   // INFO: 채팅 화면은 전용 헤더·뒤로가기 버튼을 갖는 독립 뷰이므로 탭바를 노출하지 않는다.
-  if (isUnderRoute(pathname, CHAT_ROUTE)) {
-    return null;
-  }
+  const isLeaving = isUnderRoute(pathname, CHAT_ROUTE);
 
   const activePath = pendingTab?.route ?? pathname;
   const activeIndex = TABS.findIndex(({ route }) => isUnderRoute(activePath, route));
@@ -49,7 +47,15 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
   return (
     <nav
       // INFO: DESIGN.md § 7.3. The lift off the bottom edge is `BottomOverlay`'s `bottom`, not padding here — see the WARN there.
-      className={cn("px-md", className)}
+      // INFO: DESIGN.md § 7.3. 채팅 takes the bar away by dropping it past the bottom edge, which is where the composer rises from in the same beat (§ 6.6.).
+      // WARN: DESIGN.md § 7.3. Translated and never unmounted. A `return null` steps `--bottom-inset` the frame the route commits, which is what dropped `ChatFallback`'s composer a bar's height while the reader watched.
+      className={cn(
+        "px-md transition-[translate] duration-(--duration-route-enter) ease-route motion-reduce:transition-none",
+        isLeaving && "translate-y-(--tab-bar-drop)",
+        className,
+      )}
+      // WARN: The bar is off screen but still laid out, so its tab stops have to be taken out by hand.
+      inert={isLeaving}
       aria-label="주요 화면"
     >
       {/* WARN: No `shadow-floating`. The pill sits over the obscured content inset, and iOS 26 Safari blurs whatever is behind its toolbar — the shadow bled through as a dark wash across the bar. The hairline carries the lift on its own. */}

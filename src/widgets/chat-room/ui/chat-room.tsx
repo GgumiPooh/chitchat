@@ -1354,121 +1354,125 @@ export function ChatRoom({
         ref={composerRef}
         className="pointer-events-none absolute inset-x-0 bottom-(--bottom-inset)"
       >
-        {bottomBar}
-        {/* WARN: REQUIREMENTS.md § 8.6. The whole stack goes while a search is open, not just the field — a reply bar or an attachment tray left standing would be composing a message the screen offers no way to send. */}
-        {/* WARN: `hidden`, never a conditional subtree. `MessageComposer` holds the draft in its own state, so unmounting it here silently discards a typed message and drops its `useUnsentWork` hold with it. `display: none` takes it out of the wrapper's height, which is all `useComposerClearance` reads. */}
-        <div className={cn(isSearching && "hidden")} inert={isSearching}>
-          <>
-            {/* INFO: REQUIREMENTS.md § 8.10. Above the tray and the pill, and in the flow — the quote belongs to the send the whole stack is composing, so it reads as the header of it. */}
-            {/* WARN: DESIGN.md § 6.6. `mt-xs` matches the emoticon panel's, which is the gap this stack is measured against — without it the bar butts straight into the bubble above. It is safe to carry unconditionally because this renders nothing when there is no reply, so the clearance only grows while the bar is up. */}
-            {/* INFO: REQUIREMENTS.md § 8.13. Stands exactly where the staged quote does, and never beside it — a correction composes no new message, so there is nothing for a quote to be the header of. */}
-            {/* WARN: § 8.13. The quote is hidden rather than cleared, and comes back on cancel. Entering the mode must cost the user nothing they had already staged. */}
-            {editingId !== null ? (
-              <EditBar className="mx-md mt-xs mb-2xs" onCancel={cancelEdit} />
-            ) : (
-              replyTarget && (
-                <ReplyBar
+        {/* INFO: DESIGN.md § 6.6. The stack rises from below the shell's bottom edge on arrival, as the tab bar it replaces drops past it (§ 7.3.). */}
+        {/* WARN: A child of the measured wrapper and never the wrapper itself. `useComposerClearance` reads `composer.getBoundingClientRect().top`, which a translate on that box moves — its first measurement lands mid-flight and reports a clearance of `0` that nothing afterwards resizes it back out of. */}
+        <div className="composer-enter">
+          {bottomBar}
+          {/* WARN: REQUIREMENTS.md § 8.6. The whole stack goes while a search is open, not just the field — a reply bar or an attachment tray left standing would be composing a message the screen offers no way to send. */}
+          {/* WARN: `hidden`, never a conditional subtree. `MessageComposer` holds the draft in its own state, so unmounting it here silently discards a typed message and drops its `useUnsentWork` hold with it. `display: none` takes it out of the wrapper's height, which is all `useComposerClearance` reads. */}
+          <div className={cn(isSearching && "hidden")} inert={isSearching}>
+            <>
+              {/* INFO: REQUIREMENTS.md § 8.10. Above the tray and the pill, and in the flow — the quote belongs to the send the whole stack is composing, so it reads as the header of it. */}
+              {/* WARN: DESIGN.md § 6.6. `mt-xs` matches the emoticon panel's, which is the gap this stack is measured against — without it the bar butts straight into the bubble above. It is safe to carry unconditionally because this renders nothing when there is no reply, so the clearance only grows while the bar is up. */}
+              {/* INFO: REQUIREMENTS.md § 8.13. Stands exactly where the staged quote does, and never beside it — a correction composes no new message, so there is nothing for a quote to be the header of. */}
+              {/* WARN: § 8.13. The quote is hidden rather than cleared, and comes back on cancel. Entering the mode must cost the user nothing they had already staged. */}
+              {editingId !== null ? (
+                <EditBar className="mx-md mt-xs mb-2xs" onCancel={cancelEdit} />
+              ) : (
+                replyTarget && (
+                  <ReplyBar
+                    className="mx-md mt-xs mb-2xs"
+                    replyTo={replyTarget}
+                    name={participantById.get(replyTarget.senderId)?.name}
+                    onCancel={() => setReplyTarget(null)}
+                  />
+                )
+              )}
+              {/* INFO: REQUIREMENTS.md § 9.3. Tops the composer stack while it is up, clearing the history by the same `xs` every other row in this position does (DESIGN.md § 6.6.). It replaces nothing — a recording is sent outright, so there is no tray for it to compete with. */}
+              {isRecording && (
+                <VoiceRecorderBar
                   className="mx-md mt-xs mb-2xs"
-                  replyTo={replyTarget}
-                  name={participantById.get(replyTarget.senderId)?.name}
-                  onCancel={() => setReplyTarget(null)}
+                  onDone={sendVoice}
+                  onClose={() => setIsRecording(false)}
                 />
-              )
-            )}
-            {/* INFO: REQUIREMENTS.md § 9.3. Tops the composer stack while it is up, clearing the history by the same `xs` every other row in this position does (DESIGN.md § 6.6.). It replaces nothing — a recording is sent outright, so there is no tray for it to compete with. */}
-            {isRecording && (
-              <VoiceRecorderBar
-                className="mx-md mt-xs mb-2xs"
-                onDone={sendVoice}
-                onClose={() => setIsRecording(false)}
-              />
-            )}
-            {/* INFO: DESIGN.md § 6.6. Same gap as the bar above and the panel below; `MediaTray` renders nothing with an empty selection, so this costs the resting composer no height. */}
-            {/* WARN: REQUIREMENTS.md § 8.13. Hidden while a message is being corrected, never emptied — the drafts live in `useMediaSelection` and are still there when the edit is cancelled. An edit is text-only, and `canSend` refuses to arm on a tray the mode cannot send. */}
-            {editingId === null && (
-              <MediaTray
-                className="mx-md mt-xs mb-2xs"
-                drafts={selection.drafts}
-                pendingCount={selection.pendingCount}
-                onEdit={editing.open}
-                onRemove={selection.remove}
-              />
-            )}
-            {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
-            {/* WARN: § 13.6. wants the preview above the open panel, but the panel is half the shell — `bottom-full` alone puts it behind the floating header on a short viewport and off the top of the screen below ~604px, which is the panel not appearing to stage at all. The `min()` stops it at the header and lets it overlap the panel's top rows instead, which only happens where something has to give. */}
-            {/* INFO: § 13.8. The search tab used to be where it gave the most — the keyboard takes the viewport down far enough that the second arm won by more than half this box, so the staged emoticon was covered rather than merely crowded. `isComposerYielded` buys that back out of the composer's own row instead. */}
-            {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, for the reason the tray above is — it is still staged and it returns on cancel. */}
-            {stagedEmoticon && editingId === null && (
-              <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--viewport-height,100dvh)_-_var(--bottom-inset)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))]">
-                <EmoticonPreview
-                  className="mx-md mb-2xs"
-                  emoticon={stagedEmoticon}
-                  onRemove={() => setStagedEmoticon(null)}
+              )}
+              {/* INFO: DESIGN.md § 6.6. Same gap as the bar above and the panel below; `MediaTray` renders nothing with an empty selection, so this costs the resting composer no height. */}
+              {/* WARN: REQUIREMENTS.md § 8.13. Hidden while a message is being corrected, never emptied — the drafts live in `useMediaSelection` and are still there when the edit is cancelled. An edit is text-only, and `canSend` refuses to arm on a tray the mode cannot send. */}
+              {editingId === null && (
+                <MediaTray
+                  className="mx-md mt-xs mb-2xs"
+                  drafts={selection.drafts}
+                  pendingCount={selection.pendingCount}
+                  onEdit={editing.open}
+                  onRemove={selection.remove}
                 />
+              )}
+              {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
+              {/* WARN: § 13.6. wants the preview above the open panel, but the panel is half the shell — `bottom-full` alone puts it behind the floating header on a short viewport and off the top of the screen below ~604px, which is the panel not appearing to stage at all. The `min()` stops it at the header and lets it overlap the panel's top rows instead, which only happens where something has to give. */}
+              {/* INFO: § 13.8. The search tab used to be where it gave the most — the keyboard takes the viewport down far enough that the second arm won by more than half this box, so the staged emoticon was covered rather than merely crowded. `isComposerYielded` buys that back out of the composer's own row instead. */}
+              {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, for the reason the tray above is — it is still staged and it returns on cancel. */}
+              {stagedEmoticon && editingId === null && (
+                <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--viewport-height,100dvh)_-_var(--bottom-inset)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))]">
+                  <EmoticonPreview
+                    className="mx-md mb-2xs"
+                    emoticon={stagedEmoticon}
+                    onRemove={() => setStagedEmoticon(null)}
+                  />
+                </div>
+              )}
+              {/* INFO: REQUIREMENTS.md § 13.6. Inside the composer's own absolute wrapper, so the panel sits above the bar and the messages still scroll underneath both. */}
+              {/* INFO: § 13.6. `justify-end` anchors the panel to the bottom of the strip, so it is revealed rising from behind the composer rather than unrolling downward from a top edge that is itself moving up. */}
+              {/* WARN: A real `height` and never a `0fr`→`1fr` grid track. Mid-transition Chrome sizes such a track's container taller than the track it resolved, and the strip below the bottom-anchored panel is a gap that opens and shuts — which is what read as the panel stretching apart from its middle. */}
+              <div
+                className={cn(
+                  "flex flex-col justify-end overflow-hidden transition-[height] duration-200 ease-out",
+                  // WARN: The underscores are the spaces `calc()` requires around `+`. Written closed up the declaration is invalid, and the strip resolves to `0px` — the panel opens to nothing and no cell can be tapped.
+                  // INFO: § 13.8. The search tab is drawn shorter, so the strip that clips it has to be told which of the two heights it is holding.
+                  isEmoticonPanelOpen && isEmoticonSearchTab
+                    ? "h-[calc(var(--emoticon-search-panel-height)_+_var(--spacing-xs)_+_var(--spacing-2xs))]"
+                    : isEmoticonPanelOpen
+                      ? "h-[calc(var(--emoticon-panel-height)_+_var(--spacing-xs)_+_var(--spacing-2xs))]"
+                      : "h-0",
+                )}
+                // WARN: The panel stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until this takes them back out.
+                inert={!isEmoticonPanelOpen}
+                onTransitionEnd={settleAfterPanelTransition}
+              >
+                {hasMountedEmoticonPanel && (
+                  // INFO: § 13.6. `mt-xs` matches the composer's own top padding, so the panel clears the history by what the bar alone clears it by. The height above is this panel plus both margins.
+                  // WARN: `shrink-0` or the collapsing strip compresses the panel instead of clipping it, and § 13.6.'s own `flex-1` scroller is what gives — the panel then reads as stretching open rather than rising.
+                  // INFO: § 13.6. Promoted to its own layer so the strip's growing clip is a compositor crop — unpromoted, every frame of the 200ms repaints a grid of animated images against a moving clip rect, which is what the open stutters on.
+                  <EmoticonPicker
+                    className="mx-md mt-xs mb-2xs shrink-0 will-change-transform"
+                    isOpen={isEmoticonPanelOpen}
+                    focusRequest={pickerFocusRequest}
+                    searchRequest={emoticonSearch}
+                    revealRequest={emoticonReveal}
+                    menuRequest={menuRequest}
+                    suggestedSearchQuery={suggestedEmoticonSearchQuery}
+                    onSearchTabChange={reportEmoticonSearchTab}
+                    onSelect={stageEmoticon}
+                    onQuickSend={sendStagedEmoticon}
+                    onInsert={insertEmoticon}
+                    onDeleteLast={deleteLastComposerUnit}
+                  />
+                )}
               </div>
-            )}
-            {/* INFO: REQUIREMENTS.md § 13.6. Inside the composer's own absolute wrapper, so the panel sits above the bar and the messages still scroll underneath both. */}
-            {/* INFO: § 13.6. `justify-end` anchors the panel to the bottom of the strip, so it is revealed rising from behind the composer rather than unrolling downward from a top edge that is itself moving up. */}
-            {/* WARN: A real `height` and never a `0fr`→`1fr` grid track. Mid-transition Chrome sizes such a track's container taller than the track it resolved, and the strip below the bottom-anchored panel is a gap that opens and shuts — which is what read as the panel stretching apart from its middle. */}
-            <div
-              className={cn(
-                "flex flex-col justify-end overflow-hidden transition-[height] duration-200 ease-out",
-                // WARN: The underscores are the spaces `calc()` requires around `+`. Written closed up the declaration is invalid, and the strip resolves to `0px` — the panel opens to nothing and no cell can be tapped.
-                // INFO: § 13.8. The search tab is drawn shorter, so the strip that clips it has to be told which of the two heights it is holding.
-                isEmoticonPanelOpen && isEmoticonSearchTab
-                  ? "h-[calc(var(--emoticon-search-panel-height)_+_var(--spacing-xs)_+_var(--spacing-2xs))]"
-                  : isEmoticonPanelOpen
-                    ? "h-[calc(var(--emoticon-panel-height)_+_var(--spacing-xs)_+_var(--spacing-2xs))]"
-                    : "h-0",
-              )}
-              // WARN: The panel stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until this takes them back out.
-              inert={!isEmoticonPanelOpen}
-              onTransitionEnd={settleAfterPanelTransition}
-            >
-              {hasMountedEmoticonPanel && (
-                // INFO: § 13.6. `mt-xs` matches the composer's own top padding, so the panel clears the history by what the bar alone clears it by. The height above is this panel plus both margins.
-                // WARN: `shrink-0` or the collapsing strip compresses the panel instead of clipping it, and § 13.6.'s own `flex-1` scroller is what gives — the panel then reads as stretching open rather than rising.
-                // INFO: § 13.6. Promoted to its own layer so the strip's growing clip is a compositor crop — unpromoted, every frame of the 200ms repaints a grid of animated images against a moving clip rect, which is what the open stutters on.
-                <EmoticonPicker
-                  className="mx-md mt-xs mb-2xs shrink-0 will-change-transform"
-                  isOpen={isEmoticonPanelOpen}
-                  focusRequest={pickerFocusRequest}
-                  searchRequest={emoticonSearch}
-                  revealRequest={emoticonReveal}
-                  menuRequest={menuRequest}
-                  suggestedSearchQuery={suggestedEmoticonSearchQuery}
-                  onSearchTabChange={reportEmoticonSearchTab}
-                  onSelect={stageEmoticon}
-                  onQuickSend={sendStagedEmoticon}
-                  onInsert={insertEmoticon}
-                  onDeleteLast={deleteLastComposerUnit}
-                />
-              )}
-            </div>
-            {/* WARN: § 13.6. `hidden`, never a conditional subtree, for the reason the search's own hide above carries — the draft lives in this component's state and unmounting it discards a typed message along with its `useUnsentWork` hold. `display: none` is also the half that does the work: it takes the composer out of the wrapper `useComposerClearance` measures, which is what lowers the stack and hands the preview its room back. */}
-            <MessageComposer
-              className={cn(isComposerYielded && "hidden")}
-              hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
-              isStaging={selection.pendingCount > 0}
-              isEmoticonPickerOpen={isEmoticonPanelOpen}
-              keywordConsumeToken={keywordConsumeToken}
-              seededDraft={seededDraft}
-              insertedEmoticon={insertedEmoticon}
-              deleteRequest={deleteRequest}
-              isEditing={editingId !== null}
-              focusRequest={composerFocusRequest}
-              fieldRef={composerFieldRef}
-              // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
-              onToggleEmoticons={openEmoticonPanel}
-              onAttach={() => setIsPickerOpen(true)}
-              onEdit={signalEdit}
-              onKeywordTap={openEmoticonSearch}
-              onPreviewTap={openEmoticonSearch}
-              onSuggestedSearchQueryChange={setSuggestedEmoticonSearchQuery}
-              onFieldFocus={closeEmoticonPanel}
-              onSend={({ text, emoticons }) => submit(text, emoticons)}
-            />
-          </>
+              {/* WARN: § 13.6. `hidden`, never a conditional subtree, for the reason the search's own hide above carries — the draft lives in this component's state and unmounting it discards a typed message along with its `useUnsentWork` hold. `display: none` is also the half that does the work: it takes the composer out of the wrapper `useComposerClearance` measures, which is what lowers the stack and hands the preview its room back. */}
+              <MessageComposer
+                className={cn(isComposerYielded && "hidden")}
+                hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
+                isStaging={selection.pendingCount > 0}
+                isEmoticonPickerOpen={isEmoticonPanelOpen}
+                keywordConsumeToken={keywordConsumeToken}
+                seededDraft={seededDraft}
+                insertedEmoticon={insertedEmoticon}
+                deleteRequest={deleteRequest}
+                isEditing={editingId !== null}
+                focusRequest={composerFocusRequest}
+                fieldRef={composerFieldRef}
+                // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
+                onToggleEmoticons={openEmoticonPanel}
+                onAttach={() => setIsPickerOpen(true)}
+                onEdit={signalEdit}
+                onKeywordTap={openEmoticonSearch}
+                onPreviewTap={openEmoticonSearch}
+                onSuggestedSearchQueryChange={setSuggestedEmoticonSearchQuery}
+                onFieldFocus={closeEmoticonPanel}
+                onSend={({ text, emoticons }) => submit(text, emoticons)}
+              />
+            </>
+          </div>
         </div>
       </div>
       <ActionSheet

@@ -241,6 +241,8 @@
 :root {
   /* INFO: DESIGN.md § 7.3. The floating pill itself, excluding the gap it keeps from the shell's bottom edge. */
   --tab-bar-height: 56px;
+  /* INFO: DESIGN.md § 7.3. How far the bar drops past the bottom edge on the way to 채팅, and deliberately several times its own height — a drop that ends the frame it clears the edge reads as a cut. */
+  --tab-bar-drop: 300px;
   /* INFO: DESIGN.md § 7.12. Matches the tab bar so a screen can offset content by the header. */
   --app-header-height: 56px;
   /* INFO: DESIGN.md § 7.12. What the floating header covers — screens whose content starts at the top offset by this. */
