@@ -43,6 +43,7 @@ export { SettingsRow, type SettingsRowProps } from "./settings-row";
 export { SettingsRowSkeleton, type SettingsRowSkeletonProps } from "./settings-row-skeleton";
 export { ShellOverlay, type ShellOverlayProps } from "./shell-overlay";
 export { Skeleton, type SkeletonProps } from "./skeleton";
+export { Slider, type SliderProps } from "./slider";
 export { Toaster, toast, type ToasterProps } from "./sonner";
 export { Switch, type SwitchProps } from "./switch";
 export { Textarea, type TextareaProps } from "./textarea";

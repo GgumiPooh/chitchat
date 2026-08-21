@@ -208,11 +208,11 @@ export function ProfileEditorSheet({
         <VideoTrimmer
           key={trimming.id}
           draft={trimming}
-          maxDurationMs={
+          limit={
             trimming.durationMs !== null &&
             isWithinDuration(trimming.durationMs, MAX_BACKGROUND_VIDEO_DURATION)
               ? undefined
-              : MAX_BACKGROUND_VIDEO_DURATION
+              : { kind: "window", durationMs: MAX_BACKGROUND_VIDEO_DURATION }
           }
           onCancel={() => setTrimming(null)}
           onDone={(file) => void stageTrimmed(file)}

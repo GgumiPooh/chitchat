@@ -12,6 +12,7 @@ import {
   toExtension,
 } from "./canvas";
 import { optimizeAnimation } from "./optimize-animation";
+import type { OptimizedMedia } from "./optimize-result";
 import { revokePreview } from "./revoke-preview";
 
 /** What `MediaEditor` must be given so an emoticon crop keeps its alpha (REQUIREMENTS.md § 13.4.). */
@@ -65,10 +66,36 @@ export async function toEmoticonImageDrafts(file: File): Promise<EmoticonImageDr
   }
 
   const whole = bytes.byteLength === file.size ? bytes : new Uint8Array(await file.arrayBuffer());
-  const animated = await toAnimatedDraft(file, whole);
+  // WARN: `lossless: true`, unlike the chat path's lossy default — an emoticon is small art on transparency with no bubble behind it, and lossy WebP's separately-coded alpha frays those edges.
+  const animated = await toAnimatedDraft(
+    await optimizeAnimation(file, whole, undefined, {
+      maxEdge: EMOTICON_MAX_EDGE,
+      lossless: true,
+    }),
+  );
 
   try {
     return { still: await toExtractedStill(file, whole), animated };
+  } catch (error) {
+    revokePreview(animated);
+
+    throw error;
+  }
+}
+
+/**
+ * REQUIREMENTS.md § 13.4.1. The same two slots from an animation that is already
+ * encoded — `animateVideo`'s output, which must not be re-encoded a second time.
+ */
+export async function toEncodedEmoticonDrafts(
+  animation: OptimizedMedia,
+): Promise<EmoticonImageDrafts> {
+  const animated = await toAnimatedDraft(animation);
+
+  try {
+    const bytes = new Uint8Array(await animation.file.arrayBuffer());
+
+    return { still: await toExtractedStill(animation.file, bytes), animated };
   } catch (error) {
     revokePreview(animated);
 
@@ -91,12 +118,7 @@ async function readAnimationEvidence(file: File): Promise<Uint8Array> {
 }
 
 /** INFO: The decoded first frame is what carries the size, and its box is the one every later frame shares — which is what § 8.3. reserves the row from. */
-// WARN: `lossless: true`, unlike the chat path's lossy default — an emoticon is small art on transparency with no bubble behind it, and lossy WebP's separately-coded alpha frays those edges.
-async function toAnimatedDraft(file: File, bytes: Uint8Array): Promise<MediaDraft> {
-  const optimized = await optimizeAnimation(file, bytes, undefined, {
-    maxEdge: EMOTICON_MAX_EDGE,
-    lossless: true,
-  });
+async function toAnimatedDraft(optimized: OptimizedMedia): Promise<MediaDraft> {
   const previewUrl = URL.createObjectURL(optimized.file);
 
   try {

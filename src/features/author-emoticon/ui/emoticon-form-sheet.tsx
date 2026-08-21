@@ -35,11 +35,12 @@ import {
   toast,
 } from "@/shared/ui";
 import { josa } from "es-hangul";
-import { ImagePlus, Mic, Music, Pencil, Play, X } from "lucide-react";
+import { Film, ImagePlus, Mic, Music, Pencil, Play, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
 import { createEmoticon, updateEmoticon, type EmoticonImageBody } from "../api/write-emoticon";
 import { useEmoticonDraft } from "../model/use-emoticon-draft";
+import { useVideoEmoticon, type VideoEmoticon } from "../model/use-video-emoticon";
 
 const AUDIO_ACCEPT = ALLOWED_EMOTICON_AUDIO_MIMES.join(",");
 
@@ -86,11 +87,17 @@ export function EmoticonFormSheet({
   const [isRecording, setIsRecording] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const draft = useEmoticonDraft();
-  const { pickImage, setKeywords } = draft;
+  const { adoptImage, pickAudio, pickImage, setKeywords } = draft;
+  // INFO: § 13.4.1. A clip fills the same two slots a picked animation does, so it is a second source for this one field rather than a flow of its own.
+  const video = useVideoEmoticon({ onReady: stageVideo });
   // INFO: REQUIREMENTS.md § 13.4. Opens the OS picker directly (`DESIGN.md § 7.5.`) — one image is the whole of the choice, so there is nothing for a sheet to frame.
   const imagePicker = useMediaPicker({
     accept: "image/*",
     onSelect: (files) => files[0] && void draft.pickImage(files[0]),
+  });
+  const videoPicker = useMediaPicker({
+    accept: "video/*",
+    onSelect: (files) => files[0] && void video.open(files[0]),
   });
   const audioPicker = useMediaPicker({
     accept: AUDIO_ACCEPT,
@@ -125,10 +132,10 @@ export function EmoticonFormSheet({
 
   return (
     <>
-      {/* WARN: Closed while the editor is up. `MediaEditor` portals into the app shell (`ShellOverlay`) and the drawer portals into `body`, so no z-index inside the shell can put the editor over it. */}
+      {/* WARN: Closed while the editor or § 13.4.1.'s video flow is up. Both portal into the app shell (`ShellOverlay`) and the drawer portals into `body`, so no z-index inside the shell can put either over it. */}
       <BottomSheet
         className={className}
-        isOpen={isOpen && !isEditing}
+        isOpen={isOpen && !isEditing && !video.isActive}
         header={{ title: `${kindNoun} ${emoticon ? "편집" : "추가"}` }}
         onClose={handleClose}
       >
@@ -140,6 +147,7 @@ export function EmoticonFormSheet({
             isReading={draft.isReading}
             onPick={imagePicker.open}
             onEdit={draft.image && !draft.image.animated ? () => setIsEditing(true) : undefined}
+            onPickVideo={videoPicker.open}
           />
           <AudioRow
             isRecording={isRecording}
@@ -169,7 +177,9 @@ export function EmoticonFormSheet({
         </div>
       </BottomSheet>
       {imagePicker.input}
+      {videoPicker.input}
       {audioPicker.input}
+      {video.overlay}
       {isEditing && draft.image && (
         // WARN: Keyed by draft — `MediaEditor` mints its source object URL once per mount, so editing a replaced image must be a second mount.
         <MediaEditor
@@ -203,6 +213,15 @@ export function EmoticonFormSheet({
 
   function handleRecordingDone(recording: VoiceRecording) {
     void draft.pickAudio(recording.file);
+  }
+
+  // INFO: § 13.4.1. The sound is never asked about — it is staged into the row below, which already auditions, replaces and removes it.
+  function stageVideo({ image, audio }: VideoEmoticon) {
+    adoptImage(image);
+
+    if (audio) {
+      void pickAudio(audio);
+    }
   }
 
   async function submit() {
@@ -344,6 +363,7 @@ type ImageRowProps = {
   isReading: boolean;
   onPick: () => void;
   onEdit?: () => void;
+  onPickVideo: () => void;
 };
 
 function ImageRow({
@@ -354,6 +374,7 @@ function ImageRow({
   isReading,
   onPick,
   onEdit,
+  onPickVideo,
 }: ImageRowProps) {
   return (
     <div className={cn("flex items-center gap-sm", className)}>
@@ -379,18 +400,43 @@ function ImageRow({
       <div className="min-w-0 flex-1 space-y-2xs">
         <p className="text-title-sm text-ink">{label}</p>
         <p className="text-body-sm text-meta">{isReading ? "읽는 중이에요" : hint}</p>
-        {onEdit && (
+        {/* WARN: The two sources come first and 편집 last, never between them. 편집 is the conditional one, and in the middle it would shift the buttons either side of it every time an image is replaced. */}
+        <div className="flex flex-wrap gap-2xs">
+          {/* INFO: The tile above opens the same picker, but a 96px thumbnail is not a control anybody reads as one — this is the row's own label for it. */}
           <Button
             className="w-auto"
             buttonClassName="h-9 min-h-9 w-auto px-sm"
             variant="secondary"
             haptic
-            onClick={onEdit}
+            onClick={onPick}
           >
-            <Pencil className="size-4" strokeWidth={1.75} />
-            편집
+            <ImagePlus className="size-4" strokeWidth={1.75} />
+            이미지 업로드
           </Button>
-        )}
+          {/* INFO: § 13.4.1. Here rather than in the add sheet, because a clip is another way to fill this one field — not another kind of item. */}
+          <Button
+            className="w-auto"
+            buttonClassName="h-9 min-h-9 w-auto px-sm"
+            variant="secondary"
+            haptic
+            onClick={onPickVideo}
+          >
+            <Film className="size-4" strokeWidth={1.75} />
+            영상에서 추출
+          </Button>
+          {onEdit && (
+            <Button
+              className="w-auto"
+              buttonClassName="h-9 min-h-9 w-auto px-sm"
+              variant="secondary"
+              haptic
+              onClick={onEdit}
+            >
+              <Pencil className="size-4" strokeWidth={1.75} />
+              편집
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

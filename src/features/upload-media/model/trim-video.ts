@@ -1,4 +1,3 @@
-import { A_SECOND } from "@/shared/lib";
 import {
   BlobSource,
   BufferTarget,
@@ -75,11 +74,6 @@ export async function trimVideo(file: File, range: TrimRange): Promise<File> {
 /** Whether this clip is already inside `maxDurationMs` and needs no trim at all. */
 export function isWithinDuration(durationMs: number, maxDurationMs: number): boolean {
   return durationMs <= maxDurationMs;
-}
-
-/** The range a picker should open on: the first `maxDurationMs` of the clip. */
-export function toDefaultTrimRange(durationMs: number, maxDurationMs: number): TrimRange {
-  return { start: 0, end: Math.min(durationMs, maxDurationMs) / A_SECOND };
 }
 
 function toTrimmedName(name: string): string {

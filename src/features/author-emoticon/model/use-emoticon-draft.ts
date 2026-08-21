@@ -53,35 +53,41 @@ export function useEmoticonDraft() {
   const track = useCallback((url: Maybe<string>) => retainPreview(urlsRef.current, url), []);
   const release = useCallback((url: Maybe<string>) => releasePreview(urlsRef.current, url), []);
 
+  /** INFO: § 13.4.1. Takes slots that were built elsewhere — a video's, which must not be re-read as a picked file since that would re-encode the animation a second time. */
+  const adoptImage = useCallback(
+    (upload: EmoticonImageDrafts) => {
+      if (!validateUpload(upload)) {
+        release(upload.still.previewUrl);
+        release(upload.animated?.previewUrl);
+
+        return;
+      }
+
+      track(upload.still.previewUrl);
+      track(upload.animated?.previewUrl);
+      setImage((previous) => {
+        release(previous?.still.previewUrl);
+        release(previous?.animated?.previewUrl);
+
+        return upload;
+      });
+    },
+    [release, track],
+  );
+
   const pickImage = useCallback(
     async (file: File) => {
       setIsReading(true);
 
       try {
-        const upload = await toEmoticonImageDrafts(file);
-
-        if (!validateUpload(upload)) {
-          release(upload.still.previewUrl);
-          release(upload.animated?.previewUrl);
-
-          return;
-        }
-
-        track(upload.still.previewUrl);
-        track(upload.animated?.previewUrl);
-        setImage((previous) => {
-          release(previous?.still.previewUrl);
-          release(previous?.animated?.previewUrl);
-
-          return upload;
-        });
+        adoptImage(await toEmoticonImageDrafts(file));
       } catch {
         toast.error("이미지를 읽지 못했어요");
       } finally {
         setIsReading(false);
       }
     },
-    [release, track],
+    [adoptImage],
   );
 
   /** INFO: Replaces the still after `MediaEditor` re-encodes it; the editor already produced the new preview. Only a static pick is croppable — a crop decodes one frame (§ 13.4.). */
@@ -149,6 +155,7 @@ export function useEmoticonDraft() {
     keywords,
     isAudioCleared,
     isReading,
+    adoptImage,
     pickImage,
     replaceStill,
     pickAudio,

@@ -35,10 +35,14 @@ const INPUT_FORMATS = [MP4, QTFF, WEBM];
  * size decision — a background plays `muted`, and dropping the track keeps the whole
  * operation on WebCodecs' video interfaces, which Safari has had since 16.4.
  */
-export async function cropVideo(file: File, crop: CropRectangle): Promise<File> {
+export async function cropVideo(
+  file: File,
+  crop: CropRectangle,
+  maxEdge: number = BACKGROUND_MAX_EDGE,
+): Promise<File> {
   const output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
   // INFO: § 12.1.'s ceiling applied to the crop rather than to the source, so a rectangle taken out of a 4K clip is stored at the size a background is drawn at.
-  const size = fitWithin(crop.width, crop.height, BACKGROUND_MAX_EDGE);
+  const size = fitWithin(crop.width, crop.height, maxEdge);
   const conversion = await Conversion.init({
     input: new Input({ source: new BlobSource(file), formats: INPUT_FORMATS }),
     output,

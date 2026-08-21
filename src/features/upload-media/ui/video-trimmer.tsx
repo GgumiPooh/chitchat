@@ -1,31 +1,41 @@
 "use client";
 
 import type { MediaDraft } from "@/entities/media";
-import { A_SECOND, cn, type Nullable } from "@/shared/lib";
-import { Button, IconButton, PreloadVideo, ShellOverlay, toast } from "@/shared/ui";
+import { A_SECOND, cn, type Nullable, type Optional } from "@/shared/lib";
+import { Button, IconButton, PreloadVideo, ShellOverlay, Slider, toast } from "@/shared/ui";
 import { X } from "lucide-react";
-import { useEffect, useRef, useState, type ChangeEvent, type SyntheticEvent } from "react";
-import { toDefaultTrimRange, trimVideo, type TrimRange } from "../model/trim-video";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import { trimVideo, type TrimRange } from "../model/trim-video";
+
+/**
+ * How long the result may be.
+ *
+ * INFO: A `window` is a fixed width and the user chooses only where it sits, since
+ * a second handle would offer a length that is already decided (§ 12.1.'s
+ * background, which loops). A `ceiling` moves both handles and only refuses to let
+ * them spread past `durationMs` — § 13.4.1.'s emoticon, where the length is part of
+ * the gesture.
+ */
+export type TrimLimit = {
+  kind: "window" | "ceiling";
+  durationMs: number;
+};
 
 export type VideoTrimmerProps = {
   className?: string;
   draft: MediaDraft;
-  /**
-   * REQUIREMENTS.md § 12.1. The window the result must fit inside, in milliseconds.
-   *
-   * INFO: Given, the window is a fixed width and the user chooses only where it
-   * sits — a second handle would offer a length that is already decided. Omitted
-   * (§ 9.'s chat and library attachments, which have no length cap), both ends
-   * move and trimming is an edit rather than a requirement.
-   */
-  maxDurationMs?: number;
+  /** REQUIREMENTS.md § 12.1. Omitted (§ 9.'s chat and library attachments, which have no length cap), both ends move freely and trimming is an edit rather than a requirement. */
+  limit?: TrimLimit;
   onCancel: () => void;
-  /** Given the trimmed file, for the caller to re-read into a draft of its own. */
-  onDone: (file: File) => void;
+  /** Given the trimmed file and the range it was cut at, for the caller to re-read into a draft of its own. */
+  onDone: (file: File, range: TrimRange) => void;
 };
 
 // INFO: Short enough that a handle cannot produce a clip with no frames in it. AGENTS.md § 8.1. — a duration is milliseconds here and converted at the call site like every other one.
 const MIN_TRIM_DURATION = A_SECOND / 2;
+
+// INFO: Seconds. Fine enough to land on a frame at any sane frame rate, coarse enough that a thumb dragged across a long clip does not re-seek every pixel.
+const SCRUB_STEP = 0.1;
 
 /**
  * Cuts a video down, over the app shell — the § 12.1. background's 30s window, or
@@ -34,37 +44,31 @@ const MIN_TRIM_DURATION = A_SECOND / 2;
  * WARN: `absolute`, never `fixed` — `ShellOverlay` owns the viewport-sized box this
  * fills (DESIGN.md § 3.3.), exactly as `MediaEditor` does.
  */
-export function VideoTrimmer({
-  className,
-  draft,
-  maxDurationMs,
-  onCancel,
-  onDone,
-}: VideoTrimmerProps) {
+export function VideoTrimmer({ className, draft, limit, onCancel, onDone }: VideoTrimmerProps) {
   const videoRef = useRef<Nullable<HTMLVideoElement>>(null);
   const [sourceUrl, setSourceUrl] = useState("");
   const [isTrimming, setIsTrimming] = useState(false);
   const [hasFailed, setHasFailed] = useState(false);
   // WARN: The element's own duration, not only the draft's. `toVideoDraft` reports `null` for a fragmented MP4 and some `.mov`, and a free-range trim that fell back to a literal would have cut every such clip down to that literal — data loss with no message. The element resolves it for real at `loadedmetadata`, and until then the handles are pinned to the cap.
   const [measuredMs, setMeasuredMs] = useState<Nullable<number>>(draft.durationMs);
-  const durationMs = measuredMs ?? maxDurationMs ?? A_SECOND;
+  const durationMs = measuredMs ?? limit?.durationMs ?? A_SECOND;
   const isMeasured = measuredMs !== null;
   const minTrimSeconds = MIN_TRIM_DURATION / A_SECOND;
   const durationSeconds = durationMs / A_SECOND;
-  const isFixedWindow = maxDurationMs !== undefined;
-  const windowSeconds = isFixedWindow
-    ? Math.min(durationMs, maxDurationMs) / A_SECOND
-    : durationSeconds;
-  const latestStart = isFixedWindow
-    ? Math.max(0, (durationMs - maxDurationMs) / A_SECOND)
-    : Math.max(0, durationSeconds - MIN_TRIM_DURATION / A_SECOND);
-  const [start, setStart] = useState(
-    () => toDefaultTrimRange(durationMs, maxDurationMs ?? durationMs).start,
-  );
+  const isFixedWindow = limit?.kind === "window";
+  // INFO: The whole clip where there is no ceiling, so every clamp below is a no-op for a free range rather than a branch.
+  const ceilingSeconds = limit?.kind === "ceiling" ? limit.durationMs / A_SECOND : durationSeconds;
+  const windowSeconds =
+    isFixedWindow && limit ? Math.min(durationMs, limit.durationMs) / A_SECOND : durationSeconds;
+  const latestStart =
+    isFixedWindow && limit
+      ? Math.max(0, (durationMs - limit.durationMs) / A_SECOND)
+      : Math.max(0, durationSeconds - minTrimSeconds);
+  const [start, setStart] = useState(0);
   const [end, setEnd] = useState(durationSeconds);
   // INFO: The end handle follows a duration that only resolved at `loadedmetadata`; before that it is sitting on the placeholder and would cut the clip to it.
-  const resolvedFreeEnd = isMeasured ? end : durationSeconds;
-  // INFO: The fixed window follows its start; a free range is whatever the two handles say.
+  const resolvedFreeEnd = isMeasured ? Math.min(end, start + ceilingSeconds) : durationSeconds;
+  // INFO: The fixed window follows its start; a free or ceiling-bound range is whatever the two handles say.
   const resolvedEnd = isFixedWindow
     ? Math.min(start + windowSeconds, durationSeconds)
     : resolvedFreeEnd;
@@ -94,9 +98,7 @@ export function VideoTrimmer({
             aria-label="자르기 취소"
             onClick={onCancel}
           />
-          <span className="text-caption text-on-scrim">
-            {isFixedWindow ? `${Math.round(windowSeconds)}초만 쓸 수 있어요` : "영상 자르기"}
-          </span>
+          <span className="text-caption text-on-scrim">{toHeaderLabel(limit, windowSeconds)}</span>
           <Button
             className="w-auto"
             buttonClassName="h-9 min-h-9 w-auto px-sm"
@@ -137,39 +139,20 @@ export function VideoTrimmer({
           )}
         </div>
         <div className="space-y-xs p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))]">
-          <label className="block text-body-sm text-on-scrim" htmlFor="trim-start">
-            {isFixedWindow ? "시작 지점" : "시작"}
-          </label>
-          {/* INFO: Range inputs rather than a filmstrip. Decoding a strip of thumbnails is a second pass over the file for an affordance the handles already give, and the preview above already shows the frame under the one being dragged. */}
-          <input
-            className="w-full accent-primary"
-            type="range"
+          {/* INFO: One track for the whole span rather than a range input per end — a native range carries exactly one thumb, which is what used to make this two stacked controls under a label each. */}
+          {/* INFO: No filmstrip. Decoding a strip of thumbnails is a second pass over the file for an affordance the thumbs already give, and the preview above already shows the frame under the one being dragged. */}
+          <Slider
+            trackClassName="bg-on-scrim/25"
+            thumbClassName="focus-visible:ring-offset-scrim"
             min={0}
-            max={latestStart}
-            step={0.1}
-            value={start}
-            disabled={isTrimming || hasFailed || latestStart <= 0}
-            id="trim-start"
-            onChange={handleStartScrub}
+            max={isFixedWindow ? latestStart : durationSeconds}
+            step={SCRUB_STEP}
+            minStepsBetweenThumbs={MIN_TRIM_DURATION / A_SECOND / SCRUB_STEP}
+            value={isFixedWindow ? [start] : [start, resolvedEnd]}
+            disabled={isTrimming || hasFailed || (isFixedWindow && latestStart <= 0)}
+            thumbLabels={isFixedWindow ? ["시작 지점"] : ["시작", "끝"]}
+            onValueChange={handleScrub}
           />
-          {!isFixedWindow && (
-            <>
-              <label className="block text-body-sm text-on-scrim" htmlFor="trim-end">
-                끝
-              </label>
-              <input
-                className="w-full accent-primary"
-                type="range"
-                min={0}
-                max={durationSeconds}
-                step={0.1}
-                value={end}
-                disabled={isTrimming || hasFailed}
-                id="trim-end"
-                onChange={handleEndScrub}
-              />
-            </>
-          )}
           <p className="text-center text-caption text-on-scrim/80">
             {`${formatSeconds(start)} ~ ${formatSeconds(resolvedEnd)} · ${formatSeconds(resolvedEnd - start)}`}
           </p>
@@ -213,23 +196,29 @@ export function VideoTrimmer({
     video.currentTime = start;
   }
 
-  // INFO: The preview seeks with whichever handle moved, so the frame on screen is the cut the user is aiming.
-  function handleStartScrub(event: ChangeEvent<HTMLInputElement>) {
-    const next = Number(event.target.value);
+  // INFO: The preview seeks with whichever thumb moved, so the frame on screen is the cut the user is aiming.
+  function handleScrub([nextStart, nextEnd]: number[]) {
+    if (nextEnd === undefined || nextStart !== start) {
+      setStart(nextStart);
+      // WARN: The end is pushed rather than clamped on submit — left behind the start the range inverts, and left further than the ceiling it is a clip past the cap.
+      setEnd((current) =>
+        Math.min(
+          durationSeconds,
+          nextStart + ceilingSeconds,
+          Math.max(nextEnd ?? current, nextStart + minTrimSeconds),
+        ),
+      );
+      seek(nextStart);
 
-    setStart(next);
-    // WARN: The end is pushed rather than clamped on submit. Left behind the start, the range inverts and `mediabunny` is handed a negative window.
-    setEnd((current) => Math.min(durationSeconds, Math.max(current, next + minTrimSeconds)));
-    seek(next);
-  }
+      return;
+    }
 
-  function handleEndScrub(event: ChangeEvent<HTMLInputElement>) {
-    const next = Number(event.target.value);
-
-    setEnd(next);
-    // WARN: Clamped at zero. Dragging the end to the very start would otherwise push this negative, handing `mediabunny` a range that begins before the file does — and leaving the `min={0}` input showing 0 while state held something else.
-    setStart((current) => Math.max(0, Math.min(current, next - minTrimSeconds)));
-    seek(next);
+    setEnd(nextEnd);
+    // WARN: Clamped at zero. Dragging the end to the very start would otherwise push this negative, handing `mediabunny` a range that begins before the file does.
+    setStart((current) =>
+      Math.max(0, nextEnd - ceilingSeconds, Math.min(current, nextEnd - minTrimSeconds)),
+    );
+    seek(nextEnd);
   }
 
   function seek(seconds: number) {
@@ -244,7 +233,7 @@ export function VideoTrimmer({
     try {
       const range: TrimRange = { start, end: resolvedEnd };
 
-      onDone(await trimVideo(draft.file, range));
+      onDone(await trimVideo(draft.file, range), range);
     } catch {
       // INFO: The one failure the user can act on is a codec this browser cannot decode; everything else here is a bug. Both read the same from the outside, so the copy names neither.
       toast.error("영상을 자르지 못했어요");
@@ -257,6 +246,16 @@ export function VideoTrimmer({
 // WARN: Falls back rather than emitting `0 / 0`, which collapses the box back to the nothing this reserves it against — a draft carries zeroes for a container `toVideoDraft` could not measure.
 function toAspectRatio(width: number, height: number): string {
   return width > 0 && height > 0 ? `${width} / ${height}` : "16 / 9";
+}
+
+function toHeaderLabel(limit: Optional<TrimLimit>, windowSeconds: number): string {
+  if (!limit) {
+    return "영상 자르기";
+  }
+
+  return limit.kind === "window"
+    ? `${Math.round(windowSeconds)}초만 쓸 수 있어요`
+    : `최대 ${Math.round(limit.durationMs / A_SECOND)}초까지 쓸 수 있어요`;
 }
 
 function formatSeconds(value: number): string {

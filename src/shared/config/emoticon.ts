@@ -124,6 +124,14 @@ export const MAX_EMOTICON_IMAGE_SIZE = 8 * A_MEGABYTE;
 export const MAX_EMOTICON_AUDIO_SIZE = 2 * A_MEGABYTE;
 
 /**
+ * REQUIREMENTS.md § 13.4.1. The window a clip is cut down to before it becomes an
+ * animation.
+ *
+ * INFO: Every extra second is frames in a file `MAX_EMOTICON_IMAGE_SIZE` bounds and seconds of single-threaded wasm encode; six is a whole gesture and still lands under both.
+ */
+export const MAX_EMOTICON_VIDEO_DURATION = 6 * A_SECOND;
+
+/**
  * The long edge a re-encoded still is downscaled to.
  *
  * INFO: DESIGN.md § 6.5. caps the bubble at 140×140, so this is roughly 3× density

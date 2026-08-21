@@ -4,9 +4,15 @@ import type { MediaDraft } from "@/entities/media";
 import { useChatStream } from "@/features/chat-stream/@x/apply-photo";
 import { updateProfile } from "@/features/update-profile/@x/apply-photo";
 import { MediaEditor, VideoCropper, uploadDraft } from "@/features/upload-media/@x/apply-photo";
-import { AVATAR_MAX_EDGE, BACKGROUND_MAX_EDGE, isVideoMime } from "@/shared/config";
-import type { MediaId, Nullable } from "@/shared/lib";
+import {
+  AVATAR_MAX_EDGE,
+  BACKGROUND_MAX_EDGE,
+  MAX_BACKGROUND_VIDEO_SIZE,
+  isVideoMime,
+} from "@/shared/config";
+import { formatSize, type MediaId, type Nullable } from "@/shared/lib";
 import { ActionSheet, toast, type ActionSheetItem } from "@/shared/ui";
+import { josa } from "es-hangul";
 import { ImageIcon, MessageSquare, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -165,6 +171,13 @@ export function ApplyPhotoSheet({ className, source, onClose }: ApplyPhotoSheetP
 
   // INFO: The video crop answers a `File`, so it is read back into a draft the § 9. pipeline can upload — `MediaEditor` hands one over already made.
   async function wearCropped(file: File) {
+    // WARN: § 12.1.'s cap is re-checked on the **result**. The source passed it, and a re-encode can still come out larger than what it was cut from — a long crop of a well-compressed clip is exactly that case.
+    if (file.size > MAX_BACKGROUND_VIDEO_SIZE) {
+      toast.error(`잘라낸 영상이 ${josa(formatSize(MAX_BACKGROUND_VIDEO_SIZE), "을/를")} 넘어요`);
+
+      return;
+    }
+
     const draft = await photo.readCropped(file);
 
     if (!draft) {
