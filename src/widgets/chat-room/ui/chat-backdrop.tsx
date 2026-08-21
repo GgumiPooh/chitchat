@@ -44,8 +44,8 @@ export type ChatBackdropProps = {
 export function ChatBackdrop({ className, mediaId, blurhash }: ChatBackdropProps) {
   return (
     // WARN: `absolute`, never `fixed` — the room is a bounded box inside the § 3.4. chat screen, so this already spans exactly what is on screen. Going `fixed` would only take it out of the wash's own stacking order.
-    // WARN: `overflow-hidden` is what lets the photo below stand taller than this box without extending the room's scroll range — a phantom scroll on the one screen that must not have one.
-    <div className={cn("pointer-events-none absolute inset-0 overflow-hidden", className)}>
+    // WARN: DESIGN.md § 3.4. Sized to the **large** viewport and not clipped to the room. With the keys up the screen ends at the composer while iOS keeps the layout viewport its full height, and Safari's glass toolbar shows the page's pixels in the strip between — left clipped, that strip is bare `body` and the wallpaper reads as cut off at the composer.
+    <div className={cn("pointer-events-none absolute inset-x-0 top-0 h-[100lvh]", className)}>
       {/* INFO: `original`, not the thumbnail. This is drawn across the whole screen, where § 9.'s 720px long edge would be visibly soft. */}
       {/* WARN: No skeleton. A load that has not landed should read as a wallpaper that was never set; a pulsing plate the size of the screen behind the conversation is louder than the swap it covers. The hash below is the opposite case and replaces it outright (DESIGN.md § 7.8.) — it is the photo rather than a plate over it. */}
       {/* WARN: REQUIREMENTS.md § 12.2. `placeholderClassName` is the **failure** floor and nothing else. Wherever the hash parses, `useBlurhashStyle` publishes the photo's average as an inline `background-color` that outranks this class from the first paint — which is what the status bar is sampled from, and a flat `chat-canvas` winning here is the whole of the bug it fixes. */}
@@ -53,7 +53,7 @@ export function ChatBackdrop({ className, mediaId, blurhash }: ChatBackdropProps
       {/* WARN: `lvh` and not the visual viewport, `dvh`, or `documentElement.clientHeight` — a keyboard moves every one of those on one engine or the other, `dvh` and the layout viewport under Chromium's `interactive-widget=resizes-content` (which this app sets). */}
       {/* WARN: No `crossOrigin`, and never again. It existed only to feed a canvas read of this photo's average colour, which `toChromeTint` now takes off the § 9. blurhash instead — and in CORS mode a bucket whose rules do not name this origin turns a lost tint into a lost *wallpaper*, because the image errors and `PreloadImage` falls to its failure state. It also cost the § 12.2. preload, which asks for the plain response: the two are cached separately, so the room downloaded the full-size photo twice. */}
       <PreloadImage
-        className="absolute inset-x-0 top-0 h-[100lvh]"
+        className="absolute inset-0"
         imgClassName="size-full object-cover"
         placeholderClassName="bg-chat-canvas"
         src={toMediaUrl(mediaId, "original")}
@@ -61,7 +61,7 @@ export function ChatBackdrop({ className, mediaId, blurhash }: ChatBackdropProps
         hasSkeleton={false}
         alt=""
       />
-      {/* INFO: The wash stays on the visible box rather than on the photo — it is answering for the contrast of what is on screen (DESIGN.md § 4.1.), not for the part of the wallpaper the keyboard has covered. */}
+      {/* WARN: Over the whole photo, the part under the keyboard included — what the glass toolbar shows there has to be the room's colour, and the unwashed photo is a visibly brighter one. */}
       {/* WARN: `toChromeTint` carries this same 45%, because the colour bordering iOS 26's chrome is the photo under this wash and not the photo. Changing it here alone leaves the status bar a shade off the room it is meant to disappear into. */}
       <div className="absolute inset-0 bg-chat-scrim/45" />
     </div>

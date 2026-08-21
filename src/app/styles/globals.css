@@ -15,7 +15,7 @@
     /* WARN: DESIGN.md § 3.3. `canvas`, not `backdrop` — iOS 26 Safari tints its status bar and toolbar from this, so the desktop gutter is `canvas` too and the column is separated by a `hairline` border instead, a colour that is never sampled. */
     /* WARN: `overscroll-none` survives the document becoming the scroller. Without it the root scroller chains, and a pull past the top of 보관함 is Chrome's pull-to-refresh reloading the app mid-sweep. */
     /* WARN: DESIGN.md § 4.7.1. The route slide translates a screen 24px past the shell edge; the clip belongs here, on the root, because anywhere further in becomes the scrollport a `sticky` header would resolve against. */
-    /* WARN: REQUIREMENTS.md § 12.2. Plain `canvas`, never the wallpaper's tint. That colour is only ever worn on the chat route, and there `ChatScreen` is a `fixed` box covering this one — it is what Safari samples and it carries the tint itself. */
+    /* WARN: REQUIREMENTS.md § 12.2. Plain `canvas`, and the wallpaper's tint is written over it from `ChatScreen` rather than declared here — that colour is worn on the chat route alone, and only `useDocumentBackground` can take it back off on the way out. */
     @apply overflow-x-clip overscroll-none bg-canvas font-sans text-ink antialiased;
     /* INFO: Korean wraps mid-word by default; keep-all breaks at spaces only (DESIGN.md § 4.2.3.). */
     @apply wrap-break-word break-keep;

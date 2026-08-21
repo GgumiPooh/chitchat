@@ -103,6 +103,7 @@ export {
   useAppRouteTracker,
 } from "./hooks/use-app-route-tracker";
 export { useBfcacheRestore } from "./hooks/use-bfcache-restore";
+export { useDocumentBackground } from "./hooks/use-document-background";
 export { useHydrated } from "./hooks/use-hydrated";
 export { useInertialStrip, type InertialStripOptions } from "./hooks/use-inertial-strip";
 export { useIsCoarsePointer, useIsFinePointer } from "./hooks/use-is-coarse-pointer";

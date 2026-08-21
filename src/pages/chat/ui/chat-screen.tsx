@@ -17,6 +17,7 @@ import { CALENDAR_ROUTE, LOGIN_ROUTE } from "@/shared/config";
 import {
   cn,
   getPreviousAppRoute,
+  useDocumentBackground,
   usePinnedDocument,
   type Maybe,
   type MessageId,
@@ -79,6 +80,10 @@ export function ChatScreen({
   // INFO: REQUIREMENTS.md § 12.2. Read here rather than by the backdrop that draws the photo: the tint is *this* box's own background, so it belongs to this component and cannot outlive it.
   // WARN: In the render, so the colour is in the server's HTML and is what Safari samples at the first paint of a cold launch — an effect publishes it after that read, which iOS 26 never repeats (DESIGN.md § 3.3.).
   const chromeTint = toChromeTint(chatBackgroundBlurhash);
+
+  // WARN: DESIGN.md § 3.4. The keyboard is the one moment this box does not cover the document — it is sized to the visual viewport and iOS leaves the layout viewport its full height, so `body` is what shows under the composer and what Safari samples there.
+  // INFO: REQUIREMENTS.md § 12.2. The same colour the box above wears, so the strip the keys leave reads as the room continuing rather than as a `canvas` seam cutting it off.
+  useDocumentBackground(chromeTint ?? "var(--color-chat-canvas)");
 
   return (
     // WARN: DESIGN.md § 3.4. The one screen that is not in the document's flow, and the reason is the keyboard rather than the layout. WebKit pans the visual viewport to reveal a focused field, and it can only do that to a document there is something to scroll — a `fixed` box sized to the visual viewport leaves it nothing, so `offsetTop` stays `0` and no chrome has to chase it from script. Every other screen keeps the document scroller, and Safari's collapsing toolbar with it (§ 3.3.).
