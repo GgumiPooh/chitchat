@@ -1,9 +1,9 @@
-# WARN: Site addresses, straight from the app's own APP_URL — one place to add or
+# WARN: Site addresses, straight from the app's own APP_URLS — one place to add or
 # retire a domain instead of two drifting lists. Caddy's Caddyfile tokenizes site
 # addresses on whitespace (a trailing comma is stripped, but doesn't separate on
-# its own), so APP_URL in .env MUST be comma-AND-space separated here, not the
+# its own), so APP_URLS in .env MUST be comma-AND-space separated here, not the
 # bare comma the app code alone would also accept.
-{$APP_URL} {
+{$APP_URLS} {
 	handle /_next/static/* {
 		root * /srv/www/jandh
 

@@ -5,7 +5,7 @@ import { snowflakeSchema } from "./id";
 export const APP_NAME = "ChitChat";
 
 // INFO: Comma-separated so one deployment can answer under more than one origin (a custom domain alongside the platform-assigned one, or mid-migration between two domains).
-export const APP_URLS = (process.env.APP_URL ?? "")
+export const APP_URLS = (process.env.APP_URLS ?? "")
   .split(",")
   .map((entry) => entry.trim())
   .filter(Boolean);
@@ -36,7 +36,7 @@ export function resolveAppUrl(requestHost?: Maybe<string>): string {
   const match = APP_URLS.find((url) => new URL(url).host === requestHost);
 
   if (!match) {
-    throw new Error(`${requestHost} is not one of APP_URL: ${APP_URLS.join(", ")}`);
+    throw new Error(`${requestHost} is not one of APP_URLS: ${APP_URLS.join(", ")}`);
   }
 
   return match;

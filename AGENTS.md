@@ -161,7 +161,7 @@ Any module that touches the database, session secrets, or R2 credentials MUST `i
 
 ## 6.2. Required environment variables
 
-Read a required environment variable with `ensureEnv("NAME")` from `@/shared/config`, never `process.env.NAME` directly. It treats a blank value as missing, so a half-filled `.env` fails at the first call instead of surfacing much later as an opaque error from a third party. Optional variables with a real default (`APP_URL`) stay as plain `process.env` reads with `??`.
+Read a required environment variable with `ensureEnv("NAME")` from `@/shared/config`, never `process.env.NAME` directly. It treats a blank value as missing, so a half-filled `.env` fails at the first call instead of surfacing much later as an opaque error from a third party. Optional variables with a real default (`APP_URLS`) stay as plain `process.env` reads with `??`.
 
 ## 6.3. Database access
 
