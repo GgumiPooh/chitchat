@@ -2,6 +2,7 @@ import { getEmoticonItem } from "@/entities/emoticon";
 import { ownsAllMedia } from "@/entities/media";
 import {
   areInlineEmoticonsKnown,
+  countUnreadMessages,
   createEmoticonMessage,
   createMediaMessage,
   createTextMessage,
@@ -11,10 +12,12 @@ import {
   toSingleMessagePayload,
   type ChatMessage,
 } from "@/entities/message";
+import { pushToUser } from "@/entities/push-subscription";
 import { notifyMessageRecipients } from "@/features/notify-chat";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
+  CHAT_ROUTE,
   isMessageContentPaired,
   MAX_EMOTICON_ID_LOOKUP,
   MAX_MEDIA_PER_MESSAGE,
@@ -119,6 +122,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const isShortcutShare = Boolean(request.headers.get("x-share-key"));
   const user = await getCurrentUser({ allowShareKey: true });
 
   if (!user) {
@@ -165,6 +169,19 @@ export async function POST(request: Request) {
 
   // WARN: REQUIREMENTS.md § 16.1. `after`, so the fan-out's round trips to the push services never sit between the sender and their 201. It still runs inside this invocation, on a database that is already awake — which is why push costs Neon's autosuspend nothing, unlike the cron § 16.1. rejected.
   after(() => safelyRunAsync(() => notifyMessageRecipients(user, toPushBody(message))));
+
+  if (isShortcutShare) {
+    after(() =>
+      safelyRunAsync(async () => {
+        await pushToUser(user.id, {
+          title: "ChitChat",
+          body: "공유가 완료되었습니다",
+          unreadCount: await countUnreadMessages(user.id),
+          url: CHAT_ROUTE,
+        });
+      }),
+    );
+  }
 
   return NextResponse.json(echo, { status: 201 });
 }
