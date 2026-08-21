@@ -8,8 +8,8 @@ import {
   SESSION_EXPIRE_ROUTE,
 } from "@/shared/config";
 import { getDb, nextSnowflake, sessions, users, type Session, type User } from "@/shared/db";
-import { A_DAY, type Nullable, type SessionId, type UserId } from "@/shared/lib";
-import { and, eq, gt } from "drizzle-orm";
+import { A_DAY, safelyGet, type Nullable, type SessionId, type UserId } from "@/shared/lib";
+import { and, eq, gt, or } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -105,14 +105,23 @@ export async function getCurrentUser(options?: {
   allowShareKey?: boolean;
 }): Promise<Nullable<User>> {
   if (options?.allowShareKey) {
-    const shareKey = (await headers()).get("x-share-key");
+    const rawShareKey = (await headers()).get("x-share-key");
 
-    if (shareKey) {
+    if (rawShareKey) {
       // INFO: Authenticate background calls from Apple Shortcuts via permanent share key.
+      const decodedShareKey = safelyGet(() => decodeURIComponent(rawShareKey)) ?? rawShareKey;
+      const encodedShareKey = encodeURIComponent(rawShareKey);
+
       const [user] = await getDb()
         .select()
         .from(users)
-        .where(eq(users.shareKey, shareKey))
+        .where(
+          or(
+            eq(users.shareKey, rawShareKey),
+            eq(users.shareKey, decodedShareKey),
+            eq(users.shareKey, encodedShareKey),
+          ),
+        )
         .limit(1);
 
       return user ?? null;
