@@ -48,7 +48,7 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
     <nav
       // INFO: DESIGN.md § 7.3. The lift off the bottom edge is `BottomOverlay`'s `bottom`, not padding here — see the WARN there.
       // INFO: DESIGN.md § 7.3. 채팅 takes the bar away by dropping it past the bottom edge, which is where the composer rises from in the same beat (§ 6.6.).
-      // WARN: DESIGN.md § 7.3. Translated and never unmounted. A `return null` steps `--bottom-inset` the frame the route commits, which is what dropped `ChatFallback`'s composer a bar's height while the reader watched.
+      // WARN: DESIGN.md § 7.3. Translated and never unmounted. A `return null` steps `--bottom-inset` the frame the route commits, which is what drops the composer a bar's height while the reader watches.
       className={cn(
         "px-md transition-[translate] duration-(--duration-route-enter) ease-route motion-reduce:transition-none",
         isLeaving && "translate-y-(--tab-bar-drop)",
