@@ -37,7 +37,7 @@ export function ShortcutGuide({ className, shareKey }: ShortcutGuideProps) {
     safelyRun(() => localStorage.setItem(SHORTCUT_INSTALLED_KEY, "true"));
     setIsDismissed(true);
     // 단축어 딥링크 실행 - 단축어 내부에서 이 키를 받아 저장함
-    window.location.href = `shortcuts://run-shortcut?name=ChitChat&input=${encodeURIComponent(`key: ${shareKey}`)}`;
+    window.location.href = `shortcuts://run-shortcut?name=${encodeURIComponent("ChitChat에 공유하기")}&input=${encodeURIComponent(`key: ${shareKey}`)}`;
   };
 
   return (

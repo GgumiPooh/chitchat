@@ -30,7 +30,7 @@ export function ShortcutSettingsRow({ className, shareKey }: ShortcutSettingsRow
   const handleConnect = () => {
     safelyRun(() => localStorage.setItem(SHORTCUT_INSTALLED_KEY, "true"));
     setIsOpen(false);
-    window.location.href = `shortcuts://run-shortcut?name=ChitChat&input=${encodeURIComponent(`key: ${shareKey}`)}`;
+    window.location.href = `shortcuts://run-shortcut?name=${encodeURIComponent("ChitChat에 공유하기")}&input=${encodeURIComponent(`key: ${shareKey}`)}`;
   };
 
   return (
