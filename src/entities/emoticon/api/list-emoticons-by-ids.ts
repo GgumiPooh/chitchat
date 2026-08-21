@@ -29,7 +29,7 @@ export async function listEmoticonsByIds(ids: EmoticonItemId[]): Promise<Emotico
   }
 
   const rows = await selectEmoticons()
-    // INFO: The finished restructure. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
+    // INFO: § 13.4. A deleted item is gone from everywhere the user chooses from, while every bubble that already carries it draws its tombstone.
     // WARN: § 13. A chooser's read, so a deleted item is absent — a bubble drawing one needs the row it still has, and MUST NOT be hydrated from here.
     .where(
       and(

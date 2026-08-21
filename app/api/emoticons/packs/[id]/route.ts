@@ -111,11 +111,6 @@ export async function DELETE(_request: Request, context: RouteContext) {
     return apiError("not_found");
   }
 
-  // INFO: One of its items has been sent, so the pack cannot go without deciding what those bubbles become (§ 18. #1).
-  if (result.status === "in_use") {
-    return apiError("in_use");
-  }
-
   // INFO: REQUIREMENTS.md § 9. The `media` rows went with the pack; `purgeNow` takes the bytes and never throws, so a bucket that refuses must not fail the delete. § 13.4. gives emoticons no grace.
   await purgeNow(result.orphanedKeys);
 

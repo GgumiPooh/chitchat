@@ -91,6 +91,7 @@ export async function suggestEmoticonKeywords(
 }
 
 // WARN: § 13. The kind is settled by this call and by nothing after it — the route refuses one in a PATCH body, so a pack created under the wrong kind can only be deleted.
+// WARN: § 13.1. No `creatorId` parameter — the session on the route supplies it, so the client never states its own identity.
 export async function createEmoticonPack(
   name: string,
   type: EmoticonPackType,
@@ -146,11 +147,7 @@ export async function deleteEmoticon(itemId: EmoticonItemId): Promise<void> {
   await send(`${EMOTICON_ITEMS_URL}/${itemId}`, "DELETE");
 }
 
-/**
- * WARN: Throws the response status as the message. `409` is the one the screens
- * branch on — REQUIREMENTS.md § 13.6. items that have been sent cannot be deleted,
- * and the user needs to be told that rather than shown a generic failure.
- */
+/** WARN: Throws the response status as the message — no screen branches on it any more. */
 async function send<T = void>(path: string, method: string, body?: unknown): Promise<T> {
   const response = await request(path, {
     method,

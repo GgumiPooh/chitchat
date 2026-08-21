@@ -49,7 +49,7 @@ export async function searchEmoticons(
   const [userUsageRows, rows] = await Promise.all([
     userId ? fetchUserUsage(userId) : Promise.resolve([]),
     selectEmoticons()
-      // INFO: The finished restructure. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
+      // INFO: § 13.4. A deleted item is gone from everywhere the user chooses from, while every bubble that already carries it draws its tombstone.
       // INFO: § 13. A mini never reaches here at all — `sync_emoticon_keywords` keeps its pack out of the index the candidates come from (`0045`).
       .where(and(inArray(emoticonItems.id, candidateIds), isChoosable(emoticonItems)))
       // INFO: § 13.9.1. Authoring order, which decides nothing about what is kept — the cut is upstream — and everything about which of two equally relevant items the stable sort below leaves first.

@@ -8,7 +8,7 @@ import {
 } from "@/shared/config";
 import { emoticonItems, emoticonPacks, getDb, userEmoticonPrefs } from "@/shared/db";
 import type { EmoticonPackId, Nullable, UserId } from "@/shared/lib";
-import { and, asc, desc, eq, ilike, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { toEmoticon } from "../model/to-emoticon";
 import type {
@@ -163,7 +163,7 @@ export async function findKnownPackIds(packIds: EmoticonPackId[]): Promise<Set<s
   const rows = await getDb()
     .select({ id: emoticonPacks.id })
     .from(emoticonPacks)
-    .where(inArray(emoticonPacks.id, packIds));
+    .where(and(inArray(emoticonPacks.id, packIds), isNull(emoticonPacks.deletedAt)));
 
   return new Set(rows.map((row) => row.id));
 }
@@ -181,7 +181,7 @@ export async function getEmoticonPackType(
   const [row] = await getDb()
     .select({ type: emoticonPacks.type })
     .from(emoticonPacks)
-    .where(eq(emoticonPacks.id, packId))
+    .where(and(eq(emoticonPacks.id, packId), isNull(emoticonPacks.deletedAt)))
     .limit(1);
 
   return row?.type ?? null;
@@ -198,7 +198,7 @@ export async function getEmoticonPackType(
  */
 export async function listEmoticonPackItems(packId: EmoticonPackId): Promise<Emoticon[]> {
   const rows = await selectEmoticons()
-    // INFO: The finished restructure. A retired item is gone from everywhere the user chooses from — the picker, search and 최근 사용 — while every bubble that already carries it renders unchanged.
+    // INFO: § 13.4. A deleted item is gone from everywhere the user chooses from, while every bubble that already carries it draws its tombstone.
     .where(and(eq(emoticonItems.packId, packId), isChoosable(emoticonItems)))
     .orderBy(asc(emoticonItems.sortOrder), asc(emoticonItems.id));
 
@@ -231,6 +231,8 @@ function selectPackPage(
   const isRecent = query.sortBy === "recent";
   const cursor = query.cursor ? parseEmoticonPackCursor(query.cursor) : null;
   const conditions: Nullable<SQL>[] = [
+    // WARN: § 13.5. `emoticon_packs.deleted_at` (`0049`) — a soft-deleted pack must never resurface in a list, a search or the picker.
+    isNull(emoticonPacks.deletedAt),
     query.packId === undefined ? null : eq(emoticonPacks.id, query.packId),
     query.type === "all" ? null : eq(emoticonPacks.type, query.type),
     query.enabledOnly ? sql`coalesce(${userEmoticonPrefs.enabled}, false) = true` : null,
@@ -284,7 +286,7 @@ function selectPackRows(
   const firstItem = getDb()
     .select({ id: firstItems.id, updatedAt: firstItems.updatedAt })
     .from(firstItems)
-    // WARN: The finished restructure. The retirement filter belongs here as much as in `listEmoticonPackItems`. Without it the tab icon goes on drawing an item the picker no longer offers, and the fallback stops being "the first of what that list returns" — which is exactly what the line below asserts.
+    // WARN: § 13.4. The filter belongs here as much as in `listEmoticonPackItems`, or the fallback stops being "the first of what that list returns" — which is exactly what the line below asserts.
     .where(and(eq(firstItems.packId, page.id), isChoosable(firstItems)))
     // WARN: The same order `listEmoticonPackItems` returns, or the tab icon is not the cell the grid draws first.
     .orderBy(asc(firstItems.sortOrder), asc(firstItems.id))
@@ -294,7 +296,7 @@ function selectPackRows(
   const itemCount = getDb()
     .select({ value: sql<number>`count(*)::int` })
     .from(countedItems)
-    // WARN: § 4.4. Retired items are not counted, for the reason the cover excludes them: a pack whose only item was retired would report `1개` over a grid that opens empty.
+    // WARN: § 4.4. Deleted items are not counted, for the reason the cover excludes them: a pack whose only item was deleted would report `1개` over a grid that opens empty.
     .where(and(eq(countedItems.packId, page.id), isChoosable(countedItems)));
 
   return (

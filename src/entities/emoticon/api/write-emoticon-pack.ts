@@ -1,21 +1,21 @@
 import "server-only";
 
 import type { EmoticonPackType } from "@/shared/config";
-import { emoticonItems, emoticonPacks, getDb, messages, nextSnowflake } from "@/shared/db";
-import type { EmoticonItemId, EmoticonPackId, Nullable } from "@/shared/lib";
-import { and, arrayOverlaps, eq } from "drizzle-orm";
+import { emoticonItems, emoticonPacks, getDb, nextSnowflake, userEmoticonPrefs } from "@/shared/db";
+import type { EmoticonItemId, EmoticonPackId, Nullable, UserId } from "@/shared/lib";
+import { and, eq, isNull } from "drizzle-orm";
 import type { EmoticonPackSummary } from "../model/types";
 import { detachEmoticonMedia, findItemSlotKeys } from "./get-emoticon-asset";
 
 /**
  * REQUIREMENTS.md § 13.4. A title is the whole form. An empty pack is a valid
  * state on purpose: the thumbnail is one of the pack's own items (§ 13.2.), so it
- * cannot be chosen until items exist.
+ * cannot be chosen until items exist. `created_by` is dropped and stores nothing —
+ * a pack belongs to the conversation, not to whoever typed its name (§ 13.1.).
  *
- * INFO: The finished restructure. It takes no author. `created_by` recorded one and nothing
- * ever read it — § 13.1.'s "a record, never a permission check" was true of the column
- * and of the parameter alike, and a pack belongs to the conversation rather than to
- * whoever typed its name.
+ * WARN: § 13.1. `creatorId` writes only the creator's own `user_emoticon_prefs`
+ * row, in the same transaction as the pack — the other participant gets none, so
+ * the pack stays hidden for them until 이모티콘 묶음 검색 turns it on.
  *
  * WARN: § 13. The kind is settled here and nowhere else. Nothing may change it
  * afterwards: the keyword index is maintained per item, so a pack that changed kind
@@ -24,12 +24,20 @@ import { detachEmoticonMedia, findItemSlotKeys } from "./get-emoticon-asset";
 export async function createEmoticonPack(
   name: string,
   type: EmoticonPackType,
+  creatorId: UserId,
 ): Promise<EmoticonPackSummary> {
-  // INFO: § 13.1. No prefs row, which is what makes the pack hidden — it is turned on from 이모티콘 묶음 검색 once it is worth showing.
-  const [row] = await getDb()
-    .insert(emoticonPacks)
-    .values({ id: nextSnowflake<EmoticonPackId>(), name, type })
-    .returning();
+  const row = await getDb().transaction(async (tx) => {
+    const [inserted] = await tx
+      .insert(emoticonPacks)
+      .values({ id: nextSnowflake<EmoticonPackId>(), name, type })
+      .returning();
+
+    await tx
+      .insert(userEmoticonPrefs)
+      .values({ userId: creatorId, packId: inserted.id, enabled: true });
+
+    return inserted;
+  });
 
   return {
     id: row.id,
@@ -38,7 +46,7 @@ export async function createEmoticonPack(
     thumbnailItemId: row.thumbnailItemId,
     thumbnailVersion: null,
     itemCount: 0,
-    isEnabled: false,
+    isEnabled: true,
   };
 }
 
@@ -47,7 +55,7 @@ export async function renameEmoticonPack(packId: EmoticonPackId, name: string): 
   const updated = await getDb()
     .update(emoticonPacks)
     .set({ name })
-    .where(eq(emoticonPacks.id, packId))
+    .where(and(eq(emoticonPacks.id, packId), isNull(emoticonPacks.deletedAt)))
     .returning({ id: emoticonPacks.id });
 
   return updated.length > 0;
@@ -66,7 +74,13 @@ export async function setEmoticonPackThumbnail(
     const [item] = await getDb()
       .select({ id: emoticonItems.id })
       .from(emoticonItems)
-      .where(and(eq(emoticonItems.id, itemId), eq(emoticonItems.packId, packId)))
+      .where(
+        and(
+          eq(emoticonItems.id, itemId),
+          eq(emoticonItems.packId, packId),
+          isNull(emoticonItems.deletedAt),
+        ),
+      )
       .limit(1);
 
     if (!item) {
@@ -77,29 +91,22 @@ export async function setEmoticonPackThumbnail(
   const updated = await getDb()
     .update(emoticonPacks)
     .set({ thumbnailItemId: itemId })
-    .where(eq(emoticonPacks.id, packId))
+    .where(and(eq(emoticonPacks.id, packId), isNull(emoticonPacks.deletedAt)))
     .returning({ id: emoticonPacks.id });
 
   return updated.length > 0;
 }
 
 export type DeleteEmoticonPackResult =
-  { status: "deleted"; orphanedKeys: string[] } | { status: "in_use" } | { status: "not_found" };
+  { status: "deleted"; orphanedKeys: string[] } | { status: "not_found" };
 
 /**
- * Removes a pack and reports the R2 keys it leaves behind, so the caller can clean
- * the bucket (§ 9.).
+ * Soft-deletes a pack and every one of its items in one transaction, and reports
+ * the R2 keys that leaves behind so the caller can clean the bucket (§ 9., § 13.5.).
  *
- * WARN: Refused when any of its items has been sent. The cascade reaches
- * `emoticon_items`, but `messages.emoticon_item_id` carries none — so without this
- * the delete surfaces a foreign-key error as a 500, and the alternative (deleting
- * the messages too) is § 18. #1's open question rather than something to decide here.
- *
- * WARN: § 13. An item written into a message's text is refused by the **second**
- * check, and it needs one because there is no constraint behind it — `pack_id`
- * cascades, so the rows would simply go, and a bubble drawing one reads its box off the
- * row that is no longer there. The item delete tombstones for that reason; a pack
- * delete cannot, since keeping the items means keeping the pack.
+ * WARN: Never a hard `DELETE`. The cascade into `emoticon_items` is exactly what
+ * `messages.emoticon_item_id`'s missing FK cascade forbids, and it would also erase
+ * the `width`/`height` a sent item's tombstone bubble sizes itself from.
  */
 export async function deleteEmoticonPack(
   packId: EmoticonPackId,
@@ -107,69 +114,36 @@ export async function deleteEmoticonPack(
   const [pack] = await getDb()
     .select({ id: emoticonPacks.id })
     .from(emoticonPacks)
-    .where(eq(emoticonPacks.id, packId))
+    .where(and(eq(emoticonPacks.id, packId), isNull(emoticonPacks.deletedAt)))
     .limit(1);
 
   if (!pack) {
     return { status: "not_found" };
   }
 
-  const [sent] = await getDb()
-    .select({ id: messages.id })
-    .from(messages)
-    .innerJoin(emoticonItems, eq(emoticonItems.id, messages.emoticonItemId))
-    .where(eq(emoticonItems.packId, packId))
-    .limit(1);
+  const slotKeys = await getDb().transaction(async (tx) => {
+    // WARN: Stamped by `pack_id` rather than by an id list read beforehand. A `POST /packs/{id}/items` committing between the two would land an item this delete never stamps, and no item-level read joins its pack — so it would stay reachable from 이모티콘 검색 and 즐겨찾기 with its objects already gone.
+    const items = await tx
+      .update(emoticonItems)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(emoticonItems.packId, packId), isNull(emoticonItems.deletedAt)))
+      .returning({ id: emoticonItems.id });
 
-  if (sent) {
-    return { status: "in_use" };
-  }
-
-  const items = await getDb()
-    .select({ id: emoticonItems.id })
-    .from(emoticonItems)
-    .where(eq(emoticonItems.packId, packId));
-
-  if (await isAnyItemInlined(items.map((item) => item.id))) {
-    return { status: "in_use" };
-  }
-
-  // WARN: Read before the delete, for the reason `deleteEmoticonItem` gives — the keys live on the `media` rows the slots name, and the join needs the item rows to still be there.
-  const slotKeys = await findItemSlotKeys(items.map((item) => item.id));
-
-  await getDb().transaction(async (tx) => {
-    // WARN: The thumbnail FK points into the items about to cascade away. Clearing it first keeps the delete from depending on constraint evaluation order.
     await tx
       .update(emoticonPacks)
-      .set({ thumbnailItemId: null })
+      .set({ deletedAt: new Date() })
       .where(eq(emoticonPacks.id, packId));
 
-    await tx.delete(emoticonPacks).where(eq(emoticonPacks.id, packId));
+    // INFO: Read inside the transaction, which a soft delete allows where the old hard one did not — the rows the join needs are still there, stamped.
+    const keys = await findItemSlotKeys(
+      items.map((item) => item.id),
+      tx,
+    );
 
-    await detachEmoticonMedia(tx, slotKeys);
+    await detachEmoticonMedia(tx, keys);
+
+    return keys;
   });
 
   return { status: "deleted", orphanedKeys: slotKeys };
-}
-
-/**
- * Whether any of these items is written into a message's text (§ 13.).
- *
- * WARN: `&&` against `inline_emoticon_item_ids`, which has no index and cannot get a
- * useful one — the id is an array element. It is a sequential scan of `messages`, paid
- * once on an explicit delete, and it is what keeps a tombstone's box from being
- * cascaded away.
- */
-async function isAnyItemInlined(itemIds: EmoticonItemId[]): Promise<boolean> {
-  if (itemIds.length === 0) {
-    return false;
-  }
-
-  const [inlined] = await getDb()
-    .select({ id: messages.id })
-    .from(messages)
-    .where(arrayOverlaps(messages.inlineEmoticonItemIds, itemIds))
-    .limit(1);
-
-  return inlined !== undefined;
 }

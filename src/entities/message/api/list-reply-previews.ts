@@ -58,6 +58,7 @@ export async function listReplyPreviews(
       emoticonItemId: messages.emoticonItemId,
       // INFO: REQUIREMENTS.md § 13.4. Joined for this column alone — the tile's URL is versioned by it, and the join is what keeps the quote showing an edited emoticon's correction (§ 8.10.).
       emoticonUpdatedAt: emoticonItems.updatedAt,
+      emoticonDeletedAt: emoticonItems.deletedAt,
     })
     .from(messages)
     .leftJoin(emoticonItems, eq(messages.emoticonItemId, emoticonItems.id))
@@ -99,7 +100,9 @@ export async function listReplyPreviews(
         : toQuoteThumbnail(
             toQuotedEmoticon(row),
             attachments,
-            soloId && soloInfo ? { id: soloId, version: soloInfo.version } : null,
+            soloId && soloInfo
+              ? { id: soloId, version: soloInfo.version, isDeleted: soloInfo.isDeleted }
+              : null,
           ),
       // INFO: The same rule the § 16.1. push body applies — 동영상 only when there is no photo in the bubble to contradict it.
       mediaKind: toMediaNoun(attachments),
@@ -140,13 +143,19 @@ function toQuotedText(row: { type: string; text: Nullable<string> }): Nullable<s
 function toQuotedEmoticon({
   emoticonItemId,
   emoticonUpdatedAt,
+  emoticonDeletedAt,
 }: {
   emoticonItemId: Nullable<EmoticonItemId>;
   emoticonUpdatedAt: Nullable<Date>;
-}): Nullable<{ version: number; id: string }> {
+  emoticonDeletedAt: Nullable<Date>;
+}): Nullable<{ version: number; isDeleted: boolean; id: string }> {
   if (!emoticonItemId || !emoticonUpdatedAt) {
     return null;
   }
 
-  return { id: emoticonItemId, version: emoticonUpdatedAt.getTime() };
+  return {
+    id: emoticonItemId,
+    version: emoticonUpdatedAt.getTime(),
+    isDeleted: emoticonDeletedAt !== null,
+  };
 }

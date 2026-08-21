@@ -344,6 +344,20 @@
       "when": 1787241629687,
       "tag": "0048_abnormal_zombie",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1787304429713,
+      "tag": "0049_emoticon_delete_unification",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1787304430713,
+      "tag": "0050_emoticon_soft_delete_cascades",
+      "breakpoints": true
     }
   ]
 }

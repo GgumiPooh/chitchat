@@ -2400,7 +2400,8 @@ export function ChatRoom({
     const emoticon = target.emoticon;
 
     // INFO: REQUIREMENTS.md § 13.9. The same action the bubble's own tap performs, offered here because a mouse reaches this sheet by right-click (`DESIGN.md § 3.2.`) — and because a tap that also replays a sound is not the only way anyone should have to ask for it.
-    if (emoticon) {
+    // WARN: Withheld once the item is deleted, for the reason the bubble's tap is: every picker list filters it out, so the panel would open on nothing.
+    if (emoticon && !emoticon.isDeleted) {
       items.push({
         label: "이모티콘 따라하기",
         Icon: Smile,
@@ -2496,7 +2497,7 @@ export function ChatRoom({
    */
   function toSoloInlineQuoteEmoticon(
     message: ChatMessage,
-  ): Nullable<{ version: number; id: EmoticonItemId }> {
+  ): Nullable<{ version: number; isDeleted: boolean; id: EmoticonItemId }> {
     if (message.type !== "text") {
       return null;
     }
@@ -2507,7 +2508,7 @@ export function ChatRoom({
     });
     const info = soloId ? inlineEmoticons[soloId] : undefined;
 
-    return soloId && info ? { id: soloId, version: info.version } : null;
+    return soloId && info ? { id: soloId, version: info.version, isDeleted: info.isDeleted } : null;
   }
 
   /**

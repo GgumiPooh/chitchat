@@ -118,7 +118,7 @@ export async function POST(request: Request) {
     return apiError("invalid_request");
   }
 
-  const pack = await createEmoticonPack(body.data.name, body.data.type);
+  const pack = await createEmoticonPack(body.data.name, body.data.type, user.id);
 
   return NextResponse.json({ pack }, { status: 201 });
 }

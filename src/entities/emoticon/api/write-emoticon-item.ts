@@ -29,7 +29,7 @@ import type {
   UserId,
 } from "@/shared/lib";
 import { headAcceptableObject, readObject, type StoredObject } from "@/shared/storage";
-import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { toEmoticon } from "../model/to-emoticon";
 import type { Emoticon } from "../model/types";
 import { detachEmoticonMedia } from "./get-emoticon-asset";
@@ -207,7 +207,14 @@ export async function updateEmoticonItem({
     .select({ item: emoticonItems, packType: emoticonPacks.type })
     .from(emoticonItems)
     .innerJoin(emoticonPacks, eq(emoticonPacks.id, emoticonItems.packId))
-    .where(eq(emoticonItems.id, itemId))
+    // WARN: A deleted item is a 404 rather than an edit. Its objects are already purged, so a `PATCH` would register replacements the delete can never come back for while the row goes on drawing its tombstone.
+    .where(
+      and(
+        eq(emoticonItems.id, itemId),
+        isNull(emoticonItems.deletedAt),
+        isNull(emoticonPacks.deletedAt),
+      ),
+    )
     .limit(1);
 
   if (!found) {

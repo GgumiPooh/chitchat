@@ -34,7 +34,10 @@ export function toQuoteThumbnail(
   // INFO: REQUIREMENTS.md § 6. A row carries one payload or the other, so the order settles nothing — an emoticon message has no attachments to reach the test below.
   const resolved = emoticon ?? soloInlineEmoticon;
   if (resolved) {
-    return { kind: "emoticon", itemId: resolved.id, version: resolved.version };
+    // INFO: § 13. A deleted item keeps its tile for the reason a destroyed attachment does below — the row survives its objects, so the id still resolves while the asset route 404s.
+    return resolved.isDeleted
+      ? { kind: "deleted" }
+      : { kind: "emoticon", itemId: resolved.id, version: resolved.version };
   }
 
   return toAttachmentThumbnail(attachments[0]);
@@ -73,4 +76,5 @@ type QuotedAttachment = {
 };
 
 /** @see QuotedAttachment — the emoticon half, whose `version` is `emoticon_items.updated_at` in milliseconds (§ 13.4.). */
-type QuotedEmoticon = { version: number; id: string };
+// WARN: `isDeleted` is required for the reason `QuotedAttachment`'s is — an optional one would read `undefined` on a shape this is written to keep out, and the quote would draw a purged object.
+type QuotedEmoticon = { version: number; isDeleted: boolean; id: string };

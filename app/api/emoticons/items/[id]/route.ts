@@ -45,10 +45,8 @@ const patchSchema = z
 /**
  * Replaces an item's assets in place (REQUIREMENTS.md § 13.4.).
  *
- * INFO: Unlike DELETE below, an item already sent in chat may be edited. The
- * message references the item rather than the object, so there is no foreign key to
- * trip over, and the corrected image appearing in the history is what editing is
- * for.
+ * INFO: § 13.4. An item already sent in chat may be edited — the message references the
+ * item rather than the object, so the corrected image appears in the history.
  */
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -90,15 +88,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
  * existing — the FK is `ON DELETE SET NULL` and the picker falls back to the
  * pack's first item.
  *
- * INFO: The finished restructure. One control, two outcomes, decided by whether anything
- * has sent the item: never sent is a real delete, sent is a retirement out of the
- * picker. Both answer 204, because from the caller's side the item is gone from every
- * place it was choosing from.
- *
- * WARN: This used to answer 409 `in_use` for a sent item, and the control simply
- * failed. `messages.emoticon_item_id` still carries no cascade and
- * `messages_type_payload_check` still forbids a `set null`, which is why retiring is
- * the answer rather than a wider migration.
+ * INFO: REQUIREMENTS.md § 13.4. Every item takes the same soft-delete, sent or not,
+ * mini or not.
  */
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -118,13 +109,6 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   if (result.status === "not_found") {
     return apiError("not_found");
   }
-
-  // INFO: The finished restructure. A sent item was retired rather than removed, so there is nothing to sweep — its objects are still drawn by every bubble carrying it.
-  if (result.status === "retired") {
-    return new NextResponse(null, { status: 204 });
-  }
-
-  // INFO: § 13. A mini kept its row and lost its objects, so the sweep below is the same one — what differs is that the row survives to size the replacement drawn in its place.
 
   // INFO: REQUIREMENTS.md § 9. The `media` rows went with the item; `purgeNow` takes the bytes and never throws. § 13.4. gives emoticons no grace — the redirect is cached for days.
   await purgeNow(result.orphanedKeys);

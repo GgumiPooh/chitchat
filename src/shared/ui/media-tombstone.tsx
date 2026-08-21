@@ -9,7 +9,16 @@ export type MediaTombstoneProps = {
   iconClassName?: string;
   /** The sentence's own type scale, for a box too narrow to read `caption` in — the § 8.1. grid's square tile. */
   textClassName?: string;
-  cell: MediaCell;
+  /**
+   * The sentence, for a tombstone standing in for something that is not an attachment
+   * — REQUIREMENTS.md § 13.'s deleted emoticon, whose noun is fixed and whose kind
+   * `MediaNoun` deliberately does not carry.
+   *
+   * WARN: Exactly one of this and `cell` is expected. They are both optional because a
+   * union here buys nothing the callers do not already state plainly.
+   */
+  text?: string;
+  cell?: MediaCell;
 };
 
 /**
@@ -28,6 +37,7 @@ export function MediaTombstone({
   className,
   iconClassName,
   textClassName,
+  text,
   cell,
 }: MediaTombstoneProps) {
   return (
@@ -41,7 +51,7 @@ export function MediaTombstone({
       <Trash2 className={cn("size-5 shrink-0 text-meta-soft", iconClassName)} strokeWidth={1.75} />
       {/* INFO: DESIGN.md § 6.5. `meta` rather than the bubble's own ink — a tombstone is the room telling the reader what is missing, not the message speaking. */}
       <p className={cn("text-caption text-meta", textClassName)}>
-        {toDeletedMediaText(toCellNoun(cell))}
+        {text ?? (cell ? toDeletedMediaText(toCellNoun(cell)) : null)}
       </p>
     </div>
   );

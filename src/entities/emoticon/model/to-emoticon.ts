@@ -24,5 +24,6 @@ export function toEmoticon({ item, width, height }: EmoticonRow): Emoticon {
     hasAnimated: item.animatedImageId !== null,
     keywords: item.keywords,
     version: item.updatedAt.getTime(),
+    isDeleted: item.deletedAt !== null,
   };
 }

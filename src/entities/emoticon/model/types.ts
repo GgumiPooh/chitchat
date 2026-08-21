@@ -18,6 +18,8 @@ export type Emoticon = {
   keywords: string[];
   // INFO: REQUIREMENTS.md § 13.4. `updated_at` in milliseconds, appended to the asset URL — an edited item keeps its id, so nothing else would tell the cached redirect apart from the new one.
   version: number;
+  // INFO: REQUIREMENTS.md § 13.4., § 13.6. Answered, not filtered — a bubble already carrying this item still needs the row to size its tombstone.
+  isDeleted: boolean;
   id: EmoticonItemId;
 };
 

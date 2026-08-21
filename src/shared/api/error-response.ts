@@ -14,8 +14,6 @@ const ERROR_STATUS = {
   unauthorized: 401,
   not_found: 404,
   conflict: 409,
-  /** REQUIREMENTS.md § 13.6. A 409 that names its reason: the emoticon has been sent and cannot be deleted. */
-  in_use: 409,
   too_large: 413,
   unsupported_media: 415,
   unprocessable: 422,

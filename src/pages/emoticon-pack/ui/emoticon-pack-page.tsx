@@ -382,15 +382,8 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
       if (itemId === thumbnailItemId) {
         setThumbnailItemId(null);
       }
-    } catch (error) {
-      toast.error(toDeleteMessage(error, kindNoun));
+    } catch {
+      toast.error("삭제하지 못했어요");
     }
   }
-}
-
-// INFO: § 13.6. An item already sent answers 409 — the user needs to be told why rather than shown a generic failure.
-function toDeleteMessage(error: unknown, kindNoun: string): string {
-  return error instanceof Error && error.message === "409"
-    ? `이미 대화에서 보낸 ${josa(kindNoun, "은/는")} 삭제할 수 없어요`
-    : "삭제하지 못했어요";
 }

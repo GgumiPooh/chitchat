@@ -3,9 +3,12 @@
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import { cn, toPreviousReplaySrc, toReplaySrc, useViewportReplay } from "@/shared/lib";
-import { PreloadImage } from "@/shared/ui";
+import { MediaTombstone, PreloadImage } from "@/shared/ui";
 import { playEmoticonSound } from "../model/play-emoticon-sound";
 import { toEmoticonBox } from "../model/to-emoticon-box";
+
+// INFO: REQUIREMENTS.md § 13. 해요체, matching `삭제된 사진이에요` — the same event said about an emoticon. Written out because the noun is fixed, where `toDeletedMediaText` picks a copula for one that varies.
+const DELETED_EMOTICON_TEXT = "삭제된 이모티콘이에요";
 
 export type EmoticonBubbleProps = {
   className?: string;
@@ -30,7 +33,7 @@ export type EmoticonBubbleProps = {
  * be answering a different question than the one that was asked.
  */
 export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubbleProps) {
-  const { hasAnimated } = emoticon;
+  const { hasAnimated, isDeleted } = emoticon;
   const { ref, replayToken, replay } = useViewportReplay();
   const box = toEmoticonBox(emoticon);
   const emoticonAssetUrl = toEmoticonAssetUrl(
@@ -38,6 +41,15 @@ export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubble
     hasAnimated ? "animated-image" : "still-image",
     emoticon.version,
   );
+
+  // WARN: § 13. Not a `<button>`. The objects are purged, so there is nothing to replay and no 따라하기 target — every picker list filters the item out.
+  if (isDeleted) {
+    return (
+      <div className={cn("flex", className)} style={{ width: box.width, height: box.height }}>
+        <MediaTombstone text={DELETED_EMOTICON_TEXT} />
+      </div>
+    );
+  }
 
   return (
     <div

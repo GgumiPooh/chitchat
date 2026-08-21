@@ -1,10 +1,10 @@
 import "server-only";
 
 import type { EmoticonSlot } from "@/shared/config";
-import { emoticonItems, emoticonPacks, getDb, media, messages } from "@/shared/db";
+import { emoticonItems, emoticonPacks, getDb, media } from "@/shared/db";
 import type { EmoticonItemId, Nullable } from "@/shared/lib";
 import type { DbTransaction } from "@/shared/storage";
-import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { alias, type PgColumn } from "drizzle-orm/pg-core";
 
 /** The storage key behind each of one item's three slots (the finished restructure). */
@@ -103,12 +103,16 @@ function isSlotOf(mediaId: PgColumn) {
 }
 
 /** INFO: § 9. Every object these items draw from, read off the `media` rows their slots name — a caller about to delete the rows needs all of them to clean the bucket. */
-export async function findItemSlotKeys(itemIds: EmoticonItemId[]): Promise<string[]> {
+export async function findItemSlotKeys(
+  itemIds: EmoticonItemId[],
+  // INFO: Taken so a delete can read the keys inside its own transaction, against the very rows it has just stamped.
+  db: DbTransaction | ReturnType<typeof getDb> = getDb(),
+): Promise<string[]> {
   if (itemIds.length === 0) {
     return [];
   }
 
-  const rows = await getDb()
+  const rows = await db
     .selectDistinct({ r2Key: media.r2Key })
     .from(media)
     .innerJoin(emoticonItems, isSlotOf(media.id))
@@ -118,116 +122,54 @@ export async function findItemSlotKeys(itemIds: EmoticonItemId[]): Promise<strin
 }
 
 export type DeleteEmoticonResult =
-  | { status: "deleted"; orphanedKeys: string[] }
-  | { status: "tombstoned"; orphanedKeys: string[] }
-  | { status: "retired" }
-  | { status: "not_found" };
+  { status: "deleted"; orphanedKeys: string[] } | { status: "not_found" };
 
 /**
- * Takes an item out of the picker, and removes it outright where nothing has sent it —
- * reporting the R2 keys that leaves behind so the caller can clean the bucket (§ 9.).
+ * Takes an item out of the picker, mini or not (REQUIREMENTS.md § 13.4.): stamps
+ * `deleted_at`, soft-deletes its media and reports the R2 keys that leaves behind so
+ * the caller can clean the bucket (§ 9.).
  *
- * INFO: The finished restructure. An item that has been sent is **retired** rather than
- * refused. It leaves the picker, search and 최근 사용, and every bubble that already
- * carries it renders exactly as before. This used to answer `in_use` and the control
- * simply failed, which is the complaint this resolves.
- *
- * WARN: § 4.4. Retiring is the whole of it, and neither the FK nor the CHECK behind it
- * is touched. `messages.emoticon_item_id` carries no cascade and
- * `messages_type_payload_check` forbids the `set null` that would otherwise let the row
- * go — deliberately, because an emoticon is shared vocabulary rather than one person's
- * record, so erasing one would put a tombstone in **both** participants' bubbles with no
- * author to attribute it to.
- *
- * WARN: § 4.1. Either participant may do this, unlike a media delete. The picker is
- * shared, and retiring changes no bubble.
- *
- * WARN: § 13. A mini takes neither branch. Its row is kept and stamped `deleted_at`
- * while its objects go, because the box and the name a bubble draws its replacement
- * from are on that row — and it is **not** asked whether anything sent it first, since
- * that question is a scan of `messages` for an answer that changes nothing here.
+ * WARN: The row survives. `messages.emoticon_item_id` carries no cascade and
+ * `messages_type_payload_check` forbids the `set null` that would otherwise let it
+ * go — a sent item's box and keyword are what the tombstone in every bubble carrying
+ * it draws from, and neither participant is asked first, since that is a full scan
+ * of `messages` for an answer that no longer changes the outcome.
  */
 export async function deleteEmoticonItem(id: EmoticonItemId): Promise<DeleteEmoticonResult> {
-  const [item] = await getDb()
-    .select({
-      type: emoticonPacks.type,
-      // WARN: Inside the `CASE` so a mini never runs it, which is what the note above asks for — `messages.emoticon_item_id` carries no index, so the miss is a full scan.
-      isSent: sql<boolean>`case when ${emoticonPacks.type} = 'emoticon' then exists (select 1 from ${messages} where ${messages.emoticonItemId} = ${emoticonItems.id}) else false end`,
-    })
-    .from(emoticonItems)
-    .innerJoin(emoticonPacks, eq(emoticonPacks.id, emoticonItems.packId))
-    .where(eq(emoticonItems.id, id))
-    .limit(1);
-
-  if (!item) {
-    return { status: "not_found" };
-  }
-
-  if (item.type === "mini") {
-    return tombstoneEmoticonItem(id);
-  }
-
-  if (item.isSent) {
-    const [retired] = await getDb()
-      .update(emoticonItems)
-      .set({ retiredAt: new Date() })
-      .where(eq(emoticonItems.id, id))
-      .returning({ id: emoticonItems.id });
-
-    return retired ? { status: "retired" } : { status: "not_found" };
-  }
-
-  // WARN: Read before the delete, because the keys live on the `media` rows the slots name and the join needs the item row to still be there.
+  // WARN: Read before the write — the keys live on the `media` rows the slots name, and the join needs the item row to still be there.
   const slotKeys = await findItemSlotKeys([id]);
 
   const isDeleted = await getDb().transaction(async (tx) => {
     const [row] = await tx
-      .delete(emoticonItems)
-      .where(eq(emoticonItems.id, id))
+      .update(emoticonItems)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(emoticonItems.id, id), isNull(emoticonItems.deletedAt)))
       .returning({ id: emoticonItems.id });
 
     if (!row) {
       return false;
     }
 
+    await clearPackThumbnail(tx, id);
+
     await detachEmoticonMedia(tx, slotKeys);
 
     return true;
   });
 
-  if (!isDeleted) {
-    return { status: "not_found" };
-  }
-
-  return { status: "deleted", orphanedKeys: slotKeys };
+  return isDeleted ? { status: "deleted", orphanedKeys: slotKeys } : { status: "not_found" };
 }
 
 /**
- * Takes a mini's objects and leaves the row that describes them (§ 13.).
+ * Falls a pack back on its first item when the item it was drawn with goes (§ 13.2.).
  *
- * WARN: The `media` rows are soft-deleted rather than removed, which is what keeps
- * `width` and `height` readable — `MediaTombstone` reserves its box the same way. The
- * item row keeps its keyword too, which is the name the replacement is labelled with.
+ * WARN: What `thumbnail_item_id`'s `ON DELETE SET NULL` did for free until the delete
+ * became an `UPDATE`. Left set, the tab icon keeps requesting an object the purge has
+ * taken and R2 answers 404 for the life of the pack.
  */
-async function tombstoneEmoticonItem(id: EmoticonItemId): Promise<DeleteEmoticonResult> {
-  // WARN: Read before the write, for the reason the delete above gives — the keys are on the `media` rows the slots name.
-  const slotKeys = await findItemSlotKeys([id]);
-
-  const isTombstoned = await getDb().transaction(async (tx) => {
-    const [row] = await tx
-      .update(emoticonItems)
-      .set({ deletedAt: new Date() })
-      .where(eq(emoticonItems.id, id))
-      .returning({ id: emoticonItems.id });
-
-    if (!row) {
-      return false;
-    }
-
-    await detachEmoticonMedia(tx, slotKeys);
-
-    return true;
-  });
-
-  return isTombstoned ? { status: "tombstoned", orphanedKeys: slotKeys } : { status: "not_found" };
+async function clearPackThumbnail(tx: DbTransaction, itemId: EmoticonItemId): Promise<void> {
+  await tx
+    .update(emoticonPacks)
+    .set({ thumbnailItemId: null })
+    .where(eq(emoticonPacks.thumbnailItemId, itemId));
 }

@@ -9,7 +9,7 @@ import { isChoosable, selectEmoticons } from "./select-emoticons";
 
 /**
  * Lists all favorited emoticons for a user, most recently favorited first.
- * Soft-deleted or retired emoticons are automatically filtered out via `isChoosable`.
+ * Deleted emoticons are filtered out via `isChoosable`.
  */
 export async function listUserEmoticonFavorites(userId: UserId): Promise<Emoticon[]> {
   const rows = await selectEmoticons()

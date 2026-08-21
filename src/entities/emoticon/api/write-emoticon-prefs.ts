@@ -90,6 +90,7 @@ async function toMovedPosition(
       from ${emoticonPacks}
       left join ${userEmoticonPrefs}
         on ${and(eq(userEmoticonPrefs.packId, emoticonPacks.id), eq(userEmoticonPrefs.userId, userId))}
+      where ${emoticonPacks.deletedAt} is null
     ),
     predecessor as (
       select pack_id, ordinal from effective where pack_id = ${after}::bigint

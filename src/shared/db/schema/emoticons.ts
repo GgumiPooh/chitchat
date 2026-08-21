@@ -43,6 +43,8 @@ export const emoticonPacks = pgTable("emoticon_packs", {
       onDelete: "set null",
     },
   ),
+  // INFO: REQUIREMENTS.md § 13.5. Soft, for the reason `emoticon_items.deleted_at` is — a hard `DELETE` cascades into items, and `messages.emoticon_item_id` has no cascade to survive it.
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
 export const emoticonItems = pgTable(
@@ -53,7 +55,7 @@ export const emoticonItems = pgTable(
       .notNull()
       .references(() => emoticonPacks.id, { onDelete: "cascade" }),
     // INFO: The finished restructure. The three slots an emoticon's assets become.
-    // WARN: No `onDelete`, so NO ACTION blocks removing a `media` row an item still draws from. `set null` is the tempting alternative and is wrong for the reason `retired_at` records one line down: it would resolve the constraint by silently emptying a slot every bubble in the history renders from.
+    // WARN: No `onDelete`, so NO ACTION blocks removing a `media` row an item still draws from. `set null` is the tempting alternative and is wrong: it would resolve the constraint by silently emptying a slot every bubble in the history renders from.
     stillImageId: snowflake<MediaId>("still_image_id").references(() => media.id),
     animatedImageId: snowflake<MediaId>("animated_image_id").references(() => media.id),
     audioId: snowflake<MediaId>("audio_id").references(() => media.id),
@@ -63,11 +65,7 @@ export const emoticonItems = pgTable(
     sortOrder: smallint("sort_order").notNull(),
     // WARN: REQUIREMENTS.md § 13.4. What the asset URL is versioned by. Editing an item swaps its R2 keys under an unchanged item id, and the asset redirect is cached (§ 9.), so without this the old image survives the edit.
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-    // INFO: The finished restructure. 목록에서 내리기, which either participant may do — the picker is shared vocabulary. The item leaves the picker, search and 최근 사용, and every bubble that already carries it renders exactly as before.
-    // WARN: This is the whole answer to "a used emoticon cannot be deleted". `messages.emoticon_item_id` has no `onDelete`, so NO ACTION blocks the delete, and `messages_type_payload_check` forbids the `set null` that would otherwise resolve it — neither is changed, because an emoticon is nobody's record and a tombstone would mark both participants' bubbles at once (§ 4.4.). An item nothing has sent is still deleted outright, which already works.
-    retiredAt: timestamp("retired_at", { withTimezone: true }),
-    // WARN: 삭제, and deliberately not `retired_at` above — that one keeps every bubble drawing the item, and reusing it would change what an emoticon's 목록에서 내리기 already does.
-    // INFO: Soft for the reason `media.deleted_at` is: the box a bubble reserves is on the row, so the replacement drawn in its place needs the row to survive the asset.
+    // INFO: REQUIREMENTS.md § 13.4. 삭제, which either participant may do. Soft for the reason `media.deleted_at` is: the box a bubble reserves is on the row, so the tombstone drawn in its place needs the row to survive the asset.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [

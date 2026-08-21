@@ -204,7 +204,8 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
         isOpen={deletingPack !== null}
         header={{
           title: deletingPack ? `${josa(deletingPack.name, "을/를")} 삭제할까요?` : "",
-          description: `${josa(packNoun, "와/과")} 그 안의 ${josa(kindNoun, "이/가")} 모두 사라져요`,
+          // INFO: § 13.4. It names the bubbles too. A pack whose items had been sent could not be deleted at all until the delete became a soft one, so the old sentence stopped at the pack.
+          description: `${josa(packNoun, "와/과")} 그 안의 ${josa(kindNoun, "이/가")} 모두 사라지고, 이미 보낸 ${josa(kindNoun, "은/는")} 대화에서 삭제된 표시로 바뀌어요`,
         }}
         onClose={() => setDeletingPack(null)}
       >
@@ -346,17 +347,10 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
       setKnown((current) => current.filter((p) => p.id !== pack.id));
       void queryClient.invalidateQueries({ queryKey: ["emoticon-pack-browse", type] });
       setDeletingPack(null);
-    } catch (error) {
-      toast.error(toDeleteMessage(error, kindNoun));
+    } catch {
+      toast.error("삭제하지 못했어요");
     } finally {
       setIsRemoving(false);
     }
   }
-}
-
-// INFO: § 13.6. A pack whose items have been sent answers 409 — the user needs to be told which of the two rules stopped them, not that something failed.
-function toDeleteMessage(error: unknown, kindNoun: string): string {
-  return error instanceof Error && error.message === "409"
-    ? `이미 대화에서 보낸 ${josa(kindNoun, "이/가")} 있어 삭제할 수 없어요`
-    : "삭제하지 못했어요";
 }
