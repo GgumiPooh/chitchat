@@ -2,6 +2,7 @@ import type { ThumbnailMime } from "@/shared/config";
 import { ensure, type Nullable, type Optional } from "@/shared/lib";
 import { encode } from "blurhash";
 import { encodeAvif } from "./avif-encoder";
+import { encodeAvifOffThread } from "./avif-worker-client";
 
 // INFO: REQUIREMENTS.md § 9. The thumbnail every chat cell and library tile loads. 720 covers a 220px bubble (DESIGN.md § 6.5.) and a 3-column grid cell at 3× density.
 export const THUMBNAIL_MAX_EDGE = 720;
@@ -52,17 +53,30 @@ export type EncodedStillImage = {
 };
 
 // WARN: Firefox and Safari have no AVIF encoder and `canvas.toBlob("image/avif")` silently answers a PNG on both, per spec — this goes through `@jsquash/avif` instead and never touches that call, so there is no PNG to mistake for a real encode.
-// INFO: The encode itself runs off the main thread, in `avif-encoder.worker.ts` — `getImageData` cannot, since a worker has no DOM to hold the canvas.
+// INFO: The encode runs off the main thread in `avif-encoder.worker.ts`; `getImageData` cannot follow it, since a worker has no DOM to hold the canvas.
 async function tryEncodeAvif(canvas: HTMLCanvasElement, quality: number): Promise<Nullable<Blob>> {
-  try {
-    const context = ensure(canvas.getContext("2d"), "2d context unavailable");
-    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    const buffer = await encodeAvif(imageData, quality);
+  const context = canvas.getContext("2d");
 
-    return new Blob([buffer], { type: "image/avif" });
-  } catch {
+  if (!context) {
     return null;
   }
+
+  const readPixels = () => context.getImageData(0, 0, canvas.width, canvas.height);
+
+  try {
+    return toAvifBlob(await encodeAvifOffThread(readPixels(), quality));
+  } catch {
+    // WARN: Re-read rather than reused — the attempt above transferred that buffer into the worker and detached it here. A browser that cannot spawn the worker still gets AVIF this way, at the cost of the freeze the worker exists to avoid.
+    try {
+      return toAvifBlob(await encodeAvif(readPixels(), quality));
+    } catch {
+      return null;
+    }
+  }
+}
+
+function toAvifBlob(buffer: ArrayBuffer): Blob {
+  return new Blob([buffer], { type: "image/avif" });
 }
 
 /**
