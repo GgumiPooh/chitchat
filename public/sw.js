@@ -163,6 +163,11 @@ function resolveHandler(request) {
     return null;
   }
 
+  // WARN: Never a worker's own script, whatever it matches below. A `Response` taken from `caches` carries the *cached entry's* URL, and the browser sets the worker's `location` from it — which drops the `#params=…` fragment Turbopack hangs a bundled worker's chunk list on (`ffmpeg-runtime.ts` has the other half of that story). The worker then aborts with `Missing worker bootstrap config`, and `optimizeVideo` and `tryEncodeAvif` silently re-run their encode on the main thread — a console error on desktop, a killed tab on iOS.
+  if (request.destination === "worker" || request.destination === "sharedworker") {
+    return null;
+  }
+
   const url = new URL(request.url);
 
   // WARN: A worker controls its whole origin, so a cross-origin request reaches this too — R2 among them, whose URLs are presigned and expire (§ 9.).

@@ -39,6 +39,8 @@ function ensureWorker(): Worker {
 
   // WARN: A worker-level failure — its module script failing to fetch, say — never reaches the handler above, so every request still in flight would hang forever without this.
   instance.onerror = (event) => {
+    // WARN: `tryEncodeAvif`'s fallback is silent for the same reason `video-worker-client.ts` states, and hid the same bug.
+    console.error("[upload] the avif worker failed", event.message);
     pending.forEach((request) => request.reject(event.error ?? new Error("avif worker failed")));
     pending.clear();
     instance.terminate();

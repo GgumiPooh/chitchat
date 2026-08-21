@@ -49,6 +49,8 @@ function ensureWorker(): Worker {
 
   // WARN: A worker-level failure never reaches the handler above, so every request still in flight would hang forever without this — reject them and let the next call spawn a fresh worker.
   instance.onerror = (event) => {
+    // WARN: The only surface a worker that never booted has — `optimizeVideo` answers this by re-encoding on the main thread, which is silent by design and hid `sw.js` serving this script from `caches` for a whole release.
+    console.error("[upload] the video worker failed", event.message);
     pending.forEach((request) => request.reject(event.error ?? new Error("video worker failed")));
     pending.clear();
     worker = null;
