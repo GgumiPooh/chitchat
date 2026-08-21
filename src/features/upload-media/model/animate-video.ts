@@ -5,6 +5,7 @@ import { fitWithin } from "./canvas";
 import { enqueueFfmpeg, loadFfmpeg, toEvenEdge } from "./ffmpeg-runtime";
 import { ANIMATION_MIME } from "./optimize-animation";
 import type { EncodeProgress, OptimizedMedia } from "./optimize-result";
+import { releaseSource } from "./read-draft";
 
 /**
  * WARN: REQUIREMENTS.md § 13.4.1. Tried in order until one lands under
@@ -173,6 +174,7 @@ function measureVideo(file: File): Promise<{ width: number; height: number; seco
     video.onloadedmetadata = () => {
       const { videoWidth: width, videoHeight: height } = video;
 
+      releaseSource(video);
       URL.revokeObjectURL(url);
 
       if (width > 0 && height > 0) {
@@ -185,6 +187,7 @@ function measureVideo(file: File): Promise<{ width: number; height: number; seco
       }
     };
     video.onerror = () => {
+      releaseSource(video);
       URL.revokeObjectURL(url);
       reject(new Error("video metadata failed to load"));
     };

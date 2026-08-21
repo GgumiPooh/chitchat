@@ -158,9 +158,10 @@ async function toImageDraft(file: File): Promise<MediaDraft> {
 
 async function toVideoDraft(file: File): Promise<MediaDraft> {
   const sourceUrl = URL.createObjectURL(file);
+  let video: Nullable<HTMLVideoElement> = null;
 
   try {
-    const video = await loadVideoFrame(sourceUrl);
+    video = await loadVideoFrame(sourceUrl);
     const { videoHeight: height, videoWidth: width } = video;
 
     // INFO: A zero-sized track would render a zero-sized canvas and only fail at registration, where § 8.3.'s dimensions must be positive.
@@ -191,7 +192,17 @@ async function toVideoDraft(file: File): Promise<MediaDraft> {
       waveformPeaks: null,
     };
   } finally {
+    // WARN: Detached before the revoke. The element `play()`ed, so it is still buffering the blob, and Safari logs every range it fetches after the URL is gone as `WebKitBlobResource error 1`.
+    releaseSource(video);
     URL.revokeObjectURL(sourceUrl);
+  }
+}
+
+/** Aborts the element's load so nothing fetches its source after the object URL is revoked. */
+export function releaseSource(video: Nullable<HTMLVideoElement>) {
+  if (video) {
+    video.removeAttribute("src");
+    video.load();
   }
 }
 
