@@ -9,7 +9,7 @@ import {
 } from "@/shared/config";
 import { getDb, nextSnowflake, sessions, users, type Session, type User } from "@/shared/db";
 import { A_DAY, safelyGet, type Nullable, type SessionId, type UserId } from "@/shared/lib";
-import { and, eq, gt, or } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -109,19 +109,12 @@ export async function getCurrentUser(options?: {
 
     if (rawShareKey) {
       // INFO: Authenticate background calls from Apple Shortcuts via permanent share key.
-      const decodedShareKey = safelyGet(() => decodeURIComponent(rawShareKey)) ?? rawShareKey;
-      const encodedShareKey = encodeURIComponent(rawShareKey);
+      const shareKey = safelyGet(() => decodeURIComponent(rawShareKey)) ?? rawShareKey;
 
       const [user] = await getDb()
         .select()
         .from(users)
-        .where(
-          or(
-            eq(users.shareKey, rawShareKey),
-            eq(users.shareKey, decodedShareKey),
-            eq(users.shareKey, encodedShareKey),
-          ),
-        )
+        .where(eq(users.shareKey, shareKey))
         .limit(1);
 
       return user ?? null;
