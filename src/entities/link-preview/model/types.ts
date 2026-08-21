@@ -13,5 +13,8 @@ export type LinkPreview = {
   description: Nullable<string>;
   // WARN: A third-party URL rendered directly by the browser, not a `/api/media` route (§ 9.).
   imageUrl: Nullable<string>;
+  /** DESIGN.md § 6.9. The thumbnail's own box, so the card can reserve its ratio before the image arrives (§ 8.3.). Both or neither. */
+  imageWidth: Nullable<number>;
+  imageHeight: Nullable<number>;
   siteName: Nullable<string>;
 };

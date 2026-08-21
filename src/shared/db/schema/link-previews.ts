@@ -1,4 +1,4 @@
-import { pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { integer, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 // INFO: REQUIREMENTS.md § 8.9. `video` is the one kind that gets a play affordance; everything else is a plain card.
 export const linkPreviewKindEnum = pgEnum("link_preview_kind", ["link", "video"]);
@@ -21,6 +21,9 @@ export const linkPreviews = pgTable("link_previews", {
   imageUrl: text("image_url"),
   // INFO: REQUIREMENTS.md § 8.9. A signed thumbnail dies long before the row does, so the signature's own deadline is read off the URL at scrape time and the tile is withheld past it.
   imageExpiresAt: timestamp("image_expires_at", { withTimezone: true }),
+  // INFO: REQUIREMENTS.md § 8.9. Read off the image's own header at scrape time, for the same reason `media` stores a box (§ 8.3.) — the card reserves its ratio before a byte of the thumbnail arrives. Null for every row scraped before the columns, and for an image the probe could not read.
+  imageWidth: integer("image_width"),
+  imageHeight: integer("image_height"),
   siteName: text("site_name"),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
 });

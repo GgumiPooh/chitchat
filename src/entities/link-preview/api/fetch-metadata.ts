@@ -10,8 +10,10 @@ import { isHttpUrl, safelyGetAsync, type Nullable } from "@/shared/lib";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { Agent, fetch as dialFetch, type Response as DialResponse } from "undici";
+import { isInstagramUrl, toInstagramScrapeUrl, withInstagramFallbacks } from "../model/instagram";
 import { findMetaCharset, parseMetadata, type PageMetadata } from "../model/parse-metadata";
 import { isPublicAddress } from "../model/public-address";
+import { IMAGE_HEADER_BYTES, readImageSize, type ImageSize } from "../model/read-image-size";
 import {
   fetchYouTubeMetadata,
   findYouTubeVideoId,
@@ -19,6 +21,8 @@ import {
 } from "./fetch-youtube-metadata";
 
 const HTML_CONTENT_TYPES = ["text/html", "application/xhtml+xml"];
+
+type Accept = (response: DialResponse) => boolean;
 
 const HEAD_END = /<\/head>/i;
 
@@ -48,7 +52,7 @@ export async function fetchMetadata(url: string): Promise<Nullable<PageMetadata>
     }
   }
 
-  const page = await followToPage(url, signal);
+  const page = await follow(toInstagramScrapeUrl(url), signal, isHtml);
 
   if (!page) {
     return null;
@@ -56,12 +60,50 @@ export async function fetchMetadata(url: string): Promise<Nullable<PageMetadata>
 
   try {
     const html = await readBody(page.body);
-    const metadata = html ? parseMetadata(html, page.url) : null;
+    const parsed = html ? parseMetadata(html, page.url) : null;
+    const metadata = isInstagramUrl(url) ? withInstagramFallbacks(parsed, url, page.url) : parsed;
 
-    return videoId ? withYouTubeFallbacks(metadata, videoId) : metadata;
+    if (videoId) {
+      return withYouTubeFallbacks(metadata, videoId);
+    }
+
+    return metadata && { ...metadata, imageSize: await probeImageSize(metadata.imageUrl, signal) };
   } finally {
     // WARN: The dispatcher is pinned to one address (§ 14.), so it cannot be pooled across calls and has to be torn down with the response it dialled.
     await page.agent.destroy();
+  }
+}
+
+/**
+ * REQUIREMENTS.md § 8.9. The thumbnail's box, off its first `IMAGE_HEADER_BYTES`.
+ * Same vetting and same budget as the page (§ 14.) — it is a second request to a
+ * host the message chose.
+ *
+ * WARN: Never fails the scrape. A host that refuses a `Range`, or an image in a format
+ * the reader does not know, is a card at 16:9 rather than no card.
+ */
+async function probeImageSize(
+  imageUrl: Nullable<string>,
+  signal: AbortSignal,
+): Promise<Nullable<ImageSize>> {
+  if (!imageUrl) {
+    return null;
+  }
+
+  const image = await safelyGetAsync(() =>
+    follow(imageUrl, signal, isImage, { Range: `bytes=0-${IMAGE_HEADER_BYTES - 1}` }),
+  );
+
+  if (!image) {
+    return null;
+  }
+
+  try {
+    return readImageSize(await readBytes(image.body, IMAGE_HEADER_BYTES));
+  } catch {
+    return null;
+  } finally {
+    await image.agent.destroy();
   }
 }
 
@@ -74,9 +116,11 @@ export async function fetchMetadata(url: string): Promise<Nullable<PageMetadata>
  * function's (§ 8.9.). Armed per hop, four slow redirects and their DNS lookups
  * cost four times the timeout.
  */
-async function followToPage(
+async function follow(
   url: string,
   signal: AbortSignal,
+  accept: Accept,
+  headers: Record<string, string> = {},
 ): Promise<Nullable<{ body: DialResponse; url: string; agent: Agent }>> {
   let current = url;
 
@@ -97,6 +141,7 @@ async function followToPage(
         // INFO: Korean first — a site that localises by header should describe itself the way the two people reading the bubble would.
         "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
         Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
+        ...headers,
       },
     }).catch(async (error: unknown) => {
       await agent.destroy();
@@ -113,7 +158,7 @@ async function followToPage(
       continue;
     }
 
-    if (!response.ok || !isHtml(response)) {
+    if (!response.ok || !accept(response)) {
       await response.body?.cancel();
       await agent.destroy();
 
@@ -176,6 +221,35 @@ async function readBody(response: DialResponse): Promise<Nullable<string>> {
   return charset && !/^utf-?8$/i.test(charset) ? (decodeAs(bytes, charset) ?? utf8) : utf8;
 }
 
+// INFO: The image's head and no more — a server that ignored the `Range` would otherwise stream the whole file into memory.
+async function readBytes(response: DialResponse, limit: number): Promise<Uint8Array> {
+  const reader = response.body?.getReader();
+
+  if (!reader) {
+    return new Uint8Array();
+  }
+
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+
+  try {
+    while (size < limit) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      chunks.push(value);
+      size += value.length;
+    }
+  } finally {
+    await reader.cancel();
+  }
+
+  return concat(chunks, size);
+}
+
 function concat(chunks: Uint8Array[], size: number): Uint8Array {
   const bytes = new Uint8Array(size);
   let offset = 0;
@@ -205,6 +279,10 @@ function isHtml(response: DialResponse): boolean {
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
 
   return HTML_CONTENT_TYPES.some((type) => contentType.includes(type));
+}
+
+function isImage(response: DialResponse): boolean {
+  return (response.headers.get("content-type") ?? "").toLowerCase().startsWith("image/");
 }
 
 type VettedHost = { address: string; family: number };

@@ -28,10 +28,13 @@ import {
   VoicePlayer,
   type MediaCell,
 } from "@/shared/ui";
+import { useQuery } from "@tanstack/react-query";
 import { Clock, CornerUpLeft, RotateCcw, Share, X } from "lucide-react";
 import type { CSSProperties } from "react";
+import { toLinkPreviewQuery } from "../model/link-preview-query";
 import { toSoloEmoticonBox } from "../model/to-emoticon-box";
 import { toInlineContent } from "../model/to-inline-content";
+import { toLinkOnlyUrl } from "../model/to-link-only";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
 import { EmoticonBubble } from "./emoticon-bubble";
 import { InlineEmoticonTombstone } from "./inline-emoticon-tombstone";
@@ -153,7 +156,16 @@ export function MessageRow({
     inline.kind === "solo" && soloInfo ? { itemId: inline.itemId, info: soloInfo } : undefined;
   const soloBox = soloEmoticon ? toSoloEmoticonBox(soloEmoticon.info) : undefined;
   // WARN: § 8.3. The resolved box and not `inline.kind`. An id the page's map does not carry has nothing to draw large, so it falls through to the bubble below — and a row that still called itself bubble-less would quote twice and be priced at a picture it never draws.
-  const isBubbleless = Boolean(emoticon) || hasMedia || Boolean(soloEmoticon);
+  const hasArt = Boolean(emoticon) || hasMedia || Boolean(soloEmoticon);
+  const linkOnlyUrl = hasArt ? null : toLinkOnlyUrl(text, inline);
+  // WARN: § 8.3. A subscription where the estimate makes a cache read, and on purpose: a link-only row priced as a bubble before the scrape answered re-renders as the card the moment it does, which is a re-measure the virtualizer compensates — a row drawing one thing while the estimate prices another is not.
+  const { data: linkOnlyPreview } = useQuery({
+    ...toLinkPreviewQuery(linkOnlyUrl ?? ""),
+    enabled: linkOnlyUrl !== null,
+  });
+  // INFO: DESIGN.md § 6.9. The card stands in the bubble's place only once there is one — most links never answer (REQUIREMENTS.md § 8.9.), and a bubble-less row with nothing to draw is a blank line in the conversation.
+  const linkOnlyCard = linkOnlyUrl !== null && linkOnlyPreview ? linkOnlyUrl : null;
+  const isBubbleless = hasArt || linkOnlyCard !== null;
   // INFO: REQUIREMENTS.md § 8.9. One card per bubble — the first link, not every link, because a message pasted from a share sheet routinely carries several.
   // INFO: DESIGN.md § 6.5. A bubble-less message carries an attachment rather than text, so there is no link in it to preview.
   const previewUrl = isBubbleless ? undefined : findFirstUrl(text);
@@ -258,6 +270,19 @@ export function MessageRow({
                   isTappable
                 />
               )}
+            </div>
+          ) : linkOnlyCard ? (
+            // INFO: DESIGN.md § 6.9. Where a photo would stand, and no bubble — the bubble would only repeat the address the card names.
+            // WARN: `w-55 min-w-0` and not the top card's `w-full max-w-55`: this one shares its row with the timestamp, whose `shrink-0` makes the card the thing that gives on a narrow shell — which § 8.3.'s estimate prices as the column less `TIME_SLOT`.
+            <div
+              className={cn(
+                "w-55 min-w-0",
+                LONG_PRESS_TARGET_CLASS,
+                status !== "sent" && "opacity-60",
+              )}
+              {...longPressHandlers}
+            >
+              <LinkPreviewCard url={linkOnlyCard} />
             </div>
           ) : voiceCell ? (
             // INFO: REQUIREMENTS.md § 9.3. `VoicePlayer` draws its own fill, so the row hands it only the notch corner the group rule asks for (DESIGN.md § 6.2.).

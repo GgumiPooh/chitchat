@@ -8,6 +8,11 @@ const AMZ_EXPIRES_KEY = "x-amz-expires";
 // INFO: REQUIREMENTS.md § 8.9. The absolute forms: `exp` from a signed CDN path, `se` from an Azure SAS, `Expires` from SigV2 and CloudFront.
 const ABSOLUTE_EXPIRY_KEYS = ["exp", "se", "expires"];
 
+// INFO: Meta's CDN (Instagram, Facebook) signs with `oe`, epoch seconds written in hex — kept apart from the list above, since a hex reader would misread every decimal one.
+const HEX_EXPIRY_KEYS = ["oe"];
+
+const HEX = /^[0-9a-f]+$/i;
+
 // WARN: `20260807T123456Z` is ISO 8601 *basic*, which `Date` does not accept — parsed with it, every signed thumbnail reads as `NaN` and the tile is withheld on the spot.
 const AMZ_DATE = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/;
 
@@ -83,6 +88,14 @@ function readAbsoluteExpiry(params: Map<string, string>): Nullable<Date> {
 
     if (parsed) {
       return parsed;
+    }
+  }
+
+  for (const key of HEX_EXPIRY_KEYS) {
+    const value = params.get(key);
+
+    if (value && HEX.test(value)) {
+      return toDate(parseInt(value, 16) * A_SECOND);
     }
   }
 

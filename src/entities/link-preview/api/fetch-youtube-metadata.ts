@@ -4,7 +4,8 @@ import { LINK_PREVIEW_USER_AGENT } from "@/shared/config";
 import type { Maybe, Nullable } from "@/shared/lib";
 import type { PageMetadata } from "../model/parse-metadata";
 
-const YOUTUBE_HOSTS = ["youtube.com", "youtu.be", "youtube-nocookie.com"];
+// INFO: YouTube Music included — its `watch?v=` carries the same video id, and the music page is a JS shell the generic scrape reads nothing from.
+const YOUTUBE_HOSTS = ["youtube.com", "youtu.be", "youtube-nocookie.com", "music.youtube.com"];
 
 const OEMBED_ENDPOINT = "https://www.youtube.com/oembed";
 
@@ -99,6 +100,7 @@ export async function fetchYouTubeMetadata(
     title: data.title,
     description: null,
     imageUrl: data.thumbnail_url ?? null,
+    imageSize: null,
     // INFO: The channel rather than a literal `YouTube` — the play badge on the tile already says which site this is, and the channel does not.
     siteName: data.author_name ?? "YouTube",
   };
@@ -122,6 +124,8 @@ export function withYouTubeFallbacks(
     description: metadata?.description ?? null,
     siteName: metadata?.siteName ?? "YouTube",
     imageUrl: toReliableThumbnailUrl(metadata?.imageUrl, videoId),
+    // WARN: Left null on purpose, and never probed. `hqdefault.jpg` is 480×360 with the 16:9 frame letterboxed inside it, so its own box would draw the bars — null is the card's 16:9, which `object-cover` crops them out of.
+    imageSize: null,
   };
 }
 

@@ -5,6 +5,7 @@ import { PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { Play } from "lucide-react";
 import { toLinkPreviewQuery } from "../model/link-preview-query";
+import { toLinkCardRatio } from "../model/to-link-card-box";
 
 export type LinkPreviewCardProps = {
   className?: string;
@@ -29,6 +30,7 @@ export function LinkPreviewCard({ className, url }: LinkPreviewCardProps) {
   }
 
   const { title, description, imageUrl, siteName, kind } = preview;
+  const ratio = toLinkCardRatio(preview);
 
   return (
     <a
@@ -45,7 +47,7 @@ export function LinkPreviewCard({ className, url }: LinkPreviewCardProps) {
     >
       {imageUrl && (
         // WARN: REQUIREMENTS.md § 8.3. The box is the row's height and it survives a refusal. Hiding the tile on `onError` instead took 124px out of a row that had already been measured — and `loading="lazy"` starts the request as the row nears the viewport, so it fired exactly while the reader was scrolling onto it.
-        <div className="relative aspect-video">
+        <div className="relative" style={{ aspectRatio: ratio }}>
           {/* WARN: `canRetry` off — this is the one image in the app that does not come from R2 (§ 9.), so § 13.3.'s cache-busted second attempt would only ask a host that already refused, on a URL we do not own. */}
           <PreloadImage
             className="size-full"

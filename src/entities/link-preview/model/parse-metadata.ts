@@ -1,11 +1,14 @@
 import type { LinkPreviewKind } from "@/shared/db";
 import { isHttpUrl, type Maybe, type Nullable } from "@/shared/lib";
+import type { ImageSize } from "./read-image-size";
 
 export type PageMetadata = {
   kind: LinkPreviewKind;
   title: Nullable<string>;
   description: Nullable<string>;
   imageUrl: Nullable<string>;
+  /** REQUIREMENTS.md § 8.9. The thumbnail's pixel box, probed off the image itself — no page publishes it reliably. `null` draws the card at 16:9. */
+  imageSize: Nullable<ImageSize>;
   siteName: Nullable<string>;
 };
 
@@ -65,6 +68,8 @@ export function parseMetadata(html: string, pageUrl: string): PageMetadata {
       MAX_DESCRIPTION_LENGTH,
     ),
     imageUrl: imageUrl ? toAbsoluteUrl(imageUrl, pageUrl) : null,
+    // INFO: Filled by `fetchMetadata` once it has vetted and read the image; the tags alone are not trusted for it.
+    imageSize: null,
     siteName: pick(tags, ["og:site_name"], MAX_TITLE_LENGTH) ?? hostOf(pageUrl),
   };
 }

@@ -81,6 +81,8 @@ async function store(url: string, scraped: Maybe<PageMetadata>): Promise<LinkPre
     description: metadata?.description ?? null,
     imageUrl,
     imageExpiresAt: readImageExpiry(imageUrl, fetchedAt),
+    imageWidth: metadata?.imageSize?.width ?? null,
+    imageHeight: metadata?.imageSize?.height ?? null,
     siteName: metadata?.siteName ?? null,
     fetchedAt,
   };
@@ -140,6 +142,8 @@ function toLinkPreview(row: LinkPreviewRow): Nullable<LinkPreview> {
     title: row.title,
     description: row.description,
     imageUrl,
+    imageWidth: imageUrl ? row.imageWidth : null,
+    imageHeight: imageUrl ? row.imageHeight : null,
     siteName: row.siteName,
   };
 }

@@ -20,6 +20,8 @@ import {
 import { toEmoticonBox, toSoloEmoticonBox } from "./to-emoticon-box";
 import { toInlineContent, type InlineContent } from "./to-inline-content";
 import { toInlineEmoticonBox } from "./to-inline-emoticon-box";
+import { toLinkCardRatio } from "./to-link-card-box";
+import { toLinkOnlyUrl } from "./to-link-only";
 import { MEDIA_EDGE, toMediaBoxHeight } from "./to-media-box";
 import type { ChatRow } from "./types";
 
@@ -253,7 +255,13 @@ function estimateMessageRow(
   const inline = toInlineContent(payload.text, payload.inlineEmoticonItemIds);
   // WARN: § 8.3. The box decides this and not the kind, exactly as `MessageRow`'s does: an id the page's map does not carry has no picture to draw large, so that row is an ordinary bubble holding a one-line tombstone.
   const solo = inline.kind === "solo" ? context.readInlineEmoticon?.(inline.itemId) : undefined;
-  const isBubbleless = hasMedia || payload.emoticon !== null || solo !== undefined;
+  const hasArt = hasMedia || payload.emoticon !== null || solo !== undefined;
+  // INFO: DESIGN.md § 6.9. The card is a row of its own above the bubble, and § 8.9.'s scrape has normally already answered by the time this is asked — `useLinkPreviewPrefetch` sees to that, and it is the only reason a height is knowable here at all.
+  const preview = hasArt ? undefined : context.readPreview(findFirstUrl(payload.text));
+  // WARN: § 8.3. `MessageRow`'s own test, answered off the same cache: a link-only message is bubble-less once its card is there, so the card counts below in the bubble's row and nowhere above it.
+  const linkOnlyCard =
+    preview && toLinkOnlyUrl(payload.text, inline) !== null ? preview : undefined;
+  const isBubbleless = hasArt || linkOnlyCard !== undefined;
   let column = 0;
 
   // INFO: REQUIREMENTS.md § 8.7. The sender's name, on the first bubble of the other participant's group only.
@@ -266,14 +274,20 @@ function estimateMessageRow(
     column += toQuoteHeight(payload.replyTo, "card") + SPACING_2XS;
   }
 
-  // INFO: DESIGN.md § 6.9. The card is a row of its own above the bubble, and § 8.9.'s scrape has normally already answered by the time this is asked — `useLinkPreviewPrefetch` sees to that, and it is the only reason a height is knowable here at all.
-  const preview = isBubbleless ? undefined : context.readPreview(findFirstUrl(payload.text));
-
-  if (preview) {
-    column += toLinkCardHeight(preview, context) + SPACING_2XS;
+  if (preview && !linkOnlyCard) {
+    column += toLinkCardHeight(preview, toColumnWidth(context), context) + SPACING_2XS;
   }
 
-  column += toPayloadHeight(payload, isMine, isBubbleless, inline, solo, context, flags);
+  column += toPayloadHeight(
+    payload,
+    isMine,
+    isBubbleless,
+    inline,
+    solo,
+    linkOnlyCard,
+    context,
+    flags,
+  );
 
   // INFO: DESIGN.md § 6.1. The gap between rows is this padding, so it belongs to the row below it.
   const top = flags.isFirstOfGroup ? SPACING_SM : SPACING_2XS;
@@ -288,6 +302,7 @@ function toPayloadHeight(
   isBubbleless: boolean,
   inline: InlineContent,
   solo: Optional<InlineEmoticonInfo>,
+  linkOnlyCard: Optional<LinkPreview>,
   context: RowEstimateContext,
   flags: RowFlags,
 ): number {
@@ -305,6 +320,13 @@ function toPayloadHeight(
 
   if (payload.media.length > 0) {
     return Math.max(toMediaBoxHeight(payload.media), beside);
+  }
+
+  // WARN: DESIGN.md § 6.9. The column less what stands beside it, where the top card has the column to itself — on a narrow shell the card is what shrinks, and with it the title's wrap and the thumbnail's 9/16.
+  if (linkOnlyCard) {
+    const width = toColumnWidth(context) - toBesideWidth(payload.status, flags);
+
+    return Math.max(toLinkCardHeight(linkOnlyCard, width, context), beside);
   }
 
   // INFO: `px-sm py-xs` on the bubble, and the hairline the other participant's bubble is bordered with (DESIGN.md § 6.2.).
@@ -329,12 +351,17 @@ function toBesideHeight(payload: Payload, { besideLines }: RowFlags): number {
   return besideLines * LINE.time();
 }
 
+// INFO: DESIGN.md § 6.3., § 6.5. Whatever stands beside the bubble takes its width off it: the retry/cancel column on a failed send, the timestamp otherwise.
+function toBesideWidth(status: Payload["status"], { besideLines }: RowFlags): number {
+  return hasControlColumn(status) ? FAILED_SLOT : besideLines > 0 ? TIME_SLOT : 0;
+}
+
 function toTextHeight(
   text: Nullable<string>,
   isMine: boolean,
   inline: InlineContent,
   context: RowEstimateContext,
-  { besideLines }: RowFlags,
+  flags: RowFlags,
   status?: Payload["status"],
 ): number {
   if (!text) {
@@ -343,11 +370,9 @@ function toTextHeight(
 
   const { fontFamily } = context;
   const column = toColumnWidth(context);
-  // INFO: DESIGN.md § 6.3., § 6.5. Whatever stands beside the bubble takes its width off the text: the retry/cancel column on a failed send, the timestamp otherwise.
   // WARN: `box-sizing: border-box`, so the other participant's hairline is width taken from the text and not added around it.
-  const beside = hasControlColumn(status) ? FAILED_SLOT : besideLines > 0 ? TIME_SLOT : 0;
   const available = Math.max(
-    column - beside - SPACING_SM * 2 - (isMine ? 0 : BUBBLE_BORDER),
+    column - toBesideWidth(status, flags) - SPACING_SM * 2 - (isMine ? 0 : BUBBLE_BORDER),
     CHAT_BODY.size,
   );
   const font = { ...CHAT_BODY, family: fontFamily };
@@ -396,12 +421,13 @@ function toInlineRuns(
  * WARN: The one part of a row that was left at zero after the estimate went per-row, and it is the largest miss of the lot — a card with a thumbnail is ~250px, so a link bubble estimated without it lands a whole card short and corrects by that much the moment it is measured.
  */
 function toLinkCardHeight(
-  { title, description, siteName, imageUrl }: LinkPreview,
-  context: RowEstimateContext,
+  preview: LinkPreview,
+  columnWidth: number,
+  { fontFamily }: RowEstimateContext,
 ): number {
-  const { fontFamily } = context;
-  // WARN: The card is `w-full max-w-55`, so it is the § 6.5. attachment width only while the column can spare it — below a shell of about 340px the column is narrower and the card shrinks with it.
-  const card = Math.min(MEDIA_EDGE, toColumnWidth(context));
+  // WARN: The card is the § 6.5. attachment width only while the column can spare it — below a shell of about 340px the column is narrower and the card shrinks with it.
+  const { title, description, siteName, imageUrl } = preview;
+  const card = Math.min(MEDIA_EDGE, columnWidth);
   const textWidth = Math.max(card - SPACING_SM * 2 - CARD_BORDER, CARD_BODY.size);
   // INFO: Only what the page actually published is rendered, so each block is counted only if it is there.
   const blocks = [
@@ -416,9 +442,9 @@ function toLinkCardHeight(
     blocks.reduce((total, height) => total + height, 0) +
     Math.max(0, blocks.length - 1) * SPACING_2XS;
 
-  // INFO: `aspect-video` (DESIGN.md § 6.9.), reserved whether or not the asset ever arrives — which is what keeps this true after a refusal.
-  // WARN: The ratio is of the card's *content* box. `box-sizing: border-box` puts the hairline inside the card's width, so the image is that much narrower and a whole 9/16 of that much shorter.
-  return imageUrl ? text + ((card - CARD_BORDER) * 9) / 16 : text;
+  // INFO: `toLinkCardRatio` (DESIGN.md § 6.9.), reserved whether or not the asset ever arrives — which is what keeps this true after a refusal.
+  // WARN: The ratio is of the card's *content* box. `box-sizing: border-box` puts the hairline inside the card's width, so the image is that much narrower and shorter by the same ratio.
+  return imageUrl ? text + (card - CARD_BORDER) / toLinkCardRatio(preview) : text;
 }
 
 // INFO: DESIGN.md § 6.9. `line-clamp` caps what renders, so the count is capped with it rather than paid for in full.
