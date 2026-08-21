@@ -35,7 +35,7 @@ import {
   toast,
 } from "@/shared/ui";
 import { josa } from "es-hangul";
-import { Film, ImagePlus, Mic, Music, Pencil, Play, X } from "lucide-react";
+import { Film, Image as ImageIcon, ImagePlus, Mic, Music, Pencil, Play, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
 import { createEmoticon, updateEmoticon, type EmoticonImageBody } from "../api/write-emoticon";
@@ -88,12 +88,14 @@ export function EmoticonFormSheet({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const draft = useEmoticonDraft();
   const { adoptImage, pickAudio, pickImage, setKeywords } = draft;
+  // WARN: § 13.4.1. Kept beside the slots and cleared by every other pick — an animation staged from a picked GIF has no clip behind it, and re-opening the flow on the last video would edit a file the field is no longer showing.
+  const [videoSource, setVideoSource] = useState<Nullable<File>>(null);
   // INFO: § 13.4.1. A clip fills the same two slots a picked animation does, so it is a second source for this one field rather than a flow of its own.
   const video = useVideoEmoticon({ onReady: stageVideo });
   // INFO: REQUIREMENTS.md § 13.4. Opens the OS picker directly (`DESIGN.md § 7.5.`) — one image is the whole of the choice, so there is nothing for a sheet to frame.
   const imagePicker = useMediaPicker({
     accept: "image/*",
-    onSelect: (files) => files[0] && void draft.pickImage(files[0]),
+    onSelect: (files) => files[0] && void pickPlainImage(files[0]),
   });
   const videoPicker = useMediaPicker({
     accept: "video/*",
@@ -146,7 +148,7 @@ export function EmoticonFormSheet({
             previewUrl={imageUrl}
             isReading={draft.isReading}
             onPick={imagePicker.open}
-            onEdit={draft.image && !draft.image.animated ? () => setIsEditing(true) : undefined}
+            onEdit={toEdit()}
             onPickVideo={videoPicker.open}
           />
           <AudioRow
@@ -196,6 +198,31 @@ export function EmoticonFormSheet({
     </>
   );
 
+  /**
+   * What 편집 — and the thumbnail — does with what is staged, or nothing at all.
+   *
+   * INFO: § 13.4.1. An animation re-enters the video flow at its source clip, which
+   * is the only way to cut it shorter or frame it tighter; a canvas crop would decode
+   * one frame (§ 13.4.). Anything already saved, and an animation picked as a file,
+   * has nothing to edit from.
+   */
+  function toEdit(): Optional<() => void> {
+    if (!draft.image) {
+      return undefined;
+    }
+
+    if (!draft.image.animated) {
+      return () => setIsEditing(true);
+    }
+
+    return videoSource ? () => void video.open(videoSource) : undefined;
+  }
+
+  function pickPlainImage(file: File) {
+    setVideoSource(null);
+    void pickImage(file);
+  }
+
   /** INFO: The picked file plays off its object URL and a kept one off R2, so the button auditions whatever the submit would actually save. */
   function playAudio() {
     if (audioUrl) {
@@ -208,6 +235,7 @@ export function EmoticonFormSheet({
     // WARN: Before `reset`, which revokes the object URL an audition still in progress is sourcing — the shared player would be left pointing at a dead blob.
     stopSound();
     draft.reset();
+    setVideoSource(null);
     onClose();
   }
 
@@ -216,8 +244,9 @@ export function EmoticonFormSheet({
   }
 
   // INFO: § 13.4.1. The sound is never asked about — it is staged into the row below, which already auditions, replaces and removes it.
-  function stageVideo({ image, audio }: VideoEmoticon) {
+  function stageVideo({ image, audio, source }: VideoEmoticon) {
     adoptImage(image);
+    setVideoSource(source);
 
     if (audio) {
       void pickAudio(audio);
@@ -355,6 +384,9 @@ function toExistingAudioUrl(emoticon: Maybe<Emoticon>, isCleared: boolean): Opti
     : undefined;
 }
 
+const TILE_CLASS_NAME =
+  "flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-hairline-strong bg-surface-soft text-meta";
+
 type ImageRowProps = {
   className?: string;
   label: string;
@@ -376,33 +408,47 @@ function ImageRow({
   onEdit,
   onPickVideo,
 }: ImageRowProps) {
+  const preview = previewUrl ? (
+    <PreloadImage
+      className="size-full"
+      imgClassName="size-full object-contain"
+      src={previewUrl}
+      alt=""
+    />
+  ) : (
+    <ImageIcon className="size-6" strokeWidth={1.75} />
+  );
+
   return (
-    <div className={cn("flex items-center gap-sm", className)}>
-      <HapticTarget className="inline-flex shrink-0">
-        <button
-          className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-hairline-strong bg-surface-soft text-meta group-active:bg-surface-pressed hover:bg-surface-strong hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-pressed"
-          type="button"
-          aria-label={`${label} 선택`}
-          onClick={onPick}
-        >
-          {previewUrl ? (
-            <PreloadImage
-              className="size-full"
-              imgClassName="size-full object-contain"
-              src={previewUrl}
-              alt=""
-            />
-          ) : (
-            <ImagePlus className="size-6" strokeWidth={1.75} />
-          )}
-        </button>
-      </HapticTarget>
+    // WARN: `items-start`, not `items-center`. The column beside the tile wraps its two sources onto separate lines on a narrow screen, and a centred tile then hangs below the label it belongs to.
+    <div className={cn("flex items-start gap-sm", className)}>
+      {/* INFO: A tile is a control only where it has an edit to open — empty, it is the row's preview of a field the two buttons below fill, and a tap that re-opened the picker read as the only way in. */}
+      {onEdit ? (
+        <HapticTarget className="inline-flex shrink-0">
+          <button
+            className={cn(
+              TILE_CLASS_NAME,
+              "relative cursor-pointer group-active:bg-surface-pressed hover:bg-surface-strong hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-pressed",
+            )}
+            type="button"
+            aria-label={`${label} 편집`}
+            onClick={onEdit}
+          >
+            {preview}
+            {/* INFO: DESIGN.md § 7.1. A `floating` surface for the same reason `IconButton` gives it one — the glyph sits over an image it cannot predict. */}
+            <span className="absolute right-1 bottom-1 rounded-full border border-hairline glass p-1 text-ink shadow-floating">
+              <Pencil className="size-3.5" strokeWidth={1.75} />
+            </span>
+          </button>
+        </HapticTarget>
+      ) : (
+        <div className={TILE_CLASS_NAME}>{preview}</div>
+      )}
       <div className="min-w-0 flex-1 space-y-2xs">
         <p className="text-title-sm text-ink">{label}</p>
         <p className="text-body-sm text-meta">{isReading ? "읽는 중이에요" : hint}</p>
         {/* WARN: The two sources come first and 편집 last, never between them. 편집 is the conditional one, and in the middle it would shift the buttons either side of it every time an image is replaced. */}
         <div className="flex flex-wrap gap-2xs">
-          {/* INFO: The tile above opens the same picker, but a 96px thumbnail is not a control anybody reads as one — this is the row's own label for it. */}
           <Button
             className="w-auto"
             buttonClassName="h-9 min-h-9 w-auto px-sm"

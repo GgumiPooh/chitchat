@@ -24,10 +24,12 @@ import { VideoEncodingOverlay, type EncodeProgress } from "../ui/video-encoding-
 export type VideoEmoticon = {
   image: EmoticonImageDrafts;
   audio: Nullable<File>;
+  /** INFO: § 13.4.1. Handed back so the sheet can re-open this flow on the clip itself — a shorter cut or a tighter frame is a second run over the source, never an edit of the animation it produced. */
+  source: File;
 };
 
 type Stage =
-  | { name: "trimming"; source: File; draft: MediaDraft }
+  | { name: "trimming"; source: File; draft: MediaDraft; range?: TrimRange }
   | { name: "cropping"; source: File; range: TrimRange; draft: MediaDraft }
   | { name: "encoding"; progress: EncodeProgress };
 
@@ -82,6 +84,9 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
           key={stage.draft.id}
           draft={stage.draft}
           limit={{ kind: "ceiling", durationMs: MAX_EMOTICON_VIDEO_DURATION }}
+          keepsAudio
+          hasNextStep
+          initialRange={stage.range}
           onCancel={cancel}
           onDone={(file, range) => void crop(file, range)}
         />
@@ -94,6 +99,7 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
         draft={stage.draft}
         maxEdge={EMOTICON_MAX_EDGE}
         onCancel={cancel}
+        onBack={() => void back()}
         onDone={(file) => void encode(file)}
       />
     );
@@ -116,11 +122,14 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
   }
 
   async function crop(trimmed: File, range: TrimRange) {
-    if (stage?.name !== "trimming") {
+    // WARN: The ref, not the render's own `stage` — 뒤로 puts this flow back on the trimmer while `cropVideo` may still be running, and a closure taken before that would carry on as if it had not.
+    const current = stageRef.current;
+
+    if (current?.name !== "trimming") {
       return;
     }
 
-    const { source, draft } = stage;
+    const { source, draft } = current;
     // WARN: Claimed, not merely read. `VideoTrimmer` re-enables 완료 the moment `trimVideo` resolves — this runs unawaited — so a second tap cuts the clip again and lands here with a closure that passes the same guard.
     const run = ++runRef.current;
 
@@ -144,11 +153,13 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
   }
 
   async function encode(cropped: File) {
-    if (stage?.name !== "cropping") {
+    const current = stageRef.current;
+
+    if (current?.name !== "cropping") {
       return;
     }
 
-    const { source, range, draft } = stage;
+    const { source, range, draft } = current;
     const run = ++runRef.current;
 
     setStage({ name: "encoding", progress: "preparing" });
@@ -173,7 +184,7 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
       }
 
       setStage(null);
-      onReady({ image, audio });
+      onReady({ image, audio, source });
     } catch (error) {
       report(error);
 
@@ -181,6 +192,36 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
         setStage(null);
         toast.error(toFailureMessage(error));
       }
+    }
+  }
+
+  /** INFO: § 13.4.1. 영역 자르기 steps back into the trimmer rather than out of the flow, on the clip it was reached from and at the cut it was reached with. */
+  async function back() {
+    const current = stageRef.current;
+
+    if (current?.name !== "cropping") {
+      return;
+    }
+
+    const { source, range, draft } = current;
+    // WARN: Claimed for `crop`'s reason — a crop that is still running must not land on the trimmer this puts the user back on.
+    const run = ++runRef.current;
+
+    try {
+      // INFO: The source's own poster again: the trimmer measures the whole clip, where the draft being left behind is the cut one.
+      const next = await toMediaDraft(source);
+
+      if (runRef.current !== run) {
+        revokePreview(next);
+
+        return;
+      }
+
+      setStage({ name: "trimming", source, draft: next, range });
+      revokePreview(draft);
+    } catch (error) {
+      report(error);
+      toast.error("영상을 읽지 못했어요");
     }
   }
 
