@@ -3,7 +3,7 @@
 import type { MediaDraft } from "@/entities/media";
 import { A_SECOND, cn, type Nullable, type Optional } from "@/shared/lib";
 import { Button, IconButton, PreloadVideo, ShellOverlay, Slider, toast } from "@/shared/ui";
-import { X } from "lucide-react";
+import { ArrowRight, Pause, Play, X } from "lucide-react";
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { trimVideo, type TrimRange } from "../model/trim-video";
 
@@ -26,6 +26,12 @@ export type VideoTrimmerProps = {
   draft: MediaDraft;
   /** REQUIREMENTS.md § 12.1. Omitted (§ 9.'s chat and library attachments, which have no length cap), both ends move freely and trimming is an edit rather than a requirement. */
   limit?: TrimLimit;
+  /** REQUIREMENTS.md § 13.4.1. Carries the source's sound into the cut, for a caller whose next screen plays it — a background is stored silent. */
+  keepsAudio?: boolean;
+  /** The cut this screen opens on, for a flow stepping back into it — the handles are where they were left rather than at the ends of the clip. */
+  initialRange?: TrimRange;
+  /** REQUIREMENTS.md § 13.4.1. Whether a screen follows this one — the cut is then a step rather than the end of an edit, and the bar says so with → instead of 완료. */
+  hasNextStep?: boolean;
   onCancel: () => void;
   /** Given the trimmed file and the range it was cut at, for the caller to re-read into a draft of its own. */
   onDone: (file: File, range: TrimRange) => void;
@@ -44,11 +50,21 @@ const SCRUB_STEP = 0.1;
  * WARN: `absolute`, never `fixed` — `ShellOverlay` owns the viewport-sized box this
  * fills (DESIGN.md § 3.3.), exactly as `MediaEditor` does.
  */
-export function VideoTrimmer({ className, draft, limit, onCancel, onDone }: VideoTrimmerProps) {
+export function VideoTrimmer({
+  className,
+  draft,
+  limit,
+  keepsAudio,
+  initialRange,
+  hasNextStep,
+  onCancel,
+  onDone,
+}: VideoTrimmerProps) {
   const videoRef = useRef<Nullable<HTMLVideoElement>>(null);
   const [sourceUrl, setSourceUrl] = useState("");
   const [isTrimming, setIsTrimming] = useState(false);
   const [hasFailed, setHasFailed] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   // WARN: The element's own duration, not only the draft's. `toVideoDraft` reports `null` for a fragmented MP4 and some `.mov`, and a free-range trim that fell back to a literal would have cut every such clip down to that literal — data loss with no message. The element resolves it for real at `loadedmetadata`, and until then the handles are pinned to the cap.
   const [measuredMs, setMeasuredMs] = useState<Nullable<number>>(draft.durationMs);
   const durationMs = measuredMs ?? limit?.durationMs ?? A_SECOND;
@@ -64,8 +80,8 @@ export function VideoTrimmer({ className, draft, limit, onCancel, onDone }: Vide
     isFixedWindow && limit
       ? Math.max(0, (durationMs - limit.durationMs) / A_SECOND)
       : Math.max(0, durationSeconds - minTrimSeconds);
-  const [start, setStart] = useState(0);
-  const [end, setEnd] = useState(durationSeconds);
+  const [start, setStart] = useState(initialRange?.start ?? 0);
+  const [end, setEnd] = useState(initialRange?.end ?? durationSeconds);
   // INFO: The end handle follows a duration that only resolved at `loadedmetadata`; before that it is sitting on the placeholder and would cut the clip to it.
   const resolvedFreeEnd = isMeasured ? Math.min(end, start + ceilingSeconds) : durationSeconds;
   // INFO: The fixed window follows its start; a free or ceiling-bound range is whatever the two handles say.
@@ -91,24 +107,38 @@ export function VideoTrimmer({ className, draft, limit, onCancel, onDone }: Vide
           className,
         )}
       >
-        <div className="flex items-center justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
+        <div className="relative flex items-center justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
           <IconButton
             className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
             Icon={X}
             aria-label="자르기 취소"
             onClick={onCancel}
           />
-          <span className="text-caption text-on-scrim">{toHeaderLabel(limit, windowSeconds)}</span>
-          <Button
-            className="w-auto"
-            buttonClassName="h-9 min-h-9 w-auto px-sm"
-            // WARN: `hasFailed` closes 완료 as well as the preview. A draft that carried its own duration leaves `isMeasured` true, so without this the screen says the clip is unplayable while the button that cuts it stays live — and `trimVideo` decodes through `mediabunny` rather than the element, so it answers with a second, different reason.
-            disabled={isTrimming || !isMeasured || hasFailed}
-            haptic
-            onClick={() => void submit()}
-          >
-            {isTrimming ? "자르는 중" : "완료"}
-          </Button>
+          {/* WARN: Centred against the bar itself, not between its two sides — 완료 changes width while it works, and a title laid out between them slid across the header every time it did. */}
+          <span className="pointer-events-none absolute left-1/2 max-w-[calc(100%-14rem)] -translate-x-1/2 truncate text-caption text-on-scrim">
+            {isTrimming ? "자르는 중이에요" : toHeaderLabel(limit, windowSeconds)}
+          </span>
+          {/* WARN: `hasFailed` closes this as well as the preview. A draft that carried its own duration leaves `isMeasured` true, so without it the screen says the clip is unplayable while the button that cuts it stays live — and `trimVideo` decodes through `mediabunny` rather than the element, so it answers with a second, different reason. */}
+          {/* INFO: The wait moves to the title where the control is a glyph, exactly as `VideoCropper` reports its re-encode. */}
+          {hasNextStep ? (
+            <IconButton
+              className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
+              Icon={ArrowRight}
+              disabled={isTrimming || !isMeasured || hasFailed}
+              aria-label="다음"
+              onClick={() => void submit()}
+            />
+          ) : (
+            <Button
+              className="w-auto"
+              buttonClassName="h-9 min-h-9 w-auto px-sm"
+              disabled={isTrimming || !isMeasured || hasFailed}
+              haptic
+              onClick={() => void submit()}
+            >
+              {isTrimming ? "자르는 중" : "완료"}
+            </Button>
+          )}
         </div>
         <div className="flex min-h-0 flex-1 items-center justify-center px-md">
           {/* INFO: The one failure the user can act on, named rather than drawn — `PreloadVideo`'s glyph says a load ended and this says the pick is unusable, which is what 취소 is the answer to. The § 7.10. viewer carries the same sentence. */}
@@ -117,7 +147,8 @@ export function VideoTrimmer({ className, draft, limit, onCancel, onDone }: Vide
               이 기기에서는 재생할 수 없는 형식이에요
             </p>
           )}
-          {/* INFO: `muted` and `playsInline` so scrubbing previews on iOS without the element demanding fullscreen; there is no audio in the result either way. */}
+          {/* INFO: `playsInline` so the preview plays in place on iOS instead of the element demanding fullscreen. */}
+          {/* WARN: Not `muted` — § 13.4.1.'s emoticon keeps the clip's sound, so the range has to be auditioned with it. Playback only ever starts from ▶, which is the gesture WebKit grants unmuted audio to. */}
           {/* INFO: The poster stands in until the first frame decodes — an unwrapped element paints black for the length of the load, which over a `scrim` backdrop reads as nothing having opened. */}
           {/* WARN: The box is reserved from the draft, and the overlay is `bg-scrim` — an unsized frame renders the skeleton and the failure glyph at 0×0, so a clip that never decodes was a black screen with nothing on it at all. */}
           {/* WARN: Mounted only once the object URL exists. An element that loads its source after mount is never re-judged for playback and its seeks before that point are dropped, so it would sit on a frame the handles do not agree with. */}
@@ -130,10 +161,12 @@ export function VideoTrimmer({ className, draft, limit, onCancel, onDone }: Vide
               style={{ aspectRatio: toAspectRatio(draft.width, draft.height) }}
               src={sourceUrl}
               poster={draft.previewUrl ?? undefined}
-              muted
               playsInline
               preload="metadata"
               onLoadedMetadata={handleMetadata}
+              onTimeUpdate={handleTimeUpdate}
+              onPause={() => setIsPlaying(false)}
+              onPlay={() => setIsPlaying(true)}
               onError={handleError}
             />
           )}
@@ -153,9 +186,20 @@ export function VideoTrimmer({ className, draft, limit, onCancel, onDone }: Vide
             thumbLabels={isFixedWindow ? ["시작 지점"] : ["시작", "끝"]}
             onValueChange={handleScrub}
           />
-          <p className="text-center text-caption text-on-scrim/80">
-            {`${formatSeconds(start)} ~ ${formatSeconds(resolvedEnd)} · ${formatSeconds(resolvedEnd - start)}`}
-          </p>
+          {/* INFO: The range is auditioned rather than only scrubbed — the cut is a length and a sound, and neither of those is a frame. */}
+          <div className="flex items-center justify-center gap-2xs">
+            <IconButton
+              className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
+              buttonClassName="size-9 min-h-9"
+              Icon={isPlaying ? Pause : Play}
+              disabled={isTrimming || !isMeasured || hasFailed}
+              aria-label={isPlaying ? "미리보기 멈추기" : "고른 구간 들어보기"}
+              onClick={togglePlayback}
+            />
+            <p className="text-caption text-on-scrim/80">
+              {`${formatSeconds(start)} ~ ${formatSeconds(resolvedEnd)} · ${formatSeconds(resolvedEnd - start)}`}
+            </p>
+          </div>
         </div>
       </div>
     </ShellOverlay>
@@ -190,7 +234,8 @@ export function VideoTrimmer({ className, draft, limit, onCancel, onDone }: Vide
       const resolved = Math.round(video.duration * A_SECOND);
 
       setMeasuredMs(resolved);
-      setEnd((current) => (isMeasured ? current : resolved / A_SECOND));
+      // WARN: A restored range is a measurement of its own — it was chosen against a duration this element is only now reporting, so the end handle must not be pushed back out to it.
+      setEnd((current) => (isMeasured || initialRange ? current : resolved / A_SECOND));
     }
 
     video.currentTime = start;
@@ -223,8 +268,40 @@ export function VideoTrimmer({ className, draft, limit, onCancel, onDone }: Vide
 
   function seek(seconds: number) {
     if (videoRef.current) {
+      // INFO: A thumb under the finger is choosing a frame, so the audition stops rather than playing on from wherever the drag left the head.
+      videoRef.current.pause();
       videoRef.current.currentTime = seconds;
     }
+  }
+
+  // WARN: Loops back to the start instead of running past `resolvedEnd` — the element knows the whole clip, and only these two handles say which part of it the emoticon is.
+  function handleTimeUpdate(event: SyntheticEvent<HTMLVideoElement>) {
+    const video = event.currentTarget;
+
+    if (!video.paused && video.currentTime >= resolvedEnd) {
+      video.currentTime = start;
+    }
+  }
+
+  function togglePlayback() {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    if (!video.paused) {
+      video.pause();
+
+      return;
+    }
+
+    if (video.currentTime < start || video.currentTime >= resolvedEnd) {
+      video.currentTime = start;
+    }
+
+    // INFO: A refusal is the engine declining the gesture, and the button is already back to ▶ through `onPause` — there is nothing further to say about it.
+    void video.play().catch(() => setIsPlaying(false));
   }
 
   async function submit() {
@@ -233,7 +310,7 @@ export function VideoTrimmer({ className, draft, limit, onCancel, onDone }: Vide
     try {
       const range: TrimRange = { start, end: resolvedEnd };
 
-      onDone(await trimVideo(draft.file, range), range);
+      onDone(await trimVideo(draft.file, range, { keepsAudio }), range);
     } catch {
       // INFO: The one failure the user can act on is a codec this browser cannot decode; everything else here is a bug. Both read the same from the outside, so the copy names neither.
       toast.error("영상을 자르지 못했어요");

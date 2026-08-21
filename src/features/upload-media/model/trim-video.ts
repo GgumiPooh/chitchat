@@ -1,3 +1,4 @@
+import type { Nullable } from "@/shared/lib";
 import {
   BlobSource,
   BufferTarget,
@@ -25,6 +26,11 @@ const TRIMMED_MIME = "video/mp4";
  */
 const INPUT_FORMATS = [MP4, QTFF, WEBM];
 
+export type TrimOptions = {
+  /** Whether the source's sound rides along with the cut, where the browser can carry it. */
+  keepsAudio?: boolean;
+};
+
 export type TrimRange = {
   /** Seconds from the start of the source. */
   start: number;
@@ -39,25 +45,63 @@ export type TrimRange = {
  * across whenever the source codec already fits the output container, so an iPhone
  * clip is re-muxed rather than re-encoded — no generation loss and no long wait.
  *
- * WARN: The audio track is discarded, and that is not only a size decision. A
- * background plays `muted` (nothing else autoplays on iOS), so the track would
- * never be heard — and dropping it means the whole operation needs only WebCodecs'
- * **video** interfaces, which Safari has had since 16.4. The audio interfaces
- * landed in Safari 26, so keeping the track would raise the app's floor by ten
- * major versions to ship silence.
+ * WARN: The audio track is discarded unless the caller asks for it, and that is not
+ * only a size decision. A background plays `muted` (nothing else autoplays on iOS),
+ * so the track would never be heard — and dropping it means the whole operation needs
+ * only WebCodecs' **video** interfaces, which Safari has had since 16.4. The audio
+ * interfaces landed in Safari 26, so keeping the track unconditionally would raise
+ * the app's floor by ten major versions to ship silence.
+ *
+ * INFO: § 13.4.1. passes `keepsAudio`, because its next screen plays this output
+ * aloud — and it falls back to a silent trim rather than failing, since a browser
+ * that cannot carry the track is exactly the one the paragraph above describes.
  */
-export async function trimVideo(file: File, range: TrimRange): Promise<File> {
+export async function trimVideo(
+  file: File,
+  range: TrimRange,
+  { keepsAudio = false }: TrimOptions = {},
+): Promise<File> {
+  if (keepsAudio) {
+    const kept = await convert(file, range, false);
+
+    if (kept) {
+      return kept;
+    }
+  }
+
+  const trimmed = await convert(file, range, true);
+
+  // INFO: A source whose video track this browser cannot decode at all. It is reported rather than thrown as an opaque failure, because the caller's copy has to tell it apart from a network error.
+  if (!trimmed) {
+    throw new Error("video track cannot be converted");
+  }
+
+  return trimmed;
+}
+
+/**
+ * INFO: Answers `null` for a conversion this browser cannot perform, which is what
+ * lets `keepsAudio` retry without the track rather than report the clip unusable.
+ *
+ * WARN: No `audio` codec is named where the track is kept, so `mediabunny` copies the
+ * encoded samples wherever the source is already AAC — `extractVideoAudio` avoids an
+ * `AudioEncoder` the same way.
+ */
+async function convert(
+  file: File,
+  range: TrimRange,
+  discardsAudio: boolean,
+): Promise<Nullable<File>> {
   const output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
   const conversion = await Conversion.init({
     input: new Input({ source: new BlobSource(file), formats: INPUT_FORMATS }),
     output,
-    audio: { discard: true },
+    ...(discardsAudio ? { audio: { discard: true } } : {}),
     trim: { start: range.start, end: range.end },
   });
 
-  // INFO: A source whose video track this browser cannot decode at all. It is reported rather than thrown as an opaque failure, because the caller's copy has to tell it apart from a network error.
   if (!conversion.isValid) {
-    throw new Error("video track cannot be converted");
+    return null;
   }
 
   await conversion.execute();
