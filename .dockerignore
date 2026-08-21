@@ -18,7 +18,8 @@ docs
 downloads
 drizzle
 scripts
-# WARN: REQUIREMENTS.md § 16. `pnpm build` ends in `precache`, so this one script is part of the image build rather than tooling beside it — excluded with the rest of `scripts`, the builder stage fails at `ERR_MODULE_NOT_FOUND` where a local build passes on a file it never had to copy. The ops entries stay out: they run on a GitHub runner and nothing in the image calls them.
+# WARN: REQUIREMENTS.md § 16. `pnpm build` runs these two, so they are part of the image build rather than tooling beside it — excluded with the rest of `scripts`, the builder stage fails at `ERR_MODULE_NOT_FOUND` where a local build passes on a file it never had to copy. The ops entries stay out: they run on a GitHub runner and nothing in the image calls them.
+!scripts/generate-ffmpeg-core.ts
 !scripts/generate-offline-precache.ts
 *.md
 
