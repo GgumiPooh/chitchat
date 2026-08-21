@@ -17,6 +17,11 @@ const WATCH_PATHS = ["/embed/", "/shorts/", "/live/", "/v/"];
 // WARN: YouTube's canonical playlist embed is `/embed/videoseries?list=…`, and it passes the id shape below — left in, the card is forced to `video` and its thumbnail points at a video that does not exist.
 const NON_VIDEO_IDS = ["videoseries"];
 
+// INFO: An auto-generated channel — every YouTube Music release lands on one. Its thumbnail is the square art centred on a coloured 4:3 canvas, and `hqdefault.jpg`'s 480×360 holds that art as the middle 360×360.
+const TOPIC_CHANNEL = /\s-\sTopic$/;
+
+const TOPIC_ART_SIZE = 360;
+
 // INFO: Any ytimg host, not just the one `THUMBNAIL_ENDPOINT` names — oEmbed answers `i9.ytimg.com` as readily as `i.ytimg.com`.
 const YOUTUBE_THUMBNAIL_HOST = /^https?:\/\/([\w-]+\.)?ytimg\.com\//i;
 
@@ -124,8 +129,10 @@ export function withYouTubeFallbacks(
     description: metadata?.description ?? null,
     siteName: metadata?.siteName ?? "YouTube",
     imageUrl: toReliableThumbnailUrl(metadata?.imageUrl, videoId),
-    // WARN: Left null on purpose, and never probed. `hqdefault.jpg` is 480×360 with the 16:9 frame letterboxed inside it, so its own box would draw the bars — null is the card's 16:9, which `object-cover` crops them out of.
-    imageSize: null,
+    // WARN: Never probed. `hqdefault.jpg` is 480×360 with the frame letterboxed inside it, so its own box would draw the bars — null is the card's 16:9, which `object-cover` crops them out of, and a Topic channel's square art is cropped to itself the same way. A channel that loses the suffix is a 16:9 card with the bars back, not a broken one.
+    imageSize: TOPIC_CHANNEL.test(metadata?.siteName ?? "")
+      ? { width: TOPIC_ART_SIZE, height: TOPIC_ART_SIZE }
+      : null,
   };
 }
 

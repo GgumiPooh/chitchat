@@ -5,8 +5,11 @@ const INSTAGRAM_HOST = /(^|\.)instagram\.com$/i;
 
 const REEL_PATH = /^\/reels?\//i;
 
-// INFO: Measured, not documented: a reel and a post publish no `og:title`, only `twitter:title` as `이름 (@handle) • Instagram reel` / `… • Instagram photos and videos`.
+// INFO: Measured, not documented: a reel and a post publish no `og:title`, only `twitter:title` as `이름 (@handle) • Instagram 릴스` / `… • Instagram photos and videos`.
 const TITLE_SUFFIX = /\s*[•·]\s*Instagram\b.*$/i;
+
+// INFO: The other shape Instagram answers with, seen in production and not from here: `Instagram의 이름: "캡션"` in Korean, `이름 on Instagram: "캡션"` in English. The closing quote is optional because the title is cut at `MAX_TITLE_LENGTH`.
+const CAPTIONED_TITLE = /^(?:Instagram의\s+(.+?)|(.+?)\s+on\s+Instagram):\s*["“](.*?)["”]?\s*$/is;
 
 // WARN: The login page publishes tags of its own — `og:title: Instagram` and the logo as `og:image` — so read as a card it is a plausible-looking one for a post nobody can see.
 const LOGIN_PATH = /^\/accounts\/login\//i;
@@ -51,10 +54,19 @@ export function withInstagramFallbacks(
     return null;
   }
 
+  const captioned = metadata.title?.match(CAPTIONED_TITLE);
+
   return {
     ...metadata,
     kind: REEL_PATH.test(new URL(url).pathname) ? "video" : metadata.kind,
-    title: metadata.title?.replace(TITLE_SUFFIX, "").trim() || metadata.title,
+    // INFO: DESIGN.md § 6.9. The author above and the caption beneath, as Instagram's own share card lays them out — and the title as published when neither shape matches.
+    title:
+      (captioned
+        ? (captioned[1] ?? captioned[2])
+        : metadata.title?.replace(TITLE_SUFFIX, "")
+      )?.trim() || metadata.title,
+    // INFO: The caption over the page's own description, which is the engagement line (`63K likes, 133 comments - handle - date: …`) rather than what the post says.
+    description: captioned?.[3]?.trim() || metadata.description,
     siteName: "Instagram",
   };
 }
