@@ -11,6 +11,7 @@ import {
   Quality,
   WEBM,
   type CropRectangle,
+  type VideoSample,
 } from "mediabunny";
 import { fitWithin } from "./canvas";
 import { bitrateCeilingFor } from "./optimize-video";
@@ -47,13 +48,12 @@ export async function cropVideo(
     input: new Input({ source: new BlobSource(file), formats: INPUT_FORMATS }),
     output,
     audio: { discard: true },
-    // WARN: `fit: "fill"` and not `cover`. The box below is the crop's own aspect ratio, so there is nothing to letterbox or to trim off — but `cover` would re-crop a box that rounding left a pixel out of.
+    // WARN: Cropped in `process`, never through the `crop` option — REQUIREMENTS.md § 12.1. names the WebKit bug that returns the whole frame otherwise.
     // INFO: § 9. The same ceiling an attachment is cut to — this is already a full re-encode, so bounding the bitrate costs nothing further.
     video: {
-      crop,
-      width: size.width,
-      height: size.height,
-      fit: "fill",
+      process: toCropProcessor(crop, size),
+      processedWidth: size.width,
+      processedHeight: size.height,
       quality: new Quality({ bitrate: bitrateCeilingFor(Math.max(size.width, size.height)) }),
     },
   });
@@ -72,6 +72,47 @@ export async function cropVideo(
   }
 
   return new File([buffer], toCroppedName(file.name), { type: CROPPED_MIME });
+}
+
+/**
+ * Draws each frame into a canvas of the crop's own box and hands that back, which is
+ * how the rectangle is applied without ever naming a source rectangle.
+ *
+ * WARN: A five-argument `drawImage`, and that is the whole fix. For a decoder-produced
+ * `VideoFrame`, WebKit ignores the source rectangle of the nine-argument form, of
+ * `createImageBitmap` and of `visibleRect` alike — every one draws the full frame
+ * scaled into the destination, which is what `mediabunny`'s own `crop` came out as on
+ * Safari and every iOS browser. Offsetting the whole frame gives it nothing to ignore.
+ *
+ * INFO: The frame arrives already in display orientation: `Conversion` bakes the
+ * track's rotation in before `process` runs, and the cropper's rectangle is taken
+ * from the element's `videoWidth` / `videoHeight`, which are the same space.
+ *
+ * INFO: One canvas for the whole clip — `mediabunny` copies a returned canvas into a
+ * `VideoSample` synchronously, before the next frame is handed in.
+ */
+function toCropProcessor(crop: CropRectangle, size: { width: number; height: number }) {
+  const canvas = new OffscreenCanvas(size.width, size.height);
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("offscreen canvas has no 2d context");
+  }
+
+  const scaleX = size.width / crop.width;
+  const scaleY = size.height / crop.height;
+
+  return (sample: VideoSample) => {
+    sample.draw(
+      context,
+      -crop.left * scaleX,
+      -crop.top * scaleY,
+      sample.displayWidth * scaleX,
+      sample.displayHeight * scaleY,
+    );
+
+    return canvas;
+  };
 }
 
 /**
