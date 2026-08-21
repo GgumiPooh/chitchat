@@ -1,12 +1,10 @@
 import type { Nullable } from "@/shared/lib";
 import type { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fitWithin, loadImage } from "./canvas";
+import { enqueueFfmpeg, loadFfmpeg, toEvenEdge } from "./ffmpeg-runtime";
 import { unoptimized, type EncodeProgress, type OptimizedMedia } from "./optimize-result";
 
-const OPTIMIZED_MIME = "image/webp";
-
-// INFO: `next.config.ts`'s `/emoticons` rewrite and jandh-emoticons both leave this path untouched, so a fixed `public/` path is safe to hardcode rather than route through `@/shared/config`.
-const CORE_BASE_URL = "/ffmpeg";
+export const ANIMATION_MIME = "image/webp";
 
 // INFO: Same policy cap `optimize-video.ts`'s `VIDEO_MAX_LONG_EDGE` and `canvas.ts`'s `STILL_IMAGE_MAX_EDGE` apply, on an animation's own long edge.
 export const ANIMATION_MAX_LONG_EDGE = 1920;
@@ -31,55 +29,6 @@ const DEFAULT_OPTIONS: OptimizeAnimationOptions = {
   maxEdge: ANIMATION_MAX_LONG_EDGE,
   lossless: false,
 };
-
-let ffmpegPromise: Nullable<Promise<FFmpeg>> = null;
-
-// WARN: `@ffmpeg/ffmpeg`'s worker holds one module-level core and does not serialize its own message handler, so concurrent `exec` calls on it are undefined behaviour.
-let queue: Promise<unknown> = Promise.resolve();
-
-function enqueue<T>(task: () => Promise<T>): Promise<T> {
-  const run = queue.then(task, task);
-
-  queue = run.then(
-    () => undefined,
-    () => undefined,
-  );
-
-  return run;
-}
-
-/**
- * WARN: The `@ffmpeg/ffmpeg` class and its wasm core are both `import()`ed here,
- * on first call, and cached at module scope — mirrors `canvas.ts`'s
- * `loadAvifEncoder`. A user who never sends an animated image must never fetch the
- * ~32MB core, so nothing above this function may import `@ffmpeg/ffmpeg` eagerly.
- */
-function loadFfmpeg(): Promise<FFmpeg> {
-  ffmpegPromise ??= (async () => {
-    const [{ FFmpeg }, { toBlobURL }] = await Promise.all([
-      import("@ffmpeg/ffmpeg"),
-      import("@ffmpeg/util"),
-    ]);
-    const ffmpeg = new FFmpeg();
-
-    // INFO: Self-hosted rather than jsDelivr's default — `toBlobURL` re-wraps each file as a blob URL, which is the documented pattern for a module worker's same-origin constraint.
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${CORE_BASE_URL}/ffmpeg-core.js`, "text/javascript"),
-      wasmURL: await toBlobURL(`${CORE_BASE_URL}/ffmpeg-core.wasm`, "application/wasm"),
-    });
-
-    return ffmpeg;
-  })();
-
-  // WARN: A rejection is not kept — memoized, one failed fetch of the core disables the optimizer for the rest of the session, including after the network comes back.
-  ffmpegPromise = ffmpegPromise.catch((error) => {
-    ffmpegPromise = null;
-
-    throw error;
-  });
-
-  return ffmpegPromise;
-}
 
 /**
  * REQUIREMENTS.md § 9. Re-encodes an animated GIF/WebP/APNG to animated WebP, in
@@ -109,7 +58,7 @@ export async function optimizeAnimation(
 
   let ffmpeg: Nullable<FFmpeg> = null;
 
-  return enqueue(async () => {
+  return enqueueFfmpeg(async () => {
     try {
       const [loaded, size] = await Promise.all([loadFfmpeg(), measureSize(file, maxEdge)]);
 
@@ -122,7 +71,7 @@ export async function optimizeAnimation(
         "-i",
         inputName,
         "-vf",
-        `scale=${toEven(size.width)}:${toEven(size.height)}`,
+        `scale=${toEvenEdge(size.width)}:${toEvenEdge(size.height)}`,
         "-c:v",
         "libwebp_anim",
         "-lossless",
@@ -150,11 +99,11 @@ export async function optimizeAnimation(
 
       // WARN: `data`'s buffer is typed `ArrayBufferLike`, which admits `SharedArrayBuffer` — `File` only accepts `ArrayBuffer`, so a fresh copy is the cast.
       const optimized = new File([new Uint8Array(data)], toOptimizedName(file.name), {
-        type: OPTIMIZED_MIME,
+        type: ANIMATION_MIME,
       });
 
       return optimized.size < file.size
-        ? { file: optimized, width: toEven(size.width), height: toEven(size.height) }
+        ? { file: optimized, width: toEvenEdge(size.width), height: toEvenEdge(size.height) }
         : unoptimized(file);
     } catch {
       return unoptimized(file);
@@ -179,12 +128,6 @@ async function measureSize(
   } finally {
     URL.revokeObjectURL(sourceUrl);
   }
-}
-
-// INFO: Chroma rounding insurance for `libwebp_anim`, cheap even though odd dimensions are not actually rejected.
-// WARN: Floored at 2, never 0 — `scale=0:0` is "same as input" to ffmpeg while the row would still record a zero box, which is the one § 8.3. cannot reserve from.
-function toEven(n: number): number {
-  return Math.max(2, n % 2 === 0 ? n : n - 1);
 }
 
 function toOptimizedName(name: string): string {
