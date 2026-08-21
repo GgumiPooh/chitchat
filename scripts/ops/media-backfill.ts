@@ -2,20 +2,23 @@ import {
   AVATAR_MAX_EDGE,
   BACKGROUND_MAX_EDGE,
   EMOTICON_MAX_EDGE,
+  MAX_EMOTICON_AUDIO_SIZE,
+  MAX_FILE_SIZE,
   MAX_IMAGE_SIZE,
   MAX_THUMBNAIL_SIZE,
   MAX_VIDEO_SIZE,
   isAnimatedImage,
+  isAudioMime,
   needsThumbnail,
   type MediaKind,
   type MediaScope,
 } from "@/shared/config";
 import { getDb, media, type Media } from "@/shared/db";
-import { mapPooled, type Nullable } from "@/shared/lib";
-import { getBucket, getR2, headObject, readObject, toThumbKey } from "@/shared/storage";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { mapPooled, safelyGetAsync, type Nullable } from "@/shared/lib";
+import { getBucket, getR2, readObject, toThumbKey } from "@/shared/storage";
+import { HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { encode as encodeBlurhash } from "blurhash";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, like, or } from "drizzle-orm";
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -73,6 +76,14 @@ const VIDEO_BITRATE_CEILING_SD = 2_500_000;
 // copied for the same reason as the block above.
 const ANIMATION_WEBP_QUALITY = 75;
 const ANIMATION_WEBP_COMPRESSION_LEVEL = 6;
+// WARN: `optimize-audio.ts:25`. The AAC target every audio path — browser, emoticon import, this backfill — converges on.
+const AUDIO_TARGET_BITRATE = 128_000;
+
+// WARN: Bump this whenever any encode parameter above changes. It is written into R2
+// object metadata on every PUT this script makes; bumping it makes objects this script
+// already produced eligible for re-processing again instead of being skipped forever.
+const OPTIMIZE_RULESET_VERSION = "1";
+const OPTIMIZE_METADATA_KEY = "jandh-optimize-version";
 
 function bitrateCeilingFor(longEdge: number): number {
   if (longEdge >= 1_920) {
@@ -154,8 +165,39 @@ function hasFfmpeg(): boolean {
 
 async function putObject(key: string, body: Buffer, contentType: string): Promise<void> {
   await getR2().send(
-    new PutObjectCommand({ Bucket: getBucket(), Key: key, Body: body, ContentType: contentType }),
+    new PutObjectCommand({
+      Bucket: getBucket(),
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      Metadata: { [OPTIMIZE_METADATA_KEY]: OPTIMIZE_RULESET_VERSION },
+    }),
   );
+}
+
+type HeadWithMarker = { size: number; mime: string; optimized: boolean };
+
+/**
+ * A local `HeadObjectCommand`, not `headObject` from `@/shared/storage` — that helper
+ * drops S3 user metadata, and this script needs the marker `putObject` above writes.
+ * R2 lowercases metadata keys on the way back regardless of how they were set, so
+ * `OPTIMIZE_METADATA_KEY` is written lowercase already and the lookup below needs no
+ * normalization.
+ */
+async function headWithMarker(key: string): Promise<Nullable<HeadWithMarker>> {
+  const head = await safelyGetAsync(() =>
+    getR2().send(new HeadObjectCommand({ Bucket: getBucket(), Key: key })),
+  );
+
+  if (!head?.ContentType || head.ContentLength === undefined) {
+    return null;
+  }
+
+  return {
+    size: head.ContentLength,
+    mime: head.ContentType,
+    optimized: head.Metadata?.[OPTIMIZE_METADATA_KEY] === OPTIMIZE_RULESET_VERSION,
+  };
 }
 
 type EncodedImage = { buffer: Buffer; mime: string; width: number; height: number };
@@ -328,6 +370,131 @@ async function encodeVideoH264(
   }
 }
 
+type EncodedAudio = { buffer: Buffer; mime: string };
+
+type AudioEncodeResult =
+  { status: "already-optimal" } | { status: "failed" } | ({ status: "ok" } & EncodedAudio);
+
+async function runFfprobe(args: string[]): Promise<{ code: number; stdout: string }> {
+  return new Promise((resolve) => {
+    const proc = spawn("ffprobe", args);
+    let stdout = "";
+
+    proc.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    proc.on("error", () => resolve({ code: -1, stdout: "" }));
+    proc.on("close", (code) => resolve({ code: code ?? -1, stdout }));
+  });
+}
+
+/** `stage-items.ts`'s own `readAudioBitrate` — best-effort, so an absent `ffprobe` or a stream with no reported bitrate falls through to a real re-encode rather than blocking one. */
+async function readAudioBitrate(inputPath: string): Promise<Nullable<number>> {
+  const { code, stdout } = await runFfprobe([
+    "-v",
+    "error",
+    "-select_streams",
+    "a:0",
+    "-show_entries",
+    "stream=bit_rate",
+    "-of",
+    "default=nw=1:nk=1",
+    inputPath,
+  ]);
+
+  if (code !== 0) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(stdout.trim(), 10);
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/**
+ * The container's own `format`-level bit_rate rather than the `v:0` stream's — many
+ * MP4 muxers (including iPhone's) leave the per-stream field unset while the format
+ * one is always derivable from size/duration, so this is the reading that actually
+ * answers for the videos the bitrate ceiling exists to catch.
+ */
+async function readVideoBitrate(bytes: Uint8Array): Promise<Nullable<number>> {
+  const dir = await mkdtemp(join(tmpdir(), "media-backfill-video-probe-"));
+  const inputPath = join(dir, "input");
+
+  try {
+    await writeFile(inputPath, bytes);
+
+    const { code, stdout } = await runFfprobe([
+      "-v",
+      "error",
+      "-show_entries",
+      "format=bit_rate",
+      "-of",
+      "default=nw=1:nk=1",
+      inputPath,
+    ]);
+
+    if (code !== 0) {
+      return null;
+    }
+
+    const parsed = Number.parseInt(stdout.trim(), 10);
+
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Re-encodes audio to AAC/MP4 through the `ffmpeg` CLI, mirroring `stage-items.ts`'s
+ * `reencodeEmoticonAudio` — including its bitrate pre-check, so a source already at or
+ * under `AUDIO_TARGET_BITRATE` is reported `already-optimal` rather than re-encoded
+ * for nothing.
+ */
+async function encodeAudioAac(bytes: Uint8Array): Promise<AudioEncodeResult> {
+  const dir = await mkdtemp(join(tmpdir(), "media-backfill-audio-"));
+  const inputPath = join(dir, "input");
+  const outputPath = join(dir, "output.m4a");
+
+  try {
+    await writeFile(inputPath, bytes);
+
+    const sourceBitrate = await readAudioBitrate(inputPath);
+
+    if (sourceBitrate !== null && sourceBitrate <= AUDIO_TARGET_BITRATE) {
+      return { status: "already-optimal" };
+    }
+
+    const exitCode = await new Promise<number>((resolve) => {
+      const proc = spawn("ffmpeg", [
+        "-y",
+        "-i",
+        inputPath,
+        "-vn",
+        "-c:a",
+        "aac",
+        "-b:a",
+        `${AUDIO_TARGET_BITRATE}`,
+        "-movflags",
+        "+faststart",
+        outputPath,
+      ]);
+
+      proc.on("error", () => resolve(-1));
+      proc.on("close", (code) => resolve(code ?? -1));
+    });
+
+    if (exitCode !== 0) {
+      return { status: "failed" };
+    }
+
+    return { status: "ok", buffer: await readFile(outputPath), mime: "audio/mp4" };
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 type Stats = {
   scanned: number;
   mainOptimized: number;
@@ -362,6 +529,20 @@ function bump(stats: Stats, reason: string): void {
   stats.skipReasons[reason] = (stats.skipReasons[reason] ?? 0) + 1;
 }
 
+/** The running before→after totals, saved bytes and percentage — shared by the per-item progress line and the final summary so the two can never disagree. */
+function savedSummary(stats: Stats): {
+  before: number;
+  after: number;
+  saved: number;
+  percent: number;
+} {
+  const before = stats.mainBeforeBytes + stats.thumbBeforeBytes;
+  const after = stats.mainAfterBytes + stats.thumbAfterBytes;
+  const saved = Math.max(0, before - after);
+
+  return { before, after, saved, percent: before > 0 ? (saved / before) * 100 : 0 };
+}
+
 type MainWork = {
   changed: boolean;
   newMime?: string;
@@ -385,7 +566,7 @@ type MainWork = {
  * whole extra run before it converges.
  */
 async function planMain(row: Media, stats: Stats): Promise<MainWork> {
-  const head = await headObject(row.r2Key);
+  const head = await headWithMarker(row.r2Key);
 
   if (!head) {
     stats.mainErrors += 1;
@@ -431,19 +612,12 @@ async function planMain(row: Media, stats: Stats): Promise<MainWork> {
       : { changed: false };
 
   const edge = targetEdgeFor(row.scope, row.kind);
+  // WARN: `image/webp` has no shape-based fast path — mime/dimensions alone cannot tell an untouched animated original from an already-optimized output, so only `head.optimized` above can skip one.
   const alreadyAvif = mime === "image/avif" && Math.max(width ?? 0, height ?? 0) <= edge;
-  const alreadyMp4 =
-    mime === "video/mp4" && row.kind === "video" && Math.max(width ?? 0, height ?? 0) <= edge;
 
   stats.mainBeforeBytes += size;
 
-  // WARN: `image/webp` is deliberately NOT treated as already-optimal here, even though
-  // it is one of the two target formats. It is ambiguous on a HEAD alone — an untouched
-  // animated original upload and an already-optimized animated output share the same
-  // Content-Type — so this falls through to a real re-encode rather than risk skipping
-  // a legacy upload that still needs one. The cost is a redundant re-encode of the
-  // already-good rows, bounded by how few animated images this app carries.
-  if (alreadyAvif || alreadyMp4) {
+  if (head.optimized || alreadyAvif) {
     bump(stats, "main-already-optimal");
     stats.mainAfterBytes += size;
 
@@ -472,6 +646,21 @@ async function planMain(row: Media, stats: Stats): Promise<MainWork> {
       stats.mainAfterBytes += size;
 
       return skip();
+    }
+
+    const alreadyMp4Shape = mime === "video/mp4" && Math.max(width, height) <= edge;
+
+    if (alreadyMp4Shape) {
+      const ceiling = bitrateCeilingFor(Math.max(width, height));
+      const bitrate = await readVideoBitrate(bytes.bytes);
+
+      // WARN: An unreadable bitrate is NOT treated as "under the ceiling" — an unknown reading falls through to a real re-encode rather than being assumed fine.
+      if (bitrate !== null && bitrate <= ceiling) {
+        bump(stats, "main-already-optimal");
+        stats.mainAfterBytes += size;
+
+        return skip();
+      }
     }
 
     const encoded = await encodeVideoH264(bytes.bytes, width, height);
@@ -531,6 +720,104 @@ async function planMain(row: Media, stats: Stats): Promise<MainWork> {
   };
 }
 
+/**
+ * `planMain`'s audio counterpart — `kind = 'audio'` (an emoticon's sound) and a
+ * `kind = 'file'` row whose mime is audio (a chat-attached sound, per
+ * `validate-media-upload.ts`'s `isEmoticonAudio`/`isFileMime` split). Never touches
+ * `width`/`height`/`blurhash`: `media_no_box_when_not_visual_check` requires all
+ * three stay NULL outside `('image','video')`, and `MainWork` simply never sets them
+ * here. No thumbnail sibling exists for either kind, so `processRow` skips `planThumb`
+ * for these rows entirely.
+ */
+async function planAudio(row: Media, stats: Stats): Promise<MainWork> {
+  const head = await headWithMarker(row.r2Key);
+
+  if (!head) {
+    stats.mainErrors += 1;
+    console.error(`[media-backfill] ${row.id} main object missing at ${row.r2Key}`);
+
+    return { changed: false };
+  }
+
+  const mime = head.mime;
+  const size = head.size;
+
+  if (mime !== row.mime || size !== row.size) {
+    console.warn(
+      `[media-backfill] ${row.id} row/R2 mismatch (row ${row.mime}/${row.size}, R2 ${mime}/${size}) — repairing the row from R2's own state`,
+    );
+    stats.mainRepaired += 1;
+  }
+
+  const skip = (): MainWork =>
+    mime !== row.mime || size !== row.size
+      ? { changed: true, newMime: mime, newSize: size }
+      : { changed: false };
+
+  stats.mainBeforeBytes += size;
+
+  if (head.optimized) {
+    bump(stats, "main-already-optimal");
+    stats.mainAfterBytes += size;
+
+    return skip();
+  }
+
+  if (!hasFfmpeg()) {
+    bump(stats, "main-ffmpeg-missing");
+    stats.mainAfterBytes += size;
+
+    return skip();
+  }
+
+  const cap = row.scope === "emoticon" ? MAX_EMOTICON_AUDIO_SIZE : MAX_FILE_SIZE;
+
+  if (size > cap) {
+    bump(stats, "main-unreadable");
+    stats.mainAfterBytes += size;
+
+    return skip();
+  }
+
+  const bytes = await readObject(row.r2Key, cap);
+
+  if (!bytes) {
+    stats.mainErrors += 1;
+    stats.mainAfterBytes += size;
+
+    return skip();
+  }
+
+  const encoded = await encodeAudioAac(bytes.bytes);
+
+  if (encoded.status !== "ok") {
+    bump(
+      stats,
+      encoded.status === "already-optimal" ? "main-already-optimal" : "main-reencode-failed",
+    );
+    stats.mainAfterBytes += size;
+
+    return skip();
+  }
+
+  if (encoded.buffer.byteLength >= size) {
+    bump(stats, "main-not-smaller");
+    stats.mainAfterBytes += size;
+
+    return skip();
+  }
+
+  stats.mainOptimized += 1;
+  stats.mainAfterBytes += encoded.buffer.byteLength;
+
+  return {
+    changed: true,
+    newMime: encoded.mime,
+    newSize: encoded.buffer.byteLength,
+    pendingUpload: { buffer: encoded.buffer, mime: encoded.mime },
+  };
+}
+
 type ThumbWork = {
   changed: boolean;
   newBlurhash?: Nullable<string>;
@@ -547,7 +834,7 @@ type ThumbWork = {
  */
 async function planThumb(row: Media, stats: Stats): Promise<ThumbWork> {
   const thumbKey = toThumbKey(row.r2Key);
-  const head = await headObject(thumbKey);
+  const head = await headWithMarker(thumbKey);
 
   if (!head) {
     stats.thumbErrors += 1;
@@ -557,6 +844,13 @@ async function planThumb(row: Media, stats: Stats): Promise<ThumbWork> {
   }
 
   stats.thumbBeforeBytes += head.size;
+
+  if (head.optimized) {
+    bump(stats, "thumb-already-optimal");
+    stats.thumbAfterBytes += head.size;
+
+    return { changed: false };
+  }
 
   const bytes = await readObject(thumbKey, MAX_THUMBNAIL_SIZE);
 
@@ -631,10 +925,13 @@ async function processRow(row: Media, stats: Stats, dryRun: boolean): Promise<vo
   stats.scanned += 1;
 
   try {
-    const main = await planMain(row, stats);
-    const thumb = needsThumbnail(row.scope)
-      ? await planThumb(row, stats)
-      : { changed: false as const };
+    const isAudioRow = row.kind === "audio" || (row.kind === "file" && isAudioMime(row.mime));
+    const main = isAudioRow ? await planAudio(row, stats) : await planMain(row, stats);
+    // WARN: Neither audio kind ever uploads a `_thumb` sibling (`validate-media-upload.ts`'s `hasNoBox`) — `planThumb` is skipped outright rather than HEAD-ing a key that was never written.
+    const thumb =
+      !isAudioRow && needsThumbnail(row.scope)
+        ? await planThumb(row, stats)
+        : { changed: false as const };
 
     if (!main.changed && !thumb.changed) {
       return;
@@ -663,8 +960,15 @@ async function processRow(row: Media, stats: Stats, dryRun: boolean): Promise<vo
     if (main.changed) {
       patch.mime = main.newMime;
       patch.size = main.newSize;
-      patch.width = main.newWidth;
-      patch.height = main.newHeight;
+
+      // WARN: Set only when planMain actually computed one — an audio row's MainWork never does, and media_no_box_when_not_visual_check needs width/height left untouched rather than explicitly nulled.
+      if (main.newWidth !== undefined) {
+        patch.width = main.newWidth;
+      }
+
+      if (main.newHeight !== undefined) {
+        patch.height = main.newHeight;
+      }
     }
 
     // WARN: Only when one was actually computed. A re-encode that produced no hash leaves the stored one alone — it describes the same pixels in an older codec, where a null would retire a working placeholder for § 8.3.'s empty box.
@@ -700,7 +1004,7 @@ async function main() {
 
   if (!hasFfmpeg()) {
     console.warn(
-      "[media-backfill] ffmpeg not found on PATH — video re-encoding will be SKIPPED (thumbnails still run). Install it with `brew install ffmpeg` and re-run to pick up videos.",
+      "[media-backfill] ffmpeg not found on PATH — video/audio re-encoding will be SKIPPED (thumbnails still run). Install it with `brew install ffmpeg` and re-run to pick them up.",
     );
   }
 
@@ -711,7 +1015,11 @@ async function main() {
       and(
         isNull(media.deletedAt),
         isNull(media.r2PurgedAt),
-        inArray(media.kind, ["image", "video"]),
+        // WARN: `kind = 'voice'` is deliberately excluded — bounded by MAX_VOICE_DURATION, already small, and its waveform_peaks were sampled from the original bytes.
+        or(
+          inArray(media.kind, ["image", "video", "audio"]),
+          and(eq(media.kind, "file"), like(media.mime, "audio/%")),
+        ),
       ),
     )
     .orderBy(media.id);
@@ -729,15 +1037,16 @@ async function main() {
       await processRow(row, stats, dryRun);
       done += 1;
 
-      if (done % 50 === 0 || done === rows.length) {
-        console.log(`[media-backfill] progress ${done}/${rows.length}`);
-      }
+      const { saved, percent } = savedSummary(stats);
+
+      console.log(
+        `[media-backfill] progress ${done}/${rows.length} (${percent.toFixed(1)}%) — saved ${formatBytes(saved)}`,
+      );
     },
     { limit: concurrency },
   );
 
-  const savedBytes =
-    stats.mainBeforeBytes - stats.mainAfterBytes + (stats.thumbBeforeBytes - stats.thumbAfterBytes);
+  const { before, after, saved, percent } = savedSummary(stats);
 
   console.log(`[media-backfill] scanned ${stats.scanned}`);
   console.log(
@@ -752,12 +1061,12 @@ async function main() {
   }
 
   console.log(
-    `[media-backfill] ${formatBytes(stats.mainBeforeBytes + stats.thumbBeforeBytes)} → ${formatBytes(stats.mainAfterBytes + stats.thumbAfterBytes)} (saved ${formatBytes(Math.max(0, savedBytes))})`,
+    `[media-backfill] ${formatBytes(before)} → ${formatBytes(after)} (saved ${formatBytes(saved)}, ${percent.toFixed(1)}%)`,
   );
 
   await notifyOps(
     dryRun ? "미디어 최적화 미리보기" : "미디어 최적화 완료",
-    `${stats.scanned}개 검사 · 원본 ${stats.mainOptimized}개, 썸네일 ${stats.thumbOptimized}개 최적화 · ${formatBytes(Math.max(0, savedBytes))} ${dryRun ? "절감 예상" : "절감"}`,
+    `${stats.scanned}개 검사 · 원본 ${stats.mainOptimized}개, 썸네일 ${stats.thumbOptimized}개 최적화 · ${formatBytes(saved)}(${percent.toFixed(1)}%) ${dryRun ? "절감 예상" : "절감"}`,
   );
 }
 
