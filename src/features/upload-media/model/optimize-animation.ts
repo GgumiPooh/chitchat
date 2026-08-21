@@ -1,4 +1,4 @@
-import type { Nullable } from "@/shared/lib";
+import { randomId, type Nullable } from "@/shared/lib";
 import type { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fitWithin, loadImage } from "./canvas";
 import { enqueueFfmpeg, loadFfmpeg, toEvenEdge } from "./ffmpeg-runtime";
@@ -51,8 +51,8 @@ export async function optimizeAnimation(
   options: OptimizeAnimationOptions = DEFAULT_OPTIONS,
 ): Promise<OptimizedMedia> {
   const { maxEdge, lossless = false } = options;
-  const inputName = `${crypto.randomUUID()}-input`;
-  const outputName = `${crypto.randomUUID()}-output.webp`;
+  const inputName = `${randomId()}-input`;
+  const outputName = `${randomId()}-output.webp`;
   const handleProgress = ({ progress }: { progress: number }) =>
     onProgress?.(Math.min(1, Math.max(0, progress)));
 

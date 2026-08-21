@@ -1,5 +1,5 @@
 import { MAX_EMOTICON_IMAGE_SIZE, MAX_EMOTICON_VIDEO_DURATION } from "@/shared/config";
-import { A_SECOND, type Nullable } from "@/shared/lib";
+import { A_SECOND, randomId, type Nullable } from "@/shared/lib";
 import type { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fitWithin } from "./canvas";
 import { enqueueFfmpeg, loadFfmpeg, toEvenEdge } from "./ffmpeg-runtime";
@@ -93,8 +93,8 @@ async function encode(
   frames: number,
   onProgress: EncodeProgress,
 ): Promise<File> {
-  const inputName = `${crypto.randomUUID()}-input`;
-  const outputName = `${crypto.randomUUID()}-output.webp`;
+  const inputName = `${randomId()}-input`;
+  const outputName = `${randomId()}-output.webp`;
   const tail: string[] = [];
   const handleLog = ({ message }: { message: string }) => {
     tail.push(message);
