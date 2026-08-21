@@ -311,8 +311,10 @@ export function VideoTrimmer({
       const range: TrimRange = { start, end: resolvedEnd };
 
       onDone(await trimVideo(draft.file, range, { keepsAudio }), range);
-    } catch {
+    } catch (error) {
       // INFO: The one failure the user can act on is a codec this browser cannot decode; everything else here is a bug. Both read the same from the outside, so the copy names neither.
+      // WARN: Logged, because the toast is all a user can report — mediabunny 1.52.3's Safari `isConfigSupported` throw was invisible for exactly as long as this swallowed it.
+      console.error("[trim] the cut failed", error);
       toast.error("영상을 자르지 못했어요");
     } finally {
       setIsTrimming(false);

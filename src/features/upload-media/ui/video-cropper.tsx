@@ -225,8 +225,9 @@ export function VideoCropper({
       );
 
       onDone(file);
-    } catch {
+    } catch (error) {
       // INFO: `VideoTrimmer`'s reason — the one failure a user can act on is a codec this browser cannot decode, and everything else here reads the same from outside.
+      console.error("[crop] the cut failed", error);
       toast.error("영상을 자르지 못했어요");
     } finally {
       setIsCropping(false);
