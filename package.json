@@ -15,7 +15,6 @@
     "ops:purge": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs --tsconfig tsconfig.ops.json scripts/ops/purge.ts",
     "ops:sweep": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs --tsconfig tsconfig.ops.json scripts/ops/sweep.ts",
     "ops:orphans": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs --tsconfig tsconfig.ops.json scripts/ops/orphans.ts",
-    "ops:media-backfill": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs --tsconfig tsconfig.ops.json scripts/ops/media-backfill.ts",
     "dev": "concurrently -n app,steiger,tunnel -c blue,yellow,red \"pnpm dev:app\" \"pnpm dev:steiger\" \"pnpm dev:tunnel\"",
     "predev:app": "pnpm ffmpeg-core",
     "dev:app": "next dev",
