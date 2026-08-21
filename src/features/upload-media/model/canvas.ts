@@ -1,7 +1,7 @@
 import type { ThumbnailMime } from "@/shared/config";
 import { ensure, type Nullable, type Optional } from "@/shared/lib";
 import { encode } from "blurhash";
-import { encodeAvifOffThread } from "./avif-worker-client";
+import { encodeAvif } from "./avif-encoder";
 
 // INFO: REQUIREMENTS.md § 9. The thumbnail every chat cell and library tile loads. 720 covers a 220px bubble (DESIGN.md § 6.5.) and a 3-column grid cell at 3× density.
 export const THUMBNAIL_MAX_EDGE = 720;
@@ -57,7 +57,7 @@ async function tryEncodeAvif(canvas: HTMLCanvasElement, quality: number): Promis
   try {
     const context = ensure(canvas.getContext("2d"), "2d context unavailable");
     const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    const buffer = await encodeAvifOffThread(imageData, quality);
+    const buffer = await encodeAvif(imageData, quality);
 
     return new Blob([buffer], { type: "image/avif" });
   } catch {
