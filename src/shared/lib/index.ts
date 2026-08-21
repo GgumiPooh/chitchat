@@ -14,6 +14,7 @@ export {
 } from "./activity/network-reachability";
 export { hasUnsentWork, holdUnsentWork, useUnsentWork } from "./activity/unsent-work";
 export { AssertionError, assert, ensure } from "./assert";
+export { useMessageSound, type MessageSoundKind } from "./audio/message-sound";
 export {
   declareAudioSession,
   declareRestingAudioSession,

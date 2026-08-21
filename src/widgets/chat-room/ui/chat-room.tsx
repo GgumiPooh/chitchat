@@ -68,6 +68,7 @@ import {
   useIsFinePointer,
   useIsVirtualKeyboardOpen,
   useIsomorphicLayoutEffect,
+  useMessageSound,
   useSettledCommit,
   useSoundUnlock,
   useUnsentWork,
@@ -713,6 +714,8 @@ export function ChatRoom({
   const lastPendingCount = useRef(pendingCount);
   const isSending = pending.some((entry) => entry.status === "sending");
 
+  const { play: playMessageSound } = useMessageSound();
+
   // INFO: REQUIREMENTS.md § 8.5. The stream echoes my own message back too, so the optimistic bubble is retired on `client_msg_id` rather than waiting for the POST response it may well beat.
   const receiveMessage = useCallback(
     (message: ChatMessage, arrival: MessageArrival) => {
@@ -722,22 +725,26 @@ export function ChatRoom({
 
       // INFO: REQUIREMENTS.md § 13.6. My own emoticon already sounded at the tap that sent it, so the echo of it is silent.
       if (isNew && arrival === "live" && message.senderId !== currentUserId) {
-        if (message.emoticon) {
-          playEmoticonSound(message.emoticon);
-        } else {
-          const soloId = toSoloInlineEmoticonId({
-            text: message.text ?? "",
-            inlineEmoticonItemIds: message.inlineEmoticonItemIds,
-          });
-          const solo = soloId ? inlineEmoticons[soloId] : undefined;
+        const soloId = message.emoticon
+          ? null
+          : toSoloInlineEmoticonId({
+              text: message.text ?? "",
+              inlineEmoticonItemIds: message.inlineEmoticonItemIds,
+            });
+        const solo = soloId ? inlineEmoticons[soloId] : undefined;
+        const emoticon =
+          message.emoticon ??
+          (soloId && solo ? { id: soloId, version: solo.version, hasAudio: solo.hasAudio } : null);
 
-          if (soloId && solo) {
-            playEmoticonSound({ id: soloId, version: solo.version, hasAudio: solo.hasAudio });
-          }
+        // INFO: § 13.6. An emoticon's own sound is the arrival's sound; the 전송음 covers the message that has none.
+        if (emoticon?.hasAudio) {
+          playEmoticonSound(emoticon);
+        } else {
+          playMessageSound("received");
         }
       }
     },
-    [appendMessage, resolve, currentUserId, inlineEmoticons],
+    [appendMessage, resolve, currentUserId, inlineEmoticons, playMessageSound],
   );
 
   // INFO: REQUIREMENTS.md § 15.1. Staged attachments and sends still in flight both die with the document, so a refresh forced by a new deployment waits them out.
@@ -1611,7 +1618,11 @@ export function ChatRoom({
     void goLiveForSend();
     setStagedEmoticon(null);
     // WARN: REQUIREMENTS.md § 13.6. Synchronously inside the tap, like `submit` — iOS grants audio to this call stack alone.
-    playEmoticonSound(emoticon);
+    if (emoticon.hasAudio) {
+      playEmoticonSound(emoticon);
+    } else {
+      playMessageSound("sent");
+    }
     // INFO: § 13.6. Never a mini — `handleSelect` inserts one into the draft rather than staging it, so no quick send can reach here with one.
     rememberEmoticon(emoticon.id, "emoticon");
     sendEmoticon(emoticon, replyTarget);
@@ -1644,6 +1655,7 @@ export function ChatRoom({
     }
 
     sendMedia([toVoiceDraft(recording)], replyTarget);
+    playMessageSound("sent");
     setReplyTarget(null);
   }
 
@@ -1664,6 +1676,8 @@ export function ChatRoom({
 
     // WARN: REQUIREMENTS.md § 8.10. Consumed by the first bubble only. Emoticon, then attachments, then text is the order they are queued in, and a quote repeated over three of them says the same thing three times.
     let quote = replyTarget;
+    let hasSounded = false;
+    let hasSent = false;
 
     const take = () => {
       const taken = quote;
@@ -1676,14 +1690,17 @@ export function ChatRoom({
     if (stagedEmoticon) {
       // WARN: REQUIREMENTS.md § 13.6. Here rather than on the echo, and synchronously inside the tap — the send is the moment KakaoTalk sounds, and iOS grants audio to this call stack alone.
       playEmoticonSound(stagedEmoticon);
+      hasSounded = stagedEmoticon.hasAudio;
       // INFO: REQUIREMENTS.md § 13.6. 최근 사용 is recorded here rather than at the pick, so an emoticon staged and then abandoned never enters the list.
       rememberEmoticon(stagedEmoticon.id, "emoticon");
       sendEmoticon(stagedEmoticon, take());
       setStagedEmoticon(null);
+      hasSent = true;
     }
 
     if (selection.drafts.length > 0) {
       sendMedia(selection.takeAll(), take());
+      hasSent = true;
     }
 
     // WARN: REQUIREMENTS.md § 13.8. A draft that is nothing but the word the emoticon was found by was a search term, not a message — sending it would put 고민 in the conversation beside the picture it was only ever used to reach. Anything else keeps § 13.6.'s second bubble.
@@ -1694,14 +1711,21 @@ export function ChatRoom({
       });
       const solo = soloId ? emoticons.find(({ id }) => id === soloId) : undefined;
 
-      if (solo) {
+      if (solo?.hasAudio) {
         playEmoticonSound(solo);
+        hasSounded = true;
       }
       // WARN: § 13.6. The minis in the draft are recorded at the send too, and `"mini"` is read off the payload rather than off the menu they were picked from: § 2.2. carries a mini as a fragment of this `text` and never as `messages.emoticon_item_id`, so nothing else can be in here.
       emoticons.forEach((emoticon) => rememberEmoticon(emoticon.id, "mini"));
       // WARN: § 8.3. Published before the send, or the optimistic bubble's own emoticons are absent from the map the estimate reads and it prices the row without them — a correction on every send, which is the drift this estimate exists to avoid. The echo publishes the same entries again and they merge.
       rememberInlineEmoticons(toInlineEmoticonMap(emoticons));
       send(text, emoticons, take());
+      hasSent = true;
+    }
+
+    // INFO: § 13.6. One 전송음 for the whole submit, and only where no emoticon in it sounded — the shared player would cut that off.
+    if (hasSent && !hasSounded) {
+      playMessageSound("sent");
     }
 
     // WARN: § 13.8. The word is spent here, and the search is left standing — see `sendStagedEmoticon`.

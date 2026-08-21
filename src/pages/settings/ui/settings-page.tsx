@@ -15,6 +15,7 @@ import { AppHeader } from "@/shared/ui";
 import { DevRefreshRow } from "./dev-refresh-row";
 import { DeviceSettingsRow } from "./device-settings-row";
 import { EmoticonSettingsRow } from "./emoticon-settings-row";
+import { MessageSoundSettingsRow } from "./message-sound-settings-row";
 import { MiniSettingsRow } from "./mini-settings-row";
 import { ProfileCover } from "./profile-cover";
 import { ServerSettingsRow } from "./server-settings-row";
@@ -66,6 +67,8 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
         <PushNotificationRow />
         <PushSoundRow />
       </PushSettingsProvider>
+      {/* INFO: REQUIREMENTS.md § 13.6. Per device, beside 알림 소리 — the two are the sounds this browser makes, and a reader looking for one looks beside the other. */}
+      <MessageSoundSettingsRow />
       {/* INFO: REQUIREMENTS.md § 8.12. Per account, not per device like the row above — it governs what this user broadcasts, which is not a property of the browser they happen to be typing in. */}
       <TypingSettingsRow isEnabled={user.typingIndicatorEnabled} />
       <ShortcutSettingsRow shareKey={user.shareKey} />
