@@ -5,7 +5,7 @@ import {
   SERVICE_WORKER_VERSION,
   VAPID_PUBLIC_KEY,
 } from "@/shared/config";
-import { safelyGetAsync, safelyRunAsync } from "@/shared/lib";
+import { A_SECOND, safelyGetAsync, safelyRunAsync } from "@/shared/lib";
 import { deleteSubscription } from "../api/delete-subscription";
 import { saveSubscription } from "../api/save-subscription";
 import { updateSubscriptionSound } from "../api/update-subscription-sound";
@@ -24,6 +24,9 @@ export type PushState = {
 
 // INFO: REQUIREMENTS.md § 16.1. The column default, and what a device with no row of its own reports — 알림 소리 is only actionable once one exists.
 const DEFAULT_SOUND_ENABLED = true;
+
+// INFO: REQUIREMENTS.md § 16.1. WebKit's silent-push window, and the minimum age it lets a persistent notification be closed at (bug 309940) — a younger banner is the platform's, not ours to clear.
+const BANNER_SETTLE_WINDOW = 30 * A_SECOND;
 
 /**
  * REQUIREMENTS.md § 16.1. iOS exposes `PushManager` only to a home-screen PWA, so
@@ -89,9 +92,17 @@ export async function dismissDeliveredNotifications(): Promise<void> {
     // WARN: `getRegistration`, never `registerPushWorker` — a browser holding no banners has none to clear, and installing § 16.'s worker as a side effect of a sweep would start caching for a user who never subscribed.
     const registration = await navigator.serviceWorker.getRegistration();
     const delivered = await registration?.getNotifications();
+    const settledBefore = Date.now() - BANNER_SETTLE_WINDOW;
 
-    delivered?.forEach((notification) => notification.close());
+    delivered
+      ?.filter((notification) => readShownAt(notification) <= settledBefore)
+      .forEach((notification) => notification.close());
   });
+}
+
+// INFO: `Notification.timestamp` is in the spec and every engine, but not yet in `lib.dom`; a browser without it reports the banner as old enough to close, which is the behaviour from before the window existed.
+function readShownAt(notification: Notification): number {
+  return (notification as Notification & { timestamp?: number }).timestamp ?? 0;
 }
 
 /** WARN: Must be called from inside a user gesture — every browser drops a permission prompt that is not. */

@@ -249,10 +249,7 @@ self.addEventListener("notificationclick", (event) => {
 async function handlePush(data) {
   const payload = readPayload(data);
 
-  updateBadge(payload.unreadCount);
-  await postUnreadCount(payload.unreadCount);
-
-  // WARN: REQUIREMENTS.md § 16.1. Every push MUST end in a banner, with no exception for a visible window — WebKit revokes the subscription after three that do not, which reads as the Settings toggle emptying itself and push dying for good.
+  // WARN: REQUIREMENTS.md § 16.1. Every push MUST end in a banner, shown first with nothing awaited before it and no exception for a visible window. WebKit's silent-push count never resets, and a push that reaches no `showNotification` — the process suspended mid-handler, a step before it throwing — is one of the three that retire the subscription for good.
   await self.registration.showNotification(payload.title, {
     body: payload.body,
     icon: NOTIFICATION_ICON,
@@ -264,6 +261,14 @@ async function handlePush(data) {
     silent: payload.silent === true,
     data: { url: payload.url },
   });
+
+  // WARN: Swallowed. A rejected `waitUntil` promise is counted as a silent push too (`ServiceWorkerThread::queueTaskToFirePushEvent`), and the badge is not worth the subscription.
+  try {
+    updateBadge(payload.unreadCount);
+    await postUnreadCount(payload.unreadCount);
+  } catch {
+    // INFO: The banner is already up; a badge that did not move is corrected by the shell on the next resume (§ 16.1.).
+  }
 }
 
 // INFO: REQUIREMENTS.md § 8.4.2. The tab-bar badge is driven by the stream, which is only open on 채팅 — this is what moves it while the user is on one of the other three tabs.
