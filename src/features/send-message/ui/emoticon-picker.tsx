@@ -262,7 +262,7 @@ export type EmoticonPickerProps = {
   onInsert?: (emoticon: Emoticon) => void;
   /** 미니's own 지우기 — removes one character or one mini from the end of the draft, exactly what a Backspace on the field would take. */
   onDeleteLast?: () => void;
-  /** REQUIREMENTS.md § 13.8. 검색's field took focus — the one moment the room opens the sheet to the header; § 13.9.'s reveal never focuses it, so it never arrives here. */
+  /** REQUIREMENTS.md § 13.8. 검색's field took focus — the reader's tap or ⌃1, never an arrival on the tab — which is the moment the room opens the sheet to the header. */
   onSearchFieldFocus?: () => void;
 };
 
@@ -2106,11 +2106,10 @@ function SearchPane({
     hasResolvedFocusRef.current = false;
   }, [isOpen]);
 
-  // WARN: A layout effect and never the passive one. React flushes this inside the commit the tap renders, and WebKit raises the keyboard only for a `focus()` the user activation still covers — a frame later the field comes up focused with no keyboard, exactly as `message-search-bar.tsx` records.
-  // WARN: § 13.9. And not when 따라하기 is what brought the tab up. Every other way onto this tab is a request to type; that one is a request to *look*, at an emoticon already sitting first in the row — raising the keyboard there puts the panel behind it and the thumb has further to travel than before the tap.
-  // WARN: § 8.14. `Space`/`Enter` on 검색's own menu button sets `skipAutofocusRef` — and clears it back with a `setTimeout`, not an effect — just ahead of the mount this effect belongs to, so the reader's focus stays on the button that opened this pane instead of being pulled into the field. Marked resolved without focusing anything, so a fetch that later settles does not reopen the question.
-  // WARN: § 13.8. A query that already has `results` is the same case as the reveal above by the same argument, and reaches here rather than the parent's `menuRequest` effect: the composer's preview toggle carries its match through `searchRequest`, not `menuRequest`, so this is the only place that request's mount is seen at all.
-  // WARN: § 8.14. `isPending` held open rather than decided against on the first, empty-`results` render — the composer's preview tap seeds a query already known to match something, and a cold cache would otherwise read as "nothing found" for exactly as long as the fetch takes, focusing the field and raising a keyboard for a query the reader never asked to type.
+  // INFO: § 13.8. Only a result takes focus here, never the field — arriving on 검색 is not a request to type, and a `focus()` on the field would raise the keyboard and expand the sheet (§ 13.6.) on a menu tap. The field is the reader's own tap, or § 8.14.'s ⌃1 through `menuRequest`.
+  // WARN: § 13.9. And not when 따라하기 is what brought the tab up — the item it pinned first is the one the reader is looking at, and a focus ring on it is noise.
+  // WARN: § 8.14. `Space`/`Enter` on 검색's own menu button sets `skipAutofocusRef` — and clears it back with a `setTimeout`, not an effect — just ahead of the mount this effect belongs to, so the reader's focus stays on the button that opened this pane. Marked resolved without focusing anything, so a fetch that later settles does not reopen the question.
+  // WARN: § 8.14. `isPending` held open rather than decided against on the first, empty-`results` render — the composer's preview tap seeds a query already known to match something, and the cell it lands on is not there until the fetch is.
   useLayoutEffect(() => {
     if (hasResolvedFocusRef.current || !isOpen || revealedId !== null) {
       return;
@@ -2132,10 +2131,8 @@ function SearchPane({
 
     if (results.length > 0 && scroller) {
       focusItem(scroller, 0);
-    } else {
-      fieldRef.current?.focus();
     }
-    // WARN: § 13.9. `revealedId` is deliberately not a dependency, for the reason given above it — it is cleared by a keystroke the field already has focus for. `results.length`, `rowRef`, `fieldRef` and `skipAutofocusRef` are read once `hasResolvedFocusRef` lets this branch run at all, which is the guard that makes the omission safe.
+    // WARN: § 13.9. `revealedId` is deliberately not a dependency, for the reason given above it — it is cleared by a keystroke the field already has focus for. `results.length`, `rowRef` and `skipAutofocusRef` are read once `hasResolvedFocusRef` lets this branch run at all, which is the guard that makes the omission safe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isPending]);
 
