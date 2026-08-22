@@ -739,8 +739,13 @@ export function MessageComposer({
    * without this the toggle flips a flag the panel never gets to act on and the
    * press reads as doing nothing at all.
    */
+  // WARN: § 13.6. A close hands the caret to the field from inside the click, and never through the room's `focusRequest` — WebKit raises the keyboard only for a `focus()` the user activation still covers. The focus itself closes the panel (`onFieldFocus`), so the toggle below is the same close repeated.
   function toggleEmoticons() {
-    fieldRef.current?.blur();
+    if (isEmoticonPickerOpen) {
+      fieldRef.current?.focus();
+    } else {
+      fieldRef.current?.blur();
+    }
 
     if (keywordQuery !== "") {
       tappedQueryRef.current = keywordQuery;

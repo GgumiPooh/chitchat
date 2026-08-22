@@ -1,17 +1,20 @@
 "use client";
 
+import { isEditableElement } from "@/shared/lib";
 import { useEffect } from "react";
 
 const HEIGHT_PROPERTY = "--viewport-height";
+const RESTING_HEIGHT_PROPERTY = "--viewport-resting-height";
 const TOP_PROPERTY = "--viewport-top";
 const BOTTOM_PROPERTY = "--viewport-bottom";
 
 /**
  * Mirrors the visual viewport onto the root element so the app shell can size
  * itself to what is actually visible while the on-screen keyboard is up
- * (DESIGN.md § 3.4.). `--viewport-width` and the left/right offsets are not
- * synced: zooming is off (`maximumScale: 1`), so they never leave their resting
- * values.
+ * (DESIGN.md § 3.4.), and `--viewport-resting-height` — the height last seen with
+ * no field focused — for the one box that stands still under the keys instead.
+ * `--viewport-width` and the left/right offsets are not synced: zooming is off
+ * (`maximumScale: 1`), so they never leave their resting values.
  */
 export function VisualViewportSync() {
   useEffect(() => {
@@ -33,6 +36,7 @@ export function VisualViewportSync() {
       viewport.removeEventListener("resize", sync);
       viewport.removeEventListener("scroll", syncPan);
       root.style.removeProperty(HEIGHT_PROPERTY);
+      root.style.removeProperty(RESTING_HEIGHT_PROPERTY);
       root.style.removeProperty(TOP_PROPERTY);
       root.style.removeProperty(BOTTOM_PROPERTY);
     };
@@ -65,6 +69,11 @@ export function VisualViewportSync() {
       const { height, offsetTop } = viewport as VisualViewport;
 
       root.style.setProperty(HEIGHT_PROPERTY, `${height}px`);
+      // WARN: DESIGN.md § 3.4. Held while a field is focused rather than the largest height seen at this width — Safari's toolbar collapses on the document-scrolling screens and chat never sees that height, so a maximum left the chat screen a toolbar too tall once the keys went down.
+      if (!isEditableElement(document.activeElement)) {
+        root.style.setProperty(RESTING_HEIGHT_PROPERTY, `${height}px`);
+      }
+
       root.style.setProperty(TOP_PROPERTY, `${offsetTop}px`);
       // INFO: DESIGN.md § 3.4. What a portalled overlay needs: a `fixed` box outside the shell resolves `bottom` against the layout viewport, which the keyboard never shrinks.
       // WARN: Nothing sizes itself to the layout viewport through this component. A background that must ignore the keyboard takes the `lvh` unit directly (§ 3.4.) — `clientHeight` is not that, since Chromium's `interactive-widget=resizes-content` shrinks the layout viewport too.

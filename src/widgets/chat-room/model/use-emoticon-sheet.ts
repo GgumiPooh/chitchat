@@ -19,7 +19,6 @@ const SNAP_SHARE = 0.25;
 export type EmoticonSheetOptions = {
   sheetRef: RefObject<Nullable<HTMLElement>>;
   isOpen: boolean;
-  canExpand: boolean;
   onClose: () => void;
 };
 
@@ -30,7 +29,7 @@ export type EmoticonSheetOptions = {
  * the size while a finger holds the sheet and through a collapse that finger began;
  * `expandedHeight` is the sheet's height at the header.
  */
-export function useEmoticonSheet({ sheetRef, isOpen, canExpand, onClose }: EmoticonSheetOptions) {
+export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOptions) {
   const [size, setSize] = useState<EmoticonSheetSize>("rest");
   const [expandedHeight, setExpandedHeight] = useState(0);
   const [pinnedHeight, setPinnedHeight] = useState<Nullable<number>>(null);
@@ -48,11 +47,6 @@ export function useEmoticonSheet({ sheetRef, isOpen, canExpand, onClose }: Emoti
       setSize("rest");
       setPinnedHeight(null);
     }
-  }
-
-  // INFO: § 13.8. 검색 with the keys up is not expandable — the keyboard owns the rest of the screen.
-  if (!canExpand && size === "expanded") {
-    setSize("rest");
   }
 
   useEffect(() => {
@@ -83,6 +77,8 @@ export function useEmoticonSheet({ sheetRef, isOpen, canExpand, onClose }: Emoti
     isDragging,
     // INFO: § 13.6. A pick from the expanded sheet returns it to rest, on the ordinary ease — the spring is the upward move's alone.
     collapse: () => settle("rest", expandedHeight),
+    // INFO: § 13.8. 검색's field taking focus opens the sheet to the header, on the same spring the handle's tap does.
+    expand: () => settle("expanded", measureExpandedHeight()),
     handleProps: {
       onPointerDown: handlePointerDown,
       onPointerMove: handlePointerMove,
@@ -150,9 +146,7 @@ export function useEmoticonSheet({ sheetRef, isOpen, canExpand, onClose }: Emoti
       event.currentTarget.setPointerCapture(event.pointerId);
     }
 
-    const ceiling = canExpand ? gesture.max : gesture.height;
-
-    setPinnedHeight(Math.min(Math.max(gesture.height + pulled, 0), ceiling));
+    setPinnedHeight(Math.min(Math.max(gesture.height + pulled, 0), gesture.max));
   }
 
   function handleRelease(event: PointerEvent) {
@@ -179,7 +173,7 @@ export function useEmoticonSheet({ sheetRef, isOpen, canExpand, onClose }: Emoti
       }
 
       setPinnedHeight(null);
-    } else if (pulled > threshold && canExpand) {
+    } else if (pulled > threshold) {
       settle("expanded", gesture.max);
     } else if (pulled < -threshold) {
       // INFO: The pinned height stays through the collapse, so the strip clips the sheet where the finger left it rather than jumping it back to rest first.
@@ -207,7 +201,7 @@ export function useEmoticonSheet({ sheetRef, isOpen, canExpand, onClose }: Emoti
 
     if (size === "expanded") {
       setSize("rest");
-    } else if (canExpand) {
+    } else {
       settle("expanded", measureExpandedHeight());
     }
   }

@@ -88,13 +88,14 @@ export function ChatScreen({
   return (
     // WARN: DESIGN.md § 3.4. The one screen that is not in the document's flow, and the reason is the keyboard rather than the layout. WebKit pans the visual viewport to reveal a focused field, and it can only do that to a document there is something to scroll — a `fixed` box sized to the visual viewport leaves it nothing, so `offsetTop` stays `0` and no chrome has to chase it from script. Every other screen keeps the document scroller, and Safari's collapsing toolbar with it (§ 3.3.).
     // WARN: `Container`, because a `fixed` box has left the shell column and inherits neither its max width nor its centring — the same re-application `AppHeader` and `BottomOverlay` make.
+    // INFO: DESIGN.md § 3.4. `--chat-screen-height` is the visual viewport until 검색's field holds the keyboard, where `ChatRoom` holds it at the resting height so the keys cover the sheet rather than shrink it.
     // WARN: DESIGN.md § 3.4. The height eases and `top` never does. WebKit reports `visualViewport.height` in a couple of coarse steps while the keys slide, so a raw height lands the composer in its new place in one jump — the keyboard glides, the input bar teleports. `top` is the opposite case: it corrects a pan the user can already see, so easing it would draw the wrong position out instead of hiding it.
     // WARN: REQUIREMENTS.md § 12.2. The background carries the wallpaper's tint, exactly as `body` does for every other screen. This box is `fixed` and borders both obscured content insets, so on iOS 26 it is what Safari samples its status bar and toolbar from (§ 3.3.) — `body` is behind it and never reached, and the wallpaper's colour would have nowhere to land.
     // WARN: DESIGN.md § 3.3. What Safari reads is the strip of pixels at the top edge, not this box's declared colour, so nothing drawn over it there may be opaque — `ChatRoom` gave up its own floor for that reason and must not get one back.
     <Container
       className={cn(
         // WARN: DESIGN.md § 3.3. `shell-edge`, matching the shell's own — this box covers the column's edges, so without it the hairline that separates the app from the desktop gutter stops at the chat route.
-        "fixed inset-x-0 top-(--keyboard-pan) flex h-[var(--viewport-height,100dvh)] flex-col bg-chat-canvas px-0 shell-edge transition-[height] duration-200 ease-out",
+        "fixed inset-x-0 top-(--keyboard-pan) flex h-(--chat-screen-height) flex-col bg-chat-canvas px-0 shell-edge transition-[height] duration-200 ease-out",
         className,
       )}
       // INFO: REQUIREMENTS.md § 12.2. Overrides `bg-chat-canvas` above, which stays as the no-wallpaper answer and as the fallback for a hash the base83 pass rejects.

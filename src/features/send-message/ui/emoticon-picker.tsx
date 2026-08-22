@@ -262,6 +262,8 @@ export type EmoticonPickerProps = {
   onInsert?: (emoticon: Emoticon) => void;
   /** 미니's own 지우기 — removes one character or one mini from the end of the draft, exactly what a Backspace on the field would take. */
   onDeleteLast?: () => void;
+  /** REQUIREMENTS.md § 13.8. 검색's field took focus — the one moment the room opens the sheet to the header; § 13.9.'s reveal never focuses it, so it never arrives here. */
+  onSearchFieldFocus?: () => void;
 };
 
 /**
@@ -285,6 +287,7 @@ export function EmoticonPicker({
   onQuickSend,
   onInsert,
   onDeleteLast,
+  onSearchFieldFocus,
 }: EmoticonPickerProps) {
   // WARN: Read straight from storage rather than seeded into `useState` — the panel can mount during hydration, where the first snapshot is still the fallback and a seeded state would never pick the stored tab up.
   const [storedTab, setRequestedTab] = useStorageState<string>(ACTIVE_TAB_KEY, RECENTS_TAB, {
@@ -802,6 +805,7 @@ export function EmoticonPicker({
           skipAutofocusRef={skipSearchAutofocusRef}
           onQueryChange={changeQuery}
           onSelect={handleSelect}
+          onFieldFocus={onSearchFieldFocus}
           onFieldKeys={handleFieldKeys}
           onCellKeys={handleCellKeys}
           onCellFocus={trackCellFocus}
@@ -2043,6 +2047,7 @@ type SearchPaneProps = {
   rowRef: RefObject<Nullable<HTMLDivElement>>;
   onQueryChange: (query: string) => void;
   onSelect: (item: Emoticon) => void;
+  onFieldFocus?: () => void;
   /** REQUIREMENTS.md § 8.14. `↓` out of the field, which the panel owns because where it lands depends on what the search found. */
   onFieldKeys: (event: KeyboardEvent<HTMLInputElement>) => void;
   onCellKeys: (event: KeyboardEvent<HTMLDivElement>) => void;
@@ -2081,6 +2086,7 @@ function SearchPane({
   skipAutofocusRef,
   onQueryChange,
   onSelect,
+  onFieldFocus,
   onFieldKeys,
   onCellKeys,
   onCellFocus,
@@ -2159,6 +2165,7 @@ function SearchPane({
           enterKeyHint="done"
           aria-label="이모티콘 검색"
           onChange={(event) => onQueryChange(event.target.value)}
+          onFocus={onFieldFocus}
           onKeyDown={onFieldKeys}
         />
       </div>

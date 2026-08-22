@@ -287,6 +287,8 @@
   /* INFO: DESIGN.md § 3.3. The two lifts every `fixed` bar is held at, so the clearance cannot drift between the header and the bars. `ChatScreen` reads neither — it is deliberately flush to both edges (§ 3.4.), and pays for the keyboard with chrome Safari tints from its own wallpaper tint instead. */
   /* WARN: DESIGN.md § 3.4. The pan WebKit performs to reveal a focused field, and `0px` at every other moment — which is **not** what `--viewport-top` is, so nothing may substitute the raw property for this one. */
   --keyboard-pan: 0px;
+  /* INFO: DESIGN.md § 3.4. What the chat screen is tall: the visual viewport, except while 검색's field holds the keyboard, where the screen stands still and the keys cover the sheet instead. */
+  --chat-screen-height: var(--viewport-height, 100dvh);
   --header-lift: calc(env(safe-area-inset-top) + var(--chrome-edge-gap) + var(--keyboard-pan));
   --bar-lift: calc(env(safe-area-inset-bottom) + var(--bar-float-gap));
   /* WARN: DESIGN.md § 6.6. `useComposerClearance` overwrites this on the chat container one frame after mount; without the default here the list's trailing spacer is invalid until then and the first bottom-anchored paint parks the newest message behind the composer. */
@@ -300,14 +302,14 @@
   /* WARN: § 13.6. The menu bar is added **outside** the `min()` on purpose. The cap is what the strip and the grid were measured at, and the third region charged to it cost the cells a full row on a 393px screen — three rows of a 4-column grid fit in what was left before it, two after. */
   /* INFO: The cap is 364 rather than 352 — the menu bar gave up 12px shrinking its segment from 36 to 24, and this is where that 12px was handed to, so the panel's own total height is unchanged and the grid is the one that grew. */
   --emoticon-panel-height: calc(
-    min(364px, calc(var(--viewport-height, 100dvh) * 0.5)) + var(--emoticon-menu-height)
+    min(364px, calc(var(--chat-screen-height) * 0.5)) + var(--emoticon-menu-height)
   );
   /* INFO: REQUIREMENTS.md § 13.8. The 검색 menu's own height: the menu bar, the field, and a grid of the same 4 columns 이모티콘 draws. */
-  /* WARN: § 13.8. The `min()` is the whole constraint and neither half may be dropped. 검색 is the one menu allowed on screen with the keyboard, so the second term is what makes it **fit in what the keyboard leaves** — `--viewport-height` is the visual viewport and already shrinks by the keys — while the first caps it at about two rows once there is room. A share of the viewport alone would claim half of a viewport the keyboard has already halved. */
+  /* INFO: § 13.8. Against the chat screen and not the visual viewport: 검색 is the one menu on screen with the keyboard, and there the keys cover the sheet rather than shrinking it (DESIGN.md § 3.4.), so the second term only guards a short screen. */
   /* WARN: § 13.6. No longer a sum of its parts, and it must not go back to being one. A 4-column cell is a share of the shell's width rather than a constant, so the hand-summed height was wrong by a row on every screen width but the one it was measured on — and it read as correct because the grid simply clipped. */
   --emoticon-search-panel-height: min(
     320px,
-    calc(var(--viewport-height, 100dvh) - var(--emoticon-search-headroom))
+    calc(var(--chat-screen-height) - var(--emoticon-search-headroom))
   );
   /* INFO: § 13.8. What stays visible above the panel with the keys up — the floating header, plus about one bubble of the conversation, so the room is never covered outright. */
   --emoticon-search-headroom: calc(var(--app-header-inset) + 64px);
@@ -334,6 +336,11 @@
 :root[data-keyboard-open] {
   --bar-lift: 0px;
   --keyboard-pan: var(--viewport-top, 0px);
+}
+
+/* INFO: DESIGN.md § 3.4. Published by the chat room while 검색's field holds the keyboard: the screen keeps its resting height, so the keys slide over the sheet's lower rows instead of squeezing the sheet into what they leave. */
+:root[data-keyboard-overlaid] {
+  --chat-screen-height: var(--viewport-resting-height, var(--viewport-height, 100dvh));
 }
 
 /* INFO: DESIGN.md § 5.2. Rebinds the same names `@theme` declared, so `bg-canvas` swaps without a `dark:` utility existing anywhere. */
