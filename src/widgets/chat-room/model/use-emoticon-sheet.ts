@@ -89,7 +89,12 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
       onPointerUp: handleRelease,
       onPointerCancel: handleCancel,
       // WARN: Capture is also lost after an ordinary `pointerup`, a tick before the `click` — only a gesture still armed is one that was taken away.
-      onLostPointerCapture: () => gestureRef.current !== null && handleCancel(),
+      // WARN: And only the card's own. A touch gives the element under the finger implicit capture, so taking it onto the card fires this on the handle or chip it left — bubbling here with an armed gesture, which dropped every drag at the slop.
+      onLostPointerCapture: (event: PointerEvent) => {
+        if (gestureRef.current !== null && event.target === event.currentTarget) {
+          handleCancel();
+        }
+      },
       // WARN: A drag ends in a `click` on whatever is under the finger — a menu chip, a pack tab, the handle — and that one must not act on what the release just settled.
       onClickCapture: swallowClickAfterDrag,
     },
