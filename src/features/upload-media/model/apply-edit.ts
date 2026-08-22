@@ -46,7 +46,7 @@ export type ApplyEditOptions = {
   outputMime?: string;
   maxEdge?: number;
   rotate?: Rotation;
-  // INFO: REQUIREMENTS.md § 13.4. A re-edit of a stored emoticon writes PNG outright, so repeated edits never add a generation.
+  // INFO: REQUIREMENTS.md § 13.4. The emoticon crop writes PNG outright, so no number of crops adds a generation — its lossy pass is at 저장.
   lossless?: boolean;
 };
 
@@ -80,7 +80,7 @@ export async function applyEdit(
     rotateContext(context, rotate, image.naturalWidth, image.naturalHeight);
     context.drawImage(image, 0, 0);
 
-    // WARN: § 13.4. A named mime is the **fallback**, not the target — the emoticon editor names PNG so a failed AVIF keeps its alpha. This is a new picture's one lossy pass; what reached it was lossless.
+    // WARN: A named mime is the **fallback**, not the target — a caller that wants PNG outright says `lossless`.
     const edited = lossless
       ? await encodeCanvasLossless(canvas)
       : await encodeCanvas(canvas, EDITED_AVIF_QUALITY, false, outputMime);

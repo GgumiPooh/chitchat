@@ -2,7 +2,6 @@
 
 import type { MediaDraft } from "@/entities/media";
 import {
-  encodeEmoticonStill,
   optimizeAudio,
   releasePreview,
   retainPreview,
@@ -122,23 +121,6 @@ export function useEmoticonDraft() {
     });
   }, [release]);
 
-  /** INFO: § 13.4. The one lossy pass, taken here when a pick's flow is cancelled before the crop could take it — the lossless intermediate is never uploaded. */
-  const encodeStill = useCallback(async () => {
-    if (!image) {
-      return;
-    }
-
-    setIsReading(true);
-
-    try {
-      replaceStill(await encodeEmoticonStill(image.still));
-    } catch {
-      toast.error("이미지를 읽지 못했어요");
-    } finally {
-      setIsReading(false);
-    }
-  }, [image, replaceStill]);
-
   // INFO: `validateSlot` runs on the pick as-received, before optimizing (§ 14.) — a file over the cap must be rejected rather than silently shrunk under it.
   const pickAudio = useCallback(
     async (file: File) => {
@@ -195,7 +177,6 @@ export function useEmoticonDraft() {
     pickImage,
     replaceStill,
     discardImage,
-    encodeStill,
     pickAudio,
     clearAudio,
     setKeywords,

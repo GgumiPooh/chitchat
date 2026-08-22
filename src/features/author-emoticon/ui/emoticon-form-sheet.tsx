@@ -5,8 +5,9 @@ import type { MediaDraft } from "@/entities/media";
 import {
   CutoutEditor,
   EMOTICON_IMAGE_EDIT_OPTIONS,
-  EMOTICON_STORED_EDIT_OPTIONS,
+  encodeEmoticonStill,
   MediaEditor,
+  revokePreview,
   useMediaPicker,
   VoiceRecorderBar,
   type VoiceRecording,
@@ -99,7 +100,7 @@ export function EmoticonFormSheet({
   const kindNoun = EMOTICON_KIND_NOUNS[type].kind;
   // INFO: § 13.4.2. A picked image walks 누끼 → 영역 자르기 on its own; the thumbnail re-enters at the crop, since the picture it would re-open on has already had its background taken off.
   const [step, setStep] = useState<Nullable<"cutout" | "crop">>(null);
-  // INFO: § 13.4. Where the staged still came from decides what the crop encodes and what a cancel leaves: a stored one saves lossless and discards on cancel, a pick takes its one lossy pass at the crop or on cancel.
+  // INFO: § 13.4. Where the staged still came from: a stored one is saved as the PNG it is staged as and discarded by a cancel, a pick takes its one lossy pass at 저장.
   const [flowSource, setFlowSource] = useState<Nullable<"pick" | "stored">>(null);
   const [isFlowPending, setIsFlowPending] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -237,9 +238,7 @@ export function EmoticonFormSheet({
         <MediaEditor
           key={draft.image.still.id}
           draft={draft.image.still}
-          editOptions={
-            flowSource === "stored" ? EMOTICON_STORED_EDIT_OPTIONS : EMOTICON_IMAGE_EDIT_OPTIONS
-          }
+          editOptions={EMOTICON_IMAGE_EDIT_OPTIONS}
           onDone={(edited) => {
             draft.replaceStill(edited);
             setIsFlowPending(false);
@@ -297,28 +296,26 @@ export function EmoticonFormSheet({
     const picked = await pickImage(file);
 
     // WARN: A static pick only. § 13.4.'s rule for `MediaEditor` covers this one too — a canvas that mattes one frame would turn an animation into a picture.
-    if (picked && !picked.animated) {
-      setFlowSource(source);
+    const isStatic = picked !== null && !picked.animated;
+
+    // WARN: Cleared by an animated pick, or 저장 would re-encode a still that was lifted out of the animation and is already final.
+    setFlowSource(isStatic ? source : null);
+
+    if (isStatic) {
       setIsFlowPending(true);
       setStep("cutout");
     }
   }
 
-  /** INFO: § 13.4. Only a flow that never reached the crop has a lossless intermediate staged; a re-crop opened from the thumbnail leaves what was already there. */
+  /** INFO: § 13.4. A stored still cancelled before its first crop is unstaged, so 저장 re-uploads nothing; a re-crop from the thumbnail, and a pick, keep what is staged. */
   function cancelFlow() {
     setStep(null);
 
-    if (!isFlowPending) {
-      return;
+    if (isFlowPending && flowSource === "stored") {
+      draft.discardImage();
     }
 
     setIsFlowPending(false);
-
-    if (flowSource === "stored") {
-      draft.discardImage();
-    } else {
-      void draft.encodeStill();
-    }
   }
 
   /** INFO: The picked file plays off its object URL and a kept one off R2, so the button auditions whatever the submit would actually save. */
@@ -347,6 +344,7 @@ export function EmoticonFormSheet({
   function stageVideo({ image, audio, source }: VideoEmoticon) {
     adoptImage(image);
     setVideoSource(source);
+    setFlowSource(null);
 
     if (audio) {
       void pickAudio(audio);
@@ -360,14 +358,15 @@ export function EmoticonFormSheet({
     const uploaded: string[] = [];
 
     try {
+      const still = await toFinalStill();
       // INFO: REQUIREMENTS.md § 13.4. Every slot uploads on submit, never on pick, so an abandoned form leaves nothing in the bucket.
       const keys = await uploadSlots(uploaded, {
-        "still-image": draft.image?.still.file,
+        "still-image": still?.file,
         "animated-image": draft.image?.animated?.file,
         audio: draft.audio?.file,
       });
 
-      onSaved(emoticon ? await saveEdit(emoticon, keys) : await saveNew(keys));
+      onSaved(emoticon ? await saveEdit(emoticon, still, keys) : await saveNew(still, keys));
       handleClose();
     } catch {
       // INFO: A slot that landed before its sibling failed — or before a 422 from the write — is referenced by nothing, and nothing in the app addresses R2 by key, so it is unreachable until it is deleted.
@@ -378,8 +377,22 @@ export function EmoticonFormSheet({
     }
   }
 
-  async function saveNew(keys: SlotKeys) {
-    const still = toImageBody(draft.image?.still, keys.stillKey);
+  /** INFO: § 13.4. The one lossy pass over a new picture, taken here so every crop before it was over lossless bytes; the staged draft is left as it is, so a failed 저장 can be retried or re-cropped without a generation lost. */
+  async function toFinalStill(): Promise<Optional<MediaDraft>> {
+    if (!draft.image || flowSource !== "pick") {
+      return draft.image?.still;
+    }
+
+    const encoded = await encodeEmoticonStill(draft.image.still);
+
+    // INFO: Nothing renders it — the tile keeps showing the staged preview.
+    revokePreview(encoded);
+
+    return encoded;
+  }
+
+  async function saveNew(stillDraft: Optional<MediaDraft>, keys: SlotKeys) {
+    const still = toImageBody(stillDraft, keys.stillKey);
 
     if (!still) {
       throw new Error("emoticon image missing");
@@ -396,8 +409,8 @@ export function EmoticonFormSheet({
   }
 
   /** INFO: § 13.4. An untouched slot is left out of the body entirely, so the item keeps what it has. */
-  async function saveEdit(target: Emoticon, keys: SlotKeys) {
-    const still = toImageBody(draft.image?.still, keys.stillKey);
+  async function saveEdit(target: Emoticon, stillDraft: Optional<MediaDraft>, keys: SlotKeys) {
+    const still = toImageBody(stillDraft, keys.stillKey);
     const animated = toImageBody(draft.image?.animated, keys.animatedKey);
     // INFO: A static pick has to say so. An absent slot keeps what the item has, which would leave the bubble playing an animation of the picture the still just replaced.
     const clearsAnimation = still !== null && animated === null && target.hasAnimated;

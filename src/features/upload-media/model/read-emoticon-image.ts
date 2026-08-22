@@ -16,15 +16,10 @@ import { optimizeAnimation } from "./optimize-animation";
 import type { OptimizedMedia } from "./optimize-result";
 import { revokePreview } from "./revoke-preview";
 
-/** What `MediaEditor` must be given so an emoticon crop keeps its alpha (REQUIREMENTS.md § 13.4.) — the one lossy pass a new picture takes. */
+/** What `MediaEditor` must be given so an emoticon crop keeps its alpha and costs no generation (REQUIREMENTS.md § 13.4.) — the one lossy pass is taken at 저장. */
 export const EMOTICON_IMAGE_EDIT_OPTIONS: ApplyEditOptions = {
   outputMime: TRANSPARENT_OUTPUT_MIME,
   maxEdge: EMOTICON_MAX_EDGE,
-};
-
-/** § 13.4. The same crop over a still already stored, which saves lossless so no edit costs a generation. */
-export const EMOTICON_STORED_EDIT_OPTIONS: ApplyEditOptions = {
-  ...EMOTICON_IMAGE_EDIT_OPTIONS,
   lossless: true,
 };
 
@@ -64,9 +59,9 @@ export type EmoticonImageDrafts = {
  * participant is not on iOS, and an un-downscaled photo would be megabytes of PNG
  * behind a 140px box.
  *
- * WARN: A static pick is carried as **lossless** PNG at the cap, because it walks
- * 누끼 → 영역 자르기 next and the crop's encode is the one lossy pass (§ 13.4.).
- * `encodeEmoticonStill` is that pass for a flow cancelled before the crop took it.
+ * WARN: A static pick is carried as **lossless** PNG at the cap for the life of the
+ * sheet, so every 누끼 and 영역 자르기 over it costs nothing; `encodeEmoticonStill`
+ * is the one lossy pass, taken at 저장 (§ 13.4.).
  */
 export async function toEmoticonImageDrafts(file: File): Promise<EmoticonImageDrafts> {
   // WARN: A prefix first, and the whole file only where it settles nothing. `addEmoticonsFromFiles` runs this pool-wide under a byte budget that weighs each file **once**, so a buffer per in-flight file — plus the decoder's own copy of it — is several multiples of the ceiling the pool believes it is holding.
@@ -114,7 +109,7 @@ export async function toEncodedEmoticonDrafts(
   }
 }
 
-/** REQUIREMENTS.md § 13.4. The lossy pass over a staged lossless still, for a pick whose crop was cancelled — what is uploaded is never the intermediate. */
+/** REQUIREMENTS.md § 13.4. The one lossy pass over a new picture's staged lossless still, taken at 저장 — the intermediate is never uploaded. */
 export function encodeEmoticonStill(still: MediaDraft): Promise<MediaDraft> {
   return toPickedStill(still.file, false);
 }
