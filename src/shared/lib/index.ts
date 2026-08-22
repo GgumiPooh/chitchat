@@ -20,7 +20,14 @@ export {
   declareRestingAudioSession,
   type AudioSessionType,
 } from "./audio/session";
-export { playSound, stopSound, unlockSound, useSoundUnlock } from "./audio/sound";
+export {
+  playSound,
+  stopSound,
+  unlockSound,
+  useSoundUnlock,
+  warmSound,
+  type SoundPriority,
+} from "./audio/sound";
 export {
   discardVoicePlayer,
   isVoiceActive,

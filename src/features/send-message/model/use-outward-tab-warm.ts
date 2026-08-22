@@ -8,6 +8,7 @@ import { useEffect, useRef } from "react";
 import { RECENTS_TAB, isPackTabId } from "./emoticon-tabs";
 import { toEmoticonPackItemsQuery } from "./pack-items-query";
 import { MAX_DECODED_DISTANCE, warmEmoticonImages, warmEmoticonUrls } from "./warm-emoticon-images";
+import { warmEmoticonSounds } from "./warm-emoticon-sounds";
 
 // INFO: § 13.6. Far shorter than the room's own warm, because this starts from a tap rather than from a screen loading — what it is waiting out is the panel's 200ms open, not a first paint.
 const OUTWARD_WARM_IDLE_DELAY = A_SECOND;
@@ -97,12 +98,19 @@ export function useOutwardTabWarm({
             return;
           }
 
+          const items = await fetchTabItems(tab);
+
           await warmEmoticonImages(
-            await fetchTabItems(tab),
+            items,
             () => isCancelled,
             distance <= MAX_DECODED_DISTANCE,
             kind,
           );
+
+          // INFO: § 13.6. The tab the reader is on and no other — `warmEmoticonSounds` carries why.
+          if (distance === 0 && !isCancelled) {
+            warmEmoticonSounds(items);
+          }
         }
       }
     }

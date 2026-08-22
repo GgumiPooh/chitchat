@@ -13,6 +13,7 @@ import { toEmoticonPackItemsQuery } from "./pack-items-query";
 import { toEmoticonPacksQuery } from "./packs-query";
 import { useRecentEmoticons } from "./use-recent-emoticons";
 import { releaseWarmedImages, warmEmoticonImages } from "./warm-emoticon-images";
+import { warmEmoticonSounds } from "./warm-emoticon-sounds";
 
 // INFO: The ceiling the idle callback is given, and the whole delay where there is none — iOS Safari only shipped `requestIdleCallback` in 17, and the packs may as well warm a second late there as never.
 const PRELOAD_IDLE_DELAY = 2 * A_SECOND;
@@ -81,6 +82,10 @@ export function useEmoticonPreload(): void {
       }
 
       await warmEmoticonImages(items, () => isCancelled, false, kind);
+
+      if (!isCancelled) {
+        warmEmoticonSounds(items);
+      }
     }
 
     /**
