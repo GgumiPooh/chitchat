@@ -4,7 +4,7 @@ import type { MediaDraft } from "@/entities/media";
 import { BACKGROUND_MAX_EDGE } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
 import { Button, IconButton, ShellOverlay, toast } from "@/shared/ui";
-import { ArrowLeft, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, RotateCw, Volume2, VolumeX, X } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type Ref } from "react";
 import {
   Cropper,
@@ -13,7 +13,7 @@ import {
   type CropperRef,
 } from "react-advanced-cropper";
 import "react-advanced-cropper/dist/style.css";
-import type { CropArea } from "../model/apply-edit";
+import { ROTATION_STEP, toNextRotation, type CropArea, type Rotation } from "../model/apply-edit";
 import { loadImage } from "../model/canvas";
 import { cropVideo, toEvenCrop } from "../model/crop-video";
 import { releaseSource } from "../model/read-draft";
@@ -56,7 +56,9 @@ export function VideoCropper({
   onDone,
 }: VideoCropperProps) {
   const [croppedArea, setCroppedArea] = useState<Nullable<CropArea>>(null);
+  const [rotate, setRotate] = useState<Rotation>(0);
   const [isCropping, setIsCropping] = useState(false);
+  const cropperRef = useRef<Nullable<CropperRef>>(null);
   const [sourceUrl, setSourceUrl] = useState("");
   // INFO: Sound on, since the clip is being framed to be heard — `startPlayback` puts this back where the engine refuses that.
   const [isMuted, setIsMuted] = useState(false);
@@ -107,13 +109,23 @@ export function VideoCropper({
         )}
       >
         <div className="relative flex items-center justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
-          <IconButton
-            className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
-            Icon={onBack ? ArrowLeft : X}
-            disabled={isCropping}
-            aria-label={onBack ? "영상 자르기로 돌아가기" : "자르기 취소"}
-            onClick={onBack ?? onCancel}
-          />
+          <div className="flex items-center gap-2xs">
+            <IconButton
+              className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
+              Icon={onBack ? ArrowLeft : X}
+              disabled={isCropping}
+              aria-label={onBack ? "영상 자르기로 돌아가기" : "자르기 취소"}
+              onClick={onBack ?? onCancel}
+            />
+            <IconButton
+              buttonClassName="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
+              Icon={RotateCw}
+              disabled={isCropping}
+              haptic
+              aria-label="회전"
+              onClick={rotateClockwise}
+            />
+          </div>
           {/* INFO: The wait is named up front because a spatial crop re-encodes every frame, where the § 12.1. trimmer usually only re-muxes — the same clip takes far longer here. */}
           {/* INFO: 영역, not 영상 — `VideoTrimmer` is the screen that cuts the clip itself, and both were reached one after the other under the same title. */}
           {/* WARN: Centred against the bar itself, not between its two sides — 완료 changes width while it works, and a title laid out between them slid across the header every time it did. */}
@@ -142,6 +154,7 @@ export function VideoCropper({
         <div className="relative min-h-0 flex-1">
           {posterUrl && (
             <Cropper
+              ref={cropperRef}
               className="size-full"
               src={posterUrl}
               stencilProps={{ grid: true }}
@@ -196,6 +209,12 @@ export function VideoCropper({
     }
   }
 
+  // INFO: The clip follows the poster's turn on its own — `getBackgroundStyle` carries `state.transforms.rotate` in the transform it hands both.
+  function rotateClockwise() {
+    cropperRef.current?.rotateImage(ROTATION_STEP);
+    setRotate(toNextRotation(rotate));
+  }
+
   function handleChange(cropper: CropperRef) {
     const coordinates = cropper.getCoordinates();
 
@@ -217,6 +236,7 @@ export function VideoCropper({
     setIsCropping(true);
 
     try {
+      // INFO: One scale on both axes, so it survives a turn — the poster and the clip share a ratio, and a 90° turn swaps both sizes the same way.
       const scale = draft.width / posterWidth;
       const file = await cropVideo(
         draft.file,
@@ -227,6 +247,7 @@ export function VideoCropper({
           height: croppedArea.height * scale,
         }),
         maxEdge,
+        rotate,
       );
 
       onDone(file);

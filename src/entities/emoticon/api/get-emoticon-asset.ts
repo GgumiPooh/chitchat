@@ -10,8 +10,11 @@ import { alias, type PgColumn } from "drizzle-orm/pg-core";
 /** The storage key behind each of one item's three slots (the finished restructure). */
 export type EmoticonItemAssets = {
   stillKey: Nullable<string>;
+  stillMime: Nullable<string>;
   animatedKey: Nullable<string>;
+  animatedMime: Nullable<string>;
   audioKey: Nullable<string>;
+  audioMime: Nullable<string>;
 };
 
 export async function getEmoticonItem(id: EmoticonItemId): Promise<Nullable<EmoticonItemAssets>> {
@@ -22,8 +25,11 @@ export async function getEmoticonItem(id: EmoticonItemId): Promise<Nullable<Emot
   const [row] = await getDb()
     .select({
       stillKey: still.r2Key,
+      stillMime: still.mime,
       animatedKey: animated.r2Key,
+      animatedMime: animated.mime,
       audioKey: audio.r2Key,
+      audioMime: audio.mime,
     })
     .from(emoticonItems)
     // WARN: Three `leftJoin`s and never an inner one — every slot is nullable, so an inner join drops the very items this is asked about.
@@ -54,22 +60,32 @@ export async function getEmoticonItem(id: EmoticonItemId): Promise<Nullable<Emot
  * five-minute cache, and each expiry re-presigns and re-downloads the bytes.
  */
 export function toSlotAsset(
-  { stillKey, animatedKey, audioKey }: EmoticonItemAssets,
+  item: EmoticonItemAssets,
   slot: EmoticonSlot,
 ): Nullable<ResolvedSlotAsset> {
+  const still = toStoredAsset(item.stillKey, item.stillMime);
+  const animated = toStoredAsset(item.animatedKey, item.animatedMime);
+
   if (slot === "audio") {
-    return audioKey ? { key: audioKey, isFallback: false } : null;
+    const audio = toStoredAsset(item.audioKey, item.audioMime);
+
+    return audio && { ...audio, isFallback: false };
   }
 
-  const wants = slot === "still-image" ? stillKey : animatedKey;
-  const other = slot === "still-image" ? animatedKey : stillKey;
-  const key = wants ?? other;
+  const wants = slot === "still-image" ? still : animated;
+  const asset = wants ?? (slot === "still-image" ? animated : still);
 
-  return key ? { key, isFallback: wants === null && slot === "still-image" } : null;
+  return asset && { ...asset, isFallback: wants === null && slot === "still-image" };
+}
+
+function toStoredAsset(key: Nullable<string>, mime: Nullable<string>) {
+  return key && mime ? { key, mime } : null;
 }
 
 export type ResolvedSlotAsset = {
   key: string;
+  /** INFO: § 13.4. What the asset route names a download by and checks a stream against, read off the `media` row rather than a second `HeadObject`. */
+  mime: string;
   /** The finished restructure. The asset came from a slot other than the one asked for. */
   isFallback: boolean;
 };

@@ -11,6 +11,7 @@ import {
   Quality,
   WEBM,
   type CropRectangle,
+  type Rotation,
   type VideoSample,
 } from "mediabunny";
 import { fitWithin } from "./canvas";
@@ -40,6 +41,7 @@ export async function cropVideo(
   file: File,
   crop: CropRectangle,
   maxEdge: number = BACKGROUND_MAX_EDGE,
+  rotate: Rotation = 0,
 ): Promise<File> {
   const output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
   // INFO: § 12.1.'s ceiling applied to the crop rather than to the source, so a rectangle taken out of a 4K clip is stored at the size a background is drawn at.
@@ -51,6 +53,7 @@ export async function cropVideo(
     // WARN: Cropped in `process`, never through the `crop` option — REQUIREMENTS.md § 12.1. names the WebKit bug that returns the whole frame otherwise.
     // INFO: § 9. The same ceiling an attachment is cut to — this is already a full re-encode, so bounding the bitrate costs nothing further.
     video: {
+      rotate,
       process: toCropProcessor(crop, size),
       processedWidth: size.width,
       processedHeight: size.height,
@@ -84,9 +87,9 @@ export async function cropVideo(
  * scaled into the destination, which is what `mediabunny`'s own `crop` came out as on
  * Safari and every iOS browser. Offsetting the whole frame gives it nothing to ignore.
  *
- * INFO: The frame arrives already in display orientation: `Conversion` bakes the
- * track's rotation in before `process` runs, and the cropper's rectangle is taken
- * from the element's `videoWidth` / `videoHeight`, which are the same space.
+ * INFO: The frame arrives already turned: `Conversion` applies the track's own
+ * rotation and the `rotate` option in `transform` before `process` is handed the
+ * sample, so `crop` is measured against the rotated poster and nothing here turns.
  *
  * INFO: One canvas for the whole clip — `mediabunny` copies a returned canvas into a
  * `VideoSample` synchronously, before the next frame is handed in.

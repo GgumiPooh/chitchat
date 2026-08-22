@@ -14,7 +14,16 @@ import {
 } from "./canvas";
 import { DEFAULT_FILTER, type MediaFilter } from "./filters";
 
-/** The crop rectangle in the source image's own pixels, as `react-easy-crop` reports it. */
+/** A clockwise quarter-turn count, in degrees — what both editors' 회전 steps through. */
+export type Rotation = 0 | 90 | 180 | 270;
+
+export const ROTATION_STEP = 90;
+
+export function toNextRotation(rotate: Rotation): Rotation {
+  return ((rotate + ROTATION_STEP) % 360) as Rotation;
+}
+
+/** The crop rectangle in the **rotated** image's pixels — `react-advanced-cropper` reports `getCoordinates()` against the image as turned, width and height swapped at 90° and 270°. */
 export type CropArea = {
   x: number;
   y: number;
@@ -35,12 +44,18 @@ export type ApplyEditOptions = {
   // WARN: REQUIREMENTS.md § 13.4. Set by the emoticon editor alone, to `image/png` so the crop keeps its alpha — every other caller leaves it unset and takes the § 9. still-image format, which is AVIF wherever the browser can encode one.
   outputMime?: string;
   maxEdge?: number;
+  rotate?: Rotation;
 };
 
 export async function applyEdit(
   draft: MediaDraft,
   crop: CropArea,
-  { filter = DEFAULT_FILTER, outputMime, maxEdge = STILL_IMAGE_MAX_EDGE }: ApplyEditOptions = {},
+  {
+    filter = DEFAULT_FILTER,
+    outputMime,
+    maxEdge = STILL_IMAGE_MAX_EDGE,
+    rotate = 0,
+  }: ApplyEditOptions = {},
 ): Promise<MediaDraft> {
   const sourceUrl = URL.createObjectURL(draft.file);
 
@@ -55,17 +70,11 @@ export async function applyEdit(
       context.filter = filter.value;
     }
 
-    context.drawImage(
-      image,
-      crop.x,
-      crop.y,
-      crop.width,
-      crop.height,
-      0,
-      0,
-      size.width,
-      size.height,
-    );
+    // INFO: The turn is a context transform rather than an intermediate canvas — a full-size copy of the source would meet `EDITED_MAX_EDGE`'s ceiling before the crop ever shrank it.
+    context.scale(size.width / crop.width, size.height / crop.height);
+    context.translate(-crop.x, -crop.y);
+    rotateContext(context, rotate, image.naturalWidth, image.naturalHeight);
+    context.drawImage(image, 0, 0);
 
     // WARN: § 13.4. A named mime is the **fallback**, not the target — the emoticon editor names PNG so a failed AVIF keeps its alpha, and a crop that forced PNG outright would undo the AVIF the pick had already produced.
     const edited = await encodeCanvas(canvas, EDITED_AVIF_QUALITY, false, outputMime);
@@ -95,6 +104,24 @@ export async function applyEdit(
   } finally {
     URL.revokeObjectURL(sourceUrl);
   }
+}
+
+/** Maps the source's pixels onto the rotated image's space — the one `CropArea` is measured in — so a clockwise turn lands the source's top-left corner at the rotated image's top-right. */
+function rotateContext(
+  context: CanvasRenderingContext2D,
+  rotate: Rotation,
+  width: number,
+  height: number,
+) {
+  if (rotate === 90) {
+    context.translate(height, 0);
+  } else if (rotate === 180) {
+    context.translate(width, height);
+  } else if (rotate === 270) {
+    context.translate(0, width);
+  }
+
+  context.rotate((rotate * Math.PI) / 180);
 }
 
 function toEditedName(name: string, mime: string): string {

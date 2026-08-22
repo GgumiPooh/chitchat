@@ -1,4 +1,4 @@
-import { getEmoticonItem, toSlotAsset } from "@/entities/emoticon";
+import { getEmoticonItem, toSlotAsset, type ResolvedSlotAsset } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
@@ -8,11 +8,15 @@ import {
   EMOTICON_SIGNING_BUCKET,
   EMOTICON_SLOTS,
   EMOTICON_URL_EXPIRY,
+  isAllowedEmoticonAsset,
+  maxSizeForEmoticonSlot,
   snowflakeSchema,
+  toEmoticonAssetFilename,
+  type EmoticonSlot,
 } from "@/shared/config";
 import type { EmoticonItemId } from "@/shared/lib";
 import { A_SECOND } from "@/shared/lib";
-import { presignDownload } from "@/shared/storage";
+import { presignDownload, readObject } from "@/shared/storage";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -22,7 +26,13 @@ const paramsSchema = z.object({ id: snowflakeSchema<EmoticonItemId>() });
 
 // INFO: `v` is `Emoticon.version` and is read by nobody here — it is what keeps an edited item's cached redirect (§ 13.4.) from answering for the object it replaced.
 // INFO: An absent slot means the animation, which is what a bubble asks for and what the deprecated `image` alias meant before it was removed.
-const querySchema = z.object({ slot: z.enum(EMOTICON_SLOTS).default("animated-image") });
+const querySchema = z.object({
+  slot: z.enum(EMOTICON_SLOTS).default("animated-image"),
+  // INFO: REQUIREMENTS.md § 13.4. The bytes streamed from this origin instead of the redirect — see `streamForEditing`.
+  variant: z.literal("edit").optional(),
+  // INFO: `toEmoticonAssetDownloadUrl` sets it. Only R2's own `Content-Disposition` survives the 302 (§ 10.).
+  download: z.literal("1").optional(),
+});
 
 /**
  * REQUIREMENTS.md § 13.3. Redirects to a presigned GET after validating the
@@ -57,9 +67,15 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     return apiError("not_found");
   }
 
+  if (query.data.variant === "edit") {
+    return streamForEditing(asset, query.data.slot);
+  }
+
   // WARN: § 13.3. The `Cache-Control` on the *bytes* is signed into this URL, not stored on the object — R2 holds none, and a browser cannot put one on the upload.
   // WARN: § 13.3. `signingBucket` is what makes a redirect miss cost a 302 and nothing else — re-signed at the wall clock, the same object comes back under a new URL and the browser re-downloads bytes it already holds.
   const url = await presignDownload(asset.key, {
+    asAttachment: query.data.download === "1",
+    filename: toEmoticonAssetFilename(params.data.id, asset.mime),
     expiry: EMOTICON_URL_EXPIRY,
     cacheControl: EMOTICON_ASSET_CACHE_CONTROL,
     signingBucket: EMOTICON_SIGNING_BUCKET,
@@ -72,5 +88,31 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     status: 302,
     // WARN: REQUIREMENTS.md § 13.3. Shorter than the signature's own lifetime, or the browser replays a redirect R2 has stopped honouring. `v` addressing one immutable version is what buys the length.
     headers: { "Cache-Control": `private, max-age=${maxAge / A_SECOND}` },
+  });
+}
+
+/**
+ * REQUIREMENTS.md § 13.4. A stored still as bytes on this origin, so the sheet can
+ * re-edit it in a canvas — for `app/api/media/[id]`'s reason (`CLAUDE.md § 5.3.`): an
+ * R2 response is cross-origin, so a canvas drawn from it is tainted.
+ *
+ * WARN: Images only, and re-checked against § 14.'s allow-list. This is the one
+ * branch answering bytes under the app's own origin, so a type the slot never admits
+ * must not be streamed inline even if one were somehow stored.
+ */
+async function streamForEditing(asset: ResolvedSlotAsset, slot: EmoticonSlot) {
+  if (slot === "audio") {
+    return apiError("not_found");
+  }
+
+  const fetched = await readObject(asset.key, maxSizeForEmoticonSlot(slot));
+
+  if (!fetched || !isAllowedEmoticonAsset(slot, fetched.mime, fetched.bytes.byteLength)) {
+    return apiError("not_found");
+  }
+
+  return new NextResponse(new Uint8Array(fetched.bytes), {
+    // INFO: § 13.3. The same immutable lifetime the presigned GET carries — the key holds a UUID, so these bytes never change.
+    headers: { "Content-Type": fetched.mime, "Cache-Control": EMOTICON_ASSET_CACHE_CONTROL },
   });
 }

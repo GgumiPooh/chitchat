@@ -858,6 +858,40 @@ export function toEmoticonAssetUrl(itemId: string, slot: EmoticonSlot, version?:
   return `${EMOTICON_ASSET_ITEMS_PATH}/${itemId}/asset?slot=${slot}${versionParam}`;
 }
 
+/** REQUIREMENTS.md § 13.4. The stored still streamed from this origin as a `File`-able body, which the redirect above cannot be (§ 12.1.). */
+export function toEmoticonAssetEditUrl(itemId: string, version?: number): string {
+  return `${toEmoticonAssetUrl(itemId, "still-image", version)}&variant=edit`;
+}
+
+/** REQUIREMENTS.md § 13.4. The same redirect with an attachment disposition signed into it — what saves the file, since `download` is dropped cross-origin (§ 10.). */
+export function toEmoticonAssetDownloadUrl(
+  itemId: string,
+  slot: EmoticonSlot,
+  version?: number,
+): string {
+  return `${toEmoticonAssetUrl(itemId, slot, version)}&download=1`;
+}
+
+// INFO: Every type the two slot allow-lists admit, so a download is never saved as `.bin`; `audio/mp4` and `audio/x-m4a` are one `.m4a` (see `ALLOWED_EMOTICON_AUDIO_MIMES`).
+const EMOTICON_ASSET_EXTENSIONS: Record<string, string> = {
+  "image/avif": "avif",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "m4a",
+  "audio/x-m4a": "m4a",
+  "audio/aac": "aac",
+  "audio/wav": "wav",
+  "audio/webm": "webm",
+  "audio/ogg": "ogg",
+};
+
+/** The name a downloaded asset saves under — R2 keys carry none of their own. */
+export function toEmoticonAssetFilename(itemId: string, mime: string): string {
+  return `emoticon-${itemId}.${EMOTICON_ASSET_EXTENSIONS[mime] ?? "bin"}`;
+}
+
 /**
  * WARN: Iterates the collection rather than copying it. This runs once per token per
  * keystroke on the composer's field, and the caller holds a `Set` of every keyword in

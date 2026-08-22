@@ -3,11 +3,18 @@
 import type { MediaDraft } from "@/entities/media";
 import { cn, type Nullable } from "@/shared/lib";
 import { Button, Chip, IconButton, ShellOverlay, toast } from "@/shared/ui";
-import { X } from "lucide-react";
-import { useEffect, useState, type CSSProperties } from "react";
+import { RotateCw, X } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Cropper, type CropperRef } from "react-advanced-cropper";
 import "react-advanced-cropper/dist/style.css";
-import { applyEdit, type ApplyEditOptions, type CropArea } from "../model/apply-edit";
+import {
+  ROTATION_STEP,
+  applyEdit,
+  toNextRotation,
+  type ApplyEditOptions,
+  type CropArea,
+  type Rotation,
+} from "../model/apply-edit";
 import { DEFAULT_FILTER, MEDIA_FILTERS, type MediaFilter } from "../model/filters";
 
 // INFO: `free` is the default because a crop the user drew themselves is the one no ratio here can express; the fixed ratios stay for the common framings.
@@ -55,12 +62,19 @@ export function MediaEditor({
   const [aspectId, setAspectId] = useState<string>("free");
   const [filter, setFilter] = useState<MediaFilter>(DEFAULT_FILTER);
   const [croppedArea, setCroppedArea] = useState<Nullable<CropArea>>(null);
+  // WARN: Counted here, never read back from `getTransforms()` — the cropper folds a JPEG's EXIF orientation into that, which the browser has already applied to the image `applyEdit` draws.
+  const [rotate, setRotate] = useState<Rotation>(0);
   const [isSaving, setIsSaving] = useState(false);
+  const cropperRef = useRef<Nullable<CropperRef>>(null);
   // INFO: `draft.previewUrl` is the thumbnail's blob, so the cropper needs a URL for the original of its own. Empty until the effect below mints one.
   const [sourceUrl, setSourceUrl] = useState("");
   const selected = ASPECT_OPTIONS.find((option) => option.id === aspectId);
+  const isTurned = rotate % 180 !== 0;
+  const originalRatio = isTurned ? draft.height / draft.width : draft.width / draft.height;
   const aspectRatio =
-    fixedAspectRatio ?? (selected?.ratio === null ? draft.width / draft.height : selected?.ratio);
+    fixedAspectRatio ?? (selected?.ratio === null ? originalRatio : selected?.ratio);
+  // INFO: 원본 is the one ratio a turn changes, so only there does the turn join the remount key the WARN below explains.
+  const cropperKey = selected?.ratio === null ? `${aspectId}-${rotate}` : aspectId;
 
   // WARN: Created and revoked inside one effect, never from a `useState` initializer. StrictMode runs setup → cleanup → setup on mount, and state survives that cycle: a URL minted during render would be revoked by the first cleanup and the cropper would then point at a dead blob for the rest of the edit.
   useEffect(() => {
@@ -81,12 +95,22 @@ export function MediaEditor({
         )}
       >
         <div className="flex items-center justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
-          <IconButton
-            className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
-            Icon={X}
-            aria-label="편집 취소"
-            onClick={onCancel}
-          />
+          <div className="flex items-center gap-2xs">
+            <IconButton
+              className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
+              Icon={X}
+              aria-label="편집 취소"
+              onClick={onCancel}
+            />
+            <IconButton
+              buttonClassName="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
+              Icon={RotateCw}
+              disabled={isSaving}
+              haptic
+              aria-label="회전"
+              onClick={rotateClockwise}
+            />
+          </div>
           <Button
             className="w-auto"
             buttonClassName="h-11 min-h-11 w-auto px-md"
@@ -106,10 +130,12 @@ export function MediaEditor({
           {sourceUrl && (
             <Cropper
               // WARN: Keyed by the ratio — the stencil reads `aspectRatio` when it initializes, so switching chips has to remount it or the box keeps the previous ratio.
-              key={aspectId}
+              key={cropperKey}
+              ref={cropperRef}
               className="size-full"
               src={sourceUrl}
               stencilProps={{ aspectRatio, grid: true }}
+              onReady={restoreRotation}
               onChange={handleChange}
             />
           )}
@@ -144,6 +170,18 @@ export function MediaEditor({
     </ShellOverlay>
   );
 
+  function rotateClockwise() {
+    cropperRef.current?.rotateImage(ROTATION_STEP);
+    setRotate(toNextRotation(rotate));
+  }
+
+  // INFO: The remount a ratio chip forces starts the cropper from an unturned image, so the turn is put back the moment it is loaded.
+  function restoreRotation(cropper: CropperRef) {
+    if (rotate !== 0) {
+      cropper.rotateImage(rotate, { transitions: false });
+    }
+  }
+
   function handleChange(cropper: CropperRef) {
     const coordinates = cropper.getCoordinates();
 
@@ -165,7 +203,7 @@ export function MediaEditor({
     setIsSaving(true);
 
     try {
-      onDone(await applyEdit(draft, croppedArea, { ...editOptions, filter }));
+      onDone(await applyEdit(draft, croppedArea, { ...editOptions, filter, rotate }));
     } catch {
       toast.error("사진을 편집하지 못했어요");
     } finally {

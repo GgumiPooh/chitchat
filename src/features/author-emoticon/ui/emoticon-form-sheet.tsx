@@ -36,8 +36,20 @@ import {
   toast,
 } from "@/shared/ui";
 import { josa } from "es-hangul";
-import { Film, Image as ImageIcon, ImagePlus, Mic, Music, Pencil, Play, X } from "lucide-react";
+import {
+  Download,
+  Film,
+  Image as ImageIcon,
+  ImagePlus,
+  Mic,
+  Music,
+  Pencil,
+  Play,
+  X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
+import { downloadEmoticonAsset } from "../api/download-emoticon-asset";
+import { readEmoticonStillFile } from "../api/read-emoticon-asset";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
 import { createEmoticon, updateEmoticon, type EmoticonImageBody } from "../api/write-emoticon";
 import { useEmoticonDraft } from "../model/use-emoticon-draft";
@@ -87,6 +99,7 @@ export function EmoticonFormSheet({
   // INFO: § 13.4.2. A picked image walks 누끼 → 영역 자르기 on its own; the thumbnail re-enters at the crop, since the picture it would re-open on has already had its background taken off.
   const [step, setStep] = useState<Nullable<"cutout" | "crop">>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [isFetchingStored, setIsFetchingStored] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = step !== null;
   const draft = useEmoticonDraft();
@@ -118,6 +131,10 @@ export function EmoticonFormSheet({
   const hasChange =
     draft.image !== null || draft.audio !== null || draft.isAudioCleared || hasKeywordChange;
   const canSubmit = !isSubmitting && hasChange && imageUrl !== undefined;
+  // INFO: § 13.4. The tile and the sound row show the stored object only until a pick replaces it, and a download is of what is shown.
+  const storedImage = emoticon && draft.image === null ? emoticon : null;
+  const storedAudio =
+    emoticon?.hasAudio && draft.audio === null && !draft.isAudioCleared ? emoticon : null;
 
   // INFO: The pack screen picks a file before this opens (§ 13.4.), so the form is already staged when it appears.
   useEffect(() => {
@@ -150,7 +167,16 @@ export function EmoticonFormSheet({
             label="이미지"
             hint="움직이는 이미지도 올려도 돼요"
             previewUrl={imageUrl}
-            isReading={draft.isReading}
+            isReading={draft.isReading || isFetchingStored}
+            onDownload={
+              storedImage
+                ? () =>
+                    downloadEmoticonAsset(
+                      storedImage,
+                      storedImage.hasAnimated ? "animated-image" : "still-image",
+                    )
+                : undefined
+            }
             onPick={imagePicker.open}
             onEdit={toEdit()}
             onPickVideo={videoPicker.open}
@@ -167,6 +193,7 @@ export function EmoticonFormSheet({
             onRecordingDone={handleRecordingDone}
             onRecordingClose={() => setIsRecording(false)}
             onClear={draft.clearAudio}
+            onDownload={storedAudio ? () => downloadEmoticonAsset(storedAudio, "audio") : undefined}
           />
           {/* INFO: § 13. A mini carries no words — no search reaches one (§ 2.6.), so the form has nothing to offer between the sound and the button. */}
           {type !== "mini" && (
@@ -218,16 +245,18 @@ export function EmoticonFormSheet({
   );
 
   /**
-   * What 편집 — and the thumbnail — does with what is staged, or nothing at all.
+   * What the thumbnail does with what it shows, or nothing at all.
    *
    * INFO: § 13.4.1. An animation re-enters the video flow at its source clip, which
    * is the only way to cut it shorter or frame it tighter; a canvas crop would decode
-   * one frame (§ 13.4.). Anything already saved, and an animation picked as a file,
-   * has nothing to edit from.
+   * one frame (§ 13.4.). A stored still is fetched and walked through the same flow a
+   * pick takes; a stored animation, and one picked as a file, have nothing to edit from.
    */
   function toEdit(): Optional<() => void> {
     if (!draft.image) {
-      return undefined;
+      return emoticon?.hasStill && !emoticon.hasAnimated
+        ? () => void reEditStored(emoticon)
+        : undefined;
     }
 
     if (!draft.image.animated) {
@@ -235,6 +264,23 @@ export function EmoticonFormSheet({
     }
 
     return videoSource ? () => void video.open(videoSource) : undefined;
+  }
+
+  // INFO: § 13.4. Whether the stored still was already cut out is not detected — re-running 누끼 on it is the user's call.
+  async function reEditStored(target: Emoticon) {
+    if (isFetchingStored) {
+      return;
+    }
+
+    setIsFetchingStored(true);
+
+    try {
+      await pickPlainImage(await readEmoticonStillFile(target));
+    } catch {
+      toast.error("이미지를 읽지 못했어요");
+    } finally {
+      setIsFetchingStored(false);
+    }
   }
 
   /** INFO: § 13.4.2. The pick opens the flow rather than merely staging the slots — 누끼 first, then the crop drawn against what is left of the picture. */
@@ -422,6 +468,8 @@ type ImageRowProps = {
   onPick: () => void;
   onEdit?: () => void;
   onPickVideo: () => void;
+  /** § 13.4. Present only while the tile shows the stored image — a download is of what is shown, and a staged pick is already on the device. */
+  onDownload?: () => void;
 };
 
 function ImageRow({
@@ -433,6 +481,7 @@ function ImageRow({
   onPick,
   onEdit,
   onPickVideo,
+  onDownload,
 }: ImageRowProps) {
   const preview = previewUrl ? (
     <PreloadImage
@@ -496,6 +545,18 @@ function ImageRow({
             <Film className="size-4" strokeWidth={1.75} />
             영상에서 추출
           </Button>
+          {onDownload && (
+            <Button
+              className="w-auto"
+              buttonClassName="h-9 min-h-9 w-auto px-sm"
+              variant="secondary"
+              haptic
+              onClick={onDownload}
+            >
+              <Download className="size-4" strokeWidth={1.75} />
+              다운로드
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -513,6 +574,8 @@ type AudioRowProps = {
   onRecordingDone: (recording: VoiceRecording) => void;
   onRecordingClose: () => void;
   onClear: () => void;
+  /** § 13.4. Present only while the row shows the stored sound. */
+  onDownload?: () => void;
 };
 
 function AudioRow({
@@ -526,6 +589,7 @@ function AudioRow({
   onRecordingDone,
   onRecordingClose,
   onClear,
+  onDownload,
 }: AudioRowProps) {
   return (
     <div className={cn("space-y-sm rounded-md bg-surface-soft p-sm", className)}>
@@ -540,6 +604,9 @@ function AudioRow({
         {fileName ? (
           <>
             <IconButton Icon={Play} haptic aria-label="소리 듣기" onClick={onPlay} />
+            {onDownload && (
+              <IconButton Icon={Download} haptic aria-label="소리 다운로드" onClick={onDownload} />
+            )}
             <IconButton Icon={X} haptic aria-label="소리 제거" onClick={onClear} />
           </>
         ) : (
