@@ -1483,7 +1483,7 @@ export function ChatRoom({
                     )}
                     {...emoticonSheet.dragProps}
                   >
-                    {/* INFO: § 13.6. The drag is the card's, from any row that does not scroll vertically — the hook leaves a press inside the grid to the grid. `touch-none` here and on the menu bar, or the finger's pull is spent on the room behind it. */}
+                    {/* INFO: § 13.6. The drag is the card's, from any row that does not scroll vertically, and from the grid once it has no scroll left in the pull's direction — the hook leaves every other press inside it to the grid. `touch-none` here and on the menu bar, or the finger's pull is spent on the room behind it. */}
                     <button
                       className={cn(
                         "relative flex h-(--emoticon-sheet-handle-height) w-full shrink-0 cursor-grab touch-none items-center justify-center focus-visible:outline-none active:cursor-grabbing hover:[&>span]:bg-primary focus-visible:[&>span]:bg-primary",

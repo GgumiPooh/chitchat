@@ -24,12 +24,14 @@ export type EmoticonSheetOptions = {
 
 /**
  * REQUIREMENTS.md § 13.6. The sheet's drag, taken on the card by `dragProps` from
- * anywhere that does not scroll vertically — the handle, the menu bar, the strip: a
- * drag follows the finger, a release snaps past `SNAP_SHARE` — up to expanded, down to
- * rest, down from rest to closed — and a tap on the handle (`handleProps`) toggles
- * rest ⇄ expanded. `pinnedHeight` is a px height that overrides
- * the size while a finger holds the sheet and through a collapse that finger began;
- * `expandedHeight` is the sheet's height at the header.
+ * anywhere that does not scroll vertically — the handle, the menu bar, the strip —
+ * and from a grid with no scroll left in the pull's direction — down at its top, up
+ * at its bottom: a drag follows the
+ * finger, a release snaps past `SNAP_SHARE` — up to expanded, down to rest, down from
+ * rest to closed — and a tap on the handle (`handleProps`) toggles rest ⇄ expanded.
+ * `pinnedHeight` is a px height that overrides the size while a finger holds the sheet
+ * and through a collapse that finger began; `expandedHeight` is the sheet's height at
+ * the header.
  */
 export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOptions) {
   const [size, setSize] = useState<EmoticonSheetSize>("rest");
@@ -37,11 +39,21 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
   const [pinnedHeight, setPinnedHeight] = useState<Nullable<number>>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [wasOpen, setWasOpen] = useState(isOpen);
-  const gestureRef =
-    useRef<Nullable<{ pointerId: number; x: number; y: number; height: number; max: number }>>(
-      null,
-    );
+  const gestureRef = useRef<
+    Nullable<{
+      pointerId: number;
+      x: number;
+      y: number;
+      height: number;
+      max: number;
+      scroller: Nullable<HTMLElement>;
+      takesPullDown: boolean;
+      takesPullUp: boolean;
+    }>
+  >(null);
   const hasDraggedRef = useRef(false);
+  const panDenialRef =
+    useRef<Nullable<{ element: HTMLElement; deny: (event: TouchEvent) => void }>>(null);
 
   // WARN: Reset on the *reopen*, never on the close — the collapse draws the sheet at the height it was closed from, and resetting first drops it a frame before the strip clips it.
   if (isOpen !== wasOpen) {
@@ -122,8 +134,16 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
       return;
     }
 
-    // INFO: § 13.6. The grid keeps its own scroll: a press inside a vertical scroller is its own, and only the rows above it can begin a drag.
-    if (isInsideVerticalScroller(event.target, sheet)) {
+    const scroller = findVerticalScroller(event.target, sheet);
+
+    // INFO: § 13.6. A grid lends the sheet only the pull it has no scroll left for — down at its top, up at its bottom short of expanded — and keeps every other press.
+    const takesPullDown = !scroller || scroller.scrollTop <= 0;
+    const takesPullUp =
+      !scroller ||
+      (size !== "expanded" &&
+        scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1);
+
+    if (!takesPullDown && !takesPullUp) {
       return;
     }
 
@@ -134,7 +154,47 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
       y: event.clientY,
       height: sheet.getBoundingClientRect().height,
       max: measureExpandedHeight(),
+      scroller,
+      takesPullDown,
+      takesPullUp,
     };
+
+    if (scroller) {
+      denyPanWhilePullingDown(scroller);
+    }
+  }
+
+  // WARN: `touch-pan-y` hands a vertical touch to the browser at its first cancelable `touchmove` and `pointercancel`s the rest, so the refusal has to be a non-passive `touchmove` (React's is passive) and has to begin with the very first one — before the slop can tell the axis. It refuses only the moves the sheet can take, so the first sideways move, or a vertical one the grid still has scroll for, gives the pan back to the swipe or the grid.
+  // WARN: Attached per gesture and removed with it, as `useHorizontalSwipe` does: a listener left on the grid is one that answers for every scroll the grid makes afterwards.
+  function denyPanWhilePullingDown(element: HTMLElement) {
+    releasePanDenial();
+
+    const deny = (touchEvent: TouchEvent) => {
+      const gesture = gestureRef.current;
+      const touch = touchEvent.touches[0];
+
+      if (!gesture || !touch || !touchEvent.cancelable) {
+        return;
+      }
+
+      const takes = touch.clientY < gesture.y ? gesture.takesPullUp : gesture.takesPullDown;
+
+      if (hasDraggedRef.current || takes) {
+        touchEvent.preventDefault();
+      }
+    };
+
+    element.addEventListener("touchmove", deny, { passive: false });
+    panDenialRef.current = { element, deny };
+  }
+
+  function releasePanDenial() {
+    const held = panDenialRef.current;
+
+    if (held) {
+      held.element.removeEventListener("touchmove", held.deny);
+      panDenialRef.current = null;
+    }
   }
 
   function handlePointerMove(event: PointerEvent) {
@@ -161,8 +221,13 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
       }
 
       // INFO: § 13.6. The strip scrolls sideways, so a gesture that commits to that axis is the strip's — the larger travel at the slop decides, as the tab swipe's own axis lock does.
-      if (sideways > Math.abs(pulled)) {
+      // INFO: § 13.6. A grid lends one direction at a time: committed the other way, the gesture is its scroll.
+      if (
+        sideways > Math.abs(pulled) ||
+        (pulled > 0 ? !gesture.takesPullUp : !gesture.takesPullDown)
+      ) {
         gestureRef.current = null;
+        releasePanDenial();
 
         return;
       }
@@ -183,6 +248,7 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
     }
 
     gestureRef.current = null;
+    releasePanDenial();
 
     if (!hasDraggedRef.current) {
       return;
@@ -212,6 +278,7 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
 
   function handleCancel() {
     gestureRef.current = null;
+    releasePanDenial();
     hasDraggedRef.current = false;
     setIsDragging(false);
     setPinnedHeight(null);
@@ -251,18 +318,18 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
   }
 }
 
-function isInsideVerticalScroller(target: EventTarget, sheet: HTMLElement): boolean {
-  let node = target instanceof Element ? target : null;
+function findVerticalScroller(target: EventTarget, sheet: HTMLElement): Nullable<HTMLElement> {
+  let node = target instanceof HTMLElement ? target : null;
 
   while (node && node !== sheet) {
     const { overflowY } = getComputedStyle(node);
 
     if (overflowY === "auto" || overflowY === "scroll") {
-      return true;
+      return node;
     }
 
     node = node.parentElement;
   }
 
-  return false;
+  return null;
 }
