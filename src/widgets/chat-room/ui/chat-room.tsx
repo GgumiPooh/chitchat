@@ -1418,10 +1418,11 @@ export function ChatRoom({
                 />
               )}
               {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
-              {/* WARN: § 13.6. `bottom-full` is above the composer, which the sheet never moves, clamped at the header for a short viewport (the wrapper is still composer + spacer at rest); `z-20` keeps it over the sheet's `z-10` while that is expanded over the composer. */}
+              {/* WARN: § 13.6. `bottom-full` is above the composer, which the sheet never moves, clamped at the header for a short viewport (the wrapper is still composer + spacer at rest). */}
+              {/* WARN: No `z-` of its own, so the sheet's `z-10` covers it once that is dragged over the composer — a card floating in the middle of a full-height grid reads as part of the grid. */}
               {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, for the reason the tray above is — it is still staged and it returns on cancel. */}
               {stagedEmoticon && editingId === null && (
-                <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--chat-screen-height)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))] z-20">
+                <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--chat-screen-height)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))]">
                   <EmoticonPreview
                     className="mx-md mb-2xs"
                     emoticon={stagedEmoticon}
