@@ -185,7 +185,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
         emoticon={editing}
         initialFile={pendingFile}
         onClose={closeForm}
-        onSaved={handleSaved}
+        onSaved={handleFormSaved}
       />
       <ActionSheet
         isOpen={selected !== undefined}
@@ -270,7 +270,13 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
     } finally {
       // WARN: In `finally`, or a rejection would strand the count above zero — which disables the `+` for the life of the screen and pins § 15.1.'s reload open with it.
       setAddingCount(0);
+      syncRouterCache();
     }
+  }
+
+  /** WARN: After every write. Back/forward remounts this screen from the router cache's RSC payload, taken before the write — without this, 채팅's 뒤로 brings the grid back one item short until a reload. `refresh()` keeps `items`, so nothing here is re-seeded. */
+  function syncRouterCache() {
+    router.refresh();
   }
 
   function openEditor(item: Maybe<Emoticon>) {
@@ -331,6 +337,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
       toast.error("검색 키워드를 만들지 못했어요");
     } finally {
       setTagging(null);
+      syncRouterCache();
     }
   }
 
@@ -349,6 +356,11 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
     );
   }
 
+  function handleFormSaved(emoticon: Emoticon) {
+    handleSaved(emoticon);
+    syncRouterCache();
+  }
+
   async function setThumbnail(itemId: Nullable<EmoticonItemId>) {
     if (!itemId) {
       return;
@@ -361,6 +373,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
 
     try {
       await updateEmoticonPack(pack.id, type, { thumbnailItemId: itemId });
+      syncRouterCache();
     } catch {
       setThumbnailItemId(previous);
       toast.error("대표 이미지를 바꾸지 못했어요");
@@ -382,6 +395,8 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
       if (itemId === thumbnailItemId) {
         setThumbnailItemId(null);
       }
+
+      syncRouterCache();
     } catch {
       toast.error("삭제하지 못했어요");
     }
