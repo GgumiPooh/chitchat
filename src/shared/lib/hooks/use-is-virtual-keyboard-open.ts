@@ -5,7 +5,7 @@ import { isEditableElement } from "../dom/environment";
 import { useIsCoarsePointer } from "./use-is-coarse-pointer";
 
 // INFO: A collapsing address bar shrinks the viewport by roughly 60–80px; only a larger drop can be a keyboard.
-const MIN_KEYBOARD_HEIGHT = 160;
+export const MIN_KEYBOARD_HEIGHT = 160;
 
 /**
  * Whether the on-screen keyboard is currently covering part of the viewport.

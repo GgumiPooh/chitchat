@@ -1,10 +1,13 @@
 "use client";
 
-import { isEditableElement } from "@/shared/lib";
+import { MIN_KEYBOARD_HEIGHT, isEditableElement, safelyGet, safelyRun } from "@/shared/lib";
 import { useEffect } from "react";
 
 const HEIGHT_PROPERTY = "--viewport-height";
 const RESTING_HEIGHT_PROPERTY = "--viewport-resting-height";
+const KEYBOARD_HEIGHT_PROPERTY = "--keyboard-height";
+// INFO: DESIGN.md § 3.4. Remembered across launches so the emoticon sheet opens at the keyboard's height before the keyboard has been up once this session.
+const KEYBOARD_HEIGHT_KEY = "jandh:keyboard-height";
 const TOP_PROPERTY = "--viewport-top";
 const BOTTOM_PROPERTY = "--viewport-bottom";
 
@@ -12,7 +15,9 @@ const BOTTOM_PROPERTY = "--viewport-bottom";
  * Mirrors the visual viewport onto the root element so the app shell can size
  * itself to what is actually visible while the on-screen keyboard is up
  * (DESIGN.md § 3.4.), and `--viewport-resting-height` — the height last seen with
- * no field focused — for the one box that stands still under the keys instead.
+ * no field focused — for the one box that stands still under the keys instead, and
+ * `--keyboard-height`, the keys' own height as last measured, which the emoticon
+ * sheet rests at so the composer does not move between the two.
  * `--viewport-width` and the left/right offsets are not synced: zooming is off
  * (`maximumScale: 1`), so they never leave their resting values.
  */
@@ -26,6 +31,15 @@ export function VisualViewportSync() {
 
     const root = document.documentElement;
     let frame = 0;
+    let restingHeight = viewport.height;
+    let keyboardHeight = 0;
+    // WARN: As `useIsVirtualKeyboardOpen` is gated — a desktop window resized while a field is focused is a drop past the threshold too, and it would be remembered as a keyboard.
+    const hasVirtualKeyboard = matchMedia("(pointer: coarse)").matches;
+    const storedKeyboardHeight = Number(safelyGet(() => localStorage.getItem(KEYBOARD_HEIGHT_KEY)));
+
+    if (storedKeyboardHeight > MIN_KEYBOARD_HEIGHT) {
+      root.style.setProperty(KEYBOARD_HEIGHT_PROPERTY, `${storedKeyboardHeight}px`);
+    }
 
     sync();
     viewport.addEventListener("resize", sync);
@@ -71,7 +85,19 @@ export function VisualViewportSync() {
       root.style.setProperty(HEIGHT_PROPERTY, `${height}px`);
       // WARN: DESIGN.md § 3.4. Held while a field is focused rather than the largest height seen at this width — Safari's toolbar collapses on the document-scrolling screens and chat never sees that height, so a maximum left the chat screen a toolbar too tall once the keys went down.
       if (!isEditableElement(document.activeElement)) {
+        restingHeight = height;
         root.style.setProperty(RESTING_HEIGHT_PROPERTY, `${height}px`);
+      }
+
+      const drop = restingHeight - height;
+
+      // INFO: The keys slide up in coarse steps, so the running maximum of one open is what settles on their full height; a drop under the threshold is a toolbar, not a keyboard.
+      if (!hasVirtualKeyboard || drop <= MIN_KEYBOARD_HEIGHT) {
+        keyboardHeight = 0;
+      } else if (drop > keyboardHeight) {
+        keyboardHeight = drop;
+        root.style.setProperty(KEYBOARD_HEIGHT_PROPERTY, `${drop}px`);
+        safelyRun(() => localStorage.setItem(KEYBOARD_HEIGHT_KEY, String(drop)));
       }
 
       root.style.setProperty(TOP_PROPERTY, `${offsetTop}px`);

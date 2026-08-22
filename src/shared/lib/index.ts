@@ -118,7 +118,10 @@ export { useIsCoarsePointer, useIsFinePointer } from "./hooks/use-is-coarse-poin
 export { isIos, useIsIos } from "./hooks/use-is-ios";
 export { useIsOffline } from "./hooks/use-is-offline";
 export { isStandalone, useIsStandalone } from "./hooks/use-is-standalone";
-export { useIsVirtualKeyboardOpen } from "./hooks/use-is-virtual-keyboard-open";
+export {
+  MIN_KEYBOARD_HEIGHT,
+  useIsVirtualKeyboardOpen,
+} from "./hooks/use-is-virtual-keyboard-open";
 export { useIsomorphicLayoutEffect } from "./hooks/use-isomorphic-layout-effect";
 export { holdAwake, isBusy, openFilePicker, useKeepAwake } from "./hooks/use-keep-awake";
 export {
