@@ -172,16 +172,16 @@ function measureVideo(file: File): Promise<{ width: number; height: number; seco
     video.playsInline = true;
 
     video.onloadedmetadata = () => {
-      const { videoWidth: width, videoHeight: height } = video;
+      const { videoWidth: width, videoHeight: height, duration } = video;
 
       releaseSource(video);
       URL.revokeObjectURL(url);
 
       if (width > 0 && height > 0) {
         // INFO: § 13.4.1.'s ceiling as the fallback, which is what the clip was cut to — a container reporting no duration would otherwise leave the frame count at zero.
-        const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+        const seconds = Number.isFinite(duration) && duration > 0 ? duration : 0;
 
-        resolve({ width, height, seconds: duration || MAX_EMOTICON_VIDEO_DURATION / A_SECOND });
+        resolve({ width, height, seconds: seconds || MAX_EMOTICON_VIDEO_DURATION / A_SECOND });
       } else {
         reject(new Error("video has no readable box"));
       }
