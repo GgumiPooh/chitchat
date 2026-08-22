@@ -6,6 +6,7 @@ import {
   CutoutEditor,
   EMOTICON_IMAGE_EDIT_OPTIONS,
   MediaEditor,
+  releaseCutoutWorker,
   useMediaPicker,
   VoiceRecorderBar,
   type VoiceRecording,
@@ -135,6 +136,13 @@ export function EmoticonFormSheet({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, emoticon?.id, setKeywords]);
+
+  // INFO: § 13.4.2. Both flows done — still or clip — is when the matting heap is worth more than the seconds a reload of the model costs.
+  useEffect(() => {
+    if (!isEditing && !video.isActive) {
+      releaseCutoutWorker();
+    }
+  }, [isEditing, video.isActive]);
 
   return (
     <>

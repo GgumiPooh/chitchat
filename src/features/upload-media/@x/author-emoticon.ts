@@ -1,5 +1,6 @@
 // INFO: The FSD cross-import gate. REQUIREMENTS.md § 13.4. reuses the § 9. picker and editor rather than reimplementing them, and this is the only surface of this slice the emoticon flow may reach.
 export { AnimateVideoError, animateVideo } from "../model/animate-video";
+export { releaseCutoutWorker } from "../model/cutout-worker-client";
 export { extractVideoAudio } from "../model/extract-video-audio";
 export { optimizeAudio } from "../model/optimize-audio";
 export { toMediaDraft, toStoredMime } from "../model/read-draft";
