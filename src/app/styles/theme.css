@@ -305,7 +305,8 @@
     min(364px, calc(var(--chat-screen-height) * 0.5)) + var(--emoticon-menu-height)
   );
   /* INFO: REQUIREMENTS.md § 13.6. The sheet's grab handle row, added outside the height above for the menu bar's reason — it was not measured with it. */
-  --emoticon-sheet-handle-height: 20px;
+  /* INFO: DESIGN.md § 7.5. 28 rather than the 20 it was drawn at: the row is the drag target, and with the hit box the button extends past it this is what reaches a ~40px target under a thumb. */
+  --emoticon-sheet-handle-height: 28px;
   --emoticon-search-field: 44px;
   /* INFO: REQUIREMENTS.md § 13.6. The staged preview at its tallest — the § 13.6. clamp needs the box's height before the emoticon that fills it is known. */
   --emoticon-preview-height: calc(96px + var(--spacing-2xs) * 2 + 2px);
