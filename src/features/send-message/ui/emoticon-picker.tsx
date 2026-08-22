@@ -881,6 +881,8 @@ export function EmoticonPicker({
               <IconButton
                 ref={settingsButtonRef}
                 className="shrink-0 text-meta"
+                // INFO: § 8.14. `TAB_KEYBOARD_RING`'s reason — the arrows reach this button through `focus()`, which `:focus-visible` alone leaves unpainted.
+                buttonClassName={cn(isKeyboardDriven && TAB_KEYBOARD_RING)}
                 Icon={Settings}
                 haptic
                 aria-label={menuKind === "mini" ? "미니 관리" : "이모티콘 관리"}
@@ -897,6 +899,7 @@ export function EmoticonPicker({
                 <IconButton
                   ref={deleteButtonRef}
                   className="mr-2xs"
+                  buttonClassName={cn(isKeyboardDriven && TAB_KEYBOARD_RING)}
                   Icon={Delete}
                   haptic
                   keepsFocus
@@ -1657,7 +1660,7 @@ export function EmoticonPicker({
       // INFO: § 8.14. `→` off the last tab moves to the settings button at the end of the strip.
       if (event.key === "ArrowRight" && index === tabIds.length - 1) {
         event.preventDefault();
-        settingsButtonRef.current?.focus();
+        focusSettingsButton(event.currentTarget);
       }
 
       return;
@@ -1739,14 +1742,34 @@ export function EmoticonPicker({
     }
 
     event.preventDefault();
-    if (settingsButtonRef.current) {
-      settingsButtonRef.current.focus();
-    } else {
-      const strip = tabStripRef.current;
-      if (strip) {
-        focusItem(strip, tabIds.indexOf(focusableTabId));
-      }
+    const strip = tabStripRef.current;
+
+    if (!strip) {
+      return;
     }
+
+    if (!focusSettingsButton(strip)) {
+      focusItem(strip, tabIds.indexOf(focusableTabId));
+    }
+  }
+
+  // WARN: § 8.14. `focusItem`'s shape, for its reason — the button sits inside the strip, and a bare `focus()` scrolls the panel's clip as well as the strip.
+  function focusSettingsButton(strip: HTMLElement): boolean {
+    const button = settingsButtonRef.current;
+
+    if (!button) {
+      return false;
+    }
+
+    button.focus({ preventScroll: true });
+
+    if (document.activeElement !== button) {
+      return false;
+    }
+
+    revealWithin(strip, button);
+
+    return true;
   }
 
   /**
