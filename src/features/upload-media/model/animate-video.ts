@@ -3,7 +3,7 @@ import { A_SECOND, randomId, type Nullable } from "@/shared/lib";
 import type { FFmpeg } from "@ffmpeg/ffmpeg";
 import { BlobSource, Input, MP4, QTFF, WEBM } from "mediabunny";
 import { fitWithin } from "./canvas";
-import { enqueueFfmpeg, loadFfmpeg, toEvenEdge } from "./ffmpeg-runtime";
+import { enqueueFfmpeg, loadFfmpeg, releaseFfmpeg, toEvenEdge } from "./ffmpeg-runtime";
 import { matteVideoFrames, type MattedFrame } from "./matte-video";
 import { ANIMATION_MIME } from "./optimize-animation";
 import type { EncodeProgress, OptimizedMedia } from "./optimize-result";
@@ -106,19 +106,24 @@ export async function animateVideo(
     : { kind: "clip", bytes: new Uint8Array(await file.arrayBuffer()) };
   const seconds = source.kind === "frames" ? source.frames.length / source.fps : measured.seconds;
 
-  for (const attempt of attempts) {
-    // WARN: Each rung reports its own 0 → 1 rather than a slice of the ladder. Spread across every rung, the common case — one encode, which is what almost every clip takes — could never fill more than a third of the bar.
-    const frames = Math.max(1, Math.round(seconds * attempt.fps));
-    const encoded = await encode(file, source, scaled, attempt, frames, (ratio) =>
-      onProgress?.(cutout ? MATTE_SHARE + ratio * (1 - MATTE_SHARE) : ratio),
-    );
+  try {
+    for (const attempt of attempts) {
+      // WARN: Each rung reports its own 0 → 1 rather than a slice of the ladder. Spread across every rung, the common case — one encode, which is what almost every clip takes — could never fill more than a third of the bar.
+      const frames = Math.max(1, Math.round(seconds * attempt.fps));
+      const encoded = await encode(file, source, scaled, attempt, frames, (ratio) =>
+        onProgress?.(cutout ? MATTE_SHARE + ratio * (1 - MATTE_SHARE) : ratio),
+      );
 
-    if (encoded.size <= MAX_EMOTICON_IMAGE_SIZE) {
-      return { file: encoded, ...scaled };
+      if (encoded.size <= MAX_EMOTICON_IMAGE_SIZE) {
+        return { file: encoded, ...scaled };
+      }
     }
-  }
 
-  throw new AnimateVideoError("oversize", "every rung exceeded the emoticon size cap");
+    throw new AnimateVideoError("oversize", "every rung exceeded the emoticon size cap");
+  } finally {
+    // INFO: After the whole ladder, never per rung — the rungs share one loaded core.
+    releaseFfmpeg();
+  }
 }
 
 async function toMattedSource(

@@ -1,7 +1,7 @@
 import { randomId, type Nullable } from "@/shared/lib";
 import type { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fitWithin, loadImage } from "./canvas";
-import { enqueueFfmpeg, loadFfmpeg, toEvenEdge } from "./ffmpeg-runtime";
+import { enqueueFfmpeg, loadFfmpeg, releaseFfmpeg, toEvenEdge } from "./ffmpeg-runtime";
 import { unoptimized, type EncodeProgress, type OptimizedMedia } from "./optimize-result";
 
 export const ANIMATION_MIME = "image/webp";
@@ -109,8 +109,9 @@ export async function optimizeAnimation(
       return unoptimized(file);
     } finally {
       ffmpeg?.off("progress", handleProgress);
-      // INFO: The instance is cached and reused by the next call, so its virtual FS is cleared per-call rather than per-load.
+      // INFO: The instance survives into whatever is queued behind this call, so its virtual FS is cleared per-call rather than per-load.
       await Promise.allSettled([ffmpeg?.deleteFile(inputName), ffmpeg?.deleteFile(outputName)]);
+      releaseFfmpeg();
     }
   });
 }

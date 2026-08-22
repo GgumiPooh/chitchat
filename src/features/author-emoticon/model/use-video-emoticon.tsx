@@ -9,6 +9,7 @@ import {
   animateVideo,
   extractVideoAudio,
   releaseCutoutWorker,
+  releaseFfmpeg,
   revokePreview,
   toEncodedEmoticonDrafts,
   toMediaDraft,
@@ -56,7 +57,7 @@ export type UseVideoEmoticonParams = {
 export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
   const [stage, setStage] = useState<Nullable<Stage>>(null);
   const stageRef = useRef<Nullable<Stage>>(null);
-  // WARN: What tells an abandoned run's result from the live one. `ffmpeg.exec` cannot be interrupted without tearing down the cached core, so 취소 stops caring about the encode rather than stopping it.
+  // WARN: What tells an abandoned run's result from the live one — 취소 tears the core down, but the frames already matted and the audio still settle behind it.
   const runRef = useRef(0);
 
   useEffect(() => {
@@ -273,7 +274,9 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
   function cancel() {
     runRef.current++;
 
-    if (stage && stage.name !== "encoding") {
+    if (stage?.name === "encoding") {
+      releaseFfmpeg(true);
+    } else if (stage) {
       revokePreview(stage.draft);
     }
 

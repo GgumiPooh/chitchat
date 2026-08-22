@@ -8,17 +8,58 @@ let ffmpegPromise: Nullable<Promise<FFmpeg>> = null;
 
 // WARN: `@ffmpeg/ffmpeg`'s worker holds one module-level core and does not serialize its own message handler, so concurrent `exec` calls on it are undefined behaviour.
 let queue: Promise<unknown> = Promise.resolve();
+let queued = 0;
 
 /** Runs `task` after every other ffmpeg task this module has been handed. */
 export function enqueueFfmpeg<T>(task: () => Promise<T>): Promise<T> {
+  const settle = () => {
+    queued--;
+  };
+
+  queued++;
   const run = queue.then(task, task);
 
-  queue = run.then(
-    () => undefined,
-    () => undefined,
-  );
+  queue = run.then(settle, settle);
 
   return run;
+}
+
+/**
+ * Tears the core down — once the queue is idle, or at once for 취소.
+ *
+ * WARN: A wasm heap never shrinks, so a core that has encoded one clip holds that
+ * clip's frames' worth of heap for as long as it lives (REQUIREMENTS.md § 13.4.2.).
+ * The reload is ~32MB from Cache Storage, a second or two against an encode of tens.
+ *
+ * INFO: Immediate, it rejects the `exec` in flight with `ErrorTerminated`, which is
+ * what lets 취소 stop the encode rather than merely ignore its result.
+ */
+export function releaseFfmpeg(isImmediate = false) {
+  const loaded = ffmpegPromise;
+
+  if (!loaded) {
+    return;
+  }
+
+  const terminate = () => {
+    ffmpegPromise = null;
+
+    return loaded.then(
+      (ffmpeg) => ffmpeg.terminate(),
+      () => undefined,
+    );
+  };
+
+  if (isImmediate) {
+    void terminate();
+
+    return;
+  }
+
+  // INFO: Skipped when work was queued behind the call — a burst of GIFs would otherwise reload the core between every two.
+  const whenIdle = () => (queued === 0 && ffmpegPromise === loaded ? terminate() : undefined);
+
+  queue = queue.then(whenIdle, whenIdle);
 }
 
 /**
