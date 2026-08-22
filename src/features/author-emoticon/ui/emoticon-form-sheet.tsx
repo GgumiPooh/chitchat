@@ -137,12 +137,12 @@ export function EmoticonFormSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, emoticon?.id, setKeywords]);
 
-  // INFO: § 13.4.2. Both flows done — still or clip — is when the matting heap is worth more than the seconds a reload of the model costs.
+  // INFO: § 13.4.2. Past the still's 누끼 and outside the clip flow, the matting heap is worth more than the seconds a reload of the model costs — the clip flow releases it on its own crop step.
   useEffect(() => {
-    if (!isEditing && !video.isActive) {
+    if (step !== "cutout" && !video.isActive) {
       releaseCutoutWorker();
     }
-  }, [isEditing, video.isActive]);
+  }, [step, video.isActive]);
 
   return (
     <>

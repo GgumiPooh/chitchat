@@ -8,6 +8,7 @@ import {
   VideoTrimmer,
   animateVideo,
   extractVideoAudio,
+  releaseCutoutWorker,
   revokePreview,
   toEncodedEmoticonDrafts,
   toMediaDraft,
@@ -112,6 +113,8 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
             }
 
             setStage({ ...stage, name: "cropping", isCutout: cutout !== null });
+            // INFO: § 13.4.2. The poster was the last thing this worker had to do before the encode; the crop step is where the phone runs out of memory, so the heap goes now and MODNet reloads in a second.
+            releaseCutoutWorker();
           }}
           onCancel={cancel}
           onBack={() => void back()}

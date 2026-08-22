@@ -5,6 +5,7 @@ import { A_SECOND, cn, type Nullable, type Optional } from "@/shared/lib";
 import { Button, IconButton, PreloadVideo, ShellOverlay, Slider, toast } from "@/shared/ui";
 import { ArrowRight, Pause, Play, X } from "lucide-react";
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import { releaseSource } from "../model/read-draft";
 import { trimVideo, type TrimRange } from "../model/trim-video";
 
 /**
@@ -96,7 +97,11 @@ export function VideoTrimmer({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- The object URL is external state; minting it and handing it to React is this effect's whole purpose.
     setSourceUrl(url);
 
-    return () => URL.revokeObjectURL(url);
+    // WARN: Detached before the revoke, and not left to GC — iOS keeps a removed element's decoder buffers until the next collection, which § 13.4.2.'s crop step reached the memory limit waiting for.
+    return () => {
+      releaseSource(videoRef.current);
+      URL.revokeObjectURL(url);
+    };
   }, [draft.file]);
 
   return (
