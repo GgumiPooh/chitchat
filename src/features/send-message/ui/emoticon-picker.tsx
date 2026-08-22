@@ -82,7 +82,7 @@ import { useOutwardTabWarm } from "../model/use-outward-tab-warm";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
 
 // INFO: REQUIREMENTS.md § 13.6. Two taps on the same cell inside this window are the shortcut past the preview.
-const DOUBLE_TAP_WINDOW = A_SECOND / 3;
+export const DOUBLE_TAP_WINDOW = A_SECOND / 3;
 
 // WARN: Hoisted so the pending query answers the same array every render — an inline `= []` mints a new identity, and the effect keyed on `packs` then re-runs its two `getBoundingClientRect` reads on every frame of the § 13.6. open animation.
 const NO_PACKS: EmoticonPackSummary[] = [];
@@ -270,8 +270,7 @@ export type EmoticonPickerProps = {
  * stages it as a preview, and tapping it twice sends it outright.
  *
  * INFO: DESIGN.md § 9. leaves the panel's exact geometry open, so the height lives
- * in `--emoticon-panel-height` (`theme.css`) — the chat room animates the strip
- * open against the same value, and the two cannot drift apart.
+ * in `--emoticon-panel-height` (`theme.css`) and the chat room's sheet draws it.
  */
 export function EmoticonPicker({
   className,
@@ -749,14 +748,8 @@ export function EmoticonPicker({
 
   return (
     <div
-      className={cn(
-        "pointer-events-auto flex flex-col rounded-lg border border-hairline bg-canvas",
-        // INFO: § 13.8. 검색 is the one menu that may share the screen with the keyboard, so it is drawn at a height that fits in what the keyboard leaves rather than at the other two menus' half-shell.
-        // WARN: The same 200ms `ease-out` the § 13.6. clipping strip animates its own height with, and the two MUST stay identical. Left instant here the asymmetry was visible only one way: growing, the taller panel is clipped by the strip and revealed as it opens, so it reads as smooth — shrinking, the panel collapses in one frame inside a strip that is still catching up.
-        "transition-[height] duration-200 ease-out",
-        isSearching ? "h-(--emoticon-search-panel-height)" : "h-(--emoticon-panel-height)",
-        className,
-      )}
+      // INFO: § 13.6. The sheet around this owns the height; this fills what it is given.
+      className={cn("flex min-h-0 flex-1 flex-col", className)}
       onKeyDown={handlePanelKeys}
       // WARN: § 8.14. Capture and not the bubbled phase, so no child that stops `pointerdown` can hide a pointer press from the panel — which is how the rings stayed lit under a mouse once one scroller inside here did exactly that.
       onPointerDownCapture={() => setIsKeyboardDriven(false)}

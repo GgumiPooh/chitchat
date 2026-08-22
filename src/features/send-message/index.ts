@@ -14,6 +14,7 @@ export {
   type UseSendMessageParams,
 } from "./model/use-send-message";
 export {
+  DOUBLE_TAP_WINDOW,
   EmoticonPicker,
   type EmoticonFocusRequest,
   type EmoticonPickerProps,

@@ -196,8 +196,10 @@
   --duration-route-enter: 220ms;
   /* INFO: DESIGN.md § 4.7.3. The library morph, and the one duration longer than a route arrival on purpose — a thumbnail crossing to full screen travels most of the viewport, where an arriving screen travels 24px, so the route's own timing read as the photo being thrown rather than opened. */
   --duration-media-morph: 300ms;
+  /* INFO: REQUIREMENTS.md § 13.6. The sheet's expand alone, sized for `--ease-sheet` to settle; every other sheet move keeps the 200ms ease-out. */
+  --duration-sheet-expand: 450ms;
 
-  /* WARN: `--ease-*` is Tailwind's timing-function namespace, so these also ship as `ease-press` / `ease-bloom` / `ease-route` utilities — renaming one renames the utility. */
+  /* WARN: `--ease-*` is Tailwind's timing-function namespace, so these also ship as `ease-press` / `ease-bloom` / `ease-route` / `ease-sheet` utilities — renaming one renames the utility. */
   --ease-press: cubic-bezier(0.2, 0, 0, 1);
   /* INFO: DESIGN.md § 4.7.2. The one curve that overshoots, and it is a spring rather than a bezier — a bezier can cross its resting value once, so it can settle but it cannot bounce. */
   /* WARN: A `linear()` easing, not a keyframe animation, so the release stays a `transition` and keeps firing off `:active` / `[data-pressed]` with no state to trigger it. Editing a stop by hand will kink the curve; regenerate the whole list. */
@@ -229,6 +231,31 @@
     1
   );
   --ease-route: cubic-bezier(0.32, 0.72, 0, 1);
+  /* INFO: REQUIREMENTS.md § 13.6. The sheet's upward expand, a second spring: `ease-bloom` peaks 16% over, which on a 450px move is the sheet 70px past the header. Generated (ζ 0.74, ω 8.4, RDP 0.002) to peak 3% over — a few px under the header's glass — and never hand-edited. */
+  --ease-sheet: linear(
+    0,
+    0.007 1.5%,
+    0.028 3%,
+    0.059 4.5%,
+    0.113 6.5%,
+    0.161 8%,
+    0.212 9.5%,
+    0.451 16%,
+    0.557 19%,
+    0.668 22.5%,
+    0.75 25.5%,
+    0.82 28.5%,
+    0.877 31.5%,
+    0.924 34.5%,
+    0.964 38%,
+    0.993 41.5%,
+    1.013 45%,
+    1.025 49%,
+    1.031 53.5%,
+    1.029 61%,
+    1.006 84%,
+    1
+  );
 
   /* INFO: App shell — DESIGN.md § 3.3. Narrower than a tablet so the tab bar cannot read as a desktop nav. */
   --container-app: 576px;
@@ -284,6 +311,8 @@
   );
   /* INFO: § 13.8. What stays visible above the panel with the keys up — the floating header, plus about one bubble of the conversation, so the room is never covered outright. */
   --emoticon-search-headroom: calc(var(--app-header-inset) + 64px);
+  /* INFO: REQUIREMENTS.md § 13.6. The sheet's grab handle row, added outside the two heights above for the menu bar's reason — neither was measured with it. */
+  --emoticon-sheet-handle-height: 20px;
   --emoticon-search-field: 44px;
   /* INFO: REQUIREMENTS.md § 13.6. The staged preview at its tallest — the § 13.6. clamp needs the box's height before the emoticon that fills it is known. */
   --emoticon-preview-height: calc(96px + var(--spacing-2xs) * 2 + 2px);

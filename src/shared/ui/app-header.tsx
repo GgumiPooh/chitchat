@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_HEADER_ID } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { useEffect, useState, type ReactNode } from "react";
 import { Container } from "./container";
@@ -48,6 +49,7 @@ export function AppHeader({
         "pointer-events-none fixed inset-x-0 top-(--header-lift) z-30",
         className,
       )}
+      id={APP_HEADER_ID}
     >
       {/* INFO: DESIGN.md § 3.3. The shell width, re-applied for the same reason `BottomOverlay` re-applies it — the document moves under a `fixed` box, so it cannot inherit the column's centring. */}
       {/* WARN: DESIGN.md § 7.12. `:not([data-inert])`, and the exclusion is the whole of it. The row used to grant `pointer-events-auto` to **every** direct child, which handed it to the two that fill the row and paint nothing — the `flex-1` title and the `flex-1` spacer — so the entire left and centre of the strip swallowed taps aimed at the content scrolling under a header that is deliberately transparent (§ 7.12.). Only what a finger can actually aim at may take pointers back. */}

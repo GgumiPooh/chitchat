@@ -49,6 +49,9 @@ export function resolveAppUrl(requestHost?: Maybe<string>): string {
  */
 export const BOTTOM_OVERLAY_ID = "bottom-overlay";
 
+/** The floating `AppHeader`, for a screen that has to measure what it covers (REQUIREMENTS.md § 13.6.'s expanded sheet). */
+export const APP_HEADER_ID = "app-header";
+
 /**
  * The `(main)` layout's shell column, and the node every full-screen overlay is
  * portalled into. A screen that has to cover the floating header and the tab bar

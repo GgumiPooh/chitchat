@@ -13,6 +13,7 @@ import {
 } from "@/features/chat-stream";
 import { useWriteChatSnapshot } from "@/features/offline-snapshot";
 import {
+  DOUBLE_TAP_WINDOW,
   EmoticonPicker,
   EmoticonPreview,
   MessageComposer,
@@ -141,6 +142,7 @@ import type { ChatRow } from "../model/types";
 import { useArrivalEmoticonSound } from "../model/use-arrival-emoticon-sound";
 import { useChatShortcuts } from "../model/use-chat-shortcuts";
 import { useComposerClearance } from "../model/use-composer-clearance";
+import { useEmoticonSheet } from "../model/use-emoticon-sheet";
 import { useLinkPreviewPrefetch } from "../model/use-link-preview-prefetch";
 import { useMessageHistory } from "../model/use-message-history";
 import { useViewerTrack } from "../model/use-viewer-track";
@@ -256,6 +258,7 @@ export function ChatRoom({
 }: ChatRoomProps) {
   const containerRef = useRef<Nullable<HTMLDivElement>>(null);
   const composerRef = useRef<Nullable<HTMLDivElement>>(null);
+  const emoticonSheetRef = useRef<Nullable<HTMLDivElement>>(null);
   // INFO: REQUIREMENTS.md § 8.12. Observed rather than derived from `typist`, because what has to be followed is every frame of the height transition, not the state change that started it.
   const typingSlotRef = useRef<Nullable<HTMLDivElement>>(null);
   // INFO: REQUIREMENTS.md § 8.3. The rows' own box, observed for the same reason the slot above is — a row that grows after it was estimated moves the end of the list, and nothing scrolls to say so.
@@ -508,6 +511,33 @@ export function ChatRoom({
    * solved: against it, the preview was previously not visible at all.
    */
   const isComposerYielded = isEmoticonSearchExempt && isKeyboardOpen && editingId === null;
+  // INFO: § 13.8. 검색 with the keys up is not expandable — the keyboard owns the rest of the screen.
+  const canExpandEmoticonSheet = !(isEmoticonSearchTab && isKeyboardOpen);
+  const emoticonSheet = useEmoticonSheet({
+    sheetRef: emoticonSheetRef,
+    isOpen: isEmoticonPanelOpen,
+    canExpand: canExpandEmoticonSheet,
+    onClose: closeEmoticonPanel,
+  });
+  // WARN: § 13.6. The clip and the card share this so they move together; the spring is the open sheet's upward move alone — keyed on `isEmoticonPanelOpen` too, or a close from expanded runs 450ms against the spacer's 200ms and re-pins early.
+  const emoticonSheetTransition = emoticonSheet.isDragging
+    ? "transition-none"
+    : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
+      ? "transition-[height] duration-(--duration-sheet-expand) ease-sheet"
+      : "transition-[height] duration-200 ease-out";
+  // WARN: § 13.6. A stage from an expanded sheet collapses it only after `DOUBLE_TAP_WINDOW`, or the cell moves out from under the second tap of a quick send.
+  const collapseTimerRef = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
+
+  useEffect(() => () => clearTimeout(collapseTimerRef.current), []);
+  // INFO: § 13.6. What the sheet clears the history by at rest — the spacer's height, and never more: an expanded sheet covers the composer rather than lifting it.
+  const emoticonSheetRestHeight = `calc(${isEmoticonSearchTab ? "var(--emoticon-search-panel-height)" : "var(--emoticon-panel-height)"} + var(--emoticon-sheet-handle-height))`;
+  // INFO: § 13.6. The sheet's drawn height, to the screen's edge. The card keeps it through the collapse so it is clipped rather than squashed.
+  const emoticonSheetHeight =
+    emoticonSheet.pinnedHeight !== null
+      ? `${emoticonSheet.pinnedHeight}px`
+      : emoticonSheet.size === "expanded"
+        ? `${emoticonSheet.expandedHeight}px`
+        : `calc(${emoticonSheetRestHeight} + var(--bottom-inset))`;
   // INFO: REQUIREMENTS.md § 8.14. The request `focusComposer` held, handed over the frame the row is back in the document — the composer skips a token it has already acted on, so this is the one bump the field is there to receive.
   // WARN: `isSearching` is `focusComposer`'s own refusal, repeated because this is the second way to reach that field. A § 8.6. search leaves § 13.8.'s tab and picker both standing, so the latch is released by the keyboard alone — put down mid-search, this would spend the held token on a stack that is `hidden` and `inert`, and 취소 would return to no caret. Held rather than dropped, so the search's own end replays it.
   // WARN: The overlays drop the hold instead of deferring it. A sheet or the § 9.1. picker opened during the retraction is the reader having moved on, and a caret taken back under an open sheet re-raises the keyboard beneath it.
@@ -1390,7 +1420,7 @@ export function ChatRoom({
           <div className={cn(isSearching && "hidden")} inert={isSearching}>
             <>
               {/* INFO: REQUIREMENTS.md § 8.10. Above the tray and the pill, and in the flow — the quote belongs to the send the whole stack is composing, so it reads as the header of it. */}
-              {/* WARN: DESIGN.md § 6.6. `mt-xs` matches the emoticon panel's, which is the gap this stack is measured against — without it the bar butts straight into the bubble above. It is safe to carry unconditionally because this renders nothing when there is no reply, so the clearance only grows while the bar is up. */}
+              {/* WARN: DESIGN.md § 6.6. `mt-xs` is the gap this stack is measured against — without it the bar butts straight into the bubble above. It is safe to carry unconditionally because this renders nothing when there is no reply, so the clearance only grows while the bar is up. */}
               {/* INFO: REQUIREMENTS.md § 8.13. Stands exactly where the staged quote does, and never beside it — a correction composes no new message, so there is nothing for a quote to be the header of. */}
               {/* WARN: § 8.13. The quote is hidden rather than cleared, and comes back on cancel. Entering the mode must cost the user nothing they had already staged. */}
               {editingId !== null ? (
@@ -1413,7 +1443,7 @@ export function ChatRoom({
                   onClose={() => setIsRecording(false)}
                 />
               )}
-              {/* INFO: DESIGN.md § 6.6. Same gap as the bar above and the panel below; `MediaTray` renders nothing with an empty selection, so this costs the resting composer no height. */}
+              {/* INFO: DESIGN.md § 6.6. Same gap as the bar above; `MediaTray` renders nothing with an empty selection, so this costs the resting composer no height. */}
               {/* WARN: REQUIREMENTS.md § 8.13. Hidden while a message is being corrected, never emptied — the drafts live in `useMediaSelection` and are still there when the edit is cancelled. An edit is text-only, and `canSend` refuses to arm on a tray the mode cannot send. */}
               {editingId === null && (
                 <MediaTray
@@ -1425,11 +1455,10 @@ export function ChatRoom({
                 />
               )}
               {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
-              {/* WARN: § 13.6. wants the preview above the open panel, but the panel is half the shell — `bottom-full` alone puts it behind the floating header on a short viewport and off the top of the screen below ~604px, which is the panel not appearing to stage at all. The `min()` stops it at the header and lets it overlap the panel's top rows instead, which only happens where something has to give. */}
-              {/* INFO: § 13.8. The search tab used to be where it gave the most — the keyboard takes the viewport down far enough that the second arm won by more than half this box, so the staged emoticon was covered rather than merely crowded. `isComposerYielded` buys that back out of the composer's own row instead. */}
+              {/* WARN: § 13.6. `bottom-full` is above the composer, which the sheet never moves, clamped at the header for a short viewport (the wrapper is still composer + spacer at rest); `z-20` keeps it over the sheet's `z-10` while that is expanded over the composer. */}
               {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, for the reason the tray above is — it is still staged and it returns on cancel. */}
               {stagedEmoticon && editingId === null && (
-                <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--viewport-height,100dvh)_-_var(--bottom-inset)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))]">
+                <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--viewport-height,100dvh)_-_var(--bottom-inset)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))] z-20">
                   <EmoticonPreview
                     className="mx-md mb-2xs"
                     emoticon={stagedEmoticon}
@@ -1437,44 +1466,6 @@ export function ChatRoom({
                   />
                 </div>
               )}
-              {/* INFO: REQUIREMENTS.md § 13.6. Inside the composer's own absolute wrapper, so the panel sits above the bar and the messages still scroll underneath both. */}
-              {/* INFO: § 13.6. `justify-end` anchors the panel to the bottom of the strip, so it is revealed rising from behind the composer rather than unrolling downward from a top edge that is itself moving up. */}
-              {/* WARN: A real `height` and never a `0fr`→`1fr` grid track. Mid-transition Chrome sizes such a track's container taller than the track it resolved, and the strip below the bottom-anchored panel is a gap that opens and shuts — which is what read as the panel stretching apart from its middle. */}
-              <div
-                className={cn(
-                  "flex flex-col justify-end overflow-hidden transition-[height] duration-200 ease-out",
-                  // WARN: The underscores are the spaces `calc()` requires around `+`. Written closed up the declaration is invalid, and the strip resolves to `0px` — the panel opens to nothing and no cell can be tapped.
-                  // INFO: § 13.8. The search tab is drawn shorter, so the strip that clips it has to be told which of the two heights it is holding.
-                  isEmoticonPanelOpen && isEmoticonSearchTab
-                    ? "h-[calc(var(--emoticon-search-panel-height)_+_var(--spacing-xs)_+_var(--spacing-2xs))]"
-                    : isEmoticonPanelOpen
-                      ? "h-[calc(var(--emoticon-panel-height)_+_var(--spacing-xs)_+_var(--spacing-2xs))]"
-                      : "h-0",
-                )}
-                // WARN: The panel stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until this takes them back out.
-                inert={!isEmoticonPanelOpen}
-                onTransitionEnd={settleAfterPanelTransition}
-              >
-                {hasMountedEmoticonPanel && (
-                  // INFO: § 13.6. `mt-xs` matches the composer's own top padding, so the panel clears the history by what the bar alone clears it by. The height above is this panel plus both margins.
-                  // WARN: `shrink-0` or the collapsing strip compresses the panel instead of clipping it, and § 13.6.'s own `flex-1` scroller is what gives — the panel then reads as stretching open rather than rising.
-                  // INFO: § 13.6. Promoted to its own layer so the strip's growing clip is a compositor crop — unpromoted, every frame of the 200ms repaints a grid of animated images against a moving clip rect, which is what the open stutters on.
-                  <EmoticonPicker
-                    className="mx-md mt-xs mb-2xs shrink-0 will-change-transform"
-                    isOpen={isEmoticonPanelOpen}
-                    focusRequest={pickerFocusRequest}
-                    searchRequest={emoticonSearch}
-                    revealRequest={emoticonReveal}
-                    menuRequest={menuRequest}
-                    suggestedSearchQuery={suggestedEmoticonSearchQuery}
-                    onSearchTabChange={reportEmoticonSearchTab}
-                    onSelect={stageEmoticon}
-                    onQuickSend={sendStagedEmoticon}
-                    onInsert={insertEmoticon}
-                    onDeleteLast={deleteLastComposerUnit}
-                  />
-                )}
-              </div>
               {/* WARN: § 13.6. `hidden`, never a conditional subtree, for the reason the search's own hide above carries — the draft lives in this component's state and unmounting it discards a typed message along with its `useUnsentWork` hold. `display: none` is also the half that does the work: it takes the composer out of the wrapper `useComposerClearance` measures, which is what lowers the stack and hands the preview its room back. */}
               <MessageComposer
                 className={cn(isComposerYielded && "hidden")}
@@ -1498,6 +1489,76 @@ export function ChatRoom({
                 onFieldFocus={closeEmoticonPanel}
                 onSend={({ text, emoticons }) => submit(text, emoticons)}
               />
+              {/* INFO: REQUIREMENTS.md § 13.6. The sheet stands in the keyboard's slot under the composer, inside the same wrapper so the history is cleared by both and scrolls under both. */}
+              {/* WARN: A real `height` and never a `0fr`→`1fr` grid track. Mid-transition Chrome sizes such a track's container taller than the track it resolved, and the strip below the bottom-anchored sheet is a gap that opens and shuts. */}
+              {/* INFO: § 13.6. An empty spacer: it is what `useComposerClearance` measures and what `settleAfterPanelTransition` listens to, and it only ever moves 0 ↔ rest — the drawn sheet below is absolute, so expanding it moves nothing here. */}
+              <div
+                className={cn(
+                  "transition-[height] duration-200 ease-out",
+                  isEmoticonPanelOpen ? "h-(--emoticon-sheet-rest-height)" : "h-0",
+                )}
+                style={{ ["--emoticon-sheet-rest-height" as string]: emoticonSheetRestHeight }}
+                onTransitionEnd={settleAfterPanelTransition}
+              />
+              {/* INFO: § 13.6. The clip: bottom-anchored at the screen's edge (`-bottom-(--bottom-inset)` past the wrapper's lift), `z-10` over the composer, its height 0 ↔ the sheet's so the card inside rises behind it on open and is clipped on close. Above rest it just draws taller. */}
+              {/* INFO: § 13.6. The spring is the upward expand's alone — `ease-sheet` peaks 3% over, so the card pokes a few px under the header's glass and settles, where a `max-height` would stop it flat. Every other move keeps the 200ms ease-out, and a drag follows the finger. */}
+              {/* WARN: The sheet stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until `inert` takes them back out. */}
+              <div
+                ref={emoticonSheetRef}
+                className={cn(
+                  "absolute inset-x-0 -bottom-(--bottom-inset) z-10 flex flex-col justify-end overflow-hidden",
+                  emoticonSheetTransition,
+                  isEmoticonPanelOpen ? "h-(--emoticon-sheet-height)" : "h-0",
+                )}
+                style={{ ["--emoticon-sheet-height" as string]: emoticonSheetHeight }}
+                inert={!isEmoticonPanelOpen}
+              >
+                {hasMountedEmoticonPanel && (
+                  // WARN: `shrink-0` or the collapsing clip compresses the card instead of clipping it, and § 13.6.'s own `flex-1` scroller is what gives — the sheet then reads as stretching open rather than rising.
+                  // INFO: § 13.6. Promoted to its own layer so the clip's growing edge is a compositor crop — unpromoted, every frame repaints a grid of animated images against a moving clip rect, which is what the open stutters on.
+                  <div
+                    className={cn(
+                      "pointer-events-auto flex h-(--emoticon-sheet-height) shrink-0 flex-col rounded-t-xl border-t border-hairline bg-canvas pb-(--bottom-inset) will-change-transform",
+                      emoticonSheetTransition,
+                    )}
+                  >
+                    {/* INFO: § 13.6. The handle is the sheet's one drag target — the grid keeps its own scroll and § 13.6.'s tab swipe. `touch-none`, or the finger's pull is spent on the room behind it. */}
+                    <button
+                      className={cn(
+                        "flex h-(--emoticon-sheet-handle-height) w-full shrink-0 touch-none items-center justify-center focus-visible:outline-none hover:[&>span]:bg-primary focus-visible:[&>span]:bg-primary",
+                        canExpandEmoticonSheet
+                          ? "cursor-grab active:cursor-grabbing"
+                          : "cursor-default",
+                      )}
+                      type="button"
+                      // INFO: § 13.8. Never `disabled` — a pull down still closes the sheet, and `disabled` would eat the pointer events that needs.
+                      aria-disabled={!canExpandEmoticonSheet}
+                      aria-expanded={emoticonSheet.size === "expanded"}
+                      aria-label={
+                        emoticonSheet.size === "expanded"
+                          ? "이모티콘 창 줄이기"
+                          : "이모티콘 창 늘리기"
+                      }
+                      {...emoticonSheet.handleProps}
+                    >
+                      <span className="block h-1.5 w-12 rounded-full bg-hairline-strong" />
+                    </button>
+                    <EmoticonPicker
+                      isOpen={isEmoticonPanelOpen}
+                      focusRequest={pickerFocusRequest}
+                      searchRequest={emoticonSearch}
+                      revealRequest={emoticonReveal}
+                      menuRequest={menuRequest}
+                      suggestedSearchQuery={suggestedEmoticonSearchQuery}
+                      onSearchTabChange={reportEmoticonSearchTab}
+                      onSelect={stageEmoticon}
+                      onQuickSend={sendStagedEmoticon}
+                      onInsert={insertEmoticon}
+                      onDeleteLast={deleteLastComposerUnit}
+                    />
+                  </div>
+                )}
+              </div>
             </>
           </div>
         </div>
@@ -1627,6 +1688,11 @@ export function ChatRoom({
   function stageEmoticon(emoticon: Emoticon) {
     selection.clear();
     setStagedEmoticon(emoticon);
+    clearTimeout(collapseTimerRef.current);
+
+    if (emoticonSheet.size === "expanded") {
+      collapseTimerRef.current = setTimeout(emoticonSheet.collapse, DOUBLE_TAP_WINDOW);
+    }
     // INFO: REQUIREMENTS.md § 13.6. The preview autoplays the animation, and the sound is the other half of the same playback.
     playEmoticonSound(emoticon);
   }
@@ -1635,6 +1701,8 @@ export function ChatRoom({
    * INFO: REQUIREMENTS.md § 13.6. A double tap in the picker skips the preview. The first tap already staged it, so this only takes it back off the composer and sends.
    */
   function sendStagedEmoticon(emoticon: Emoticon) {
+    // INFO: § 13.6. Sending never resizes the sheet; the stage a frame ago had armed this.
+    clearTimeout(collapseTimerRef.current);
     void goLiveForSend();
     setStagedEmoticon(null);
     // WARN: REQUIREMENTS.md § 13.6. Synchronously inside the tap, like `submit` — iOS grants audio to this call stack alone.
@@ -1766,6 +1834,7 @@ export function ChatRoom({
    * § 13.6. keyboard exemption on for good.
    */
   function closeEmoticonPanel() {
+    clearTimeout(collapseTimerRef.current);
     setIsEmoticonPickerOpen(false);
     setEmoticonSearch(null);
     searchedWordRef.current = null;
@@ -2003,6 +2072,8 @@ export function ChatRoom({
       emoticon: { version, width, height, name: keywords[0] ?? null, hasAudio, id },
       token: (request?.token ?? 0) + 1,
     }));
+    // INFO: § 13.6. The draft it lands in is under an expanded sheet.
+    emoticonSheet.collapse();
   }
 
   // INFO: § 13. 미니's own 지우기 button — the composer takes it exactly as a Backspace on the field.
