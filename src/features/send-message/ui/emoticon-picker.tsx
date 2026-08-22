@@ -766,7 +766,8 @@ export function EmoticonPicker({
       {/* WARN: The two margins are deliberately unequal. What sits under the track is not the panel's edge but the strip's own `py-2xs`, so an even `m-2xs` reads as 4px above against 8px below; 6 and 2 are what put the same 6px of air on both sides. Their sum is unchanged, which is why `--emoticon-menu-height` is. */}
       <div
         ref={menuBarRef}
-        className="mt-1.5 mb-0.5 flex w-fit shrink-0 items-center gap-2xs self-center rounded-full bg-surface-soft p-2xs"
+        // INFO: § 13.6. `touch-none`, so a vertical pull that begins on a chip reaches the sheet's drag instead of being spent as a pan of nothing.
+        className="mt-1.5 mb-0.5 flex w-fit shrink-0 touch-none items-center gap-2xs self-center rounded-full bg-surface-soft p-2xs"
         role="toolbar"
         aria-label="이모티콘 메뉴"
         onKeyDown={handleMenuKeys}

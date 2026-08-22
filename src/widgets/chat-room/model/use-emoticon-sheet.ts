@@ -23,9 +23,11 @@ export type EmoticonSheetOptions = {
 };
 
 /**
- * REQUIREMENTS.md § 13.6. The sheet's handle: a drag follows the finger, a release
- * snaps past `SNAP_SHARE` — up to expanded, down to rest, down from rest to closed —
- * and a tap toggles rest ⇄ expanded. `pinnedHeight` is a px height that overrides
+ * REQUIREMENTS.md § 13.6. The sheet's drag, taken on the card by `dragProps` from
+ * anywhere that does not scroll vertically — the handle, the menu bar, the strip: a
+ * drag follows the finger, a release snaps past `SNAP_SHARE` — up to expanded, down to
+ * rest, down from rest to closed — and a tap on the handle (`handleProps`) toggles
+ * rest ⇄ expanded. `pinnedHeight` is a px height that overrides
  * the size while a finger holds the sheet and through a collapse that finger began;
  * `expandedHeight` is the sheet's height at the header.
  */
@@ -36,7 +38,9 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
   const [isDragging, setIsDragging] = useState(false);
   const [wasOpen, setWasOpen] = useState(isOpen);
   const gestureRef =
-    useRef<Nullable<{ pointerId: number; y: number; height: number; max: number }>>(null);
+    useRef<Nullable<{ pointerId: number; x: number; y: number; height: number; max: number }>>(
+      null,
+    );
   const hasDraggedRef = useRef(false);
 
   // WARN: Reset on the *reopen*, never on the close — the collapse draws the sheet at the height it was closed from, and resetting first drops it a frame before the strip clips it.
@@ -79,15 +83,17 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
     collapse: () => settle("rest", expandedHeight),
     // INFO: § 13.8. 검색's field taking focus opens the sheet to the header, on the same spring the handle's tap does.
     expand: () => settle("expanded", measureExpandedHeight()),
-    handleProps: {
+    dragProps: {
       onPointerDown: handlePointerDown,
       onPointerMove: handlePointerMove,
       onPointerUp: handleRelease,
       onPointerCancel: handleCancel,
       // WARN: Capture is also lost after an ordinary `pointerup`, a tick before the `click` — only a gesture still armed is one that was taken away.
       onLostPointerCapture: () => gestureRef.current !== null && handleCancel(),
-      onClick: handleClick,
+      // WARN: A drag ends in a `click` on whatever is under the finger — a menu chip, a pack tab, the handle — and that one must not act on what the release just settled.
+      onClickCapture: swallowClickAfterDrag,
     },
+    handleProps: { onClick: handleClick },
   };
 
   function measureExpandedHeight(): number {
@@ -111,9 +117,15 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
       return;
     }
 
+    // INFO: § 13.6. The grid keeps its own scroll: a press inside a vertical scroller is its own, and only the rows above it can begin a drag.
+    if (isInsideVerticalScroller(event.target, sheet)) {
+      return;
+    }
+
     hasDraggedRef.current = false;
     gestureRef.current = {
       pointerId: event.pointerId,
+      x: event.clientX,
       y: event.clientY,
       height: sheet.getBoundingClientRect().height,
       max: measureExpandedHeight(),
@@ -137,7 +149,16 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
     const pulled = gesture.y - event.clientY;
 
     if (!hasDraggedRef.current) {
-      if (Math.abs(pulled) < GESTURE_SLOP) {
+      const sideways = Math.abs(event.clientX - gesture.x);
+
+      if (Math.max(Math.abs(pulled), sideways) < GESTURE_SLOP) {
+        return;
+      }
+
+      // INFO: § 13.6. The strip scrolls sideways, so a gesture that commits to that axis is the strip's — the larger travel at the slop decides, as the tab swipe's own axis lock does.
+      if (sideways > Math.abs(pulled)) {
+        gestureRef.current = null;
+
         return;
       }
 
@@ -191,15 +212,17 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
     setPinnedHeight(null);
   }
 
-  // WARN: A drag ends in a `click` on the handle too, and that one must not toggle what the release just settled.
-  function handleClick(event: MouseEvent) {
-    if (hasDraggedRef.current) {
-      hasDraggedRef.current = false;
-      event.preventDefault();
-
+  function swallowClickAfterDrag(event: MouseEvent) {
+    if (!hasDraggedRef.current) {
       return;
     }
 
+    hasDraggedRef.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function handleClick() {
     if (size === "expanded") {
       setSize("rest");
     } else {
@@ -221,4 +244,20 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
     setPinnedHeight(null);
     setSize(next);
   }
+}
+
+function isInsideVerticalScroller(target: EventTarget, sheet: HTMLElement): boolean {
+  let node = target instanceof Element ? target : null;
+
+  while (node && node !== sheet) {
+    const { overflowY } = getComputedStyle(node);
+
+    if (overflowY === "auto" || overflowY === "scroll") {
+      return true;
+    }
+
+    node = node.parentElement;
+  }
+
+  return false;
 }

@@ -1481,8 +1481,9 @@ export function ChatRoom({
                       "pointer-events-auto flex h-(--emoticon-sheet-height) shrink-0 flex-col rounded-t-xl border-t border-hairline bg-canvas pb-(--bottom-inset) will-change-transform",
                       emoticonSheetTransition,
                     )}
+                    {...emoticonSheet.dragProps}
                   >
-                    {/* INFO: § 13.6. The handle is the sheet's one drag target — the grid keeps its own scroll and § 13.6.'s tab swipe. `touch-none`, or the finger's pull is spent on the room behind it. */}
+                    {/* INFO: § 13.6. The drag is the card's, from any row that does not scroll vertically — the hook leaves a press inside the grid to the grid. `touch-none` here and on the menu bar, or the finger's pull is spent on the room behind it. */}
                     <button
                       className={cn(
                         "relative flex h-(--emoticon-sheet-handle-height) w-full shrink-0 cursor-grab touch-none items-center justify-center focus-visible:outline-none active:cursor-grabbing hover:[&>span]:bg-primary focus-visible:[&>span]:bg-primary",
