@@ -2,8 +2,9 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn, toPreviousReplaySrc, toReplaySrc, useViewportReplay } from "@/shared/lib";
+import { cn, toPreviousReplaySrc, toReplaySrc, useViewportReplay, warmSound } from "@/shared/lib";
 import { MediaTombstone, PreloadImage } from "@/shared/ui";
+import { useEffect, useState } from "react";
 import { playEmoticonSound } from "../model/play-emoticon-sound";
 import { toEmoticonBox } from "../model/to-emoticon-box";
 
@@ -13,8 +14,20 @@ const DELETED_EMOTICON_TEXT = "삭제된 이모티콘이에요";
 export type EmoticonBubbleProps = {
   className?: string;
   emoticon: Emoticon;
+  /**
+   * REQUIREMENTS.md § 13.6. This row is the live arrival the room is about to sound,
+   * so the picture waits for the sound instead of appearing ahead of it.
+   *
+   * WARN: The room sets it for one row at a time and takes it back, which is what
+   * keeps it off every other bubble — scrolling past a sounding emoticon must not
+   * hold anything. It is also the cap: `useArrivalEmoticonSound` clears it on a timer,
+   * so a sound that never arrives releases the picture instead of hiding the message.
+   */
+  awaitsArrivalSound?: boolean;
   /** REQUIREMENTS.md § 13.9. 따라하기 — the same tap that replays this also opens the picker where this emoticon is. */
   onFollow?: () => void;
+  /** REQUIREMENTS.md § 13.6. The picture is on screen — the moment the room plays the sound. */
+  onArrivalSoundReady?: () => void;
 };
 
 /**
@@ -32,9 +45,38 @@ export type EmoticonBubbleProps = {
  * of § 13.6.'s four moments, and a tap that stopped sounding to open a panel would
  * be answering a different question than the one that was asked.
  */
-export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubbleProps) {
-  const { hasAnimated, isDeleted } = emoticon;
+export function EmoticonBubble({
+  className,
+  emoticon,
+  awaitsArrivalSound = false,
+  onFollow,
+  onArrivalSoundReady,
+}: EmoticonBubbleProps) {
+  const { hasAnimated, hasAudio, isDeleted } = emoticon;
   const { ref, replayToken, replay } = useViewportReplay();
+  const audioUrl = toEmoticonAssetUrl(emoticon.id, "audio", emoticon.version);
+  const [isSoundWarm, setSoundWarm] = useState(false);
+
+  // INFO: REQUIREMENTS.md § 13.6. A bubble's picture is decoded before the tap and its sound was not, which is the whole of the lag between the two — the row is on screen well before anyone taps it.
+  useEffect(() => {
+    if (!hasAudio || isDeleted) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    // INFO: § 13.6. Resolves on a failed fetch too, so the hold below is lifted by a sound that is not coming.
+    void warmSound(audioUrl).then(() => {
+      if (!isCancelled) {
+        setSoundWarm(true);
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [audioUrl, hasAudio, isDeleted]);
+
   const box = toEmoticonBox(emoticon);
   const emoticonAssetUrl = toEmoticonAssetUrl(
     emoticon.id,
@@ -75,11 +117,21 @@ export function EmoticonBubble({ className, emoticon, onFollow }: EmoticonBubble
           // WARN: The previous replay's own frame stands in while this one decodes (`toPreviousReplaySrc`), so a tap or a re-entry never shows a skeleton over a bubble that was already on screen. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
           previewSrc={hasAnimated ? toPreviousReplaySrc(emoticonAssetUrl, replayToken) : undefined}
           hidesPreviewOnReveal={hasAnimated}
+          // WARN: § 13.6. The picture is held back so it and the sound land together, and the room's own timer is what guarantees the hold is lifted — see `awaitsArrivalSound`.
+          isHeld={awaitsArrivalSound && hasAudio && !isSoundWarm}
           src={hasAnimated ? toReplaySrc(emoticonAssetUrl, replayToken) : emoticonAssetUrl}
+          onReveal={handleReveal}
         />
       </button>
     </div>
   );
+
+  // INFO: § 13.6. The sound stays the room's decision (`useArrivalEmoticonSound`); the bubble only reports the frame its picture went up on.
+  function handleReveal() {
+    if (awaitsArrivalSound) {
+      onArrivalSoundReady?.();
+    }
+  }
 
   function handleTap() {
     if (hasAnimated) {

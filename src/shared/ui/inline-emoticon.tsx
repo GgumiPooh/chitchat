@@ -7,9 +7,11 @@ import {
   toPreviousReplaySrc,
   toReplaySrc,
   useViewportReplay,
+  warmSound,
   type EmoticonItemId,
   type Nullable,
 } from "@/shared/lib";
+import { useEffect, useState } from "react";
 import { PreloadImage } from "./preload-image";
 
 export type InlineEmoticonProps = {
@@ -25,6 +27,17 @@ export type InlineEmoticonProps = {
   hasAudio?: boolean;
   /** REQUIREMENTS.md § 13. `MessageRow`'s solo (bubble-less, box-drawn) rendering is a tap target that restarts the animation, matching `EmoticonBubble`; an inline run and the composer draft are not. */
   isTappable?: boolean;
+  /**
+   * REQUIREMENTS.md § 13.6. This is the live arrival the room is about to sound, so
+   * the picture waits for the sound rather than appearing ahead of it — the solo
+   * rendering's half of `EmoticonBubble`'s own contract, which carries the argument.
+   *
+   * WARN: Set by the room for one row and taken back, and capped there. An inline run
+   * and the composer draft never pass it: neither is a message arriving.
+   */
+  awaitsArrivalSound?: boolean;
+  /** REQUIREMENTS.md § 13.6. The picture is on screen — the moment the room plays the sound. */
+  onArrivalSoundReady?: () => void;
 };
 
 /**
@@ -55,9 +68,33 @@ export function InlineEmoticon({
   name,
   hasAudio = false,
   isTappable = false,
+  awaitsArrivalSound = false,
+  onArrivalSoundReady,
 }: InlineEmoticonProps) {
   const { ref, replayToken, replay } = useViewportReplay();
   const emoticonAssetUrl = toEmoticonAssetUrl(itemId, "animated-image", version);
+  const audioUrl = toEmoticonAssetUrl(itemId, "audio", version);
+  const [isSoundWarm, setSoundWarm] = useState(false);
+
+  // INFO: REQUIREMENTS.md § 13.6. The tap's sound is warmed with the picture it belongs to, or it arrives a round trip behind one the panel had already decoded.
+  useEffect(() => {
+    if (!hasAudio || !(isTappable || awaitsArrivalSound)) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    // INFO: § 13.6. Resolves on a failed fetch too, so the hold below is lifted by a sound that is not coming.
+    void warmSound(audioUrl).then(() => {
+      if (!isCancelled) {
+        setSoundWarm(true);
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [audioUrl, hasAudio, isTappable, awaitsArrivalSound]);
 
   const image = (
     <PreloadImage
@@ -73,8 +110,11 @@ export function InlineEmoticon({
       // WARN: The previous replay's own frame stands in while this one decodes (`toPreviousReplaySrc`), so a tap or a re-entry never shows a skeleton either. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
       previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
       hidesPreviewOnReveal
+      // WARN: § 13.6. Held so the picture and the sound land together; the room's own timer is what guarantees the hold is lifted — see `awaitsArrivalSound`.
+      isHeld={awaitsArrivalSound && hasAudio && !isSoundWarm}
       // INFO: The animated slot, which the asset route falls back from when the item holds only a still (REQUIREMENTS.md § 13.3.).
       src={toReplaySrc(emoticonAssetUrl, replayToken)}
+      onReveal={handleReveal}
     />
   );
 
@@ -92,7 +132,7 @@ export function InlineEmoticon({
           onClick={() => {
             replay();
             if (hasAudio) {
-              playSound(toEmoticonAssetUrl(itemId, "audio", version));
+              playSound(audioUrl);
             }
           }}
         >
@@ -103,4 +143,11 @@ export function InlineEmoticon({
       )}
     </span>
   );
+
+  // INFO: § 13.6. The sound stays the room's decision; this reports the frame its picture went up on.
+  function handleReveal() {
+    if (awaitsArrivalSound) {
+      onArrivalSoundReady?.();
+    }
+  }
 }

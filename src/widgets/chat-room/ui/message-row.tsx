@@ -93,9 +93,13 @@ export type MessageRowProps = {
   searchQuery?: string;
   /** `queued` is REQUIREMENTS.md § 8.5.'s outbox holding a send the network went out from under — it retries itself, so it takes 전송 취소 without 다시 보내기. */
   status: "sent" | "sending" | "queued" | "failed";
+  /** REQUIREMENTS.md § 13.6. Passed straight to `EmoticonBubble`, which carries the contract — the room sets it for the one row it is about to sound. */
+  awaitsArrivalSound?: boolean;
   onLongPress?: () => void;
   /** REQUIREMENTS.md § 13.9. A tap on the emoticon, which opens the picker where that emoticon is. */
   onFollowEmoticon?: () => void;
+  /** REQUIREMENTS.md § 13.6. The bubble's picture is on screen, so the room may play the sound. */
+  onArrivalSoundReady?: () => void;
   /** INFO: DESIGN.md § 4.7.3. `origin` is the cell the viewer's opening morph expands out of; a file attachment passes none. */
   onOpenMedia?: (index: number, origin?: HTMLElement) => void;
   /** REQUIREMENTS.md § 8.10. The pointer affordance; touch reaches the same action through `onLongPress`. */
@@ -132,8 +136,10 @@ export function MessageRow({
   isHighlighted = false,
   searchQuery,
   status,
+  awaitsArrivalSound,
   onLongPress,
   onFollowEmoticon,
+  onArrivalSoundReady,
   onOpenMedia,
   onReply,
   onShare,
@@ -246,7 +252,12 @@ export function MessageRow({
               data-emoticon-bubble
               {...longPressHandlers}
             >
-              <EmoticonBubble emoticon={emoticon} onFollow={onFollowEmoticon} />
+              <EmoticonBubble
+                emoticon={emoticon}
+                awaitsArrivalSound={awaitsArrivalSound}
+                onFollow={onFollowEmoticon}
+                onArrivalSoundReady={onArrivalSoundReady}
+              />
             </div>
           ) : soloEmoticon && soloBox ? (
             // INFO: § 13. One emoticon and no words, drawn at `toSoloEmoticonBox` — the same absence of a bubble an emoticon message takes, but a smaller ceiling than `toEmoticonBox`'s so the two kinds read apart. A mini never occupies `messages.emoticon_item_id`, so this is a rendering rule read off the content rather than a second kind of row.
@@ -268,6 +279,8 @@ export function MessageRow({
                   name={soloEmoticon.info.name}
                   hasAudio={soloEmoticon.info.hasAudio}
                   isTappable
+                  awaitsArrivalSound={awaitsArrivalSound}
+                  onArrivalSoundReady={onArrivalSoundReady}
                 />
               )}
             </div>

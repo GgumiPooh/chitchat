@@ -138,6 +138,7 @@ import { toLinkPreviewQuery } from "../model/link-preview-query";
 import { playEmoticonSound } from "../model/play-emoticon-sound";
 import { toCellsFromDrafts, toCellsFromMedia, type TrackOwner } from "../model/to-media-cells";
 import type { ChatRow } from "../model/types";
+import { useArrivalEmoticonSound } from "../model/use-arrival-emoticon-sound";
 import { useChatShortcuts } from "../model/use-chat-shortcuts";
 import { useComposerClearance } from "../model/use-composer-clearance";
 import { useLinkPreviewPrefetch } from "../model/use-link-preview-prefetch";
@@ -715,6 +716,11 @@ export function ChatRoom({
   const isSending = pending.some((entry) => entry.status === "sending");
 
   const { play: playMessageSound } = useMessageSound();
+  const {
+    pendingId: arrivalSoundId,
+    announce: announceArrivalSound,
+    settle: settleArrivalSound,
+  } = useArrivalEmoticonSound();
 
   // INFO: REQUIREMENTS.md § 8.5. The stream echoes my own message back too, so the optimistic bubble is retired on `client_msg_id` rather than waiting for the POST response it may well beat.
   const receiveMessage = useCallback(
@@ -738,13 +744,27 @@ export function ChatRoom({
 
         // INFO: § 13.6. An emoticon's own sound is the arrival's sound; the 전송음 covers the message that has none.
         if (emoticon?.hasAudio) {
-          playEmoticonSound(emoticon);
+          // WARN: § 8.6.1. The hold needs the arriving row to actually mount and report back, and only the live edge guarantees that — a reader scrolled up has it outside the virtualizer's range even with no newer page to fetch, and the sound would then wait out the whole cap instead of announcing the arrival.
+          if (isAtBottom && !hasNewer) {
+            announceArrivalSound(message.id, emoticon);
+          } else {
+            playEmoticonSound(emoticon);
+          }
         } else {
           playMessageSound("received");
         }
       }
     },
-    [appendMessage, resolve, currentUserId, inlineEmoticons, playMessageSound],
+    [
+      appendMessage,
+      resolve,
+      currentUserId,
+      inlineEmoticons,
+      playMessageSound,
+      announceArrivalSound,
+      hasNewer,
+      isAtBottom,
+    ],
   );
 
   // INFO: REQUIREMENTS.md § 15.1. Staged attachments and sends still in flight both die with the document, so a refresh forced by a new deployment waits them out.
@@ -2233,6 +2253,7 @@ export function ChatRoom({
             isHighlighted={row.message.id === highlightedId}
             searchQuery={searchQuery}
             status="sent"
+            awaitsArrivalSound={row.message.id === arrivalSoundId}
             onShare={
               canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
             }
@@ -2241,6 +2262,7 @@ export function ChatRoom({
             }
             onOpenReply={quoted ? () => void jumpToMessage(quoted.id, { flash: true }) : undefined}
             onFollowEmoticon={toFollowEmoticon(row.message.emoticon)}
+            onArrivalSoundReady={() => settleArrivalSound(row.message.id)}
             onLongPress={() => setActionTarget(row.message)}
             onReply={() => stageReply(row.message)}
           />
