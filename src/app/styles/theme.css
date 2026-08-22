@@ -304,16 +304,7 @@
   --emoticon-panel-height: calc(
     min(364px, calc(var(--chat-screen-height) * 0.5)) + var(--emoticon-menu-height)
   );
-  /* INFO: REQUIREMENTS.md § 13.8. The 검색 menu's own height: the menu bar, the field, and a grid of the same 4 columns 이모티콘 draws. */
-  /* INFO: § 13.8. Against the chat screen and not the visual viewport: 검색 is the one menu on screen with the keyboard, and there the keys cover the sheet rather than shrinking it (DESIGN.md § 3.4.), so the second term only guards a short screen. */
-  /* WARN: § 13.6. No longer a sum of its parts, and it must not go back to being one. A 4-column cell is a share of the shell's width rather than a constant, so the hand-summed height was wrong by a row on every screen width but the one it was measured on — and it read as correct because the grid simply clipped. */
-  --emoticon-search-panel-height: min(
-    320px,
-    calc(var(--chat-screen-height) - var(--emoticon-search-headroom))
-  );
-  /* INFO: § 13.8. What stays visible above the panel with the keys up — the floating header, plus about one bubble of the conversation, so the room is never covered outright. */
-  --emoticon-search-headroom: calc(var(--app-header-inset) + 64px);
-  /* INFO: REQUIREMENTS.md § 13.6. The sheet's grab handle row, added outside the two heights above for the menu bar's reason — neither was measured with it. */
+  /* INFO: REQUIREMENTS.md § 13.6. The sheet's grab handle row, added outside the height above for the menu bar's reason — it was not measured with it. */
   --emoticon-sheet-handle-height: 20px;
   --emoticon-search-field: 44px;
   /* INFO: REQUIREMENTS.md § 13.6. The staged preview at its tallest — the § 13.6. clamp needs the box's height before the emoticon that fills it is known. */

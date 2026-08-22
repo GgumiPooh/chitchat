@@ -476,7 +476,8 @@ export function ChatRoom({
 
   useEffect(() => () => clearTimeout(collapseTimerRef.current), []);
   // INFO: § 13.6. What the sheet clears the history by at rest — the spacer's height, and never more: an expanded sheet covers the composer rather than lifting it.
-  const emoticonSheetRestHeight = `calc(${isEmoticonSearchTab ? "var(--emoticon-search-panel-height)" : "var(--emoticon-panel-height)"} + var(--emoticon-sheet-handle-height))`;
+  const emoticonSheetRestHeight =
+    "calc(var(--emoticon-panel-height) + var(--emoticon-sheet-handle-height))";
   // INFO: § 13.6. The sheet's drawn height, to the screen's edge. The card keeps it through the collapse so it is clipped rather than squashed.
   const emoticonSheetHeight =
     emoticonSheet.pinnedHeight !== null

@@ -2058,11 +2058,9 @@ type SearchPaneProps = {
  * REQUIREMENTS.md § 13.8. The 검색 menu: the field in the second region, then the
  * results as a 4-column grid in the third.
  *
- * WARN: What pays for the keyboard exemption (§ 13.6.) is now
- * `--emoticon-search-panel-height` alone, and it is the only thing that does. This used
- * to be a single sideways row, on the argument that one row is short enough to share the
- * screen with the keys; the third region made it a grid like the other two menus, so the
- * height is where "fits in what the keyboard leaves" is stated — see that property.
+ * INFO: Drawn at `--emoticon-panel-height` like the other two menus. It used to be
+ * shorter, to fit in what the keyboard left; the keyboard covers the sheet now
+ * (`DESIGN.md § 3.4.`), so nothing is left to fit.
  *
  * WARN: § 13.6.'s tab swipe is **not** attached here, and `keepAxisWhileScrollable` went
  * with it. Both existed because the results row scrolled along the swipe's own axis; the
