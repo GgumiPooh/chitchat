@@ -1828,7 +1828,8 @@ export function ChatRoom({
    */
   function openEmoticonPanel() {
     if (isEmoticonPanelOpen) {
-      closeEmoticonPanel();
+      // WARN: § 13.6. `yieldToComposer` and never `closeEmoticonPanel` — the button's own tap focuses the field first, so a close here cancels the swap that focus armed and the composer drops the sheet's height before the keys have covered it.
+      yieldToComposer();
 
       return;
     }
