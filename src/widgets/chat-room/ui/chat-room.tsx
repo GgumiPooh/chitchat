@@ -446,6 +446,10 @@ export function ChatRoom({
     setIsEmoticonSearchExempt(isEmoticonSearchHeld);
   }
 
+  // WARN: § 13.6. A stage from an expanded sheet collapses it only after `DOUBLE_TAP_WINDOW`, or the cell moves out from under the second tap of a quick send.
+  // WARN: Declared above the render-phase close below, which reaches it through `closeEmoticonPanel` — left further down it is a `const` in its TDZ and the swap throws.
+  const collapseTimerRef = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
+
   // INFO: § 13.6. An opening swap ends when the keys are down, a closing one when they are up — and the sheet closes only then, so the keys rise over it and the two 200ms eases cancel.
   if (sheetSwap === "opening" && !isKeyboardOpen) {
     setSheetSwap(null);
@@ -504,8 +508,6 @@ export function ChatRoom({
     : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
       ? "transition-[height] duration-(--duration-sheet-expand) ease-sheet"
       : "transition-[height] duration-200 ease-out";
-  // WARN: § 13.6. A stage from an expanded sheet collapses it only after `DOUBLE_TAP_WINDOW`, or the cell moves out from under the second tap of a quick send.
-  const collapseTimerRef = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
 
   useEffect(() => () => clearTimeout(collapseTimerRef.current), []);
   // INFO: § 13.6. What the sheet clears the history by at rest — the spacer's height, and never more: an expanded sheet covers the composer rather than lifting it.
