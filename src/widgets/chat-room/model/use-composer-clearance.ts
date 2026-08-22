@@ -53,7 +53,7 @@ export function useComposerClearance({
     observer.observe(container);
     observer.observe(composer);
 
-    // INFO: The composer is anchored to `--bottom-inset`, so the bar stack behind it moves it without ever resizing it.
+    // INFO: The composer's spacer carries `--bottom-inset` (REQUIREMENTS.md § 13.6.), so the bar stack behind it resizes the observed wrapper rather than moving it.
     const overlay = document.getElementById(BOTTOM_OVERLAY_ID);
 
     if (overlay) {

@@ -508,16 +508,17 @@ export function ChatRoom({
 
   useEffect(() => () => clearTimeout(collapseTimerRef.current), []);
   // INFO: § 13.6. What the sheet clears the history by at rest — the spacer's height, and never more: an expanded sheet covers the composer rather than lifting it.
-  // INFO: § 13.6. The keyboard's own height less the inset the composer pays at rest, so the composer stands where the keys would have put it; `--emoticon-panel-height` until a keyboard has been measured.
+  // INFO: § 13.6. The keyboard's own height, so the composer stands where the keys would have put it; `--emoticon-panel-height` over the inset until a keyboard has been measured.
+  // WARN: § 13.6. The inset is *inside* this height and never added beside it. The wrapper sits on the screen's edge and this spacer carries the inset while closed, so the keyboard flag stepping `--bar-lift` changes nothing an open sheet is sized by — added beside it, that step raced the spacer's 200ms ease and the composer flinched by the inset on every swap.
   const emoticonSheetRestHeight =
-    "calc(var(--keyboard-height, calc(var(--emoticon-panel-height) + var(--emoticon-sheet-handle-height) + var(--bottom-inset))) - var(--bottom-inset))";
+    "var(--keyboard-height, calc(var(--emoticon-panel-height) + var(--emoticon-sheet-handle-height) + var(--bottom-inset)))";
   // INFO: § 13.6. The sheet's drawn height, to the screen's edge. The card keeps it through the collapse so it is clipped rather than squashed.
   const emoticonSheetHeight =
     emoticonSheet.pinnedHeight !== null
       ? `${emoticonSheet.pinnedHeight}px`
       : emoticonSheet.size === "expanded"
         ? `${emoticonSheet.expandedHeight}px`
-        : `calc(${emoticonSheetRestHeight} + var(--bottom-inset))`;
+        : emoticonSheetRestHeight;
   // WARN: REQUIREMENTS.md § 9.3. The shared element outlives every bubble that addresses it, so leaving the room has to stop it. Unlike § 13.6.'s two-second ping a recording runs for minutes, and no screen outside this one draws a transport that could pause it.
   useEffect(() => stopVoice, []);
   // WARN: REQUIREMENTS.md § 9.3. The recorder is closed by the search rather than hidden with the rest of the stack. `hidden` + `inert` leaves the microphone open with both 취소 and 완료 unreachable, and `MAX_VOICE_DURATION` then sends a recording the user walked away from two minutes earlier.
@@ -1371,10 +1372,7 @@ export function ChatRoom({
       )}
       {/* WARN: Rendered outside the branch above. Two tree positions would remount the textarea on the first send and drop keyboard focus mid-conversation. */}
       {/* WARN: DESIGN.md § 3.5. The wrapper spans the full shell width and the composer's gutters, so without this it takes taps meant for the bubbles scrolling under it. */}
-      <div
-        ref={composerRef}
-        className="pointer-events-none absolute inset-x-0 bottom-(--bottom-inset)"
-      >
+      <div ref={composerRef} className="pointer-events-none absolute inset-x-0 bottom-0">
         {/* INFO: DESIGN.md § 6.6. The stack rises from below the shell's bottom edge on arrival, as the tab bar it replaces drops past it (§ 7.3.). */}
         {/* WARN: A child of the measured wrapper and never the wrapper itself. `useComposerClearance` reads `composer.getBoundingClientRect().top`, which a translate on that box moves — its first measurement lands mid-flight and reports a clearance of `0` that nothing afterwards resizes it back out of. */}
         <div className="composer-enter">
@@ -1422,7 +1420,7 @@ export function ChatRoom({
               {/* WARN: § 13.6. `bottom-full` is above the composer, which the sheet never moves, clamped at the header for a short viewport (the wrapper is still composer + spacer at rest); `z-20` keeps it over the sheet's `z-10` while that is expanded over the composer. */}
               {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, for the reason the tray above is — it is still staged and it returns on cancel. */}
               {stagedEmoticon && editingId === null && (
-                <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--chat-screen-height)_-_var(--bottom-inset)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))] z-20">
+                <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--chat-screen-height)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))] z-20">
                   <EmoticonPreview
                     className="mx-md mb-2xs"
                     emoticon={stagedEmoticon}
@@ -1453,22 +1451,22 @@ export function ChatRoom({
               />
               {/* INFO: REQUIREMENTS.md § 13.6. The sheet stands in the keyboard's slot under the composer, inside the same wrapper so the history is cleared by both and scrolls under both. */}
               {/* WARN: A real `height` and never a `0fr`→`1fr` grid track. Mid-transition Chrome sizes such a track's container taller than the track it resolved, and the strip below the bottom-anchored sheet is a gap that opens and shuts. */}
-              {/* INFO: § 13.6. An empty spacer: it is what `useComposerClearance` measures and what `settleAfterPanelTransition` listens to, and it only ever moves 0 ↔ rest — the drawn sheet below is absolute, so expanding it moves nothing here. */}
+              {/* INFO: § 13.6. An empty spacer: it is what `useComposerClearance` measures and what `settleAfterPanelTransition` listens to, and it only ever moves inset ↔ rest — the drawn sheet below is absolute, so expanding it moves nothing here. */}
               <div
                 className={cn(
                   "transition-[height] duration-200 ease-out",
-                  isEmoticonPanelOpen ? "h-(--emoticon-sheet-rest-height)" : "h-0",
+                  isEmoticonPanelOpen ? "h-(--emoticon-sheet-rest-height)" : "h-(--bottom-inset)",
                 )}
                 style={{ ["--emoticon-sheet-rest-height" as string]: emoticonSheetRestHeight }}
                 onTransitionEnd={settleAfterPanelTransition}
               />
-              {/* INFO: § 13.6. The clip: bottom-anchored at the screen's edge (`-bottom-(--bottom-inset)` past the wrapper's lift), `z-10` over the composer, its height 0 ↔ the sheet's so the card inside rises behind it on open and is clipped on close. Above rest it just draws taller. */}
+              {/* INFO: § 13.6. The clip: bottom-anchored at the screen's edge, which is the wrapper's own, `z-10` over the composer, its height 0 ↔ the sheet's so the card inside rises behind it on open and is clipped on close. Above rest it just draws taller. */}
               {/* INFO: § 13.6. The spring is the upward expand's alone — `ease-sheet` peaks 3% over, so the card pokes a few px under the header's glass and settles, where a `max-height` would stop it flat. Every other move keeps the 200ms ease-out, and a drag follows the finger. */}
               {/* WARN: The sheet stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until `inert` takes them back out. */}
               <div
                 ref={emoticonSheetRef}
                 className={cn(
-                  "absolute inset-x-0 -bottom-(--bottom-inset) z-10 flex flex-col justify-end overflow-hidden",
+                  "absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end overflow-hidden",
                   emoticonSheetTransition,
                   isEmoticonPanelOpen ? "h-(--emoticon-sheet-height)" : "h-0",
                 )}
