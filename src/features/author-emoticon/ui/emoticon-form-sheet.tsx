@@ -6,7 +6,6 @@ import {
   CutoutEditor,
   EMOTICON_IMAGE_EDIT_OPTIONS,
   MediaEditor,
-  releaseCutoutWorker,
   useMediaPicker,
   VoiceRecorderBar,
   type VoiceRecording,
@@ -136,13 +135,6 @@ export function EmoticonFormSheet({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, emoticon?.id, setKeywords]);
-
-  // INFO: § 13.4.2. Past the still's 누끼 and outside the clip flow, the matting heap is worth more than the seconds a reload of the model costs — the clip flow releases it on its own crop step.
-  useEffect(() => {
-    if (step !== "cutout" && !video.isActive) {
-      releaseCutoutWorker();
-    }
-  }, [step, video.isActive]);
 
   return (
     <>

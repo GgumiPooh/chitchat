@@ -93,18 +93,4 @@ export function matteOffThread(
   return run;
 }
 
-/**
- * Drops the worker once nothing is queued behind it.
- *
- * WARN: A wasm heap never shrinks, so a worker that has matted one still holds
- * RMBG's ~1GB for as long as it lives — on an iPhone that is the difference between
- * the next clip's crop step and iOS reloading the page (REQUIREMENTS.md § 13.4.2.).
- */
-export function releaseCutoutWorker() {
-  void queue.then(() => {
-    if (pending.size === 0) {
-      worker?.terminate();
-      worker = null;
-    }
-  });
-}
+// WARN: Never `terminate()` this worker to give its heap back. Tried on an iPhone 13 mini: the page reloaded the moment it ran, with RMBG's heap and with MODNet's, while two simulators survived it — see REQUIREMENTS.md § 13.4.2.
