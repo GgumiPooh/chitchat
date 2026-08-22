@@ -66,6 +66,14 @@ const MODELS = [
 
 const MODEL_REVISION = "main";
 
+// WARN: WebKit reserves a *shared* memory's whole maximum up front, and iOS refuses the 4GB the glue asks for with the `RangeError: Out of memory` that surfaces as `no available backend found` — so the glue is rewritten to take the largest reservation the engine allows (see microsoft/onnxruntime#22086).
+const WASM_MEMORY_ALLOCATION = "new WebAssembly.Memory({initial:256,maximum:65536,shared:!0})";
+
+// INFO: 4GB, 2GB, 1GB, 512MB in 64KiB pages. RMBG needs more than the last rung, MODNet does not; a failed attempt reserves nothing.
+const WASM_MAX_PAGES = [65536, 32768, 16384, 8192];
+
+const WASM_MEMORY_PROBE = `(()=>{let e;for(const m of [${WASM_MAX_PAGES}]){try{return new WebAssembly.Memory({initial:256,maximum:m,shared:!0})}catch(r){e=r}}throw e})()`;
+
 const VIDEO_MATTE_EDGE = 384;
 
 const VIDEO_PREPROCESSOR = {
@@ -92,9 +100,7 @@ async function main() {
   const ortDir = await toOrtDir();
 
   await mkdir(path.join(OUTPUT_DIR, "onnx"), { recursive: true });
-  await Promise.all(
-    ORT_FILES.map((file) => copyFile(path.join(ortDir, file), path.join(OUTPUT_DIR, "onnx", file))),
-  );
+  await Promise.all(ORT_FILES.map((file) => copyOrtFile(ortDir, file)));
 
   for (const { files, id } of MODELS) {
     for (const file of files) {
@@ -108,6 +114,26 @@ async function main() {
   );
 
   console.log(`Cutout runtime ready in ${path.relative(process.cwd(), OUTPUT_DIR)}`);
+}
+
+async function copyOrtFile(ortDir: string, file: string) {
+  const source = path.join(ortDir, file);
+  const target = path.join(OUTPUT_DIR, "onnx", file);
+
+  if (!file.endsWith(".mjs")) {
+    await copyFile(source, target);
+
+    return;
+  }
+
+  const glue = await readFile(source, "utf8");
+
+  // WARN: A hard failure rather than a silent copy — an upgraded glue that no longer matches would ship the 4GB reservation iOS refuses.
+  if (glue.split(WASM_MEMORY_ALLOCATION).length !== 2) {
+    throw new Error(`${file}: expected exactly one wasm memory allocation to patch`);
+  }
+
+  await writeFile(target, glue.replace(WASM_MEMORY_ALLOCATION, WASM_MEMORY_PROBE));
 }
 
 /**
