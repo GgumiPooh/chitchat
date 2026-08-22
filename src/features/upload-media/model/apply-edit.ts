@@ -6,6 +6,7 @@ import {
   STILL_IMAGE_MAX_EDGE,
   createCanvas,
   encodeCanvas,
+  encodeCanvasLossless,
   fitWithin,
   loadImage,
   renderThumbnail,
@@ -45,6 +46,8 @@ export type ApplyEditOptions = {
   outputMime?: string;
   maxEdge?: number;
   rotate?: Rotation;
+  // INFO: REQUIREMENTS.md § 13.4. A re-edit of a stored emoticon writes PNG outright, so repeated edits never add a generation.
+  lossless?: boolean;
 };
 
 export async function applyEdit(
@@ -55,6 +58,7 @@ export async function applyEdit(
     outputMime,
     maxEdge = STILL_IMAGE_MAX_EDGE,
     rotate = 0,
+    lossless = false,
   }: ApplyEditOptions = {},
 ): Promise<MediaDraft> {
   const sourceUrl = URL.createObjectURL(draft.file);
@@ -76,8 +80,10 @@ export async function applyEdit(
     rotateContext(context, rotate, image.naturalWidth, image.naturalHeight);
     context.drawImage(image, 0, 0);
 
-    // WARN: § 13.4. A named mime is the **fallback**, not the target — the emoticon editor names PNG so a failed AVIF keeps its alpha, and a crop that forced PNG outright would undo the AVIF the pick had already produced.
-    const edited = await encodeCanvas(canvas, EDITED_AVIF_QUALITY, false, outputMime);
+    // WARN: § 13.4. A named mime is the **fallback**, not the target — the emoticon editor names PNG so a failed AVIF keeps its alpha. This is a new picture's one lossy pass; what reached it was lossless.
+    const edited = lossless
+      ? await encodeCanvasLossless(canvas)
+      : await encodeCanvas(canvas, EDITED_AVIF_QUALITY, false, outputMime);
     const {
       blob: thumbnail,
       blurhash,

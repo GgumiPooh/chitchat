@@ -5,6 +5,7 @@ import type { MediaDraft } from "@/entities/media";
 import {
   CutoutEditor,
   EMOTICON_IMAGE_EDIT_OPTIONS,
+  EMOTICON_STORED_EDIT_OPTIONS,
   MediaEditor,
   useMediaPicker,
   VoiceRecorderBar,
@@ -98,6 +99,9 @@ export function EmoticonFormSheet({
   const kindNoun = EMOTICON_KIND_NOUNS[type].kind;
   // INFO: § 13.4.2. A picked image walks 누끼 → 영역 자르기 on its own; the thumbnail re-enters at the crop, since the picture it would re-open on has already had its background taken off.
   const [step, setStep] = useState<Nullable<"cutout" | "crop">>(null);
+  // INFO: § 13.4. Where the staged still came from decides what the crop encodes and what a cancel leaves: a stored one saves lossless and discards on cancel, a pick takes its one lossy pass at the crop or on cancel.
+  const [flowSource, setFlowSource] = useState<Nullable<"pick" | "stored">>(null);
+  const [isFlowPending, setIsFlowPending] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isFetchingStored, setIsFetchingStored] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -225,7 +229,7 @@ export function EmoticonFormSheet({
 
             setStep("crop");
           }}
-          onCancel={() => setStep(null)}
+          onCancel={cancelFlow}
         />
       )}
       {step === "crop" && draft.image && (
@@ -233,12 +237,15 @@ export function EmoticonFormSheet({
         <MediaEditor
           key={draft.image.still.id}
           draft={draft.image.still}
-          editOptions={EMOTICON_IMAGE_EDIT_OPTIONS}
+          editOptions={
+            flowSource === "stored" ? EMOTICON_STORED_EDIT_OPTIONS : EMOTICON_IMAGE_EDIT_OPTIONS
+          }
           onDone={(edited) => {
             draft.replaceStill(edited);
+            setIsFlowPending(false);
             setStep(null);
           }}
-          onCancel={() => setStep(null)}
+          onCancel={cancelFlow}
         />
       )}
     </>
@@ -275,7 +282,7 @@ export function EmoticonFormSheet({
     setIsFetchingStored(true);
 
     try {
-      await pickPlainImage(await readEmoticonStillFile(target));
+      await pickPlainImage(await readEmoticonStillFile(target), "stored");
     } catch {
       toast.error("이미지를 읽지 못했어요");
     } finally {
@@ -284,14 +291,33 @@ export function EmoticonFormSheet({
   }
 
   /** INFO: § 13.4.2. The pick opens the flow rather than merely staging the slots — 누끼 first, then the crop drawn against what is left of the picture. */
-  async function pickPlainImage(file: File) {
+  async function pickPlainImage(file: File, source: "pick" | "stored" = "pick") {
     setVideoSource(null);
 
     const picked = await pickImage(file);
 
     // WARN: A static pick only. § 13.4.'s rule for `MediaEditor` covers this one too — a canvas that mattes one frame would turn an animation into a picture.
     if (picked && !picked.animated) {
+      setFlowSource(source);
+      setIsFlowPending(true);
       setStep("cutout");
+    }
+  }
+
+  /** INFO: § 13.4. Only a flow that never reached the crop has a lossless intermediate staged; a re-crop opened from the thumbnail leaves what was already there. */
+  function cancelFlow() {
+    setStep(null);
+
+    if (!isFlowPending) {
+      return;
+    }
+
+    setIsFlowPending(false);
+
+    if (flowSource === "stored") {
+      draft.discardImage();
+    } else {
+      void draft.encodeStill();
     }
   }
 
@@ -308,6 +334,8 @@ export function EmoticonFormSheet({
     stopSound();
     draft.reset();
     setVideoSource(null);
+    setFlowSource(null);
+    setIsFlowPending(false);
     onClose();
   }
 

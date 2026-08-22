@@ -106,6 +106,16 @@ export async function encodeCanvas(
   return { blob: await toBlob(canvas, isThumbnail, fallbackMime), mime: fallbackMime, ...size };
 }
 
+/** REQUIREMENTS.md § 13.4. The lossless PNG an emoticon is carried as between steps and saved as on a re-edit — never AVIF, which is lossy at every quality this app names. */
+export async function encodeCanvasLossless(canvas: HTMLCanvasElement): Promise<EncodedStillImage> {
+  return {
+    blob: await toBlob(canvas, false, TRANSPARENT_OUTPUT_MIME),
+    mime: TRANSPARENT_OUTPUT_MIME,
+    width: canvas.width,
+    height: canvas.height,
+  };
+}
+
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();

@@ -7,6 +7,7 @@ import {
   TRANSPARENT_OUTPUT_MIME,
   createCanvas,
   encodeCanvas,
+  encodeCanvasLossless,
   fitWithin,
   loadImage,
   toExtension,
@@ -15,10 +16,16 @@ import { optimizeAnimation } from "./optimize-animation";
 import type { OptimizedMedia } from "./optimize-result";
 import { revokePreview } from "./revoke-preview";
 
-/** What `MediaEditor` must be given so an emoticon crop keeps its alpha (REQUIREMENTS.md § 13.4.). */
+/** What `MediaEditor` must be given so an emoticon crop keeps its alpha (REQUIREMENTS.md § 13.4.) — the one lossy pass a new picture takes. */
 export const EMOTICON_IMAGE_EDIT_OPTIONS: ApplyEditOptions = {
   outputMime: TRANSPARENT_OUTPUT_MIME,
   maxEdge: EMOTICON_MAX_EDGE,
+};
+
+/** § 13.4. The same crop over a still already stored, which saves lossless so no edit costs a generation. */
+export const EMOTICON_STORED_EDIT_OPTIONS: ApplyEditOptions = {
+  ...EMOTICON_IMAGE_EDIT_OPTIONS,
+  lossless: true,
 };
 
 // INFO: Past every header this has to reach — a PNG's `acTL` precedes the first `IDAT` and a WebP's `ANIM` is one of the first chunks after the RIFF header.
@@ -56,13 +63,17 @@ export type EmoticonImageDrafts = {
  * (DESIGN.md § 6.5.) — so a `heic` from an iPhone would be unreadable to whichever
  * participant is not on iOS, and an un-downscaled photo would be megabytes of PNG
  * behind a 140px box.
+ *
+ * WARN: A static pick is carried as **lossless** PNG at the cap, because it walks
+ * 누끼 → 영역 자르기 next and the crop's encode is the one lossy pass (§ 13.4.).
+ * `encodeEmoticonStill` is that pass for a flow cancelled before the crop took it.
  */
 export async function toEmoticonImageDrafts(file: File): Promise<EmoticonImageDrafts> {
   // WARN: A prefix first, and the whole file only where it settles nothing. `addEmoticonsFromFiles` runs this pool-wide under a byte budget that weighs each file **once**, so a buffer per in-flight file — plus the decoder's own copy of it — is several multiples of the ceiling the pool believes it is holding.
   const bytes = await readAnimationEvidence(file);
 
   if (!isAnimatedImage(bytes)) {
-    return { still: await toPickedStill(file), animated: null };
+    return { still: await toPickedStill(file, true), animated: null };
   }
 
   const whole = bytes.byteLength === file.size ? bytes : new Uint8Array(await file.arrayBuffer());
@@ -101,6 +112,11 @@ export async function toEncodedEmoticonDrafts(
 
     throw error;
   }
+}
+
+/** REQUIREMENTS.md § 13.4. The lossy pass over a staged lossless still, for a pick whose crop was cancelled — what is uploaded is never the intermediate. */
+export function encodeEmoticonStill(still: MediaDraft): Promise<MediaDraft> {
+  return toPickedStill(still.file, false);
 }
 
 /**
@@ -157,13 +173,13 @@ async function measureNaturalSize(previewUrl: string): Promise<{ width: number; 
   return { width: image.naturalWidth, height: image.naturalHeight };
 }
 
-async function toPickedStill(file: File): Promise<MediaDraft> {
+async function toPickedStill(file: File, lossless: boolean): Promise<MediaDraft> {
   const sourceUrl = URL.createObjectURL(file);
 
   try {
     const image = await loadImage(sourceUrl);
 
-    return await toStillDraft(image, image.naturalWidth, image.naturalHeight, file.name);
+    return await toStillDraft(image, image.naturalWidth, image.naturalHeight, file.name, lossless);
   } finally {
     URL.revokeObjectURL(sourceUrl);
   }
@@ -266,6 +282,7 @@ async function toStillDraft(
   width: number,
   height: number,
   name: string,
+  lossless = false,
 ): Promise<MediaDraft> {
   const size = fitWithin(width, height, EMOTICON_MAX_EDGE);
   const canvas = createCanvas(size.width, size.height);
@@ -274,12 +291,9 @@ async function toStillDraft(
   context.drawImage(source, 0, 0, size.width, size.height);
 
   // INFO: § 13.4. PNG as the fallback mime, never `encodeCanvas`'s own JPEG default — JPEG has no alpha and an emoticon renders without a bubble (DESIGN.md § 6.5.).
-  const { blob, mime } = await encodeCanvas(
-    canvas,
-    EDITED_AVIF_QUALITY,
-    false,
-    TRANSPARENT_OUTPUT_MIME,
-  );
+  const { blob, mime } = lossless
+    ? await encodeCanvasLossless(canvas)
+    : await encodeCanvas(canvas, EDITED_AVIF_QUALITY, false, TRANSPARENT_OUTPUT_MIME);
 
   return {
     id: randomId(),

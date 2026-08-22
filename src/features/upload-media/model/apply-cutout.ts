@@ -1,10 +1,9 @@
 import type { MediaDraft } from "@/entities/media";
 import { ensure } from "@/shared/lib";
 import {
-  EDITED_AVIF_QUALITY,
   TRANSPARENT_OUTPUT_MIME,
   createCanvas,
-  encodeCanvas,
+  encodeCanvasLossless,
   loadImage,
   renderThumbnail,
   toExtension,
@@ -21,9 +20,9 @@ export type { CutoutModel, CutoutProgress } from "./cutout-worker-client";
  * assigned over it. A picked PNG can arrive with transparency of its own, and an
  * assignment would hand those pixels back to the model's opinion of them.
  *
- * WARN: `TRANSPARENT_OUTPUT_MIME` for the same reason § 13.4. gives it to the
- * editor: it is the **fallback**, and AVIF — which `encodeCanvas` reaches for first —
- * carries alpha as well. JPEG would flatten the cutout back onto an opaque box.
+ * WARN: Lossless, by § 13.4.'s rule: this is an intermediate the crop step decodes
+ * again, and the one lossy pass belongs to that step. JPEG would flatten the cutout
+ * back onto an opaque box.
  *
  * INFO: § 13.4.2. A video draft is matted off its poster, through the video model —
  * the result is the step's preview and nothing more, since the clip itself is matted
@@ -58,7 +57,7 @@ export async function applyCutout(
 
     context.putImageData(new ImageData(rgba, width, height), 0, 0);
 
-    const encoded = await encodeCanvas(canvas, EDITED_AVIF_QUALITY, false, TRANSPARENT_OUTPUT_MIME);
+    const encoded = await encodeCanvasLossless(canvas);
     const { blob: thumbnail, blurhash } = await renderThumbnail(
       canvas,
       width,

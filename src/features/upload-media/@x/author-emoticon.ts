@@ -6,6 +6,8 @@ export { optimizeAudio } from "../model/optimize-audio";
 export { toMediaDraft, toStoredMime } from "../model/read-draft";
 export {
   EMOTICON_IMAGE_EDIT_OPTIONS,
+  EMOTICON_STORED_EDIT_OPTIONS,
+  encodeEmoticonStill,
   toEmoticonImageDrafts,
   toEncodedEmoticonDrafts,
   type EmoticonImageDrafts,
