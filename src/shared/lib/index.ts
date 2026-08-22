@@ -96,6 +96,7 @@ export {
   toWeekday,
 } from "./date/time";
 export { hasDataTransferFiles, isBrowser, isEditableElement } from "./dom/environment";
+export { focusWithoutPan, takeFocusWithoutPan } from "./dom/keyboard-focus";
 export { revealWithin } from "./dom/reveal-within";
 export {
   MEDIA_MORPH_NAME,

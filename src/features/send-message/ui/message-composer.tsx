@@ -12,10 +12,12 @@ import {
 import {
   A_SECOND,
   cn,
+  focusWithoutPan,
   isCommandKey,
   isDigitKey,
   isLetterKey,
   isMenuKey,
+  takeFocusWithoutPan,
   toCommandKeyLabel,
   useIsCoarsePointer,
   useIsFinePointer,
@@ -411,7 +413,7 @@ export function MessageComposer({
       if (field instanceof HTMLTextAreaElement) {
         const caret = Math.min(caretOffsetRef.current ?? field.value.length, field.value.length);
 
-        field.focus();
+        focusWithoutPan(field);
         field.setSelectionRange(caret, caret);
       }
     }
@@ -516,7 +518,7 @@ export function MessageComposer({
     }
 
     onEdit?.(seededDraft.text.trim().length > 0);
-    fieldRef.current?.focus();
+    focusWithoutPan(fieldRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seededDraft?.token]);
 
@@ -545,7 +547,7 @@ export function MessageComposer({
    */
   useEffect(() => {
     if (focusRequest > 0) {
-      fieldRef.current?.focus();
+      focusWithoutPan(fieldRef.current);
     }
   }, [focusRequest]);
 
@@ -641,6 +643,7 @@ export function MessageComposer({
                 isFinePointer ? `${toCommandKeyLabel()} + / 로 단축키 보기` : "메시지 입력"
               }
               onChange={handlePlainChange}
+              onPointerDown={takeFocusWithoutPan}
               onFocus={onFieldFocus}
               onKeyDown={handleKeyDown}
               onScroll={syncKeywordLayer}
@@ -730,7 +733,7 @@ export function MessageComposer({
     }
 
     // INFO: Runs inside the click gesture on purpose — iOS only re-opens the keyboard for a `focus()` a user activation still covers.
-    fieldRef.current?.focus();
+    focusWithoutPan(fieldRef.current);
   }
 
   /**
@@ -742,7 +745,7 @@ export function MessageComposer({
   // WARN: § 13.6. A close hands the caret to the field from inside the click, and never through the room's `focusRequest` — WebKit raises the keyboard only for a `focus()` the user activation still covers. The focus itself closes the panel (`onFieldFocus`), so the toggle below is the same close repeated.
   function toggleEmoticons() {
     if (isEmoticonPickerOpen) {
-      fieldRef.current?.focus();
+      focusWithoutPan(fieldRef.current);
     } else {
       fieldRef.current?.blur();
     }

@@ -62,6 +62,7 @@ import {
   compareId,
   composeEventNotice,
   countVisibleWakes,
+  focusWithoutPan,
   runWhenIdle,
   startMediaMorph,
   stopVoice,
@@ -1887,7 +1888,7 @@ export function ChatRoom({
       return;
     }
 
-    composerFieldRef.current?.focus();
+    focusWithoutPan(composerFieldRef.current);
   }
 
   /**
@@ -1912,7 +1913,7 @@ export function ChatRoom({
       return false;
     }
 
-    field.focus();
+    focusWithoutPan(field);
 
     return document.execCommand("insertText", false, text);
   }

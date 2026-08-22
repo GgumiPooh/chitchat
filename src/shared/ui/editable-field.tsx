@@ -1,7 +1,13 @@
 "use client";
 
 import { OBJECT_PLACEHOLDER, countObjectPlaceholders } from "@/shared/config";
-import { A_SECOND, cn, hasDataTransferFiles, type Nullable } from "@/shared/lib";
+import {
+  A_SECOND,
+  cn,
+  hasDataTransferFiles,
+  takeFocusWithoutPan,
+  type Nullable,
+} from "@/shared/lib";
 import {
   useCallback,
   useEffect,
@@ -441,6 +447,7 @@ export function EditableField({
   // INFO: `pointerdown` rather than `click`, because focus is handled by the press and this has to be on record before it.
   function rememberPress(event: PointerEvent<HTMLDivElement>) {
     pressRef.current = { x: event.clientX, y: event.clientY, at: Date.now() };
+    takeFocusWithoutPan(event);
   }
 
   /**

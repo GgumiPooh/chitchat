@@ -14,11 +14,13 @@ import {
   A_SECOND,
   MINI_ANIMATION_LOOP_INTERVAL,
   cn,
+  focusWithoutPan,
   isBareKey,
   isCommandKey,
   isEditableElement,
   isShiftKey,
   revealWithin,
+  takeFocusWithoutPan,
   toPreviousReplaySrc,
   toReplaySrc,
   useViewportReplay,
@@ -730,7 +732,7 @@ export function EmoticonPicker({
     if (shown.length > 0) {
       enterTab({ index: 0 });
     } else {
-      searchFieldRef.current?.focus();
+      focusWithoutPan(searchFieldRef.current);
     }
     // WARN: `enterTab` is deliberately not a dependency, for the reason given where the other effect excludes it — it closes over this render's `shown`, which is already listed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1436,7 +1438,7 @@ export function EmoticonPicker({
       event.preventDefault();
 
       if (isSearching) {
-        searchFieldRef.current?.focus();
+        focusWithoutPan(searchFieldRef.current);
       } else {
         focusActiveTab();
       }
@@ -1560,7 +1562,7 @@ export function EmoticonPicker({
       return focusItem(scroller, Math.min(entry.index, gridItemCount - 1));
     }
 
-    searchFieldRef.current?.focus();
+    focusWithoutPan(searchFieldRef.current);
 
     // INFO: § 8.14. A pack tab with nothing drawn yet has nowhere to put focus, and says so — the entry waits for its cells rather than settling for `<body>`.
     return isSearching;
@@ -1764,7 +1766,7 @@ export function EmoticonPicker({
       event.preventDefault();
 
       if (isSearching) {
-        searchFieldRef.current?.focus();
+        focusWithoutPan(searchFieldRef.current);
       } else {
         focusActiveTab();
       }
@@ -2160,6 +2162,7 @@ function SearchPane({
           // INFO: A word, not a sentence — the keyboard's return key has nothing to submit, since the row filters as it is typed.
           enterKeyHint="done"
           aria-label="이모티콘 검색"
+          onPointerDown={takeFocusWithoutPan}
           onChange={(event) => onQueryChange(event.target.value)}
           onFocus={onFieldFocus}
           onKeyDown={onFieldKeys}
