@@ -118,6 +118,7 @@ import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -228,6 +229,8 @@ const LIST_HEADER_HEIGHT = 40;
 const OVERSCAN_ROWS = 8;
 // INFO: DESIGN.md § 3.4. Read by `theme.css` as `BottomOverlay`'s `data-keyboard-open` is — it switches `--chat-screen-height` to the resting viewport.
 const KEYBOARD_OVERLAID_ATTRIBUTE = "data-keyboard-overlaid";
+// INFO: § 13.6. Longer than the ~250ms the keys take to rise, so the flag and not the timer is what ends a closing swap on a phone.
+const SHEET_SWAP_TIMEOUT = A_SECOND / 2;
 
 // INFO: REQUIREMENTS.md § 8.6.1. How many frames a jump may re-assert its offset over while the rows around it are measured. Six spans WebKit's post-paint `ResizeObserver` deliveries — the first lands a frame late and the correction it causes brings a second — and the loop stops early the moment two asserts resolve to the same offset.
 const JUMP_SETTLE_FRAMES = 6;
@@ -345,6 +348,8 @@ export function ChatRoom({
   const [isEmoticonSearchTab, setIsEmoticonSearchTab] = useState(false);
   // INFO: § 13.8. The same exemption, held open for as long as the keyboard that tab raised takes to leave.
   const [isEmoticonSearchExempt, setIsEmoticonSearchExempt] = useState(false);
+  // INFO: § 13.6. A swap between the keyboard and the sheet in progress — `opening` from the toggle with the keys up, `closing` from the composer's field with the sheet up.
+  const [sheetSwap, setSheetSwap] = useState<Nullable<"opening" | "closing">>(null);
   // WARN: § 13.8. Memoized because the picker's own effect depends on it — a fresh identity every render re-runs that effect on every render of this room.
   const reportEmoticonSearchTab = useCallback((isOnSearchTab: boolean, query: string) => {
     setIsEmoticonSearchTab(isOnSearchTab);
@@ -440,9 +445,34 @@ export function ChatRoom({
     setIsEmoticonSearchExempt(isEmoticonSearchHeld);
   }
 
-  // INFO: DESIGN.md § 3.4. For as long as the latch holds, the screen keeps its resting height and the keyboard covers the sheet's lower rows rather than shrinking it — the field is at the top of the sheet, which `expand` has just opened to the header.
+  // INFO: § 13.6. An opening swap ends when the keys are down, a closing one when they are up — and the sheet closes only then, so the keys rise over it and the two 200ms eases cancel.
+  if (sheetSwap === "opening" && !isKeyboardOpen) {
+    setSheetSwap(null);
+  } else if (sheetSwap === "closing" && isKeyboardOpen) {
+    setSheetSwap(null);
+    closeEmoticonPanel();
+  }
+
+  // WARN: § 13.6. A coarse pointer with no virtual keyboard — an iPad on a keyboard case — never flips the flag, so a closing swap the keys do not answer is closed on a timer instead.
   useEffect(() => {
-    if (!isEmoticonSearchExempt) {
+    if (sheetSwap !== "closing") {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setSheetSwap(null);
+      closeEmoticonPanel();
+    }, SHEET_SWAP_TIMEOUT);
+
+    return () => clearTimeout(timer);
+  }, [sheetSwap]);
+
+  const isKeyboardOverlaid = isEmoticonSearchExempt || sheetSwap !== null;
+
+  // INFO: DESIGN.md § 3.4. For as long as this holds, the screen keeps its resting height and the keyboard covers the sheet rather than shrinking it — 검색's field at the top of an expanded sheet, or a sheet the keys are sliding on or off.
+  // WARN: A layout effect, so the attribute lands in the frame the strip's class does — a swap is the screen's 200ms ease and the strip's cancelling, and a frame between them is a frame the composer moves.
+  useLayoutEffect(() => {
+    if (!isKeyboardOverlaid) {
       return;
     }
 
@@ -453,13 +483,15 @@ export function ChatRoom({
     return () => {
       root.removeAttribute(KEYBOARD_OVERLAID_ATTRIBUTE);
     };
-  }, [isEmoticonSearchExempt]);
+  }, [isKeyboardOverlaid]);
 
   // WARN: Belt to the field's own `onFieldFocus` braces, and derived rather than an effect that closes it — Android reopens the keyboard on a field that is already focused, which fires no `focus` event for the picker to hear.
   // WARN: `!isSearching` is load-bearing beyond the drawing. The panel being open is one of § 8.12.'s two sustained typing sources, so a panel left open behind the search goes on announcing 입력 중 — and it would pop back open on 취소.
   // WARN: REQUIREMENTS.md § 13.8. The search tab is the one exemption from the keyboard gate, because its field is the keyboard's reason for being up — it is drawn one row tall precisely so it fits in what the keyboard leaves. Keyed on the tab and never on that field's focus: a blur and the keyboard's retraction are separate frames, and between them the unexempted panel closes underneath the user.
   const isEmoticonPanelOpen =
-    isEmoticonPickerOpen && (!isKeyboardOpen || isEmoticonSearchExempt) && !isSearching;
+    isEmoticonPickerOpen &&
+    (!isKeyboardOpen || isEmoticonSearchExempt || sheetSwap !== null) &&
+    !isSearching;
   const emoticonSheet = useEmoticonSheet({
     sheetRef: emoticonSheetRef,
     isOpen: isEmoticonPanelOpen,
@@ -1762,13 +1794,22 @@ export function ChatRoom({
    * § 13.6. keyboard exemption on for good.
    */
   // WARN: § 13.8. The latch is dropped here and only here. It is otherwise released by the keyboard alone, and a keyboard the composer took over from 검색's field never goes down — left held, the screen stays at its resting height with the composer under the keys.
+  // INFO: § 13.6. On a coarse pointer the sheet stays up until the keys have risen over it, which is the closing swap; a fine pointer has no keys coming and closes at once.
   function yieldToComposer() {
-    closeEmoticonPanel();
     setIsEmoticonSearchExempt(false);
+
+    if (isFinePointer || !isEmoticonPanelOpen) {
+      closeEmoticonPanel();
+
+      return;
+    }
+
+    setSheetSwap("closing");
   }
 
   function closeEmoticonPanel() {
     clearTimeout(collapseTimerRef.current);
+    setSheetSwap(null);
     setIsEmoticonPickerOpen(false);
     setEmoticonSearch(null);
     searchedWordRef.current = null;
@@ -1787,6 +1828,11 @@ export function ChatRoom({
       closeEmoticonPanel();
 
       return;
+    }
+
+    // INFO: § 13.6. With the keys up the sheet opens under them at once and they slide off it, rather than waiting for them to be gone and then rising.
+    if (isKeyboardOpen) {
+      setSheetSwap("opening");
     }
 
     setIsEmoticonPickerOpen(true);
