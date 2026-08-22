@@ -170,6 +170,7 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
     if (size === "expanded") {
       if (pulled < -threshold) {
         setSize("rest");
+        blurInside();
       }
 
       setPinnedHeight(null);
@@ -203,6 +204,15 @@ export function useEmoticonSheet({ sheetRef, isOpen, onClose }: EmoticonSheetOpt
       setSize("rest");
     } else {
       settle("expanded", measureExpandedHeight());
+    }
+  }
+
+  // INFO: § 13.8. A pull down from expanded is the reader leaving the field that expanded it, so the keyboard goes with the height.
+  function blurInside() {
+    const active = document.activeElement;
+
+    if (active instanceof HTMLElement && sheetRef.current?.contains(active)) {
+      active.blur();
     }
   }
 
