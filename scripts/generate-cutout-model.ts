@@ -1,6 +1,17 @@
 import { createHash } from "node:crypto";
 import { copyFile, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+// WARN: The bare module by a relative path, never the `@/shared/lib` barrel — `generate-holidays.ts`'s own precedent. This script runs in `predev`/`build` with no env loaded, and the barrel pulls `@/shared/config`, whose top-level `snowflakeSchema` reads a `SNOWFLAKE_PATTERN` that a circular import leaves undefined — which crashes the build here rather than in the app.
+import { A_MINUTE, A_SECOND } from "../src/shared/lib/date/time";
+
+// WARN: The model is gitignored, so every cold build and every teammate's first `pnpm dev` re-fetches ~109MB from huggingface.co — a single 429, 5xx or dropped connection there used to break the whole build at this step with no retry.
+const FETCH_ATTEMPTS = 4;
+
+const RETRY_BACKOFF = 3 * A_SECOND;
+
+// INFO: A whole attempt, not a stall detector — 96MB over a slow connection is legitimately minutes, and the retry above is what covers a genuinely hung socket.
+const FETCH_TIMEOUT = 5 * A_MINUTE;
 
 /**
  * WARN: Resolved through the real path of `@huggingface/transformers`, never as a
@@ -115,7 +126,7 @@ async function download(id: string, file: string) {
     return;
   }
 
-  const response = await fetch(url);
+  const response = await fetchWithRetry(url);
 
   if (!response.ok) {
     throw new Error(`${file}: ${response.status} ${response.statusText}`);
@@ -127,6 +138,42 @@ async function download(id: string, file: string) {
 }
 
 /**
+ * A fetch that survives the transient failures the hub answers a cold build with — a
+ * 429 rate limit, a 5xx, or a connection dropped mid-transfer — rather than failing
+ * the build on the first one.
+ *
+ * WARN: A retried GET re-downloads from the top; that is affordable here because it
+ * is build-time and self-limited by the attempt count, and the alternative — a
+ * Range resume — would have to trust a partial file the next `sha256` check is what
+ * actually validates anyway.
+ */
+async function fetchWithRetry(url: string, init?: RequestInit): Promise<Response> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= FETCH_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch(url, { ...init, signal: AbortSignal.timeout(FETCH_TIMEOUT) });
+
+      // INFO: A 429 or 5xx is the hub asking to be retried; a 4xx is not, so it is returned for the caller to report.
+      if (response.status !== 429 && response.status < 500) {
+        return response;
+      }
+
+      lastError = new Error(`${response.status} ${response.statusText}`);
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (attempt < FETCH_ATTEMPTS) {
+      // INFO: Linear backoff — the hub's 429 clears in seconds and a dropped socket has no schedule to respect.
+      await delay(RETRY_BACKOFF * attempt);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`fetch failed: ${url}`);
+}
+
+/**
  * The LFS pointer's own sha256, which the hub exposes as `x-linked-etag`.
  *
  * WARN: `redirect: "manual"`. The hub answers a 302 into its CDN, and the CDN's own
@@ -135,11 +182,16 @@ async function download(id: string, file: string) {
  * 109MB on every `dev` and `build`.
  */
 async function headEtag(url: string): Promise<string | null> {
-  const response = await fetch(url, { method: "HEAD", redirect: "manual" });
-  const etag = response.headers.get("x-linked-etag") ?? response.headers.get("etag");
-  const digest = etag?.replace(/^W\//, "").replaceAll('"', "");
+  try {
+    const response = await fetchWithRetry(url, { method: "HEAD", redirect: "manual" });
+    const etag = response.headers.get("x-linked-etag") ?? response.headers.get("etag");
+    const digest = etag?.replace(/^W\//, "").replaceAll('"', "");
 
-  return digest && /^[0-9a-f]{64}$/.test(digest) ? digest : null;
+    return digest && /^[0-9a-f]{64}$/.test(digest) ? digest : null;
+  } catch {
+    // INFO: A failed HEAD only costs the cache check — it must not fail the build before the GET below is even attempted.
+    return null;
+  }
 }
 
 async function sha256(file: string): Promise<string | null> {
