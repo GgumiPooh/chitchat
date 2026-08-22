@@ -51,6 +51,9 @@ steiger.config.ts.*.mjs
 # INFO: `pnpm ffmpeg-core` copies these from node_modules/@ffmpeg/core at build and dev time.
 /public/ffmpeg/
 
+# INFO: `pnpm cutout-model` copies the onnx runtime and downloads the 109MB segmentation weights (REQUIREMENTS.md § 13.4.2.).
+/public/cutout/
+
 # Claude Code scratch — agent worktrees are clones of this repo, never content of it.
 .claude/
 

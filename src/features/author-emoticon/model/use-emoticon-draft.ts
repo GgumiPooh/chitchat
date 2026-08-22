@@ -53,14 +53,18 @@ export function useEmoticonDraft() {
   const track = useCallback((url: Maybe<string>) => retainPreview(urlsRef.current, url), []);
   const release = useCallback((url: Maybe<string>) => releasePreview(urlsRef.current, url), []);
 
-  /** INFO: § 13.4.1. Takes slots that were built elsewhere — a video's, which must not be re-read as a picked file since that would re-encode the animation a second time. */
+  /**
+   * INFO: § 13.4.1. Takes slots that were built elsewhere — a video's, which must not be re-read as a picked file since that would re-encode the animation a second time.
+   *
+   * INFO: Answers what it staged, or `null` where validation refused it — § 13.4.2.'s cutout step is opened by the pick, and only a **static** one may enter it.
+   */
   const adoptImage = useCallback(
-    (upload: EmoticonImageDrafts) => {
+    (upload: EmoticonImageDrafts): Nullable<EmoticonImageDrafts> => {
       if (!validateUpload(upload)) {
         release(upload.still.previewUrl);
         release(upload.animated?.previewUrl);
 
-        return;
+        return null;
       }
 
       track(upload.still.previewUrl);
@@ -71,18 +75,22 @@ export function useEmoticonDraft() {
 
         return upload;
       });
+
+      return upload;
     },
     [release, track],
   );
 
   const pickImage = useCallback(
-    async (file: File) => {
+    async (file: File): Promise<Nullable<EmoticonImageDrafts>> => {
       setIsReading(true);
 
       try {
-        adoptImage(await toEmoticonImageDrafts(file));
+        return adoptImage(await toEmoticonImageDrafts(file));
       } catch {
         toast.error("이미지를 읽지 못했어요");
+
+        return null;
       } finally {
         setIsReading(false);
       }

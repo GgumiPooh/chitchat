@@ -3,6 +3,7 @@
 import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
 import {
+  CutoutEditor,
   EMOTICON_IMAGE_EDIT_OPTIONS,
   MediaEditor,
   useMediaPicker,
@@ -83,9 +84,11 @@ export function EmoticonFormSheet({
   onSaved,
 }: EmoticonFormSheetProps) {
   const kindNoun = EMOTICON_KIND_NOUNS[type].kind;
-  const [isEditing, setIsEditing] = useState(false);
+  // INFO: § 13.4.2. A picked image walks 누끼 → 영역 자르기 on its own; the thumbnail re-enters at the crop, since the picture it would re-open on has already had its background taken off.
+  const [step, setStep] = useState<Nullable<"cutout" | "crop">>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isEditing = step !== null;
   const draft = useEmoticonDraft();
   const { adoptImage, pickAudio, pickImage, setKeywords } = draft;
   // WARN: § 13.4.1. Kept beside the slots and cleared by every other pick — an animation staged from a picked GIF has no clip behind it, and re-opening the flow on the last video would edit a file the field is no longer showing.
@@ -119,9 +122,10 @@ export function EmoticonFormSheet({
   // INFO: The pack screen picks a file before this opens (§ 13.4.), so the form is already staged when it appears.
   useEffect(() => {
     if (isOpen && initialFile) {
-      void pickImage(initialFile);
+      void pickPlainImage(initialFile);
     }
-  }, [isOpen, initialFile, pickImage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `pickPlainImage` is redeclared per render; a dependency on it would re-run the whole § 13.4.2. flow on every keystroke in the keyword field.
+  }, [isOpen, initialFile]);
 
   // WARN: § 13.8. The sheet stays mounted between items, so the list has to be re-seeded on every open — without this, editing a second item shows the first one's keywords.
   // WARN: Keyed on the item's **id**, never the object. The pack screen rebuilds item objects on every save, so an identity dependency re-seeded the field from the server mid-edit and discarded chips the user had just typed.
@@ -182,7 +186,22 @@ export function EmoticonFormSheet({
       {videoPicker.input}
       {audioPicker.input}
       {video.overlay}
-      {isEditing && draft.image && (
+      {step === "cutout" && draft.image && (
+        // WARN: Keyed by draft for `MediaEditor`'s reason — the matte is started on mount, so a replaced image must be a second one.
+        <CutoutEditor
+          key={draft.image.still.id}
+          draft={draft.image.still}
+          onDone={(cutout) => {
+            if (cutout) {
+              draft.replaceStill(cutout);
+            }
+
+            setStep("crop");
+          }}
+          onCancel={() => setStep(null)}
+        />
+      )}
+      {step === "crop" && draft.image && (
         // WARN: Keyed by draft — `MediaEditor` mints its source object URL once per mount, so editing a replaced image must be a second mount.
         <MediaEditor
           key={draft.image.still.id}
@@ -190,9 +209,9 @@ export function EmoticonFormSheet({
           editOptions={EMOTICON_IMAGE_EDIT_OPTIONS}
           onDone={(edited) => {
             draft.replaceStill(edited);
-            setIsEditing(false);
+            setStep(null);
           }}
-          onCancel={() => setIsEditing(false)}
+          onCancel={() => setStep(null)}
         />
       )}
     </>
@@ -212,15 +231,22 @@ export function EmoticonFormSheet({
     }
 
     if (!draft.image.animated) {
-      return () => setIsEditing(true);
+      return () => setStep("crop");
     }
 
     return videoSource ? () => void video.open(videoSource) : undefined;
   }
 
-  function pickPlainImage(file: File) {
+  /** INFO: § 13.4.2. The pick opens the flow rather than merely staging the slots — 누끼 first, then the crop drawn against what is left of the picture. */
+  async function pickPlainImage(file: File) {
     setVideoSource(null);
-    void pickImage(file);
+
+    const picked = await pickImage(file);
+
+    // WARN: A static pick only. § 13.4.'s rule for `MediaEditor` covers this one too — a canvas that mattes one frame would turn an animation into a picture.
+    if (picked && !picked.animated) {
+      setStep("cutout");
+    }
   }
 
   /** INFO: The picked file plays off its object URL and a kept one off R2, so the button auditions whatever the submit would actually save. */
@@ -447,7 +473,7 @@ function ImageRow({
       <div className="min-w-0 flex-1 space-y-2xs">
         <p className="text-title-sm text-ink">{label}</p>
         <p className="text-body-sm text-meta">{isReading ? "읽는 중이에요" : hint}</p>
-        {/* WARN: The two sources come first and 편집 last, never between them. 편집 is the conditional one, and in the middle it would shift the buttons either side of it every time an image is replaced. */}
+        {/* INFO: § 13.4.2. The two sources and nothing else. 편집 was a third button here and is gone: a pick now walks 누끼 → 영역 자르기 by itself, so the only edit left is the one the thumbnail opens — and a conditional button between the two sources shifted them every time an image was replaced. */}
         <div className="flex flex-wrap gap-2xs">
           <Button
             className="w-auto"
@@ -470,18 +496,6 @@ function ImageRow({
             <Film className="size-4" strokeWidth={1.75} />
             영상에서 추출
           </Button>
-          {onEdit && (
-            <Button
-              className="w-auto"
-              buttonClassName="h-9 min-h-9 w-auto px-sm"
-              variant="secondary"
-              haptic
-              onClick={onEdit}
-            >
-              <Pencil className="size-4" strokeWidth={1.75} />
-              편집
-            </Button>
-          )}
         </div>
       </div>
     </div>

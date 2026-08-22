@@ -3,6 +3,7 @@
 import type { MediaDraft } from "@/entities/media";
 import {
   AnimateVideoError,
+  CutoutEditor,
   VideoCropper,
   VideoTrimmer,
   animateVideo,
@@ -30,7 +31,8 @@ export type VideoEmoticon = {
 
 type Stage =
   | { name: "trimming"; source: File; draft: MediaDraft; range?: TrimRange }
-  | { name: "cropping"; source: File; range: TrimRange; draft: MediaDraft }
+  | { name: "matting"; source: File; range: TrimRange; draft: MediaDraft }
+  | { name: "cropping"; source: File; range: TrimRange; draft: MediaDraft; isCutout: boolean }
   | { name: "encoding"; progress: EncodeProgress };
 
 export type UseVideoEmoticonParams = {
@@ -45,6 +47,10 @@ export type UseVideoEmoticonParams = {
  * WARN: The crop is a rectangle handed to `cropVideo` at `EMOTICON_MAX_EDGE`, never
  * a crop of the finished animation — a canvas crop decodes one frame and would turn
  * the animation into a picture (§ 13.4.).
+ *
+ * INFO: § 13.4.2. 누끼 sits between the trimmer and the cropper and decides a flag
+ * off the poster alone; the clip is matted frame by frame inside `animateVideo`,
+ * after the crop, where every frame is already 420px.
  */
 export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
   const [stage, setStage] = useState<Nullable<Stage>>(null);
@@ -88,7 +94,27 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
           hasNextStep
           initialRange={stage.range}
           onCancel={cancel}
-          onDone={(file, range) => void crop(file, range)}
+          onDone={(file, range) => void matte(file, range)}
+        />
+      );
+    }
+
+    if (stage.name === "matting") {
+      return (
+        <CutoutEditor
+          key={stage.draft.id}
+          draft={stage.draft}
+          model="video"
+          onDone={(cutout) => {
+            // INFO: The preview was the whole of its use; the flag is what the encode reads.
+            if (cutout) {
+              revokePreview(cutout);
+            }
+
+            setStage({ ...stage, name: "cropping", isCutout: cutout !== null });
+          }}
+          onCancel={cancel}
+          onBack={() => void back()}
         />
       );
     }
@@ -99,7 +125,7 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
         draft={stage.draft}
         maxEdge={EMOTICON_MAX_EDGE}
         onCancel={cancel}
-        onBack={() => void back()}
+        onBack={() => setStage({ ...stage, name: "matting" })}
         onDone={(file) => void encode(file)}
       />
     );
@@ -121,7 +147,7 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
     }
   }
 
-  async function crop(trimmed: File, range: TrimRange) {
+  async function matte(trimmed: File, range: TrimRange) {
     // WARN: The ref, not the render's own `stage` — 뒤로 puts this flow back on the trimmer while `cropVideo` may still be running, and a closure taken before that would carry on as if it had not.
     const current = stageRef.current;
 
@@ -144,7 +170,7 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
         return;
       }
 
-      setStage({ name: "cropping", source, range, draft: next });
+      setStage({ name: "matting", source, range, draft: next });
       revokePreview(draft);
     } catch (error) {
       report(error);
@@ -159,7 +185,7 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
       return;
     }
 
-    const { source, range, draft } = current;
+    const { source, range, draft, isCutout } = current;
     const run = ++runRef.current;
 
     setStage({ name: "encoding", progress: "preparing" });
@@ -169,8 +195,11 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
       // INFO: § 13.4.1. The sound is read off the **source** at the kept range — `trimVideo` and `cropVideo` both discard the track, for a reason they each state.
       // WARN: Started here and awaited below, so the percentage covers the encode alone. Inside the `Promise.all`, a slow demux of a long source held the bar at 100% with nothing saying why.
       const sound = extractVideoAudio(source, range);
-      const animation = await animateVideo(cropped, EMOTICON_MAX_EDGE, (ratio) =>
-        setProgress(run, ratio),
+      const animation = await animateVideo(
+        cropped,
+        EMOTICON_MAX_EDGE,
+        (ratio) => setProgress(run, ratio),
+        { cutout: isCutout },
       );
 
       setProgress(run, "finishing");
@@ -195,11 +224,11 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
     }
   }
 
-  /** INFO: § 13.4.1. 영역 자르기 steps back into the trimmer rather than out of the flow, on the clip it was reached from and at the cut it was reached with. */
+  /** INFO: § 13.4.1. 누끼 steps back into the trimmer rather than out of the flow, on the clip it was reached from and at the cut it was reached with. */
   async function back() {
     const current = stageRef.current;
 
-    if (current?.name !== "cropping") {
+    if (current?.name !== "matting") {
       return;
     }
 

@@ -13,6 +13,7 @@ export { releasePreview, retainPreview, revokePreview } from "../model/revoke-pr
 export type { TrimRange } from "../model/trim-video";
 export { useMediaPicker } from "../model/use-media-picker";
 export type { VoiceRecording } from "../model/use-voice-recorder";
+export { CutoutEditor } from "../ui/cutout-editor";
 export { MediaEditor } from "../ui/media-editor";
 export { VideoCropper } from "../ui/video-cropper";
 export { VideoTrimmer } from "../ui/video-trimmer";

@@ -1,11 +1,12 @@
 import { MAX_EMOTICON_IMAGE_SIZE, MAX_EMOTICON_VIDEO_DURATION } from "@/shared/config";
 import { A_SECOND, randomId, type Nullable } from "@/shared/lib";
 import type { FFmpeg } from "@ffmpeg/ffmpeg";
+import { BlobSource, Input, MP4, QTFF, WEBM } from "mediabunny";
 import { fitWithin } from "./canvas";
 import { enqueueFfmpeg, loadFfmpeg, toEvenEdge } from "./ffmpeg-runtime";
+import { matteVideoFrames, type MattedFrame } from "./matte-video";
 import { ANIMATION_MIME } from "./optimize-animation";
 import type { EncodeProgress, OptimizedMedia } from "./optimize-result";
-import { releaseSource } from "./read-draft";
 
 /**
  * WARN: REQUIREMENTS.md § 13.4.1. Tried in order until one lands under
@@ -19,6 +20,27 @@ const ATTEMPTS = [
   { fps: 10, quality: 45 },
 ] as const;
 
+/**
+ * REQUIREMENTS.md § 13.4.2. A cut-out clip starts a rung lower, because every frame
+ * it has is an inference on the phone — the matte is taken once at the top rung and
+ * the lower ones drop frames from it rather than matting again.
+ *
+ * WARN: Still lossy. Lossless was measured at 17MB for 72 frames of 420px footage,
+ * which no rung brings under `MAX_EMOTICON_IMAGE_SIZE`; libwebp codes the alpha
+ * plane losslessly whatever the quality, so the edge the matte drew survives.
+ */
+const CUTOUT_ATTEMPTS = [
+  { fps: 12, quality: 75 },
+  { fps: 10, quality: 60 },
+  { fps: 8, quality: 45 },
+] as const;
+
+// INFO: The share of the bar the matte takes — sixty inferences against one encode, so most of it.
+const MATTE_SHARE = 0.8;
+
+// INFO: `trimVideo`'s list — a demuxer per container, tree-shaken to `ALLOWED_VIDEO_MIMES`.
+const INPUT_FORMATS = [MP4, QTFF, WEBM];
+
 // INFO: `libwebpenc_common.c`'s max (0-6). A video-derived animation is the one encode here big enough for the smaller default to cost real bytes.
 const COMPRESSION_LEVEL = 6;
 
@@ -30,6 +52,16 @@ const FRAME_COUNT = /frame=\s*(\d+)/;
 
 /** Which of the two things went wrong, since only one of them has an action for the user. */
 export type AnimationFailure = "encode" | "oversize";
+
+export type AnimateVideoOptions = {
+  /** REQUIREMENTS.md § 13.4.2. Matte every frame before encoding. */
+  cutout?: boolean;
+};
+
+type EncodedFrame = { color: Uint8Array; alpha: Uint8Array };
+
+type EncodeSource =
+  { kind: "clip"; bytes: Uint8Array } | { kind: "frames"; frames: EncodedFrame[]; fps: number };
 
 export class AnimateVideoError extends Error {
   constructor(
@@ -62,19 +94,23 @@ export async function animateVideo(
   file: File,
   maxEdge: number,
   onProgress?: EncodeProgress,
+  { cutout = false }: AnimateVideoOptions = {},
 ): Promise<OptimizedMedia> {
-  const [bytes, source] = await Promise.all([
-    file.arrayBuffer().then((buffer) => new Uint8Array(buffer)),
-    measureVideo(file),
-  ]);
-  const fitted = fitWithin(source.width, source.height, maxEdge);
+  const measured = await measureVideo(file);
+  const fitted = fitWithin(measured.width, measured.height, maxEdge);
   const scaled = { width: toEvenEdge(fitted.width), height: toEvenEdge(fitted.height) };
+  const attempts = cutout ? CUTOUT_ATTEMPTS : ATTEMPTS;
+  // WARN: The clip's bytes are read only when it is the encode source. The cutout path never touches them, and reading a whole file into a buffer it discards is real memory on the iPhone this runs on.
+  const source: EncodeSource = cutout
+    ? await toMattedSource(file, attempts[0].fps, scaled, onProgress)
+    : { kind: "clip", bytes: new Uint8Array(await file.arrayBuffer()) };
+  const seconds = source.kind === "frames" ? source.frames.length / source.fps : measured.seconds;
 
-  for (const attempt of ATTEMPTS) {
+  for (const attempt of attempts) {
     // WARN: Each rung reports its own 0 → 1 rather than a slice of the ladder. Spread across every rung, the common case — one encode, which is what almost every clip takes — could never fill more than a third of the bar.
-    const frames = Math.max(1, Math.round(source.seconds * attempt.fps));
-    const encoded = await encode(file, bytes, scaled, attempt, frames, (ratio) =>
-      onProgress?.(ratio),
+    const frames = Math.max(1, Math.round(seconds * attempt.fps));
+    const encoded = await encode(file, source, scaled, attempt, frames, (ratio) =>
+      onProgress?.(cutout ? MATTE_SHARE + ratio * (1 - MATTE_SHARE) : ratio),
     );
 
     if (encoded.size <= MAX_EMOTICON_IMAGE_SIZE) {
@@ -85,16 +121,58 @@ export async function animateVideo(
   throw new AnimateVideoError("oversize", "every rung exceeded the emoticon size cap");
 }
 
+async function toMattedSource(
+  file: File,
+  fps: number,
+  size: { width: number; height: number },
+  onProgress?: EncodeProgress,
+): Promise<EncodeSource> {
+  const matted = await matteVideoFrames(file, fps, size, (ratio) =>
+    onProgress?.(ratio * MATTE_SHARE),
+  );
+  const frames = await Promise.all(matted.map(toEncodedFrame));
+
+  return { kind: "frames", frames, fps };
+}
+
+async function toEncodedFrame({ color, alpha }: MattedFrame): Promise<EncodedFrame> {
+  const [colorBytes, alphaBytes] = await Promise.all([color.arrayBuffer(), alpha.arrayBuffer()]);
+
+  return { color: new Uint8Array(colorBytes), alpha: new Uint8Array(alphaBytes) };
+}
+
 async function encode(
   file: File,
-  bytes: Uint8Array,
+  source: EncodeSource,
   size: { width: number; height: number },
-  { fps, quality }: (typeof ATTEMPTS)[number],
+  { fps, quality }: (typeof ATTEMPTS | typeof CUTOUT_ATTEMPTS)[number],
   frames: number,
   onProgress: EncodeProgress,
 ): Promise<File> {
-  const inputName = `${randomId()}-input`;
-  const outputName = `${randomId()}-output.webp`;
+  const prefix = randomId();
+  const toColorName = (index: number | string) => `${prefix}-c-${index}.jpg`;
+  const toAlphaName = (index: number | string) => `${prefix}-a-${index}.png`;
+  const inputNames =
+    source.kind === "clip"
+      ? [`${prefix}-input`]
+      : source.frames.flatMap((_, index) => {
+          const padded = String(index).padStart(4, "0");
+
+          return [toColorName(padded), toAlphaName(padded)];
+        });
+  // INFO: image2 takes a printf pattern, so each sequence is one input; `alphamerge` takes the second as the first's alpha plane.
+  const filterArgs =
+    source.kind === "clip"
+      ? ["-i", inputNames[0], "-vf", `fps=${fps},scale=${size.width}:${size.height}`]
+      : [
+          ...["-framerate", `${source.fps}`, "-i", toColorName("%04d")],
+          ...["-framerate", `${source.fps}`, "-i", toAlphaName("%04d")],
+          ...[
+            "-filter_complex",
+            `[0:v][1:v]alphamerge,fps=${fps},scale=${size.width}:${size.height}`,
+          ],
+        ];
+  const outputName = `${prefix}-output.webp`;
   const tail: string[] = [];
   const handleLog = ({ message }: { message: string }) => {
     tail.push(message);
@@ -114,13 +192,17 @@ async function encode(
       ffmpeg = await loadFfmpeg();
       ffmpeg.on("log", handleLog);
 
-      await ffmpeg.writeFile(inputName, bytes);
+      if (source.kind === "clip") {
+        await ffmpeg.writeFile(inputNames[0], source.bytes);
+      } else {
+        for (const [index, frame] of source.frames.entries()) {
+          await ffmpeg.writeFile(inputNames[index * 2], frame.color);
+          await ffmpeg.writeFile(inputNames[index * 2 + 1], frame.alpha);
+        }
+      }
 
       const exitCode = await ffmpeg.exec([
-        "-i",
-        inputName,
-        "-vf",
-        `fps=${fps},scale=${size.width}:${size.height}`,
+        ...filterArgs,
         "-c:v",
         "libwebp_anim",
         "-lossless",
@@ -156,44 +238,53 @@ async function encode(
     } finally {
       ffmpeg?.off("log", handleLog);
       // INFO: The instance is cached and reused by the next call, so its virtual FS is cleared per-call rather than per-load.
-      await Promise.allSettled([ffmpeg?.deleteFile(inputName), ffmpeg?.deleteFile(outputName)]);
+      await Promise.allSettled([...inputNames, outputName].map((name) => ffmpeg?.deleteFile(name)));
     }
   });
 }
 
-/** INFO: Metadata alone, never `toVideoDraft` — the box and the length are all this needs, and rendering a poster to get them is a decode and a blob nothing here would draw. */
-function measureVideo(file: File): Promise<{ width: number; height: number; seconds: number }> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const video = document.createElement("video");
+/**
+ * REQUIREMENTS.md § 13.4.1. The box and length of a cut clip, read through the same
+ * `mediabunny` demuxer `cropVideo` produced it with.
+ *
+ * WARN: Not an `<video>` element, which is what this was and what failed on iOS. An
+ * iPhone has a handful of hardware video decoders, and by the time the encode is
+ * reached the trimmer, the cropper and — for a cutout — the frame matter have each
+ * taken one; a fresh `<video>` asked for its metadata then errors outright, which
+ * surfaced as 영상을 읽지 못했어요 at 완료. `mediabunny` reads the container without a
+ * decoder at all, and its display dimensions carry the track's rotation the way the
+ * cropper's rectangle already does.
+ */
+async function measureVideo(
+  file: File,
+): Promise<{ width: number; height: number; seconds: number }> {
+  const input = new Input({ source: new BlobSource(file), formats: INPUT_FORMATS });
 
-    video.preload = "metadata";
-    video.muted = true;
-    video.playsInline = true;
+  try {
+    const track = await input.getPrimaryVideoTrack();
 
-    video.onloadedmetadata = () => {
-      const { videoWidth: width, videoHeight: height, duration } = video;
+    if (!track) {
+      throw new Error("video has no track");
+    }
 
-      releaseSource(video);
-      URL.revokeObjectURL(url);
+    const [width, height, duration] = await Promise.all([
+      track.getDisplayWidth(),
+      track.getDisplayHeight(),
+      input.computeDuration(),
+    ]);
 
-      if (width > 0 && height > 0) {
-        // INFO: § 13.4.1.'s ceiling as the fallback, which is what the clip was cut to — a container reporting no duration would otherwise leave the frame count at zero.
-        const seconds = Number.isFinite(duration) && duration > 0 ? duration : 0;
+    if (!(width > 0 && height > 0)) {
+      throw new Error("video has no readable box");
+    }
 
-        resolve({ width, height, seconds: seconds || MAX_EMOTICON_VIDEO_DURATION / A_SECOND });
-      } else {
-        reject(new Error("video has no readable box"));
-      }
-    };
-    video.onerror = () => {
-      releaseSource(video);
-      URL.revokeObjectURL(url);
-      reject(new Error("video metadata failed to load"));
-    };
+    // INFO: § 13.4.1.'s ceiling as the fallback, which is what the clip was cut to — a container reporting no duration would otherwise leave the frame count at zero.
+    const seconds =
+      Number.isFinite(duration) && duration > 0 ? duration : MAX_EMOTICON_VIDEO_DURATION / A_SECOND;
 
-    video.src = url;
-  });
+    return { width, height, seconds };
+  } finally {
+    input.dispose();
+  }
 }
 
 function toAnimatedName(name: string): string {
