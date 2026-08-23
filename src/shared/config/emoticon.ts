@@ -858,9 +858,13 @@ export function toEmoticonAssetUrl(itemId: string, slot: EmoticonSlot, version?:
   return `${EMOTICON_ASSET_ITEMS_PATH}/${itemId}/asset?slot=${slot}${versionParam}`;
 }
 
-/** REQUIREMENTS.md § 13.4. The stored still streamed from this origin as a `File`-able body, which the redirect above cannot be (§ 12.1.). */
-export function toEmoticonAssetEditUrl(itemId: string, version?: number): string {
-  return `${toEmoticonAssetUrl(itemId, "still-image", version)}&variant=edit`;
+/** REQUIREMENTS.md § 13.4. The stored image streamed from this origin as a `File`-able body, which the redirect above cannot be (§ 12.1.) — either slot, since § 13.4.1. re-edits a stored animation too. */
+export function toEmoticonAssetEditUrl(
+  itemId: string,
+  slot: EmoticonImageSlot = "still-image",
+  version?: number,
+): string {
+  return `${toEmoticonAssetUrl(itemId, slot, version)}&variant=edit`;
 }
 
 /** REQUIREMENTS.md § 13.4. The same redirect with an attachment disposition signed into it — what saves the file, since `download` is dropped cross-origin (§ 10.). */

@@ -5,6 +5,7 @@ import { BACKGROUND_MAX_EDGE } from "@/shared/config";
 import { cn, type Nullable } from "@/shared/lib";
 import { Button, IconButton, ShellOverlay, toast } from "@/shared/ui";
 import { ArrowLeft, RotateCw, Volume2, VolumeX, X } from "lucide-react";
+import type { CropRectangle } from "mediabunny";
 import { useEffect, useRef, useState, type CSSProperties, type Ref } from "react";
 import {
   Cropper,
@@ -18,17 +19,31 @@ import { loadImage } from "../model/canvas";
 import { cropVideo, toEvenCrop } from "../model/crop-video";
 import { releaseSource } from "../model/read-draft";
 
-export type VideoCropperProps = {
+type VideoCropperBaseProps = {
   className?: string;
+  /** The clip or the animation itself: its own bytes loop over `previewUrl`'s poster, which is what the stencil is measured against. */
   draft: MediaDraft;
   /** The long edge the crop is re-encoded at — a background's own by default, `EMOTICON_MAX_EDGE` for § 13.4.1. */
   maxEdge?: number;
   onCancel: () => void;
-  /** REQUIREMENTS.md § 13.4.1. Where this screen follows another one, 취소 becomes ← and the flow steps back instead of ending — the trimmer it came from still has 취소. */
+  /** REQUIREMENTS.md § 13.4.1. Where this screen follows another one, 취소 becomes ← and the flow steps back instead of ending — the screen it came from still has 취소. */
   onBack?: () => void;
-  /** Given the cropped file, for the caller to re-read into a draft of its own. */
-  onDone: (file: File) => void;
 };
+
+/**
+ * REQUIREMENTS.md § 13.4.1. Which of the two 완료 answers, and they are exclusive: a
+ * clip is re-encoded here, where an animation's crop is folded into `animateImage`'s
+ * one pass rather than spending a generation of its own.
+ */
+export type VideoCropperProps = VideoCropperBaseProps &
+  (
+    | { source?: "clip"; onDone: (file: File) => void; onCrop?: never }
+    | {
+        source: "animation";
+        onCrop: (crop: CropRectangle, rotate: Rotation) => void;
+        onDone?: never;
+      }
+  );
 
 /**
  * REQUIREMENTS.md § 12.1. Frames a video the way `MediaEditor` frames a photo — the
@@ -51,10 +66,13 @@ export function VideoCropper({
   className,
   draft,
   maxEdge = BACKGROUND_MAX_EDGE,
+  source = "clip",
   onCancel,
   onBack,
   onDone,
+  onCrop,
 }: VideoCropperProps) {
+  const isAnimation = source === "animation";
   const [croppedArea, setCroppedArea] = useState<Nullable<CropArea>>(null);
   const [rotate, setRotate] = useState<Rotation>(0);
   const [isCropping, setIsCropping] = useState(false);
@@ -114,7 +132,7 @@ export function VideoCropper({
               className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
               Icon={onBack ? ArrowLeft : X}
               disabled={isCropping}
-              aria-label={onBack ? "영상 자르기로 돌아가기" : "자르기 취소"}
+              aria-label={onBack ? "누끼로 돌아가기" : "자르기 취소"}
               onClick={onBack ?? onCancel}
             />
             <IconButton
@@ -134,12 +152,14 @@ export function VideoCropper({
           </span>
           <div className="flex items-center gap-2xs">
             {/* INFO: In the bar rather than over the frame — the clip loops for as long as the screen is open, so its sound is a setting of the screen rather than a control on the picture. */}
-            <IconButton
-              className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
-              Icon={isMuted ? VolumeX : Volume2}
-              aria-label={isMuted ? "소리 켜기" : "소리 끄기"}
-              onClick={toggleSound}
-            />
+            {!isAnimation && (
+              <IconButton
+                className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
+                Icon={isMuted ? VolumeX : Volume2}
+                aria-label={isMuted ? "소리 켜기" : "소리 끄기"}
+                onClick={toggleSound}
+              />
+            )}
             <Button
               className="w-auto"
               buttonClassName="h-9 min-h-9 w-auto px-sm"
@@ -159,7 +179,13 @@ export function VideoCropper({
               src={posterUrl}
               stencilProps={{ grid: true }}
               backgroundComponent={CropperVideoBackground}
-              backgroundProps={{ src: sourceUrl, videoRef, isMuted, onCanPlay: startPlayback }}
+              backgroundProps={{
+                src: sourceUrl,
+                isAnimation,
+                videoRef,
+                isMuted,
+                onCanPlay: startPlayback,
+              }}
               onChange={handleChange}
             />
           )}
@@ -233,24 +259,28 @@ export function VideoCropper({
       return;
     }
 
+    // INFO: One scale on both axes, so it survives a turn — the poster and the clip share a ratio, and a 90° turn swaps both sizes the same way.
+    const scale = draft.width / posterWidth;
+    const crop = toEvenCrop(
+      {
+        left: croppedArea.x * scale,
+        top: croppedArea.y * scale,
+        width: croppedArea.width * scale,
+        height: croppedArea.height * scale,
+      },
+      draft,
+    );
+
+    if (onCrop) {
+      onCrop(crop, rotate);
+
+      return;
+    }
+
     setIsCropping(true);
 
     try {
-      // INFO: One scale on both axes, so it survives a turn — the poster and the clip share a ratio, and a 90° turn swaps both sizes the same way.
-      const scale = draft.width / posterWidth;
-      const file = await cropVideo(
-        draft.file,
-        toEvenCrop({
-          left: croppedArea.x * scale,
-          top: croppedArea.y * scale,
-          width: croppedArea.width * scale,
-          height: croppedArea.height * scale,
-        }),
-        maxEdge,
-        rotate,
-      );
-
-      onDone(file);
+      onDone?.(await cropVideo(draft.file, crop, maxEdge, rotate));
     } catch (error) {
       // INFO: `VideoTrimmer`'s reason — the one failure a user can act on is a codec this browser cannot decode, and everything else here reads the same from outside.
       console.error("[crop] the cut failed", error);
@@ -267,6 +297,8 @@ type CropperVideoBackgroundProps = {
   /** The cropper's own handle, which is what carries the image box and the transform the stencil is measured in. */
   cropper: Pick<CropperRef, "getState" | "getTransitions" | "getImage">;
   src: string;
+  /** An animated WebP or GIF loops in an `<img>` on its own, so there is no element to play and nothing to hear. */
+  isAnimation: boolean;
   isMuted: boolean;
   videoRef: Ref<Nullable<HTMLVideoElement>>;
   onCanPlay: (video: HTMLVideoElement) => void;
@@ -289,6 +321,7 @@ function CropperVideoBackground({
   className,
   cropper,
   src,
+  isAnimation,
   isMuted,
   videoRef,
   onCanPlay,
@@ -301,7 +334,16 @@ function CropperVideoBackground({
   return (
     <>
       <CropperBackgroundImage ref={ref} className={className} cropper={cropper} />
-      {src && (
+      {src && isAnimation && (
+        // eslint-disable-next-line @next/next/no-img-element -- An animated WebP has to loop as itself, and `next/image` would hand back a still frame of it.
+        <img
+          className={cn("advanced-cropper-background-image", className)}
+          style={{ ...style, objectFit: "fill" }}
+          src={src}
+          alt=""
+        />
+      )}
+      {src && !isAnimation && (
         <video
           ref={videoRef}
           className={cn("advanced-cropper-background-image", className)}

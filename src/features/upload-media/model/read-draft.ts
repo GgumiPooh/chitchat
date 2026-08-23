@@ -9,7 +9,7 @@ import {
   toSafeFilename,
 } from "@/shared/config";
 import { A_SECOND, formatSize, randomId, type Nullable } from "@/shared/lib";
-import { loadImage, renderThumbnail } from "./canvas";
+import { TRANSPARENT_OUTPUT_MIME, loadImage, renderThumbnail } from "./canvas";
 import type { VoiceRecording } from "./use-voice-recorder";
 
 // INFO: Far enough in that a video opening on a black frame still yields a recognisable poster, clamped below for a clip shorter than that.
@@ -63,7 +63,10 @@ export function toStoredMime(file: File): string {
  * REQUIREMENTS.md § 8.3. reserves the bubble's box from it before the image loads,
  * so a wrong number is a visible scroll jolt rather than a cosmetic error.
  */
-export function toMediaDraft(file: File): Promise<MediaDraft> {
+export function toMediaDraft(
+  file: File,
+  { transparent = false }: MediaDraftOptions = {},
+): Promise<MediaDraft> {
   const mime = toStoredMime(file);
 
   // INFO: REQUIREMENTS.md § 9.1. A file attachment is never decoded — there is no box to measure and no frame to render, so it stages the moment it is picked.
@@ -71,8 +74,13 @@ export function toMediaDraft(file: File): Promise<MediaDraft> {
     return Promise.resolve(toFileDraft(file, mime));
   }
 
-  return isVideoMime(mime) ? toVideoDraft(file) : toImageDraft(file);
+  return isVideoMime(mime) ? toVideoDraft(file) : toImageDraft(file, transparent);
 }
+
+export type MediaDraftOptions = {
+  /** WARN: § 13.4.1. On for the animation flow, whose poster is `CutoutEditor`'s preview and the cropper's stencil — the § 9. format falls back to JPEG, which would seat a cut-out emoticon on black. */
+  transparent?: boolean;
+};
 
 /**
  * REQUIREMENTS.md § 9.3. A finished recording as the § 9. upload wants it.
@@ -124,7 +132,7 @@ function toFileDraft(file: File, mime: string): MediaDraft {
   };
 }
 
-async function toImageDraft(file: File): Promise<MediaDraft> {
+async function toImageDraft(file: File, transparent: boolean): Promise<MediaDraft> {
   const sourceUrl = URL.createObjectURL(file);
 
   try {
@@ -134,7 +142,12 @@ async function toImageDraft(file: File): Promise<MediaDraft> {
       blob: thumbnail,
       blurhash,
       mime: thumbnailMime,
-    } = await renderThumbnail(image, width, height);
+    } = await renderThumbnail(
+      image,
+      width,
+      height,
+      transparent ? TRANSPARENT_OUTPUT_MIME : undefined,
+    );
 
     return {
       id: randomId(),

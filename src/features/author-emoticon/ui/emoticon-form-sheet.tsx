@@ -16,6 +16,7 @@ import {
   ALLOWED_EMOTICON_AUDIO_MIMES,
   EMOTICON_KIND_NOUNS,
   toEmoticonAssetUrl,
+  type EmoticonImageSlot,
   type EmoticonPackType,
   type EmoticonSlot,
 } from "@/shared/config";
@@ -51,9 +52,10 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { downloadEmoticonAsset } from "../api/download-emoticon-asset";
-import { readEmoticonStillFile } from "../api/read-emoticon-asset";
+import { readEmoticonImageFile } from "../api/read-emoticon-asset";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
 import { createEmoticon, updateEmoticon, type EmoticonImageBody } from "../api/write-emoticon";
+import { useAnimationEmoticon, type AnimationEmoticon } from "../model/use-animation-emoticon";
 import { useEmoticonDraft } from "../model/use-emoticon-draft";
 import { useVideoEmoticon, type VideoEmoticon } from "../model/use-video-emoticon";
 
@@ -84,8 +86,9 @@ export type EmoticonFormSheetProps = {
  * WARN: The image has no clear button. `emoticon_items_has_image_check` forbids an item
  * with no image, so replacing is the only operation the field has.
  *
- * WARN: Only a static pick reaches `MediaEditor`. A canvas crop decodes one frame and
- * re-encodes a still, which would turn an animation into a picture (§ 13.4.).
+ * WARN: Only a static pick reaches `MediaEditor` — a canvas crop decodes one frame and
+ * would turn an animation into a picture (§ 13.4.). An animation is re-edited through
+ * § 13.4.1.'s flow, which re-encodes every frame it has.
  */
 export function EmoticonFormSheet({
   className,
@@ -113,6 +116,8 @@ export function EmoticonFormSheet({
   const [videoSource, setVideoSource] = useState<Nullable<File>>(null);
   // INFO: § 13.4.1. A clip fills the same two slots a picked animation does, so it is a second source for this one field rather than a flow of its own.
   const video = useVideoEmoticon({ onReady: stageVideo });
+  // INFO: § 13.4.1. The same two slots again, from an animation that is already one — a picked GIF, or a stored item fetched back.
+  const animation = useAnimationEmoticon({ onReady: stageAnimation });
   // INFO: REQUIREMENTS.md § 13.4. Opens the OS picker directly (`DESIGN.md § 7.5.`) — one image is the whole of the choice, so there is nothing for a sheet to frame.
   const imagePicker = useMediaPicker({
     accept: "image/*",
@@ -163,7 +168,7 @@ export function EmoticonFormSheet({
       {/* WARN: Closed while the editor or § 13.4.1.'s video flow is up. Both portal into the app shell (`ShellOverlay`) and the drawer portals into `body`, so no z-index inside the shell can put either over it. */}
       <BottomSheet
         className={className}
-        isOpen={isOpen && !isEditing && !video.isActive}
+        isOpen={isOpen && !isEditing && !video.isActive && !animation.isActive}
         header={{ title: `${kindNoun} ${emoticon ? "편집" : "추가"}` }}
         onClose={handleClose}
       >
@@ -218,6 +223,7 @@ export function EmoticonFormSheet({
       {videoPicker.input}
       {audioPicker.input}
       {video.overlay}
+      {animation.overlay}
       {step === "cutout" && draft.image && (
         // WARN: Keyed by draft for `MediaEditor`'s reason — the matte is started on mount, so a replaced image must be a second one.
         <CutoutEditor
@@ -253,27 +259,33 @@ export function EmoticonFormSheet({
   /**
    * What the thumbnail does with what it shows, or nothing at all.
    *
-   * INFO: § 13.4.1. An animation re-enters the video flow at its source clip, which
-   * is the only way to cut it shorter or frame it tighter; a canvas crop would decode
-   * one frame (§ 13.4.). A stored still is fetched and walked through the same flow a
-   * pick takes; a stored animation, and one picked as a file, have nothing to edit from.
+   * INFO: § 13.4.1. An animation whose source clip is still in hand re-enters the video
+   * flow there, since only that can also cut it shorter; every other animation walks
+   * 누끼 → 영역 자르기 over its own frames, which a canvas crop cannot (§ 13.4.).
+   * A stored image is fetched into whichever of the two flows its slot belongs to.
    */
   function toEdit(): Optional<() => void> {
     if (!draft.image) {
-      return emoticon?.hasStill && !emoticon.hasAnimated
-        ? () => void reEditStored(emoticon)
-        : undefined;
+      if (emoticon?.hasAnimated) {
+        return () => void reEditStored(emoticon, "animated-image");
+      }
+
+      return emoticon?.hasStill ? () => void reEditStored(emoticon, "still-image") : undefined;
     }
 
-    if (!draft.image.animated) {
+    const animated = draft.image.animated;
+
+    if (!animated) {
       return () => setStep("crop");
     }
 
-    return videoSource ? () => void video.open(videoSource) : undefined;
+    return videoSource
+      ? () => void video.open(videoSource)
+      : () => void animation.open(animated.file);
   }
 
-  // INFO: § 13.4. Whether the stored still was already cut out is not detected — re-running 누끼 on it is the user's call.
-  async function reEditStored(target: Emoticon) {
+  // INFO: § 13.4. Whether the stored image was already cut out is not detected — re-running 누끼 on it is the user's call.
+  async function reEditStored(target: Emoticon, slot: EmoticonImageSlot) {
     if (isFetchingStored) {
       return;
     }
@@ -281,7 +293,13 @@ export function EmoticonFormSheet({
     setIsFetchingStored(true);
 
     try {
-      await pickPlainImage(await readEmoticonStillFile(target), "stored");
+      const file = await readEmoticonImageFile(target, slot);
+
+      if (slot === "animated-image") {
+        await animation.open(file);
+      } else {
+        await pickPlainImage(file, "stored");
+      }
     } catch {
       toast.error("이미지를 읽지 못했어요");
     } finally {
@@ -349,6 +367,13 @@ export function EmoticonFormSheet({
     if (audio) {
       void pickAudio(audio);
     }
+  }
+
+  // INFO: § 13.4.1. Both slots come out of the one encode, so the still can never disagree with the animation beside it.
+  // WARN: `flowSource` stays null, or 저장 would take `encodeEmoticonStill`'s lossy pass over a still that was lifted out of the animation and is already final.
+  function stageAnimation({ image }: AnimationEmoticon) {
+    adoptImage(image);
+    setFlowSource(null);
   }
 
   async function submit() {

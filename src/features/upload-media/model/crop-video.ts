@@ -125,18 +125,36 @@ function toCropProcessor(crop: CropRectangle, size: { width: number; height: num
  * 4:2:0 chroma planes every codec here writes are half-resolution — an odd width or
  * an odd offset is rejected outright by some encoders and silently shifts the colour
  * planes by half a pixel in the rest.
+ *
+ * WARN: Rounded up, a full-frame stencil on an odd `frame` lands outside it — which
+ * a canvas draw clamped away but ffmpeg's `crop` refuses outright (`animateImage`).
  */
-export function toEvenCrop(rectangle: CropRectangle): CropRectangle {
+export function toEvenCrop(
+  rectangle: CropRectangle,
+  frame: { width: number; height: number },
+): CropRectangle {
+  const bounds = { width: toEvenDown(frame.width), height: toEvenDown(frame.height) };
+  const width = clamp(toEven(rectangle.width), 2, bounds.width);
+  const height = clamp(toEven(rectangle.height), 2, bounds.height);
+
   return {
-    left: toEven(rectangle.left),
-    top: toEven(rectangle.top),
-    width: Math.max(2, toEven(rectangle.width)),
-    height: Math.max(2, toEven(rectangle.height)),
+    left: clamp(toEven(rectangle.left), 0, bounds.width - width),
+    top: clamp(toEven(rectangle.top), 0, bounds.height - height),
+    width,
+    height,
   };
 }
 
 function toEven(value: number): number {
   return Math.round(value / 2) * 2;
+}
+
+function toEvenDown(value: number): number {
+  return Math.floor(value / 2) * 2;
+}
+
+function clamp(value: number, low: number, high: number): number {
+  return Math.min(Math.max(value, low), Math.max(low, high));
 }
 
 function toCroppedName(name: string): string {
