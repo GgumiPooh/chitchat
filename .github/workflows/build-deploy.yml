@@ -78,6 +78,9 @@ jobs:
           key: ${{ secrets.INFRA_MONO_SSH_KEY }}
           script: |
             set -euo pipefail
+            # INFO: jandh-emoticons deploys to this host too, and its `docker image prune -f` GCs an in-flight pull's ingest out from under us
+            exec 9>/tmp/jandh-deploy.lock
+            flock -w 900 9
             cd /opt/jandh
             echo "${{ secrets.GITHUB_TOKEN }}" | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
             sudo docker compose pull
