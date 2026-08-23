@@ -1,5 +1,6 @@
 "use client";
 
+import { SHORTCUT_ICLOUD_URL } from "@/shared/config";
 import { isStandalone, safelyGet, safelyRun, useHydrated, useIsIos } from "@/shared/lib";
 import { BottomSheet, Button } from "@/shared/ui";
 import { useState } from "react";
@@ -23,6 +24,7 @@ export function ShortcutGuide({ className, shareKey }: ShortcutGuideProps) {
   // PWA(설치된 독립 앱)인 경우에만 단축어 바텀시트 가이드를 띄움
   const isVisible =
     isHydrated &&
+    SHORTCUT_ICLOUD_URL !== undefined &&
     isTargetPlatform &&
     isStandalone() &&
     !isDismissed &&
@@ -60,13 +62,7 @@ export function ShortcutGuide({ className, shareKey }: ShortcutGuideProps) {
         </div>
         <div className="flex flex-col gap-xs pt-xs">
           <Button className="w-full" asChild variant="secondary">
-            <a
-              rel="noopener"
-              target="_blank"
-              href={
-                process.env.NEXT_PUBLIC_SHORTCUT_ICLOUD_URL || "https://www.icloud.com/shortcuts/"
-              }
-            >
+            <a rel="noopener" target="_blank" href={SHORTCUT_ICLOUD_URL}>
               1. 단축어 다운로드
             </a>
           </Button>

@@ -566,3 +566,14 @@ export const SESSION_COOKIE_OPTIONS = {
   domain: SESSION_COOKIE_DOMAIN,
   maxAge: SESSION_DURATION / A_SECOND,
 } as const;
+
+/**
+ * iCloud link the 공유 단축어 is installed from, including the shortcut's id.
+ *
+ * WARN: Undefined rather than a bare `https://www.icloud.com/shortcuts/` fallback — iOS
+ * hands that host to the Shortcuts app, which opens with nothing to add and no error.
+ *
+ * WARN: `NEXT_PUBLIC_` and inlined at build time, so it is a Dockerfile `ARG` and a
+ * workflow build-arg; the runtime `.env` cannot supply it.
+ */
+export const SHORTCUT_ICLOUD_URL = process.env.NEXT_PUBLIC_SHORTCUT_ICLOUD_URL?.trim() || undefined;

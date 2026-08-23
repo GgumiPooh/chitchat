@@ -1,5 +1,6 @@
 "use client";
 
+import { SHORTCUT_ICLOUD_URL } from "@/shared/config";
 import { safelyRun, useHydrated, useIsIos, useIsStandalone } from "@/shared/lib";
 import { BottomSheet, Button, SettingsRow } from "@/shared/ui";
 import { Share } from "lucide-react";
@@ -22,7 +23,8 @@ export function ShortcutSettingsRow({ className, shareKey }: ShortcutSettingsRow
   const isMac = typeof window !== "undefined" && /Macintosh|Mac OS X/.test(navigator.userAgent);
 
   // INFO: (iOS이고 PWA) 이거나 (Mac이고 PWA) 인 경우에만 노출
-  const isTargetEnvironment = isHydrated && isStandalone && (isIos || isMac);
+  const isTargetEnvironment =
+    isHydrated && isStandalone && (isIos || isMac) && SHORTCUT_ICLOUD_URL !== undefined;
 
   if (!isTargetEnvironment) {
     return null;
@@ -61,13 +63,7 @@ export function ShortcutSettingsRow({ className, shareKey }: ShortcutSettingsRow
           </div>
           <div className="flex flex-col gap-xs pt-xs">
             <Button className="w-full" asChild variant="secondary">
-              <a
-                rel="noopener"
-                target="_blank"
-                href={
-                  process.env.NEXT_PUBLIC_SHORTCUT_ICLOUD_URL || "https://www.icloud.com/shortcuts/"
-                }
-              >
+              <a rel="noopener" target="_blank" href={SHORTCUT_ICLOUD_URL}>
                 1. 단축어 다운로드
               </a>
             </Button>
