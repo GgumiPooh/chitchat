@@ -1,5 +1,7 @@
 import { AutoModel, AutoProcessor, RawImage, env } from "@huggingface/transformers";
 
+import { A_MEGABYTE } from "@/shared/lib";
+
 /**
  * REQUIREMENTS.md § 13.4.2. Which matting model a frame goes to. A still takes
  * RMBG-1.4 — 96MB at fp16, a fixed 1024² input, and the better matte on anything. A
@@ -34,6 +36,9 @@ type Session = {
   model: Awaited<ReturnType<typeof AutoModel.from_pretrained>>;
   processor: Awaited<ReturnType<typeof AutoProcessor.from_pretrained>>;
 };
+
+/** Below this, a file is a config rather than weights — see `loadCutoutModel`. */
+const MIN_TRACKED_DOWNLOAD_BYTES = A_MEGABYTE;
 
 const sessions = new Map<CutoutModel, Promise<Session>>();
 
@@ -86,13 +91,37 @@ export function loadCutoutModel(
   configure();
 
   const { dtype, id } = MODELS[kind];
+  // WARN: Per file, summed — the loader reports each one separately, and a 548-byte `config.json` finishing before the weights start is what showed 100% and then 0%.
+  const downloads = new Map<string, { loaded: number; total: number }>();
   const session = Promise.all([
     AutoModel.from_pretrained(id, {
       dtype,
-      progress_callback: (event: { status: string; loaded?: number; total?: number }) => {
-        if (event.status === "progress" && event.total) {
-          onProgress?.({ phase: "fetching", loaded: event.loaded ?? 0, total: event.total });
+      progress_callback: (event: {
+        status: string;
+        file?: string;
+        loaded?: number;
+        total?: number;
+      }) => {
+        if (event.status !== "progress" || !event.file || !event.total) {
+          return;
         }
+
+        // INFO: The configs beside the weights are under a kilobyte, so they are dropped rather than summed — a file that completes in one event only ever moves the bar backwards.
+        if (event.total < MIN_TRACKED_DOWNLOAD_BYTES) {
+          return;
+        }
+
+        downloads.set(event.file, { loaded: event.loaded ?? 0, total: event.total });
+
+        let loaded = 0;
+        let total = 0;
+
+        for (const download of downloads.values()) {
+          loaded += download.loaded;
+          total += download.total;
+        }
+
+        onProgress?.({ phase: "fetching", loaded, total });
       },
     }),
     AutoProcessor.from_pretrained(id),
