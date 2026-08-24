@@ -1,7 +1,13 @@
 import { upsertGoogleUser } from "@/entities/user";
 import { redirectTo } from "@/shared/api";
-import { createSession, isAllowedEmail, setSessionCookie, toDeviceLabel } from "@/shared/auth";
-import { HOME_ROUTE, IS_DEV_LOGIN_ENABLED, LOGIN_ROUTE } from "@/shared/config";
+import {
+  createSession,
+  isAllowedEmail,
+  setSessionCookie,
+  takePostLoginRoute,
+  toDeviceLabel,
+} from "@/shared/auth";
+import { IS_DEV_LOGIN_ENABLED, LOGIN_ROUTE } from "@/shared/config";
 import { NextResponse, type NextRequest } from "next/server";
 
 // INFO: REQUIREMENTS.md § 5.4. The login screen turns these into the same Korean copy the OAuth callback uses.
@@ -33,7 +39,7 @@ export async function POST(request: NextRequest) {
       await createSession(user.id, toDeviceLabel(request.headers.get("user-agent"))),
     );
 
-    return redirectTo(HOME_ROUTE, 303);
+    return redirectTo(await takePostLoginRoute(), 303);
   } catch (error) {
     console.error("Dev login failed", error);
 

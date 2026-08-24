@@ -1,9 +1,14 @@
 import {
+  CHAT_ROUTE,
   HOME_ROUTE,
   LOGIN_ROUTE,
+  MAX_PENDING_SHARE_BYTES,
+  PENDING_SHARE_COOKIE_NAME,
+  PENDING_SHARE_COOKIE_OPTIONS,
   ROOT_ROUTE,
   SESSION_COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
+  SHARE_TARGET_PARAMS,
 } from "@/shared/config";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -17,9 +22,15 @@ export function proxy(request: NextRequest) {
   const isLoginRoute = request.nextUrl.pathname === LOGIN_ROUTE;
 
   if (!sessionToken) {
-    return isLoginRoute
-      ? NextResponse.next()
-      : NextResponse.redirect(new URL(LOGIN_ROUTE, request.url));
+    if (isLoginRoute) {
+      return NextResponse.next();
+    }
+
+    const response = NextResponse.redirect(new URL(LOGIN_ROUTE, request.url));
+
+    rememberPendingShare(request, response);
+
+    return response;
   }
   if (isLoginRoute) {
     return NextResponse.redirect(new URL(HOME_ROUTE, request.url));
@@ -45,6 +56,36 @@ export function proxy(request: NextRequest) {
   response.cookies.set(SESSION_COOKIE_NAME, sessionToken, SESSION_COOKIE_OPTIONS);
 
   return response;
+}
+
+/**
+ * REQUIREMENTS.md § 7. A share sheet reaches this app whether or not a session
+ * cookie is there, and login lands on `HOME_ROUTE` with nothing of the share left on
+ * it — so the query is parked here and `takePostLoginRoute` spends it.
+ *
+ * WARN: The search string alone, never the path. The destination is `HOME_ROUTE`
+ * either way, which is what keeps a cookie an attacker can write from becoming an
+ * open redirect.
+ *
+ * WARN: The **cookie** being absent, which is not the same as the session being dead
+ * (§ 5.2.) — a share arriving on a cookie whose row is gone is bounced by
+ * `requireUserOrRedirect` to `SESSION_EXPIRE_ROUTE`, which this never sees, and is
+ * lost. Parking it on that branch too would resend the share of anyone who logs out
+ * and back in within `PENDING_SHARE_COOKIE_OPTIONS`' window.
+ */
+function rememberPendingShare(request: NextRequest, response: NextResponse): void {
+  const { pathname, search, searchParams } = request.nextUrl;
+  // WARN: Anchored on the share target's own path (`app/manifest.ts`), never on the parameter names alone — `text` and `url` are ordinary words, and the matcher covers § 13.7.'s zone, whose query strings this repository does not own.
+  const isShare =
+    pathname === CHAT_ROUTE &&
+    Object.values(SHARE_TARGET_PARAMS).some((name) => searchParams.has(name));
+
+  // WARN: Dropped rather than truncated past the 4096 bytes a cookie may carry, which `set` percent-encodes into at up to 9 bytes per Hangul syllable — over it the browser discards the whole `Set-Cookie` silently, and a half-share is worse than the login landing bare.
+  if (!isShare || encodeURIComponent(search).length > MAX_PENDING_SHARE_BYTES) {
+    return;
+  }
+
+  response.cookies.set(PENDING_SHARE_COOKIE_NAME, search, PENDING_SHARE_COOKIE_OPTIONS);
 }
 
 export const config = {

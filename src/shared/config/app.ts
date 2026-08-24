@@ -568,6 +568,28 @@ export const SESSION_COOKIE_OPTIONS = {
 } as const;
 
 /**
+ * REQUIREMENTS.md § 7. The Web Share Target parameters, and the order the shared
+ * text is assembled in — richest field first, since `text` routinely carries the
+ * title and the link already and each part is dropped when one before it holds it.
+ */
+export const SHARE_TARGET_PARAMS = { text: "text", title: "title", url: "url" } as const;
+
+// INFO: REQUIREMENTS.md § 7. Under the 4096 bytes a cookie may carry, with room for the name and the attributes beside the value.
+export const MAX_PENDING_SHARE_BYTES = 3_500;
+
+// INFO: REQUIREMENTS.md § 7. Where the proxy parks a share that arrived with no session cookie, for the login to land on rather than the bare `HOME_ROUTE`.
+export const PENDING_SHARE_COOKIE_NAME = "jandh_pending_share";
+
+// WARN: No `domain`, for `oauth-cookies.ts`'s reason — jandh-emoticons writes this origin's cookies too.
+export const PENDING_SHARE_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  path: "/",
+  maxAge: (10 * A_MINUTE) / A_SECOND,
+} as const;
+
+/**
  * iCloud link the 공유 단축어 is installed from, including the shortcut's id.
  *
  * WARN: Undefined rather than a bare `https://www.icloud.com/shortcuts/` fallback — iOS

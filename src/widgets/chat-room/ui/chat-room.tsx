@@ -148,6 +148,7 @@ import { useComposerClearance } from "../model/use-composer-clearance";
 import { useEmoticonSheet } from "../model/use-emoticon-sheet";
 import { useLinkPreviewPrefetch } from "../model/use-link-preview-prefetch";
 import { useMessageHistory } from "../model/use-message-history";
+import { useShareTarget } from "../model/use-share-target";
 import { useViewerTrack } from "../model/use-viewer-track";
 import { ChatBackdrop } from "./chat-backdrop";
 import { DateDivider } from "./date-divider";
@@ -973,6 +974,9 @@ export function ChatRoom({
     onTypeAhead: typeIntoComposer,
     onPasteText: pasteIntoComposer,
   });
+
+  // INFO: REQUIREMENTS.md § 7. Through `submit`, so a share takes the same live-edge return, 전송음 and § 8.5. retry every other send does.
+  useShareTarget((text) => submit(text, []));
 
   /**
    * REQUIREMENTS.md § 8.14. Focus into the panel after a menu digit chose its tab.
