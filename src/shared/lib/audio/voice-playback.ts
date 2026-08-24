@@ -6,10 +6,10 @@ import type { Nullable } from "../nullish";
 import { declareRestingAudioSession } from "./session";
 
 /**
- * One `Audio` element for every voice message in the app, and a **second** one
- * beside the emoticon player of REQUIREMENTS.md § 13.6.
+ * One `Audio` element for every voice message in the app, beside the Web Audio
+ * player of REQUIREMENTS.md § 13.6.
  *
- * INFO: Separate from the emoticon element because the two cut each other off — `playSound` overwrites `src`, so an emoticon arriving live would end a voice note mid-sentence, and `stopSound`'s `removeAttribute("src")` would take the track away outright.
+ * INFO: An element rather than that context because a voice note is minutes long and is seeked and paused, which an `AudioBufferSourceNode` cannot be — and the two must not cut each other off, where `playSound` stops whatever it was playing.
  * WARN: The audio **session** is still the page's resting one (`session.ts`), and that is not a free choice: `navigator.audioSession.type` is a page-wide switch, so moving voice to `playback` for a lock-screen Now Playing entry would put every two-second emoticon ping there too — the regression § 13.6. exists to prevent — and `playback` stops the user's music where `transient` only ducks it. Revisiting it is a change to `RESTING_TYPE`, never a category named here.
  * INFO: No `unlockSound` twin is needed: playback only ever starts from a tap on the play control, which is already the gesture iOS wants to see.
  */
@@ -185,7 +185,7 @@ export function stopVoice(): void {
  *
  * WARN: REQUIREMENTS.md § 5.3. What a capture owes this module on every exit path, and putting the page back in the resting category is **not** enough on its own: the category is page-wide, but WebKit fixes an element's own at its first playback — so a player minted before the session moved to `play-and-record` keeps that category however the page is redeclared afterwards, and its next tap mints an iOS Now Playing entry and stops the user's music instead of ducking it.
  * WARN: It stops whatever is playing and takes **no** `isVoiceActive` guard, unlike every other caller of `stopVoice`. A note still playing when the microphone was asked for is cut off by this, including on the path where permission was refused and no recording ever happened. That is not collateral to be guarded away: being alive across the switch is exactly what poisons the element, and one cannot be discarded without being stopped. Orphaning it instead — dropping the reference and letting it play on — is worse, since the store is keyed to it and the bubble would lose its pause and its clock.
- * INFO: Only this element is discarded, never § 13.6.'s emoticon player: that one is approved by `unlockSound` from the page's first gesture and a replacement would have none, leaving an arriving emoticon unable to sound at all. Voice playback starts from a tap on the play control every time, so a fresh element is always inside the gesture iOS wants to see.
+ * INFO: Only this element is discarded, never § 13.6.'s emoticon player: that context is resumed by `unlockSound` on every gesture, and a replacement would sit suspended until the next one, leaving an arriving emoticon unable to sound at all. Voice playback starts from a tap on the play control every time, so a fresh element is always inside the gesture iOS wants to see.
  */
 export function discardVoicePlayer(): void {
   const audio = element;

@@ -1,6 +1,8 @@
 import type { Nullable } from "../nullish";
 
 export const A_SECOND = 1_000;
+// INFO: One 60Hz display frame — what `requestAnimationFrame` paces at on every mobile browser this app targets, ProMotion included.
+export const A_FRAME = A_SECOND / 60;
 export const A_MINUTE = 60 * A_SECOND;
 export const AN_HOUR = 60 * A_MINUTE;
 export const A_DAY = 24 * AN_HOUR;

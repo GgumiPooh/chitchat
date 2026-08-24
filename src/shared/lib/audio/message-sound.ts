@@ -38,7 +38,7 @@ export function useMessageSound() {
       }
 
       // INFO: § 13.6. `"secondary"` — a 전송음 covers a message with no sound of its own, so a send during an emoticon's sound stays silent rather than cutting it short.
-      playSound(SOURCES[kind], "secondary");
+      playSound(SOURCES[kind], { priority: "secondary" });
     },
     [isEnabled],
   );

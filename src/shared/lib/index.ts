@@ -21,11 +21,13 @@ export {
   type AudioSessionType,
 } from "./audio/session";
 export {
+  getSoundLatency,
   playSound,
   stopSound,
   unlockSound,
   useSoundUnlock,
   warmSound,
+  type PlaySoundOptions,
   type SoundPriority,
 } from "./audio/sound";
 export {

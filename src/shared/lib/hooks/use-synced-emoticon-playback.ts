@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { playSound, warmSound } from "../audio/sound";
+import { getSoundLatency, playSound, warmSound } from "../audio/sound";
 import { cn } from "../class-name";
-import { A_SECOND } from "../date/time";
+import { A_FRAME, A_SECOND } from "../date/time";
 import {
   prepareAnimatedImage,
   releaseAnimatedImage,
@@ -39,13 +39,15 @@ export type SyncedEmoticonPlaybackPhase = "idle" | "held" | "frame";
  * REQUIREMENTS.md § 13.6. One emoticon's picture and sound, started on the same
  * frame.
  *
- * INFO: The sound goes first and the picture follows it, because that is the order
- * the two can be observed in: an animated image's clock starts on the first paint
- * after it is mounted (`prepareAnimatedImage`), which a caller can place, where the
- * sound's own start is only reported (`playSound` resolving on `playing`). So `play`
- * decodes the picture off-DOM, starts the sound, and on the frame after output
- * begins mounts the decoded element into `frameRef`'s box — through `flushSync`, so
- * the reveal commits before that frame paints rather than a scheduler task later.
+ * INFO: Both are placed rather than observed. An animated image's clock starts on
+ * the first paint after it is mounted (`prepareAnimatedImage`), and the sound is
+ * scheduled on the audio clock (`playSound`'s `delayMs`), whose distance to the
+ * speaker the context states (`getSoundLatency`). So `play` decodes the picture
+ * off-DOM, and inside a frame callback schedules the sound so that it is heard on
+ * that frame's paint and mounts the decoded element into `frameRef`'s box — through
+ * `flushSync`, so the reveal commits before that paint rather than a scheduler task
+ * later. Where the output is slower than a frame (Bluetooth), the sound starts at
+ * once and the picture waits the frames it takes to catch up.
  *
  * WARN: The box under `frameRef` must have no React children; the frame is put
  * there imperatively so the very element that decoded is the one that paints.
@@ -87,7 +89,7 @@ export function useSyncedEmoticonPlayback<T extends HTMLElement = HTMLDivElement
 
       if (!hasAnimated) {
         if (sounds) {
-          void playSound(audioSrc);
+          playSound(audioSrc);
         }
 
         return;
@@ -108,19 +110,11 @@ export function useSyncedEmoticonPlayback<T extends HTMLElement = HTMLDivElement
         return;
       }
 
-      if (sounds) {
-        await playSound(audioSrc);
-      }
-
-      if (isStale()) {
-        if (image) {
-          releaseAnimatedImage(image);
+      if (!image) {
+        if (sounds) {
+          playSound(audioSrc);
         }
 
-        return;
-      }
-
-      if (!image) {
         setPhase("idle");
 
         return;
@@ -132,6 +126,22 @@ export function useSyncedEmoticonPlayback<T extends HTMLElement = HTMLDivElement
         releaseAnimatedImage(image);
 
         return;
+      }
+
+      if (sounds) {
+        const latency = getSoundLatency();
+
+        playSound(audioSrc, { delayMs: Math.max(0, A_FRAME - latency) });
+
+        if (latency > A_FRAME) {
+          await nextFrames(Math.ceil((latency - A_FRAME) / A_FRAME));
+
+          if (isStale() || !frameRef.current) {
+            releaseAnimatedImage(image);
+
+            return;
+          }
+        }
       }
 
       image.alt = "";
@@ -196,4 +206,10 @@ function withHold(
 
 function nextFrame(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+async function nextFrames(count: number): Promise<void> {
+  for (let frame = 0; frame < count; frame++) {
+    await nextFrame();
+  }
 }

@@ -94,7 +94,7 @@ export function warmEmoticonUrls(
 /**
  * WARN: Never rejects, for `mapPooled`'s reason — and never clears `src` on the way
  * out either. An empty source resolves against the document URL and the element
- * fetches the page itself as an image, which is the trap `stopSound` documents.
+ * fetches the page itself as an image, which is the trap `stopVoice` documents.
  *
  * WARN: `fetchPriority` is what actually keeps this behind the conversation. The whole app is one HTTP/2 connection, so a narrow pool only limits how many requests are outstanding — it does not put the room's own images in front of them. An out-of-DOM `new Image()` is dispatched at default priority without this.
  *

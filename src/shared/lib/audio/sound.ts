@@ -2,14 +2,13 @@
 
 import { useEffect } from "react";
 import { A_MEGABYTE } from "../bytes";
+import { A_SECOND } from "../date/time";
 import type { Nullable } from "../nullish";
 import { safelyRun } from "../run/safely";
 import { declareRestingAudioSession } from "./session";
 
-// INFO: One element for the whole page: a second sound cuts the first off instead of layering over it, and the gesture that approves this element approves every sound that follows.
-let player: Nullable<HTMLAudioElement> = null;
-
-let isUnlocked = false;
+// INFO: REQUIREMENTS.md § 13.6. One context for the whole page: a second sound cuts the first off instead of layering over it, and the gesture that resumes this context resumes every sound that follows.
+let context: Nullable<AudioContext> = null;
 
 /**
  * How a sound behaves when the shared player is already sounding.
@@ -18,8 +17,14 @@ let isUnlocked = false;
  */
 export type SoundPriority = "primary" | "secondary";
 
-// INFO: § 13.6. The element refetches on every `src` assignment, so a source is read once into an object URL and every play after that starts from memory rather than from a round trip into R2.
-const cache = new Map<string, { objectUrl: string; size: number }>();
+export type PlaySoundOptions = {
+  priority?: SoundPriority;
+  /** REQUIREMENTS.md § 13.6. How long after the call the sound is scheduled on the audio clock, so a caller can line it up with a paint it has yet to make. */
+  delayMs?: number;
+};
+
+// INFO: § 13.6. Decoded once into PCM, so every play after that is a `start()` on the audio clock rather than a fetch, a decode, or an element spinning up.
+const cache = new Map<string, AudioBuffer>();
 
 // INFO: The in-flight warm itself, so a caller waiting on a source someone else already asked for joins that fetch rather than starting a second one.
 const warming = new Map<string, Promise<void>>();
@@ -33,15 +38,22 @@ const waiting: (() => void)[] = [];
 
 let cachedBytes = 0;
 
-// INFO: § 13.6. The whole of what bounds the warm — a caller warms what its screen holds and this decides how much of it is kept, so no call site has to price an emoticon's 2MB ceiling itself.
-const MAX_CACHED_BYTES = 8 * A_MEGABYTE;
+// INFO: § 13.6. Counted in decoded PCM, which is what a buffer actually holds — roughly 350KB per stereo second, so this is a screen's worth of two-second emoticons, least-recently-played out first.
+const MAX_CACHED_BYTES = 32 * A_MEGABYTE;
+
+const BYTES_PER_SAMPLE = 4;
+
+let playing: Nullable<AudioBufferSourceNode> = null;
 
 let playingSrc: Nullable<string> = null;
 
 let playingPriority: SoundPriority = "secondary";
 
+let playRun = 0;
+
 /**
- * Reads `src` into memory so a later `playSound` starts from it with no round trip.
+ * Decodes `src` into memory so a later `playSound` starts from it on the audio
+ * clock with no round trip.
  *
  * WARN: § 13.6. This is what lines a sound up with the picture beside it. An
  * emoticon's image is warmed and decoded long before it is drawn, and its sound was
@@ -52,7 +64,7 @@ let playingPriority: SoundPriority = "secondary";
  * that will not arrive, not left waiting on it.
  */
 export function warmSound(src: string): Promise<void> {
-  // INFO: A local draft's own `blob:`/`data:` source is already in memory, and holding a second copy of it would outlive the URL the caller revokes.
+  // INFO: A local draft's own `blob:`/`data:` source is decoded at the play that auditions it, since the URL is revoked as soon as the draft moves on.
   if (!isCacheable(src) || cache.has(src)) {
     return Promise.resolve();
   }
@@ -71,102 +83,82 @@ export function warmSound(src: string): Promise<void> {
 }
 
 /**
- * Hands the shared player the user gesture a browser requires before code may
- * start it.
+ * Hands the shared context the user gesture a browser requires before code may
+ * start it — and hands it again after iOS has interrupted it.
  *
- * WARN: Must run synchronously inside a real gesture handler — iOS approves the
- * element from that call stack alone, and what it approves is the element, not
- * the source, which is why there is exactly one of them.
+ * WARN: Must run synchronously inside a real gesture handler — iOS resumes the
+ * context from that call stack alone. A phone call or a spell in the background
+ * leaves the context `interrupted`, which is why this is armed on every gesture
+ * rather than the first.
  */
 export function unlockSound(): void {
-  if (isUnlocked) {
-    return;
-  }
+  const audio = getContext();
 
-  isUnlocked = true;
-  // WARN: `load()` rather than `play()` — an element with no source rejects `play()`, and a rejected call approves nothing.
-  safelyRun(() => getPlayer().load());
+  if (audio.state !== "running") {
+    void audio.resume().catch(() => undefined);
+  }
 }
 
-let resolvePlaying: Nullable<() => void> = null;
+/**
+ * How long a sound started now takes to reach the speaker, in ms.
+ *
+ * INFO: § 13.6. The whole reason the player is Web Audio: an `<audio>` element reports that it started and nothing about when the sound is heard, where the context states both halves of the pipeline — its own buffer and the output device's.
+ */
+export function getSoundLatency(): number {
+  const audio = getContext();
+
+  return (audio.baseLatency + (audio.outputLatency ?? 0)) * A_SECOND;
+}
 
 /**
  * Plays `src`, cutting off whatever the shared player was playing — unless this is
  * a `"secondary"` sound and what is playing is not.
  *
- * WARN: Resolves on the element's `playing` event — the moment output actually
- * starts, which `play()` returning is not — or at once when the sound is refused,
- * cut off by a later call, or declined. A caller aligning a picture to it
- * (`useSyncedEmoticonPlayback`) must never be left waiting on a sound that is not coming.
+ * WARN: A cached source starts synchronously, at `delayMs` on the audio clock, so
+ * a caller can put it on the frame it is about to paint. A miss decodes first and
+ * starts when it can; a later call in the meantime wins.
  */
-export function playSound(src: string, priority: SoundPriority = "primary"): Promise<void> {
-  const audio = getPlayer();
+export function playSound(
+  src: string,
+  { priority = "primary", delayMs = 0 }: PlaySoundOptions = {},
+): void {
+  const audio = getContext();
 
   // INFO: § 13.6. Only a *primary* sound holds the player — two 전송음s in a row still cut over, as every pair of sounds did before this.
-  if (priority === "secondary" && playingPriority === "primary" && isSounding(audio)) {
-    return Promise.resolve();
-  }
-
-  resolvePlaying?.();
-
-  const playing = new Promise<void>((resolve) => {
-    resolvePlaying = () => {
-      resolvePlaying = null;
-      audio.removeEventListener("playing", onPlaying);
-      resolve();
-    };
-  });
-  const onPlaying = () => resolvePlaying?.();
-
-  audio.addEventListener("playing", onPlaying, { once: true });
-
-  const cached = cache.get(src);
-
-  playingSrc = src;
-  playingPriority = priority;
-  // INFO: A play is what the eviction order is meant to be about, so a hit is moved to the head — warmed-and-never-played is what a tab's warm leaves behind, and it is what should go first.
-  if (cached) {
-    cache.delete(src);
-    cache.set(src, cached);
-  }
-
-  audio.src = cached?.objectUrl ?? src;
-  // INFO: A rejection is the expected outcome on a page that has never seen a gesture, and a sound that does not play is not worth surfacing.
-  void audio.play().catch(() => resolvePlaying?.());
-  // WARN: A miss pays for the source **twice** — the element's own media load here, and the CORS `fetch` below, which the browser caches under a separate key (`CLAUDE.md § 5.3.`). It is spent deliberately and only on a miss: the element refetches on every `src` assignment, so the alternative is paying that download again on every later play of the same sound.
-  void warmSound(src);
-
-  return playing;
-}
-
-/**
- * Stops the shared player and lets go of its source, so a caller may revoke the
- * object URL it handed over.
- *
- * WARN: `removeAttribute` and not `src = ""` — an empty source resolves against
- * the document URL, and the element goes on to fetch the page itself as media.
- */
-export function stopSound(): void {
-  const audio = player;
-
-  if (!audio) {
+  if (priority === "secondary" && playingPriority === "primary" && playing) {
     return;
   }
 
-  playingSrc = null;
-  playingPriority = "secondary";
-  resolvePlaying?.();
-  audio.pause();
-  audio.removeAttribute("src");
-  // INFO: The element stays approved through this — `unlockSound` grants the gesture to the element, and a sourceless `load()` is what it does itself.
-  safelyRun(() => audio.load());
+  const run = ++playRun;
+  const cached = cache.get(src);
+
+  if (cached) {
+    start(audio, src, cached, priority, delayMs);
+
+    return;
+  }
+
+  void loadBuffer(src).then((buffer) => {
+    if (buffer && run === playRun) {
+      start(audio, src, buffer, priority, 0);
+    }
+  });
 }
 
-/** Arms `unlockSound` on the first gesture anywhere in the page. */
+/**
+ * Stops the shared player, so nothing is sounding when a draft revokes the object
+ * URL its audition came from.
+ */
+export function stopSound(): void {
+  playRun++;
+  stopPlaying();
+}
+
+/** Arms `unlockSound` on every gesture anywhere in the page. */
 export function useSoundUnlock(): void {
   useEffect(() => {
-    // INFO: Capture phase, so a handler that stops propagation cannot swallow the one gesture this is waiting for.
-    const options = { once: true, capture: true } as const;
+    // INFO: Capture phase, so a handler that stops propagation cannot swallow the gesture this is waiting for.
+    const options = { capture: true } as const;
 
     document.addEventListener("pointerdown", unlockSound, options);
     document.addEventListener("keydown", unlockSound, options);
@@ -178,9 +170,63 @@ export function useSoundUnlock(): void {
   }, []);
 }
 
-// WARN: Not `currentTime > 0` — `play()` clears `paused` synchronously but the clock only moves once the media has buffered, so a sound still loading would read as silence and be cut off by the very 전송음 this defers.
-function isSounding(audio: HTMLAudioElement): boolean {
-  return !audio.paused && !audio.ended;
+function start(
+  audio: AudioContext,
+  src: string,
+  buffer: AudioBuffer,
+  priority: SoundPriority,
+  delayMs: number,
+): void {
+  stopPlaying();
+
+  const source = audio.createBufferSource();
+
+  source.buffer = buffer;
+  source.connect(audio.destination);
+  source.addEventListener("ended", () => {
+    if (playing === source) {
+      playing = null;
+      // INFO: Or the last sound of a session stays pinned against eviction (`retain`) for as long as the page is open.
+      playingSrc = null;
+      playingPriority = "secondary";
+    }
+  });
+
+  playing = source;
+  playingSrc = src;
+  playingPriority = priority;
+  // INFO: A play is what the eviction order is meant to be about, so a hit is moved to the head — warmed-and-never-played is what a tab's warm leaves behind, and it is what should go first.
+  if (cache.has(src)) {
+    cache.delete(src);
+    cache.set(src, buffer);
+  }
+
+  // INFO: A context that has never seen a gesture, or was interrupted, is resumed on the next one (`unlockSound`); the start is queued against its clock either way and plays from wherever that clock is when it runs.
+  safelyRun(() => source.start(audio.currentTime + delayMs / A_SECOND));
+}
+
+function stopPlaying(): void {
+  const source = playing;
+
+  if (!source) {
+    return;
+  }
+
+  playing = null;
+  playingSrc = null;
+  playingPriority = "secondary";
+  safelyRun(() => source.stop());
+  source.disconnect();
+}
+
+async function loadBuffer(src: string): Promise<Nullable<AudioBuffer>> {
+  if (isCacheable(src)) {
+    await warmSound(src);
+
+    return cache.get(src) ?? null;
+  }
+
+  return decode(src);
 }
 
 async function readIntoCache(src: string): Promise<void> {
@@ -191,17 +237,29 @@ async function readIntoCache(src: string): Promise<void> {
   warmsInFlight++;
 
   try {
-    const response = await fetch(src);
-    const blob = response.ok ? await response.blob() : null;
+    const buffer = await decode(src);
 
-    if (blob) {
-      retain(src, blob);
+    if (buffer) {
+      retain(src, buffer);
     }
-  } catch {
-    // INFO: A sound that cannot be read is a sound that does not play, which is not worth surfacing — and the caller is released either way (see `warmSound`).
   } finally {
     warmsInFlight--;
     waiting.shift()?.();
+  }
+}
+
+async function decode(src: string): Promise<Nullable<AudioBuffer>> {
+  try {
+    const response = await fetch(src);
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return await getContext().decodeAudioData(await response.arrayBuffer());
+  } catch {
+    // INFO: A sound that cannot be read or decoded is a sound that does not play, which is not worth surfacing — and the caller is released either way (see `warmSound`).
+    return null;
   }
 }
 
@@ -212,11 +270,11 @@ function isCacheable(src: string): boolean {
 /**
  * WARN: Least-recently-played — `playSound` moves a hit to the head, so a tab's warm
  * cannot evict a sound the reader keeps tapping. The source the player is holding is
- * never evicted either: revoking an object URL mid-playback ends the sound.
+ * never evicted either, so its buffer stays at the head for the next tap.
  */
-function retain(src: string, blob: Blob): void {
-  cache.set(src, { objectUrl: URL.createObjectURL(blob), size: blob.size });
-  cachedBytes += blob.size;
+function retain(src: string, buffer: AudioBuffer): void {
+  cache.set(src, buffer);
+  cachedBytes += toBytes(buffer);
 
   for (const oldest of cache.keys()) {
     if (cachedBytes <= MAX_CACHED_BYTES) {
@@ -230,27 +288,26 @@ function retain(src: string, blob: Blob): void {
 }
 
 function release(src: string): void {
-  const entry = cache.get(src);
+  const buffer = cache.get(src);
 
-  if (!entry) {
+  if (!buffer) {
     return;
   }
 
-  URL.revokeObjectURL(entry.objectUrl);
   cache.delete(src);
-  cachedBytes -= entry.size;
+  cachedBytes -= toBytes(buffer);
 }
 
-function getPlayer(): HTMLAudioElement {
-  if (!player) {
-    // WARN: REQUIREMENTS.md § 13.6. Before the element exists, because the `auto` session an `<audio>` element would otherwise settle into is `playback` — the category that mints iOS's Now Playing entry.
+function toBytes(buffer: AudioBuffer): number {
+  return buffer.length * buffer.numberOfChannels * BYTES_PER_SAMPLE;
+}
+
+function getContext(): AudioContext {
+  if (!context) {
+    // WARN: REQUIREMENTS.md § 13.6. Before the context exists, because the session is fixed from the page's first audio and `auto` would settle into a category that mints iOS's Now Playing entry.
     declareRestingAudioSession();
-    player = new Audio();
-    // INFO: Or the last sound of a session stays pinned against eviction (`retain`) for as long as the page is open.
-    player.addEventListener("ended", () => {
-      playingSrc = null;
-    });
+    context = new AudioContext();
   }
 
-  return player;
+  return context;
 }
