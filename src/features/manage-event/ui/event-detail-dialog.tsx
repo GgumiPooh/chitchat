@@ -25,6 +25,8 @@ export type EventDetailDialogProps = {
   occurrence: Nullable<EventOccurrence>;
   /** REQUIREMENTS.md § 11.4. For the authorship line — a record, never a permission check. */
   participants: Participant[];
+  /** REQUIREMENTS.md § 16.2. The mirror reads an event in full and offers nothing on it — no 일정 관리, so no 수정 and no 삭제. */
+  isReadOnly?: boolean;
   onClose: () => void;
   /** A save or a delete landed; the screen refetches. */
   onChanged: () => void;
@@ -45,6 +47,7 @@ export function EventDetailDialog({
   className,
   occurrence,
   participants,
+  isReadOnly = false,
   onClose,
   onChanged,
 }: EventDetailDialogProps) {
@@ -72,7 +75,7 @@ export function EventDetailDialog({
           // INFO: `break-all` — the app wraps on spaces (DESIGN.md § 4.2.3.), which leaves a long spaceless title overflowing its own line rather than wrapping.
           className: "pr-24 break-all",
           title: shown?.event.title ?? "일정",
-          action: (
+          action: isReadOnly ? undefined : (
             <IconButton
               Icon={Settings2}
               haptic
@@ -145,10 +148,11 @@ export function EventDetailDialog({
         onClose={() => setIsManaging(false)}
       />
 
-      {isEditing && shown && (
+      {/* WARN: Mounted whenever there is something to edit, not only while editing — the sheet stays up through its slide-down, which unmounting would cut short. */}
+      {shown && (
         <EventFormSheet
           key={formToken}
-          isOpen
+          isOpen={isEditing}
           dayKey={toDayKey(shown.startsAt)}
           occurrence={shown}
           onClose={() => setIsEditing(false)}

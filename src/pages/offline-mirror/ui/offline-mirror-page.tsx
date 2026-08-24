@@ -75,7 +75,10 @@ export function OfflineMirrorPage({ className }: OfflineMirrorPageProps) {
     }
 
     if (current === "calendar") {
-      return <MirrorCalendar />;
+      // INFO: The agenda's authorship line reads people the way 채팅 does, but a calendar with no shell is still a calendar — it draws without the avatars rather than reporting a miss.
+      return (
+        <MirrorCalendar participants={shell.status === "hit" ? shell.payload.participants : []} />
+      );
     }
     if (current === "gallery" || current === "files" || current === "voice") {
       return <MirrorArchive shelf={current} />;
