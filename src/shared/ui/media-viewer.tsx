@@ -63,6 +63,12 @@ import { ShellOverlay } from "./shell-overlay";
  */
 const ARRIVAL_DWELL = A_SECOND;
 
+// INFO: The platform transport's strip along the bottom of the picture, in CSS px, sized to cover iOS's and Android's — neither exposes its own height to script.
+const VIDEO_TRANSPORT_HEIGHT = 64;
+
+// INFO: The centre play glyph iOS and Android draw before playback, in CSS px.
+const VIDEO_PLAY_GLYPH_RADIUS = 48;
+
 export type MediaViewerProps = {
   className?: string;
   cells: MediaCell[];
@@ -540,7 +546,11 @@ export function MediaViewer({
                 {Math.abs(slideIndex - index) > 1 ? (
                   <SlidePlaceholder cell={cell} />
                 ) : cell.isVideo ? (
-                  <VideoSlide cell={cell} isMorphTarget={isCurrent} />
+                  <VideoSlide
+                    cell={cell}
+                    isMorphTarget={isCurrent}
+                    onPlayingChange={handlePlayingChange}
+                  />
                 ) : (
                   // WARN: REQUIREMENTS.md § 18. #6. Only the slide on screen takes the gesture. A neighbour is half a swipe away and mounted, so handlers on it would answer a pinch that started over the photo the reader can see.
                   <ImageSlide
@@ -829,7 +839,7 @@ export function MediaViewer({
    * be looked at with nothing over it.
    *
    * WARN: It does **not** close, unlike every other overlay's scrim (§ 3.5.1.). The photo is `object-contain`, so a portrait one leaves most of the screen as scrim — and § 8.1.'s track is a stream the reader swipes through rather than a single photo they opened, where a tap landing a few pixels off the image threw them out of it. 닫기 and `Escape` are the only ways out, and neither can be hit by accident.
-   * WARN: A `<video>` is excluded whole. Its controls are the platform's own and a tap that lands between two of them is aimed at the player, not past it. So is every control on a slide.
+   * WARN: On a `<video>` only the transport belongs to the player (`isOnPlayer`). The picture itself toggles, because the platform toggles its own controls on the same tap — and a clip that fills the height leaves no scrim to tap otherwise.
    * WARN: It must stay a `click`: a `pointerdown` here would fire under the OS hold that § 8.11. deliberately leaves to iOS, and the chrome would vanish as the 사진에 저장 menu opened over it.
    */
   function handleSurfaceClick(event: MouseEvent<HTMLDivElement>) {
@@ -840,6 +850,15 @@ export function MediaViewer({
     }
 
     setIsChromeVisible((visible) => !visible);
+  }
+
+  /**
+   * DESIGN.md § 7.10. The chrome follows playback the way the platform's transport does: away when a clip starts, back when it pauses or ends.
+   *
+   * INFO: This is what keeps the two sets of controls moving together. Starting a clip from the transport with the chrome already hidden leaves it hidden, and pausing brings both back on the one tap.
+   */
+  function handlePlayingChange(isPlaying: boolean) {
+    setIsChromeVisible(!isPlaying);
   }
 }
 
@@ -1070,12 +1089,12 @@ function refuseVerticalWheel(event: WheelEvent): void {
 }
 
 /**
- * Whether a point lands on the **painted** part of a `<video>`, which is the only
- * part of one that belongs to the player.
+ * Whether a point lands on the platform's transport inside a `<video>` — the strip
+ * along the bottom of the **painted** picture, or the play glyph at its centre.
  *
- * WARN: The element and the picture are two different rectangles here, and they were not always. `VideoSlide` is `w-full` at the stored ratio so a clip narrower than the shell still fills it, which means a portrait one is a full-width `<video>` with the picture letterboxed inside — and the gutters are `<video>` to the DOM. Excluded whole, as the selector used to do, such a slide had no area left that toggled the chrome and none that could be pulled closed.
- * INFO: DESIGN.md § 7.10.'s rule is unchanged: a tap between two controls is aimed at the player, so everything inside the picture — transport included — is still the player's.
- * INFO: Before metadata lands there is no picture to measure, so the whole element answers `true` — which is exactly what it did before the box grew, and it lasts one round trip.
+ * WARN: The element and the picture are two different rectangles. `VideoSlide` is `w-full` at the stored ratio so a clip narrower than the shell still fills it, which means a portrait one is a full-width `<video>` with the picture letterboxed inside — and the gutters are `<video>` to the DOM, so the bands are measured against the picture, never the element.
+ * WARN: Not the whole picture, as it used to be. A clip that fills the screen's height left no scrim to tap, so the chrome could never be brought back; the platform toggles its own controls on a tap of the picture, and the chrome now rides the same tap. A tap between two transport controls is still the player's.
+ * INFO: Before metadata lands there is no picture to measure, so the whole element answers `true` — it lasts one round trip.
  */
 function isOnPlayer(target: EventTarget, x: number, y: number): boolean {
   const player = target instanceof Element ? target.closest("video") : null;
@@ -1093,11 +1112,13 @@ function isOnPlayer(target: EventTarget, x: number, y: number): boolean {
 
   const height = Math.min(box.height, box.width / ratio);
   const width = height * ratio;
+  const centerX = box.left + box.width / 2;
+  const centerY = box.top + box.height / 2;
+  const isOnPicture = Math.abs(x - centerX) <= width / 2 && Math.abs(y - centerY) <= height / 2;
+  const isOnTransport = y >= centerY + height / 2 - VIDEO_TRANSPORT_HEIGHT;
+  const isOnPlayGlyph = Math.hypot(x - centerX, y - centerY) <= VIDEO_PLAY_GLYPH_RADIUS;
 
-  return (
-    Math.abs(x - (box.left + box.width / 2)) <= width / 2 &&
-    Math.abs(y - (box.top + box.height / 2)) <= height / 2
-  );
+  return isOnPicture && (isOnTransport || isOnPlayGlyph);
 }
 
 /**
@@ -1260,12 +1281,19 @@ function useDecodedOriginal(cell: MediaCell, isEnabled: boolean, dwell: number):
  * element reports that as an `error`, and the download link is the fallback rather
  * than a blank black rectangle.
  */
-function VideoSlide({ cell, isMorphTarget }: { cell: MediaCell; isMorphTarget: boolean }) {
+type VideoSlideProps = {
+  className?: string;
+  cell: MediaCell;
+  isMorphTarget: boolean;
+  onPlayingChange: (isPlaying: boolean) => void;
+};
+
+function VideoSlide({ className, cell, isMorphTarget, onPlayingChange }: VideoSlideProps) {
   const [hasFailed, setHasFailed] = useState(false);
 
   if (hasFailed) {
     return (
-      <div className="flex flex-col items-center gap-sm text-center">
+      <div className={cn("flex flex-col items-center gap-sm text-center", className)}>
         <p className="text-body-md text-on-scrim">이 기기에서는 재생할 수 없는 형식이에요</p>
         <a
           className="inline-flex min-h-11 items-center gap-xs rounded-md bg-canvas px-md text-button-md text-ink transition-colors hover:bg-surface-soft"
@@ -1282,7 +1310,7 @@ function VideoSlide({ cell, isMorphTarget }: { cell: MediaCell; isMorphTarget: b
     // WARN: `w-full` with the stored ratio, exactly as `ImageSlide` is framed — `max-w-full` capped the element at the clip's own pixel width instead, so anything narrower than the shell sat inside gutters the photo beside it does not have. `object-contain` is what keeps a portrait clip from stretching once `max-h-full` clamps the box.
     <video
       // INFO: AGENTS.md § 4.2. The transport is the platform's own, and the pointer affordance every other control in the app carries has to be given to it by hand — the `button` rule in the base layer cannot reach UA shadow DOM.
-      className="max-h-full w-full media-controls-pointer object-contain"
+      className={cn("max-h-full w-full media-controls-pointer object-contain", className)}
       src={cell.originalUrl ?? undefined}
       poster={cell.previewUrl ?? undefined}
       controls
@@ -1294,6 +1322,8 @@ function VideoSlide({ cell, isMorphTarget }: { cell: MediaCell; isMorphTarget: b
         viewTransitionName: isMorphTarget ? MEDIA_MORPH_NAME : undefined,
       }}
       onError={() => setHasFailed(true)}
+      onPlay={() => onPlayingChange(true)}
+      onPause={() => onPlayingChange(false)}
     />
   );
 }
