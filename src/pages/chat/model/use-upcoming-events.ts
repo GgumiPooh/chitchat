@@ -7,13 +7,14 @@ import {
   SSE_SYNC_COALESCE_WINDOW,
   UPCOMING_EVENTS_CEILING,
 } from "@/shared/config";
-import { A_DAY, isImminent, nextTimeLeftChangeAt } from "@/shared/lib";
+import { A_DAY, isImminent, nextTimeLeftChangeAt, type UserId } from "@/shared/lib";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isForReader } from "./is-for-reader";
 
 export type UpcomingEvents = {
   occurrences: EventOccurrence[];
   todayKey: string;
-  /** REQUIREMENTS.md § 11.5.1. Something starts within the day, which is what the header's bloom is saying. */
+  /** REQUIREMENTS.md § 11.5.1. Something of the reader's own starts within the day, which is what the header's bloom is saying. */
   isSoon: boolean;
   /** The clock the rows' countdowns are read against — `0` until it has been read on the client. */
   now: number;
@@ -34,7 +35,10 @@ export type UpcomingEvents = {
  * sliced off here. It is the only thing that can answer whether a 더 보기 exists — a
  * page returning exactly what it asked for says nothing about what is behind it.
  */
-export function useUpcomingEvents(initialSummary: CalendarSummary): UpcomingEvents {
+export function useUpcomingEvents(
+  initialSummary: CalendarSummary,
+  currentUserId: UserId,
+): UpcomingEvents {
   const [summary, setSummary] = useState(initialSummary);
   const [limit, setLimit] = useState(MAX_UPCOMING_EVENTS);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -110,7 +114,12 @@ export function useUpcomingEvents(initialSummary: CalendarSummary): UpcomingEven
     occurrences: summary.upcoming.slice(0, limit),
     todayKey: summary.todayKey,
     // WARN: `now > 0` is the hydration guard, not a shortcut. Seeded at `0` every event is a year out, which is exactly what the server rendered.
-    isSoon: now > 0 && summary.upcoming.some((occurrence) => isImminent(occurrence, now)),
+    // INFO: § 11.5.1. The same set the panel opens itself for — the bloom is the header saying that panel has something in it for the reader.
+    isSoon:
+      now > 0 &&
+      summary.upcoming.some(
+        (occurrence) => isForReader(occurrence, currentUserId) && isImminent(occurrence, now),
+      ),
     now,
     // WARN: `isLoadingMore` holds it on screen. `limit` steps the instant 더 보기 is pressed and the page it asks for lands a round trip later, so the summary in hand is briefly one page short — read without this the button blinks out under the finger and comes back.
     hasMore: isLoadingMore || (limit < UPCOMING_EVENTS_CEILING && summary.upcoming.length > limit),

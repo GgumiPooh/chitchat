@@ -64,9 +64,9 @@ export function ChatScreen({
   jumpMessageId,
 }: ChatScreenProps) {
   const search = useMessageSearch();
-  const upcoming = useUpcomingEvents(initialSummary);
+  const upcoming = useUpcomingEvents(initialSummary, currentUserId);
   // INFO: REQUIREMENTS.md § 11.5.1. Arriving with something imminent opens the panel; closing it is what stops that happening again.
-  const imminent = useImminentPanel(upcoming.occurrences);
+  const imminent = useImminentPanel(upcoming.occurrences, currentUserId);
   const [isUpcomingOpen, setIsUpcomingOpen] = useState(false);
   // INFO: REQUIREMENTS.md § 11.5.1. One-way — the panel takes its taller, scrolling shape at the first 더 보기 and keeps it, so the box does not resize again under the reader.
   // INFO: Two ways in, one state out — the arrival prompt and the header button, either of which the same 닫기 puts away.

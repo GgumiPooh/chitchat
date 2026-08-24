@@ -13,6 +13,7 @@ import {
   type EventId,
   type UserId,
 } from "@/shared/lib";
+import type { DbTransaction } from "@/shared/storage";
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { notifyOps } from "./notify";
 /**
@@ -23,6 +24,7 @@ import { notifyOps } from "./notify";
 import { listEventOccurrences } from "../../src/entities/event/api/list-events";
 import type { EventOccurrence } from "../../src/entities/event/model/types";
 import { countUnreadMessages } from "../../src/entities/message/api/count-unread";
+import { createSystemMessage } from "../../src/entities/message/api/create-system-message";
 import { pushToUser } from "../../src/entities/push-subscription/api/push-to-user";
 /* eslint-enable no-restricted-imports */
 
@@ -52,16 +54,11 @@ async function main() {
   for (const occurrence of occurrences) {
     // WARN: Latest threshold first, and at most one per run. A backlog — the runner down for a day — otherwise fires 7일 전 and 1일 전 back to back for an event starting tomorrow; taking the most recent due one collapses that into the banner that is actually true.
     for (const { lead, at } of toDueThresholds(occurrence, now)) {
-      if (!(await claim(occurrence.event.id, at))) {
-        continue;
-      }
-
       const recipients = audience.map(({ id }) => id).filter((id) => isRecipient(occurrence, id));
 
       // WARN: Contained per occurrence. The claim is already stamped, so a throw here loses THIS banner however it is handled — but an uncaught one also abandons every occurrence after it, turning one bad row into a silent pass that did nothing.
       try {
-        await notify(recipients, occurrence, lead, now);
-        sent += recipients.length;
+        sent += await remind(recipients, occurrence, lead, at, now);
       } catch (error) {
         console.error(`[remind] could not notify for ${occurrence.event.id}`, error);
       }
@@ -73,12 +70,49 @@ async function main() {
   console.log(`[remind] ${sent} reminder(s) sent over ${occurrences.length} occurrence(s)`);
 }
 
-async function notify(
+/**
+ * Takes the threshold and posts the notice together, then raises the banners.
+ * REQUIREMENTS.md § 16.3.
+ *
+ * WARN: The claim and the notice are one transaction so the stamp cannot outlive a
+ * failed INSERT — a threshold marked sent with nothing written is one no later run
+ * will retry. The push is deliberately OUTSIDE it: a device that took the banner
+ * cannot be un-taken, and a recipient with no subscription at all would otherwise
+ * roll the notice back on every run, destroying the record for exactly the reader
+ * who has no banner to read instead.
+ */
+async function remind(
   recipients: UserId[],
   occurrence: EventOccurrence,
   lead: ReminderLead,
+  at: number,
   now: number,
-): Promise<void> {
+): Promise<number> {
+  const claimed = await getDb().transaction(async (tx) => {
+    if (!(await claim(tx, occurrence.event.id, at))) {
+      return false;
+    }
+
+    // WARN: REQUIREMENTS.md § 16.3. The LAST threshold only. All three fire for one timed event, and the notice names a date rather than a countdown — so posting each of them leaves three byte-identical rows a week apart, and the earliest of them says 다가왔어요 seven days out.
+    if (isFinalLead(occurrence, lead)) {
+      await createSystemMessage({
+        tx,
+        // INFO: § 16.3. Only to satisfy the column — `composeEventNotice` renders a reminder with no actor precisely because nobody performed it.
+        senderId: occurrence.event.createdBy,
+        action: "event_reminder",
+        eventId: occurrence.event.id,
+        eventTitle: occurrence.event.title,
+        eventStartsAt: new Date(occurrence.startsAt),
+      });
+    }
+
+    return true;
+  });
+
+  if (!claimed) {
+    return 0;
+  }
+
   const body = toBody(occurrence, lead, now);
 
   for (const userId of recipients) {
@@ -86,10 +120,13 @@ async function notify(
       title: occurrence.event.title,
       body,
       // WARN: Carried because `sw.js` drives `navigator.setAppBadge` from it — a banner sent without one clears the reader's message badge (§ 16.1.).
+      // INFO: Counted after the commit above, so it includes the notice the banner is announcing.
       unreadCount: await countUnreadMessages(userId),
       url: `${CALENDAR_ROUTE}?${CALENDAR_DAY_PARAM}=${toDayKey(occurrence.startsAt)}`,
     });
   }
+
+  return recipients.length;
 }
 
 /**
@@ -109,8 +146,8 @@ async function notify(
  * banner; the other order duplicates every banner whenever two runs overlap, which the
  * scheduler does routinely (§ 12.4.).
  */
-async function claim(eventId: EventId, at: number): Promise<boolean> {
-  const [row] = await getDb()
+async function claim(tx: DbTransaction, eventId: EventId, at: number): Promise<boolean> {
+  const [row] = await tx
     .update(events)
     .set({ notifiedAt: new Date() })
     .where(
@@ -166,6 +203,11 @@ function toThresholds(occurrence: EventOccurrence, startsAt: number): Threshold[
 
 function noticeInstant(dayKey: string): number {
   return Date.parse(`${dayKey}T${ALL_DAY_NOTICE_HOUR}:00:00${TIME_ZONE_OFFSET}`);
+}
+
+// INFO: REQUIREMENTS.md § 16.3. An all-day row has no `h2`, so its last notice is the 09:00 one the day before.
+function isFinalLead(occurrence: EventOccurrence, lead: ReminderLead): boolean {
+  return lead === (occurrence.event.allDay ? "d1" : "h2");
 }
 
 /** REQUIREMENTS.md § 11.5. `mine` is a note to self, so only its author hears about it. */

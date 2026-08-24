@@ -1,8 +1,9 @@
 "use client";
 
 import type { EventOccurrence } from "@/entities/event";
-import { A_DAY } from "@/shared/lib";
+import { A_DAY, type UserId } from "@/shared/lib";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isForReader } from "./is-for-reader";
 
 const STORAGE_KEY = "jandh:chat-imminent-dismissed";
 
@@ -22,7 +23,10 @@ export type ImminentPanel = {
  * reader already in the room does not get the panel thrown over their conversation
  * because an event crossed the line while they were typing.
  */
-export function useImminentPanel(occurrences: EventOccurrence[]): ImminentPanel {
+export function useImminentPanel(
+  occurrences: EventOccurrence[],
+  currentUserId: UserId,
+): ImminentPanel {
   // INFO: The list as it stood on arrival, which is what the rule is written against — later refreshes must not re-open anything.
   const [entryOccurrences] = useState(occurrences);
   const [isPrompted, setIsPrompted] = useState(false);
@@ -35,7 +39,7 @@ export function useImminentPanel(occurrences: EventOccurrence[]): ImminentPanel 
   useEffect(() => {
     // WARN: In a frame rather than in the effect body, which is the pattern `AppHeader` already reads the scroll position through — the clock and `localStorage` are client-only reads and neither may decide the markup the server sent.
     const frame = requestAnimationFrame(() => {
-      const imminent = toImminentKeys(entryOccurrences, Date.now());
+      const imminent = toImminentKeys(entryOccurrences, Date.now(), currentUserId);
       const dismissed = readDismissed();
 
       if (imminent.some((key) => !dismissed.has(key))) {
@@ -44,20 +48,25 @@ export function useImminentPanel(occurrences: EventOccurrence[]): ImminentPanel 
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [entryOccurrences]);
+  }, [entryOccurrences, currentUserId]);
 
   const dismiss = useCallback(() => {
     // INFO: Assignment and not a union — the record prunes itself to what is still imminent, and anything dropped could not re-open the panel anyway.
-    writeDismissed(toImminentKeys(latest.current, Date.now()));
+    writeDismissed(toImminentKeys(latest.current, Date.now(), currentUserId));
     setIsPrompted(false);
-  }, []);
+  }, [currentUserId]);
 
   return { isPrompted, dismiss };
 }
 
 // INFO: The same window the header's bloom uses — one already under way is behind it, and counts.
-function toImminentKeys(occurrences: EventOccurrence[], now: number): string[] {
+function toImminentKeys(
+  occurrences: EventOccurrence[],
+  now: number,
+  currentUserId: UserId,
+): string[] {
   return occurrences
+    .filter((occurrence) => isForReader(occurrence, currentUserId))
     .filter(({ startsAt }) => Date.parse(startsAt) - now <= A_DAY)
     .map(({ event, startsAt }) => event.id + startsAt);
 }

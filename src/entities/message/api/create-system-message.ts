@@ -2,6 +2,7 @@ import "server-only";
 
 import { getDb, messages, nextSnowflake, type SystemAction } from "@/shared/db";
 import type { EventId, MessageId, Nullable, UserId } from "@/shared/lib";
+import type { DbTransaction } from "@/shared/storage";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 
@@ -12,6 +13,8 @@ export type CreateSystemMessageParams = {
   eventId: Nullable<EventId>;
   eventTitle: string;
   eventStartsAt: Date;
+  /** REQUIREMENTS.md § 16.3. The reminder run writes inside its own transaction, so the notice can be rolled back with the claim that produced it. */
+  tx?: DbTransaction;
 };
 
 /**
@@ -30,8 +33,9 @@ export async function createSystemMessage({
   eventId,
   eventTitle,
   eventStartsAt,
+  tx,
 }: CreateSystemMessageParams): Promise<ChatMessage> {
-  const db = getDb();
+  const db = tx ?? getDb();
   const [row] = await db
     .insert(messages)
     .values({

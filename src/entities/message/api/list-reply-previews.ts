@@ -1,6 +1,7 @@
 import "server-only";
 
 import { listInlineEmoticons } from "@/entities/emoticon/@x/message";
+import { listLinkPreviewImages } from "@/entities/link-preview/@x/message";
 import {
   REPLY_PREVIEW_MAX_LENGTH,
   toMediaNoun,
@@ -9,7 +10,13 @@ import {
   toSoloInlineEmoticonId,
 } from "@/shared/config";
 import { emoticonItems, getDb, messages } from "@/shared/db";
-import type { EmoticonItemId, MessageId, Nullable } from "@/shared/lib";
+import {
+  findFirstUrl,
+  withoutFragment,
+  type EmoticonItemId,
+  type MessageId,
+  type Nullable,
+} from "@/shared/lib";
 import { eq, inArray } from "drizzle-orm";
 import type { ReplyPreview } from "../model/types";
 import { listMessageMedia } from "./list-message-media";
@@ -83,6 +90,15 @@ export async function listReplyPreviews(
     }
   }
   const soloInlineEmoticons = await listInlineEmoticons([...soloInlineIds.values()]);
+  // INFO: REQUIREMENTS.md § 8.9. The full row text, not the sliced `text` the quote carries — `REPLY_PREVIEW_MAX_LENGTH` cuts a link in half as readily as a sentence.
+  const linkUrls = new Map<MessageId, string>();
+  for (const row of rows) {
+    const url = row.deletedAt ? null : findFirstUrl(row.text);
+    if (url) {
+      linkUrls.set(row.id, withoutFragment(url));
+    }
+  }
+  const linkImages = await listLinkPreviewImages([...linkUrls.values()]);
 
   for (const row of rows) {
     const attachments = byMessage.get(row.id) ?? [];
@@ -103,6 +119,7 @@ export async function listReplyPreviews(
             soloId && soloInfo
               ? { id: soloId, version: soloInfo.version, isDeleted: soloInfo.isDeleted }
               : null,
+            toLinkImageUrl(row.id),
           ),
       // INFO: The same rule the § 16.1. push body applies — 동영상 only when there is no photo in the bubble to contradict it.
       mediaKind: toMediaNoun(attachments),
@@ -114,6 +131,12 @@ export async function listReplyPreviews(
   }
 
   return byId;
+
+  function toLinkImageUrl(id: MessageId): Nullable<string> {
+    const url = linkUrls.get(id);
+
+    return (url && linkImages.get(url)) ?? null;
+  }
 }
 
 /**

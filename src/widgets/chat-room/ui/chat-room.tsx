@@ -63,6 +63,7 @@ import {
   compareId,
   composeEventNotice,
   countVisibleWakes,
+  findFirstUrl,
   focusWithoutPan,
   runWhenIdle,
   startMediaMorph,
@@ -2589,7 +2590,13 @@ export function ChatRoom({
       // INFO: REQUIREMENTS.md § 8.10. The same call `listReplyPreviews` makes on the server, so the optimistic quote and the echoed one cannot disagree about whether the row has a tile.
       thumbnail: message.isDeleted
         ? null
-        : toQuoteThumbnail(message.emoticon, message.media, toSoloInlineQuoteEmoticon(message)),
+        : toQuoteThumbnail(
+            message.emoticon,
+            message.media,
+            toSoloInlineQuoteEmoticon(message),
+            // INFO: REQUIREMENTS.md § 8.9. The cache `useLinkPreviewPrefetch` has already filled for every loaded message, which is the browser's half of the row `listReplyPreviews` reads server-side.
+            readPreview(findFirstUrl(message.text))?.imageUrl ?? null,
+          ),
       // WARN: REQUIREMENTS.md § 8.13. A withdrawn parent surrenders its payload here too. Nothing routes 답장 onto a tombstone today, but that is the row it is rendered on rather than a property of this function — and `listReplyPreviews` nulls all four, so staging them live would be the optimistic/echo disagreement `toQuoteThumbnail` exists to rule out.
       mediaKind: message.isDeleted ? null : toMediaNoun(message.media),
       mediaCount: message.isDeleted ? 0 : message.media.length,
