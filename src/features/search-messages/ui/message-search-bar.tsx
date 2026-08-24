@@ -40,6 +40,7 @@ export function MessageSearchBar({
   onClose,
 }: MessageSearchBarProps) {
   const fieldRef = useRef<HTMLInputElement | null>(null);
+  const hasFocusedRef = useRef(false);
 
   return (
     <AppHeader
@@ -169,7 +170,14 @@ export function MessageSearchBar({
    */
   function captureField(element: HTMLInputElement | null) {
     fieldRef.current = element;
-    element?.focus();
+
+    // WARN: The mount alone. An inline ref callback is detached and re-attached on every render, so an unguarded `focus()` re-raised the keyboard on any state change the bar re-renders through — opening the result list was one, and it came up with the keys over it.
+    if (element === null || hasFocusedRef.current) {
+      return;
+    }
+
+    hasFocusedRef.current = true;
+    element.focus();
   }
 
   function clear() {
