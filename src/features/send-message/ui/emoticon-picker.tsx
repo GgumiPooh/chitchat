@@ -161,16 +161,6 @@ type TabEntry = {
   tab?: string;
   /** Clamped to the list on arrival, since the pack turned to may be shorter than the one turned from. */
   index: number;
-  /**
-   * The offset the previous tab was read at, restored before the focus lands.
-   *
-   * WARN: § 8.14. Restored by hand rather than left to the scroller, which keeps its
-   * own offset only while it has something to hold it up: a cold pack draws nothing
-   * for a round trip (§ 13.6.), and the browser clamps the offset to a content height
-   * that is briefly zero. Absent for the entries that arrive from below, which are
-   * about to be scrolled to the end anyway.
-   */
-  scrollTop?: number;
 };
 
 /**
@@ -653,6 +643,22 @@ export function EmoticonPicker({
 
   // INFO: § 13.6. The swipe moves the tab without the finger ever touching the strip, and the remembered tab can reopen the panel on a pack that is already past its right edge — either way the strip has to follow the selection or the active tab is unreachable to the eye.
   useEffect(revealActiveTab, [activeTab, packs]);
+
+  /**
+   * REQUIREMENTS.md § 13.6. A tab is entered at the top of its list, whichever way it
+   * was reached — the strip, the swipe, the menu bar or a page turn.
+   *
+   * WARN: § 8.14. Declared above the focus effect so it runs first: a page turn lands
+   * on the first row, which `revealWithin` then finds already on screen rather than
+   * scrolling back to an offset this has just dropped.
+   */
+  useLayoutEffect(() => {
+    const scroller = cellScrollerRef.current;
+
+    if (scroller) {
+      scroller.scrollTop = 0;
+    }
+  }, [activeTab]);
 
   /**
    * REQUIREMENTS.md § 8.14. Focus into the panel when `⌃E` opened it, since a key that
@@ -1483,14 +1489,13 @@ export function EmoticonPicker({
 
   /**
    * REQUIREMENTS.md § 8.14. `←`/`→` off the end of a row turns the page: the pack
-   * beside this one, entered on the **same row at the opposite edge** and read at the
-   * same offset, so neither the eye nor the scroller moves for the turn.
+   * beside this one, entered on the **first row's opposite edge**, since the arriving
+   * tab is read from its top (§ 13.6.).
    *
    * WARN: § 13.8. Not armed towards 검색, which claims the keyboard for its own field
    * as it mounts — an entry would take that focus back out a moment later.
    */
   function crossToAdjacentTab(index: number, direction: SwipeDirection) {
-    const scrollTop = cellScrollerRef.current?.scrollTop;
     const moved = goToAdjacentTab(direction);
 
     if (moved === undefined || moved === SEARCH_TAB) {
@@ -1499,8 +1504,7 @@ export function EmoticonPicker({
 
     pendingEntryRef.current = {
       tab: moved,
-      index: toCrossingIndex({ index, count: gridItemCount, columns, direction }),
-      scrollTop,
+      index: toCrossingIndex({ count: gridItemCount, columns, direction }),
     };
   }
 
@@ -1584,10 +1588,6 @@ export function EmoticonPicker({
     const scroller = cellScrollerRef.current;
 
     if (scroller && gridItemCount > 0) {
-      if (entry.scrollTop !== undefined) {
-        scroller.scrollTop = entry.scrollTop;
-      }
-
       return focusItem(scroller, Math.min(entry.index, gridItemCount - 1));
     }
 

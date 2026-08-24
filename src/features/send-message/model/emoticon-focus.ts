@@ -95,18 +95,17 @@ function isRowEnd({
 
 /**
  * REQUIREMENTS.md § 8.14. Where `←`/`→` off the end of a row lands in the pack it
- * turns to: the **same row, opposite edge**, so the offset and the eye both stay put.
+ * turns to: the **first row's opposite edge**, since a tab is entered at the top of
+ * its list however it was reached (§ 13.6.).
  *
  * INFO: A single row turns to the opposite end of the whole list instead, since that
  * row *is* the list.
  */
 export function toCrossingIndex({
-  index,
   count,
   columns,
   direction,
 }: {
-  index: number;
   count: number;
   columns: number;
   direction: 1 | -1;
@@ -115,9 +114,7 @@ export function toCrossingIndex({
     return direction === 1 ? 0 : count - 1;
   }
 
-  const rowStart = index - (index % columns);
-
-  return direction === 1 ? rowStart : rowStart + columns - 1;
+  return direction === 1 ? 0 : columns - 1;
 }
 
 /** Which item an event started on, or `undefined` for one that started somewhere else. */
