@@ -1,7 +1,7 @@
 "use client";
 
 import type { EventOccurrence } from "@/entities/event";
-import { cn, formatUpcomingWhen, type Nullable } from "@/shared/lib";
+import { cn, formatUpcomingWhen, OPEN_OVERLAY_SELECTOR, type Nullable } from "@/shared/lib";
 import { EmptyState, HapticTap, IconButton } from "@/shared/ui";
 import { EventDot, EventMemo } from "@/widgets/calendar-month";
 import { CalendarClock, ChevronDown, X } from "lucide-react";
@@ -47,8 +47,40 @@ export function UpcomingEventsPanel({
   const listRef = useRef<HTMLUListElement>(null);
   // INFO: How many rows stood before the page in flight was asked for — its first new row is that index.
   const pendingFrom = useRef<Nullable<number>>(null);
+  // INFO: Held in a ref so the listener below binds on `isOpen` alone — the screen hands down a fresh arrow on every message that arrives.
+  const close = useRef(onClose);
   // INFO: REQUIREMENTS.md § 11.5.1. The list's own height at the moment of the first 더 보기, held from then on.
   const [lockedHeight, setLockedHeight] = useState<Nullable<number>>(null);
+
+  useEffect(() => {
+    close.current = onClose;
+  }, [onClose]);
+
+  // INFO: REQUIREMENTS.md § 11.5.1. Esc leaves through `onClose` and never a path of its own, so it records what was imminent exactly as 닫기 does.
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // WARN: REQUIREMENTS.md § 8.14. A row's `EventDetailDialog` opens over this and answers Esc itself — Radix does not stop a document listener from seeing the same keystroke, and acting anyway takes the panel down under the dialog it dismissed.
+      if (event.key !== "Escape" || event.isComposing) {
+        return;
+      }
+
+      if (document.querySelector(OPEN_OVERLAY_SELECTOR)) {
+        return;
+      }
+
+      // WARN: REQUIREMENTS.md § 8.14. Capture, and stopped there. The room's shortcuts are on `document` too and see no marker on this panel, so left to run they peel the composer's stack underneath a reader who was closing this.
+      event.stopPropagation();
+      close.current();
+    };
+
+    document.addEventListener("keydown", handleKeyDown, true);
+
+    return () => document.removeEventListener("keydown", handleKeyDown, true);
+  }, [isOpen]);
 
   // WARN: Held until the page has actually landed. `limit` steps on the press and reveals the one row already in hand, so the list grows by **one** first — moved on that render the scroll is computed against a list a page short, clamps to its bottom, and the rows that follow arrive under a reader who has been left where they started.
   // INFO: The row to move to is fixed at the press, and the ref is cleared on use — a refresh landing later also grows the list and must not scroll the reader a second time.

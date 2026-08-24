@@ -202,6 +202,8 @@
   --duration-sheet-expand: 450ms;
   /* INFO: DESIGN.md § 7.12. The 다가오는 일정 button's imminence bloom, and the one duration here that is not a response to a touch — it is an ambient loop over a header the reader sits under, so it is paced to breathing rather than to a gesture. */
   --duration-event-bloom: 2400ms;
+  /* INFO: DESIGN.md § 7.12. The bloom's one-shot arrival, and the only swell in it — long enough for `--ease-bloom` to overshoot and settle before the breathing takes the halo over. */
+  --duration-event-bloom-enter: 700ms;
 
   /* WARN: `--ease-*` is Tailwind's timing-function namespace, so these also ship as `ease-press` / `ease-bloom` / `ease-route` / `ease-sheet` utilities — renaming one renames the utility. */
   --ease-press: cubic-bezier(0.2, 0, 0, 1);

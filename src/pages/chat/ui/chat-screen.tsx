@@ -153,13 +153,6 @@ export function ChatScreen({
           }
           trailing={
             <div className="flex items-center gap-2xs">
-              <IconButton
-                Icon={Search}
-                variant="floating"
-                haptic
-                aria-label="메시지 검색"
-                onClick={search.open}
-              />
               {/* INFO: DESIGN.md § 7.12. The bloom is a sibling behind the glass rather than a shadow on the button, because `icon-button-floating` already spends its `box-shadow` on `shadow-floating` — a second one silently replaces it. */}
               <span className="relative flex">
                 {upcoming.isSoon && (
@@ -169,14 +162,29 @@ export function ChatScreen({
                   />
                 )}
                 <IconButton
-                  Icon={CalendarClock}
                   variant="floating"
                   haptic
-                  aria-label="다가오는 일정"
+                  aria-label={upcoming.isSoon ? "다가오는 일정, 곧 시작" : "다가오는 일정"}
                   aria-expanded={isPanelOpen}
+                  // INFO: DESIGN.md § 7.12. The dot is § 7.3.'s 캘린더 one, glyph corner and all, because it says the same kind of thing — and it goes through `icon` so it rides the glyph rather than the 44 target, which is what keeps it on the button's own glass.
+                  icon={
+                    <span className="pointer-events-none relative">
+                      <CalendarClock className="size-5" strokeWidth={1.75} />
+                      {upcoming.isSoon && (
+                        <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
+                      )}
+                    </span>
+                  }
                   onClick={() => (isPanelOpen ? closeUpcoming() : setIsUpcomingOpen(true))}
                 />
               </span>
+              <IconButton
+                Icon={Search}
+                variant="floating"
+                haptic
+                aria-label="메시지 검색"
+                onClick={search.open}
+              />
             </div>
           }
         />
