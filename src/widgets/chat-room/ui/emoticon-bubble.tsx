@@ -2,10 +2,15 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn, toPreviousReplaySrc, toReplaySrc, useViewportReplay, warmSound } from "@/shared/lib";
-import { MediaTombstone, PreloadImage } from "@/shared/ui";
-import { useEffect, useState } from "react";
-import { playEmoticonSound } from "../model/play-emoticon-sound";
+import {
+  cn,
+  toPreviousReplaySrc,
+  toReplaySrc,
+  useSyncedEmoticonPlayback,
+  useViewportReplay,
+} from "@/shared/lib";
+import { MediaTombstone, PreloadImage, Skeleton } from "@/shared/ui";
+import { useEffect } from "react";
 import { toEmoticonBox } from "../model/to-emoticon-box";
 
 // INFO: REQUIREMENTS.md § 13. 해요체, matching `삭제된 사진이에요` — the same event said about an emoticon. Written out because the noun is fixed, where `toDeletedMediaText` picks a copula for one that varies.
@@ -15,18 +20,17 @@ export type EmoticonBubbleProps = {
   className?: string;
   emoticon: Emoticon;
   /**
-   * REQUIREMENTS.md § 13.6. This row is the live arrival the room is about to sound,
-   * so the picture waits for the sound instead of appearing ahead of it.
+   * REQUIREMENTS.md § 13.6. This row is the arrival the room is about to sound, so
+   * the picture waits and starts on the sound's own frame instead of ahead of it.
    *
    * WARN: The room sets it for one row at a time and takes it back, which is what
    * keeps it off every other bubble — scrolling past a sounding emoticon must not
-   * hold anything. It is also the cap: `useArrivalEmoticonSound` clears it on a timer,
-   * so a sound that never arrives releases the picture instead of hiding the message.
+   * hold anything. `useArrivalEmoticonSound` also caps it, for a row that never mounts.
    */
   awaitsArrivalSound?: boolean;
   /** REQUIREMENTS.md § 13.9. 따라하기 — the same tap that replays this also opens the picker where this emoticon is. */
   onFollow?: () => void;
-  /** REQUIREMENTS.md § 13.6. The picture is on screen — the moment the room plays the sound. */
+  /** REQUIREMENTS.md § 13.6. This bubble has taken the arrival's playback over, so the room can stand its own timer down. */
   onArrivalSoundReady?: () => void;
 };
 
@@ -35,10 +39,10 @@ export type EmoticonBubbleProps = {
  *
  * INFO: REQUIREMENTS.md § 13.2. One image slot, so nothing here knows whether the
  * item animates — an animated file plays because the browser plays it. A tap
- * restarts it and replays the sound; the sound a newly arrived emoticon makes by
- * itself is the room's business, not the bubble's (§ 13.6.), so scrolling past
- * four of them still plays nothing. § 13. It also replays whenever it re-enters
- * the viewport, silently — `useViewportReplay` is the same remount, without the sound.
+ * restarts it and replays the sound on one frame (`useSyncedEmoticonPlayback`); the
+ * sound a newly arrived emoticon makes by itself is the room's business (§ 13.6.),
+ * so scrolling past four of them still plays nothing. § 13. It also replays whenever
+ * it re-enters the viewport, silently — `useViewportReplay` is a remount, without the sound.
  *
  * INFO: REQUIREMENTS.md § 13.9. That one tap now also opens the picker on this
  * emoticon. The replay and the sound are kept rather than traded away — they are two
@@ -53,36 +57,38 @@ export function EmoticonBubble({
   onArrivalSoundReady,
 }: EmoticonBubbleProps) {
   const { hasAnimated, hasAudio, isDeleted } = emoticon;
-  const { ref, replayToken, replay } = useViewportReplay();
-  const audioUrl = toEmoticonAssetUrl(emoticon.id, "audio", emoticon.version);
-  const [isSoundWarm, setSoundWarm] = useState(false);
-
-  // INFO: REQUIREMENTS.md § 13.6. A bubble's picture is decoded before the tap and its sound was not, which is the whole of the lag between the two — the row is on screen well before anyone taps it.
-  useEffect(() => {
-    if (!hasAudio || isDeleted) {
-      return;
-    }
-
-    let isCancelled = false;
-
-    // INFO: § 13.6. Resolves on a failed fetch too, so the hold below is lifted by a sound that is not coming.
-    void warmSound(audioUrl).then(() => {
-      if (!isCancelled) {
-        setSoundWarm(true);
-      }
-    });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [audioUrl, hasAudio, isDeleted]);
-
+  const { ref, replayToken } = useViewportReplay();
   const box = toEmoticonBox(emoticon);
   const emoticonAssetUrl = toEmoticonAssetUrl(
     emoticon.id,
     hasAnimated ? "animated-image" : "still-image",
     emoticon.version,
   );
+  const { phase, frameRef, play } = useSyncedEmoticonPlayback({
+    imageSrc: emoticonAssetUrl,
+    audioSrc: toEmoticonAssetUrl(emoticon.id, "audio", emoticon.version),
+    hasAnimated,
+    hasAudio,
+    isEnabled: !isDeleted,
+    startsHeld: awaitsArrivalSound && !isDeleted,
+  });
+
+  // INFO: § 13.6. The arrival's own playback — from here the room's timer is only for a row that never got this far.
+  useEffect(() => {
+    if (awaitsArrivalSound && !isDeleted) {
+      onArrivalSoundReady?.();
+      void play();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Once, on the mount the flag was set for.
+  }, []);
+
+  // INFO: § 13. Once a frame of its own is up, a viewport re-entry restarts it the way the keyed `PreloadImage` below restarts the network one — silently.
+  useEffect(() => {
+    if (replayToken > 0 && phase === "frame") {
+      void play({ isSilent: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- On the token alone.
+  }, [replayToken]);
 
   // WARN: § 13. Not a `<button>`. The objects are purged, so there is nothing to replay and no 따라하기 target — every picker list filters the item out.
   if (isDeleted) {
@@ -105,40 +111,33 @@ export function EmoticonBubble({
         aria-label="이모티콘"
         onClick={handleTap}
       >
-        <PreloadImage
-          // WARN: Keyed by the replay token so a tap remounts the element, and the token also rides the URL (`toReplaySrc`) — iOS Safari ties a GIF/WebP's running loop to the request URL rather than the element, so a fresh element on an unchanged `src` restarts nothing there.
-          key={hasAnimated ? replayToken : undefined}
-          className="size-full"
-          imgClassName="size-full object-contain"
-          alt=""
-          width={box.width}
-          height={box.height}
-          draggable={false}
-          // WARN: The previous replay's own frame stands in while this one decodes (`toPreviousReplaySrc`), so a tap or a re-entry never shows a skeleton over a bubble that was already on screen. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
-          previewSrc={hasAnimated ? toPreviousReplaySrc(emoticonAssetUrl, replayToken) : undefined}
-          hidesPreviewOnReveal={hasAnimated}
-          // WARN: § 13.6. The picture is held back so it and the sound land together, and the room's own timer is what guarantees the hold is lifted — see `awaitsArrivalSound`.
-          isHeld={awaitsArrivalSound && hasAudio && !isSoundWarm}
-          src={hasAnimated ? toReplaySrc(emoticonAssetUrl, replayToken) : emoticonAssetUrl}
-          onReveal={handleReveal}
-        />
+        {/* WARN: `hidden` until the frame is in — a `display: none` box has no renderer, so WebKit does not start the clock on the attach; the reveal is what does, on the frame `play` chose. */}
+        <div ref={frameRef} className={cn("size-full", phase !== "frame" && "hidden")} />
+        {phase === "held" && <Skeleton className="size-full rounded-sm" />}
+        {phase === "idle" && (
+          <PreloadImage
+            // WARN: Keyed by the replay token so a re-entry remounts the element, and the token also rides the URL (`toReplaySrc`) — iOS Safari ties a GIF/WebP's running loop to the request URL rather than the element, so a fresh element on an unchanged `src` restarts nothing there.
+            key={hasAnimated ? replayToken : undefined}
+            className="size-full"
+            imgClassName="size-full object-contain"
+            alt=""
+            width={box.width}
+            height={box.height}
+            draggable={false}
+            hidesPreviewOnReveal={hasAnimated}
+            src={hasAnimated ? toReplaySrc(emoticonAssetUrl, replayToken) : emoticonAssetUrl}
+            // WARN: The previous replay's own frame stands in while this one decodes (`toPreviousReplaySrc`), so a re-entry never shows a skeleton over a bubble that was already on screen. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
+            previewSrc={
+              hasAnimated ? toPreviousReplaySrc(emoticonAssetUrl, replayToken) : undefined
+            }
+          />
+        )}
       </button>
     </div>
   );
 
-  // INFO: § 13.6. The sound stays the room's decision (`useArrivalEmoticonSound`); the bubble only reports the frame its picture went up on.
-  function handleReveal() {
-    if (awaitsArrivalSound) {
-      onArrivalSoundReady?.();
-    }
-  }
-
   function handleTap() {
-    if (hasAnimated) {
-      replay();
-    }
-    // WARN: Inside the click handler with nothing awaited before it — iOS grants the gesture's audio permission to this call stack alone, so any `await` first loses it.
-    playEmoticonSound(emoticon);
+    void play();
     onFollow?.();
   }
 }

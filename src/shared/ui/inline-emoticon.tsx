@@ -3,16 +3,16 @@
 import { toEmoticonAssetUrl } from "@/shared/config";
 import {
   cn,
-  playSound,
   toPreviousReplaySrc,
   toReplaySrc,
+  useSyncedEmoticonPlayback,
   useViewportReplay,
-  warmSound,
   type EmoticonItemId,
   type Nullable,
 } from "@/shared/lib";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { PreloadImage } from "./preload-image";
+import { Skeleton } from "./skeleton";
 
 export type InlineEmoticonProps = {
   className?: string;
@@ -28,15 +28,14 @@ export type InlineEmoticonProps = {
   /** REQUIREMENTS.md § 13. `MessageRow`'s solo (bubble-less, box-drawn) rendering is a tap target that restarts the animation, matching `EmoticonBubble`; an inline run and the composer draft are not. */
   isTappable?: boolean;
   /**
-   * REQUIREMENTS.md § 13.6. This is the live arrival the room is about to sound, so
-   * the picture waits for the sound rather than appearing ahead of it — the solo
+   * REQUIREMENTS.md § 13.6. This is the arrival the room is about to sound — the solo
    * rendering's half of `EmoticonBubble`'s own contract, which carries the argument.
    *
    * WARN: Set by the room for one row and taken back, and capped there. An inline run
    * and the composer draft never pass it: neither is a message arriving.
    */
   awaitsArrivalSound?: boolean;
-  /** REQUIREMENTS.md § 13.6. The picture is on screen — the moment the room plays the sound. */
+  /** REQUIREMENTS.md § 13.6. This element has taken the arrival's playback over. */
   onArrivalSoundReady?: () => void;
 };
 
@@ -71,51 +70,57 @@ export function InlineEmoticon({
   awaitsArrivalSound = false,
   onArrivalSoundReady,
 }: InlineEmoticonProps) {
-  const { ref, replayToken, replay } = useViewportReplay();
+  const { ref, replayToken } = useViewportReplay();
   const emoticonAssetUrl = toEmoticonAssetUrl(itemId, "animated-image", version);
-  const audioUrl = toEmoticonAssetUrl(itemId, "audio", version);
-  const [isSoundWarm, setSoundWarm] = useState(false);
+  const { phase, frameRef, play } = useSyncedEmoticonPlayback<HTMLSpanElement>({
+    imageSrc: emoticonAssetUrl,
+    audioSrc: toEmoticonAssetUrl(itemId, "audio", version),
+    hasAnimated: true,
+    hasAudio,
+    frameClassName: cn("object-center", imgClassName),
+    isEnabled: isTappable || awaitsArrivalSound,
+    startsHeld: awaitsArrivalSound,
+  });
 
-  // INFO: REQUIREMENTS.md § 13.6. The tap's sound is warmed with the picture it belongs to, or it arrives a round trip behind one the panel had already decoded.
   useEffect(() => {
-    if (!hasAudio || !(isTappable || awaitsArrivalSound)) {
-      return;
+    if (awaitsArrivalSound) {
+      onArrivalSoundReady?.();
+      void play();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Once, on the mount the flag was set for.
+  }, []);
 
-    let isCancelled = false;
-
-    // INFO: § 13.6. Resolves on a failed fetch too, so the hold below is lifted by a sound that is not coming.
-    void warmSound(audioUrl).then(() => {
-      if (!isCancelled) {
-        setSoundWarm(true);
-      }
-    });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [audioUrl, hasAudio, isTappable, awaitsArrivalSound]);
+  useEffect(() => {
+    if (replayToken > 0 && phase === "frame") {
+      void play({ isSilent: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- On the token alone.
+  }, [replayToken]);
 
   const image = (
-    <PreloadImage
-      // WARN: Keyed by the replay token, same as `EmoticonBubble`, and the token also rides the URL (`toReplaySrc`) — iOS Safari ties a GIF/WebP's running loop to the request URL rather than the element, so a fresh element on an unchanged `src` restarts nothing there.
-      key={replayToken}
-      className="size-full"
-      // INFO: `object-contain`, since an emoticon is not square and a crop would cut the drawing rather than letterbox it.
-      imgClassName={cn("size-full object-contain object-center", imgClassName)}
-      // WARN: DESIGN.md § 7.8. Deferred, for the picker cells' reason — an emoticon in a draft was chosen from a panel that had already loaded it, so a skeleton at one line tall only ever flashes.
-      hasDeferredSkeleton
-      alt={name ?? ""}
-      draggable={false}
-      // WARN: The previous replay's own frame stands in while this one decodes (`toPreviousReplaySrc`), so a tap or a re-entry never shows a skeleton either. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
-      previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
-      hidesPreviewOnReveal
-      // WARN: § 13.6. Held so the picture and the sound land together; the room's own timer is what guarantees the hold is lifted — see `awaitsArrivalSound`.
-      isHeld={awaitsArrivalSound && hasAudio && !isSoundWarm}
-      // INFO: The animated slot, which the asset route falls back from when the item holds only a still (REQUIREMENTS.md § 13.3.).
-      src={toReplaySrc(emoticonAssetUrl, replayToken)}
-      onReveal={handleReveal}
-    />
+    <>
+      {/* WARN: `hidden` until the frame is in — see `EmoticonBubble`. */}
+      <span ref={frameRef} className={cn("block size-full", phase !== "frame" && "hidden")} />
+      {phase === "held" && <Skeleton className="size-full" />}
+      {phase === "idle" && (
+        <PreloadImage
+          // WARN: Keyed by the replay token, same as `EmoticonBubble`, and the token also rides the URL (`toReplaySrc`) — iOS Safari ties a GIF/WebP's running loop to the request URL rather than the element, so a fresh element on an unchanged `src` restarts nothing there.
+          key={replayToken}
+          className="size-full"
+          // INFO: `object-contain`, since an emoticon is not square and a crop would cut the drawing rather than letterbox it.
+          imgClassName={cn("size-full object-contain object-center", imgClassName)}
+          // WARN: DESIGN.md § 7.8. Deferred, for the picker cells' reason — an emoticon in a draft was chosen from a panel that had already loaded it, so a skeleton at one line tall only ever flashes.
+          hasDeferredSkeleton
+          alt={name ?? ""}
+          draggable={false}
+          // WARN: The previous replay's own frame stands in while this one decodes (`toPreviousReplaySrc`), so a tap or a re-entry never shows a skeleton either. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
+          previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
+          hidesPreviewOnReveal
+          // INFO: The animated slot, which the asset route falls back from when the item holds only a still (REQUIREMENTS.md § 13.3.).
+          src={toReplaySrc(emoticonAssetUrl, replayToken)}
+        />
+      )}
+    </>
   );
 
   return (
@@ -129,12 +134,7 @@ export function InlineEmoticon({
           className="size-full cursor-pointer focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:scale-[0.96]"
           type="button"
           aria-label="이모티콘"
-          onClick={() => {
-            replay();
-            if (hasAudio) {
-              playSound(audioUrl);
-            }
-          }}
+          onClick={() => void play()}
         >
           {image}
         </button>
@@ -143,11 +143,4 @@ export function InlineEmoticon({
       )}
     </span>
   );
-
-  // INFO: § 13.6. The sound stays the room's decision; this reports the frame its picture went up on.
-  function handleReveal() {
-    if (awaitsArrivalSound) {
-      onArrivalSoundReady?.();
-    }
-  }
 }

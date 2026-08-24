@@ -100,6 +100,7 @@ export {
   toTimeField,
   toWeekday,
 } from "./date/time";
+export { warmAnimatedImage } from "./dom/animated-image";
 export { hasDataTransferFiles, isBrowser, isEditableElement } from "./dom/environment";
 export { focusWithoutPan, takeFocusWithoutPan } from "./dom/keyboard-focus";
 export { revealWithin } from "./dom/reveal-within";
@@ -146,6 +147,12 @@ export {
 export { usePinnedDocument } from "./hooks/use-pinned-document";
 export { useSettledCommit, type SettledCommitOptions } from "./hooks/use-settled-commit";
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
+export {
+  EMOTICON_PLAYBACK_HOLD,
+  useSyncedEmoticonPlayback,
+  type SyncedEmoticonPlaybackOptions,
+  type SyncedEmoticonPlaybackPhase,
+} from "./hooks/use-synced-emoticon-playback";
 export {
   MINI_ANIMATION_LOOP_INTERVAL,
   toPreviousReplaySrc,

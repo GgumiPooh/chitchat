@@ -350,13 +350,15 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
       const trimmed = text.trim();
 
       if (!trimmed) {
-        return;
+        return null;
       }
 
       const message = { ...createPending(trimmed, []), inlineEmoticons: emoticons, replyTo };
 
       commit((previous) => [...previous, message]);
       enqueue([message]);
+
+      return message.clientMsgId;
     },
     [commit, enqueue],
   );
@@ -391,6 +393,8 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
 
       commit((previous) => [...previous, message]);
       enqueue([message]);
+
+      return message.clientMsgId;
     },
     [commit, enqueue],
   );

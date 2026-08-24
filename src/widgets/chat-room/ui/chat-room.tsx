@@ -140,7 +140,7 @@ import {
   type PreviewReader,
 } from "../model/estimate-row-height";
 import { toLinkPreviewQuery } from "../model/link-preview-query";
-import { playEmoticonSound } from "../model/play-emoticon-sound";
+import { playEmoticonSound, type EmoticonSound } from "../model/play-emoticon-sound";
 import { toCellsFromDrafts, toCellsFromMedia, type TrackOwner } from "../model/to-media-cells";
 import type { ChatRow } from "../model/types";
 import { useArrivalEmoticonSound } from "../model/use-arrival-emoticon-sound";
@@ -1419,6 +1419,7 @@ export function ChatRoom({
               {stagedEmoticon && editingId === null && (
                 <div className="absolute inset-x-0 bottom-[min(100%,calc(var(--chat-screen-height)_-_var(--app-header-inset)_-_var(--emoticon-preview-height)_-_var(--spacing-xs)))]">
                   <EmoticonPreview
+                    key={stagedEmoticon.id}
                     className="mx-md mb-2xs"
                     emoticon={stagedEmoticon}
                     onRemove={() => setStagedEmoticon(null)}
@@ -1653,8 +1654,6 @@ export function ChatRoom({
     if (emoticonSheet.size === "expanded") {
       collapseTimerRef.current = setTimeout(emoticonSheet.collapse, DOUBLE_TAP_WINDOW);
     }
-    // INFO: REQUIREMENTS.md § 13.6. The preview autoplays the animation, and the sound is the other half of the same playback.
-    playEmoticonSound(emoticon);
   }
 
   /**
@@ -1665,15 +1664,11 @@ export function ChatRoom({
     clearTimeout(collapseTimerRef.current);
     void goLiveForSend();
     setStagedEmoticon(null);
-    // WARN: REQUIREMENTS.md § 13.6. Synchronously inside the tap, like `submit` — iOS grants audio to this call stack alone.
-    if (emoticon.hasAudio) {
-      playEmoticonSound(emoticon);
-    } else {
-      playMessageSound("sent");
-    }
     // INFO: § 13.6. Never a mini — `handleSelect` inserts one into the draft rather than staging it, so no quick send can reach here with one.
     rememberEmoticon(emoticon.id, "emoticon");
-    sendEmoticon(emoticon, replyTarget);
+    if (!soundSend(sendEmoticon(emoticon, replyTarget), emoticon)) {
+      playMessageSound("sent");
+    }
     // INFO: § 13.8. This path never goes through `submit`, so the field is still holding the word that found this emoticon — the composer clears it if that is all it holds.
     setKeywordConsumeToken((token) => token + 1);
     // WARN: § 13.8. The word is spent, the search is not. `emoticonSearch` deliberately stands, so the panel is still on the results this emoticon came from — sending one of a row of related pictures is the reason to have searched at all, and dropping back to the remembered pack means finding the word again for every one after the first.
@@ -1736,12 +1731,9 @@ export function ChatRoom({
     };
 
     if (stagedEmoticon) {
-      // WARN: REQUIREMENTS.md § 13.6. Here rather than on the echo, and synchronously inside the tap — the send is the moment KakaoTalk sounds, and iOS grants audio to this call stack alone.
-      playEmoticonSound(stagedEmoticon);
-      hasSounded = stagedEmoticon.hasAudio;
       // INFO: REQUIREMENTS.md § 13.6. 최근 사용 is recorded here rather than at the pick, so an emoticon staged and then abandoned never enters the list.
       rememberEmoticon(stagedEmoticon.id, "emoticon");
-      sendEmoticon(stagedEmoticon, take());
+      hasSounded = soundSend(sendEmoticon(stagedEmoticon, take()), stagedEmoticon);
       setStagedEmoticon(null);
       hasSent = true;
     }
@@ -1759,15 +1751,11 @@ export function ChatRoom({
       });
       const solo = soloId ? emoticons.find(({ id }) => id === soloId) : undefined;
 
-      if (solo?.hasAudio) {
-        playEmoticonSound(solo);
-        hasSounded = true;
-      }
       // WARN: § 13.6. The minis in the draft are recorded at the send too, and `"mini"` is read off the payload rather than off the menu they were picked from: § 2.2. carries a mini as a fragment of this `text` and never as `messages.emoticon_item_id`, so nothing else can be in here.
       emoticons.forEach((emoticon) => rememberEmoticon(emoticon.id, "mini"));
       // WARN: § 8.3. Published before the send, or the optimistic bubble's own emoticons are absent from the map the estimate reads and it prices the row without them — a correction on every send, which is the drift this estimate exists to avoid. The echo publishes the same entries again and they merge.
       rememberInlineEmoticons(toInlineEmoticonMap(emoticons));
-      send(text, emoticons, take());
+      hasSounded = soundSend(send(text, emoticons, take()), solo) || hasSounded;
       hasSent = true;
     }
 
@@ -1779,6 +1767,27 @@ export function ChatRoom({
     // WARN: § 13.8. The word is spent here, and the search is left standing — see `sendStagedEmoticon`.
     searchedWordRef.current = null;
     setReplyTarget(null);
+  }
+
+  /**
+   * REQUIREMENTS.md § 13.6. My own emoticon sounds at the send, from its optimistic
+   * row — the same one-row flag a live arrival takes, so the picture and the sound
+   * start on one frame there too. Returns whether anything will sound.
+   *
+   * WARN: Only where the row certainly mounts, which is the live edge; anywhere else the sound plays alone, as the arrival's does.
+   */
+  function soundSend(clientMsgId: Nullable<string>, emoticon: Maybe<EmoticonSound>): boolean {
+    if (!clientMsgId || !emoticon?.hasAudio) {
+      return false;
+    }
+
+    if (isAtBottom && !hasNewer) {
+      announceArrivalSound(clientMsgId, emoticon);
+    } else {
+      playEmoticonSound(emoticon);
+    }
+
+    return true;
   }
 
   /** INFO: REQUIREMENTS.md § 13.8. Only ever true beside an emoticon — on its own the word is the message the user typed. */
@@ -2233,10 +2242,12 @@ export function ChatRoom({
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
             status={row.pending.status}
+            awaitsArrivalSound={row.pending.clientMsgId === arrivalSoundId}
             replyToHeading={
               row.pending.replyTo ? toQuoteHeadingFor(row.pending.replyTo) : undefined
             }
             onFollowEmoticon={toFollowEmoticon(row.pending.emoticon)}
+            onArrivalSoundReady={() => settleArrivalSound(row.pending.clientMsgId)}
             onRetry={() => retry(row.pending.clientMsgId)}
             onCancel={() => cancel(row.pending.clientMsgId)}
           />

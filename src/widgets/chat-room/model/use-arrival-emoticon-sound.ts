@@ -1,27 +1,21 @@
 "use client";
 
-import { A_SECOND, type MessageId, type Nullable } from "@/shared/lib";
+import { EMOTICON_PLAYBACK_HOLD, type Nullable } from "@/shared/lib";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { playEmoticonSound, type EmoticonSound } from "./play-emoticon-sound";
 
 /**
- * How long a picture may be held back waiting for its sound.
- *
- * WARN: REQUIREMENTS.md § 13.6. This is what keeps a message visible. Past it the
- * sound is played on its own and the row is released — an emoticon that cannot be
- * heard is a sound nobody notices, where one that cannot be *seen* is the message
- * missing from the conversation.
- */
-const ARRIVAL_SOUND_HOLD = A_SECOND;
-
-/**
- * REQUIREMENTS.md § 13.6. The live arrival of an emoticon that carries a sound,
- * held until its bubble has the picture on screen so the two land together.
+ * REQUIREMENTS.md § 13.6. An arriving emoticon that carries a sound — a live one from
+ * the other side, or my own send's optimistic row — flagged so its bubble plays the
+ * picture and the sound together on mount.
  *
  * INFO: The decision stays here rather than moving into `EmoticonBubble` — that
  * component draws every emoticon in the room, including the ones a scroll passes,
  * and only the room can tell an arrival from a row. What it is handed is one flag
- * for one row.
+ * for one row, keyed by `messages.id` or by the pending row's `client_msg_id`.
+ *
+ * WARN: The timer is for a row that never mounts. A bubble that did takes the
+ * playback over and settles this at once, so a sound is never played from both sides.
  *
  * WARN: The pending row is held in state **and** in a ref. The state is what the
  * bubble reads; the ref is what the callbacks resolve against, since a row that
@@ -29,11 +23,11 @@ const ARRIVAL_SOUND_HOLD = A_SECOND;
  * sound a second time off a flag nothing had taken down.
  */
 export function useArrivalEmoticonSound() {
-  const [pendingId, setPendingId] = useState<Nullable<MessageId>>(null);
-  const pendingRef = useRef<Nullable<{ emoticon: EmoticonSound; id: MessageId }>>(null);
+  const [pendingId, setPendingId] = useState<Nullable<string>>(null);
+  const pendingRef = useRef<Nullable<{ emoticon: EmoticonSound; id: string }>>(null);
   const timerRef = useRef<Nullable<ReturnType<typeof setTimeout>>>(null);
 
-  const settle = useCallback((id: MessageId) => {
+  const settle = useCallback((id: string, { sounds = false } = {}) => {
     const pending = pendingRef.current;
 
     if (!pending || pending.id !== id) {
@@ -48,7 +42,9 @@ export function useArrivalEmoticonSound() {
       timerRef.current = null;
     }
 
-    playEmoticonSound(pending.emoticon);
+    if (sounds) {
+      playEmoticonSound(pending.emoticon);
+    }
   }, []);
 
   /**
@@ -58,14 +54,14 @@ export function useArrivalEmoticonSound() {
    * stayed held until its own timer, which is the one outcome nothing asked for.
    */
   const announce = useCallback(
-    (id: MessageId, emoticon: EmoticonSound) => {
+    (id: string, emoticon: EmoticonSound) => {
       if (pendingRef.current) {
-        settle(pendingRef.current.id);
+        settle(pendingRef.current.id, { sounds: true });
       }
 
       pendingRef.current = { id, emoticon };
       setPendingId(id);
-      timerRef.current = setTimeout(() => settle(id), ARRIVAL_SOUND_HOLD);
+      timerRef.current = setTimeout(() => settle(id, { sounds: true }), EMOTICON_PLAYBACK_HOLD);
     },
     [settle],
   );

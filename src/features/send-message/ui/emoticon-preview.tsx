@@ -2,10 +2,10 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn, playSound, toPreviousReplaySrc, toReplaySrc } from "@/shared/lib";
-import { IconButton, PreloadImage } from "@/shared/ui";
+import { cn, useSyncedEmoticonPlayback } from "@/shared/lib";
+import { IconButton, PreloadImage, Skeleton } from "@/shared/ui";
 import { Star, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect } from "react";
 import { useEmoticonFavorites } from "../model/use-emoticon-favorites";
 
 // INFO: Smaller than the § 6.5. bubble — this is a staged attachment, and it sits above the composer where `MediaTray`'s thumbnails do.
@@ -20,13 +20,14 @@ export type EmoticonPreviewProps = {
 /**
  * REQUIREMENTS.md § 13.6. The staged emoticon, waiting for send.
  *
- * INFO: The animation runs from the moment it is staged — unlike a bubble there is
- * no scrolling for an observer to track, it is on screen by definition. A tap
- * replays it and plays the audio, which is the bubble's gesture (§ 13.6.).
+ * INFO: The animation and the sound start together the moment it is staged — unlike
+ * a bubble there is no scrolling for an observer to track, it is on screen by
+ * definition. A tap replays both, which is the bubble's gesture (§ 13.6.).
+ *
+ * WARN: Keyed by the emoticon at the call site, so staging another remounts this and the mount effect plays it.
  */
 export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPreviewProps) {
-  const { hasAnimated } = emoticon;
-  const [replayToken, setReplayToken] = useState(0);
+  const { hasAnimated, hasAudio } = emoticon;
   const { isFavorite, toggleFavorite } = useEmoticonFavorites();
   const favorited = isFavorite(emoticon.id);
   const box = toBox(emoticon);
@@ -35,6 +36,19 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
     hasAnimated ? "animated-image" : "still-image",
     emoticon.version,
   );
+  const { phase, frameRef, play } = useSyncedEmoticonPlayback({
+    imageSrc: emoticonAssetUrl,
+    audioSrc: toEmoticonAssetUrl(emoticon.id, "audio", emoticon.version),
+    hasAnimated,
+    hasAudio,
+    frameClassName: "rounded-md",
+    startsHeld: hasAnimated,
+  });
+
+  useEffect(() => {
+    void play();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Once, on the stage.
+  }, []);
 
   return (
     // INFO: REQUIREMENTS.md § 13.6. Centered rather than aligned to the send side — this is what is about to be sent, not a rehearsal of where its bubble lands.
@@ -65,25 +79,23 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
           type="button"
           style={{ width: box.width, height: box.height }}
           aria-label="이모티콘 다시 재생"
-          onClick={handleTap}
+          onClick={() => void play()}
         >
-          <PreloadImage
-            // WARN: Keyed by the replay token so a tap remounts the element, and the token also rides the URL (`toReplaySrc`) — iOS Safari ties a GIF/WebP's running loop to the request URL rather than the element, so a fresh element on an unchanged `src` restarts nothing there.
-            key={hasAnimated ? replayToken : undefined}
-            className="size-full"
-            imgClassName="size-full object-contain rounded-md"
-            placeholderClassName="rounded-md"
-            alt=""
-            width={box.width}
-            height={box.height}
-            draggable={false}
-            hidesPreviewOnReveal={hasAnimated}
-            src={hasAnimated ? toReplaySrc(emoticonAssetUrl, replayToken) : emoticonAssetUrl}
-            // WARN: The previous replay's own frame stands in while this one decodes (`toPreviousReplaySrc`), which is what keeps the remount from ever showing the skeleton. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
-            previewSrc={
-              hasAnimated ? toPreviousReplaySrc(emoticonAssetUrl, replayToken) : undefined
-            }
-          />
+          {/* WARN: `hidden` until the frame is in — see `EmoticonBubble`. */}
+          <div ref={frameRef} className={cn("size-full", phase !== "frame" && "hidden")} />
+          {phase === "held" && <Skeleton className="size-full rounded-md" />}
+          {phase === "idle" && (
+            <PreloadImage
+              className="size-full"
+              imgClassName="size-full object-contain rounded-md"
+              placeholderClassName="rounded-md"
+              alt=""
+              width={box.width}
+              height={box.height}
+              draggable={false}
+              src={emoticonAssetUrl}
+            />
+          )}
         </button>
 
         {/* Top-right Close button */}
@@ -98,17 +110,6 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
       </div>
     </div>
   );
-
-  function handleTap() {
-    if (hasAnimated) {
-      setReplayToken((current) => current + 1);
-    }
-
-    if (emoticon.hasAudio) {
-      // WARN: Inside the click handler with nothing awaited before it — iOS grants the gesture's audio permission to this call stack alone, so any `await` first loses it.
-      playSound(toEmoticonAssetUrl(emoticon.id, "audio", emoticon.version));
-    }
-  }
 }
 
 function toBox({ width, height }: Emoticon) {

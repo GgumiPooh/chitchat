@@ -3,7 +3,6 @@
 import { cn, type Nullable } from "@/shared/lib";
 import { ImageOff } from "lucide-react";
 import type { ComponentProps, CSSProperties, SyntheticEvent } from "react";
-import { useEffect, useRef } from "react";
 import type { BlurhashFit } from "./blur-placeholder";
 import { PreloadFrame, toMediaElementClassName, useLoadStatus } from "./preload-media";
 
@@ -67,18 +66,6 @@ export type PreloadImageProps = Omit<ComponentProps<"img">, "placeholder" | "sty
   blurhashFit?: BlurhashFit;
   /** WARN: Opt-in, and only where the reader asked for this asset by name — DESIGN.md § 7.10.'s slide. Every tile in a month of 보관함 would say the same sentence at once. */
   hasOfflineNotice?: boolean;
-  /**
-   * Keeps the placeholder up after the asset has loaded, for a caller with something
-   * else to wait on — REQUIREMENTS.md § 13.6.'s arriving emoticon, whose sound is not
-   * in memory yet.
-   *
-   * WARN: A hold no one lifts is an asset that never appears, so whatever sets this
-   * owes it a cap. It is the caller's, not this component's: only the caller knows
-   * what it is waiting for.
-   */
-  isHeld?: boolean;
-  /** Fires the moment the asset actually goes on screen — the load **and** `isHeld`, which is what a caller pairing a sound to it needs. */
-  onReveal?: () => void;
 };
 
 /**
@@ -102,41 +89,23 @@ export function PreloadImage({
   blurhashRatio,
   blurhashFit,
   hasOfflineNotice = false,
-  isHeld = false,
-  onReveal,
   onLoad,
   onError,
   ...props
 }: PreloadImageProps) {
   // INFO: Null is coerced here rather than inside the shell, so the shared hook keeps one absent-source notion instead of two.
-  const {
-    status,
-    isRevealed: isLoadRevealed,
-    isAwaitingNetwork,
-    attemptSrc,
-    markLoaded,
-    markFailed,
-  } = useLoadStatus({
-    src: src ?? undefined,
-    canRetry,
-  });
-  const isRevealed = isLoadRevealed && !isHeld;
-  const wasRevealed = useRef(false);
-
-  useEffect(() => {
-    if (isRevealed && !wasRevealed.current) {
-      onReveal?.();
-    }
-    wasRevealed.current = isRevealed;
-  });
+  const { status, isRevealed, isAwaitingNetwork, attemptSrc, markLoaded, markFailed } =
+    useLoadStatus({
+      src: src ?? undefined,
+      canRetry,
+    });
   /**
    * INFO: It stays underneath for as long as the element below is drawing, rather than being dropped the instant that one reports pixels — unless `hidesPreviewOnReveal` says otherwise.
    * WARN: DESIGN.md § 7.10. It used to unmount on the reveal unconditionally, and REQUIREMENTS.md § 10.'s blank slide is what that cost. A browser out of room for a full-size decode does not say so — the element reports `load` and the right `naturalWidth` and paints nothing — so the stand-in was pulled out from under a picture that was never going to arrive, leaving the reader on bare `scrim`. Left in place the same failure is a soft photograph instead, and it costs nothing while the original does paint: that one is opaque and covers this exactly, for a caller with no reason to unmount early. `hidesPreviewOnReveal`'s callers do have one — see its own doc.
    * WARN: Withheld on `failed` alone, where DESIGN.md § 7.8.'s glyph on its own plate is the documented ending — a thumbnail standing in for an object that is gone says the opposite of it.
-   * WARN: And withheld under `isHeld`, or the hold does nothing. This layer paints at full opacity independently of `isRevealed`, so a held caller that also passes a `previewSrc` would show the picture anyway — and `onReveal`, which is what lifts the hold's other half, would never fire.
    */
   const hasPreview =
-    Boolean(previewSrc) && status !== "failed" && !isHeld && (!hidesPreviewOnReveal || !isRevealed);
+    Boolean(previewSrc) && status !== "failed" && (!hidesPreviewOnReveal || !isRevealed);
 
   return (
     <PreloadFrame

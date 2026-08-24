@@ -88,17 +88,37 @@ export function unlockSound(): void {
   safelyRun(() => getPlayer().load());
 }
 
+let resolvePlaying: Nullable<() => void> = null;
+
 /**
  * Plays `src`, cutting off whatever the shared player was playing — unless this is
  * a `"secondary"` sound and what is playing is not.
+ *
+ * WARN: Resolves on the element's `playing` event — the moment output actually
+ * starts, which `play()` returning is not — or at once when the sound is refused,
+ * cut off by a later call, or declined. A caller aligning a picture to it
+ * (`useSyncedEmoticonPlayback`) must never be left waiting on a sound that is not coming.
  */
-export function playSound(src: string, priority: SoundPriority = "primary"): void {
+export function playSound(src: string, priority: SoundPriority = "primary"): Promise<void> {
   const audio = getPlayer();
 
   // INFO: § 13.6. Only a *primary* sound holds the player — two 전송음s in a row still cut over, as every pair of sounds did before this.
   if (priority === "secondary" && playingPriority === "primary" && isSounding(audio)) {
-    return;
+    return Promise.resolve();
   }
+
+  resolvePlaying?.();
+
+  const playing = new Promise<void>((resolve) => {
+    resolvePlaying = () => {
+      resolvePlaying = null;
+      audio.removeEventListener("playing", onPlaying);
+      resolve();
+    };
+  });
+  const onPlaying = () => resolvePlaying?.();
+
+  audio.addEventListener("playing", onPlaying, { once: true });
 
   const cached = cache.get(src);
 
@@ -112,9 +132,11 @@ export function playSound(src: string, priority: SoundPriority = "primary"): voi
 
   audio.src = cached?.objectUrl ?? src;
   // INFO: A rejection is the expected outcome on a page that has never seen a gesture, and a sound that does not play is not worth surfacing.
-  void audio.play().catch(() => undefined);
+  void audio.play().catch(() => resolvePlaying?.());
   // WARN: A miss pays for the source **twice** — the element's own media load here, and the CORS `fetch` below, which the browser caches under a separate key (`CLAUDE.md § 5.3.`). It is spent deliberately and only on a miss: the element refetches on every `src` assignment, so the alternative is paying that download again on every later play of the same sound.
   void warmSound(src);
+
+  return playing;
 }
 
 /**
@@ -133,6 +155,7 @@ export function stopSound(): void {
 
   playingSrc = null;
   playingPriority = "secondary";
+  resolvePlaying?.();
   audio.pause();
   audio.removeAttribute("src");
   // INFO: The element stays approved through this — `unlockSound` grants the gesture to the element, and a sourceless `load()` is what it does itself.
