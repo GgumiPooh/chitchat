@@ -41,6 +41,7 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
     audioSrc: toEmoticonAssetUrl(emoticon.id, "audio", emoticon.version),
     hasAnimated,
     hasAudio,
+    frameClassName: "rounded-md",
     startsHeld: hasAnimated,
   });
 
@@ -82,11 +83,12 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
         >
           {/* WARN: `hidden` until the frame is in — see `EmoticonBubble`. */}
           <div ref={frameRef} className={cn("size-full", phase !== "frame" && "hidden")} />
-          {phase === "held" && <Skeleton className="size-full" />}
+          {phase === "held" && <Skeleton className="size-full rounded-md" />}
           {phase === "idle" && (
             <PreloadImage
               className="size-full"
-              imgClassName="size-full object-contain"
+              imgClassName="size-full object-contain rounded-md"
+              placeholderClassName="rounded-md"
               alt=""
               width={box.width}
               height={box.height}
