@@ -33,9 +33,7 @@ async function main() {
   await Promise.all(
     FILES.map(([dir, file]) => copyFile(path.join(dir, file), path.join(OUTPUT_DIR, file))),
   );
-  console.log(
-    `Copied ${FILES.length} ffmpeg files to ${path.relative(process.cwd(), OUTPUT_DIR)}`,
-  );
+  console.log(`Copied ${FILES.length} ffmpeg files to ${path.relative(process.cwd(), OUTPUT_DIR)}`);
 }
 
 main().catch((error: unknown) => {
