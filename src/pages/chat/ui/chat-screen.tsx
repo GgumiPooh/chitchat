@@ -120,7 +120,7 @@ export function ChatScreen({
     <Container
       className={cn(
         // WARN: DESIGN.md § 3.3. `shell-edge`, matching the shell's own — this box covers the column's edges, so without it the hairline that separates the app from the desktop gutter stops at the chat route.
-        "fixed inset-x-0 top-(--keyboard-pan) flex h-(--chat-screen-height) flex-col bg-chat-canvas px-0 shell-edge transition-[height] duration-200 ease-out",
+        "fixed inset-x-0 top-(--keyboard-pan) flex h-(--chat-screen-height) flex-col bg-chat-canvas px-0 shell-edge transition-[height] duration-(--viewport-settle-duration) ease-out",
         className,
       )}
       // INFO: REQUIREMENTS.md § 12.2. Overrides `bg-chat-canvas` above, which stays as the no-wallpaper answer and as the fallback for a hash the base83 pass rejects.

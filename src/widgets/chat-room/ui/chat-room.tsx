@@ -1508,7 +1508,8 @@ export function ChatRoom({
           {/* INFO: § 13.6. An empty spacer: it is what `useComposerClearance` measures and what `settleAfterPanelTransition` listens to, and it only ever moves inset ↔ rest — the drawn sheet below is absolute, so expanding it moves nothing here. */}
           <div
             className={cn(
-              "transition-[height] duration-200 ease-out",
+              // WARN: DESIGN.md § 3.4. The panel's own 200ms, on the token that holds it at `0s` until the viewport has been measured — this spacer is `--bottom-inset` tall, and iOS moves that after the first paint of a cold launch.
+              "transition-[height] duration-(--viewport-settle-duration) ease-out",
               isEmoticonPanelOpen ? "h-(--emoticon-sheet-rest-height)" : "h-(--bottom-inset)",
             )}
             style={{ ["--emoticon-sheet-rest-height" as string]: emoticonSheetRestHeight }}

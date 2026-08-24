@@ -10,6 +10,8 @@ const KEYBOARD_HEIGHT_PROPERTY = "--keyboard-height";
 const KEYBOARD_HEIGHT_KEY = "jandh:keyboard-height";
 const TOP_PROPERTY = "--viewport-top";
 const BOTTOM_PROPERTY = "--viewport-bottom";
+// INFO: DESIGN.md § 3.4. Arms the eased responses to a viewport move, which are corrections rather than motion until a height has actually been measured.
+const SYNCED_ATTRIBUTE = "data-viewport-synced";
 
 /**
  * Mirrors the visual viewport onto the root element so the app shell can size
@@ -24,12 +26,15 @@ const BOTTOM_PROPERTY = "--viewport-bottom";
 export function VisualViewportSync() {
   useEffect(() => {
     const viewport = window.visualViewport;
+    const root = document.documentElement;
 
+    // WARN: DESIGN.md § 3.4. Armed here too, or an engine without the API leaves the composer's arrival paused for good.
     if (!viewport) {
-      return;
+      root.setAttribute(SYNCED_ATTRIBUTE, "");
+
+      return () => root.removeAttribute(SYNCED_ATTRIBUTE);
     }
 
-    const root = document.documentElement;
     let frame = 0;
     let restingHeight = viewport.height;
     let keyboardHeight = 0;
@@ -53,6 +58,7 @@ export function VisualViewportSync() {
       root.style.removeProperty(RESTING_HEIGHT_PROPERTY);
       root.style.removeProperty(TOP_PROPERTY);
       root.style.removeProperty(BOTTOM_PROPERTY);
+      root.removeAttribute(SYNCED_ATTRIBUTE);
     };
 
     // INFO: The keyboard animates open over several frames, and each one fires the event — coalescing keeps the shell to one resize per frame.
@@ -107,6 +113,7 @@ export function VisualViewportSync() {
         BOTTOM_PROPERTY,
         `${Math.max(root.clientHeight - offsetTop - height, 0)}px`,
       );
+      root.setAttribute(SYNCED_ATTRIBUTE, "");
     }
   }, []);
 
