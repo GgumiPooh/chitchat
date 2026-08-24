@@ -67,14 +67,13 @@ export function UpcomingEventsPanel({
 
     pendingFrom.current = null;
 
-    const box = row.getBoundingClientRect();
-    const top = box.top - list.getBoundingClientRect().top + list.scrollTop;
+    const top = row.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
 
-    // INFO: REQUIREMENTS.md § 11.5.1. Half of the arriving row rather than a fixed inset — a row is one line or four depending on its memo, so a constant reads as a different gesture every time.
-    // WARN: Short of the row and never past it. A page arrives at the **end** of the list, so aligning its first row to the top is already the maximum scroll and an overshoot is clamped away to the same pixel.
+    // INFO: REQUIREMENTS.md § 11.5.1. The arriving row is put at the top edge, with no inset held back for the one before it — the page the reader asked for is what the list should be showing.
+    // WARN: A page arrives at the **end** of the list, so this is already the maximum scroll and the browser clamps it. Nothing may be added past it expecting to travel further.
     // INFO: DESIGN.md § 4.7. Reduced motion keeps the destination and drops the travel, which is the one thing here that is motion for its own sake.
     list.scrollTo({
-      top: Math.max(top - box.height / 2, 0),
+      top,
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
     });
   }, [isLoadingMore, occurrences.length]);

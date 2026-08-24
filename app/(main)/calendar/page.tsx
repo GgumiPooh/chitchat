@@ -1,6 +1,6 @@
 import { getCalendarSummary, listEventOccurrences } from "@/entities/event";
 import { CalendarPage } from "@/pages/calendar";
-import { CALENDAR_DAY_PARAM } from "@/shared/config";
+import { CALENDAR_DAY_PARAM, MAX_UPCOMING_EVENTS } from "@/shared/config";
 import { loadHolidays } from "@/shared/holiday";
 import { isDayKey, toMonthKey, type Maybe } from "@/shared/lib";
 import { toGridRange } from "@/widgets/calendar-month";
@@ -19,7 +19,11 @@ export default async function Page({ searchParams }: PageProps) {
   const dayParam = (await searchParams)[CALENDAR_DAY_PARAM];
   const dayKey = isDayKey(dayParam) ? dayParam : undefined;
   // INFO: § 11.7. Together rather than in sequence — `loadHolidays` reaches a government gateway behind a timeout, which belongs inside the summary query's wait rather than after it.
-  const [summary, holidays] = await Promise.all([getCalendarSummary(), loadHolidays()]);
+  // WARN: § 11.5.1. One past what the section draws, so 더 보기 is on screen from the first paint rather than appearing at the first focus refresh.
+  const [summary, holidays] = await Promise.all([
+    getCalendarSummary(MAX_UPCOMING_EVENTS + 1),
+    loadHolidays(),
+  ]);
   const monthKey = toMonthKey(dayKey ?? summary.todayKey);
   const { from, to } = toGridRange(monthKey);
 

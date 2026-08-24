@@ -26,27 +26,6 @@ export function toOccurrencesInRange(
 }
 
 /**
- * REQUIREMENTS.md § 11.5. Whether an occurrence is still ahead of `now`, or under
- * way at it — what the upcoming card is allowed to summarise.
- *
- * WARN: The all-day arm filters nothing **today**: the only caller draws from
- * `listEventOccurrences(todayKey, …)`, whose range already guarantees it. It is
- * written out because this is a predicate about an occurrence and not about that
- * caller's range — `종일` is a claim about a calendar day, so an all-day event is
- * retired by its end day and never by whatever hour its row happens to store. Narrow
- * the caller's range and this is what keeps the answer right.
- */
-export function isOccurrenceUnfinished(
-  occurrence: EventOccurrence,
-  todayKey: string,
-  now: number,
-): boolean {
-  return occurrence.event.allDay
-    ? toDayKey(occurrence.endsAt) >= todayKey
-    : Date.parse(occurrence.endsAt) >= now;
-}
-
-/**
  * Chronological, with all-day events ahead of timed ones that start the same day and
  * the older event first where even the instant ties.
  *
@@ -76,6 +55,10 @@ export function compareOccurrences(a: EventOccurrence, b: EventOccurrence): numb
  * WARN: The duration is carried across rather than the end date being rebuilt
  * from its own fields — a 12월 31일 → 1월 1일 event would otherwise project onto
  * a year where its end lands before its start.
+ *
+ * WARN: `listUpcomingOccurrences` encodes this same rule in SQL, because a `LIMIT`
+ * needs the sort key in the database — change one and change both. That copy exists
+ * only because a range spanning a year boundary is what makes this one a loop.
  */
 function projectYearly(event: CalendarEvent, fromKey: string, toKey: string): EventOccurrence[] {
   const anchorStart = new Date(event.startsAt);
