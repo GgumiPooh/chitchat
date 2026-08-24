@@ -7,7 +7,7 @@ import { ensureEnv } from "@/shared/config";
  * a real default rather than an `ensureEnv` — it is this repository, and only a fork needs
  * to say otherwise.
  */
-const OPS_REPO = process.env.OPS_GITHUB_REPO?.trim() || "GgumiPooh/jandh";
+const OPS_REPO = process.env.OPS_GITHUB_REPO?.trim() || "GgumiPooh/chitchat";
 
 /** The branch a dispatched run checks out. `schedule` only ever fires on the default one, so this matches it. */
 const OPS_REF = process.env.OPS_GITHUB_REF?.trim() || "main";
