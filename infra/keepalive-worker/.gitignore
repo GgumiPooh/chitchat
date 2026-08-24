@@ -1,0 +1,5 @@
+.wrangler/
+node_modules/
+# WARN: The local-dev copy of GITHUB_TOKEN. `wrangler dev` reads this file rather than the deployed secret, and it must never be committed.
+.dev.vars
+.dev.vars.*
