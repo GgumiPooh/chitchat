@@ -1,5 +1,5 @@
 import type { Nullable } from "../nullish";
-import { countDays, formatMonthDay, formatTime, toDayKey } from "./time";
+import { AN_HOUR, A_DAY, countDays, formatMonthDay, formatTime, toDayKey } from "./time";
 
 /**
  * What this module reads off one appearance of an event.
@@ -102,4 +102,47 @@ export function formatUpcomingWhen(occurrence: TimedOccurrence, todayKey: string
   const day = formatRelativeDay(startDayKey, todayKey);
 
   return occurrence.event.allDay ? day : `${day} ${formatTime(occurrence.startsAt)}`;
+}
+
+/** REQUIREMENTS.md § 11.5.1. Whether the occurrence starts inside the day — 채팅's header blooms on the same window. */
+export function isImminent(occurrence: TimedOccurrence, now: number): boolean {
+  return Date.parse(occurrence.startsAt) - now <= A_DAY;
+}
+
+/** The countdown an imminent row carries in place of its date — `진행 중`, `곧 시작`, `3시간 뒤`. */
+export function formatTimeLeft(occurrence: TimedOccurrence, now: number): string {
+  const left = Date.parse(occurrence.startsAt) - now;
+
+  if (left <= 0) {
+    return "진행 중";
+  }
+
+  const hours = Math.floor(left / AN_HOUR);
+
+  // INFO: The last hour reads `곧 시작` rather than counting minutes down — a label that moves every minute re-renders § 8.3.'s virtualizer for a number nobody watches tick.
+  return hours === 0 ? "곧 시작" : `${hours}시간 뒤`;
+}
+
+/** The instant one of these rows next changes what it reads, so a screen showing them arms one timer instead of polling. */
+export function nextTimeLeftChangeAt(
+  occurrences: TimedOccurrence[],
+  now: number,
+): Nullable<number> {
+  const instants = occurrences
+    .map((occurrence) => toNextChangeAt(occurrence, now))
+    .filter((at): at is number => at !== null);
+
+  return instants.length === 0 ? null : Math.min(...instants);
+}
+
+// INFO: An hourly boundary while the countdown runs, the crossing into the window before that, and nothing at all once the event has started.
+function toNextChangeAt(occurrence: TimedOccurrence, now: number): Nullable<number> {
+  const startsAt = Date.parse(occurrence.startsAt);
+  const left = startsAt - now;
+
+  if (left <= 0) {
+    return null;
+  }
+
+  return left > A_DAY ? startsAt - A_DAY : startsAt - Math.floor(left / AN_HOUR) * AN_HOUR;
 }

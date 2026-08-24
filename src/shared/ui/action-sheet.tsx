@@ -43,21 +43,24 @@ export function ActionSheet({ className, isOpen, header, items, onClose }: Actio
       onClose={onClose}
       onCloseAutoFocus={handleCloseAutoFocus}
     >
-      <ul className="flex flex-col gap-2xs">
+      {/* INFO: DESIGN.md § 7.5. One `max-content` column shared by every row through `subgrid`, so the icons stand in a column and the labels in another — centred per row, `사진/영상` and `음성` put theirs at different x. The `1fr` on either side is what keeps the block itself centred. */}
+      <ul className="grid grid-cols-[1fr_minmax(0,max-content)_1fr] gap-2xs">
         {items.map((item) => (
-          <li key={item.label} className="group relative flex">
+          <li key={item.label} className="group relative col-span-full grid grid-cols-subgrid">
             <button
               className={cn(
-                "inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-xs rounded-md bg-surface-soft px-md py-sm text-button-md transition-colors outline-none group-active:bg-surface-pressed hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-pressed",
+                "col-span-full grid min-h-11 w-full cursor-pointer grid-cols-subgrid items-center rounded-md bg-surface-soft px-md py-sm text-button-md transition-colors outline-none group-active:bg-surface-pressed hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-pressed",
                 item.variant === "destructive" ? "text-semantic-error" : "text-ink",
               )}
               type="button"
               onClick={() => handleSelect(item)}
             >
-              {item.Icon && (
-                <item.Icon className="pointer-events-none size-4.5" strokeWidth={1.75} />
-              )}
-              {item.label}
+              <span className="col-start-2 inline-flex items-center gap-xs">
+                {item.Icon && (
+                  <item.Icon className="pointer-events-none size-4.5 shrink-0" strokeWidth={1.75} />
+                )}
+                {item.label}
+              </span>
             </button>
             {/* INFO: Every row is a committed choice, so none of them is left silent. */}
             {/* WARN: `keepsScroll` — the rows are the sheet's whole surface, so a finger pulling it down to dismiss lands here, and the switch would keep that drag and end it as a tap on the row (`DESIGN.md § 7.15.1.`). */}

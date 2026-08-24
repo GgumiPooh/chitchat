@@ -197,6 +197,7 @@ export function ChatScreen({
           isOpen={isPanelOpen}
           occurrences={upcoming.occurrences}
           todayKey={upcoming.todayKey}
+          now={upcoming.now}
           hasMore={upcoming.hasMore}
           isLoadingMore={upcoming.isLoadingMore}
           onLoadMore={upcoming.loadMore}
