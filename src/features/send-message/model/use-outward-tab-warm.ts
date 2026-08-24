@@ -4,8 +4,8 @@ import type { Emoticon } from "@/entities/emoticon";
 import type { EmoticonPackType } from "@/shared/config";
 import { A_MINUTE, A_SECOND, runWhenIdle } from "@/shared/lib";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
-import { RECENTS_TAB, isPackTabId } from "./emoticon-tabs";
+import { useEffect, useRef, useState } from "react";
+import { isPackTabId, isRecentsTabId } from "./emoticon-tabs";
 import { toEmoticonPackItemsQuery } from "./pack-items-query";
 import { MAX_DECODED_DISTANCE, warmEmoticonImages, warmEmoticonUrls } from "./warm-emoticon-images";
 import { warmEmoticonSounds } from "./warm-emoticon-sounds";
@@ -24,6 +24,19 @@ const WARM_ITEMS_STALE_TIME = 5 * A_MINUTE;
  * INFO: Past the retention cap a warmed tab is evicted from the map but its bytes stay in the browser's own cache, so the far end of this walk is a disk read rather than a round trip — which the deferred skeleton covers.
  */
 const MAX_WARM_DISTANCE = 15;
+
+// WARN: Hoisted so a panel that has warmed nothing yet answers the same set every render — an inline `new Set()` would hand the grid a fresh identity on each one.
+const NO_WARMED_TABS: ReadonlySet<string> = new Set();
+
+export type OutwardTabWarm = {
+  /**
+   * § 13.6. The tabs whose images this walk has **decoded**, which is what lets the
+   * grid load a whole tab `eager` (`MAX_WARMED_PER_TAB`) rather than its first rows.
+   *
+   * WARN: Decoded and not merely fetched. `eager`'s whole effect in the grid is that `img.complete` is already true when the cell mounts, and a warm that only fetched has released its element — which takes the resource back out of the memory cache, leaving the cell a disk read and a decode it would show a plate through.
+   */
+  warmedTabs: ReadonlySet<string>;
+};
 
 export type OutwardTabWarmOptions = {
   /** WARN: The warm runs from the **open**, never from the room. A user who does not reach for emoticons pays nothing for the tabs beside the one they would have landed on. */
@@ -53,8 +66,9 @@ export function useOutwardTabWarm({
   recents,
   tabThumbnailUrls,
   kind,
-}: OutwardTabWarmOptions): void {
+}: OutwardTabWarmOptions): OutwardTabWarm {
   const queryClient = useQueryClient();
+  const [warmedTabs, setWarmedTabs] = useState(NO_WARMED_TABS);
   // WARN: A ref rather than a dependency: `recents` is a fresh array on every render, so listing it would re-schedule the warm on each one.
   const recentsRef = useRef(recents);
 
@@ -99,13 +113,15 @@ export function useOutwardTabWarm({
           }
 
           const items = await fetchTabItems(tab);
+          const decodes = distance <= MAX_DECODED_DISTANCE;
 
-          await warmEmoticonImages(
-            items,
-            () => isCancelled,
-            distance <= MAX_DECODED_DISTANCE,
-            kind,
-          );
+          await warmEmoticonImages(items, () => isCancelled, decodes, kind);
+
+          // INFO: § 13.6. Recorded after the await, so the grid only widens its `eager` window once this tab's pictures are actually decoded.
+          // WARN: An empty list is never recorded — 최근 사용 with nothing in it warms nothing, and marking it would widen the grid's `eager` window over a tab this walk never touched.
+          if (decodes && !isCancelled && items.length > 0) {
+            setWarmedTabs((warmed) => new Set(warmed).add(tab));
+          }
 
           // INFO: § 13.6. The tab the reader is on and no other — `warmEmoticonSounds` carries why.
           if (distance === 0 && !isCancelled) {
@@ -125,7 +141,8 @@ export function useOutwardTabWarm({
     }
 
     async function fetchTabItems(tab: string): Promise<Emoticon[]> {
-      if (tab === RECENTS_TAB) {
+      // WARN: § 13. Both 최근 사용 tabs, not `RECENTS_TAB` alone. `recents` is already this menu's own kind, so 미니's tab was the one the walk answered nothing for — it fell past this to `isPackTabId` and warmed an empty list, on the tab a 미니 open lands on by default.
+      if (isRecentsTabId(tab)) {
         return recentsRef.current;
       }
 
@@ -139,4 +156,6 @@ export function useOutwardTabWarm({
         .catch(() => []);
     }
   }, [activeIndex, isOpen, kind, queryClient, recentsCount, tabKey, thumbnailKey]);
+
+  return { warmedTabs };
 }

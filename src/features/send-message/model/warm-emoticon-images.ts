@@ -9,7 +9,7 @@ import { mapPooled } from "@/shared/lib";
 const WARM_CONCURRENCY = 4;
 
 // INFO: § 13.6. The warm covers a tab rather than the library, so this is a guard against an unusually large pack — a hand-authored pack is a few dozen items and never reaches it. Past it a cell is loaded by being scrolled to, which is what every cell did before the warm existed.
-const MAX_WARMED_PER_TAB = 120;
+export const MAX_WARMED_PER_TAB = 120;
 
 /**
  * How far out a warmed tab is **decoded** as well as fetched.

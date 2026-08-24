@@ -82,6 +82,7 @@ import { useEmoticonSearch } from "../model/use-emoticon-search";
 import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
 import { useOutwardTabWarm } from "../model/use-outward-tab-warm";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
+import { MAX_WARMED_PER_TAB } from "../model/warm-emoticon-images";
 
 // INFO: REQUIREMENTS.md § 13.6. Two taps on the same cell inside this window are the shortcut past the preview.
 export const DOUBLE_TAP_WINDOW = A_SECOND / 3;
@@ -96,20 +97,27 @@ const NO_ITEMS: Emoticon[] = [];
 const PACKS_MOUNT_STALE_TIME = 5 * A_MINUTE;
 
 /**
- * How many cells load eagerly, counting from the head of whatever list they draw.
+ * How many cells load eagerly, counting from the head of whatever list they draw,
+ * while the panel is mounted but has not been opened.
  *
  * WARN: § 13.6. `lazy` on a cell that is already warm is the whole skeleton. A lazy
  * image starts loading after layout and its intersection check, so `img.complete` is
  * false when `PreloadImage` reads it back on mount however cached the bytes are — the
  * placeholder is committed and then faded out over an image that was ready all along.
  *
- * INFO: Five rows against the ~283px `--emoticon-panel-height` leaves the grid, which is more than fits at either column count. The rest stay `lazy`, so a two-hundred item pack is still loaded by being scrolled through.
- *
- * WARN: These load while the panel is still collapsed, since § 13.6. now mounts it before the first open — and that is the same twenty URLs the room's warm is fetching on the same idle frame, so what it costs is their priority rather than the requests.
+ * WARN: These load while the panel is still collapsed, since § 13.6. now mounts it before the first open — and that is the same twenty URLs the room's warm is fetching on the same idle frame, so what it costs is their priority rather than the requests. It is the narrowest of the three for that reason: a reader who never reaches for emoticons pays exactly this and nothing more.
  */
-const EAGER_CELL_ROWS = 5;
+const COLLAPSED_EAGER_CELLS = 20;
 
-// INFO: § 13.6. `EAGER_CELL_ROWS`' argument for the strip, which is one row: a tab is about 48px against a shell of at most 448, so this is what fits on screen with one to spare. Counted over `tabIds`, which is why the pack index is offset past 최근 사용 at the comparison.
+/**
+ * The same, once the panel is actually open and before its warm has finished.
+ *
+ * INFO: § 13.6. Five rows at 이모티콘's four columns against the ~283px `--emoticon-panel-height`, which is more than fits on screen — the margin is for a reader who opens the panel and immediately flicks down, inside the second the warm takes to reach this tab.
+ * WARN: A cell count and not a row count, deliberately. Expressed in rows it would be 1.5× this at 미니's six columns (`MINI_GRID_COLUMNS`) — the menu that needs it least, since a mini's replay already stands its previous frame in where a still would show a plate.
+ */
+const OPEN_EAGER_CELLS = 40;
+
+// INFO: § 13.6. The eager counts' argument for the strip, which is one row: a tab is about 48px against a shell of at most 448, so this is what fits on screen with one to spare. Counted over `tabIds`, which is why the pack index is offset past 최근 사용 at the comparison.
 const EAGER_TAB_COUNT = 9;
 
 /**
@@ -588,7 +596,25 @@ export function EmoticonPicker({
   );
 
   // INFO: § 13.6. The room's warm covers the tab that opens and no further, so the tabs around it are heated from here, outward.
-  useOutwardTabWarm({ isOpen, activeTab, tabIds, recents, tabThumbnailUrls, kind: menuKind });
+  const { warmedTabs } = useOutwardTabWarm({
+    isOpen,
+    activeTab,
+    tabIds,
+    recents,
+    tabThumbnailUrls,
+    kind: menuKind,
+  });
+  /**
+   * § 13.6. Three widths, and the middle one is the only guess.
+   *
+   * INFO: A warmed tab is `eager` to `MAX_WARMED_PER_TAB` — the warm's own ceiling, so the two describe one boundary and there is no band that is eager without being warm. It costs nothing there: § 13.3.'s cache answers the redirect, and the decoded copy is the one the warm is already holding.
+   * WARN: Never that wide before the warm has finished. `eager` bypasses `WARM_CONCURRENCY` and `fetchPriority`, so a cold tab would hand the § 13.3. route a hundred presigns at once — against a room still drawing its first screenful.
+   */
+  const eagerCount = !isOpen
+    ? COLLAPSED_EAGER_CELLS
+    : warmedTabs.has(activeTab)
+      ? MAX_WARMED_PER_TAB
+      : OPEN_EAGER_CELLS;
   // WARN: § 13.5. The open is what re-asks for the list, since the mount stopped being the tap (see the query above). Rising edge only — every render while open would re-ask on each one.
   useEffect(() => {
     if (isOpen) {
@@ -964,7 +990,7 @@ export function EmoticonPicker({
                             index={index}
                             isFocusable={index === focusableIndex}
                             isWarmed
-                            eagerCount={EAGER_CELL_ROWS * columns}
+                            eagerCount={eagerCount}
                             isKeyboardDriven={isKeyboardDriven}
                             isMini
                             onSelect={handleSelect}
@@ -1001,7 +1027,7 @@ export function EmoticonPicker({
                                   index={index}
                                   isFocusable={index === focusableIndex}
                                   isWarmed
-                                  eagerCount={EAGER_CELL_ROWS * columns}
+                                  eagerCount={eagerCount}
                                   isKeyboardDriven={isKeyboardDriven}
                                   isMini={false}
                                   onSelect={handleSelect}
@@ -1056,7 +1082,7 @@ export function EmoticonPicker({
                                   index={index}
                                   isFocusable={index === focusableIndex}
                                   isWarmed
-                                  eagerCount={EAGER_CELL_ROWS * columns}
+                                  eagerCount={eagerCount}
                                   isKeyboardDriven={isKeyboardDriven}
                                   isMini={false}
                                   onSelect={handleSelect}
@@ -1095,7 +1121,7 @@ export function EmoticonPicker({
                         index={index}
                         isFocusable={index === focusableIndex}
                         isWarmed
-                        eagerCount={EAGER_CELL_ROWS * columns}
+                        eagerCount={eagerCount}
                         isKeyboardDriven={isKeyboardDriven}
                         isMini={menuKind === "mini"}
                         onSelect={handleSelect}
@@ -1959,7 +1985,7 @@ type EmoticonCellProps = {
    * WARN: False for § 13.8.'s results row and that is not a detail. Nothing warms a search — `eager` there is up to twenty presigned fetches per answer for a row that shows about five, and the deferred skeleton is exactly what `PreloadFrameProps` documents it as being wrong for, since those cells really are being fetched.
    */
   isWarmed?: boolean;
-  /** § 13.6. How many cells from the head load `eager` — `EAGER_CELL_ROWS` rows of whatever column count this list is drawn at. Ignored unless `isWarmed`. */
+  /** § 13.6. How many cells from the head load `eager`, which widens as the tab's own warm lands. Ignored unless `isWarmed`. */
   eagerCount?: number;
   /** REQUIREMENTS.md § 8.14. Whether the panel is being driven by the keyboard, which is what puts the ring on plain `:focus` (`CELL_KEYBOARD_RING`). */
   isKeyboardDriven: boolean;
@@ -2035,7 +2061,7 @@ function EmoticonCell({
           hidesPreviewOnReveal
           // INFO: § 13.6. A warmed cell's skeleton is almost always a plate over an image that was ready — `PreloadFrameProps` carries the argument.
           hasDeferredSkeleton={isWarmed}
-          // WARN: § 13. `lazy` on a replay remount is what caused the flicker below `EAGER_CELL_ROWS` — a freshly inserted lazy `<img>` re-runs the browser's own viewport check before it starts loading, which is slower than `PLACEHOLDER_DELAY` even for a cached asset. `replayToken > 0` only ever happens while the cell is in view (see `useViewportReplay`), so `eager` there is always correct.
+          // WARN: § 13. `lazy` on a replay remount is what caused the flicker below the eager count — a freshly inserted lazy `<img>` re-runs the browser's own viewport check before it starts loading, which is slower than `PLACEHOLDER_DELAY` even for a cached asset. `replayToken > 0` only ever happens while the cell is in view (see `useViewportReplay`), so `eager` there is always correct.
           loading={(isWarmed && index < eagerCount) || replayToken > 0 ? "eager" : "lazy"}
           draggable={false}
           src={toReplaySrc(emoticonAssetUrl, replayToken)}
