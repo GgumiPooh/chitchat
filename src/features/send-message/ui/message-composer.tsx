@@ -51,6 +51,7 @@ import {
   type Ref,
   type RefObject,
   type SyntheticEvent,
+  type TransitionEvent,
 } from "react";
 import { findKeywordTypo, isOneJamoEdit } from "../model/find-keyword-typo";
 import { toEmoticonKeywordsQuery } from "../model/keywords-query";
@@ -218,6 +219,15 @@ export function MessageComposer({
   onSend,
 }: MessageComposerProps) {
   const fieldRef = useRef<Nullable<HTMLDivElement | HTMLTextAreaElement>>(null);
+  const headerRef = useRef<Nullable<HTMLDivElement>>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  // INFO: DESIGN.md § 6.10. Held so the collapse animates over the row that is leaving rather than over an empty clip; a fresh header replaces it on the render it arrives.
+  const [retainedHeader, setRetainedHeader] = useState<ReactNode>(null);
+
+  if (header && header !== retainedHeader) {
+    setRetainedHeader(header);
+  }
+
   /**
    * Both refs off one callback. The field is this component's to drive; the room only
    * ever reads the node, to reach it inside the event that needs it.
@@ -547,6 +557,26 @@ export function MessageComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deleteRequest?.token]);
 
+  // INFO: Measured rather than summed from the tokens — a § 6.10. quote and § 6.10.1.'s notice are different heights, and the quote's own copy decides it.
+  useEffect(() => {
+    const node = headerRef.current;
+
+    if (!node) {
+      return;
+    }
+
+    // WARN: A zero is never published. The stack is `display: none` for the length of a search (REQUIREMENTS.md § 8.6.) and the row leaving unmounts below, and either one landing in the target would leave the next open with nothing to ease towards.
+    const observer = new ResizeObserver(() => {
+      if (node.offsetHeight > 0) {
+        setHeaderHeight(node.offsetHeight);
+      }
+    });
+
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, []);
+
   /**
    * REQUIREMENTS.md § 8.14. The room asking for the caret back.
    *
@@ -563,11 +593,27 @@ export function MessageComposer({
   return (
     // WARN: DESIGN.md § 3.5. Transparent to the pointer so the messages underneath stay tappable; only the pill itself takes taps.
     <div className={cn("pointer-events-none px-md pt-xs pb-xs", className)}>
-      {/* INFO: DESIGN.md § 6.6. The tab bar's floating surface (§ 7.3.). A column so § 6.10.'s staged quote can be a header row inside the pill; the gap only exists while that row does. */}
-      <div className="pointer-events-auto flex flex-col gap-2xs rounded-[calc(var(--tab-bar-height)/2)] border border-hairline glass p-2xs shadow-floating">
-        {header}
+      {/* INFO: DESIGN.md § 6.6. The tab bar's floating surface (§ 7.3.). A column so § 6.10.'s staged quote can be a header row inside the pill. */}
+      <div className="pointer-events-auto flex flex-col rounded-[calc(var(--tab-bar-height)/2)] border border-hairline glass p-2xs shadow-floating">
+        {/* INFO: DESIGN.md § 6.10. The staged quote arrives as the pill growing into it, over `--duration-state`, so the history it pushes up rides the same move — `useComposerClearance` observes this wrapper every frame of it. */}
+        {/* WARN: The last header stays mounted inside the collapsed clip, or the exit has nothing to draw; `inert` is what takes its `X` back out of the tab order. */}
+        <div
+          className={cn(
+            "shrink-0 overflow-hidden transition-[height] duration-(--duration-state) ease-out motion-reduce:transition-none",
+            header ? "h-(--composer-header-height)" : "h-0",
+          )}
+          style={{ ["--composer-header-height" as string]: `${headerHeight}px` }}
+          inert={!header}
+          onTransitionEnd={releaseCollapsedHeader}
+        >
+          {/* INFO: DESIGN.md § 6.6. The pill's column carries no gap of its own — this clip is mounted at rest too, and a flex gap would hold `2xs` open above the field forever. It rides inside the measured height instead. */}
+          <div ref={headerRef} className="pb-2xs">
+            {header ?? retainedHeader}
+          </div>
+        </div>
         {/* INFO: DESIGN.md § 6.6. One row, bottom-aligned — the field grows upward and the controls stay on the last line. */}
-        <div className="flex items-end gap-2xs">
+        {/* INFO: DESIGN.md § 6.6. With the leading control withheld the field would stand at the pill's own `2xs`, inside the corner's curve and 8px left of the header above it — this puts its text on the same column the `+` glyph holds it to. */}
+        <div className={cn("flex items-end gap-2xs", isEditing && "pl-xs")}>
           {/* INFO: REQUIREMENTS.md § 8.13. Both staging controls go while a message is being corrected — `messages_edited_is_text_check` makes an edit text-only, so an attachment or an emoticon staged here would have nowhere to land. */}
           {/* INFO: § 9. An attachment needs a presigned PUT for bytes held in memory, so it is the one send the outbox cannot promise — the text beside it queues instead (§ 8.5.). */}
           {!isEditing && (
@@ -728,6 +774,15 @@ export function MessageComposer({
       </div>
     </div>
   );
+
+  // INFO: The row is held only for the collapse to draw over; once that has run there is nothing to keep an emoticon thumbnail decoding inside a zero-height clip for. Under reduced motion no transition ends and it simply stays, unseen.
+  function releaseCollapsedHeader(event: TransitionEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget || event.propertyName !== "height" || header) {
+      return;
+    }
+
+    setRetainedHeader(null);
+  }
 
   function submit() {
     if (!canSend) {
