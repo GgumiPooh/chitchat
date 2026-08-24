@@ -411,6 +411,8 @@ export const TYPING_TIMEOUT = 8 * A_SECOND;
 
 /** REQUIREMENTS.md § 16.1. Web Push — the subscription endpoint and the push-only service worker. */
 export const PUSH_SUBSCRIPTION_PATH = "/api/push/subscription";
+// INFO: REQUIREMENTS.md § 16.1. The last push state this installation settled on, kept in a cookie so the Settings rows render it server-side instead of waiting for the launch sync.
+export const PUSH_STATE_COOKIE_NAME = "push-state";
 
 // WARN: Must stay at the origin root. A worker served from a subdirectory controls only that subdirectory, and the push subscription is bound to the scope it was created under.
 export const SERVICE_WORKER_PATH = "/sw.js";

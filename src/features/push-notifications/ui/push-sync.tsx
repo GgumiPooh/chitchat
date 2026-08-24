@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { syncPushSubscription } from "../model/push-registration";
 import { useNotificationSweep } from "../model/use-notification-sweep";
+import { usePushStateCache } from "../model/use-push-state-cache";
 
 /**
  * Renders nothing. It reconciles this device's push subscription on every launch
@@ -15,10 +16,12 @@ import { useNotificationSweep } from "../model/use-notification-sweep";
  */
 export function PushSync() {
   useNotificationSweep();
+  const [, setCached] = usePushStateCache();
 
+  // INFO: REQUIREMENTS.md § 16.1. Writes the cookie 설정 is seeded from, so the rows are right on the first visit to that screen and not only after their own sync.
   useEffect(() => {
-    void syncPushSubscription();
-  }, []);
+    void syncPushSubscription().then(setCached);
+  }, [setCached]);
 
   return null;
 }
