@@ -92,6 +92,13 @@ export type MediaViewerProps = {
    */
   findMorphOrigin?: (mediaId: MediaId) => Nullable<HTMLElement>;
   /**
+   * The floor colour behind a slide `object-contain` leaves gaps around. Left unset
+   * it is `bg-canvas`, matching the page the viewer opened over; `ChatRoom` passes
+   * its wallpaper's own tint (`toChromeTint`) instead, the same colour the room
+   * itself wears.
+   */
+  backgroundColor?: string;
+  /**
    * REQUIREMENTS.md § 10. The 삭제 for the slide on screen, and the label saying how
    * far it reaches — a chat bubble's withdraws the whole message (`메시지 삭제`),
    * 보관함's destroys the object the slide is drawn from and leaves the bubble around a
@@ -186,6 +193,7 @@ export function MediaViewer({
   jump,
   paging,
   findMorphOrigin,
+  backgroundColor,
   onClose,
   onSlideChange,
   onOpenMessage,
@@ -456,10 +464,11 @@ export function MediaViewer({
         <div
           className={cn(
             // INFO: DESIGN.md § 4.7.3. It fades on the morph's own duration rather than `--duration-state`, which is what the chrome above it uses. 200ms across a full-screen plate going from nothing to opaque is a cut with a ramp on it; the floor is the largest single change of colour the app makes, and it has to be read as arriving.
-            "pointer-events-none absolute inset-0 -z-10 bg-scrim ease-out",
+            "pointer-events-none absolute inset-0 -z-10 bg-canvas ease-out",
             "transition-opacity duration-[var(--duration-media-morph)]",
             !hasMorphSettled && "opacity-0",
           )}
+          style={backgroundColor ? { backgroundColor } : undefined}
           aria-hidden
         />
         {/* WARN: DESIGN.md § 7.10. Both bars are absolute and sit *over* the track, which is what makes the chrome toggleable at all — laid out as rows they would resize the track every time they left, and the photo would jump and re-snap under the tap that hid them. */}

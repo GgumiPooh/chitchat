@@ -134,6 +134,7 @@ import { flushSync } from "react-dom";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { requestMessageEdit } from "../api/request-message-edit";
 import { buildChatRows } from "../model/build-chat-rows";
+import { toChromeTint } from "../model/chrome-tint";
 import {
   ROW_LINE_CLASSES,
   estimateRowHeight,
@@ -545,6 +546,8 @@ export function ChatRoom({
     setIsReading,
     markRead,
   } = useChatStream();
+  // INFO: REQUIREMENTS.md § 8.1. The viewer's own floor, matching the room it opened over rather than the app's default `bg-canvas`.
+  const viewerBackgroundColor = toChromeTint(chatBackgroundBlurhash) ?? "var(--color-chat-canvas)";
   // WARN: REQUIREMENTS.md § 8.12. Only the two *sustained* sources are passed; typing arrives as edit pulses through the returned callback, because a field holding a draft is not somebody typing. Sending is not a trigger either way — it clears both of these and produces no edit.
   // WARN: REQUIREMENTS.md § 8.12. Silent for the length of a search. A staged emoticon is state that outlives the hidden composer, so left connected it holds the signal up and re-POSTs every `TYPING_PING_INTERVAL` — the other participant reads 입력 중 from a composer that is not even on screen, which is exactly the parked-draft failure § 8.12. exists to have removed.
   const signalEdit = useTypingSignal(
@@ -1604,6 +1607,7 @@ export function ChatRoom({
           paging={mediaTrack.paging}
           // INFO: DESIGN.md § 4.7.3. The return journey — the slide collapses back into its bubble cell wherever the room still has one on screen, and fades where it stands otherwise.
           findMorphOrigin={findChatMediaCell}
+          backgroundColor={viewerBackgroundColor}
           onOpenMessage={openBubble}
           onDownload={askToSaveBundle}
           onClose={mediaTrack.close}
