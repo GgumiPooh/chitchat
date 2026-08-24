@@ -5,7 +5,7 @@ import { cn, formatUpcomingWhen, type Nullable } from "@/shared/lib";
 import { EmptyState, HapticTap, IconButton } from "@/shared/ui";
 import { EventDot, EventMemo } from "@/widgets/calendar-month";
 import { CalendarClock, ChevronDown, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const HEADING_ID = "chat-upcoming-events-heading";
 
@@ -45,8 +45,39 @@ export function UpcomingEventsPanel({
   onClose,
 }: UpcomingEventsPanelProps) {
   const listRef = useRef<HTMLUListElement>(null);
+  // INFO: How many rows stood before the page in flight was asked for — its first new row is that index.
+  const pendingFrom = useRef<Nullable<number>>(null);
   // INFO: REQUIREMENTS.md § 11.5.1. The list's own height at the moment of the first 더 보기, held from then on.
   const [lockedHeight, setLockedHeight] = useState<Nullable<number>>(null);
+
+  // WARN: Held until the page has actually landed. `limit` steps on the press and reveals the one row already in hand, so the list grows by **one** first — moved on that render the scroll is computed against a list a page short, clamps to its bottom, and the rows that follow arrive under a reader who has been left where they started.
+  // INFO: The row to move to is fixed at the press, and the ref is cleared on use — a refresh landing later also grows the list and must not scroll the reader a second time.
+  useEffect(() => {
+    if (isLoadingMore) {
+      return;
+    }
+
+    const index = pendingFrom.current;
+    const list = listRef.current;
+    const row = index === null ? undefined : list?.children[index];
+
+    if (index === null || !list || !(row instanceof HTMLElement)) {
+      return;
+    }
+
+    pendingFrom.current = null;
+
+    const box = row.getBoundingClientRect();
+    const top = box.top - list.getBoundingClientRect().top + list.scrollTop;
+
+    // INFO: REQUIREMENTS.md § 11.5.1. Half of the arriving row rather than a fixed inset — a row is one line or four depending on its memo, so a constant reads as a different gesture every time.
+    // WARN: Short of the row and never past it. A page arrives at the **end** of the list, so aligning its first row to the top is already the maximum scroll and an overshoot is clamped away to the same pixel.
+    // INFO: DESIGN.md § 4.7. Reduced motion keeps the destination and drops the travel, which is the one thing here that is motion for its own sake.
+    list.scrollTo({
+      top: Math.max(top - box.height / 2, 0),
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+  }, [isLoadingMore, occurrences.length]);
 
   return (
     <div
@@ -143,6 +174,7 @@ export function UpcomingEventsPanel({
       setLockedHeight(listRef.current.getBoundingClientRect().height);
     }
 
+    pendingFrom.current = occurrences.length;
     onLoadMore();
   }
 }
