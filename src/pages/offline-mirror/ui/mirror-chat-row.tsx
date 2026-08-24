@@ -15,7 +15,8 @@ export type MirrorChatRowProps = {
   message: ChatMessage;
   sender: Optional<Participant>;
   /** The quoted message's sender, resolved from the same snapshot participant set (REQUIREMENTS.md § 8.7.). */
-  replyToName: Optional<string>;
+  /** `toQuoteHeading`'s sentence for the quoted message, composed by the screen (DESIGN.md § 6.10.). */
+  replyToHeading: Optional<string>;
   isMine: boolean;
   isFirstOfGroup: boolean;
   isLastOfGroup: boolean;
@@ -39,7 +40,7 @@ export function MirrorChatRow({
   className,
   message,
   sender,
-  replyToName,
+  replyToHeading,
   isMine,
   isFirstOfGroup,
   isLastOfGroup,
@@ -73,7 +74,13 @@ export function MirrorChatRow({
         {!message.isDeleted &&
           message.replyTo &&
           (message.emoticon || hasMedia) &&
-          renderQuote("max-w-55")}
+          renderQuote(
+            cn(
+              "max-w-55 rounded-bubble px-sm py-xs",
+              isMine ? "bg-bubble-mine" : "border border-hairline bg-bubble-theirs",
+              isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
+            ),
+          )}
         {/* WARN: DESIGN.md § 6.2. `max-w-full` is what holds the bubble inside the column's `max-w-[72%]` — the column aligns rather than stretches, so this stack is sized `fit-content`, which floors at min-content. */}
         <div className={cn("flex max-w-full items-end gap-2xs", isMine && "flex-row-reverse")}>
           {renderBody()}
@@ -129,7 +136,7 @@ export function MirrorChatRow({
 
     return (
       <div className={toBubbleClassName()}>
-        {message.replyTo && renderQuote("mb-2xs")}
+        {message.replyTo && renderQuote("mb-2xs border-b border-quote-divider pb-2xs")}
         {/* INFO: REQUIREMENTS.md § 13. The mirror reads `text` and draws no emoticons, so each placeholder reads as `(이모티콘)` rather than reaching the transcript as tofu — the same summary the § 16.1. banner and the § 8.10. quote take. */}
         {toMessageSummary(message.text ?? "")}
       </div>
@@ -148,13 +155,12 @@ export function MirrorChatRow({
   }
 
   // INFO: DESIGN.md § 6.10. One line of the quoted message, without the tap that would jump to it — the row it names may be outside the snapshot entirely.
+  // INFO: DESIGN.md § 6.10. The shape is the caller's: a card above a bubble-less message, and a divider under the one inside a bubble.
   // INFO: The card above the bubble caps at § 6.5.'s 220px attachment width; left to the column's 72% a long quote would stretch past the photo it sits on.
   function renderQuote(className: string) {
     return (
-      <div
-        className={cn("border-l-2 border-hairline-strong pl-xs text-caption text-meta", className)}
-      >
-        <p className="truncate">{replyToName}</p>
+      <div className={cn("text-caption text-meta", className)}>
+        <p className="truncate">{replyToHeading}</p>
         <p className="truncate">{message.replyTo?.text ?? DELETED_MESSAGE_TEXT}</p>
       </div>
     );

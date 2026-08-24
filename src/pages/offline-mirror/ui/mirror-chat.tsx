@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChatSnapshot, ShellSnapshot } from "@/features/offline-snapshot";
+import { toQuoteHeading } from "@/shared/config";
 import { composeEventNotice, type UserId } from "@/shared/lib";
 import { useSnapshot } from "@/shared/snapshot";
 import { AppHeader, Container } from "@/shared/ui";
@@ -89,10 +90,17 @@ export function MirrorChat({ className, shell }: MirrorChatProps) {
         key={row.key}
         message={row.message}
         sender={participantById.get(row.message.senderId)}
-        replyToName={row.message.replyTo ? toName(row.message.replyTo.senderId) : undefined}
         isMine={row.isMine}
         isFirstOfGroup={row.isFirstOfGroup}
         isLastOfGroup={row.isLastOfGroup}
+        replyToHeading={
+          row.message.replyTo
+            ? toQuoteHeading(
+                toName(row.message.replyTo.senderId),
+                row.message.replyTo.senderId === shell.currentUserId,
+              )
+            : undefined
+        }
       />
     );
   }

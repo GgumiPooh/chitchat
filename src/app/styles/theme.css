@@ -23,6 +23,8 @@
   --color-hairline: #e6e0d6;
   --color-hairline-soft: #f0ebe3;
   --color-hairline-strong: #cdc5b7;
+  /* INFO: DESIGN.md § 6.10. The rule under an in-bubble quote — `hairline` disappears into a bubble fill and `hairline-strong` reads as an outline drawn inside one. */
+  --color-quote-divider: #d9d2c5;
   --color-ink: #1f1b17;
   --color-body: #453e36;
   --color-meta: #7b7266;
@@ -353,6 +355,8 @@
   --color-hairline: #2e2820;
   --color-hairline-soft: #221e18;
   --color-hairline-strong: #443c31;
+  /* INFO: DESIGN.md § 5.4. Re-derived rather than darkened: on a dark bubble a divider reads by being *lighter* than the fill, where the light theme's reads by being darker. */
+  --color-quote-divider: #574b3b;
   --color-ink: #f2ede4;
   --color-body: #d8d0c3;
   --color-meta: #a19785;

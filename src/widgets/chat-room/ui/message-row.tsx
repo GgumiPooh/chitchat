@@ -69,7 +69,8 @@ export type MessageRowProps = {
   /** REQUIREMENTS.md § 8.10. The message this one quotes, already resolved by the room. */
   replyTo?: Nullable<ReplyPreview>;
   /** The quoted message's sender name, resolved from the participant set (§ 8.7.). */
-  replyToName?: Optional<string>;
+  /** `toQuoteHeading`'s sentence for the quoted message, composed by the room (DESIGN.md § 6.10.). */
+  replyToHeading?: string;
   /** `0`–`1` while attachments upload. Ignored for a text message. */
   progress?: number;
   /** DESIGN.md § 6.5.1. The `media` index currently re-encoding, paired with `encodeProgress`. */
@@ -121,7 +122,7 @@ export function MessageRow({
   media = [],
   emoticon,
   replyTo,
-  replyToName,
+  replyToHeading,
   progress = 1,
   encodingIndex = null,
   encodeProgress = null,
@@ -225,8 +226,10 @@ export function MessageRow({
           <ReplyQuote
             className="max-w-55"
             replyTo={replyTo}
-            name={replyToName}
+            heading={replyToHeading ?? ""}
             variant="card"
+            isMine={isMine}
+            isFirstOfGroup={isFirstOfGroup}
             onOpen={onOpenReply}
           />
         )}
@@ -355,10 +358,11 @@ export function MessageRow({
               ) : (
                 <>
                   {replyTo && (
+                    // INFO: DESIGN.md § 6.10. The divider is the bubble's, not the quote's — it separates two things and only this caller has both. `REQUIREMENTS.md § 8.3.` prices it at the same call site.
                     <ReplyQuote
-                      className="mb-2xs"
+                      className="mb-2xs border-b border-quote-divider pb-2xs"
                       replyTo={replyTo}
-                      name={replyToName}
+                      heading={replyToHeading ?? ""}
                       onOpen={onOpenReply}
                     />
                   )}

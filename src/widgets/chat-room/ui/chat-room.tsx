@@ -48,6 +48,7 @@ import {
   toMediaLabel,
   toMediaNoun,
   toMessageSummary,
+  toQuoteHeading,
   toQuoteThumbnail,
   toSoloInlineEmoticonId,
   type InlineEmoticonMap,
@@ -1384,22 +1385,6 @@ export function ChatRoom({
           {/* WARN: `hidden`, never a conditional subtree. `MessageComposer` holds the draft in its own state, so unmounting it here silently discards a typed message and drops its `useUnsentWork` hold with it. `display: none` takes it out of the wrapper's height, which is all `useComposerClearance` reads. */}
           <div className={cn(isSearching && "hidden")} inert={isSearching}>
             <>
-              {/* INFO: REQUIREMENTS.md § 8.10. Above the tray and the pill, and in the flow — the quote belongs to the send the whole stack is composing, so it reads as the header of it. */}
-              {/* WARN: DESIGN.md § 6.6. `mt-xs` is the gap this stack is measured against — without it the bar butts straight into the bubble above. It is safe to carry unconditionally because this renders nothing when there is no reply, so the clearance only grows while the bar is up. */}
-              {/* INFO: REQUIREMENTS.md § 8.13. Stands exactly where the staged quote does, and never beside it — a correction composes no new message, so there is nothing for a quote to be the header of. */}
-              {/* WARN: § 8.13. The quote is hidden rather than cleared, and comes back on cancel. Entering the mode must cost the user nothing they had already staged. */}
-              {editingId !== null ? (
-                <EditBar className="mx-md mt-xs mb-2xs" onCancel={cancelEdit} />
-              ) : (
-                replyTarget && (
-                  <ReplyBar
-                    className="mx-md mt-xs mb-2xs"
-                    replyTo={replyTarget}
-                    name={participantById.get(replyTarget.senderId)?.name}
-                    onCancel={() => setReplyTarget(null)}
-                  />
-                )
-              )}
               {/* INFO: REQUIREMENTS.md § 9.3. Tops the composer stack while it is up, clearing the history by the same `xs` every other row in this position does (DESIGN.md § 6.6.). It replaces nothing — a recording is sent outright, so there is no tray for it to compete with. */}
               {isRecording && (
                 <VoiceRecorderBar
@@ -1441,6 +1426,7 @@ export function ChatRoom({
                 insertedEmoticon={insertedEmoticon}
                 deleteRequest={deleteRequest}
                 isEditing={editingId !== null}
+                header={composerHeader()}
                 focusRequest={composerFocusRequest}
                 fieldRef={composerFieldRef}
                 // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
@@ -2236,10 +2222,8 @@ export function ChatRoom({
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
             status={row.pending.status}
-            replyToName={
-              row.pending.replyTo
-                ? participantById.get(row.pending.replyTo.senderId)?.name
-                : undefined
+            replyToHeading={
+              row.pending.replyTo ? toQuoteHeadingFor(row.pending.replyTo) : undefined
             }
             onFollowEmoticon={toFollowEmoticon(row.pending.emoticon)}
             onRetry={() => retry(row.pending.clientMsgId)}
@@ -2280,7 +2264,7 @@ export function ChatRoom({
             // WARN: REQUIREMENTS.md § 8.3. The same map `readInlineEmoticon` reads. Two sources and the estimate and the bubble disagree about the box by construction.
             inlineEmoticons={inlineEmoticons}
             replyTo={quoted}
-            replyToName={quoted ? participantById.get(quoted.senderId)?.name : undefined}
+            replyToHeading={quoted ? toQuoteHeadingFor(quoted) : undefined}
             createdAt={row.message.createdAt}
             sender={participantById.get(row.message.senderId)}
             isMine={row.isMine}
@@ -2478,6 +2462,42 @@ export function ChatRoom({
     );
   }
 
+  /**
+   * DESIGN.md § 6.10. The composer pill's header row: the staged quote, or § 6.10.1.'s
+   * notice while a message is being corrected.
+   *
+   * WARN: REQUIREMENTS.md § 8.13. One position and never both at once — a correction
+   * composes no new message, so there is nothing for a quote to be the header of.
+   *
+   * WARN: § 8.13. The quote is hidden rather than cleared, and comes back on cancel.
+   * Entering the mode must cost the user nothing they had already staged.
+   */
+  function composerHeader(): Nullable<ReactNode> {
+    if (editingId !== null) {
+      return <EditBar onCancel={cancelEdit} />;
+    }
+
+    if (!replyTarget) {
+      return null;
+    }
+
+    return (
+      <ReplyBar
+        replyTo={replyTarget}
+        heading={toQuoteHeadingFor(replyTarget)}
+        onCancel={() => setReplyTarget(null)}
+      />
+    );
+  }
+
+  // INFO: DESIGN.md § 6.10. `나에게 답장` / `{이름}에게 답장`, from the one copy the § 12.2. mirror shares.
+  function toQuoteHeadingFor(quoted: ReplyPreview): string {
+    return toQuoteHeading(
+      participantById.get(quoted.senderId)?.name,
+      quoted.senderId === currentUserId,
+    );
+  }
+
   function buildActionItems(): ActionSheetItem[] {
     if (!actionTarget) {
       return [];
@@ -2486,7 +2506,8 @@ export function ChatRoom({
     const target = actionTarget;
     // INFO: REQUIREMENTS.md § 8.10. First, and on the other person's messages as much as on my own — replying is the sheet's most-reached-for action, unlike copy.
     const items: ActionSheetItem[] = [
-      { label: "답장", Icon: CornerUpLeft, onSelect: () => stageReply(target) },
+      // INFO: `keepsFocus` for 수정's reason — `stageReply` hands the field the caret, and the sheet's close would take it straight back.
+      { label: "답장", Icon: CornerUpLeft, keepsFocus: true, onSelect: () => stageReply(target) },
     ];
     const emoticon = target.emoticon;
 
@@ -2565,6 +2586,11 @@ export function ChatRoom({
       isDeleted: message.isDeleted,
       id: message.id,
     });
+
+    // WARN: The node and not `focusComposer`'s token, for `typeIntoComposer`'s reason — a token is answered an effect later, and iOS raises the keyboard only for a `focus()` the pull's `pointerup` or the row's click still covers.
+    if (!isSearching) {
+      focusWithoutPan(composerFieldRef.current);
+    }
   }
 
   /**

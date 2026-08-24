@@ -148,6 +148,14 @@ export type MessageComposerProps = {
   /** REQUIREMENTS.md § 8.13. The field is correcting a message rather than composing one, so the controls that stage a *new* payload have nothing to act on. */
   isEditing?: boolean;
   /**
+   * DESIGN.md § 6.10. The staged quote — or § 6.10.1.'s correction notice — as the
+   * pill's own first row, above the field it is the header of.
+   *
+   * WARN: A slot rather than the preview itself. Both bars are the room's, and a
+   * feature may not reach into a widget for them.
+   */
+  header?: ReactNode;
+  /**
    * REQUIREMENTS.md § 8.14. Bumped by the room to put the caret back in this field —
    * `Escape` from anywhere in the conversation.
    *
@@ -197,6 +205,7 @@ export function MessageComposer({
   insertedEmoticon,
   deleteRequest,
   isEditing = false,
+  header,
   focusRequest = 0,
   fieldRef: exposedFieldRef,
   onAttach,
@@ -554,164 +563,168 @@ export function MessageComposer({
   return (
     // WARN: DESIGN.md § 3.5. Transparent to the pointer so the messages underneath stay tappable; only the pill itself takes taps.
     <div className={cn("pointer-events-none px-md pt-xs pb-xs", className)}>
-      {/* INFO: DESIGN.md § 6.6. The tab bar's floating surface (§ 7.3.). One row, bottom-aligned — the field grows upward and the controls stay on the last line. */}
-      <div className="pointer-events-auto flex items-end gap-2xs rounded-[calc(var(--tab-bar-height)/2)] border border-hairline glass p-2xs shadow-floating">
-        {/* INFO: REQUIREMENTS.md § 8.13. Both staging controls go while a message is being corrected — `messages_edited_is_text_check` makes an edit text-only, so an attachment or an emoticon staged here would have nowhere to land. */}
-        {/* INFO: § 9. An attachment needs a presigned PUT for bytes held in memory, so it is the one send the outbox cannot promise — the text beside it queues instead (§ 8.5.). */}
-        {!isEditing && (
-          <IconButton
-            Icon={Plus}
-            haptic
-            aria-label="첨부"
-            {...attachGate.blockedProps}
-            onClick={attachGate.guard(onAttach)}
-          />
-        )}
-        {/* INFO: § 13.8. The field and its keyword layer are one stacking context, so the mark can be positioned against the field's own box rather than the pill's. */}
-        {/* WARN: `min-w-0` is what keeps the round controls round. A flex item's default `min-width: auto` refuses to shrink below its content, so the field pushes and the 44×44 buttons absorb the overflow as ovals. */}
-        {isElevated ? (
-          <EditableField
-            ref={takeField}
-            className="min-w-0 flex-1"
-            // INFO: DESIGN.md § 6.6. No shape of its own — the pill is the field's surface, so no border, no radius, and no focus ring.
-            fieldClassName={cn(
-              "scrollbar-hidden max-h-34 min-h-11 w-full overflow-y-auto",
-              FIELD_BOX,
-              fieldClassName,
-            )}
-            placeholderClassName={cn("text-meta-soft", FIELD_BOX)}
-            // INFO: An emoticon costs one character of it, because it is one character of the `messages.text` this limit guards (REQUIREMENTS.md § 6.).
-            maxLength={MAX_MESSAGE_LENGTH}
-            value={draft.text}
-            objects={objects}
-            caretOffsetRef={caretOffsetRef}
-            aria-label="메시지 입력"
-            // INFO: § 8.14. The pointer decides it and nothing else: a mouse means a keyboard is there to press, and whether the app is installed says nothing about that. The hint alone, since `aria-label` below already names the field.
-            placeholder={
-              isFinePointer ? `${toCommandKeyLabel()} + / 로 단축키 보기` : "메시지 입력"
-            }
-            // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
-            // WARN: The keys are what say *which* emoticons a deletion took — the text only says one of them is gone, and a Backspace in the middle of a draft would otherwise drop the last.
-            onChange={(next, keys) => {
-              if (
-                next.length < draft.text.length ||
-                (!next.startsWith(draft.text) && !isOneJamoEdit(draft.text, next))
-              ) {
-                setFallbackKeywordQuery(null);
-              }
-
-              setDraft((current) => ({
-                text: next,
-                emoticons: toSurviving(current.emoticons, keys),
-              }));
-              // INFO: § 8.14. Read here rather than in the effect above — by the time that runs, the node this checks against may already be gone.
-              pendingRefocusRef.current = document.activeElement === fieldRef.current;
-              // WARN: § 13.8. Any edit ends the search the tap started. The tap blurs the field, so nothing is typed between it and the send it belongs to — a keystroke after it means the draft is a message now, and consuming it would delete what the user wrote.
-              tappedQueryRef.current = null;
-              onEdit?.(next.trim().length > 0);
-            }}
-            onFocus={onFieldFocus}
-            onKeyDown={handleKeyDown}
-            onScroll={syncKeywordLayer}
-          >
-            {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, like the two staging controls. The tap opens § 13.8.'s picker, whose staging clears the attachment tray this mode deliberately preserved and arms a quick-send that would post a **new** emoticon message beside the pending correction — and the emoticon it staged is invisible and unsendable here anyway. A correction is very likely to contain the keyword, since it is the text the user already typed. */}
-            {match && onKeywordTap && !isEditing && (
-              <KeywordLayer
-                ref={layerRef}
-                text={draft.text}
-                emoticons={draft.emoticons}
-                match={match}
-                onTap={handleKeywordTap}
-              />
-            )}
-          </EditableField>
-        ) : (
-          // INFO: No mini emoticon has entered this draft yet, so a plain `<textarea>` stands in — mobile Safari paints its caret correctly, where `EditableField`'s contenteditable caret can drift after a newline. The first insertion promotes the field above.
-          <div className="relative min-w-0 flex-1">
-            <Textarea
+      {/* INFO: DESIGN.md § 6.6. The tab bar's floating surface (§ 7.3.). A column so § 6.10.'s staged quote can be a header row inside the pill; the gap only exists while that row does. */}
+      <div className="pointer-events-auto flex flex-col gap-2xs rounded-[calc(var(--tab-bar-height)/2)] border border-hairline glass p-2xs shadow-floating">
+        {header}
+        {/* INFO: DESIGN.md § 6.6. One row, bottom-aligned — the field grows upward and the controls stay on the last line. */}
+        <div className="flex items-end gap-2xs">
+          {/* INFO: REQUIREMENTS.md § 8.13. Both staging controls go while a message is being corrected — `messages_edited_is_text_check` makes an edit text-only, so an attachment or an emoticon staged here would have nowhere to land. */}
+          {/* INFO: § 9. An attachment needs a presigned PUT for bytes held in memory, so it is the one send the outbox cannot promise — the text beside it queues instead (§ 8.5.). */}
+          {!isEditing && (
+            <IconButton
+              Icon={Plus}
+              haptic
+              aria-label="첨부"
+              {...attachGate.blockedProps}
+              onClick={attachGate.guard(onAttach)}
+            />
+          )}
+          {/* INFO: § 13.8. The field and its keyword layer are one stacking context, so the mark can be positioned against the field's own box rather than the pill's. */}
+          {/* WARN: `min-w-0` is what keeps the round controls round. A flex item's default `min-width: auto` refuses to shrink below its content, so the field pushes and the 44×44 buttons absorb the overflow as ovals. */}
+          {isElevated ? (
+            <EditableField
               ref={takeField}
-              // INFO: DESIGN.md § 6.6. No shape of its own, for the reason `EditableField` carries it — the pill is the field's surface.
-              className={cn(
-                "scrollbar-hidden max-h-34 min-h-11 w-full resize-none overflow-y-auto rounded-none border-none bg-transparent shadow-none outline-none focus-visible:ring-0",
+              className="min-w-0 flex-1"
+              // INFO: DESIGN.md § 6.6. No shape of its own — the pill is the field's surface, so no border, no radius, and no focus ring.
+              fieldClassName={cn(
+                "scrollbar-hidden max-h-34 min-h-11 w-full overflow-y-auto",
                 FIELD_BOX,
                 fieldClassName,
               )}
+              placeholderClassName={cn("text-meta-soft", FIELD_BOX)}
+              // INFO: An emoticon costs one character of it, because it is one character of the `messages.text` this limit guards (REQUIREMENTS.md § 6.).
               maxLength={MAX_MESSAGE_LENGTH}
               value={draft.text}
+              objects={objects}
+              caretOffsetRef={caretOffsetRef}
               aria-label="메시지 입력"
+              // INFO: § 8.14. The pointer decides it and nothing else: a mouse means a keyboard is there to press, and whether the app is installed says nothing about that. The hint alone, since `aria-label` below already names the field.
               placeholder={
                 isFinePointer ? `${toCommandKeyLabel()} + / 로 단축키 보기` : "메시지 입력"
               }
-              onChange={handlePlainChange}
-              onPointerDown={takeFocusWithoutPan}
+              // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
+              // WARN: The keys are what say *which* emoticons a deletion took — the text only says one of them is gone, and a Backspace in the middle of a draft would otherwise drop the last.
+              onChange={(next, keys) => {
+                if (
+                  next.length < draft.text.length ||
+                  (!next.startsWith(draft.text) && !isOneJamoEdit(draft.text, next))
+                ) {
+                  setFallbackKeywordQuery(null);
+                }
+
+                setDraft((current) => ({
+                  text: next,
+                  emoticons: toSurviving(current.emoticons, keys),
+                }));
+                // INFO: § 8.14. Read here rather than in the effect above — by the time that runs, the node this checks against may already be gone.
+                pendingRefocusRef.current = document.activeElement === fieldRef.current;
+                // WARN: § 13.8. Any edit ends the search the tap started. The tap blurs the field, so nothing is typed between it and the send it belongs to — a keystroke after it means the draft is a message now, and consuming it would delete what the user wrote.
+                tappedQueryRef.current = null;
+                onEdit?.(next.trim().length > 0);
+              }}
               onFocus={onFieldFocus}
               onKeyDown={handleKeyDown}
               onScroll={syncKeywordLayer}
-              onSelect={handleTextareaSelect}
-            />
-            {match && onKeywordTap && !isEditing && (
-              <KeywordLayer
-                ref={layerRef}
-                text={draft.text}
-                emoticons={draft.emoticons}
-                match={match}
-                onTap={handleKeywordTap}
-              />
-            )}
-          </div>
-        )}
-        {/* INFO: DESIGN.md § 6.6. The toggle stays put once text is typed — an emoticon is staged beside a line of text now (REQUIREMENTS.md § 13.6.), so replacing it with send would put the panel out of reach exactly when it is wanted. */}
-        {!isEditing && (
-          <IconButton
-            buttonClassName={cn(
-              isEmoticonPickerOpen && "bg-primary-tint text-primary",
-              // INFO: A sticker standing free rather than a glyph on a control — the round hover/press fill this button always carries would otherwise show through past the picture's own edges.
-              showsPreview &&
-                "rounded-none group-active:bg-transparent hover:bg-transparent active:bg-transparent",
-            )}
-            Icon={showsPreview ? undefined : Smile}
-            haptic
-            aria-label="이모티콘"
-            aria-pressed={isEmoticonPickerOpen}
-            icon={
-              showsPreview ? (
-                // eslint-disable-next-line @next/next/no-img-element -- The exact `Image` warmEmoticonUrls decoded, so the browser's decode cache paints it with nothing for `next/image` to wait on.
-                <img
-                  className="pointer-events-none size-11 object-contain"
-                  src={displayedPreviewUrl ?? undefined}
-                  alt=""
-                  draggable={false}
-                />
-              ) : undefined
-            }
-            onClick={showsPreview ? handlePreviewTap : toggleEmoticons}
-          />
-        )}
-        {/* WARN: `keepsFocus` repeats `keepFieldFocused` on the overlay. It takes the tap the button would have taken, so without it the textarea blurs and iOS drops the keyboard on every send. */}
-        <HapticTarget className="inline-flex shrink-0" isTicking={canSend} keepsFocus>
-          {/* WARN: Disabled rather than unmounted when there is nothing to send — WebKit leaves a control inserted into this row unpainted until a hover forces the invalidation, and staging an emoticon touches nothing else inside the pill that would have forced one. */}
-          <button
-            className="group inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed"
-            type="button"
-            disabled={!canSend}
-            aria-label={isEditing ? "수정 완료" : "보내기"}
-            onPointerDown={keepFieldFocused}
-            onClick={submit}
-          >
-            <span
-              className={cn(
-                // INFO: DESIGN.md § 4.7.2. The same bloom the round `IconButton`s carry, on the disc rather than the 44 target so the swell reads against the pill it sits in.
-                // WARN: The bloom stays on both branches. Sending clears the field in the same click, so `canSend` flips while the release is still running — dropping the class there takes the resting `scale: 1` with it and the disc snaps instead of settling.
-                "inline-flex size-9 press-bloom items-center justify-center rounded-full text-on-primary",
-                canSend
-                  ? "bg-primary group-hover:bg-primary-hover group-active:bg-primary-pressed"
-                  : "bg-primary-disabled",
-              )}
             >
-              <ArrowUp className="size-5" strokeWidth={2} />
-            </span>
-          </button>
-        </HapticTarget>
+              {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, like the two staging controls. The tap opens § 13.8.'s picker, whose staging clears the attachment tray this mode deliberately preserved and arms a quick-send that would post a **new** emoticon message beside the pending correction — and the emoticon it staged is invisible and unsendable here anyway. A correction is very likely to contain the keyword, since it is the text the user already typed. */}
+              {match && onKeywordTap && !isEditing && (
+                <KeywordLayer
+                  ref={layerRef}
+                  text={draft.text}
+                  emoticons={draft.emoticons}
+                  match={match}
+                  onTap={handleKeywordTap}
+                />
+              )}
+            </EditableField>
+          ) : (
+            // INFO: No mini emoticon has entered this draft yet, so a plain `<textarea>` stands in — mobile Safari paints its caret correctly, where `EditableField`'s contenteditable caret can drift after a newline. The first insertion promotes the field above.
+            <div className="relative min-w-0 flex-1">
+              <Textarea
+                ref={takeField}
+                // INFO: DESIGN.md § 6.6. No shape of its own, for the reason `EditableField` carries it — the pill is the field's surface.
+                className={cn(
+                  "scrollbar-hidden max-h-34 min-h-11 w-full resize-none overflow-y-auto rounded-none border-none bg-transparent shadow-none outline-none focus-visible:ring-0",
+                  FIELD_BOX,
+                  fieldClassName,
+                )}
+                maxLength={MAX_MESSAGE_LENGTH}
+                value={draft.text}
+                aria-label="메시지 입력"
+                placeholder={
+                  isFinePointer ? `${toCommandKeyLabel()} + / 로 단축키 보기` : "메시지 입력"
+                }
+                onChange={handlePlainChange}
+                onPointerDown={takeFocusWithoutPan}
+                onFocus={onFieldFocus}
+                onKeyDown={handleKeyDown}
+                onScroll={syncKeywordLayer}
+                onSelect={handleTextareaSelect}
+              />
+              {match && onKeywordTap && !isEditing && (
+                <KeywordLayer
+                  ref={layerRef}
+                  text={draft.text}
+                  emoticons={draft.emoticons}
+                  match={match}
+                  onTap={handleKeywordTap}
+                />
+              )}
+            </div>
+          )}
+          {/* INFO: DESIGN.md § 6.6. The toggle stays put once text is typed — an emoticon is staged beside a line of text now (REQUIREMENTS.md § 13.6.), so replacing it with send would put the panel out of reach exactly when it is wanted. */}
+          {!isEditing && (
+            <IconButton
+              buttonClassName={cn(
+                isEmoticonPickerOpen && "bg-primary-tint text-primary",
+                // INFO: A sticker standing free rather than a glyph on a control — the round hover/press fill this button always carries would otherwise show through past the picture's own edges.
+                showsPreview &&
+                  "rounded-none group-active:bg-transparent hover:bg-transparent active:bg-transparent",
+              )}
+              Icon={showsPreview ? undefined : Smile}
+              haptic
+              aria-label="이모티콘"
+              aria-pressed={isEmoticonPickerOpen}
+              icon={
+                showsPreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- The exact `Image` warmEmoticonUrls decoded, so the browser's decode cache paints it with nothing for `next/image` to wait on.
+                  <img
+                    className="pointer-events-none size-11 object-contain"
+                    src={displayedPreviewUrl ?? undefined}
+                    alt=""
+                    draggable={false}
+                  />
+                ) : undefined
+              }
+              onClick={showsPreview ? handlePreviewTap : toggleEmoticons}
+            />
+          )}
+          {/* WARN: `keepsFocus` repeats `keepFieldFocused` on the overlay. It takes the tap the button would have taken, so without it the textarea blurs and iOS drops the keyboard on every send. */}
+          <HapticTarget className="inline-flex shrink-0" isTicking={canSend} keepsFocus>
+            {/* WARN: Disabled rather than unmounted when there is nothing to send — WebKit leaves a control inserted into this row unpainted until a hover forces the invalidation, and staging an emoticon touches nothing else inside the pill that would have forced one. */}
+            <button
+              className="group inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed"
+              type="button"
+              disabled={!canSend}
+              aria-label={isEditing ? "수정 완료" : "보내기"}
+              onPointerDown={keepFieldFocused}
+              onClick={submit}
+            >
+              <span
+                className={cn(
+                  // INFO: DESIGN.md § 4.7.2. The same bloom the round `IconButton`s carry, on the disc rather than the 44 target so the swell reads against the pill it sits in.
+                  // WARN: The bloom stays on both branches. Sending clears the field in the same click, so `canSend` flips while the release is still running — dropping the class there takes the resting `scale: 1` with it and the disc snaps instead of settling.
+                  "inline-flex size-9 press-bloom items-center justify-center rounded-full text-on-primary",
+                  canSend
+                    ? "bg-primary group-hover:bg-primary-hover group-active:bg-primary-pressed"
+                    : "bg-primary-disabled",
+                )}
+              >
+                <ArrowUp className="size-5" strokeWidth={2} />
+              </span>
+            </button>
+          </HapticTarget>
+        </div>
       </div>
     </div>
   );

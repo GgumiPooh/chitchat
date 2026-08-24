@@ -1,6 +1,24 @@
 import type { Nullable, Optional } from "@/shared/lib";
 
 /**
+ * DESIGN.md § 6.10. Whose message is being quoted, as the quote's first line.
+ *
+ * INFO: `에게` is invariant, so this is an interpolation `AGENTS.md § 0.4.` has no
+ * particle pair to pick — there is nothing here for `josa` to answer.
+ *
+ * WARN: One copy for the bubble, the composer and the § 12.2. mirror alike. The three
+ * quote the same message and a wording that reached only one of them is drift.
+ */
+export function toQuoteHeading(name: Optional<string>, isMine: boolean): string {
+  if (isMine) {
+    return "나에게 답장";
+  }
+
+  // INFO: A participant the room cannot name — the sentence keeps its verb rather than reading `에게 답장`.
+  return name ? `${name}에게 답장` : "답장";
+}
+
+/**
  * The 32px tile a quote draws beside its summary (DESIGN.md § 6.10.).
  *
  * INFO: One discriminated field rather than a nullable id per kind, so `toQuoteHeight`

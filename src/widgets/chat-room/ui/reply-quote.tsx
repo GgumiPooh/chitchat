@@ -2,24 +2,28 @@
 
 import type { ReplyPreview } from "@/entities/message";
 import { toEmoticonAssetUrl, toMediaUrl, type QuoteThumbnail } from "@/shared/config";
-import { cn, type Optional } from "@/shared/lib";
+import { cn } from "@/shared/lib";
 import { PreloadImage } from "@/shared/ui";
 import { Trash2 } from "lucide-react";
 import { toReplySummary } from "../model/to-reply-summary";
 
 export type ReplyQuoteProps = {
   className?: string;
-  nameClassName?: string;
+  headingClassName?: string;
   summaryClassName?: string;
   replyTo: ReplyPreview;
-  /** Resolved from the participant set by the caller — never carried on the wire (REQUIREMENTS.md § 8.7.). */
-  name: Optional<string>;
+  /** `toQuoteHeading`'s sentence, composed by the caller — the name in it is resolved from the participant set and never carried on the wire (REQUIREMENTS.md § 8.7.). */
+  heading: string;
   /**
    * DESIGN.md § 6.10. `rule` sits on a surface that already exists — inside a bubble,
-   * inside the composer pill — and marks itself with a hairline alone. `card` is for
-   * a message that has no bubble to sit in.
+   * inside the composer pill — and draws nothing of its own. `card` is for a message
+   * that has no bubble to sit in.
    */
   variant?: "rule" | "card";
+  /** DESIGN.md § 6.2. Whose message the quote stands on, which is what the `card` variant takes its fill from — the `rule` one draws none. */
+  isMine?: boolean;
+  /** DESIGN.md § 6.2. The notch corner, which the `card` variant carries because it stands where the group's first bubble would. */
+  isFirstOfGroup?: boolean;
   /** Absent while the quote is staged in the composer, where there is nothing to jump to yet. */
   onOpen?: () => void;
 };
@@ -34,19 +38,25 @@ export type ReplyQuoteProps = {
  */
 export function ReplyQuote({
   className,
-  nameClassName,
+  headingClassName,
   summaryClassName,
   replyTo,
-  name,
+  heading,
   variant = "rule",
+  isMine = false,
+  isFirstOfGroup = false,
   onOpen,
 }: ReplyQuoteProps) {
   const shape = cn(
     "flex w-full min-w-0 items-center gap-xs text-left transition-colors outline-none",
-    // INFO: DESIGN.md § 6.10. A hairline and an indent, with no fill of its own — the bubble it sits in is already a surface, and a second filled box inside one reads as a component rather than as a quotation.
-    variant === "rule"
-      ? "border-l-2 border-hairline-strong py-px pl-xs"
-      : "rounded-md border border-hairline bg-bubble-theirs px-xs py-2xs",
+    // INFO: DESIGN.md § 6.10. `rule` is bare — the surface it sits in is already one, and what separates it from the text below is the divider that surface's own caller draws.
+    // INFO: DESIGN.md § 6.2. The card **is** the bubble the message does not have, so it takes that shape whole — radius, notch, padding and fill. Anything of its own reads as a second kind of bubble in a column that has one.
+    variant === "card" &&
+      cn(
+        "rounded-bubble px-sm py-xs",
+        isMine ? "bg-bubble-mine" : "border border-hairline bg-bubble-theirs",
+        isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
+      ),
     className,
   );
 
@@ -71,8 +81,8 @@ export function ReplyQuote({
       <>
         {replyTo.thumbnail && renderThumbnail(replyTo.thumbnail)}
         <span className="flex min-w-0 flex-col">
-          <span className={cn("truncate text-chat-time text-chat-meta", nameClassName)}>
-            {name}
+          <span className={cn("truncate text-chat-time text-chat-meta", headingClassName)}>
+            {heading}
           </span>
           {/* INFO: One line, always — a quote that grows with the message it points at competes with the reply itself. */}
           <span

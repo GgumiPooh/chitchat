@@ -271,7 +271,7 @@ function estimateMessageRow(
 
   // INFO: DESIGN.md § 6.10. A bubble-less message quotes in a card above itself; a text one quotes inside its bubble, and that one is counted with the bubble's contents.
   if (payload.replyTo && isBubbleless) {
-    column += toQuoteHeight(payload.replyTo, "card") + SPACING_2XS;
+    column += toQuoteHeight(payload.replyTo, "card", isMine) + SPACING_2XS;
   }
 
   if (preview && !linkOnlyCard) {
@@ -333,7 +333,8 @@ function toPayloadHeight(
   let height = SPACING_XS * 2 + (isMine ? 0 : BUBBLE_BORDER);
 
   if (payload.replyTo && !isBubbleless) {
-    height += toQuoteHeight(payload.replyTo, "rule") + SPACING_2XS;
+    // INFO: DESIGN.md § 6.10. `pb-2xs` and the 1px divider under the quote, then `mb-2xs` between that and the text.
+    height += toQuoteHeight(payload.replyTo, "rule", isMine) + SPACING_2XS * 2 + 1;
   }
 
   return Math.max(
@@ -475,14 +476,19 @@ function toNoticeHeight(
   );
 }
 
-function toQuoteHeight(replyTo: ReplyPreview, variant: "rule" | "card"): number {
+function toQuoteHeight(replyTo: ReplyPreview, variant: "rule" | "card", isMine: boolean): number {
   const content = Math.max(
     replyTo.thumbnail ? QUOTE_THUMBNAIL : 0,
     LINE.time() + LINE.quoteSummary(),
   );
 
-  // INFO: DESIGN.md § 6.10. `card` adds its own padding and border; `rule` marks itself with a hairline and a `py-px` indent alone.
-  return variant === "card" ? content + SPACING_2XS * 2 + 2 : content + 2;
+  if (variant === "rule") {
+    // INFO: DESIGN.md § 6.10. It draws nothing of its own, and the divider under the in-bubble one is priced where it is applied.
+    return content;
+  }
+
+  // INFO: DESIGN.md § 6.2. The bubble's own `py-xs` and the hairline only the other participant's fill carries — the card follows the bubble it stands in for.
+  return content + SPACING_XS * 2 + (isMine ? 0 : BUBBLE_BORDER);
 }
 
 // INFO: DESIGN.md § 6.5. The two states that stand a control column beside the bubble in place of a clock.
