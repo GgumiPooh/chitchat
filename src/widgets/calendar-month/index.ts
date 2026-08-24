@@ -8,4 +8,5 @@ export {
   type HolidayDotProps,
   type MilestoneDotProps,
 } from "./ui/event-dot";
+export { EventMemo, type EventMemoProps } from "./ui/event-memo";
 export { WeekdayHeader, type WeekdayHeaderProps } from "./ui/weekday-header";

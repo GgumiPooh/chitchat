@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/shared/lib";
-import type { PropsWithChildren } from "react";
+import type { PropsWithChildren, ReactNode } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./dialog";
 
 export type ModalProps = PropsWithChildren<{
@@ -14,6 +14,8 @@ export type ModalProps = PropsWithChildren<{
     className?: string;
     title: string;
     description?: string;
+    /** A control that sits beside the close button — the only thing permitted in the corner (AGENTS.md § 2.4.). */
+    action?: ReactNode;
   };
   onClose: () => void;
 }>;
@@ -44,6 +46,17 @@ export function Modal({
         )}
         showCloseButton={!hideCloseButton}
       >
+        {/* WARN: `pr-11` reserves the close button's own 44px box, so the action lands left of it rather than under it — and it is dropped with the button, or the corner grows a hole where nothing is drawn. */}
+        {header.action && (
+          <div
+            className={cn(
+              "absolute top-md right-md flex items-center",
+              !hideCloseButton && "pr-11",
+            )}
+          >
+            {header.action}
+          </div>
+        )}
         <DialogHeader className={header.className}>
           <DialogTitle>{header.title}</DialogTitle>
           {header.description && <DialogDescription>{header.description}</DialogDescription>}

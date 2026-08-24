@@ -23,9 +23,10 @@ export function SystemNotice({ className, message, sender }: SystemNoticeProps) 
   return (
     <div className={cn("flex justify-center px-md py-sm", className)}>
       {/* WARN: The day, not the event id, is what the link always carries — a delete notice outlives its `events` row (§ 6.) and would otherwise have nothing to navigate to. */}
+      {/* WARN: `px-md` and not the date divider's `px-sm` — this pill carries a sentence over two lines (§ 11.5.) where that one carries a word. `toNoticeHeight` subtracts the very same number, so the two move together or the row is priced against a width it is not wrapped in. */}
       {/* WARN: `min-w-0` is load-bearing. A flex item's automatic minimum size is min-content, and the inherited `overflow-wrap: break-word` does not reduce that (only `anywhere` does) — so a spaceless event title would widen the pill past the width REQUIREMENTS.md § 8.3.'s estimate wraps it at, and the row is counted a line too tall. */}
       <Link
-        className="min-w-0 rounded-full bg-chat-pill px-sm py-2xs text-center text-caption text-chat-pill-ink transition-colors outline-none hover:bg-chat-pill-pressed focus-visible:ring-2 focus-visible:ring-primary active:bg-chat-pill-pressed"
+        className="min-w-0 rounded-full bg-chat-pill px-md py-2xs text-center text-caption whitespace-pre-wrap text-chat-pill-ink transition-colors outline-none hover:bg-chat-pill-pressed focus-visible:ring-2 focus-visible:ring-primary active:bg-chat-pill-pressed"
         href={toCalendarHref(message)}
       >
         {notice}

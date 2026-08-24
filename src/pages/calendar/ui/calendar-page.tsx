@@ -3,7 +3,7 @@
 import type { CalendarSummary, EventOccurrence } from "@/entities/event";
 import { useChatStream } from "@/features/chat-stream";
 import {
-  deleteEvent,
+  EventDetailDialog,
   EventFormSheet,
   fetchCalendarSummary,
   fetchOccurrences,
@@ -15,15 +15,13 @@ import {
   findHoliday,
   listMilestonesInRange,
   occursOnDay,
-  toDayKey,
   toMonthKey,
   toMonthStart,
   type HolidayTable,
   type Maybe,
   type Nullable,
 } from "@/shared/lib";
-import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
-import { ActionSheet, AppHeader, Container, IconButton, toast } from "@/shared/ui";
+import { AppHeader, Container, IconButton, toast } from "@/shared/ui";
 import { CalendarMonth, toGridRange } from "@/widgets/calendar-month";
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -42,9 +40,9 @@ export type CalendarPageProps = {
   initialDayKey: Maybe<string>;
 };
 
+// INFO: REQUIREMENTS.md § 11.4. Creating only — an edit is opened from `EventDetailDialog`, which owns the occurrence it is editing.
 type FormState = {
   dayKey: string;
-  occurrence: Nullable<EventOccurrence>;
   /** Bumped per opening, because `EventFormSheet` seeds its draft once — at mount. */
   token: number;
 };
@@ -67,9 +65,8 @@ export function CalendarPage({
   const [selectedDayKey, setSelectedDayKey] = useState(initialDayKey ?? initialSummary.todayKey);
   // INFO: The agenda asserts `이 날은 일정이 없어요`, so it must be able to say "not yet" instead — a month still in flight is not an empty day.
   const [isLoadingMonth, setIsLoadingMonth] = useState(false);
-  const [actioned, setActioned] = useState<Nullable<EventOccurrence>>(null);
-  // INFO: 수정 and the header's 추가 both open a form whose own 저장 states the refusal inline (§ 11.4.), so this is the one item here with nowhere else to say it.
-  const deleteGate = useOfflineGate(OFFLINE_MESSAGES.remove);
+  // INFO: REQUIREMENTS.md § 11.4. The row opens the event rather than a menu about it; 수정 and 삭제 live behind the dialog's own control.
+  const [detailed, setDetailed] = useState<Nullable<EventOccurrence>>(null);
   const [form, setForm] = useState<Nullable<FormState>>(null);
   // WARN: The month the server already rendered. Without this the mount effect refetches it immediately, replacing correct data with identical data and flashing the grid.
   const loadedMonthKey = useRef(initialMonthKey);
@@ -160,7 +157,7 @@ export function CalendarPage({
             Icon={Plus}
             haptic
             aria-label="일정 추가"
-            onClick={() => openForm(selectedDayKey, null)}
+            onClick={() => openForm(selectedDayKey)}
           />
         }
       />
@@ -184,8 +181,8 @@ export function CalendarPage({
           milestones={listMilestonesInRange(summary.startDate, selectedDayKey, selectedDayKey)}
           occurrences={occurrences.filter((occurrence) => occursOnDay(occurrence, selectedDayKey))}
           participants={participants}
-          onCreate={() => openForm(selectedDayKey, null)}
-          onSelect={openActions}
+          onCreate={() => openForm(selectedDayKey)}
+          onSelect={setDetailed}
         />
         {/* WARN: DESIGN.md § 7.9. Last, and never above the grid. It is the one section here whose height is the event count, so between the band and the grid it moved the month under the thumb — day to day, and again on every add or delete. Nothing follows it, so it may now arrive at whatever height it likes. */}
         <UpcomingCard
@@ -195,22 +192,11 @@ export function CalendarPage({
         />
       </Container>
 
-      {/* INFO: REQUIREMENTS.md § 11.4. No permission tier — 수정 and 삭제 are offered on every event, whoever created it. */}
-      <ActionSheet
-        isOpen={actioned !== null}
-        header={{ title: actioned?.event.title ?? "일정", isHidden: true }}
-        items={[
-          {
-            label: "수정",
-            onSelect: () => actioned && openForm(toDayKey(actioned.startsAt), actioned),
-          },
-          {
-            label: "삭제",
-            variant: "destructive",
-            onSelect: deleteGate.guard(() => void remove(actioned)),
-          },
-        ]}
-        onClose={() => setActioned(null)}
+      <EventDetailDialog
+        occurrence={detailed}
+        participants={participants}
+        onClose={() => setDetailed(null)}
+        onChanged={() => void reloadCurrent()}
       />
 
       {form && (
@@ -218,7 +204,7 @@ export function CalendarPage({
           key={form.token}
           isOpen
           dayKey={form.dayKey}
-          occurrence={form.occurrence}
+          occurrence={null}
           onClose={() => setForm(null)}
           onSaved={() => void reloadCurrent()}
         />
@@ -260,14 +246,8 @@ export function CalendarPage({
     });
   }
 
-  function openActions(occurrence: EventOccurrence) {
-    setActioned(occurrence);
-  }
-
-  // WARN: The action sheet closes first. Both are modal `Drawer`s portalled to `body` and neither is declared nested, so leaving it up means two focus traps — and dismissing the top one can leave the one underneath inert.
-  function openForm(dayKey: string, occurrence: Nullable<EventOccurrence>) {
-    setActioned(null);
-    setForm((previous) => ({ dayKey, occurrence, token: (previous?.token ?? 0) + 1 }));
+  function openForm(dayKey: string) {
+    setForm((previous) => ({ dayKey, token: (previous?.token ?? 0) + 1 }));
   }
 
   async function reloadCurrent() {
@@ -275,21 +255,6 @@ export function CalendarPage({
       await reload(monthKey);
     } catch {
       toast.error("일정을 불러오지 못했어요");
-    }
-  }
-
-  async function remove(occurrence: Nullable<EventOccurrence>) {
-    if (!occurrence) {
-      return;
-    }
-
-    setActioned(null);
-
-    try {
-      await deleteEvent(occurrence.event.id);
-      await reloadCurrent();
-    } catch {
-      toast.error("일정을 삭제하지 못했어요");
     }
   }
 }

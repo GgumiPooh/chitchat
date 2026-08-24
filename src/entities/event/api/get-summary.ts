@@ -17,11 +17,17 @@ export function getRelationshipStartDate(): string {
 /**
  * REQUIREMENTS.md § 11.1. Everything above the month grid.
  *
+ * INFO: `upcomingLimit` is the only part callers vary — REQUIREMENTS.md § 11.5.1.'s
+ * panel pages through more than the card's three, and asks for one past what it draws
+ * so it knows whether a 더 보기 exists at all.
+ *
  * WARN: `todayKey` is resolved **here**, on the server, and shipped to the client
  * rather than recomputed there. A device whose clock or timezone is off would
  * otherwise show the two users different day counts for the same day.
  */
-export async function getCalendarSummary(): Promise<CalendarSummary> {
+export async function getCalendarSummary(
+  upcomingLimit: number = MAX_UPCOMING_EVENTS,
+): Promise<CalendarSummary> {
   const startDate = getRelationshipStartDate();
   const todayKey = toDayKey(Date.now());
 
@@ -31,6 +37,6 @@ export async function getCalendarSummary(): Promise<CalendarSummary> {
     // INFO: § 11.1. The Korean convention counts the start date itself as day 1, which is the `+ 1`.
     dayCount: countDays(startDate, todayKey) + 1,
     nextMilestone: findNextMilestone(startDate, todayKey, MILESTONE_HORIZON_DAYS),
-    upcoming: await listUpcomingOccurrences(todayKey, MAX_UPCOMING_EVENTS),
+    upcoming: await listUpcomingOccurrences(todayKey, upcomingLimit),
   };
 }

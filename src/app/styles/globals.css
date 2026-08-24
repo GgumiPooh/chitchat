@@ -227,3 +227,22 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
     display: none;
   }
 }
+
+/* INFO: DESIGN.md § 7.12. The 다가오는 일정 button's bloom while an event starts within the day — the halo's size is fixed and only its brightness moves, because the header is on screen for as long as the reader is in the conversation and a ring that expands every couple of seconds is a repeating motion trigger in the corner of the eye. */
+@keyframes event-bloom {
+  from {
+    opacity: 0.25;
+  }
+}
+
+/* WARN: The resting `opacity` is the animation's own last keyframe, so reduced motion below stills the halo at full strength rather than removing it — the same choice `message-flash` makes for the same reason: it is the only thing saying the button is trying to say something. */
+@utility event-bloom {
+  opacity: 0.7;
+  animation: event-bloom var(--duration-event-bloom) var(--ease-route) infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-bloom {
+    animation: none !important;
+  }
+}

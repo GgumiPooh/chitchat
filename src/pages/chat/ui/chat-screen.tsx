@@ -1,11 +1,13 @@
 "use client";
 
+import type { CalendarSummary, EventOccurrence } from "@/entities/event";
 import type { ChatMessage } from "@/entities/message";
 import {
   ChatStreamConnection,
   rememberInlineEmoticons,
   useChatStream,
 } from "@/features/chat-stream";
+import { EventDetailDialog } from "@/features/manage-event";
 import {
   MessageSearchBar,
   MessageSearchNav,
@@ -21,13 +23,17 @@ import {
   usePinnedDocument,
   type Maybe,
   type MessageId,
+  type Nullable,
   type UserId,
 } from "@/shared/lib";
 import { AppHeader, Container, IconButton } from "@/shared/ui";
 import { ChatRoom, toChromeTint } from "@/widgets/chat-room";
-import { ChevronLeft, Search } from "lucide-react";
+import { CalendarClock, ChevronLeft, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useImminentPanel } from "../model/use-imminent-panel";
+import { useUpcomingEvents } from "../model/use-upcoming-events";
+import { UpcomingEventsPanel } from "./upcoming-events-panel";
 
 export type ChatScreenProps = {
   className?: string;
@@ -35,6 +41,8 @@ export type ChatScreenProps = {
   initialMessages: ChatMessage[];
   /** REQUIREMENTS.md § 13. What the emoticons written into those messages draw, resolved by the same server render. */
   initialEmoticons: InlineEmoticonMap;
+  /** REQUIREMENTS.md § 11.5.1. 다가오는 일정, for the header's own copy of the calendar's card. */
+  initialSummary: CalendarSummary;
   /** REQUIREMENTS.md § 10. A message 보관함 opened this screen on, if any. */
   jumpMessageId?: Maybe<MessageId>;
 };
@@ -52,9 +60,19 @@ export function ChatScreen({
   currentUserId,
   initialMessages,
   initialEmoticons,
+  initialSummary,
   jumpMessageId,
 }: ChatScreenProps) {
   const search = useMessageSearch();
+  const upcoming = useUpcomingEvents(initialSummary);
+  // INFO: REQUIREMENTS.md § 11.5.1. Arriving with something imminent opens the panel; closing it is what stops that happening again.
+  const imminent = useImminentPanel(upcoming.occurrences);
+  const [isUpcomingOpen, setIsUpcomingOpen] = useState(false);
+  // INFO: REQUIREMENTS.md § 11.5.1. One-way — the panel takes its taller, scrolling shape at the first 더 보기 and keeps it, so the box does not resize again under the reader.
+  // INFO: Two ways in, one state out — the arrival prompt and the header button, either of which the same 닫기 puts away.
+  const isPanelOpen = isUpcomingOpen || imminent.isPrompted;
+  // INFO: REQUIREMENTS.md § 11.5.1. A row opens the event here rather than crossing to 캘린더 — the question the panel answers is "when is that again", and a tab change to read a memo loses the conversation.
+  const [detailed, setDetailed] = useState<Nullable<EventOccurrence>>(null);
   const { participants, chatBackgroundBlurhash } = useChatStream();
   const router = useRouter();
 
@@ -68,6 +86,11 @@ export function ChatScreen({
       router.push(CALENDAR_ROUTE);
     }
   }, [router]);
+
+  const closeUpcoming = useCallback(() => {
+    setIsUpcomingOpen(false);
+    imminent.dismiss();
+  }, [imminent]);
 
   // WARN: DESIGN.md § 3.4. This box is sized from the visual viewport, so the document beneath it may never carry an offset of its own — see `usePinnedDocument` for the one iOS gives it anyway.
   usePinnedDocument(true);
@@ -129,16 +152,54 @@ export function ChatScreen({
             />
           }
           trailing={
-            <IconButton
-              Icon={Search}
-              variant="floating"
-              haptic
-              aria-label="메시지 검색"
-              onClick={search.open}
-            />
+            <div className="flex items-center gap-2xs">
+              <IconButton
+                Icon={Search}
+                variant="floating"
+                haptic
+                aria-label="메시지 검색"
+                onClick={search.open}
+              />
+              {/* INFO: DESIGN.md § 7.12. The bloom is a sibling behind the glass rather than a shadow on the button, because `icon-button-floating` already spends its `box-shadow` on `shadow-floating` — a second one silently replaces it. */}
+              <span className="relative flex">
+                {upcoming.isSoon && (
+                  <span
+                    className="pointer-events-none absolute -inset-2xs event-bloom rounded-full bg-primary blur-md"
+                    aria-hidden
+                  />
+                )}
+                <IconButton
+                  Icon={CalendarClock}
+                  variant="floating"
+                  haptic
+                  aria-label="다가오는 일정"
+                  aria-expanded={isPanelOpen}
+                  onClick={() => (isPanelOpen ? closeUpcoming() : setIsUpcomingOpen(true))}
+                />
+              </span>
+            </div>
           }
         />
       )}
+      {/* WARN: Withheld while 검색 is up, for the reason § 8.6. withholds the composer's stack — the bar that opens it is not on screen, so nothing would say what this panel is doing there. */}
+      {!search.isOpen && (
+        <UpcomingEventsPanel
+          isOpen={isPanelOpen}
+          occurrences={upcoming.occurrences}
+          todayKey={upcoming.todayKey}
+          hasMore={upcoming.hasMore}
+          isLoadingMore={upcoming.isLoadingMore}
+          onLoadMore={upcoming.loadMore}
+          onSelect={setDetailed}
+          onClose={closeUpcoming}
+        />
+      )}
+      <EventDetailDialog
+        occurrence={detailed}
+        participants={participants}
+        onClose={() => setDetailed(null)}
+        onChanged={upcoming.reload}
+      />
       <ChatRoom
         currentUserId={currentUserId}
         initialMessages={initialMessages}

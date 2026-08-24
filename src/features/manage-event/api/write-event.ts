@@ -24,8 +24,12 @@ export async function fetchOccurrences(fromKey: string, toKey: string): Promise<
   return occurrences;
 }
 
-export async function fetchCalendarSummary(): Promise<CalendarSummary> {
-  const { summary } = await send<{ summary: CalendarSummary }>(CALENDAR_SUMMARY_PATH, "GET");
+export async function fetchCalendarSummary(upcomingLimit?: number): Promise<CalendarSummary> {
+  const path =
+    upcomingLimit === undefined
+      ? CALENDAR_SUMMARY_PATH
+      : `${CALENDAR_SUMMARY_PATH}?upcoming=${upcomingLimit}`;
+  const { summary } = await send<{ summary: CalendarSummary }>(path, "GET");
 
   return summary;
 }

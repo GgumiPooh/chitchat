@@ -88,13 +88,14 @@ export function composeEventNoticeBody(
 ): string {
   const date = startsAt ? formatMonthDay(startsAt) : "";
 
+  // WARN: The title is a second line and the break is load-bearing — REQUIREMENTS.md § 8.3. prices this row from this very string, so `SystemNotice` renders it under `whitespace-pre-wrap` and `toNoticeHeight` measures it under the same mode. Anything that collapses the break here counts the row a line short.
   switch (action) {
     case "event_created":
-      return `${date} '${title ?? ""}' 일정을 추가했어요`;
+      return `${date} 일정을 추가했어요\n"${title ?? ""}"`;
     case "event_rescheduled":
-      return `'${title ?? ""}' 일정을 ${date}로 옮겼어요`;
+      return `일정을 ${date}로 옮겼어요\n"${title ?? ""}"`;
     case "event_deleted":
-      return `${date} '${title ?? ""}' 일정을 삭제했어요`;
+      return `${date} 일정을 삭제했어요\n"${title ?? ""}"`;
     default:
       return "";
   }

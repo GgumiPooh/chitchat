@@ -12,7 +12,7 @@ import {
   type Optional,
 } from "@/shared/lib";
 import { Avatar, Button, EmptyState, HapticTap, Skeleton } from "@/shared/ui";
-import { EventDot, HolidayDot, MilestoneDot } from "@/widgets/calendar-month";
+import { EventDot, EventMemo, HolidayDot, MilestoneDot } from "@/widgets/calendar-month";
 import { CalendarDays } from "lucide-react";
 import type { ReactNode } from "react";
 import { formatMultiDaySpan, formatOccurrenceTime } from "../model/format-event";
@@ -107,6 +107,7 @@ export function DayAgenda({
                       .filter(Boolean)
                       .join(" · ")}
                   </span>
+                  <EventMemo description={occurrence.event.description} />
                 </span>
                 {/* INFO: REQUIREMENTS.md § 11.4. Authorship is shown, never enforced — either user may edit any event. */}
                 <Author

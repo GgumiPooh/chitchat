@@ -464,15 +464,17 @@ function toColumnWidth({ contentWidth = DEFAULT_CONTENT_WIDTH }: RowEstimateCont
   return (contentWidth - SPACING_MD * 2) * COLUMN_RATIO;
 }
 
-// INFO: DESIGN.md § 6.5. The pill is centred in the row's `px-md` and wraps inside its own `px-sm`.
+// INFO: DESIGN.md § 6.5. The pill is centred in the row's `px-md` and wraps inside its own `px-md`.
 function toNoticeHeight(
   message: ChatMessage,
   { contentWidth = DEFAULT_CONTENT_WIDTH, fontFamily, readNotice }: RowEstimateContext,
 ): number {
-  const available = Math.max(contentWidth - SPACING_MD * 2 - SPACING_SM * 2, PILL.size);
+  const available = Math.max(contentWidth - SPACING_MD * 4, PILL.size);
 
+  // WARN: `pre-wrap`, because REQUIREMENTS.md § 11.5.'s notice puts the event title on a line of its own — measured under `normal` the break collapses and every notice row is priced one line short.
   return (
-    countTextLines(readNotice(message), { ...PILL, family: fontFamily }, available) * LINE.caption()
+    countTextLines(readNotice(message), { ...PILL, family: fontFamily }, available, "pre-wrap") *
+    LINE.caption()
   );
 }
 

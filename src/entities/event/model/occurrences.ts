@@ -1,4 +1,4 @@
-import { parseDayKey, toDayKey } from "@/shared/lib";
+import { compareId, parseDayKey, toDayKey } from "@/shared/lib";
 import type { CalendarEvent, EventOccurrence } from "./types";
 
 /**
@@ -46,7 +46,15 @@ export function isOccurrenceUnfinished(
     : Date.parse(occurrence.endsAt) >= now;
 }
 
-/** Chronological, with all-day events ahead of timed ones that start the same day. */
+/**
+ * Chronological, with all-day events ahead of timed ones that start the same day and
+ * the older event first where even the instant ties.
+ *
+ * WARN: The last arm is `compareId` and never `<` (`AGENTS.md § 3.2.`). It is also not
+ * decoration: without it the tie falls to whatever order the rows came back in, so two
+ * events at one instant can swap places between renders of the same list — and every
+ * screen here sorts through this one function.
+ */
 export function compareOccurrences(a: EventOccurrence, b: EventOccurrence): number {
   const dayComparison = toDayKey(a.startsAt).localeCompare(toDayKey(b.startsAt));
 
@@ -58,7 +66,10 @@ export function compareOccurrences(a: EventOccurrence, b: EventOccurrence): numb
     return a.event.allDay ? -1 : 1;
   }
 
-  return a.startsAt.localeCompare(b.startsAt);
+  const startComparison = a.startsAt.localeCompare(b.startsAt);
+
+  // INFO: A snowflake orders by the moment it was minted (REQUIREMENTS.md § 6.), so this is "whichever was added first".
+  return startComparison === 0 ? compareId(a.event.id, b.event.id) : startComparison;
 }
 
 /**

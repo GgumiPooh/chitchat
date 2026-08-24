@@ -56,6 +56,8 @@ export {
 export {
   formatMultiDaySpan,
   formatOccurrenceTime,
+  formatRelativeDay,
+  formatUpcomingWhen,
   occursOnDay,
   type TimedOccurrence,
 } from "./date/event-time";

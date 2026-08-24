@@ -1,5 +1,5 @@
 import type { Nullable } from "../nullish";
-import { formatMonthDay, formatTime, toDayKey } from "./time";
+import { countDays, formatMonthDay, formatTime, toDayKey } from "./time";
 
 /**
  * What this module reads off one appearance of an event.
@@ -68,4 +68,38 @@ export function formatMultiDaySpan(occurrence: TimedOccurrence): Nullable<string
 // INFO: A multi-day event belongs to every day it covers, so a day's list cannot filter on its start alone.
 export function occursOnDay(occurrence: TimedOccurrence, dayKey: string): boolean {
   return toDayKey(occurrence.startsAt) <= dayKey && toDayKey(occurrence.endsAt) >= dayKey;
+}
+
+/** `오늘`, `내일`, `3일 뒤`, then the date itself once it is further out than a week — or already behind. */
+export function formatRelativeDay(dayKey: string, todayKey: string): string {
+  const daysLeft = countDays(todayKey, dayKey);
+
+  if (daysLeft === 0) {
+    return "오늘";
+  }
+
+  if (daysLeft === 1) {
+    return "내일";
+  }
+
+  // INFO: A day already behind `todayKey` names itself — `3일 뒤` has no mirror, and a countdown that has run out is not a relative day.
+  if (daysLeft < 0 || daysLeft > 7) {
+    return formatMonthDay(dayKey);
+  }
+
+  return `${daysLeft}일 뒤`;
+}
+
+/** The line an upcoming entry carries: when it happens, at a glance. */
+export function formatUpcomingWhen(occurrence: TimedOccurrence, todayKey: string): string {
+  const startDayKey = toDayKey(occurrence.startsAt);
+
+  // INFO: DESIGN.md § 7.9. An event that began before today has no date to announce under a heading reading 다가오는, and its start date is a week in the past.
+  if (startDayKey < todayKey) {
+    return "진행 중";
+  }
+
+  const day = formatRelativeDay(startDayKey, todayKey);
+
+  return occurrence.event.allDay ? day : `${day} ${formatTime(occurrence.startsAt)}`;
 }

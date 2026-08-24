@@ -72,6 +72,9 @@ export const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 /** DESIGN.md § 7.9. The upcoming card summarises at most this many events. */
 export const MAX_UPCOMING_EVENTS = 3;
 
+// INFO: REQUIREMENTS.md § 11.5.1. 채팅's panel pages by the card's own count, and stops there — a list this shape is a glance, not an agenda.
+export const UPCOMING_EVENTS_CEILING = MAX_UPCOMING_EVENTS * 5;
+
 /**
  * REQUIREMENTS.md § 11.5. The one query parameter a chat system notice taps
  * through with. There is deliberately no `event` counterpart — a delete notice

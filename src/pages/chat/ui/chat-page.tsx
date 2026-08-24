@@ -1,5 +1,6 @@
+import { getCalendarSummary } from "@/entities/event";
 import { listMessages, toMessagePayload } from "@/entities/message";
-import { toMediaUrl } from "@/shared/config";
+import { MAX_UPCOMING_EVENTS, toMediaUrl } from "@/shared/config";
 import type { Maybe, MessageId, Nullable, UserId } from "@/shared/lib";
 import { preload } from "react-dom";
 import { ChatScreen } from "./chat-screen";
@@ -33,7 +34,12 @@ export async function ChatPage({
 
   // INFO: The newest page comes from the server render, so opening the tab costs no client round trip before the first paint. Participants are the shell's (§ 8.4.), since every tab needs them for the in-app banner.
   // INFO: REQUIREMENTS.md § 13. Through the payload builder, so this path carries its emoticons exactly as the fetched pages do — it is the only one whose map arrives as props rather than as a response.
-  const { messages, emoticons } = await toMessagePayload(await listMessages());
+  // WARN: REQUIREMENTS.md § 11.5.1. In parallel, and the summary is not optional to the first paint: the header's bloom is a property of the render itself, so a summary fetched after hydration would light the button a beat after the reader has already looked at it.
+  const [{ messages, emoticons }, summary] = await Promise.all([
+    listMessages().then(toMessagePayload),
+    // WARN: REQUIREMENTS.md § 11.5.1. One past the page the panel draws, exactly as the client's own fetches ask for — seeded with the bare page there is no row to prove a next one exists, so 더 보기 is missing until the first refresh puts it there.
+    getCalendarSummary(MAX_UPCOMING_EVENTS + 1),
+  ]);
 
   return (
     <ChatScreen
@@ -41,6 +47,7 @@ export async function ChatPage({
       currentUserId={currentUserId}
       initialMessages={messages}
       initialEmoticons={emoticons}
+      initialSummary={summary}
       jumpMessageId={jumpMessageId}
     />
   );
