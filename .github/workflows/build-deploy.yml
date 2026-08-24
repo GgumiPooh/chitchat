@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+    # WARN: REQUIREMENTS.md § 12.4. GitHub disables a public repository's schedules after 60
+    # days with no activity, so an external cron overwrites `.github/keepalive` to keep them
+    # alive. Without this filter each of those commits rebuilds and redeploys production.
+    paths-ignore:
+      - .github/keepalive
   workflow_dispatch:
 
 permissions:

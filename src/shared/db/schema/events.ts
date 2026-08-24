@@ -26,6 +26,8 @@ export const events = pgTable(
     createdBy: snowflake<UserId>("created_by")
       .notNull()
       .references(() => users.id),
+    // INFO: REQUIREMENTS.md § 16.3. When this row last raised a reminder. One column carries all three thresholds because they only ever fire in order, so the instant itself says how far the sequence has got.
+    notifiedAt: timestamp("notified_at", { withTimezone: true }),
   },
   (table) => [index("events_starts_at_idx").on(table.startsAt)],
 );

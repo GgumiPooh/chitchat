@@ -57,7 +57,10 @@ export {
   formatMultiDaySpan,
   formatOccurrenceTime,
   formatRelativeDay,
+  formatTimeLeft,
   formatUpcomingWhen,
+  isImminent,
+  nextTimeLeftChangeAt,
   occursOnDay,
   type TimedOccurrence,
 } from "./date/event-time";

@@ -26,6 +26,8 @@ export const systemActionEnum = pgEnum("system_action", [
   "event_created",
   "event_rescheduled",
   "event_deleted",
+  // INFO: REQUIREMENTS.md § 16.3. Nobody performed this one — the reminder run posts it, so it is rendered without an actor.
+  "event_reminder",
 ]);
 
 // INFO: REQUIREMENTS.md § 6. Append-only — marking messages read moves `users.last_read_at`, never a row here.

@@ -63,6 +63,7 @@ import {
   compareId,
   composeEventNotice,
   countVisibleWakes,
+  findFirstUrl,
   focusWithoutPan,
   runWhenIdle,
   startMediaMorph,
@@ -148,6 +149,7 @@ import { useComposerClearance } from "../model/use-composer-clearance";
 import { useEmoticonSheet } from "../model/use-emoticon-sheet";
 import { useLinkPreviewPrefetch } from "../model/use-link-preview-prefetch";
 import { useMessageHistory } from "../model/use-message-history";
+import { useShareTarget } from "../model/use-share-target";
 import { useViewerTrack } from "../model/use-viewer-track";
 import { ChatBackdrop } from "./chat-backdrop";
 import { DateDivider } from "./date-divider";
@@ -974,6 +976,9 @@ export function ChatRoom({
     onPasteText: pasteIntoComposer,
   });
 
+  // INFO: REQUIREMENTS.md § 7. Through `submit`, so a share takes the same live-edge return, 전송음 and § 8.5. retry every other send does.
+  useShareTarget((text) => submit(text, []));
+
   /**
    * REQUIREMENTS.md § 8.14. Focus into the panel after a menu digit chose its tab.
    *
@@ -1508,7 +1513,8 @@ export function ChatRoom({
           {/* INFO: § 13.6. An empty spacer: it is what `useComposerClearance` measures and what `settleAfterPanelTransition` listens to, and it only ever moves inset ↔ rest — the drawn sheet below is absolute, so expanding it moves nothing here. */}
           <div
             className={cn(
-              "transition-[height] duration-200 ease-out",
+              // WARN: DESIGN.md § 3.4. The panel's own 200ms, on the token that holds it at `0s` until the viewport has been measured — this spacer is `--bottom-inset` tall, and iOS moves that after the first paint of a cold launch.
+              "transition-[height] duration-(--viewport-settle-duration) ease-out",
               isEmoticonPanelOpen ? "h-(--emoticon-sheet-rest-height)" : "h-(--bottom-inset)",
             )}
             style={{ ["--emoticon-sheet-rest-height" as string]: emoticonSheetRestHeight }}
@@ -2584,7 +2590,13 @@ export function ChatRoom({
       // INFO: REQUIREMENTS.md § 8.10. The same call `listReplyPreviews` makes on the server, so the optimistic quote and the echoed one cannot disagree about whether the row has a tile.
       thumbnail: message.isDeleted
         ? null
-        : toQuoteThumbnail(message.emoticon, message.media, toSoloInlineQuoteEmoticon(message)),
+        : toQuoteThumbnail(
+            message.emoticon,
+            message.media,
+            toSoloInlineQuoteEmoticon(message),
+            // INFO: REQUIREMENTS.md § 8.9. The cache `useLinkPreviewPrefetch` has already filled for every loaded message, which is the browser's half of the row `listReplyPreviews` reads server-side.
+            readPreview(findFirstUrl(message.text))?.imageUrl ?? null,
+          ),
       // WARN: REQUIREMENTS.md § 8.13. A withdrawn parent surrenders its payload here too. Nothing routes 답장 onto a tombstone today, but that is the row it is rendered on rather than a property of this function — and `listReplyPreviews` nulls all four, so staging them live would be the optimistic/echo disagreement `toQuoteThumbnail` exists to rule out.
       mediaKind: message.isDeleted ? null : toMediaNoun(message.media),
       mediaCount: message.isDeleted ? 0 : message.media.length,

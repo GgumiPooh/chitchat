@@ -264,7 +264,8 @@ function DateTimeRow({
     <div className={cn("flex gap-xs", className)}>
       {/* WARN: Native `date` / `time` inputs, deliberately — iOS renders its own wheel picker for them, and a custom control would be a worse version of it that also has to reimplement the keyboard case. */}
       <Input
-        className={cn(isTimeHidden ? "w-full" : "flex-1")}
+        // WARN: `min-w-0` — a native `date` input's intrinsic width is wider than the space left beside the time field on a narrow screen, and `flex-1` alone refuses to shrink past it.
+        className={cn("min-w-0", isTimeHidden ? "w-full" : "flex-1")}
         type="date"
         value={dayKey}
         onChange={(event) => onDayKeyChange(event.target.value)}

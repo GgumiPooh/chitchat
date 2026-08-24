@@ -14,6 +14,7 @@
     "holidays": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs scripts/generate-holidays.ts",
     "ops:backup": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs --tsconfig tsconfig.ops.json scripts/ops/backup.ts",
     "ops:purge": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs --tsconfig tsconfig.ops.json scripts/ops/purge.ts",
+    "ops:remind": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs --tsconfig tsconfig.ops.json scripts/ops/remind.ts",
     "ops:sweep": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs --tsconfig tsconfig.ops.json scripts/ops/sweep.ts",
     "ops:orphans": "node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs --tsconfig tsconfig.ops.json scripts/ops/orphans.ts",
     "dev": "concurrently -n app,steiger,tunnel -c blue,yellow,red \"pnpm dev:app\" \"pnpm dev:steiger\" \"pnpm dev:tunnel\"",

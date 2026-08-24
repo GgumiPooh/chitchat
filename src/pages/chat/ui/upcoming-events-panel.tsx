@@ -1,7 +1,14 @@
 "use client";
 
 import type { EventOccurrence } from "@/entities/event";
-import { cn, formatUpcomingWhen, OPEN_OVERLAY_SELECTOR, type Nullable } from "@/shared/lib";
+import {
+  cn,
+  formatTimeLeft,
+  formatUpcomingWhen,
+  isImminent,
+  OPEN_OVERLAY_SELECTOR,
+  type Nullable,
+} from "@/shared/lib";
 import { EmptyState, HapticTap, IconButton } from "@/shared/ui";
 import { EventDot, EventMemo } from "@/widgets/calendar-month";
 import { CalendarClock, ChevronDown, X } from "lucide-react";
@@ -14,6 +21,8 @@ export type UpcomingEventsPanelProps = {
   isOpen: boolean;
   occurrences: EventOccurrence[];
   todayKey: string;
+  /** REQUIREMENTS.md § 11.5.1. The clock the imminent rows count down against. */
+  now: number;
   hasMore: boolean;
   isLoadingMore: boolean;
   onLoadMore: () => void;
@@ -38,6 +47,7 @@ export function UpcomingEventsPanel({
   isOpen,
   occurrences,
   todayKey,
+  now,
   hasMore,
   isLoadingMore,
   onLoadMore,
@@ -152,35 +162,48 @@ export function UpcomingEventsPanel({
             className="scrollbar-hidden min-h-0 divide-y divide-hairline overflow-y-auto overscroll-contain"
             style={lockedHeight === null ? undefined : { height: lockedHeight }}
           >
-            {occurrences.map((occurrence) => (
-              <li key={occurrence.event.id + occurrence.startsAt} className="group relative flex">
-                <button
-                  className="flex w-full cursor-pointer items-start gap-xs px-md py-sm text-left transition-colors outline-none group-active:bg-surface-soft hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-soft"
-                  type="button"
-                  onClick={() => onSelect(occurrence)}
-                >
-                  {/* INFO: The dot is 4px against a multi-line row, so it is nudged onto the title's own baseline rather than centred against the whole stack. */}
-                  <EventDot
-                    className="mt-[7px]"
-                    color={occurrence.event.color}
-                    scope={occurrence.event.scope}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline gap-xs">
-                      <span className="min-w-0 flex-1 truncate text-title-sm text-ink">
-                        {occurrence.event.title}
+            {occurrences.map((occurrence) => {
+              // WARN: `now` is `0` until the client has read the clock, which is what keeps this row identical to the HTML the server sent.
+              const isSoon = now > 0 && isImminent(occurrence, now);
+
+              return (
+                <li key={occurrence.event.id + occurrence.startsAt} className="group relative flex">
+                  <button
+                    className="flex w-full cursor-pointer items-start gap-xs px-md py-sm text-left transition-colors outline-none group-active:bg-surface-soft hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-soft"
+                    type="button"
+                    onClick={() => onSelect(occurrence)}
+                  >
+                    {/* INFO: The dot is 4px against a multi-line row, so it is nudged onto the title's own baseline rather than centred against the whole stack. */}
+                    <EventDot
+                      className="mt-[7px]"
+                      color={occurrence.event.color}
+                      scope={occurrence.event.scope}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline gap-xs">
+                        <span className="min-w-0 flex-1 truncate text-title-sm text-ink">
+                          {occurrence.event.title}
+                        </span>
+                        {/* INFO: REQUIREMENTS.md § 11.5.1. Inside the day the date gives way to what is left of it, in `primary` — the colour the header's own bloom and dot are already saying it in. */}
+                        <span
+                          className={cn(
+                            "shrink-0 text-caption",
+                            isSoon ? "text-primary" : "text-meta",
+                          )}
+                        >
+                          {isSoon
+                            ? formatTimeLeft(occurrence, now)
+                            : formatUpcomingWhen(occurrence, todayKey)}
+                        </span>
                       </span>
-                      <span className="shrink-0 text-caption text-meta">
-                        {formatUpcomingWhen(occurrence, todayKey)}
-                      </span>
+                      <EventMemo description={occurrence.event.description} />
                     </span>
-                    <EventMemo description={occurrence.event.description} />
-                  </span>
-                </button>
-                {/* WARN: `keepsScroll` — the row runs the width of the panel, so a finger scrolling the list lands here (`DESIGN.md § 7.15.1.`). */}
-                <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
-              </li>
-            ))}
+                  </button>
+                  {/* WARN: `keepsScroll` — the row runs the width of the panel, so a finger scrolling the list lands here (`DESIGN.md § 7.15.1.`). */}
+                  <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
+                </li>
+              );
+            })}
           </ul>
         )}
         {hasMore && (

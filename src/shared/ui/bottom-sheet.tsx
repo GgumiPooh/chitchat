@@ -48,7 +48,8 @@ export function BottomSheet({
         onCloseAutoFocus={onCloseAutoFocus}
       >
         <div className="mx-auto block h-1.5 w-12 shrink-0 rounded-full bg-hairline-strong" />
-        <div className="scrollbar-hidden overflow-y-auto overscroll-contain">
+        {/* WARN: The scroller spans the sheet's padding box and restores the inset itself, so a full-bleed row inside it (`EventColorPicker`'s swatches) reaches the edge instead of overflowing. `overflow-y: auto` computes `overflow-x` to `auto` too, and that overflow was the sheet scrolling sideways. */}
+        <div className="-mx-md scrollbar-hidden overflow-y-auto overscroll-contain px-md">
           {header.isHidden ? (
             <DrawerTitle className="sr-only">{header.title}</DrawerTitle>
           ) : (

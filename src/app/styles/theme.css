@@ -295,6 +295,8 @@
   --keyboard-pan: 0px;
   /* INFO: DESIGN.md § 3.4. What the chat screen is tall: the visual viewport, except while 검색's field holds the keyboard, where the screen stands still and the keys cover the sheet instead. */
   --chat-screen-height: var(--viewport-height, 100dvh);
+  /* WARN: DESIGN.md § 3.4. `0s` until a height has been measured, and that is the whole of what keeps a standalone cold launch still — see the section for what iOS moves after the first paint. */
+  --viewport-settle-duration: 0s;
   --header-lift: calc(env(safe-area-inset-top) + var(--chrome-edge-gap) + var(--keyboard-pan));
   --bar-lift: calc(env(safe-area-inset-bottom) + var(--bar-float-gap));
   /* WARN: DESIGN.md § 6.6. `useComposerClearance` overwrites this on the chat container one frame after mount; without the default here the list's trailing spacer is invalid until then and the first bottom-anchored paint parks the newest message behind the composer. */
@@ -334,6 +336,11 @@
 :root[data-keyboard-open] {
   --bar-lift: 0px;
   --keyboard-pan: var(--viewport-top, 0px);
+}
+
+/* INFO: DESIGN.md § 3.4. Published by `VisualViewportSync` at its first write — from here on a height change is the keyboard, which is what the ease was written for. */
+:root[data-viewport-synced] {
+  --viewport-settle-duration: 200ms;
 }
 
 /* INFO: DESIGN.md § 3.4. Published by the chat room while 검색's field holds the keyboard: the screen keeps its resting height, so the keys slide over the sheet's lower rows instead of squeezing the sheet into what they leave. */

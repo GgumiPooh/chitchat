@@ -7,14 +7,17 @@ import {
   SSE_SYNC_COALESCE_WINDOW,
   UPCOMING_EVENTS_CEILING,
 } from "@/shared/config";
-import { A_DAY, type Nullable } from "@/shared/lib";
+import { A_DAY, isImminent, nextTimeLeftChangeAt, type UserId } from "@/shared/lib";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isForReader } from "./is-for-reader";
 
 export type UpcomingEvents = {
   occurrences: EventOccurrence[];
   todayKey: string;
-  /** REQUIREMENTS.md § 11.5.1. Something starts within the day, which is what the header's bloom is saying. */
+  /** REQUIREMENTS.md § 11.5.1. Something of the reader's own starts within the day, which is what the header's bloom is saying. */
   isSoon: boolean;
+  /** The clock the rows' countdowns are read against — `0` until it has been read on the client. */
+  now: number;
   hasMore: boolean;
   isLoadingMore: boolean;
   /** Widens the page by another `MAX_UPCOMING_EVENTS`, up to `UPCOMING_EVENTS_CEILING`. */
@@ -32,7 +35,10 @@ export type UpcomingEvents = {
  * sliced off here. It is the only thing that can answer whether a 더 보기 exists — a
  * page returning exactly what it asked for says nothing about what is behind it.
  */
-export function useUpcomingEvents(initialSummary: CalendarSummary): UpcomingEvents {
+export function useUpcomingEvents(
+  initialSummary: CalendarSummary,
+  currentUserId: UserId,
+): UpcomingEvents {
   const [summary, setSummary] = useState(initialSummary);
   const [limit, setLimit] = useState(MAX_UPCOMING_EVENTS);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -86,29 +92,35 @@ export function useUpcomingEvents(initialSummary: CalendarSummary): UpcomingEven
     void load(limit).finally(() => setIsLoadingMore(false));
   }, [limit, load]);
 
-  // INFO: The instant the nearest event crosses into the last day before it starts. One already under way is behind it, which is what puts a `진행 중` row in the bloom too.
-  const bloomAt = useMemo<Nullable<number>>(() => {
-    const instants = summary.upcoming.map(({ startsAt }) => Date.parse(startsAt) - A_DAY);
-
-    return instants.length === 0 ? null : Math.min(...instants);
-  }, [summary.upcoming]);
+  // INFO: REQUIREMENTS.md § 11.5.1. The instant a row's line next changes — a crossing into the last day before an event, or an hour coming off a countdown already running.
+  const changeAt = useMemo(
+    () => nextTimeLeftChangeAt(summary.upcoming, now),
+    [summary.upcoming, now],
+  );
 
   // INFO: A crossing already behind us schedules a `0` timer, so the first reading of the clock and every later one arrive by the same path — which is also why `now` can be seeded outside the render.
   // WARN: Only a crossing inside the next day is scheduled. `upcoming` reaches a year ahead, and a `setTimeout` past 2³¹ ms wraps and fires immediately — which here is a timer that re-arms itself every frame. Anything further out is the refresh above's to notice.
   useEffect(() => {
-    if (bloomAt === null || bloomAt - Date.now() > A_DAY) {
+    if (changeAt === null || changeAt - Date.now() > A_DAY) {
       return;
     }
 
-    const timer = setTimeout(() => setNow(Date.now()), Math.max(bloomAt - Date.now(), 0));
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(changeAt - Date.now(), 0));
 
     return () => clearTimeout(timer);
-  }, [bloomAt]);
+  }, [changeAt]);
 
   return {
     occurrences: summary.upcoming.slice(0, limit),
     todayKey: summary.todayKey,
-    isSoon: bloomAt !== null && now >= bloomAt,
+    // WARN: `now > 0` is the hydration guard, not a shortcut. Seeded at `0` every event is a year out, which is exactly what the server rendered.
+    // INFO: § 11.5.1. The same set the panel opens itself for — the bloom is the header saying that panel has something in it for the reader.
+    isSoon:
+      now > 0 &&
+      summary.upcoming.some(
+        (occurrence) => isForReader(occurrence, currentUserId) && isImminent(occurrence, now),
+      ),
+    now,
     // WARN: `isLoadingMore` holds it on screen. `limit` steps the instant 더 보기 is pressed and the page it asks for lands a round trip later, so the summary in hand is briefly one page short — read without this the button blinks out under the finger and comes back.
     hasMore: isLoadingMore || (limit < UPCOMING_EVENTS_CEILING && summary.upcoming.length > limit),
     isLoadingMore,

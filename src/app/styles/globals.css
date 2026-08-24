@@ -64,9 +64,14 @@
   }
 }
 
-/* WARN: No fill, where the route slide needs `backwards`. There is nothing to hold before the first frame, and a `forwards` fill would leave the composer a containing block for every `fixed` descendant of the room. */
+/* WARN: `backwards` and never `forwards`, which would leave the composer a containing block for every `fixed` descendant of the room. It holds the `from` keyframe through the pause below, which is the whole point of having one. */
 @utility composer-enter {
-  animation: composer-enter var(--duration-route-enter) var(--ease-route);
+  animation: composer-enter var(--duration-route-enter) var(--ease-route) backwards;
+}
+
+/* WARN: DESIGN.md § 3.4., § 6.6. Held below the edge until a viewport height has been measured. Both terms of the `from` above move during a standalone cold launch — iOS settles `env(safe-area-inset-bottom)` and the window's own height after the first paint — and a running animation re-resolves them, which rebases the rise mid-flight as a dip the reader sees at the top of the travel. */
+:root:not([data-viewport-synced]) .composer-enter {
+  animation-play-state: paused;
 }
 
 /* INFO: DESIGN.md § 4.7. Positional motion is the common motion-sensitivity trigger; without a duration the browser falls back to swapping content outright. */

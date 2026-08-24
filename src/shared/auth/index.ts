@@ -8,6 +8,7 @@ export {
   type GoogleIdentity,
 } from "./google";
 export { clearOAuthCookies, readOAuthCookies, setOAuthCookies } from "./oauth-cookies";
+export { takePostLoginRoute } from "./pending-share";
 export {
   clearSessionCookie,
   createSession,

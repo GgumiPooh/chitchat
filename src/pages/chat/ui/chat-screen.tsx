@@ -64,9 +64,9 @@ export function ChatScreen({
   jumpMessageId,
 }: ChatScreenProps) {
   const search = useMessageSearch();
-  const upcoming = useUpcomingEvents(initialSummary);
+  const upcoming = useUpcomingEvents(initialSummary, currentUserId);
   // INFO: REQUIREMENTS.md § 11.5.1. Arriving with something imminent opens the panel; closing it is what stops that happening again.
-  const imminent = useImminentPanel(upcoming.occurrences);
+  const imminent = useImminentPanel(upcoming.occurrences, currentUserId);
   const [isUpcomingOpen, setIsUpcomingOpen] = useState(false);
   // INFO: REQUIREMENTS.md § 11.5.1. One-way — the panel takes its taller, scrolling shape at the first 더 보기 and keeps it, so the box does not resize again under the reader.
   // INFO: Two ways in, one state out — the arrival prompt and the header button, either of which the same 닫기 puts away.
@@ -120,7 +120,7 @@ export function ChatScreen({
     <Container
       className={cn(
         // WARN: DESIGN.md § 3.3. `shell-edge`, matching the shell's own — this box covers the column's edges, so without it the hairline that separates the app from the desktop gutter stops at the chat route.
-        "fixed inset-x-0 top-(--keyboard-pan) flex h-(--chat-screen-height) flex-col bg-chat-canvas px-0 shell-edge transition-[height] duration-200 ease-out",
+        "fixed inset-x-0 top-(--keyboard-pan) flex h-(--chat-screen-height) flex-col bg-chat-canvas px-0 shell-edge transition-[height] duration-(--viewport-settle-duration) ease-out",
         className,
       )}
       // INFO: REQUIREMENTS.md § 12.2. Overrides `bg-chat-canvas` above, which stays as the no-wallpaper answer and as the fallback for a hash the base83 pass rejects.
@@ -197,6 +197,7 @@ export function ChatScreen({
           isOpen={isPanelOpen}
           occurrences={upcoming.occurrences}
           todayKey={upcoming.todayKey}
+          now={upcoming.now}
           hasMore={upcoming.hasMore}
           isLoadingMore={upcoming.isLoadingMore}
           onLoadMore={upcoming.loadMore}

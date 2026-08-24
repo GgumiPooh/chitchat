@@ -96,6 +96,9 @@ export function composeEventNoticeBody(
       return `일정을 ${date}로 옮겼어요\n"${title ?? ""}"`;
     case "event_deleted":
       return `${date} 일정을 삭제했어요\n"${title ?? ""}"`;
+    // WARN: REQUIREMENTS.md § 16.3. A date and never a countdown — this row is scrolled past long after it was posted, where `2시간 뒤` goes on saying so forever. The push banner carries the remaining minutes because it is read once.
+    case "event_reminder":
+      return `${date} 일정이 다가왔어요\n"${title ?? ""}"`;
     default:
       return "";
   }
@@ -110,7 +113,12 @@ export function composeEventNotice(
 ): string {
   const body = composeEventNoticeBody(action, title, startsAt);
 
-  return body && name ? `${name}님이 ${body}` : body;
+  // WARN: REQUIREMENTS.md § 16.3. The reminder has no actor — its `sender_id` is only the event's author, and naming them would say they did something they did not.
+  if (!body || !name || action === "event_reminder") {
+    return body;
+  }
+
+  return `${name}님이 ${body}`;
 }
 
 const DAY_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;

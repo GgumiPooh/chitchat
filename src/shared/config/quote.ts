@@ -29,6 +29,8 @@ export type QuoteThumbnail =
   | { kind: "media"; mediaId: string }
   // WARN: REQUIREMENTS.md § 13.4. The version travels with the id, because `toEmoticonAssetUrl` cannot address an edited item without it — the edit swaps the object behind an unchanged id and the redirect in front of it is cached.
   | { kind: "emoticon"; itemId: string; version: number }
+  // INFO: REQUIREMENTS.md § 8.9. The scraped card's own image, which is a third-party URL rendered directly rather than an `/api/media` object (§ 9.).
+  | { kind: "link"; imageUrl: string }
   // INFO: REQUIREMENTS.md § 10. The attachment was destroyed from 보관함 and there is no object left to draw; the tile is still there, and it is the same 32px box the other two fill (§ 8.3.).
   | { kind: "deleted" };
 
@@ -48,6 +50,8 @@ export function toQuoteThumbnail(
   attachments: QuotedAttachment[],
   // INFO: REQUIREMENTS.md § 13. A mini sent alone carries no `emoticon_item_id` — it lives in `text` as one `OBJECT_PLACEHOLDER` — so the caller resolves it separately and hands it here as the same `{id, version}` shape.
   soloInlineEmoticon: Nullable<QuotedEmoticon> = null,
+  // INFO: REQUIREMENTS.md § 8.9. Resolved by the caller — the scrape cache is a table on the server and a query cache in the browser, and neither is reachable from here.
+  linkImageUrl: Nullable<string> = null,
 ): Nullable<QuoteThumbnail> {
   // INFO: REQUIREMENTS.md § 6. A row carries one payload or the other, so the order settles nothing — an emoticon message has no attachments to reach the test below.
   const resolved = emoticon ?? soloInlineEmoticon;
@@ -58,7 +62,11 @@ export function toQuoteThumbnail(
       : { kind: "emoticon", itemId: resolved.id, version: resolved.version };
   }
 
-  return toAttachmentThumbnail(attachments[0]);
+  // INFO: § 8.9. Last, so a bubble that carries both draws its own art rather than the page it linked to.
+  return (
+    toAttachmentThumbnail(attachments[0]) ??
+    (linkImageUrl ? { kind: "link", imageUrl: linkImageUrl } : null)
+  );
 }
 
 /**

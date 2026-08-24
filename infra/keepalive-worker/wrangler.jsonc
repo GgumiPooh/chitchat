@@ -1,0 +1,9 @@
+{
+  "name": "chitchat-keepalive",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-24",
+  // INFO: Mondays 03:00 UTC — 12:00 KST. Cloudflare reads cron as UTC. Weekly against a 60-day budget leaves eight missed runs of slack, where daily would put 365 commits a year in the history for the same effect.
+  "triggers": { "crons": ["0 3 * * 1"] },
+  // INFO: REQUIREMENTS.md § 12.4. A failure here is invisible everywhere else, so the logs are the only place it surfaces.
+  "observability": { "enabled": true },
+}

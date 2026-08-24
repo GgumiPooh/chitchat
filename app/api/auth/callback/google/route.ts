@@ -7,10 +7,11 @@ import {
   isAllowedEmail,
   readOAuthCookies,
   setSessionCookie,
+  takePostLoginRoute,
   toDeviceLabel,
   verifyGoogleIdToken,
 } from "@/shared/auth";
-import { HOME_ROUTE, LOGIN_ROUTE } from "@/shared/config";
+import { LOGIN_ROUTE } from "@/shared/config";
 import type { NextRequest } from "next/server";
 
 // INFO: REQUIREMENTS.md § 14. The login screen turns these into Korean copy; nothing internal is exposed.
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
 
     await setSessionCookie(token);
 
-    return redirectTo(HOME_ROUTE);
+    return redirectTo(await takePostLoginRoute());
   } catch (error) {
     // INFO: The user only ever sees the generic Korean copy (REQUIREMENTS.md § 14.), so without this a failed login is undiagnosable.
     console.error("Google OAuth callback failed", error);
