@@ -1440,16 +1440,6 @@ export function ChatRoom({
                 onSend={({ text, emoticons }) => submit(text, emoticons)}
               />
               {/* INFO: REQUIREMENTS.md § 13.6. The sheet stands in the keyboard's slot under the composer, inside the same wrapper so the history is cleared by both and scrolls under both. */}
-              {/* WARN: A real `height` and never a `0fr`→`1fr` grid track. Mid-transition Chrome sizes such a track's container taller than the track it resolved, and the strip below the bottom-anchored sheet is a gap that opens and shuts. */}
-              {/* INFO: § 13.6. An empty spacer: it is what `useComposerClearance` measures and what `settleAfterPanelTransition` listens to, and it only ever moves inset ↔ rest — the drawn sheet below is absolute, so expanding it moves nothing here. */}
-              <div
-                className={cn(
-                  "transition-[height] duration-200 ease-out",
-                  isEmoticonPanelOpen ? "h-(--emoticon-sheet-rest-height)" : "h-(--bottom-inset)",
-                )}
-                style={{ ["--emoticon-sheet-rest-height" as string]: emoticonSheetRestHeight }}
-                onTransitionEnd={settleAfterPanelTransition}
-              />
               {/* INFO: § 13.6. The clip: bottom-anchored at the screen's edge, which is the wrapper's own, `z-10` over the composer, its height 0 ↔ the sheet's so the card inside rises behind it on open and is clipped on close. Above rest it just draws taller. */}
               {/* INFO: § 13.6. The spring is the upward expand's alone — `ease-sheet` peaks 3% over, so the card pokes a few px under the header's glass and settles, where a `max-height` would stop it flat. Every other move keeps the 200ms ease-out, and a drag follows the finger. */}
               {/* WARN: The sheet stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until `inert` takes them back out. */}
@@ -1510,6 +1500,17 @@ export function ChatRoom({
               </div>
             </>
           </div>
+          {/* WARN: REQUIREMENTS.md § 8.6. Outside the hidden stack, or the inset goes with the composer and the search bar sits `--bar-lift` lower than the strip it swaps for (DESIGN.md § 6.8.). */}
+          {/* WARN: A real `height` and never a `0fr`→`1fr` grid track. Mid-transition Chrome sizes such a track's container taller than the track it resolved, and the strip below the bottom-anchored sheet is a gap that opens and shuts. */}
+          {/* INFO: § 13.6. An empty spacer: it is what `useComposerClearance` measures and what `settleAfterPanelTransition` listens to, and it only ever moves inset ↔ rest — the drawn sheet below is absolute, so expanding it moves nothing here. */}
+          <div
+            className={cn(
+              "transition-[height] duration-200 ease-out",
+              isEmoticonPanelOpen ? "h-(--emoticon-sheet-rest-height)" : "h-(--bottom-inset)",
+            )}
+            style={{ ["--emoticon-sheet-rest-height" as string]: emoticonSheetRestHeight }}
+            onTransitionEnd={settleAfterPanelTransition}
+          />
         </div>
       </div>
       <ActionSheet
