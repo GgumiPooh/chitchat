@@ -3,7 +3,7 @@ import { cn, toDayKey, type Nullable } from "@/shared/lib";
 import { HapticTap } from "@/shared/ui";
 import { EventDot, EventMemo } from "@/widgets/calendar-month";
 import { CalendarClock, ChevronDown } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { formatUpcomingWhen } from "../model/format-event";
 
 // INFO: A constant rather than `useId`, because the card renders once per screen and the value has to be readable in two places.
@@ -38,8 +38,38 @@ export function UpcomingCard({
   const listRef = useRef<HTMLUListElement>(null);
   // INFO: How many rows stood before the page in flight was asked for — its first new row is that index.
   const pendingFrom = useRef<Nullable<number>>(null);
+  const moreRef = useRef<HTMLButtonElement>(null);
+  // INFO: The 더 보기 row's height while it is standing, so the list can take that height over the moment it goes.
+  const standingMoreHeight = useRef(0);
   // INFO: REQUIREMENTS.md § 11.5.1. The list's own height at the moment of the first 더 보기, held from then on.
   const [lockedHeight, setLockedHeight] = useState<Nullable<number>>(null);
+
+  /**
+   * WARN: DESIGN.md § 7.9. The **list** absorbs the 더 보기 row when the last page
+   * lands, growing by exactly its height. § 11.5.1.'s panel does the opposite and
+   * lets the row leave, because it floats over a conversation with nothing beneath
+   * it — here the month grid is directly below, so a card that shrank would pull the
+   * whole screen up under a reader who had just pressed a button.
+   *
+   * WARN: A layout effect, or the frame between the row unmounting and the height
+   * being restored paints the shrunken card and the grid jumps and comes back.
+   */
+  useLayoutEffect(() => {
+    if (moreRef.current) {
+      standingMoreHeight.current = moreRef.current.getBoundingClientRect().height;
+
+      return;
+    }
+
+    const absorbed = standingMoreHeight.current;
+
+    standingMoreHeight.current = 0;
+
+    // INFO: Only while pinned. Unpinned the section is already sized to its rows, and the count changing is what took the button away — there is no press to hold the screen still for.
+    setLockedHeight((current) =>
+      current === null || absorbed === 0 ? current : current + absorbed,
+    );
+  }, [hasMore]);
 
   // WARN: Held until the page has actually landed. `limit` steps on the press and reveals the one row already in hand, so the list grows by **one** first — moved on that render the scroll is computed against a list a page short, clamps to its bottom, and the rows that follow arrive under a reader who has been left where they started.
   // INFO: The row to move to is fixed at the press, and the ref is cleared on use — a refresh landing later also grows the list and must not scroll the reader a second time.
@@ -125,6 +155,7 @@ export function UpcomingCard({
         )}
         {hasMore && (
           <button
+            ref={moreRef}
             className="flex w-full cursor-pointer items-center justify-center gap-2xs border-t border-hairline py-sm text-caption text-meta transition-colors outline-none hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-60"
             type="button"
             disabled={isLoadingMore}

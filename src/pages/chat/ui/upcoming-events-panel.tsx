@@ -122,7 +122,8 @@ export function UpcomingEventsPanel({
       aria-labelledby={HEADING_ID}
     >
       {/* INFO: DESIGN.md § 3.5. `glass`, the surface every floating thing in this app wears — the conversation carries on beneath it and has to stay legible as it does. */}
-      <div className="flex flex-col overflow-hidden rounded-md border border-hairline glass shadow-floating">
+      {/* WARN: DESIGN.md § 3.4. Capped against the screen it hangs in, and not left to the pinning below — the list is a scroller only once 더 보기 has pinned it, so an unpinned one grows a row per event and runs off the bottom of a box that is sized to the visual viewport. The two terms are what it hangs between: the header it starts under, and the composer `--bottom-inset` holds up. */}
+      <div className="flex max-h-[calc(var(--chat-screen-height)-var(--app-header-inset)-var(--bottom-inset))] flex-col overflow-hidden rounded-md border border-hairline glass shadow-floating">
         <div className="flex shrink-0 items-center justify-between gap-xs border-b border-hairline py-2xs pr-2xs pl-md">
           <h2 className="text-title-sm text-meta" id={HEADING_ID}>
             다가오는 일정
@@ -147,10 +148,8 @@ export function UpcomingEventsPanel({
           // WARN: The **list** is what is measured and pinned. Pressing 더 보기 must not resize it under the finger, and the button leaving must take its own row off the panel rather than being handed to the list — pinning the card answers the first and not the second.
           <ul
             ref={listRef}
-            className={cn(
-              "shrink-0 divide-y divide-hairline",
-              lockedHeight !== null && "scrollbar-hidden overflow-y-auto overscroll-contain",
-            )}
+            // WARN: The scroller is unconditional, where the pinned height is not. `min-h-0` is what lets the cap above reach it — a flex child's floor is its content, so without it the card overflows instead of the list scrolling.
+            className="scrollbar-hidden min-h-0 divide-y divide-hairline overflow-y-auto overscroll-contain"
             style={lockedHeight === null ? undefined : { height: lockedHeight }}
           >
             {occurrences.map((occurrence) => (
