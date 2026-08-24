@@ -50,6 +50,8 @@ type FormState = {
   dayKey: string;
   /** Bumped per opening, because `EventFormSheet` seeds its draft once — at mount. */
   token: number;
+  /** WARN: A flag rather than dropping the state — the sheet stays mounted through its slide-down, which unmounting would cut short. */
+  isOpen: boolean;
 };
 
 export function CalendarPage({
@@ -238,10 +240,10 @@ export function CalendarPage({
       {form && (
         <EventFormSheet
           key={form.token}
-          isOpen
+          isOpen={form.isOpen}
           dayKey={form.dayKey}
           occurrence={null}
-          onClose={() => setForm(null)}
+          onClose={() => setForm((previous) => previous && { ...previous, isOpen: false })}
           onSaved={() => void reloadCurrent()}
         />
       )}
@@ -303,7 +305,7 @@ export function CalendarPage({
   }
 
   function openForm(dayKey: string) {
-    setForm((previous) => ({ dayKey, token: (previous?.token ?? 0) + 1 }));
+    setForm((previous) => ({ dayKey, token: (previous?.token ?? 0) + 1, isOpen: true }));
   }
 
   async function reloadCurrent() {

@@ -75,6 +75,8 @@ export function ChatScreen({
   const [detailed, setDetailed] = useState<Nullable<EventOccurrence>>(null);
   // INFO: REQUIREMENTS.md § 11.4. The composer's 일정 row lands here, and `null` is "no form up" — a token because `EventFormSheet` seeds its draft once, at mount.
   const [formToken, setFormToken] = useState<Nullable<number>>(null);
+  // WARN: Closing clears this and not the token — the sheet stays mounted through its slide-down, which unmounting would cut short.
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const { participants, chatBackgroundBlurhash } = useChatStream();
   const router = useRouter();
 
@@ -88,6 +90,11 @@ export function ChatScreen({
       router.push(CALENDAR_ROUTE);
     }
   }, [router]);
+
+  function openForm() {
+    setFormToken((token) => (token ?? 0) + 1);
+    setIsFormOpen(true);
+  }
 
   const closeUpcoming = useCallback(() => {
     setIsUpcomingOpen(false);
@@ -214,10 +221,10 @@ export function ChatScreen({
       {formToken !== null && (
         <EventFormSheet
           key={formToken}
-          isOpen
+          isOpen={isFormOpen}
           dayKey={upcoming.todayKey}
           occurrence={null}
-          onClose={() => setFormToken(null)}
+          onClose={() => setIsFormOpen(false)}
           onSaved={upcoming.reload}
         />
       )}
@@ -241,7 +248,7 @@ export function ChatScreen({
             />
           ) : undefined
         }
-        onAddEvent={() => setFormToken((token) => (token ?? 0) + 1)}
+        onAddEvent={openForm}
       />
       {search.isOpen && search.isListOpen && (
         <MessageSearchResults
