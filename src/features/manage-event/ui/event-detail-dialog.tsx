@@ -121,7 +121,7 @@ export function EventDetailDialog({
             {shown.event.description?.trim() && (
               <Row label="메모">
                 {/* INFO: In full and never clamped — this dialog is what the list's two-line clamp leads to. */}
-                <span className="block text-body-md whitespace-pre-line text-ink">
+                <span className="block text-body-md wrap-anywhere [word-break:normal] whitespace-pre-line text-ink">
                   {shown.event.description.trim()}
                 </span>
               </Row>
