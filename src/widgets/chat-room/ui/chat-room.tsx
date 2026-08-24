@@ -208,6 +208,8 @@ export type ChatRoomProps = {
    * `useUnsentWork` hold that stops § 15.1. reloading the tab over it.
    */
   bottomBar?: ReactNode;
+  /** REQUIREMENTS.md § 11.4. Opens 새 일정 from the attach sheet's 일정 row; the screen owns the form, as it owns `EventDetailDialog`. */
+  onAddEvent?: () => void;
 };
 
 // INFO: § 13.6. The ceiling the emoticon panel's mount is given, matching the warm's own — the two are the same idle frame and a panel that mounted first would build its cells against an empty cache.
@@ -262,6 +264,7 @@ export function ChatRoom({
   initialJumpMessageId,
   searchQuery,
   bottomBar,
+  onAddEvent,
 }: ChatRoomProps) {
   const containerRef = useRef<Nullable<HTMLDivElement>>(null);
   const composerRef = useRef<Nullable<HTMLDivElement>>(null);
@@ -1570,6 +1573,7 @@ export function ChatRoom({
         hasFileRow
         onClose={() => setIsPickerOpen(false)}
         onRecordVoice={() => setIsRecording(true)}
+        onAddEvent={onAddEvent}
         onSelect={(files) => void stageMedia(files)}
       />
       {editing.cropping && (

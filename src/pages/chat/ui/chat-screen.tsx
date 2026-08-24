@@ -7,7 +7,7 @@ import {
   rememberInlineEmoticons,
   useChatStream,
 } from "@/features/chat-stream";
-import { EventDetailDialog } from "@/features/manage-event";
+import { EventDetailDialog, EventFormSheet } from "@/features/manage-event";
 import {
   MessageSearchBar,
   MessageSearchNav,
@@ -73,6 +73,8 @@ export function ChatScreen({
   const isPanelOpen = isUpcomingOpen || imminent.isPrompted;
   // INFO: REQUIREMENTS.md § 11.5.1. A row opens the event here rather than crossing to 캘린더 — the question the panel answers is "when is that again", and a tab change to read a memo loses the conversation.
   const [detailed, setDetailed] = useState<Nullable<EventOccurrence>>(null);
+  // INFO: REQUIREMENTS.md § 11.4. The composer's 일정 row lands here, and `null` is "no form up" — a token because `EventFormSheet` seeds its draft once, at mount.
+  const [formToken, setFormToken] = useState<Nullable<number>>(null);
   const { participants, chatBackgroundBlurhash } = useChatStream();
   const router = useRouter();
 
@@ -208,6 +210,16 @@ export function ChatScreen({
         onClose={() => setDetailed(null)}
         onChanged={upcoming.reload}
       />
+      {formToken !== null && (
+        <EventFormSheet
+          key={formToken}
+          isOpen
+          dayKey={upcoming.todayKey}
+          occurrence={null}
+          onClose={() => setFormToken(null)}
+          onSaved={upcoming.reload}
+        />
+      )}
       <ChatRoom
         currentUserId={currentUserId}
         initialMessages={initialMessages}
@@ -228,6 +240,7 @@ export function ChatScreen({
             />
           ) : undefined
         }
+        onAddEvent={() => setFormToken((token) => (token ?? 0) + 1)}
       />
       {search.isOpen && search.isListOpen && (
         <MessageSearchResults

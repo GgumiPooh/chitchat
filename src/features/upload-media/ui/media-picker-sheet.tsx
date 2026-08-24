@@ -1,7 +1,7 @@
 "use client";
 
 import { ActionSheet, type ActionSheetItem } from "@/shared/ui";
-import { FileUp, Images, Mic } from "lucide-react";
+import { CalendarPlus, FileUp, Images, Mic } from "lucide-react";
 import { FILE_ACCEPT, MEDIA_ACCEPT, useMediaPicker } from "../model/use-media-picker";
 
 export type MediaPickerSheetProps = {
@@ -22,6 +22,8 @@ export type MediaPickerSheetProps = {
    * `field-sizing-content`.
    */
   onRecordVoice?: () => void;
+  /** REQUIREMENTS.md § 11.4. Offers 일정, which opens the event form rather than anything attachable. Chat alone sets it. */
+  onAddEvent?: () => void;
   onClose: () => void;
   onSelect: (files: File[]) => void;
 };
@@ -44,6 +46,7 @@ export function MediaPickerSheet({
   isMultiple = true,
   hasFileRow = false,
   onRecordVoice,
+  onAddEvent,
   onClose,
   onSelect,
 }: MediaPickerSheetProps) {
@@ -72,9 +75,14 @@ export function MediaPickerSheet({
       items.push({ label: "파일", Icon: FileUp, onSelect: file.open });
     }
 
-    // INFO: REQUIREMENTS.md § 9.3. Last, because the two above open a picker and this one opens the microphone — the odd one out belongs at the end rather than between them.
+    // INFO: REQUIREMENTS.md § 9.3. After the two above, because they open a picker and this one opens the microphone — the odd one out belongs below them rather than between them.
     if (onRecordVoice) {
       items.push({ label: "음성", Icon: Mic, onSelect: onRecordVoice });
+    }
+
+    // INFO: REQUIREMENTS.md § 11.4. Below the three, because nothing is attached to the message — the row writes a calendar event and leaves the draft alone.
+    if (onAddEvent) {
+      items.push({ label: "일정", Icon: CalendarPlus, onSelect: onAddEvent });
     }
 
     return items;
