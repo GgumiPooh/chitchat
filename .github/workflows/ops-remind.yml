@@ -1,0 +1,29 @@
+name: Ops — event reminders
+
+# REQUIREMENTS.md § 16.3. Raises the 7일 / 1일 / 2시간 전 banners for upcoming calendar events.
+# Every threshold is taken by an UPDATE on `events.notified_at` before it is sent, so a run
+# that overlaps, repeats or arrives late cannot send one twice.
+
+on:
+  schedule:
+    # WARN: Ten minutes is what is asked for, not what is delivered — see ops-purge.yml.
+    # The 2시간 banner therefore lands anywhere from 2시간 10분 to under two hours ahead,
+    # which is why it counts the real remaining time rather than naming a fixed figure.
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# INFO: Never cancelled. A run holding claims it has not sent yet would leave them for the next run to retry, but cancelling mid-push is still a banner nobody asked to lose.
+concurrency:
+  group: ops-remind-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    uses: ./.github/workflows/ops-job.yml
+    with:
+      script: ops:remind
+      timeout-minutes: 10
+    secrets: inherit

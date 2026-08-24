@@ -7,13 +7,13 @@ name: Ops — shared runner
 # INFO: `workflow_call` and nothing else, so this has no Run workflow button of its own and
 # never appears as a run in its own right — the Actions sidebar lists every file in this
 # directory regardless, and the name is what says so. Its steps show up nested under
-# whichever of ops-backup / ops-purge / ops-sweep called it.
+# whichever of ops-backup / ops-purge / ops-sweep / ops-remind called it.
 
 on:
   workflow_call:
     inputs:
       script:
-        description: Which package script to run — ops:backup, ops:purge or ops:sweep
+        description: Which package script to run — ops:backup, ops:purge, ops:sweep or ops:remind
         required: true
         type: string
       timeout-minutes:
