@@ -849,6 +849,15 @@ export function MediaViewer({
       return;
     }
 
+    // WARN: DESIGN.md § 7.10. While a clip plays a tap only puts the chrome away, never back — whether the platform's controls are up cannot be read, so a toggle runs against them half the time. Pausing is what brings it back.
+    const player = target.closest("video");
+
+    if (player && !player.paused) {
+      setIsChromeVisible(false);
+
+      return;
+    }
+
     setIsChromeVisible((visible) => !visible);
   }
 
