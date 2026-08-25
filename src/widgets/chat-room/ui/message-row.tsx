@@ -189,12 +189,16 @@ export function MessageRow({
   const inline = toInlineContent(text, inlineEmoticonItemIds);
   const soloInfo = inline.kind === "solo" ? inlineEmoticons?.[inline.itemId] : undefined;
   // INFO: The id and its box together, so the branch below needs no re-narrowing of `inline` to reach either.
+  // WARN: REQUIREMENTS.md § 8.17. `isCollapsed` closes this at the source rather than only in `hasArt` — the branch below tests `soloEmoticon` itself, and a folded lone mini would draw its picture where the estimate priced one clamped line.
   const soloEmoticon =
-    inline.kind === "solo" && soloInfo ? { itemId: inline.itemId, info: soloInfo } : undefined;
+    !isCollapsed && inline.kind === "solo" && soloInfo
+      ? { itemId: inline.itemId, info: soloInfo }
+      : undefined;
   const soloBox = soloEmoticon ? toSoloEmoticonBox(soloEmoticon.info) : undefined;
   // WARN: § 8.3. The resolved box and not `inline.kind`. An id the page's map does not carry has nothing to draw large, so it falls through to the bubble below — and a row that still called itself bubble-less would quote twice and be priced at a picture it never draws.
   // WARN: REQUIREMENTS.md § 8.17. `estimateRowHeight`'s own rule — a folded row is the ordinary text bubble whatever its content would otherwise draw, so every art and link branch below is closed for one.
   const hasArt = !isCollapsed && (Boolean(emoticon) || hasMedia || Boolean(soloEmoticon));
+
   const linkOnlyUrl = hasArt || isCollapsed ? null : toLinkOnlyUrl(text, inline);
   // WARN: § 8.3. A subscription where the estimate makes a cache read, and on purpose: a link-only row priced as a bubble before the scrape answered re-renders as the card the moment it does, which is a re-measure the virtualizer compensates — a row drawing one thing while the estimate prices another is not.
   const { data: linkOnlyPreview } = useQuery({

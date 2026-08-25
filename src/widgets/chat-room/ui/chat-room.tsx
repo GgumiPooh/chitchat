@@ -160,7 +160,7 @@ import { flushSync } from "react-dom";
 import { requestMessageCollapse } from "../api/request-message-collapse";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { requestMessageEdit } from "../api/request-message-edit";
-import { buildChatRows, isRowCollapsed } from "../model/build-chat-rows";
+import { buildChatRows } from "../model/build-chat-rows";
 import { toChromeTint } from "../model/chrome-tint";
 import {
   ROW_LINE_CLASSES,
@@ -355,8 +355,6 @@ export function ChatRoom({
   const [actionTarget, setActionTarget] = useState<Nullable<ChatMessage>>(null);
   // INFO: REQUIREMENTS.md § 8.16. The whole of whichever bubble the reader tapped through its 전체보기, held as its own content rather than as a message id — a § 8.5. outbox row carries emoticons the room's map has not learned yet.
   const [expandedBody, setExpandedBody] = useState<Nullable<ExpandedBody>>(null);
-  // INFO: REQUIREMENTS.md § 8.17. Rows this reader has unfolded in place. Deliberately not written back — the fold is shared, and a tap meant "let me read this one" rather than "unfold it for both of us", which is what the sheet's own 펼치기 is for.
-  const [expandedIds, setExpandedIds] = useState<ReadonlySet<MessageId>>(() => new Set());
   // INFO: AGENTS.md § 4.1. The bubble a hold or right-click opened the menu on, for the desktop `Popover`'s anchor.
   const menuAnchorRef = useRef<Nullable<HTMLElement>>(null);
   // INFO: DESIGN.md § 7.5. Where the hold or right-click fired, so the menu is pinned to the pointer rather than to the whole bubble — a bubble taller than the visible area cannot carry a below-anchored menu off screen.
@@ -762,8 +760,8 @@ export function ChatRoom({
     ? generationEntries.length - 1
     : generationEntries.length;
   const rows = useMemo(
-    () => buildChatRows({ messages, pending, currentUserId, expandedIds }),
-    [messages, pending, currentUserId, expandedIds],
+    () => buildChatRows({ messages, pending, currentUserId }),
+    [messages, pending, currentUserId],
   );
   // INFO: REQUIREMENTS.md § 8.8. Every participant's cursor but my own, which the § 8.4. stream already keeps current — the count lands without a request of its own.
   // INFO: Resolved once rather than per row: the count is a fold over this array, and it is the same array for every bubble in the room.
@@ -2832,7 +2830,7 @@ export function ChatRoom({
             }
             onFollowUp={() => stageReply(row.message)}
             onExpand={() => expandBody(row.message, true)}
-            onUnfold={() => unfoldLocally(row.message.id)}
+            onUnfold={() => void toggleCollapse(row.message.id)}
           />
         );
       }
@@ -2941,7 +2939,7 @@ export function ChatRoom({
             onFollowEmoticon={toFollowEmoticon(row.message.emoticon)}
             onArrivalSoundReady={() => settleArrivalSound(row.message.id)}
             onExpand={() => expandBody(row.message, false)}
-            onUnfold={() => unfoldLocally(row.message.id)}
+            onUnfold={() => void toggleCollapse(row.message.id)}
             onReply={() => stageReply(row.message)}
           />
         );
@@ -2956,44 +2954,25 @@ export function ChatRoom({
    * reader was holding it open would arrive folded and be drawn open, since the set
    * wins over the wire — and there would be nothing left to tap to fix it.
    */
-  async function toggleCollapse(message: ChatMessage) {
-    const isCollapsed = !isRowCollapsed(message, expandedIds);
+  async function toggleCollapse(id: MessageId) {
+    // WARN: REQUIREMENTS.md § 8.17. Resolved here and never captured. The action sheet holds the message it was opened on, and a fold that read *that* would toggle against a state two taps old — which is what left a bubble folded after 펼치기.
+    const message = messages.find((entry) => entry.id === id);
 
-    forgetLocalUnfold(message.id);
-
-    // INFO: § 8.17. Re-folding a row this reader had only unfolded in place is that unfold being dropped and nothing else — it is still folded for both, and there is no write to make.
-    if (message.isCollapsed === isCollapsed) {
+    if (!message) {
       return;
     }
+
+    const isCollapsed = !message.isCollapsed;
 
     // INFO: § 8.13.'s own local apply — `PATCH` answers 204, and the echo confirms a moment later.
     replaceMessage({ ...message, isCollapsed });
 
     try {
-      await requestMessageCollapse(message.id, isCollapsed);
+      await requestMessageCollapse(id, isCollapsed);
     } catch {
       replaceMessage(message);
       toast.error(isCollapsed ? "메시지를 접지 못했어요" : "메시지를 펼치지 못했어요");
     }
-  }
-
-  // INFO: § 8.17. This reader alone, and only until the row is folded again — `collapsed_at` is untouched.
-  function unfoldLocally(id: MessageId) {
-    setExpandedIds((previous) => new Set(previous).add(id));
-  }
-
-  function forgetLocalUnfold(id: MessageId) {
-    setExpandedIds((previous) => {
-      if (!previous.has(id)) {
-        return previous;
-      }
-
-      const next = new Set(previous);
-
-      next.delete(id);
-
-      return next;
-    });
   }
 
   // INFO: REQUIREMENTS.md § 8.16. A landed row draws its emoticons from the page's own map, whichever of the two kinds of bubble the tap came from — only § 8.5.'s outbox carries its own.
@@ -3245,9 +3224,9 @@ export function ChatRoom({
     // INFO: REQUIREMENTS.md § 8.17. Above the `system` return, since a long AI answer is what folding was built for — and on either participant's message, folding being curation of the shared timeline rather than a change to what anyone said.
     if (isAssistantReply || target.type === "text") {
       items.push({
-        label: isRowCollapsed(target, expandedIds) ? "펼치기" : "접기",
-        Icon: isRowCollapsed(target, expandedIds) ? ChevronsUpDown : ChevronsDownUp,
-        onSelect: () => void toggleCollapse(target),
+        label: target.isCollapsed ? "펼치기" : "접기",
+        Icon: target.isCollapsed ? ChevronsUpDown : ChevronsDownUp,
+        onSelect: () => void toggleCollapse(target.id),
       });
     }
 

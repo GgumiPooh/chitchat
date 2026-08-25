@@ -1,6 +1,6 @@
 import type { ChatMessage } from "@/entities/message";
 import type { PendingMessage } from "@/features/send-message";
-import type { MessageId, UserId } from "@/shared/lib";
+import type { UserId } from "@/shared/lib";
 import { toDayKey, type Nullable } from "@/shared/lib";
 import type { ChatRow } from "./types";
 
@@ -8,8 +8,6 @@ export type BuildChatRowsParams = {
   messages: ChatMessage[];
   pending: PendingMessage[];
   currentUserId: UserId;
-  /** REQUIREMENTS.md § 8.17. Rows this reader has unfolded in place, which leaves `collapsed_at` alone and so is theirs alone. */
-  expandedIds: ReadonlySet<MessageId>;
 };
 
 type Entry = {
@@ -21,20 +19,6 @@ type Entry = {
 };
 
 /**
- * REQUIREMENTS.md § 8.17. Whether this reader sees the row folded — the message's own
- * flag less whatever they have unfolded in place.
- *
- * WARN: The action sheet reads this and not `message.isCollapsed`, or a row unfolded in
- * place offers 펼치기 over a bubble that is already open.
- */
-export function isRowCollapsed(
-  { isCollapsed, id }: ChatMessage,
-  expandedIds: ReadonlySet<MessageId>,
-): boolean {
-  return isCollapsed && !expandedIds.has(id);
-}
-
-/**
  * Flattens the conversation into the virtualizer's item list — date dividers,
  * system notices, and the grouping flags of DESIGN.md § 6.3.
  */
@@ -42,13 +26,10 @@ export function buildChatRows({
   messages,
   pending,
   currentUserId,
-  expandedIds,
 }: BuildChatRowsParams): ChatRow[] {
-  const isCollapsed = (message: ChatMessage) => isRowCollapsed(message, expandedIds);
-
   const entries: Entry[] = [
     ...messages.map((message) => ({
-      key: `m${message.id}:${toRowRevision(message, isCollapsed(message))}`,
+      key: `m${message.id}:${toRowRevision(message)}`,
       dayKey: toDayKey(message.createdAt),
       // INFO: DESIGN.md § 6.3. A group is one sender inside one clock minute; a `system` notice never joins one.
       groupKey: message.type === "system" ? null : toGroupKey(message.senderId, message.createdAt),
@@ -79,7 +60,7 @@ export function buildChatRows({
         key: entry.key,
         kind: "assistant",
         message: entry.message,
-        isCollapsed: isCollapsed(entry.message),
+        isCollapsed: entry.message.isCollapsed,
       });
 
       return;
@@ -112,7 +93,7 @@ export function buildChatRows({
         key: entry.key,
         kind: "message",
         message: entry.message,
-        isCollapsed: isCollapsed(entry.message),
+        isCollapsed: entry.message.isCollapsed,
         isMine: entry.message.senderId === currentUserId,
         isFirstOfGroup,
         isLastOfGroup,
@@ -143,11 +124,11 @@ function toGroupKey(senderId: UserId, createdAt: string): string {
  * quote's own text is deliberately absent, since § 6.10.'s box is two fixed lines
  * whatever it says.
  */
-function toRowRevision({ editedAt, isDeleted, replyTo }: ChatMessage, folded: boolean): string {
+function toRowRevision({ editedAt, isDeleted, replyTo, isCollapsed }: ChatMessage): string {
   // WARN: REQUIREMENTS.md § 8.13. First, and the widest swing of the three. A withdrawn photo message drops a whole media box for one line, so a row that kept its key here would sit on a cached height hundreds of pixels wrong until it next mounted.
   // INFO: DESIGN.md § 6.10. The quote is `max(thumbnail, two lines)`, so losing the thumbnail to a § 8.10. delete is a real change of height rather than only of wording.
   // WARN: Presence and not the asset's identity, because that is all the box is `max`ed against — an attachment tile and an emoticon tile are the same 32px, and the § 8.10. count beside them rides on a `truncate`d line that cannot grow.
   // WARN: REQUIREMENTS.md § 8.8.'s unread count is deliberately **not** here, although it is a line in the same § 6.3. stack that `editedAt` is. It is the one height input driven by the *other* participant's cursor, so folding it in remounts every bubble they have just read — restarting each emoticon's animation and re-decoding each attachment — where leaving it out costs a cached height one `chat-time` line stale on a row that is not mounted. The rows it can reach are the newest ones by construction, which are the ones on screen and therefore the ones the `ResizeObserver` already covers.
-  // WARN: REQUIREMENTS.md § 8.17. The **row's** answer and not the message's, so a fold this reader unfolded in place re-keys exactly as the server-side fold did. Left out, the virtualizer keeps the one-line height it cached and draws the whole answer inside it.
-  return `${isDeleted ? "d" : ""}:${editedAt ?? ""}:${replyTo?.thumbnail ? "t" : ""}:${folded ? "c" : ""}`;
+  // WARN: REQUIREMENTS.md § 8.17. A fold is the same order of swing a withdrawal is — a screenful of markdown for one line. Left out, the virtualizer keeps the height it cached and draws the other state inside it.
+  return `${isDeleted ? "d" : ""}:${editedAt ?? ""}:${replyTo?.thumbnail ? "t" : ""}:${isCollapsed ? "c" : ""}`;
 }
