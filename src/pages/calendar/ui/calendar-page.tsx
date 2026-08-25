@@ -16,7 +16,6 @@ import {
   UPCOMING_EVENTS_PAGE_SIZE,
 } from "@/shared/config";
 import {
-  cn,
   findHoliday,
   listMilestonesInRange,
   occursOnDay,
@@ -26,7 +25,7 @@ import {
   type Maybe,
   type Nullable,
 } from "@/shared/lib";
-import { AppHeader, Container, IconButton, toast } from "@/shared/ui";
+import { AppHeader, Container, IconButton, toast, TwoPane } from "@/shared/ui";
 import { CalendarMonth, toGridRange } from "@/widgets/calendar-month";
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -180,8 +179,28 @@ export function CalendarPage({
     (upcomingLimit < UPCOMING_EVENTS_CEILING && summary.upcoming.length > upcomingLimit);
 
   return (
-    <div className={cn("flex flex-1 flex-col", className)}>
+    <TwoPane
+      className={className}
+      panel={
+        // INFO: AGENTS.md § 4.1. D-day + month grid — hidden below `md`, where the mobile stack below carries the same two.
+        <div className="flex flex-col gap-md p-md">
+          <DDayBand summary={summary} />
+          <CalendarMonth
+            monthKey={monthKey}
+            startDate={summary.startDate}
+            todayKey={summary.todayKey}
+            selectedDayKey={selectedDayKey}
+            occurrences={occurrences}
+            holidays={holidays}
+            onMonthChange={changeMonth}
+            onSelectDay={selectDay}
+          />
+        </div>
+      }
+    >
       <AppHeader
+        className="motion-reduce:transition-none lg:left-(--content-left) lg:transition-[left] lg:duration-(--duration-route-enter) lg:ease-route"
+        hasSidePanel
         title="캘린더"
         trailing={
           <IconButton
@@ -195,7 +214,23 @@ export function CalendarPage({
       />
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
       <Container className="space-y-md py-md pt-[calc(var(--app-header-inset)+var(--spacing-md))]">
-        <DDayBand summary={summary} />
+        {/* INFO: AGENTS.md § 4.1. Today's stack, unchanged below `lg` — the panel above takes over at `lg` and this drops out. */}
+        <div className="space-y-md lg:hidden">
+          <DDayBand summary={summary} />
+          {/* INFO: DESIGN.md § 7.9. `scroll-mt` is what makes `scrollIntoView` clear the floating header (§ 7.12.) rather than parking the first week under it. */}
+          <div ref={gridRef} className="scroll-mt-(--app-header-inset)">
+            <CalendarMonth
+              monthKey={monthKey}
+              startDate={summary.startDate}
+              todayKey={summary.todayKey}
+              selectedDayKey={selectedDayKey}
+              occurrences={occurrences}
+              holidays={holidays}
+              onMonthChange={changeMonth}
+              onSelectDay={selectDay}
+            />
+          </div>
+        </div>
         {/* INFO: DESIGN.md § 7.9. Under the band and above the grid, which is affordable because the list is capped and always drawn — it no longer varies between nothing and three rows. */}
         <UpcomingCard
           occurrences={summary.upcoming.slice(0, upcomingLimit)}
@@ -205,19 +240,6 @@ export function CalendarPage({
           onLoadMore={expandUpcoming}
           onSelect={selectDayFromUpcoming}
         />
-        {/* INFO: DESIGN.md § 7.9. `scroll-mt` is what makes `scrollIntoView` clear the floating header (§ 7.12.) rather than parking the first week under it. */}
-        <div ref={gridRef} className="scroll-mt-(--app-header-inset)">
-          <CalendarMonth
-            monthKey={monthKey}
-            startDate={summary.startDate}
-            todayKey={summary.todayKey}
-            selectedDayKey={selectedDayKey}
-            occurrences={occurrences}
-            holidays={holidays}
-            onMonthChange={changeMonth}
-            onSelectDay={selectDay}
-          />
-        </div>
         <DayAgenda
           dayKey={selectedDayKey}
           isLoading={isLoadingMonth}
@@ -228,6 +250,17 @@ export function CalendarPage({
           onCreate={() => openForm(selectedDayKey)}
           onSelect={setDetailed}
         />
+        {/* INFO: AGENTS.md § 4.1. The desktop form — a sheet becomes a `Modal` at `md` (§ 4.1.'s exception is chat), so calendar renders it inline under the agenda instead. */}
+        {form && (
+          <EventFormSheet
+            key={form.token}
+            isOpen={form.isOpen}
+            dayKey={form.dayKey}
+            occurrence={null}
+            onClose={() => setForm((previous) => previous && { ...previous, isOpen: false })}
+            onSaved={() => void reloadCurrent()}
+          />
+        )}
       </Container>
 
       <EventDetailDialog
@@ -236,18 +269,7 @@ export function CalendarPage({
         onClose={() => setDetailed(null)}
         onChanged={() => void reloadCurrent()}
       />
-
-      {form && (
-        <EventFormSheet
-          key={form.token}
-          isOpen={form.isOpen}
-          dayKey={form.dayKey}
-          occurrence={null}
-          onClose={() => setForm((previous) => previous && { ...previous, isOpen: false })}
-          onSaved={() => void reloadCurrent()}
-        />
-      )}
-    </div>
+    </TwoPane>
   );
 
   /**

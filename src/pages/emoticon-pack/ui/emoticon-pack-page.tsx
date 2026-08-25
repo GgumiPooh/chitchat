@@ -28,7 +28,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 /** REQUIREMENTS.md § 13.8.1. What a 429 from Google is told to the user as. */
 const RATE_LIMIT_MESSAGES: Record<KeywordRateLimit, string> = {
@@ -76,6 +76,8 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   const [selectedId, setSelectedId] = useState<Nullable<EmoticonItemId>>(null);
   // WARN: § 13.8.1. A fraction, deliberately **not** § 13.4.'s countdown. That convention counts what is left because its grid gains rows as files land, so a fixed total would contradict them — here the items already exist and only their keywords are filling in, so the total is settled before the first batch and saying it is the more useful half.
   const [tagging, setTagging] = useState<Nullable<{ done: number; total: number }>>(null);
+  // INFO: AGENTS.md § 4.1. `ActionSheet`'s desktop anchor for the header's 추가 menu.
+  const addButtonRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
   // INFO: § 13.4. 여러 장 한 번에 추가 already names what it takes, so the row opens the album picker itself rather than a second sheet with one row in it.
   const picker = useMediaPicker({ accept: "image/*", isMultiple: true, onSelect: handlePick });
@@ -90,7 +92,9 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   const untagged = items.filter((item) => item.keywords.length === 0);
 
   return (
-    <div className={cn("flex flex-1 flex-col", className)}>
+    <div
+      className={cn("mx-auto flex w-full max-w-(--content-max-width) flex-1 flex-col", className)}
+    >
       <AppHeader
         title={pack.name}
         leading={
@@ -107,6 +111,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
         trailing={
           // WARN: § 13.4. Closed for as long as a pile is landing, and it is the only way into `addMany` — a second batch would run its own registration chain, interleaving two picks in one `sort_order` sequence, and `setAddingCount(files.length)` is an absolute write that the overlap would corrupt.
           <IconButton
+            ref={addButtonRef}
             variant="floating"
             Icon={Plus}
             haptic
@@ -170,6 +175,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
       {/* INFO: § 13.4. Two ways in: the authoring sheet, where one item gets a crop and a sound, or a pile of images that skips both. */}
       <ActionSheet
         isOpen={isAddMenuOpen}
+        anchorRef={addButtonRef}
         header={{ title: `${kindNoun} 추가` }}
         items={[
           { label: "하나씩 추가", Icon: Plus, onSelect: () => setIsFormOpen(true) },

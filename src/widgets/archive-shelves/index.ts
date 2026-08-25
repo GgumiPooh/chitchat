@@ -1,4 +1,11 @@
 export { deleteArchiveMedia, type ArchiveRemovalResult } from "./api/delete-archive-media";
+export { ARCHIVE_GRID_COLUMNS } from "./model/to-archive-rows";
+export {
+  toArchiveSections,
+  toMonthAnchorId,
+  type ArchiveSection,
+} from "./model/to-archive-sections";
+export { useArchiveColumns } from "./model/use-archive-columns";
 export { useArchiveMedia } from "./model/use-archive-media";
 // INFO: § 18. #1. 삭제 and its confirmation, shared by all three shelves so the copy in front of an irreversible act cannot drift between them.
 export {
@@ -9,7 +16,9 @@ export {
 export { useArchiveSelection, type ArchiveSelectionOptions } from "./model/use-archive-selection";
 export { useArchiveUpload } from "./model/use-archive-upload";
 // INFO: REQUIREMENTS.md § 9.2. The drop, the tray and the 보내기 under it, shared by all three shelves so the refusal rules cannot drift between them.
+export type { ArchiveColumnCount } from "./model/use-pinch-columns";
 export { useShelfStaging, type ShelfStagingParams } from "./model/use-shelf-staging";
+export { ArchiveColumnsSheet, type ArchiveColumnsSheetProps } from "./ui/archive-columns-sheet";
 export { ArchiveFileList, type ArchiveFileListProps } from "./ui/archive-file-list";
 export { ArchiveGrid, type ArchiveGridProps } from "./ui/archive-grid";
 export { ArchiveSelectionBar, type ArchiveSelectionBarProps } from "./ui/archive-selection-bar";

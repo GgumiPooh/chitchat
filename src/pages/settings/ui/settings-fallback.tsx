@@ -61,12 +61,14 @@ export function SettingsFallback({ className }: SettingsFallbackProps) {
         <Skeleton className="size-18 rounded-full" />
         <Skeleton className="h-[1lh] w-24 text-title-md" />
       </div>
-      {ROWS.map(({ key, trailing }) => (
-        <SettingsRowSkeleton key={key} trailing={trailing} />
-      ))}
-      {/* INFO: DESIGN.md § 7.1. 로그아웃 is a `w-auto` `Button`, so `min-h-12` at `rounded-md` in the row it is centred in. */}
-      <div className="flex justify-center p-md" aria-hidden>
-        <Skeleton className="h-12 w-24 rounded-md" />
+      <div className="mx-auto flex w-full max-w-(--content-max-width) flex-col">
+        {ROWS.map(({ key, trailing }) => (
+          <SettingsRowSkeleton key={key} trailing={trailing} />
+        ))}
+        {/* INFO: DESIGN.md § 7.1. 로그아웃 is a `w-auto` `Button`, so `min-h-12` at `rounded-md` in the row it is centred in. */}
+        <div className="flex justify-center p-md" aria-hidden>
+          <Skeleton className="h-12 w-24 rounded-md" />
+        </div>
       </div>
     </div>
   );

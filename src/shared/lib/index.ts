@@ -124,6 +124,7 @@ export { useDocumentBackground } from "./hooks/use-document-background";
 export { useHydrated } from "./hooks/use-hydrated";
 export { useInertialStrip, type InertialStripOptions } from "./hooks/use-inertial-strip";
 export { useIsCoarsePointer, useIsFinePointer } from "./hooks/use-is-coarse-pointer";
+export { useIsDesktop } from "./hooks/use-is-desktop";
 export { isIos, useIsIos } from "./hooks/use-is-ios";
 export { useIsOffline } from "./hooks/use-is-offline";
 export { isStandalone, useIsStandalone } from "./hooks/use-is-standalone";
@@ -140,14 +141,18 @@ export {
   type LongPressPoint,
 } from "./hooks/use-long-press";
 export { OPEN_OVERLAY_SELECTOR, useModalOverlay } from "./hooks/use-modal-overlay";
+export { usePendingTab, type PendingTab } from "./hooks/use-pending-tab";
 export {
   DOUBLE_TAP_ZOOM_SCALE,
   MAX_ZOOM_SCALE,
   MIN_ZOOM_SCALE,
+  distanceBetween,
   usePinchZoom,
 } from "./hooks/use-pinch-zoom";
 export { usePinnedDocument } from "./hooks/use-pinned-document";
+export { useRovingTabIndex, type RovingTabIndexOptions } from "./hooks/use-roving-tab-index";
 export { useSettledCommit, type SettledCommitOptions } from "./hooks/use-settled-commit";
+export { useSidePanel } from "./hooks/use-side-panel";
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
 export {
   EMOTICON_PLAYBACK_HOLD,

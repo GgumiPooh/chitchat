@@ -20,7 +20,9 @@ export type EmoticonPackFallbackProps = {
  */
 export function EmoticonPackFallback({ className, type }: EmoticonPackFallbackProps) {
   return (
-    <div className={cn("flex flex-1 flex-col", className)}>
+    <div
+      className={cn("mx-auto flex w-full max-w-(--content-max-width) flex-1 flex-col", className)}
+    >
       <AppHeader />
       {/* INFO: DESIGN.md § 7.12. The same clearance the screen uses, so nothing steps on the swap. */}
       <div className="flex flex-1 flex-col p-md pt-[calc(var(--app-header-inset)+var(--spacing-md))]">

@@ -16,13 +16,15 @@ import { AppHeader, EmptyState, IconButton, toast } from "@/shared/ui";
 import {
   ArchiveFileList,
   ArchiveSelectionBar,
+  toMonthAnchorId,
   useArchiveMedia,
   useArchiveRemoval,
   useArchiveSelection,
   useShelfStaging,
 } from "@/widgets/archive-shelves";
 import { FilePlus, Files, ListChecks, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useArchiveJump } from "../model/archive-jump-context";
 import { LibrarySegments } from "./library-segments";
 
 export type ArchiveFilesPageProps = {
@@ -32,13 +34,10 @@ export type ArchiveFilesPageProps = {
 
 /**
  * REQUIREMENTS.md § 10. 보관함's 파일 segment — every § 9.1. attachment the pair has
- * exchanged, which until this screen existed could not be found again anywhere.
- *
- * WARN: No viewer and no 배경으로 설정. § 9.1. serves a file as
- * `Content-Disposition: attachment` whatever the query asks for, so a tap is a
- * download and there is nothing for the § 7.10. viewer to have opened. An **audio**
- * attachment is the one exception and it is not a viewer either: the row grows a
- * play control beside the card, and the card's own tap still saves.
+ * exchanged. No viewer and no 배경으로 설정: § 9.1. serves every file as
+ * `Content-Disposition: attachment`, so a tap is always a download. An audio
+ * attachment's only exception is a play control beside the card; the card itself
+ * still saves.
  */
 export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPageProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -56,7 +55,7 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
   });
   const selection = useArchiveSelection({ savesToPhotoLibrary: false, countUnit: "개" });
   const sharing = useMediaShare();
-  // INFO: § 9.1. `acceptsFiles: true`, unlike 사진. This shelf draws a named row rather than a thumbnail, so there is nothing a file cannot be shown as — and a photo dropped here is taken too, filed onto 사진 with a toast that says so (§ 10.).
+  // INFO: § 9.1. `acceptsFiles: true`, unlike 사진 — a photo dropped here is taken too, filed onto 사진 with a toast that says so (§ 10.).
   const staging = useShelfStaging({
     shelf: "file",
     acceptsFiles: true,
@@ -67,19 +66,33 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
   const uploadGate = useOfflineGate(OFFLINE_MESSAGES.upload);
   // INFO: REQUIREMENTS.md § 10. Every action the selection bar offers — 저장, 공유, 삭제 — needs the network, so entering selection offline is three dead ends and a count.
   const selectGate = useOfflineGate(OFFLINE_MESSAGES.select);
-  // WARN: REQUIREMENTS.md § 9.3. An audio row plays through the page-wide shared element, so leaving this screen has to stop it — exactly as the room and the 음성 shelf do. Nothing on the next tab draws a transport that could pause a clip still running.
+  // WARN: REQUIREMENTS.md § 9.3. An audio row plays through the page-wide shared element, so leaving this screen has to stop it, exactly as the room and 음성 shelf do.
   useEffect(() => stopVoice, []);
-  // WARN: REQUIREMENTS.md § 9.1. What names the `File` handed to the share sheet. R2 keys carry no name and the server's `Content-Disposition` is unreadable here (not CORS-safelisted, and the response has already redirected cross-origin), so without this the pair would be sent `9f3c….bin`.
-  // INFO: Memoised on the list, not rebuilt per render — the only reader is 공유, while this screen re-renders on every selection toggle over a list that pages into the hundreds.
+  // WARN: REQUIREMENTS.md § 9.1. Names the `File` handed to the share sheet — R2 keys carry no name and `Content-Disposition` is unreadable here (cross-origin redirect), so without this the pair would get `9f3c….bin`.
+  // INFO: Memoised on the list, not rebuilt per render — this screen re-renders on every selection toggle over a list that pages into the hundreds.
   const filenames = useMemo(
     () => Object.fromEntries(media.map((item) => [item.id, item.filename ?? ""])),
     [media],
   );
+  // INFO: AGENTS.md § 4.1. This shelf carries no virtualizer, so the panel's month list scrolls to the section's own `<section id>` directly.
+  const jumpToMonth = useCallback((monthKey: string) => {
+    document.getElementById(toMonthAnchorId(monthKey))?.scrollIntoView({
+      block: "start",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+  }, []);
+  // INFO: AGENTS.md § 4.1. `archive/layout.tsx`'s panel persists across shelf routes and reaches this page's own jump through the wire `ArchiveJumpProvider` is.
+  const { registerJumpHandler } = useArchiveJump();
+
+  useEffect(() => registerJumpHandler(jumpToMonth), [registerJumpHandler, jumpToMonth]);
 
   return (
     // INFO: REQUIREMENTS.md § 9.2. The drop target is the whole screen, as it is on 사진 — the same staging tray, reached the same way.
     <div className={cn("flex flex-1 flex-col", className)} {...staging.dropHandlers}>
       <AppHeader
+        className="motion-reduce:transition-none lg:left-(--content-left) lg:transition-[left] lg:duration-(--duration-route-enter) lg:ease-route"
+        containerClassName="max-w-none"
+        hasSidePanel
         title={selection.isSelecting ? `${selectedCount}개 선택` : "보관함"}
         trailing={
           selection.isSelecting ? (
@@ -115,7 +128,7 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
       />
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
       <div className="flex flex-1 flex-col p-md pt-[calc(var(--app-header-inset)+var(--spacing-xs))]">
-        {!selection.isSelecting && <LibrarySegments className="pb-sm" />}
+        {!selection.isSelecting && <LibrarySegments className="pb-sm lg:hidden" />}
         {media.length === 0 && staging.remainingCount === 0 ? (
           <div className="flex flex-1 items-center justify-center">
             <EmptyState Icon={Files} description="아직 주고받은 파일이 없어요" />
@@ -185,15 +198,7 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
     void downloadMedia([id]);
   }
 
-  /**
-   * WARN: REQUIREMENTS.md § 9.1. The download route directly, never `useMediaShare`'s
-   * 저장. That one runs through the iOS share sheet because it is the only way to the
-   * **photo library**, and a document has no business there — on every platform a file
-   * belongs in Files or in the downloads folder, which is what a plain download does.
-   *
-   * WARN: Started, never awaited. `downloadMedia` paces itself across the selection
-   * (§ 10.), so awaiting it would hold the handler behind a bar already dismissed.
-   */
+  // WARN: REQUIREMENTS.md § 9.1. The download route directly, never `useMediaShare`'s 저장 — that one exists only to reach the iOS photo library, which a document has no business in. Started, never awaited — `downloadMedia` paces itself across the selection (§ 10.).
   function startSave() {
     const ids = selection.selectedIds;
 
@@ -202,14 +207,7 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
     toast.success(`${ids.length}개를 저장하고 있어요`);
   }
 
-  /**
-   * REQUIREMENTS.md § 10. 공유 names the sheet outright, so it takes one wherever
-   * there is one — and it is capped at the tap, before the selection is dropped,
-   * because a selection may run to ten times what a sheet accepts.
-   *
-   * WARN: § 9.1. `names` is not optional here in practice. A file's mime is outside
-   * the media allow-list, so the fallback naming has no extension to work from.
-   */
+  // WARN: REQUIREMENTS.md § 10. Capped before the selection drops — a selection may run to ten times what a sheet accepts. § 9.1.: `names` isn't optional in practice, since a file's mime has no extension for the fallback naming to work from.
   function startShare() {
     const ids = selection.selectedIds;
 

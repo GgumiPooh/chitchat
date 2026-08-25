@@ -15,13 +15,8 @@ export type ArchiveSection = {
   count: number;
 };
 
-/**
- * WARN: The month comes from `toDayKey`, not from `Date.getMonth()`. It resolves
- * in `TIME_ZONE`, so a photo sent at 00:30 KST on the first falls under the month
- * it was actually taken in rather than the previous one.
- *
- * INFO: The finished restructure. The instant is read off the id, which is the same value the shelf is ordered by — so a section boundary can never fall anywhere but between two tiles the grid already has in that order.
- */
+// WARN: The month comes from `toDayKey`, not `Date.getMonth()` — it resolves in `TIME_ZONE`, so a photo sent at 00:30 KST on the first falls under the right month.
+// INFO: The instant is read off the id, the same value the shelf is ordered by — a section boundary can never fall anywhere but between two tiles already in that order.
 export function toArchiveSections(media: ArchiveMedia[]): ArchiveSection[] {
   const sections: ArchiveSection[] = [];
 
@@ -45,4 +40,9 @@ export function toArchiveSections(media: ArchiveMedia[]): ArchiveSection[] {
   });
 
   return sections;
+}
+
+/** AGENTS.md § 4.1. `id` for a shelf's own month `<section>`, what the `lg` panel's month list scrolls to on a shelf with no virtualizer (파일, 음성). */
+export function toMonthAnchorId(monthKey: string): string {
+  return `archive-month-${monthKey}`;
 }

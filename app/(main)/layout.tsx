@@ -7,7 +7,12 @@ import { OfflineSnapshotSync } from "@/features/offline-snapshot";
 import { PushSync } from "@/features/push-notifications";
 import { ProfileViewerProvider } from "@/features/view-profile";
 import { requireUserOrRedirect } from "@/shared/auth";
-import { APP_SHELL_ID, PUSH_STATE_COOKIE_NAME } from "@/shared/config";
+import {
+  APP_SHELL_ID,
+  ARCHIVE_COLUMNS_COOKIE_NAME,
+  PUSH_STATE_COOKIE_NAME,
+  SIDE_PANEL_COOKIE_NAME,
+} from "@/shared/config";
 import { OfflineNotice } from "@/shared/offline-ux";
 import {
   BottomOverlay,
@@ -15,12 +20,13 @@ import {
   FileDropGuard,
   RouteTransition,
   ScrollMemory,
+  SidePanelSync,
   VisualViewportSync,
 } from "@/shared/ui";
 import { InstallGuide } from "@/widgets/install-guide";
 import { OfflineBanner } from "@/widgets/offline-banner";
 import { ShortcutGuide } from "@/widgets/shortcut-guide";
-import { TabBar } from "@/widgets/tab-bar";
+import { NavRail, TabBar } from "@/widgets/tab-bar";
 import { cookies } from "next/headers";
 import { type PropsWithChildren } from "react";
 import { SyncedStorageProvider } from "synced-storage/react";
@@ -35,8 +41,17 @@ export default async function MainLayout({ children }: PropsWithChildren) {
   const [participants, unreadCount, hasTodayEvent, chatBackground, cookieStore] = await Promise.all(
     [listUsers(), countUnreadMessages(user.id), hasEventToday(), readChatBackground(), cookies()],
   );
-  // WARN: Only the push cookie crosses to the client. `ssrCookies` is serialized into the RSC payload, and `getAll()` would put the `httpOnly` session cookie in it.
-  const ssrCookies = cookieStore.getAll().filter(({ name }) => name === PUSH_STATE_COOKIE_NAME);
+  // WARN: Only these cross to the client. `ssrCookies` is serialized into the RSC payload, and `getAll()` would put the `httpOnly` session cookie in it.
+  const ssrCookies = cookieStore
+    .getAll()
+    .filter(
+      ({ name }) =>
+        name === PUSH_STATE_COOKIE_NAME ||
+        name === SIDE_PANEL_COOKIE_NAME ||
+        name === ARCHIVE_COLUMNS_COOKIE_NAME,
+    );
+  // INFO: AGENTS.md § 4.4. Painted on `#app-shell` rather than `<html>` — the root layout has no cookie access here — so `theme.css`'s `:root:has(#app-shell[data-side-panel="closed"])` collapses `--pane-width` before hydration.
+  const isSidePanelClosed = cookieStore.get(SIDE_PANEL_COOKIE_NAME)?.value === "closed";
 
   return (
     // INFO: REQUIREMENTS.md § 16.1. A second `SyncedStorageProvider` under `GlobalProvider`'s, because this group is already dynamic and the root one also covers `/offline`, which must stay static.
@@ -54,9 +69,16 @@ export default async function MainLayout({ children }: PropsWithChildren) {
           {/* WARN: A hairline down each side, not a `backdrop` gutter — the gutter colour would be what iOS 26 Safari tints its chrome with, and neither a border nor a shadow is ever sampled. */}
           {/* INFO: DESIGN.md § 3.3. `shell-edge` draws it 1px *outside* the box, so the phone — where the column is the full width — never sees it. */}
           <Container
-            className="relative flex min-h-dvh flex-col bg-canvas px-0 shell-edge"
+            className="relative flex min-h-dvh max-w-none flex-col bg-canvas px-0 shell-edge md:pl-(--rail-width)"
             id={APP_SHELL_ID}
+            data-side-panel={isSidePanelClosed ? "closed" : undefined}
           >
+            {/* INFO: AGENTS.md § 4.1. The argued fifth `fixed` element — the document scrolls under it, and `sticky` would need an `h-dvh` wrapper in a column that is already padded to clear it. */}
+            <NavRail
+              className="hidden md:flex"
+              hasEventToday={hasTodayEvent}
+              currentUserId={user.id}
+            />
             {/* WARN: No `overflow` of any kind. The route slide's horizontal clip lives on `body` instead — an overflow here makes this the scrollport a `sticky` header resolves against, and the header then has nothing to stick to (DESIGN.md § 3.3.). */}
             <main className="flex flex-1 flex-col">
               <RouteTransition>{children}</RouteTransition>
@@ -68,6 +90,7 @@ export default async function MainLayout({ children }: PropsWithChildren) {
             </BottomOverlay>
           </Container>
           <VisualViewportSync />
+          <SidePanelSync />
           {/* INFO: REQUIREMENTS.md § 9.2. Shell-level, because a stray drop navigates the PWA away from every screen — not only from the two that take one. */}
           <FileDropGuard />
           <ScrollMemory />

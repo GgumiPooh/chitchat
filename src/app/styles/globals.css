@@ -83,6 +83,14 @@
   }
 }
 
+/* INFO: AGENTS.md § 4.1. A tab change on the rail is a click beside the content, not a swipe through it, and a 24px slide there reads as the page flinching. The composer still rises. */
+@media (min-width: 768px) {
+  .route-enter-forward,
+  .route-enter-back {
+    animation-duration: 0s;
+  }
+}
+
 /* INFO: DESIGN.md § 4.7.3. The 보관함 tile expanding into the viewer's slide — the app's only view transition, and the only capture § 4.7.1. permits, because it names two elements and never the root. */
 /* INFO: `--duration-media-morph` and not the route arrival's, which it began as (§ 4.7.). A thumbnail crossing to full screen travels most of the viewport where an arriving screen travels 24px, so the same 220ms read as the photo being thrown rather than opened. `ease-route` is kept — its long tail is what makes the picture settle. */
 ::view-transition-group(media-morph) {
@@ -124,6 +132,13 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
 ::view-transition-group(media-viewer),
 ::view-transition-old(media-viewer),
 ::view-transition-new(media-viewer) {
+  animation-duration: var(--duration-media-morph);
+  animation-timing-function: var(--ease-route);
+}
+
+/* AGENTS.md § 4.1. 보관함's column-count morph — every tile the pinch step leaves on screen (`archive-tile-{id}`, `ArchiveGrid`'s `runColumnsTransition`) reflows on this timing rather than the UA's default cross-fade. */
+/* WARN: A `view-transition-class` group, not a bare `::view-transition-group(*)` — that would also re-time the photo-open morph above, which needs its own duration to survive a route change underneath it. Every tile carries the class alongside its own `archive-tile-{id}` name. */
+::view-transition-group(.archive-tile) {
   animation-duration: var(--duration-media-morph);
   animation-timing-function: var(--ease-route);
 }

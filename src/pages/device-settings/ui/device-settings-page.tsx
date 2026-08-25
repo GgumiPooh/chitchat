@@ -19,7 +19,9 @@ export function DeviceSettingsPage({ className, sessions }: DeviceSettingsPagePr
   const router = useRouter();
 
   return (
-    <div className={cn("flex flex-1 flex-col", className)}>
+    <div
+      className={cn("mx-auto flex w-full max-w-(--content-max-width) flex-1 flex-col", className)}
+    >
       <AppHeader
         title="로그인된 기기"
         leading={

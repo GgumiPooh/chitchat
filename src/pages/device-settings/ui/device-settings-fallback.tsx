@@ -19,7 +19,9 @@ export type DeviceSettingsFallbackProps = {
 /** The fallback 로그인된 기기 streams behind. */
 export function DeviceSettingsFallback({ className }: DeviceSettingsFallbackProps) {
   return (
-    <div className={cn("flex flex-1 flex-col", className)}>
+    <div
+      className={cn("mx-auto flex w-full max-w-(--content-max-width) flex-1 flex-col", className)}
+    >
       <AppHeader title="로그인된 기기" />
       {/* INFO: DESIGN.md § 7.12. The same clearance the screen uses, so nothing steps on the swap. */}
       <div className="pt-(--app-header-inset)">

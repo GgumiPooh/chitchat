@@ -20,7 +20,9 @@ export type EmoticonSettingsFallbackProps = {
  */
 export function EmoticonSettingsFallback({ className, type }: EmoticonSettingsFallbackProps) {
   return (
-    <div className={cn("flex flex-1 flex-col", className)}>
+    <div
+      className={cn("mx-auto flex w-full max-w-(--content-max-width) flex-1 flex-col", className)}
+    >
       <AppHeader title={`${EMOTICON_KIND_NOUNS[type].kind} 관리`} />
       {/* INFO: DESIGN.md § 7.12. The same clearance the screen uses, so nothing steps on the swap. */}
       <div className="pt-(--app-header-inset)" aria-hidden>

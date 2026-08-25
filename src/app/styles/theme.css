@@ -263,15 +263,23 @@
     1
   );
 
-  /* INFO: App shell — DESIGN.md § 3.3. Narrower than a tablet so the tab bar cannot read as a desktop nav. */
-  --container-app: 576px;
-
   /* WARN: Never express this as `max-w-md` — `--spacing-md` shadows Tailwind's container scale and collapses the column to 16px. */
   --container-app-narrow: 448px;
 }
 
 /* WARN: Outside `@theme` on purpose — these are geometry the layout reads back with `calc()`, not a Tailwind utility namespace. */
 :root {
+  /* INFO: AGENTS.md § 4.1. Desktop layout: left rail at `md` + 2-pane at `lg`. Zero below `lg` — every fixed-chrome offset built on these needs no `lg:` variant of its own. */
+  --rail-width: 0px;
+  /* INFO: AGENTS.md § 4.4. The panel's un-collapsed width, so the panel's inner content wrapper keeps a fixed width and does not reflow while `--pane-width` animates to `0px`. */
+  --pane-open-width: 0px;
+  --pane-width: var(--pane-open-width);
+  --content-left: calc(var(--rail-width) + var(--pane-width));
+  /* INFO: `BottomSheet` at `md` composes the same `Dialog` shell `Modal` does, so the two share this cap instead of each hardcoding the old shell width. */
+  --sheet-max-width: 576px;
+  --content-max-width: 800px;
+  --tab-bar-max-width: 576px;
+  --bubble-max-width: 360px;
   /* INFO: DESIGN.md § 7.3. The floating pill itself, excluding the gap it keeps from the shell's bottom edge. */
   --tab-bar-height: 56px;
   /* INFO: DESIGN.md § 7.3. How far the bar drops past the bottom edge on the way to 채팅, and deliberately several times its own height — a drop that ends the frame it clears the edge reads as a cut. */
@@ -327,6 +335,37 @@
       ) +
       var(--spacing-xs) * 2
   );
+}
+
+/* INFO: AGENTS.md § 4.1. The rail replaces the bottom tab bar at `md`, so the SSR seed for `--bottom-inset` drops the tab bar's own height and keeps only the float lift — `BottomOverlay` overwrites it with the real measurement either way. */
+@media (min-width: 768px) {
+  :root {
+    /* INFO: A row of emoticons at 800px holds more than a phone's, so the sheet that was three rows deep there shows one here — the cap grows with the room. */
+    --emoticon-panel-height: calc(
+      min(560px, calc(var(--chat-screen-height) * 0.5)) + var(--emoticon-menu-height)
+    );
+    --rail-width: 72px;
+    --bottom-inset: var(--bar-lift);
+  }
+}
+
+/* INFO: AGENTS.md § 4.4. The panel breakpoint — the rail alone answers `md`, and the panel needs `lg`'s extra room beside it. */
+@media (min-width: 1024px) {
+  :root {
+    --pane-open-width: 320px;
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --pane-open-width: 360px;
+  }
+}
+
+/* INFO: AGENTS.md § 4.4. `useSidePanel` keeps `#app-shell`'s attribute in sync; the `:has()` form on `:root` (rather than the attribute selector alone) is what reaches the fixed headers and body-portalled overlays that read `--content-left`, which sit outside `#app-shell`. */
+#app-shell[data-side-panel="closed"],
+:root:has(#app-shell[data-side-panel="closed"]) {
+  --pane-width: 0px;
 }
 
 /* WARN: DESIGN.md § 3.4. `env(safe-area-inset-bottom)` never moves for the keyboard, so with the keys up the lift is paying for a home indicator the keyboard already covers — 34px of dead space the composer floated above the keys on. */

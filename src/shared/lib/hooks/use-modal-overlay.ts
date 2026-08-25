@@ -9,7 +9,8 @@ const OVERLAY_MARKER = "data-modal-overlay";
  * like from outside the component that raised it: Radix and Vaul write `data-state`,
  * and the hand-rolled screens are marked by `useModalOverlay` itself.
  */
-export const OPEN_OVERLAY_SELECTOR = `[role="dialog"][data-state="open"], [${OVERLAY_MARKER}]`;
+// INFO: AGENTS.md § 4.1. `role="menu"` is `ActionSheet`'s desktop `Popover` — it portals to `body` at `z-50`, above `ShellOverlay`'s `z-40`, so Escape ownership between it and every other overlay resolves the same way a dialog's does.
+export const OPEN_OVERLAY_SELECTOR = `[role="dialog"][data-state="open"], [role="menu"][data-state="open"], [${OVERLAY_MARKER}]`;
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",

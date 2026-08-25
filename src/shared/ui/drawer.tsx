@@ -43,9 +43,10 @@ export function DrawerContent({
     <DrawerPortal>
       <DrawerOverlay />
       {/* WARN: `bottom` rides `--viewport-bottom`, not `0`. The portal puts this outside the shell, so its `fixed` box is laid out against the layout viewport and the keyboard would otherwise slide it under the keys (DESIGN.md § 3.4.). */}
+      {/* INFO: AGENTS.md § 4.4. `right-0 left-(--rail-width)` rather than `inset-x-0`, for the reason `AppHeader` carries the same change — the portal puts this outside the shell, so it spanned the rail rather than starting past it. */}
       <DrawerPrimitive.Content
         className={cn(
-          "fixed inset-x-0 bottom-[var(--viewport-bottom,0px)] z-50 flex h-auto flex-col",
+          "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 flex h-auto flex-col",
           className,
         )}
         {...props}

@@ -77,7 +77,8 @@ export function BottomOverlay({ className, children }: BottomOverlayProps) {
         // INFO: DESIGN.md § 4.7.1. A route change never touches this element — the screen animates underneath and the bars simply stay put, blurring whatever slides past.
         // WARN: DESIGN.md § 3.3. `fixed`, and it re-applies the shell width itself — the document is the scroller now, so an `absolute` bar would ride to the bottom of the page instead of staying on screen.
         // WARN: The float gap and the home-indicator inset are this box's `bottom`, never padding inside it — padding still leaves the box itself bordering the obscured content inset, which is what makes iOS 26 Safari paint its toolbar opaque instead of showing the page through it.
-        "pointer-events-none fixed inset-x-0 bottom-(--bar-lift) z-30 transition-[height] ease-out",
+        // INFO: AGENTS.md § 4.4. `left-(--rail-width)` rather than `inset-x-0`, for the reason `AppHeader` carries the same change.
+        "pointer-events-none fixed right-0 bottom-(--bar-lift) left-(--rail-width) z-30 transition-[height] ease-out",
         // WARN: DESIGN.md § 7.3. The bars wait the keyboard out rather than growing back with it. This box is `fixed` to the layout viewport, which Chromium's `interactive-widget=resizes-content` is still expanding for the whole of that animation — rising on the same frame draws the tab bar partway up the screen, which reads as it appearing in mid-air.
         isKeyboardOpen ? "duration-200" : "delay-200 duration-150",
         className,

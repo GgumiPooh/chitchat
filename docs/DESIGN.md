@@ -21,22 +21,25 @@ Constraints from `REQUIREMENTS.md` that this system must satisfy.
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Users         | Exactly two, both known to each other. No onboarding, no discovery, no social proof, no empty-account states.                                                                                                                                                          |
 | Language      | Korean only. No `:lang()` overrides — Korean metrics ARE the base scale (§ 4.2.). This document is English for LLM legibility, but **every Korean string in it (`오늘`, `새 메시지 3`, …) is literal UI copy to ship as-is** — never translate it into English in code |
-| Layout        | One mobile layout at every viewport. No responsive branching (§ 3.1.).                                                                                                                                                                                                 |
+| Layout        | Two layouts: mobile, and desktop from `md` (§ 3.1.) — geometry by Tailwind breakpoint, never by script, so both trees mount and CSS picks one.                                                                                                                         |
 | Pointer       | Touch-primary, but mouse `:hover` / `:active` / `:focus-visible` are mandatory (§ 3.2.).                                                                                                                                                                               |
 | Themes        | Light only at v1. Dark ships later — every token MUST be authored so dark is a value swap (§ 5.).                                                                                                                                                                      |
 | Chat fidelity | KakaoTalk-equivalent interaction and layout mechanics; original palette (§ 2.).                                                                                                                                                                                        |
 
 ## 1.3. Glossary.
 
-| Term          | Definition                                                                                                       |
-| ------------- | ---------------------------------------------------------------------------------------------------------------- |
-| App shell     | The 576px-max, horizontally centered column that contains every screen and the tab bar (§ 3.3.)                  |
-| Bubble        | A single chat message container. `mine` (right-aligned) or `theirs` (left-aligned)                               |
-| Group         | Consecutive messages from one sender within the same minute, rendered with shared avatar/name and collapsed gaps |
-| Notch corner  | The single reduced-radius corner that replaces a drawn speech tail (§ 6.2.)                                      |
-| Pretendard    | Open-source Korean variable typeface; metric-compatible with Inter                                               |
-| Hangul / jamo | Korean syllabic blocks / their component letters. Full-square glyphs — denser on the line than Latin             |
-| Paper         | The warm off-white canvas family (§ 4.1.). Not `#ffffff`                                                         |
+| Term          | Definition                                                                                                                                                       |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App shell     | The column that contains every screen and the tab bar — 576px-max and centered below `md`, fills the window from `md` (§ 3.3.)                                   |
+| Rail          | The `md`+ left nav strip that replaces the tab bar (§ 3.5., § 7.3.1.)                                                                                            |
+| Side panel    | The collapsible `lg`+ left column beside a screen's main content — `TwoPane`, `SidePanel` (§ 7.20.)                                                              |
+| Content width | `--content-max-width` (800px), the cap a screen's main content centres inside from `md` — the rail and panel are outside it, the archive grid is exempt (§ 3.1.) |
+| Bubble        | A single chat message container. `mine` (right-aligned) or `theirs` (left-aligned)                                                                               |
+| Group         | Consecutive messages from one sender within the same minute, rendered with shared avatar/name and collapsed gaps                                                 |
+| Notch corner  | The single reduced-radius corner that replaces a drawn speech tail (§ 6.2.)                                                                                      |
+| Pretendard    | Open-source Korean variable typeface; metric-compatible with Inter                                                                                               |
+| Hangul / jamo | Korean syllabic blocks / their component letters. Full-square glyphs — denser on the line than Latin                                                             |
+| Paper         | The warm off-white canvas family (§ 4.1.). Not `#ffffff`                                                                                                         |
 
 # 2. Design Lineage.
 
@@ -56,23 +59,25 @@ Constraints from `REQUIREMENTS.md` that this system must satisfy.
 
 ## 2.2. Rejected Patterns.
 
-| Pattern                                          | Source      | Reason                                                                                                                                                                                                                           |
-| ------------------------------------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Kakao yellow `#fee500` + sky-blue `#b2c7da` chat | KakaoTalk   | Copying the brand palette outright makes the product read as a KakaoTalk clone, not as our app. We take the mechanics, not the identity.                                                                                         |
-| Saturated pink / red-heart couple-app palette    | Couple apps | High-chroma pink is the defining marker of the low-effort couple-app genre. Warm neutrals + one muted accent read as considered.                                                                                                 |
-| Gradients, glassmorphism, glow                   | —           | Aging trend markers; they date a personal app faster than anything else                                                                                                                                                          |
-| Decorative script or rounded display typefaces   | Couple apps | Hangul in rounded/handwritten faces loses legibility at chat sizes                                                                                                                                                               |
-| Emoji as UI iconography                          | —           | Inconsistent metrics and platform-dependent rendering; lucide only (§ 4.6.)                                                                                                                                                      |
-| Full-bleed bottom sheet                          | —           | Inset floating card matches the reference implementation and reads lighter (§ 7.5.). Chat's emoticon sheet is the one exception: it stands in the keyboard's slot inside the composer stack, not in a portalled overlay (§ 6.6.) |
-| Responsive breakpoint branching                  | —           | Out of scope by PRD (§ 3.1.)                                                                                                                                                                                                     |
+| Pattern                                                             | Source      | Reason                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kakao yellow `#fee500` + sky-blue `#b2c7da` chat                    | KakaoTalk   | Copying the brand palette outright makes the product read as a KakaoTalk clone, not as our app. We take the mechanics, not the identity.                                                                                         |
+| Saturated pink / red-heart couple-app palette                       | Couple apps | High-chroma pink is the defining marker of the low-effort couple-app genre. Warm neutrals + one muted accent read as considered.                                                                                                 |
+| Gradients, glassmorphism, glow                                      | —           | Aging trend markers; they date a personal app faster than anything else                                                                                                                                                          |
+| Decorative script or rounded display typefaces                      | Couple apps | Hangul in rounded/handwritten faces loses legibility at chat sizes                                                                                                                                                               |
+| Emoji as UI iconography                                             | —           | Inconsistent metrics and platform-dependent rendering; lucide only (§ 4.6.)                                                                                                                                                      |
+| Full-bleed bottom sheet                                             | —           | Inset floating card matches the reference implementation and reads lighter (§ 7.5.). Chat's emoticon sheet is the one exception: it stands in the keyboard's slot inside the composer stack, not in a portalled overlay (§ 6.6.) |
+| View transitions beyond the media morph and the 보관함 column morph | —           | § 4.7.1.'s whole argument against capturing the root; every other motion in the app is a plain CSS animation                                                                                                                     |
 
 # 3. Layout.
 
-## 3.1. Single Mobile Layout.
+## 3.1. Two Layouts.
 
-One layout at every viewport. Screens MUST NOT branch on width — no `pc:` / `md:` / `lg:` layout variants, no `ResponsiveDialog`-style component swapping. Desktop users see the mobile UI in the centered app shell.
+Mobile below `md` (768px), desktop from it — a left rail replacing the tab bar (§ 3.5., § 7.3.1.), and from `lg` (1024px) a collapsible side panel (§ 7.20.) beside each tab's main content. **Geometry is Tailwind's own breakpoint classes, never `useIsDesktop`**: both trees mount and CSS keeps one, which is what keeps first paint flash-free — `useIsDesktop` (`AGENTS.md § 4.1.`) exists only for the handful of component-choice branches (§ 7.4., § 7.5.) that cannot be expressed as a class.
 
-Consequence: the Tailwind breakpoint scale is unused for layout. Breakpoint prefixes are permitted only for non-layout affordances that genuinely differ by input device, and § 3.2. covers those with pointer media queries instead.
+Below `md` the column fills the window — no centered cap, no gutters; readability is a per-element px cap instead (`AGENTS.md § 4.3.`). From `md`, main content centres inside `--content-max-width` (800px) in the pane beside the rail/panel; the archive grid is exempt and fills the pane, and `ChatScreen`, `ShellOverlay` and the shell itself stay `max-w-none`.
+
+`xl` (1280px) widens the panel from 320px to 360px — the one geometry step past `lg`.
 
 ## 3.2. Pointer Affordances.
 
@@ -98,7 +103,7 @@ Touch-first geometry, full pointer states.
 
 | Property          | Value                                                                                                                                                                                                                                                             |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Max width         | `576px` — token `--container-app`                                                                                                                                                                                                                                 |
+| Max width         | None below `md` beyond the viewport itself — the shell fills the window. Content inside it caps at `--content-max-width` (800px, § 3.1.)                                                                                                                          |
 | Bar heights       | `--tab-bar-height` and `--app-header-height`, both `56px`. Declared outside `@theme` because a screen may read them back through `calc()` rather than as a utility                                                                                                |
 | Narrow max width  | `448px` — token `--container-app-narrow`, `Container size="sm"`. Single-column entry screens (login) only                                                                                                                                                         |
 | Alignment         | Horizontally centered, full height                                                                                                                                                                                                                                |
@@ -108,7 +113,9 @@ Touch-first geometry, full pointer states.
 | Safe areas        | `env(safe-area-inset-bottom)` on the tab bar, `env(safe-area-inset-top)` on the header                                                                                                                                                                            |
 | Column height     | `min-h-dvh`, and screens grow it — the document is the scroller everywhere but chat (§ 3.4.)                                                                                                                                                                      |
 
-576px, not a tablet 768px: at 768 a 72%-width bubble spans 550px, which forces long lines and breaks the chat rhythm; the four tab-bar items also drift apart to the point of reading as a desktop nav. Screens MUST obtain this width from `Container`, never by hardcoding `max-w-*`.
+576px was chosen for the same reason `--bubble-max-width` is still 360px past `md`: at 768 a 72%-width bubble spans 550px, which forces long lines and breaks the chat rhythm. Screens MUST obtain a width cap from `Container`, never by hardcoding `max-w-*`.
+
+**Fixed chrome anchors `left: var(--rail-width)`, not `inset-x-0`.** `AppHeader`, `BottomOverlay` and `ShellOverlay`'s layer all read it, and it is `0px` below `md` so none of them needs an `md:` variant. A dialog or drawer portalled to `body` (`REQUIREMENTS.md § 4.4.`) instead centres on `--content-left` (`--rail-width` + `--pane-width`), since it has no rail-relative edge to anchor.
 
 **Why the desktop gutter is no longer a deeper `backdrop`.** iOS 26 Safari dropped `<meta name="theme-color">` and tints its status bar and bottom toolbar from CSS instead: the `background-color` of a viewport-constrained (`fixed` or `sticky`) element bordering the obscured content inset, falling back to `body`. A `backdrop` gutter therefore painted both bars in the one colour that never appears on a phone, where the column fills the width — the bars read as dead chrome bolted onto the app rather than part of it. `body` is `canvas` for that reason, and the column is separated on desktop by a `hairline` down each side, because neither a border-colour nor a shadow is ever sampled. `THEME_COLOR` (§ 5.4.) still covers Android Chrome and the installed PWA, and is inert on iOS.
 
@@ -182,15 +189,15 @@ Not derived from `--viewport-bottom`, which would need no flag at all: that prop
 
 The header and the tab bar do not sit in the column's flow — they float over it, and content passes underneath.
 
-| Rule        | Value                                                                                                                                                                                                                                                                                 |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tab bar     | A pill inset from the viewport's bottom edge by `--bar-lift` — `--bar-float-gap` (4) plus `env(safe-area-inset-bottom)`, the whole lift dropped while the keyboard covers it (§ 3.4.) — and by `md` each side                                                                         |
-| Overlay     | `BottomOverlay` is `fixed` and re-applies the shell width through `Container` — the document moves under it (§ 3.3.)                                                                                                                                                                  |
-| Header      | A transparent strip, `fixed` at `--header-lift` so it rides WebKit's pan (§ 3.4.). It has no surface — only the controls are visible (§ 7.12.)                                                                                                                                        |
-| Surface     | The `glass` utility (`canvas/75`), 1px `hairline`, `shadow-floating`. Never spelled out at a call site                                                                                                                                                                                |
-| Clearance   | `BottomOverlay` measures the bars into `--bottom-inset`, which `RouteTransition` trails as a `shrink-0` spacer below the screen. Chat is out of the flow entirely (§ 3.4.), so the spacer never reaches it — it carries the clearance inside the list as `--chat-bottom-gap` (§ 6.6.) |
-| Keyboard    | The overlay collapses its own height to `0` (§ 7.3.); no bar inside it branches on the keyboard itself                                                                                                                                                                                |
-| Hit testing | The overlay is `pointer-events-none`; each visible surface re-enables it, so content underneath stays tappable                                                                                                                                                                        |
+| Rule        | Value                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tab bar     | A pill inset from the viewport's bottom edge by `--bar-lift` — `--bar-float-gap` (4) plus `env(safe-area-inset-bottom)`, the whole lift dropped while the keyboard covers it (§ 3.4.) — and by `md` each side. **Replaced by the rail from `md`** (§ 7.3.1.); `--bottom-inset`'s SSR seed drops the tab bar's own height at that breakpoint and keeps only the float lift, since nothing measures a bar that no longer mounts |
+| Overlay     | `BottomOverlay` is `fixed` and re-applies the shell width through `Container` — the document moves under it (§ 3.3.)                                                                                                                                                                                                                                                                                                          |
+| Header      | A transparent strip, `fixed` at `--header-lift` so it rides WebKit's pan (§ 3.4.). It has no surface — only the controls are visible (§ 7.12.)                                                                                                                                                                                                                                                                                |
+| Surface     | The `glass` utility (`canvas/75`), 1px `hairline`, `shadow-floating`. Never spelled out at a call site                                                                                                                                                                                                                                                                                                                        |
+| Clearance   | `BottomOverlay` measures the bars into `--bottom-inset`, which `RouteTransition` trails as a `shrink-0` spacer below the screen. Chat is out of the flow entirely (§ 3.4.), so the spacer never reaches it — it carries the clearance inside the list as `--chat-bottom-gap` (§ 6.6.)                                                                                                                                         |
+| Keyboard    | The overlay collapses its own height to `0` (§ 7.3.); no bar inside it branches on the keyboard itself                                                                                                                                                                                                                                                                                                                        |
+| Hit testing | The overlay is `pointer-events-none`; each visible surface re-enables it, so content underneath stays tappable                                                                                                                                                                                                                                                                                                                |
 
 The clearance is measured rather than summed from `--tab-bar-height`: the bars come and go with the keyboard, and the install banner's copy wraps to two lines on a narrow viewport, so no constant is right.
 
@@ -201,6 +208,8 @@ The clearance is a spacer inside `RouteTransition` and **MUST NOT** be moved bac
 A screen whose background is not `canvas` — chat's `chat-canvas` — MUST extend it under the bars with a negative bottom margin that cancels the spacer. A child's background stops at its own box, so without it the strip behind the bars falls back to the shell's `canvas` and shows as a band of the wrong colour through the translucent bar.
 
 Clearance, not a hard stop: mid-scroll the content genuinely passes under the bars — that is the effect — and the spacer only guarantees that the _last_ row can still be scrolled clear of them.
+
+**`TwoPane`'s panel is `sticky` at `top: 0`, `height: calc(100dvh - var(--bottom-inset))`, from `lg`.** It relies on the shell column carrying no `overflow` of its own (`AGENTS.md § 4.4.`); the height subtracts `--bottom-inset` because the panel yields it too — `RouteTransition` trails that spacer under every screen, and a full-`dvh` panel plus it is a document 4px taller than the viewport, which scrolls.
 
 ### 3.5.1. Full-screen overlays.
 
@@ -494,6 +503,10 @@ Three implementation details are load-bearing, and each has already been a bug:
 - The scroller carries **`overflow-x: clip`**. `overflow-x: visible` computes to `auto` next to `overflow-y: auto`, so the 24px translate would make `<main>` genuinely pannable sideways for the length of every navigation — `clip` and not `hidden`, for the reason § 6.1. gives.
 
 Under `prefers-reduced-motion: reduce` both animations drop to a `0s` duration, which is an instant swap.
+
+**The slide is also `0s` from `md`.** A rail tap is a click beside the content rather than a swipe through it (§ 7.3.1.), and a 24px slide there reads as the page flinching; the composer's own rise still plays.
+
+**보관함's column-count step (pinch or the 열 개수 slider, § 7.10.3.) is the app's second view transition**, on the same duration and curve as the media morph, scoped to a `view-transition-class` (`archive-tile`) rather than a bare `::view-transition-group(*)` so it cannot also re-time the photo-open morph above.
 
 **Why not `<ViewTransition>`.** It was tried, in three arrangements, and every one of them cost the floating bars (§ 3.5.) something worse than a plain slide. The trap is that a view transition paints its snapshots in the **top layer**, which nothing on the page can reach above — not a `z-index`, not a `popover`. A bar left on the live page is painted straight over by the outgoing screen's snapshot. Capturing the bars so they ride the same layer fixes that and breaks two other things: a captured group is composited on its own, so a `backdrop-filter` inside it has no backdrop left to sample and collapses to a flat fill; and the bars' two snapshots are the same picture, composited with the UA's `mix-blend-mode: plus-lighter`, so two copies of a `canvas/75` surface sum past 1 and render as an opaque plate for the length of every navigation. Clipping the screen's snapshot out of the bar strip is not a third option — a captured element stops painting on the live page entirely, so the strip falls through to the shell's flat `canvas` and reads as a solid block.
 
@@ -995,6 +1008,19 @@ Labels: `채팅` / `캘린더` / `보관함` / `설정`.
 
 The third tab was `갤러리` on `Images` until it grew a 파일 segment (`REQUIREMENTS.md § 10.`), and a tab holding documents cannot be called a gallery. `Archive` is the glyph because it is the one in lucide's outlined set that reads as "things put away" rather than as one medium — `Images` would have kept naming half the contents, and `Folder` reads as a filesystem the app does not have. **The prefix is `/archive`, and it caught up with the label one segment later**: it stayed `/gallery` while it was a leaf, on the same reasoning that keeps `이모티콘 관리` at `/settings/emoticons`, and that reasoning broke the moment the shelves nested under it — `/gallery/files` reads as a claim that files are a kind of gallery (`REQUIREMENTS.md § 7.`). The tab's own tap goes to `/archive/gallery` rather than the prefix, so the fill travels without spending a redirect first.
 
+### 7.3.1. Nav Rail.
+
+`NavRail` replaces the tab bar from `md` — never dropped or `inert` on `/chat`, unlike the bar it replaces, since it also carries 첨부 and the profile avatar.
+
+| Property | Value                                                                                                                                                                    |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Width    | `--rail-width` (72px), `fixed inset-y-0 left-0`, `canvas` fill, 1px `hairline` right border                                                                              |
+| Order    | Logo (top) → 4 tabs, icon over label → 첨부 (`Plus`, `requestAttach()`, routes to `/chat` first if elsewhere) → current-user `Avatar` (bottom, opens the profile viewer) |
+| Fill     | The tab bar's own travelling fill (§ 7.3.), turned vertical: `height: 100%/4`, `translate: 0 {index}*100%` over `--duration-tab-travel`                                  |
+| Keyboard | `nav[aria-label="주요 화면"]`, roving tabindex, `ArrowUp`/`ArrowDown`/`Home`/`End` (`REQUIREMENTS.md § 8.14.`), `isComposing` guarded                                    |
+
+The active-tab fill and the pending-tab-on-tap behaviour are shared with `TabBar` through `usePendingTab` (`shared/lib/hooks`) rather than duplicated — both hold across the very navigation the smoothing is for, and so does 보관함's `lg` panel switcher (§ 7.10.3.).
+
 ## 7.4. Modal.
 
 `canvas` surface, `rounded-lg`, `shadow-floating`, scrim `bg-scrim/45`. Props-driven (`isOpen` / `header` / `onClose`), never composed at the call site.
@@ -1004,7 +1030,11 @@ The third tab was `갤러리` on `Images` until it grew a 파일 segment (`REQUI
 | `sm` | `min(360px, 100% - 32px)` | Confirmations, short choices |
 | `md` | `min(440px, 100% - 32px)` | Forms with helper copy       |
 
-No size beyond `md`: the shell is 576px, so anything larger is a screen, not a modal. Header is `display-sm` `ink`, optional description `body-sm` `meta`.
+No size beyond `md` for a modal opened as one: anything larger is a screen. `DialogShell` (`shared/ui`) is the composition both this and `BottomSheet`'s desktop path draw from, and it takes a third size, `lg` (576px, `--sheet-max-width`) — a sheet becoming a centred dialog at `md`, never a modal opened as one.
+
+`ActionSheet` becomes a `Popover` at `md` when it is passed an `anchorRef`, pinned to the element that opened it (`role="menu"`, arrow keys, `Escape`); with no anchor it falls back to this `Modal` at `sm`, same rows. Below `md` it is unchanged.
+
+Header is `display-sm` `ink`, optional description `body-sm` `meta`. A header with an `action` beside the close control reserves that button's 44px box (`pr-11`) so the two never overlap.
 
 ## 7.5. Bottom Sheet.
 
@@ -1022,7 +1052,7 @@ The default overlay for anything originating from a bottom-anchored or list inte
 | Bottom edge sits at `--viewport-bottom`, not `0`                                                                                              | The keyboard would otherwise cover it (§ 3.4.)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Focus ring inside the sheet is `ring-2 ring-primary ring-inset`                                                                               | `overflow-hidden` would crop an outward offset ring                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Closing restores focus to whatever opened the sheet — **except after a row that declares `keepsFocus`**                                       | The sheet unmounts at the end of its exit animation, so the restore lands well after the action ran and would blur anything it focused on purpose (`REQUIREMENTS.md § 8.13.`'s 수정, the one row in the app that asks). Every other row, and every dismissal, still restores — nine sheets share this component and only one action moves focus                                                                                                                                                                                         |
-| Never swapped for a `Modal` at any width                                                                                                      | § 3.1.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| At `md` renders as `DialogShell` size `lg` instead — never a bare `Modal`                                                                     | `AGENTS.md § 4.1.`'s one component-choice branch here; the title stays visible in that form rather than the mobile sheet's optional hidden header, since a centred dialog with no title reads as empty                                                                                                                                                                                                                                                                                                                                  |
 | Capped at the shell width and centred, with the `sm` inset subtracted from the cap rather than left as a margin                               | Vaul portals the sheet outside `#app-shell`, so its `fixed` box is laid out against the whole layout viewport — the same re-application `AppHeader` and `BottomOverlay` make (`§ 3.3.`). Without it a desktop sheet spanned the window while every other pixel of the app sat in a 576px column. The inset is folded into the width because `mx-auto` and `mx-sm` cannot both hold, and only one of the two is expressible as a width                                                                                                   |
 
 `ActionSheet` is a bottom sheet whose body is a list of full-width `surface-soft` rows, `rounded-md`, `button-md` label with optional leading icon, following the chip ladder for states. Destructive rows use `semantic-error` text.
@@ -1269,6 +1299,12 @@ A drop is accepted here as on the other two shelves, and **nothing dropped can e
 
 **Leaving the screen stops playback**, exactly as leaving the room does (`REQUIREMENTS.md § 9.3.`). A clip runs for minutes and no other screen draws a transport, so a row left playing behind a tab switch cannot be reached to pause.
 
+### 7.10.3. Desktop: columns and the `lg` panel.
+
+Column count is 1–7, cookie-backed (`jandh:archive-columns`) so SSR and `LibraryFallback` agree with the client. Desktop defaults to 5, set before first paint when no cookie exists yet; an explicit cookie — even one reading 3 from a mobile session — is never overridden. Mobile keeps pinch-to-resize (`useIsCoarsePointer`-gated, never viewport-gated: a coarse-pointer 2-in-1 at desktop width still forces 5), one step per ~1.25× of scale, continuous within one gesture. `사진의 열 개수` opens a `Slider` sheet for a pointer that cannot pinch — the same control on every width and every pointer, since `BottomSheet` becomes the desktop dialog on its own (§ 7.5.). Either input runs the change through a View Transition (§ 4.7.1.) rather than a cut.
+
+The `lg` panel is a vertical pill switcher for 갤러리/파일/음성 — the tab bar's own travelling-fill technique (§ 7.3.), turned into three equal links on a glass track — over a month-jump list. Each row carries a count badge from `listArchiveMonthCounts`, one `GROUP BY` query per shelf fetched once by the route layout rather than per shelf page, so a month below the fold is still there to jump to. The panel persists across all three shelf routes (mounted by the layout, not a page) so the pill's fill has something to travel from on a shelf switch.
+
 ## 7.11. Settings Row.
 
 Full-width, min-height 56, `canvas` fill, 1px `hairline-soft` bottom border, padding `md`. Leading 18px `meta` icon, `title-md` `ink` label, trailing value in `body-sm` `meta` plus a 16px chevron. `:hover` `surface-soft`, `:active` `surface-strong`. Destructive rows (로그아웃, 세션 폐기) use `semantic-error` label with no icon colour change.
@@ -1285,6 +1321,7 @@ Every screen renders its own header rather than inheriting one from the layout, 
 | Title       | Optional. `title-md` `ink`, left-aligned on the 16px screen gutter (§ 4.3.), truncates on overflow. Fades out (200ms) once the shell's scroller has moved off the top                                                                                                                                                                                                                                                        |
 | Padding     | `sm` (12) on the row, `2xs` (4) on the title                                                                                                                                                                                                                                                                                                                                                                                 |
 | Slots       | Leading and trailing, rendered only when present — an empty slot MUST NOT reserve width. A titleless header with a leading slot gives that slot the row, and grows no spacer of its own (§ 6.8.'s search field)                                                                                                                                                                                                              |
+| Side panel  | `hasSidePanel`: draws `SidePanelToggle` (§ 7.20.) in the leading slot itself when the caller supplies none — `⌘\`, `lg`-only. Passed by every screen with a `TwoPane`/panel (채팅, 캘린더, 보관함's three shelves); 설정 and its sub-routes leave the default, having no panel                                                                                                                                               |
 | Controls    | `icon-button-floating` (§ 7.1.) — the header itself is invisible, so each control carries its own surface                                                                                                                                                                                                                                                                                                                    |
 | Pointers    | The strip is `pointer-events-none` and **only what a finger can aim at takes them back**. The row grants `auto` to its children through `:not([data-inert])`, and the title and the titleless spacer both carry `data-inert` — each is a `flex-1` block that paints nothing across the middle of the row, so granted pointers they swallowed every tap on the content scrolling under a header that exists to be transparent |
 | Hit testing | The strip is `pointer-events-none`; its children re-enable it, so content underneath stays tappable                                                                                                                                                                                                                                                                                                                          |
@@ -1300,6 +1337,8 @@ Every screen renders its own header rather than inheriting one from the layout, 
 The header has no surface because it is not a region — it is a place to put controls. A filled bar would draw a line across the top of a screen whose content is meant to run to the edge, and would need a scroll-aware fill to look right once content passes beneath it. Transparent needs neither.
 
 A screen whose content starts at the top offsets it by `--app-header-inset` itself. Chat does not: its messages are meant to run under the controls.
+
+**A screen with a side panel widens the header's own `left` to `--content-left` from `lg`**, past the default `--rail-width` — the panel sits between the rail and the main pane, and a header left at the rail's edge would float over it. Passed per screen as `className` (`lg:left-(--content-left)`, transitioning with the panel's own collapse) rather than folded into `AppHeader` itself, since a panel-less screen has nothing to offset for.
 
 **The fade is read one frame after the scroll is restored, never on mount alone.** `ScrollMemory` puts a returning screen back where it was in a frame of its own, and a screen streaming in behind its `loading.tsx` mounts its header after that — so a header that only listened for `scroll` came up unfaded over content that was already scrolled, which is what 캘린더 and 보관함 showed on the way back to them.
 
@@ -1543,6 +1582,23 @@ What every other surface does while § 7.18.'s pill is up. The rule is that **th
 **The copy frame is `인터넷에 연결되면 {동사} 수 있어요`**, one fixed verb per site. It names the recovery condition rather than the state: the pill is already saying the state, and a control tapped inside the pill's own 1s settle still has to explain itself alone. The verb is a literal and takes no `josa` — the two strings that do interpolate are the subject-named row variant (`이모티콘은` against `서버 관리는`) and the empty state's subject, and both genuinely flip (`AGENTS.md § 0.4.`).
 
 **The stale label is `` `${relative} 기준` `` and takes no particle by design**, so it cannot break the day a relative-time string ends in a vowel. **Media is a blurhash and never a broken image** (`REQUIREMENTS.md § 16.2.`): a grid holds its placeholder with no glyph at all, since a `CloudOff` on every tile is noise across a whole month, while the full-screen viewer — where the reader explicitly asked for the bytes — earns a centred one.
+
+## 7.20. Side Panel.
+
+`SidePanel`, composed by `TwoPane` and by `ChatScreen`'s own inner aside (§ 3.4.), is the `lg`+ collapsible column beside a screen's main content. `bg-canvas` is stated explicitly rather than inherited — `ChatScreen`'s fixed box carries the wallpaper's tint (`REQUIREMENTS.md § 12.2.`), which the panel would otherwise show through and lose its text against.
+
+State is a cookie (`jandh:side-panel`), open/closed, so `app/(main)/layout.tsx` can paint `#app-shell`'s `data-side-panel="closed"` before hydration — `theme.css`'s `:root:has()` reads it back to zero `--pane-width`. The width transition (`transition-[width]` on `--duration-route-enter`/`ease-route`) is on the outer box alone; the inner content wrapper keeps a fixed width (`--pane-open-width`) throughout, so nothing inside reflows while the outer box narrows to nothing.
+
+The toggle (`SidePanelToggle`) sits in `AppHeader`'s leading slot (§ 7.12.), not the rail — `PanelLeft`/`PanelLeftClose`, `⌘\` (`isCommandKey`, `REQUIREMENTS.md § 8.14.`), `lg`-only.
+
+**Per-screen panel content:**
+
+| Screen | Panel                                                                                                                                                                                                                         |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 채팅   | Partner block (avatar, name, 입력 중), then 검색 and 다가오는 일정 splitting the remaining height 50/50, each scrolling on its own (§ 6.'s panel is `ChatSidePanel`) — 검색's field is the `flat` variant, no floating chrome |
+| 캘린더 | D-day band, then the month grid — selecting a day still opens the sheet/dialog event form (`AGENTS.md` Amendments), never an inline card                                                                                      |
+| 보관함 | § 7.10.3.'s pill switcher and month-jump list                                                                                                                                                                                 |
+| 설정   | **None.** Desktop keeps stack navigation (뒤로 stays); a menu-and-detail split was considered and rejected — 설정's rows are a flat list with no natural "current section" a panel would track                                |
 
 # 8. Rules.
 

@@ -22,15 +22,10 @@ import { toArchiveMedia, type ArchiveOrigin } from "../model/to-archive-media";
 import type { ArchiveMedia } from "../model/types";
 
 /**
- * The tile a page is measured from — one `media` id and nothing beside it
- * (the finished restructure).
- *
- * WARN: This was the `(created_at, id)` **pair** until the id became the whole of
- * the ordering. It is not a simplification to undo: `created_at` defaults to the
- * transaction timestamp, so every attachment of one multi-photo send compared equal
- * on it, and the id was already carried alongside precisely to break that tie.
- *
- * INFO: Which is also why the row-constructor comparison is gone — a single column takes `lt`/`lte`/`gt`, so no operator is interpolated raw and no parameter is cast by hand to keep it off a `text` sort.
+ * The tile a page is measured from — one `media` id and nothing beside it. Not a
+ * `(created_at, id)` pair to simplify back to: `created_at` defaults to the
+ * transaction timestamp, so every attachment of one multi-photo send compared
+ * equal on it, and the id alone breaks that tie.
  */
 export type ArchiveCursor = MediaId;
 
@@ -47,12 +42,10 @@ export type ListArchiveMediaParams = {
 };
 
 /**
- * One page of one library shelf, newest first (REQUIREMENTS.md § 10.).
- *
- * INFO: The finished restructure. Ordered by id alone. An id is a total order, so the tie a timestamp had to be broken out of does not arise — see `ArchiveCursor` for the one that used to.
- *
- * WARN: `around` wins over the other two rather than combining with them, exactly
- * as `listMessages` resolves the same set (§ 8.2.) — they name different windows.
+ * One page of one library shelf, newest first (REQUIREMENTS.md § 10.). Ordered by
+ * id alone — an id is a total order, so there's no tie to break. `around` wins
+ * over the other two rather than combining with them, as `listMessages` resolves
+ * the same set (§ 8.2.) — they name different windows.
  */
 export async function listArchiveMedia({
   shelf = "gallery",
@@ -83,11 +76,9 @@ function selectOlder(within: Optional<SQL>, before: Optional<ArchiveCursor>, lim
 
 /**
  * The page directly newer than the window's first tile (REQUIREMENTS.md § 10.).
- *
- * WARN: Ordered **ascending** and reversed afterwards, never descending. Descending
- * from the top of the shelf would answer with the newest rows in the library, which
- * is a page from somewhere else entirely; ascending from the cursor is the only
- * ordering that returns the rows contiguous with the window being extended.
+ * Ordered ascending and reversed afterwards, never descending — descending from
+ * the top of the shelf would answer with the newest rows in the library, a page
+ * from somewhere else entirely.
  */
 async function selectNewer(
   within: Optional<SQL>,
@@ -107,18 +98,11 @@ async function selectNewer(
 /**
  * REQUIREMENTS.md § 10. The window 보관함 opens on when 채팅 hands it a photo's id —
  * half the page newer than that tile and the rest at or older than it, so the reader
- * lands with the neighbours the grid would have had if they had scrolled there.
- *
- * WARN: A target that is not on this shelf falls back to the newest page rather than
- * raising. `?target=` is a URL anybody can type, and it also names a row that 삭제
- * may have taken out from under the link since it was drawn — a shelf that renders
- * its own first page is the honest answer to both, where an error page is not.
- *
- * WARN: The older half asks for the **whole** limit and is sliced down afterwards.
- * `useArchiveMedia` reads "is there more behind this" off the page's own length, so
- * a target within half a page of the newest — where the newer query can only answer
- * with a handful of rows — would otherwise return a short page and stop paging the
- * shelf at the very first screenful.
+ * lands with the neighbours the grid would have had if they had scrolled there. A
+ * target not on this shelf (a stale `?target=`, or a row 삭제 took) falls back to
+ * the newest page rather than raising. The older half asks for the whole limit and
+ * is sliced down afterwards — otherwise a target near the newest could return a
+ * short page and stall `useArchiveMedia`'s "is there more" check.
  */
 async function selectAround(
   within: Optional<SQL>,
@@ -151,15 +135,10 @@ async function selectAround(
 }
 
 /**
- * Whether the target names a row **on this shelf**, which is the whole of what the
- * cursor now has to establish (the finished restructure).
- *
- * INFO: The shelf predicate is part of the lookup, not only of the pages around
- * it. A `media` id from another segment resolves to a real row whose place in this
- * listing does not exist, and centring on it would page from a position no tile of
- * this grid ever occupies.
- *
- * INFO: The id is the caller's own, so the row is looked up to be tested rather than to be read from — the cursor it used to project is now that same id.
+ * Whether the target names a row on this shelf. The shelf predicate is part of
+ * the lookup, not only of the pages around it — a `media` id from another segment
+ * resolves to a real row whose place in this listing does not exist, and centring
+ * on it would page from a position no tile of this grid ever occupies.
  */
 async function findCursor(
   within: Optional<SQL>,
@@ -176,25 +155,13 @@ async function findCursor(
 
 /**
  * REQUIREMENTS.md § 10. Which message carries each tile and who sent it — for
- * 대화에서 보기 and for the viewer's top bar (DESIGN.md § 7.10.).
- *
- * WARN: A second query rather than a join on the listing above. `message_media`
- * has no unique index on `media_id`, so a joined row set can be longer than the
- * page it was limited to — which would both repeat a tile and spend a slot of the
- * page on the repeat, with the keyset cursor none the wiser.
- *
- * INFO: `users` **is** joined, here and not there. That warning is about a join that
- * can multiply rows; this one is a foreign key to a primary key inside the query that
- * already runs, so it adds a lookup per row and no rows at all. It is not gated on
- * 갤러리 either — the branch and the second row shape would cost more than the column.
- *
- * WARN: The name is resolved through `resolveDisplayName`, never read straight off
- * `nickname` (REQUIREMENTS.md § 8.7.) — an empty nickname falls back to the email's
- * local part, and spelling that rule a second time here is how the two drift.
- *
- * INFO: A row with no answer here is one whose message was withdrawn between the two
- * queries (§ 18. #1. left no other way onto a shelf). It leaves the control off the
- * viewer rather than offering a jump into nothing, and has nobody to name.
+ * 대화에서 보기 and the viewer's top bar (DESIGN.md § 7.10.). A second query rather
+ * than a join on the listing above, since `message_media` has no unique index on
+ * `media_id` and a joined row set could outgrow the page's limit. `users` is
+ * joined here (a to-one FK lookup, unlike the multiplying join above), and the
+ * name resolved through `resolveDisplayName`, never read straight off `nickname`
+ * (§ 8.7.), so the fallback rule isn't spelled twice. A row with no answer here is
+ * one whose message was withdrawn between the two queries (§ 18. #1.).
  */
 async function findSendingMessages(mediaIds: MediaId[]): Promise<Map<string, ArchiveOrigin>> {
   if (mediaIds.length === 0) {
@@ -222,13 +189,10 @@ async function findSendingMessages(mediaIds: MediaId[]): Promise<Map<string, Arc
 }
 
 /**
- * INFO: REQUIREMENTS.md § 10. `media` is the library's single source, so a row belongs
- * here because a message that is still visible carries it. An object no live message
- * carries is an upload whose send never landed, and it is not something the user saw.
- *
- * WARN: Membership only — which **shelf** a row lands on is `isOfShelf`, and the
- * two were one predicate until 파일 got a segment of its own. `destroyArchiveMedia`
- * wants this half alone, since 삭제 reaches every shelf.
+ * REQUIREMENTS.md § 10. `media` is the library's single source, so a row belongs
+ * here because a message that is still visible carries it. Membership only — which
+ * shelf a row lands on is `isOfShelf` — since `destroyArchiveMedia` wants this half
+ * alone, as 삭제 reaches every shelf.
  */
 export function isInLibrary(): Optional<SQL> {
   const isPosted = exists(
@@ -244,18 +208,11 @@ export function isInLibrary(): Optional<SQL> {
 }
 
 /**
- * Which segment a row is drawn under (REQUIREMENTS.md § 10., the finished restructure) —
- * the kinds `SHELF_KINDS` maps this shelf to, and nothing else.
- *
- * WARN: The ordering trap this function used to be is gone, and the record of it is
- * why the map is where it is. It read `filename`, then `waveform_peaks`, **in that
- * order**, and 사진 was the fallthrough — so a recording tested after 사진 rather
- * than before it appeared as a tile in the grid with no `_thumb` object behind it,
- * and a kind added to the shelf list without a clause here spilled into 사진 instead
- * of opening an empty segment. A shelf now names its kinds and the column answers.
- *
- * INFO: Which is also what let the 사진 shelf be renamed 갤러리 without a query changing — it always held `image` and `video`, and only the fallthrough made that hard to see.
+ * Which segment a row is drawn under (REQUIREMENTS.md § 10.) — the kinds
+ * `SHELF_KINDS` maps this shelf to, and nothing else. Replaces a prior ordering
+ * trap (`filename`, then `waveform_peaks`, with 사진 as the fallthrough) where a
+ * shelf added without a clause here silently spilled into 사진.
  */
-function isOfShelf(shelf: LibraryShelf): Optional<SQL> {
+export function isOfShelf(shelf: LibraryShelf): Optional<SQL> {
   return inArray(media.kind, [...SHELF_KINDS[shelf]]);
 }

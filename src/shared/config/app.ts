@@ -4,6 +4,11 @@ import { snowflakeSchema } from "./id";
 
 export const APP_NAME = "ChitChat";
 
+// INFO: AGENTS.md § 4.1. The one breakpoint the desktop layout branches component choice on — `useIsDesktop` reads it.
+export const DESKTOP_MEDIA_QUERY = "(min-width: 768px)";
+/** The side panel (`SidePanel`) shows from `lg`, one step above the rail. */
+export const SIDE_PANEL_MEDIA_QUERY = "(min-width: 1024px)";
+
 // INFO: Comma-separated so one deployment can answer under more than one origin (a custom domain alongside the platform-assigned one, or mid-migration between two domains).
 export const APP_URLS = (process.env.APP_URLS ?? "")
   .split(",")
@@ -413,6 +418,12 @@ export const TYPING_TIMEOUT = 8 * A_SECOND;
 export const PUSH_SUBSCRIPTION_PATH = "/api/push/subscription";
 // INFO: REQUIREMENTS.md § 16.1. The last push state this installation settled on, kept in a cookie so the Settings rows render it server-side instead of waiting for the launch sync.
 export const PUSH_STATE_COOKIE_NAME = "push-state";
+
+// INFO: AGENTS.md § 4.4. Collapsed vs open for the `lg` side panel, kept in a cookie so the layout can paint the collapsed width server-side instead of flashing open.
+export const SIDE_PANEL_COOKIE_NAME = "jandh:side-panel";
+
+// INFO: AGENTS.md § 4.1. 보관함's column count (1–7) at every width — the pinch's and the 열 개수 slider's shared cookie, kept so SSR and `ArchiveGrid` draw the same count with no flash.
+export const ARCHIVE_COLUMNS_COOKIE_NAME = "jandh:archive-columns";
 
 // WARN: Must stay at the origin root. A worker served from a subdirectory controls only that subdirectory, and the push subscription is bound to the scope it was created under.
 export const SERVICE_WORKER_PATH = "/sw.js";

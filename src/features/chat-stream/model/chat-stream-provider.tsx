@@ -85,6 +85,15 @@ export type ChatStreamValue = {
    */
   setChatBackgroundMediaId: (mediaId: Nullable<MediaId>) => void;
   unreadCount: number;
+  /**
+   * AGENTS.md § 4.1. Bumped by the desktop rail's 첨부 button; `ChatRoom` opens
+   * `MediaPickerSheet` on a change, since the rail sits outside the room and has
+   * no state of its own to open it with.
+   */
+  /** A pending 첨부 from the rail — the room opens its picker and clears it. */
+  attachRequest: number;
+  requestAttach: () => void;
+  clearAttachRequest: () => void;
   /** Everyone but me who is composing right now. REQUIREMENTS.md § 8.12. */
   typingUserIds: UserId[];
   /** REQUIREMENTS.md § 8.4.1. The app is asleep and every request to our API is refused. */
@@ -153,6 +162,9 @@ export function ChatStreamProvider({
     blurhash: initialChatBackgroundBlurhash,
   });
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
+  const [attachRequest, setAttachRequest] = useState(0);
+  const requestAttach = useCallback(() => setAttachRequest((count) => count + 1), []);
+  const clearAttachRequest = useCallback(() => setAttachRequest(0), []);
   // INFO: REQUIREMENTS.md § 8.12. When each signal stops counting, by this device's clock. Nothing seeds it — 입력 중 is never replayed, so a fresh mount knows nothing until a live event arrives.
   const [typingUserIds, setTypingUserIds] = useState<UserId[]>([]);
   const typingExpiry = useRef(new Map<UserId, number>());
@@ -276,6 +288,9 @@ export function ChatStreamProvider({
         chatBackgroundBlurhash: chatBackground.blurhash,
         setChatBackgroundMediaId,
         unreadCount,
+        attachRequest,
+        requestAttach,
+        clearAttachRequest,
         typingUserIds,
         isDormant,
         subscribe,

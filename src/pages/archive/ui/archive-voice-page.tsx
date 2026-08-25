@@ -10,13 +10,15 @@ import { AppHeader, EmptyState, IconButton, ShellOverlay, toast } from "@/shared
 import {
   ArchiveSelectionBar,
   ArchiveVoiceList,
+  toMonthAnchorId,
   useArchiveMedia,
   useArchiveRemoval,
   useArchiveSelection,
   useShelfStaging,
 } from "@/widgets/archive-shelves";
 import { AudioLines, ListChecks, Mic, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useArchiveJump } from "../model/archive-jump-context";
 import { LibrarySegments } from "./library-segments";
 
 export type ArchiveVoicePageProps = {
@@ -26,13 +28,9 @@ export type ArchiveVoicePageProps = {
 
 /**
  * REQUIREMENTS.md § 10. 보관함's 음성 segment — every § 9.3. recording the pair has
- * exchanged, which until this screen existed could not be found again anywhere. It
- * is the same gap 파일 was opened to close.
- *
- * WARN: No 공유. `extensionForMime` has no answer for `audio/mp4`, so the sheet would
- * be handed `{uuid}.bin` — the fault § 9.1. found for files and fixed there by naming
- * each `File` from `media.filename`, which a recording does not have. 저장 is unaffected:
- * the server names the download itself.
+ * exchanged. No 공유: `extensionForMime` has no answer for `audio/mp4`, so the share
+ * sheet would be handed `{uuid}.bin` and a recording has no `media.filename` to name
+ * it by. 저장 is unaffected, since the server names the download itself.
  */
 export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePageProps) {
   const [isRecording, setIsRecording] = useState(false);
@@ -52,7 +50,7 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
     },
   });
   const selection = useArchiveSelection({ savesToPhotoLibrary: false, countUnit: "개" });
-  // INFO: § 9.2. This shelf takes a drop like the other two, and everything dropped on it is a file or a photo — a recording is the one thing that cannot arrive this way, since the waveform § 9.3. discriminates on is only ever extracted while recording. `useArchiveUpload`'s closing toast is what says where it went.
+  // INFO: § 9.2. Takes a drop like the other two shelves, but a recording can never arrive this way — its waveform (§ 9.3.) is only ever extracted while recording; `useArchiveUpload`'s closing toast says where a dropped file went instead.
   const staging = useShelfStaging({
     shelf: "voice",
     acceptsFiles: true,
@@ -63,13 +61,27 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
   const uploadGate = useOfflineGate(OFFLINE_MESSAGES.upload);
   // INFO: REQUIREMENTS.md § 10. Every action the selection bar offers — 저장, 공유, 삭제 — needs the network, so entering selection offline is three dead ends and a count.
   const selectGate = useOfflineGate(OFFLINE_MESSAGES.select);
+  // INFO: AGENTS.md § 4.1. This shelf carries no virtualizer, so the panel's month list scrolls to the section's own `<section id>` directly.
+  const jumpToMonth = useCallback((monthKey: string) => {
+    document.getElementById(toMonthAnchorId(monthKey))?.scrollIntoView({
+      block: "start",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+  }, []);
+  // INFO: AGENTS.md § 4.1. `archive/layout.tsx`'s panel persists across shelf routes and reaches this page's own jump through the wire `ArchiveJumpProvider` is.
+  const { registerJumpHandler } = useArchiveJump();
 
-  // WARN: REQUIREMENTS.md § 9.3. The shared element outlives the rows addressing it, so leaving this screen has to stop it — exactly as the room does. Nothing on the next tab draws a transport that could pause a clip still running.
+  useEffect(() => registerJumpHandler(jumpToMonth), [registerJumpHandler, jumpToMonth]);
+
+  // WARN: REQUIREMENTS.md § 9.3. The shared audio element outlives the rows addressing it, so leaving this screen has to stop it, exactly as the room does.
   useEffect(() => stopVoice, []);
 
   return (
     <div className={cn("flex flex-1 flex-col", className)} {...staging.dropHandlers}>
       <AppHeader
+        className="motion-reduce:transition-none lg:left-(--content-left) lg:transition-[left] lg:duration-(--duration-route-enter) lg:ease-route"
+        containerClassName="max-w-none"
+        hasSidePanel
         title={selection.isSelecting ? `${selectedCount}개 선택` : "보관함"}
         trailing={
           selection.isSelecting ? (
@@ -81,8 +93,8 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
             />
           ) : (
             <>
-              {/* INFO: REQUIREMENTS.md § 9.3. 녹음, never a file picker. An audio file carries no waveform, so picking one here would file it on 파일 and leave this screen unchanged — the one way to put a row on this shelf is to record it. */}
-              {/* WARN: The tap sets the flag that **mounts** `VoiceRecorderBar`, and mounting is what opens the microphone. It must stay a plain click handler on the discrete event, or WebKit refuses `getUserMedia` for a stack no tap covers (§ 9.3.). */}
+              {/* INFO: REQUIREMENTS.md § 9.3. 녹음, never a file picker — recording is the only way to put a row on this shelf. */}
+              {/* WARN: A plain click handler, since it mounts `VoiceRecorderBar` (which opens the mic) — WebKit refuses `getUserMedia` for a stack no tap directly covers. */}
               <IconButton
                 variant="floating"
                 Icon={Mic}
@@ -107,7 +119,7 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
       />
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
       <div className="flex flex-1 flex-col p-md pt-[calc(var(--app-header-inset)+var(--spacing-xs))]">
-        {!selection.isSelecting && <LibrarySegments className="pb-sm" />}
+        {!selection.isSelecting && <LibrarySegments className="pb-sm lg:hidden" />}
         {media.length === 0 && staging.remainingCount === 0 ? (
           <div className="flex flex-1 items-center justify-center">
             <EmptyState Icon={AudioLines} description="아직 주고받은 음성이 없어요" />
@@ -145,7 +157,7 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
       {staging.sheet}
       {staging.editors}
       {removal.overlays}
-      {/* WARN: DESIGN.md § 3.3. Portalled into the shell box rather than positioned in this screen. The bar has to stand above the tab bar over whatever is scrolled, and this screen *is* the document scroller's content — an absolute strip left inside it would sit at the bottom of every month ever loaded. */}
+      {/* WARN: DESIGN.md § 3.3. Portalled into the shell box, not positioned in this screen — an absolute strip left inside it (the document scroller's content) would sit at the bottom of every month ever loaded. */}
       {isRecording && (
         <ShellOverlay>
           <div className="pointer-events-none absolute inset-x-0 bottom-0 p-md pb-[calc(var(--bottom-inset,0px)+var(--spacing-md))]">
@@ -157,24 +169,12 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
     </div>
   );
 
-  /**
-   * INFO: REQUIREMENTS.md § 10. Staged rather than sent outright, which is the
-   * opposite of the composer (§ 9.3.) and deliberately so: the room's 완료 *is* the
-   * send, while here the two 갈래 have still to be chosen between, and a tray of one
-   * is also the only way to abandon a recording after hearing what it caught.
-   */
+  // INFO: REQUIREMENTS.md § 10. Staged, not sent outright (unlike the composer, § 9.3.) — a tray of one is also the only way to abandon a recording after hearing what it caught.
   function stageRecording(recording: VoiceRecording) {
     staging.addDraft(toVoiceDraft(recording));
   }
 
-  /**
-   * WARN: REQUIREMENTS.md § 9.3. The download route directly, never `useMediaShare`'s
-   * 저장 — that one goes through the iOS share sheet because it is the only way to the
-   * **photo library**, where a recording has no business.
-   *
-   * WARN: Started, never awaited. `downloadMedia` paces itself across the selection
-   * (§ 10.), so awaiting it would hold the handler behind a bar already dismissed.
-   */
+  // WARN: REQUIREMENTS.md § 9.3. The download route directly, never `useMediaShare`'s 저장 — that one exists only to reach the iOS photo library, where a recording has no business. Started, never awaited (§ 10.'s pacing).
   function startSave() {
     const ids = selection.selectedIds;
 

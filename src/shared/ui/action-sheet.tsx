@@ -1,9 +1,11 @@
 "use client";
 
-import { cn } from "@/shared/lib";
-import { useRef, type ComponentProps, type FC } from "react";
+import { cn, useIsDesktop, useRovingTabIndex, type Nullable } from "@/shared/lib";
+import { useRef, type ComponentProps, type FC, type RefObject } from "react";
 import { BottomSheet, type BottomSheetProps } from "./bottom-sheet";
+import { DialogShell } from "./dialog-shell";
 import { HapticTap } from "./haptic-tap";
+import { Popover, PopoverAnchor, PopoverContent } from "./popover";
 
 export type ActionSheetItem = {
   label: string;
@@ -27,13 +29,97 @@ export type ActionSheetProps = {
   isOpen: boolean;
   items: ActionSheetItem[];
   header: BottomSheetProps["header"];
+  /**
+   * AGENTS.md § 4.1. At `md`, with this set, the sheet becomes a `Popover` pinned
+   * to the element it names; at `md` with no anchor it falls back to a centered
+   * `Modal`. Below `md` it is unused — the mobile sheet stays a `BottomSheet`.
+   */
+  anchorRef?: RefObject<Nullable<HTMLElement>>;
   onClose: () => void;
 };
 
 // INFO: DESIGN.md § 7.5. Rows follow the chip ladder; destructive rows recolour the label only.
-export function ActionSheet({ className, isOpen, header, items, onClose }: ActionSheetProps) {
+export function ActionSheet({
+  className,
+  isOpen,
+  header,
+  items,
+  anchorRef,
+  onClose,
+}: ActionSheetProps) {
   // INFO: Whether the row that closed this sheet asked to keep focus — read by `handleCloseAutoFocus` below.
   const keepsFocus = useRef(false);
+  const isDesktop = useIsDesktop();
+  const isMenu = isDesktop && anchorRef !== undefined;
+  const handleMenuKeyDown = useRovingTabIndex({
+    orientation: "vertical",
+    selector: '[role="menuitem"]',
+  });
+
+  // INFO: DESIGN.md § 7.5. One `max-content` column shared by every row through `subgrid`, so the icons stand in a column and the labels in another — centred per row, `사진/영상` and `음성` put theirs at different x.
+  const rows = (
+    <ul className="grid grid-cols-[1fr_minmax(0,max-content)_1fr] gap-2xs">
+      {items.map((item) => (
+        <li key={item.label} className="group relative col-span-full grid grid-cols-subgrid">
+          <button
+            className={cn(
+              "col-span-full grid min-h-11 w-full cursor-pointer grid-cols-subgrid items-center rounded-md bg-surface-soft px-md py-sm text-button-md transition-colors outline-none group-active:bg-surface-pressed hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-pressed",
+              item.variant === "destructive" ? "text-semantic-error" : "text-ink",
+            )}
+            type="button"
+            role={isMenu ? "menuitem" : undefined}
+            onClick={() => handleSelect(item)}
+          >
+            <span className="col-start-2 inline-flex items-center gap-xs">
+              {item.Icon && (
+                <item.Icon className="pointer-events-none size-4.5 shrink-0" strokeWidth={1.75} />
+              )}
+              {item.label}
+            </span>
+          </button>
+          {/* INFO: Every row is a committed choice, so none of them is left silent. */}
+          {/* WARN: `keepsScroll` — the rows are the sheet's whole surface, so a finger pulling it down to dismiss lands here, and the switch would keep that drag and end it as a tap on the row (`DESIGN.md § 7.15.1.`). */}
+          {!isDesktop && <HapticTap className="touch-pan-y" forwardsTap keepsScroll />}
+        </li>
+      ))}
+    </ul>
+  );
+
+  if (isMenu) {
+    return (
+      <Popover open={isOpen} onOpenChange={handleOpenChange}>
+        <PopoverAnchor virtualRef={anchorRef} />
+        <PopoverContent
+          className={cn("w-64 p-2xs", className)}
+          role="menu"
+          aria-label={header.title}
+          onKeyDown={handleMenuKeyDown}
+        >
+          {rows}
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  if (isDesktop) {
+    return (
+      <DialogShell
+        className={className}
+        isOpen={isOpen}
+        size="sm"
+        header={{
+          title: header.title,
+          description: header.description,
+          className: header.className,
+          isHidden: false,
+        }}
+        onClose={onClose}
+        onCloseAutoFocus={handleCloseAutoFocus}
+      >
+        {rows}
+      </DialogShell>
+    );
+  }
 
   return (
     <BottomSheet
@@ -43,37 +129,21 @@ export function ActionSheet({ className, isOpen, header, items, onClose }: Actio
       onClose={onClose}
       onCloseAutoFocus={handleCloseAutoFocus}
     >
-      {/* INFO: DESIGN.md § 7.5. One `max-content` column shared by every row through `subgrid`, so the icons stand in a column and the labels in another — centred per row, `사진/영상` and `음성` put theirs at different x. The `1fr` on either side is what keeps the block itself centred. */}
-      <ul className="grid grid-cols-[1fr_minmax(0,max-content)_1fr] gap-2xs">
-        {items.map((item) => (
-          <li key={item.label} className="group relative col-span-full grid grid-cols-subgrid">
-            <button
-              className={cn(
-                "col-span-full grid min-h-11 w-full cursor-pointer grid-cols-subgrid items-center rounded-md bg-surface-soft px-md py-sm text-button-md transition-colors outline-none group-active:bg-surface-pressed hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-pressed",
-                item.variant === "destructive" ? "text-semantic-error" : "text-ink",
-              )}
-              type="button"
-              onClick={() => handleSelect(item)}
-            >
-              <span className="col-start-2 inline-flex items-center gap-xs">
-                {item.Icon && (
-                  <item.Icon className="pointer-events-none size-4.5 shrink-0" strokeWidth={1.75} />
-                )}
-                {item.label}
-              </span>
-            </button>
-            {/* INFO: Every row is a committed choice, so none of them is left silent. */}
-            {/* WARN: `keepsScroll` — the rows are the sheet's whole surface, so a finger pulling it down to dismiss lands here, and the switch would keep that drag and end it as a tap on the row (`DESIGN.md § 7.15.1.`). */}
-            <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
-          </li>
-        ))}
-      </ul>
+      {rows}
     </BottomSheet>
   );
 
   function handleSelect(item: ActionSheetItem) {
     keepsFocus.current = item.keepsFocus ?? false;
     item.onSelect();
+    onClose();
+  }
+
+  function handleOpenChange(open: boolean) {
+    if (open) {
+      return;
+    }
+
     onClose();
   }
 

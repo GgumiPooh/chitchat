@@ -7,7 +7,7 @@ import { Skeleton, VoicePlayer } from "@/shared/ui";
 import { Check } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
-import { toArchiveSections } from "../model/to-archive-sections";
+import { toArchiveSections, toMonthAnchorId } from "../model/to-archive-sections";
 
 export type ArchiveVoiceListProps = {
   className?: string;
@@ -21,15 +21,9 @@ export type ArchiveVoiceListProps = {
 
 /**
  * The 음성 segment of 보관함 (REQUIREMENTS.md § 10.) — the month sections the other
- * two shelves use, as a one-column list of `VoicePlayer` rows.
- *
- * INFO: A tap **plays**, where 사진 opens the viewer and 파일 downloads. That is the
- * rule the segments are cut along (§ 10.): one shelf, one thing a tap means.
- *
- * WARN: The player is the same component the chat bubble draws, so a recording is
- * the same object in both places rather than a second rendering of it — and only one
- * clip plays at a time here for free, since `shared/lib/audio` owns one element for
- * the whole page (§ 13.6.).
+ * two shelves use, as a one-column list of `VoicePlayer` rows. A tap plays, where
+ * 사진 opens the viewer and 파일 downloads. The same `VoicePlayer` the chat bubble
+ * draws, so only one clip plays at a time for free (`shared/lib/audio`, § 13.6.).
  */
 export function ArchiveVoiceList({
   className,
@@ -53,7 +47,12 @@ export function ArchiveVoiceList({
   return (
     <div className={cn("flex flex-col gap-md", className)}>
       {sections.map((section) => (
-        <section key={section.monthKey}>
+        // INFO: AGENTS.md § 4.1. `id` + `scroll-mt` is what the `lg` panel's month list scrolls to — this shelf has no virtualizer to hand an index to.
+        <section
+          key={section.monthKey}
+          className="scroll-mt-(--app-header-inset)"
+          id={toMonthAnchorId(section.monthKey)}
+        >
           {/* INFO: DESIGN.md § 7.10. Scrolls with the list, for the reason the grid's header does. */}
           <h2 className="pb-xs text-title-sm text-meta">{section.label}</h2>
           <div className="flex flex-col gap-2xs">
@@ -75,12 +74,7 @@ export function ArchiveVoiceList({
     </div>
   );
 
-  /**
-   * WARN: The selection mark is a sibling of the player, never a wrapper around it.
-   * The player owns a play control and a seek slider of its own, and a row that
-   * swallowed their taps in selection mode would leave both looking live and doing
-   * nothing — so selecting is its own control beside them.
-   */
+  // WARN: The selection mark is a sibling of the player, never a wrapper — the player owns its own play control and seek slider, and swallowing their taps in selection mode would leave both looking live and doing nothing.
   function renderRow(item: ArchiveMedia) {
     const isSelected = selected.has(item.id);
 

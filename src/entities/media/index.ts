@@ -7,6 +7,7 @@ export {
   type ArchiveCursor,
   type ListArchiveMediaParams,
 } from "./api/list-archive-media";
+export { listArchiveMonthCounts } from "./api/list-archive-month-counts";
 export {
   listConversationMedia,
   type ListConversationMediaParams,
@@ -14,5 +15,5 @@ export {
 export { validateMediaUpload, type ValidateMediaUploadParams } from "./api/validate-media-upload";
 // WARN: Everything above touches the database. A client module may import from this barrel with `import type` only — a value import drags `server-only` into its bundle, which is why `toMediaUrl` lives in `@/shared/config` instead.
 export type { MediaDraft } from "./model/draft";
-export type { ArchiveMedia, ChatMedia, ChatTrackMedia } from "./model/types";
+export type { ArchiveMedia, ArchiveMonthCount, ChatMedia, ChatTrackMedia } from "./model/types";
 export { mediaUploadSchema, type MediaUpload } from "./model/upload";

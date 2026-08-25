@@ -34,7 +34,8 @@ export function ShellOverlay({ className, children }: ShellOverlayProps) {
         <Container
           className={cn(
             // WARN: DESIGN.md § 3.4. `--keyboard-pan` and never `--viewport-top` — the raw property is also non-zero while Safari collapses its toolbar, which would drop this layer below the visible area on a screen with no keyboard in it.
-            "pointer-events-none fixed inset-x-0 top-(--keyboard-pan) z-40 h-[var(--viewport-height,100dvh)] px-0",
+            // INFO: AGENTS.md § 4.4. `left-(--rail-width)` rather than `inset-x-0`, for the reason `AppHeader` carries the same change.
+            "pointer-events-none fixed top-(--keyboard-pan) right-0 left-(--rail-width) z-40 h-[var(--viewport-height,100dvh)] w-auto max-w-none px-0",
             className,
           )}
         >

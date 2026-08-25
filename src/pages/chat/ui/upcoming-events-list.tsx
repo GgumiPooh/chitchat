@@ -1,0 +1,152 @@
+"use client";
+
+import type { EventOccurrence } from "@/entities/event";
+import { cn, formatTimeLeft, formatUpcomingWhen, isImminent, type Nullable } from "@/shared/lib";
+import { EmptyState, HapticTap } from "@/shared/ui";
+import { EventDot, EventMemo } from "@/widgets/calendar-month";
+import { CalendarClock, ChevronDown } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+
+export type UpcomingEventsListProps = {
+  className?: string;
+  listClassName?: string;
+  occurrences: EventOccurrence[];
+  todayKey: string;
+  /** REQUIREMENTS.md § 11.5.1. The clock the imminent rows count down against. */
+  now: number;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  onLoadMore: () => void;
+  onSelect: (occurrence: EventOccurrence) => void;
+};
+
+/**
+ * REQUIREMENTS.md § 11.5.1. 다가오는 일정's rows on their own, shared by the
+ * floating chat overlay (`UpcomingEventsPanel`) and the desktop side panel,
+ * each of which supplies its own chrome around this.
+ */
+export function UpcomingEventsList({
+  className,
+  listClassName,
+  occurrences,
+  todayKey,
+  now,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
+  onSelect,
+}: UpcomingEventsListProps) {
+  const listRef = useRef<HTMLUListElement>(null);
+  // INFO: How many rows stood before the page in flight was asked for — its first new row is that index.
+  const pendingFrom = useRef<Nullable<number>>(null);
+  // INFO: REQUIREMENTS.md § 11.5.1. The list's own height at the moment of the first 더 보기, held from then on.
+  const [lockedHeight, setLockedHeight] = useState<Nullable<number>>(null);
+
+  // WARN: Held until the page has actually landed — moved earlier the scroll is computed against a list a page short and clamps to its bottom.
+  useEffect(() => {
+    if (isLoadingMore) {
+      return;
+    }
+
+    const index = pendingFrom.current;
+    const list = listRef.current;
+    const row = index === null ? undefined : list?.children[index];
+
+    if (index === null || !list || !(row instanceof HTMLElement)) {
+      return;
+    }
+
+    pendingFrom.current = null;
+
+    const top = row.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+
+    list.scrollTo({
+      top,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+  }, [isLoadingMore, occurrences.length]);
+
+  return (
+    <div className={cn("flex min-h-0 flex-col", className)}>
+      {occurrences.length === 0 ? (
+        <EmptyState
+          className="px-md py-md"
+          Icon={CalendarClock}
+          description="다가오는 일정이 없어요"
+        />
+      ) : (
+        // WARN: The **list** is what is measured and pinned, not the card around it — pressing 더 보기 must not resize it under the finger.
+        <ul
+          ref={listRef}
+          className={cn(
+            "scrollbar-hidden min-h-0 divide-y divide-hairline overflow-y-auto overscroll-contain",
+            listClassName,
+          )}
+          style={lockedHeight === null ? undefined : { height: lockedHeight }}
+        >
+          {occurrences.map((occurrence) => {
+            // WARN: `now` is `0` until the client has read the clock, which is what keeps this row identical to the HTML the server sent.
+            const isSoon = now > 0 && isImminent(occurrence, now);
+
+            return (
+              <li key={occurrence.event.id + occurrence.startsAt} className="group relative flex">
+                <button
+                  className="flex w-full cursor-pointer items-start gap-xs px-md py-sm text-left transition-colors outline-none group-active:bg-surface-soft hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-soft"
+                  type="button"
+                  onClick={() => onSelect(occurrence)}
+                >
+                  <EventDot
+                    className="mt-[7px]"
+                    color={occurrence.event.color}
+                    scope={occurrence.event.scope}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline gap-xs">
+                      <span className="min-w-0 flex-1 truncate text-title-sm text-ink">
+                        {occurrence.event.title}
+                      </span>
+                      <span
+                        className={cn(
+                          "shrink-0 text-caption",
+                          isSoon ? "text-primary" : "text-meta",
+                        )}
+                      >
+                        {isSoon
+                          ? formatTimeLeft(occurrence, now)
+                          : formatUpcomingWhen(occurrence, todayKey)}
+                      </span>
+                    </span>
+                    <EventMemo description={occurrence.event.description} />
+                  </span>
+                </button>
+                {/* WARN: `keepsScroll` — the row runs the width of the panel, so a finger scrolling the list lands here (`DESIGN.md § 7.15.1.`). */}
+                <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {hasMore && (
+        <button
+          className="flex w-full shrink-0 cursor-pointer items-center justify-center gap-2xs border-t border-hairline py-sm text-caption text-meta transition-colors outline-none hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-60"
+          type="button"
+          disabled={isLoadingMore}
+          onClick={expand}
+        >
+          {isLoadingMore ? "불러오는 중" : "더 보기"}
+          {!isLoadingMore && <ChevronDown className="size-4" strokeWidth={1.75} />}
+        </button>
+      )}
+    </div>
+  );
+
+  // WARN: Measured **before** the page is asked for, in the handler rather than in an effect — a frame later the new rows are already in the list and the height read back includes them.
+  function expand() {
+    if (lockedHeight === null && listRef.current) {
+      setLockedHeight(listRef.current.getBoundingClientRect().height);
+    }
+
+    pendingFrom.current = occurrences.length;
+    onLoadMore();
+  }
+}

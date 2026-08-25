@@ -7,7 +7,7 @@ import { FileCard, Skeleton } from "@/shared/ui";
 import { Check } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
-import { toArchiveSections } from "../model/to-archive-sections";
+import { toArchiveSections, toMonthAnchorId } from "../model/to-archive-sections";
 import { ArchiveAudioRow } from "./archive-audio-row";
 
 export type ArchiveFileListProps = {
@@ -24,15 +24,9 @@ export type ArchiveFileListProps = {
 
 /**
  * The 파일 segment of 보관함 (REQUIREMENTS.md § 10.) — the same month sections the
- * grid uses, as a one-column list of `FileCard` rows.
- *
- * INFO: A list rather than a grid because there is nothing to look at: a file row
- * is its name and its size, and three of those abreast in a 576px shell truncates
- * every one of them.
- *
- * WARN: No hold, and no sweep. The grid's sweep (§ 10.) is built on ranges the eye
- * reads row by row across three columns; in one column the range is the two taps it
- * saves, and a checkbox says what is selected without owning `touchmove`.
+ * grid uses, as a one-column list of `FileCard` rows: a filename and a size truncate
+ * three abreast in a 576px shell. No hold or sweep — a checkbox handles selection
+ * since a one-column range is just two taps.
  */
 export function ArchiveFileList({
   className,
@@ -58,7 +52,12 @@ export function ArchiveFileList({
   return (
     <div className={cn("flex flex-col gap-md", className)}>
       {sections.map((section) => (
-        <section key={section.monthKey}>
+        // INFO: AGENTS.md § 4.1. `id` + `scroll-mt` is what the `lg` panel's month list scrolls to — this shelf has no virtualizer to hand an index to.
+        <section
+          key={section.monthKey}
+          className="scroll-mt-(--app-header-inset)"
+          id={toMonthAnchorId(section.monthKey)}
+        >
           {/* INFO: DESIGN.md § 7.10. Scrolls with the list, for the reason the grid's header does. */}
           <h2 className="pb-xs text-title-sm text-meta">{section.label}</h2>
           <div className="flex flex-col gap-2xs">

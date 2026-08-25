@@ -9,20 +9,30 @@ export type ContainerProps = PropsWithChildren<{
    */
   style?: CSSProperties;
   id?: string;
+  /** AGENTS.md § 4.4. `app/(main)/layout.tsx`'s SSR seed for `#app-shell`, read back by `theme.css`'s `:root:has()`. */
+  "data-side-panel"?: "closed";
 }>;
 
-// INFO: DESIGN.md § 3.3. The only source of the shell width — screens never hardcode `max-w-*`.
-export function Container({ className, size = "md", children, style, id }: ContainerProps) {
+// INFO: AGENTS.md § 4.3. `md` caps what is read, not the pane — a box that must fill its pane adds `max-w-none`.
+export function Container({
+  className,
+  size = "md",
+  children,
+  style,
+  id,
+  "data-side-panel": dataSidePanel,
+}: ContainerProps) {
   return (
     <div
       className={cn(
         "mx-auto w-full px-md",
-        size === "md" && "max-w-(--container-app)",
+        size === "md" && "max-w-(--content-max-width)",
         size === "sm" && "max-w-(--container-app-narrow)",
         className,
       )}
       style={style}
       id={id}
+      data-side-panel={dataSidePanel}
     >
       {children}
     </div>

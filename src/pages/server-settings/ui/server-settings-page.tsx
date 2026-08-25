@@ -24,7 +24,9 @@ export function ServerSettingsPage({ className, isOpsAvailable }: ServerSettings
   const router = useRouter();
 
   return (
-    <div className={cn("flex flex-1 flex-col", className)}>
+    <div
+      className={cn("mx-auto flex w-full max-w-(--content-max-width) flex-1 flex-col", className)}
+    >
       <AppHeader
         title="서버 관리"
         leading={

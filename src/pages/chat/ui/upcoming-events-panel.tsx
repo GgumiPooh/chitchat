@@ -1,18 +1,11 @@
 "use client";
 
 import type { EventOccurrence } from "@/entities/event";
-import {
-  cn,
-  formatTimeLeft,
-  formatUpcomingWhen,
-  isImminent,
-  OPEN_OVERLAY_SELECTOR,
-  type Nullable,
-} from "@/shared/lib";
-import { EmptyState, HapticTap, IconButton } from "@/shared/ui";
-import { EventDot, EventMemo } from "@/widgets/calendar-month";
-import { CalendarClock, ChevronDown, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { cn, OPEN_OVERLAY_SELECTOR } from "@/shared/lib";
+import { IconButton } from "@/shared/ui";
+import { X } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { UpcomingEventsList } from "./upcoming-events-list";
 
 const HEADING_ID = "chat-upcoming-events-heading";
 
@@ -21,7 +14,6 @@ export type UpcomingEventsPanelProps = {
   isOpen: boolean;
   occurrences: EventOccurrence[];
   todayKey: string;
-  /** REQUIREMENTS.md § 11.5.1. The clock the imminent rows count down against. */
   now: number;
   hasMore: boolean;
   isLoadingMore: boolean;
@@ -39,8 +31,7 @@ export type UpcomingEventsPanelProps = {
  *
  * WARN: `absolute` over the conversation and never a row above it. `ChatScreen` is
  * sized to the visual viewport (DESIGN.md § 3.4.), so a panel laid out in that column
- * would take its height out of the room — the messages would step down on open and
- * back up on close, under a reader who is looking at them.
+ * would take its height out of the room.
  */
 export function UpcomingEventsPanel({
   className,
@@ -54,13 +45,8 @@ export function UpcomingEventsPanel({
   onSelect,
   onClose,
 }: UpcomingEventsPanelProps) {
-  const listRef = useRef<HTMLUListElement>(null);
-  // INFO: How many rows stood before the page in flight was asked for — its first new row is that index.
-  const pendingFrom = useRef<Nullable<number>>(null);
   // INFO: Held in a ref so the listener below binds on `isOpen` alone — the screen hands down a fresh arrow on every message that arrives.
   const close = useRef(onClose);
-  // INFO: REQUIREMENTS.md § 11.5.1. The list's own height at the moment of the first 더 보기, held from then on.
-  const [lockedHeight, setLockedHeight] = useState<Nullable<number>>(null);
 
   useEffect(() => {
     close.current = onClose;
@@ -73,7 +59,7 @@ export function UpcomingEventsPanel({
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      // WARN: REQUIREMENTS.md § 8.14. A row's `EventDetailDialog` opens over this and answers Esc itself — Radix does not stop a document listener from seeing the same keystroke, and acting anyway takes the panel down under the dialog it dismissed.
+      // WARN: REQUIREMENTS.md § 8.14. A row's `EventDetailDialog` opens over this and answers Esc itself — Radix does not stop a document listener from seeing the same keystroke.
       if (event.key !== "Escape" || event.isComposing) {
         return;
       }
@@ -82,7 +68,7 @@ export function UpcomingEventsPanel({
         return;
       }
 
-      // WARN: REQUIREMENTS.md § 8.14. Capture, and stopped there. The room's shortcuts are on `document` too and see no marker on this panel, so left to run they peel the composer's stack underneath a reader who was closing this.
+      // WARN: REQUIREMENTS.md § 8.14. Capture, and stopped there — the room's shortcuts are on `document` too and see no marker on this panel.
       event.stopPropagation();
       close.current();
     };
@@ -91,34 +77,6 @@ export function UpcomingEventsPanel({
 
     return () => document.removeEventListener("keydown", handleKeyDown, true);
   }, [isOpen]);
-
-  // WARN: Held until the page has actually landed. `limit` steps on the press and reveals the one row already in hand, so the list grows by **one** first — moved on that render the scroll is computed against a list a page short, clamps to its bottom, and the rows that follow arrive under a reader who has been left where they started.
-  // INFO: The row to move to is fixed at the press, and the ref is cleared on use — a refresh landing later also grows the list and must not scroll the reader a second time.
-  useEffect(() => {
-    if (isLoadingMore) {
-      return;
-    }
-
-    const index = pendingFrom.current;
-    const list = listRef.current;
-    const row = index === null ? undefined : list?.children[index];
-
-    if (index === null || !list || !(row instanceof HTMLElement)) {
-      return;
-    }
-
-    pendingFrom.current = null;
-
-    const top = row.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
-
-    // INFO: REQUIREMENTS.md § 11.5.1. The arriving row is put at the top edge, with no inset held back for the one before it — the page the reader asked for is what the list should be showing.
-    // WARN: A page arrives at the **end** of the list, so this is already the maximum scroll and the browser clamps it. Nothing may be added past it expecting to travel further.
-    // INFO: DESIGN.md § 4.7. Reduced motion keeps the destination and drops the travel, which is the one thing here that is motion for its own sake.
-    list.scrollTo({
-      top,
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-    });
-  }, [isLoadingMore, occurrences.length]);
 
   return (
     <div
@@ -132,7 +90,7 @@ export function UpcomingEventsPanel({
       aria-labelledby={HEADING_ID}
     >
       {/* INFO: DESIGN.md § 3.5. `glass`, the surface every floating thing in this app wears — the conversation carries on beneath it and has to stay legible as it does. */}
-      {/* WARN: DESIGN.md § 3.4. Capped against the screen it hangs in, and not left to the pinning below — the list is a scroller only once 더 보기 has pinned it, so an unpinned one grows a row per event and runs off the bottom of a box that is sized to the visual viewport. The two terms are what it hangs between: the header it starts under, and the composer `--bottom-inset` holds up. */}
+      {/* WARN: DESIGN.md § 3.4. Capped against the screen it hangs in, and not left to the pinning below — the two terms are what it hangs between: the header it starts under, and the composer `--bottom-inset` holds up. */}
       <div className="flex max-h-[calc(var(--chat-screen-height)-var(--app-header-inset)-var(--bottom-inset))] flex-col overflow-hidden rounded-md border border-hairline glass shadow-floating">
         <div className="flex shrink-0 items-center justify-between gap-xs border-b border-hairline py-2xs pr-2xs pl-md">
           <h2 className="text-title-sm text-meta" id={HEADING_ID}>
@@ -146,88 +104,17 @@ export function UpcomingEventsPanel({
             onClick={onClose}
           />
         </div>
-        {occurrences.length === 0 ? (
-          // INFO: An empty state, where DESIGN.md § 7.9.'s card refuses one — that card draws itself, this one answers a tap, and a control that opens nothing has not said whether it worked.
-          <EmptyState
-            className="px-md py-md"
-            Icon={CalendarClock}
-            description="다가오는 일정이 없어요"
-          />
-        ) : (
-          // WARN: The scroller is the list and never the card. 더 보기 sits outside it precisely so it stays at the foot of the panel — inside, the one control that grows the list would be the one the reader has to scroll to reach.
-          // WARN: The **list** is what is measured and pinned. Pressing 더 보기 must not resize it under the finger, and the button leaving must take its own row off the panel rather than being handed to the list — pinning the card answers the first and not the second.
-          <ul
-            ref={listRef}
-            // WARN: The scroller is unconditional, where the pinned height is not. `min-h-0` is what lets the cap above reach it — a flex child's floor is its content, so without it the card overflows instead of the list scrolling.
-            className="scrollbar-hidden min-h-0 divide-y divide-hairline overflow-y-auto overscroll-contain"
-            style={lockedHeight === null ? undefined : { height: lockedHeight }}
-          >
-            {occurrences.map((occurrence) => {
-              // WARN: `now` is `0` until the client has read the clock, which is what keeps this row identical to the HTML the server sent.
-              const isSoon = now > 0 && isImminent(occurrence, now);
-
-              return (
-                <li key={occurrence.event.id + occurrence.startsAt} className="group relative flex">
-                  <button
-                    className="flex w-full cursor-pointer items-start gap-xs px-md py-sm text-left transition-colors outline-none group-active:bg-surface-soft hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-soft"
-                    type="button"
-                    onClick={() => onSelect(occurrence)}
-                  >
-                    {/* INFO: The dot is 4px against a multi-line row, so it is nudged onto the title's own baseline rather than centred against the whole stack. */}
-                    <EventDot
-                      className="mt-[7px]"
-                      color={occurrence.event.color}
-                      scope={occurrence.event.scope}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-baseline gap-xs">
-                        <span className="min-w-0 flex-1 truncate text-title-sm text-ink">
-                          {occurrence.event.title}
-                        </span>
-                        {/* INFO: REQUIREMENTS.md § 11.5.1. Inside the day the date gives way to what is left of it, in `primary` — the colour the header's own bloom and dot are already saying it in. */}
-                        <span
-                          className={cn(
-                            "shrink-0 text-caption",
-                            isSoon ? "text-primary" : "text-meta",
-                          )}
-                        >
-                          {isSoon
-                            ? formatTimeLeft(occurrence, now)
-                            : formatUpcomingWhen(occurrence, todayKey)}
-                        </span>
-                      </span>
-                      <EventMemo description={occurrence.event.description} />
-                    </span>
-                  </button>
-                  {/* WARN: `keepsScroll` — the row runs the width of the panel, so a finger scrolling the list lands here (`DESIGN.md § 7.15.1.`). */}
-                  <HapticTap className="touch-pan-y" forwardsTap keepsScroll />
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {hasMore && (
-          <button
-            className="flex w-full shrink-0 cursor-pointer items-center justify-center gap-2xs border-t border-hairline py-sm text-caption text-meta transition-colors outline-none hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-60"
-            type="button"
-            disabled={isLoadingMore}
-            onClick={expand}
-          >
-            {isLoadingMore ? "불러오는 중" : "더 보기"}
-            {!isLoadingMore && <ChevronDown className="size-4" strokeWidth={1.75} />}
-          </button>
-        )}
+        <UpcomingEventsList
+          className="min-h-0 flex-1"
+          occurrences={occurrences}
+          todayKey={todayKey}
+          now={now}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+          onLoadMore={onLoadMore}
+          onSelect={onSelect}
+        />
       </div>
     </div>
   );
-
-  // WARN: Measured **before** the page is asked for, in the handler rather than in an effect — a frame later the new rows are already in the list and the height read back includes them.
-  function expand() {
-    if (lockedHeight === null && listRef.current) {
-      setLockedHeight(listRef.current.getBoundingClientRect().height);
-    }
-
-    pendingFrom.current = occurrences.length;
-    onLoadMore();
-  }
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { cn } from "@/shared/lib";
+import { cn, useIsDesktop } from "@/shared/lib";
 import type { PropsWithChildren } from "react";
+import { DialogShell } from "./dialog-shell";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "./drawer";
 
 export type BottomSheetProps = PropsWithChildren<{
@@ -28,6 +29,7 @@ export type BottomSheetProps = PropsWithChildren<{
 }>;
 
 // INFO: DESIGN.md § 7.5. Inset floating card, not a full-bleed sheet. The grab handle is the only dismiss control.
+// INFO: AGENTS.md § 4.1. Component-choice branch — at `md` this renders `DialogShell` (a centered dialog) instead, and vaul is never mounted there.
 export function BottomSheet({
   className,
   isOpen,
@@ -36,13 +38,31 @@ export function BottomSheet({
   onClose,
   onCloseAutoFocus,
 }: BottomSheetProps) {
+  const isDesktop = useIsDesktop();
+
+  if (isDesktop) {
+    return (
+      <DialogShell
+        className={className}
+        isOpen={isOpen}
+        size="lg"
+        // INFO: A hidden title is a sheet's affordance — its grab handle names it; a centered dialog with no title reads as empty.
+        header={{ ...header, isHidden: false }}
+        onClose={onClose}
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
+        {children}
+      </DialogShell>
+    );
+  }
+
   return (
     <Drawer open={isOpen} direction="bottom" onOpenChange={handleOpenChange}>
       {/* WARN: AGENTS.md § 4.3. The shell width, re-applied — the same thing `AppHeader` and `BottomOverlay` do and for the same reason. Vaul portals this outside `#app-shell`, so its `fixed` box is laid out against the whole layout viewport, and on a desktop the sheet spanned the window while every other pixel of the app sat in a 576px column. */}
       {/* INFO: DESIGN.md § 7.5.'s `sm` inset is subtracted from the cap rather than left as a margin, so the narrow screen this was written on keeps the exact width it had — `mx-auto` and `mx-sm` cannot both hold, and the gutter is the one expressible as a width. */}
       <DrawerContent
         className={cn(
-          "mx-auto mb-sm flex h-auto! max-h-[calc(var(--viewport-height,100dvh)_*_0.9_-_var(--spacing-sm))] w-[calc(100%_-_var(--spacing-sm)*2)] max-w-[calc(var(--container-app)_-_var(--spacing-sm)*2)] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+          "mx-auto mb-sm flex h-auto! max-h-[calc(var(--viewport-height,100dvh)_*_0.9_-_var(--spacing-sm))] w-[calc(100%_-_var(--spacing-sm)*2)] max-w-[calc(var(--sheet-max-width)_-_var(--spacing-sm)*2)] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
           className,
         )}
         onCloseAutoFocus={onCloseAutoFocus}

@@ -206,7 +206,7 @@ export function MessageRow({
         ))}
       <div
         className={cn(
-          "relative flex max-w-[72%] flex-col gap-2xs",
+          "relative flex max-w-[min(72%,var(--bubble-max-width))] flex-col gap-2xs",
           isMine ? "items-end" : "items-start",
           // WARN: `pan-y` — without it WebKit claims the horizontal gesture for its own back-navigation swipe and the pull never completes.
           onReply && "touch-pan-y",

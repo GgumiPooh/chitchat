@@ -443,7 +443,8 @@ function hasTravelled(start: Point, event: PointerEvent<HTMLElement>): boolean {
   );
 }
 
-function distanceBetween(first: Point, second: Point): number {
+/** Straight-line distance between two client points — a two-pointer gesture's own span. */
+export function distanceBetween(first: Point, second: Point): number {
   return Math.hypot(first.x - second.x, first.y - second.y);
 }
 

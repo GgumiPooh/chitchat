@@ -2,11 +2,9 @@
 
 import type { MessageSearchResult } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import { cn, formatDate, useIsOffline, type Nullable } from "@/shared/lib";
-import { EmptyState, HapticTarget, ShellOverlay, Skeleton } from "@/shared/ui";
-import { CloudOff, LoaderCircle, Search, SearchX } from "lucide-react";
-import { useEffect, useRef } from "react";
-import { SearchHighlight } from "./search-highlight";
+import { cn, type Nullable } from "@/shared/lib";
+import { ShellOverlay } from "@/shared/ui";
+import { MessageSearchResultList } from "./message-search-result-list";
 
 export type MessageSearchResultsProps = {
   className?: string;
@@ -23,9 +21,6 @@ export type MessageSearchResultsProps = {
   onClose: () => void;
   onSelect: (index: number) => void;
 };
-
-// INFO: How many rows of skeleton stand in for the first page — a screenful, so the list does not visibly grow into the space it was always going to take.
-const SKELETON_ROW_COUNT = 6;
 
 /**
  * The result list of DESIGN.md § 6.8. Portalled into the shell so it covers the
@@ -47,39 +42,16 @@ export function MessageSearchResults({
   onClose,
   onSelect,
 }: MessageSearchResultsProps) {
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  const isOffline = useIsOffline();
-  const nameById = new Map(participants.map((participant) => [participant.id, participant.name]));
-
-  // INFO: REQUIREMENTS.md § 8.6. Cursor paging, driven off the end of the list coming into view rather than off a scroll handler measuring distances.
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-
-    if (!sentinel || !hasMore) {
-      return;
-    }
-
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        onLoadMore();
-      }
-    });
-
-    observer.observe(sentinel);
-
-    return () => observer.disconnect();
-  }, [hasMore, onLoadMore, results.length]);
-
   return (
     <ShellOverlay>
-      {/* WARN: DESIGN.md § 7.12. Padded below the header rather than under it — this is the one surface the floating strip must not be transparent over. A row sliding beneath the search field would put message text behind 취소, and unlike the conversation there is no fade mask to dissolve it. */}
+      {/* WARN: DESIGN.md § 7.12. Padded below the header rather than under it — this is the one surface the floating strip must not be transparent over. */}
       <div
         className={cn(
           "pointer-events-auto absolute inset-0 z-20 flex flex-col bg-surface-soft pt-(--app-header-inset)",
           className,
         )}
       >
-        {/* WARN: REQUIREMENTS.md § 8.6.1. The list has to hand the reader back to the arrows. It covers the navigation bar completely, so without a way out of it the only exits are picking a result or 취소 — and 취소 tears down the query and the parked position with it. */}
+        {/* WARN: REQUIREMENTS.md § 8.6.1. The list has to hand the reader back to the arrows — 취소 tears down the query and the parked position with it, so this is the only other way out. */}
         <div className="flex shrink-0 items-center justify-between gap-2xs px-md py-2xs">
           <p className="truncate text-caption text-meta">
             {total > 0 ? `검색 결과 ${total}건` : ""}
@@ -92,83 +64,22 @@ export function MessageSearchResults({
             목록 닫기
           </button>
         </div>
-        {/* WARN: § 3.5. The tab bar floats over the bottom, so the list clears it itself — without the inset the last result is unreachable behind the bar. */}
+        {/* WARN: § 3.5. The tab bar floats over the bottom, so the list clears it itself. */}
         <div className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain", listClassName)}>
-          <div className="flex flex-col gap-2xs px-md pb-[calc(var(--bottom-inset,0px)_+_var(--spacing-md))]">
-            {renderBody()}
-          </div>
+          <MessageSearchResultList
+            className="px-md pb-[calc(var(--bottom-inset,0px)_+_var(--spacing-md))]"
+            query={query}
+            results={results}
+            participants={participants}
+            activeIndex={activeIndex}
+            isLoading={isLoading}
+            isLoadingMore={isLoadingMore}
+            hasMore={hasMore}
+            onLoadMore={onLoadMore}
+            onSelect={onSelect}
+          />
         </div>
       </div>
     </ShellOverlay>
   );
-
-  function renderBody() {
-    if (query.trim().length === 0) {
-      return (
-        <EmptyState className="mt-2xl" Icon={Search} description="대화 내용을 검색해 보세요" />
-      );
-    }
-
-    // WARN: Before the skeleton and scoped to an empty list, and both halves are load-bearing. Before, because § 8.6. searches the server and offline the request never lands, so a placeholder shaped like rows that are not coming is worse than saying so. Scoped, because DESIGN.md § 7.19. forbids the offline signal **withdrawing** what the reader already has — unscoped it replaced a page of hits with this sentence while the strip above went on counting them.
-    if (isOffline && results.length === 0) {
-      return (
-        <EmptyState
-          className="mt-2xl"
-          Icon={CloudOff}
-          description="인터넷에 연결되어 있지 않아 검색하지 못했어요"
-        />
-      );
-    }
-
-    if (isLoading) {
-      return Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
-        // INFO: DESIGN.md § 7.8. A skeleton rather than a spinner — the row's geometry is known before the page lands, so the placeholder can take its shape.
-        <Skeleton key={index} className="h-[4.5rem] rounded-md" />
-      ));
-    }
-
-    if (results.length === 0) {
-      return <EmptyState className="mt-2xl" Icon={SearchX} description="검색 결과가 없어요" />;
-    }
-
-    return (
-      <>
-        {results.map((result, index) => (
-          // INFO: DESIGN.md § 7.15. Picking a result is a selection among peers, which is one of the two things that tick — and the § 8.6.1. arrows beside this list already do, so the list was the one surface in the search flow that answered a tap with nothing.
-          // WARN: `keepsScroll`, because the rows tile the scroller. Without it the switch keeps the drag a finger began on a row and ends it as a tap, which jumps the room to a result the reader was only scrolling past (§ 7.15.1.).
-          <HapticTarget key={result.id} className="flex" overlayClassName="touch-pan-y" keepsScroll>
-            <button
-              // INFO: DESIGN.md § 6.8. `canvas` rows on the `surface-soft` list, so a row reads as a card rather than as a band of the background.
-              // WARN: DESIGN.md § 7.15. `group-active:` beside the `active:`, or the row goes flat under a finger — the tap lands on the overlay, so `:active` matches the wrapper and never this.
-              className={cn(
-                "flex w-full cursor-pointer flex-col gap-2xs rounded-md border border-hairline-soft bg-canvas p-sm text-left outline-none group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-strong",
-                index === activeIndex && "border-primary",
-              )}
-              type="button"
-              onClick={() => onSelect(index)}
-            >
-              <div className="flex items-baseline gap-xs">
-                {/* INFO: REQUIREMENTS.md § 8.7. Resolved against the participant set at render time, exactly as the bubble's own name is — never carried on the result. */}
-                <span className="min-w-0 flex-1 truncate text-title-sm text-ink">
-                  {nameById.get(result.senderId) ?? ""}
-                </span>
-                <span className="shrink-0 text-caption text-meta">
-                  {formatDate(result.createdAt)}
-                </span>
-              </div>
-              <SearchHighlight
-                className="line-clamp-2 text-body-sm text-body"
-                text={result.excerpt}
-                query={query}
-              />
-            </button>
-          </HapticTarget>
-        ))}
-        {/* INFO: DESIGN.md § 7.8. A spinner here rather than more skeletons — the wait is unbounded and there is already a list of the real shape above it. */}
-        <div ref={sentinelRef} className="flex h-10 items-center justify-center">
-          {isLoadingMore && <LoaderCircle className="size-4 animate-spin text-meta-soft" />}
-        </div>
-      </>
-    );
-  }
 }

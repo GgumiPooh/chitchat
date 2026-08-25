@@ -27,7 +27,9 @@ const BACKUP_ROW_KEYS = ["a", "b", "c"];
  */
 export function ServerSettingsFallback({ className, isOpsAvailable }: ServerSettingsFallbackProps) {
   return (
-    <div className={cn("flex flex-1 flex-col", className)}>
+    <div
+      className={cn("mx-auto flex w-full max-w-(--content-max-width) flex-1 flex-col", className)}
+    >
       <AppHeader title="서버 관리" />
       {/* INFO: DESIGN.md § 7.12. The same clearance the screen uses, so nothing steps on the swap. */}
       <div className="flex flex-col gap-md pt-(--app-header-inset) pb-lg">

@@ -26,13 +26,14 @@ import {
   type Nullable,
   type UserId,
 } from "@/shared/lib";
-import { AppHeader, Container, IconButton } from "@/shared/ui";
+import { AppHeader, Container, IconButton, SidePanel } from "@/shared/ui";
 import { ChatRoom, toChromeTint } from "@/widgets/chat-room";
 import { CalendarClock, ChevronLeft, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useImminentPanel } from "../model/use-imminent-panel";
 import { useUpcomingEvents } from "../model/use-upcoming-events";
+import { ChatSidePanel } from "./chat-side-panel";
 import { UpcomingEventsPanel } from "./upcoming-events-panel";
 
 export type ChatScreenProps = {
@@ -77,7 +78,7 @@ export function ChatScreen({
   const [formToken, setFormToken] = useState<Nullable<number>>(null);
   // WARN: Closing clears this and not the token — the sheet stays mounted through its slide-down, which unmounting would cut short.
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const { participants, chatBackgroundBlurhash } = useChatStream();
+  const { participants, typingUserIds, chatBackgroundBlurhash } = useChatStream();
   const router = useRouter();
 
   // INFO: 이전 앱 라우트가 있고 로그인 페이지가 아니면 router.back(), 없으면 캘린더로 폴백.
@@ -127,7 +128,7 @@ export function ChatScreen({
     <Container
       className={cn(
         // WARN: DESIGN.md § 3.3. `shell-edge`, matching the shell's own — this box covers the column's edges, so without it the hairline that separates the app from the desktop gutter stops at the chat route.
-        "fixed inset-x-0 top-(--keyboard-pan) flex h-(--chat-screen-height) flex-col bg-chat-canvas px-0 shell-edge transition-[height] duration-(--viewport-settle-duration) ease-out",
+        "fixed top-(--keyboard-pan) right-0 left-(--rail-width) flex h-(--chat-screen-height) w-auto max-w-none flex-col bg-chat-canvas px-0 shell-edge transition-[height] duration-(--viewport-settle-duration) ease-out",
         className,
       )}
       // INFO: REQUIREMENTS.md § 12.2. Overrides `bg-chat-canvas` above, which stays as the no-wallpaper answer and as the fallback for a hash the base83 pass rejects.
@@ -139,132 +140,159 @@ export function ChatScreen({
     >
       {/* INFO: REQUIREMENTS.md § 8.4.2. The app's one `EventSource`, open only while the conversation is. It renders nothing. */}
       <ChatStreamConnection />
-      {search.isOpen ? (
-        <MessageSearchBar
-          query={search.query}
-          canSubmit={search.canSubmit}
-          isLoading={search.isLoading}
-          onQueryChange={search.setQuery}
-          onSubmit={search.submit}
-          onClose={search.close}
-        />
-      ) : (
-        // INFO: DESIGN.md § 7.12. No title — the tab bar already says which screen this is, and the messages read better with the full column.
-        <AppHeader
-          leading={
-            <IconButton
-              Icon={ChevronLeft}
-              variant="floating"
-              haptic
-              aria-label="뒤로"
-              onClick={goBack}
+      <div className="relative flex min-h-0 flex-1">
+        {/* INFO: AGENTS.md § 4.1. The desktop panel folds 검색, 다가오는 일정 and the partner block that the header's icons and 뒤로 open on mobile — hidden below `lg`. */}
+        <SidePanel>
+          <ChatSidePanel
+            currentUserId={currentUserId}
+            participants={participants}
+            typingUserIds={typingUserIds}
+            search={search}
+            occurrences={upcoming.occurrences}
+            todayKey={upcoming.todayKey}
+            now={upcoming.now}
+            hasMoreUpcoming={upcoming.hasMore}
+            isLoadingMoreUpcoming={upcoming.isLoadingMore}
+            onLoadMoreUpcoming={upcoming.loadMore}
+            onSelectEvent={setDetailed}
+          />
+        </SidePanel>
+        <div className="relative flex min-w-0 flex-1 flex-col">
+          {search.isOpen ? (
+            <MessageSearchBar
+              // WARN: `lg` keeps 검색 in `ChatSidePanel` (`ChatSidePanel`, above) instead — unhidden here, a search left open across the breakpoint would show both at once.
+              className="lg:hidden"
+              query={search.query}
+              canSubmit={search.canSubmit}
+              isLoading={search.isLoading}
+              hasSidePanel
+              onQueryChange={search.setQuery}
+              onSubmit={search.submit}
+              onClose={search.close}
             />
-          }
-          trailing={
-            <div className="flex items-center gap-2xs">
-              {/* INFO: DESIGN.md § 7.12. The bloom is a sibling behind the glass rather than a shadow on the button, because `icon-button-floating` already spends its `box-shadow` on `shadow-floating` — a second one silently replaces it. */}
-              <span className="relative flex">
-                {upcoming.isSoon && (
-                  <span
-                    className="pointer-events-none absolute -inset-2xs event-bloom rounded-full bg-primary blur-md"
-                    aria-hidden
-                  />
-                )}
+          ) : (
+            // INFO: DESIGN.md § 7.12. No title — the tab bar already says which screen this is, and the messages read better with the full column.
+            <AppHeader
+              className="motion-reduce:transition-none lg:left-(--content-left) lg:transition-[left] lg:duration-(--duration-route-enter) lg:ease-route"
+              hasSidePanel
+              leading={
                 <IconButton
+                  className="lg:hidden"
+                  Icon={ChevronLeft}
                   variant="floating"
                   haptic
-                  aria-label={upcoming.isSoon ? "다가오는 일정, 곧 시작" : "다가오는 일정"}
-                  aria-expanded={isPanelOpen}
-                  // INFO: DESIGN.md § 7.12. The dot is § 7.3.'s 캘린더 one, glyph corner and all, because it says the same kind of thing — and it goes through `icon` so it rides the glyph rather than the 44 target, which is what keeps it on the button's own glass.
-                  icon={
-                    <span className="pointer-events-none relative">
-                      <CalendarClock className="size-5" strokeWidth={1.75} />
-                      {upcoming.isSoon && (
-                        <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
-                      )}
-                    </span>
-                  }
-                  onClick={() => (isPanelOpen ? closeUpcoming() : setIsUpcomingOpen(true))}
+                  aria-label="뒤로"
+                  onClick={goBack}
                 />
-              </span>
-              <IconButton
-                Icon={Search}
-                variant="floating"
-                haptic
-                aria-label="메시지 검색"
-                onClick={search.open}
-              />
-            </div>
-          }
-        />
-      )}
-      {/* WARN: Withheld while 검색 is up, for the reason § 8.6. withholds the composer's stack — the bar that opens it is not on screen, so nothing would say what this panel is doing there. */}
-      {!search.isOpen && (
-        <UpcomingEventsPanel
-          isOpen={isPanelOpen}
-          occurrences={upcoming.occurrences}
-          todayKey={upcoming.todayKey}
-          now={upcoming.now}
-          hasMore={upcoming.hasMore}
-          isLoadingMore={upcoming.isLoadingMore}
-          onLoadMore={upcoming.loadMore}
-          onSelect={setDetailed}
-          onClose={closeUpcoming}
-        />
-      )}
-      <EventDetailDialog
-        occurrence={detailed}
-        participants={participants}
-        onClose={() => setDetailed(null)}
-        onChanged={upcoming.reload}
-      />
-      {formToken !== null && (
-        <EventFormSheet
-          key={formToken}
-          isOpen={isFormOpen}
-          dayKey={upcoming.todayKey}
-          occurrence={null}
-          onClose={() => setIsFormOpen(false)}
-          onSaved={upcoming.reload}
-        />
-      )}
-      <ChatRoom
-        currentUserId={currentUserId}
-        initialMessages={initialMessages}
-        jumpTarget={search.target}
-        // WARN: REQUIREMENTS.md § 10. A prop of its own rather than a fallback for the target above. Closing the search takes its target back to null, and a fallback would read that as a fresh instruction — jumping back to the tile's message from wherever the reader had got to.
-        initialJumpMessageId={jumpMessageId}
-        searchQuery={search.isOpen ? search.submitted : undefined}
-        bottomBar={
-          search.isOpen ? (
-            <MessageSearchNav
-              activeIndex={search.activeIndex}
-              total={search.total}
-              hasOlder={search.hasOlder}
-              hasNewer={search.hasNewer}
-              onOpenList={search.openList}
-              onOlder={search.goOlder}
-              onNewer={search.goNewer}
+              }
+              trailing={
+                <div className="flex items-center gap-2xs lg:hidden">
+                  {/* INFO: DESIGN.md § 7.12. The bloom is a sibling behind the glass rather than a shadow on the button, because `icon-button-floating` already spends its `box-shadow` on `shadow-floating` — a second one silently replaces it. */}
+                  <span className="relative flex">
+                    {upcoming.isSoon && (
+                      <span
+                        className="pointer-events-none absolute -inset-2xs event-bloom rounded-full bg-primary blur-md"
+                        aria-hidden
+                      />
+                    )}
+                    <IconButton
+                      variant="floating"
+                      haptic
+                      aria-label={upcoming.isSoon ? "다가오는 일정, 곧 시작" : "다가오는 일정"}
+                      aria-expanded={isPanelOpen}
+                      // INFO: DESIGN.md § 7.12. The dot is § 7.3.'s 캘린더 one, glyph corner and all, because it says the same kind of thing — and it goes through `icon` so it rides the glyph rather than the 44 target, which is what keeps it on the button's own glass.
+                      icon={
+                        <span className="pointer-events-none relative">
+                          <CalendarClock className="size-5" strokeWidth={1.75} />
+                          {upcoming.isSoon && (
+                            <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
+                          )}
+                        </span>
+                      }
+                      onClick={() => (isPanelOpen ? closeUpcoming() : setIsUpcomingOpen(true))}
+                    />
+                  </span>
+                  <IconButton
+                    Icon={Search}
+                    variant="floating"
+                    haptic
+                    aria-label="메시지 검색"
+                    onClick={search.open}
+                  />
+                </div>
+              }
             />
-          ) : undefined
-        }
-        onAddEvent={openForm}
-      />
-      {search.isOpen && search.isListOpen && (
-        <MessageSearchResults
-          query={search.submitted}
-          results={search.results}
-          participants={participants}
-          activeIndex={search.activeIndex}
-          isLoading={search.isLoading}
-          isLoadingMore={search.isLoadingMore}
-          hasMore={search.hasMore}
-          total={search.total}
-          onLoadMore={search.loadMore}
-          onClose={search.closeList}
-          onSelect={search.select}
-        />
-      )}
+          )}
+          {/* WARN: Withheld while 검색 is up, for the reason § 8.6. withholds the composer's stack — the bar that opens it is not on screen, so nothing would say what this panel is doing there. */}
+          {!search.isOpen && (
+            <UpcomingEventsPanel
+              className="lg:hidden"
+              isOpen={isPanelOpen}
+              occurrences={upcoming.occurrences}
+              todayKey={upcoming.todayKey}
+              now={upcoming.now}
+              hasMore={upcoming.hasMore}
+              isLoadingMore={upcoming.isLoadingMore}
+              onLoadMore={upcoming.loadMore}
+              onSelect={setDetailed}
+              onClose={closeUpcoming}
+            />
+          )}
+          <EventDetailDialog
+            occurrence={detailed}
+            participants={participants}
+            onClose={() => setDetailed(null)}
+            onChanged={upcoming.reload}
+          />
+          {formToken !== null && (
+            <EventFormSheet
+              key={formToken}
+              isOpen={isFormOpen}
+              dayKey={upcoming.todayKey}
+              occurrence={null}
+              onClose={() => setIsFormOpen(false)}
+              onSaved={upcoming.reload}
+            />
+          )}
+          <ChatRoom
+            currentUserId={currentUserId}
+            initialMessages={initialMessages}
+            jumpTarget={search.target}
+            // WARN: REQUIREMENTS.md § 10. A prop of its own rather than a fallback for the target above. Closing the search takes its target back to null, and a fallback would read that as a fresh instruction — jumping back to the tile's message from wherever the reader had got to.
+            initialJumpMessageId={jumpMessageId}
+            searchQuery={search.isOpen ? search.submitted : undefined}
+            bottomBar={
+              search.isOpen ? (
+                <MessageSearchNav
+                  activeIndex={search.activeIndex}
+                  total={search.total}
+                  hasOlder={search.hasOlder}
+                  hasNewer={search.hasNewer}
+                  onOpenList={search.openList}
+                  onOlder={search.goOlder}
+                  onNewer={search.goNewer}
+                />
+              ) : undefined
+            }
+            onAddEvent={openForm}
+          />
+          {search.isOpen && search.isListOpen && (
+            <MessageSearchResults
+              query={search.submitted}
+              results={search.results}
+              participants={participants}
+              activeIndex={search.activeIndex}
+              isLoading={search.isLoading}
+              isLoadingMore={search.isLoadingMore}
+              hasMore={search.hasMore}
+              total={search.total}
+              onLoadMore={search.loadMore}
+              onClose={search.closeList}
+              onSelect={search.select}
+            />
+          )}
+        </div>
+      </div>
     </Container>
   );
 }

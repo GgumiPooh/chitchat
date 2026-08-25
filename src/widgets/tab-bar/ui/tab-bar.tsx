@@ -2,14 +2,10 @@
 
 import { useChatStream } from "@/features/chat-stream";
 import { CALENDAR_ROUTE, CHAT_ROUTE, isUnderRoute } from "@/shared/config";
-import { cn, type Nullable } from "@/shared/lib";
+import { cn, usePendingTab } from "@/shared/lib";
 import { Badge, Link } from "@/shared/ui";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 import { TABS } from "../model/tabs";
-
-// WARN: The tab's **route** prefix, not its `href`. 보관함 links to its 갤러리 shelf while the bar fills from `/archive` (§ 10.), so a pending tab holding the link would never match `isUnderRoute` against itself.
-type PendingTab = { route: string; from: Nullable<string> };
 
 export type TabBarProps = {
   className?: string;
@@ -29,13 +25,7 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
   const { unreadCount } = useChatStream();
   const pathname = usePathname();
   // INFO: DESIGN.md § 7.3. Every tab screen is dynamic, so the click is held for a server round trip; the fill moves on the tap instead of when the route commits.
-  const [pendingTab, setPendingTab] = useState<Nullable<PendingTab>>(null);
-
-  // WARN: Discarded during render, not merely masked. Left in state it would match again the next time the user lands back on `from` — a swipe-back would refill the tab they just left, `aria-current` and all.
-  // INFO: React's documented "adjust state during render"; an effect is both a frame late and a cascading render the lint rules reject.
-  if (pendingTab && pendingTab.from !== pathname) {
-    setPendingTab(null);
-  }
+  const { pendingTab, setPendingTab } = usePendingTab(pathname);
 
   // INFO: 채팅 화면은 전용 헤더·뒤로가기 버튼을 갖는 독립 뷰이므로 탭바를 노출하지 않는다.
   const isLeaving = isUnderRoute(pathname, CHAT_ROUTE);
@@ -50,7 +40,8 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
       // INFO: DESIGN.md § 7.3. 채팅 takes the bar away by dropping it past the bottom edge, which is where the composer rises from in the same beat (§ 6.6.).
       // WARN: DESIGN.md § 7.3. Translated and never unmounted. A `return null` steps `--bottom-inset` the frame the route commits, which is what drops the composer a bar's height while the reader watches.
       className={cn(
-        "px-md transition-[translate] duration-(--duration-route-enter) ease-route motion-reduce:transition-none",
+        // INFO: AGENTS.md § 4.1. The rail takes over at `md` and replaces this bar rather than sitting beside it.
+        "px-md transition-[translate] duration-(--duration-route-enter) ease-route motion-reduce:transition-none md:hidden",
         isLeaving && "translate-y-(--tab-bar-drop)",
         className,
       )}
@@ -59,7 +50,7 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
       aria-label="주요 화면"
     >
       {/* WARN: No `shadow-floating`. The pill sits over the obscured content inset, and iOS 26 Safari blurs whatever is behind its toolbar — the shadow bled through as a dark wash across the bar. The hairline carries the lift on its own. */}
-      <div className="pointer-events-auto flex h-(--tab-bar-height) items-stretch rounded-full border border-hairline glass p-2xs">
+      <div className="pointer-events-auto mx-auto flex h-(--tab-bar-height) max-w-(--tab-bar-max-width) items-stretch rounded-full border border-hairline glass p-2xs">
         {/* INFO: DESIGN.md § 7.3. The fill's own track, so it measures against the padded row of items rather than the pill's border box. */}
         <div className="relative flex flex-1 items-stretch">
           {activeIndex >= 0 && (
@@ -99,7 +90,7 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
                     haptic={!isActive}
                     aria-current={isActive ? "page" : undefined}
                     // INFO: `onNavigate` and not `onClick` — a ⌘-click opens a tab in a new window and switches nothing here, and Next skips this handler for exactly those.
-                    onNavigate={() => setPendingTab({ route, from: pathname })}
+                    onNavigate={() => setPendingTab(route)}
                   >
                     {/* WARN: DESIGN.md § 4.7.2. The bloom is on the glyph stack and not the anchor. The anchor is a quarter of the pill wide, so at this dial its hover fill and focus ring would swell a third of a column past the pill and over the tabs beside it — and the fill it used to spring with now travels behind the items (§ 7.3.) rather than riding it. */}
                     {/* WARN: DESIGN.md § 4.7.2. It is reached through the anchor's `.group`, which is the descendant form of `[data-pressed]` — the only one that fires under a finger, since `HapticTap` marks the anchor and not this span. */}

@@ -79,7 +79,7 @@ const PILL_PADDING = SPACING_2XS * 2;
 // INFO: `size-8` on the quote's thumbnail — one box for an attachment and an emoticon alike (DESIGN.md § 6.10.) — and the two lines beside it; whichever is taller is the quote's content (`items-center`).
 const QUOTE_THUMBNAIL = 32;
 
-// INFO: DESIGN.md § 3.3. `--container-app`. Only a fallback: the room passes the scroller's real width once it has one, and this is what the very first render estimates against.
+// INFO: The old shell width. Only a fallback: the room passes the scroller's real width once it has one, and this is what the very first render estimates against.
 const DEFAULT_CONTENT_WIDTH = 576;
 
 // WARN: The type scale of `theme.css`, weights included — a variable font advances differently at 400 and 600, and this is measured against the real one.

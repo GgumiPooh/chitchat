@@ -4,12 +4,14 @@ import { APP_HEADER_ID } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { useEffect, useState, type ReactNode } from "react";
 import { Container } from "./container";
+import { SidePanelToggle } from "./side-panel-toggle";
 
 // INFO: A few pixels of WebKit rubber-banding should not count as having scrolled.
 const SCROLLED_THRESHOLD = 8;
 
 export type AppHeaderProps = {
   className?: string;
+  containerClassName?: string;
   titleClassName?: string;
   title?: string;
   leading?: ReactNode;
@@ -23,6 +25,13 @@ export type AppHeaderProps = {
    */
   leadingFills?: boolean;
   trailing?: ReactNode;
+  /**
+   * AGENTS.md § 4.1. Whether this screen has an `lg` `TwoPane` panel
+   * to collapse — `SidePanelToggle` only draws where one exists. 채팅, 캘린더 and
+   * 보관함's three shelves pass `true`; every panel-less screen (설정 and its
+   * sub-routes included) leaves the default.
+   */
+  hasSidePanel?: boolean;
 };
 
 /**
@@ -32,11 +41,13 @@ export type AppHeaderProps = {
  */
 export function AppHeader({
   className,
+  containerClassName,
   titleClassName,
   title,
   leading,
   leadingFills = false,
   trailing,
+  hasSidePanel = false,
 }: AppHeaderProps) {
   const isScrolled = useIsScrolled();
 
@@ -46,14 +57,21 @@ export function AppHeader({
       className={cn(
         // WARN: DESIGN.md § 3.4. `fixed`, and it is the AGENTS.md § 4.4. argument `BottomOverlay` already carries — measured on the device, not chosen. A `sticky` strip pins to the top of the *layout* viewport, and WebKit pans that above the visual one to reveal a focused field: `offsetTop` 137 put this box at client −131, taking REQUIREMENTS.md § 8.6.'s search field off screen the moment its own keyboard opened. A `fixed` box lands inside the visual viewport instead, which is why the composer and the bars have always been right where this one was not.
         // WARN: The safe area and the float gap are this box's `top`, never padding inside it — padding still leaves the box bordering the obscured content inset, and iOS 26 Safari then paints a solid status bar instead of showing the page through it. Same reason `BottomOverlay` carries its lift on `bottom`.
-        "pointer-events-none fixed inset-x-0 top-(--header-lift) z-30",
+        // INFO: AGENTS.md § 4.4. `left-(--rail-width)` rather than `inset-x-0` — the rail is a fifth `fixed` element sitting left of every screen at `md`, and `--rail-width` is `0px` below it so this needs no `md:` variant.
+        "pointer-events-none fixed top-(--header-lift) right-0 left-(--rail-width) z-30",
         className,
       )}
       id={APP_HEADER_ID}
     >
       {/* INFO: DESIGN.md § 3.3. The shell width, re-applied for the same reason `BottomOverlay` re-applies it — the document moves under a `fixed` box, so it cannot inherit the column's centring. */}
       {/* WARN: DESIGN.md § 7.12. `:not([data-inert])`, and the exclusion is the whole of it. The row used to grant `pointer-events-auto` to **every** direct child, which handed it to the two that fill the row and paint nothing — the `flex-1` title and the `flex-1` spacer — so the entire left and centre of the strip swallowed taps aimed at the content scrolling under a header that is deliberately transparent (§ 7.12.). Only what a finger can actually aim at may take pointers back. */}
-      <Container className="flex h-(--app-header-height) items-center gap-2xs px-sm [&>*:not([data-inert])]:pointer-events-auto">
+      <Container
+        className={cn(
+          "flex h-(--app-header-height) items-center gap-2xs px-sm [&>*:not([data-inert])]:pointer-events-auto",
+          containerClassName,
+        )}
+      >
+        {hasSidePanel && <SidePanelToggle />}
         {leading}
         {title ? (
           <h1

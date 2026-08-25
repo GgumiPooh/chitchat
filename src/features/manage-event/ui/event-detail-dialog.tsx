@@ -15,7 +15,7 @@ import {
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { ActionSheet, Avatar, IconButton, Modal, toast } from "@/shared/ui";
 import { Settings2 } from "lucide-react";
-import { useState, type PropsWithChildren } from "react";
+import { useRef, useState, type PropsWithChildren } from "react";
 import { deleteEvent } from "../api/write-event";
 import { EventFormSheet } from "./event-form-sheet";
 
@@ -64,6 +64,8 @@ export function EventDetailDialog({
   const [isEditing, setIsEditing] = useState(false);
   const deleteGate = useOfflineGate(OFFLINE_MESSAGES.remove);
   const author = participants.find(({ id }) => id === shown?.event.createdBy);
+  // INFO: AGENTS.md § 4.1. `ActionSheet`'s desktop anchor for 일정 관리.
+  const manageButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
     <>
@@ -77,6 +79,7 @@ export function EventDetailDialog({
           title: shown?.event.title ?? "일정",
           action: isReadOnly ? undefined : (
             <IconButton
+              ref={manageButtonRef}
               Icon={Settings2}
               haptic
               aria-label="일정 관리"
@@ -136,6 +139,7 @@ export function EventDetailDialog({
       {/* INFO: REQUIREMENTS.md § 11.4. No permission tier — 수정 and 삭제 are offered on every event, whoever created it. */}
       <ActionSheet
         isOpen={isManaging}
+        anchorRef={manageButtonRef}
         header={{ title: shown?.event.title ?? "일정", isHidden: true }}
         items={[
           { label: "수정", onSelect: edit },

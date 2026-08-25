@@ -74,6 +74,8 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
   const queryClient = useQueryClient();
   // INFO: § 13.5. A switch thrown on the other tab is a write this list was seeded before — the seed is re-read on the way back rather than on every toggle.
   const hasStaleSeedRef = useRef(false);
+  // INFO: AGENTS.md § 4.1. `ActionSheet`'s desktop anchor for the header's 추가 menu.
+  const addButtonRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
 
   // WARN: § 13.7. `router.refresh()` alone would change nothing — `known` is seeded from `packs` once and every edit since has been its own, so a screen returning from the import would re-render against state it never re-read.
@@ -92,7 +94,9 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
   const deleteGate = useOfflineGate(OFFLINE_MESSAGES.remove);
 
   return (
-    <div className={cn("flex flex-1 flex-col", className)}>
+    <div
+      className={cn("mx-auto flex w-full max-w-(--content-max-width) flex-1 flex-col", className)}
+    >
       <AppHeader
         title={`${kindNoun} 관리`}
         leading={
@@ -106,6 +110,7 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
         }
         trailing={
           <IconButton
+            ref={addButtonRef}
             variant="floating"
             Icon={Plus}
             haptic
@@ -151,6 +156,7 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
       {/* INFO: REQUIREMENTS.md § 13.5. Two ways to make a pack — name one and fill it by hand, or hand it off to jandh-emoticons, which imports one whole. */}
       <ActionSheet
         isOpen={isAddMenuOpen}
+        anchorRef={addButtonRef}
         header={{ title: `${packNoun} 추가` }}
         items={[
           { label: "직접 만들기", Icon: Plus, onSelect: () => setIsCreating(true) },

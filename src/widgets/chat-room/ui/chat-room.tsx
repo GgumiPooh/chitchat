@@ -542,10 +542,21 @@ export function ChatRoom({
     participants,
     chatBackgroundMediaId,
     chatBackgroundBlurhash,
+    attachRequest,
+    clearAttachRequest,
     typingUserIds,
     setIsReading,
     markRead,
   } = useChatStream();
+  // INFO: AGENTS.md § 4.1. The rail's 첨부 lives outside the room, so it leaves a request the room answers — on mount too, for a press made on another tab.
+  useEffect(() => {
+    if (attachRequest === 0) {
+      return;
+    }
+
+    setIsPickerOpen(true);
+    clearAttachRequest();
+  }, [attachRequest, clearAttachRequest]);
   // INFO: REQUIREMENTS.md § 8.1. The viewer's own floor, matching the room it opened over rather than the app's default `bg-canvas`.
   const viewerBackgroundColor = toChromeTint(chatBackgroundBlurhash) ?? "var(--color-chat-canvas)";
   // WARN: REQUIREMENTS.md § 8.12. Only the two *sustained* sources are passed; typing arrives as edit pulses through the returned callback, because a field holding a draft is not somebody typing. Sending is not a trigger either way — it clears both of these and produces no edit.
@@ -1131,15 +1142,17 @@ export function ChatRoom({
    * REQUIREMENTS.md § 8.3. Republishes the width the row estimate wraps against.
    *
    * WARN: A rotation resizes the scroller without changing a single thing this component renders from, so nothing else here would ever notice — and every row not currently mounted would keep being wrapped against the old width until it was measured.
+   * INFO: AGENTS.md § 4.1. The measured box is `contentRef`, not the scroller — at `md` the column caps at `--content-max-width` and centres inside a wider scroller, and an estimate wrapped against the scroller's own width would run wider than the bubbles it is estimating. `contentRef` mounts in the same branch as `scroller` (see the JSX below), so it is always present once there is something to observe.
    */
   useIsomorphicLayoutEffect(() => {
     if (!scroller) {
       return;
     }
 
-    const observer = new ResizeObserver(() => setScrollerWidth(scroller.clientWidth));
+    const target = contentRef.current ?? scroller;
+    const observer = new ResizeObserver(() => setScrollerWidth(target.clientWidth));
 
-    observer.observe(scroller);
+    observer.observe(target);
 
     return () => observer.disconnect();
   }, [scroller]);
@@ -1356,7 +1369,10 @@ export function ChatRoom({
               {/* WARN: REQUIREMENTS.md § 8.3. `invisible` and never `hidden`. The heights this is waiting for are delivered by a `ResizeObserver`, which reports nothing for a box that was taken out of layout — `display: none` is a gate holding itself shut. */}
               <div
                 ref={contentRef}
-                className={cn("relative w-full", !hasSettledFirstPark && "invisible")}
+                className={cn(
+                  "relative mx-auto w-full max-w-(--content-max-width)",
+                  !hasSettledFirstPark && "invisible",
+                )}
                 style={{ height: scroller ? virtualizer.getTotalSize() : undefined }}
               >
                 {virtualizer.getVirtualItems().map((item) => (
@@ -1390,7 +1406,7 @@ export function ChatRoom({
       <div ref={composerRef} className="pointer-events-none absolute inset-x-0 bottom-0">
         {/* INFO: DESIGN.md § 6.6. The stack rises from below the shell's bottom edge on arrival, as the tab bar it replaces drops past it (§ 7.3.). */}
         {/* WARN: A child of the measured wrapper and never the wrapper itself. `useComposerClearance` reads `composer.getBoundingClientRect().top`, which a translate on that box moves — its first measurement lands mid-flight and reports a clearance of `0` that nothing afterwards resizes it back out of. */}
-        <div className="composer-enter">
+        <div className="relative mx-auto w-full max-w-(--content-max-width) composer-enter">
           {bottomBar}
           {/* WARN: REQUIREMENTS.md § 8.6. The whole stack goes while a search is open, not just the field — a reply bar or an attachment tray left standing would be composing a message the screen offers no way to send. */}
           {/* WARN: `hidden`, never a conditional subtree. `MessageComposer` holds the draft in its own state, so unmounting it here silently discards a typed message and drops its `useUnsentWork` hold with it. `display: none` takes it out of the wrapper's height, which is all `useComposerClearance` reads. */}

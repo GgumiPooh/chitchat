@@ -81,9 +81,11 @@ Every id in the app is a 64-bit snowflake carried as a **string**, typed with th
 
 # 4. Responsive Policy
 
-## 4.1. Single mobile UI
+## 4.1. Two layouts, one breakpoint scale
 
-This app ships exactly one layout: the mobile one. Do not branch layout or swap components on viewport width. Rendering a `BottomSheet` on narrow screens and a `Modal` on wide screens is forbidden — pick the one the interaction calls for and use it everywhere.
+The mobile layout is the base; from `md` (768px) a left nav rail (`NavRail`) replaces the tab bar, and from `lg` (1024px) a collapsible side panel (`SidePanel`, through `TwoPane`) sits beside the main pane (`DESIGN.md § 3.1.`, `§ 7.20.`). **Geometry branches only through Tailwind `md:` / `lg:` classes**, so both trees mount and CSS hides one — never through JS on first paint. `useIsDesktop` (`false` on the server) is for a component choice that cannot be expressed in CSS, and every such choice lives inside `@/shared/ui`: `BottomSheet` becomes `DialogShell` and `ActionSheet` a `Popover` at `md`. Screen code never picks an overlay by width.
+
+The geometry is four custom properties, all `0px` below their breakpoint so fixed chrome needs no `md:` variant: `--rail-width`, `--pane-width` (`--pane-open-width`, or `0px` under `#app-shell[data-side-panel="closed"]`), `--content-left`, `--content-max-width`. The panel's state is the `jandh:side-panel` cookie so the server paints it collapsed.
 
 ## 4.2. Pointer affordances are still required
 
@@ -113,9 +115,9 @@ Two things use that permission and there is no third. `EMOTICON_KEYWORDS_URL` (`
 
 **`src/shared/lib/identity/id.ts`, `src/shared/db/types.ts` and `src/shared/db/snowflake.ts` are mirrored on the same terms, and they fail the most quietly of all.** They are the id format itself (`REQUIREMENTS.md § 6.`) — epoch, field widths, the branded types and the generator — shared by two deployments writing the same tables. Only `MACHINE_BASE` may differ between the copies, and it is what keeps the two apart; change anything else in one alone and the two start minting ids that collide, or that order against each other wrongly, with nothing failing at the moment the drift is introduced.
 
-## 4.3. App shell width
+## 4.3. Content width
 
-All screen content, including the bottom tab bar, is constrained to the app shell max width and horizontally centered. Use `Container` from `@/shared/ui`; do not hardcode `max-w-*` values in screens.
+The shell fills the window. What is _read_ — rows, forms, the message column — is capped at `--content-max-width` and centred in the main pane through `Container` (`size="md"`); a box that must fill its pane (`ChatScreen`, `ShellOverlay`'s layer, the 보관함 grid) adds `max-w-none`. Do not hardcode `max-w-*` values in screens.
 
 ## 4.4. The document is the scroller, and `fixed` is rationed
 
@@ -123,9 +125,9 @@ All screen content, including the bottom tab bar, is constrained to the app shel
 
 **Chat is the exception, and the keyboard is the whole of the reason.** `ChatScreen` is a `fixed` box at `--viewport-top` of `--viewport-height` with its own `overflow-y-auto` inside it. A scrollable document is exactly what lets WebKit pan the page to reveal a focused field, and that pan is performed on the compositor and reported to script afterwards — so every `fixed` box has to chase `offsetTop` a frame or more late, which the composer shows as a wobble under the finger through a momentum scroll. A viewport-sized screen leaves the document nothing to pan. Chat pays Safari's toolbar for it, and does not get it back: do not move the room onto the document scroller to reclaim those 100px, and do not make anything inside the room `fixed` — the screen bounding it already _is_ the visible area, so `absolute` is both correct and stationary.
 
-**Four elements are `fixed`, and all four earn it.** `AppHeader` and `BottomOverlay` hold the bars on screen and therefore re-apply the shell width through `Container` — unavoidable once the document moves under them. The header carries `--viewport-top` as a term (through `--header-lift`), because a field on a non-chat screen can still take focus and WebKit pans the visible viewport down inside the layout one to reveal it; `BottomOverlay` does not, and does not need to — it collapses to zero height for the whole time a keyboard is up (`DESIGN.md § 7.3.`). `ChatScreen` is the paragraph above. `ShellOverlay`'s layer is the fourth: `#app-shell` (`APP_SHELL_ID`) is an in-flow column that grows with the screen, so the `absolute inset-0` every full-screen overlay is written as would span every month 보관함 ever loaded rather than the screen. The layer re-establishes that box against the visual viewport, once, so no overlay has to go `fixed` on its own.
+**Five elements are `fixed`, and all five earn it.** `AppHeader` and `BottomOverlay` hold the bars on screen and therefore re-apply the shell width through `Container` — unavoidable once the document moves under them. The header carries `--viewport-top` as a term (through `--header-lift`), because a field on a non-chat screen can still take focus and WebKit pans the visible viewport down inside the layout one to reveal it; `BottomOverlay` does not, and does not need to — it collapses to zero height for the whole time a keyboard is up (`DESIGN.md § 7.3.`). `ChatScreen` is the paragraph above. `ShellOverlay`'s layer is the fourth: `#app-shell` (`APP_SHELL_ID`) is an in-flow column that grows with the screen, so the `absolute inset-0` every full-screen overlay is written as would span every month 보관함 ever loaded rather than the screen. The layer re-establishes that box against the visual viewport, once, so no overlay has to go `fixed` on its own. `NavRail` is the fifth: the document scrolls under it, and `sticky` would need an `h-dvh` wrapper inside a column already padded to clear it. Every one of these anchors `left: var(--rail-width)` (the body-portalled dialog and drawer centre on `--content-left`), and `TwoPane`'s panel is `sticky` at `100dvh − --bottom-inset` rather than a sixth.
 
-**A fifth one needs the same argument.** "It should stay on screen" is not enough; say what breaks without it, and prefer `sticky` inside the flow, or a `ShellOverlay` if the thing to escape is the column's height.
+**A sixth one needs the same argument.** "It should stay on screen" is not enough; say what breaks without it, and prefer `sticky` inside the flow, or a `ShellOverlay` if the thing to escape is the column's height.
 
 An overlay portalled through `ShellOverlay` inherits `pointer-events: none` from that layer, because a bar-shaped one (`REQUIREMENTS.md § 10.`'s selection bar) has to leave the grid behind it tappable. A child that covers the screen re-enables it on its own root.
 
