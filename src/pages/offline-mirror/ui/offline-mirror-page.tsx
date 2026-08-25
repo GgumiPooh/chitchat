@@ -8,12 +8,14 @@ import { useSnapshot } from "@/shared/snapshot";
 import { BottomOverlay, Container } from "@/shared/ui";
 import { OfflineBanner } from "@/widgets/offline-banner";
 import {
+  OfflineNavRail,
   OfflineTabBar,
   SnapshotEmpty,
   toMirrorScreen,
   type MirrorScreen,
 } from "@/widgets/offline-shell";
 import { MessageCircle } from "lucide-react";
+import { useMirrorSidePanel } from "../model/use-mirror-side-panel";
 import { useReloadWhenReachable } from "../model/use-reload-when-reachable";
 import { MirrorArchive } from "./mirror-archive";
 import { MirrorCalendar } from "./mirror-calendar";
@@ -47,14 +49,19 @@ export function OfflineMirrorPage({ className }: OfflineMirrorPageProps) {
 
   // INFO: REQUIREMENTS.md § 16.2. The reader is on a frozen copy of a screen that works again the moment the network does, and nothing on it would say so — the pill leaving is the only signal, and it says the opposite of what the screen is.
   useReloadWhenReachable();
+  useMirrorSidePanel();
 
   return (
     <Container
-      className={cn("relative flex min-h-dvh flex-col bg-canvas px-0 shell-edge", className)}
+      className={cn(
+        "relative flex min-h-dvh flex-col bg-canvas px-0 shell-edge md:pl-(--rail-width)",
+        className,
+      )}
       id={APP_SHELL_ID}
     >
       {/* WARN: DESIGN.md § 7.18. The pill shows on every screen, and these six are the only ones that exist *while* offline — without it the mirror is the one place the reader is shown stale content and told nothing about why, and its `role="status"` is the only announcement a screen reader gets here. */}
       <OfflineBanner />
+      <OfflineNavRail className="hidden md:flex" screen={screen} />
       <main className="flex flex-1 flex-col">{renderScreen(screen)}</main>
       <BottomOverlay>
         <OfflineTabBar screen={screen} />
