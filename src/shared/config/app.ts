@@ -428,6 +428,10 @@ export const SIDE_PANEL_SETTLED_EVENT = "jandh:side-panel-settled";
 // INFO: AGENTS.md § 4.1. 보관함's column count (1–7) at every width — the pinch's and the 열 개수 slider's shared cookie, kept so SSR and `ArchiveGrid` draw the same count with no flash.
 export const ARCHIVE_COLUMNS_COOKIE_NAME = "jandh:archive-columns";
 
+// INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 — withholds this sender's push to the other participant, kept in a cookie so both the chat header and the message routes read the same value with no round trip.
+// WARN: A boolean, never `"on"`/`"off"` strings — `universal-cookie` writes a string raw, and `synced-storage`'s SSR seeding `JSON.parse`s the cookie, so a bare word warns and hydrates as the default (`useSidePanel`'s own WARN, same mechanism).
+export const SILENT_SEND_COOKIE_NAME = "jandh:silent-send";
+
 // WARN: Must stay at the origin root. A worker served from a subdirectory controls only that subdirectory, and the push subscription is bound to the scope it was created under.
 export const SERVICE_WORKER_PATH = "/sw.js";
 

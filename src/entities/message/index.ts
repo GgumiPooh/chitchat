@@ -1,6 +1,10 @@
 export { areInlineEmoticonsKnown } from "./api/check-inline-emoticons";
 export { countUnreadMessages } from "./api/count-unread";
 export {
+  createAssistantReplyMessage,
+  type CreateAssistantReplyMessageParams,
+} from "./api/create-assistant-reply-message";
+export {
   createEmoticonMessage,
   type CreateEmoticonMessageParams,
 } from "./api/create-emoticon-message";
@@ -14,9 +18,12 @@ export { createTextMessage, type CreateTextMessageParams } from "./api/create-te
 export { deleteMessage } from "./api/delete-message";
 export { editMessage } from "./api/edit-message";
 export { getMessage } from "./api/get-message";
+export { getMessageIdByClientMsgId } from "./api/get-message-id-by-client-msg-id";
 export { isQuotable } from "./api/is-quotable";
+export { listAssistantRepliesAfter } from "./api/list-assistant-replies-after";
 export { listChangedMessages } from "./api/list-changed-messages";
 export { listMessages, type ListMessagesParams } from "./api/list-messages";
+export { listMessagesByIds } from "./api/list-messages-by-ids";
 export {
   countMatchingMessages,
   searchMessages,

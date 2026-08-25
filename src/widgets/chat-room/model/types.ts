@@ -5,6 +5,8 @@ import type { PendingMessage } from "@/features/send-message";
 export type ChatRow =
   | { key: string; kind: "date"; dayKey: string }
   | { key: string; kind: "system"; message: ChatMessage }
+  /** DESIGN.md § 6.2., § 7.7. `systemAction === "assistant_reply"` — the finished AI answer, drawn as a left-aligned bubble rather than the § 6.5. pill every other system row takes. */
+  | { key: string; kind: "assistant"; message: ChatMessage }
   | {
       key: string;
       kind: "message";

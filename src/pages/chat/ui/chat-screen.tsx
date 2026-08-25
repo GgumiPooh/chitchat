@@ -14,6 +14,7 @@ import {
   MessageSearchResults,
   useMessageSearch,
 } from "@/features/search-messages";
+import { SilentSendButton, useSilentSend } from "@/features/silent-send";
 import type { InlineEmoticonMap } from "@/shared/config";
 import { CALENDAR_ROUTE, LOGIN_ROUTE } from "@/shared/config";
 import {
@@ -26,9 +27,9 @@ import {
   type Nullable,
   type UserId,
 } from "@/shared/lib";
-import { AppHeader, Container, IconButton, SidePanel } from "@/shared/ui";
-import { ChatRoom, toChromeTint } from "@/widgets/chat-room";
-import { CalendarClock, ChevronLeft, Search } from "lucide-react";
+import { AppHeader, Container, HeaderTextButton, IconButton, SidePanel } from "@/shared/ui";
+import { ChatRoom, toChromeTint, type AiSelectionHeaderState } from "@/widgets/chat-room";
+import { CalendarClock, ChevronLeft, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useImminentPanel } from "../model/use-imminent-panel";
@@ -66,6 +67,7 @@ export function ChatScreen({
 }: ChatScreenProps) {
   const search = useMessageSearch();
   const upcoming = useUpcomingEvents(initialSummary, currentUserId);
+  const silentSend = useSilentSend();
   // INFO: REQUIREMENTS.md § 11.5.1. Arriving with something imminent opens the panel; closing it is what stops that happening again.
   const imminent = useImminentPanel(upcoming.occurrences, currentUserId);
   const [isUpcomingOpen, setIsUpcomingOpen] = useState(false);
@@ -78,6 +80,8 @@ export function ChatScreen({
   const [formToken, setFormToken] = useState<Nullable<number>>(null);
   // WARN: Closing clears this and not the token — the sheet stays mounted through its slide-down, which unmounting would cut short.
   const [isFormOpen, setIsFormOpen] = useState(false);
+  // INFO: REQUIREMENTS.md § 8.5. `ChatRoom` owns `useAiSelection` — `messages` lives there — and reports the header-relevant slice up, the way `AiSelectionHeaderState`'s own doc comment explains.
+  const [aiSelection, setAiSelection] = useState<Nullable<AiSelectionHeaderState>>(null);
   const { participants, typingUserIds, chatBackgroundBlurhash } = useChatStream();
   const router = useRouter();
 
@@ -158,7 +162,35 @@ export function ChatScreen({
           />
         </SidePanel>
         <div className="relative flex min-w-0 flex-1 flex-col">
-          {search.isOpen ? (
+          {aiSelection ? (
+            // INFO: REQUIREMENTS.md § 8.5., § 10. The same takeover 보관함's own selection bar makes of its header — 검색/일정/조용히 보내기 give way to the count and the toggle while the mode is up.
+            <AppHeader
+              className="motion-reduce:transition-none lg:left-(--content-left) lg:transition-[left] lg:duration-(--duration-route-enter) lg:ease-route"
+              titleClassName="tabular-nums"
+              hasSidePanel
+              title={`${aiSelection.count}개 선택`}
+              leading={
+                <IconButton
+                  Icon={X}
+                  variant="floating"
+                  haptic
+                  aria-label="AI 질문 취소"
+                  onClick={aiSelection.onExit}
+                />
+              }
+              trailing={
+                // INFO: DESIGN.md § 7.12. `min-w` is the longer of the two labels, measured, so the toggle never shifts the header's own width as it flips between them.
+                <HeaderTextButton
+                  className="min-w-[5.5rem]"
+                  onClick={
+                    aiSelection.count > 0 ? aiSelection.onClearAll : aiSelection.onAutoSelect
+                  }
+                >
+                  {aiSelection.count > 0 ? "전체 해제" : "자동 선택"}
+                </HeaderTextButton>
+              }
+            />
+          ) : search.isOpen ? (
             <MessageSearchBar
               // WARN: `lg` keeps 검색 in `ChatSidePanel` (`ChatSidePanel`, above) instead — unhidden here, a search left open across the breakpoint would show both at once.
               className="lg:hidden"
@@ -186,45 +218,49 @@ export function ChatScreen({
                 />
               }
               trailing={
-                <div className="flex items-center gap-2xs lg:hidden">
-                  {/* INFO: DESIGN.md § 7.12. The bloom is a sibling behind the glass rather than a shadow on the button, because `icon-button-floating` already spends its `box-shadow` on `shadow-floating` — a second one silently replaces it. */}
-                  <span className="relative flex">
-                    {upcoming.isSoon && (
-                      <span
-                        className="pointer-events-none absolute -inset-2xs event-bloom rounded-full bg-primary blur-md"
-                        aria-hidden
+                // INFO: REQUIREMENTS.md § 16.1. Unlike 일정/검색, 조용히 보내기 has no side-panel equivalent from `lg` — the group below stays `lg:hidden`, this one does not.
+                <div className="flex items-center gap-2xs">
+                  <SilentSendButton />
+                  <div className="flex items-center gap-2xs lg:hidden">
+                    {/* INFO: DESIGN.md § 7.12. The bloom is a sibling behind the glass rather than a shadow on the button, because `icon-button-floating` already spends its `box-shadow` on `shadow-floating` — a second one silently replaces it. */}
+                    <span className="relative flex">
+                      {upcoming.isSoon && (
+                        <span
+                          className="pointer-events-none absolute -inset-2xs event-bloom rounded-full bg-primary blur-md"
+                          aria-hidden
+                        />
+                      )}
+                      <IconButton
+                        variant="floating"
+                        haptic
+                        aria-label={upcoming.isSoon ? "다가오는 일정, 곧 시작" : "다가오는 일정"}
+                        aria-expanded={isPanelOpen}
+                        // INFO: DESIGN.md § 7.12. The dot is § 7.3.'s 캘린더 one, glyph corner and all, because it says the same kind of thing — and it goes through `icon` so it rides the glyph rather than the 44 target, which is what keeps it on the button's own glass.
+                        icon={
+                          <span className="pointer-events-none relative">
+                            <CalendarClock className="size-5" strokeWidth={1.75} />
+                            {upcoming.isSoon && (
+                              <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
+                            )}
+                          </span>
+                        }
+                        onClick={() => (isPanelOpen ? closeUpcoming() : setIsUpcomingOpen(true))}
                       />
-                    )}
+                    </span>
                     <IconButton
+                      Icon={Search}
                       variant="floating"
                       haptic
-                      aria-label={upcoming.isSoon ? "다가오는 일정, 곧 시작" : "다가오는 일정"}
-                      aria-expanded={isPanelOpen}
-                      // INFO: DESIGN.md § 7.12. The dot is § 7.3.'s 캘린더 one, glyph corner and all, because it says the same kind of thing — and it goes through `icon` so it rides the glyph rather than the 44 target, which is what keeps it on the button's own glass.
-                      icon={
-                        <span className="pointer-events-none relative">
-                          <CalendarClock className="size-5" strokeWidth={1.75} />
-                          {upcoming.isSoon && (
-                            <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
-                          )}
-                        </span>
-                      }
-                      onClick={() => (isPanelOpen ? closeUpcoming() : setIsUpcomingOpen(true))}
+                      aria-label="메시지 검색"
+                      onClick={search.open}
                     />
-                  </span>
-                  <IconButton
-                    Icon={Search}
-                    variant="floating"
-                    haptic
-                    aria-label="메시지 검색"
-                    onClick={search.open}
-                  />
+                  </div>
                 </div>
               }
             />
           )}
-          {/* WARN: Withheld while 검색 is up, for the reason § 8.6. withholds the composer's stack — the bar that opens it is not on screen, so nothing would say what this panel is doing there. */}
-          {!search.isOpen && (
+          {/* WARN: Withheld while 검색 or AI 질문 모드 is up, for the reason § 8.6. withholds the composer's stack — the bar that opens it is not on screen, so nothing would say what this panel is doing there. */}
+          {!search.isOpen && !aiSelection && (
             <UpcomingEventsPanel
               className="lg:hidden"
               isOpen={isPanelOpen}
@@ -261,6 +297,7 @@ export function ChatScreen({
             // WARN: REQUIREMENTS.md § 10. A prop of its own rather than a fallback for the target above. Closing the search takes its target back to null, and a fallback would read that as a fresh instruction — jumping back to the tile's message from wherever the reader had got to.
             initialJumpMessageId={jumpMessageId}
             searchQuery={search.isOpen ? search.submitted : undefined}
+            isSilentSend={silentSend.isSilent}
             bottomBar={
               search.isOpen ? (
                 <MessageSearchNav
@@ -275,6 +312,7 @@ export function ChatScreen({
               ) : undefined
             }
             onAddEvent={openForm}
+            onAiSelectionChange={setAiSelection}
           />
           {search.isOpen && search.isListOpen && (
             <MessageSearchResults

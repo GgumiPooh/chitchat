@@ -28,6 +28,8 @@ export type ReplyPreview = {
   mediaCount: number;
   // INFO: § 6. is append-only and a delete is a soft one, so the parent row outlives its content and the quote says 삭제된 메시지예요 instead of going blank.
   isDeleted: boolean;
+  /** Set only when `kind` is `"system"` with an `assistant_reply` parent — `ChatMessage.llmProvider`'s own reasoning for staying a snapshot rather than a join applies here too. Null for every other kind. */
+  llmProvider: Nullable<string>;
   id: MessageId;
 };
 
@@ -67,6 +69,9 @@ export type ChatMessage = {
   systemAction: Nullable<SystemAction>;
   eventTitle: Nullable<string>;
   eventStartsAt: Nullable<string>;
+  /** Set only on an `assistant_reply`. A snapshot of `llm_agents.provider`/`.model`, so the avatar and the model label still render after that row is deleted. */
+  llmProvider: Nullable<string>;
+  llmModel: Nullable<string>;
   // INFO: REQUIREMENTS.md § 8.10. Orthogonal to `type` — a reply may be text, attachments or an emoticon, so this rides beside the payload rather than inside it.
   replyTo: Nullable<ReplyPreview>;
   createdAt: string;

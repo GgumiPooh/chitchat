@@ -1,6 +1,6 @@
 "use client";
 
-import type { Nullable, UserId } from "@/shared/lib";
+import type { Maybe, Nullable, Optional, UserId } from "@/shared/lib";
 import {
   createContext,
   useCallback,
@@ -11,9 +11,26 @@ import {
 } from "react";
 import { ProfileOverlay } from "../ui/profile-overlay";
 
+/**
+ * Who the § 12.3. screen is drawn for — a participant, resolved live against the
+ * chat stream's own set, or an LLM provider (`CLAUDE.md` teammate spec for the
+ * assistant reply's own profile), branded through `toLlmProviderBranding`.
+ */
+export type ProfileSubject =
+  | { type: "user"; userId: UserId }
+  | { type: "llm"; provider: Maybe<string>; modelId?: Optional<string> };
+
 export type ProfileViewerValue = {
   /** Opens the profile screen for a participant id (REQUIREMENTS.md § 12.3.). */
   openProfile: (userId: UserId) => void;
+  /**
+   * Opens the profile screen for the AI's own avatar.
+   *
+   * WARN: `Maybe`, not `Nullable` — the streaming row's `GenerationEntry.provider`
+   * is `Optional<string>` and the finished row's `ChatMessage.llmProvider` is
+   * `Nullable<string>`, and both wire this same call.
+   */
+  openLlmProfile: (provider: Maybe<string>, modelId?: Optional<string>) => void;
 };
 
 export type ProfileViewerProviderProps = PropsWithChildren<{
@@ -39,17 +56,22 @@ const ProfileViewerContext = createContext<Nullable<ProfileViewerValue>>(null);
  * (§ 12.).
  */
 export function ProfileViewerProvider({ children, currentUserId }: ProfileViewerProviderProps) {
-  const [openUserId, setOpenUserId] = useState<Nullable<UserId>>(null);
-  const openProfile = useCallback((userId: UserId) => setOpenUserId(userId), []);
+  const [subject, setSubject] = useState<Nullable<ProfileSubject>>(null);
+  const openProfile = useCallback((userId: UserId) => setSubject({ type: "user", userId }), []);
+  const openLlmProfile = useCallback(
+    (provider: Maybe<string>, modelId?: Optional<string>) =>
+      setSubject({ type: "llm", provider, modelId }),
+    [],
+  );
   // WARN: Stable, like `openProfile` beside it. `ProfileOverlay` lists it in the deps of both its effects — one of which registers a document-level `keydown` listener and one of which can call it — so a fresh arrow per render re-subscribes on every provider render for nothing.
-  const closeProfile = useCallback(() => setOpenUserId(null), []);
-  const value = useMemo(() => ({ openProfile }), [openProfile]);
+  const closeProfile = useCallback(() => setSubject(null), []);
+  const value = useMemo(() => ({ openProfile, openLlmProfile }), [openProfile, openLlmProfile]);
 
   return (
     <ProfileViewerContext.Provider value={value}>
       {children}
-      {openUserId && (
-        <ProfileOverlay userId={openUserId} currentUserId={currentUserId} onClose={closeProfile} />
+      {subject && (
+        <ProfileOverlay subject={subject} currentUserId={currentUserId} onClose={closeProfile} />
       )}
     </ProfileViewerContext.Provider>
   );

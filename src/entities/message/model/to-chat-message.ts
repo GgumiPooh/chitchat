@@ -26,6 +26,8 @@ export function toChatMessage(
     systemAction: row.systemAction,
     eventTitle: row.eventTitle,
     eventStartsAt: row.eventStartsAt?.toISOString() ?? null,
+    llmProvider: row.llmProvider,
+    llmModel: row.llmModel,
     replyTo,
     // INFO: The finished restructure. Derived from the id rather than read from a column, which migration B drops. The field stays on the wire because an optimistic send has no id yet and still has to be placed on a day and in a minute group.
     createdAt: idToDate(row.id).toISOString(),

@@ -13,6 +13,8 @@ export type ChatContext = {
   chatBackgroundMediaId: Nullable<MediaId>;
   /** REQUIREMENTS.md § 12.2. The wallpaper's own hash, which the chat route's chrome takes its colour from. */
   chatBackgroundBlurhash: Nullable<string>;
+  /** REQUIREMENTS.md § 8.15. The shared 쨈미니 system prompt, set by either participant. */
+  llmSystemPrompt: Nullable<string>;
 };
 
 export async function fetchChatContext(): Promise<ChatContext> {
@@ -22,11 +24,13 @@ export async function fetchChatContext(): Promise<ChatContext> {
     throw new Error(`GET ${USERS_PATH} responded ${response.status}`);
   }
 
-  const { users, chatBackgroundMediaId, chatBackgroundBlurhash } = (await response.json()) as {
-    users: Participant[];
-    chatBackgroundMediaId: Nullable<MediaId>;
-    chatBackgroundBlurhash: Nullable<string>;
-  };
+  const { users, chatBackgroundMediaId, chatBackgroundBlurhash, llmSystemPrompt } =
+    (await response.json()) as {
+      users: Participant[];
+      chatBackgroundMediaId: Nullable<MediaId>;
+      chatBackgroundBlurhash: Nullable<string>;
+      llmSystemPrompt: Nullable<string>;
+    };
 
-  return { participants: users, chatBackgroundMediaId, chatBackgroundBlurhash };
+  return { participants: users, chatBackgroundMediaId, chatBackgroundBlurhash, llmSystemPrompt };
 }

@@ -4,22 +4,26 @@ import {
   listMessages,
   type ChatMessage,
 } from "@/entities/message";
+import { listGenerationSnapshots, type GenerationSnapshot } from "@/features/ask-ai";
 import { apiError } from "@/shared/api";
 import { getSessionContext, isSessionLive } from "@/shared/auth";
 import {
   BACKFILL_EVENT,
   BUILD_ID,
   CHANGE_EVENT,
+  llmStreamEventSchema,
   snowflakeSchema,
   SSE_HEARTBEAT_INTERVAL,
   SSE_REPLAY_LIMIT,
   SSE_REPLAY_MARGIN,
   typingEventSchema,
   type InlineEmoticonMap,
+  type LlmSseEvent,
   type MessageArrival,
 } from "@/shared/config";
 import {
   listenToChannels,
+  LLM_STREAM_CHANNEL,
   MESSAGE_CHANGED_CHANNEL,
   NEW_MESSAGE_CHANNEL,
   TYPING_CHANNEL,
@@ -92,9 +96,20 @@ export async function GET(request: Request) {
       try {
         // WARN: Registered before the replay query runs. In the other order a message committing between the two would be missed by both — the query does not see it yet and nothing is listening for it.
         release = await listenToChannels(
-          [NEW_MESSAGE_CHANNEL, USER_CHANGED_CHANNEL, TYPING_CHANNEL, MESSAGE_CHANGED_CHANNEL],
+          [
+            NEW_MESSAGE_CHANNEL,
+            USER_CHANGED_CHANNEL,
+            TYPING_CHANNEL,
+            MESSAGE_CHANGED_CHANNEL,
+            LLM_STREAM_CHANNEL,
+          ],
           handleNotification,
         );
+
+        // INFO: A client connecting mid-queue or mid-stream has seen none of the `queued`/`start`/`delta`s already published — the registry is this run's own memory of them.
+        for (const snapshot of listGenerationSnapshots()) {
+          write(toLlmSnapshotEvent(snapshot));
+        }
 
         const replay = await replayFrom(cursor);
         // INFO: REQUIREMENTS.md § 13. One query for the whole replay, and each event then carries only the entries its own row names — the alternative is a query per replayed message on every reconnect.
@@ -155,6 +170,17 @@ export async function GET(request: Request) {
           if (typing.success) {
             // WARN: No `id:`, and never queued behind the pipeline below. It carries no `messages` cursor to advance, and a signal that only means "right now" must not wait on a chain of row reads that would deliver it after it expired (REQUIREMENTS.md § 8.12.).
             write(`event: typing\ndata: ${JSON.stringify(typing.data)}\n\n`);
+          }
+
+          return;
+        }
+
+        if (channel === LLM_STREAM_CHANNEL) {
+          // INFO: Same reasoning as `typing` above — the payload is the whole event, and it is written straight out rather than queued behind the pipeline below.
+          const llm = llmStreamEventSchema.safeParse(safelyGet(() => JSON.parse(payload)));
+
+          if (llm.success) {
+            write(`event: llm\ndata: ${JSON.stringify(llm.data)}\n\n`);
           }
 
           return;
@@ -251,6 +277,23 @@ function pickEmoticons(emoticons: InlineEmoticonMap, message: ChatMessage): Inli
  */
 function toChangeEvent(message: ChatMessage, emoticons: InlineEmoticonMap): string {
   return `event: ${CHANGE_EVENT}\ndata: ${JSON.stringify({ message, emoticons })}\n\n`;
+}
+
+/** The `snapshot` variant of `llmSseEventSchema`, built from the in-memory registry rather than parsed off the wire. */
+function toLlmSnapshotEvent(snapshot: GenerationSnapshot & { streamId: string }): string {
+  const data: LlmSseEvent = {
+    type: "snapshot",
+    streamId: snapshot.streamId,
+    questionClientMsgId: snapshot.questionClientMsgId,
+    userId: snapshot.userId,
+    status: snapshot.status,
+    provider: snapshot.provider,
+    model: snapshot.model,
+    text: snapshot.text,
+    seq: snapshot.nextSeq,
+  };
+
+  return `event: llm\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
 async function replayFrom(cursor: Nullable<MessageId>): Promise<ChatMessage[]> {

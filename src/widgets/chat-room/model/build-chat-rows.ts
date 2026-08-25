@@ -54,6 +54,13 @@ export function buildChatRows({
       previousDayKey = entry.dayKey;
     }
 
+    // INFO: The finished assistant reply is its own row kind — DESIGN.md § 6.2. draws it as a left-aligned bubble, not the § 6.5. pill every other system notice takes.
+    if (entry.message?.systemAction === "assistant_reply") {
+      rows.push({ key: entry.key, kind: "assistant", message: entry.message });
+
+      return;
+    }
+
     if (entry.message?.type === "system") {
       rows.push({ key: entry.key, kind: "system", message: entry.message });
 

@@ -1,5 +1,6 @@
 import { readChatBackground } from "@/entities/chat-background";
 import { hasEventToday } from "@/entities/event";
+import { readLlmSystemPrompt } from "@/entities/llm-system-prompt";
 import { countUnreadMessages } from "@/entities/message";
 import { listUsers } from "@/entities/user";
 import { ChatStreamProvider } from "@/features/chat-stream";
@@ -12,6 +13,7 @@ import {
   ARCHIVE_COLUMNS_COOKIE_NAME,
   PUSH_STATE_COOKIE_NAME,
   SIDE_PANEL_COOKIE_NAME,
+  SILENT_SEND_COOKIE_NAME,
 } from "@/shared/config";
 import { OfflineNotice } from "@/shared/offline-ux";
 import {
@@ -38,9 +40,15 @@ export default async function MainLayout({ children }: PropsWithChildren) {
   // INFO: REQUIREMENTS.md § 8.4.2. Both seed the shell's state, which outlives the chat screen the socket itself is scoped to.
   // INFO: REQUIREMENTS.md § 11.5. The calendar dot rides the same render — it is conversation-wide, so it needs no per-user query.
   // INFO: REQUIREMENTS.md § 12.2. The wallpaper is seeded here rather than by the chat screen, because the state it feeds is refreshed by a `user_changed` event that reaches every tab.
-  const [participants, unreadCount, hasTodayEvent, chatBackground, cookieStore] = await Promise.all(
-    [listUsers(), countUnreadMessages(user.id), hasEventToday(), readChatBackground(), cookies()],
-  );
+  const [participants, unreadCount, hasTodayEvent, chatBackground, llmSystemPrompt, cookieStore] =
+    await Promise.all([
+      listUsers(),
+      countUnreadMessages(user.id),
+      hasEventToday(),
+      readChatBackground(),
+      readLlmSystemPrompt(),
+      cookies(),
+    ]);
   // WARN: Only these cross to the client. `ssrCookies` is serialized into the RSC payload, and `getAll()` would put the `httpOnly` session cookie in it.
   // WARN: `jandh:side-panel` is dropped unless it is the JSON boolean it now holds — a browser still carrying the old `open`/`closed` word would make `SyncedStorageProvider`'s `JSON.parse` warn on every request until the next toggle.
   const ssrCookies = cookieStore
@@ -49,7 +57,8 @@ export default async function MainLayout({ children }: PropsWithChildren) {
       ({ name, value }) =>
         name === PUSH_STATE_COOKIE_NAME ||
         name === ARCHIVE_COLUMNS_COOKIE_NAME ||
-        (name === SIDE_PANEL_COOKIE_NAME && (value === "true" || value === "false")),
+        ((name === SIDE_PANEL_COOKIE_NAME || name === SILENT_SEND_COOKIE_NAME) &&
+          (value === "true" || value === "false")),
     );
   // INFO: AGENTS.md § 4.4. Painted on `#app-shell` rather than `<html>` — the root layout has no cookie access here — so `theme.css`'s `:root:has(#app-shell[data-side-panel="closed"])` collapses `--pane-width` before hydration.
   const isSidePanelClosed = cookieStore.get(SIDE_PANEL_COOKIE_NAME)?.value === "false";
@@ -62,6 +71,7 @@ export default async function MainLayout({ children }: PropsWithChildren) {
         initialParticipants={participants}
         initialChatBackgroundMediaId={chatBackground?.mediaId ?? null}
         initialChatBackgroundBlurhash={chatBackground?.blurhash ?? null}
+        initialLlmSystemPrompt={llmSystemPrompt}
         initialUnreadCount={unreadCount}
       >
         {/* INFO: REQUIREMENTS.md § 12.3. Inside the stream provider, because the profile it draws is resolved against the live participant set; outside the shell box, because the overlay portals into that box rather than nesting in it. */}

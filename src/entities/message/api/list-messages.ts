@@ -93,7 +93,7 @@ async function listAround(target: MessageId, limit: number): Promise<ChatMessage
  * nothing renders — and it would put the media ids of a deleted photo on the wire,
  * which is the one thing deleting it was meant to take back.
  */
-async function withMedia(rows: Message[]): Promise<ChatMessage[]> {
+export async function withMedia(rows: Message[]): Promise<ChatMessage[]> {
   const live = rows.filter((row) => row.deletedAt === null);
   const mediaIds = live.filter((row) => row.type === "media").map((row) => row.id);
   const emoticonIds = live

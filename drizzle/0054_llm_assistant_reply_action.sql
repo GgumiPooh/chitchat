@@ -1,0 +1,1 @@
+ALTER TYPE "public"."system_action" ADD VALUE 'assistant_reply';

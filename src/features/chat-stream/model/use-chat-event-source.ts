@@ -7,10 +7,12 @@ import {
   CHANGE_EVENT,
   CHAT_STREAM_PATH,
   IS_SSE_IDLE_SLEEP_ENABLED,
+  llmSseEventSchema,
   SSE_RETRY_DELAY,
   SSE_STALE_AFTER,
   SSE_SYNC_COALESCE_WINDOW,
   typingEventSchema,
+  type LlmSseEvent,
   type MessageArrival,
 } from "@/shared/config";
 import type { UserId } from "@/shared/lib";
@@ -28,6 +30,8 @@ export type ChatEventSourceHandlers = {
   onResume: () => void;
   /** Someone started or stopped composing. REQUIREMENTS.md § 8.12. */
   onTyping: (userId: UserId, isTyping: boolean) => void;
+  /** A queue/stream update for an AI answer in progress, or a mid-stream snapshot. */
+  onLlm: (event: LlmSseEvent) => void;
   /** REQUIREMENTS.md § 8.13. A row already on screen, changed — corrected, or withdrawn and now a tombstone. Whole, so the client replaces rather than patches. */
   onChange: (data: MessageEventData) => void;
   /** The deployment serving this connection. REQUIREMENTS.md § 15.1. */
@@ -117,6 +121,16 @@ export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: b
 
         if (data?.message) {
           handlers.current.onChange(data);
+        }
+      });
+      // INFO: An AI answer's queue/stream progress, or a mid-stream snapshot — same reasoning as `typing` above, no `id:` and never queued behind the message pipeline.
+      opened.addEventListener("llm", (event) => {
+        markAlive();
+
+        const llm = llmSseEventSchema.safeParse(safelyGet(() => JSON.parse(event.data)));
+
+        if (llm.success) {
+          handlers.current.onLlm(llm.data);
         }
       });
       // INFO: REQUIREMENTS.md § 8.4. The heartbeat is a named event rather than a `:ping` comment so it lands here — this is the client's only evidence that the socket underneath is still real.

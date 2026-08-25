@@ -1,0 +1,51 @@
+"use client";
+
+import type { ChatMessage } from "@/entities/message";
+import { toLlmProviderBranding } from "@/shared/config";
+import { cn, formatTime } from "@/shared/lib";
+import { MarkdownBody } from "@/shared/ui";
+import { Sparkles } from "lucide-react";
+
+export type MirrorAssistantRowProps = {
+  className?: string;
+  message: ChatMessage;
+};
+
+/**
+ * DESIGN.md § 6.2., § 7.7. The finished AI answer, mirrored (REQUIREMENTS.md § 16.).
+ *
+ * WARN: `AssistantMessageRow` is not reused — it opens the profile viewer on a tap,
+ * which a read-only mirror has no provider for (`MirrorChatRow`'s own reason for not
+ * reusing `MessageRow`). The avatar here is a plain span rather than a button.
+ */
+export function MirrorAssistantRow({ className, message }: MirrorAssistantRowProps) {
+  const branding = toLlmProviderBranding(message.llmProvider);
+
+  return (
+    <div className={cn("flex gap-2xs px-md pt-sm", className)}>
+      <span className="block size-9 shrink-0 rounded-full">
+        {branding.avatarSrc ? (
+          <span className="block size-full overflow-hidden rounded-full ring-1 ring-hairline ring-inset">
+            {/* eslint-disable-next-line @next/next/no-img-element -- a static asset under `public/llm`, not a stored `media` row `next/image` would otherwise optimize */}
+            <img className="size-full object-cover" src={branding.avatarSrc} alt="" />
+          </span>
+        ) : (
+          <span className="flex size-full items-center justify-center rounded-full bg-primary-tint ring-1 ring-hairline ring-inset">
+            <Sparkles className="size-4 text-primary" strokeWidth={1.75} />
+          </span>
+        )}
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-2xs">
+        <span className="px-2xs text-chat-name text-chat-sender">{branding.name}</span>
+        <div className="flex items-end gap-2xs">
+          <div className="min-w-0 flex-1 rounded-bubble rounded-tl-xs border border-hairline bg-bubble-theirs px-sm py-xs select-text">
+            <MarkdownBody text={message.text ?? ""} />
+          </div>
+          <div className="flex w-14 shrink-0 flex-col items-end text-chat-time whitespace-nowrap text-chat-meta">
+            <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

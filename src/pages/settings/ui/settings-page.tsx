@@ -15,6 +15,7 @@ import { AppHeader } from "@/shared/ui";
 import { DevRefreshRow } from "./dev-refresh-row";
 import { DeviceSettingsRow } from "./device-settings-row";
 import { EmoticonSettingsRow } from "./emoticon-settings-row";
+import { LlmSystemPromptSettingsRow } from "./llm-system-prompt-settings-row";
 import { MessageSoundSettingsRow } from "./message-sound-settings-row";
 import { MiniSettingsRow } from "./mini-settings-row";
 import { ProfileCover } from "./profile-cover";
@@ -60,6 +61,8 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
         <MiniSettingsRow />
         {/* INFO: REQUIREMENTS.md § 12.2. The only row that changes what the *other* participant sees; takes no id since the wallpaper is shared and live off the stream. */}
         <ChatBackgroundRow />
+        {/* INFO: REQUIREMENTS.md § 8.15. The shared 쨈미니 지침 — a conversation-wide row beside 채팅방 배경, and the settings-tab mirror of `AiSelectionBar`'s own `AI 지침` chip. */}
+        <LlmSystemPromptSettingsRow />
         {/* INFO: DESIGN.md § 5.1. Per device, like 알림 — lives in `localStorage`. */}
         <ThemeSettingsRow />
         {/* INFO: REQUIREMENTS.md § 16.1. One provider — both rows describe the same installation and settle from one launch sync. */}

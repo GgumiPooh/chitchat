@@ -1,7 +1,6 @@
 import "server-only";
 
-import { ensureEnv } from "@/shared/config";
-import postgres from "postgres";
+import { openUnpooledSession } from "./session";
 
 /** The `pg_notify` channels the REQUIREMENTS.md § 6. triggers fire on. */
 export const NEW_MESSAGE_CHANNEL = "new_message";
@@ -25,6 +24,12 @@ export const MESSAGE_CHANGED_CHANNEL = "message_changed";
  */
 export const TYPING_CHANNEL = "typing";
 
+/** The AI answer's streamed deltas (`llmStreamEventSchema`) — no trigger either, for the same reason `TYPING_CHANNEL` has none. */
+export const LLM_STREAM_CHANNEL = "llm_stream";
+
+/** `DELETE /api/chat/ai` publishes here (`llmCancelEventSchema`) — the queued request's own connection listens for it, whether it is still waiting on the advisory lock or already generating. */
+export const LLM_CANCEL_CHANNEL = "llm_cancel";
+
 export type NotificationHandler = (channel: string, payload: string) => void;
 
 /**
@@ -36,8 +41,7 @@ export async function listenToChannels(
   channels: string[],
   onNotification: NotificationHandler,
 ): Promise<() => Promise<void>> {
-  // WARN: REQUIREMENTS.md § 6. The unpooled string, and a client of its own. A transaction-mode pooler hands the connection to another caller between transactions, which drops the `LISTEN` without erroring — the stream just goes quiet.
-  const sql = postgres(ensureEnv("DATABASE_URL_UNPOOLED"), { max: 1, prepare: false });
+  const sql = openUnpooledSession();
 
   try {
     await Promise.all(

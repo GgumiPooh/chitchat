@@ -1,6 +1,13 @@
 "use client";
 
-import { cn, useIsDesktop, useRovingTabIndex, type Nullable } from "@/shared/lib";
+import { APP_HEADER_ID, BOTTOM_OVERLAY_ID } from "@/shared/config";
+import {
+  cn,
+  useIsDesktop,
+  useRovingTabIndex,
+  type LongPressPoint,
+  type Nullable,
+} from "@/shared/lib";
 import {
   useEffect,
   useEffectEvent,
@@ -45,6 +52,14 @@ export type ActionSheetProps = {
    */
   anchorRef?: RefObject<Nullable<HTMLElement>>;
   /**
+   * The pointer position a hold or right-click fired at (`useLongPress`'s own
+   * point), for a menu pinned to where the gesture happened rather than to
+   * `anchorRef`'s whole element — the message action sheet's bubble can run
+   * taller than the visible area, and anchoring below it can land the menu off
+   * screen (`DESIGN.md § 7.5.`). Takes precedence over `anchorRef` while set.
+   */
+  anchorPoint?: LongPressPoint;
+  /**
    * `"menu"` keeps the `Popover` below `md` too, pinned to `anchorRef` — for a
    * sheet opened by holding the thing it acts on, where a bottom sheet moves the
    * eye away from it (`DESIGN.md § 7.5.`). Defaults to the width-driven choice.
@@ -60,6 +75,7 @@ export function ActionSheet({
   header,
   items,
   anchorRef,
+  anchorPoint,
   presentation = "sheet",
   onClose,
 }: ActionSheetProps) {
@@ -75,23 +91,60 @@ export function ActionSheet({
     setSnapshot({ key: snapshotKey, header, items });
   }
   const { header: shownHeader, items: shownItems } = isOpen ? { header, items } : snapshot;
-  // WARN: The anchor's rect is read once per opening, not tracked — the trigger is an `IconButton` whose press-bloom scales it for the next 300ms, and a live anchor drags the menu along with it.
-  const anchorRectRef = useRef<Nullable<DOMRect>>(null);
-  useEffect(() => {
-    if (!isOpen) {
-      anchorRectRef.current = null;
-    }
-  }, [isOpen]);
-  const virtualAnchorRef = useMemo(
-    () => ({
-      current: {
-        getBoundingClientRect: () =>
-          (anchorRectRef.current ??= anchorRef?.current?.getBoundingClientRect() ?? new DOMRect()),
-      },
-    }),
-    [anchorRef],
-  );
   const menuRef = useRef<Nullable<HTMLDivElement>>(null);
+  // INFO: The rect is re-measured on open and on a resize/visual-viewport change, never continuously — the trigger is an `IconButton` whose press-bloom scales it for the next 300ms, and a live-tracked anchor would drag the menu along with that animation.
+  const [anchorRect, setAnchorRect] = useState<Nullable<DOMRect>>(null);
+  const [collisionPadding, setCollisionPadding] = useState({
+    top: 16,
+    right: 16,
+    bottom: 16,
+    left: 16,
+  });
+  useEffect(() => {
+    // WARN: No reset on close — the sheet stays mounted through its exit animation (`Presence`), and nulling the rect here would snap it to the top-left corner mid-close instead of holding its last position.
+    // INFO: A pointer anchor is a snapshot of where the gesture fired, not a live element with a rect to measure, so this effect only runs for the `anchorRef` case.
+    if (!isOpen || !isMenu || anchorPoint) {
+      return;
+    }
+
+    const measure = () =>
+      setAnchorRect(anchorRef?.current?.getBoundingClientRect() ?? new DOMRect());
+    measure();
+    window.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("scroll", measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.visualViewport?.removeEventListener("resize", measure);
+      window.visualViewport?.removeEventListener("scroll", measure);
+    };
+  }, [isOpen, isMenu, anchorRef, anchorPoint]);
+  useEffect(() => {
+    if (!isOpen || !isMenu) {
+      return;
+    }
+
+    // INFO: Keeps the menu clear of the fixed header and composer bars (`AGENTS.md § 4.4.`) rather than colliding with them before flip/shift take over.
+    const measure = () => {
+      const headerHeight =
+        document.getElementById(APP_HEADER_ID)?.getBoundingClientRect().height ?? 0;
+      const bottomInset =
+        document.getElementById(BOTTOM_OVERLAY_ID)?.getBoundingClientRect().height ?? 0;
+      setCollisionPadding({
+        top: headerHeight + 16,
+        right: 16,
+        bottom: bottomInset + 16,
+        left: 16,
+      });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [isOpen, isMenu]);
+  const virtualAnchorRef = useMemo(() => {
+    const rect = anchorPoint ? new DOMRect(anchorPoint.x, anchorPoint.y, 0, 0) : anchorRect;
+    return { current: { getBoundingClientRect: () => rect ?? new DOMRect() } };
+  }, [anchorPoint, anchorRect]);
   const isTouchMenu = isMenu && !isDesktop;
   const closeFromOutside = useEffectEvent(onClose);
   // INFO: Radix dismisses a touch on the outside only once its `click` lands, and a finger that moves never lands one — so the menu closes on the touch itself, and spends the click so the row under it is not tapped through.
@@ -117,6 +170,22 @@ export function ActionSheet({
       disarm();
     };
   }, [isTouchMenu, isOpen]);
+  // INFO: A scroll anywhere outside the popover — the chat room's own scroller, the document on other screens, a side panel — leaves the menu pinned to a bubble that has since moved out from under it, so any such scroll closes it instead.
+  useEffect(() => {
+    if (!isMenu || !isOpen) {
+      return;
+    }
+
+    const handleScroll = (event: Event) => {
+      if (menuRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      closeFromOutside();
+    };
+    document.addEventListener("scroll", handleScroll, true);
+    return () => document.removeEventListener("scroll", handleScroll, true);
+  }, [isMenu, isOpen]);
   const handleMenuKeyDown = useRovingTabIndex({
     orientation: "vertical",
     selector: '[role="menuitem"]',
@@ -128,7 +197,7 @@ export function ActionSheet({
         <li key={item.label} className="group relative">
           <button
             className={cn(
-              "flex w-full cursor-pointer items-center rounded-md transition-colors outline-none group-active:bg-surface-pressed hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-pressed",
+              "flex w-full cursor-pointer items-center rounded-md text-left transition-colors outline-none group-active:bg-surface-pressed hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-pressed",
               // INFO: Each row centres its own icon and label on a phone — never a shared column sized by the longest label.
               isMenu || isDesktop ? "justify-start" : "justify-center",
               // INFO: A phone's menu sits beside a bubble, so it takes the bubble's density rather than the sheet's.
@@ -165,11 +234,17 @@ export function ActionSheet({
         <PopoverAnchor virtualRef={virtualAnchorRef} />
         <PopoverContent
           ref={menuRef}
-          className={cn(isDesktop ? "w-64" : "w-44", "p-2xs", className)}
+          className={cn(
+            // INFO: Sized to the longest row rather than a fixed 176px, so a model id is one left-aligned line instead of a centred wrap.
+            isDesktop ? "w-64" : "w-max max-w-[calc(100vw-2rem)] min-w-44",
+            // WARN: A last resort under `collisionPadding` — a bubble taller than the clearance between the header and the composer still has to fit somewhere, and this is what keeps it from running under either bar.
+            "max-h-[var(--radix-popper-available-height)] overflow-y-auto p-2xs",
+            className,
+          )}
           align="end"
           // INFO: Above the anchor first — a held bubble still has the thumb on it, and a menu opening under the thumb opens under the hand.
           side={isDesktop ? "bottom" : "top"}
-          collisionPadding={16}
+          collisionPadding={collisionPadding}
           role="menu"
           aria-label={shownHeader.title}
           onKeyDown={handleMenuKeyDown}

@@ -17,11 +17,13 @@ export { FileDropGuard } from "./file-drop-guard";
 // INFO: Exported for controls that cannot be a `Button` — anything that can takes the `haptic` prop instead, so the overlay's invariants stay inside the primitive.
 export { HapticTap, type HapticTapProps } from "./haptic-tap";
 export { HapticTarget, type HapticTargetProps } from "./haptic-target";
+export { HeaderTextButton, type HeaderTextButtonProps } from "./header-text-button";
 export { IconButton, type IconButtonProps } from "./icon-button";
 export { InlineEmoticon, type InlineEmoticonProps } from "./inline-emoticon";
 export { Input, type InputProps } from "./input";
 export { KeywordField, type KeywordFieldProps } from "./keyword-field";
 export { Link, type LinkProps } from "./link";
+export { MarkdownBody, type MarkdownBodyProps } from "./markdown-body";
 export { toCellNoun, toCellRatio } from "./media-cell";
 export type { MediaCell, VoiceTrack } from "./media-cell";
 export { MediaTombstone, toDeletedMediaText, type MediaTombstoneProps } from "./media-tombstone";

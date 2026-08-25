@@ -59,8 +59,14 @@ export const ROW_LINE_CLASSES = [
 // INFO: DESIGN.md § 6.5. `max-w-[72%]` on the bubble column.
 const COLUMN_RATIO = 0.72;
 
-// INFO: DESIGN.md § 6.3. The timestamp's `w-14` slot plus the `gap-2xs` before it. Fixed there precisely so it is a constant here — the alternative is re-deriving the width of a formatted string this cannot see.
-const TIME_SLOT = 56 + SPACING_2XS;
+// INFO: DESIGN.md § 6.3., § 8.10. Two `size-7` hover-pill buttons, `gap-0.5` between them, `px-1` pill padding and a 1px border each side — the pointer's 답장/공유 pill's own rendered width, which sets the floor for the column below it.
+const HOVER_PILL_WIDTH = 68;
+
+// INFO: DESIGN.md § 6.3. The wider of the timestamp's own `w-14` (56) and the hover pill above — raised past 56 the moment the pill needed more, or a bubble at its wide cap left the pill nowhere to sit without covering it.
+const TIME_COLUMN_WIDTH = Math.max(56, HOVER_PILL_WIDTH);
+
+// INFO: DESIGN.md § 6.3. The column above plus the `gap-2xs` before it. Fixed there precisely so it is a constant here — the alternative is re-deriving the width of a formatted string this cannot see.
+const TIME_SLOT = TIME_COLUMN_WIDTH + SPACING_2XS;
 
 // INFO: DESIGN.md § 6.2. `border` on the other participant's bubble only, and `box-sizing: border-box` puts it inside the width.
 const BUBBLE_BORDER = 2;
@@ -71,6 +77,14 @@ const AVATAR_SIZE = 36;
 // INFO: DESIGN.md § 6.5. Retry over cancel, two `size-9` controls, standing where the timestamp would be. Taller than any one-line bubble, so this is what the row measures.
 const FAILED_CONTROLS = AVATAR_SIZE * 2;
 const FAILED_SLOT = AVATAR_SIZE + SPACING_2XS;
+
+// INFO: A cheap detector rather than a markdown parse — a finished assistant row only needs to be close, and the `ResizeObserver` corrects the rest once it mounts (REQUIREMENTS.md § 8.3.).
+const FENCE_RE = /```/g;
+const TABLE_SEPARATOR_RE = /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?\s*$/gm;
+
+// INFO: The vertical padding, margin and border a rendered fenced block or table adds over what its own text lines already counted through `countTextLines` — flat allowances rather than a layout of the block, for the reason above.
+const CODE_BLOCK_ALLOWANCE = 24;
+const TABLE_ALLOWANCE = 24;
 
 // INFO: DESIGN.md § 6.4., § 6.5. The pill's own `px-sm py-2xs`, and `caption` at 500.
 const PILL = { size: 12, weight: 500 };
@@ -109,6 +123,13 @@ export type InlineEmoticonReader = (itemId: EmoticonItemId) => Optional<InlineEm
 export type RowEstimateContext = {
   /** The scroller's own width, which the § 6.5. column is a percentage of. Absent until the scroller mounts. */
   contentWidth?: number;
+  /**
+   * REQUIREMENTS.md § 8.3., § 8.5. Whether AI 질문 모드's selection sweep is on —
+   * read by `toTranslatedWidthContext`, never by a width formula directly, so a
+   * `mine` row (never translated, DESIGN.md § 6.11.) can opt out of the gutter
+   * `theirs`/assistant/system rows give back for it.
+   */
+  isSelecting?: boolean;
   /** As `getComputedStyle` reports it on the chat surface, so a wrap is counted in the font the bubble is drawn in. Blank on the server, where the width falls back to a ratio per glyph class. */
   fontFamily: string;
   readPreview: PreviewReader;
@@ -204,8 +225,23 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
     case "date":
       return SPACING_MD * 2 + PILL_PADDING + LINE.caption();
     // INFO: DESIGN.md § 6.5. Unlike the divider this one is a sentence, and § 11.5.'s notices are long enough to wrap on a phone.
+    // WARN: § 6.11. A system row is always translated (`isTranslatedRow`), so it always gives back the selection gutter — never conditioned on `isMine`, which it has none of.
     case "system":
-      return SPACING_SM * 2 + PILL_PADDING + toNoticeHeight(row.message, context);
+      return (
+        SPACING_SM * 2 +
+        PILL_PADDING +
+        toNoticeHeight(row.message, toTranslatedWidthContext(context))
+      );
+    // INFO: DESIGN.md § 6.2., § 7.7. The finished AI answer — avatar, name, then a wide `MarkdownBody` bubble, never grouped with a neighbor (`buildChatRows`).
+    // WARN: § 6.11. An assistant row is always translated, exactly as a system row is — it always gives back the selection gutter.
+    case "assistant":
+      return (
+        SPACING_SM +
+        Math.max(
+          toAssistantColumnHeight(row.message, toTranslatedWidthContext(context)),
+          AVATAR_SIZE,
+        )
+      );
     case "message":
       /**
        * WARN: REQUIREMENTS.md § 8.13. Ahead of everything the payload could say. A
@@ -250,6 +286,9 @@ function estimateMessageRow(
   context: RowEstimateContext,
   flags: RowFlags,
 ): number {
+  // WARN: § 6.11. `mine` is never translated (`isTranslatedRow`) — its own cap reduction already frees the check circle's room on its right-aligned column — so every width this function reads below must skip the selection gutter for it, while `theirs` gives it back exactly as an assistant/system row does.
+  context = isMine ? context : toTranslatedWidthContext(context);
+
   const hasMedia = payload.media.length > 0;
   // WARN: § 8.3. The same call `MessageRow` makes, and the reason it lives in one function — a lone inline emoticon draws bubble-less like an emoticon message, so it changes the quote's variant and withholds the § 8.9. card exactly as an attachment does.
   const inline = toInlineContent(payload.text, payload.inlineEmoticonItemIds);
@@ -324,7 +363,7 @@ function toPayloadHeight(
 
   // WARN: DESIGN.md § 6.9. The column less what stands beside it, where the top card has the column to itself — on a narrow shell the card is what shrinks, and with it the title's wrap and the thumbnail's 9/16.
   if (linkOnlyCard) {
-    const width = toColumnWidth(context) - toBesideWidth(payload.status, flags);
+    const width = toColumnWidth(context) - toBesideWidth(payload.status);
 
     return Math.max(toLinkCardHeight(linkOnlyCard, width, context), beside);
   }
@@ -338,7 +377,7 @@ function toPayloadHeight(
   }
 
   return Math.max(
-    height + toTextHeight(payload.text, isMine, inline, context, flags, payload.status),
+    height + toTextHeight(payload.text, isMine, inline, context, payload.status),
     beside,
   );
 }
@@ -352,9 +391,9 @@ function toBesideHeight(payload: Payload, { besideLines }: RowFlags): number {
   return besideLines * LINE.time();
 }
 
-// INFO: DESIGN.md § 6.3., § 6.5. Whatever stands beside the bubble takes its width off it: the retry/cancel column on a failed send, the timestamp otherwise.
-function toBesideWidth(status: Payload["status"], { besideLines }: RowFlags): number {
-  return hasControlColumn(status) ? FAILED_SLOT : besideLines > 0 ? TIME_SLOT : 0;
+// INFO: DESIGN.md § 6.3., § 6.5., § 8.10. Whatever stands beside the bubble takes its width off it: the retry/cancel column on a failed send, the timestamp/hover-pill slot otherwise — unconditionally now, since the hover pill can appear whether or not this particular row shows a visible timestamp.
+function toBesideWidth(status: Payload["status"]): number {
+  return hasControlColumn(status) ? FAILED_SLOT : TIME_SLOT;
 }
 
 function toTextHeight(
@@ -362,7 +401,6 @@ function toTextHeight(
   isMine: boolean,
   inline: InlineContent,
   context: RowEstimateContext,
-  flags: RowFlags,
   status?: Payload["status"],
 ): number {
   if (!text) {
@@ -370,10 +408,11 @@ function toTextHeight(
   }
 
   const { fontFamily } = context;
-  const column = toColumnWidth(context);
+  // INFO: DESIGN.md § 6.2., § 6.11. The bubble's own wide cap, not the § 6.5. 72% column — REQUIREMENTS.md § 8.15.'s AI answer bubble and an ordinary one share one formula, `toWideColumnWidth`, and one avatar gutter regardless of side.
+  const column = toWideColumnWidth(context);
   // WARN: `box-sizing: border-box`, so the other participant's hairline is width taken from the text and not added around it.
   const available = Math.max(
-    column - toBesideWidth(status, flags) - SPACING_SM * 2 - (isMine ? 0 : BUBBLE_BORDER),
+    column - toBesideWidth(status) - SPACING_SM * 2 - (isMine ? 0 : BUBBLE_BORDER),
     CHAT_BODY.size,
   );
   const font = { ...CHAT_BODY, family: fontFamily };
@@ -458,10 +497,63 @@ function toClampedHeight(
   return Math.min(maxLines, countTextLines(text, { size, weight, family }, maxWidth)) * line();
 }
 
-// INFO: DESIGN.md § 6.5. `max-w-[72%]` is a percentage, so it resolves against the flex container's content box — the row less its `px-md`.
-// WARN: The avatar is a sibling item and does not narrow that base; it can only narrow the *free* space, and at 44px it would have to be a shell under 160px wide before it beat the 72%.
+// INFO: DESIGN.md § 6.9. Still a percentage of the row's content box (less its `px-md`) — only the link card and quote widths read this now, and both clamp to § 6.5.'s 220px attachment width regardless of what this returns.
 function toColumnWidth({ contentWidth = DEFAULT_CONTENT_WIDTH }: RowEstimateContext): number {
   return (contentWidth - SPACING_MD * 2) * COLUMN_RATIO;
+}
+
+// INFO: DESIGN.md § 6.11. The row's content box less the avatar and its `gap-xs` — one gutter, shared by `mine`, `theirs` and the assistant row alike, regardless of what each row's own DOM actually spends on the avatar column (a `mine` row renders no avatar at all and still caps here). This is the cap `max-w-[calc(100%-44px)]` renders on all three, before each subtracts the § 6.3. `TIME_SLOT` its own beside content shares the line with.
+const AVATAR_GUTTER = AVATAR_SIZE + SPACING_XS;
+
+function toWideColumnWidth({ contentWidth = DEFAULT_CONTENT_WIDTH }: RowEstimateContext): number {
+  return Math.max(contentWidth - SPACING_MD * 2 - AVATAR_GUTTER, CHAT_BODY.size);
+}
+
+// INFO: DESIGN.md § 6.11., REQUIREMENTS.md § 8.5. `SelectableRow`'s own 40px gutter — given back only by a row whose content actually translates for it. A `mine` row is never translated (its cap reduction alone already frees the room the check circle needs on its right-aligned column), so it keeps this width unchanged; every other row (`theirs`, assistant, system, date) gives back the same 40px every width it computes reads here, matching what `SelectableRow`'s translate actually does to it.
+const SELECTION_GUTTER_WIDTH = 40;
+
+function toTranslatedWidthContext(context: RowEstimateContext): RowEstimateContext {
+  if (!context.isSelecting) {
+    return context;
+  }
+
+  return {
+    ...context,
+    contentWidth: (context.contentWidth ?? DEFAULT_CONTENT_WIDTH) - SELECTION_GUTTER_WIDTH,
+  };
+}
+
+/**
+ * DESIGN.md § 6.2., § 7.7. The finished assistant row's own column: the provider
+ * name above the bubble, then the taller of the bubble's markdown text and the
+ * timestamp beside it — the same `max(content, beside)` shape `estimateMessageRow`
+ * uses, but against the row's own wide column rather than the § 6.5. 72% one.
+ */
+function toAssistantColumnHeight(message: ChatMessage, context: RowEstimateContext): number {
+  const text = message.text ?? "";
+  const width = toAssistantBubbleWidth(context);
+  const lines = Math.max(
+    1,
+    countTextLines(text, { ...CHAT_BODY, family: context.fontFamily }, width, "pre-wrap", "normal"),
+  );
+  const codeBlocks = Math.floor((text.match(FENCE_RE)?.length ?? 0) / 2);
+  const tables = text.match(TABLE_SEPARATOR_RE)?.length ?? 0;
+  const bubble =
+    SPACING_XS * 2 +
+    BUBBLE_BORDER +
+    lines * LINE.body() +
+    codeBlocks * CODE_BLOCK_ALLOWANCE +
+    tables * TABLE_ALLOWANCE;
+
+  return LINE.name() + SPACING_2XS + Math.max(bubble, LINE.time());
+}
+
+// INFO: DESIGN.md § 6.2., § 6.11. The assistant bubble's own `px-sm` padding and `border` come off the wide column the same way `toTextHeight` takes them off a `theirs` bubble's — an AI answer is always `theirs`-shaped, so this is that formula with no `status` control-column and no unread/수정됨 stack to vary the `TIME_SLOT` beside it.
+function toAssistantBubbleWidth(context: RowEstimateContext): number {
+  return Math.max(
+    toWideColumnWidth(context) - TIME_SLOT - SPACING_SM * 2 - BUBBLE_BORDER,
+    CHAT_BODY.size,
+  );
 }
 
 // INFO: DESIGN.md § 6.5. The pill is centred in the row's `px-md` and wraps inside its own `px-md`.

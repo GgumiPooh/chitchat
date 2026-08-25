@@ -12,6 +12,8 @@ import {
 export type MirrorRow =
   | { key: string; kind: "date"; dayKey: string }
   | { key: string; kind: "system"; message: ChatMessage }
+  /** DESIGN.md § 6.2. The finished AI answer — `buildChatRows`'s own third kind, mirrored. */
+  | { key: string; kind: "assistant"; message: ChatMessage }
   | {
       key: string;
       kind: "message";
@@ -36,6 +38,12 @@ export function buildMirrorRows(messages: ChatMessage[], currentUserId: UserId):
     if (dayKey !== previousDayKey) {
       rows.push({ key: `d${dayKey}`, kind: "date", dayKey });
       previousDayKey = dayKey;
+    }
+
+    if (message.systemAction === "assistant_reply") {
+      rows.push({ key: message.id, kind: "assistant", message });
+
+      return;
     }
 
     if (message.type === "system") {

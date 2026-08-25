@@ -9,6 +9,7 @@ import { SnapshotEmpty, SnapshotStamp } from "@/widgets/offline-shell";
 import { MessageCircle } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { buildMirrorRows, formatMirrorDayLabel, type MirrorRow } from "../model/build-mirror-rows";
+import { MirrorAssistantRow } from "./mirror-assistant-row";
 import { MirrorChatRow } from "./mirror-chat-row";
 import { MirrorLoading } from "./mirror-loading";
 
@@ -69,6 +70,10 @@ export function MirrorChat({ className, shell }: MirrorChatProps) {
       );
     }
 
+    if (row.kind === "assistant") {
+      return <MirrorAssistantRow key={row.key} message={row.message} />;
+    }
+
     if (row.kind === "system") {
       return (
         // INFO: DESIGN.md § 6.5. The divider's own treatment, without the calendar link the live notice carries — the day it would open is not the day this snapshot holds.
@@ -98,6 +103,7 @@ export function MirrorChat({ className, shell }: MirrorChatProps) {
             ? toQuoteHeading(
                 toName(row.message.replyTo.senderId),
                 row.message.replyTo.senderId === shell.currentUserId,
+                row.message.replyTo.llmProvider,
               )
             : undefined
         }

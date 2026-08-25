@@ -7,6 +7,7 @@ import {
   READ_CURSOR_THROTTLE,
   TYPING_TIMEOUT,
   unreadCountMessageSchema,
+  type LlmSseEvent,
   type MessageArrival,
 } from "@/shared/config";
 import {
@@ -41,6 +42,8 @@ export type ChatStreamListener = {
   onResume?: () => void;
   /** REQUIREMENTS.md § 8.13. A row already on screen, changed — corrected, or withdrawn and now a tombstone. */
   onChange?: (message: ChatMessage) => void;
+  /** An AI answer's queue/stream update, or a mid-stream snapshot. */
+  onLlm?: (event: LlmSseEvent) => void;
 };
 
 export type ChatStreamValue = {
@@ -84,6 +87,17 @@ export type ChatStreamValue = {
    * refetches the payload it belongs to.
    */
   setChatBackgroundMediaId: (mediaId: Nullable<MediaId>) => void;
+  /**
+   * REQUIREMENTS.md § 8.15. The standing instruction either participant may set for
+   * every question 쨈미니 answers in the room, or `null` when none is set.
+   *
+   * WARN: Held here rather than passed down from a server render, for the same
+   * reason `chatBackgroundMediaId` is — either participant can change it, and the
+   * other must see it without navigating. It rides the same `user_changed` refetch.
+   */
+  llmSystemPrompt: Nullable<string>;
+  /** REQUIREMENTS.md § 8.15. Declared by whoever just wrote the prompt, with the value the server echoed back. */
+  setLlmSystemPrompt: (prompt: Nullable<string>) => void;
   unreadCount: number;
   /**
    * AGENTS.md § 4.1. Bumped by the desktop rail's 첨부 button; `ChatRoom` opens
@@ -119,6 +133,8 @@ export type ChatStreamProviderProps = PropsWithChildren<{
   initialChatBackgroundMediaId: Nullable<MediaId>;
   /** REQUIREMENTS.md § 12.2. Seeded with it, so the chrome is tinted on the chat route's first paint rather than a request later. */
   initialChatBackgroundBlurhash: Nullable<string>;
+  /** REQUIREMENTS.md § 8.15. Seeded by the shell's render, so the 지침 sheet opens with the current prompt rather than an empty field. */
+  initialLlmSystemPrompt: Nullable<string>;
   initialUnreadCount: number;
 }>;
 
@@ -152,6 +168,7 @@ export function ChatStreamProvider({
   initialParticipants,
   initialChatBackgroundMediaId,
   initialChatBackgroundBlurhash,
+  initialLlmSystemPrompt,
   initialUnreadCount,
   children,
 }: ChatStreamProviderProps) {
@@ -161,6 +178,7 @@ export function ChatStreamProvider({
     mediaId: initialChatBackgroundMediaId,
     blurhash: initialChatBackgroundBlurhash,
   });
+  const [llmSystemPrompt, setLlmSystemPrompt] = useState(initialLlmSystemPrompt);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const [attachRequest, setAttachRequest] = useState(0);
   const requestAttach = useCallback(() => setAttachRequest((count) => count + 1), []);
@@ -217,6 +235,7 @@ export function ChatStreamProvider({
     onTyping: (userId, isTyping) => handleTyping(userId, isTyping),
     onChange: (data) => handleChange(data),
     onBuild: (id) => handleBuild(id),
+    onLlm: (event) => listeners.current.forEach((listener) => listener.onLlm?.(event)),
   }));
 
   // INFO: The provider outlives every screen, so this only ever runs on a full teardown — but a timer left armed past it would call `setTypingUserIds` on an unmounted tree.
@@ -287,6 +306,8 @@ export function ChatStreamProvider({
         chatBackgroundMediaId: chatBackground.mediaId,
         chatBackgroundBlurhash: chatBackground.blurhash,
         setChatBackgroundMediaId,
+        llmSystemPrompt,
+        setLlmSystemPrompt,
         unreadCount,
         attachRequest,
         requestAttach,
@@ -435,6 +456,7 @@ export function ChatStreamProvider({
         mediaId: next.chatBackgroundMediaId,
         blurhash: next.chatBackgroundBlurhash,
       });
+      setLlmSystemPrompt(next.llmSystemPrompt);
     }
   }
 
@@ -529,6 +551,7 @@ export function useChatStreamListener(listener: ChatStreamListener) {
         onMessage: (message, arrival) => current.current.onMessage?.(message, arrival),
         onResume: () => current.current.onResume?.(),
         onChange: (message) => current.current.onChange?.(message),
+        onLlm: (event) => current.current.onLlm?.(event),
       }),
     [subscribe],
   );

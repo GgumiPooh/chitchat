@@ -35,7 +35,7 @@ import {
   type EditableObject,
 } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUp, Plus, Smile } from "lucide-react";
+import { ArrowUp, BellOff, Plus, Smile, Sparkles } from "lucide-react";
 import {
   Fragment,
   useCallback,
@@ -108,6 +108,12 @@ export type MessageComposerProps = {
   isStaging?: boolean;
   isEmoticonPickerOpen?: boolean;
   /**
+   * REQUIREMENTS.md § 8.5. AI 질문 모드 — the field composes a question for the
+   * room's selected context rather than an ordinary message. A staged emoticon or
+   * attachment tray still rides along with the send, ahead of the question text.
+   */
+  isAiMode?: boolean;
+  /**
    * REQUIREMENTS.md § 13.8. Bumped by the room when an emoticon found this way is
    * sent, which is the moment the searched word leaves the field.
    *
@@ -148,6 +154,8 @@ export type MessageComposerProps = {
   deleteRequest?: { token: number };
   /** REQUIREMENTS.md § 8.13. The field is correcting a message rather than composing one, so the controls that stage a *new* payload have nothing to act on. */
   isEditing?: boolean;
+  /** REQUIREMENTS.md § 16.1. 조용히 보내기 — a one-line notice above `header`, coexisting with it rather than taking its slot. */
+  isSilent?: boolean;
   /**
    * DESIGN.md § 6.10. The staged quote — or § 6.10.1.'s correction notice — as the
    * pill's own first row, above the field it is the header of.
@@ -178,6 +186,7 @@ export type MessageComposerProps = {
    * handler returns or it is typed into nothing and lost.
    */
   fieldRef?: RefObject<Nullable<HTMLDivElement | HTMLTextAreaElement>>;
+  onToggleAiMode?: () => void;
   onAttach: () => void;
   /** REQUIREMENTS.md § 13.6. Reaching for the field is a request for the keyboard, which the picker would then be buried under. */
   onFieldFocus?: () => void;
@@ -201,14 +210,17 @@ export function MessageComposer({
   hasAttachments = false,
   isStaging = false,
   isEmoticonPickerOpen = false,
+  isAiMode = false,
   keywordConsumeToken,
   seededDraft,
   insertedEmoticon,
   deleteRequest,
   isEditing = false,
+  isSilent = false,
   header,
   focusRequest = 0,
   fieldRef: exposedFieldRef,
+  onToggleAiMode,
   onAttach,
   onFieldFocus,
   onEdit,
@@ -287,7 +299,10 @@ export function MessageComposer({
   const hasDraft = draft.text.trim().length > 0;
   // INFO: REQUIREMENTS.md § 8.13. An edit sends text and only text, so a tray left staged behind the mode cannot arm the button — emptying the field has to disable it, or the correction would submit nothing.
   // WARN: Held while a pick is still decoding, the way 보관함's own 대화에 보내기 is (`useShelfStaging`'s `isHeld`). Sent around them, `takeAll` empties a tray the remaining decodes then refill — the sender gets four of nine photos out and five back in the composer.
-  const canSend = (hasDraft || (hasAttachments && !isEditing)) && !isStaging;
+  // INFO: REQUIREMENTS.md § 8.5. A staged tray or emoticon rides along with an AI question, but never alone — attachments are not a question, so only text arms the button.
+  const canSend = isAiMode
+    ? hasDraft && !isStaging
+    : (hasDraft || (hasAttachments && !isEditing)) && !isStaging;
   // INFO: § 13.8. Hidden packs count here, exactly as they do in the panel's search — the underline offers a word the search can answer, and the search looks across the whole library.
   // INFO: § 13.8. Deduplicated by the `DISTINCT` that produced it, so there is no `Set` to build — `findKeywordMatch` only ever iterates what it is given.
   // WARN: § 13.6. A cache read and never a fetch. This component mounts with the room, so an enabled query put `?keywords=1` on every room entry — the path `useEmoticonPreload` was written to keep clear; that hook warms this same descriptor from its idle callback and the underline appears when it lands.
@@ -595,6 +610,13 @@ export function MessageComposer({
     <div className={cn("pointer-events-none px-md pt-xs pb-xs", className)}>
       {/* INFO: DESIGN.md § 6.6. The tab bar's floating surface (§ 7.3.). A column so § 6.10.'s staged quote can be a header row inside the pill. */}
       <div className="pointer-events-auto flex flex-col rounded-[calc(var(--tab-bar-height)/2)] border border-hairline glass p-2xs shadow-floating">
+        {/* INFO: REQUIREMENTS.md § 16.1. Its own row, above `header`'s slot rather than inside it — the two coexist, unlike the quote/edit-bar/AI-selection alternatives that share that one slot. */}
+        {isSilent && (
+          <div className="flex items-center gap-2xs px-sm pt-xs text-caption text-meta">
+            <BellOff className="size-3.5 shrink-0" strokeWidth={1.75} />
+            조용히 보내기
+          </div>
+        )}
         {/* INFO: DESIGN.md § 6.10. The staged quote arrives as the pill growing into it, over `--duration-state`, so the history it pushes up rides the same move — `useComposerClearance` observes this wrapper every frame of it. */}
         {/* WARN: The last header stays mounted inside the collapsed clip, or the exit has nothing to draw; `inert` is what takes its `X` back out of the tab order. */}
         <div
@@ -646,7 +668,11 @@ export function MessageComposer({
               aria-label="메시지 입력"
               // INFO: § 8.14. The pointer decides it and nothing else: a mouse means a keyboard is there to press, and whether the app is installed says nothing about that. The hint alone, since `aria-label` below already names the field.
               placeholder={
-                isFinePointer ? `${toCommandKeyLabel()} + / 로 단축키 보기` : "메시지 입력"
+                isAiMode
+                  ? "AI에게 질문"
+                  : isFinePointer
+                    ? `${toCommandKeyLabel()} + / 로 단축키 보기`
+                    : "메시지 입력"
               }
               // WARN: REQUIREMENTS.md § 8.12. Deletions are edits too, but deleting the *last* character is not — it reports `false` and ends the broadcast, or emptying the field would renew 입력 중 at the moment the user finished saying they were done.
               // WARN: The keys are what say *which* emoticons a deletion took — the text only says one of them is gone, and a Backspace in the middle of a draft would otherwise drop the last.
@@ -673,7 +699,7 @@ export function MessageComposer({
               onScroll={syncKeywordLayer}
             >
               {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, like the two staging controls. The tap opens § 13.8.'s picker, whose staging clears the attachment tray this mode deliberately preserved and arms a quick-send that would post a **new** emoticon message beside the pending correction — and the emoticon it staged is invisible and unsendable here anyway. A correction is very likely to contain the keyword, since it is the text the user already typed. */}
-              {match && onKeywordTap && !isEditing && (
+              {match && onKeywordTap && !isEditing && !isAiMode && (
                 <KeywordLayer
                   ref={layerRef}
                   text={draft.text}
@@ -707,7 +733,7 @@ export function MessageComposer({
                 onScroll={syncKeywordLayer}
                 onSelect={handleTextareaSelect}
               />
-              {match && onKeywordTap && !isEditing && (
+              {match && onKeywordTap && !isEditing && !isAiMode && (
                 <KeywordLayer
                   ref={layerRef}
                   text={draft.text}
@@ -717,6 +743,17 @@ export function MessageComposer({
                 />
               )}
             </div>
+          )}
+          {/* INFO: REQUIREMENTS.md § 8.5. AI 질문 모드's own toggle, immediately beside the emoticon one — pressing it hands the room the field rather than staging anything here. */}
+          {!isEditing && (
+            <IconButton
+              buttonClassName={cn(isAiMode && "bg-primary-tint text-primary")}
+              Icon={Sparkles}
+              haptic
+              aria-label="AI에게 질문"
+              aria-pressed={isAiMode}
+              onClick={onToggleAiMode}
+            />
           )}
           {/* INFO: DESIGN.md § 6.6. The toggle stays put once text is typed — an emoticon is staged beside a line of text now (REQUIREMENTS.md § 13.6.), so replacing it with send would put the panel out of reach exactly when it is wanted. */}
           {!isEditing && (
@@ -936,7 +973,13 @@ export function MessageComposer({
 
     // WARN: REQUIREMENTS.md § 8.14. Withheld while correcting, exactly as the underline is — the panel this opens stages a payload § 8.13.'s edit has no row for.
     // WARN: § 8.14. And withheld while the panel is up, so the room's copy answers instead. Seeding a search from here is only ever the way *in*; there is nothing about a panel already on screen for this field to say.
-    if (isMenuKey(event) && isDigitKey(event, 1) && !isEditing && !isEmoticonPickerOpen) {
+    if (
+      isMenuKey(event) &&
+      isDigitKey(event, 1) &&
+      !isEditing &&
+      !isAiMode &&
+      !isEmoticonPickerOpen
+    ) {
       event.preventDefault();
       openEmoticonSearch(keywordQuery || null);
 
@@ -948,6 +991,7 @@ export function MessageComposer({
       (isMenuKey(event) || isCommandKey(event)) &&
       isLetterKey(event, "e") &&
       !isEditing &&
+      !isAiMode &&
       !isEmoticonPickerOpen &&
       match
     ) {

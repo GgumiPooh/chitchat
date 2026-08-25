@@ -16,6 +16,7 @@ import {
   formatTime,
   useLongPress,
   type EmoticonItemId,
+  type LongPressPoint,
   type Nullable,
   type Optional,
 } from "@/shared/lib";
@@ -94,10 +95,12 @@ export type MessageRowProps = {
   searchQuery?: string;
   /** `queued` is REQUIREMENTS.md § 8.5.'s outbox holding a send the network went out from under — it retries itself, so it takes 전송 취소 without 다시 보내기. */
   status: "sent" | "sending" | "queued" | "failed";
+  /** REQUIREMENTS.md § 8.5. `SelectableRow`'s own gutter takes 40px of the row's content box that this bubble's own wide cap must give back, or the translated column overflows the row's right edge. */
+  isSelecting?: boolean;
   /** REQUIREMENTS.md § 13.6. Passed straight to `EmoticonBubble`, which carries the contract — the room sets it for the one row it is about to sound. */
   awaitsArrivalSound?: boolean;
-  /** AGENTS.md § 4.1. Carries the held or right-clicked element, which the room anchors the desktop menu to. */
-  onLongPress?: (anchor: HTMLElement) => void;
+  /** AGENTS.md § 4.1. Carries the held or right-clicked element and the pointer's own position — the room anchors the desktop menu to the point, so a bubble taller than the visible area cannot carry it off screen. */
+  onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
   /** REQUIREMENTS.md § 13.9. A tap on the emoticon, which opens the picker where that emoticon is. */
   onFollowEmoticon?: () => void;
   /** REQUIREMENTS.md § 13.6. The bubble's picture is on screen, so the room may play the sound. */
@@ -138,6 +141,7 @@ export function MessageRow({
   isHighlighted = false,
   searchQuery,
   status,
+  isSelecting = false,
   awaitsArrivalSound,
   onLongPress,
   onFollowEmoticon,
@@ -153,7 +157,7 @@ export function MessageRow({
   const { openProfile } = useProfileViewer();
   const swipe = useSwipeToReply(onReply, isMine);
   const longPressHandlers = useLongPress(
-    onLongPress ? (_point, anchor) => onLongPress(anchor) : undefined,
+    onLongPress ? (point, anchor) => onLongPress(anchor, point) : undefined,
     { onFire: swipe.cancel },
   );
   const hasMedia = media.length > 0;
@@ -210,7 +214,10 @@ export function MessageRow({
         ))}
       <div
         className={cn(
-          "relative flex max-w-[min(72%,var(--bubble-max-width))] flex-col gap-2xs",
+          // INFO: DESIGN.md § 6.2., § 6.11. The row's own content box less the avatar (`size-9`) and its `gap-xs`, matching `AssistantMessageRow`'s wide bubble — never the § 6.5. 72%. `100%` here is the row's content box, which a flex item's percentage max-width resolves against regardless of the avatar sibling actually being there for `isMine`.
+          // WARN: DESIGN.md § 4.7., § 6.11. `SelectableRow` translates a `theirs` row's content 40px right rather than shrinking its container, so the extra 40px comes off `theirs`' cap instead. A `mine` row is never translated (`isTranslated={false}` on its own `SelectableRow`) — its column is already right-aligned inside the ordinary 44px cap, which is all the room the check circle on the left ever needs — so it keeps its ordinary cap even while selecting; only `isMine ? false : isSelecting` gives the gutter back.
+          "relative flex flex-col gap-2xs transition-[max-width] duration-(--duration-state) ease-out motion-reduce:transition-none",
+          isSelecting && !isMine ? "max-w-[calc(100%-84px)]" : "max-w-[calc(100%-44px)]",
           isMine ? "items-end" : "items-start",
           // WARN: `pan-y` — without it WebKit claims the horizontal gesture for its own back-navigation swipe and the pull never completes.
           onReply && "touch-pan-y",
@@ -226,7 +233,7 @@ export function MessageRow({
         )}
         {/* INFO: DESIGN.md § 6.10. A bubble-less message quotes in a card of its own; a text one quotes inside its bubble, where the fill already frames it. */}
         {replyTo && isBubbleless && (
-          // WARN: Capped at DESIGN.md § 6.5.'s 220px attachment width. Left to the column's 72%, a long quote would stretch the card well past the photo it sits on top of.
+          // WARN: Capped at DESIGN.md § 6.5.'s 220px attachment width. Left to the column's own wide cap, a long quote would stretch the card well past the photo it sits on top of.
           <ReplyQuote
             className="max-w-55"
             replyTo={replyTo}
@@ -237,7 +244,6 @@ export function MessageRow({
             onOpen={onOpenReply}
           />
         )}
-        {renderHoverActions()}
         {/* INFO: DESIGN.md § 6.9. Outside the bubble and above it, at § 6.5.'s attachment width — a sibling in this column, so it takes the sender's side and the column's cap without re-deriving either. */}
         {/* WARN: The hold lives on this wrapper and not on the card, because `useLongPress`'s click capture only reaches a target it is above — on the anchor itself the release would still follow the link out from under the sheet. */}
         {previewUrl && (
@@ -249,7 +255,7 @@ export function MessageRow({
             <LinkPreviewCard url={previewUrl} />
           </div>
         )}
-        {/* WARN: `max-w-full` is what holds the bubble inside the column's `max-w-[72%]`. The column aligns rather than stretches, so this stack is sized `fit-content` — and that floors at min-content, which a quote's `truncate` makes the whole width of its line. Only a max-width clamps below that; a `min-w-0` here does nothing. */}
+        {/* WARN: `max-w-full` is what holds the bubble inside the column's own wide cap. The column aligns rather than stretches, so this stack is sized `fit-content` — and that floors at min-content, which a quote's `truncate` makes the whole width of its line. Only a max-width clamps below that; a `min-w-0` here does nothing. */}
         <div className={cn("flex max-w-full items-end gap-2xs", isMine && "flex-row-reverse")}>
           {emoticon ? (
             // INFO: DESIGN.md § 6.5. An emoticon renders without a bubble, border or background, for the same reason an attachment does.
@@ -339,7 +345,7 @@ export function MessageRow({
             // INFO: DESIGN.md § 6.2. The notch marks the sender's side and only on the first bubble of a group; the rest stay fully rounded.
             <div
               className={cn(
-                // INFO: DESIGN.md § 4.2.3. `break-normal` opts the bubble out of the app's `keep-all`: Korean body copy breaks between syllables, and a 72% column is where whole-어절 pushes leave the worst gaps.
+                // INFO: DESIGN.md § 4.2.3. `break-normal` opts the bubble out of the app's `keep-all`: Korean body copy breaks between syllables, and a whole-어절 push otherwise leaves the worst gaps.
                 // WARN: The arbitrary property and never `break-normal`, which also sets `overflow-wrap: normal` — that would leave `wrap-anywhere` winning on Tailwind's emission order alone, and a long URL overflowing the column the day it changes.
                 // WARN: `min-w-0` is the other half of the stack's `max-w-full`. A flex item does not shrink below its own min-content without it, and a quote's `truncate` is min-content the whole width of its line.
                 "min-w-0 rounded-bubble px-sm py-xs text-chat-body wrap-anywhere [word-break:normal] whitespace-pre-wrap text-bubble-ink transition-colors select-text",
@@ -414,25 +420,43 @@ export function MessageRow({
               />
             </div>
           ) : (
-            (isLastOfGroup || unreadCount > 0 || isEdited) && (
+            (isLastOfGroup || unreadCount > 0 || isEdited || onReply || onShare) && (
               // INFO: DESIGN.md § 6.3. One timestamp per minute-group, on its last bubble; § 8.8.'s unread count and § 8.13.'s 수정됨 stack above it on the bubbles that carry them.
-              // WARN: REQUIREMENTS.md § 8.3. A fixed `w-14`, wide enough for the longest `오후 12:34`. It is beside the bubble rather than under it, so its width comes off the width the text wraps in — left to size itself, the § 8.3. row estimate would have to re-measure a string it cannot see, and would flip a whole line wherever it guessed wrong.
-              // WARN: `whitespace-nowrap` guards the fixed width above. `오후 12:34` clears 56px only just, and the app's font is `display: swap` — a wider fallback on the first paint would wrap the time onto a second line, breaking § 6.3.'s one-line rule and the § 8.3. estimate that trusts it. Invisible to a developer whose webfont is already cached.
+              // WARN: REQUIREMENTS.md § 8.3. A fixed `w-[68px]`, wide enough for the longest `오후 12:34` — widened past the timestamp's own 56px floor to match the § 8.10./§ 8.11. hover pill sharing this column, since the two can never disagree about the width the § 8.3. estimate reserves. It is beside the bubble rather than under it, so its width comes off the width the text wraps in — left to size itself, the estimate would have to re-measure a string it cannot see, and would flip a whole line wherever it guessed wrong.
+              // WARN: `whitespace-nowrap` guards the fixed width above. `오후 12:34` clears it easily now, and the app's font is `display: swap` — a wider fallback on the first paint would wrap the time onto a second line, breaking § 6.3.'s one-line rule and the § 8.3. estimate that trusts it. Invisible to a developer whose webfont is already cached.
               // INFO: DESIGN.md § 7.16. The clock keeps `chat-meta`'s quiet tone and takes the lift instead — over a wallpaper it is unreadable for the same reason the name was, but making it darker would give it emphasis it is not owed.
-              <div className="flex w-14 shrink-0 flex-col items-end text-chat-time whitespace-nowrap text-chat-meta">
-                {/* INFO: REQUIREMENTS.md § 8.13. Beside the bubble rather than inside it — the § 8.3. estimate wraps the body text in one font, and a label of another size sharing that measurement is exactly what it cannot express. Here it is a whole line whose height is already known. */}
-                {isEdited && <span>수정됨</span>}
-                {/* INFO: REQUIREMENTS.md § 8.8. KakaoTalk's own marker — how many have yet to read it, gone entirely at zero rather than turning into a read state. `unread` is the token the tab-bar badge already uses (DESIGN.md § 4.1.4.), so the one number in the room that counts something live is the one thing here not in `chat-meta`. */}
-                {/* WARN: `tabular-nums` so a count that changes under the reader cannot change the line's width, and `aria-label` because a bare digit beside a bubble reads as nothing to a screen reader. */}
-                {unreadCount > 0 && (
-                  <span
-                    className="text-unread tabular-nums"
-                    aria-label={`읽지 않음 ${unreadCount}`}
-                  >
-                    {unreadCount}
-                  </span>
+              // WARN: `relative`, and always rendered whenever a hover action exists — the § 8.10./§ 8.11. pill overlays exactly this box (`renderHoverActions`) rather than sitting beside it, so the box has to exist even on a mid-group bubble that shows no timestamp of its own.
+              <div
+                className={cn(
+                  "relative flex w-[68px] shrink-0 flex-col text-chat-time whitespace-nowrap text-chat-meta",
+                  // INFO: DESIGN.md § 6.3. The clock hugs the bubble's edge of the slot, not the column's — the slot is wider than the time it holds.
+                  isMine ? "items-end" : "items-start",
                 )}
-                {isLastOfGroup && <time dateTime={createdAt}>{formatTime(createdAt)}</time>}
+              >
+                <div
+                  className={cn(
+                    "flex flex-col transition-opacity",
+                    isMine ? "items-end" : "items-start",
+                    // INFO: The pill takes this box's place on hover rather than sitting beside it — the timestamp/unread/수정됨 stack keeps its box (so grouping math never moves) and only its opacity changes.
+                    (onReply || onShare) &&
+                      "group-focus-within/row:opacity-0 group-hover/row:opacity-0",
+                  )}
+                >
+                  {/* INFO: REQUIREMENTS.md § 8.13. Beside the bubble rather than inside it — the § 8.3. estimate wraps the body text in one font, and a label of another size sharing that measurement is exactly what it cannot express. Here it is a whole line whose height is already known. */}
+                  {isEdited && <span>수정됨</span>}
+                  {/* INFO: REQUIREMENTS.md § 8.8. KakaoTalk's own marker — how many have yet to read it, gone entirely at zero rather than turning into a read state. `unread` is the token the tab-bar badge already uses (DESIGN.md § 4.1.4.), so the one number in the room that counts something live is the one thing here not in `chat-meta`. */}
+                  {/* WARN: `tabular-nums` so a count that changes under the reader cannot change the line's width, and `aria-label` because a bare digit beside a bubble reads as nothing to a screen reader. */}
+                  {unreadCount > 0 && (
+                    <span
+                      className="text-unread tabular-nums"
+                      aria-label={`읽지 않음 ${unreadCount}`}
+                    >
+                      {unreadCount}
+                    </span>
+                  )}
+                  {isLastOfGroup && <time dateTime={createdAt}>{formatTime(createdAt)}</time>}
+                </div>
+                {renderHoverActions()}
               </div>
             )
           )}
@@ -470,9 +494,18 @@ export function MessageRow({
    * reaches the same actions by holding the row for the action sheet, and reply also
    * by pulling it sideways.
    *
-   * WARN: Positioned out of flow on the outer side rather than added to the row.
-   * In flow they would only exist while hovered, and their appearance would shove the
-   * bubble sideways under the cursor that is aiming at them.
+   * WARN: DESIGN.md § 6.3. One pill, always horizontal, replacing the timestamp/unread
+   * stack in place rather than sitting beside or above it — `inset-x-0 bottom-0` fills
+   * the same `relative` box that stack renders in, which is what the previous
+   * `right-0`/`left-0` sibling-inside-the-column-edge version still risked drifting
+   * out of step with. `HOVER_PILL_WIDTH` (`estimate-row-height.ts`) is what raised
+   * that shared box past 56px to fit the pill, so the bubble's own wrap already
+   * leaves it room rather than the pill ever covering the bubble's text. Out of flow
+   * for the same reason as before — in flow it would only exist while hovered, and
+   * its appearance would shove the bubble sideways under the cursor aiming at it —
+   * and because it is `absolute`, a one-line bubble whose box is shorter than the
+   * pill's own height lets it overflow **upward** rather than adding to that box's
+   * (and so the row's) flow height.
    */
   function renderHoverActions() {
     if (!onReply && !onShare) {
@@ -482,16 +515,14 @@ export function MessageRow({
     return (
       <div
         className={cn(
-          "absolute bottom-0 flex items-center",
+          "absolute inset-x-0 bottom-0 flex items-center gap-0.5 rounded-full border border-hairline bg-surface-soft px-1 py-0.5 shadow-raised",
           // INFO: `hover:` already resolves under `@media (hover: hover)`, so a touch device never reveals these and never has to.
           "pointer-events-none opacity-0 transition-opacity group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100",
-          // INFO: 답장 stays the control nearest the bubble on either side, so the reach for it does not move with the sender.
-          isMine ? "right-full mr-2xs flex-row-reverse" : "left-full ml-2xs",
         )}
       >
         {onReply && (
           <IconButton
-            className="size-8"
+            className="size-7"
             iconClassName="size-4"
             Icon={CornerUpLeft}
             aria-label="답장"
@@ -500,7 +531,7 @@ export function MessageRow({
         )}
         {onShare && (
           <IconButton
-            className="size-8"
+            className="size-7"
             iconClassName="size-4"
             Icon={Share}
             aria-label="공유"

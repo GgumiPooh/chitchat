@@ -1,5 +1,7 @@
 export { getDb } from "./client";
 export {
+  LLM_CANCEL_CHANNEL,
+  LLM_STREAM_CHANNEL,
   MESSAGE_CHANGED_CHANNEL,
   NEW_MESSAGE_CHANNEL,
   TYPING_CHANNEL,
@@ -20,6 +22,7 @@ export {
   linkPreviewKindEnum,
   linkPreviewStatusEnum,
   linkPreviews,
+  llmAgents,
   media,
   messageMedia,
   messageTypeEnum,
@@ -43,6 +46,7 @@ export {
   type LinkPreviewKind,
   type LinkPreviewRow,
   type LinkPreviewStatus,
+  type LlmAgent,
   type Media,
   type Message,
   type MessageMedia,
@@ -56,4 +60,5 @@ export {
   type UserEmoticonPref,
   type UserEmoticonUsage,
 } from "./schema";
+export { openUnpooledSession, type DbSession } from "./session";
 export { nextSnowflake } from "./snowflake";

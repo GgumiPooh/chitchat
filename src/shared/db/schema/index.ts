@@ -31,6 +31,7 @@ export {
   type LinkPreviewRow,
   type LinkPreviewStatus,
 } from "./link-previews";
+export { llmAgents, type LlmAgent } from "./llm-agents";
 export { media, type Media } from "./media";
 export {
   messageMedia,

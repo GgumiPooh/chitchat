@@ -367,6 +367,9 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
    * INFO: REQUIREMENTS.md § 18. #10. Selection is unlimited, so a long send becomes
    * consecutive bubbles rather than one grid with a `+N` cell hiding the rest. They
    * are delivered one after another, so the conversation reads in the picked order.
+   *
+   * INFO: REQUIREMENTS.md § 8.15. Returns every bubble's `clientMsgId`, in bubble
+   * order, so an AI question staged alongside a tray can wait on each one landing.
    */
   const sendMedia = useCallback(
     (drafts: MediaDraft[], replyTo: Nullable<ReplyPreview> = null) => {
@@ -377,11 +380,13 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
       }));
 
       if (bubbles.length === 0) {
-        return;
+        return [];
       }
 
       commit((previous) => [...previous, ...bubbles]);
       enqueue(bubbles);
+
+      return bubbles.map(({ clientMsgId }) => clientMsgId);
     },
     [commit, enqueue],
   );

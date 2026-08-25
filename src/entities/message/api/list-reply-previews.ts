@@ -66,6 +66,8 @@ export async function listReplyPreviews(
       // INFO: REQUIREMENTS.md § 13.4. Joined for this column alone — the tile's URL is versioned by it, and the join is what keeps the quote showing an edited emoticon's correction (§ 8.10.).
       emoticonUpdatedAt: emoticonItems.updatedAt,
       emoticonDeletedAt: emoticonItems.deletedAt,
+      // INFO: REQUIREMENTS.md § 8.10. Carried for an `assistant_reply` parent only — the quote's heading names the AI by this rather than by `senderId`, which stays the asker.
+      llmProvider: messages.llmProvider,
     })
     .from(messages)
     .leftJoin(emoticonItems, eq(messages.emoticonItemId, emoticonItems.id))
@@ -126,6 +128,7 @@ export async function listReplyPreviews(
       // INFO: DESIGN.md § 6.10. The summary counts what the tile cannot show — it is the first attachment alone, however many were sent.
       mediaCount: attachments.length,
       isDeleted: row.deletedAt !== null,
+      llmProvider: row.deletedAt ? null : row.llmProvider,
       id: row.id,
     });
   }

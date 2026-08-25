@@ -1,4 +1,5 @@
 import type { Nullable, Optional } from "@/shared/lib";
+import { toLlmProviderBranding } from "./llm";
 
 /**
  * DESIGN.md § 6.10. Whose message is being quoted, as the quote's first line.
@@ -6,10 +7,22 @@ import type { Nullable, Optional } from "@/shared/lib";
  * INFO: `에게` is invariant, so this is an interpolation `AGENTS.md § 0.4.` has no
  * particle pair to pick — there is nothing here for `josa` to answer.
  *
+ * INFO: REQUIREMENTS.md § 8.10. `llmProvider` outranks `isMine` — an `assistant_reply`
+ * carries the asker's own `senderId`, so quoting one's own AI answer would otherwise
+ * read `나에게 답장` instead of naming 쨈미니.
+ *
  * WARN: One copy for the bubble, the composer and the § 12.2. mirror alike. The three
  * quote the same message and a wording that reached only one of them is drift.
  */
-export function toQuoteHeading(name: Optional<string>, isMine: boolean): string {
+export function toQuoteHeading(
+  name: Optional<string>,
+  isMine: boolean,
+  llmProvider?: Nullable<string>,
+): string {
+  if (llmProvider) {
+    return `${toLlmProviderBranding(llmProvider).name}에게 답장`;
+  }
+
   if (isMine) {
     return "나에게 답장";
   }

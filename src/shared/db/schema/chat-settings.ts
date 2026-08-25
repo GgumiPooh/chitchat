@@ -1,6 +1,6 @@
 import type { MediaId } from "@/shared/lib";
 import { sql } from "drizzle-orm";
-import { boolean, check, pgTable } from "drizzle-orm/pg-core";
+import { boolean, check, pgTable, text } from "drizzle-orm/pg-core";
 import { snowflake } from "../types";
 import { media } from "./media";
 
@@ -14,6 +14,8 @@ export const chatSettings = pgTable(
     backgroundMediaId: snowflake<MediaId>("background_media_id").references(() => media.id, {
       onDelete: "set null",
     }),
+    // INFO: REQUIREMENTS.md § 8.15. Conversation-wide, like the wallpaper — either participant may write it, and `runGeneration` reads it as Gemini's `systemInstruction`.
+    llmSystemPrompt: text("llm_system_prompt"),
   },
   (table) => [check("chat_settings_singleton_check", sql`${table.id}`)],
 );

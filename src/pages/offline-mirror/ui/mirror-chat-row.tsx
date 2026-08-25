@@ -65,7 +65,11 @@ export function MirrorChatRow({
           <span className="size-9 shrink-0" />
         ))}
       <div
-        className={cn("flex max-w-[72%] flex-col gap-2xs", isMine ? "items-end" : "items-start")}
+        // INFO: DESIGN.md § 6.2., § 6.11. `MessageRow`'s own wide cap — the row's content box less the avatar (`size-9`) and its `gap-xs` — never the § 6.5. 72%.
+        className={cn(
+          "flex max-w-[calc(100%-44px)] flex-col gap-2xs",
+          isMine ? "items-end" : "items-start",
+        )}
       >
         {!isMine && isFirstOfGroup && (
           <span className="px-2xs text-chat-name text-chat-sender">{sender?.name}</span>
@@ -81,7 +85,7 @@ export function MirrorChatRow({
               isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
             ),
           )}
-        {/* WARN: DESIGN.md § 6.2. `max-w-full` is what holds the bubble inside the column's `max-w-[72%]` — the column aligns rather than stretches, so this stack is sized `fit-content`, which floors at min-content. */}
+        {/* WARN: DESIGN.md § 6.2. `max-w-full` is what holds the bubble inside the column's own wide cap — the column aligns rather than stretches, so this stack is sized `fit-content`, which floors at min-content. */}
         <div className={cn("flex max-w-full items-end gap-2xs", isMine && "flex-row-reverse")}>
           {renderBody()}
           {(isLastOfGroup || message.editedAt) && (
@@ -156,7 +160,7 @@ export function MirrorChatRow({
 
   // INFO: DESIGN.md § 6.10. One line of the quoted message, without the tap that would jump to it — the row it names may be outside the snapshot entirely.
   // INFO: DESIGN.md § 6.10. The shape is the caller's: a card above a bubble-less message, and a divider under the one inside a bubble.
-  // INFO: The card above the bubble caps at § 6.5.'s 220px attachment width; left to the column's 72% a long quote would stretch past the photo it sits on.
+  // INFO: The card above the bubble caps at § 6.5.'s 220px attachment width; left to the column's own wide cap a long quote would stretch past the photo it sits on.
   function renderQuote(className: string) {
     return (
       <div className={cn("text-caption text-meta", className)}>

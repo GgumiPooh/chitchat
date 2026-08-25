@@ -1,0 +1,1 @@
+ALTER TABLE "chat_settings" ADD COLUMN "llm_system_prompt" text;

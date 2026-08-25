@@ -1,4 +1,5 @@
 import { readChatBackground } from "@/entities/chat-background";
+import { readLlmSystemPrompt } from "@/entities/llm-system-prompt";
 import { listUsers } from "@/entities/user";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
@@ -16,6 +17,9 @@ import { NextResponse } from "next/server";
  * `user_changed` — and the client answers that by refetching this payload whole. A
  * route of its own would double the requests on a channel that also carries every
  * § 8.8. read-cursor bump, to deliver a single id.
+ *
+ * INFO: REQUIREMENTS.md § 8.15. The shared 쨈미니 system prompt rides along for the
+ * same reason — another `chat_settings` field, invalidated by the same trigger.
  */
 export async function GET() {
   const user = await getCurrentUser();
@@ -24,12 +28,17 @@ export async function GET() {
     return apiError("unauthorized");
   }
 
-  const [users, chatBackground] = await Promise.all([listUsers(), readChatBackground()]);
+  const [users, chatBackground, llmSystemPrompt] = await Promise.all([
+    listUsers(),
+    readChatBackground(),
+    readLlmSystemPrompt(),
+  ]);
 
   // INFO: REQUIREMENTS.md § 12.2. The hash rides with the id rather than being fetched per wallpaper — it is what the chat route's chrome is tinted with, and both move on exactly the same event.
   return NextResponse.json({
     users,
     chatBackgroundMediaId: chatBackground?.mediaId ?? null,
     chatBackgroundBlurhash: chatBackground?.blurhash ?? null,
+    llmSystemPrompt,
   });
 }

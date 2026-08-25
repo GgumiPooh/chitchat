@@ -28,6 +28,8 @@ export const systemActionEnum = pgEnum("system_action", [
   "event_deleted",
   // INFO: REQUIREMENTS.md § 16.3. Nobody performed this one — the reminder run posts it, so it is rendered without an actor.
   "event_reminder",
+  // INFO: The AI's answer to a question asked in chat. `sender_id` stays the asker — this is the one system action with a real actor.
+  "assistant_reply",
 ]);
 
 // INFO: REQUIREMENTS.md § 6. Append-only — marking messages read moves `users.last_read_at`, never a row here.
@@ -59,6 +61,9 @@ export const messages = pgTable(
     // INFO: REQUIREMENTS.md § 11.5. A snapshot, because a delete notice outlives its event row; the *user* name is still resolved at render time.
     eventTitle: text("event_title"),
     eventStartsAt: timestamp("event_starts_at", { withTimezone: true }),
+    // INFO: A snapshot of the `llm_agents` row that answered, taken at answer time — `llm_agents` carries no id of its own (its primary key is `provider`/`model`/`api_key`), and a key can rotate or be deleted without taking the row's own history of who answered with it.
+    llmProvider: text("llm_provider"),
+    llmModel: text("llm_model"),
     // INFO: REQUIREMENTS.md § 8.10. The quoted message is joined at read time, never snapshotted — a rename or an emoticon edit reaches the quote for the same reason § 8.7. reaches the bubble.
     // WARN: `set null` rather than cascade. Rows are only ever soft-deleted, so this fires for nothing the app does; a cascade would make a hard delete take every reply with it.
     replyToId: snowflake<MessageId>("reply_to_id").references((): AnyPgColumn => messages.id, {
@@ -77,13 +82,18 @@ export const messages = pgTable(
       .on(table.id)
       .where(sql`"deleted_at" IS NOT NULL OR "edited_at" IS NOT NULL`),
     // INFO: REQUIREMENTS.md § 6. Without this a `type = 'text'` row can silently acquire an emoticon or an event.
+    // WARN: `"system_action"::text` rather than a bare enum comparison — `db:migrate` applies every pending file in one transaction, and Postgres refuses to compare against an enum value added earlier in that same transaction. Casting to `text` sidesteps the restriction entirely, so this check never cares whether `'assistant_reply'` was just added or has been there for years.
     check(
       "messages_type_payload_check",
       sql`CASE "type"
-        WHEN 'text' THEN "text" IS NOT NULL AND "emoticon_item_id" IS NULL AND "event_id" IS NULL AND "system_action" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL
-        WHEN 'media' THEN "text" IS NULL AND "emoticon_item_id" IS NULL AND "event_id" IS NULL AND "system_action" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL
-        WHEN 'emoticon' THEN "text" IS NULL AND "emoticon_item_id" IS NOT NULL AND "event_id" IS NULL AND "system_action" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL
-        WHEN 'system' THEN "text" IS NULL AND "emoticon_item_id" IS NULL AND "system_action" IS NOT NULL AND "event_title" IS NOT NULL AND "event_starts_at" IS NOT NULL
+        WHEN 'text' THEN "text" IS NOT NULL AND "emoticon_item_id" IS NULL AND "event_id" IS NULL AND "system_action" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL AND "llm_provider" IS NULL AND "llm_model" IS NULL
+        WHEN 'media' THEN "text" IS NULL AND "emoticon_item_id" IS NULL AND "event_id" IS NULL AND "system_action" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL AND "llm_provider" IS NULL AND "llm_model" IS NULL
+        WHEN 'emoticon' THEN "text" IS NULL AND "emoticon_item_id" IS NOT NULL AND "event_id" IS NULL AND "system_action" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL AND "llm_provider" IS NULL AND "llm_model" IS NULL
+        WHEN 'system' THEN "emoticon_item_id" IS NULL AND (
+          ("system_action"::text = 'assistant_reply' AND "text" IS NOT NULL AND "event_id" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL AND "llm_provider" IS NOT NULL AND "llm_model" IS NOT NULL)
+          OR
+          ("system_action" IS NOT NULL AND "system_action"::text <> 'assistant_reply' AND "text" IS NULL AND "event_title" IS NOT NULL AND "event_starts_at" IS NOT NULL AND "llm_provider" IS NULL AND "llm_model" IS NULL)
+        )
       END`,
     ),
     // INFO: REQUIREMENTS.md § 8.10. A system notice is timeline furniture rather than someone speaking (DESIGN.md § 6.5.), so nothing may quote from it. Its own column is left out of the CASE above deliberately — `reply_to_id` is legal on all three of the other types, so folding it in would have meant restating each branch.

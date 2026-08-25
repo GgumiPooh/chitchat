@@ -6,6 +6,13 @@ import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { useApplyPhoto } from "@/features/apply-photo";
 import {
+  isSelectableMessage,
+  useActiveGenerations,
+  useAiSelection,
+  useLlmAgentChoice,
+  type GenerationEntry,
+} from "@/features/ask-ai/@x/chat-room";
+import {
   rememberInlineEmoticons,
   useChatStream,
   useChatStreamListener,
@@ -39,11 +46,15 @@ import {
   useMediaSelection,
   type VoiceRecording,
 } from "@/features/upload-media";
+import { useProfileViewer } from "@/features/view-profile";
+import { request } from "@/shared/api";
 import {
   ARCHIVE_GALLERY_ROUTE,
   ARCHIVE_TARGET_PARAM,
+  CHAT_AI_PATH,
   MESSAGE_FLASH_DURATION,
   REPLY_PREVIEW_MAX_LENGTH,
+  toLlmProviderBranding,
   toMediaCountUnit,
   toMediaLabel,
   toMediaNoun,
@@ -52,6 +63,7 @@ import {
   toQuoteThumbnail,
   toSoloInlineEmoticonId,
   type InlineEmoticonMap,
+  type LlmThinkingLevel,
   type MediaNoun,
   type MessageArrival,
 } from "@/shared/config";
@@ -65,8 +77,10 @@ import {
   countVisibleWakes,
   findFirstUrl,
   focusWithoutPan,
+  holdAwake,
   isSidePanelAnimating,
   onSidePanelSettled,
+  randomId,
   runWhenIdle,
   startMediaMorph,
   stopVoice,
@@ -80,6 +94,7 @@ import {
   useUnsentWork,
   warmLineHeights,
   type EmoticonItemId,
+  type LongPressPoint,
   type Maybe,
   type MediaId,
   type MessageId,
@@ -99,6 +114,8 @@ import {
   ActionSheet,
   Button,
   EmptyState,
+  IconButton,
+  MarkdownBody,
   MediaViewer,
   Modal,
   toast,
@@ -117,6 +134,8 @@ import {
   Pencil,
   Share,
   Smile,
+  Sparkles,
+  Square,
   Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -154,6 +173,8 @@ import { useLinkPreviewPrefetch } from "../model/use-link-preview-prefetch";
 import { useMessageHistory } from "../model/use-message-history";
 import { useShareTarget } from "../model/use-share-target";
 import { useViewerTrack } from "../model/use-viewer-track";
+import { AiSelectionBar } from "./ai-selection-bar";
+import { AssistantMessageRow } from "./assistant-message-row";
 import { ChatBackdrop } from "./chat-backdrop";
 import { DateDivider } from "./date-divider";
 import { EditBar } from "./edit-bar";
@@ -161,9 +182,10 @@ import { findChatMediaCell } from "./media-grid";
 import { MessageRow } from "./message-row";
 import { ReplyBar } from "./reply-bar";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
+import { SELECTION_TRANSITION_SETTLE, SelectableRow } from "./selectable-row";
 import { ShortcutHelp } from "./shortcut-help";
 import { SystemNotice } from "./system-notice";
-import { TypingIndicator } from "./typing-indicator";
+import { TypingDots, TypingIndicator } from "./typing-indicator";
 
 /**
  * REQUIREMENTS.md § 8.6.1. A message the § 8.6. search is telling the room to move
@@ -177,6 +199,19 @@ import { TypingIndicator } from "./typing-indicator";
 export type ChatJumpTarget = {
   token: number;
   id: MessageId;
+};
+
+/**
+ * REQUIREMENTS.md § 8.5. What `ChatScreen`'s `AppHeader` needs to draw the
+ * selection takeover — the room reports this rather than the mode itself
+ * being lifted, since `messages` (and so `useAiSelection`) has to stay where
+ * the room's own pagination lives.
+ */
+export type AiSelectionHeaderState = {
+  count: number;
+  onClearAll: () => void;
+  onAutoSelect: () => void;
+  onExit: () => void;
 };
 
 export type ChatRoomProps = {
@@ -213,8 +248,12 @@ export type ChatRoomProps = {
    * `useUnsentWork` hold that stops § 15.1. reloading the tab over it.
    */
   bottomBar?: ReactNode;
+  /** REQUIREMENTS.md § 16.1. 조용히 보내기 — the screen owns the cookie (`useSilentSend`), the room only draws its composer notice. */
+  isSilentSend?: boolean;
   /** REQUIREMENTS.md § 11.4. Opens 새 일정 from the attach sheet's 일정 row; the screen owns the form, as it owns `EventDetailDialog`. */
   onAddEvent?: () => void;
+  /** @see AiSelectionHeaderState */
+  onAiSelectionChange?: (state: Nullable<AiSelectionHeaderState>) => void;
 };
 
 // INFO: § 13.6. The ceiling the emoticon panel's mount is given, matching the warm's own — the two are the same idle frame and a panel that mounted first would build its cells against an empty cache.
@@ -250,8 +289,8 @@ const LOAD_OLDER_THRESHOLD = 600;
 // INFO: REQUIREMENTS.md § 8.14. How far `⌥↑`/`⌥↓` moves, as a share of what is on screen rather than a pixel count — a step that reads the same on a phone and on a desktop, and that leaves most of the last screenful in view to read against.
 const HISTORY_SCROLL_STEP = 0.4;
 
-// INFO: DESIGN.md § 7.12. Deep enough that a bubble dissolves under the floating header rather than being clipped by it.
-const TOP_FADE_LENGTH = "3rem";
+// INFO: DESIGN.md § 7.12. Deep enough that a bubble dissolves well before the floating header's own text, rather than being clipped by it or dissolving right at its edge.
+const TOP_FADE_LENGTH = "4rem";
 
 // WARN: Short on purpose — it dissolves the sliver leaving the shell below the tab bar, not the strip behind the bars. Fading that strip would leave the glass with nothing to blur (DESIGN.md § 3.5.).
 const BOTTOM_FADE_LENGTH = "2rem";
@@ -269,13 +308,17 @@ export function ChatRoom({
   initialJumpMessageId,
   searchQuery,
   bottomBar,
+  isSilentSend = false,
   onAddEvent,
+  onAiSelectionChange,
 }: ChatRoomProps) {
   const containerRef = useRef<Nullable<HTMLDivElement>>(null);
   const composerRef = useRef<Nullable<HTMLDivElement>>(null);
   const emoticonSheetRef = useRef<Nullable<HTMLDivElement>>(null);
   // INFO: REQUIREMENTS.md § 8.12. Observed rather than derived from `typist`, because what has to be followed is every frame of the height transition, not the state change that started it.
   const typingSlotRef = useRef<Nullable<HTMLDivElement>>(null);
+  // INFO: The AI answer row below the typing slot — observed the same way `contentRef` is (growth vs. a fixed reveal), since its height changes on every streamed delta rather than opening once.
+  const aiRowRef = useRef<Nullable<HTMLDivElement>>(null);
   // INFO: REQUIREMENTS.md § 8.3. The rows' own box, observed for the same reason the slot above is — a row that grows after it was estimated moves the end of the list, and nothing scrolls to say so.
   const contentRef = useRef<Nullable<HTMLDivElement>>(null);
   const scrollerRef = useRef<Nullable<HTMLElement>>(null);
@@ -285,6 +328,10 @@ export function ChatRoom({
   const pinnedRowKeyRef = useRef<Optional<string>>(undefined);
   // INFO: REQUIREMENTS.md § 8.3. Where a chosen row sat in the viewport just before a page was inserted above it, so the same row can be put back there once it has.
   const prependAnchorRef = useRef<Nullable<{ key: string; viewportY: number }>>(null);
+  // INFO: REQUIREMENTS.md § 8.3., § 8.5. True for the length of `SelectableRow`'s gutter/bubble-width transition — every mounted row's `ResizeObserver` delivers on each animated frame, and `shouldAdjustScrollPositionOnItemSizeChange` below refuses to compensate any of them while this holds, rather than jittering the scroll position once per frame.
+  const isSelectionTransitioningRef = useRef(false);
+  // INFO: § 8.5. The mode the settle effect (beside `pinToBottom`) last armed the ref above for, so a render that changes for any other reason does not re-arm it.
+  const wasSelectingRef = useRef(false);
   // WARN: State, not just the ref beside it — the scroller mounts a render after this component does (an empty room renders no list at all), and the virtualizer has to re-read it when it appears.
   const [scroller, setScroller] = useState<Nullable<HTMLDivElement>>(null);
   // INFO: REQUIREMENTS.md § 8.3. The width every unmeasured row is wrapped against. It has to be state and not a `clientWidth` read at estimate time — a rotation changes it for thousands of offscreen rows at once, and nothing else in this component would notice.
@@ -295,9 +342,12 @@ export function ChatRoom({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isAtBottomRef = useRef(true);
   const [isAtTop, setIsAtTop] = useState(true);
+  const isAtTopRef = useRef(true);
   const [actionTarget, setActionTarget] = useState<Nullable<ChatMessage>>(null);
   // INFO: AGENTS.md § 4.1. The bubble a hold or right-click opened the menu on, for the desktop `Popover`'s anchor.
   const menuAnchorRef = useRef<Nullable<HTMLElement>>(null);
+  // INFO: DESIGN.md § 7.5. Where the hold or right-click fired, so the menu is pinned to the pointer rather than to the whole bubble — a bubble taller than the visible area cannot carry a below-anchored menu off screen.
+  const menuAnchorPointRef = useRef<Nullable<LongPressPoint>>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   // INFO: REQUIREMENTS.md § 9.3. The recorder bar stands in the composer stack while it is true. Mounting is what starts the microphone, so this is only ever set from the tap that asked for it.
   const [isRecording, setIsRecording] = useState(false);
@@ -319,6 +369,8 @@ export function ChatRoom({
   const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
   const { remember: rememberEmoticon } = useRecentEmoticons();
   const applyPhoto = useApplyPhoto();
+  // INFO: REQUIREMENTS.md § 12.3. The streaming and finished assistant rows both tap their avatar into this — `MessageRow` reads the same hook for a participant's own avatar.
+  const { openLlmProfile } = useProfileViewer();
   // INFO: REQUIREMENTS.md § 13.6. The panel's list and images are warmed from here, since the tap this exists to make cheap can come before the panel has drawn anything.
   useEmoticonPreload();
   /**
@@ -416,8 +468,83 @@ export function ChatRoom({
   } = useMessageHistory(initialMessages);
   // INFO: REQUIREMENTS.md § 16. The room is the only place the loaded window exists, so the offline transcript is stored from here rather than from the screen above it.
   useWriteChatSnapshot(messages, hasNewer);
+  // INFO: REQUIREMENTS.md § 8.5. The composer's AI 질문 모드 — which settled messages ride along as an AI question's context.
+  const aiSelection = useAiSelection(messages);
+  // INFO: § 8.5. The bar's model/thinking pickers — fetched fresh on every entry into the mode.
+  const llmAgentChoice = useLlmAgentChoice(aiSelection.isSelecting);
+  // INFO: REQUIREMENTS.md § 8.5., § 7. `messages` — and so `useAiSelection` — lives here, but the header it drives is the screen's (`ChatScreen`'s own comment gives the reason, same as § 8.6.'s search). Reported up rather than lifted whole, since lifting `useAiSelection` would mean lifting the paginated `messages` list with it.
+  useEffect(() => {
+    onAiSelectionChange?.(
+      aiSelection.isSelecting
+        ? {
+            count: aiSelection.selected.size,
+            onClearAll: aiSelection.clearAll,
+            onAutoSelect: aiSelection.autoSelect,
+            onExit: aiSelection.exit,
+          }
+        : null,
+    );
+
+    // WARN: A room that unmounts mid-selection (navigating away) must not leave the screen showing a header that no longer has a room under it.
+    return () => onAiSelectionChange?.(null);
+  }, [
+    aiSelection.isSelecting,
+    aiSelection.selected.size,
+    aiSelection.clearAll,
+    aiSelection.autoSelect,
+    aiSelection.exit,
+    onAiSelectionChange,
+  ]);
+  // INFO: § 8.5. An AI question's own `clientMsgId`, kept apart from `appendMessage` so `handleMessageSent` can tell "the send this room just made" from every other echo the send queue reports.
+  const pendingAiQuestionsRef = useRef<
+    Map<
+      string,
+      {
+        text: string;
+        messageIds: MessageId[];
+        model: Nullable<string>;
+        thinking: Nullable<LlmThinkingLevel>;
+        // INFO: § 8.15. The media/emoticon bubbles this question's own send staged, so the AI request can wait for their ids too — see `aiAttachmentQuestionRef` below.
+        attachmentClientMsgIds: string[];
+        resolvedAttachmentIds: MessageId[];
+      }
+    >
+  >(new Map());
+  // INFO: § 8.15. Reverse index of `pendingAiQuestionsRef`'s `attachmentClientMsgIds`, keyed by the attachment's own `clientMsgId` — an attachment lands through the same `handleMessageSent` echo as any other send, and this is what tells the two apart.
+  const aiAttachmentQuestionRef = useRef<Map<string, string>>(new Map());
+  const handleMessageSent = useCallback(
+    (message: ChatMessage) => {
+      const attachmentQuestionKey = aiAttachmentQuestionRef.current.get(message.clientMsgId);
+
+      if (attachmentQuestionKey) {
+        aiAttachmentQuestionRef.current.delete(message.clientMsgId);
+        pendingAiQuestionsRef.current
+          .get(attachmentQuestionKey)
+          ?.resolvedAttachmentIds.push(message.id);
+      }
+
+      const question = pendingAiQuestionsRef.current.get(message.clientMsgId);
+
+      if (question) {
+        pendingAiQuestionsRef.current.delete(message.clientMsgId);
+        // WARN: § 8.15. `useSendMessage` delivers on one promise chain (§ 8.10.'s own comment on `submit`), so every attachment this question's send enqueued ahead of the question has already settled — landed or failed — by the time the question's own echo reaches here. An attachment id still missing from `resolvedAttachmentIds` failed, and is dropped rather than awaited, or a stalled upload would hold the AI request forever.
+        question.attachmentClientMsgIds.forEach((clientMsgId) =>
+          aiAttachmentQuestionRef.current.delete(clientMsgId),
+        );
+        void requestAiAnswer(message.clientMsgId, {
+          text: question.text,
+          messageIds: [...question.messageIds, ...question.resolvedAttachmentIds].sort(compareId),
+          model: question.model,
+          thinking: question.thinking,
+        });
+      }
+
+      appendMessage(message);
+    },
+    [appendMessage],
+  );
   const { pending, send, sendMedia, sendEmoticon, retry, cancel, resolve } = useSendMessage({
-    onSent: appendMessage,
+    onSent: handleMessageSent,
   });
   // INFO: DESIGN.md § 7.10. The viewer's jump into 보관함 is a route change, and the only one this widget makes.
   const router = useRouter();
@@ -596,6 +723,15 @@ export function ChatRoom({
   });
   // INFO: REQUIREMENTS.md § 1. Exactly two people, so the first id is the only id — a list of names would be answering a question this app cannot ask.
   const typist = typingUserIds.length > 0 ? (participantById.get(typingUserIds[0]) ?? null) : null;
+  // INFO: A generation asked from anywhere, not only this device — `useActiveGenerations` is fed by the whole conversation's `llm` channel.
+  const { generations, cancelGeneration } = useActiveGenerations();
+  // INFO: The advisory lock (`LLM_GENERATION_LOCK_KEY`) serializes runs server-side, so at most one entry is ever `running`; a `queued` one with nothing running yet is drawn as this room's own front of the line.
+  const generationEntries = useMemo(() => Array.from(generations), [generations]);
+  const primaryGeneration =
+    generationEntries.find(([, entry]) => entry.status === "running") ?? generationEntries[0];
+  const queuedGenerationCount = primaryGeneration
+    ? generationEntries.length - 1
+    : generationEntries.length;
   const rows = useMemo(
     () => buildChatRows({ messages, pending, currentUserId }),
     [messages, pending, currentUserId],
@@ -644,7 +780,9 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 8.3. Resolved off the surface the bubbles are drawn on, so the wrap estimate counts glyphs in the font they will actually be laid out in rather than in a ratio per glyph class.
   const estimateContext = useMemo(
     () => ({
+      // INFO: REQUIREMENTS.md § 8.3., § 8.5. The raw scroller width — `estimate-row-height.ts`'s own `toTranslatedWidthContext` takes the selection gutter back off this per row, since only a translated (non-`mine`) row actually shifts under `SelectableRow`'s gutter and needs the width to shrink for it.
       contentWidth: scrollerWidth,
+      isSelecting: aiSelection.isSelecting,
       fontFamily: scroller ? getComputedStyle(scroller).fontFamily : "",
       readPreview,
       // INFO: REQUIREMENTS.md § 11.5. The same composition `SystemNotice` renders, so the estimate wraps the sentence the row will actually show.
@@ -662,22 +800,39 @@ export function ChatRoom({
       readInlineEmoticon: (itemId: EmoticonItemId) =>
         inlineEmoticons[itemId] ?? pendingInlineEmoticonsRef.current[itemId],
     }),
-    [scroller, scrollerWidth, readPreview, participantById, countUnreadReaders, inlineEmoticons],
+    [
+      scroller,
+      scrollerWidth,
+      aiSelection.isSelecting,
+      readPreview,
+      participantById,
+      countUnreadReaders,
+      inlineEmoticons,
+    ],
   );
   // WARN: Written during render rather than in an effect, and read through a ref rather than closed over. `getItemKey` has to be one stable function: virtual-core memoizes the whole measurement pass on its identity, and a fresh closure per render re-runs `estimateSize` for every row that is not currently mounted — thousands of canvas text layouts on every SSE tick. It also has to see *this* render's rows, which `rowsRef` is deliberately one commit behind on.
   const keyedRowsRef = useRef(rows);
 
   keyedRowsRef.current = rows;
 
+  // WARN: REQUIREMENTS.md § 8.3. `estimateSize` needs the same stable identity `getItemKey` does, and for the identical reason — a fresh closure over `estimateContext` fires on every toggle of AI 질문 모드 (`isSelecting` moves `toTranslatedWidthContext`'s output for every translated row), which reran `countTextLines` for every mounted row on the very tap that was supposed to feel instant. `estimateContextRef` is `keyedRowsRef`'s idiom applied to the other half of `estimateRowHeight`'s input.
+  const estimateContextRef = useRef(estimateContext);
+
+  estimateContextRef.current = estimateContext;
+
   // WARN: Indexed defensively. `indexFromElement` answers `-1` for an element it finds no `data-index` on, and both the library's own `measureElement` and the override below hand that straight back here — `rows[-1].key` would throw out of the render phase and take the whole surface down where the library only meant to warn.
   const getItemKey = useCallback((index: number) => keyedRowsRef.current[index]?.key ?? index, []);
+  const estimateSize = useCallback((index: number) => {
+    const row = keyedRowsRef.current[index];
+
+    return row ? estimateRowHeight(row, estimateContextRef.current) : LIST_HEADER_HEIGHT;
+  }, []);
   // INFO: REQUIREMENTS.md § 8.3. Anchored to the end and keyed by row, which is what holds the viewport still across a prepend — the virtualizer re-finds the keyed row after the data changes and offsets the scroll by however far it moved.
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller,
     // WARN: REQUIREMENTS.md § 8.3. Per row, never one flat guess. A row measured above the fold corrects the scroll by however far the estimate missed, and WebKit drops that correction mid-gesture — so the error of a flat estimate is drift the reader watches accumulate.
-    estimateSize: (index) =>
-      rows[index] ? estimateRowHeight(rows[index], estimateContext) : LIST_HEADER_HEIGHT,
+    estimateSize,
     getItemKey,
     anchorTo: "end",
     // WARN: Never `followOnAppend`. It follows through `scrollToIndex`, which resolves against the measurements alone, and `ListFooter` is not one of them — so every arrival parked the newest message exactly `--chat-bottom-gap` low, which is to say behind the composer. `pinToBottom` takes the scroller's own maximum instead.
@@ -714,6 +869,11 @@ export function ChatRoom({
 
   // WARN: Replaces the default, which refuses to compensate a *re*-measure taken while the scroll direction is `backward`. Reading back through history is exactly that, and a § 8.9. link card resolving above the fold then shoves everything below it down by the card's own height. A row that is entirely above the fold has to be compensated whichever way the finger was moving; one that still spans it grew below the anchor and must not be.
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
+    // WARN: REQUIREMENTS.md § 8.3., § 8.5. `SelectableRow`'s gutter/bubble-width CSS transition resizes every mounted row on each animated frame, and compensating per frame is what jitters the scroll rather than settling it once — the effect beside `pinToBottom` below force-remeasures and re-parks once the transition itself has actually finished instead.
+    if (isSelectionTransitioningRef.current) {
+      return false;
+    }
+
     // INFO: The offset the virtualizer is scrolling *to*, not the one the scroller is at — a correction already queued this tick is in `scrollAdjustments` and has yet to reach the DOM.
     const fold = (instance.scrollOffset ?? 0) + instance.scrollAdjustments;
 
@@ -831,6 +991,38 @@ export function ChatRoom({
     }
   }, []);
 
+  /**
+   * REQUIREMENTS.md § 8.3., § 8.5. Arms `isSelectionTransitioningRef` for
+   * `SELECTION_TRANSITION_SETTLE` on every AI 질문 모드 toggle — the same window
+   * `SelectableRow`'s own gutter and every bubble's `max-width` transition run
+   * on — then force-remeasures whatever rows are still mounted and re-parks the
+   * reader at the live edge if that is where they were. The frames the ref
+   * suppressed above are folded into this one settled correction instead of
+   * several jittering ones.
+   */
+  useEffect(() => {
+    if (wasSelectingRef.current === aiSelection.isSelecting) {
+      return;
+    }
+
+    wasSelectingRef.current = aiSelection.isSelecting;
+    isSelectionTransitioningRef.current = true;
+
+    const timeout = setTimeout(() => {
+      isSelectionTransitioningRef.current = false;
+
+      contentRef.current
+        ?.querySelectorAll<HTMLElement>("[data-index]")
+        .forEach((node) => virtualizer.measureElement(node));
+
+      if (isAtBottomRef.current) {
+        pinToBottom();
+      }
+    }, SELECTION_TRANSITION_SETTLE);
+
+    return () => clearTimeout(timeout);
+  }, [aiSelection.isSelecting, virtualizer, pinToBottom]);
+
   useComposerClearance({ containerRef, composerRef, scrollerRef, isAtBottomRef });
 
   // INFO: § 13.6. The same idle frame `useEmoticonPreload` warms on, so the panel is built out of a cache that is filling rather than ahead of it.
@@ -869,6 +1061,49 @@ export function ChatRoom({
   }, []);
 
   /**
+   * Holds the reader at the bottom while the AI answer row grows under a
+   * streamed answer — a *delta*-based follow rather than the typing slot's
+   * fixed-reveal one above, since this row's height changes on every coalesced
+   * chunk of an answer rather than opening once to a known size.
+   */
+  useEffect(() => {
+    const row = aiRowRef.current;
+
+    if (!row) {
+      return;
+    }
+
+    // WARN: Zero and not the row's own height, so the observer's first delivery counts the row's *arrival* as growth. Seeded with the measured height the mount itself — which lengthens the list by a whole row — is the one change nothing compensates, and the answer opens below the fold.
+    let lastHeight = 0;
+
+    const observer = new ResizeObserver(([entry]) => {
+      const scroller = scrollerRef.current;
+      const growth = entry.contentRect.height - lastHeight;
+
+      lastHeight = entry.contentRect.height;
+
+      // WARN: REQUIREMENTS.md § 8.3., § 8.5. `SelectableRow`'s gutter/bubble-width transition rewraps every mounted row's text over its own 200ms, and a rewrap changes this row's height too if it is one of the ones translating — reading that as "growth" and re-parking the scroller feeds straight back into a `scroll` event this effect's own commit produced, looping for as long as the transition keeps delivering frames. The settle effect beside `pinToBottom` re-parks once it has actually finished instead.
+      if (isSelectionTransitioningRef.current) {
+        return;
+      }
+
+      if (!scroller || growth <= 0 || !isAtBottomRef.current) {
+        return;
+      }
+
+      if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= growth + 1) {
+        scroller.scrollTop = scroller.scrollHeight;
+      }
+    });
+
+    observer.observe(row);
+
+    return () => observer.disconnect();
+    // INFO: `Boolean(primaryGeneration)` is what says the row has mounted or unmounted — the ref itself does not trigger a re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(primaryGeneration)]);
+
+  /**
    * REQUIREMENTS.md § 8.3. Holds the reader at the bottom while a row already on
    * screen grows under them — the § 8.9. card resolving on the link they just sent,
    * a photo's real height replacing its estimate, a bubble that measured taller than
@@ -892,6 +1127,11 @@ export function ChatRoom({
       const growth = entry.contentRect.height - lastHeight;
 
       lastHeight = entry.contentRect.height;
+
+      // WARN: REQUIREMENTS.md § 8.3., § 8.5. `SelectableRow`'s bubble-width transition rewraps every row's text over its own 200ms, moving `virtualizer.getTotalSize()` — and so this box's own explicit `style.height` — on each animated frame. Compensating that as "growth" re-parks the scroller, which fires the `scroll` event this same effect is listening for, looping for as long as the transition keeps delivering frames. The settle effect beside `pinToBottom` re-parks once it has actually finished instead.
+      if (isSelectionTransitioningRef.current) {
+        return;
+      }
 
       if (!scroller || growth <= 0 || !isAtBottomRef.current) {
         return;
@@ -1397,21 +1637,44 @@ export function ChatRoom({
                 )}
                 style={{ height: scroller ? virtualizer.getTotalSize() : undefined }}
               >
-                {virtualizer.getVirtualItems().map((item) => (
-                  <div
-                    key={item.key}
-                    ref={virtualizer.measureElement}
-                    className="absolute top-0 left-0 w-full"
-                    data-index={item.index}
-                    style={{
-                      transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)`,
-                    }}
-                  >
-                    {renderRow(rows[item.index])}
-                  </div>
-                ))}
+                {virtualizer.getVirtualItems().map((item) => {
+                  const row = rows[item.index];
+                  const selectableId = toSelectableMessageId(row);
+
+                  return (
+                    <div
+                      key={item.key}
+                      ref={virtualizer.measureElement}
+                      className="absolute top-0 left-0 w-full"
+                      data-index={item.index}
+                      style={{
+                        transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)`,
+                      }}
+                    >
+                      <SelectableRow
+                        isSelecting={aiSelection.isSelecting}
+                        isTranslated={isTranslatedRow(row)}
+                        isSelectable={selectableId !== null}
+                        isSelected={selectableId !== null && aiSelection.selected.has(selectableId)}
+                        onToggle={
+                          selectableId !== null ? () => aiSelection.toggle(selectableId) : undefined
+                        }
+                      >
+                        {renderRow(row)}
+                      </SelectableRow>
+                    </div>
+                  );
+                })}
               </div>
-              <ListFooter slotRef={typingSlotRef} typist={typist} />
+              <ListFooter
+                slotRef={typingSlotRef}
+                typist={typist}
+                aiRowRef={aiRowRef}
+                primaryGeneration={primaryGeneration}
+                queuedGenerationCount={queuedGenerationCount}
+                onCancelGeneration={cancelGeneration}
+                onOpenLlmProfile={openLlmProfile}
+              />
             </div>
           </div>
           <ScrollToBottomPill
@@ -1471,14 +1734,17 @@ export function ChatRoom({
                 hasAttachments={selection.drafts.length > 0 || stagedEmoticon !== null}
                 isStaging={selection.pendingCount > 0}
                 isEmoticonPickerOpen={isEmoticonPanelOpen}
+                isAiMode={aiSelection.isSelecting}
                 keywordConsumeToken={keywordConsumeToken}
                 seededDraft={seededDraft}
                 insertedEmoticon={insertedEmoticon}
                 deleteRequest={deleteRequest}
                 isEditing={editingId !== null}
+                isSilent={isSilentSend}
                 header={composerHeader()}
                 focusRequest={composerFocusRequest}
                 fieldRef={composerFieldRef}
+                onToggleAiMode={toggleAiMode}
                 // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
                 onToggleEmoticons={openEmoticonPanel}
                 onAttach={() => setIsPickerOpen(true)}
@@ -1569,6 +1835,7 @@ export function ChatRoom({
         items={buildActionItems()}
         header={{ title: "메시지" }}
         anchorRef={menuAnchorRef}
+        anchorPoint={menuAnchorPointRef.current ?? undefined}
         presentation="menu"
         onClose={() => setActionTarget(null)}
       />
@@ -1752,6 +2019,13 @@ export function ChatRoom({
    * WARN: The order survives because `useSendMessage` delivers on one promise chain. Firing these in parallel would let the text win the race for `messages.id` and land above them on every other client and every reload.
    */
   function submit(text: string, emoticons: ComposerEmoticon[]) {
+    // WARN: REQUIREMENTS.md § 8.5. Ahead of everything below, and it returns. An AI question sends only its text — no staged emoticon, no tray, no reply quote — through the ordinary text path.
+    if (aiSelection.isSelecting) {
+      submitAiQuestion(text);
+
+      return;
+    }
+
     // WARN: REQUIREMENTS.md § 8.13. Ahead of everything below, and it returns. A correction sends nothing — the staged quote, the tray and the emoticon all belong to a message that is not being composed, and falling through would post them beside the edit.
     if (editingId !== null) {
       void applyEdit(editingId, text, emoticons);
@@ -1811,6 +2085,119 @@ export function ChatRoom({
     // WARN: § 13.8. The word is spent here, and the search is left standing — see `sendStagedEmoticon`.
     searchedWordRef.current = null;
     setReplyTarget(null);
+  }
+
+  /** REQUIREMENTS.md § 8.5. The composer's own AI toggle — the § 8.14. `⌥1`/`⌃E`-style panel toggles all read the state that is on screen, and this is that pattern's one entry and exit. */
+  function toggleAiMode() {
+    if (aiSelection.isSelecting) {
+      aiSelection.exit();
+    } else {
+      aiSelection.enter();
+      focusComposer();
+    }
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.15. A staged tray or emoticon goes first, as ordinary
+   * sends — same bubbles, same upload/queue/optimistic rules `submit` uses — then
+   * the question, exactly as an ordinary text send: optimistic bubble, retry
+   * affordance, dedup on echo. `pendingAiQuestionsRef` holds the selected context
+   * and the attachment `clientMsgId`s until `handleMessageSent` reports every one
+   * of those sends has actually landed.
+   */
+  function submitAiQuestion(text: string) {
+    const messageIds = [...aiSelection.selected].sort(compareId);
+
+    void goLiveForSend();
+
+    const attachmentClientMsgIds: string[] = [];
+    let hasSounded = false;
+
+    if (stagedEmoticon) {
+      rememberEmoticon(stagedEmoticon.id, "emoticon");
+
+      const emoticonClientMsgId = sendEmoticon(stagedEmoticon);
+
+      attachmentClientMsgIds.push(emoticonClientMsgId);
+      hasSounded = soundSend(emoticonClientMsgId, stagedEmoticon);
+      setStagedEmoticon(null);
+    }
+
+    if (selection.drafts.length > 0) {
+      attachmentClientMsgIds.push(...sendMedia(selection.takeAll()));
+    }
+
+    const clientMsgId = send(text);
+
+    if (clientMsgId === null) {
+      return;
+    }
+
+    pendingAiQuestionsRef.current.set(clientMsgId, {
+      text: text.trim(),
+      messageIds,
+      // INFO: Snapshotted at send time — a picker changed after this question was queued must not retarget a question already on its way out.
+      model: llmAgentChoice.model,
+      thinking: llmAgentChoice.thinking,
+      attachmentClientMsgIds,
+      resolvedAttachmentIds: [],
+    });
+    attachmentClientMsgIds.forEach((attachmentClientMsgId) =>
+      aiAttachmentQuestionRef.current.set(attachmentClientMsgId, clientMsgId),
+    );
+
+    if (!hasSounded) {
+      playMessageSound("sent");
+    }
+
+    aiSelection.exit();
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.5. Asked only once the question's own `POST /api/messages`
+   * has landed — the streaming footer picks the run up from the SSE `queued`/`start`
+   * events it publishes, with no further state kept here.
+   *
+   * WARN: `holdAwake` covers this request alone, not the wait for the question to
+   * send — that POST already holds its own awake through `useSendMessage`'s
+   * `enqueue`, and chaining the two into one hold would pin the device awake for as
+   * long as a failed question sits waiting on a manual retry.
+   */
+  async function requestAiAnswer(
+    questionClientMsgId: string,
+    question: {
+      text: string;
+      messageIds: MessageId[];
+      model: Nullable<string>;
+      thinking: Nullable<LlmThinkingLevel>;
+    },
+  ) {
+    const release = holdAwake();
+
+    try {
+      const response = await request(CHAT_AI_PATH, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          streamId: randomId(),
+          questionClientMsgId,
+          question: question.text,
+          messageIds: question.messageIds,
+          // INFO: § 8.5. Omitted rather than `null` for 자동/기본 — the route's schema takes both as optional, and a `null` would be a value it has to refuse instead of a field it never sees.
+          ...(question.model !== null && { model: question.model }),
+          ...(question.thinking !== null && { thinking: question.thinking }),
+        }),
+      });
+
+      // WARN: § 8.5. 502 alone stays silent — `useActiveGenerations`'s `error` event has already toasted `AI 응답에 실패했어요` for it, and a second toast here would say the same thing twice.
+      if (!response.ok && response.status !== 502) {
+        toast("AI 요청을 보내지 못했어요");
+      }
+    } catch {
+      toast("AI 요청을 보내지 못했어요");
+    } finally {
+      release();
+    }
   }
 
   /**
@@ -1993,6 +2380,13 @@ export function ChatRoom({
       return;
     }
 
+    // INFO: REQUIREMENTS.md § 8.5. Ahead of the panel below — an empty field asking AI a question has nothing else this key could mean. Left non-empty, Escape falls through to the room's ordinary layers instead of discarding a question mid-type.
+    if (aiSelection.isSelecting && isComposerFieldEmpty()) {
+      aiSelection.exit();
+
+      return;
+    }
+
     if (isEmoticonPanelOpen) {
       closeEmoticonPanel();
       focusComposer();
@@ -2009,6 +2403,17 @@ export function ChatRoom({
 
     // INFO: Through `focusComposer`, which carries the § 8.6. refusal.
     focusComposer();
+  }
+
+  // INFO: REQUIREMENTS.md § 8.5. Read off the field's own node rather than the composer's draft, which lives inside `MessageComposer` and never reaches the room.
+  function isComposerFieldEmpty(): boolean {
+    const field = composerFieldRef.current;
+
+    if (field instanceof HTMLTextAreaElement) {
+      return field.value.trim() === "";
+    }
+
+    return (field?.textContent ?? "").trim() === "";
   }
 
   /**
@@ -2223,7 +2628,13 @@ export function ChatRoom({
       handleAtBottomChange(atBottom);
     }
 
-    setIsAtTop(element.scrollTop <= 0);
+    const atTop = element.scrollTop <= 0;
+
+    // WARN: Never an unguarded `setIsAtTop`. This runs from a render-scoped effect, so a same-value call still schedules while any other update is in flight — which is React's nested-update limit, thrown here rather than where the storm actually started.
+    if (atTop !== isAtTopRef.current) {
+      isAtTopRef.current = atTop;
+      setIsAtTop(atTop);
+    }
   }
 
   /**
@@ -2257,6 +2668,53 @@ export function ChatRoom({
     });
   }
 
+  /**
+   * REQUIREMENTS.md § 8.5. The id `SelectableRow`'s check column toggles for a row —
+   * `null` for a date divider and for a pending row, which has no server id yet.
+   *
+   * WARN: A withdrawn `message` row is refused too. `isSelectableMessage` is the same
+   * `!isDeleted` test `useAiSelection`'s own auto-select folds in, kept as one function
+   * so the two cannot drift into disagreeing about a tombstone.
+   */
+  function toSelectableMessageId(row: ChatRow): Nullable<MessageId> {
+    switch (row.kind) {
+      case "message":
+      case "assistant":
+        return isSelectableMessage(row.message) ? row.message.id : null;
+      // INFO: A calendar notice — `buildChatRows` never gives this kind an `assistant_reply`, so it has no text an AI question could read.
+      case "system":
+      case "date":
+      case "pending":
+        return null;
+    }
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.5. Whether `SelectableRow` should translate this row's
+   * content for the gutter, rather than leaving its own reduced cap to do the
+   * whole job.
+   *
+   * WARN: `mine` content is right-aligned (`MessageRow`'s own `isMine` column),
+   * so a translate meant to make room on the *left* pushes it further past the
+   * row's *right* edge instead — the cap reduction alone already opens the 40px
+   * the check circle needs there. Every left-anchored row (`theirs`, the AI
+   * answer, a system notice, a date divider) still translates, since those cross
+   * the check column on the left and have no right edge to overflow.
+   */
+  function isTranslatedRow(row: ChatRow): boolean {
+    switch (row.kind) {
+      case "message":
+        return !row.isMine;
+      case "pending":
+        // INFO: An optimistic bubble is always mine (§ 8.3.'s own comment on this row).
+        return false;
+      case "system":
+      case "date":
+      case "assistant":
+        return true;
+    }
+  }
+
   function renderRow(row: ChatRow) {
     switch (row.kind) {
       case "date":
@@ -2264,6 +2722,22 @@ export function ChatRoom({
       case "system":
         return (
           <SystemNotice message={row.message} sender={participantById.get(row.message.senderId)} />
+        );
+      case "assistant":
+        return (
+          <AssistantMessageRow
+            message={row.message}
+            isSelecting={aiSelection.isSelecting}
+            onLongPress={(anchor, point) => {
+              menuAnchorRef.current = anchor;
+              menuAnchorPointRef.current = point;
+              setActionTarget(row.message);
+            }}
+            onShare={
+              canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
+            }
+            onReply={() => stageReply(row.message)}
+          />
         );
       case "pending": {
         const cells = toCellsFromDrafts(row.pending.media);
@@ -2285,6 +2759,7 @@ export function ChatRoom({
             isMine
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
+            isSelecting={aiSelection.isSelecting}
             status={row.pending.status}
             awaitsArrivalSound={row.pending.clientMsgId === arrivalSoundId}
             replyToHeading={
@@ -2312,6 +2787,7 @@ export function ChatRoom({
               isLastOfGroup={row.isLastOfGroup}
               isDeleted
               isHighlighted={row.message.id === highlightedId}
+              isSelecting={aiSelection.isSelecting}
               status="sent"
             />
           );
@@ -2341,6 +2817,7 @@ export function ChatRoom({
             isHighlighted={row.message.id === highlightedId}
             searchQuery={searchQuery}
             status="sent"
+            isSelecting={aiSelection.isSelecting}
             awaitsArrivalSound={row.message.id === arrivalSoundId}
             onShare={
               canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
@@ -2348,8 +2825,9 @@ export function ChatRoom({
             onOpenMedia={(index, origin) =>
               openAttachment(cells, index, row.message.id, row.message.senderId, origin)
             }
-            onLongPress={(anchor) => {
+            onLongPress={(anchor, point) => {
               menuAnchorRef.current = anchor;
+              menuAnchorPointRef.current = point;
               setActionTarget(row.message);
             }}
             onOpenReply={quoted ? () => void jumpToMessage(quoted.id, { flash: true }) : undefined}
@@ -2546,6 +3024,18 @@ export function ChatRoom({
       return <EditBar onCancel={cancelEdit} />;
     }
 
+    if (aiSelection.isSelecting) {
+      return (
+        <AiSelectionBar
+          agents={llmAgentChoice.agents}
+          model={llmAgentChoice.model}
+          thinking={llmAgentChoice.thinking}
+          onSelectModel={llmAgentChoice.setModel}
+          onSelectThinking={llmAgentChoice.setThinking}
+        />
+      );
+    }
+
     if (!replyTarget) {
       return null;
     }
@@ -2564,6 +3054,7 @@ export function ChatRoom({
     return toQuoteHeading(
       participantById.get(quoted.senderId)?.name,
       quoted.senderId === currentUserId,
+      quoted.llmProvider,
     );
   }
 
@@ -2578,6 +3069,20 @@ export function ChatRoom({
       // INFO: `keepsFocus` for 수정's reason — `stageReply` hands the field the caret, and the sheet's close would take it straight back.
       { label: "답장", Icon: CornerUpLeft, keepsFocus: true, onSelect: () => stageReply(target) },
     ];
+
+    // INFO: REQUIREMENTS.md § 8.15. An AI answer's `senderId` is the asker (§ 8.10.), so nothing below this line applies to it — 수정/삭제 read as though the asker could correct or withdraw 쨈미니's own words, and 이모티콘 따라하기 has nothing to key off since the row carries none.
+    if (target.type === "system") {
+      if (target.text) {
+        items.push({ label: "복사", Icon: Copy, onSelect: () => void copyText(target.text ?? "") });
+      }
+
+      if (canShareMessage(target)) {
+        items.push({ label: "공유", Icon: Share, onSelect: () => void shareMessage(target) });
+      }
+
+      return items;
+    }
+
     const emoticon = target.emoticon;
 
     // INFO: REQUIREMENTS.md § 13.9. The same action the bubble's own tap performs, offered here because a mouse reaches this sheet by right-click (`DESIGN.md § 3.2.`) — and because a tap that also replays a sound is not the only way anyone should have to ask for it.
@@ -2659,6 +3164,7 @@ export function ChatRoom({
       mediaKind: message.isDeleted ? null : toMediaNoun(message.media),
       mediaCount: message.isDeleted ? 0 : message.media.length,
       isDeleted: message.isDeleted,
+      llmProvider: message.isDeleted ? null : message.llmProvider,
       id: message.id,
     });
 
@@ -3075,10 +3581,24 @@ function ListHeader({ isLoadingOlder }: { isLoadingOlder: boolean }) {
 type ListFooterProps = {
   slotRef: RefObject<Nullable<HTMLDivElement>>;
   typist: Nullable<Participant>;
+  aiRowRef: RefObject<Nullable<HTMLDivElement>>;
+  primaryGeneration: Optional<[string, GenerationEntry]>;
+  queuedGenerationCount: number;
+  onCancelGeneration: (streamId: string) => void;
+  /** REQUIREMENTS.md § 12.3. The streaming row's own avatar tap — the same profile screen the finished `AssistantMessageRow` opens. */
+  onOpenLlmProfile: (provider: Maybe<string>, modelId?: Optional<string>) => void;
 };
 
-// INFO: DESIGN.md § 3.5. The trailing space the floating bars need, plus the § 8.12. 입력 중 slot standing on top of it. Both are the list's own content, so scrolling to the bottom parks the newest message just above the composer instead of behind it.
-function ListFooter({ slotRef, typist }: ListFooterProps) {
+// INFO: DESIGN.md § 3.5. The trailing space the floating bars need, plus the § 8.12. 입력 중 slot and the AI answer row standing on top of it. All are the list's own content, so scrolling to the bottom parks the newest message just above the composer instead of behind it.
+function ListFooter({
+  slotRef,
+  typist,
+  aiRowRef,
+  primaryGeneration,
+  queuedGenerationCount,
+  onCancelGeneration,
+  onOpenLlmProfile,
+}: ListFooterProps) {
   return (
     <>
       {/* WARN: REQUIREMENTS.md § 8.12. It sits *above* the spacer below, never inside it. That spacer is the strip the composer covers (`useComposerClearance` measures exactly `container.bottom − composer.top`), so anything placed in it is behind the bar by construction. */}
@@ -3100,7 +3620,98 @@ function ListFooter({ slotRef, typist }: ListFooterProps) {
           />
         )}
       </div>
+      {/* INFO: Not a fixed-reveal slot like the one above — an AI answer's height changes on every streamed delta, so it is simply mounted in flow, the way an ordinary message row is (§ 6.5.'s bubbles carry no arrival transition of their own either). */}
+      {primaryGeneration && (
+        <div ref={aiRowRef}>
+          <AiAnswerRow
+            entry={primaryGeneration[1]}
+            onOpenProfile={() =>
+              onOpenLlmProfile(primaryGeneration[1].provider, primaryGeneration[1].model)
+            }
+            onCancel={() => onCancelGeneration(primaryGeneration[0])}
+          />
+          {queuedGenerationCount > 0 && (
+            <p className="mx-auto max-w-(--content-max-width) px-md pb-2xs text-caption text-meta">
+              대기 중 {queuedGenerationCount}
+            </p>
+          )}
+        </div>
+      )}
       <div className="h-(--chat-bottom-gap)" />
     </>
+  );
+}
+
+type AiAnswerRowProps = {
+  entry: GenerationEntry;
+  onCancel: () => void;
+  /** REQUIREMENTS.md § 12.3. The avatar tap — the same profile screen the finished `AssistantMessageRow` opens. */
+  onOpenProfile: () => void;
+};
+
+/**
+ * DESIGN.md § 6.2., § 6.7.1., § 7.7. The § 6.7.1. incoming row, drawn for an AI
+ * generation instead of a typist: the same avatar-then-bubble shape and the same
+ * dots while there is nothing to show yet, but the bubble is a `MarkdownBody` once
+ * text has streamed in. It sizes to its content (`w-fit max-w-full`) rather than the
+ * ordinary 72% — the `min-w-0 flex-1` slot around it caps that at the content column
+ * minus the avatar gutter and the 중지 control without any width arithmetic of its own.
+ */
+function AiAnswerRow({ entry, onCancel, onOpenProfile }: AiAnswerRowProps) {
+  const branding = toLlmProviderBranding(entry.provider);
+  const isEmpty = entry.text.length === 0;
+  const isCancelling = entry.cancelling === true;
+
+  return (
+    <div className="mx-auto flex max-w-(--content-max-width) items-end gap-2xs px-md py-xs">
+      {/* INFO: Announced politely, for the § 6.7.1. typing indicator's own reason — this changes often enough that an assertive region would talk over every other update. */}
+      <span className="sr-only" aria-live="polite">
+        {branding.name}가 답변하고 있어요
+      </span>
+      <button
+        className="block size-9 shrink-0 cursor-pointer rounded-full transition-opacity outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary active:opacity-70"
+        type="button"
+        aria-label={`${branding.name} 프로필 보기`}
+        onClick={onOpenProfile}
+      >
+        {branding.avatarSrc ? (
+          <span className="block size-full overflow-hidden rounded-full ring-1 ring-hairline ring-inset">
+            {/* eslint-disable-next-line @next/next/no-img-element -- a static asset under `public/llm`, not a stored `media` row `next/image` would otherwise optimize */}
+            <img className="size-full object-cover" src={branding.avatarSrc} alt="" />
+          </span>
+        ) : (
+          <span className="flex size-full items-center justify-center rounded-full bg-primary-tint ring-1 ring-hairline ring-inset">
+            <Sparkles className="size-4 text-primary" strokeWidth={1.75} />
+          </span>
+        )}
+      </button>
+      {/* WARN: DESIGN.md § 6.11. A `max-width` and never `flex-1` — the same trap `assistant-message-row.tsx` carries. `w-fit` keeps the *bubble* compact, but a growing slot still stretches, which parks 중지 at the row's far edge instead of beside the bubble. The cap is what the finished `AssistantMessageRow` wraps at (its own `calc(100%-44px)` column less the `gap-2xs` and `w-[68px]` beside it), so the last streamed frame and the landed row wrap identically. */}
+      <div className="max-w-[calc(100%-116px)] min-w-0" aria-hidden>
+        <div className="w-fit max-w-full rounded-bubble rounded-tl-xs border border-hairline bg-bubble-theirs px-sm py-xs">
+          {isEmpty ? (
+            // INFO: Still bouncing would say the answer is coming; held still, the frozen dots are the tap's own answer while the provider unwinds.
+            <TypingDots dotClassName={cn(isCancelling && "animate-none")} />
+          ) : (
+            <MarkdownBody text={entry.text} />
+          )}
+        </div>
+      </div>
+      {/* INFO: `message-row.tsx`'s own `w-[68px]` timestamp column, reused so the control hugs the bubble instead of the row's far edge — `items-end` above bottom-aligns it the same way it bottom-aligns a bubble's timestamp. */}
+      <div className="flex w-[68px] shrink-0 justify-start">
+        {/* INFO: DESIGN.md § 6.3., § 8.10. `message-row.tsx`'s own hover pill, drawn permanently — 중지 is the only way to stop an answer, so it is never hover-gated the way 답장/공유 are. One button rather than two, so the pill sizes to it. */}
+        <div className="flex items-center gap-0.5 rounded-full border border-hairline bg-surface-soft px-1 py-0.5 shadow-raised">
+          {/* WARN: `buttonClassName` and not `className` — `haptic` moves the latter to the wrapper and leaves the button at its own 44px, which swells the pill (`icon-button.tsx`). `message-row.tsx`'s pill carries no `haptic`, so its `className` reaches the button. */}
+          <IconButton
+            buttonClassName="size-7"
+            iconClassName={cn("size-4", isCancelling && "animate-spin")}
+            Icon={isCancelling ? LoaderCircle : Square}
+            haptic
+            disabled={isCancelling}
+            aria-label={isCancelling ? "AI 응답 중지하는 중" : "AI 응답 중지"}
+            onClick={onCancel}
+          />
+        </div>
+      </div>
+    </div>
   );
 }

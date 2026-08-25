@@ -281,7 +281,6 @@
   --sheet-max-width: 576px;
   --content-max-width: 800px;
   --tab-bar-max-width: 576px;
-  --bubble-max-width: 360px;
   /* INFO: DESIGN.md § 7.3. The floating pill itself, excluding the gap it keeps from the shell's bottom edge. */
   --tab-bar-height: 56px;
   /* INFO: DESIGN.md § 7.3. How far the bar drops past the bottom edge on the way to 채팅, and deliberately several times its own height — a drop that ends the frame it clears the edge reads as a cut. */

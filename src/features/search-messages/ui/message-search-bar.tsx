@@ -1,6 +1,6 @@
 "use client";
 
-import { AppHeader, HapticTarget } from "@/shared/ui";
+import { AppHeader, HeaderTextButton } from "@/shared/ui";
 import { MessageSearchField } from "./message-search-field";
 
 export type MessageSearchBarProps = {
@@ -61,15 +61,9 @@ export function MessageSearchBar({
   // INFO: A word rather than a back arrow — it dismisses a mode rather than navigating anywhere, and 취소 is what iOS puts beside a search field.
   function renderCancel() {
     return (
-      <HapticTarget className="inline-flex shrink-0">
-        <button
-          className="shrink-0 cursor-pointer rounded-md px-2xs py-xs text-body-md text-meta outline-none group-active:text-ink hover:text-ink focus-visible:ring-2 focus-visible:ring-primary active:text-ink"
-          type="button"
-          onClick={onClose}
-        >
-          취소
-        </button>
-      </HapticTarget>
+      <HeaderTextButton haptic onClick={onClose}>
+        취소
+      </HeaderTextButton>
     );
   }
 }
