@@ -12,7 +12,6 @@ import { useWriteCalendarSnapshot } from "@/features/offline-snapshot";
 import {
   MAX_UPCOMING_EVENTS,
   SSE_SYNC_COALESCE_WINDOW,
-  UPCOMING_EVENTS_CEILING,
   UPCOMING_EVENTS_PAGE_SIZE,
 } from "@/shared/config";
 import {
@@ -174,9 +173,7 @@ export function CalendarPage({
   }, [refreshSummary]);
 
   // WARN: `isExpandingUpcoming` holds the button on screen. The limit steps on the press and the page lands a round trip later, so the summary in hand is briefly one page short (REQUIREMENTS.md § 11.5.1.).
-  const hasMoreUpcoming =
-    isExpandingUpcoming ||
-    (upcomingLimit < UPCOMING_EVENTS_CEILING && summary.upcoming.length > upcomingLimit);
+  const hasMoreUpcoming = isExpandingUpcoming || summary.upcoming.length > upcomingLimit;
 
   return (
     <TwoPane

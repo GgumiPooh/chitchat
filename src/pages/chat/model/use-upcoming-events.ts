@@ -4,24 +4,30 @@ import type { CalendarSummary, EventOccurrence } from "@/entities/event";
 import { fetchCalendarSummary } from "@/features/manage-event";
 import {
   MAX_UPCOMING_EVENTS,
+  SIDE_PANEL_UPCOMING_PAGE_SIZE,
   SSE_SYNC_COALESCE_WINDOW,
-  UPCOMING_EVENTS_CEILING,
 } from "@/shared/config";
 import { A_DAY, isImminent, nextTimeLeftChangeAt, type UserId } from "@/shared/lib";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isForReader } from "./is-for-reader";
 
 export type UpcomingEvents = {
+  /** REQUIREMENTS.md § 11.5.1. The side panel's rows — everything loaded, `SIDE_PANEL_UPCOMING_PAGE_SIZE` at a time. */
   occurrences: EventOccurrence[];
+  /** The floating card's rows — the same list cut at its own `MAX_UPCOMING_EVENTS` step. */
+  cardOccurrences: EventOccurrence[];
   todayKey: string;
   /** REQUIREMENTS.md § 11.5.1. Something of the reader's own starts within the day, which is what the header's bloom is saying. */
   isSoon: boolean;
   /** The clock the rows' countdowns are read against — `0` until it has been read on the client. */
   now: number;
   hasMore: boolean;
+  hasMoreCard: boolean;
   isLoadingMore: boolean;
-  /** Widens the page by another `MAX_UPCOMING_EVENTS`, up to `UPCOMING_EVENTS_CEILING`. */
+  /** Widens the side panel's page by another `SIDE_PANEL_UPCOMING_PAGE_SIZE`. */
   loadMore: () => void;
+  /** Widens the card by another `MAX_UPCOMING_EVENTS`, fetching only once it has outrun what the panel already holds. */
+  loadMoreCard: () => void;
   /** Refetches now, past the coalescing window — for a write this screen made itself. */
   reload: () => void;
 };
@@ -40,12 +46,13 @@ export function useUpcomingEvents(
   currentUserId: UserId,
 ): UpcomingEvents {
   const [summary, setSummary] = useState(initialSummary);
-  const [limit, setLimit] = useState(MAX_UPCOMING_EVENTS);
+  const [limit, setLimit] = useState(SIDE_PANEL_UPCOMING_PAGE_SIZE);
+  const [cardLimit, setCardLimit] = useState(MAX_UPCOMING_EVENTS);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   // WARN: `0` and never `Date.now()`. The clock is read in an effect so the server's HTML and the first client render agree — seeded here, the two disagree about the bloom whenever a hydration straddles the boundary.
   const [now, setNow] = useState(0);
   const lastFetchAt = useRef(0);
-  const loadedLimit = useRef(MAX_UPCOMING_EVENTS);
+  const loadedLimit = useRef(SIDE_PANEL_UPCOMING_PAGE_SIZE);
 
   const load = useCallback(async (nextLimit: number) => {
     lastFetchAt.current = Date.now();
@@ -110,8 +117,11 @@ export function useUpcomingEvents(
     return () => clearTimeout(timer);
   }, [changeAt]);
 
+  const hasBeyond = summary.upcoming.length > limit;
+
   return {
     occurrences: summary.upcoming.slice(0, limit),
+    cardOccurrences: summary.upcoming.slice(0, cardLimit),
     todayKey: summary.todayKey,
     // WARN: `now > 0` is the hydration guard, not a shortcut. Seeded at `0` every event is a year out, which is exactly what the server rendered.
     // INFO: § 11.5.1. The same set the panel opens itself for — the bloom is the header saying that panel has something in it for the reader.
@@ -122,12 +132,22 @@ export function useUpcomingEvents(
       ),
     now,
     // WARN: `isLoadingMore` holds it on screen. `limit` steps the instant 더 보기 is pressed and the page it asks for lands a round trip later, so the summary in hand is briefly one page short — read without this the button blinks out under the finger and comes back.
-    hasMore: isLoadingMore || (limit < UPCOMING_EVENTS_CEILING && summary.upcoming.length > limit),
+    hasMore: isLoadingMore || hasBeyond,
+    hasMoreCard: isLoadingMore || hasBeyond || summary.upcoming.length > cardLimit,
     isLoadingMore,
     // WARN: The flag is raised **here** and not in the effect that follows, so it batches with the step. Set a commit later, the render in between has a stepped `limit` under a summary that has not caught up, which is exactly the blink `hasMore` above guards against.
     loadMore: () => {
       setIsLoadingMore(true);
-      setLimit((current) => current + MAX_UPCOMING_EVENTS);
+      setLimit((current) => current + SIDE_PANEL_UPCOMING_PAGE_SIZE);
+    },
+    loadMoreCard: () => {
+      const next = cardLimit + MAX_UPCOMING_EVENTS;
+      setCardLimit(next);
+
+      if (next > limit) {
+        setIsLoadingMore(true);
+        setLimit(next);
+      }
     },
     reload,
   };

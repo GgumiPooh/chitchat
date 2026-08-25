@@ -1,17 +1,12 @@
 import { getCalendarSummary } from "@/entities/event";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { MAX_UPCOMING_EVENTS, UPCOMING_EVENTS_CEILING } from "@/shared/config";
+import { MAX_UPCOMING_EVENTS } from "@/shared/config";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 // INFO: REQUIREMENTS.md § 11.5.1. Clamped rather than validated into a 400 — the parameter only widens a summary the caller was getting anyway, so a nonsense one falls back to the card's own count.
-const upcomingSchema = z.coerce
-  .number()
-  .int()
-  .min(1)
-  .max(UPCOMING_EVENTS_CEILING + 1)
-  .catch(MAX_UPCOMING_EVENTS);
+const upcomingSchema = z.coerce.number().int().min(1).catch(MAX_UPCOMING_EVENTS);
 
 /**
  * REQUIREMENTS.md § 11.1. The D-day band, refetched when the tab regains focus so

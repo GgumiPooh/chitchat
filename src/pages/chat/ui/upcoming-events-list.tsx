@@ -12,6 +12,8 @@ export type UpcomingEventsListProps = {
   listClassName?: string;
   /** REQUIREMENTS.md § 11.5.1. Off where the list's height is already bounded by its column, as in the side panel — held there, the list never takes the room the column later grants it. */
   pinsHeight?: boolean;
+  /** REQUIREMENTS.md § 11.5.1. The side panel's mode — no 더 보기, the next page is asked for as the list's end scrolls into view. */
+  loadsOnScroll?: boolean;
   occurrences: EventOccurrence[];
   todayKey: string;
   /** REQUIREMENTS.md § 11.5.1. The clock the imminent rows count down against. */
@@ -31,6 +33,7 @@ export function UpcomingEventsList({
   className,
   listClassName,
   pinsHeight = true,
+  loadsOnScroll = false,
   occurrences,
   todayKey,
   now,
@@ -40,6 +43,7 @@ export function UpcomingEventsList({
   onSelect,
 }: UpcomingEventsListProps) {
   const listRef = useRef<HTMLUListElement>(null);
+  const sentinelRef = useRef<HTMLLIElement>(null);
   // INFO: How many rows stood before the page in flight was asked for — its first new row is that index.
   const pendingFrom = useRef<Nullable<number>>(null);
   // INFO: REQUIREMENTS.md § 11.5.1. The list's own height at the moment of the first 더 보기, held from then on.
@@ -68,6 +72,28 @@ export function UpcomingEventsList({
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
     });
   }, [isLoadingMore, occurrences.length]);
+
+  // WARN: Rooted on the list, not the viewport — the panel's column is `overflow-y-auto` above it, and against the viewport the sentinel is "visible" the moment the list mounts.
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const list = listRef.current;
+
+    if (!loadsOnScroll || !hasMore || isLoadingMore || !sentinel || !list) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          onLoadMore();
+        }
+      },
+      { root: list },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadsOnScroll, hasMore, isLoadingMore, onLoadMore]);
 
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
@@ -127,9 +153,14 @@ export function UpcomingEventsList({
               </li>
             );
           })}
+          {loadsOnScroll && hasMore && (
+            <li ref={sentinelRef} className="py-sm text-center text-caption text-meta" aria-hidden>
+              불러오는 중
+            </li>
+          )}
         </ul>
       )}
-      {hasMore && (
+      {!loadsOnScroll && hasMore && (
         <button
           className="flex w-full shrink-0 cursor-pointer items-center justify-center gap-2xs border-t border-hairline py-sm text-caption text-meta transition-colors outline-none hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-60"
           type="button"

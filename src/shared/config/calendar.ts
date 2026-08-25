@@ -72,11 +72,11 @@ export const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 /** DESIGN.md § 7.9. The upcoming list opens on this many events, on both screens. */
 export const MAX_UPCOMING_EVENTS = 3;
 
-// INFO: REQUIREMENTS.md § 11.5.1. 채팅's panel pages by the opening count; 캘린더's section pages by more, its rows being on the document rather than in a floating card.
+// INFO: REQUIREMENTS.md § 11.5.1. 채팅's card pages by the opening count; 캘린더's section pages by more, its rows being on the document rather than in a floating card.
 export const UPCOMING_EVENTS_PAGE_SIZE = 5;
 
-// WARN: A literal, because both step sequences have to land on it exactly — `3 + 3k` and `3 + 5k` meet at 18, and a ceiling either of them overshoots ends the list on a short page (REQUIREMENTS.md § 11.5.1.).
-export const UPCOMING_EVENTS_CEILING = 18;
+/** REQUIREMENTS.md § 11.5.1. 채팅's side panel opens on this many and scrolls for the rest, a page at a time. */
+export const SIDE_PANEL_UPCOMING_PAGE_SIZE = 20;
 
 /**
  * REQUIREMENTS.md § 11.5. The one query parameter a chat system notice taps

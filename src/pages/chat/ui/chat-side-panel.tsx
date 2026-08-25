@@ -104,6 +104,7 @@ export function ChatSidePanel({
         <UpcomingEventsList
           className="min-h-0 flex-1 overflow-y-auto"
           pinsHeight={false}
+          loadsOnScroll
           occurrences={occurrences}
           todayKey={todayKey}
           now={now}

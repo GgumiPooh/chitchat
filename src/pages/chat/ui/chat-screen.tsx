@@ -228,12 +228,12 @@ export function ChatScreen({
             <UpcomingEventsPanel
               className="lg:hidden"
               isOpen={isPanelOpen}
-              occurrences={upcoming.occurrences}
+              occurrences={upcoming.cardOccurrences}
               todayKey={upcoming.todayKey}
               now={upcoming.now}
-              hasMore={upcoming.hasMore}
+              hasMore={upcoming.hasMoreCard}
               isLoadingMore={upcoming.isLoadingMore}
-              onLoadMore={upcoming.loadMore}
+              onLoadMore={upcoming.loadMoreCard}
               onSelect={setDetailed}
               onClose={closeUpcoming}
             />
