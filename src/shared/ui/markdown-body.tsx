@@ -12,6 +12,12 @@ export type MarkdownBodyProps = {
 const MARKDOWN_CLASS_NAME = cn(
   "space-y-2xs text-chat-body text-bubble-ink",
   "[&_p]:[overflow-wrap:anywhere] [&_p]:whitespace-pre-wrap",
+  // INFO: DESIGN.md § 6.11. Three steps and no more — preflight resets every heading to the body's own size, and a bubble this narrow has room to say "heading" three ways before the smallest one lands under `chat-body` itself.
+  "[&_:is(h3,h4,h5,h6)]:font-semibold [&_h1]:text-display-sm [&_h2]:text-title-md",
+  // WARN: `!` because `space-y-2xs` on the wrapper writes the same `margin-top` at a specificity these arbitrary variants do not clear.
+  "[&_:is(h1,h2,h3,h4,h5,h6)]:mt-xs! [&_:is(h1,h2,h3,h4,h5,h6):first-child]:mt-0!",
+  // WARN: `border-hairline` is what tames it rather than what draws it — preflight already gives `hr` a 1px top border in `currentColor`, which inside a bubble is `bubble-ink` at full strength.
+  "[&_hr]:my-xs! [&_hr]:border-t [&_hr]:border-hairline",
   "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-primary-hover",
   "[&_ol]:list-decimal [&_ol]:space-y-2xs [&_ol]:pl-md [&_ul]:list-disc [&_ul]:space-y-2xs [&_ul]:pl-md",
   "[&_blockquote]:border-l-2 [&_blockquote]:border-hairline [&_blockquote]:pl-sm [&_blockquote]:text-meta",
