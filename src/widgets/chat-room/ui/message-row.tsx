@@ -30,7 +30,7 @@ import {
   type MediaCell,
 } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, CornerUpLeft, RotateCcw, Share, X } from "lucide-react";
+import { Clock, CornerUpLeft, Heart, RotateCcw, Share, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import { toLinkPreviewQuery } from "../model/link-preview-query";
 import { toSoloEmoticonBox } from "../model/to-emoticon-box";
@@ -85,6 +85,8 @@ export type MessageRowProps = {
   isLastOfGroup: boolean;
   /** REQUIREMENTS.md § 8.8. How many participants have yet to read this message. `0` draws nothing — the marker counts down and disappears rather than settling on a read state. */
   unreadCount?: number;
+  /** REQUIREMENTS.md § 8.8. How many participants could read it at all — a room of one reader draws the heart instead of the `1` it would otherwise count down from. */
+  readerTotal?: number;
   /** REQUIREMENTS.md § 8.13. The sender has corrected the text since sending it. */
   isEdited?: boolean;
   /** REQUIREMENTS.md § 8.13. Withdrawn by its sender. The bubble keeps its place and reads `삭제된 메시지예요`; every other prop but `createdAt` and the grouping flags is ignored. */
@@ -136,6 +138,7 @@ export function MessageRow({
   isFirstOfGroup,
   isLastOfGroup,
   unreadCount = 0,
+  readerTotal = 0,
   isEdited = false,
   isDeleted = false,
   isHighlighted = false,
@@ -446,14 +449,25 @@ export function MessageRow({
                   {isEdited && <span>수정됨</span>}
                   {/* INFO: REQUIREMENTS.md § 8.8. KakaoTalk's own marker — how many have yet to read it, gone entirely at zero rather than turning into a read state. `unread` is the token the tab-bar badge already uses (DESIGN.md § 4.1.4.), so the one number in the room that counts something live is the one thing here not in `chat-meta`. */}
                   {/* WARN: `tabular-nums` so a count that changes under the reader cannot change the line's width, and `aria-label` because a bare digit beside a bubble reads as nothing to a screen reader. */}
-                  {unreadCount > 0 && (
-                    <span
-                      className="text-unread tabular-nums"
-                      aria-label={`읽지 않음 ${unreadCount}`}
-                    >
-                      {unreadCount}
-                    </span>
-                  )}
+                  {unreadCount > 0 &&
+                    (readerTotal === 1 ? (
+                      // INFO: REQUIREMENTS.md § 8.8. One reader has no count to make — a `1` that only ever reads `1` is a heart, and it leaves at zero exactly as the digit did.
+                      // WARN: `h-[1lh]` so the marker is the same one `chat-time` line the digit was, which is what keeps § 8.3.'s estimate a `Number()` of a predicate.
+                      <span
+                        className="flex h-[1lh] items-center text-unread"
+                        role="img"
+                        aria-label="읽지 않음"
+                      >
+                        <Heart className="size-2.5 fill-current" strokeWidth={0} />
+                      </span>
+                    ) : (
+                      <span
+                        className="text-unread tabular-nums"
+                        aria-label={`읽지 않음 ${unreadCount}`}
+                      >
+                        {unreadCount}
+                      </span>
+                    ))}
                   {isLastOfGroup && <time dateTime={createdAt}>{formatTime(createdAt)}</time>}
                 </div>
                 {renderHoverActions()}

@@ -2825,6 +2825,7 @@ export function ChatRoom({
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
             unreadCount={countUnreadReaders(row.message)}
+            readerTotal={readerCursors.length}
             isEdited={row.message.editedAt !== null}
             isHighlighted={row.message.id === highlightedId}
             searchQuery={searchQuery}
