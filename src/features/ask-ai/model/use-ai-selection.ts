@@ -13,6 +13,8 @@ export type AiSelectionState = {
   selected: Set<MessageId>;
   /** Opens the mode with an empty selection. */
   enter: () => void;
+  /** REQUIREMENTS.md § 8.15. Opens the mode on one message, or adds it to a selection already up. */
+  askAbout: (id: MessageId) => void;
   /** Closes the mode and drops every selection. */
   exit: () => void;
   toggle: (id: MessageId) => void;
@@ -37,6 +39,14 @@ export function useAiSelection(messages: ChatMessage[]): AiSelectionState {
     startTransition(() => {
       setIsSelecting(true);
       setSelected(new Set());
+    });
+  }, []);
+
+  // INFO: REQUIREMENTS.md § 8.15. § 8.10.'s 답장 on an AI answer lands here instead of staging a quote — `selected` is empty whenever the mode is off (`exit`), so an entry needs no reset of its own.
+  const askAbout = useCallback((id: MessageId) => {
+    startTransition(() => {
+      setIsSelecting(true);
+      setSelected((current) => (current.has(id) ? current : new Set(current).add(id)));
     });
   }, []);
 
@@ -68,8 +78,8 @@ export function useAiSelection(messages: ChatMessage[]): AiSelectionState {
   }, [messages]);
 
   return useMemo(
-    () => ({ isSelecting, selected, enter, exit, toggle, clearAll, autoSelect }),
-    [isSelecting, selected, enter, exit, toggle, clearAll, autoSelect],
+    () => ({ isSelecting, selected, enter, askAbout, exit, toggle, clearAll, autoSelect }),
+    [isSelecting, selected, enter, askAbout, exit, toggle, clearAll, autoSelect],
   );
 }
 

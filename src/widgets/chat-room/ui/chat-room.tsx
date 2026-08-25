@@ -2816,7 +2816,7 @@ export function ChatRoom({
             onShare={
               canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
             }
-            onReply={() => stageReply(row.message)}
+            onFollowUp={() => stageReply(row.message)}
           />
         );
       }
@@ -3146,10 +3146,16 @@ export function ChatRoom({
     }
 
     const target = actionTarget;
-    // INFO: REQUIREMENTS.md § 8.10. First, and on the other person's messages as much as on my own — replying is the sheet's most-reached-for action, unlike copy.
+    // INFO: REQUIREMENTS.md § 8.10., § 8.15. First, and on the other person's messages as much as on my own — replying is the sheet's most-reached-for action, unlike copy. An AI answer names what its own 답장 does instead (`stageReply`).
+    const isAssistantReply = target.systemAction === "assistant_reply";
     const items: ActionSheetItem[] = [
       // INFO: `keepsFocus` for 수정's reason — `stageReply` hands the field the caret, and the sheet's close would take it straight back.
-      { label: "답장", Icon: CornerUpLeft, keepsFocus: true, onSelect: () => stageReply(target) },
+      {
+        label: isAssistantReply ? "이어서 질문" : "답장",
+        Icon: isAssistantReply ? Sparkles : CornerUpLeft,
+        keepsFocus: true,
+        onSelect: () => stageReply(target),
+      },
     ];
 
     // INFO: REQUIREMENTS.md § 8.15. An AI answer's `senderId` is the asker (§ 8.10.), so nothing below this line applies to it — 수정/삭제 read as though the asker could correct or withdraw 쨈미니's own words, and 이모티콘 따라하기 has nothing to key off since the row carries none.
@@ -3227,9 +3233,25 @@ export function ChatRoom({
    * optimistic bubble both draw from the row the user just pointed at.
    */
   function stageReply(message: ChatMessage) {
+    // INFO: REQUIREMENTS.md § 8.15. 답장 on an AI answer opens AI 질문 모드 on it instead of staging a quote — the answer is 쨈미니's own turn, so following it up is the next question.
+    if (message.systemAction === "assistant_reply") {
+      askFollowUp(message);
+
+      return;
+    }
+
     setReplyTarget(toReplyPreviewFor(message));
 
     // WARN: The node and not `focusComposer`'s token, for `typeIntoComposer`'s reason — a token is answered an effect later, and iOS raises the keyboard only for a `focus()` the pull's `pointerup` or the row's click still covers.
+    if (!isSearching) {
+      focusWithoutPan(composerFieldRef.current);
+    }
+  }
+
+  /** REQUIREMENTS.md § 8.15. AI 질문 모드 on the answer that was pulled or long-pressed, with it selected — the caret is taken by node for `stageReply`'s own reason. */
+  function askFollowUp(message: ChatMessage) {
+    aiSelection.askAbout(message.id);
+
     if (!isSearching) {
       focusWithoutPan(composerFieldRef.current);
     }

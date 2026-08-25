@@ -12,7 +12,7 @@ import {
   type Nullable,
 } from "@/shared/lib";
 import { IconButton, MarkdownBody } from "@/shared/ui";
-import { CornerUpLeft, Share, Sparkles } from "lucide-react";
+import { Share, Sparkles } from "lucide-react";
 import { toQuoteJumpHandler } from "../model/to-quote-jump-handler";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
 import { ReplyQuote } from "./reply-quote";
@@ -29,7 +29,8 @@ export type AssistantMessageRowProps = {
   onOpenReply?: () => void;
   /** REQUIREMENTS.md § 8.10. `MessageRow`'s own touch/pointer contract — a finished AI answer takes both exactly as a `theirs` text row does. */
   onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
-  onReply?: () => void;
+  /** REQUIREMENTS.md § 8.15. Where a `theirs` row stages a quote, an answer opens AI 질문 모드 on itself — the pull and the sheet both land here. */
+  onFollowUp?: () => void;
   onShare?: () => void;
 };
 
@@ -49,16 +50,16 @@ export function AssistantMessageRow({
   replyToHeading,
   onLongPress,
   onOpenReply,
-  onReply,
+  onFollowUp,
   onShare,
 }: AssistantMessageRowProps) {
   const { openLlmProfile } = useProfileViewer();
   const branding = toLlmProviderBranding(message.llmProvider);
   // WARN: REQUIREMENTS.md § 8.13. A withdrawn answer keeps its place as a tombstone and gives up every action along with its text — `isQuotable` refuses it anyway, so a 답장 offered here could only fail.
   const isDeleted = message.isDeleted;
-  const reply = isDeleted ? undefined : onReply;
+  const followUp = isDeleted ? undefined : onFollowUp;
   const share = isDeleted ? undefined : onShare;
-  const swipe = useSwipeToReply(reply, false);
+  const swipe = useSwipeToReply(followUp, false);
   const longPressHandlers = useLongPress(
     !isDeleted && onLongPress ? (point, anchor) => onLongPress(anchor, point) : undefined,
     { onFire: swipe.cancel },
@@ -90,7 +91,7 @@ export function AssistantMessageRow({
           "relative flex flex-col gap-2xs transition-[max-width] duration-(--duration-state) ease-out motion-reduce:transition-none",
           isSelecting ? "max-w-[calc(100%-84px)]" : "max-w-[calc(100%-44px)]",
           // WARN: `pan-y` — without it WebKit claims the horizontal gesture for its own back-navigation swipe and the pull never completes.
-          reply && "touch-pan-y",
+          followUp && "touch-pan-y",
           !swipe.isDragging && "transition-transform duration-200",
         )}
         style={{ transform: `translateX(${swipe.offset}px)` }}
@@ -135,7 +136,7 @@ export function AssistantMessageRow({
             <time
               className={cn(
                 "transition-opacity",
-                (reply || share) && "group-focus-within/row:opacity-0 group-hover/row:opacity-0",
+                (followUp || share) && "group-focus-within/row:opacity-0 group-hover/row:opacity-0",
               )}
               dateTime={message.createdAt}
             >
@@ -148,9 +149,9 @@ export function AssistantMessageRow({
     </div>
   );
 
-  /** @see MessageRow's own `renderPullIndicator` (DESIGN.md § 6.10.) — an assistant row is always `theirs`, so it pulls rightward exactly as one does. */
+  /** @see MessageRow's own `renderPullIndicator` (DESIGN.md § 6.10.) — an assistant row is always `theirs`, so it pulls rightward exactly as one does, on `ai` and a `Sparkles` since the release opens AI 질문 모드 rather than staging a quote (REQUIREMENTS.md § 8.15.). */
   function renderPullIndicator() {
-    if (!reply || swipe.offset === 0) {
+    if (!followUp || swipe.offset === 0) {
       return null;
     }
 
@@ -158,11 +159,11 @@ export function AssistantMessageRow({
       <span
         className={cn(
           "pointer-events-none absolute top-1/2 left-full ml-2xs flex size-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors",
-          swipe.isArmed ? "bg-primary text-on-primary" : "bg-surface-soft text-meta",
+          swipe.isArmed ? "bg-ai text-on-primary" : "bg-surface-soft text-meta",
         )}
         aria-hidden
       >
-        <CornerUpLeft className="size-4" strokeWidth={1.75} />
+        <Sparkles className="size-4" strokeWidth={1.75} />
       </span>
     );
   }
@@ -177,7 +178,7 @@ export function AssistantMessageRow({
    * **upward** instead of adding flow height.
    */
   function renderHoverActions() {
-    if (!reply && !share) {
+    if (!followUp && !share) {
       return null;
     }
 
@@ -188,13 +189,13 @@ export function AssistantMessageRow({
           "pointer-events-none opacity-0 transition-opacity group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100",
         )}
       >
-        {reply && (
+        {followUp && (
           <IconButton
             className="size-7"
             iconClassName="size-4"
-            Icon={CornerUpLeft}
-            aria-label="답장"
-            onClick={reply}
+            Icon={Sparkles}
+            aria-label="이어서 질문"
+            onClick={followUp}
           />
         )}
         {share && (
