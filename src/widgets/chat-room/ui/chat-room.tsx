@@ -763,6 +763,24 @@ export function ChatRoom({
     () => buildChatRows({ messages, pending, currentUserId }),
     [messages, pending, currentUserId],
   );
+  /**
+   * REQUIREMENTS.md § 8.3. What `getItemKey`'s identity turns over on — the row keys
+   * themselves, joined.
+   *
+   * WARN: `virtual-core` memoizes the whole measurement pass on `(count, …, getItemKey,
+   * itemSizeCacheVersion)`, and a § 8.13. revision changes a row's key with its **index
+   * standing still**. Neither term moves, so nothing recomputes: the measurements keep
+   * the size of the state the row has left. It is invisible the first time — the new key
+   * has no cached size, so measuring it bumps the version and that recomputes — and wrong
+   * every time after, since the key has been measured before and the same size sets
+   * nothing. § 8.17.'s second fold was a one-line bubble with the whole answer's height
+   * still reserved under it, and the row below painted on top of it.
+   *
+   * WARN: The keys and never `rows` itself. `pending` takes a new identity on every
+   * upload-progress tick, and turning the memo over on that re-estimates every unmeasured
+   * row in the history — the cost the stable identity exists to avoid.
+   */
+  const rowKeySignature = useMemo(() => rows.map((row) => row.key).join("\u0000"), [rows]);
   // INFO: REQUIREMENTS.md § 8.8. Every participant's cursor but my own, which the § 8.4. stream already keeps current — the count lands without a request of its own.
   // INFO: Resolved once rather than per row: the count is a fold over this array, and it is the same array for every bubble in the room.
   const readerCursors = useMemo(
@@ -854,7 +872,12 @@ export function ChatRoom({
   estimateContextRef.current = estimateContext;
 
   // WARN: Indexed defensively. `indexFromElement` answers `-1` for an element it finds no `data-index` on, and both the library's own `measureElement` and the override below hand that straight back here — `rows[-1].key` would throw out of the render phase and take the whole surface down where the library only meant to warn.
-  const getItemKey = useCallback((index: number) => keyedRowsRef.current[index]?.key ?? index, []);
+  // WARN: § 8.3. `rowKeySignature` is the whole dependency and is deliberately unread in the body — see its own comment. Identity here is the library's only signal that a row's key moved under a standing index.
+
+  const getItemKey = useCallback(
+    (index: number) => keyedRowsRef.current[index]?.key ?? index,
+    [rowKeySignature],
+  );
   const estimateSize = useCallback((index: number) => {
     const row = keyedRowsRef.current[index];
 
