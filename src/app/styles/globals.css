@@ -212,6 +212,8 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
 
 /* WARN: DESIGN.md § 3.4. The chat screen's own height transition, spelled out again — the two cancel only while they share a curve, a duration and the token that holds both at `0s` until the viewport has been measured. */
 @utility chat-clearance {
+  /* WARN: REQUIREMENTS.md § 13.6. Declared on the room, where both halves are set — the seed in `theme.css` is a seed and nothing more (see the note there). */
+  --chat-bottom-gap: calc(var(--chat-composer-gap) + var(--chat-composer-spacer));
   transition-property: --chat-composer-spacer;
   transition-duration: var(--viewport-settle-duration);
   transition-timing-function: var(--ease-out);

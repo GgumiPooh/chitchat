@@ -318,8 +318,8 @@
   /* WARN: DESIGN.md § 6.6. `useComposerClearance` overwrites this on the chat container one frame after mount; without the default here the list's trailing spacer is invalid until then and the first bottom-anchored paint parks the newest message behind the composer. */
   /* INFO: REQUIREMENTS.md § 13.6. The composer stack **above** its spacer, which is all that is left to measure — the field auto-grows and the bars come and go, neither of which any stylesheet knows. */
   --chat-composer-gap: 0px;
-  /* WARN: § 13.6. The spacer half is `--chat-composer-spacer` (globals.css) and never a measurement, so it eases on the same clock as the chat screen's height and the two cancel exactly through a keyboard ↔ sheet swap. */
-  --chat-bottom-gap: calc(var(--chat-composer-gap) + var(--chat-composer-spacer));
+  /* WARN: § 13.6. The seed only. The sum of the two halves above is declared on the room itself (`chat-clearance`, globals.css) and MUST NOT be moved here — a `var()` inside a custom property is substituted where it is *declared*, so written on `:root` this inherits `calc(0px + 0px)` into a room that then draws its newest message behind the composer whatever it publishes. */
+  --chat-bottom-gap: 0px;
   /* INFO: REQUIREMENTS.md § 13.6. The 검색 / 이모티콘 / 미니 menu bar, which every menu draws above its own second region. */
   /* WARN: The whole region and **not** the track drawn in it — the 24 segment, the track's own padding, and the margins above and below it. Written to the track alone the panel is short by that last term and the grid below is clipped by exactly as much. */
   /* INFO: The margins are 6 and 2 rather than 4 and 4 (see the track in `emoticon-picker.tsx`), which is why they are one `xs` here rather than two more `2xs`. */
