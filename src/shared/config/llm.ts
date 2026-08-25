@@ -95,11 +95,13 @@ const llmStreamEventBase = {
 export const llmStreamEventSchema = z.discriminatedUnion("type", [
   // INFO: Published the moment a request is admitted to the queue, before the advisory lock is even requested — a client waiting behind another question renders 대기 중 off this rather than off silence.
   z.object({ type: z.literal("queued"), ...llmStreamEventBase }),
+  // INFO: `seq` is the one the attempt's first `delta` will carry — the counter runs across the whole run, so a fallback's `start` does not restart it at 0 and a client must not either.
   z.object({
     type: z.literal("start"),
     ...llmStreamEventBase,
     provider: z.string(),
     model: z.string().optional(),
+    seq: z.number().int().nonnegative().optional(),
   }),
   // INFO: `seq` orders deltas that a slow client's `pg_notify` delivery can reorder in transit.
   z.object({

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChatMessage } from "@/entities/message";
-import { toLlmProviderBranding } from "@/shared/config";
+import { DELETED_MESSAGE_TEXT, toLlmProviderBranding } from "@/shared/config";
 import { cn, formatTime } from "@/shared/lib";
 import { MarkdownBody } from "@/shared/ui";
 import { Sparkles } from "lucide-react";
@@ -38,8 +38,14 @@ export function MirrorAssistantRow({ className, message }: MirrorAssistantRowPro
       <div className="flex min-w-0 flex-1 flex-col gap-2xs">
         <span className="px-2xs text-chat-name text-chat-sender">{branding.name}</span>
         <div className="flex items-end gap-2xs">
-          <div className="min-w-0 flex-1 rounded-bubble rounded-tl-xs border border-hairline bg-bubble-theirs px-sm py-xs select-text">
-            <MarkdownBody text={message.text ?? ""} />
+          <div
+            className={cn(
+              "min-w-0 flex-1 rounded-bubble rounded-tl-xs border border-hairline bg-bubble-theirs px-sm py-xs select-text",
+              // INFO: DESIGN.md § 6.2.1. `MirrorChatRow`'s own tombstone treatment, for the same withdrawn answer `AssistantMessageRow` draws in the live room.
+              message.isDeleted && "text-bubble-ink/55 italic select-none",
+            )}
+          >
+            {message.isDeleted ? DELETED_MESSAGE_TEXT : <MarkdownBody text={message.text ?? ""} />}
           </div>
           <div className="flex w-14 shrink-0 flex-col items-end text-chat-time whitespace-nowrap text-chat-meta">
             <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>

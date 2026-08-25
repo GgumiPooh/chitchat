@@ -111,7 +111,12 @@ export function useActiveGenerations(): ActiveGenerations {
             text: "",
           };
 
-          streamsRef.current.set(event.streamId, { entry, nextSeq: 0, pendingDeltas: new Map() });
+          // WARN: The event's own `seq`, never a flat `0` — a re-published `start` is an attempt that carries on from the run's counter, and a buffer reset to 0 holds every delta of it forever.
+          streamsRef.current.set(event.streamId, {
+            entry,
+            nextSeq: event.seq ?? 0,
+            pendingDeltas: new Map(),
+          });
           commit();
 
           return;

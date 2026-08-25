@@ -18,12 +18,13 @@ export function splitByByteBudget(
   while (start < text.length) {
     let end = text.length;
 
-    while (measure(text.slice(start, end)) > maxBytes) {
+    // WARN: One unit of progress is the floor, whatever the budget says. A `maxBytes` too small for a single character would otherwise walk `end` past `start` forever, measuring `""` against a budget it cannot meet — a hung request rather than an oversized chunk.
+    while (end > start + 1 && measure(text.slice(start, end)) > maxBytes) {
       end -= 1;
     }
 
     // WARN: A UTF-16 surrogate pair split across two chunks turns one emoji into two replacement characters on the wire.
-    if (end < text.length && isHighSurrogate(text.charCodeAt(end - 1))) {
+    if (end < text.length && end > start + 1 && isHighSurrogate(text.charCodeAt(end - 1))) {
       end -= 1;
     }
 

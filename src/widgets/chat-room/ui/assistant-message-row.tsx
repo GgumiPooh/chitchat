@@ -2,7 +2,7 @@
 
 import type { ChatMessage } from "@/entities/message";
 import { useProfileViewer } from "@/features/view-profile";
-import { toLlmProviderBranding } from "@/shared/config";
+import { DELETED_MESSAGE_TEXT, toLlmProviderBranding } from "@/shared/config";
 import {
   cn,
   formatTime,
@@ -43,9 +43,13 @@ export function AssistantMessageRow({
 }: AssistantMessageRowProps) {
   const { openLlmProfile } = useProfileViewer();
   const branding = toLlmProviderBranding(message.llmProvider);
-  const swipe = useSwipeToReply(onReply, false);
+  // WARN: REQUIREMENTS.md § 8.13. A withdrawn answer keeps its place as a tombstone and gives up every action along with its text — `isQuotable` refuses it anyway, so a 답장 offered here could only fail.
+  const isDeleted = message.isDeleted;
+  const reply = isDeleted ? undefined : onReply;
+  const share = isDeleted ? undefined : onShare;
+  const swipe = useSwipeToReply(reply, false);
   const longPressHandlers = useLongPress(
-    onLongPress ? (point, anchor) => onLongPress(anchor, point) : undefined,
+    !isDeleted && onLongPress ? (point, anchor) => onLongPress(anchor, point) : undefined,
     { onFire: swipe.cancel },
   );
 
@@ -75,7 +79,7 @@ export function AssistantMessageRow({
           "relative flex flex-col gap-2xs transition-[max-width] duration-(--duration-state) ease-out motion-reduce:transition-none",
           isSelecting ? "max-w-[calc(100%-84px)]" : "max-w-[calc(100%-44px)]",
           // WARN: `pan-y` — without it WebKit claims the horizontal gesture for its own back-navigation swipe and the pull never completes.
-          onReply && "touch-pan-y",
+          reply && "touch-pan-y",
           !swipe.isDragging && "transition-transform duration-200",
         )}
         style={{ transform: `translateX(${swipe.offset}px)` }}
@@ -90,11 +94,13 @@ export function AssistantMessageRow({
             <div
               className={cn(
                 "w-fit max-w-full rounded-bubble rounded-tl-xs border border-hairline bg-bubble-theirs px-sm py-xs select-text",
+                // INFO: DESIGN.md § 6.2.1. `MessageRow`'s own tombstone treatment — the bubble keeps its shape and side and gives up its ink.
+                isDeleted && "text-bubble-ink/55 italic select-none",
                 LONG_PRESS_TARGET_CLASS,
               )}
               {...longPressHandlers}
             >
-              <MarkdownBody text={message.text ?? ""} />
+              {isDeleted ? DELETED_MESSAGE_TEXT : <MarkdownBody text={message.text ?? ""} />}
             </div>
           </div>
           {/* WARN: DESIGN.md § 6.3. `relative`, and always rendered — the § 8.10./§ 8.11. pill overlays this exact box (`renderHoverActions`) in place of the timestamp on hover, rather than sitting beside it. */}
@@ -102,8 +108,7 @@ export function AssistantMessageRow({
             <time
               className={cn(
                 "transition-opacity",
-                (onReply || onShare) &&
-                  "group-focus-within/row:opacity-0 group-hover/row:opacity-0",
+                (reply || share) && "group-focus-within/row:opacity-0 group-hover/row:opacity-0",
               )}
               dateTime={message.createdAt}
             >
@@ -118,7 +123,7 @@ export function AssistantMessageRow({
 
   /** @see MessageRow's own `renderPullIndicator` (DESIGN.md § 6.10.) — an assistant row is always `theirs`, so it pulls rightward exactly as one does. */
   function renderPullIndicator() {
-    if (!onReply || swipe.offset === 0) {
+    if (!reply || swipe.offset === 0) {
       return null;
     }
 
@@ -145,7 +150,7 @@ export function AssistantMessageRow({
    * **upward** instead of adding flow height.
    */
   function renderHoverActions() {
-    if (!onReply && !onShare) {
+    if (!reply && !share) {
       return null;
     }
 
@@ -156,22 +161,22 @@ export function AssistantMessageRow({
           "pointer-events-none opacity-0 transition-opacity group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100",
         )}
       >
-        {onReply && (
+        {reply && (
           <IconButton
             className="size-7"
             iconClassName="size-4"
             Icon={CornerUpLeft}
             aria-label="답장"
-            onClick={onReply}
+            onClick={reply}
           />
         )}
-        {onShare && (
+        {share && (
           <IconButton
             className="size-7"
             iconClassName="size-4"
             Icon={Share}
             aria-label="공유"
-            onClick={onShare}
+            onClick={share}
           />
         )}
       </div>

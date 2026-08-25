@@ -86,15 +86,7 @@ export async function runGeneration({
       continue;
     }
 
-    markGenerationRunning(streamId, agent.provider, agent.model);
-    await publishStreamEvent({
-      type: "start",
-      streamId,
-      questionClientMsgId,
-      userId: askerId,
-      provider: agent.provider,
-      model: agent.model,
-    });
+    await startAttempt(streamId, questionClientMsgId, askerId, agent, seqRef);
 
     try {
       const text = await streamWithThinkingFallback(
@@ -102,6 +94,7 @@ export async function runGeneration({
         questionClientMsgId,
         askerId,
         provider,
+        agent,
         {
           model: agent.model,
           apiKey: agent.apiKey,
@@ -249,6 +242,7 @@ async function streamWithThinkingFallback(
   questionClientMsgId: string,
   askerId: UserId,
   provider: LlmProvider,
+  agent: LlmAgent,
   params: StreamAnswerParams,
   isCancelled: () => boolean,
   seqRef: SeqRef,
@@ -265,6 +259,9 @@ async function streamWithThinkingFallback(
     );
   } catch (error) {
     if (params.thinking && isThinkingRejectedError(error)) {
+      // WARN: A second attempt is a second `start`, exactly as the agent chain's own is. `streamAndPublish` restarts its `fullText` at `""`, so without this the registry and every live bubble keep the rejected attempt's fragment and append this one under it — while the row actually inserted carries this attempt alone.
+      await startAttempt(streamId, questionClientMsgId, askerId, agent, seqRef);
+
       return await streamAndPublish(
         streamId,
         questionClientMsgId,
@@ -278,6 +275,31 @@ async function streamWithThinkingFallback(
 
     throw error;
   }
+}
+
+/**
+ * Opens one agent attempt: the registry drops whatever a previous attempt
+ * streamed, and every client is told to do the same.
+ *
+ * WARN: `seq` rides along because the counter is the run's, not the attempt's — a client that reset its reorder buffer to 0 here would hold every delta of this attempt forever, since they carry on from where the last one stopped.
+ */
+async function startAttempt(
+  streamId: string,
+  questionClientMsgId: string,
+  askerId: UserId,
+  agent: LlmAgent,
+  seqRef: SeqRef,
+): Promise<void> {
+  markGenerationRunning(streamId, agent.provider, agent.model);
+  await publishStreamEvent({
+    type: "start",
+    streamId,
+    questionClientMsgId,
+    userId: askerId,
+    provider: agent.provider,
+    model: agent.model,
+    seq: seqRef.current,
+  });
 }
 
 /**
@@ -325,6 +347,7 @@ async function streamAndPublish(
 
       appendGenerationChunk(streamId, chunkSeq, chunk);
 
+      // WARN: Each publish carries its own `catch`. A rejected link would skip every `then` queued behind it — the rest of the answer silently never published — and, on the throwing path, surface as an unhandled rejection that takes the process down.
       pendingPublishes = pendingPublishes.then(() =>
         publishStreamEvent({
           type: "delta",
@@ -333,6 +356,8 @@ async function streamAndPublish(
           userId: askerId,
           seq: chunkSeq,
           text: chunk,
+        }).catch((error: unknown) => {
+          console.error("[ask-ai] failed to publish a delta", error);
         }),
       );
     }
@@ -357,9 +382,9 @@ async function streamAndPublish(
   } finally {
     // WARN: Also reached when `provider.streamAnswer` throws mid-stream (an abort, most often) — without this the last unflushed buffer never reaches the registry, and a caller reading it back after the catch below finds less than was actually generated.
     flush();
+    // WARN: Drained here and not after the `try`, so the throwing path waits too — its caller publishes `end` immediately, and a delta still in flight would then land on a bubble the client has already retired.
+    await pendingPublishes;
   }
-
-  await pendingPublishes;
 
   return fullText;
 }

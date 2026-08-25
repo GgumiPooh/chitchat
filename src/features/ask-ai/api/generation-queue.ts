@@ -55,6 +55,7 @@ export async function runQueuedGeneration({
 
   try {
     // WARN: Registered before the `queued` event publishes, for the same reason the SSE stream registers its own `LISTEN` before its replay query — a cancel sent the instant after `queued` reaches the client must not land in the gap.
+    // INFO: `postgres.js` gives `listen()` a dedicated `max: 1` connection of its own, so a cancel is delivered while this session is still blocked inside the advisory lock below — no round trip here has to make room for it.
     await session.listen(LLM_CANCEL_CHANNEL, (payload) => {
       const cancel = llmCancelEventSchema.safeParse(safelyGet(() => JSON.parse(payload)));
 
@@ -69,9 +70,6 @@ export async function runQueuedGeneration({
 
     // WARN: Blocks server-side until granted — this is the FIFO. `maxDuration` on the route is what bounds how long an invocation may sit here.
     await session`select pg_advisory_lock(${LLM_GENERATION_LOCK_KEY}::bigint)`;
-
-    // WARN: Postgres delivers a `NOTIFY` to a connection only when that connection's backend goes idle — one sent while this session was blocked inside `pg_advisory_lock` is queued server-side and reaches `postgres.js` only once the lock query's own response has been read, possibly a tick after that `await` above already resolved. This throwaway round trip on the same session forces that idle moment before `isCancelled` is trusted.
-    await session`select 1`;
 
     const isCancelled = () =>
       cancelledWhileWaiting || Boolean(getGenerationSnapshot(streamId)?.cancelled);
