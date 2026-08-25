@@ -129,7 +129,10 @@ export { isIos, useIsIos } from "./hooks/use-is-ios";
 export { useIsOffline } from "./hooks/use-is-offline";
 export { isStandalone, useIsStandalone } from "./hooks/use-is-standalone";
 export {
+  KEYBOARD_OVERLAID_ATTRIBUTE,
   MIN_KEYBOARD_HEIGHT,
+  VIEWPORT_QUIET_WINDOW,
+  useIsViewportSettling,
   useIsVirtualKeyboardOpen,
 } from "./hooks/use-is-virtual-keyboard-open";
 export { useIsomorphicLayoutEffect } from "./hooks/use-isomorphic-layout-effect";

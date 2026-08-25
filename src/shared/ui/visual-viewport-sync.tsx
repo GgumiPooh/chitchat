@@ -1,6 +1,13 @@
 "use client";
 
-import { MIN_KEYBOARD_HEIGHT, isEditableElement, safelyGet, safelyRun } from "@/shared/lib";
+import {
+  KEYBOARD_OVERLAID_ATTRIBUTE,
+  MIN_KEYBOARD_HEIGHT,
+  VIEWPORT_QUIET_WINDOW,
+  isEditableElement,
+  safelyGet,
+  safelyRun,
+} from "@/shared/lib";
 import { useEffect } from "react";
 
 const HEIGHT_PROPERTY = "--viewport-height";
@@ -37,6 +44,7 @@ export function VisualViewportSync() {
     }
 
     let frame = 0;
+    let settleTimer: ReturnType<typeof setTimeout>;
     let restingHeight = viewport.height;
     let keyboardHeight = 0;
     // WARN: As `useIsVirtualKeyboardOpen` is gated — a desktop window resized while a field is focused is a drop past the threshold too, and it would be remembered as a keyboard.
@@ -53,6 +61,7 @@ export function VisualViewportSync() {
 
     return () => {
       cancelAnimationFrame(frame);
+      clearTimeout(settleTimer);
       viewport.removeEventListener("resize", sync);
       viewport.removeEventListener("scroll", syncPan);
       root.style.removeProperty(HEIGHT_PROPERTY);
@@ -91,7 +100,11 @@ export function VisualViewportSync() {
 
       root.style.setProperty(HEIGHT_PROPERTY, `${height}px`);
       // WARN: DESIGN.md § 3.4. Held while a field is focused rather than the largest height seen at this width — Safari's toolbar collapses on the document-scrolling screens and chat never sees that height, so a maximum left the chat screen a toolbar too tall once the keys went down.
-      if (!isEditableElement(document.activeElement)) {
+      // WARN: REQUIREMENTS.md § 13.6. Held through an overlaid swap too, and the focus test cannot cover it: the emoticon toggle blurs the field *before* the keys start sliding, so every mid-slide height was recorded as a resting one and the screen pinned to this chased the keyboard it is held clear of.
+      if (
+        !isEditableElement(document.activeElement) &&
+        !root.hasAttribute(KEYBOARD_OVERLAID_ATTRIBUTE)
+      ) {
         restingHeight = height;
         root.style.setProperty(RESTING_HEIGHT_PROPERTY, `${height}px`);
       }
@@ -99,12 +112,13 @@ export function VisualViewportSync() {
       const drop = restingHeight - height;
 
       // INFO: The keys slide up in coarse steps, so the running maximum of one open is what settles on their full height; a drop under the threshold is a toolbar, not a keyboard.
+      // WARN: REQUIREMENTS.md § 13.6. Published once the viewport has gone quiet, never per step. The emoticon sheet rests at this height and stays open for the whole of a closing swap, so a step of the rise written straight out lands as a sheet that shrinks to 170px and grows back with the composer riding on it.
       if (!hasVirtualKeyboard || drop <= MIN_KEYBOARD_HEIGHT) {
         keyboardHeight = 0;
       } else if (drop > keyboardHeight) {
         keyboardHeight = drop;
-        root.style.setProperty(KEYBOARD_HEIGHT_PROPERTY, `${drop}px`);
-        safelyRun(() => localStorage.setItem(KEYBOARD_HEIGHT_KEY, String(drop)));
+        clearTimeout(settleTimer);
+        settleTimer = setTimeout(publishKeyboardHeight, VIEWPORT_QUIET_WINDOW);
       }
 
       root.style.setProperty(TOP_PROPERTY, `${offsetTop}px`);
@@ -115,6 +129,16 @@ export function VisualViewportSync() {
         `${Math.max(root.clientHeight - offsetTop - height, 0)}px`,
       );
       root.setAttribute(SYNCED_ATTRIBUTE, "");
+    }
+
+    // WARN: The guard is the keys having gone down inside the quiet window, which resets the maximum to `0` — published, that is a sheet of no height at all.
+    function publishKeyboardHeight() {
+      if (keyboardHeight <= MIN_KEYBOARD_HEIGHT) {
+        return;
+      }
+
+      root.style.setProperty(KEYBOARD_HEIGHT_PROPERTY, `${keyboardHeight}px`);
+      safelyRun(() => localStorage.setItem(KEYBOARD_HEIGHT_KEY, String(keyboardHeight)));
     }
   }, []);
 

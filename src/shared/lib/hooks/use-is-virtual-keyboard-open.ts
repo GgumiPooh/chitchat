@@ -1,11 +1,53 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { A_SECOND } from "../date/time";
 import { isEditableElement } from "../dom/environment";
 import { useIsCoarsePointer } from "./use-is-coarse-pointer";
 
 // INFO: A collapsing address bar shrinks the viewport by roughly 60–80px; only a larger drop can be a keyboard.
 export const MIN_KEYBOARD_HEIGHT = 160;
+
+// INFO: DESIGN.md § 3.4. Published by the chat room while the emoticon sheet stands in the keyboard's slot; `VisualViewportSync` holds the resting height for as long as it is up.
+export const KEYBOARD_OVERLAID_ATTRIBUTE = "data-keyboard-overlaid";
+
+// INFO: REQUIREMENTS.md § 13.6. How long the visual viewport must go quiet before a keyboard animation counts as finished — neither engine reports the end of one.
+// WARN: Not shorter. WebKit reports the slide in a handful of coarse steps, and a window narrower than the gap between two of them settles in the middle of the keyboard's move — which is the early end this exists to remove.
+export const VIEWPORT_QUIET_WINDOW = A_SECOND / 5;
+
+/**
+ * Whether the visual viewport is still moving — a keyboard mid-slide, up or down.
+ * The keyboard flag alone flips at `MIN_KEYBOARD_HEIGHT`, which is several frames
+ * before the keys have arrived (REQUIREMENTS.md § 13.6.).
+ */
+export function useIsViewportSettling(): boolean {
+  const [isSettling, setIsSettling] = useState(false);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+
+    if (!viewport) {
+      return;
+    }
+
+    let timer: ReturnType<typeof setTimeout>;
+
+    viewport.addEventListener("resize", sync);
+
+    return () => {
+      clearTimeout(timer);
+      viewport.removeEventListener("resize", sync);
+    };
+
+    function sync() {
+      setIsSettling(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setIsSettling(false), VIEWPORT_QUIET_WINDOW);
+    }
+  }, []);
+
+  return isSettling;
+}
 
 /**
  * Whether the on-screen keyboard is currently covering part of the viewport.

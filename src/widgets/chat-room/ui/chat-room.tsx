@@ -70,6 +70,8 @@ import {
 import {
   A_SECOND,
   GESTURE_SLOP,
+  KEYBOARD_OVERLAID_ATTRIBUTE,
+  VIEWPORT_QUIET_WINDOW,
   buildFadeMask,
   cn,
   compareId,
@@ -86,6 +88,7 @@ import {
   stopVoice,
   subscribeDormancy,
   useIsFinePointer,
+  useIsViewportSettling,
   useIsVirtualKeyboardOpen,
   useIsomorphicLayoutEffect,
   useMessageSound,
@@ -275,10 +278,8 @@ const LIST_HEADER_HEIGHT = 40;
 
 // INFO: Rows here run from a 44px bubble to a 363px photo, so this is counted generously — eight of the tall ones is roughly the 600px of runway a flick covers before the next frame.
 const OVERSCAN_ROWS = 8;
-// INFO: DESIGN.md § 3.4. Read by `theme.css` as `BottomOverlay`'s `data-keyboard-open` is — it switches `--chat-screen-height` to the resting viewport.
-const KEYBOARD_OVERLAID_ATTRIBUTE = "data-keyboard-overlaid";
-// INFO: § 13.6. Longer than the ~250ms the keys take to rise, so the flag and not the timer is what ends a closing swap on a phone.
-const SHEET_SWAP_TIMEOUT = A_SECOND / 2;
+// INFO: § 13.6. Longer than the ~250ms the keys take to rise plus the quiet window that reports them arrived, so the viewport and not the timer is what ends a closing swap on a phone.
+const SHEET_SWAP_TIMEOUT = A_SECOND / 2 + VIEWPORT_QUIET_WINDOW;
 
 // INFO: REQUIREMENTS.md § 8.6.1. How many frames a jump may re-assert its offset over while the rows around it are measured. Six spans WebKit's post-paint `ResizeObserver` deliveries — the first lands a frame late and the correction it causes brings a second — and the loop stops early the moment two asserts resolve to the same offset.
 const JUMP_SETTLE_FRAMES = 6;
@@ -569,6 +570,8 @@ export function ChatRoom({
   // WARN: The media branch only. § 8.11. hands text straight to `navigator.share` with nothing fetched, so a text message shares perfectly well with no network — gating the label outright would refuse the one case that works.
   const shareGate = useOfflineGate(OFFLINE_MESSAGES.share);
   const isKeyboardOpen = useIsVirtualKeyboardOpen();
+  // INFO: § 13.6. Whether the keys are still moving, which is what ends a swap — see the tests below.
+  const isViewportSettling = useIsViewportSettling();
   // INFO: REQUIREMENTS.md § 8.14. Whether there is a keyboard to type at, which is what holds § 8.14.'s type-ahead and its paste to the desktop.
   const isFinePointer = useIsFinePointer();
   // INFO: REQUIREMENTS.md § 8.6. The composer's whole stack is put away for the length of a search, and everything it drives has to go with it.
@@ -589,9 +592,10 @@ export function ChatRoom({
   const collapseTimerRef = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
 
   // INFO: § 13.6. An opening swap ends when the keys are down, a closing one when they are up — and the sheet closes only then, so the keys rise over it and the two 200ms eases cancel.
-  if (sheetSwap === "opening" && !isKeyboardOpen) {
+  // WARN: § 13.6. The settle is half of each test and not decoration. `isKeyboardOpen` flips at `MIN_KEYBOARD_HEIGHT`, several frames before the keys have arrived, so the screen came off the resting height with that much of the slide still to play and re-eased the remainder under the composer.
+  if (sheetSwap === "opening" && !isKeyboardOpen && !isViewportSettling) {
     setSheetSwap(null);
-  } else if (sheetSwap === "closing" && isKeyboardOpen) {
+  } else if (sheetSwap === "closing" && isKeyboardOpen && !isViewportSettling) {
     setSheetSwap(null);
     closeEmoticonPanel();
   }
