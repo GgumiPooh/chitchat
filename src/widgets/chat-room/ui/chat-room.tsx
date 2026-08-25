@@ -184,6 +184,7 @@ import { EditBar } from "./edit-bar";
 import { findChatMediaCell } from "./media-grid";
 import { MessageRow } from "./message-row";
 import { ReplyBar } from "./reply-bar";
+import { ReplyQuote } from "./reply-quote";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
 import { SELECTION_TRANSITION_SETTLE, SelectableRow } from "./selectable-row";
 import { ShortcutHelp } from "./shortcut-help";
@@ -762,6 +763,12 @@ export function ChatRoom({
       url ? (queryClient.getQueryData(toLinkPreviewQuery(url).queryKey) ?? undefined) : undefined,
     [queryClient],
   );
+  // INFO: REQUIREMENTS.md § 8.15. Which bubble the streaming answer belongs to — `questionClientMsgId` names a row the asker sent moments ago, so it is on screen unless the reader has scrolled the page holding it out of the window.
+  const questionMessage = primaryGeneration
+    ? messages.find(({ clientMsgId }) => clientMsgId === primaryGeneration[1].questionClientMsgId)
+    : undefined;
+  // WARN: Below `readPreview` and not beside `primaryGeneration`, because `toReplyPreviewFor` reads it during render — hoisted or not, the `const` above is still in its temporal dead zone up there.
+  const streamedQuestion = questionMessage ? toReplyPreviewFor(questionMessage) : undefined;
   /**
    * REQUIREMENTS.md § 8.3. What the sends in flight are carrying, in the shape the page's
    * own map has — the estimate's second place to look for a box.
@@ -1691,6 +1698,13 @@ export function ChatRoom({
                 aiRowRef={aiRowRef}
                 primaryGeneration={primaryGeneration}
                 queuedGenerationCount={queuedGenerationCount}
+                replyTo={streamedQuestion}
+                replyToHeading={streamedQuestion ? toQuoteHeadingFor(streamedQuestion) : undefined}
+                onOpenReply={
+                  streamedQuestion
+                    ? () => void jumpToMessage(streamedQuestion.id, { flash: true })
+                    : undefined
+                }
                 onCancelGeneration={cancelGeneration}
                 onOpenLlmProfile={openLlmProfile}
               />
@@ -2735,11 +2749,19 @@ export function ChatRoom({
         return (
           <SystemNotice message={row.message} sender={participantById.get(row.message.senderId)} />
         );
-      case "assistant":
+      case "assistant": {
+        // INFO: REQUIREMENTS.md § 8.15. The question the answer was asked with — the same field a reply carries, resolved by `listReplyPreviews` for either kind.
+        const question = row.message.replyTo;
+
         return (
           <AssistantMessageRow
             message={row.message}
             isSelecting={aiSelection.isSelecting}
+            replyTo={question}
+            replyToHeading={question ? toQuoteHeadingFor(question) : undefined}
+            onOpenReply={
+              question ? () => void jumpToMessage(question.id, { flash: true }) : undefined
+            }
             onLongPress={(anchor, point) => {
               menuAnchorRef.current = anchor;
               menuAnchorPointRef.current = point;
@@ -2751,6 +2773,7 @@ export function ChatRoom({
             onReply={() => stageReply(row.message)}
           />
         );
+      }
       case "pending": {
         const cells = toCellsFromDrafts(row.pending.media);
 
@@ -3158,7 +3181,17 @@ export function ChatRoom({
    * optimistic bubble both draw from the row the user just pointed at.
    */
   function stageReply(message: ChatMessage) {
-    setReplyTarget({
+    setReplyTarget(toReplyPreviewFor(message));
+
+    // WARN: The node and not `focusComposer`'s token, for `typeIntoComposer`'s reason — a token is answered an effect later, and iOS raises the keyboard only for a `focus()` the pull's `pointerup` or the row's click still covers.
+    if (!isSearching) {
+      focusWithoutPan(composerFieldRef.current);
+    }
+  }
+
+  /** REQUIREMENTS.md § 8.15. The § 6.11. streaming row quotes its question from here too, so the bubble it draws mid-stream and the one `listReplyPreviews` answers with when the answer lands are the same quote. */
+  function toReplyPreviewFor(message: ChatMessage): ReplyPreview {
+    return {
       senderId: message.senderId,
       kind: message.type,
       // WARN: REQUIREMENTS.md § 13. The same summary `listReplyPreviews` answers with, for the reason the thumbnail below is the same call — the quote has one line and no room to draw an emoticon, and an optimistic quote that kept the placeholders would disagree with the echoed one about its own text.
@@ -3179,12 +3212,7 @@ export function ChatRoom({
       isDeleted: message.isDeleted,
       llmProvider: message.isDeleted ? null : message.llmProvider,
       id: message.id,
-    });
-
-    // WARN: The node and not `focusComposer`'s token, for `typeIntoComposer`'s reason — a token is answered an effect later, and iOS raises the keyboard only for a `focus()` the pull's `pointerup` or the row's click still covers.
-    if (!isSearching) {
-      focusWithoutPan(composerFieldRef.current);
-    }
+    };
   }
 
   /**
@@ -3597,6 +3625,10 @@ type ListFooterProps = {
   aiRowRef: RefObject<Nullable<HTMLDivElement>>;
   primaryGeneration: Optional<[string, GenerationEntry]>;
   queuedGenerationCount: number;
+  /** REQUIREMENTS.md § 8.15. The question the streaming answer belongs to, quoted in its bubble exactly as the landed `AssistantMessageRow` quotes it. */
+  replyTo: Optional<ReplyPreview>;
+  replyToHeading: Optional<string>;
+  onOpenReply: Optional<() => void>;
   onCancelGeneration: (streamId: string) => void;
   /** REQUIREMENTS.md § 12.3. The streaming row's own avatar tap — the same profile screen the finished `AssistantMessageRow` opens. */
   onOpenLlmProfile: (provider: Maybe<string>, modelId?: Optional<string>) => void;
@@ -3609,6 +3641,9 @@ function ListFooter({
   aiRowRef,
   primaryGeneration,
   queuedGenerationCount,
+  replyTo,
+  replyToHeading,
+  onOpenReply,
   onCancelGeneration,
   onOpenLlmProfile,
 }: ListFooterProps) {
@@ -3638,9 +3673,12 @@ function ListFooter({
         <div ref={aiRowRef}>
           <AiAnswerRow
             entry={primaryGeneration[1]}
+            replyTo={replyTo}
+            replyToHeading={replyToHeading}
             onOpenProfile={() =>
               onOpenLlmProfile(primaryGeneration[1].provider, primaryGeneration[1].model)
             }
+            onOpenReply={onOpenReply}
             onCancel={() => onCancelGeneration(primaryGeneration[0])}
           />
           {queuedGenerationCount > 0 && (
@@ -3657,6 +3695,10 @@ function ListFooter({
 
 type AiAnswerRowProps = {
   entry: GenerationEntry;
+  /** `ListFooter`'s own prop of the same name — see there. */
+  replyTo: Optional<ReplyPreview>;
+  replyToHeading: Optional<string>;
+  onOpenReply: Optional<() => void>;
   onCancel: () => void;
   /** REQUIREMENTS.md § 12.3. The avatar tap — the same profile screen the finished `AssistantMessageRow` opens. */
   onOpenProfile: () => void;
@@ -3670,7 +3712,14 @@ type AiAnswerRowProps = {
  * ordinary 72% — the `min-w-0 flex-1` slot around it caps that at the content column
  * minus the avatar gutter and the 중지 control without any width arithmetic of its own.
  */
-function AiAnswerRow({ entry, onCancel, onOpenProfile }: AiAnswerRowProps) {
+function AiAnswerRow({
+  entry,
+  replyTo,
+  replyToHeading,
+  onOpenReply,
+  onCancel,
+  onOpenProfile,
+}: AiAnswerRowProps) {
   const branding = toLlmProviderBranding(entry.provider);
   const isEmpty = entry.text.length === 0;
   const isCancelling = entry.cancelling === true;
@@ -3699,14 +3748,26 @@ function AiAnswerRow({ entry, onCancel, onOpenProfile }: AiAnswerRowProps) {
         )}
       </button>
       {/* WARN: DESIGN.md § 6.11. A `max-width` and never `flex-1` — the same trap `assistant-message-row.tsx` carries. `w-fit` keeps the *bubble* compact, but a growing slot still stretches, which parks 중지 at the row's far edge instead of beside the bubble. The cap is what the finished `AssistantMessageRow` wraps at (its own `calc(100%-44px)` column less the `gap-2xs` and `w-[68px]` beside it), so the last streamed frame and the landed row wrap identically. */}
-      <div className="max-w-[calc(100%-116px)] min-w-0" aria-hidden>
+      <div className="max-w-[calc(100%-116px)] min-w-0">
         <div className="w-fit max-w-full rounded-bubble rounded-tl-xs border border-hairline bg-bubble-theirs px-sm py-xs">
-          {isEmpty ? (
-            // INFO: Still bouncing would say the answer is coming; held still, the frozen dots are the tap's own answer while the provider unwinds.
-            <TypingDots dotClassName={cn(isCancelling && "animate-none")} />
-          ) : (
-            <MarkdownBody text={entry.text} />
+          {replyTo && (
+            // INFO: DESIGN.md § 6.10. The divider is the bubble's, exactly as it is in `MessageRow` and in the landed `AssistantMessageRow`.
+            <ReplyQuote
+              className="mb-2xs border-b border-quote-divider pb-2xs"
+              replyTo={replyTo}
+              heading={replyToHeading ?? ""}
+              onOpen={onOpenReply}
+            />
           )}
+          {/* WARN: The answer alone is hidden from the reader above, never the whole bubble — the quote is a real jump target, and a focusable descendant of an `aria-hidden` box is one no screen reader can explain. */}
+          <div aria-hidden>
+            {isEmpty ? (
+              // INFO: Still bouncing would say the answer is coming; held still, the frozen dots are the tap's own answer while the provider unwinds.
+              <TypingDots dotClassName={cn(isCancelling && "animate-none")} />
+            ) : (
+              <MarkdownBody text={entry.text} />
+            )}
+          </div>
         </div>
       </div>
       {/* INFO: `message-row.tsx`'s own `w-[68px]` timestamp column, reused so the control hugs the bubble instead of the row's far edge — `items-end` above bottom-aligns it the same way it bottom-aligns a bubble's timestamp. */}

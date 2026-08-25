@@ -1,7 +1,11 @@
 import "server-only";
 
 import { readLlmSystemPrompt } from "@/entities/llm-system-prompt";
-import { createAssistantReplyMessage, type ChatMessage } from "@/entities/message";
+import {
+  createAssistantReplyMessage,
+  getMessageIdByClientMsgId,
+  type ChatMessage,
+} from "@/entities/message";
 import {
   LLM_AGENT_COOLDOWN,
   LLM_MAX_AGENT_COOLDOWN,
@@ -175,6 +179,7 @@ async function finalizeCancelled(
       text,
       llmProvider: agent.provider,
       llmModel: agent.model,
+      replyToId: await getMessageIdByClientMsgId(questionClientMsgId),
     });
 
     return message ? { status: "answered", message } : { status: "cancelled" };
@@ -207,6 +212,8 @@ async function finalizeAnswered(
       text,
       llmProvider: agent.provider,
       llmModel: agent.model,
+      // INFO: REQUIREMENTS.md § 8.15. Resolved at insert rather than threaded down from `buildPromptContext`'s own lookup — that one runs before the stream, where the question row can still be behind the replication this read is seconds clear of.
+      replyToId: await getMessageIdByClientMsgId(questionClientMsgId),
     });
 
     if (message) {

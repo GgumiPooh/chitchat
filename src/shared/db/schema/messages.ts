@@ -97,7 +97,11 @@ export const messages = pgTable(
       END`,
     ),
     // INFO: REQUIREMENTS.md § 8.10. A system notice is timeline furniture rather than someone speaking (DESIGN.md § 6.5.), so nothing may quote from it. Its own column is left out of the CASE above deliberately — `reply_to_id` is legal on all three of the other types, so folding it in would have meant restating each branch.
-    check("messages_system_no_reply_check", sql`"type" <> 'system' OR "reply_to_id" IS NULL`),
+    // INFO: REQUIREMENTS.md § 8.15. An `assistant_reply` is the one system row that quotes — it points at the question it answers, which is what `DESIGN.md § 6.11.` draws in its bubble.
+    check(
+      "messages_system_no_reply_check",
+      sql`"type" <> 'system' OR "system_action"::text = 'assistant_reply' OR "reply_to_id" IS NULL`,
+    ),
     // INFO: REQUIREMENTS.md § 8.13. Only text is editable — an attachment and an emoticon carry no prose to correct, and a system notice is timeline furniture (DESIGN.md § 6.5.).
     check("messages_edited_is_text_check", sql`"edited_at" IS NULL OR "type" = 'text'`),
     // INFO: Left out of the CASE above for the reason the two checks beside it are — it constrains one branch, and folding it in would mean restating all four.

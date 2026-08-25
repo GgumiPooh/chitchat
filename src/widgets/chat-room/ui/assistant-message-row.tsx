@@ -1,6 +1,6 @@
 "use client";
 
-import type { ChatMessage } from "@/entities/message";
+import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import { useProfileViewer } from "@/features/view-profile";
 import { DELETED_MESSAGE_TEXT, toLlmProviderBranding } from "@/shared/config";
 import {
@@ -9,16 +9,23 @@ import {
   LONG_PRESS_TARGET_CLASS,
   useLongPress,
   type LongPressPoint,
+  type Nullable,
 } from "@/shared/lib";
 import { IconButton, MarkdownBody } from "@/shared/ui";
 import { CornerUpLeft, Share, Sparkles } from "lucide-react";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
+import { ReplyQuote } from "./reply-quote";
 
 export type AssistantMessageRowProps = {
   className?: string;
   message: ChatMessage;
   /** REQUIREMENTS.md § 8.5. `MessageRow`'s own prop of the same name — see there. */
   isSelecting?: boolean;
+  /** REQUIREMENTS.md § 8.15. The question this answer was asked with, quoted inside the bubble the way `MessageRow` quotes a reply's parent. */
+  replyTo?: Nullable<ReplyPreview>;
+  /** `toQuoteHeading`'s sentence for `replyTo`, composed by the caller (DESIGN.md § 6.10.). */
+  replyToHeading?: string;
+  onOpenReply?: () => void;
   /** REQUIREMENTS.md § 8.10. `MessageRow`'s own touch/pointer contract — a finished AI answer takes both exactly as a `theirs` text row does. */
   onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
   onReply?: () => void;
@@ -37,7 +44,10 @@ export function AssistantMessageRow({
   className,
   message,
   isSelecting = false,
+  replyTo,
+  replyToHeading,
   onLongPress,
+  onOpenReply,
   onReply,
   onShare,
 }: AssistantMessageRowProps) {
@@ -100,7 +110,22 @@ export function AssistantMessageRow({
               )}
               {...longPressHandlers}
             >
-              {isDeleted ? DELETED_MESSAGE_TEXT : <MarkdownBody text={message.text ?? ""} />}
+              {isDeleted ? (
+                DELETED_MESSAGE_TEXT
+              ) : (
+                <>
+                  {replyTo && (
+                    // INFO: DESIGN.md § 6.10. The divider belongs to the bubble, exactly as it does in `MessageRow` — `REQUIREMENTS.md § 8.3.` prices it at this same call site.
+                    <ReplyQuote
+                      className="mb-2xs border-b border-quote-divider pb-2xs"
+                      replyTo={replyTo}
+                      heading={replyToHeading ?? ""}
+                      onOpen={onOpenReply}
+                    />
+                  )}
+                  <MarkdownBody text={message.text ?? ""} />
+                </>
+              )}
             </div>
           </div>
           {/* WARN: DESIGN.md § 6.3. `relative`, and always rendered — the § 8.10./§ 8.11. pill overlays this exact box (`renderHoverActions`) in place of the timestamp on hover, rather than sitting beside it. */}

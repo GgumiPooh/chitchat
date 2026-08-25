@@ -1,0 +1,2 @@
+ALTER TABLE "messages" DROP CONSTRAINT "messages_system_no_reply_check";--> statement-breakpoint
+ALTER TABLE "messages" ADD CONSTRAINT "messages_system_no_reply_check" CHECK ("type" <> 'system' OR "system_action"::text = 'assistant_reply' OR "reply_to_id" IS NULL);

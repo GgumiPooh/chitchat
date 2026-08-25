@@ -5,6 +5,7 @@ import type { MessageId, Nullable, UserId } from "@/shared/lib";
 import { and, eq, isNull } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
+import { getReplyPreview } from "./list-reply-previews";
 
 export type CreateAssistantReplyMessageParams = {
   /** The asker — the one participant who sent the question this answers. */
@@ -15,6 +16,8 @@ export type CreateAssistantReplyMessageParams = {
   /** A snapshot of the `llm_agents` row that answered — that table carries no id of its own, so this is the whole of what identifies it. */
   llmProvider: string;
   llmModel: string;
+  /** REQUIREMENTS.md § 8.15. The question this answers, so the landed bubble quotes it exactly as the streaming row did — null where the row cannot be resolved, which leaves the answer unquoted rather than unsent. */
+  replyToId: Nullable<MessageId>;
 };
 
 /**
@@ -28,6 +31,7 @@ export async function createAssistantReplyMessage({
   text,
   llmProvider,
   llmModel,
+  replyToId,
 }: CreateAssistantReplyMessageParams): Promise<Nullable<ChatMessage>> {
   const db = getDb();
   const [inserted] = await db
@@ -40,6 +44,7 @@ export async function createAssistantReplyMessage({
       text,
       llmProvider,
       llmModel,
+      replyToId,
       clientMsgId,
     })
     .onConflictDoNothing({ target: messages.clientMsgId })
@@ -47,7 +52,12 @@ export async function createAssistantReplyMessage({
 
   const row = inserted ?? (await findOwnMessage(clientMsgId, senderId));
 
-  return row ? toChatMessage(row) : null;
+  if (!row) {
+    return null;
+  }
+
+  // INFO: REQUIREMENTS.md § 8.10. Resolved here exactly as `createTextMessage` resolves its own, so the echoed answer carries the quote the streaming row was already drawing.
+  return toChatMessage(row, [], null, await getReplyPreview(row.replyToId));
 }
 
 async function findOwnMessage(clientMsgId: string, senderId: UserId) {

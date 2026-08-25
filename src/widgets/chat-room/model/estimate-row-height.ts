@@ -538,9 +538,16 @@ function toAssistantColumnHeight(message: ChatMessage, context: RowEstimateConte
         countTextLines(DELETED_MESSAGE_TEXT, { ...CHAT_BODY, family: context.fontFamily }, width),
       ) * LINE.body()
     : toMarkdownHeight(message.text ?? "", width, context.fontFamily);
+  // INFO: REQUIREMENTS.md § 8.15. The question the answer quotes, priced where `toPayloadHeight` prices a reply's own — the same `pb-2xs`, 1px divider and `mb-2xs` the bubble draws it with.
+  const quote =
+    message.replyTo && !message.isDeleted
+      ? toQuoteHeight(message.replyTo, "rule", false) + SPACING_2XS * 2 + 1
+      : 0;
 
   return (
-    LINE.name() + SPACING_2XS + Math.max(SPACING_XS * 2 + BUBBLE_BORDER + content, LINE.time())
+    LINE.name() +
+    SPACING_2XS +
+    Math.max(SPACING_XS * 2 + BUBBLE_BORDER + quote + content, LINE.time())
   );
 }
 
