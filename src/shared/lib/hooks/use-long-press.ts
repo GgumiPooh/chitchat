@@ -29,12 +29,15 @@ export type LongPressOptions = {
  * whatever is clickable inside it — `onClickCapture` is what stops the tap the
  * release ends in, and it only reaches a target it is above.
  */
+// AGENTS.md § 4.1. The held or right-clicked element, for a desktop menu anchored to it rather than centered.
+type LongPressStart = LongPressPoint & { element: HTMLElement };
+
 export function useLongPress(
-  onLongPress: Optional<(point: LongPressPoint) => void>,
+  onLongPress: Optional<(point: LongPressPoint, element: HTMLElement) => void>,
   { withContextMenu = true, onFire }: LongPressOptions = {},
 ) {
   const timerRef = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
-  const startRef = useRef<Nullable<LongPressPoint>>(null);
+  const startRef = useRef<Nullable<LongPressStart>>(null);
   const hasFiredRef = useRef(false);
 
   const cancel = useCallback(() => {
@@ -46,7 +49,7 @@ export function useLongPress(
 
   return {
     // WARN: A mouse must not arm the timer — the bubble is `select-text`, so press-and-drag to select would open the sheet mid-selection. The mouse affordance is `onContextMenu`.
-    onPointerDown: (event: PointerEvent) => {
+    onPointerDown: (event: PointerEvent<HTMLElement>) => {
       // WARN: Only a pointer that could arm the timer may clear the flag, and only after it has been established that it is one. A second finger landing while the sheet is open is not a new gesture — clearing on it releases the `click` the first finger's release still owes, and the tap lands on whatever is under the sheet.
       if (!onLongPress || !event.isPrimary || event.pointerType === "mouse") {
         return;
@@ -54,7 +57,7 @@ export function useLongPress(
 
       // WARN: Cleared here rather than only in the click capture — a `pointercancel` is followed by no `click` at all, so a flag left standing would swallow the next genuine tap.
       hasFiredRef.current = false;
-      startRef.current = { x: event.clientX, y: event.clientY };
+      startRef.current = { x: event.clientX, y: event.clientY, element: event.currentTarget };
       timerRef.current = setTimeout(fire, LONG_PRESS_DELAY);
     },
     onPointerMove: (event: PointerEvent) => {
@@ -76,14 +79,14 @@ export function useLongPress(
         event.preventDefault();
       }
     },
-    onContextMenu: (event: MouseEvent) => {
+    onContextMenu: (event: MouseEvent<HTMLElement>) => {
       if (!onLongPress || !withContextMenu) {
         return;
       }
 
       event.preventDefault();
       cancel();
-      onLongPress({ x: event.clientX, y: event.clientY });
+      onLongPress({ x: event.clientX, y: event.clientY }, event.currentTarget);
     },
   };
 
@@ -97,6 +100,6 @@ export function useLongPress(
     hasFiredRef.current = true;
     // WARN: Before the sheet opens, not after. The finger is still down and still owns whatever gesture it shares the element with — on a bubble that is the § 8.10. pull, which would otherwise go on tracking behind the sheet and reply on release.
     onFire?.();
-    onLongPress?.(start);
+    onLongPress?.(start, start.element);
   }
 }

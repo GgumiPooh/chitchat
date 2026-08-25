@@ -12,7 +12,7 @@ export type EmoticonPackSearchRowProps = {
   pack: EmoticonPackSummary;
   onOpen: (packId: EmoticonPackId) => void;
   onToggle: (packId: EmoticonPackId, isEnabled: boolean) => void;
-  onManage: (pack: EmoticonPackSummary) => void;
+  onManage: (pack: EmoticonPackSummary, anchor: HTMLElement) => void;
 };
 
 /**
@@ -85,7 +85,7 @@ export function EmoticonPackSearchRow({
         haptic
         keepsScroll
         aria-label={`${pack.name} 관리`}
-        onClick={() => onManage(pack)}
+        onClick={(event) => onManage(pack, event.currentTarget)}
       />
       <Switch
         checked={pack.isEnabled}

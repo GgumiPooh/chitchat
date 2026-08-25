@@ -96,7 +96,8 @@ export type MessageRowProps = {
   status: "sent" | "sending" | "queued" | "failed";
   /** REQUIREMENTS.md § 13.6. Passed straight to `EmoticonBubble`, which carries the contract — the room sets it for the one row it is about to sound. */
   awaitsArrivalSound?: boolean;
-  onLongPress?: () => void;
+  /** AGENTS.md § 4.1. Carries the held or right-clicked element, which the room anchors the desktop menu to. */
+  onLongPress?: (anchor: HTMLElement) => void;
   /** REQUIREMENTS.md § 13.9. A tap on the emoticon, which opens the picker where that emoticon is. */
   onFollowEmoticon?: () => void;
   /** REQUIREMENTS.md § 13.6. The bubble's picture is on screen, so the room may play the sound. */
@@ -151,7 +152,10 @@ export function MessageRow({
   // INFO: REQUIREMENTS.md § 12.3. Read here rather than threaded down from the room — the row is what renders the avatar, and the provider is in the shell either way.
   const { openProfile } = useProfileViewer();
   const swipe = useSwipeToReply(onReply, isMine);
-  const longPressHandlers = useLongPress(onLongPress, { onFire: swipe.cancel });
+  const longPressHandlers = useLongPress(
+    onLongPress ? (_point, anchor) => onLongPress(anchor) : undefined,
+    { onFire: swipe.cancel },
+  );
   const hasMedia = media.length > 0;
   // INFO: REQUIREMENTS.md § 9.3. A voice message is one attachment and § 6. keeps a bubble's attachments all of one kind, so the first cell answers for the bubble exactly as `filename` does for a file card.
   const voiceCell = media[0]?.voice ? media[0] : null;

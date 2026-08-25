@@ -67,6 +67,7 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
   const [known, setKnown] = useState(packs);
   const [seeded, setSeeded] = useState(packs);
   const [managedPack, setManagedPack] = useState<Nullable<EmoticonPackSummary>>(null);
+  const managedAnchorRef = useRef<Nullable<HTMLElement>>(null);
   const [renamingPack, setRenamingPack] = useState<Nullable<EmoticonPackSummary>>(null);
   const [hidingId, setHidingId] = useState<Nullable<EmoticonPackId>>(null);
   const [deletingPack, setDeletingPack] = useState<Nullable<EmoticonPackSummary>>(null);
@@ -135,9 +136,10 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
             hidingId={hidingId}
             packs={known}
             type={type}
-            onManagePack={(packId) =>
-              setManagedPack(known.find((pack) => pack.id === packId) ?? null)
-            }
+            onManagePack={(packId, anchor) => {
+              managedAnchorRef.current = anchor;
+              setManagedPack(known.find((pack) => pack.id === packId) ?? null);
+            }}
             onOpenPack={openPack}
             onPackHidden={commitHide}
             onPacksChange={setKnown}
@@ -148,8 +150,11 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
             onEnabledChange={() => {
               hasStaleSeedRef.current = true;
             }}
+            onManagePack={(pack, anchor) => {
+              managedAnchorRef.current = anchor;
+              setManagedPack(pack);
+            }}
             onOpenPack={openPack}
-            onManagePack={setManagedPack}
           />
         )}
       </div>
@@ -173,6 +178,7 @@ export function EmoticonSettingsPage({ className, type, packs }: EmoticonSetting
       />
       <ActionSheet
         isOpen={managedPack !== null}
+        anchorRef={managedAnchorRef}
         header={{ title: managedPack?.name ?? "" }}
         items={[
           {

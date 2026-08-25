@@ -16,7 +16,7 @@ export type EmoticonPackRowProps = {
   isHiding: boolean;
   onOpen: (packId: EmoticonPackId) => void;
   /** REQUIREMENTS.md § 13.5. 이름 바꾸기 / 숨기기 / 삭제 — the sheet, not a control of its own. */
-  onManage: (packId: EmoticonPackId) => void;
+  onManage: (packId: EmoticonPackId, anchor: HTMLElement) => void;
   onHidden: (packId: EmoticonPackId) => void;
 };
 
@@ -118,7 +118,7 @@ export function EmoticonPackRow({
             haptic
             keepsScroll
             aria-label={`${pack.name} 관리`}
-            onClick={() => onManage(pack.id)}
+            onClick={(event) => onManage(pack.id, event.currentTarget)}
           />
           <button
             ref={setActivatorNodeRef}

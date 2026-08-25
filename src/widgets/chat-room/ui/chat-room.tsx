@@ -65,6 +65,8 @@ import {
   countVisibleWakes,
   findFirstUrl,
   focusWithoutPan,
+  isSidePanelAnimating,
+  onSidePanelSettled,
   runWhenIdle,
   startMediaMorph,
   stopVoice,
@@ -294,6 +296,8 @@ export function ChatRoom({
   const isAtBottomRef = useRef(true);
   const [isAtTop, setIsAtTop] = useState(true);
   const [actionTarget, setActionTarget] = useState<Nullable<ChatMessage>>(null);
+  // INFO: AGENTS.md § 4.1. The bubble a hold or right-click opened the menu on, for the desktop `Popover`'s anchor.
+  const menuAnchorRef = useRef<Nullable<HTMLElement>>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   // INFO: REQUIREMENTS.md § 9.3. The recorder bar stands in the composer stack while it is true. Mounting is what starts the microphone, so this is only ever set from the tap that asked for it.
   const [isRecording, setIsRecording] = useState(false);
@@ -1150,11 +1154,29 @@ export function ChatRoom({
     }
 
     const target = contentRef.current ?? scroller;
-    const observer = new ResizeObserver(() => setScrollerWidth(target.clientWidth));
+    let unsubscribeSettled: Nullable<() => void> = null;
+
+    const measure = () => {
+      // WARN: AGENTS.md § 4.4. Deferred while the `lg` side panel animates — the width changes every frame of that transition, and measuring against each one is the jitter this guard exists to stop.
+      if (isSidePanelAnimating()) {
+        unsubscribeSettled ??= onSidePanelSettled(() => {
+          unsubscribeSettled = null;
+          measure();
+        });
+
+        return;
+      }
+
+      setScrollerWidth(target.clientWidth);
+    };
+    const observer = new ResizeObserver(measure);
 
     observer.observe(target);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      unsubscribeSettled?.();
+    };
   }, [scroller]);
 
   // INFO: A real gesture, not a `scroll` event — the parking above scrolls too, and only the user reaching for the history should end it.
@@ -1546,6 +1568,8 @@ export function ChatRoom({
         isOpen={actionTarget !== null}
         items={buildActionItems()}
         header={{ title: "메시지" }}
+        anchorRef={menuAnchorRef}
+        presentation="menu"
         onClose={() => setActionTarget(null)}
       />
       <ShortcutHelp isOpen={isShortcutHelpOpen} onClose={() => setIsShortcutHelpOpen(false)} />
@@ -2324,10 +2348,13 @@ export function ChatRoom({
             onOpenMedia={(index, origin) =>
               openAttachment(cells, index, row.message.id, row.message.senderId, origin)
             }
+            onLongPress={(anchor) => {
+              menuAnchorRef.current = anchor;
+              setActionTarget(row.message);
+            }}
             onOpenReply={quoted ? () => void jumpToMessage(quoted.id, { flash: true }) : undefined}
             onFollowEmoticon={toFollowEmoticon(row.message.emoticon)}
             onArrivalSoundReady={() => settleArrivalSound(row.message.id)}
-            onLongPress={() => setActionTarget(row.message)}
             onReply={() => stageReply(row.message)}
           />
         );

@@ -1,7 +1,16 @@
 "use client";
 
 import { cn, useIsDesktop, useRovingTabIndex, type Nullable } from "@/shared/lib";
-import { useRef, type ComponentProps, type FC, type RefObject } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type FC,
+  type RefObject,
+} from "react";
 import { BottomSheet, type BottomSheetProps } from "./bottom-sheet";
 import { DialogShell } from "./dialog-shell";
 import { HapticTap } from "./haptic-tap";
@@ -35,6 +44,12 @@ export type ActionSheetProps = {
    * `Modal`. Below `md` it is unused — the mobile sheet stays a `BottomSheet`.
    */
   anchorRef?: RefObject<Nullable<HTMLElement>>;
+  /**
+   * `"menu"` keeps the `Popover` below `md` too, pinned to `anchorRef` — for a
+   * sheet opened by holding the thing it acts on, where a bottom sheet moves the
+   * eye away from it (`DESIGN.md § 7.5.`). Defaults to the width-driven choice.
+   */
+  presentation?: "sheet" | "menu";
   onClose: () => void;
 };
 
@@ -45,32 +60,91 @@ export function ActionSheet({
   header,
   items,
   anchorRef,
+  presentation = "sheet",
   onClose,
 }: ActionSheetProps) {
   // INFO: Whether the row that closed this sheet asked to keep focus — read by `handleCloseAutoFocus` below.
   const keepsFocus = useRef(false);
   const isDesktop = useIsDesktop();
-  const isMenu = isDesktop && anchorRef !== undefined;
+  const isMenu = anchorRef !== undefined && (isDesktop || presentation === "menu");
+  // INFO: Callers clear the subject on close, and the exit animation would otherwise play over an empty title and no rows.
+  // INFO: React's "adjust state during render", keyed on the visible text since `header`/`items` are rebuilt every render.
+  const snapshotKey = [header.title, ...items.map((item) => item.label)].join("\u0000");
+  const [snapshot, setSnapshot] = useState({ key: snapshotKey, header, items });
+  if (isOpen && snapshot.key !== snapshotKey) {
+    setSnapshot({ key: snapshotKey, header, items });
+  }
+  const { header: shownHeader, items: shownItems } = isOpen ? { header, items } : snapshot;
+  // WARN: The anchor's rect is read once per opening, not tracked — the trigger is an `IconButton` whose press-bloom scales it for the next 300ms, and a live anchor drags the menu along with it.
+  const anchorRectRef = useRef<Nullable<DOMRect>>(null);
+  useEffect(() => {
+    if (!isOpen) {
+      anchorRectRef.current = null;
+    }
+  }, [isOpen]);
+  const virtualAnchorRef = useMemo(
+    () => ({
+      current: {
+        getBoundingClientRect: () =>
+          (anchorRectRef.current ??= anchorRef?.current?.getBoundingClientRect() ?? new DOMRect()),
+      },
+    }),
+    [anchorRef],
+  );
+  const menuRef = useRef<Nullable<HTMLDivElement>>(null);
+  const isTouchMenu = isMenu && !isDesktop;
+  const closeFromOutside = useEffectEvent(onClose);
+  // INFO: Radix dismisses a touch on the outside only once its `click` lands, and a finger that moves never lands one — so the menu closes on the touch itself, and spends the click so the row under it is not tapped through.
+  useEffect(() => {
+    if (!isTouchMenu || !isOpen) {
+      return;
+    }
+
+    const swallowClick = (event: Event) => event.stopPropagation();
+    const disarm = () => document.removeEventListener("click", swallowClick, true);
+    const handlePointerDown = (event: PointerEvent) => {
+      if (menuRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      document.addEventListener("click", swallowClick, true);
+      document.addEventListener("pointerup", () => setTimeout(disarm), { once: true });
+      closeFromOutside();
+    };
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      disarm();
+    };
+  }, [isTouchMenu, isOpen]);
   const handleMenuKeyDown = useRovingTabIndex({
     orientation: "vertical",
     selector: '[role="menuitem"]',
   });
 
-  // INFO: DESIGN.md § 7.5. One `max-content` column shared by every row through `subgrid`, so the icons stand in a column and the labels in another — centred per row, `사진/영상` and `음성` put theirs at different x.
   const rows = (
-    <ul className="grid grid-cols-[1fr_minmax(0,max-content)_1fr] gap-2xs">
-      {items.map((item) => (
-        <li key={item.label} className="group relative col-span-full grid grid-cols-subgrid">
+    <ul className="grid grid-cols-1 gap-2xs">
+      {shownItems.map((item) => (
+        <li key={item.label} className="group relative">
           <button
             className={cn(
-              "col-span-full grid min-h-11 w-full cursor-pointer grid-cols-subgrid items-center rounded-md bg-surface-soft px-md py-sm text-button-md transition-colors outline-none group-active:bg-surface-pressed hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-pressed",
+              "flex w-full cursor-pointer items-center rounded-md transition-colors outline-none group-active:bg-surface-pressed hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-pressed",
+              // INFO: Each row centres its own icon and label on a phone — never a shared column sized by the longest label.
+              isMenu || isDesktop ? "justify-start" : "justify-center",
+              // INFO: A phone's menu sits beside a bubble, so it takes the bubble's density rather than the sheet's.
+              isMenu && !isDesktop
+                ? "min-h-10 px-sm py-xs text-body-sm font-medium"
+                : "min-h-11 px-md py-sm text-button-md",
+              isMenu
+                ? "bg-transparent hover:bg-surface-soft active:bg-surface-strong"
+                : "bg-surface-soft",
               item.variant === "destructive" ? "text-semantic-error" : "text-ink",
             )}
             type="button"
             role={isMenu ? "menuitem" : undefined}
             onClick={() => handleSelect(item)}
           >
-            <span className="col-start-2 inline-flex items-center gap-xs">
+            <span className="inline-flex items-center gap-xs">
               {item.Icon && (
                 <item.Icon className="pointer-events-none size-4.5 shrink-0" strokeWidth={1.75} />
               )}
@@ -79,7 +153,7 @@ export function ActionSheet({
           </button>
           {/* INFO: Every row is a committed choice, so none of them is left silent. */}
           {/* WARN: `keepsScroll` — the rows are the sheet's whole surface, so a finger pulling it down to dismiss lands here, and the switch would keep that drag and end it as a tap on the row (`DESIGN.md § 7.15.1.`). */}
-          {!isDesktop && <HapticTap className="touch-pan-y" forwardsTap keepsScroll />}
+          {!isDesktop && <HapticTap className="touch-pan-y" forwardsTap keepsScroll={!isMenu} />}
         </li>
       ))}
     </ul>
@@ -88,12 +162,19 @@ export function ActionSheet({
   if (isMenu) {
     return (
       <Popover open={isOpen} onOpenChange={handleOpenChange}>
-        <PopoverAnchor virtualRef={anchorRef} />
+        <PopoverAnchor virtualRef={virtualAnchorRef} />
         <PopoverContent
-          className={cn("w-64 p-2xs", className)}
+          ref={menuRef}
+          className={cn(isDesktop ? "w-64" : "w-44", "p-2xs", className)}
+          align="end"
+          // INFO: Above the anchor first — a held bubble still has the thumb on it, and a menu opening under the thumb opens under the hand.
+          side={isDesktop ? "bottom" : "top"}
+          collisionPadding={16}
           role="menu"
-          aria-label={header.title}
+          aria-label={shownHeader.title}
           onKeyDown={handleMenuKeyDown}
+          // INFO: Focusing the first row paints its ring under a thumb that opened the menu by holding, not by keyboard; a hardware keyboard still reaches it with Tab.
+          onOpenAutoFocus={isDesktop ? undefined : (event) => event.preventDefault()}
         >
           {rows}
         </PopoverContent>
@@ -108,9 +189,9 @@ export function ActionSheet({
         isOpen={isOpen}
         size="sm"
         header={{
-          title: header.title,
-          description: header.description,
-          className: header.className,
+          title: shownHeader.title,
+          description: shownHeader.description,
+          className: shownHeader.className,
           isHidden: false,
         }}
         onClose={onClose}
@@ -125,7 +206,7 @@ export function ActionSheet({
     <BottomSheet
       className={className}
       isOpen={isOpen}
-      header={header}
+      header={shownHeader}
       onClose={onClose}
       onCloseAutoFocus={handleCloseAutoFocus}
     >

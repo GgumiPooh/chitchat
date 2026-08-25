@@ -21,7 +21,7 @@ export type EmoticonPackManagerProps = {
   /** REQUIREMENTS.md § 13.5. The pack 숨기기 was chosen for, while its row collapses. */
   hidingId: Nullable<string>;
   onOpenPack: (packId: EmoticonPackId) => void;
-  onManagePack: (packId: EmoticonPackId) => void;
+  onManagePack: (packId: EmoticonPackId, anchor: HTMLElement) => void;
   onPackHidden: (packId: EmoticonPackId) => void;
   onPacksChange: (packs: EmoticonPackSummary[]) => void;
 };

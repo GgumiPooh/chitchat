@@ -33,7 +33,7 @@ export type EmoticonPackBrowserProps = {
   /** REQUIREMENTS.md § 13. Which library this tab browses — the screen's own kind, never both. */
   type: EmoticonPackType;
   onOpenPack: (packId: EmoticonPackId) => void;
-  onManagePack: (pack: EmoticonPackSummary) => void;
+  onManagePack: (pack: EmoticonPackSummary, anchor: HTMLElement) => void;
   /** REQUIREMENTS.md § 13.5. A switch has been written, so the 사용중 tab's server seed is one edit out of date. */
   onEnabledChange: () => void;
 };
