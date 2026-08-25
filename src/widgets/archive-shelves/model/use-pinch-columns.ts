@@ -14,9 +14,9 @@ export type PinchColumnsOptions = {
 const MIN_COLUMNS: ArchiveColumnCount = 1;
 const MAX_COLUMNS: ArchiveColumnCount = 7;
 
-// INFO: AGENTS.md § 4.1. Pinching in widens the grid, out narrows it — tuned against a real pinch rather than a précised ratio.
-const SHRINK_RATIO = 0.8;
-const GROW_RATIO = 1.25;
+// INFO: DESIGN.md § 7.10.3. Pinching in widens the grid, out narrows it — tuned against a real pinch, where 1.25× per step read as the grid lagging the fingers.
+const SHRINK_RATIO = 0.87;
+const GROW_RATIO = 1.15;
 
 /**
  * AGENTS.md § 4.1. A two-finger scale tracker for 보관함's mobile column count —

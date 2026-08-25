@@ -198,6 +198,8 @@
   --duration-route-enter: 220ms;
   /* INFO: DESIGN.md § 4.7.3. The library morph, and the one duration longer than a route arrival on purpose — a thumbnail crossing to full screen travels most of the viewport, where an arriving screen travels 24px, so the route's own timing read as the photo being thrown rather than opened. */
   --duration-media-morph: 300ms;
+  /* INFO: DESIGN.md § 7.10.3. 보관함's column step — a pinch fires it several times a second, and tiles resizing in place travel a fraction of what the morph above does. */
+  --duration-columns-step: 150ms;
   /* INFO: REQUIREMENTS.md § 13.6. The sheet's expand alone, sized for `--ease-sheet` to settle; every other sheet move keeps the 200ms ease-out. */
   --duration-sheet-expand: 450ms;
   /* INFO: DESIGN.md § 7.12. The 다가오는 일정 button's imminence bloom, and the one duration here that is not a response to a touch — it is an ambient loop over a header the reader sits under, so it is paced to breathing rather than to a gesture. */
