@@ -1051,6 +1051,7 @@ A message is folded to its quote, **one clamped line** and a 펼치기 row (`DES
 - **The fold beats § 8.16.'s cut** — one line is already less than ten, and the two rows would otherwise stack
 - **A tap on the bubble unfolds it for this reader alone**, in place; `collapsed_at` is untouched. The sheet's own 펼치기 is what clears it for both. Folding away what you have read is the point, and a reader who opened one to read it would otherwise undo the other's tidying by doing so
 - **That local unfold is a row-key input, not just a render flag.** `toRowRevision` takes the **row's** answer rather than the message's, or the virtualizer keeps the one-line height it cached and draws the whole answer inside it (§ 8.3.)
+- **The action sheet names the state the reader is looking at, not the column.** `isRowCollapsed` is the row's answer — the flag less this reader's local unfold — so a bubble unfolded in place offers 접기 rather than 펼치기 over a bubble that is already open. Re-folding one is that unfold being **dropped and nothing else**: it is still folded for both, and `collapseMessage` would refuse the no-op write anyway
 - **The local set is dropped when the row is folded again.** A row re-folded while this reader held it open would arrive folded and be drawn open — the set wins over the wire — with nothing left to tap
 - **A § 8.6.1. jump does not unfold.** The § 6.8. flash lands on the folded row and says which one it is; unfolding is one tap from there, and auto-unfolding would undo the fold the reader is looking for
 

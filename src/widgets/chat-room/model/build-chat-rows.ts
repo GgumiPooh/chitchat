@@ -21,6 +21,20 @@ type Entry = {
 };
 
 /**
+ * REQUIREMENTS.md § 8.17. Whether this reader sees the row folded — the message's own
+ * flag less whatever they have unfolded in place.
+ *
+ * WARN: The action sheet reads this and not `message.isCollapsed`, or a row unfolded in
+ * place offers 펼치기 over a bubble that is already open.
+ */
+export function isRowCollapsed(
+  { isCollapsed, id }: ChatMessage,
+  expandedIds: ReadonlySet<MessageId>,
+): boolean {
+  return isCollapsed && !expandedIds.has(id);
+}
+
+/**
  * Flattens the conversation into the virtualizer's item list — date dividers,
  * system notices, and the grouping flags of DESIGN.md § 6.3.
  */
@@ -30,7 +44,7 @@ export function buildChatRows({
   currentUserId,
   expandedIds,
 }: BuildChatRowsParams): ChatRow[] {
-  const isCollapsed = ({ isCollapsed: folded, id }: ChatMessage) => folded && !expandedIds.has(id);
+  const isCollapsed = (message: ChatMessage) => isRowCollapsed(message, expandedIds);
 
   const entries: Entry[] = [
     ...messages.map((message) => ({

@@ -160,7 +160,7 @@ import { flushSync } from "react-dom";
 import { requestMessageCollapse } from "../api/request-message-collapse";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { requestMessageEdit } from "../api/request-message-edit";
-import { buildChatRows } from "../model/build-chat-rows";
+import { buildChatRows, isRowCollapsed } from "../model/build-chat-rows";
 import { toChromeTint } from "../model/chrome-tint";
 import {
   ROW_LINE_CLASSES,
@@ -2957,9 +2957,15 @@ export function ChatRoom({
    * wins over the wire — and there would be nothing left to tap to fix it.
    */
   async function toggleCollapse(message: ChatMessage) {
-    const isCollapsed = !message.isCollapsed;
+    const isCollapsed = !isRowCollapsed(message, expandedIds);
 
     forgetLocalUnfold(message.id);
+
+    // INFO: § 8.17. Re-folding a row this reader had only unfolded in place is that unfold being dropped and nothing else — it is still folded for both, and there is no write to make.
+    if (message.isCollapsed === isCollapsed) {
+      return;
+    }
+
     // INFO: § 8.13.'s own local apply — `PATCH` answers 204, and the echo confirms a moment later.
     replaceMessage({ ...message, isCollapsed });
 
@@ -3239,8 +3245,8 @@ export function ChatRoom({
     // INFO: REQUIREMENTS.md § 8.17. Above the `system` return, since a long AI answer is what folding was built for — and on either participant's message, folding being curation of the shared timeline rather than a change to what anyone said.
     if (isAssistantReply || target.type === "text") {
       items.push({
-        label: target.isCollapsed ? "펼치기" : "접기",
-        Icon: target.isCollapsed ? ChevronsUpDown : ChevronsDownUp,
+        label: isRowCollapsed(target, expandedIds) ? "펼치기" : "접기",
+        Icon: isRowCollapsed(target, expandedIds) ? ChevronsUpDown : ChevronsDownUp,
         onSelect: () => void toggleCollapse(target),
       });
     }
