@@ -5,7 +5,7 @@ import type { MessageId } from "@/shared/lib";
 import { startTransition, useCallback, useMemo, useState } from "react";
 
 // INFO: REQUIREMENTS.md § 8.5. What the header's 자동 선택 reaches back for — the mode itself opens on nothing.
-const AUTO_SELECT_COUNT = 30;
+const AUTO_SELECT_COUNT = 20;
 
 export type AiSelectionState = {
   /** Whether AI 질문 모드 is active at all — false is the room's ordinary state. */
@@ -17,7 +17,7 @@ export type AiSelectionState = {
   exit: () => void;
   toggle: (id: MessageId) => void;
   clearAll: () => void;
-  /** Applies the newest-30 rule, replacing whatever is currently selected. */
+  /** Applies the newest-20 rule, replacing whatever is currently selected. */
   autoSelect: () => void;
 };
 
@@ -74,7 +74,7 @@ export function useAiSelection(messages: ChatMessage[]): AiSelectionState {
 }
 
 /**
- * REQUIREMENTS.md § 8.5. The newest 30 of `text` messages and finished AI answers,
+ * REQUIREMENTS.md § 8.5. The newest 20 of `text` messages and finished AI answers,
  * skipping withdrawn ones — media, emoticon and other system rows are never in this
  * set, though `toggle` still reaches them by hand.
  */
