@@ -6,10 +6,12 @@ import {
   getMessageIdByClientMsgId,
   listAssistantRepliesAfter,
   listMessagesByIds,
+  listRecentAssistantExchanges,
   type ChatMessage,
 } from "@/entities/message";
 import { listUsers } from "@/entities/user";
 import {
+  AI_CONTEXT_EXCHANGE_COUNT,
   isLlmInlineMime,
   isVideoMime,
   LLM_INLINE_REQUEST_MAX_BYTES,
@@ -32,8 +34,12 @@ import type { PromptAttachment, PromptContext, PromptContextEntry } from "../mod
  * attachment kind inline where the mime and the running size budget allow it,
  * and everything else — a mime Gemini has no decoder for, an attachment that
  * would blow the budget, a deleted parent — folded into a short Korean
- * description instead. Manual selection is the only path here; nothing is ever
- * auto-selected.
+ * description instead.
+ *
+ * INFO: REQUIREMENTS.md § 8.15. The newest `AI_CONTEXT_EXCHANGE_COUNT`
+ * question/answer pairs ride along unconditionally, ahead of and merged with the
+ * client's own selection — the room's chat history is what a selection is for,
+ * the conversation with the model itself is not.
  *
  * INFO: Runs after the caller's advisory lock is granted, not while the request
  * sits in the queue — `questionClientMsgId` is how it catches a queued question
@@ -47,10 +53,10 @@ export async function buildPromptContext(
   questionClientMsgId: string,
 ): Promise<PromptContext> {
   const selectedIds = [...messageIds].sort(compareId);
-  const selectedIdSet = new Set(selectedIds);
 
-  const [selectedRows, participants, questionMessageId] = await Promise.all([
+  const [selectedRows, exchangeRows, participants, questionMessageId] = await Promise.all([
     listMessagesByIds(selectedIds),
+    listRecentAssistantExchanges(AI_CONTEXT_EXCHANGE_COUNT),
     listUsers(),
     getMessageIdByClientMsgId(questionClientMsgId),
   ]);
@@ -60,9 +66,16 @@ export async function buildPromptContext(
     questionMessageId ?? nextSnowflake<MessageId>(),
   );
 
+  // WARN: Keyed by id rather than concatenated — a selected message is very often one of the pairs above, and a duplicated entry is the model reading the same turn twice.
+  const contextRows = new Map<MessageId, ChatMessage>();
+
+  for (const row of [...exchangeRows, ...selectedRows]) {
+    contextRows.set(row.id, row);
+  }
+
   const rows: ChatMessage[] = [
-    ...selectedRows,
-    ...lateReplies.filter((reply) => !selectedIdSet.has(reply.id)),
+    ...[...contextRows.values()].sort((left, right) => compareId(left.id, right.id)),
+    ...lateReplies.filter((reply) => !contextRows.has(reply.id)),
   ];
 
   const nameById = new Map(participants.map((participant) => [participant.id, participant.name]));

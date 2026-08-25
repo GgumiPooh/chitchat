@@ -24,6 +24,7 @@ export { listAssistantRepliesAfter } from "./api/list-assistant-replies-after";
 export { listChangedMessages } from "./api/list-changed-messages";
 export { listMessages, type ListMessagesParams } from "./api/list-messages";
 export { listMessagesByIds } from "./api/list-messages-by-ids";
+export { listRecentAssistantExchanges } from "./api/list-recent-assistant-exchanges";
 export {
   countMatchingMessages,
   searchMessages,

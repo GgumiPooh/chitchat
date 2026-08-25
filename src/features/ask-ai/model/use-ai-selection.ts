@@ -1,23 +1,23 @@
 "use client";
 
 import type { ChatMessage } from "@/entities/message";
-import { compareId, maxId, type MessageId } from "@/shared/lib";
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MessageId } from "@/shared/lib";
+import { startTransition, useCallback, useMemo, useState } from "react";
 
-// INFO: REQUIREMENTS.md § 8.5. Opens the KakaoTalk-style forward-select on the newest span rather than nothing.
+// INFO: REQUIREMENTS.md § 8.5. What the header's 자동 선택 reaches back for — the mode itself opens on nothing.
 const AUTO_SELECT_COUNT = 30;
 
 export type AiSelectionState = {
   /** Whether AI 질문 모드 is active at all — false is the room's ordinary state. */
   isSelecting: boolean;
   selected: Set<MessageId>;
-  /** Opens the mode and applies `autoSelect`'s newest-30 rule. */
+  /** Opens the mode with an empty selection. */
   enter: () => void;
   /** Closes the mode and drops every selection. */
   exit: () => void;
   toggle: (id: MessageId) => void;
   clearAll: () => void;
-  /** Reapplies the newest-30 rule, replacing whatever is currently selected. */
+  /** Applies the newest-30 rule, replacing whatever is currently selected. */
   autoSelect: () => void;
 };
 
@@ -31,23 +31,14 @@ export type AiSelectionState = {
 export function useAiSelection(messages: ChatMessage[]): AiSelectionState {
   const [isSelecting, setIsSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<MessageId>>(new Set());
-  // INFO: § 8.5. The mark arrivals are read against — "0" is § 8.4.'s own "from the start" sentinel, for a mode entered on an empty room.
-  const entryMaxIdRef = useRef<MessageId>("0" as MessageId);
-  // INFO: § 8.5. An id considered once stays considered even after a manual uncheck, so `toggle`'s undo is not fought by the very next render.
-  const consideredArrivalIdsRef = useRef<Set<MessageId>>(new Set());
 
   // INFO: REQUIREMENTS.md § 8.3., § 8.5. `startTransition` so the tap that opens/closes the mode is not held behind the row it resizes — every mounted row's estimate shifts by `SELECTION_GUTTER_WIDTH` (`chat-room.tsx`), which React would otherwise paint synchronously with the toggle's own feedback.
   const enter = useCallback(() => {
-    entryMaxIdRef.current = messages.reduce(
-      (newest, message) => maxId(newest, message.id),
-      "0" as MessageId,
-    );
-    consideredArrivalIdsRef.current = new Set();
     startTransition(() => {
       setIsSelecting(true);
-      setSelected(new Set(toAutoSelected(messages)));
+      setSelected(new Set());
     });
-  }, [messages]);
+  }, []);
 
   const exit = useCallback(() => {
     startTransition(() => {
@@ -55,31 +46,6 @@ export function useAiSelection(messages: ChatMessage[]): AiSelectionState {
       setSelected(new Set());
     });
   }, []);
-
-  /**
-   * REQUIREMENTS.md § 8.5. A message that lands after the mode was entered joins
-   * the selection on its own — the same eligibility `toAutoSelected` applies, but
-   * with no 30-message cap, since an arrival is news rather than backfill.
-   */
-  useEffect(() => {
-    if (!isSelecting) {
-      return;
-    }
-
-    const arrived = messages.filter(
-      (message) =>
-        compareId(message.id, entryMaxIdRef.current) > 0 &&
-        !consideredArrivalIdsRef.current.has(message.id) &&
-        isAutoSelectEligible(message),
-    );
-
-    if (arrived.length === 0) {
-      return;
-    }
-
-    arrived.forEach((message) => consideredArrivalIdsRef.current.add(message.id));
-    setSelected((current) => new Set([...current, ...arrived.map((message) => message.id)]));
-  }, [isSelecting, messages]);
 
   const toggle = useCallback((id: MessageId) => {
     setSelected((current) => {

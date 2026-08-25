@@ -2130,6 +2130,8 @@ export function ChatRoom({
    * affordance, dedup on echo. `pendingAiQuestionsRef` holds the selected context
    * and the attachment `clientMsgId`s until `handleMessageSent` reports every one
    * of those sends has actually landed.
+   *
+   * INFO: § 8.15. Sending leaves AI 질문 모드 up, selection and all — a follow-up question is the ordinary next move, and the composer's own toggle is the way out.
    */
   function submitAiQuestion(text: string) {
     const messageIds = [...aiSelection.selected].sort(compareId);
@@ -2175,8 +2177,6 @@ export function ChatRoom({
     if (!hasSounded) {
       playMessageSound("sent");
     }
-
-    aiSelection.exit();
   }
 
   /**
