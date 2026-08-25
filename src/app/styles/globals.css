@@ -203,6 +203,20 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
 /* INFO: DESIGN.md § 3.5. One definition for every surface that floats over scrolling content, so the bars and the floating icon buttons cannot drift apart. */
 /* WARN: Composed from Tailwind's own backdrop utilities, never from a raw `backdrop-filter` declaration — a hand-written one is dropped from the build and the surface silently ships as a thin tint with no blur at all. */
 /* INFO: DESIGN.md § 4.7.1. The blur is only viable because route changes no longer capture anything; a `backdrop-filter` cannot survive a view-transition capture. */
+/* INFO: REQUIREMENTS.md § 13.6. Registered so the browser can ease it. The composer's spacer, the list's trailing spacer and the pills floating over it all resolve their clearance from this one length, and easing the *variable* is what puts them on the chat screen's own clock — measured and republished per frame, the list's spacer is a frame behind the box it sits in on every frame the swap drops, and the pin that corrects it is what the reader sees as the history being shoved. */
+@property --chat-composer-spacer {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+/* WARN: DESIGN.md § 3.4. The chat screen's own height transition, spelled out again — the two cancel only while they share a curve, a duration and the token that holds both at `0s` until the viewport has been measured. */
+@utility chat-clearance {
+  transition-property: --chat-composer-spacer;
+  transition-duration: var(--viewport-settle-duration);
+  transition-timing-function: var(--ease-out);
+}
+
 @utility glass {
   @apply bg-canvas/75 backdrop-blur-lg;
 }

@@ -314,6 +314,8 @@ export function ChatRoom({
   onAiSelectionChange,
 }: ChatRoomProps) {
   const containerRef = useRef<Nullable<HTMLDivElement>>(null);
+  // INFO: § 13.6. Measured out of the clearance rather than into it — its height is the one part of the stack a stylesheet already knows.
+  const composerSpacerRef = useRef<Nullable<HTMLDivElement>>(null);
   const composerRef = useRef<Nullable<HTMLDivElement>>(null);
   const emoticonSheetRef = useRef<Nullable<HTMLDivElement>>(null);
   // INFO: REQUIREMENTS.md § 8.12. Observed rather than derived from `typist`, because what has to be followed is every frame of the height transition, not the state change that started it.
@@ -1027,7 +1029,13 @@ export function ChatRoom({
     return () => clearTimeout(timeout);
   }, [aiSelection.isSelecting, virtualizer, pinToBottom]);
 
-  useComposerClearance({ containerRef, composerRef, scrollerRef, isAtBottomRef });
+  useComposerClearance({
+    containerRef,
+    composerRef,
+    composerSpacerRef,
+    scrollerRef,
+    isAtBottomRef,
+  });
 
   // INFO: § 13.6. The same idle frame `useEmoticonPreload` warms on, so the panel is built out of a cache that is filling rather than ahead of it.
   useEffect(() => runWhenIdle(() => setHasMountedEmoticonPanel(true), PANEL_MOUNT_IDLE_DELAY), []);
@@ -1597,7 +1605,14 @@ export function ChatRoom({
     // WARN: REQUIREMENTS.md § 12.2. No floor of its own, and it MUST NOT get one back. `ChatScreen` is `bg-chat-canvas` already, so an opaque copy here changes nothing a reader sees — but iOS 26 samples the **pixels** at the top edge rather than the `fixed` box's declared colour, and a flat `chat-canvas` covering the wallpaper's tint is what the status bar then wears for the whole session.
     <div
       ref={containerRef}
-      className={cn("relative min-h-0 flex-1", className)}
+      className={cn("relative min-h-0 flex-1 chat-clearance", className)}
+      // INFO: REQUIREMENTS.md § 13.6. The spacer half of `--chat-bottom-gap` (theme.css), eased here so the composer's own spacer, the list's trailing one and the pills over it all move on the chat screen's clock.
+      style={{
+        ["--chat-composer-spacer" as string]: isEmoticonPanelOpen
+          ? emoticonSheetRestHeight
+          : "var(--bottom-inset)",
+      }}
+      onTransitionEnd={settleAfterPanelTransition}
       {...fileDrop.handlers}
     >
       {chatBackgroundMediaId && (
@@ -1822,16 +1837,9 @@ export function ChatRoom({
           </div>
           {/* WARN: REQUIREMENTS.md § 8.6. Outside the hidden stack, or the inset goes with the composer and the search bar sits `--bar-lift` lower than the strip it swaps for (DESIGN.md § 6.8.). */}
           {/* WARN: A real `height` and never a `0fr`→`1fr` grid track. Mid-transition Chrome sizes such a track's container taller than the track it resolved, and the strip below the bottom-anchored sheet is a gap that opens and shuts. */}
-          {/* INFO: § 13.6. An empty spacer: it is what `useComposerClearance` measures and what `settleAfterPanelTransition` listens to, and it only ever moves inset ↔ rest — the drawn sheet below is absolute, so expanding it moves nothing here. */}
-          <div
-            className={cn(
-              // WARN: DESIGN.md § 3.4. The panel's own 200ms, on the token that holds it at `0s` until the viewport has been measured — this spacer is `--bottom-inset` tall, and iOS moves that after the first paint of a cold launch.
-              "transition-[height] duration-(--viewport-settle-duration) ease-out",
-              isEmoticonPanelOpen ? "h-(--emoticon-sheet-rest-height)" : "h-(--bottom-inset)",
-            )}
-            style={{ ["--emoticon-sheet-rest-height" as string]: emoticonSheetRestHeight }}
-            onTransitionEnd={settleAfterPanelTransition}
-          />
+          {/* INFO: § 13.6. An empty spacer that only ever moves inset ↔ rest — the drawn sheet below is absolute, so expanding it moves nothing here. */}
+          {/* WARN: § 13.6. It has no transition of its own: the room eases `--chat-composer-spacer` itself, so this box, the list's trailing spacer and the chat screen's height are three readings of one animation rather than three animations to keep in step. */}
+          <div ref={composerSpacerRef} className="h-(--chat-composer-spacer)" />
         </div>
       </div>
       <ActionSheet
@@ -2596,7 +2604,7 @@ export function ChatRoom({
    */
   function settleAfterPanelTransition(event: TransitionEvent<HTMLDivElement>) {
     // WARN: `transitionend` bubbles, so the panel's own transitions reach this too.
-    if (event.target !== event.currentTarget || event.propertyName !== "height") {
+    if (event.target !== event.currentTarget || event.propertyName !== "--chat-composer-spacer") {
       return;
     }
 

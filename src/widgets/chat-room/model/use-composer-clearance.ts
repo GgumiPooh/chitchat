@@ -4,7 +4,7 @@ import { BOTTOM_OVERLAY_ID } from "@/shared/config";
 import type { Nullable } from "@/shared/lib";
 import { useEffect, useRef, type RefObject } from "react";
 
-const CLEARANCE_PROPERTY = "--chat-bottom-gap";
+const CLEARANCE_PROPERTY = "--chat-composer-gap";
 
 // INFO: Subpixel slack only — anything wider would re-pin a user who has deliberately scrolled a little way up.
 const BOTTOM_EPSILON = 1;
@@ -12,16 +12,24 @@ const BOTTOM_EPSILON = 1;
 export type ComposerClearanceOptions = {
   containerRef: RefObject<Nullable<HTMLElement>>;
   composerRef: RefObject<Nullable<HTMLElement>>;
+  composerSpacerRef: RefObject<Nullable<HTMLElement>>;
   scrollerRef: RefObject<Nullable<HTMLElement>>;
   isAtBottomRef: RefObject<boolean>;
 };
 
 /**
- * Publishes the strip that the floating composer and bars cover as
- * `--chat-bottom-gap` on the chat container, and keeps the newest message
- * parked directly above the composer while that strip changes height. It moves
- * often: the field auto-grows per line (DESIGN.md § 6.6.) and the bars behind it
- * come and go with the keyboard (§ 7.3.).
+ * Publishes the part of the strip that the floating composer covers which no
+ * stylesheet knows — everything above its spacer — as `--chat-composer-gap` on
+ * the chat container, and keeps the newest message parked directly above the
+ * composer while that part changes height. It moves often: the field auto-grows
+ * per line (DESIGN.md § 6.6.) and the bars behind it come and go with the
+ * keyboard (§ 7.3.).
+ *
+ * WARN: The spacer's own height is subtracted back out and left to
+ * `--chat-composer-spacer` (REQUIREMENTS.md § 13.6.). Measured into this value it
+ * was republished a frame at a time against a chat screen the browser was easing
+ * on its own clock, and every frame the swap dropped landed as the history being
+ * shoved and pinned back.
  *
  * WARN: It re-pins for a scroller that changed height too, not only for a
  * clearance that did. The keyboard is the one thing that shortens the history
@@ -32,6 +40,7 @@ export type ComposerClearanceOptions = {
 export function useComposerClearance({
   containerRef,
   composerRef,
+  composerSpacerRef,
   scrollerRef,
   isAtBottomRef,
 }: ComposerClearanceOptions) {
@@ -72,8 +81,12 @@ export function useComposerClearance({
     }
 
     function measure(container: HTMLElement, composer: HTMLElement) {
+      // INFO: The spacer's height comes out of the same reading it went into, so the two cancel whatever the animation has it at this frame.
+      const spacerHeight = composerSpacerRef.current?.getBoundingClientRect().height ?? 0;
       const clearance = Math.max(
-        container.getBoundingClientRect().bottom - composer.getBoundingClientRect().top,
+        container.getBoundingClientRect().bottom -
+          composer.getBoundingClientRect().top -
+          spacerHeight,
         0,
       );
       const scroller = scrollerRef.current;
@@ -106,5 +119,5 @@ export function useComposerClearance({
         scroller.scrollTop = scroller.scrollHeight;
       }
     }
-  }, [containerRef, composerRef, scrollerRef, isAtBottomRef]);
+  }, [containerRef, composerRef, composerSpacerRef, scrollerRef, isAtBottomRef]);
 }
