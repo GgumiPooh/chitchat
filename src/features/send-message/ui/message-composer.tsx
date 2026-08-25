@@ -325,14 +325,25 @@ export function MessageComposer({
 
   // INFO: DESIGN.md § 6.6. The burst is keyed rather than toggled: a CSS animation restarts on a remount, and nothing else in this row may remount (see the send button's own WARN).
   // INFO: React's "adjust state during render", as `ActionSheet` does — the token is seeded from the first render's own state, so a room re-entered with a draft already in the field opens without throwing sparks at nobody.
-  const [sparkle, setSparkle] = useState({ isCollapsed: isAiToggleCollapsed, token: 0 });
-  if (sparkle.isCollapsed !== isAiToggleCollapsed) {
+  const [sparkle, setSparkle] = useState({
+    isCollapsed: isAiToggleCollapsed,
+    isAiMode,
+    collapseToken: 0,
+    modeToken: 0,
+  });
+  if (sparkle.isCollapsed !== isAiToggleCollapsed || sparkle.isAiMode !== isAiMode) {
     setSparkle({
       isCollapsed: isAiToggleCollapsed,
-      token: isAiToggleCollapsed ? sparkle.token + 1 : sparkle.token,
+      isAiMode,
+      collapseToken: isAiToggleCollapsed ? sparkle.collapseToken + 1 : sparkle.collapseToken,
+      // INFO: DESIGN.md § 6.6. Counted both ways, where the collapse counts one — entering and leaving AI 질문 are each a deliberate press on this button, and the collapse's return is only the field going quiet.
+      modeToken: sparkle.isAiMode !== isAiMode ? sparkle.modeToken + 1 : sparkle.modeToken,
     });
   }
-  const sparkleToken = sparkle.token;
+  // WARN: The sum, so each glyph can still gate its own pop on the half that moves it — the burst is thrown by both, and keyed on one counter it would be dropped whenever the two changed in the same render.
+  const sparkleToken = sparkle.collapseToken + sparkle.modeToken;
+  const collapseToken = sparkle.collapseToken;
+  const modeToken = sparkle.modeToken;
   useEffect(() => {
     if (hasDraft) {
       return;
@@ -791,7 +802,7 @@ export function MessageComposer({
           )}
           {/* INFO: REQUIREMENTS.md § 8.5. AI 질문 모드's own toggle, immediately beside the emoticon one — pressing it hands the room the field rather than staging anything here. */}
           {!isEditing && (
-            // WARN: DESIGN.md § 6.6. The box collapses and the button inside it does not move: it is `absolute` on the edge the emoticon toggle holds, so the glyph pops where it stood while the field grows into its 44. No `overflow-hidden` — the sparks have to leave this box, which is what `ai-pop-out`'s `forwards` fill then pays for.
+            // WARN: DESIGN.md § 6.6. The box collapses and the button inside it does not move: it is `absolute` on the edge the emoticon toggle holds, so the glyph pops where it stood while the field grows into its 44. No `overflow-hidden` — the sparks have to leave this box, which is what `glyph-pop-out`'s `forwards` fill then pays for.
             <div
               className={cn(
                 "relative h-11 shrink-0 transition-[width,margin] duration-(--duration-state) ease-press motion-reduce:transition-none",
@@ -830,7 +841,7 @@ export function MessageComposer({
                 // INFO: DESIGN.md § 4.1.3. Coloured at rest, which is why `ai` is its own token — the pressed state is the tint behind it rather than the glyph changing colour.
                 buttonClassName={cn("text-ai hover:text-ai", isAiMode && "bg-ai-tint")}
                 iconClassName={cn(
-                  isAiToggleCollapsed ? "ai-pop-out" : sparkleToken > 0 && "ai-pop-in",
+                  isAiToggleCollapsed ? "glyph-pop-out" : collapseToken > 0 && "glyph-pop-in",
                 )}
                 Icon={Sparkles}
                 haptic
@@ -842,30 +853,42 @@ export function MessageComposer({
           )}
           {/* INFO: DESIGN.md § 6.6. The toggle stays put once text is typed — an emoticon is staged beside a line of text now (REQUIREMENTS.md § 13.6.), so replacing it with send would put the panel out of reach exactly when it is wanted. */}
           {!isEditing && (
-            <IconButton
-              buttonClassName={cn(
-                isEmoticonPickerOpen && "bg-primary-tint text-primary",
-                // INFO: A sticker standing free rather than a glyph on a control — the round hover/press fill this button always carries would otherwise show through past the picture's own edges.
-                showsPreview &&
-                  "rounded-none group-active:bg-transparent hover:bg-transparent active:bg-transparent",
+            // INFO: DESIGN.md § 6.6. A question to 쨈미니 sends text and only text (REQUIREMENTS.md § 8.15.), so the picker has nothing to stage into it and the field takes the 44 — the same box the AI toggle collapses through, for the same reason and on the same easing.
+            <div
+              className={cn(
+                "relative h-11 shrink-0 transition-[width,margin] duration-(--duration-state) ease-press motion-reduce:transition-none",
+                isAiMode ? "pointer-events-none -ml-2xs w-0" : "w-11",
               )}
-              Icon={showsPreview ? undefined : Smile}
-              haptic
-              aria-label="이모티콘"
-              aria-pressed={isEmoticonPickerOpen}
-              icon={
-                showsPreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- The exact `Image` warmEmoticonUrls decoded, so the browser's decode cache paints it with nothing for `next/image` to wait on.
-                  <img
-                    className="pointer-events-none size-11 object-contain"
-                    src={displayedPreviewUrl ?? undefined}
-                    alt=""
-                    draggable={false}
-                  />
-                ) : undefined
-              }
-              onClick={showsPreview ? handlePreviewTap : toggleEmoticons}
-            />
+              inert={isAiMode}
+            >
+              <IconButton
+                className="absolute right-0 bottom-0"
+                buttonClassName={cn(
+                  // WARN: On the disc rather than on `iconClassName`, which the AI toggle can use because its glyph is always an `Icon` — § 13.8.'s preview arrives through `icon` instead, and that branch takes no icon class at all.
+                  isAiMode ? "glyph-pop-out" : modeToken > 0 && "glyph-pop-in",
+                  isEmoticonPickerOpen && "bg-primary-tint text-primary",
+                  // INFO: A sticker standing free rather than a glyph on a control — the round hover/press fill this button always carries would otherwise show through past the picture's own edges.
+                  showsPreview &&
+                    "rounded-none group-active:bg-transparent hover:bg-transparent active:bg-transparent",
+                )}
+                Icon={showsPreview ? undefined : Smile}
+                haptic
+                aria-label="이모티콘"
+                aria-pressed={isEmoticonPickerOpen}
+                icon={
+                  showsPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- The exact `Image` warmEmoticonUrls decoded, so the browser's decode cache paints it with nothing for `next/image` to wait on.
+                    <img
+                      className="pointer-events-none size-11 object-contain"
+                      src={displayedPreviewUrl ?? undefined}
+                      alt=""
+                      draggable={false}
+                    />
+                  ) : undefined
+                }
+                onClick={showsPreview ? handlePreviewTap : toggleEmoticons}
+              />
+            </div>
           )}
           {/* WARN: `keepsFocus` repeats `keepFieldFocused` on the overlay. It takes the tap the button would have taken, so without it the textarea blurs and iOS drops the keyboard on every send. */}
           <HapticTarget className="inline-flex shrink-0" isTicking={canSend} keepsFocus>

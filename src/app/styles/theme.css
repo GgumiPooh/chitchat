@@ -211,7 +211,7 @@
   /* INFO: DESIGN.md § 7.12. The bloom's one-shot arrival, and the only swell in it — long enough for `--ease-bloom` to overshoot and settle before the breathing takes the halo over. */
   --duration-event-bloom-enter: 700ms;
   /* INFO: DESIGN.md § 6.6. The AI toggle's pop as the field takes its place, and the sparks it throws — both longer than `--duration-state` because they are a send-off rather than a state change, and the sparks outlast the pop so they are still falling once the glyph is gone. */
-  --duration-ai-pop: 460ms;
+  --duration-glyph-pop: 460ms;
   --duration-ai-sparkle: 720ms;
 
   /* WARN: `--ease-*` is Tailwind's timing-function namespace, so these also ship as `ease-press` / `ease-bloom` / `ease-route` / `ease-sheet` utilities — renaming one renames the utility. */
