@@ -88,7 +88,6 @@ export function AiSelectionBar({
         items={toModelItems(agents, onSelectModel)}
         header={{ title: "모델 선택" }}
         anchorRef={modelAnchorRef}
-        presentation="menu"
         onClose={() => setOpenSheet(null)}
       />
       <ActionSheet
@@ -96,7 +95,6 @@ export function AiSelectionBar({
         items={toThinkingItems(onSelectThinking)}
         header={{ title: "생각 수준 선택" }}
         anchorRef={thinkingAnchorRef}
-        presentation="menu"
         onClose={() => setOpenSheet(null)}
       />
       <LlmSystemPromptSheet
