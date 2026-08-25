@@ -22,7 +22,14 @@ export function TypingIndicator({ className, typist }: TypingIndicatorProps) {
   return (
     // INFO: Announced politely — it is ambient status, and it changes often enough that an assertive region would interrupt a screen reader mid-message.
     // WARN: DESIGN.md § 6.7.1. `py-xs`, and `--typing-indicator-height` is computed from the same token — they are one measurement written twice, so changing the padding here without the token crops the row against the slot that holds it.
-    <div className={cn("flex items-end gap-2xs px-md py-xs", className)} aria-live="polite">
+    // INFO: AGENTS.md § 4.1. Capped and centred like `contentRef`'s column — `ListFooter` sits outside it, so without this the row hugs the scroller's left edge on a wide pane.
+    <div
+      className={cn(
+        "mx-auto flex max-w-(--content-max-width) items-end gap-2xs px-md py-xs",
+        className,
+      )}
+      aria-live="polite"
+    >
       <span className="sr-only">{typist.name}님이 입력 중이에요</span>
       {/* WARN: DESIGN.md § 6.7.1. `canEnlarge` stays off — this circle stands in for a bubble that does not exist yet, and enlarging it would offer a photo the row is not really showing. */}
       <span className="shrink-0" aria-hidden>
