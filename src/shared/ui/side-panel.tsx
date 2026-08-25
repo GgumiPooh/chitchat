@@ -1,7 +1,6 @@
 import { APP_SHELL_ID, SIDE_PANEL_SETTLED_EVENT } from "@/shared/config";
 import { cn, SIDE_PANEL_ANIMATING_ATTRIBUTE } from "@/shared/lib";
 import type { PropsWithChildren, TransitionEvent } from "react";
-import { SidePanelToggle } from "./side-panel-toggle";
 
 export type SidePanelProps = PropsWithChildren<{
   className?: string;
@@ -37,9 +36,6 @@ export function SidePanel({ className, children }: SidePanelProps) {
       onTransitionEnd={handleTransitionEnd}
     >
       <div className="flex h-full w-(--pane-open-width) flex-col">
-        <div className="flex shrink-0 justify-end px-xs pt-xs">
-          <SidePanelToggle />
-        </div>
         <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
       </div>
     </aside>

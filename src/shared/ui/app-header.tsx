@@ -71,7 +71,7 @@ export function AppHeader({
           containerClassName,
         )}
       >
-        {hasSidePanel && <SidePanelToggle hideWhenOpen />}
+        {hasSidePanel && <SidePanelToggle />}
         {leading}
         {title ? (
           <h1

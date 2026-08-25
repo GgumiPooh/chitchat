@@ -1590,7 +1590,7 @@ What every other surface does while § 7.18.'s pill is up. The rule is that **th
 
 State is a cookie (`jandh:side-panel`), `true`/`false` — JSON, because `synced-storage` seeds SSR through `JSON.parse` — so `app/(main)/layout.tsx` can paint `#app-shell`'s `data-side-panel="closed"` before hydration — `theme.css`'s `:root:has()` reads it back to zero `--pane-width`. The width transition (`transition-[width]` on `--duration-route-enter`/`ease-route`) is on the outer box alone; the inner content wrapper keeps a fixed width (`--pane-open-width`) throughout, so nothing inside reflows while the outer box narrows to nothing.
 
-The toggle (`SidePanelToggle`) sits in `AppHeader`'s leading slot (§ 7.12.), not the rail — `PanelLeft`/`PanelLeftClose`, `⌘\` (`isCommandKey`, `REQUIREMENTS.md § 8.14.`), `lg`-only.
+The toggle (`SidePanelToggle`) sits in `AppHeader`'s leading slot (§ 7.12.) alone — not the rail, and not inside the panel, whose top row it used to take — `PanelLeft`/`PanelLeftClose`, `⌘\` (`isCommandKey`, `REQUIREMENTS.md § 8.14.`), `lg`-only.
 
 **Per-screen panel content:**
 
