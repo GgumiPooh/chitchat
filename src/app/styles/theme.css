@@ -65,6 +65,10 @@
   /* WARN: The same hue at zero alpha, which is what the animation fades from and to — never the keyword `transparent`, which computes to `rgba(0,0,0,0)` so an engine interpolating un-premultiplied walks both ramps through black. § 4.1. keeps every neutral off `#000000` precisely because a black wash reads as a hole. */
   --color-message-flash-out: rgb(182 92 78 / 0);
 
+  /* INFO: DESIGN.md § 4.1.3. AI's own accent, and its own token rather than `primary` — the AI toggle is coloured at rest, so borrowing the accent would leave its pressed state saying only what every other control's does. */
+  --color-ai: #8f629b;
+  --color-ai-tint: #f3eaf7;
+
   /* INFO: Event colours — DESIGN.md § 4.1.7. A closed set; `primary` is deliberately not in it. */
   --color-event-clay: #c97b5a;
   --color-event-honey: #cfa03f;
@@ -188,7 +192,7 @@
   --shadow-raised: 0 1px 2px rgb(31 27 23 / 0.04), 0 2px 8px rgb(31 27 23 / 0.05);
   --shadow-floating: 0 4px 12px rgb(31 27 23 / 0.06), 0 16px 32px rgb(31 27 23 / 0.12);
 
-  /* INFO: Motion — DESIGN.md § 4.7. Six durations and three curves; nothing in the app times itself. */
+  /* INFO: Motion — DESIGN.md § 4.7. Ten durations and four curves; nothing in the app times itself. */
   --duration-press-in: 140ms;
   /* INFO: DESIGN.md § 4.7.2. Long because the release is a spring with two crossings to spend it on, not a single ease. */
   --duration-press-out: 520ms;
@@ -206,6 +210,9 @@
   --duration-event-bloom: 2400ms;
   /* INFO: DESIGN.md § 7.12. The bloom's one-shot arrival, and the only swell in it — long enough for `--ease-bloom` to overshoot and settle before the breathing takes the halo over. */
   --duration-event-bloom-enter: 700ms;
+  /* INFO: DESIGN.md § 6.6. The AI toggle's pop as the field takes its place, and the sparks it throws — both longer than `--duration-state` because they are a send-off rather than a state change, and the sparks outlast the pop so they are still falling once the glyph is gone. */
+  --duration-ai-pop: 460ms;
+  --duration-ai-sparkle: 720ms;
 
   /* WARN: `--ease-*` is Tailwind's timing-function namespace, so these also ship as `ease-press` / `ease-bloom` / `ease-route` / `ease-sheet` utilities — renaming one renames the utility. */
   --ease-press: cubic-bezier(0.2, 0, 0, 1);
@@ -447,6 +454,10 @@
   --color-message-flash: rgb(210 121 95 / 0.1);
   /* WARN: This theme's channels at zero alpha, for the reason the light entry gives — the keyword `transparent` would fade both ends through black. */
   --color-message-flash-out: rgb(210 121 95 / 0);
+
+  /* INFO: DESIGN.md § 5.3. Lifted against the dark canvas, and the tint re-derived rather than the light plate reused. */
+  --color-ai: #bb8fca;
+  --color-ai-tint: #2b1f33;
 
   /* INFO: DESIGN.md § 4.1.7. Lifted as a set, so the six stay distinguishable from each other as well as from the canvas. */
   --color-event-clay: #d98f6e;

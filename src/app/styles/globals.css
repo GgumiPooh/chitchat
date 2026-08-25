@@ -281,3 +281,82 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
     animation: none !important;
   }
 }
+
+/* INFO: DESIGN.md § 6.6. The AI toggle leaving as the draft takes its width, and coming back when the draft empties. */
+/* WARN: On the glyph and never on the button — `press-bloom` owns that element's whole `transition` shorthand (§ 4.7.2.), and a control that animates its own box fights the collapse around it. */
+@keyframes ai-pop-out {
+  0% {
+    scale: 1;
+    rotate: 0deg;
+    opacity: 1;
+  }
+  30% {
+    scale: 1.45;
+    rotate: -22deg;
+    opacity: 1;
+  }
+  100% {
+    scale: 0;
+    rotate: 44deg;
+    opacity: 0;
+  }
+}
+
+@keyframes ai-pop-in {
+  0% {
+    scale: 0;
+    rotate: -44deg;
+    opacity: 0;
+  }
+  100% {
+    scale: 1;
+    rotate: 0deg;
+    opacity: 1;
+  }
+}
+
+/* WARN: `forwards` is load-bearing rather than tidy. The box around it collapses to zero width but does not clip (the sparks below have to leave it), so a glyph that snapped back to `scale: 1` at the end would sit over the field it just made room in. */
+@utility ai-pop-out {
+  animation: ai-pop-out var(--duration-ai-pop) var(--ease-bloom) forwards;
+}
+
+@utility ai-pop-in {
+  animation: ai-pop-in var(--duration-ai-pop) var(--ease-bloom);
+}
+
+/* INFO: DESIGN.md § 6.6. One spark's whole flight: out from the glyph, then drifting down and out. Each one carries its own vector and delay as custom properties, which is what keeps five of them from moving as one. */
+@keyframes ai-sparkle {
+  0% {
+    translate: 0 0;
+    scale: 0;
+    opacity: 0;
+  }
+  25% {
+    scale: 1;
+    opacity: 1;
+  }
+  100% {
+    translate: var(--sparkle-x) var(--sparkle-y);
+    rotate: var(--sparkle-spin);
+    scale: 0;
+    opacity: 0;
+  }
+}
+
+/* WARN: `backwards`, so the delay is spent at `scale: 0` — without it a spark waits out its stagger at full size beside the glyph. */
+@utility ai-sparkle {
+  animation: ai-sparkle var(--duration-ai-sparkle) var(--ease-route) var(--sparkle-delay) backwards;
+}
+
+/* WARN: `ai-pop-out` is the one that cannot simply stop: its resting state is the glyph at full size in a zero-width box, so reduced motion has to state the ending the animation would have left. */
+@media (prefers-reduced-motion: reduce) {
+  .ai-pop-in,
+  .ai-sparkle {
+    animation: none !important;
+  }
+  .ai-pop-out {
+    animation: none !important;
+    scale: 0;
+    opacity: 0;
+  }
+}

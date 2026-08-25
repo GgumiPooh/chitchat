@@ -73,6 +73,19 @@ const FIELD_BOX = "px-2xs py-[10.75px] text-body-md leading-normal break-all";
 // WARN: Hoisted so the pending query answers one array identity — an inline `= []` re-runs the match on every render of a field being typed into.
 const NO_KEYWORDS: string[] = [];
 
+// INFO: DESIGN.md § 6.6. The sparks the AI toggle throws as it leaves — a four-point star, small enough that the shape reads as a glint rather than a polygon.
+const SPARKLE_SHAPE =
+  "[clip-path:polygon(50%_0%,61%_39%,100%_50%,61%_61%,50%_100%,39%_61%,0%_50%,39%_39%)]";
+
+// INFO: DESIGN.md § 6.6. Each spark's own vector, spin and stagger — written out rather than randomised, so the burst is one authored gesture instead of a different accident every time the field is typed into.
+const AI_SPARKLES = [
+  { size: "size-1.5", x: "-22px", y: "18px", spin: "160deg", delay: "0ms" },
+  { size: "size-1", x: "-6px", y: "26px", spin: "-140deg", delay: "60ms" },
+  { size: "size-2", x: "14px", y: "12px", spin: "120deg", delay: "40ms" },
+  { size: "size-1", x: "20px", y: "28px", spin: "-180deg", delay: "120ms" },
+  { size: "size-1.5", x: "0px", y: "-16px", spin: "200deg", delay: "90ms" },
+];
+
 // INFO: § 13.8. Only the toggle's preview *disappearing* waits this out — a hit is shown the moment it decodes, but losing one mid-word (still typing past it, or the debounce chasing a faster hand) reverts to 스마일 and back on almost every keystroke without it.
 const TOGGLE_PREVIEW_HIDE_DEBOUNCE = A_SECOND / 3;
 
@@ -297,6 +310,18 @@ export function MessageComposer({
   // INFO: REQUIREMENTS.md § 8.14. The shortcuts appear nowhere else on screen, so the one field every reader already looks at carries the one key that lists the rest.
   const isFinePointer = useIsFinePointer();
   const hasDraft = draft.text.trim().length > 0;
+  // INFO: REQUIREMENTS.md § 8.5., DESIGN.md § 6.6. The toggle gives its width to the field the moment there is a draft — but never while AI 질문 is on, where it is the only way back out of the mode.
+  const isAiToggleCollapsed = !isEditing && !isAiMode && hasDraft;
+  // INFO: DESIGN.md § 6.6. The burst is keyed rather than toggled: a CSS animation restarts on a remount, and nothing else in this row may remount (see the send button's own WARN).
+  // INFO: React's "adjust state during render", as `ActionSheet` does — the token is seeded from the first render's own state, so a room re-entered with a draft already in the field opens without throwing sparks at nobody.
+  const [sparkle, setSparkle] = useState({ isCollapsed: isAiToggleCollapsed, token: 0 });
+  if (sparkle.isCollapsed !== isAiToggleCollapsed) {
+    setSparkle({
+      isCollapsed: isAiToggleCollapsed,
+      token: isAiToggleCollapsed ? sparkle.token + 1 : sparkle.token,
+    });
+  }
+  const sparkleToken = sparkle.token;
   // INFO: REQUIREMENTS.md § 8.13. An edit sends text and only text, so a tray left staged behind the mode cannot arm the button — emptying the field has to disable it, or the correction would submit nothing.
   // WARN: Held while a pick is still decoding, the way 보관함's own 대화에 보내기 is (`useShelfStaging`'s `isHeld`). Sent around them, `takeAll` empties a tray the remaining decodes then refill — the sender gets four of nine photos out and five back in the composer.
   // INFO: REQUIREMENTS.md § 8.5. A staged tray or emoticon rides along with an AI question, but never alone — attachments are not a question, so only text arms the button.
@@ -746,14 +771,54 @@ export function MessageComposer({
           )}
           {/* INFO: REQUIREMENTS.md § 8.5. AI 질문 모드's own toggle, immediately beside the emoticon one — pressing it hands the room the field rather than staging anything here. */}
           {!isEditing && (
-            <IconButton
-              buttonClassName={cn(isAiMode && "bg-primary-tint text-primary")}
-              Icon={Sparkles}
-              haptic
-              aria-label="AI에게 질문"
-              aria-pressed={isAiMode}
-              onClick={onToggleAiMode}
-            />
+            // WARN: DESIGN.md § 6.6. The box collapses and the button inside it does not move: it is `absolute` on the edge the emoticon toggle holds, so the glyph pops where it stood while the field grows into its 44. No `overflow-hidden` — the sparks have to leave this box, which is what `ai-pop-out`'s `forwards` fill then pays for.
+            <div
+              className={cn(
+                "relative h-11 shrink-0 transition-[width,margin] duration-(--duration-state) ease-press motion-reduce:transition-none",
+                // WARN: `pointer-events-none` alongside `inert`, which takes the tab order but leaves a 44px box hit-testing over the field it has just made room in.
+                isAiToggleCollapsed ? "pointer-events-none -ml-2xs w-0" : "w-11",
+              )}
+              inert={isAiToggleCollapsed}
+            >
+              {sparkleToken > 0 && (
+                <span
+                  key={sparkleToken}
+                  className="pointer-events-none absolute right-0 bottom-0 size-11"
+                  aria-hidden
+                >
+                  {AI_SPARKLES.map((sparkle) => (
+                    // WARN: `opacity-0` is the resting state the flight returns to — the animation carries no forwards fill, so without it five stars stay lit beside the field.
+                    <span
+                      key={sparkle.delay + sparkle.x}
+                      className={cn(
+                        "absolute top-1/2 left-1/2 ai-sparkle bg-ai opacity-0",
+                        SPARKLE_SHAPE,
+                        sparkle.size,
+                      )}
+                      style={{
+                        ["--sparkle-x" as string]: sparkle.x,
+                        ["--sparkle-y" as string]: sparkle.y,
+                        ["--sparkle-spin" as string]: sparkle.spin,
+                        ["--sparkle-delay" as string]: sparkle.delay,
+                      }}
+                    />
+                  ))}
+                </span>
+              )}
+              <IconButton
+                className="absolute right-0 bottom-0"
+                // INFO: DESIGN.md § 4.1.3. Coloured at rest, which is why `ai` is its own token — the pressed state is the tint behind it rather than the glyph changing colour.
+                buttonClassName={cn("text-ai hover:text-ai", isAiMode && "bg-ai-tint")}
+                iconClassName={cn(
+                  isAiToggleCollapsed ? "ai-pop-out" : sparkleToken > 0 && "ai-pop-in",
+                )}
+                Icon={Sparkles}
+                haptic
+                aria-label="AI에게 질문"
+                aria-pressed={isAiMode}
+                onClick={onToggleAiMode}
+              />
+            </div>
           )}
           {/* INFO: DESIGN.md § 6.6. The toggle stays put once text is typed — an emoticon is staged beside a line of text now (REQUIREMENTS.md § 13.6.), so replacing it with send would put the panel out of reach exactly when it is wanted. */}
           {!isEditing && (
