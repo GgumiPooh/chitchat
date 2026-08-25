@@ -33,7 +33,8 @@ export function ExpandBodyButton({
   return (
     <button
       className={cn(
-        "mt-2xs flex w-full cursor-pointer items-center justify-between gap-xs border-t border-quote-divider pt-2xs text-chat-body transition-colors outline-none hover:text-bubble-ink/70 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:text-bubble-ink/55",
+        // WARN: REQUIREMENTS.md § 8.5. `pointer-events-auto` is what keeps the sheet reachable under `SelectableRow`'s sweep, where the bubble's own whole-body tap becomes the row's toggle.
+        "pointer-events-auto mt-2xs flex w-full cursor-pointer items-center justify-between gap-xs border-t border-quote-divider pt-2xs text-chat-body transition-colors outline-none hover:text-bubble-ink/70 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:text-bubble-ink/55",
         className,
       )}
       type="button"

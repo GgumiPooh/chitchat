@@ -170,7 +170,8 @@ export function MessageRow({
 }: MessageRowProps) {
   // INFO: REQUIREMENTS.md § 12.3. Read here rather than threaded down from the room — the row is what renders the avatar, and the provider is in the shell either way.
   const { openProfile } = useProfileViewer();
-  const swipe = useSwipeToReply(onReply, isMine);
+  // INFO: REQUIREMENTS.md § 8.5. The sweep takes the row's gestures; only the quote and 전체보기 keep a tap of their own, and neither is a swipe or a hold.
+  const swipe = useSwipeToReply(isSelecting ? undefined : onReply, isMine);
   // WARN: REQUIREMENTS.md § 8.16. The same test `estimateRowHeight` makes, off `text` alone — the two decide whether this bubble is cut, and a second input to either is a bubble the estimate has not priced.
   // INFO: § 8.17. A folded row is one line already, so there is nothing left for the cut to take.
   const isTruncated = !isDeleted && !isCollapsed && isExpandableBody(text);
@@ -179,7 +180,7 @@ export function MessageRow({
     isCollapsed ? onUnfold : isTruncated ? onExpand : onOpenReply,
   );
   const longPressHandlers = useLongPress(
-    onLongPress ? (point, anchor) => onLongPress(anchor, point) : undefined,
+    onLongPress && !isSelecting ? (point, anchor) => onLongPress(anchor, point) : undefined,
     { onFire: swipe.cancel },
   );
   const hasMedia = media.length > 0;

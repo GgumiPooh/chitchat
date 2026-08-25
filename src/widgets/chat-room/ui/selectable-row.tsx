@@ -30,10 +30,12 @@ export const SELECTION_TRANSITION_SETTLE = A_SECOND / 4;
  * suppressed by an overlay that answers a tap with a toggle instead.
  *
  * WARN: `pointer-events-none` on the row's own content and a same-sized overlay
- * above it, rather than threading a `disabled` flag through `MessageRow`,
+ * behind it, rather than threading a `disabled` flag through `MessageRow`,
  * `SystemNotice` and `AssistantMessageRow` — the reply swipe, the long-press sheet
  * and the media viewer all reach the DOM directly, and this is the one place that
- * suppresses every one of them without a prop apiece.
+ * suppresses every one of them without a prop apiece. § 8.16.'s 전체보기 and § 6.10.'s
+ * quote opt back out with `pointer-events-auto`: the sweep takes the bubble's own
+ * whole-body tap, never the two controls that name an action of their own.
  *
  * WARN: DESIGN.md § 4.7. The gutter is a `translate-x-10` on the row's own content,
  * never a flex sibling that reflows it — REQUIREMENTS.md § 8.3.'s virtualizer
@@ -109,7 +111,7 @@ export function SelectableRow({
           isAnimating && isTranslated && "will-change-transform",
         )}
       >
-        <div className={cn(isSelecting && "pointer-events-none")}>{children}</div>
+        {/* WARN: Before the content and not after it. The row's own affordances that survive the sweep (`ReplyQuote`, `ExpandBodyButton`) take `pointer-events-auto` back, and a hit test picks the topmost element — painted last, this overlay would swallow them again. */}
         {isSelecting && isSelectable && (
           <button
             className="absolute inset-0 cursor-pointer"
@@ -119,6 +121,7 @@ export function SelectableRow({
             onClick={onToggle}
           />
         )}
+        <div className={cn("relative", isSelecting && "pointer-events-none")}>{children}</div>
       </div>
     </div>
   );

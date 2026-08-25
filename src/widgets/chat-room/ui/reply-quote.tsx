@@ -67,7 +67,11 @@ export function ReplyQuote({
 
   return (
     <button
-      className={cn(shape, "cursor-pointer opacity-90 hover:opacity-100 focus-visible:opacity-100")}
+      // WARN: REQUIREMENTS.md § 8.5. `pointer-events-auto` is what keeps the jump reachable under `SelectableRow`'s sweep, where the bubble's own whole-body tap becomes the row's toggle.
+      className={cn(
+        shape,
+        "pointer-events-auto cursor-pointer opacity-90 hover:opacity-100 focus-visible:opacity-100",
+      )}
       type="button"
       aria-label="답장한 메시지로 이동"
       onClick={onOpen}

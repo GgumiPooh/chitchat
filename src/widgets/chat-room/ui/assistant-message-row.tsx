@@ -70,11 +70,14 @@ export function AssistantMessageRow({
   const isDeleted = message.isDeleted;
   const followUp = isDeleted ? undefined : onFollowUp;
   const share = isDeleted ? undefined : onShare;
-  const swipe = useSwipeToReply(followUp, false);
+  // INFO: REQUIREMENTS.md § 8.5. `MessageRow`'s own rule — the sweep takes the row's gestures and leaves only the quote's and 전체보기's taps.
+  const swipe = useSwipeToReply(isSelecting ? undefined : followUp, false);
   // WARN: REQUIREMENTS.md § 8.16. `MessageRow`'s own test on the same source `toAnswerHeight` prices — the answer's markdown, before any of it is laid out.
   const isTruncated = !isDeleted && !isCollapsed && isExpandableBody(message.text);
   const longPressHandlers = useLongPress(
-    !isDeleted && onLongPress ? (point, anchor) => onLongPress(anchor, point) : undefined,
+    !isDeleted && !isSelecting && onLongPress
+      ? (point, anchor) => onLongPress(anchor, point)
+      : undefined,
     { onFire: swipe.cancel },
   );
 
