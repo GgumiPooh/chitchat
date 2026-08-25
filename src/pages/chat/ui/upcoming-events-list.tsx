@@ -10,6 +10,8 @@ import { useEffect, useRef, useState } from "react";
 export type UpcomingEventsListProps = {
   className?: string;
   listClassName?: string;
+  /** REQUIREMENTS.md § 11.5.1. Off where the list's height is already bounded by its column, as in the side panel — held there, the list never takes the room the column later grants it. */
+  pinsHeight?: boolean;
   occurrences: EventOccurrence[];
   todayKey: string;
   /** REQUIREMENTS.md § 11.5.1. The clock the imminent rows count down against. */
@@ -28,6 +30,7 @@ export type UpcomingEventsListProps = {
 export function UpcomingEventsList({
   className,
   listClassName,
+  pinsHeight = true,
   occurrences,
   todayKey,
   now,
@@ -142,7 +145,7 @@ export function UpcomingEventsList({
 
   // WARN: Measured **before** the page is asked for, in the handler rather than in an effect — a frame later the new rows are already in the list and the height read back includes them.
   function expand() {
-    if (lockedHeight === null && listRef.current) {
+    if (pinsHeight && lockedHeight === null && listRef.current) {
       setLockedHeight(listRef.current.getBoundingClientRect().height);
     }
 

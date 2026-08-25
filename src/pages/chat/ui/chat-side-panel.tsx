@@ -103,6 +103,7 @@ export function ChatSidePanel({
         <h2 className="px-xs text-title-sm text-meta">다가오는 일정</h2>
         <UpcomingEventsList
           className="min-h-0 flex-1 overflow-y-auto"
+          pinsHeight={false}
           occurrences={occurrences}
           todayKey={todayKey}
           now={now}
