@@ -845,6 +845,8 @@ export function MessageComposer({
                 )}
                 Icon={Sparkles}
                 haptic
+                // WARN: `keepsFocus` for the send disc's reason (DESIGN.md § 6.6.) — the overlay takes the tap, and without it the field blurs with the keys up, so the chat screen eases out to its resting height and back while `focusRequest` takes the caret again.
+                keepsFocus
                 aria-label="AI에게 질문"
                 aria-pressed={isAiMode}
                 onClick={onToggleAiMode}
