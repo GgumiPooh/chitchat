@@ -9,6 +9,7 @@ import {
 } from "@/shared/config";
 import {
   A_SECOND,
+  GESTURE_SLOP,
   MEDIA_MORPH_NAME,
   MEDIA_VIEWER_NAME,
   cn,
@@ -45,6 +46,7 @@ import {
   type ComponentProps,
   type FC,
   type MouseEvent,
+  type PointerEvent,
 } from "react";
 import { HapticTap } from "./haptic-tap";
 import { HapticTarget } from "./haptic-target";
@@ -227,6 +229,7 @@ export function MediaViewer({
    * WARN: Cleared on arrival **and on the inputs that interrupt one**, because a step that is cut short never reaches the offset it named. Arrival alone left the destination pending for good: a reader who pressed → and swiped back mid-animation had their next press measured from a slide they had turned away from, and travelled there instead of one across.
    */
   const steppedRef = useRef<Nullable<number>>(null);
+  const chevronPressRef = useRef<Nullable<number>>(null);
   // INFO: REQUIREMENTS.md § 12.3. `Escape`, the focus trap and the marker the profile screen underneath reads, from the one owner the profile screen shares — and § 8.1.'s arrow keys, which that owner forwards because "is anything open over me" is the same question for all four.
   const overlayRef = useModalOverlay<HTMLDivElement>(handleClose, handleOverlayKeyDown);
   // INFO: DESIGN.md § 7.10. A tap on the photo puts the chrome away, so the slide can be looked at with nothing over it. It starts visible — the controls have to be findable without discovering the gesture first.
@@ -583,10 +586,12 @@ export function MediaViewer({
             // INFO: DESIGN.md § 4.7.3. Held back until the opening morph has landed, with the floor above — the chrome is what says "you are in the viewer", and said while the picture is still crossing the screen it arrives before the thing it describes.
             (!isChromeVisible || !hasMorphSettled) && "opacity-0 [&_*]:pointer-events-none",
           )}
+          onPointerDown={handleChevronPointerDown}
+          onPointerUp={handleChevronPointerUp}
         >
           {/* WARN: `invisible` at the ends rather than unmounted, so the surviving arrow does not slide across the screen when the reader reaches the first or last slide. § 8.1.'s track also grows at both edges mid-open, which would make an unmounted control blink back into existence. */}
           <IconButton
-            className={cn("pointer-events-auto shrink-0", !canStepBack && "invisible")}
+            className={cn("pointer-events-auto shrink-0 touch-none", !canStepBack && "invisible")}
             buttonClassName="bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim"
             Icon={ChevronLeft}
             haptic
@@ -595,7 +600,10 @@ export function MediaViewer({
             onClick={() => step(-1)}
           />
           <IconButton
-            className={cn("pointer-events-auto shrink-0", !canStepForward && "invisible")}
+            className={cn(
+              "pointer-events-auto shrink-0 touch-none",
+              !canStepForward && "invisible",
+            )}
             buttonClassName="bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim"
             Icon={ChevronRight}
             haptic
@@ -732,6 +740,27 @@ export function MediaViewer({
    * WARN: `preventDefault`, or the key does its own thing as well — the track is the focusable scroller under the reader, so the browser scrolls it a line at a time on top of the step and lands the offset between two slides.
    * INFO: Nothing is done for a key that arrives while the slide is zoomed; `step` refuses it, the way `overflow-x-hidden` refuses the swipe (§ 18. #6.).
    */
+  // WARN: A swipe that lands on a chevron is a swipe on the chevron's `HapticTap`, and its strip is a sibling of the track — the drag chains to nothing and § 8.1.'s swipe is simply lost. The buttons are `touch-none` so the browser never claims the drag either, and a horizontal pull past the slop steps the track the way the swipe would have.
+  function handleChevronPointerDown(event: PointerEvent<HTMLDivElement>) {
+    chevronPressRef.current = event.target === event.currentTarget ? null : event.clientX;
+  }
+
+  function handleChevronPointerUp(event: PointerEvent<HTMLDivElement>) {
+    const from = chevronPressRef.current;
+
+    chevronPressRef.current = null;
+
+    if (from === null) {
+      return;
+    }
+
+    const travel = event.clientX - from;
+
+    if (Math.abs(travel) >= GESTURE_SLOP) {
+      step(travel < 0 ? 1 : -1);
+    }
+  }
+
   function handleOverlayKeyDown(event: KeyboardEvent) {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
       return;
