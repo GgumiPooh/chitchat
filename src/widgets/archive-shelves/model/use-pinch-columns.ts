@@ -14,16 +14,13 @@ export type PinchColumnsOptions = {
 const MIN_COLUMNS: ArchiveColumnCount = 1;
 const MAX_COLUMNS: ArchiveColumnCount = 7;
 
-// INFO: DESIGN.md § 7.10.3. Pinching in widens the grid, out narrows it — tuned against a real pinch, where 1.25× per step read as the grid lagging the fingers.
-const SHRINK_RATIO = 0.87;
-const GROW_RATIO = 1.15;
-
 /**
  * AGENTS.md § 4.1. A two-finger scale tracker for 보관함's mobile column count —
  * `usePinchZoom`'s API is built around a continuous photo transform, where this
- * needs a whole-number step per ~1.25× of scale. Each step re-bases the tracked
- * distance rather than the gesture's own start, letting one pinch walk several
- * steps. Gated on `useIsCoarsePointer` alone (AGENTS.md § 4.2.), never on
+ * maps the gesture's **cumulative** scale to a whole number: the tile width the
+ * fingers are asking for is the width they started on times their scale, so a
+ * wide fast pinch crosses several columns at once rather than ratcheting one per
+ * threshold. Gated on `useIsCoarsePointer` alone (AGENTS.md § 4.2.), never on
  * viewport — the desktop layout forces 5 columns regardless of what this sets.
  *
  * WARN: Touch events on a manually attached, non-passive `touchmove`, not pointer
@@ -47,11 +44,20 @@ export function usePinchColumns({ columns, onColumnsChange }: PinchColumnsOption
       return;
     }
 
-    let stepOrigin: Nullable<number> = null;
+    let origin: Nullable<{ span: number; columns: number; emitted: number }> = null;
 
     // WARN: Re-based on **every** change to the touch set, not only when it drops below 2 — a third finger down (tracking paused) followed by one of the original pair lifting leaves a pair that was never each other's baseline, and the stale origin reads as a pinch that never happened.
+    // WARN: Based on the last count this hook *emitted*, not `latestRef`'s — a step runs through a View Transition and lands a frame late, so the prop still says the old count at the moment the next touch set forms.
     const rebase = (event: TouchEvent) => {
-      stepOrigin = event.touches.length === 2 ? Math.max(spanOf(event.touches), 1) : null;
+      if (event.touches.length !== 2) {
+        origin = null;
+
+        return;
+      }
+
+      const columns = origin?.emitted ?? latestRef.current.columns;
+
+      origin = { span: Math.max(spanOf(event.touches), 1), columns, emitted: columns };
     };
 
     const track = (event: TouchEvent) => {
@@ -63,23 +69,21 @@ export function usePinchColumns({ columns, onColumnsChange }: PinchColumnsOption
         event.preventDefault();
       }
 
-      const distance = spanOf(event.touches);
-
-      if (stepOrigin === null) {
-        stepOrigin = Math.max(distance, 1);
+      if (origin === null) {
+        rebase(event);
 
         return;
       }
 
-      const ratio = distance / stepOrigin;
-      const { columns: current, onColumnsChange: change } = latestRef.current;
+      const scale = spanOf(event.touches) / origin.span;
+      const target = Math.min(
+        MAX_COLUMNS,
+        Math.max(MIN_COLUMNS, Math.round(origin.columns / scale)),
+      ) as ArchiveColumnCount;
 
-      if (ratio < SHRINK_RATIO && current < MAX_COLUMNS) {
-        stepOrigin = distance;
-        change((current + 1) as ArchiveColumnCount);
-      } else if (ratio > GROW_RATIO && current > MIN_COLUMNS) {
-        stepOrigin = distance;
-        change((current - 1) as ArchiveColumnCount);
+      if (target !== origin.emitted) {
+        origin.emitted = target;
+        latestRef.current.onColumnsChange(target);
       }
     };
 
