@@ -2023,14 +2023,19 @@ function EmoticonCell({
   return (
     // WARN: `touch-pan-y` is repeated on the overlay rather than inherited — `touch-action` applies to the element the gesture starts on, and a cell tiles its scroller. The two are intersected (`DESIGN.md § 7.15.1.`), so a pair that disagreed would resolve to `none` and the panel would not scroll at all.
     // WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the panel would stop scrolling (`DESIGN.md § 7.15.`).
-    <HapticTarget className={className} overlayClassName="touch-pan-y" keepsScroll>
+    // WARN: § 13. `min-h-0`/`min-w-0` on both boxes, or a narrow pane stops drawing squares: an `<img>` with no width/height attributes contributes its **natural pixel size** to a flex/grid item's automatic minimum, and an asset taller than the column it is drawn in floors the whole row above `aspect-square`.
+    <HapticTarget
+      className={cn("min-h-0 min-w-0", className)}
+      overlayClassName="touch-pan-y"
+      keepsScroll
+    >
       {/* WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it. */}
       <button
         ref={isMini ? replayRef : undefined}
         className={cn(
           "touch-pan-y",
           // WARN: REQUIREMENTS.md § 8.14. `ring-inset`, and a `primary-tint` fill under it. DESIGN.md § 3.2.'s offset ring is unreadable here for two reasons at once: the cells tile their scroller, which is `overflow-x-hidden` in the grid and `overflow-y-hidden` in § 13.8.'s row, so an outward ring is clipped away on every edge cell — the same trap § 7.5. records — and 2px of `primary` over an arbitrary user-authored picture is not a contrast anyone can rely on. The fill is what makes it legible; the ring is what makes it a focus ring.
-          "rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] group-active:bg-surface-strong hover:bg-surface-soft focus-visible:bg-primary-tint focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-inset active:bg-surface-strong",
+          "min-h-0 min-w-0 rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] group-active:bg-surface-strong hover:bg-surface-soft focus-visible:bg-primary-tint focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-inset active:bg-surface-strong",
           // INFO: § 8.14. Additive to the `focus-visible` set above, which still answers a `Tab` arriving from outside the panel before any arrow has been pressed.
           isKeyboardDriven && CELL_KEYBOARD_RING,
           // INFO: § 13.9. A ring rather than the tabs' `bg-primary-tint` fill, which in this panel means "selected" — this cell is not selected, it is the one the tap was about.
