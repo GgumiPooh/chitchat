@@ -310,8 +310,10 @@ export function MessageComposer({
   // INFO: REQUIREMENTS.md § 8.14. The shortcuts appear nowhere else on screen, so the one field every reader already looks at carries the one key that lists the rest.
   const isFinePointer = useIsFinePointer();
   const hasDraft = draft.text.trim().length > 0;
+  // WARN: A virtual-keyboard Hangul IME re-composes a syllable by emptying the field first, so a one-syllable draft loses `hasDraft` between every jamo — "닭" expanded the toggle and threw the burst four times without this.
+  const [isImeComposing, setIsImeComposing] = useState(false);
   // INFO: REQUIREMENTS.md § 8.5., DESIGN.md § 6.6. The toggle gives its width to the field the moment there is a draft — but never while AI 질문 is on, where it is the only way back out of the mode.
-  const isAiToggleCollapsed = !isEditing && !isAiMode && hasDraft;
+  const isAiToggleCollapsed = !isEditing && !isAiMode && (hasDraft || isImeComposing);
   // INFO: DESIGN.md § 6.6. The burst is keyed rather than toggled: a CSS animation restarts on a remount, and nothing else in this row may remount (see the send button's own WARN).
   // INFO: React's "adjust state during render", as `ActionSheet` does — the token is seeded from the first render's own state, so a room re-entered with a draft already in the field opens without throwing sparks at nobody.
   const [sparkle, setSparkle] = useState({ isCollapsed: isAiToggleCollapsed, token: 0 });
@@ -660,7 +662,12 @@ export function MessageComposer({
         </div>
         {/* INFO: DESIGN.md § 6.6. One row, bottom-aligned — the field grows upward and the controls stay on the last line. */}
         {/* INFO: DESIGN.md § 6.6. With the leading control withheld the field would stand at the pill's own `2xs`, inside the corner's curve and 8px left of the header above it — this puts its text on the same column the `+` glyph holds it to. */}
-        <div className={cn("flex items-end gap-2xs", isEditing && "pl-xs")}>
+        {/* INFO: Composition events bubble, so one pair here covers both the plain `Textarea` and `EditableField`. */}
+        <div
+          className={cn("flex items-end gap-2xs", isEditing && "pl-xs")}
+          onCompositionStart={() => setIsImeComposing(true)}
+          onCompositionEnd={() => setIsImeComposing(false)}
+        >
           {/* INFO: REQUIREMENTS.md § 8.13. Both staging controls go while a message is being corrected — `messages_edited_is_text_check` makes an edit text-only, so an attachment or an emoticon staged here would have nowhere to land. */}
           {/* INFO: § 9. An attachment needs a presigned PUT for bytes held in memory, so it is the one send the outbox cannot promise — the text beside it queues instead (§ 8.5.). */}
           {!isEditing && (
@@ -893,6 +900,8 @@ export function MessageComposer({
 
     onSend({ text: draft.text, emoticons: draft.emoticons });
     setDraft(EMPTY_DRAFT);
+    // WARN: The send button cancels `pointerdown` to keep the field focused, so a composition open at that moment never ends — and the latch above would hold the toggle collapsed over an empty field.
+    setIsImeComposing(false);
     setFallbackKeywordQuery(null);
     // WARN: REQUIREMENTS.md § 8.12. The send is the end of composing, and it clears the field without going through `onChange` — so nothing else here would ever retract the broadcast, and 입력 중 would sit under the message that had just arrived.
     onEdit?.(false);
