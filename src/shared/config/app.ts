@@ -422,6 +422,9 @@ export const PUSH_STATE_COOKIE_NAME = "push-state";
 // INFO: AGENTS.md § 4.4. Collapsed vs open for the `lg` side panel, kept in a cookie so the layout can paint the collapsed width server-side instead of flashing open.
 export const SIDE_PANEL_COOKIE_NAME = "jandh:side-panel";
 
+// INFO: AGENTS.md § 4.4. Fired once the `lg` side panel's width transition ends, so a measurement deferred during the animation can re-run against the settled geometry.
+export const SIDE_PANEL_SETTLED_EVENT = "jandh:side-panel-settled";
+
 // INFO: AGENTS.md § 4.1. 보관함's column count (1–7) at every width — the pinch's and the 열 개수 slider's shared cookie, kept so SSR and `ArchiveGrid` draw the same count with no flash.
 export const ARCHIVE_COLUMNS_COOKIE_NAME = "jandh:archive-columns";
 

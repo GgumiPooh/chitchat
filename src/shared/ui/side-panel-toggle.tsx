@@ -8,10 +8,12 @@ import { IconButton } from "./icon-button";
 
 export type SidePanelToggleProps = {
   className?: string;
+  /** The header's copy — withheld while the panel shows its own at its top-right. */
+  hideWhenOpen?: boolean;
 };
 
 // INFO: REQUIREMENTS.md § 8.14. `⌘\` is Notion's binding; `⌘\`` belongs to macOS window cycling and never reaches the page.
-export function SidePanelToggle({ className }: SidePanelToggleProps) {
+export function SidePanelToggle({ className, hideWhenOpen = false }: SidePanelToggleProps) {
   const { isOpen, toggle } = useSidePanel();
 
   useEffect(() => {
@@ -31,6 +33,10 @@ export function SidePanelToggle({ className }: SidePanelToggleProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [toggle]);
+
+  if (hideWhenOpen && isOpen) {
+    return null;
+  }
 
   return (
     <IconButton

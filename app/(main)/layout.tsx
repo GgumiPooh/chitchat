@@ -42,16 +42,17 @@ export default async function MainLayout({ children }: PropsWithChildren) {
     [listUsers(), countUnreadMessages(user.id), hasEventToday(), readChatBackground(), cookies()],
   );
   // WARN: Only these cross to the client. `ssrCookies` is serialized into the RSC payload, and `getAll()` would put the `httpOnly` session cookie in it.
+  // WARN: `jandh:side-panel` is dropped unless it is the JSON boolean it now holds — a browser still carrying the old `open`/`closed` word would make `SyncedStorageProvider`'s `JSON.parse` warn on every request until the next toggle.
   const ssrCookies = cookieStore
     .getAll()
     .filter(
-      ({ name }) =>
+      ({ name, value }) =>
         name === PUSH_STATE_COOKIE_NAME ||
-        name === SIDE_PANEL_COOKIE_NAME ||
-        name === ARCHIVE_COLUMNS_COOKIE_NAME,
+        name === ARCHIVE_COLUMNS_COOKIE_NAME ||
+        (name === SIDE_PANEL_COOKIE_NAME && (value === "true" || value === "false")),
     );
   // INFO: AGENTS.md § 4.4. Painted on `#app-shell` rather than `<html>` — the root layout has no cookie access here — so `theme.css`'s `:root:has(#app-shell[data-side-panel="closed"])` collapses `--pane-width` before hydration.
-  const isSidePanelClosed = cookieStore.get(SIDE_PANEL_COOKIE_NAME)?.value === "closed";
+  const isSidePanelClosed = cookieStore.get(SIDE_PANEL_COOKIE_NAME)?.value === "false";
 
   return (
     // INFO: REQUIREMENTS.md § 16.1. A second `SyncedStorageProvider` under `GlobalProvider`'s, because this group is already dynamic and the root one also covers `/offline`, which must stay static.

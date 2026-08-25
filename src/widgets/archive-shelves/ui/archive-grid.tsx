@@ -4,6 +4,8 @@ import type { ArchiveMedia } from "@/entities/media";
 import { MESSAGE_FLASH_DURATION } from "@/shared/config";
 import {
   cn,
+  isSidePanelAnimating,
+  onSidePanelSettled,
   useSettledCommit,
   type LongPressPoint,
   type Maybe,
@@ -147,6 +149,8 @@ export function ArchiveGrid({
   // WARN: Read during render, before `rowsRef` takes the new rows — the old rows and the old `geometry` are the only layout the current scroll position means anything against.
   const columnsAnchorRef = useRef<Nullable<MediaId>>(null);
   const columnsRef = useRef(columns);
+  // INFO: AGENTS.md § 4.4. Guards `syncGeometry`'s deferral against the `lg` side panel — set while a settle callback is pending, so the animation's per-frame `ResizeObserver` firings register only one.
+  const panelSettledUnsubscribeRef = useRef<Nullable<() => void>>(null);
 
   /* eslint-disable react-hooks/refs -- the WARN above: a layout effect sees only the new rows, and the previous render's virtual items already describe the next layout. */
   if (columnsRef.current !== columns) {
@@ -187,7 +191,11 @@ export function ArchiveGrid({
 
     observer.observe(scroller);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      panelSettledUnsubscribeRef.current?.();
+      panelSettledUnsubscribeRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scroller]);
 
@@ -422,6 +430,16 @@ export function ArchiveGrid({
     const content = contentRef.current;
 
     if (!content || !scroller) {
+      return;
+    }
+
+    // WARN: AGENTS.md § 4.4. Deferred while the `lg` side panel animates — its width transition resizes this grid every frame, and re-measuring on each one is the jitter this guard exists to stop.
+    if (isSidePanelAnimating()) {
+      panelSettledUnsubscribeRef.current ??= onSidePanelSettled(() => {
+        panelSettledUnsubscribeRef.current = null;
+        syncGeometry();
+      });
+
       return;
     }
 

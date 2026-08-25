@@ -152,7 +152,12 @@ export {
 export { usePinnedDocument } from "./hooks/use-pinned-document";
 export { useRovingTabIndex, type RovingTabIndexOptions } from "./hooks/use-roving-tab-index";
 export { useSettledCommit, type SettledCommitOptions } from "./hooks/use-settled-commit";
-export { useSidePanel } from "./hooks/use-side-panel";
+export {
+  SIDE_PANEL_ANIMATING_ATTRIBUTE,
+  isSidePanelAnimating,
+  onSidePanelSettled,
+  useSidePanel,
+} from "./hooks/use-side-panel";
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
 export {
   EMOTICON_PLAYBACK_HOLD,
