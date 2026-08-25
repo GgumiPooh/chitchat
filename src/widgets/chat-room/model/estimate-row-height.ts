@@ -24,6 +24,12 @@ import { toLinkCardRatio } from "./to-link-card-box";
 import { toLinkOnlyUrl } from "./to-link-only";
 import { MARKDOWN_LINE_CLASSES, toMarkdownHeight } from "./to-markdown-height";
 import { MEDIA_EDGE, toMediaBoxHeight } from "./to-media-box";
+import {
+  isExpandableBody,
+  toBodyLine,
+  toTruncatedBodyHeight,
+  TRUNCATED_LINES,
+} from "./to-truncated-body";
 import type { ChatRow } from "./types";
 
 // WARN: Mirrors `theme.css`, which cannot be read from here without a layout read per row. These move together; a spacing change that skips this file shows up as REQUIREMENTS.md § 8.3. drift rather than as a visual bug.
@@ -36,7 +42,7 @@ const SPACING_MD = 16;
  * WARN: Line heights are measured off the page, never mirrored from `theme.css` the way the spacing above is. The stylesheet says `15px` at `1.45`; Chrome lays that out at 21.75 and Safari at **21**, so the arithmetic is a pixel out per line on one of the two — every line of every row, which § 8.3. turns into drift. The literals here are only the server's answer, where there is nothing to measure.
  */
 const LINE = {
-  body: () => measureLineHeight("text-chat-body", 15 * 1.45),
+  body: toBodyLine,
   name: () => measureLineHeight("text-chat-name", 12 * 1.3),
   time: () => measureLineHeight("text-chat-time", 11 * 1.2),
   caption: () => measureLineHeight("text-caption", 12 * 1.4),
@@ -414,13 +420,24 @@ function toTextHeight(
 
   // WARN: § 8.3. `MessageText`'s own split. A `solo` reaches this bubble only when its box was missing, and the walk it draws through prints no placeholder glyph — measured as raw text it would cost a line the row does not have.
   // WARN: § 8.3. The inline path is entered **only** for text that actually holds an emoticon, so every message written before this format keeps `countTextLines` byte for byte. The two measurers agree on `word-break: normal` but not on whitespace or on `keep-all`, so routing plain text through the new one would re-price the whole history for nothing.
-  if (inline.kind !== "none") {
-    return countInlineLines(toInlineRuns(inline.segments, context, line), font, available) * line;
+  const lines =
+    inline.kind !== "none"
+      ? countInlineLines(toInlineRuns(inline.segments, context, line), font, available)
+      : // INFO: `whitespace-pre-wrap` on the bubble, so a newline is a hard break and runs of spaces are kept rather than collapsed.
+        // INFO: DESIGN.md § 4.2.3. The bubble is the one place that opts out of `keep-all`, so it is measured broken between syllables too.
+        countTextLines(text, font, available, "pre-wrap", "normal");
+
+  if (!isExpandableBody(text)) {
+    return lines * line;
   }
 
-  // INFO: `whitespace-pre-wrap` on the bubble, so a newline is a hard break and runs of spaces are kept rather than collapsed.
-  // INFO: DESIGN.md § 4.2.3. The bubble is the one place that opts out of `keep-all`, so it is measured broken between syllables too.
-  return countTextLines(text, font, available, "pre-wrap", "normal") * line;
+  // INFO: REQUIREMENTS.md § 8.16. `line-clamp` draws exactly that many line boxes, so the cut bubble is knowable to the line rather than approximated.
+  return Math.min(lines, TRUNCATED_LINES) * line + toExpandRowHeight();
+}
+
+// INFO: DESIGN.md § 6.2.2. The 전체보기 row's `mt-2xs`, the hairline over it, its `pt-2xs`, and the one `chat-body` line it holds.
+function toExpandRowHeight(): number {
+  return SPACING_2XS * 2 + 1 + LINE.body();
 }
 
 /**
@@ -537,7 +554,7 @@ function toAssistantColumnHeight(message: ChatMessage, context: RowEstimateConte
         1,
         countTextLines(DELETED_MESSAGE_TEXT, { ...CHAT_BODY, family: context.fontFamily }, width),
       ) * LINE.body()
-    : toMarkdownHeight(message.text ?? "", width, context.fontFamily);
+    : toAnswerHeight(message.text ?? "", width, context.fontFamily);
   // INFO: REQUIREMENTS.md § 8.15. The question the answer quotes, priced where `toPayloadHeight` prices a reply's own — the same `pb-2xs`, 1px divider and `mb-2xs` the bubble draws it with.
   const quote =
     message.replyTo && !message.isDeleted
@@ -549,6 +566,23 @@ function toAssistantColumnHeight(message: ChatMessage, context: RowEstimateConte
     SPACING_2XS +
     Math.max(SPACING_XS * 2 + BUBBLE_BORDER + quote + content, LINE.time())
   );
+}
+
+/**
+ * REQUIREMENTS.md § 8.16. The answer's markdown, cut where § 6.2.2. cuts it.
+ *
+ * WARN: `min` and not the clamp outright — the cut is decided by the source's length, so an
+ * answer long enough to earn the 전체보기 row can still lay out shorter than the clamp, and
+ * pricing it at the clamp would reserve blocks the bubble never draws.
+ */
+function toAnswerHeight(text: string, width: number, fontFamily: string): number {
+  const height = toMarkdownHeight(text, width, fontFamily);
+
+  if (!isExpandableBody(text)) {
+    return height;
+  }
+
+  return Math.min(height, toTruncatedBodyHeight()) + toExpandRowHeight();
 }
 
 // INFO: DESIGN.md § 6.2., § 6.11. The assistant bubble's own `px-sm` padding and `border` come off the wide column the same way `toTextHeight` takes them off a `theirs` bubble's — an AI answer is always `theirs`-shaped, so this is that formula with no `status` control-column and no unread/수정됨 stack to vary the `TIME_SLOT` beside it.

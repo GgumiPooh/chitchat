@@ -4,11 +4,12 @@ import type { Optional } from "@/shared/lib";
 import type { MouseEvent } from "react";
 
 /**
- * REQUIREMENTS.md § 8.6.1. The jump target is the whole bubble a § 6.10. quote sits in,
- * not the quote alone — the body is the larger half of the same reply, and a tap there
- * that did nothing read as a dead spot.
+ * A tap anywhere on the bubble's own body, for whichever of the two things the bubble
+ * offers one: the § 8.6.1. jump to a § 6.10. quote's original, and § 8.16.'s 전체보기.
+ * Both target the whole bubble rather than the small thing inside it that names them —
+ * the body is the larger half, and a tap there that did nothing read as a dead spot.
  */
-export function toQuoteJumpHandler(onOpen: Optional<() => void>) {
+export function toBubbleTapHandler(onOpen: Optional<() => void>) {
   if (!onOpen) {
     return undefined;
   }

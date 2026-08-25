@@ -13,8 +13,10 @@ import {
 } from "@/shared/lib";
 import { IconButton, MarkdownBody } from "@/shared/ui";
 import { Share, Sparkles } from "lucide-react";
-import { toQuoteJumpHandler } from "../model/to-quote-jump-handler";
+import { toBubbleTapHandler } from "../model/to-bubble-tap-handler";
+import { isExpandableBody, toTruncatedBodyHeight } from "../model/to-truncated-body";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
+import { ExpandBodyButton } from "./expand-body-button";
 import { ReplyQuote } from "./reply-quote";
 
 export type AssistantMessageRowProps = {
@@ -27,6 +29,8 @@ export type AssistantMessageRowProps = {
   /** `toQuoteHeading`'s sentence for `replyTo`, composed by the caller (DESIGN.md § 6.10.). */
   replyToHeading?: string;
   onOpenReply?: () => void;
+  /** REQUIREMENTS.md § 8.16. `MessageRow`'s own prop of the same name — a cut answer opens the § 6.2.2. sheet, which renders it as the markdown the bubble was drawing. */
+  onExpand?: () => void;
   /** REQUIREMENTS.md § 8.10. `MessageRow`'s own touch/pointer contract — a finished AI answer takes both exactly as a `theirs` text row does. */
   onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
   /** REQUIREMENTS.md § 8.15. Where a `theirs` row stages a quote, an answer opens AI 질문 모드 on itself — the pull and the sheet both land here. */
@@ -50,6 +54,7 @@ export function AssistantMessageRow({
   replyToHeading,
   onLongPress,
   onOpenReply,
+  onExpand,
   onFollowUp,
   onShare,
 }: AssistantMessageRowProps) {
@@ -60,6 +65,8 @@ export function AssistantMessageRow({
   const followUp = isDeleted ? undefined : onFollowUp;
   const share = isDeleted ? undefined : onShare;
   const swipe = useSwipeToReply(followUp, false);
+  // WARN: REQUIREMENTS.md § 8.16. `MessageRow`'s own test on the same source `toAnswerHeight` prices — the answer's markdown, before any of it is laid out.
+  const isTruncated = !isDeleted && isExpandableBody(message.text);
   const longPressHandlers = useLongPress(
     !isDeleted && onLongPress ? (point, anchor) => onLongPress(anchor, point) : undefined,
     { onFire: swipe.cancel },
@@ -111,7 +118,11 @@ export function AssistantMessageRow({
                 LONG_PRESS_TARGET_CLASS,
               )}
               {...longPressHandlers}
-              onClick={replyTo ? toQuoteJumpHandler(onOpenReply) : undefined}
+              onClick={
+                replyTo || isTruncated
+                  ? toBubbleTapHandler(isTruncated ? onExpand : onOpenReply)
+                  : undefined
+              }
             >
               {isDeleted ? (
                 DELETED_MESSAGE_TEXT
@@ -126,7 +137,16 @@ export function AssistantMessageRow({
                       onOpen={onOpenReply}
                     />
                   )}
-                  <MarkdownBody text={message.text ?? ""} />
+                  {/* WARN: REQUIREMENTS.md § 8.3. A px cap and not `MessageRow`'s `line-clamp` — an answer is a stack of blocks rather than a run of lines, and `-webkit-box` counts no line boxes through one. `toTruncatedBodyHeight` is the number `toAnswerHeight` prices, so the two cannot read the clamp differently. */}
+                  {isTruncated ? (
+                    <div className="overflow-hidden" style={{ maxHeight: toTruncatedBodyHeight() }}>
+                      <MarkdownBody text={message.text ?? ""} />
+                    </div>
+                  ) : (
+                    <MarkdownBody text={message.text ?? ""} />
+                  )}
+                  {/* WARN: REQUIREMENTS.md § 8.3. `MessageRow`'s own note — never conditioned on `onExpand`, which the estimate cannot see. */}
+                  {isTruncated && <ExpandBodyButton onClick={onExpand} />}
                 </>
               )}
             </div>

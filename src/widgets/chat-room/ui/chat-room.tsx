@@ -166,8 +166,8 @@ import {
 } from "../model/estimate-row-height";
 import { toLinkPreviewQuery } from "../model/link-preview-query";
 import { playEmoticonSound, type EmoticonSound } from "../model/play-emoticon-sound";
+import { toBubbleTapHandler } from "../model/to-bubble-tap-handler";
 import { toCellsFromDrafts, toCellsFromMedia, type TrackOwner } from "../model/to-media-cells";
-import { toQuoteJumpHandler } from "../model/to-quote-jump-handler";
 import type { ChatRow } from "../model/types";
 import { useArrivalEmoticonSound } from "../model/use-arrival-emoticon-sound";
 import { useChatShortcuts } from "../model/use-chat-shortcuts";
@@ -182,6 +182,7 @@ import { AssistantMessageRow } from "./assistant-message-row";
 import { ChatBackdrop } from "./chat-backdrop";
 import { DateDivider } from "./date-divider";
 import { EditBar } from "./edit-bar";
+import { ExpandedBodySheet, type ExpandedBody } from "./expanded-body-sheet";
 import { findChatMediaCell } from "./media-grid";
 import { MessageRow } from "./message-row";
 import { ReplyBar } from "./reply-bar";
@@ -349,6 +350,8 @@ export function ChatRoom({
   const [isAtTop, setIsAtTop] = useState(true);
   const isAtTopRef = useRef(true);
   const [actionTarget, setActionTarget] = useState<Nullable<ChatMessage>>(null);
+  // INFO: REQUIREMENTS.md § 8.16. The whole of whichever bubble the reader tapped through its 전체보기, held as its own content rather than as a message id — a § 8.5. outbox row carries emoticons the room's map has not learned yet.
+  const [expandedBody, setExpandedBody] = useState<Nullable<ExpandedBody>>(null);
   // INFO: AGENTS.md § 4.1. The bubble a hold or right-click opened the menu on, for the desktop `Popover`'s anchor.
   const menuAnchorRef = useRef<Nullable<HTMLElement>>(null);
   // INFO: DESIGN.md § 7.5. Where the hold or right-click fired, so the menu is pinned to the pointer rather than to the whole bubble — a bubble taller than the visible area cannot carry a below-anchored menu off screen.
@@ -1878,6 +1881,11 @@ export function ChatRoom({
         presentation="menu"
         onClose={() => setActionTarget(null)}
       />
+      <ExpandedBodySheet
+        body={expandedBody}
+        searchQuery={searchQuery}
+        onClose={() => setExpandedBody(null)}
+      />
       <ShortcutHelp isOpen={isShortcutHelpOpen} onClose={() => setIsShortcutHelpOpen(false)} />
       <MediaShareDialog
         progress={sharing.progress}
@@ -2817,6 +2825,7 @@ export function ChatRoom({
               canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
             }
             onFollowUp={() => stageReply(row.message)}
+            onExpand={() => expandBody(row.message, true)}
           />
         );
       }
@@ -2845,6 +2854,14 @@ export function ChatRoom({
             awaitsArrivalSound={row.pending.clientMsgId === arrivalSoundId}
             replyToHeading={
               row.pending.replyTo ? toQuoteHeadingFor(row.pending.replyTo) : undefined
+            }
+            onExpand={() =>
+              setExpandedBody({
+                isMarkdown: false,
+                text: row.pending.text ?? "",
+                inlineEmoticonItemIds: row.pending.inlineEmoticons.map(({ id }) => id),
+                inlineEmoticons: toInlineEmoticonMap(row.pending.inlineEmoticons),
+              })
             }
             onFollowEmoticon={toFollowEmoticon(row.pending.emoticon)}
             onArrivalSoundReady={() => settleArrivalSound(row.pending.clientMsgId)}
@@ -2915,11 +2932,22 @@ export function ChatRoom({
             onOpenReply={quoted ? () => void jumpToMessage(quoted.id, { flash: true }) : undefined}
             onFollowEmoticon={toFollowEmoticon(row.message.emoticon)}
             onArrivalSoundReady={() => settleArrivalSound(row.message.id)}
+            onExpand={() => expandBody(row.message, false)}
             onReply={() => stageReply(row.message)}
           />
         );
       }
     }
+  }
+
+  // INFO: REQUIREMENTS.md § 8.16. A landed row draws its emoticons from the page's own map, whichever of the two kinds of bubble the tap came from — only § 8.5.'s outbox carries its own.
+  function expandBody(message: ChatMessage, isMarkdown: boolean) {
+    setExpandedBody({
+      isMarkdown,
+      text: message.text ?? "",
+      inlineEmoticonItemIds: message.inlineEmoticonItemIds,
+      inlineEmoticons,
+    });
   }
 
   // INFO: § 8.3. What an optimistic bubble draws from — the composer's own emoticons, in the shape the sent row reads from the page's map.
@@ -3819,7 +3847,7 @@ function AiAnswerRow({
       <div className="max-w-[calc(100%-116px)] min-w-0">
         <div
           className="w-fit max-w-full rounded-bubble rounded-tl-xs border border-hairline bg-bubble-theirs px-sm py-xs"
-          onClick={replyTo ? toQuoteJumpHandler(onOpenReply) : undefined}
+          onClick={replyTo ? toBubbleTapHandler(onOpenReply) : undefined}
         >
           {replyTo && (
             // INFO: DESIGN.md § 6.10. The divider is the bubble's, exactly as it is in `MessageRow` and in the landed `AssistantMessageRow`.

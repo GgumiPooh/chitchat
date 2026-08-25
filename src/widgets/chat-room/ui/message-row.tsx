@@ -10,10 +10,10 @@ import {
   type InlineEmoticonMap,
 } from "@/shared/config";
 import {
-  LONG_PRESS_TARGET_CLASS,
   cn,
   findFirstUrl,
   formatTime,
+  LONG_PRESS_TARGET_CLASS,
   useLongPress,
   type EmoticonItemId,
   type LongPressPoint,
@@ -33,12 +33,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Clock, CornerUpLeft, Heart, RotateCcw, Share, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import { toLinkPreviewQuery } from "../model/link-preview-query";
+import { toBubbleTapHandler } from "../model/to-bubble-tap-handler";
 import { toSoloEmoticonBox } from "../model/to-emoticon-box";
 import { toInlineContent } from "../model/to-inline-content";
 import { toLinkOnlyUrl } from "../model/to-link-only";
-import { toQuoteJumpHandler } from "../model/to-quote-jump-handler";
+import { isExpandableBody, TRUNCATED_TEXT_CLASS } from "../model/to-truncated-body";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
 import { EmoticonBubble } from "./emoticon-bubble";
+import { ExpandBodyButton } from "./expand-body-button";
 import { InlineEmoticonTombstone } from "./inline-emoticon-tombstone";
 import { LinkPreviewCard } from "./link-preview-card";
 import { MediaGrid } from "./media-grid";
@@ -104,6 +106,8 @@ export type MessageRowProps = {
   awaitsArrivalSound?: boolean;
   /** AGENTS.md § 4.1. Carries the held or right-clicked element and the pointer's own position — the room anchors the desktop menu to the point, so a bubble taller than the visible area cannot carry it off screen. */
   onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
+  /** REQUIREMENTS.md § 8.16. A tap anywhere on a cut bubble, which opens the § 6.2.2. sheet holding the whole message. */
+  onExpand?: () => void;
   /** REQUIREMENTS.md § 13.9. A tap on the emoticon, which opens the picker where that emoticon is. */
   onFollowEmoticon?: () => void;
   /** REQUIREMENTS.md § 13.6. The bubble's picture is on screen, so the room may play the sound. */
@@ -148,6 +152,7 @@ export function MessageRow({
   isSelecting = false,
   awaitsArrivalSound,
   onLongPress,
+  onExpand,
   onFollowEmoticon,
   onArrivalSoundReady,
   onOpenMedia,
@@ -160,7 +165,10 @@ export function MessageRow({
   // INFO: REQUIREMENTS.md § 12.3. Read here rather than threaded down from the room — the row is what renders the avatar, and the provider is in the shell either way.
   const { openProfile } = useProfileViewer();
   const swipe = useSwipeToReply(onReply, isMine);
-  const jumpToQuoted = toQuoteJumpHandler(onOpenReply);
+  // WARN: REQUIREMENTS.md § 8.16. The same test `estimateRowHeight` makes, off `text` alone — the two decide whether this bubble is cut, and a second input to either is a bubble the estimate has not priced.
+  const isTruncated = !isDeleted && isExpandableBody(text);
+  // INFO: § 8.16. 전체보기 is the larger of the two, so a cut bubble that also quotes reaches its original through the quote itself rather than through the body.
+  const onTapBubble = toBubbleTapHandler(isTruncated ? onExpand : onOpenReply);
   const longPressHandlers = useLongPress(
     onLongPress ? (point, anchor) => onLongPress(anchor, point) : undefined,
     { onFire: swipe.cancel },
@@ -366,7 +374,7 @@ export function MessageRow({
                 bubbleClassName,
               )}
               {...longPressHandlers}
-              onClick={replyTo ? jumpToQuoted : undefined}
+              onClick={replyTo || isTruncated ? onTapBubble : undefined}
             >
               {/* WARN: REQUIREMENTS.md § 8.13. Ahead of everything else in the bubble, and it returns nothing else. A withdrawn row carries no text, no quote and no attachment, so every branch below it would render empty — but the estimate in `estimateRowHeight` prices exactly this one line, and a stray sibling here is height it cannot see. */}
               {isDeleted ? (
@@ -383,13 +391,17 @@ export function MessageRow({
                     />
                   )}
                   {text && (
+                    // WARN: REQUIREMENTS.md § 8.3. `line-clamp` lays out exactly this many line boxes, which is the whole reason the cut is expressible in the estimate — a `max-height` would leave a partial line the arithmetic has no name for.
                     <MessageText
+                      className={cn(isTruncated && TRUNCATED_TEXT_CLASS)}
                       text={text}
                       inlineEmoticonItemIds={inlineEmoticonItemIds}
                       inlineEmoticons={inlineEmoticons}
                       query={searchQuery}
                     />
                   )}
+                  {/* WARN: REQUIREMENTS.md § 8.3. Never conditioned on `onExpand`. The estimate prices this row from `text` alone, so a caller that forgot the handler must still draw the box it reserved rather than silently losing it. */}
+                  {isTruncated && <ExpandBodyButton onClick={onExpand} />}
                 </>
               )}
             </div>

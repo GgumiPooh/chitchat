@@ -8,6 +8,8 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "./drawer"
 export type BottomSheetProps = PropsWithChildren<{
   className?: string;
   isOpen: boolean;
+  /** DESIGN.md § 7.5. Opens at the sheet's own maximum rather than shrink-wrapping its body — for a sheet whose reason to exist is the length of what it holds (`REQUIREMENTS.md § 8.16.`). */
+  isTall?: boolean;
   header: {
     className?: string;
     title: string;
@@ -33,6 +35,7 @@ export type BottomSheetProps = PropsWithChildren<{
 export function BottomSheet({
   className,
   isOpen,
+  isTall = false,
   header,
   children,
   onClose,
@@ -43,7 +46,11 @@ export function BottomSheet({
   if (isDesktop) {
     return (
       <DialogShell
-        className={className}
+        // INFO: The dialog scrolls its own content past `max-h`, so a height is all `isTall` needs here.
+        className={cn(
+          isTall && "h-[calc(var(--viewport-height,100dvh)_-_var(--spacing-xl))]",
+          className,
+        )}
         isOpen={isOpen}
         size="lg"
         // INFO: A hidden title is a sheet's affordance — its grab handle names it; a centered dialog with no title reads as empty.
@@ -62,7 +69,9 @@ export function BottomSheet({
       {/* INFO: DESIGN.md § 7.5.'s `sm` inset is subtracted from the cap rather than left as a margin, so the narrow screen this was written on keeps the exact width it had — `mx-auto` and `mx-sm` cannot both hold, and the gutter is the one expressible as a width. */}
       <DrawerContent
         className={cn(
-          "mx-auto mb-sm flex h-auto! max-h-[calc(var(--viewport-height,100dvh)_*_0.9_-_var(--spacing-sm))] w-[calc(100%_-_var(--spacing-sm)*2)] max-w-[calc(var(--sheet-max-width)_-_var(--spacing-sm)*2)] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+          // INFO: § 8.16. The maximum below, restated as a height — the sheet opens at the size the reader asked for rather than at the size of the first screenful.
+          isTall ? "h-[calc(var(--viewport-height,100dvh)_*_0.9_-_var(--spacing-sm))]!" : "h-auto!",
+          "mx-auto mb-sm flex max-h-[calc(var(--viewport-height,100dvh)_*_0.9_-_var(--spacing-sm))] w-[calc(100%_-_var(--spacing-sm)*2)] max-w-[calc(var(--sheet-max-width)_-_var(--spacing-sm)*2)] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
           className,
         )}
         onCloseAutoFocus={onCloseAutoFocus}
