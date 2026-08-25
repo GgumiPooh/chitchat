@@ -55,6 +55,7 @@ import {
   MESSAGE_FLASH_DURATION,
   REPLY_PREVIEW_MAX_LENGTH,
   toLlmProviderBranding,
+  toLlmProviderName,
   toMediaCountUnit,
   toMediaLabel,
   toMediaNoun,
@@ -2886,6 +2887,8 @@ export function ChatRoom({
             onExpand={() =>
               setExpandedBody({
                 isMarkdown: false,
+                senderName: participantById.get(currentUserId)?.name ?? "알 수 없음",
+                createdAt: row.pending.createdAt,
                 text: row.pending.text ?? "",
                 inlineEmoticonItemIds: row.pending.inlineEmoticons.map(({ id }) => id),
                 inlineEmoticons: toInlineEmoticonMap(row.pending.inlineEmoticons),
@@ -3002,10 +3005,21 @@ export function ChatRoom({
   function expandBody(message: ChatMessage, isMarkdown: boolean) {
     setExpandedBody({
       isMarkdown,
+      senderName: toExpandedSenderName(message),
+      createdAt: message.createdAt,
       text: message.text ?? "",
       inlineEmoticonItemIds: message.inlineEmoticonItemIds,
       inlineEmoticons,
     });
+  }
+
+  // INFO: REQUIREMENTS.md § 8.16. The sheet is titled by whoever spoke — a § 8.15. answer by the provider's own 별명, and any other system row by 시스템.
+  function toExpandedSenderName(message: ChatMessage): string {
+    if (message.type !== "system") {
+      return participantById.get(message.senderId)?.name ?? "알 수 없음";
+    }
+
+    return message.llmProvider ? toLlmProviderName(message.llmProvider) : "시스템";
   }
 
   // INFO: § 8.3. What an optimistic bubble draws from — the composer's own emoticons, in the shape the sent row reads from the page's map.

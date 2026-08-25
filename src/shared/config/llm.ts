@@ -193,3 +193,8 @@ export function toLlmProviderBranding(provider: Maybe<string>): LlmProviderBrand
   // INFO: A row naming a provider this deployment has no branding entry for still needs a `label` for the picker row — the raw provider id is what `llm_agents.provider` actually holds, so it reads as that rather than a bare `AI`.
   return LLM_PROVIDER_BRANDING[provider] ?? { name: "AI", label: provider };
 }
+
+/** The provider's own 별명 where this deployment has one, and the raw `llm_agents.provider` id where it does not — for a surface naming the speaker, where `toLlmProviderBranding`'s bare `AI` says less than the id. */
+export function toLlmProviderName(provider: string): string {
+  return LLM_PROVIDER_BRANDING[provider]?.name ?? provider;
+}

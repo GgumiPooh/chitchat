@@ -1,13 +1,17 @@
 "use client";
 
 import type { InlineEmoticonMap } from "@/shared/config";
-import type { EmoticonItemId, Nullable } from "@/shared/lib";
+import { formatDate, formatTime, type EmoticonItemId, type Nullable } from "@/shared/lib";
 import { BottomSheet, MarkdownBody } from "@/shared/ui";
+import { useState } from "react";
 import { MessageText } from "./message-text";
 
 /** REQUIREMENTS.md § 8.16. What a § 6.2.2. cut is hiding — an ordinary bubble's text, or an § 8.15. answer's markdown. */
 export type ExpandedBody = {
   isMarkdown: boolean;
+  /** Whoever spoke — a participant's § 8.7. nickname, a § 8.15. answer's provider 별명, or 시스템. */
+  senderName: string;
+  createdAt: string;
   text: string;
   inlineEmoticonItemIds: EmoticonItemId[];
   /** REQUIREMENTS.md § 13. Carried rather than read from the room, because an outbox row's emoticons are not in the page's map until its echo lands. */
@@ -32,24 +36,36 @@ export function ExpandedBodySheet({
   searchQuery,
   onClose,
 }: ExpandedBodySheetProps) {
+  // INFO: The caller clears the body on close, and the exit animation would otherwise play over an empty header and no text — `ActionSheet` holds its own rows the same way and for the same reason.
+  const [snapshot, setSnapshot] = useState(body);
+  if (body !== null && body !== snapshot) {
+    setSnapshot(body);
+  }
+  const shown = body ?? snapshot;
+
   return (
     <BottomSheet
       className={className}
       isOpen={body !== null}
       isTall
-      header={{ title: "전체보기" }}
+      header={{
+        title: shown?.senderName ?? "전체보기",
+        description: shown
+          ? `${formatDate(shown.createdAt)} ${formatTime(shown.createdAt)}`
+          : undefined,
+      }}
       onClose={onClose}
     >
-      {body?.isMarkdown ? (
-        <MarkdownBody text={body.text} />
+      {shown?.isMarkdown ? (
+        <MarkdownBody text={shown.text} />
       ) : (
-        body && (
+        shown && (
           // INFO: DESIGN.md § 6.2. The bubble's own wrapping rules, so the sheet breaks the message where the bubble was breaking it.
           <MessageText
             className="block text-chat-body wrap-anywhere [word-break:normal] whitespace-pre-wrap text-ink select-text"
-            text={body.text}
-            inlineEmoticonItemIds={body.inlineEmoticonItemIds}
-            inlineEmoticons={body.inlineEmoticons}
+            text={shown.text}
+            inlineEmoticonItemIds={shown.inlineEmoticonItemIds}
+            inlineEmoticons={shown.inlineEmoticons}
             query={searchQuery}
           />
         )

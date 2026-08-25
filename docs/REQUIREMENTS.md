@@ -1027,6 +1027,7 @@ A bubble past **500 characters** draws a `line-clamp`ped 10 lines and a 전체�
 - **The 전체보기 row is priced with the bubble**: its `mt-2xs`, the hairline over it, its `pt-2xs` and one `chat-body` line. It is drawn whenever the row is cut and **never conditioned on the handler being wired**, or a caller that forgot it loses a box the estimate has already reserved
 - **The whole bubble is the tap target** (`toBubbleTapHandler`, which § 8.6.1.'s quote jump shares), and 전체보기 wins over that jump on a bubble that is both — the quote itself still jumps. The row is a real `<button>` on top of it, since a `div`'s tap reaches no keyboard (§ 8.14.)
 - **The streaming answer is not cut.** It is not a virtualized row (§ 8.15.), it is being read as it arrives, and it lands as the cut bubble the moment its echo does
+- **The sheet is titled by who spoke and when** — the sender's § 8.7. nickname over the send time, or for a system row the § 8.15. provider's own 별명 (its raw `llm_agents.provider` id where this deployment has no branding for it) and 시스템 for anything else
 - A § 8.6.1. match past the cut is invisible in the bubble; the sheet carries the query and lights it there
 
 ### 8.17. 접기 — either participant folds a message away ✅

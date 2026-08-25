@@ -2,6 +2,7 @@
 
 import { APP_HEADER_ID, BOTTOM_OVERLAY_ID } from "@/shared/config";
 import {
+  A_SECOND,
   cn,
   useIsDesktop,
   useRovingTabIndex,
@@ -145,31 +146,24 @@ export function ActionSheet({
     const rect = anchorPoint ? new DOMRect(anchorPoint.x, anchorPoint.y, 0, 0) : anchorRect;
     return { current: { getBoundingClientRect: () => rect ?? new DOMRect() } };
   }, [anchorPoint, anchorRect]);
-  const isTouchMenu = isMenu && !isDesktop;
   const closeFromOutside = useEffectEvent(onClose);
-  // INFO: Radix dismisses a touch on the outside only once its `click` lands, and a finger that moves never lands one — so the menu closes on the touch itself, and spends the click so the row under it is not tapped through.
+  // INFO: Radix dismisses a touch on the outside only once its `click` lands, and a finger that moves never lands one — so the menu closes on the `pointerdown` itself.
   useEffect(() => {
-    if (!isTouchMenu || !isOpen) {
+    if (!isMenu || !isOpen) {
       return;
     }
 
-    const swallowClick = (event: Event) => event.stopPropagation();
-    const disarm = () => document.removeEventListener("click", swallowClick, true);
     const handlePointerDown = (event: PointerEvent) => {
       if (menuRef.current?.contains(event.target as Node)) {
         return;
       }
 
-      document.addEventListener("click", swallowClick, true);
-      document.addEventListener("pointerup", () => setTimeout(disarm), { once: true });
+      swallowNextClick();
       closeFromOutside();
     };
     document.addEventListener("pointerdown", handlePointerDown, true);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown, true);
-      disarm();
-    };
-  }, [isTouchMenu, isOpen]);
+    return () => document.removeEventListener("pointerdown", handlePointerDown, true);
+  }, [isMenu, isOpen]);
   // INFO: A scroll anywhere outside the popover — the chat room's own scroller, the document on other screens, a side panel — leaves the menu pinned to a bubble that has since moved out from under it, so any such scroll closes it instead.
   useEffect(() => {
     if (!isMenu || !isOpen) {
@@ -320,4 +314,21 @@ export function ActionSheet({
 
     keepsFocus.current = false;
   }
+}
+
+// INFO: The dismissing gesture's own `click`, spent before it reaches anything — a press that closed the menu must not also activate what was under it.
+// WARN: Outside the component on purpose. Closing tears the effect above down synchronously, a discrete `pointerdown` flushing its own `setState`, so a listener held by that effect is already gone by the time the `click` lands.
+function swallowNextClick() {
+  const swallow = (event: Event) => {
+    event.stopPropagation();
+    event.preventDefault();
+    disarm();
+  };
+  const disarm = () => {
+    clearTimeout(expiry);
+    document.removeEventListener("click", swallow, true);
+  };
+  // WARN: A finger that moves never lands a `click`, and an armed listener with nothing to spend it on would eat the reader's next tap instead.
+  const expiry = setTimeout(disarm, A_SECOND / 2);
+  document.addEventListener("click", swallow, true);
 }

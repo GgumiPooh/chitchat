@@ -233,6 +233,7 @@ export {
   llmStreamEventSchema,
   llmThinkingLevelSchema,
   toLlmProviderBranding,
+  toLlmProviderName,
   type LlmAgentOption,
   type LlmAgentOptions,
   type LlmCancelEvent,
