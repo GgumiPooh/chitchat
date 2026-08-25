@@ -229,7 +229,7 @@ export function MediaViewer({
    * WARN: Cleared on arrival **and on the inputs that interrupt one**, because a step that is cut short never reaches the offset it named. Arrival alone left the destination pending for good: a reader who pressed → and swiped back mid-animation had their next press measured from a slide they had turned away from, and travelled there instead of one across.
    */
   const steppedRef = useRef<Nullable<number>>(null);
-  const chevronPressRef = useRef<Nullable<number>>(null);
+  const chromePressRef = useRef<Nullable<number>>(null);
   // INFO: REQUIREMENTS.md § 12.3. `Escape`, the focus trap and the marker the profile screen underneath reads, from the one owner the profile screen shares — and § 8.1.'s arrow keys, which that owner forwards because "is anything open over me" is the same question for all four.
   const overlayRef = useModalOverlay<HTMLDivElement>(handleClose, handleOverlayKeyDown);
   // INFO: DESIGN.md § 7.10. A tap on the photo puts the chrome away, so the slide can be looked at with nothing over it. It starts visible — the controls have to be findable without discovering the gesture first.
@@ -484,10 +484,12 @@ export function MediaViewer({
             // INFO: DESIGN.md § 4.7.3. Held back until the opening morph has landed, with the floor above — the chrome is what says "you are in the viewer", and said while the picture is still crossing the screen it arrives before the thing it describes.
             (!isChromeVisible || !hasMorphSettled) && "opacity-0 [&_*]:pointer-events-none",
           )}
+          onPointerDown={handleChromePointerDown}
+          onPointerUp={handleChromePointerUp}
         >
           {/* INFO: DESIGN.md § 7.15. Leaving a full-screen surface ticks, as a route's 뒤로 already does — what stays silent there is a sheet or a dialog's dismissal. */}
           <IconButton
-            className="pointer-events-auto shrink-0"
+            className="pointer-events-auto shrink-0 touch-none"
             buttonClassName="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
             Icon={X}
             haptic
@@ -499,7 +501,7 @@ export function MediaViewer({
           {/* WARN: A `button` only where there is somewhere to go, and a `div` otherwise. A pressable-looking block that answered nothing is worse here than in the bars, because the chevron is the only thing saying it travels at all. */}
           {sentMessageId !== null && onOpenMessage ? (
             // INFO: DESIGN.md § 7.15. The block travels to another screen, which is the switch the tab bar already ticks for. `group-active:` beside its own `active:`, since the tap lands on the overlay.
-            <HapticTarget className="pointer-events-auto flex min-w-0 flex-1">
+            <HapticTarget className="pointer-events-auto flex min-w-0 flex-1 touch-none">
               <button
                 className="w-full min-w-0 cursor-pointer rounded-sm py-2xs text-left transition-colors outline-none group-active:bg-on-scrim/10 hover:bg-on-scrim/10 focus-visible:ring-2 focus-visible:ring-primary active:bg-on-scrim/10"
                 type="button"
@@ -520,7 +522,7 @@ export function MediaViewer({
             // INFO: DESIGN.md § 7.10. The jump, at the top right — 보관함's viewer travels to the message, 채팅's to the library, so neither offers a jump to the surface it is already on.
             // WARN: Rendered on every slide, including one with nowhere to go. It answers with a toast instead of vanishing, which is what keeps a control out of the bar's own layout while the reader swipes past a library-only upload.
             <IconButton
-              className="pointer-events-auto shrink-0"
+              className="pointer-events-auto shrink-0 touch-none"
               buttonClassName="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
               Icon={jump.Icon}
               haptic
@@ -586,8 +588,8 @@ export function MediaViewer({
             // INFO: DESIGN.md § 4.7.3. Held back until the opening morph has landed, with the floor above — the chrome is what says "you are in the viewer", and said while the picture is still crossing the screen it arrives before the thing it describes.
             (!isChromeVisible || !hasMorphSettled) && "opacity-0 [&_*]:pointer-events-none",
           )}
-          onPointerDown={handleChevronPointerDown}
-          onPointerUp={handleChevronPointerUp}
+          onPointerDown={handleChromePointerDown}
+          onPointerUp={handleChromePointerUp}
         >
           {/* WARN: `invisible` at the ends rather than unmounted, so the surviving arrow does not slide across the screen when the reader reaches the first or last slide. § 8.1.'s track also grows at both edges mid-open, which would make an unmounted control blink back into existence. */}
           <IconButton
@@ -632,14 +634,21 @@ export function MediaViewer({
               onSelect={goToSlide}
             />
           )}
-          <div className="flex items-center justify-center gap-sm">
+          <div
+            className="flex items-center justify-center gap-sm"
+            onPointerDown={handleChromePointerDown}
+            onPointerUp={handleChromePointerUp}
+          >
             {/* WARN: REQUIREMENTS.md § 8.11. Withheld on iOS alone, where it lands in Files rather than the photo library the control beside it reaches — and where holding the slide is already the OS's own route to 사진에 저장. */}
             {!isIosDevice &&
               current &&
               (onDownload ? (
                 // INFO: REQUIREMENTS.md § 8.1. A button, because the caller has the rest of the bubble to offer before anything is saved — the anchor below cannot ask a question first.
                 <IconButton
-                  className={cn("pointer-events-auto shrink-0", !downloadUrl && "invisible")}
+                  className={cn(
+                    "pointer-events-auto shrink-0 touch-none",
+                    !downloadUrl && "invisible",
+                  )}
                   buttonClassName="bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim"
                   Icon={Download}
                   haptic
@@ -652,7 +661,7 @@ export function MediaViewer({
                 // WARN: No `download` attribute — the route 302s to R2 and the spec drops it once the navigation resolves cross-origin. `toMediaDownloadUrl` signs the disposition into the object instead.
                 <a
                   className={cn(
-                    "pointer-events-auto relative inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm transition-colors outline-none hover:bg-scrim/80 focus-visible:ring-2 focus-visible:ring-primary",
+                    "pointer-events-auto relative inline-flex size-11 shrink-0 touch-none items-center justify-center rounded-full bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm transition-colors outline-none hover:bg-scrim/80 focus-visible:ring-2 focus-visible:ring-primary",
                     !downloadUrl && "invisible",
                   )}
                   href={downloadUrl ?? undefined}
@@ -676,7 +685,7 @@ export function MediaViewer({
               ))}
             {(canDeleteCurrent || canApplyPhoto) && current && (
               // WARN: No inner padding. Each control is a 44 circle in a 44-tall pill, so with the ends flush the hover disc *is* the pill's end cap — padded by `2xs` it stopped 4px short and left a sliver of pill outside a round highlight, which reads as the control being off-centre in its own group.
-              <div className="pointer-events-auto flex items-center overflow-hidden rounded-full bg-scrim/70 shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm">
+              <div className="pointer-events-auto flex touch-none items-center overflow-hidden rounded-full bg-scrim/70 shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm">
                 {deletion && canDeleteCurrent && (
                   // INFO: DESIGN.md § 7.10. Confirmed wherever it renders, since a control beside a per-slide save does not say its own reach — in 채팅 it is the same delete the § 8.11. action sheet reaches.
                   // INFO: REQUIREMENTS.md § 8.1. Unmounted rather than hidden, now that it sits in a group of its own — the pill simply narrows, where the old row left a 44px hole between two live controls on every slide the other participant sent.
@@ -706,7 +715,10 @@ export function MediaViewer({
             )}
             {handleSheet && current && (
               <IconButton
-                className={cn("pointer-events-auto shrink-0", !downloadUrl && "invisible")}
+                className={cn(
+                  "pointer-events-auto shrink-0 touch-none",
+                  !downloadUrl && "invisible",
+                )}
                 buttonClassName="bg-scrim/70 text-on-scrim shadow-floating ring-1 ring-on-scrim/20 backdrop-blur-sm hover:bg-scrim/80 hover:text-on-scrim"
                 Icon={isIosDevice ? Download : Share}
                 haptic
@@ -740,15 +752,15 @@ export function MediaViewer({
    * WARN: `preventDefault`, or the key does its own thing as well — the track is the focusable scroller under the reader, so the browser scrolls it a line at a time on top of the step and lands the offset between two slides.
    * INFO: Nothing is done for a key that arrives while the slide is zoomed; `step` refuses it, the way `overflow-x-hidden` refuses the swipe (§ 18. #6.).
    */
-  // WARN: A swipe that lands on a chevron is a swipe on the chevron's `HapticTap`, and its strip is a sibling of the track — the drag chains to nothing and § 8.1.'s swipe is simply lost. The buttons are `touch-none` so the browser never claims the drag either, and a horizontal pull past the slop steps the track the way the swipe would have.
-  function handleChevronPointerDown(event: PointerEvent<HTMLDivElement>) {
-    chevronPressRef.current = event.target === event.currentTarget ? null : event.clientX;
+  // WARN: A swipe that lands on a control is a swipe on its `HapticTap`, and the chrome is a sibling of the track — the drag chains to nothing and § 8.1.'s swipe is simply lost. Every control is `touch-none` so the browser never claims the drag either, and a horizontal pull past the slop steps the track the way the swipe would have. Not on the filmstrip, whose drag is its own.
+  function handleChromePointerDown(event: PointerEvent<HTMLDivElement>) {
+    chromePressRef.current = event.target === event.currentTarget ? null : event.clientX;
   }
 
-  function handleChevronPointerUp(event: PointerEvent<HTMLDivElement>) {
-    const from = chevronPressRef.current;
+  function handleChromePointerUp(event: PointerEvent<HTMLDivElement>) {
+    const from = chromePressRef.current;
 
-    chevronPressRef.current = null;
+    chromePressRef.current = null;
 
     if (from === null) {
       return;
