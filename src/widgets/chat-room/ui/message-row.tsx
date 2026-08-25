@@ -495,9 +495,9 @@ export function MessageRow({
    * by pulling it sideways.
    *
    * WARN: DESIGN.md § 6.3. One pill, always horizontal, replacing the timestamp/unread
-   * stack in place rather than sitting beside or above it — `inset-x-0 bottom-0` fills
-   * the same `relative` box that stack renders in, which is what the previous
-   * `right-0`/`left-0` sibling-inside-the-column-edge version still risked drifting
+   * stack in place rather than sitting beside or above it — it is `absolute` inside the
+   * same `relative` box that stack renders in, which is what the previous
+   * sibling-inside-the-column-edge version still risked drifting
    * out of step with. `HOVER_PILL_WIDTH` (`estimate-row-height.ts`) is what raised
    * that shared box past 56px to fit the pill, so the bubble's own wrap already
    * leaves it room rather than the pill ever covering the bubble's text. Out of flow
@@ -515,7 +515,9 @@ export function MessageRow({
     return (
       <div
         className={cn(
-          "absolute inset-x-0 bottom-0 flex items-center gap-0.5 rounded-full border border-hairline bg-surface-soft px-1 py-0.5 shadow-raised",
+          "absolute bottom-0 flex w-fit items-center gap-0.5 rounded-full border border-hairline bg-surface-soft px-1 py-0.5 shadow-raised",
+          // WARN: `w-fit` on the bubble's own edge of the 68px slot, never `inset-x-0` — a row with 답장 alone (an emoticon has nothing to 공유) would otherwise stretch the pill across the slot and hang half of it empty.
+          isMine ? "right-0" : "left-0",
           // INFO: `hover:` already resolves under `@media (hover: hover)`, so a touch device never reveals these and never has to.
           "pointer-events-none opacity-0 transition-opacity group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100",
         )}

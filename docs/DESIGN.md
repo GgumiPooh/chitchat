@@ -679,7 +679,7 @@ A group is consecutive messages from one sender within the same clock minute.
 
 The three rows above share **one** `flex-col` in the fixed slot, bottom-aligned, and a bubble may carry any combination of them — the column appears for `수정됨` alone on a bubble that is neither its group's last nor unread. Keeping them in one stack is what lets `estimateRowHeight` price the lot as `n × chat-time` without measuring a string it cannot see, and it is why the count is **one line or none** rather than a line per reader.
 
-**The § 8.10./§ 8.11. hover pill (`답장` then `공유`, always horizontal) replaces the timestamp/unread stack in place on hover** — the same slot fades the stack to `opacity-0` (still occupying its box, so grouping never moves) and shows the pill instead, `absolute` inside it, never beside or past the bubble's own outer edge, which is where § 6.11.'s wide bubble cap left it no room to sit once a bubble could reach that far.
+**The § 8.10./§ 8.11. hover pill (`답장` then `공유`, always horizontal) replaces the timestamp/unread stack in place on hover** — the same slot fades the stack to `opacity-0` (still occupying its box, so grouping never moves) and shows the pill instead, `absolute` inside it and sized to its own rows (a row with 답장 alone — an emoticon has nothing to 공유 — hugs the bubble's edge of the slot rather than stretching across it), never beside or past the bubble's own outer edge, which is where § 6.11.'s wide bubble cap left it no room to sit once a bubble could reach that far.
 
 ## 6.4. Date Divider.
 
