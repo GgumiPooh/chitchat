@@ -683,6 +683,20 @@ A message past 500 characters is drawn short with a 전체보기 row under it, a
 
 A streaming answer is never cut — it is being read as it arrives, and it lands as a cut bubble the moment its echo does.
 
+## 6.2.3. Folded Bubble.
+
+Either participant may fold a message away from the long-press / right-click sheet (`REQUIREMENTS.md § 8.17.`). Built for § 6.11.'s answers, which are long and read once.
+
+| Property   | Value                                                                                                                                         |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shape      | The § 6.2. bubble, unchanged — avatar, name, timestamp and side all stay, so the timeline still reads as a conversation                       |
+| Quote      | Kept in full. It says what the message was _about_, which is the half worth keeping when the body is gone                                     |
+| Body       | **One line**, `line-clamp-1`, as plain body text — an answer's markdown is not rendered folded (`REQUIREMENTS.md § 8.17.`)                    |
+| 펼치기 row | § 6.2.2.'s row with the other word and a **downward** chevron — this one grows the bubble in place, where 전체보기's `>` leads out to a sheet |
+| Target     | The whole bubble, as § 6.2.2.'s is — and it unfolds **in place, for that reader alone**. The sheet's 펼치기 is what unfolds it for both       |
+
+The ladder is 접힘(1줄) → 잘림(10줄) → 전체. A folded bubble is the cheapest row in the list: its quote is already priced exactly, its one line is a constant, and its row is § 6.2.2.'s box — no text measurement at all.
+
 ## 6.3. Grouping.
 
 A group is consecutive messages from one sender within the same clock minute.

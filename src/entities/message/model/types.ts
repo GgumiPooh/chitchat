@@ -86,5 +86,13 @@ export type ChatMessage = {
    * before any of them; there is nothing behind it to fall back on.
    */
   isDeleted: boolean;
+  /**
+   * REQUIREMENTS.md § 8.17. Folded away by **either** participant — the bubble keeps
+   * its quote and one line of its body, and everything below that is behind 펼치기.
+   *
+   * WARN: Unlike `isDeleted` the payload is all still here. Nothing is withheld on the
+   * way out: a fold is a way of drawing the row, and the reader unfolds it in place.
+   */
+  isCollapsed: boolean;
   id: MessageId;
 };

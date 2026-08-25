@@ -12,7 +12,7 @@ import {
   type Nullable,
 } from "@/shared/lib";
 import { IconButton, MarkdownBody } from "@/shared/ui";
-import { Share, Sparkles } from "lucide-react";
+import { ChevronDown, Share, Sparkles } from "lucide-react";
 import { toBubbleTapHandler } from "../model/to-bubble-tap-handler";
 import { isExpandableBody, toTruncatedBodyHeight } from "../model/to-truncated-body";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
@@ -28,9 +28,13 @@ export type AssistantMessageRowProps = {
   replyTo?: Nullable<ReplyPreview>;
   /** `toQuoteHeading`'s sentence for `replyTo`, composed by the caller (DESIGN.md § 6.10.). */
   replyToHeading?: string;
+  /** REQUIREMENTS.md § 8.17. `MessageRow`'s own prop of the same name. */
+  isCollapsed?: boolean;
   onOpenReply?: () => void;
   /** REQUIREMENTS.md § 8.16. `MessageRow`'s own prop of the same name — a cut answer opens the § 6.2.2. sheet, which renders it as the markdown the bubble was drawing. */
   onExpand?: () => void;
+  /** REQUIREMENTS.md § 8.17. `MessageRow`'s own prop of the same name — unfolds this answer in place, for this reader alone. */
+  onUnfold?: () => void;
   /** REQUIREMENTS.md § 8.10. `MessageRow`'s own touch/pointer contract — a finished AI answer takes both exactly as a `theirs` text row does. */
   onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
   /** REQUIREMENTS.md § 8.15. Where a `theirs` row stages a quote, an answer opens AI 질문 모드 on itself — the pull and the sheet both land here. */
@@ -50,11 +54,13 @@ export function AssistantMessageRow({
   className,
   message,
   isSelecting = false,
+  isCollapsed = false,
   replyTo,
   replyToHeading,
   onLongPress,
   onOpenReply,
   onExpand,
+  onUnfold,
   onFollowUp,
   onShare,
 }: AssistantMessageRowProps) {
@@ -66,7 +72,7 @@ export function AssistantMessageRow({
   const share = isDeleted ? undefined : onShare;
   const swipe = useSwipeToReply(followUp, false);
   // WARN: REQUIREMENTS.md § 8.16. `MessageRow`'s own test on the same source `toAnswerHeight` prices — the answer's markdown, before any of it is laid out.
-  const isTruncated = !isDeleted && isExpandableBody(message.text);
+  const isTruncated = !isDeleted && !isCollapsed && isExpandableBody(message.text);
   const longPressHandlers = useLongPress(
     !isDeleted && onLongPress ? (point, anchor) => onLongPress(anchor, point) : undefined,
     { onFire: swipe.cancel },
@@ -119,8 +125,10 @@ export function AssistantMessageRow({
               )}
               {...longPressHandlers}
               onClick={
-                replyTo || isTruncated
-                  ? toBubbleTapHandler(isTruncated ? onExpand : onOpenReply)
+                replyTo || isTruncated || isCollapsed
+                  ? toBubbleTapHandler(
+                      isCollapsed ? onUnfold : isTruncated ? onExpand : onOpenReply,
+                    )
                   : undefined
               }
             >
@@ -138,15 +146,23 @@ export function AssistantMessageRow({
                     />
                   )}
                   {/* WARN: REQUIREMENTS.md § 8.3. A px cap and not `MessageRow`'s `line-clamp` — an answer is a stack of blocks rather than a run of lines, and `-webkit-box` counts no line boxes through one. `toTruncatedBodyHeight` is the number `toAnswerHeight` prices, so the two cannot read the clamp differently. */}
-                  {isTruncated ? (
+                  {/* WARN: REQUIREMENTS.md § 8.17. Plain body text and never `MarkdownBody` — a folded answer is one line, and a one-line cap over markdown cuts an `h1` through the middle of its glyphs. `line-clamp-1` lays out exactly the line `toAssistantColumnHeight` prices. */}
+                  {isCollapsed ? (
+                    <span className="line-clamp-1 text-chat-body [word-break:normal] text-bubble-ink">
+                      {message.text}
+                    </span>
+                  ) : isTruncated ? (
                     <div className="overflow-hidden" style={{ maxHeight: toTruncatedBodyHeight() }}>
                       <MarkdownBody text={message.text ?? ""} />
                     </div>
                   ) : (
                     <MarkdownBody text={message.text ?? ""} />
                   )}
-                  {/* WARN: REQUIREMENTS.md § 8.3. `MessageRow`'s own note — never conditioned on `onExpand`, which the estimate cannot see. */}
-                  {isTruncated && <ExpandBodyButton onClick={onExpand} />}
+                  {/* WARN: REQUIREMENTS.md § 8.3. `MessageRow`'s own note — never conditioned on the handler, which the estimate cannot see. */}
+                  {isTruncated && <ExpandBodyButton label="전체보기" onClick={onExpand} />}
+                  {isCollapsed && (
+                    <ExpandBodyButton label="펼치기" Icon={ChevronDown} onClick={onUnfold} />
+                  )}
                 </>
               )}
             </div>

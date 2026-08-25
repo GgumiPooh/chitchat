@@ -1027,6 +1027,33 @@ A bubble past **500 characters** draws a `line-clamp`ped 10 lines and a 전체�
 - **The streaming answer is not cut.** It is not a virtualized row (§ 8.15.), it is being read as it arrives, and it lands as the cut bubble the moment its echo does
 - A § 8.6.1. match past the cut is invisible in the bubble; the sheet carries the query and lights it there
 
+### 8.17. 접기 — either participant folds a message away ✅
+
+A message is folded to its quote, **one clamped line** and a 펼치기 row (`DESIGN.md § 6.2.3.`). Long-press (or right-click) → the § 8.13. action sheet, on **either participant's** message. It is not a deletion: nothing is withheld on the wire, and unfolding puts the bubble back exactly as it was.
+
+**The column** — `messages.collapsed_at`, nullable, beside `edited_at`
+
+- **`collapsed_at`, never `is_collapsed`.** The two columns beside it are timestamps and NULL is the "never" in all three; a boolean would be the one flag in the table with no answer to _when_
+- **`messages_collapsed_is_prose_check`** — `text` or an `assistant_reply`. An attachment and an emoticon are already their own size, and § 11.5.'s notice is one pill. `collapseMessage` narrows on the same predicate so a photo bubble is the **404** every other miss is rather than a 500
+- **`0058` is migrate-first** (§ 6. rule 2), for § 8.13.'s reason exactly — Drizzle's `select()` names every column, so a build that knows `collapsed_at` cannot read `messages` at all until it exists
+
+**It crosses § 8.13.'s doctrine, and that is deliberate.** "Changing the record is for whoever made it" is what scopes 수정 and 삭제 to the sender; folding is the one act on a bubble open to both, because it **changes nothing the message says and is reversible by either side**. It is curation of a shared timeline, in the same family as hiding a § 10. tile — and, unlike a withdrawal, there is nothing to attribute, so no `collapsed_by`.
+
+**The wire** — § 8.13.'s channel, whole
+
+- **`collapsed_at` joins the trigger's `OF` list and its `IS DISTINCT FROM` guard**, and the `messages_changed_id_idx` partial predicate and `listChangedMessages` are widened to match, or a § 8.13.1. resume never learns about a fold
+- **`collapseMessage` refuses a write that would change nothing.** `collapsed_at` is on the trigger, so a no-op UPDATE publishes a change every client re-renders for
+
+**The screen**
+
+- **Folded draws one line of plain body text**, `line-clamp-1`, under whatever quote the bubble carries. An answer's markdown is **not** rendered folded: a one-line cap over `MarkdownBody` cuts an `h1` through the middle of its glyphs, where `line-clamp-1` lays out exactly the line § 8.3. prices
+- **A folded row is the ordinary text bubble whatever its content would otherwise draw.** The CHECK makes it nearly unreachable, but a `text` row can be a lone inline emoticon (§ 13.) or a bare link (§ 8.9.), and a fold that kept those would price a picture where the row draws a line. Both `estimateRowHeight` and `MessageRow` close those branches on the flag
+- **The fold beats § 8.16.'s cut** — one line is already less than ten, and the two rows would otherwise stack
+- **A tap on the bubble unfolds it for this reader alone**, in place; `collapsed_at` is untouched. The sheet's own 펼치기 is what clears it for both. Folding away what you have read is the point, and a reader who opened one to read it would otherwise undo the other's tidying by doing so
+- **That local unfold is a row-key input, not just a render flag.** `toRowRevision` takes the **row's** answer rather than the message's, or the virtualizer keeps the one-line height it cached and draws the whole answer inside it (§ 8.3.)
+- **The local set is dropped when the row is folded again.** A row re-folded while this reader held it open would arrive folded and be drawn open — the set wins over the wire — with nothing left to tap
+- **A § 8.6.1. jump does not unfold.** The § 6.8. flash lands on the folded row and says which one it is; unfolding is one tap from there, and auto-unfolding would undo the fold the reader is looking for
+
 ---
 
 ## 9. Media Storage (R2) ✅

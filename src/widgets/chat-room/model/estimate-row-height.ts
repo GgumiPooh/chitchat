@@ -169,6 +169,8 @@ const DEFAULT_CONTEXT: RowEstimateContext = {
 // INFO: The half of a message a height follows from — `ChatMessage` and `PendingMessage` differ elsewhere, and an optimistic bubble is drawn at exactly the size the sent one will be.
 type Payload = {
   text: Nullable<string>;
+  /** REQUIREMENTS.md § 8.17. Folded to one line behind 펼치기 — the row's answer, not the message's, since this reader may have unfolded it in place. */
+  isCollapsed?: boolean;
   // INFO: REQUIREMENTS.md § 13. Optional, because the tombstone payload below carries none and an optimistic bubble may predate the field — `toInlineContent` reads an absent list as "no emoticon in this text", which is the pre-format path.
   inlineEmoticonItemIds?: EmoticonItemId[];
   emoticon: Nullable<Emoticon>;
@@ -238,7 +240,7 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
       return (
         SPACING_SM +
         Math.max(
-          toAssistantColumnHeight(row.message, toTranslatedWidthContext(context)),
+          toAssistantColumnHeight(row.message, row.isCollapsed, toTranslatedWidthContext(context)),
           AVATAR_SIZE,
         )
       );
@@ -258,16 +260,21 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
         });
       }
 
-      return estimateMessageRow(row.message, row.isMine, context, {
-        isFirstOfGroup: row.isFirstOfGroup,
-        // INFO: REQUIREMENTS.md § 8.8. The unread count and the timestamp stack in one `flex-col`, so an unread message of mine is two lines rather than one — and the count alone puts the column beside a bubble that is not its group's last.
-        // WARN: § 8.8. The count is **one line or none**, never a line per reader, so this stays a `Number()` of a predicate. It is also why the marker moved from 읽음 — which sat on one bubble — to a mark on every unread one: the rows that carry the column changed, and the arithmetic did not.
-        // INFO: REQUIREMENTS.md § 8.13. 수정됨 is a third line in the same stack, which is the whole reason it was put there: `LINE.time()` already prices it, and `수정됨` clears `TIME_SLOT`'s 56px with room to spare so the width the text wraps in does not move.
-        besideLines:
-          Number(row.isLastOfGroup) +
-          Number(context.countUnreadReaders(row.message) > 0) +
-          Number(row.message.editedAt !== null),
-      });
+      return estimateMessageRow(
+        { ...row.message, isCollapsed: row.isCollapsed },
+        row.isMine,
+        context,
+        {
+          isFirstOfGroup: row.isFirstOfGroup,
+          // INFO: REQUIREMENTS.md § 8.8. The unread count and the timestamp stack in one `flex-col`, so an unread message of mine is two lines rather than one — and the count alone puts the column beside a bubble that is not its group's last.
+          // WARN: § 8.8. The count is **one line or none**, never a line per reader, so this stays a `Number()` of a predicate. It is also why the marker moved from 읽음 — which sat on one bubble — to a mark on every unread one: the rows that carry the column changed, and the arithmetic did not.
+          // INFO: REQUIREMENTS.md § 8.13. 수정됨 is a third line in the same stack, which is the whole reason it was put there: `LINE.time()` already prices it, and `수정됨` clears `TIME_SLOT`'s 56px with room to spare so the width the text wraps in does not move.
+          besideLines:
+            Number(row.isLastOfGroup) +
+            Number(context.countUnreadReaders(row.message) > 0) +
+            Number(row.message.editedAt !== null),
+        },
+      );
     case "pending":
       // INFO: An optimistic bubble is always mine, so it never carries the avatar column or a sender name — nor the unread count, since it has not been sent and nobody could have read it.
       // WARN: § 8.3. The ids are derived here because a pending row holds the emoticons *whole* and the sent one holds their ids — dropped, an optimistic bubble prices as though its emoticons were not in it and corrects the scroll the moment it renders.
@@ -300,7 +307,8 @@ function estimateMessageRow(
   // WARN: § 8.3. `MessageRow`'s own test, answered off the same cache: a link-only message is bubble-less once its card is there, so the card counts below in the bubble's row and nowhere above it.
   const linkOnlyCard =
     preview && toLinkOnlyUrl(payload.text, inline) !== null ? preview : undefined;
-  const isBubbleless = hasArt || linkOnlyCard !== undefined;
+  // WARN: REQUIREMENTS.md § 8.17. A folded row is always the ordinary text bubble, whatever its content would otherwise draw. `messages_collapsed_is_prose_check` makes that nearly unreachable, but a `text` row *can* be a lone inline emoticon or a bare link — and a fold that kept those would price a picture where the row draws one clamped line.
+  const isBubbleless = !payload.isCollapsed && (hasArt || linkOnlyCard !== undefined);
   let column = 0;
 
   // INFO: REQUIREMENTS.md § 8.7. The sender's name, on the first bubble of the other participant's group only.
@@ -348,6 +356,17 @@ function toPayloadHeight(
   // INFO: DESIGN.md § 6.3., § 6.5. Whatever stands beside the bubble in the same `items-end` row: the retry/cancel pair on a failed send, otherwise the timestamp. The row is whichever is taller — text always wins over a timestamp, but not over the controls, and not necessarily over a wide-and-short attachment.
   const beside = toBesideHeight(payload, flags);
 
+  if (payload.isCollapsed) {
+    // INFO: § 8.17. Straight to the bubble — every branch below draws something a folded row does not.
+    return Math.max(
+      SPACING_XS * 2 +
+        (isMine ? 0 : BUBBLE_BORDER) +
+        toQuoteBlockHeight(payload, isBubbleless, isMine) +
+        toTextHeight(payload.text, isMine, inline, context, payload.status, true),
+      beside,
+    );
+  }
+
   if (payload.emoticon) {
     return Math.max(toEmoticonBox(payload.emoticon).height, beside);
   }
@@ -369,17 +388,24 @@ function toPayloadHeight(
   }
 
   // INFO: `px-sm py-xs` on the bubble, and the hairline the other participant's bubble is bordered with (DESIGN.md § 6.2.).
-  let height = SPACING_XS * 2 + (isMine ? 0 : BUBBLE_BORDER);
-
-  if (payload.replyTo && !isBubbleless) {
-    // INFO: DESIGN.md § 6.10. `pb-2xs` and the 1px divider under the quote, then `mb-2xs` between that and the text.
-    height += toQuoteHeight(payload.replyTo, "rule", isMine) + SPACING_2XS * 2 + 1;
-  }
+  const height =
+    SPACING_XS * 2 +
+    (isMine ? 0 : BUBBLE_BORDER) +
+    toQuoteBlockHeight(payload, isBubbleless, isMine);
 
   return Math.max(
     height + toTextHeight(payload.text, isMine, inline, context, payload.status),
     beside,
   );
+}
+
+// INFO: DESIGN.md § 6.10. `pb-2xs` and the 1px divider under an in-bubble quote, then `mb-2xs` between that and the text.
+function toQuoteBlockHeight(payload: Payload, isBubbleless: boolean, isMine: boolean): number {
+  if (!payload.replyTo || isBubbleless) {
+    return 0;
+  }
+
+  return toQuoteHeight(payload.replyTo, "rule", isMine) + SPACING_2XS * 2 + 1;
 }
 
 function toBesideHeight(payload: Payload, { besideLines }: RowFlags): number {
@@ -402,9 +428,15 @@ function toTextHeight(
   inline: InlineContent,
   context: RowEstimateContext,
   status?: Payload["status"],
+  isCollapsed = false,
 ): number {
   if (!text) {
     return 0;
+  }
+
+  // INFO: REQUIREMENTS.md § 8.17. One clamped line and the 펼치기 row under it — no measurement at all, which is what makes a folded row the cheapest one in the list.
+  if (isCollapsed) {
+    return LINE.body() + toExpandRowHeight();
   }
 
   const { fontFamily } = context;
@@ -546,15 +578,22 @@ function toTranslatedWidthContext(context: RowEstimateContext): RowEstimateConte
  * the largest error this file had — and every heading, rule and fenced block was priced as
  * the body text it is not.
  */
-function toAssistantColumnHeight(message: ChatMessage, context: RowEstimateContext): number {
+function toAssistantColumnHeight(
+  message: ChatMessage,
+  isCollapsed: boolean,
+  context: RowEstimateContext,
+): number {
   const width = toAssistantBubbleWidth(context);
   // INFO: REQUIREMENTS.md § 8.13. A withdrawn answer gives its markdown up for the one-line tombstone `AssistantMessageRow` draws in its place — plain text in the bubble, so it takes neither `MarkdownBody`'s blocks nor its `word-break`.
-  const content = message.isDeleted
-    ? Math.max(
-        1,
-        countTextLines(DELETED_MESSAGE_TEXT, { ...CHAT_BODY, family: context.fontFamily }, width),
-      ) * LINE.body()
-    : toAnswerHeight(message.text ?? "", width, context.fontFamily);
+  // INFO: REQUIREMENTS.md § 8.17. One clamped line of the answer's own source, drawn as plain body text rather than as markdown — a `max-height` of one line would cut an `h1` through the middle of its glyphs.
+  const content = isCollapsed
+    ? LINE.body() + toExpandRowHeight()
+    : message.isDeleted
+      ? Math.max(
+          1,
+          countTextLines(DELETED_MESSAGE_TEXT, { ...CHAT_BODY, family: context.fontFamily }, width),
+        ) * LINE.body()
+      : toAnswerHeight(message.text ?? "", width, context.fontFamily);
   // INFO: REQUIREMENTS.md § 8.15. The question the answer quotes, priced where `toPayloadHeight` prices a reply's own — the same `pb-2xs`, 1px divider and `mb-2xs` the bubble draws it with.
   const quote =
     message.replyTo && !message.isDeleted

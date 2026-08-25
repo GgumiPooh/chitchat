@@ -30,7 +30,7 @@ import {
   type MediaCell,
 } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, CornerUpLeft, Heart, RotateCcw, Share, X } from "lucide-react";
+import { ChevronDown, Clock, CornerUpLeft, Heart, RotateCcw, Share, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import { toLinkPreviewQuery } from "../model/link-preview-query";
 import { toBubbleTapHandler } from "../model/to-bubble-tap-handler";
@@ -104,10 +104,14 @@ export type MessageRowProps = {
   isSelecting?: boolean;
   /** REQUIREMENTS.md § 13.6. Passed straight to `EmoticonBubble`, which carries the contract — the room sets it for the one row it is about to sound. */
   awaitsArrivalSound?: boolean;
+  /** REQUIREMENTS.md § 8.17. Folded away by either participant — the bubble keeps its quote and one line, and the rest is behind 펼치기. */
+  isCollapsed?: boolean;
   /** AGENTS.md § 4.1. Carries the held or right-clicked element and the pointer's own position — the room anchors the desktop menu to the point, so a bubble taller than the visible area cannot carry it off screen. */
   onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
   /** REQUIREMENTS.md § 8.16. A tap anywhere on a cut bubble, which opens the § 6.2.2. sheet holding the whole message. */
   onExpand?: () => void;
+  /** REQUIREMENTS.md § 8.17. A tap anywhere on a folded bubble, which unfolds it in place for this reader alone. */
+  onUnfold?: () => void;
   /** REQUIREMENTS.md § 13.9. A tap on the emoticon, which opens the picker where that emoticon is. */
   onFollowEmoticon?: () => void;
   /** REQUIREMENTS.md § 13.6. The bubble's picture is on screen, so the room may play the sound. */
@@ -146,6 +150,7 @@ export function MessageRow({
   readerTotal = 0,
   isEdited = false,
   isDeleted = false,
+  isCollapsed = false,
   isHighlighted = false,
   searchQuery,
   status,
@@ -153,6 +158,7 @@ export function MessageRow({
   awaitsArrivalSound,
   onLongPress,
   onExpand,
+  onUnfold,
   onFollowEmoticon,
   onArrivalSoundReady,
   onOpenMedia,
@@ -166,9 +172,12 @@ export function MessageRow({
   const { openProfile } = useProfileViewer();
   const swipe = useSwipeToReply(onReply, isMine);
   // WARN: REQUIREMENTS.md § 8.16. The same test `estimateRowHeight` makes, off `text` alone — the two decide whether this bubble is cut, and a second input to either is a bubble the estimate has not priced.
-  const isTruncated = !isDeleted && isExpandableBody(text);
-  // INFO: § 8.16. 전체보기 is the larger of the two, so a cut bubble that also quotes reaches its original through the quote itself rather than through the body.
-  const onTapBubble = toBubbleTapHandler(isTruncated ? onExpand : onOpenReply);
+  // INFO: § 8.17. A folded row is one line already, so there is nothing left for the cut to take.
+  const isTruncated = !isDeleted && !isCollapsed && isExpandableBody(text);
+  // INFO: § 8.16., § 8.17. Whichever of the three the bubble is offering — the fold first, since it hides the most; the quote's own tap still jumps past either.
+  const onTapBubble = toBubbleTapHandler(
+    isCollapsed ? onUnfold : isTruncated ? onExpand : onOpenReply,
+  );
   const longPressHandlers = useLongPress(
     onLongPress ? (point, anchor) => onLongPress(anchor, point) : undefined,
     { onFire: swipe.cancel },
@@ -184,8 +193,9 @@ export function MessageRow({
     inline.kind === "solo" && soloInfo ? { itemId: inline.itemId, info: soloInfo } : undefined;
   const soloBox = soloEmoticon ? toSoloEmoticonBox(soloEmoticon.info) : undefined;
   // WARN: § 8.3. The resolved box and not `inline.kind`. An id the page's map does not carry has nothing to draw large, so it falls through to the bubble below — and a row that still called itself bubble-less would quote twice and be priced at a picture it never draws.
-  const hasArt = Boolean(emoticon) || hasMedia || Boolean(soloEmoticon);
-  const linkOnlyUrl = hasArt ? null : toLinkOnlyUrl(text, inline);
+  // WARN: REQUIREMENTS.md § 8.17. `estimateRowHeight`'s own rule — a folded row is the ordinary text bubble whatever its content would otherwise draw, so every art and link branch below is closed for one.
+  const hasArt = !isCollapsed && (Boolean(emoticon) || hasMedia || Boolean(soloEmoticon));
+  const linkOnlyUrl = hasArt || isCollapsed ? null : toLinkOnlyUrl(text, inline);
   // WARN: § 8.3. A subscription where the estimate makes a cache read, and on purpose: a link-only row priced as a bubble before the scrape answered re-renders as the card the moment it does, which is a re-measure the virtualizer compensates — a row drawing one thing while the estimate prices another is not.
   const { data: linkOnlyPreview } = useQuery({
     ...toLinkPreviewQuery(linkOnlyUrl ?? ""),
@@ -196,7 +206,7 @@ export function MessageRow({
   const isBubbleless = hasArt || linkOnlyCard !== null;
   // INFO: REQUIREMENTS.md § 8.9. One card per bubble — the first link, not every link, because a message pasted from a share sheet routinely carries several.
   // INFO: DESIGN.md § 6.5. A bubble-less message carries an attachment rather than text, so there is no link in it to preview.
-  const previewUrl = isBubbleless ? undefined : findFirstUrl(text);
+  const previewUrl = isBubbleless || isCollapsed ? undefined : findFirstUrl(text);
 
   return (
     // INFO: DESIGN.md § 6.10. The flash is on the row rather than on the bubble's own fill, so a media or emoticon message — which has no fill — highlights the same way a text one does.
@@ -374,7 +384,7 @@ export function MessageRow({
                 bubbleClassName,
               )}
               {...longPressHandlers}
-              onClick={replyTo || isTruncated ? onTapBubble : undefined}
+              onClick={replyTo || isTruncated || isCollapsed ? onTapBubble : undefined}
             >
               {/* WARN: REQUIREMENTS.md § 8.13. Ahead of everything else in the bubble, and it returns nothing else. A withdrawn row carries no text, no quote and no attachment, so every branch below it would render empty — but the estimate in `estimateRowHeight` prices exactly this one line, and a stray sibling here is height it cannot see. */}
               {isDeleted ? (
@@ -393,7 +403,9 @@ export function MessageRow({
                   {text && (
                     // WARN: REQUIREMENTS.md § 8.3. `line-clamp` lays out exactly this many line boxes, which is the whole reason the cut is expressible in the estimate — a `max-height` would leave a partial line the arithmetic has no name for.
                     <MessageText
-                      className={cn(isTruncated && TRUNCATED_TEXT_CLASS)}
+                      className={cn(
+                        isCollapsed ? "line-clamp-1" : isTruncated && TRUNCATED_TEXT_CLASS,
+                      )}
                       text={text}
                       inlineEmoticonItemIds={inlineEmoticonItemIds}
                       inlineEmoticons={inlineEmoticons}
@@ -401,7 +413,10 @@ export function MessageRow({
                     />
                   )}
                   {/* WARN: REQUIREMENTS.md § 8.3. Never conditioned on `onExpand`. The estimate prices this row from `text` alone, so a caller that forgot the handler must still draw the box it reserved rather than silently losing it. */}
-                  {isTruncated && <ExpandBodyButton onClick={onExpand} />}
+                  {isTruncated && <ExpandBodyButton label="전체보기" onClick={onExpand} />}
+                  {isCollapsed && (
+                    <ExpandBodyButton label="펼치기" Icon={ChevronDown} onClick={onUnfold} />
+                  )}
                 </>
               )}
             </div>

@@ -35,6 +35,8 @@ export function toChatMessage(
     editedAt: row.editedAt?.toISOString() ?? null,
     // INFO: REQUIREMENTS.md § 8.13. The flag, never the timestamp — nothing renders *when* a message was deleted, and shipping it would date a withdrawal the reader is not owed.
     isDeleted,
+    // INFO: REQUIREMENTS.md § 8.17. The flag and not the timestamp, exactly as `isDeleted` is — nothing draws *when* a message was folded.
+    isCollapsed: row.collapsedAt !== null,
     id: row.id,
   };
 }

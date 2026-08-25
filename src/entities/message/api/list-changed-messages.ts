@@ -43,7 +43,12 @@ export async function listChangedMessages(
       and(
         gte(messages.id, from),
         lte(messages.id, to),
-        or(isNotNull(messages.deletedAt), isNotNull(messages.editedAt)),
+        or(
+          isNotNull(messages.deletedAt),
+          isNotNull(messages.editedAt),
+          // INFO: REQUIREMENTS.md § 8.17. A fold is the third mutation on this channel, and a resume has to learn it for the same reason it learns the other two.
+          isNotNull(messages.collapsedAt),
+        ),
       ),
     )
     // WARN: Newest-first, which is what makes the limit a **page** rather than a loss: the caller walks `to` down past the oldest row it received and asks again. Ascending, the same loop would have to walk `from` up, and `from` is the bound the window's own start defines.

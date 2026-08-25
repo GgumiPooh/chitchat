@@ -1,11 +1,15 @@
 "use client";
 
 import { cn } from "@/shared/lib";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, type LucideIcon } from "lucide-react";
 
 export type ExpandBodyButtonProps = {
   className?: string;
   iconClassName?: string;
+  /** 전체보기 for § 6.2.2.'s cut, 펼치기 for § 8.17.'s fold — the two open different things and may not share a word. */
+  label: string;
+  /** § 6.2.2. opens a sheet and points right; § 6.2.3.'s 펼치기 grows the bubble downward and points there. */
+  Icon?: LucideIcon;
   onClick?: () => void;
 };
 
@@ -19,7 +23,13 @@ export type ExpandBodyButtonProps = {
  * INFO: AGENTS.md § 4.2. A real button because the whole bubble's tap is a `div`'s and
  * reaches no keyboard — the same action, offered where a keyboard can take it.
  */
-export function ExpandBodyButton({ className, iconClassName, onClick }: ExpandBodyButtonProps) {
+export function ExpandBodyButton({
+  className,
+  iconClassName,
+  label,
+  Icon = ChevronRight,
+  onClick,
+}: ExpandBodyButtonProps) {
   return (
     <button
       className={cn(
@@ -29,8 +39,8 @@ export function ExpandBodyButton({ className, iconClassName, onClick }: ExpandBo
       type="button"
       onClick={onClick}
     >
-      전체보기
-      <ChevronRight className={cn("size-4 shrink-0", iconClassName)} strokeWidth={1.75} />
+      {label}
+      <Icon className={cn("size-4 shrink-0", iconClassName)} strokeWidth={1.75} />
     </button>
   );
 }

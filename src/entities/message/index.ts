@@ -1,4 +1,5 @@
 export { areInlineEmoticonsKnown } from "./api/check-inline-emoticons";
+export { collapseMessage } from "./api/collapse-message";
 export { countUnreadMessages } from "./api/count-unread";
 export {
   createAssistantReplyMessage,

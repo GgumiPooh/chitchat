@@ -75,12 +75,16 @@ export const messages = pgTable(
     // INFO: REQUIREMENTS.md § 8.13. NULL is "never edited", which is the whole 수정됨 test — an `updated_at` bumped by the soft delete beside it would light the label on a row nobody edited.
     editedAt: timestamp("edited_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    // INFO: REQUIREMENTS.md § 8.17. NULL is "not folded". Either participant may set it — folding curates the shared timeline rather than changing what a message says, so there is nobody to attribute it to and nothing to scope it by.
+    collapsedAt: timestamp("collapsed_at", { withTimezone: true }),
   },
   (table) => [
     // INFO: REQUIREMENTS.md § 8.13. The resume reconciliation reads exactly this predicate, and a partial index over it stays tiny — an edit or a delete is rare beside the rows they are indexed out of.
     index("messages_changed_id_idx")
       .on(table.id)
-      .where(sql`"deleted_at" IS NOT NULL OR "edited_at" IS NOT NULL`),
+      .where(
+        sql`"deleted_at" IS NOT NULL OR "edited_at" IS NOT NULL OR "collapsed_at" IS NOT NULL`,
+      ),
     // INFO: REQUIREMENTS.md § 6. Without this a `type = 'text'` row can silently acquire an emoticon or an event.
     // WARN: `"system_action"::text` rather than a bare enum comparison — `db:migrate` applies every pending file in one transaction, and Postgres refuses to compare against an enum value added earlier in that same transaction. Casting to `text` sidesteps the restriction entirely, so this check never cares whether `'assistant_reply'` was just added or has been there for years.
     check(
@@ -104,6 +108,11 @@ export const messages = pgTable(
     ),
     // INFO: REQUIREMENTS.md § 8.13. Only text is editable — an attachment and an emoticon carry no prose to correct, and a system notice is timeline furniture (DESIGN.md § 6.5.).
     check("messages_edited_is_text_check", sql`"edited_at" IS NULL OR "type" = 'text'`),
+    // INFO: REQUIREMENTS.md § 8.17. Only a body of prose is worth folding — an attachment and an emoticon are already their own size, and § 11.5.'s notice is one pill.
+    check(
+      "messages_collapsed_is_prose_check",
+      sql`"collapsed_at" IS NULL OR "type" = 'text' OR "system_action"::text = 'assistant_reply'`,
+    ),
     // INFO: Left out of the CASE above for the reason the two checks beside it are — it constrains one branch, and folding it in would mean restating all four.
     check(
       "messages_inline_emoticons_are_text_check",
