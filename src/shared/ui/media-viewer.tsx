@@ -476,7 +476,7 @@ export function MediaViewer({
         <div
           className={cn(
             // WARN: DESIGN.md § 7.10. The gradient runs well past the controls and fades through a midpoint rather than straight to nothing. It used to end at the bar's own padding, which put the caption where the wash had already thinned to about a third — unreadable over a white photo, which is the surface this exists for.
-            "pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start gap-xs bg-gradient-to-b from-scrim/85 via-scrim/45 to-transparent p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))] pb-2xl transition-opacity duration-200",
+            "pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start gap-xs bg-gradient-to-b from-scrim/40 via-scrim/15 to-transparent p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))] pb-2xl transition-opacity duration-200",
             // WARN: The descendants' `pointer-events` are revoked with the opacity, not just their `tabIndex`. `opacity-0` alone leaves every control here fully tappable while invisible — the tap that hid the chrome, repeated in the same corner, would close the viewer.
             // INFO: DESIGN.md § 4.7.3. Held back until the opening morph has landed, with the floor above — the chrome is what says "you are in the viewer", and said while the picture is still crossing the screen it arrives before the thing it describes.
             (!isChromeVisible || !hasMorphSettled) && "opacity-0 [&_*]:pointer-events-none",
@@ -609,7 +609,7 @@ export function MediaViewer({
         <div
           className={cn(
             // WARN: DESIGN.md § 7.10. A gradient here too, which this bar deliberately went without for a long time on the argument that a second one frames the photo from below. The discs' own fill is what it relied on instead, and over the viewer's opaque `scrim` — which is most of the screen on a portrait slide — `scrim` on `scrim` is a control with no edge at all. The ring below answers that; the wash is what carries the group over a bright photo.
-            "pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col gap-sm bg-gradient-to-t from-scrim/85 via-scrim/45 to-transparent p-md pt-2xl pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] transition-opacity duration-200",
+            "pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col gap-sm bg-gradient-to-t from-scrim/40 via-scrim/15 to-transparent p-md pt-2xl pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] transition-opacity duration-200",
             // WARN: As the top bar — hidden controls must stop receiving pointers, or an invisible 삭제 sits under the reader's next tap.
             // INFO: DESIGN.md § 4.7.3. Held back until the opening morph has landed, with the floor above — the chrome is what says "you are in the viewer", and said while the picture is still crossing the screen it arrives before the thing it describes.
             (!isChromeVisible || !hasMorphSettled) && "opacity-0 [&_*]:pointer-events-none",
