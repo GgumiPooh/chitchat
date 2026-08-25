@@ -888,11 +888,11 @@ export function ChatRoom({
         const index = instance.indexFromElement(element);
         const key = index >= 0 ? instance.options.getItemKey(index) : undefined;
         const believed = key !== undefined ? instance.itemSizeCache.get(key) : undefined;
+        // WARN: REQUIREMENTS.md § 8.3. `measurementsCache` is indexed, and only its **own** key's size may be handed back. § 8.13.'s revision changes a row's key while its index stands still, so this fallback otherwise answers with the size of the state the row has just left — the withdrawal's, the correction's, § 8.17.'s whole markdown answer — and that wrong size is then committed under the new key, where nothing re-estimates it. It showed as a folded bubble holding a screenful of empty room, and as the next row drawn on top of an unfolded one.
+        const measured = instance.measurementsCache[index];
 
         return (
-          believed ??
-          instance.measurementsCache[index]?.size ??
-          instance.options.estimateSize(index)
+          believed ?? (measured?.key === key ? measured.size : instance.options.estimateSize(index))
         );
       }
 
