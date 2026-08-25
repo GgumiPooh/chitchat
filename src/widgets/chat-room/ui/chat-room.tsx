@@ -499,6 +499,9 @@ export function ChatRoom({
     aiSelection.exit,
     onAiSelectionChange,
   ]);
+  const { play: playMessageSound } = useMessageSound();
+  // INFO: § 13.6. One `Set` per submit whose 전송음 is still waiting on an upload — see `soundSubmit`.
+  const pendingSendSoundsRef = useRef<Set<string>[]>([]);
   // INFO: § 8.5. An AI question's own `clientMsgId`, kept apart from `appendMessage` so `handleMessageSent` can tell "the send this room just made" from every other echo the send queue reports.
   const pendingAiQuestionsRef = useRef<
     Map<
@@ -543,9 +546,19 @@ export function ChatRoom({
         });
       }
 
+      const soundIndex = pendingSendSoundsRef.current.findIndex((group) =>
+        group.has(message.clientMsgId),
+      );
+
+      // INFO: § 13.6. The one 전송음 `soundSubmit` deferred, spent by whichever of that submit's attachments lands first.
+      if (soundIndex !== -1) {
+        pendingSendSoundsRef.current.splice(soundIndex, 1);
+        playMessageSound("sent");
+      }
+
       appendMessage(message);
     },
-    [appendMessage],
+    [appendMessage, playMessageSound],
   );
   const { pending, send, sendMedia, sendEmoticon, retry, cancel, resolve } = useSendMessage({
     onSent: handleMessageSent,
@@ -910,7 +923,6 @@ export function ChatRoom({
   const lastPendingCount = useRef(pendingCount);
   const isSending = pending.some((entry) => entry.status === "sending");
 
-  const { play: playMessageSound } = useMessageSound();
   const {
     pendingId: arrivalSoundId,
     announce: announceArrivalSound,
@@ -2034,8 +2046,7 @@ export function ChatRoom({
       void returnToLive();
     }
 
-    sendMedia([toVoiceDraft(recording)], replyTarget);
-    playMessageSound("sent");
+    soundSubmit(sendMedia([toVoiceDraft(recording)], replyTarget));
     setReplyTarget(null);
   }
 
@@ -2082,8 +2093,10 @@ export function ChatRoom({
       hasSent = true;
     }
 
+    let mediaClientMsgIds: string[] = [];
+
     if (selection.drafts.length > 0) {
-      sendMedia(selection.takeAll(), take());
+      mediaClientMsgIds = sendMedia(selection.takeAll(), take());
       hasSent = true;
     }
 
@@ -2105,7 +2118,7 @@ export function ChatRoom({
 
     // INFO: § 13.6. One 전송음 for the whole submit, and only where no emoticon in it sounded — the shared player would cut that off.
     if (hasSent && !hasSounded) {
-      playMessageSound("sent");
+      soundSubmit(mediaClientMsgIds);
     }
 
     // WARN: § 13.8. The word is spent here, and the search is left standing — see `sendStagedEmoticon`.
@@ -2151,9 +2164,9 @@ export function ChatRoom({
       setStagedEmoticon(null);
     }
 
-    if (selection.drafts.length > 0) {
-      attachmentClientMsgIds.push(...sendMedia(selection.takeAll()));
-    }
+    const mediaClientMsgIds = selection.drafts.length > 0 ? sendMedia(selection.takeAll()) : [];
+
+    attachmentClientMsgIds.push(...mediaClientMsgIds);
 
     const clientMsgId = send(text);
 
@@ -2175,7 +2188,7 @@ export function ChatRoom({
     );
 
     if (!hasSounded) {
-      playMessageSound("sent");
+      soundSubmit(mediaClientMsgIds);
     }
   }
 
@@ -2245,6 +2258,38 @@ export function ChatRoom({
     }
 
     return true;
+  }
+
+  /**
+   * REQUIREMENTS.md § 13.6. The submit's own 전송음. A tray is held back until one of
+   * its bubbles has actually landed — a § 9. upload puts seconds between the tap and
+   * the send, where every other kind of message is sent by the time this returns.
+   *
+   * WARN: Keyed on the attachments alone, not on the caption queued behind them. `useSendMessage` delivers on one chain in queue order (§ 8.10.'s own comment on `submit`), so the text lands last — waiting on it would put the sound after the upload it is meant to end rather than at it.
+   */
+  function soundSubmit(mediaClientMsgIds: string[]) {
+    if (mediaClientMsgIds.length === 0) {
+      playMessageSound("sent");
+
+      return;
+    }
+
+    pendingSendSoundsRef.current.push(new Set(mediaClientMsgIds));
+  }
+
+  /**
+   * INFO: § 8.5. 전송 취소, and the only way a bubble leaves without landing — so it is
+   * also where a 전송음 `soundSubmit` is still holding for that bubble is released.
+   *
+   * INFO: § 13.6. Per bubble rather than per submit: a pick of twenty photos is three bubbles, and cancelling the first leaves the other two to sound as they land.
+   */
+  function cancelSend(clientMsgId: string) {
+    pendingSendSoundsRef.current = pendingSendSoundsRef.current.filter((group) => {
+      group.delete(clientMsgId);
+
+      return group.size > 0;
+    });
+    cancel(clientMsgId);
   }
 
   /** INFO: REQUIREMENTS.md § 13.8. Only ever true beside an emoticon — on its own the word is the message the user typed. */
@@ -2803,7 +2848,7 @@ export function ChatRoom({
             onFollowEmoticon={toFollowEmoticon(row.pending.emoticon)}
             onArrivalSoundReady={() => settleArrivalSound(row.pending.clientMsgId)}
             onRetry={() => retry(row.pending.clientMsgId)}
-            onCancel={() => cancel(row.pending.clientMsgId)}
+            onCancel={() => cancelSend(row.pending.clientMsgId)}
           />
         );
       }
