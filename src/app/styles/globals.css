@@ -4,6 +4,9 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* INFO: REQUIREMENTS.md § 8.3. `warmLineHeights` probes `font-mono` for the family preflight hands a fenced block, and nothing in the app wears the utility for Tailwind to have generated it from a scan. */
+@source inline("font-mono");
+
 @layer base {
   /* WARN: DESIGN.md § 3.4. On the root as well as `body`, and the pair is not redundant. `overflow` is specified to propagate to the viewport from `body`; `overscroll-behavior` propagates from the **root element**. Declared on `body` alone Chrome honours it anyway and WebKit does not, and what that costs is the whole gesture: a pull the chat room's own scroller cannot consume chains to a root scroller that is already at `0`, and Safari takes it as pull-to-refresh and reloads the app. */
   html {

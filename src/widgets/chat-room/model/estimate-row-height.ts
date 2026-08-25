@@ -22,6 +22,7 @@ import { toInlineContent, type InlineContent } from "./to-inline-content";
 import { toInlineEmoticonBox } from "./to-inline-emoticon-box";
 import { toLinkCardRatio } from "./to-link-card-box";
 import { toLinkOnlyUrl } from "./to-link-only";
+import { MARKDOWN_LINE_CLASSES, toMarkdownHeight } from "./to-markdown-height";
 import { MEDIA_EDGE, toMediaBoxHeight } from "./to-media-box";
 import type { ChatRow } from "./types";
 
@@ -54,6 +55,7 @@ export const ROW_LINE_CLASSES = [
   "text-title-sm",
   "text-body-sm",
   "text-chat-name leading-snug",
+  ...MARKDOWN_LINE_CLASSES,
 ] as const;
 
 // INFO: DESIGN.md § 6.5. `max-w-[72%]` on the bubble column.
@@ -77,14 +79,6 @@ const AVATAR_SIZE = 36;
 // INFO: DESIGN.md § 6.5. Retry over cancel, two `size-9` controls, standing where the timestamp would be. Taller than any one-line bubble, so this is what the row measures.
 const FAILED_CONTROLS = AVATAR_SIZE * 2;
 const FAILED_SLOT = AVATAR_SIZE + SPACING_2XS;
-
-// INFO: A cheap detector rather than a markdown parse — a finished assistant row only needs to be close, and the `ResizeObserver` corrects the rest once it mounts (REQUIREMENTS.md § 8.3.).
-const FENCE_RE = /```/g;
-const TABLE_SEPARATOR_RE = /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?\s*$/gm;
-
-// INFO: The vertical padding, margin and border a rendered fenced block or table adds over what its own text lines already counted through `countTextLines` — flat allowances rather than a layout of the block, for the reason above.
-const CODE_BLOCK_ALLOWANCE = 24;
-const TABLE_ALLOWANCE = 24;
 
 // INFO: DESIGN.md § 6.4., § 6.5. The pill's own `px-sm py-2xs`, and `caption` at 500.
 const PILL = { size: 12, weight: 500 };
@@ -528,24 +522,26 @@ function toTranslatedWidthContext(context: RowEstimateContext): RowEstimateConte
  * name above the bubble, then the taller of the bubble's markdown text and the
  * timestamp beside it — the same `max(content, beside)` shape `estimateMessageRow`
  * uses, but against the row's own wide column rather than the § 6.5. 72% one.
+ *
+ * WARN: The bubble's own height comes from `toMarkdownHeight`, which lays the answer's
+ * blocks out rather than counting its source lines. Counted, a blank line between two
+ * paragraphs was priced as a line where the browser draws a 4px gap — 17px per paragraph,
+ * the largest error this file had — and every heading, rule and fenced block was priced as
+ * the body text it is not.
  */
 function toAssistantColumnHeight(message: ChatMessage, context: RowEstimateContext): number {
-  const text = message.text ?? "";
   const width = toAssistantBubbleWidth(context);
-  const lines = Math.max(
-    1,
-    countTextLines(text, { ...CHAT_BODY, family: context.fontFamily }, width, "pre-wrap", "normal"),
-  );
-  const codeBlocks = Math.floor((text.match(FENCE_RE)?.length ?? 0) / 2);
-  const tables = text.match(TABLE_SEPARATOR_RE)?.length ?? 0;
-  const bubble =
-    SPACING_XS * 2 +
-    BUBBLE_BORDER +
-    lines * LINE.body() +
-    codeBlocks * CODE_BLOCK_ALLOWANCE +
-    tables * TABLE_ALLOWANCE;
+  // INFO: REQUIREMENTS.md § 8.13. A withdrawn answer gives its markdown up for the one-line tombstone `AssistantMessageRow` draws in its place — plain text in the bubble, so it takes neither `MarkdownBody`'s blocks nor its `word-break`.
+  const content = message.isDeleted
+    ? Math.max(
+        1,
+        countTextLines(DELETED_MESSAGE_TEXT, { ...CHAT_BODY, family: context.fontFamily }, width),
+      ) * LINE.body()
+    : toMarkdownHeight(message.text ?? "", width, context.fontFamily);
 
-  return LINE.name() + SPACING_2XS + Math.max(bubble, LINE.time());
+  return (
+    LINE.name() + SPACING_2XS + Math.max(SPACING_XS * 2 + BUBBLE_BORDER + content, LINE.time())
+  );
 }
 
 // INFO: DESIGN.md § 6.2., § 6.11. The assistant bubble's own `px-sm` padding and `border` come off the wide column the same way `toTextHeight` takes them off a `theirs` bubble's — an AI answer is always `theirs`-shaped, so this is that formula with no `status` control-column and no unread/수정됨 stack to vary the `TIME_SLOT` beside it.

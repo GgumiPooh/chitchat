@@ -4,6 +4,7 @@ import { clearCache, layout, prepare, setLocale, type PrepareOptions } from "@ch
 import {
   measureRichInlineStats,
   prepareRichInline,
+  walkRichInlineLineRanges,
   type RichInlineItem,
 } from "@chenglou/pretext/rich-inline";
 import { LOCALE } from "../date/time";
@@ -22,15 +23,21 @@ const NARROW_RATIO = 0.55;
 const CACHE_LIMIT = 4000;
 
 const lineCounts = new Map<string, number>();
-const inlineLineCounts = new Map<string, number>();
+const inlineLineCounts = new Map<string, InlineLineStats>();
 const boxGlyphWidths = new Map<string, number>();
 let isConfigured = false;
 
 /**
  * One piece of a line that mixes text with atomic boxes — a run of characters, or a box
  * of a known width that the line breaks around but never inside.
+ *
+ * INFO: A text run may carry a `font` of its own (a `**bold**` run, a mono one) and the `extraWidth` its own box adds around it (an inline `code`'s padding and border); both default to the caller's base font and to nothing.
  */
-export type InlineRun = { text: string } | { boxWidth: number };
+export type InlineRun =
+  { text: string; font?: FontSpec; extraWidth?: number; isTall?: boolean } | { boxWidth: number };
+
+/** How many lines the runs wrap to, and how many of those hold a run the caller marked `isTall`. */
+export type InlineLineStats = { lineCount: number; tallLineCount: number };
 
 /**
  * WARN: A **non-empty**, non-whitespace stand-in for a box, and it cannot be `""`.
@@ -109,16 +116,33 @@ export function countTextLines(
  */
 export function countInlineLines(
   runs: readonly InlineRun[],
-  { size, weight, family }: FontSpec,
+  font: FontSpec,
   maxWidth: number,
 ): number {
+  return measureInlineLines(runs, font, maxWidth).lineCount;
+}
+
+/**
+ * `countInlineLines`, with the lines a taller run lands on counted separately — the caller
+ * weighs those at their own height rather than the block's.
+ *
+ * WARN: A run marked `isTall` is one whose own font makes the line box grow, and the mark
+ * is the caller's because the growth is not derivable here: both boxes are `line-height`
+ * tall, and what exceeds it is the two fonts' baselines sitting at different offsets
+ * inside them.
+ */
+export function measureInlineLines(
+  runs: readonly InlineRun[],
+  { size, weight, family }: FontSpec,
+  maxWidth: number,
+): InlineLineStats {
   // INFO: Nothing to lay out is no line, which is `countTextLines`' own answer to `""`. No bubble reaches it — every segment contributes a run, an emoticon the page never sized included — so this holds the exported contract rather than a case the room produces.
   if (runs.length === 0) {
-    return 0;
+    return NO_INLINE_LINES;
   }
 
   if (!family || typeof document === "undefined") {
-    return approximateInlineLines(runs, size, maxWidth);
+    return { lineCount: approximateInlineLines(runs, size, maxWidth), tallLineCount: 0 };
   }
 
   const font = `${weight} ${size}px ${family}`;
@@ -135,6 +159,7 @@ export function countInlineLines(
   const width = Math.max(maxWidth, 1);
   const glyph = toBoxGlyphWidth(font);
   let lineCount = 0;
+  let tallLineCount = 0;
 
   for (const line of toHardLines(runs)) {
     // INFO: An empty hard line is one line — the blank line a sender left between paragraphs.
@@ -144,20 +169,28 @@ export function countInlineLines(
       continue;
     }
 
-    const items = line.map<RichInlineItem>((run) =>
-      "text" in run
-        ? { text: toNonCollapsingRun(run.text), font }
-        : // WARN: `naturalWidth + extraWidth` is what the item occupies, so the stand-in glyph's own advance comes back out here. Clamped, since a box narrower than that glyph would otherwise occupy a negative width.
-          {
-            text: BOX_GLYPH,
-            font,
-            break: "never",
-            extraWidth: Math.max(-glyph, run.boxWidth - glyph),
-          },
-    );
+    const prepared = prepareRichInline(toRichItems(line, font, family, glyph));
 
-    lineCount += Math.max(1, measureRichInlineStats(prepareRichInline(items), width).lineCount);
+    if (line.every((run) => !("text" in run) || !run.isTall)) {
+      lineCount += Math.max(1, measureRichInlineStats(prepared, width).lineCount);
+
+      continue;
+    }
+
+    let walked = 0;
+
+    walkRichInlineLineRanges(prepared, width, ({ fragments }) => {
+      walked += 1;
+
+      if (fragments.some(({ itemIndex }) => isTallItem(line[itemIndex]))) {
+        tallLineCount += 1;
+      }
+    });
+
+    lineCount += Math.max(1, walked);
   }
+
+  const stats = { lineCount, tallLineCount };
 
   if (inlineLineCounts.size >= CACHE_LIMIT) {
     for (const stale of [...inlineLineCounts.keys()].slice(0, CACHE_LIMIT / 2)) {
@@ -165,13 +198,53 @@ export function countInlineLines(
     }
   }
 
-  inlineLineCounts.set(key, lineCount);
+  inlineLineCounts.set(key, stats);
 
-  return lineCount;
+  return stats;
+}
+
+const NO_INLINE_LINES: InlineLineStats = { lineCount: 0, tallLineCount: 0 };
+
+function isTallItem(run: InlineRun | undefined): boolean {
+  return run !== undefined && "text" in run && run.isTall === true;
+}
+
+function toRichItems(
+  runs: readonly InlineRun[],
+  font: string,
+  family: string,
+  glyph: number,
+): RichInlineItem[] {
+  return runs.map<RichInlineItem>((run) =>
+    "text" in run
+      ? {
+          text: toNonCollapsingRun(run.text),
+          font: run.font ? toFontString(run.font, family) : font,
+          extraWidth: run.extraWidth,
+        }
+      : // WARN: `naturalWidth + extraWidth` is what the item occupies, so the stand-in glyph's own advance comes back out here. Clamped, since a box narrower than that glyph would otherwise occupy a negative width.
+        {
+          text: BOX_GLYPH,
+          font,
+          break: "never",
+          extraWidth: Math.max(-glyph, run.boxWidth - glyph),
+        },
+  );
 }
 
 function toRunKey(run: InlineRun): string {
-  return "text" in run ? `t${run.text}` : `b${run.boxWidth}`;
+  if (!("text" in run)) {
+    return `b${run.boxWidth}`;
+  }
+
+  const font = run.font ? `${run.font.weight}/${run.font.size}/${run.font.family}` : "";
+
+  // WARN: Every field that reaches the measurer, or a bold run and a plain one of the same characters share an answer.
+  return `t${font}\u0002${run.extraWidth ?? 0}\u0002${run.isTall ? 1 : 0}\u0002${run.text}`;
+}
+
+function toFontString({ size, weight, family }: FontSpec, fallbackFamily: string): string {
+  return `${weight} ${size}px ${family || fallbackFamily}`;
 }
 
 /** INFO: The advance of `BOX_GLYPH` in this font, so a box can be given the width it actually draws at rather than that width plus a glyph. */
@@ -214,7 +287,7 @@ function toHardLines(runs: readonly InlineRun[]): InlineRun[][] {
       }
 
       if (piece) {
-        lines[lines.length - 1].push({ text: piece });
+        lines[lines.length - 1].push({ ...run, text: piece });
       }
     });
   }
@@ -235,7 +308,11 @@ function approximateInlineLines(
 ): number {
   return toHardLines(runs).reduce((total, line) => {
     const width = line.reduce(
-      (sum, run) => sum + ("text" in run ? toApproximateWidth(run.text, size) : run.boxWidth),
+      (sum, run) =>
+        sum +
+        ("text" in run
+          ? toApproximateWidth(run.text, run.font?.size ?? size) + (run.extraWidth ?? 0)
+          : run.boxWidth),
       0,
     );
 
@@ -278,7 +355,7 @@ function configure() {
     void document.fonts.ready.then(() => {
       clearCache();
       lineCounts.clear();
-      // WARN: All three, or an inline count and a box advance measured in the fallback font outlive the swap that invalidated the plain one beside them.
+      // WARN: Every one of them, or a width measured in the fallback font outlives the swap that invalidated the plain count beside it.
       inlineLineCounts.clear();
       boxGlyphWidths.clear();
     });

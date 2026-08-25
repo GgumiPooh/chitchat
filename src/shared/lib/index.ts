@@ -217,12 +217,19 @@ export type { Maybe, Nullable, Optional } from "./nullish";
 export { runWhenIdle } from "./run/idle";
 export { mapPooled, type PoolOptions } from "./run/pool";
 export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./run/safely";
-export { measureLineHeight, warmLineHeights } from "./text/line-height";
+export {
+  measureFontFamily,
+  measureLineHeight,
+  warmLineHeights,
+  type LineProbe,
+} from "./text/line-height";
 export { findQueryIndex, splitTextByQuery, type QuerySegment } from "./text/query-match";
 export {
   countInlineLines,
   countTextLines,
+  measureInlineLines,
   type FontSpec,
+  type InlineLineStats,
   type InlineRun,
 } from "./text/text-layout";
 export {

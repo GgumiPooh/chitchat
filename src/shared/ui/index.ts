@@ -23,7 +23,7 @@ export { InlineEmoticon, type InlineEmoticonProps } from "./inline-emoticon";
 export { Input, type InputProps } from "./input";
 export { KeywordField, type KeywordFieldProps } from "./keyword-field";
 export { Link, type LinkProps } from "./link";
-export { MarkdownBody, type MarkdownBodyProps } from "./markdown-body";
+export { MARKDOWN_PLUGINS, MarkdownBody, type MarkdownBodyProps } from "./markdown-body";
 export { toCellNoun, toCellRatio } from "./media-cell";
 export type { MediaCell, VoiceTrack } from "./media-cell";
 export { MediaTombstone, toDeletedMediaText, type MediaTombstoneProps } from "./media-tombstone";

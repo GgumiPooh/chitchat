@@ -9,8 +9,16 @@ export type MarkdownBodyProps = {
   text: string;
 };
 
+/**
+ * WARN: `remarkGfm` first. `remark-cjk-friendly-gfm-strikethrough`'s own README states it does nothing placed ahead of GFM — it patches GFM's `~~` construct — and `remark-cjk-friendly` documents the same order for its emphasis fix.
+ *
+ * WARN: REQUIREMENTS.md § 8.3. Exported because the row estimate parses the same text through the same list. Fed from two sources the estimate and the bubble disagree about the block structure by construction.
+ */
+export const MARKDOWN_PLUGINS = [remarkGfm, remarkCjkFriendly, remarkCjkFriendlyGfmStrikethrough];
+
 const MARKDOWN_CLASS_NAME = cn(
-  "space-y-2xs text-chat-body text-bubble-ink",
+  // WARN: DESIGN.md § 4.2.3. `word-break: normal` exactly as the § 6.2. bubble opts into it — the app-wide `keep-all` this inherited otherwise made the AI answer the one bubble in the column that pushed a whole 어절 down, and REQUIREMENTS.md § 8.3.'s measurer models `normal` and takes no option for the other.
+  "space-y-2xs text-chat-body [word-break:normal] text-bubble-ink",
   "[&_p]:[overflow-wrap:anywhere] [&_p]:whitespace-pre-wrap",
   // INFO: DESIGN.md § 6.11. Three steps and no more — preflight resets every heading to the body's own size, and a bubble this narrow has room to say "heading" three ways before the smallest one lands under `chat-body` itself.
   "[&_:is(h3,h4,h5,h6)]:font-semibold [&_h1]:text-display-sm [&_h2]:text-title-md",
@@ -24,7 +32,8 @@ const MARKDOWN_CLASS_NAME = cn(
   "[&_code]:rounded-xs [&_code]:border [&_code]:border-hairline [&_code]:bg-surface-soft [&_code]:px-2xs [&_code]:py-px",
   "[&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:border [&_pre]:border-hairline [&_pre]:bg-surface-soft [&_pre]:p-sm",
   "[&_pre_code]:border-0 [&_pre_code]:bg-transparent [&_pre_code]:p-0",
-  "[&_table]:w-full [&_table]:border-collapse [&_table]:text-left",
+  // WARN: REQUIREMENTS.md § 8.3. `table-fixed`, and it is the estimate that asks for it — `auto` leaves the split of a table's width across its columns to the UA, and Blink and WebKit answer differently enough to be tens of pixels of § 8.3. drift on the same answer. Equal columns are the same in both.
+  "[&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:text-left",
   "[&_th]:border-b [&_th]:border-hairline [&_th]:px-sm [&_th]:py-2xs [&_th]:font-semibold",
   "[&_td]:border-b [&_td]:border-hairline [&_td]:px-sm [&_td]:py-2xs",
 );
@@ -45,8 +54,7 @@ export function MarkdownBody({ className, text }: MarkdownBodyProps) {
   return (
     <div className={cn(MARKDOWN_CLASS_NAME, className)}>
       <Markdown
-        // WARN: `remarkGfm` first. `remark-cjk-friendly-gfm-strikethrough`'s own README states it does nothing placed ahead of GFM — it patches GFM's `~~` construct — and `remark-cjk-friendly` documents the same order for its emphasis fix.
-        remarkPlugins={[remarkGfm, remarkCjkFriendly, remarkCjkFriendlyGfmStrikethrough]}
+        remarkPlugins={MARKDOWN_PLUGINS}
         components={{
           a: (props) => <a target="_blank" rel="noreferrer noopener" {...props} />,
           table: (props) => (

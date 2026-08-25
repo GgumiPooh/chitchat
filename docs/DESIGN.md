@@ -931,6 +931,8 @@ The AI question flow and the answer bubble (`REQUIREMENTS.md § 8.15.`).
 
 **The answer's markdown is `MarkdownBody`, on this app's tokens rather than a `prose` plugin.** Preflight resets headings to the body's size and leaves `hr` a `currentColor` rule, so both are restated there: three heading steps (`display-sm`, `title-md`, then `font-semibold` at body size) and a `hairline` divider with `xs` either side.
 
+**Two of its rules are the § 8.3. estimate's and not the eye's.** The wrapper is `word-break: normal`, which is § 4.2.3.'s own bubble setting the AI answer had been the one exception to; and its tables are `table-fixed`, because an auto-layout table's columns are split by the UA and Blink and WebKit answer differently enough to be tens of pixels of drift on one answer. Equal columns are the same in both.
+
 `대기 중 {n}` sits under the streaming row when more than one question is queued behind it.
 
 # 7. Components.
