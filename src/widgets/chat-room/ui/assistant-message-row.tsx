@@ -13,6 +13,7 @@ import {
 } from "@/shared/lib";
 import { IconButton, MarkdownBody } from "@/shared/ui";
 import { CornerUpLeft, Share, Sparkles } from "lucide-react";
+import { toQuoteJumpHandler } from "../model/to-quote-jump-handler";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
 import { ReplyQuote } from "./reply-quote";
 
@@ -109,6 +110,7 @@ export function AssistantMessageRow({
                 LONG_PRESS_TARGET_CLASS,
               )}
               {...longPressHandlers}
+              onClick={replyTo ? toQuoteJumpHandler(onOpenReply) : undefined}
             >
               {isDeleted ? (
                 DELETED_MESSAGE_TEXT

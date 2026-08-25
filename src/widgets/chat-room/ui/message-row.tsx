@@ -36,6 +36,7 @@ import { toLinkPreviewQuery } from "../model/link-preview-query";
 import { toSoloEmoticonBox } from "../model/to-emoticon-box";
 import { toInlineContent } from "../model/to-inline-content";
 import { toLinkOnlyUrl } from "../model/to-link-only";
+import { toQuoteJumpHandler } from "../model/to-quote-jump-handler";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
 import { EmoticonBubble } from "./emoticon-bubble";
 import { InlineEmoticonTombstone } from "./inline-emoticon-tombstone";
@@ -159,6 +160,7 @@ export function MessageRow({
   // INFO: REQUIREMENTS.md § 12.3. Read here rather than threaded down from the room — the row is what renders the avatar, and the provider is in the shell either way.
   const { openProfile } = useProfileViewer();
   const swipe = useSwipeToReply(onReply, isMine);
+  const jumpToQuoted = toQuoteJumpHandler(onOpenReply);
   const longPressHandlers = useLongPress(
     onLongPress ? (point, anchor) => onLongPress(anchor, point) : undefined,
     { onFire: swipe.cancel },
@@ -364,6 +366,7 @@ export function MessageRow({
                 bubbleClassName,
               )}
               {...longPressHandlers}
+              onClick={replyTo ? jumpToQuoted : undefined}
             >
               {/* WARN: REQUIREMENTS.md § 8.13. Ahead of everything else in the bubble, and it returns nothing else. A withdrawn row carries no text, no quote and no attachment, so every branch below it would render empty — but the estimate in `estimateRowHeight` prices exactly this one line, and a stray sibling here is height it cannot see. */}
               {isDeleted ? (

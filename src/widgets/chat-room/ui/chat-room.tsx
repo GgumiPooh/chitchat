@@ -167,6 +167,7 @@ import {
 import { toLinkPreviewQuery } from "../model/link-preview-query";
 import { playEmoticonSound, type EmoticonSound } from "../model/play-emoticon-sound";
 import { toCellsFromDrafts, toCellsFromMedia, type TrackOwner } from "../model/to-media-cells";
+import { toQuoteJumpHandler } from "../model/to-quote-jump-handler";
 import type { ChatRow } from "../model/types";
 import { useArrivalEmoticonSound } from "../model/use-arrival-emoticon-sound";
 import { useChatShortcuts } from "../model/use-chat-shortcuts";
@@ -3794,7 +3795,10 @@ function AiAnswerRow({
       </button>
       {/* WARN: DESIGN.md § 6.11. A `max-width` and never `flex-1` — the same trap `assistant-message-row.tsx` carries. `w-fit` keeps the *bubble* compact, but a growing slot still stretches, which parks 중지 at the row's far edge instead of beside the bubble. The cap is what the finished `AssistantMessageRow` wraps at (its own `calc(100%-44px)` column less the `gap-2xs` and `w-[68px]` beside it), so the last streamed frame and the landed row wrap identically. */}
       <div className="max-w-[calc(100%-116px)] min-w-0">
-        <div className="w-fit max-w-full rounded-bubble rounded-tl-xs border border-hairline bg-bubble-theirs px-sm py-xs">
+        <div
+          className="w-fit max-w-full rounded-bubble rounded-tl-xs border border-hairline bg-bubble-theirs px-sm py-xs"
+          onClick={replyTo ? toQuoteJumpHandler(onOpenReply) : undefined}
+        >
           {replyTo && (
             // INFO: DESIGN.md § 6.10. The divider is the bubble's, exactly as it is in `MessageRow` and in the landed `AssistantMessageRow`.
             <ReplyQuote

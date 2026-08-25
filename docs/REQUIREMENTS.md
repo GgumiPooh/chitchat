@@ -758,6 +758,7 @@ One nullable self-FK, `messages.reply_to_id`, and the rest is reuse.
 
 Tapping a quote runs the machinery § 8.6.1. will reuse unchanged:
 
+- **The tap target is the whole bubble, not the quote inside it** — the body is the larger half of the reply, and a tap there that did nothing was read as a dead spot. A link and the quote's own button answer first, and a text selection standing in the bubble is not a tap
 - `GET /api/messages?around={id}` replaces the window; a target already in it skips the fetch, which is the common case
 - `hasOlder` and `hasNewer` are both set **optimistically** after a jump — `around` splits its limit over two directions, so neither half's length says whether more exists. One wasted fetch per direction is the cost
 - **`newestKnownId` does not move with the window.** It is the § 8.4. catch-up cursor and answers "what has this client been told about", which a jump into the past does not change. The window's own edges are tracked separately
