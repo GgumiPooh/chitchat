@@ -45,6 +45,7 @@ export function useComposerClearance({
   isAtBottomRef,
 }: ComposerClearanceOptions) {
   const clearanceRef = useRef(0);
+  const spacerHeightRef = useRef(0);
   const scrollerHeightRef = useRef(0);
 
   useEffect(() => {
@@ -92,9 +93,11 @@ export function useComposerClearance({
       const scroller = scrollerRef.current;
       // INFO: The rect and not `clientHeight` — the shell eases its height (DESIGN.md § 3.4.), so most frames of a keyboard move it by a fraction of a pixel that the rounded property reports as no change at all.
       const scrollerHeight = scroller?.getBoundingClientRect().height ?? 0;
-      const hasClearanceChanged = clearance !== clearanceRef.current;
+      // WARN: REQUIREMENTS.md § 13.6. The spacer counts as the strip changing even though it is left out of the published value. Opening the panel with no keyboard up moves nothing else — the measurement holds still and so does the scroller — and tested on those two alone this loop returned on every frame of the ease and left `transitionend` to drag the history down in one step.
+      const hasStripChanged =
+        clearance !== clearanceRef.current || spacerHeight !== spacerHeightRef.current;
 
-      if (!hasClearanceChanged && scrollerHeight === scrollerHeightRef.current) {
+      if (!hasStripChanged && scrollerHeight === scrollerHeightRef.current) {
         return;
       }
 
@@ -106,15 +109,20 @@ export function useComposerClearance({
       // INFO: Subtracting the shrink is what leaves the tight test usable at all: the frame's own shrink is what opened the distance, so `distance − shrink` is where the reader stood before it.
       const isPinned =
         scroller !== null &&
-        (hasClearanceChanged
+        (hasStripChanged
           ? isAtBottomRef.current || distance <= BOTTOM_EPSILON
           : distance - (scrollerHeightRef.current - scrollerHeight) <= BOTTOM_EPSILON);
 
-      clearanceRef.current = clearance;
-      scrollerHeightRef.current = scrollerHeight;
-      container.style.setProperty(CLEARANCE_PROPERTY, `${clearance}px`);
+      // INFO: Only when it moved — the strip's own frames publish the same number, and a property write is a style invalidation whether or not the value differs.
+      if (clearance !== clearanceRef.current) {
+        container.style.setProperty(CLEARANCE_PROPERTY, `${clearance}px`);
+      }
 
-      // INFO: The property above drives the list's trailing spacer, so reading `scrollHeight` here already sees the new one and the newest message stays parked above the composer as it grows.
+      clearanceRef.current = clearance;
+      spacerHeightRef.current = spacerHeight;
+      scrollerHeightRef.current = scrollerHeight;
+
+      // INFO: The trailing spacer is this frame's `--chat-composer-spacer` (REQUIREMENTS.md § 13.6.), so `scrollHeight` here already carries the growth the composer is showing and the newest message stays parked above it.
       if (scroller && isPinned) {
         scroller.scrollTop = scroller.scrollHeight;
       }
