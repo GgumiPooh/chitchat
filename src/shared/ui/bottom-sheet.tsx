@@ -45,12 +45,9 @@ export function BottomSheet({
 
   if (isDesktop) {
     return (
+      // WARN: DESIGN.md § 7.5. No height here, tall or not — `DialogContent` already caps at `max-h` and shrinks to `children` below it, so a dialog forced to that cap regardless of content opened mostly empty under a short body. `isTall` stays mobile-only: a `Drawer` opens from the bottom of the screen, where a sheet that grows into place as its content streams in reads as the sheet still loading rather than as the answer.
       <DialogShell
-        // INFO: The dialog scrolls its own content past `max-h`, so a height is all `isTall` needs here.
-        className={cn(
-          isTall && "h-[calc(var(--viewport-height,100dvh)_-_var(--spacing-xl))]",
-          className,
-        )}
+        className={className}
         isOpen={isOpen}
         size="lg"
         // INFO: A hidden title is a sheet's affordance — its grab handle names it; a centered dialog with no title reads as empty.
