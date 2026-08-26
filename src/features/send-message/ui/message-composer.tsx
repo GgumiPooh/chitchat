@@ -802,6 +802,7 @@ export function MessageComposer({
                 tappedQueryRef.current = null;
                 onEdit?.(next.trim().length > 0);
               }}
+              onClick={handleFieldClick}
               onFocus={onFieldFocus}
               onKeyDown={handleKeyDown}
               onScroll={syncKeywordLayer}
@@ -813,7 +814,6 @@ export function MessageComposer({
                   text={draft.text}
                   emoticons={draft.emoticons}
                   match={match}
-                  onTap={handleKeywordTap}
                 />
               )}
             </EditableField>
@@ -836,6 +836,7 @@ export function MessageComposer({
                 }
                 onChange={handlePlainChange}
                 onPointerDown={takeFocusWithoutPan}
+                onClick={handleFieldClick}
                 onFocus={onFieldFocus}
                 onKeyDown={handleKeyDown}
                 onScroll={syncKeywordLayer}
@@ -847,7 +848,6 @@ export function MessageComposer({
                   text={draft.text}
                   emoticons={draft.emoticons}
                   match={match}
-                  onTap={handleKeywordTap}
                 />
               )}
             </div>
@@ -1048,6 +1048,34 @@ export function MessageComposer({
     openEmoticonSearch(match.query);
   }
 
+  /**
+   * WARN: REQUIREMENTS.md § 13.8. Taps on the underlined word are caught via selection
+   * on the field rather than on the overlay span, so `KeywordLayer` remains completely
+   * `pointer-events-none` and never confuses iOS WebKit's caret positioning / spacebar trackpad.
+   */
+  function handleFieldClick() {
+    if (!match || isEditing || isAiMode) {
+      return;
+    }
+
+    const field = fieldRef.current;
+
+    if (!field) {
+      return;
+    }
+
+    const caret =
+      field instanceof HTMLTextAreaElement
+        ? field.selectionStart === field.selectionEnd
+          ? field.selectionStart
+          : null
+        : caretOffsetRef.current;
+
+    if (caret !== null && caret >= match.start && caret <= match.end) {
+      handleKeywordTap();
+    }
+  }
+
   /** WARN: § 13.8. The toggle's own tap, kept apart from `handleKeywordTap` so the room can tell the two open requests apart. */
   function handlePreviewTap() {
     if (keywordQuery === "") {
@@ -1192,7 +1220,6 @@ type KeywordLayerProps = {
   text: string;
   emoticons: StagedEmoticon[];
   match: KeywordMatch;
-  onTap: () => void;
 };
 
 /**
@@ -1209,11 +1236,10 @@ type KeywordLayerProps = {
  * text belongs to the textarea *underneath*; drawing it here too would double every
  * glyph at one pixel of anti-aliasing offset.
  *
- * WARN: `pointer-events-none` on the layer and `auto` on the one span. Inverted, the
- * layer would swallow every tap meant to place a caret and the field would stop
- * being editable.
+ * WARN: `pointer-events-none` across the entire layer so it never intercepts hit-testing
+ * or causes iOS WebKit's caret to jump when dragging selection or using spacebar trackpad.
  */
-function KeywordLayer({ ref, className, text, emoticons, match, onTap }: KeywordLayerProps) {
+function KeywordLayer({ ref, className, text, emoticons, match }: KeywordLayerProps) {
   return (
     <div
       ref={ref}
@@ -1228,12 +1254,7 @@ function KeywordLayer({ ref, className, text, emoticons, match, onTap }: Keyword
     >
       {toLayerRuns(text.slice(0, match.start), emoticons, 0)}
       {/* INFO: DESIGN.md § 3.2. A pointer affordance on a span that is not a control by shape — the underline is what says it can be pressed. */}
-      <span
-        className="pointer-events-auto cursor-pointer underline decoration-primary decoration-2 underline-offset-4"
-        role="button"
-        tabIndex={-1}
-        onClick={onTap}
-      >
+      <span className="underline decoration-primary decoration-2 underline-offset-4">
         {toLayerRuns(
           text.slice(match.start, match.end),
           emoticons,

@@ -17,6 +17,7 @@ import {
   type ClipboardEvent,
   type DragEvent,
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent,
   type PropsWithChildren,
   type ReactNode,
@@ -105,6 +106,7 @@ export type EditableFieldProps = PropsWithChildren<{
   maxLength?: number;
   "aria-label": string;
   onChange: (value: string, objectKeys: string[]) => void;
+  onClick?: (event: MouseEvent<HTMLDivElement>) => void;
   onFocus?: () => void;
   onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
   onScroll?: (event: UIEvent<HTMLDivElement>) => void;
@@ -138,6 +140,7 @@ export function EditableField({
   children,
   "aria-label": ariaLabel,
   onChange,
+  onClick,
   onFocus,
   onKeyDown,
   onScroll,
@@ -299,6 +302,7 @@ export function EditableField({
         onCompositionStart={startComposition}
         onCompositionEnd={endComposition}
         onPointerDown={rememberPress}
+        onClick={onClick}
         onFocus={handleFocus}
         onKeyDown={onKeyDown}
         onPaste={handlePaste}
@@ -779,6 +783,7 @@ function toObjectHost(key: string): HTMLElement {
 
   host.setAttribute(OBJECT_KEY_ATTRIBUTE, key);
   host.contentEditable = "false";
+  host.className = "pointer-events-none select-none";
 
   return host;
 }
