@@ -16,12 +16,12 @@ import { usePushStateCache } from "../model/use-push-state-cache";
  */
 export function PushSync() {
   useNotificationSweep();
-  const [, setCached] = usePushStateCache();
+  const [cached, setCached] = usePushStateCache();
 
   // INFO: REQUIREMENTS.md § 16.1. Writes the cookie 설정 is seeded from, so the rows are right on the first visit to that screen and not only after their own sync.
   useEffect(() => {
-    void syncPushSubscription().then(setCached);
-  }, [setCached]);
+    void syncPushSubscription(cached).then(setCached);
+  }, [cached, setCached]);
 
   return null;
 }

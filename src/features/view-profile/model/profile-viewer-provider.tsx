@@ -6,7 +6,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type PropsWithChildren,
@@ -69,10 +68,11 @@ export function ProfileViewerProvider({ children, currentUserId }: ProfileViewer
   // WARN: Stable, like `openProfile` beside it. `ProfileOverlay` lists it in the deps of both its effects — one of which registers a document-level `keydown` listener and one of which can call it — so a fresh arrow per render re-subscribes on every provider render for nothing.
   const closeProfile = useCallback(() => setSubject(null), []);
 
-  // INFO: Automatically dismiss profile overlay when navigating between pages.
-  useEffect(() => {
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname);
     setSubject(null);
-  }, [pathname]);
+  }
 
   const value = useMemo(() => ({ openProfile, openLlmProfile }), [openProfile, openLlmProfile]);
 

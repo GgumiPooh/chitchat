@@ -5,7 +5,7 @@ import {
   SERVICE_WORKER_VERSION,
   VAPID_PUBLIC_KEY,
 } from "@/shared/config";
-import { A_SECOND, safelyGetAsync, safelyRunAsync } from "@/shared/lib";
+import { A_SECOND, safelyGetAsync, safelyRunAsync, type Nullable } from "@/shared/lib";
 import { deleteSubscription } from "../api/delete-subscription";
 import { saveSubscription } from "../api/save-subscription";
 import { updateSubscriptionSound } from "../api/update-subscription-sound";
@@ -49,7 +49,7 @@ export function isPushSupported(): boolean {
  * the server, and a `410` prune on the send path can retire a row the browser
  * still believes in — this is the only thing that reconciles all three.
  */
-export async function syncPushSubscription(): Promise<PushState> {
+export async function syncPushSubscription(cachedState?: Nullable<PushState>): Promise<PushState> {
   if (!isPushSupported()) {
     return offState("unsupported");
   }
@@ -64,6 +64,15 @@ export async function syncPushSubscription(): Promise<PushState> {
   });
 
   if (!subscription) {
+    // INFO: REQUIREMENTS.md § 16.1. If the user previously had push enabled (cookie was "on") and browser permission is still "granted", auto-resubscribe to self-heal a subscription revoked by OS/WebKit without prompt.
+    if (Notification.permission === "granted" && cachedState?.status === "on") {
+      const resubscribed = await safelyGetAsync(subscribeToPush);
+
+      if (resubscribed) {
+        return resubscribed;
+      }
+    }
+
     return offState("off");
   }
 
@@ -100,9 +109,13 @@ export async function dismissDeliveredNotifications(): Promise<void> {
   });
 }
 
-// INFO: `Notification.timestamp` is in the spec and every engine, but not yet in `lib.dom`; a browser without it reports the banner as old enough to close, which is the behaviour from before the window existed.
+// INFO: REQUIREMENTS.md § 16.1. `Notification.timestamp` is in the spec and every engine, but not yet in `lib.dom`; an absent or unparseable timestamp is treated as recent (never <= settledBefore), avoiding a premature close that triggers WebKit's silent-push penalty.
 function readShownAt(notification: Notification): number {
-  return (notification as Notification & { timestamp?: number }).timestamp ?? 0;
+  const timestamp = (notification as Notification & { timestamp?: number }).timestamp;
+
+  return typeof timestamp === "number" && !Number.isNaN(timestamp) && timestamp > 0
+    ? timestamp
+    : Number.POSITIVE_INFINITY;
 }
 
 /** WARN: Must be called from inside a user gesture — every browser drops a permission prompt that is not. */

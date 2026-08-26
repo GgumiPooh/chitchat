@@ -259,6 +259,7 @@ async function handlePush(data) {
     renotify: true,
     // WARN: REQUIREMENTS.md § 16.1. Always an explicit boolean, never omitted. WebKit's `platformShouldPlaySound` reads an absent `silent` opposite ways per platform — `silent == nullopt || !*silent` on iOS, `silent != nullopt && !*silent` on macOS — so leaving it out means sound on the phone and silence on the desktop for the same push.
     silent: payload.silent === true,
+    timestamp: Date.now(),
     data: { url: payload.url },
   });
 
