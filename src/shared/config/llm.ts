@@ -24,8 +24,8 @@ export const llmThinkingLevelSchema = z.enum(LLM_THINKING_LEVELS);
 
 export type LlmThinkingLevel = z.infer<typeof llmThinkingLevelSchema>;
 
-// INFO: Flash-Lite's own reasoning is weak enough that a question past this length benefits from `high`, even though the asker left the picker at 기본.
-export const GEMINI_AUTO_HIGH_THINKING_MIN_QUESTION_LENGTH = 50;
+// INFO: Flash-Lite's own reasoning is weak enough that a question past this length benefits from `high`, even though the asker left the picker at 기본. UTF-8 bytes rather than chars — a Hangul syllable is 3 bytes against Latin's 1, so a char count would trip on English input far short of the same content.
+export const GEMINI_AUTO_HIGH_THINKING_MIN_QUESTION_BYTES = 150;
 
 export const LLM_INLINE_IMAGE_MIMES = [
   "image/png",

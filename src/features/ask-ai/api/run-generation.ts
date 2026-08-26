@@ -7,7 +7,7 @@ import {
   type ChatMessage,
 } from "@/entities/message";
 import {
-  GEMINI_AUTO_HIGH_THINKING_MIN_QUESTION_LENGTH,
+  GEMINI_AUTO_HIGH_THINKING_MIN_QUESTION_BYTES,
   LLM_AGENT_COOLDOWN,
   LLM_MAX_AGENT_COOLDOWN,
   LLM_NOTIFY_MAX_BYTES,
@@ -466,7 +466,7 @@ function isThinkingRejectedError(error: unknown): boolean {
  */
 function toAutoThinkingLevel(agent: LlmAgent, question: string): Optional<LlmThinkingLevel> {
   return agent.provider === "gemini" &&
-    question.length >= GEMINI_AUTO_HIGH_THINKING_MIN_QUESTION_LENGTH
+    Buffer.byteLength(question, "utf8") >= GEMINI_AUTO_HIGH_THINKING_MIN_QUESTION_BYTES
     ? "high"
     : undefined;
 }
