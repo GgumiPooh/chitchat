@@ -18,7 +18,7 @@ export function isEditableElement(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;
   }
-  if (target.isContentEditable) {
+  if (target.isContentEditable || target.getAttribute("contenteditable") === "plaintext-only") {
     return true;
   }
   const tag = target.tagName;

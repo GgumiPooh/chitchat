@@ -1291,7 +1291,7 @@ function KeywordLayer({ ref, className, keywordRef, text, emoticons, match, onKe
             aria-hidden
             className="pointer-events-auto absolute inset-0 touch-none"
             onPointerDown={(e) => {
-              e.preventDefault();
+              // INFO: Do not preventDefault here; iOS Safari will ignore blur() calls originating from a prevented touch.
               e.stopPropagation();
             }}
             onClick={(e) => {
