@@ -1291,20 +1291,21 @@ export function ChatRoom({
   }, []);
 
   /**
-   * REQUIREMENTS.md § 16.1. Leaving 나에게만 보내기 reveals every row `hideOthers`
-   * had been dropping from the timeline, landing wherever the reader's scroll
-   * offset happened to sit against a much shorter list — usually nowhere near the
-   * newest message any more. The pill's own jump is what corrects that.
+   * REQUIREMENTS.md § 16.1. Switching between 나에게만 보내기 and the shared timeline
+   * swaps the message list for a much shorter or longer subset, leaving the scroll offset
+   * parked in the middle of history. Pulling the scroller to the bottom lands the reader
+   * at the newest message.
    */
   const wasOnlyMe = useRef(notifyMode === "onlyMe");
 
   useEffect(() => {
-    if (wasOnlyMe.current && notifyMode !== "onlyMe") {
+    if (wasOnlyMe.current !== (notifyMode === "onlyMe")) {
+      requestAnimationFrame(pinToBottom);
       scrollToBottom();
     }
 
     wasOnlyMe.current = notifyMode === "onlyMe";
-  }, [notifyMode, scrollToBottom]);
+  }, [notifyMode, pinToBottom, scrollToBottom]);
 
   /**
    * REQUIREMENTS.md § 8.6.1. The § 6.7. pill is also the way back from a jump, so it

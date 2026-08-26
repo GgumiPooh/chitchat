@@ -288,6 +288,7 @@ export function MessageComposer({
   );
   const layerRef = useRef<Nullable<HTMLDivElement>>(null);
   const keywordSpanRef = useRef<Nullable<HTMLSpanElement>>(null);
+  const pointerDownPosRef = useRef<Nullable<{ clientX: number; clientY: number }>>(null);
   // INFO: § 8.14. Where the field last held its caret, which is where an emoticon from the picker goes in. Written by the field itself; null until it has held one.
   const caretOffsetRef = useRef<Nullable<number>>(null);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
@@ -807,6 +808,9 @@ export function MessageComposer({
               onClick={handleFieldClick}
               onFocus={onFieldFocus}
               onKeyDown={handleKeyDown}
+              onPointerCancel={handleFieldPointerCancel}
+              onPointerDown={handleFieldPointerDown}
+              onPointerUp={handleFieldPointerUp}
               onScroll={syncKeywordLayer}
             >
               {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, like the two staging controls. The tap opens § 13.8.'s picker, whose staging clears the attachment tray this mode deliberately preserved and arms a quick-send that would post a **new** emoticon message beside the pending correction — and the emoticon it staged is invisible and unsendable here anyway. A correction is very likely to contain the keyword, since it is the text the user already typed. */}
@@ -838,10 +842,12 @@ export function MessageComposer({
                   isFinePointer ? `${toCommandKeyLabel()} + / 로 단축키 보기` : "메시지 입력"
                 }
                 onChange={handlePlainChange}
-                onPointerDown={takeFocusWithoutPan}
                 onClick={handleFieldClick}
                 onFocus={onFieldFocus}
                 onKeyDown={handleKeyDown}
+                onPointerCancel={handleFieldPointerCancel}
+                onPointerDown={handleFieldPointerDown}
+                onPointerUp={handleFieldPointerUp}
                 onScroll={syncKeywordLayer}
                 onSelect={handleTextareaSelect}
               />
@@ -1053,44 +1059,91 @@ export function MessageComposer({
   }
 
   /**
-   * WARN: REQUIREMENTS.md § 13.8. Taps on the underlined word are caught via hit-testing
-   * the click event's coordinates against `KeywordLayer`'s underlined span rects rather than
-   * relying on span pointer-events or caret offset, so `KeywordLayer` remains completely
-   * `pointer-events-none` (no iOS WebKit caret jumping/spacebar trackpad interference) and
-   * tapping to focus empty area in the composer never accidentally opens the picker.
+   * REQUIREMENTS.md § 13.8. Tests whether a point falls within the underlined keyword's bounds.
+   *
+   * WARN: Standard touch targets require ~44x44px. Since text line-height is 22.5px and short Korean words
+   * are ~25-30px wide, SLOP_X=16 and SLOP_Y=12 provides an ergonomic touch target while ensuring taps outside
+   * the word (e.g. empty composer area) never falsely trigger.
    */
-  function handleFieldClick(event: MouseEvent<HTMLDivElement | HTMLTextAreaElement>) {
+  function isPointInKeyword(clientX: number, clientY: number): boolean {
     if (!match || isEditing || isAiMode) {
-      return;
+      return false;
     }
 
     const keywordSpan = keywordSpanRef.current;
 
     if (!keywordSpan) {
+      return false;
+    }
+
+    const rects = keywordSpan.getClientRects();
+    const SLOP_X = 16;
+    const SLOP_Y = 12;
+
+    for (let i = 0; i < rects.length; i++) {
+      const rect = rects[i];
+
+      if (
+        clientX >= rect.left - SLOP_X &&
+        clientX <= rect.right + SLOP_X &&
+        clientY >= rect.top - SLOP_Y &&
+        clientY <= rect.bottom + SLOP_Y
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * WARN: REQUIREMENTS.md § 13.8. Captures touch gestures on the field to allow tapping
+   * the underlined keyword regardless of virtual keyboard state without jank.
+   * `KeywordLayer` remains completely `pointer-events-none` so iOS caret/trackpad never jumps.
+   */
+  function handleFieldPointerDown(event: PointerEvent<HTMLDivElement | HTMLTextAreaElement>) {
+    const { clientX, clientY } = event;
+    pointerDownPosRef.current = { clientX, clientY };
+
+    if (isPointInKeyword(clientX, clientY)) {
+      // WARN: Suppress default keyboard pan / focus when hitting the keyword directly; the tap is settled on pointerup.
+      event.preventDefault();
       return;
     }
 
+    takeFocusWithoutPan(event);
+  }
+
+  function handleFieldPointerUp(event: PointerEvent<HTMLDivElement | HTMLTextAreaElement>) {
+    const start = pointerDownPosRef.current;
+    pointerDownPosRef.current = null;
+
+    if (!start) {
+      return;
+    }
+
+    const dx = event.clientX - start.clientX;
+    const dy = event.clientY - start.clientY;
+
+    // INFO: A movement threshold of 10px cleanly distinguishes taps from drag-selection, caret scrubs, or scrolls.
+    if (Math.hypot(dx, dy) <= 10 && isPointInKeyword(start.clientX, start.clientY)) {
+      handleKeywordTap();
+    }
+  }
+
+  function handleFieldPointerCancel() {
+    pointerDownPosRef.current = null;
+  }
+
+  function handleFieldClick(event: MouseEvent<HTMLDivElement | HTMLTextAreaElement>) {
     const { clientX, clientY } = event;
 
     if (clientX === 0 && clientY === 0) {
       return;
     }
 
-    const rects = keywordSpan.getClientRects();
-    const SLOP = 4;
-
-    for (let i = 0; i < rects.length; i++) {
-      const rect = rects[i];
-
-      if (
-        clientX >= rect.left - SLOP &&
-        clientX <= rect.right + SLOP &&
-        clientY >= rect.top - SLOP &&
-        clientY <= rect.bottom + SLOP
-      ) {
-        handleKeywordTap();
-        return;
-      }
+    if (isPointInKeyword(clientX, clientY)) {
+      handleKeywordTap();
     }
   }
 

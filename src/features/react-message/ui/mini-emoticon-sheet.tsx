@@ -219,7 +219,7 @@ export function MiniEmoticonSheet({
             >
               {row.type === "header" && (
                 <div className="pt-3 pb-1">
-                  <h3 className="text-body-xs px-1 font-semibold text-meta">{row.title}</h3>
+                  <h3 className="px-1 text-body-sm text-meta">{row.title}</h3>
                 </div>
               )}
 

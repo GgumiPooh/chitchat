@@ -109,6 +109,9 @@ export type EditableFieldProps = PropsWithChildren<{
   onClick?: (event: MouseEvent<HTMLDivElement>) => void;
   onFocus?: () => void;
   onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
+  onPointerCancel?: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerDown?: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerUp?: (event: PointerEvent<HTMLDivElement>) => void;
   onScroll?: (event: UIEvent<HTMLDivElement>) => void;
 }>;
 
@@ -143,6 +146,9 @@ export function EditableField({
   onClick,
   onFocus,
   onKeyDown,
+  onPointerCancel,
+  onPointerDown,
+  onPointerUp,
   onScroll,
 }: EditableFieldProps) {
   const fieldRef = useRef<Nullable<HTMLDivElement>>(null);
@@ -302,6 +308,8 @@ export function EditableField({
         onCompositionStart={startComposition}
         onCompositionEnd={endComposition}
         onPointerDown={rememberPress}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
         onClick={onClick}
         onFocus={handleFocus}
         onKeyDown={onKeyDown}
@@ -451,7 +459,12 @@ export function EditableField({
   // INFO: `pointerdown` rather than `click`, because focus is handled by the press and this has to be on record before it.
   function rememberPress(event: PointerEvent<HTMLDivElement>) {
     pressRef.current = { x: event.clientX, y: event.clientY, at: Date.now() };
-    takeFocusWithoutPan(event);
+
+    if (onPointerDown) {
+      onPointerDown(event);
+    } else {
+      takeFocusWithoutPan(event);
+    }
   }
 
   /**
