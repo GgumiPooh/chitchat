@@ -47,6 +47,21 @@ function hasCommandModifier(event: Modifiers): boolean {
   return usesMetaKey() ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
 }
 
+/**
+ * Whether this event carries the physical `Ctrl` key and nothing else, on every
+ * platform — REQUIREMENTS.md § 8.5.'s AI 질문 모드 toggle and § 16.1.'s 조용히 보내기
+ * toggle, which spend it deliberately rather than through `isCommandKey`'s platform
+ * swap to `⌘`.
+ *
+ * WARN: On a Mac this is not the platform's own modifier, and `isCommandKey`'s own
+ * WARN says what accepting `Ctrl` there usually costs a text field — WebKit's Cocoa
+ * table binds `⌃A` to line-start, the same trade `isMenuKey` already pays for `⌃E`.
+ * `⌃S` binds nothing in that table, so the composer loses nothing for it.
+ */
+export function isCtrlKey(event: Modifiers): boolean {
+  return event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+}
+
 /** Whether this event carries no modifier at all, which is what an unmodified binding means. */
 export function isBareKey(event: Modifiers): boolean {
   return !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;

@@ -57,6 +57,9 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
           { chord: [alt], keys: ["↑", "↓"], label: "대화 스크롤" },
           { chord: [command], keys: ["↓"], label: "최신 메시지로 이동하기" },
           { keys: ["Esc", "Enter"], label: "메시지 입력창으로" },
+          // WARN: § 8.14. `Ctrl`, spelled out rather than `command` — these two spend the physical key on every platform, never `⌘` on a Mac (`isCtrlKey`'s own WARN).
+          { chord: ["Ctrl"], keys: ["A"], label: "AI 질문하기 모드 켜기 / 끄기" },
+          { chord: ["Ctrl"], keys: ["S"], label: "조용히 보내기 켜기 / 끄기" },
         ])}
         {/* INFO: § 8.14. The strip, the grid and the field are one surface to the reader, so the sheet names the arrows once rather than each edge between them — the edges are what the arrows do, not something to be learnt separately. */}
         {renderGroup("이모티콘", [

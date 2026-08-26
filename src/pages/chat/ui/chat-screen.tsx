@@ -311,6 +311,7 @@ export function ChatScreen({
                 />
               ) : undefined
             }
+            onToggleSilentSend={silentSend.toggle}
             onAddEvent={openForm}
             onAiSelectionChange={setAiSelection}
           />

@@ -2,6 +2,7 @@
 
 import { SILENT_SEND_COOKIE_NAME } from "@/shared/config";
 import { A_DAY, A_SECOND } from "@/shared/lib";
+import { useCallback } from "react";
 import { useCookieState } from "synced-storage/react";
 
 const MAX_AGE = (365 * A_DAY) / A_SECOND;
@@ -19,5 +20,8 @@ export function useSilentSend() {
     maxAge: MAX_AGE,
   });
 
-  return { isSilent, setIsSilent };
+  /** § 8.14.'s `⌃S` target — the room's own shortcut, not the header sheet's two explicit rows. */
+  const toggle = useCallback(() => setIsSilent((current) => !current), [setIsSilent]);
+
+  return { isSilent, setIsSilent, toggle };
 }

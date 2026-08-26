@@ -260,6 +260,8 @@ export type ChatRoomProps = {
   bottomBar?: ReactNode;
   /** REQUIREMENTS.md § 16.1. 조용히 보내기 — the screen owns the cookie (`useSilentSend`), the room only draws its composer notice. */
   isSilentSend?: boolean;
+  /** REQUIREMENTS.md § 16.1., § 8.14. `⌃S`'s target — the screen owns `useSilentSend`'s setter, same split as `isSilentSend`. */
+  onToggleSilentSend: () => void;
   /** REQUIREMENTS.md § 11.4. Opens 새 일정 from the attach sheet's 일정 row; the screen owns the form, as it owns `EventDetailDialog`. */
   onAddEvent?: () => void;
   /** @see AiSelectionHeaderState */
@@ -317,6 +319,7 @@ export function ChatRoom({
   searchQuery,
   bottomBar,
   isSilentSend = false,
+  onToggleSilentSend,
   onAddEvent,
   onAiSelectionChange,
 }: ChatRoomProps) {
@@ -1292,6 +1295,8 @@ export function ChatRoom({
     onToggleEmoticonPanel: toggleEmoticonPanel,
     onSelectEmoticonMenu: selectEmoticonMenu,
     onScrollHistory: scrollHistory,
+    onToggleAiMode: toggleAiMode,
+    onToggleSilentSend,
     onTypeAhead: typeIntoComposer,
     onPasteText: pasteIntoComposer,
   });

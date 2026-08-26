@@ -203,6 +203,7 @@ export {
   isAltKey,
   isBareKey,
   isCommandKey,
+  isCtrlKey,
   isDigitKey,
   isLetterKey,
   isMenuKey,

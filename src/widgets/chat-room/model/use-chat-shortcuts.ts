@@ -7,6 +7,7 @@ import {
   isAltKey,
   isBareKey,
   isCommandKey,
+  isCtrlKey,
   isDigitKey,
   isDormantVisible,
   isLetterKey,
@@ -60,6 +61,10 @@ export type ChatShortcuts = {
   onSelectEmoticonMenu: (menu: EmoticonMenu) => void;
   /** `⌥↑` / `⌥↓` — the conversation, a step at a time. `-1` is towards older messages. */
   onScrollHistory: (direction: -1 | 1) => void;
+  /** `⌃A` — REQUIREMENTS.md § 8.5. AI 질문 모드, entered on an empty selection or exited. */
+  onToggleAiMode: () => void;
+  /** `⌃S` — REQUIREMENTS.md § 16.1. 조용히 보내기, on or off. */
+  onToggleSilentSend: () => void;
   /**
    * REQUIREMENTS.md § 8.14. A character typed with nothing focused — the caret to the
    * composer, **synchronously**, so the keystroke that asked lands in it.
@@ -167,6 +172,10 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
         handlers.current.onFocusComposer();
       } else if (event.key === "ArrowDown") {
         handlers.current.onGoToNewest();
+      } else if (isCtrlKey(event) && isLetterKey(event, "a")) {
+        handlers.current.onToggleAiMode();
+      } else if (isCtrlKey(event) && isLetterKey(event, "s")) {
+        handlers.current.onToggleSilentSend();
       } else {
         // INFO: § 8.14. What is left is `⌘/` — `isOwnedKey` admits no other key this far, so a new binding needs a test of its own above rather than a share of this one.
         handlers.current.onShowShortcuts();
@@ -305,6 +314,12 @@ function isOwnedKey(event: KeyboardEvent): boolean {
 
   if (event.key === "ArrowDown") {
     return isAltKey(event) || isCommandKey(event);
+  }
+
+  // INFO: § 8.5., § 16.1. `⌃A`/`⌃S`, the physical `Ctrl` on every platform rather than
+  // `isCommandKey`'s `⌘` swap — see `isCtrlKey`'s own WARN for why.
+  if (isLetterKey(event, "a") || isLetterKey(event, "s")) {
+    return isCtrlKey(event);
   }
 
   // INFO: § 8.14. `Ctrl + /` or `Cmd + /` opens the shortcut help modal.
