@@ -47,6 +47,7 @@ import {
   useState,
   type ChangeEvent,
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent,
   type ReactNode,
   type Ref,
@@ -286,6 +287,7 @@ export function MessageComposer({
     [exposedFieldRef],
   );
   const layerRef = useRef<Nullable<HTMLDivElement>>(null);
+  const keywordSpanRef = useRef<Nullable<HTMLSpanElement>>(null);
   // INFO: § 8.14. Where the field last held its caret, which is where an emoticon from the picker goes in. Written by the field itself; null until it has held one.
   const caretOffsetRef = useRef<Nullable<number>>(null);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
@@ -811,6 +813,7 @@ export function MessageComposer({
               {match && onKeywordTap && !isEditing && !isAiMode && (
                 <KeywordLayer
                   ref={layerRef}
+                  keywordRef={keywordSpanRef}
                   text={draft.text}
                   emoticons={draft.emoticons}
                   match={match}
@@ -845,6 +848,7 @@ export function MessageComposer({
               {match && onKeywordTap && !isEditing && !isAiMode && (
                 <KeywordLayer
                   ref={layerRef}
+                  keywordRef={keywordSpanRef}
                   text={draft.text}
                   emoticons={draft.emoticons}
                   match={match}
@@ -1049,30 +1053,44 @@ export function MessageComposer({
   }
 
   /**
-   * WARN: REQUIREMENTS.md § 13.8. Taps on the underlined word are caught via selection
-   * on the field rather than on the overlay span, so `KeywordLayer` remains completely
-   * `pointer-events-none` and never confuses iOS WebKit's caret positioning / spacebar trackpad.
+   * WARN: REQUIREMENTS.md § 13.8. Taps on the underlined word are caught via hit-testing
+   * the click event's coordinates against `KeywordLayer`'s underlined span rects rather than
+   * relying on span pointer-events or caret offset, so `KeywordLayer` remains completely
+   * `pointer-events-none` (no iOS WebKit caret jumping/spacebar trackpad interference) and
+   * tapping to focus empty area in the composer never accidentally opens the picker.
    */
-  function handleFieldClick() {
+  function handleFieldClick(event: MouseEvent<HTMLDivElement | HTMLTextAreaElement>) {
     if (!match || isEditing || isAiMode) {
       return;
     }
 
-    const field = fieldRef.current;
+    const keywordSpan = keywordSpanRef.current;
 
-    if (!field) {
+    if (!keywordSpan) {
       return;
     }
 
-    const caret =
-      field instanceof HTMLTextAreaElement
-        ? field.selectionStart === field.selectionEnd
-          ? field.selectionStart
-          : null
-        : caretOffsetRef.current;
+    const { clientX, clientY } = event;
 
-    if (caret !== null && caret >= match.start && caret <= match.end) {
-      handleKeywordTap();
+    if (clientX === 0 && clientY === 0) {
+      return;
+    }
+
+    const rects = keywordSpan.getClientRects();
+    const SLOP = 4;
+
+    for (let i = 0; i < rects.length; i++) {
+      const rect = rects[i];
+
+      if (
+        clientX >= rect.left - SLOP &&
+        clientX <= rect.right + SLOP &&
+        clientY >= rect.top - SLOP &&
+        clientY <= rect.bottom + SLOP
+      ) {
+        handleKeywordTap();
+        return;
+      }
     }
   }
 
@@ -1217,6 +1235,7 @@ export function MessageComposer({
 type KeywordLayerProps = {
   ref?: Ref<HTMLDivElement>;
   className?: string;
+  keywordRef?: Ref<HTMLSpanElement>;
   text: string;
   emoticons: StagedEmoticon[];
   match: KeywordMatch;
@@ -1239,7 +1258,7 @@ type KeywordLayerProps = {
  * WARN: `pointer-events-none` across the entire layer so it never intercepts hit-testing
  * or causes iOS WebKit's caret to jump when dragging selection or using spacebar trackpad.
  */
-function KeywordLayer({ ref, className, text, emoticons, match }: KeywordLayerProps) {
+function KeywordLayer({ ref, className, keywordRef, text, emoticons, match }: KeywordLayerProps) {
   return (
     <div
       ref={ref}
@@ -1254,7 +1273,10 @@ function KeywordLayer({ ref, className, text, emoticons, match }: KeywordLayerPr
     >
       {toLayerRuns(text.slice(0, match.start), emoticons, 0)}
       {/* INFO: DESIGN.md § 3.2. A pointer affordance on a span that is not a control by shape — the underline is what says it can be pressed. */}
-      <span className="underline decoration-primary decoration-2 underline-offset-4">
+      <span
+        ref={keywordRef}
+        className="underline decoration-primary decoration-2 underline-offset-4"
+      >
         {toLayerRuns(
           text.slice(match.start, match.end),
           emoticons,
