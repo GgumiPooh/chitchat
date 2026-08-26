@@ -3,7 +3,7 @@ import "server-only";
 import { MEDIA_DELETE_GRACE } from "@/shared/config";
 import { getDb, media, storageReservations } from "@/shared/db";
 import { AN_HOUR, A_SECOND, safelyRunAsync } from "@/shared/lib";
-import { and, count, eq, isNotNull, isNull, lte, notExists, sql } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull, isNull, lte, notExists, sql } from "drizzle-orm";
 import { purgeNow } from "./purge";
 
 // WARN: One call's ceiling per pass, so an upload can never pay for a month of deletes. The work is idempotent and the next call resumes it, so a short pass is a slow drain rather than a lost one.
@@ -61,12 +61,36 @@ export type ReclaimReport = {
 export async function reclaimExpiredStorageOnce(
   limit: number = RECLAIM_LIMIT,
 ): Promise<ReclaimReport> {
+  await expireAiAttachments(limit);
+
   const media = await purgeNow(await findPurgeableMedia(limit));
   const claims = await purgeNow(await findExpiredClaims(limit));
 
   await dropSpentClaims();
 
   return { media: media.length, claims: claims.length };
+}
+
+/**
+ * REQUIREMENTS.md § 8.15. Folds an Ask AI attachment whose `expires_at` has passed
+ * into an ordinary soft-delete — nothing but this timestamp distinguishes it from any
+ * other `media` row from here on, so it tombstones and purges through the same path
+ * every other deletion does.
+ *
+ * WARN: A pure `deleted_at` stamp, never a purge of its own — this pass touches no R2
+ * object, so it does not belong in `ReclaimReport`, which counts only what R2 confirmed.
+ */
+async function expireAiAttachments(limit: number): Promise<void> {
+  const candidates = getDb()
+    .select({ id: media.id })
+    .from(media)
+    .where(and(isNotNull(media.expiresAt), lte(media.expiresAt, sql`now()`), isNull(media.deletedAt)))
+    .limit(limit);
+
+  await getDb()
+    .update(media)
+    .set({ deletedAt: sql`now()` })
+    .where(inArray(media.id, candidates));
 }
 
 /**

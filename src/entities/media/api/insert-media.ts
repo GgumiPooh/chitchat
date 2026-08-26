@@ -26,6 +26,7 @@ export type { ValidatedMedia } from "./validate-media-upload";
 export async function insertMedia(
   tx: DbTransaction,
   validated: ValidatedMedia,
+  aiExpiresAt?: Date,
 ): Promise<Nullable<ArchiveMedia>> {
   const { expired } = await consumeReservations(tx, [validated.r2Key]);
 
@@ -49,6 +50,7 @@ export async function insertMedia(
       blurhash: validated.blurhash,
       filename: validated.filename,
       waveformPeaks: validated.waveformPeaks,
+      expiresAt: aiExpiresAt ?? null,
     })
     // INFO: `r2_key` is unique, so a retried registration returns the row the first attempt wrote instead of failing the send.
     .onConflictDoNothing({ target: media.r2Key })

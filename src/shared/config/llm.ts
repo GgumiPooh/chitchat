@@ -181,8 +181,8 @@ export const LLM_PROVIDER_BRANDING: Record<string, LlmProviderBranding> = {
   gemini: {
     name: "쨈미니",
     label: "Gemini",
-    avatarSrc: "/llm/gemini-avatar.png",
-    backgroundSrc: "/llm/gemini-background.png",
+    avatarSrc: "/llm/gemini-avatar.avif",
+    backgroundSrc: "/llm/gemini-background.avif",
   },
 };
 

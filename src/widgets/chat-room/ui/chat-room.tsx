@@ -2228,7 +2228,8 @@ export function ChatRoom({
       setStagedEmoticon(null);
     }
 
-    const mediaClientMsgIds = selection.drafts.length > 0 ? sendMedia(selection.takeAll()) : [];
+    // INFO: REQUIREMENTS.md § 8.15. `isAiAttachment = true` tells the server to stamp `expires_at` so the bytes are cleaned up after one day instead of being kept indefinitely.
+    const mediaClientMsgIds = selection.drafts.length > 0 ? sendMedia(selection.takeAll(), null, true) : [];
 
     attachmentClientMsgIds.push(...mediaClientMsgIds);
 

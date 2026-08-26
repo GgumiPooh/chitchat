@@ -17,6 +17,7 @@ import { notifyMessageRecipients } from "@/features/notify-chat";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
+  AI_ATTACHMENT_RETENTION,
   CHAT_ROUTE,
   isMessageContentPaired,
   MAX_EMOTICON_ID_LOOKUP,
@@ -87,6 +88,8 @@ const bodySchema = z.union([
   replySchema.extend({
     clientMsgId: z.uuid(),
     media: z.array(mediaUploadSchema).min(1).max(MAX_MEDIA_PER_MESSAGE),
+    // INFO: REQUIREMENTS.md § 8.15. Set by the client when this attachment rides along with an Ask AI question — the server stamps a short `expires_at` rather than the ordinary indefinite retention.
+    isAiAttachment: z.boolean().optional(),
   }),
   // INFO: REQUIREMENTS.md § 13.6. One id and nothing else — an emoticon carries no caption of its own.
   replySchema.extend({
@@ -202,6 +205,9 @@ async function postMediaMessage(
     replyToId: payload.replyToId,
     media: validated as NonNullable<(typeof validated)[number]>[],
     onlyMe,
+    aiExpiresAt: payload.isAiAttachment
+      ? new Date(Date.now() + AI_ATTACHMENT_RETENTION)
+      : undefined,
   });
 
   if (result.status !== "created") {

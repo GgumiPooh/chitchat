@@ -250,6 +250,7 @@ export {
   type LlmThinkingLevel,
 } from "./llm";
 export {
+  AI_ATTACHMENT_RETENTION,
   ALLOWED_IMAGE_MIMES,
   ALLOWED_VIDEO_MIMES,
   ARCHIVE_DOWNLOAD_STAGGER,

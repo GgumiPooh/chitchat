@@ -19,6 +19,8 @@ export type CreateMediaMessageParams = {
   replyToId?: MessageId;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — set once here, at insert; never updated after. */
   onlyMe?: boolean;
+  /** REQUIREMENTS.md § 8.15. Set when this attachment rides along with an Ask AI question — carried onto every `media` row via `insertMedia`. */
+  aiExpiresAt?: Date;
 };
 
 export type CreateMediaMessageResult =
@@ -53,6 +55,7 @@ export async function createMediaMessage({
   media,
   replyToId,
   onlyMe = false,
+  aiExpiresAt,
 }: CreateMediaMessageParams): Promise<CreateMediaMessageResult> {
   if (!isHomogeneousBatch(media)) {
     return { status: "unprocessable" };
@@ -66,7 +69,7 @@ export async function createMediaMessage({
       const inserted: ArchiveMedia[] = [];
 
       for (const validated of media) {
-        const row = await insertMedia(tx, validated);
+        const row = await insertMedia(tx, validated, aiExpiresAt);
 
         if (!row) {
           throw new ReclaimedMediaError();

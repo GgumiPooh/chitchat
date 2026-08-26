@@ -52,6 +52,8 @@ export type PendingMessage = {
    */
   status: "sending" | "queued" | "failed";
   createdAt: string;
+  // INFO: REQUIREMENTS.md § 8.15. Set when this media bubble rides along with an Ask AI question — tells `toPostParams` to pass `isAiAttachment` to the server so it stamps `expires_at` on the media rows.
+  isAiAttachment?: boolean;
 };
 
 /**
@@ -372,10 +374,10 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
    * order, so an AI question staged alongside a tray can wait on each one landing.
    */
   const sendMedia = useCallback(
-    (drafts: MediaDraft[], replyTo: Nullable<ReplyPreview> = null) => {
+    (drafts: MediaDraft[], replyTo: Nullable<ReplyPreview> = null, isAiAttachment = false) => {
       // WARN: REQUIREMENTS.md § 8.10. The quote goes on the first bubble alone. A pick of twenty photos is three bubbles, and repeating the quote on each would draw the same sentence three times in a row.
       const bubbles = toBubbles(drafts, toDraftKind).map((media, index) => ({
-        ...createPending(null, media),
+        ...createPending(null, media, isAiAttachment),
         replyTo: index === 0 ? replyTo : null,
       }));
 
@@ -422,7 +424,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
   return { pending, send, sendMedia, sendEmoticon, retry, cancel: drop, resolve: drop };
 }
 
-function createPending(text: Nullable<string>, media: MediaDraft[]): PendingMessage {
+function createPending(text: Nullable<string>, media: MediaDraft[], isAiAttachment?: boolean): PendingMessage {
   return {
     // INFO: REQUIREMENTS.md § 8.5. Client-generated, so the retry above collides with the first attempt instead of duplicating it.
     clientMsgId: randomId(),
@@ -437,6 +439,7 @@ function createPending(text: Nullable<string>, media: MediaDraft[]): PendingMess
     encodeProgress: null,
     status: "sending",
     createdAt: new Date().toISOString(),
+    isAiAttachment,
   };
 }
 
@@ -453,7 +456,7 @@ async function toPostParams(
   }
 
   if (message.text === null) {
-    return { clientMsgId, replyToId, media: await uploadAll(message) };
+    return { clientMsgId, replyToId, media: await uploadAll(message), isAiAttachment: message.isAiAttachment };
   }
 
   return {

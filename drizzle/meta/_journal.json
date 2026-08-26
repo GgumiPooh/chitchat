@@ -421,6 +421,20 @@
       "when": 1787721052922,
       "tag": "0059_supreme_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1787728908097,
+      "tag": "0060_deep_lady_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1787730382046,
+      "tag": "0061_nervous_virginia_dare",
+      "breakpoints": true
     }
   ]
 }

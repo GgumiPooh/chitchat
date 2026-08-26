@@ -1,0 +1,2 @@
+ALTER TABLE "media" ADD COLUMN "ai_expires_at" timestamp with time zone;--> statement-breakpoint
+CREATE INDEX "media_ai_expiry_idx" ON "media" USING btree ("ai_expires_at") WHERE "ai_expires_at" IS NOT NULL AND "deleted_at" IS NULL;

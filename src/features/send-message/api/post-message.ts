@@ -13,7 +13,7 @@ export type PostMessageParams = ReplyParams &
   // INFO: REQUIREMENTS.md § 13. One id per `OBJECT_PLACEHOLDER` in the text; the route refuses a body whose halves disagree.
   (
     | { clientMsgId: string; text: string; inlineEmoticonItemIds?: EmoticonItemId[] }
-    | { clientMsgId: string; media: MediaUpload[] }
+    | { clientMsgId: string; media: MediaUpload[]; isAiAttachment?: boolean }
     | { clientMsgId: string; emoticonItemId: EmoticonItemId }
   );
 

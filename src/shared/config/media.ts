@@ -339,6 +339,14 @@ export const STORAGE_RESERVATION_TTL = A_DAY;
 export const MEDIA_DELETE_GRACE = 5 * A_MINUTE;
 
 /**
+ * REQUIREMENTS.md § 8.15. How long a photo/video/file attached to an Ask AI question
+ * lives before `reclaimExpiredStorageOnce` folds it into an ordinary `deleted_at`
+ * soft-delete — Gemini has already read it, and the chat room and 보관함 have no reason
+ * to keep it past that.
+ */
+export const AI_ATTACHMENT_RETENTION = A_DAY;
+
+/**
  * What a `_thumb` sibling may be stored as, and what one is stored as when the
  * uploader does not say.
  *

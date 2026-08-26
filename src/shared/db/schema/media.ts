@@ -40,12 +40,18 @@ export const media = pgTable(
     // INFO: REQUIREMENTS.md § 9. Stamped once the objects behind this row are gone, which is what keeps the row from being swept up again on the next pass.
     // WARN: § 9. The row is what names the key, so it MUST outlive the bytes — stamp only after R2 has answered, and a failure then simply leaves the work for the next pass.
     r2PurgedAt: timestamp("r2_purged_at", { withTimezone: true }),
+    // INFO: REQUIREMENTS.md § 8.15. An Ask AI attachment's retention deadline, separate from `deleted_at` — the row must keep rendering and serving normally until this passes, which `deleted_at !== null` would refuse immediately. `reclaimExpiredStorageOnce` is what turns this into an ordinary soft-delete once it's past.
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
   },
   (table) => [
     // INFO: REQUIREMENTS.md § 9. The purge queue is a query, not a table — this partial index is what makes it one, and it stays nearly empty.
     index("media_pending_purge_idx")
       .on(table.deletedAt)
       .where(sql`"deleted_at" IS NOT NULL AND "r2_purged_at" IS NULL`),
+    // INFO: REQUIREMENTS.md § 8.15. Mirrors `media_pending_purge_idx` for the pass that converts an expired Ask AI attachment into a soft-delete.
+    index("media_expiry_idx")
+      .on(table.expiresAt)
+      .where(sql`"expires_at" IS NOT NULL AND "deleted_at" IS NULL`),
     // WARN: The finished restructure. The kind's shape is held here rather than in `validateMediaUpload` alone. That function still validates — it has to tell the user *why* — but two deployments write this table and neither can be the guarantee.
     check("media_kind_check", sql`"kind" in ${sql.raw(toSqlList(MEDIA_KINDS))}`),
     check("media_scope_check", sql`"scope" in ${sql.raw(toSqlList(MEDIA_SCOPES))}`),
