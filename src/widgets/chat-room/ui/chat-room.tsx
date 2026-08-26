@@ -2776,6 +2776,10 @@ export function ChatRoom({
     setIsEmoticonSearchExempt(true);
     setIsEmoticonSearchTab(true);
     setIsEmoticonPickerOpen(true);
+
+    if (isKeyboardOpen) {
+      setSheetSwap("opening");
+    }
   }
 
   // INFO: The draft is bound here rather than read back inside the callback — `applyTrim` clears `editing.trimming`, so a callback reading it again would be handed `null`.
