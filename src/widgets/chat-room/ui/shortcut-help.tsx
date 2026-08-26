@@ -1,6 +1,6 @@
 "use client";
 
-import { toAltKeyLabel, toCommandKeyLabel } from "@/shared/lib";
+import { toAltKeyLabel, toCommandKeyLabel, toGoToNewestKeyLabel } from "@/shared/lib";
 import { Modal } from "@/shared/ui";
 import { Fragment } from "react";
 
@@ -42,6 +42,8 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
   const command = toCommandKeyLabel();
   // INFO: § 8.14. One physical key, two names — `⌥` on a Mac and `Alt` everywhere else.
   const alt = toAltKeyLabel();
+  // INFO: § 8.14. Its own label rather than `command` — this is the one binding with no `Ctrl` fallback, so the sheet has to say `⌘` on a Mac rather than the key that opens Mission Control instead.
+  const goToNewest = toGoToNewestKeyLabel();
 
   return (
     <Modal
@@ -55,7 +57,7 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
         {/* INFO: § 8.14. `⌘/` is not listed. Anyone reading this has already pressed it, so the row taught nothing and cost a line of the few this has. */}
         {renderGroup("대화", [
           { chord: [alt], keys: ["↑", "↓"], label: "대화 스크롤" },
-          { chord: [command], keys: ["↓"], label: "최신 메시지로 이동하기" },
+          { chord: [goToNewest], keys: ["↓"], label: "최신 메시지로 이동하기" },
           { keys: ["Esc", "Enter"], label: "메시지 입력창으로" },
           // WARN: § 8.14. `Ctrl`, spelled out rather than `command` — these two spend the physical key on every platform, never `⌘` on a Mac (`isCtrlKey`'s own WARN).
           { chord: ["Ctrl"], keys: ["A"], label: "AI 질문하기 모드 켜기 / 끄기" },

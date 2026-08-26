@@ -210,6 +210,7 @@ export {
   isShiftKey,
   toAltKeyLabel,
   toCommandKeyLabel,
+  toGoToNewestKeyLabel,
   toMenuKeyLabel,
   toShiftKeyLabel,
   type CommandKeyLabel,

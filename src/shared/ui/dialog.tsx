@@ -49,7 +49,8 @@ export function DialogContent({
       <DialogPrimitive.Content
         className={cn(
           // WARN: `flex flex-col`, not `grid` — a `grid` container's implicit rows leave `align-content` free to fall back to centering the whole track once `isTall` forces this box taller than its content, which stacked the header and body in the middle of the box instead of at its top.
-          "fixed top-[calc(var(--keyboard-pan)_+_var(--viewport-height,100dvh)_/_2)] left-[calc(var(--content-left)_+_(100%_-_var(--content-left))_/_2)] z-50 flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--spacing-xl))] -translate-x-1/2 -translate-y-1/2 flex-col gap-md overflow-y-auto rounded-lg border border-hairline bg-canvas p-lg shadow-floating duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          // WARN: DESIGN.md § 7.5. `overflow-hidden`, not `overflow-y-auto` — this box no longer scrolls itself. `DialogShell` wraps only its body in the scrollable child, so the header and the close button stay put while the content moves under them; this keeps the rounded corners closed over whichever of the two turns out to be too tall.
+          "fixed top-[calc(var(--keyboard-pan)_+_var(--viewport-height,100dvh)_/_2)] left-[calc(var(--content-left)_+_(100%_-_var(--content-left))_/_2)] z-50 flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--spacing-xl))] -translate-x-1/2 -translate-y-1/2 flex-col gap-md overflow-hidden rounded-lg border border-hairline bg-canvas p-lg shadow-floating duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}
         {...props}

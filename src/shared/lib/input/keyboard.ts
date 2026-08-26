@@ -148,6 +148,17 @@ export function toCommandKeyLabel(): CommandKeyLabel {
   return "Ctrl";
 }
 
+/**
+ * How `onGoToNewest`'s modifier is written — unlike `toCommandKeyLabel` this stays
+ * platform-branched, because that binding is `isCommandKey` with no `Ctrl` fallback
+ * (`isOwnedKey`'s `ArrowDown` branch): `Ctrl+↓` is macOS's own Mission Control shortcut
+ * for Application windows and never reaches the page, so a Mac reader shown `Ctrl` here
+ * would press a key that does something else entirely.
+ */
+export function toGoToNewestKeyLabel(): CommandKeyLabel {
+  return usesMetaKey() ? "⌘" : "Ctrl";
+}
+
 /** How this platform writes the key `isAltKey` reads — one key, two names. */
 export function toAltKeyLabel(): "⌥" | "Alt" {
   return usesMetaKey() ? "⌥" : "Alt";

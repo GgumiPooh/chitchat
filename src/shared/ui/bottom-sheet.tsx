@@ -77,21 +77,22 @@ export function BottomSheet({
         onCloseAutoFocus={onCloseAutoFocus}
       >
         <div className="mx-auto block h-1.5 w-12 shrink-0 rounded-full bg-hairline-strong" />
+        {header.isHidden ? (
+          <DrawerTitle className="sr-only">{header.title}</DrawerTitle>
+        ) : (
+          // WARN: The gap to the body lives here, not as `space-y` on the parent — a hidden header is still a flow sibling and would leave the gap behind.
+          <div className={cn("mb-xs shrink-0 space-y-2xs", header.className)}>
+            <DrawerTitle className="text-center">{header.title}</DrawerTitle>
+            {header.description && (
+              <DrawerDescription className="text-center whitespace-pre-line">
+                {header.description}
+              </DrawerDescription>
+            )}
+          </div>
+        )}
         {/* WARN: The scroller spans the sheet's padding box and restores the inset itself, so a full-bleed row inside it (`EventColorPicker`'s swatches) reaches the edge instead of overflowing. `overflow-y: auto` computes `overflow-x` to `auto` too, and that overflow was the sheet scrolling sideways. */}
-        <div className="-mx-md scrollbar-hidden overflow-y-auto overscroll-contain px-md">
-          {header.isHidden ? (
-            <DrawerTitle className="sr-only">{header.title}</DrawerTitle>
-          ) : (
-            // WARN: The gap to the body lives here, not as `space-y` on the parent — a hidden header is still a flow sibling and would leave the gap behind.
-            <div className={cn("mb-xs space-y-2xs", header.className)}>
-              <DrawerTitle className="text-center">{header.title}</DrawerTitle>
-              {header.description && (
-                <DrawerDescription className="text-center whitespace-pre-line">
-                  {header.description}
-                </DrawerDescription>
-              )}
-            </div>
-          )}
+        {/* WARN: `min-h-0` clears the flex item's content-based floor, the same trade `DialogShell`'s own scroll wrapper makes — without it `isTall`'s forced height just grows the sheet past its cap instead of scrolling the body under the header. */}
+        <div className="-mx-md scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain px-md">
           {children}
         </div>
       </DrawerContent>

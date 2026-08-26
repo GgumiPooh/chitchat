@@ -79,7 +79,8 @@ export function DialogShell({
             {header.description && <DialogDescription>{header.description}</DialogDescription>}
           </DialogHeader>
         )}
-        {children}
+        {/* WARN: `min-h-0` clears the flex item's content-based floor, or this never shrinks below `children`'s own height for `max-h` on `DialogContent` to cut into — the box would just grow past it instead of scrolling. */}
+        <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto">{children}</div>
       </DialogContent>
     </Dialog>
   );
