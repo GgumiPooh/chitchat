@@ -10,6 +10,7 @@ import { MessageSearchResultList } from "./message-search-result-list";
 export type MessageSearchResultsProps = {
   className?: string;
   listClassName?: string;
+  isOpen: boolean;
   query: string;
   results: MessageSearchResult[];
   participants: Participant[];
@@ -26,6 +27,7 @@ export type MessageSearchResultsProps = {
 export function MessageSearchResults({
   className,
   listClassName,
+  isOpen,
   query,
   results,
   participants,
@@ -40,8 +42,8 @@ export function MessageSearchResults({
 }: MessageSearchResultsProps) {
   return (
     <SideDrawer
-      className={cn("pt-(--app-header-inset)", className)}
-      isOpen={true}
+      className={className}
+      isOpen={isOpen}
       onClose={onClose}
     >
       <div className="flex shrink-0 items-center justify-between gap-2xs border-b border-hairline/30 px-md py-xs">

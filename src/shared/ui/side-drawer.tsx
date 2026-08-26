@@ -13,7 +13,7 @@ export function SideDrawer({ className, isOpen, onClose, children }: SideDrawerP
     <Drawer open={isOpen} direction="left" onOpenChange={(open) => !open && onClose()}>
       <DrawerContent
         className={cn(
-          "fixed inset-y-0 right-auto left-0 z-50 flex w-[85vw] max-w-[var(--content-max-width)] flex-col bg-surface-soft shadow-floating outline-none",
+          "fixed inset-y-0 right-auto left-0 z-50 flex w-full max-w-[var(--content-max-width)] flex-col bg-surface-soft shadow-floating outline-none",
           className,
         )}
       >

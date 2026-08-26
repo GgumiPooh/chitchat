@@ -219,15 +219,13 @@ export function useMessageSearch(hideOthers = false) {
       setIsLoading(false);
       // INFO: The newest hit is taken as soon as the page lands, so the counter reads `1/12` and the arrows have somewhere to step from without the user picking a row first.
       jumpTo(0, page.results);
-      // INFO: A scan that matched nothing has only one thing to report, and the list is the only surface that can report it — the counter goes blank and no bubble is marked, so without this the search reads as never having run.
-      setIsListOpen(page.results.length === 0);
     } catch {
       if (generation === requestId.current) {
         setIsLoading(false);
         toast.error("검색하지 못했어요");
       }
     }
-  }, [query, submitted, jumpTo, goOlder]);
+  }, [query, submitted, jumpTo, goOlder, hideOthers]);
 
   return {
     isOpen,
@@ -241,6 +239,7 @@ export function useMessageSearch(hideOthers = false) {
     isLoadingMore,
     activeIndex,
     target,
+    hasNoResults: submitted.length > 0 && total === 0,
     // INFO: The older end is only known to be reached once paging has run out, so the arrow stays live while another page could still answer it.
     // WARN: `results.length > 0` first. Without it the arrow is live on a search that has not run — `activeIndex` is null before the first page, and a control that ticks the Taptic engine and then does nothing reads as broken.
     hasOlder:
