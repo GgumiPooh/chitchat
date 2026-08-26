@@ -2866,8 +2866,8 @@ export function ChatRoom({
 
     const isScrollable = element.scrollHeight > element.clientHeight;
 
-    // INFO: REQUIREMENTS.md § 8.3. Only page older history if the list overflows the viewport and the user has scrolled up towards the top. When scrollHeight <= clientHeight or before any scroll gesture, scrollTop is 0 and asking would page to the start of history in an infinite loop.
-    if (isScrollable && hasTakenScrollRef.current && element.scrollTop <= LOAD_OLDER_THRESHOLD) {
+    // INFO: REQUIREMENTS.md § 8.3. Only page older history if the list overflows the viewport and the user has scrolled up towards the top, OR if the list does not overflow the viewport at all (meaning the screen is not yet full, which happens in locally-filtered modes like 나에게만 보기).
+    if ((hasTakenScrollRef.current || !isScrollable) && element.scrollTop <= LOAD_OLDER_THRESHOLD) {
       void loadOlder();
     }
 
