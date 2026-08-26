@@ -38,9 +38,7 @@ export function buildChatRows({
   hideOthers = false,
 }: BuildChatRowsParams): ChatRow[] {
   // INFO: REQUIREMENTS.md § 16.1. Filtered ahead of the entry list, not at each push below — a date divider must not survive for a day whose every non-`onlyMe` message this drops, and this is what keeps that in step.
-  const visibleMessages = hideOthers
-    ? messages.filter((message) => message.onlyMe)
-    : messages.filter((message) => !message.onlyMe);
+  const visibleMessages = hideOthers ? messages.filter((message) => message.onlyMe) : messages;
 
   const entries: Entry[] = [
     ...visibleMessages.map((message) => ({

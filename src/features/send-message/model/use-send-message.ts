@@ -424,7 +424,11 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
   return { pending, send, sendMedia, sendEmoticon, retry, cancel: drop, resolve: drop };
 }
 
-function createPending(text: Nullable<string>, media: MediaDraft[], isAiAttachment?: boolean): PendingMessage {
+function createPending(
+  text: Nullable<string>,
+  media: MediaDraft[],
+  isAiAttachment?: boolean,
+): PendingMessage {
   return {
     // INFO: REQUIREMENTS.md § 8.5. Client-generated, so the retry above collides with the first attempt instead of duplicating it.
     clientMsgId: randomId(),
@@ -456,7 +460,12 @@ async function toPostParams(
   }
 
   if (message.text === null) {
-    return { clientMsgId, replyToId, media: await uploadAll(message), isAiAttachment: message.isAiAttachment };
+    return {
+      clientMsgId,
+      replyToId,
+      media: await uploadAll(message),
+      isAiAttachment: message.isAiAttachment,
+    };
   }
 
   return {

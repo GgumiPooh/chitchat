@@ -84,7 +84,9 @@ async function expireAiAttachments(limit: number): Promise<void> {
   const candidates = getDb()
     .select({ id: media.id })
     .from(media)
-    .where(and(isNotNull(media.expiresAt), lte(media.expiresAt, sql`now()`), isNull(media.deletedAt)))
+    .where(
+      and(isNotNull(media.expiresAt), lte(media.expiresAt, sql`now()`), isNull(media.deletedAt)),
+    )
     .limit(limit);
 
   await getDb()

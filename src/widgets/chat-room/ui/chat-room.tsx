@@ -2236,7 +2236,8 @@ export function ChatRoom({
     }
 
     // INFO: REQUIREMENTS.md § 8.15. `isAiAttachment = true` tells the server to stamp `expires_at` so the bytes are cleaned up after one day instead of being kept indefinitely.
-    const mediaClientMsgIds = selection.drafts.length > 0 ? sendMedia(selection.takeAll(), null, true) : [];
+    const mediaClientMsgIds =
+      selection.drafts.length > 0 ? sendMedia(selection.takeAll(), null, true) : [];
 
     attachmentClientMsgIds.push(...mediaClientMsgIds);
 
@@ -2790,12 +2791,18 @@ export function ChatRoom({
       return;
     }
 
-    if (element.scrollTop <= LOAD_OLDER_THRESHOLD) {
+    const isScrollable = element.scrollHeight > element.clientHeight;
+
+    // INFO: REQUIREMENTS.md § 8.3. Only page older history if the list overflows the viewport and the user has scrolled up towards the top. When scrollHeight <= clientHeight or before any scroll gesture, scrollTop is 0 and asking would page to the start of history in an infinite loop.
+    if (isScrollable && hasTakenScrollRef.current && element.scrollTop <= LOAD_OLDER_THRESHOLD) {
       void loadOlder();
     }
 
     // INFO: REQUIREMENTS.md § 8.6.1. Downward paging exists for the jumped-away window alone; at the live edge `loadNewer` returns immediately.
-    if (element.scrollHeight - element.scrollTop - element.clientHeight <= AT_BOTTOM_THRESHOLD) {
+    if (
+      isScrollable &&
+      element.scrollHeight - element.scrollTop - element.clientHeight <= AT_BOTTOM_THRESHOLD
+    ) {
       void loadNewer();
     }
   }
