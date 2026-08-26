@@ -134,20 +134,20 @@ export function ExpandedBodySheet({
             <span className="hover:bg-ink-muted block h-1.5 w-12 rounded-full bg-hairline-strong transition-colors" />
           </button>
 
-          {/* 헤더 */}
-          <div className="mb-xs shrink-0 space-y-2xs text-center">
-            <DialogPrimitive.Title className="text-title-md text-ink">
-              {shown?.senderName ?? "전체보기"}
-            </DialogPrimitive.Title>
-            {shown && (
-              <DialogPrimitive.Description className="text-body-sm text-meta">
-                {`${formatDate(shown.createdAt)} ${formatTime(shown.createdAt)}`}
-              </DialogPrimitive.Description>
-            )}
-          </div>
-
           {/* 스크롤 가능한 본문 영역 */}
           <div className="-mx-md scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain px-md">
+            {/* 헤더 */}
+            <div className="mb-md shrink-0 space-y-2xs text-center">
+              <DialogPrimitive.Title className="text-title-md text-ink">
+                {shown?.senderName ?? "전체보기"}
+              </DialogPrimitive.Title>
+              {shown && (
+                <DialogPrimitive.Description className="text-body-sm text-meta">
+                  {`${formatDate(shown.createdAt)} ${formatTime(shown.createdAt)}`}
+                </DialogPrimitive.Description>
+              )}
+            </div>
+
             {bodyContent}
           </div>
         </DialogPrimitive.Content>
