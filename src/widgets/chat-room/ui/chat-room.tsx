@@ -2443,6 +2443,7 @@ export function ChatRoom({
   // INFO: § 13.6. On a coarse pointer the sheet stays up until the keys have risen over it, which is the closing swap; a fine pointer has no keys coming and closes at once.
   function yieldToComposer() {
     setIsEmoticonSearchExempt(false);
+    setIsEmoticonSearchTab(false);
 
     if (isFinePointer || !isEmoticonPanelOpen) {
       closeEmoticonPanel();
