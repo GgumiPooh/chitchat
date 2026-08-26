@@ -24,6 +24,9 @@ export const llmThinkingLevelSchema = z.enum(LLM_THINKING_LEVELS);
 
 export type LlmThinkingLevel = z.infer<typeof llmThinkingLevelSchema>;
 
+// INFO: Flash-Lite's own reasoning is weak enough that a question past this length benefits from `high`, even though the asker left the picker at 기본.
+export const GEMINI_AUTO_HIGH_THINKING_MIN_QUESTION_LENGTH = 50;
+
 export const LLM_INLINE_IMAGE_MIMES = [
   "image/png",
   "image/jpeg",

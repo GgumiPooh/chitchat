@@ -7,6 +7,7 @@ import {
   type ChatMessage,
 } from "@/entities/message";
 import {
+  GEMINI_AUTO_HIGH_THINKING_MIN_QUESTION_LENGTH,
   LLM_AGENT_COOLDOWN,
   LLM_MAX_AGENT_COOLDOWN,
   LLM_NOTIFY_MAX_BYTES,
@@ -106,7 +107,7 @@ export async function runGeneration({
           context,
           systemPrompt: systemPrompt ?? undefined,
           abortSignal,
-          thinking,
+          thinking: thinking ?? toAutoThinkingLevel(agent, question),
         },
         isCancelled,
         seqRef,
@@ -456,6 +457,18 @@ function isThinkingRejectedError(error: unknown): boolean {
     typeof error.message === "string" &&
     /thinking/i.test(error.message)
   );
+}
+
+/**
+ * The asker left the picker at 기본 — Flash-Lite's own reasoning is weak enough
+ * that a question of any real length still benefits from `high` over whatever
+ * the model would otherwise default to.
+ */
+function toAutoThinkingLevel(agent: LlmAgent, question: string): Optional<LlmThinkingLevel> {
+  return agent.provider === "gemini" &&
+    question.length >= GEMINI_AUTO_HIGH_THINKING_MIN_QUESTION_LENGTH
+    ? "high"
+    : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
