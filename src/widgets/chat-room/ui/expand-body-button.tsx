@@ -34,7 +34,8 @@ export function ExpandBodyButton({
     <button
       className={cn(
         // WARN: REQUIREMENTS.md § 8.5. `pointer-events-auto` is what keeps the sheet reachable under `SelectableRow`'s sweep, where the bubble's own whole-body tap becomes the row's toggle.
-        "pointer-events-auto mt-2xs flex w-full cursor-pointer items-center justify-between gap-xs border-t border-quote-divider pt-2xs text-chat-body transition-colors outline-none hover:text-bubble-ink/70 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:text-bubble-ink/55",
+        // INFO: `text-inherit` ensures label and icon inherit whatever ink the enclosing bubble sets (`text-bubble-ink` or `text-bubble-private-ink`).
+        "pointer-events-auto mt-2xs flex w-full cursor-pointer items-center justify-between gap-xs border-t border-quote-divider pt-2xs text-chat-body text-inherit transition-opacity outline-none hover:opacity-70 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:opacity-55",
         className,
       )}
       type="button"

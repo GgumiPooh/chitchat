@@ -1,6 +1,6 @@
 import type { Emoticon } from "@/entities/emoticon";
 import type { LinkPreview } from "@/entities/link-preview";
-import type { ChatMessage, ReplyPreview } from "@/entities/message";
+import type { ChatMessage, MessageReaction, ReplyPreview } from "@/entities/message";
 import {
   DELETED_MESSAGE_TEXT,
   type InlineEmoticonInfo,
@@ -177,6 +177,7 @@ type Payload = {
   replyTo: Nullable<ReplyPreview>;
   // INFO: DESIGN.md § 6.5. Only an optimistic bubble carries one; a message that landed is always sent.
   status?: "sending" | "queued" | "failed";
+  reactions?: MessageReaction[];
   // INFO: REQUIREMENTS.md § 9.1. `filename` is what tells the box arithmetic a stack of file cards from a grid of photos; a bubble never mixes the two (§ 6.).
   // INFO: REQUIREMENTS.md § 9.3. A voice bubble is one fixed-height row rather than a box with a ratio, and `toMediaBoxHeight` reads that before either of the others.
   // WARN: Both voice fields, because a pending row is `MediaDraft[]` and a sent one is `ChatMedia[]` — the draft carries `waveformPeaks` and no `voice`, so dropping it here estimates an optimistic recording from its `0 / 0` box.
@@ -203,6 +204,7 @@ const TOMBSTONE_PAYLOAD: Payload = {
   emoticon: null,
   replyTo: null,
   media: [],
+  reactions: [],
 };
 
 type RowFlags = {
@@ -210,6 +212,10 @@ type RowFlags = {
   /** DESIGN.md § 6.3. How many lines stand in the column beside the bubble: the timestamp, § 8.8.'s unread count, § 8.13.'s 수정됨, or any of them stacked. Zero when none is there. */
   besideLines: number;
 };
+
+// INFO: The height of the `ReactionBadges` row below the bubble.
+// Parent `gap-2xs` (4px) + `mt-0.5` (2px) + `h-7` (28px) = 34px.
+const REACTION_BADGES_HEIGHT = 34;
 
 /**
  * REQUIREMENTS.md § 8.3. What a row will measure, before it renders.
@@ -253,11 +259,16 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
        * the reader scrolls back onto it.
        */
       if (row.message.isDeleted) {
-        return estimateMessageRow(TOMBSTONE_PAYLOAD, row.isMine, context, {
-          isFirstOfGroup: row.isFirstOfGroup,
-          // INFO: § 8.13. The timestamp and nothing else — a tombstone carries neither the unread count nor 수정됨.
-          besideLines: Number(row.isLastOfGroup),
-        });
+        return estimateMessageRow(
+          { ...TOMBSTONE_PAYLOAD, reactions: row.message.reactions },
+          row.isMine,
+          context,
+          {
+            isFirstOfGroup: row.isFirstOfGroup,
+            // INFO: § 8.13. The timestamp and nothing else — a tombstone carries neither the unread count nor 수정됨.
+            besideLines: Number(row.isLastOfGroup),
+          },
+        );
       }
 
       return estimateMessageRow(
@@ -279,7 +290,7 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
       // INFO: An optimistic bubble is always mine, so it never carries the avatar column or a sender name — nor the unread count, since it has not been sent and nobody could have read it.
       // WARN: § 8.3. The ids are derived here because a pending row holds the emoticons *whole* and the sent one holds their ids — dropped, an optimistic bubble prices as though its emoticons were not in it and corrects the scroll the moment it renders.
       return estimateMessageRow(
-        { ...row.pending, inlineEmoticonItemIds: row.pending.inlineEmoticons.map(({ id }) => id) },
+        { ...row.pending, inlineEmoticonItemIds: row.pending.inlineEmoticons.map(({ id }) => id), reactions: [] },
         true,
         context,
         { isFirstOfGroup: row.isFirstOfGroup, besideLines: Number(row.isLastOfGroup) },
@@ -335,6 +346,21 @@ function estimateMessageRow(
     context,
     flags,
   );
+
+  if (payload.reactions && payload.reactions.length > 0) {
+    const uniqueGroups = new Set(
+      payload.reactions.map((r) =>
+        r.reactionType === "emoji" ? `emoji:${r.emoji}` : `emoticon:${r.emoticonItemId}`,
+      ),
+    ).size;
+
+    // INFO: A badge with padding and gap is ~48px wide. `toWideColumnWidth` is the available column width.
+    const badgesPerLine = Math.max(1, Math.floor(toWideColumnWidth(context) / 48));
+    const lines = Math.ceil(uniqueGroups / badgesPerLine);
+
+    // INFO: The first line is REACTION_BADGES_HEIGHT (34px). Each wrapped line adds `gap-1` (4px) + `h-7` (28px) = 32px.
+    column += REACTION_BADGES_HEIGHT + (lines - 1) * 32;
+  }
 
   // INFO: DESIGN.md § 6.1. The gap between rows is this padding, so it belongs to the row below it.
   const top = flags.isFirstOfGroup ? SPACING_SM : SPACING_2XS;

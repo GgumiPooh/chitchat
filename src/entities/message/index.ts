@@ -23,6 +23,7 @@ export { getMessageIdByClientMsgId } from "./api/get-message-id-by-client-msg-id
 export { isQuotable } from "./api/is-quotable";
 export { listAssistantRepliesAfter } from "./api/list-assistant-replies-after";
 export { listChangedMessages } from "./api/list-changed-messages";
+export { listMessageReactions } from "./api/list-message-reactions";
 export { listMessages, type ListMessagesParams } from "./api/list-messages";
 export { listMessagesByIds } from "./api/list-messages-by-ids";
 export { listRecentAssistantExchanges } from "./api/list-recent-assistant-exchanges";
@@ -38,5 +39,15 @@ export {
   type MessagePayload,
   type SingleMessagePayload,
 } from "./api/to-message-payload";
+export {
+  toggleReaction,
+  type ToggleReactionInput,
+  type ToggleReactionResult,
+} from "./api/toggle-reaction";
 // WARN: Everything above touches the database. A client module may import from this barrel with `import type` only — a value import drags `server-only` into its bundle.
-export type { ChatMessage, MessageSearchResult, ReplyPreview } from "./model/types";
+export type {
+  ChatMessage,
+  MessageReaction,
+  MessageSearchResult,
+  ReplyPreview,
+} from "./model/types";

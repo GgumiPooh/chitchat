@@ -7,6 +7,7 @@ import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 import { listMessageEmoticons } from "./list-message-emoticons";
 import { listMessageMedia } from "./list-message-media";
+import { listMessageReactions } from "./list-message-reactions";
 import { listReplyPreviews } from "./list-reply-previews";
 
 /**
@@ -32,11 +33,12 @@ export async function getMessage(id: MessageId): Promise<Nullable<ChatMessage>> 
     return toChatMessage(row);
   }
 
-  // WARN: The emoticon and the quote must be resolved here too, not only in `listMessages`. This is the path every *live* message takes (§ 8.4.), so leaving either out renders an empty bubble until the reader reloads.
-  const [byMessage, byEmoticonId, byParentId] = await Promise.all([
+  // WARN: The emoticon, reactions and the quote must be resolved here too, not only in `listMessages`. This is the path every *live* message takes (§ 8.4.), so leaving either out renders an empty bubble until the reader reloads.
+  const [byMessage, byEmoticonId, byParentId, byReaction] = await Promise.all([
     listMessageMedia(row.type === "media" ? [row.id] : []),
     listMessageEmoticons(row.emoticonItemId ? [row.emoticonItemId] : []),
     listReplyPreviews(row.replyToId ? [row.replyToId] : []),
+    listMessageReactions([row.id]),
   ]);
 
   return toChatMessage(
@@ -44,5 +46,6 @@ export async function getMessage(id: MessageId): Promise<Nullable<ChatMessage>> 
     byMessage.get(row.id),
     row.emoticonItemId ? (byEmoticonId.get(row.emoticonItemId) ?? null) : null,
     row.replyToId ? (byParentId.get(row.replyToId) ?? null) : null,
+    byReaction.get(row.id) ?? [],
   );
 }

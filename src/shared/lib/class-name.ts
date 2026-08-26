@@ -6,6 +6,7 @@ import { extendTailwindMerge } from "tailwind-merge";
 const twMerge = extendTailwindMerge({
   extend: {
     theme: {
+      shadow: ["raised", "floating"],
       spacing: ["2xs", "xs", "sm", "md", "lg", "xl", "2xl"],
       text: [
         "display-lg",

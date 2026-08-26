@@ -1,8 +1,9 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
-import type { ReplyPreview } from "@/entities/message";
+import type { MessageReaction, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
+import { ReactionBadges } from "@/features/react-message";
 import { useProfileViewer } from "@/features/view-profile";
 import {
   DELETED_MESSAGE_TEXT,
@@ -14,11 +15,13 @@ import {
   findFirstUrl,
   formatTime,
   LONG_PRESS_TARGET_CLASS,
+  useDoubleTap,
   useLongPress,
   type EmoticonItemId,
   type LongPressPoint,
   type Nullable,
   type Optional,
+  type UserId,
 } from "@/shared/lib";
 import { OFFLINE_QUEUED_SEND_TEXT } from "@/shared/offline-ux";
 import {
@@ -109,6 +112,8 @@ export type MessageRowProps = {
   awaitsArrivalSound?: boolean;
   /** REQUIREMENTS.md § 8.17. Folded away by either participant — the bubble keeps its quote and one line, and the rest is behind 펼치기. */
   isCollapsed?: boolean;
+  reactions?: MessageReaction[];
+  currentUserId?: UserId;
   /** AGENTS.md § 4.1. Carries the held or right-clicked element and the pointer's own position — the room anchors the desktop menu to the point, so a bubble taller than the visible area cannot carry it off screen. */
   onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
   /** REQUIREMENTS.md § 8.16. A tap anywhere on a cut bubble, which opens the § 6.2.2. sheet holding the whole message. */
@@ -125,6 +130,11 @@ export type MessageRowProps = {
   onReply?: () => void;
   /** REQUIREMENTS.md § 8.11. As `onReply`: the hover control here, the action sheet on touch. Omitted for a message with nothing to hand the OS. */
   onShare?: () => void;
+  onToggleReaction?: (
+    reaction:
+      | { reactionType: "emoji"; emoji: string }
+      | { reactionType: "emoticon"; emoticonItemId: EmoticonItemId },
+  ) => void;
   onOpenReply?: () => void;
   onRetry?: () => void;
   onCancel?: () => void;
@@ -160,6 +170,8 @@ export function MessageRow({
   status,
   isSelecting = false,
   awaitsArrivalSound,
+  reactions = [],
+  currentUserId,
   onLongPress,
   onExpand,
   onUnfold,
@@ -168,6 +180,7 @@ export function MessageRow({
   onOpenMedia,
   onReply,
   onShare,
+  onToggleReaction,
   onOpenReply,
   onRetry,
   onCancel,
@@ -179,10 +192,16 @@ export function MessageRow({
   // WARN: REQUIREMENTS.md § 8.16. The same test `estimateRowHeight` makes, off `text` alone — the two decide whether this bubble is cut, and a second input to either is a bubble the estimate has not priced.
   // INFO: § 8.17. A folded row is one line already, so there is nothing left for the cut to take.
   const isTruncated = !isDeleted && !isCollapsed && isExpandableBody(text);
-  // INFO: § 8.16., § 8.17. Whichever of the three the bubble is offering — the fold first, since it hides the most; the quote's own tap still jumps past either.
-  const onTapBubble = toBubbleTapHandler(
+  // INFO: REQUIREMENTS.md § 8.16., § 8.17. Whichever of the three the bubble is offering — the fold first, since it hides the most; the quote's own tap still jumps past either.
+  const rawTapBubble = toBubbleTapHandler(
     isCollapsed ? onUnfold : isTruncated ? onExpand : onOpenReply,
   );
+  const doubleTap = useDoubleTap({
+    onDoubleTap: onToggleReaction
+      ? () => onToggleReaction({ reactionType: "emoji", emoji: "❤️" })
+      : undefined,
+  });
+  const onTapBubble = doubleTap.wrapSingleTap(rawTapBubble);
   const longPressHandlers = useLongPress(
     onLongPress && !isSelecting ? (point, anchor) => onLongPress(anchor, point) : undefined,
     { onFire: swipe.cancel },
@@ -410,6 +429,15 @@ export function MessageRow({
                 bubbleClassName,
               )}
               {...longPressHandlers}
+              onPointerDown={(e) => {
+                longPressHandlers.onPointerDown(e);
+                doubleTap.pointerHandlers.onPointerDown(e);
+              }}
+              onPointerUp={(e) => {
+                longPressHandlers.onPointerUp();
+                doubleTap.pointerHandlers.onPointerUp(e);
+              }}
+              onDoubleClick={doubleTap.onDoubleClick}
               onClick={replyTo || isTruncated || isCollapsed ? onTapBubble : undefined}
             >
               {/* WARN: REQUIREMENTS.md § 8.13. Ahead of everything else in the bubble, and it returns nothing else. A withdrawn row carries no text, no quote and no attachment, so every branch below it would render empty — but the estimate in `estimateRowHeight` prices exactly this one line, and a stray sibling here is height it cannot see. */}
@@ -531,6 +559,14 @@ export function MessageRow({
             )
           )}
         </div>
+        {reactions.length > 0 && currentUserId && onToggleReaction && (
+          <ReactionBadges
+            className={cn(isMine ? "justify-end" : "justify-start")}
+            reactions={reactions}
+            currentUserId={currentUserId}
+            onToggleReaction={onToggleReaction}
+          />
+        )}
       </div>
     </div>
   );

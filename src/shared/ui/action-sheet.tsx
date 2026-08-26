@@ -17,6 +17,7 @@ import {
   useState,
   type ComponentProps,
   type FC,
+  type ReactNode,
   type RefObject,
 } from "react";
 import { BottomSheet, type BottomSheetProps } from "./bottom-sheet";
@@ -66,6 +67,7 @@ export type ActionSheetProps = {
    * eye away from it (`DESIGN.md § 7.5.`). Defaults to the width-driven choice.
    */
   presentation?: "sheet" | "menu";
+  reactionSlot?: ReactNode;
   onClose: () => void;
 };
 
@@ -78,6 +80,7 @@ export function ActionSheet({
   anchorRef,
   anchorPoint,
   presentation = "sheet",
+  reactionSlot,
   onClose,
 }: ActionSheetProps) {
   // INFO: Whether the row that closed this sheet asked to keep focus — read by `handleCloseAutoFocus` below.
@@ -87,11 +90,15 @@ export function ActionSheet({
   // INFO: Callers clear the subject on close, and the exit animation would otherwise play over an empty title and no rows.
   // INFO: React's "adjust state during render", keyed on the visible text since `header`/`items` are rebuilt every render.
   const snapshotKey = [header.title, ...items.map((item) => item.label)].join("\u0000");
-  const [snapshot, setSnapshot] = useState({ key: snapshotKey, header, items });
-  if (isOpen && snapshot.key !== snapshotKey) {
-    setSnapshot({ key: snapshotKey, header, items });
+  const [snapshot, setSnapshot] = useState({ key: snapshotKey, header, items, reactionSlot });
+  if (isOpen && (snapshot.key !== snapshotKey || snapshot.reactionSlot !== reactionSlot)) {
+    setSnapshot({ key: snapshotKey, header, items, reactionSlot });
   }
-  const { header: shownHeader, items: shownItems } = isOpen ? { header, items } : snapshot;
+  const {
+    header: shownHeader,
+    items: shownItems,
+    reactionSlot: shownReactionSlot,
+  } = isOpen ? { header, items, reactionSlot } : snapshot;
   const menuRef = useRef<Nullable<HTMLDivElement>>(null);
   // INFO: The rect is re-measured on open and on a resize/visual-viewport change, never continuously — the trigger is an `IconButton` whose press-bloom scales it for the next 300ms, and a live-tracked anchor would drag the menu along with that animation.
   const [anchorRect, setAnchorRect] = useState<Nullable<DOMRect>>(null);
@@ -125,17 +132,22 @@ export function ActionSheet({
       return;
     }
 
-    // INFO: Keeps the menu clear of the fixed header and composer bars (`AGENTS.md § 4.4.`) rather than colliding with them before flip/shift take over.
+    // INFO: Keeps the menu clear of the fixed header, composer, rail, and side panel (AGENTS.md § 4.1, § 4.4) rather than colliding with or overlapping them.
     const measure = () => {
       const headerHeight =
         document.getElementById(APP_HEADER_ID)?.getBoundingClientRect().height ?? 0;
       const bottomInset =
         document.getElementById(BOTTOM_OVERLAY_ID)?.getBoundingClientRect().height ?? 0;
+      const computedStyle = getComputedStyle(document.documentElement);
+      const railWidth = parseFloat(computedStyle.getPropertyValue("--rail-width")) || 0;
+      const paneWidth = parseFloat(computedStyle.getPropertyValue("--pane-width")) || 0;
+      const leftInset = railWidth + paneWidth;
+
       setCollisionPadding({
         top: headerHeight + 16,
         right: 16,
         bottom: bottomInset + 16,
-        left: 16,
+        left: leftInset + 16,
       });
     };
     measure();
@@ -223,20 +235,31 @@ export function ActionSheet({
   );
 
   if (isMenu) {
+    // INFO: Determine align based on anchor horizontal position relative to the main pane width so left messages open towards the center and right messages open towards the center.
+    const menuAlign = (() => {
+      const x = anchorPoint?.x ?? anchorRect?.left;
+      if (x === undefined || typeof window === "undefined") {
+        return "end";
+      }
+      return x < window.innerWidth / 2 ? "start" : "end";
+    })();
+
     return (
       <Popover open={isOpen} onOpenChange={handleOpenChange}>
         <PopoverAnchor virtualRef={virtualAnchorRef} />
         <PopoverContent
           ref={menuRef}
           className={cn(
-            // INFO: Sized to the longest row rather than a fixed 176px, so a model id is one left-aligned line instead of a centred wrap.
-            isDesktop ? "w-64" : "w-max max-w-[calc(100vw-2rem)] min-w-44",
-            // WARN: A last resort under `collisionPadding` — a bubble taller than the clearance between the header and the composer still has to fit somewhere, and this is what keeps it from running under either bar.
-            "max-h-[var(--radix-popper-available-height)] overflow-y-auto p-2xs",
+            "flex flex-col gap-1.5 outline-none data-[side=top]:flex-col-reverse",
+            shownReactionSlot
+              ? "w-72 max-w-[calc(100vw-2rem)]"
+              : isDesktop
+                ? "w-64"
+                : "w-max max-w-[calc(100vw-2rem)] min-w-44",
             className,
           )}
-          align="end"
-          // INFO: Above the anchor first — a held bubble still has the thumb on it, and a menu opening under the thumb opens under the hand.
+          align={menuAlign}
+          // INFO: Above the anchor first on mobile — a held bubble still has the thumb on it. On desktop, bottom first.
           side={isDesktop ? "bottom" : "top"}
           collisionPadding={collisionPadding}
           role="menu"
@@ -245,7 +268,10 @@ export function ActionSheet({
           // INFO: Focusing the first row paints its ring under a thumb that opened the menu by holding, not by keyboard; a hardware keyboard still reaches it with Tab.
           onOpenAutoFocus={isDesktop ? undefined : (event) => event.preventDefault()}
         >
-          {rows}
+          {shownReactionSlot && <div className="w-full shrink-0">{shownReactionSlot}</div>}
+          <div className="w-full rounded-2xl border border-hairline bg-canvas p-2xs shadow-floating">
+            {rows}
+          </div>
         </PopoverContent>
       </Popover>
     );
@@ -266,6 +292,7 @@ export function ActionSheet({
         onClose={onClose}
         onCloseAutoFocus={handleCloseAutoFocus}
       >
+        {shownReactionSlot && <div className="mb-2">{shownReactionSlot}</div>}
         {rows}
       </DialogShell>
     );
@@ -279,6 +306,7 @@ export function ActionSheet({
       onClose={onClose}
       onCloseAutoFocus={handleCloseAutoFocus}
     >
+      {shownReactionSlot && <div className="mb-2">{shownReactionSlot}</div>}
       {rows}
     </BottomSheet>
   );

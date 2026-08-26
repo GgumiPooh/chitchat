@@ -2,13 +2,14 @@ import type { Emoticon } from "@/entities/emoticon/@x/message";
 import type { ChatMedia } from "@/entities/media/@x/message";
 import type { Message } from "@/shared/db";
 import { idToDate, type Nullable } from "@/shared/lib";
-import type { ChatMessage, ReplyPreview } from "./types";
+import type { ChatMessage, MessageReaction, ReplyPreview } from "./types";
 
 export function toChatMessage(
   row: Message,
   media: ChatMedia[] = [],
   emoticon: Nullable<Emoticon> = null,
   replyTo: Nullable<ReplyPreview> = null,
+  reactions: MessageReaction[] = [],
 ): ChatMessage {
   const isDeleted = row.deletedAt !== null;
 
@@ -38,6 +39,7 @@ export function toChatMessage(
     // INFO: REQUIREMENTS.md § 8.17. The flag and not the timestamp, exactly as `isDeleted` is — nothing draws *when* a message was folded.
     isCollapsed: row.collapsedAt !== null,
     onlyMe: row.onlyMe,
+    reactions: isDeleted ? [] : reactions,
     id: row.id,
   };
 }

@@ -2,7 +2,7 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
-import type { ChatMessage, ReplyPreview } from "@/entities/message";
+import type { ChatMessage, MessageReaction, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { useApplyPhoto } from "@/features/apply-photo";
 import {
@@ -19,6 +19,12 @@ import {
   useInlineEmoticons,
 } from "@/features/chat-stream";
 import { useWriteChatSnapshot } from "@/features/offline-snapshot";
+import {
+  MiniEmoticonSheet,
+  ReactionBar,
+  sendMessageReaction,
+  type ReactionPayload,
+} from "@/features/react-message";
 import {
   DOUBLE_TAP_WINDOW,
   EmoticonPicker,
@@ -358,6 +364,7 @@ export function ChatRoom({
   const [isAtTop, setIsAtTop] = useState(true);
   const isAtTopRef = useRef(true);
   const [actionTarget, setActionTarget] = useState<Nullable<ChatMessage>>(null);
+  const [miniEmoticonTargetId, setMiniEmoticonTargetId] = useState<Nullable<MessageId>>(null);
   // INFO: REQUIREMENTS.md § 8.16. The whole of whichever bubble the reader tapped through its 전체보기, held as its own content rather than as a message id — a § 8.5. outbox row carries emoticons the room's map has not learned yet.
   const [expandedBody, setExpandedBody] = useState<Nullable<ExpandedBody>>(null);
   // INFO: AGENTS.md § 4.1. The bubble a hold or right-click opened the menu on, for the desktop `Popover`'s anchor.
@@ -1941,7 +1948,56 @@ export function ChatRoom({
         anchorRef={menuAnchorRef}
         anchorPoint={menuAnchorPointRef.current ?? undefined}
         presentation="menu"
+        reactionSlot={
+          actionTarget && !actionTarget.isDeleted ? (
+            <ReactionBar
+              activeEmojis={
+                actionTarget.reactions
+                  ?.filter((r) => r.userId === currentUserId && r.reactionType === "emoji")
+                  .map((r) => r.emoji!) ?? []
+              }
+              onSelectEmoji={(emoji) => {
+                const targetId = actionTarget.id;
+                setActionTarget(null);
+                void handleReaction(targetId, { reactionType: "emoji", emoji });
+              }}
+              onOpenMiniSheet={() => {
+                const targetId = actionTarget.id;
+                setActionTarget(null);
+                setMiniEmoticonTargetId(targetId);
+              }}
+            />
+          ) : undefined
+        }
         onClose={() => setActionTarget(null)}
+      />
+      <MiniEmoticonSheet
+        isOpen={miniEmoticonTargetId !== null}
+        messageId={miniEmoticonTargetId}
+        activeEmojis={
+          miniEmoticonTargetId
+            ? (messages
+                .find((m) => m.id === miniEmoticonTargetId)
+                ?.reactions?.filter((r) => r.userId === currentUserId && r.reactionType === "emoji")
+                .map((r) => r.emoji!) ?? [])
+            : []
+        }
+        activeEmoticonItemIds={
+          miniEmoticonTargetId
+            ? (messages
+                .find((m) => m.id === miniEmoticonTargetId)
+                ?.reactions?.filter(
+                  (r) => r.userId === currentUserId && r.reactionType === "emoticon",
+                )
+                .map((r) => r.emoticonItemId!) ?? [])
+            : []
+        }
+        onSelectReaction={(reaction) => {
+          if (miniEmoticonTargetId) {
+            void handleReaction(miniEmoticonTargetId, reaction);
+          }
+        }}
+        onClose={() => setMiniEmoticonTargetId(null)}
       />
       <ExpandedBodySheet
         body={expandedBody}
@@ -2884,6 +2940,8 @@ export function ChatRoom({
             replyTo={question}
             replyToHeading={question ? toQuoteHeadingFor(question) : undefined}
             isCollapsed={row.isCollapsed}
+            reactions={row.message.reactions ?? []}
+            currentUserId={currentUserId}
             onOpenReply={
               question ? () => void jumpToMessage(question.id, { flash: true }) : undefined
             }
@@ -2895,8 +2953,9 @@ export function ChatRoom({
             onShare={
               canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
             }
-            onFollowUp={() => stageReply(row.message)}
             onExpand={() => expandBody(row.message, true)}
+            onFollowUp={() => stageReply(row.message)}
+            onToggleReaction={(reaction) => void handleReaction(row.message.id, reaction)}
             onUnfold={() => void toggleCollapse(row.message.id)}
           />
         );
@@ -2996,7 +3055,9 @@ export function ChatRoom({
             status="sent"
             isSelecting={aiSelection.isSelecting}
             awaitsArrivalSound={row.message.id === arrivalSoundId}
-            isCollapsed={row.isCollapsed}
+            isCollapsed={row.message.isCollapsed}
+            reactions={row.message.reactions ?? []}
+            currentUserId={currentUserId}
             onShare={
               canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
             }
@@ -3008,6 +3069,7 @@ export function ChatRoom({
               menuAnchorPointRef.current = point;
               setActionTarget(row.message);
             }}
+            onToggleReaction={(reaction) => void handleReaction(row.message.id, reaction)}
             onOpenReply={quoted ? () => void jumpToMessage(quoted.id, { flash: true }) : undefined}
             onFollowEmoticon={toFollowEmoticon(row.message.emoticon)}
             onArrivalSoundReady={() => settleArrivalSound(row.message.id)}
@@ -3045,6 +3107,43 @@ export function ChatRoom({
     } catch {
       replaceMessage(message);
       toast.error(isCollapsed ? "메시지를 접지 못했어요" : "메시지를 펼치지 못했어요");
+    }
+  }
+
+  async function handleReaction(messageId: MessageId, reaction: ReactionPayload) {
+    const target = messages.find((entry) => entry.id === messageId);
+    if (!target) {
+      return;
+    }
+
+    const isMatch = (r: MessageReaction) =>
+      r.userId === currentUserId &&
+      r.reactionType === reaction.reactionType &&
+      ((reaction.reactionType === "emoji" && r.emoji === reaction.emoji) ||
+        (reaction.reactionType === "emoticon" && r.emoticonItemId === reaction.emoticonItemId));
+
+    const existing = (target.reactions ?? []).find(isMatch);
+    let nextReactions = target.reactions ? [...target.reactions] : [];
+
+    if (existing) {
+      nextReactions = nextReactions.filter((r) => !isMatch(r));
+    } else {
+      nextReactions.push({
+        messageId,
+        userId: currentUserId,
+        reactionType: reaction.reactionType,
+        emoji: reaction.reactionType === "emoji" ? reaction.emoji : null,
+        emoticonItemId: reaction.reactionType === "emoticon" ? reaction.emoticonItemId : null,
+      });
+    }
+
+    replaceMessage({ ...target, reactions: nextReactions });
+
+    try {
+      await sendMessageReaction(messageId, reaction);
+    } catch {
+      replaceMessage(target);
+      toast.error("리액션을 남기지 못했어요");
     }
   }
 
@@ -3974,7 +4073,11 @@ function AiAnswerRow({
       {/* WARN: DESIGN.md § 6.11. A `max-width` and never `flex-1` — the same trap `assistant-message-row.tsx` carries. `w-fit` keeps the *bubble* compact, but a growing slot still stretches, which parks 중지 at the row's far edge instead of beside the bubble. The cap is what the finished `AssistantMessageRow` wraps at (its own `calc(100%-44px)` column less the `gap-2xs` and `w-[68px]` beside it), so the last streamed frame and the landed row wrap identically. */}
       <div className="max-w-[calc(100%-116px)] min-w-0">
         <div
-          className="w-fit max-w-full rounded-bubble rounded-tl-xs border border-hairline bg-bubble-theirs px-sm py-xs"
+          className={cn(
+            "w-fit max-w-full rounded-bubble rounded-tl-xs border border-hairline px-sm py-xs",
+            // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the asker's own private question answered with the other theme's `theirs` fill, matching the landed `AssistantMessageRow`.
+            entry.onlyMe ? "bg-bubble-theirs-private" : "bg-bubble-theirs",
+          )}
           onClick={replyTo ? toBubbleTapHandler(onOpenReply) : undefined}
         >
           {replyTo && (
@@ -3990,9 +4093,17 @@ function AiAnswerRow({
           <div aria-hidden>
             {isEmpty ? (
               // INFO: Still bouncing would say the answer is coming; held still, the frozen dots are the tap's own answer while the provider unwinds.
-              <TypingDots dotClassName={cn(isCancelling && "animate-none")} />
+              <TypingDots
+                dotClassName={cn(
+                  isCancelling && "animate-none",
+                  entry.onlyMe && "bg-bubble-private-ink/60",
+                )}
+              />
             ) : (
-              <MarkdownBody text={entry.text} />
+              <MarkdownBody
+                className={entry.onlyMe ? "text-bubble-private-ink" : undefined}
+                text={entry.text}
+              />
             )}
           </div>
         </div>

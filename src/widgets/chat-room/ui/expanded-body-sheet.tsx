@@ -1,21 +1,30 @@
 "use client";
 
 import type { InlineEmoticonMap } from "@/shared/config";
-import { formatDate, formatTime, type EmoticonItemId, type Nullable } from "@/shared/lib";
-import { BottomSheet, MarkdownBody } from "@/shared/ui";
-import { useState } from "react";
+import {
+  cn,
+  formatDate,
+  formatTime,
+  useIsDesktop,
+  useSheetDrag,
+  type EmoticonItemId,
+  type Nullable,
+} from "@/shared/lib";
+import { MarkdownBody, Modal } from "@/shared/ui";
+import { Dialog as DialogPrimitive } from "radix-ui";
+import { useRef, useState } from "react";
 import { MessageText } from "./message-text";
 
 /** REQUIREMENTS.md § 8.16. What a § 6.2.2. cut is hiding — an ordinary bubble's text, or an § 8.15. answer's markdown. */
 export type ExpandedBody = {
-  isMarkdown: boolean;
-  /** Whoever spoke — a participant's § 8.7. nickname, a § 8.15. answer's provider 별명, or 시스템. */
-  senderName: string;
   createdAt: string;
-  text: string;
   inlineEmoticonItemIds: EmoticonItemId[];
   /** REQUIREMENTS.md § 13. Carried rather than read from the room, because an outbox row's emoticons are not in the page's map until its echo lands. */
   inlineEmoticons: InlineEmoticonMap;
+  isMarkdown: boolean;
+  /** Whoever spoke — a participant's § 8.7. nickname, a § 8.15. answer's provider 별명, or 시스템. */
+  senderName: string;
+  text: string;
 };
 
 export type ExpandedBodySheetProps = {
@@ -36,40 +45,113 @@ export function ExpandedBodySheet({
   searchQuery,
   onClose,
 }: ExpandedBodySheetProps) {
+  const isDesktop = useIsDesktop();
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+
   // INFO: The caller clears the body on close, and the exit animation would otherwise play over an empty header and no text — `ActionSheet` holds its own rows the same way and for the same reason.
   const [snapshot, setSnapshot] = useState(body);
   if (body !== null && body !== snapshot) {
     setSnapshot(body);
   }
   const shown = body ?? snapshot;
+  const isOpen = body !== null;
+
+  const { dragProps, expandedHeight, handleProps, isDragging, pinnedHeight } = useSheetDrag({
+    closeOnPullDownFromExpanded: true,
+    initialSize: "expanded",
+    isOpen,
+    onClose,
+    sheetRef,
+  });
+
+  const bodyContent = shown?.isMarkdown ? (
+    <MarkdownBody text={shown.text} />
+  ) : (
+    shown && (
+      // INFO: DESIGN.md § 6.2. The bubble's own wrapping rules, so the sheet breaks the message where the bubble was breaking it.
+      <MessageText
+        className="block text-chat-body wrap-anywhere [word-break:normal] whitespace-pre-wrap text-ink select-text"
+        inlineEmoticonItemIds={shown.inlineEmoticonItemIds}
+        inlineEmoticons={shown.inlineEmoticons}
+        query={searchQuery}
+        text={shown.text}
+      />
+    )
+  );
+
+  if (isDesktop) {
+    return (
+      <Modal
+        className={className}
+        isOpen={isOpen}
+        size="md"
+        header={{
+          description: shown
+            ? `${formatDate(shown.createdAt)} ${formatTime(shown.createdAt)}`
+            : undefined,
+          title: shown?.senderName ?? "전체보기",
+        }}
+        onClose={onClose}
+      >
+        <div className="scrollbar-hidden max-h-[calc(var(--viewport-height,100dvh)*0.75)] overflow-y-auto">
+          {bodyContent}
+        </div>
+      </Modal>
+    );
+  }
 
   return (
-    <BottomSheet
-      className={className}
-      isOpen={body !== null}
-      isTall
-      header={{
-        title: shown?.senderName ?? "전체보기",
-        description: shown
-          ? `${formatDate(shown.createdAt)} ${formatTime(shown.createdAt)}`
-          : undefined,
-      }}
-      onClose={onClose}
-    >
-      {shown?.isMarkdown ? (
-        <MarkdownBody text={shown.text} />
-      ) : (
-        shown && (
-          // INFO: DESIGN.md § 6.2. The bubble's own wrapping rules, so the sheet breaks the message where the bubble was breaking it.
-          <MessageText
-            className="block text-chat-body wrap-anywhere [word-break:normal] whitespace-pre-wrap text-ink select-text"
-            text={shown.text}
-            inlineEmoticonItemIds={shown.inlineEmoticonItemIds}
-            inlineEmoticons={shown.inlineEmoticons}
-            query={searchQuery}
-          />
-        )
-      )}
-    </BottomSheet>
+    <DialogPrimitive.Root open={isOpen} onOpenChange={(open: boolean) => !open && onClose()}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-scrim/45 transition-opacity data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Content
+          ref={sheetRef}
+          className={cn(
+            "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 mx-auto mb-sm flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))] w-[calc(100%_-_var(--spacing-sm)*2)] max-w-[calc(var(--sheet-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus:outline-none",
+            isDragging ? "" : "transition-[height] duration-200 ease-out",
+            className,
+          )}
+          style={{
+            height:
+              pinnedHeight !== null
+                ? `${pinnedHeight}px`
+                : expandedHeight > 0
+                  ? `${expandedHeight}px`
+                  : "calc(var(--viewport-height,100dvh) - var(--header-height,56px) - var(--spacing-sm))",
+          }}
+          {...dragProps}
+        >
+          {/* 상단 드래그 & 닫기 손잡이 */}
+          <button
+            className={cn(
+              "mx-auto -mt-2 mb-2 flex h-6 w-full cursor-grab touch-none items-center justify-center focus-visible:outline-none active:cursor-grabbing",
+              "before:absolute before:inset-x-0 before:-top-2 before:h-8 before:content-['']",
+            )}
+            type="button"
+            aria-label="닫기"
+            {...handleProps}
+          >
+            <span className="hover:bg-ink-muted block h-1.5 w-12 rounded-full bg-hairline-strong transition-colors" />
+          </button>
+
+          {/* 헤더 */}
+          <div className="mb-xs shrink-0 space-y-2xs text-center">
+            <DialogPrimitive.Title className="text-title-md text-ink">
+              {shown?.senderName ?? "전체보기"}
+            </DialogPrimitive.Title>
+            {shown && (
+              <DialogPrimitive.Description className="text-body-sm text-meta">
+                {`${formatDate(shown.createdAt)} ${formatTime(shown.createdAt)}`}
+              </DialogPrimitive.Description>
+            )}
+          </div>
+
+          {/* 스크롤 가능한 본문 영역 */}
+          <div className="-mx-md scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain px-md">
+            {bodyContent}
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

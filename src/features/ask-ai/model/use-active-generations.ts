@@ -11,6 +11,8 @@ export type GenerationEntry = {
   status: "queued" | "running";
   questionClientMsgId: string;
   userId: UserId;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — draws the private-theme bubble fill/ink while streaming. */
+  onlyMe?: boolean;
   provider?: string;
   model?: string;
   text: string;
@@ -86,6 +88,7 @@ export function useActiveGenerations(): ActiveGenerations {
               status: "queued",
               questionClientMsgId: event.questionClientMsgId,
               userId: event.userId,
+              onlyMe: event.onlyMe,
               text: "",
             },
             nextSeq: undefined,
@@ -105,6 +108,7 @@ export function useActiveGenerations(): ActiveGenerations {
               userId: event.userId,
             }),
             status: "running",
+            onlyMe: event.onlyMe ?? existing?.entry.onlyMe,
             provider: event.provider,
             model: event.model,
             // WARN: A re-published `start` is the server falling back to another agent mid-run — the failed agent's fragment must not linger under the one that replaces it.
@@ -164,6 +168,7 @@ export function useActiveGenerations(): ActiveGenerations {
               status: event.status,
               questionClientMsgId: event.questionClientMsgId,
               userId: event.userId,
+              onlyMe: event.onlyMe,
               provider: event.provider,
               model: event.model,
               text: event.text,

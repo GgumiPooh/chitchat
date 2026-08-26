@@ -10,6 +10,9 @@ export type BottomSheetProps = PropsWithChildren<{
   isOpen: boolean;
   /** DESIGN.md § 7.5. Opens at the sheet's own maximum rather than shrink-wrapping its body — for a sheet whose reason to exist is the length of what it holds (`REQUIREMENTS.md § 8.16.`). */
   isTall?: boolean;
+  snapPoints?: (number | string)[];
+  activeSnapPoint?: number | string | null;
+  setActiveSnapPoint?: (snapPoint: number | string | null) => void;
   header: {
     className?: string;
     title: string;
@@ -36,6 +39,9 @@ export function BottomSheet({
   className,
   isOpen,
   isTall = false,
+  snapPoints,
+  activeSnapPoint,
+  setActiveSnapPoint,
   header,
   children,
   onClose,
@@ -60,15 +66,28 @@ export function BottomSheet({
     );
   }
 
+  const hasSnapPoints = Boolean(snapPoints && snapPoints.length > 0);
+
   return (
-    <Drawer open={isOpen} direction="bottom" onOpenChange={handleOpenChange}>
+    <Drawer
+      open={isOpen}
+      direction="bottom"
+      snapPoints={snapPoints}
+      activeSnapPoint={activeSnapPoint}
+      setActiveSnapPoint={setActiveSnapPoint}
+      onOpenChange={handleOpenChange}
+    >
       {/* WARN: AGENTS.md § 4.3. The shell width, re-applied — the same thing `AppHeader` and `BottomOverlay` do and for the same reason. Vaul portals this outside `#app-shell`, so its `fixed` box is laid out against the whole layout viewport, and on a desktop the sheet spanned the window while every other pixel of the app sat in a 576px column. */}
       {/* INFO: DESIGN.md § 7.5.'s `sm` inset is subtracted from the cap rather than left as a margin, so the narrow screen this was written on keeps the exact width it had — `mx-auto` and `mx-sm` cannot both hold, and the gutter is the one expressible as a width. */}
       <DrawerContent
         className={cn(
           // INFO: § 8.16. The maximum below, restated as a height — the sheet opens at the size the reader asked for rather than at the size of the first screenful.
-          isTall ? "h-[calc(var(--viewport-height,100dvh)_*_0.9_-_var(--spacing-sm))]!" : "h-auto!",
-          "mx-auto mb-sm flex max-h-[calc(var(--viewport-height,100dvh)_*_0.9_-_var(--spacing-sm))] w-[calc(100%_-_var(--spacing-sm)*2)] max-w-[calc(var(--sheet-max-width)_-_var(--spacing-sm)*2)] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+          isTall
+            ? "h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))]!"
+            : hasSnapPoints
+              ? "h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))]!"
+              : "h-auto!",
+          "mx-auto mb-sm flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))] w-[calc(100%_-_var(--spacing-sm)*2)] max-w-[calc(var(--sheet-max-width)_-_var(--spacing-sm)*2)] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
           className,
         )}
         onCloseAutoFocus={onCloseAutoFocus}
@@ -89,7 +108,10 @@ export function BottomSheet({
         )}
         {/* WARN: The scroller spans the sheet's padding box and restores the inset itself, so a full-bleed row inside it (`EventColorPicker`'s swatches) reaches the edge instead of overflowing. `overflow-y: auto` computes `overflow-x` to `auto` too, and that overflow was the sheet scrolling sideways. */}
         {/* WARN: `min-h-0` clears the flex item's content-based floor, the same trade `DialogShell`'s own scroll wrapper makes — without it `isTall`'s forced height just grows the sheet past its cap instead of scrolling the body under the header. */}
-        <div className="-mx-md scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain px-md">
+        <div
+          className="-mx-md scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain px-md"
+          data-vaul-no-drag
+        >
           {children}
         </div>
       </DrawerContent>

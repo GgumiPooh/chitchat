@@ -1,15 +1,18 @@
 "use client";
 
-import type { ChatMessage, ReplyPreview } from "@/entities/message";
+import type { ChatMessage, MessageReaction, ReplyPreview } from "@/entities/message";
+import { ReactionBadges, type ReactionPayload } from "@/features/react-message";
 import { useProfileViewer } from "@/features/view-profile";
 import { DELETED_MESSAGE_TEXT, toLlmProviderBranding } from "@/shared/config";
 import {
   cn,
   formatTime,
   LONG_PRESS_TARGET_CLASS,
+  useDoubleTap,
   useLongPress,
   type LongPressPoint,
   type Nullable,
+  type UserId,
 } from "@/shared/lib";
 import { IconButton, MarkdownBody } from "@/shared/ui";
 import { ChevronDown, Share, Sparkles } from "lucide-react";
@@ -28,8 +31,11 @@ export type AssistantMessageRowProps = {
   replyTo?: Nullable<ReplyPreview>;
   /** `toQuoteHeading`'s sentence for `replyTo`, composed by the caller (DESIGN.md § 6.10.). */
   replyToHeading?: string;
-  /** REQUIREMENTS.md § 8.17. `MessageRow`'s own prop of the same name. */
   isCollapsed?: boolean;
+  /** REQUIREMENTS.md § 8.17. `MessageRow`'s own prop of the same name. */
+  reactions?: MessageReaction[];
+  currentUserId?: UserId;
+  onToggleReaction?: (reaction: ReactionPayload) => void;
   onOpenReply?: () => void;
   /** REQUIREMENTS.md § 8.16. `MessageRow`'s own prop of the same name — a cut answer opens the § 6.2.2. sheet, which renders it as the markdown the bubble was drawing. */
   onExpand?: () => void;
@@ -57,6 +63,9 @@ export function AssistantMessageRow({
   isCollapsed = false,
   replyTo,
   replyToHeading,
+  reactions = [],
+  currentUserId,
+  onToggleReaction,
   onLongPress,
   onOpenReply,
   onExpand,
@@ -74,6 +83,15 @@ export function AssistantMessageRow({
   const swipe = useSwipeToReply(isSelecting ? undefined : followUp, false);
   // WARN: REQUIREMENTS.md § 8.16. `MessageRow`'s own test on the same source `toAnswerHeight` prices — the answer's markdown, before any of it is laid out.
   const isTruncated = !isDeleted && !isCollapsed && isExpandableBody(message.text);
+  const rawTapBubble = toBubbleTapHandler(
+    isCollapsed ? onUnfold : isTruncated ? onExpand : onOpenReply,
+  );
+  const doubleTap = useDoubleTap({
+    onDoubleTap: onToggleReaction
+      ? () => onToggleReaction({ reactionType: "emoji", emoji: "❤️" })
+      : undefined,
+  });
+  const onTapBubble = doubleTap.wrapSingleTap(rawTapBubble);
   const longPressHandlers = useLongPress(
     !isDeleted && !isSelecting && onLongPress
       ? (point, anchor) => onLongPress(anchor, point)
@@ -130,13 +148,16 @@ export function AssistantMessageRow({
                 LONG_PRESS_TARGET_CLASS,
               )}
               {...longPressHandlers}
-              onClick={
-                replyTo || isTruncated || isCollapsed
-                  ? toBubbleTapHandler(
-                      isCollapsed ? onUnfold : isTruncated ? onExpand : onOpenReply,
-                    )
-                  : undefined
-              }
+              onPointerDown={(e) => {
+                longPressHandlers.onPointerDown(e);
+                doubleTap.pointerHandlers.onPointerDown(e);
+              }}
+              onPointerUp={(e) => {
+                longPressHandlers.onPointerUp();
+                doubleTap.pointerHandlers.onPointerUp(e);
+              }}
+              onDoubleClick={doubleTap.onDoubleClick}
+              onClick={replyTo || isTruncated || isCollapsed ? onTapBubble : undefined}
             >
               {isDeleted ? (
                 DELETED_MESSAGE_TEXT
@@ -198,6 +219,14 @@ export function AssistantMessageRow({
             {renderHoverActions()}
           </div>
         </div>
+        {reactions.length > 0 && currentUserId && onToggleReaction && (
+          <ReactionBadges
+            className="justify-start"
+            reactions={reactions}
+            currentUserId={currentUserId}
+            onToggleReaction={onToggleReaction}
+          />
+        )}
       </div>
     </div>
   );

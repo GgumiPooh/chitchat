@@ -8,6 +8,7 @@ import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 import { listMessageEmoticons } from "./list-message-emoticons";
 import { listMessageMedia } from "./list-message-media";
+import { listMessageReactions } from "./list-message-reactions";
 import { listReplyPreviews } from "./list-reply-previews";
 
 export type ListMessagesParams = {
@@ -111,15 +112,17 @@ async function listAround(
  */
 export async function withMedia(rows: Message[]): Promise<ChatMessage[]> {
   const live = rows.filter((row) => row.deletedAt === null);
+  const liveIds = live.map((row) => row.id);
   const mediaIds = live.filter((row) => row.type === "media").map((row) => row.id);
   const emoticonIds = live
     .map((row) => row.emoticonItemId)
     .filter((id): id is EmoticonItemId => id !== null);
   const parentIds = live.map((row) => row.replyToId).filter((id): id is MessageId => id !== null);
-  const [byMessage, byEmoticonId, byParentId] = await Promise.all([
+  const [byMessage, byEmoticonId, byParentId, byReaction] = await Promise.all([
     listMessageMedia(mediaIds),
     listMessageEmoticons(emoticonIds),
     listReplyPreviews(parentIds),
+    listMessageReactions(liveIds),
   ]);
 
   return rows.map((row) =>
@@ -128,6 +131,7 @@ export async function withMedia(rows: Message[]): Promise<ChatMessage[]> {
       byMessage.get(row.id),
       row.emoticonItemId ? (byEmoticonId.get(row.emoticonItemId) ?? null) : null,
       row.replyToId ? (byParentId.get(row.replyToId) ?? null) : null,
+      byReaction.get(row.id) ?? [],
     ),
   );
 }

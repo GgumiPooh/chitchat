@@ -96,5 +96,14 @@ export type ChatMessage = {
   isCollapsed: boolean;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — true only ever reaches the sender's own client, since every read path filters this row out for anyone else before it gets here. */
   onlyMe: boolean;
+  reactions: MessageReaction[];
   id: MessageId;
+};
+
+export type MessageReaction = {
+  messageId: MessageId;
+  userId: UserId;
+  reactionType: "emoji" | "emoticon";
+  emoji: Nullable<string>;
+  emoticonItemId: Nullable<EmoticonItemId>;
 };

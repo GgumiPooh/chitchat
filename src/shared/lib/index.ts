@@ -121,6 +121,7 @@ export {
 } from "./hooks/use-app-route-tracker";
 export { useBfcacheRestore } from "./hooks/use-bfcache-restore";
 export { useDocumentBackground } from "./hooks/use-document-background";
+export { useDoubleTap, type DoubleTapOptions } from "./hooks/use-double-tap";
 export { useHydrated } from "./hooks/use-hydrated";
 export { useInertialStrip, type InertialStripOptions } from "./hooks/use-inertial-strip";
 export { useIsCoarsePointer, useIsFinePointer } from "./hooks/use-is-coarse-pointer";
@@ -155,6 +156,7 @@ export {
 export { usePinnedDocument } from "./hooks/use-pinned-document";
 export { useRovingTabIndex, type RovingTabIndexOptions } from "./hooks/use-roving-tab-index";
 export { useSettledCommit, type SettledCommitOptions } from "./hooks/use-settled-commit";
+export { useSheetDrag, type SheetSize, type UseSheetDragOptions } from "./hooks/use-sheet-drag";
 export {
   SIDE_PANEL_ANIMATING_ATTRIBUTE,
   isSidePanelAnimating,

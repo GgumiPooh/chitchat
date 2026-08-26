@@ -1061,6 +1061,27 @@ A message is folded to its quote, **one clamped line** and a 펼치기 row (`DES
 - **The toggle resolves its message by id at the moment it runs**, never from the one the action sheet was opened on. That snapshot is as old as the long-press, so a fold read off it toggles against a state two taps stale — which is what left a bubble folded after 펼치기
 - **A § 8.6.1. jump does not unfold.** The § 6.8. flash lands on the folded row and says which one it is; unfolding is one tap from there, and auto-unfolding would undo the fold the reader is looking for
 
+### 8.18. 리액션 — 퀵 리액션바와 미니이모티콘 바텀시트 ✅
+
+말풍선 우클릭 / 롱프레스 시 컨텍스트 메뉴 상단에 근접한 **퀵 리액션바**(`ReactionBar`)가 함께 노출되고, 우측 `+` 버튼을 통해 **미니이모티콘 바텀시트**(`MiniEmoticonSheet`)가 열려 이모지 및 미니이모티콘으로 반응을 남길 수 있다.
+
+**The table** — `message_reactions`, `(message_id, user_id, emoji / emoticon_item_id)` 유니크 인덱스
+
+- **유저는 메시지 1개에 여러 종류의 리액션을 동시에 등록 가능**하며, 동일한 종류의 리액션을 중복 등록하는 것은 유니크 인덱스로 방지된다.
+- 이미 남긴 리액션을 다시 탭하면 해당 리액션만 취소(삭제)되고, 다른 리액션을 탭하면 추가된다.
+- `reaction_type` (`'emoji'` | `'emoticon'`)과 페이로드(`emoji`, `emoticon_item_id`) 체크 제약조건을 가지며, `message_reactions_notify_changed` 트리거를 통해 `message_changed` 채널로 실시간 동기화된다.
+- 최근 사용한 리액션은 로컬스토리지(`jandh:recent-reactions`)에 저장되어 즉시 표시된다.
+
+**The screen**
+
+- **퀵 리액션바:** `❤️`, `👍`, `✅`, `😆`, `😮`, `😢` 6개 기본 이모지와 `+` 버튼으로 구성되며, 내가 누른 이모지들이 모두 활성화 표시된다.
+- **미니이모티콘 바텀시트:**
+  - 2단계 스냅 높이(기본 380px, 높게 펼쳐진 상태)를 지원하며, 6열(`grid-cols-6`) 그리드로 구성.
+  - 세로 스크롤 섹션: `최근 사용`, `기본` (30종 큐레이션 이모지), 유저가 활성화해 둔 `미니이모티콘 팩`별 섹션.
+  - 애니메이션이 있는 미니이모티콘은 `useViewportReplay` (`IntersectionObserver` 기반)를 통해 화면에 노출될 때만 무한 반복 재생된다.
+  - 내가 등록한 리액션 항목들은 시트 내에서 활성화(선택) 표시된다.
+- **리액션 배지:** 말풍선 하단에 집계된 리액션 배지가 노출되며, 내가 누른 리액션은 강조 표시되고 탭하여 개별 토글할 수 있다.
+
 ---
 
 ## 9. Media Storage (R2) ✅
