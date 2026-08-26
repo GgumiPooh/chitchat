@@ -172,8 +172,8 @@ async function readInlineAttachment(
 }
 
 /**
- * A `type = 'emoticon'` row: its still image inline (falling back to the
- * animated slot the way the picker itself does), plus its keywords in the text
+ * A `type = 'emoticon'` row: its animated image inline (falling back to the
+ * still slot the way the picker itself does), plus its keywords in the text
  * so the model can name the emoticon even when the image is filtered out or
  * over budget. A deleted item keeps the bare placeholder — the tombstone the
  * bubble itself draws has nothing left to send.
@@ -200,7 +200,7 @@ async function readEmoticonImage(
   maxBytes: number,
 ): Promise<Optional<PromptAttachment>> {
   const item = await getEmoticonItem(itemId);
-  const asset = item && toSlotAsset(item, "still-image");
+  const asset = item && toSlotAsset(item, "animated-image");
 
   if (!asset || !isLlmInlineMime(asset.mime)) {
     return undefined;
