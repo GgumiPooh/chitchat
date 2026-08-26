@@ -437,8 +437,13 @@ export function ChatRoom({
   const [isEmoticonSearchExempt, setIsEmoticonSearchExempt] = useState(false);
   // INFO: § 13.6. A swap between the keyboard and the sheet in progress — `opening` from the toggle with the keys up, `closing` from the composer's field with the sheet up.
   const [sheetSwap, setSheetSwap] = useState<Nullable<"opening" | "closing">>(null);
+  const isSwappingRef = useRef(false);
+  isSwappingRef.current = sheetSwap !== null;
+
   // WARN: § 13.8. Memoized because the picker's own effect depends on it — a fresh identity every render re-runs that effect on every render of this room.
   const reportEmoticonSearchTab = useCallback((isOnSearchTab: boolean, query: string) => {
+    if (isSwappingRef.current) return;
+
     setIsEmoticonSearchTab(isOnSearchTab);
 
     // WARN: § 13.8. Leaving 검색 ends the search, exactly as closing the panel does — unless the field still holds something the reader typed, which a walk to another tab and back should find undisturbed regardless of which tap opened it.
