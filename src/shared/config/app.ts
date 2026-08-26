@@ -445,7 +445,7 @@ export const notifyModes = ["notify", "silent", "onlyMe"] as const;
 
 export type NotifyMode = (typeof notifyModes)[number];
 
-/** `Ctrl+S`'s cycle (REQUIREMENTS.md § 8.14., § 16.1.): 알림 받게 하기 → 조용히 보내기 → 나에게만 보내기 → …*/
+/** `Ctrl+S`'s cycle (REQUIREMENTS.md § 8.14., § 16.1.): 알림 울리게 보내기 → 조용히 보내기 → 나에게만 보내기 → …*/
 export function nextNotifyMode(mode: NotifyMode): NotifyMode {
   return notifyModes[(notifyModes.indexOf(mode) + 1) % notifyModes.length];
 }

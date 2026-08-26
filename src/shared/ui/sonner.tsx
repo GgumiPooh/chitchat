@@ -14,7 +14,12 @@ export function Toaster({ className, style, toastOptions, ...props }: ToasterPro
 
   return (
     <SonnerToaster
-      className={cn("toaster group", className)}
+      className={cn(
+        "toaster group",
+        // INFO: AGENTS.md § 4.4. Centered on the content area right of the nav rail and side panel, matching DialogContent's midpoint calculation.
+        "[&_[data-sonner-toaster]]:left-[calc(var(--content-left,0px)_+_(100%_-_var(--content-left,0px))_/_2)]! [&_[data-sonner-toaster]]:-translate-x-1/2!",
+        className,
+      )}
       theme={resolvedTheme === "dark" ? "dark" : "light"}
       position="bottom-center"
       style={

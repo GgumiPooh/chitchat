@@ -8,7 +8,7 @@ export type ModalProps = PropsWithChildren<{
   hideCloseButton?: boolean;
   isOpen: boolean;
   position?: "center" | "top";
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
   header: {
     className?: string;
     title: string;

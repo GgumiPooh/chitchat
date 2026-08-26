@@ -12,7 +12,7 @@ export type BuildChatRowsParams = {
    * REQUIREMENTS.md § 16.1. 나에게만 보내기 — while this reader's own device is on
    * that mode, the timeline narrows to exactly the messages carrying `onlyMe`:
    * their own private sends and the AI answers those private questions produced.
-   * A message sent under 조용히 보내기 or 알림 받게 하기, and a calendar system
+   * A message sent under 조용히 보내기 or 알림 울리게 보내기, and a calendar system
    * notice however triggered, all drop out of the *view* (never the data — leaving
    * the mode restores them).
    */

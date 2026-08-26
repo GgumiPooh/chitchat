@@ -25,7 +25,7 @@ export function SilentSendButton({ className }: SilentSendButtonProps) {
         variant="floating"
         haptic
         Icon={HeaderIcon}
-        aria-label="알림 설정"
+        aria-label="메시지 보내기"
         aria-pressed={isOn}
         aria-expanded={isOpen}
         onClick={() => setIsOpen(true)}
@@ -33,10 +33,10 @@ export function SilentSendButton({ className }: SilentSendButtonProps) {
       <ActionSheet
         isOpen={isOpen}
         anchorRef={anchorRef}
-        header={{ title: "알림 설정" }}
+        header={{ title: "메시지 보내기", isHidden: true }}
         items={[
           {
-            label: "알림 받게 하기",
+            label: "알림 울리게 보내기",
             Icon: mode === "notify" ? Check : undefined,
             onSelect: () => setMode("notify"),
           },

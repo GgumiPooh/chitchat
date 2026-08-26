@@ -88,8 +88,11 @@ export function ActionSheet({
   const isDesktop = useIsDesktop();
   const isMenu = anchorRef !== undefined && (isDesktop || presentation === "menu");
   // INFO: Callers clear the subject on close, and the exit animation would otherwise play over an empty title and no rows.
-  // INFO: React's "adjust state during render", keyed on the visible text since `header`/`items` are rebuilt every render.
-  const snapshotKey = [header.title, ...items.map((item) => item.label)].join("\u0000");
+  // INFO: React's "adjust state during render", keyed on visible text & icon presence since `header`/`items` are rebuilt every render.
+  const snapshotKey = [
+    header.title,
+    ...items.map((item) => `${item.label}:${item.Icon ? "1" : "0"}`),
+  ].join("\u0000");
   const [snapshot, setSnapshot] = useState({ key: snapshotKey, header, items, reactionSlot });
   if (isOpen && (snapshot.key !== snapshotKey || snapshot.reactionSlot !== reactionSlot)) {
     setSnapshot({ key: snapshotKey, header, items, reactionSlot });

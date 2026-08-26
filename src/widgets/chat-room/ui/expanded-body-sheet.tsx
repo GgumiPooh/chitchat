@@ -82,9 +82,9 @@ export function ExpandedBodySheet({
   if (isDesktop) {
     return (
       <Modal
-        className={className}
+        className={cn("w-[min(var(--content-max-width,720px),100%-var(--spacing-xl))]", className)}
         isOpen={isOpen}
-        size="md"
+        size="lg"
         header={{
           description: shown
             ? `${formatDate(shown.createdAt)} ${formatTime(shown.createdAt)}`
