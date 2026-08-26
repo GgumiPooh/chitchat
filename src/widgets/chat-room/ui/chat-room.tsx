@@ -2963,6 +2963,9 @@ export function ChatRoom({
               question ? () => void jumpToMessage(question.id, { flash: true }) : undefined
             }
             onLongPress={(anchor, point) => {
+              if (document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur();
+              }
               menuAnchorRef.current = anchor;
               menuAnchorPointRef.current = point;
               setActionTarget(row.message);
@@ -3082,6 +3085,9 @@ export function ChatRoom({
               openAttachment(cells, index, row.message.id, row.message.senderId, origin)
             }
             onLongPress={(anchor, point) => {
+              if (document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur();
+              }
               menuAnchorRef.current = anchor;
               menuAnchorPointRef.current = point;
               setActionTarget(row.message);

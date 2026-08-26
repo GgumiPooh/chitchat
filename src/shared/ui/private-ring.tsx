@@ -29,7 +29,7 @@ export function PrivateRing({ className }: PrivateRingProps) {
   return (
     <span
       className={cn(
-        "pointer-events-none absolute inset-0 ring-2 ring-ring-private ring-inset",
+        "pointer-events-none absolute inset-0 border-[2px] border-ring-private",
         className,
       )}
       aria-hidden
