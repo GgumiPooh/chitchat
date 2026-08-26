@@ -48,7 +48,8 @@ export function DialogContent({
       {/* INFO: AGENTS.md § 4.4. `left` is the midpoint of the content area right of the rail, not the viewport's — the portal puts this outside the shell, so a plain `left-1/2` centred it on the rail too and sat visibly off-centre against the panes beside it. */}
       <DialogPrimitive.Content
         className={cn(
-          "fixed top-[calc(var(--keyboard-pan)_+_var(--viewport-height,100dvh)_/_2)] left-[calc(var(--content-left)_+_(100%_-_var(--content-left))_/_2)] z-50 grid max-h-[calc(var(--viewport-height,100dvh)_-_var(--spacing-xl))] -translate-x-1/2 -translate-y-1/2 gap-md overflow-y-auto rounded-lg border border-hairline bg-canvas p-lg shadow-floating duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          // WARN: `flex flex-col`, not `grid` — a `grid` container's implicit rows leave `align-content` free to fall back to centering the whole track once `isTall` forces this box taller than its content, which stacked the header and body in the middle of the box instead of at its top.
+          "fixed top-[calc(var(--keyboard-pan)_+_var(--viewport-height,100dvh)_/_2)] left-[calc(var(--content-left)_+_(100%_-_var(--content-left))_/_2)] z-50 flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--spacing-xl))] -translate-x-1/2 -translate-y-1/2 flex-col gap-md overflow-y-auto rounded-lg border border-hairline bg-canvas p-lg shadow-floating duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}
         {...props}
