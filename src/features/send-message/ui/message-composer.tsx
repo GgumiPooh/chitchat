@@ -289,6 +289,7 @@ export function MessageComposer({
   const layerRef = useRef<Nullable<HTMLDivElement>>(null);
   const keywordSpanRef = useRef<Nullable<HTMLSpanElement>>(null);
   const pointerDownPosRef = useRef<Nullable<{ clientX: number; clientY: number }>>(null);
+  const isTappingKeywordRef = useRef(false);
   // INFO: § 8.14. Where the field last held its caret, which is where an emoticon from the picker goes in. Written by the field itself; null until it has held one.
   const caretOffsetRef = useRef<Nullable<number>>(null);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
@@ -806,7 +807,7 @@ export function MessageComposer({
                 onEdit?.(next.trim().length > 0);
               }}
               onClick={handleFieldClick}
-              onFocus={onFieldFocus}
+              onFocus={handleFieldFocus}
               onKeyDown={handleKeyDown}
               onPointerCancel={handleFieldPointerCancel}
               onPointerDown={handleFieldPointerDown}
@@ -843,7 +844,7 @@ export function MessageComposer({
                 }
                 onChange={handlePlainChange}
                 onClick={handleFieldClick}
-                onFocus={onFieldFocus}
+                onFocus={handleFieldFocus}
                 onKeyDown={handleKeyDown}
                 onPointerCancel={handleFieldPointerCancel}
                 onPointerDown={handleFieldPointerDown}
@@ -1047,15 +1048,30 @@ export function MessageComposer({
     onToggleEmoticons?.();
   }
 
+  function handleFieldFocus() {
+    if (isTappingKeywordRef.current) {
+      isTappingKeywordRef.current = false;
+      fieldRef.current?.blur();
+      return;
+    }
+
+    onFieldFocus?.();
+  }
+
   /** WARN: § 13.6. Blurs for the same reason the toggle does — the panel this opens cannot share the screen with the keyboard. */
   function handleKeywordTap() {
     if (!match) {
       return;
     }
 
+    isTappingKeywordRef.current = true;
     // WARN: § 13.6. Before the request and not after, which is the order this has always been in — the blur is what lowers the keyboard, and the panel is asked to open against a viewport that is already on its way back.
     fieldRef.current?.blur();
     openEmoticonSearch(match.query);
+
+    setTimeout(() => {
+      isTappingKeywordRef.current = false;
+    }, 200);
   }
 
   /**
@@ -1106,6 +1122,7 @@ export function MessageComposer({
     pointerDownPosRef.current = { clientX, clientY };
 
     if (isPointInKeyword(clientX, clientY)) {
+      isTappingKeywordRef.current = true;
       // WARN: Suppress default keyboard pan / focus when hitting the keyword directly; the tap is settled on pointerup.
       event.preventDefault();
       return;
@@ -1133,6 +1150,7 @@ export function MessageComposer({
 
   function handleFieldPointerCancel() {
     pointerDownPosRef.current = null;
+    isTappingKeywordRef.current = false;
   }
 
   function handleFieldClick(event: MouseEvent<HTMLDivElement | HTMLTextAreaElement>) {

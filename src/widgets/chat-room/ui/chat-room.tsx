@@ -2773,6 +2773,7 @@ export function ChatRoom({
     setEmoticonSearch({ query, token: Date.now() });
     searchedWordRef.current = query === "" ? null : query;
     // WARN: Set here as well as reported back by the picker's own effect. The gate above reads it in the same commit the panel is asked to open in, and waiting for the effect leaves one frame where the panel is open, the keyboard is still retracting and the exemption is not in yet — which closes it again.
+    setIsEmoticonSearchExempt(true);
     setIsEmoticonSearchTab(true);
     setIsEmoticonPickerOpen(true);
   }
