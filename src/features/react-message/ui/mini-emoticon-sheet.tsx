@@ -16,8 +16,9 @@ import {
 } from "@/shared/lib";
 import { HapticTarget, Modal, PreloadImage } from "@/shared/ui";
 import { useQueries, useQuery } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Dialog as DialogPrimitive } from "radix-ui";
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import { DEFAULT_REACTION_EMOJIS } from "../config/default-emojis";
 import { useRecentReactions } from "../model/use-recent-reactions";
 
@@ -35,6 +36,30 @@ export type MiniEmoticonSheetProps = {
   ) => void;
 };
 
+type VirtualRow =
+  | {
+      title: string;
+      type: "header";
+      id: string;
+    }
+  | {
+      type: "recents-row";
+      items: Array<{ kind: "emoji"; value: string } | { kind: "emoticon"; value: EmoticonItemId }>;
+      id: string;
+    }
+  | {
+      items: string[];
+      type: "emoji-row";
+      id: string;
+    }
+  | {
+      items: Emoticon[];
+      type: "emoticon-row";
+      id: string;
+    };
+
+const COLUMNS = 6;
+
 export function MiniEmoticonSheet({
   className,
   activeEmoticonItemIds,
@@ -46,6 +71,7 @@ export function MiniEmoticonSheet({
 }: MiniEmoticonSheetProps) {
   const isDesktop = useIsDesktop();
   const sheetRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   const { size, expandedHeight, pinnedHeight, isDragging, dragProps, handleProps } = useSheetDrag({
     sheetRef,
@@ -95,120 +121,206 @@ export function MiniEmoticonSheet({
     onClose();
   };
 
+  const virtualRows = useMemo(() => {
+    const rows: VirtualRow[] = [];
+
+    // 1. 최근 사용 섹션
+    if (recentReactions.length > 0) {
+      rows.push({
+        id: "header-recent",
+        title: "최근 사용",
+        type: "header",
+      });
+
+      const slicedRecents = recentReactions.slice(0, 18);
+      for (let i = 0; i < slicedRecents.length; i += COLUMNS) {
+        rows.push({
+          id: `recent-row-${i}`,
+          items: slicedRecents.slice(i, i + COLUMNS),
+          type: "recents-row",
+        });
+      }
+    }
+
+    // 2. 기본 이모지 섹션
+    rows.push({
+      id: "header-default",
+      title: "기본",
+      type: "header",
+    });
+
+    for (let i = 0; i < DEFAULT_REACTION_EMOJIS.length; i += COLUMNS) {
+      rows.push({
+        id: `emoji-row-${i}`,
+        items: DEFAULT_REACTION_EMOJIS.slice(i, i + COLUMNS),
+        type: "emoji-row",
+      });
+    }
+
+    // 3. 활성화된 미니 이모티콘 팩 섹션들
+    miniPacks.forEach((pack, index) => {
+      const items = packItemsQueries[index]?.data ?? [];
+      if (items.length === 0) {
+        return;
+      }
+
+      rows.push({
+        id: `header-pack-${pack.id}`,
+        title: pack.name,
+        type: "header",
+      });
+
+      for (let i = 0; i < items.length; i += COLUMNS) {
+        rows.push({
+          id: `pack-${pack.id}-row-${i}`,
+          items: items.slice(i, i + COLUMNS),
+          type: "emoticon-row",
+        });
+      }
+    });
+
+    return rows;
+  }, [recentReactions, miniPacks, packItemsQueries]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: virtualRows.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: (index) => {
+      const row = virtualRows[index];
+      if (row.type === "header") {
+        return 28; // text-body-xs font-semibold (약 16px) + margin/padding (약 12px)
+      }
+      return 56; // 6열 aspect-square 셀 높이 + gap-2
+    },
+    overscan: 15,
+  });
+
   const content = (
-    <div className="space-y-5 pb-6">
-      {/* 최근 사용 섹션 */}
-      {recentReactions.length > 0 && (
-        <section className="space-y-2">
-          <h3 className="text-body-xs px-1 font-semibold text-meta">최근 사용</h3>
-          <div className="grid grid-cols-6 gap-2">
-            {recentReactions.slice(0, 18).map((recent, index) => {
-              if (recent.kind === "emoji") {
-                const isSelected = activeEmojiSet?.has(recent.value) ?? false;
+    <div
+      ref={scrollContainerRef}
+      className="relative scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain"
+    >
+      <div
+        className="relative w-full pb-6"
+        style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+      >
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const row = virtualRows[virtualRow.index];
 
-                return (
-                  <HapticTarget
-                    key={`recent-emoji-${recent.value}-${index}`}
-                    className="flex aspect-square"
-                    overlayClassName="touch-pan-y"
-                    keepsScroll
-                  >
-                    <button
-                      className={cn(
-                        "relative flex size-full items-center justify-center rounded-xl text-2xl transition-all duration-150 active:scale-95",
-                        isSelected
-                          ? "border-2 border-primary bg-primary/15 text-primary"
-                          : "hover:bg-surface-soft active:bg-surface-pressed",
-                      )}
-                      type="button"
-                      aria-label={recent.value}
-                      onClick={() => handleSelectEmoji(recent.value)}
-                    >
-                      <span>{recent.value}</span>
-                    </button>
-                  </HapticTarget>
-                );
-              }
+          return (
+            <div
+              key={row.id}
+              ref={rowVirtualizer.measureElement}
+              className="absolute top-0 left-0 w-full"
+              data-index={virtualRow.index}
+              style={{
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              {row.type === "header" && (
+                <div className="pt-3 pb-1">
+                  <h3 className="text-body-xs px-1 font-semibold text-meta">{row.title}</h3>
+                </div>
+              )}
 
-              const isSelected = activeItemSet?.has(recent.value) ?? false;
+              {row.type === "recents-row" && (
+                <div className="grid grid-cols-6 gap-2 pb-2">
+                  {row.items.map((recent, itemIdx) => {
+                    if (recent.kind === "emoji") {
+                      const isSelected = activeEmojiSet?.has(recent.value) ?? false;
 
-              return (
-                <RecentMiniEmoticonButton
-                  key={`recent-emoticon-${recent.value}-${index}`}
-                  isSelected={isSelected}
-                  itemId={recent.value}
-                  onSelect={() => {
-                    rememberReaction(recent);
-                    onSelectReaction({
-                      emoticonItemId: recent.value,
-                      reactionType: "emoticon",
-                    });
-                    onClose();
-                  }}
-                />
-              );
-            })}
-          </div>
-        </section>
-      )}
+                      return (
+                        <HapticTarget
+                          key={`recent-emoji-${recent.value}-${itemIdx}`}
+                          className="flex aspect-square"
+                          overlayClassName="touch-pan-y"
+                          keepsScroll
+                        >
+                          <button
+                            className={cn(
+                              "relative flex size-full items-center justify-center rounded-xl text-2xl transition-all duration-150 active:scale-95",
+                              isSelected
+                                ? "border-2 border-primary bg-primary/15 text-primary"
+                                : "hover:bg-surface-soft active:bg-surface-pressed",
+                            )}
+                            type="button"
+                            aria-label={recent.value}
+                            onClick={() => handleSelectEmoji(recent.value)}
+                          >
+                            <span>{recent.value}</span>
+                          </button>
+                        </HapticTarget>
+                      );
+                    }
 
-      {/* 기본 이모지 30종 섹션 */}
-      <section className="space-y-2">
-        <h3 className="text-body-xs px-1 font-semibold text-meta">기본</h3>
-        <div className="grid grid-cols-6 gap-2">
-          {DEFAULT_REACTION_EMOJIS.map((emoji) => {
-            const isSelected = activeEmojiSet?.has(emoji) ?? false;
+                    const isSelected = activeItemSet?.has(recent.value) ?? false;
 
-            return (
-              <HapticTarget
-                key={emoji}
-                className="flex aspect-square"
-                overlayClassName="touch-pan-y"
-                keepsScroll
-              >
-                <button
-                  className={cn(
-                    "relative flex size-full items-center justify-center rounded-xl text-2xl transition-all duration-150 active:scale-95",
-                    isSelected
-                      ? "border-2 border-primary bg-primary/15 text-primary"
-                      : "hover:bg-surface-soft active:bg-surface-pressed",
-                  )}
-                  type="button"
-                  aria-label={emoji}
-                  onClick={() => handleSelectEmoji(emoji)}
-                >
-                  <span>{emoji}</span>
-                </button>
-              </HapticTarget>
-            );
-          })}
-        </div>
-      </section>
+                    return (
+                      <RecentMiniEmoticonButton
+                        key={`recent-emoticon-${recent.value}-${itemIdx}`}
+                        isSelected={isSelected}
+                        itemId={recent.value}
+                        onSelect={() => {
+                          rememberReaction(recent);
+                          onSelectReaction({
+                            emoticonItemId: recent.value,
+                            reactionType: "emoticon",
+                          });
+                          onClose();
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
 
-      {/* 활성화된 미니 이모티콘 팩 섹션들 */}
-      {miniPacks.map((pack, index) => {
-        const items = packItemsQueries[index]?.data ?? [];
+              {row.type === "emoji-row" && (
+                <div className="grid grid-cols-6 gap-2 pb-2">
+                  {row.items.map((emoji) => {
+                    const isSelected = activeEmojiSet?.has(emoji) ?? false;
 
-        if (items.length === 0) {
-          return null;
-        }
+                    return (
+                      <HapticTarget
+                        key={emoji}
+                        className="flex aspect-square"
+                        overlayClassName="touch-pan-y"
+                        keepsScroll
+                      >
+                        <button
+                          className={cn(
+                            "relative flex size-full items-center justify-center rounded-xl text-2xl transition-all duration-150 active:scale-95",
+                            isSelected
+                              ? "border-2 border-primary bg-primary/15 text-primary"
+                              : "hover:bg-surface-soft active:bg-surface-pressed",
+                          )}
+                          type="button"
+                          aria-label={emoji}
+                          onClick={() => handleSelectEmoji(emoji)}
+                        >
+                          <span>{emoji}</span>
+                        </button>
+                      </HapticTarget>
+                    );
+                  })}
+                </div>
+              )}
 
-        return (
-          <section key={pack.id} className="space-y-2">
-            <h3 className="text-body-xs px-1 font-semibold text-meta">{pack.name}</h3>
-            <div className="grid grid-cols-6 gap-2">
-              {items.map((item) => (
-                <MiniEmoticonCellButton
-                  key={item.id}
-                  isSelected={activeItemSet?.has(item.id) ?? false}
-                  item={item}
-                  onSelect={() => handleSelectEmoticon(item)}
-                />
-              ))}
+              {row.type === "emoticon-row" && (
+                <div className="grid grid-cols-6 gap-2 pb-2">
+                  {row.items.map((item) => (
+                    <MiniEmoticonCellButton
+                      key={item.id}
+                      isSelected={activeItemSet?.has(item.id) ?? false}
+                      item={item}
+                      onSelect={() => handleSelectEmoticon(item)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-          </section>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 
@@ -224,7 +336,7 @@ export function MiniEmoticonSheet({
         }}
         onClose={onClose}
       >
-        <div className="scrollbar-hidden h-[380px] overflow-y-auto">{content}</div>
+        <div className="flex h-[380px] flex-col">{content}</div>
       </Modal>
     );
   }
@@ -270,10 +382,8 @@ export function MiniEmoticonSheet({
             <span className="hover:bg-ink-muted block h-1.5 w-12 rounded-full bg-hairline-strong transition-colors" />
           </button>
 
-          {/* 스크롤 가능한 컨텐츠 영역 */}
-          <div className="-mx-md scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain px-md">
-            {content}
-          </div>
+          {/* 스크롤 가능한 가상화 컨텐츠 영역 */}
+          <div className="-mx-md -mb-md flex min-h-0 flex-1 flex-col px-md">{content}</div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
