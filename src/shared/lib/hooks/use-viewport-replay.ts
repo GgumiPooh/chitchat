@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useInView } from "react-intersection-observer";
 import { A_SECOND } from "../date/time";
 import type { Optional } from "../nullish";
@@ -32,14 +32,6 @@ export const MINI_ANIMATION_LOOP_INTERVAL = 6 * A_SECOND;
 export function useViewportReplay(loopIntervalMs?: number) {
   const [replayToken, setReplayToken] = useState(0);
   const { ref, inView } = useInView();
-  const wasInView = useRef<boolean | undefined>(undefined);
-
-  useEffect(() => {
-    if (wasInView.current !== undefined && inView && !wasInView.current) {
-      setReplayToken((token) => token + 1);
-    }
-    wasInView.current = inView;
-  }, [inView]);
 
   useEffect(() => {
     if (!loopIntervalMs || !inView) {

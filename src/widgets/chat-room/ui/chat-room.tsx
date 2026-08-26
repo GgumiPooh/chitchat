@@ -765,7 +765,12 @@ export function ChatRoom({
   // INFO: A generation asked from anywhere, not only this device — `useActiveGenerations` is fed by the whole conversation's `llm` channel.
   const { generations, cancelGeneration } = useActiveGenerations();
   // INFO: The advisory lock (`LLM_GENERATION_LOCK_KEY`) serializes runs server-side, so at most one entry is ever `running`; a `queued` one with nothing running yet is drawn as this room's own front of the line.
-  const generationEntries = useMemo(() => Array.from(generations), [generations]);
+  const generationEntries = useMemo(() => {
+    const isOnlyMeMode = notifyMode === "onlyMe";
+    return Array.from(generations).filter(([, entry]) =>
+      isOnlyMeMode ? entry.onlyMe : !entry.onlyMe,
+    );
+  }, [generations, notifyMode]);
   const primaryGeneration =
     generationEntries.find(([, entry]) => entry.status === "running") ?? generationEntries[0];
   const queuedGenerationCount = primaryGeneration

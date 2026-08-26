@@ -265,8 +265,8 @@ export function ActionSheet({
           role="menu"
           aria-label={shownHeader.title}
           onKeyDown={handleMenuKeyDown}
-          // INFO: Focusing the first row paints its ring under a thumb that opened the menu by holding, not by keyboard; a hardware keyboard still reaches it with Tab.
-          onOpenAutoFocus={isDesktop ? undefined : (event) => event.preventDefault()}
+          // INFO: Suppress auto-focus so the first reaction/menuitem doesn't immediately get focused on open; keyboard navigation still works via Tab or arrow keys.
+          onOpenAutoFocus={(event) => event.preventDefault()}
         >
           {shownReactionSlot && <div className="w-full shrink-0">{shownReactionSlot}</div>}
           <div className="w-full rounded-2xl border border-hairline bg-canvas p-2xs shadow-floating">

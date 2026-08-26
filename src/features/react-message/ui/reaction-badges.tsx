@@ -11,7 +11,7 @@ import {
   type EmoticonItemId,
   type UserId,
 } from "@/shared/lib";
-import { HapticTap, PreloadImage } from "@/shared/ui";
+import { HapticTarget, PreloadImage } from "@/shared/ui";
 
 export type ReactionBadgesProps = {
   className?: string;
@@ -88,30 +88,30 @@ export function ReactionBadges({
         };
 
         return (
-          <button
-            key={group.key}
-            className={cn(
-              "inline-flex h-7 items-center gap-1 rounded-full border px-2 py-0 font-medium shadow-2xs transition-all active:scale-95",
-              group.hasMine
-                ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15"
-                : "hover:bg-surface-elevated border-hairline bg-surface-soft text-ink",
-            )}
-            type="button"
-            aria-label={`리액션 ${group.count}개`}
-            onClick={handleClick}
-          >
-            {group.reactionType === "emoji" ? (
-              <span className="text-sm leading-none">{group.emoji}</span>
-            ) : group.emoticonItemId ? (
-              <BadgeEmoticonImage itemId={group.emoticonItemId} />
-            ) : null}
-            {group.count > 1 && (
-              <span className="text-[11px] leading-none font-semibold tabular-nums">
-                {group.count}
-              </span>
-            )}
-            <HapticTap forwardsTap />
-          </button>
+          <HapticTarget key={group.key} className="inline-flex shrink-0">
+            <button
+              className={cn(
+                "inline-flex h-7 items-center gap-1 rounded-full border px-2 py-0 font-medium shadow-2xs transition-all active:scale-95",
+                group.hasMine
+                  ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15"
+                  : "hover:bg-surface-elevated border-hairline bg-surface-soft text-ink",
+              )}
+              type="button"
+              aria-label={`리액션 ${group.count}개`}
+              onClick={handleClick}
+            >
+              {group.reactionType === "emoji" ? (
+                <span className="text-sm leading-none">{group.emoji}</span>
+              ) : group.emoticonItemId ? (
+                <BadgeEmoticonImage itemId={group.emoticonItemId} />
+              ) : null}
+              {group.count > 1 && (
+                <span className="text-[11px] leading-none font-semibold tabular-nums">
+                  {group.count}
+                </span>
+              )}
+            </button>
+          </HapticTarget>
         );
       })}
     </div>

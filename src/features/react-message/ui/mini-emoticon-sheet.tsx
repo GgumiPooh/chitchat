@@ -14,7 +14,7 @@ import {
   type EmoticonItemId,
   type MessageId,
 } from "@/shared/lib";
-import { HapticTap, Modal, PreloadImage } from "@/shared/ui";
+import { HapticTarget, Modal, PreloadImage } from "@/shared/ui";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { useRef } from "react";
@@ -107,21 +107,26 @@ export function MiniEmoticonSheet({
                 const isSelected = activeEmojiSet?.has(recent.value) ?? false;
 
                 return (
-                  <button
+                  <HapticTarget
                     key={`recent-emoji-${recent.value}-${index}`}
-                    className={cn(
-                      "relative flex aspect-square items-center justify-center rounded-xl text-2xl transition-all duration-150 active:scale-95",
-                      isSelected
-                        ? "border-2 border-primary bg-primary/15 text-primary"
-                        : "hover:bg-surface-soft active:bg-surface-pressed",
-                    )}
-                    type="button"
-                    aria-label={recent.value}
-                    onClick={() => handleSelectEmoji(recent.value)}
+                    className="flex aspect-square"
+                    overlayClassName="touch-pan-y"
+                    keepsScroll
                   >
-                    <span>{recent.value}</span>
-                    <HapticTap forwardsTap />
-                  </button>
+                    <button
+                      className={cn(
+                        "relative flex size-full items-center justify-center rounded-xl text-2xl transition-all duration-150 active:scale-95",
+                        isSelected
+                          ? "border-2 border-primary bg-primary/15 text-primary"
+                          : "hover:bg-surface-soft active:bg-surface-pressed",
+                      )}
+                      type="button"
+                      aria-label={recent.value}
+                      onClick={() => handleSelectEmoji(recent.value)}
+                    >
+                      <span>{recent.value}</span>
+                    </button>
+                  </HapticTarget>
                 );
               }
 
@@ -155,21 +160,26 @@ export function MiniEmoticonSheet({
             const isSelected = activeEmojiSet?.has(emoji) ?? false;
 
             return (
-              <button
+              <HapticTarget
                 key={emoji}
-                className={cn(
-                  "relative flex aspect-square items-center justify-center rounded-xl text-2xl transition-all duration-150 active:scale-95",
-                  isSelected
-                    ? "border-2 border-primary bg-primary/15 text-primary"
-                    : "hover:bg-surface-soft active:bg-surface-pressed",
-                )}
-                type="button"
-                aria-label={emoji}
-                onClick={() => handleSelectEmoji(emoji)}
+                className="flex aspect-square"
+                overlayClassName="touch-pan-y"
+                keepsScroll
               >
-                <span>{emoji}</span>
-                <HapticTap forwardsTap />
-              </button>
+                <button
+                  className={cn(
+                    "relative flex size-full items-center justify-center rounded-xl text-2xl transition-all duration-150 active:scale-95",
+                    isSelected
+                      ? "border-2 border-primary bg-primary/15 text-primary"
+                      : "hover:bg-surface-soft active:bg-surface-pressed",
+                  )}
+                  type="button"
+                  aria-label={emoji}
+                  onClick={() => handleSelectEmoji(emoji)}
+                >
+                  <span>{emoji}</span>
+                </button>
+              </HapticTarget>
             );
           })}
         </div>
@@ -214,9 +224,7 @@ export function MiniEmoticonSheet({
         }}
         onClose={onClose}
       >
-        <div className="scrollbar-hidden h-[380px] overflow-y-auto">
-          {content}
-        </div>
+        <div className="scrollbar-hidden h-[380px] overflow-y-auto">{content}</div>
       </Modal>
     );
   }
@@ -227,12 +235,12 @@ export function MiniEmoticonSheet({
       onOpenChange={(open: boolean) => !open && onClose()}
     >
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-scrim/45 transition-opacity data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-scrim/45 duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
           ref={sheetRef}
           className={cn(
-            "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 mx-auto mb-sm flex w-[calc(100%_-_var(--spacing-sm)*2)] max-w-[calc(var(--sheet-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus:outline-none",
-            isDragging ? "" : "transition-[height] duration-200 ease-out",
+            "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 mx-auto mb-sm flex w-[calc(100%_-_var(--spacing-sm)*2)] max-w-[calc(var(--sheet-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus:outline-none data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom",
+            isDragging ? "transition-none!" : "transition-[height] duration-200 ease-out",
             className,
           )}
           style={{
@@ -286,32 +294,33 @@ function MiniEmoticonCellButton({
   const emoticonAssetUrl = toEmoticonAssetUrl(item.id, "animated-image", item.version);
 
   return (
-    <button
-      ref={replayRef}
-      className={cn(
-        "relative flex aspect-square items-center justify-center overflow-hidden rounded-xl p-1.5 transition-all duration-150 active:scale-95",
-        isSelected
-          ? "border-2 border-primary bg-primary/15"
-          : "hover:bg-surface-soft active:bg-surface-pressed",
-      )}
-      type="button"
-      aria-label={item.keywords.length > 0 ? item.keywords.join(", ") : "미니 이모티콘"}
-      onClick={onSelect}
-    >
-      <PreloadImage
-        key={replayToken}
-        className="size-full"
-        imgClassName="size-full object-contain"
-        placeholderClassName="rounded-sm"
-        alt=""
-        previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
-        hidesPreviewOnReveal
-        loading={replayToken > 0 ? "eager" : "lazy"}
-        draggable={false}
-        src={toReplaySrc(emoticonAssetUrl, replayToken)}
-      />
-      <HapticTap forwardsTap />
-    </button>
+    <HapticTarget className="flex aspect-square" overlayClassName="touch-pan-y" keepsScroll>
+      <button
+        ref={replayRef}
+        className={cn(
+          "relative flex size-full items-center justify-center overflow-hidden rounded-xl p-1.5 transition-all duration-150 active:scale-95",
+          isSelected
+            ? "border-2 border-primary bg-primary/15"
+            : "hover:bg-surface-soft active:bg-surface-pressed",
+        )}
+        type="button"
+        aria-label={item.keywords.length > 0 ? item.keywords.join(", ") : "미니 이모티콘"}
+        onClick={onSelect}
+      >
+        <PreloadImage
+          key={replayToken}
+          className="size-full"
+          imgClassName="size-full object-contain"
+          placeholderClassName="rounded-sm"
+          alt=""
+          previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
+          hidesPreviewOnReveal
+          loading={replayToken > 0 ? "eager" : "lazy"}
+          draggable={false}
+          src={toReplaySrc(emoticonAssetUrl, replayToken)}
+        />
+      </button>
+    </HapticTarget>
   );
 }
 
@@ -328,31 +337,32 @@ function RecentMiniEmoticonButton({
   const emoticonAssetUrl = toEmoticonAssetUrl(itemId, "animated-image");
 
   return (
-    <button
-      ref={replayRef}
-      className={cn(
-        "relative flex aspect-square items-center justify-center overflow-hidden rounded-xl p-1.5 transition-all duration-150 active:scale-95",
-        isSelected
-          ? "border-2 border-primary bg-primary/15"
-          : "hover:bg-surface-soft active:bg-surface-pressed",
-      )}
-      type="button"
-      aria-label="최근 미니 이모티콘"
-      onClick={onSelect}
-    >
-      <PreloadImage
-        key={replayToken}
-        className="size-full"
-        imgClassName="size-full object-contain"
-        placeholderClassName="rounded-sm"
-        alt=""
-        previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
-        hidesPreviewOnReveal
-        loading={replayToken > 0 ? "eager" : "lazy"}
-        draggable={false}
-        src={toReplaySrc(emoticonAssetUrl, replayToken)}
-      />
-      <HapticTap forwardsTap />
-    </button>
+    <HapticTarget className="flex aspect-square" overlayClassName="touch-pan-y" keepsScroll>
+      <button
+        ref={replayRef}
+        className={cn(
+          "relative flex size-full items-center justify-center overflow-hidden rounded-xl p-1.5 transition-all duration-150 active:scale-95",
+          isSelected
+            ? "border-2 border-primary bg-primary/15"
+            : "hover:bg-surface-soft active:bg-surface-pressed",
+        )}
+        type="button"
+        aria-label="최근 미니 이모티콘"
+        onClick={onSelect}
+      >
+        <PreloadImage
+          key={replayToken}
+          className="size-full"
+          imgClassName="size-full object-contain"
+          placeholderClassName="rounded-sm"
+          alt=""
+          previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
+          hidesPreviewOnReveal
+          loading={replayToken > 0 ? "eager" : "lazy"}
+          draggable={false}
+          src={toReplaySrc(emoticonAssetUrl, replayToken)}
+        />
+      </button>
+    </HapticTarget>
   );
 }

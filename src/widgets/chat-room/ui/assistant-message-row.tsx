@@ -141,7 +141,9 @@ export function AssistantMessageRow({
               className={cn(
                 "w-fit max-w-full rounded-bubble rounded-tl-xs border border-hairline px-sm py-xs select-text",
                 // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the asker's own private question answered with the other theme's `theirs` fill, `MessageRow`'s own bubble reading the same pair for the mine side.
-                message.onlyMe ? "bg-bubble-theirs-private" : "bg-bubble-theirs",
+                message.onlyMe
+                  ? "bg-bubble-theirs-private active:bg-bubble-theirs-private-pressed"
+                  : "bg-bubble-theirs active:bg-bubble-theirs-pressed",
                 // INFO: DESIGN.md § 6.2.1. `MessageRow`'s own tombstone treatment — the bubble keeps its shape and side and gives up its ink.
                 isDeleted && (message.onlyMe ? "text-bubble-private-ink/55" : "text-bubble-ink/55"),
                 isDeleted && "italic select-none",

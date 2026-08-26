@@ -252,9 +252,17 @@ export function MessageComposer({
   const [headerHeight, setHeaderHeight] = useState(0);
   // INFO: DESIGN.md § 6.10. Held so the collapse animates over the row that is leaving rather than over an empty clip; a fresh header replaces it on the render it arrives.
   const [retainedHeader, setRetainedHeader] = useState<ReactNode>(null);
+  const notifyRef = useRef<Nullable<HTMLDivElement>>(null);
+  const [notifyHeight, setNotifyHeight] = useState(0);
+  // INFO: REQUIREMENTS.md § 16.1. Held through the collapse animation when returning to "notify" mode.
+  const [retainedNotifyMode, setRetainedNotifyMode] = useState<NotifyMode>(notifyMode);
 
   if (header && header !== retainedHeader) {
     setRetainedHeader(header);
+  }
+
+  if (notifyMode !== "notify" && notifyMode !== retainedNotifyMode) {
+    setRetainedNotifyMode(notifyMode);
   }
 
   /**
@@ -649,6 +657,25 @@ export function MessageComposer({
     return () => observer.disconnect();
   }, []);
 
+  // INFO: REQUIREMENTS.md § 16.1. Measures the notify mode notice row so its entrance and exit can animate smoothly over `--duration-state`.
+  useEffect(() => {
+    const node = notifyRef.current;
+
+    if (!node) {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      if (node.offsetHeight > 0) {
+        setNotifyHeight(node.offsetHeight);
+      }
+    });
+
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, []);
+
   /**
    * REQUIREMENTS.md § 8.14. The room asking for the caret back.
    *
@@ -668,18 +695,36 @@ export function MessageComposer({
       {/* INFO: DESIGN.md § 6.6. The tab bar's floating surface (§ 7.3.). A column so § 6.10.'s staged quote can be a header row inside the pill. */}
       <div className="pointer-events-auto flex flex-col rounded-[calc(var(--tab-bar-height)/2)] border border-hairline glass p-2xs shadow-floating">
         {/* INFO: REQUIREMENTS.md § 16.1. Its own row, above `header`'s slot rather than inside it — the two coexist, unlike the quote/edit-bar/AI-selection alternatives that share that one slot. */}
-        {notifyMode === "silent" && (
-          <div className="flex items-center gap-2xs px-sm pt-xs text-caption text-meta">
-            <BellOff className="size-3.5 shrink-0" strokeWidth={1.75} />
-            조용히 보내기
+        {/* INFO: DESIGN.md § 6.10. The notice arrives and collapses as the pill growing/shrinking over `--duration-state` ease-out. */}
+        <div
+          className={cn(
+            "shrink-0 overflow-hidden transition-[height] duration-(--duration-state) ease-out motion-reduce:transition-none",
+            notifyMode !== "notify" ? "h-(--composer-notify-height)" : "h-0",
+          )}
+          inert={notifyMode === "notify"}
+          style={{
+            ["--composer-notify-height" as string]:
+              notifyHeight > 0 ? `${notifyHeight}px` : "max-content",
+          }}
+          onTransitionEnd={releaseCollapsedNotify}
+        >
+          <div
+            ref={notifyRef}
+            className="flex items-center gap-2xs px-sm pt-xs text-caption text-meta"
+          >
+            {(notifyMode !== "notify" ? notifyMode : retainedNotifyMode) === "onlyMe" ? (
+              <>
+                <Lock className="size-3.5 shrink-0" strokeWidth={1.75} />
+                나에게만 보내기
+              </>
+            ) : (
+              <>
+                <BellOff className="size-3.5 shrink-0" strokeWidth={1.75} />
+                조용히 보내기
+              </>
+            )}
           </div>
-        )}
-        {notifyMode === "onlyMe" && (
-          <div className="flex items-center gap-2xs px-sm pt-xs text-caption text-meta">
-            <Lock className="size-3.5 shrink-0" strokeWidth={1.75} />
-            나에게만 보내기
-          </div>
-        )}
+        </div>
         {/* INFO: DESIGN.md § 6.10. The staged quote arrives as the pill growing into it, over `--duration-state`, so the history it pushes up rides the same move — `useComposerClearance` observes this wrapper every frame of it. */}
         {/* WARN: The last header stays mounted inside the collapsed clip, or the exit has nothing to draw; `inert` is what takes its `X` back out of the tab order. */}
         <div
@@ -936,6 +981,19 @@ export function MessageComposer({
     }
 
     setRetainedHeader(null);
+  }
+
+  // INFO: REQUIREMENTS.md § 16.1. Releases the retained notify mode once the collapse transition finishes.
+  function releaseCollapsedNotify(event: TransitionEvent<HTMLDivElement>) {
+    if (
+      event.target !== event.currentTarget ||
+      event.propertyName !== "height" ||
+      notifyMode !== "notify"
+    ) {
+      return;
+    }
+
+    setRetainedNotifyMode("notify");
   }
 
   function submit() {
