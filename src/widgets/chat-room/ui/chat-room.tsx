@@ -67,6 +67,7 @@ import {
   type LlmThinkingLevel,
   type MediaNoun,
   type MessageArrival,
+  type NotifyMode,
 } from "@/shared/config";
 import {
   A_SECOND,
@@ -258,9 +259,9 @@ export type ChatRoomProps = {
    * `useUnsentWork` hold that stops § 15.1. reloading the tab over it.
    */
   bottomBar?: ReactNode;
-  /** REQUIREMENTS.md § 16.1. 조용히 보내기 — the screen owns the cookie (`useSilentSend`), the room only draws its composer notice. */
-  isSilentSend?: boolean;
-  /** REQUIREMENTS.md § 16.1., § 8.14. `⌃S`'s target — the screen owns `useSilentSend`'s setter, same split as `isSilentSend`. */
+  /** REQUIREMENTS.md § 16.1. 조용히 보내기 / 나에게만 보내기 — the screen owns the cookie (`useSilentSend`), the room only draws its composer notice. */
+  notifyMode?: NotifyMode;
+  /** REQUIREMENTS.md § 16.1., § 8.14. `⌃S`'s target — the screen owns `useSilentSend`'s setter, same split as `notifyMode`. */
   onToggleSilentSend: () => void;
   /** REQUIREMENTS.md § 11.4. Opens 새 일정 from the attach sheet's 일정 row; the screen owns the form, as it owns `EventDetailDialog`. */
   onAddEvent?: () => void;
@@ -318,7 +319,7 @@ export function ChatRoom({
   initialJumpMessageId,
   searchQuery,
   bottomBar,
-  isSilentSend = false,
+  notifyMode = "notify",
   onToggleSilentSend,
   onAddEvent,
   onAiSelectionChange,
@@ -764,8 +765,14 @@ export function ChatRoom({
     ? generationEntries.length - 1
     : generationEntries.length;
   const rows = useMemo(
-    () => buildChatRows({ messages, pending, currentUserId }),
-    [messages, pending, currentUserId],
+    () =>
+      buildChatRows({
+        messages,
+        pending,
+        currentUserId,
+        hideOthers: notifyMode === "onlyMe",
+      }),
+    [messages, pending, currentUserId, notifyMode],
   );
   /**
    * REQUIREMENTS.md § 8.3. What `getItemKey`'s identity turns over on — the row keys
@@ -1270,6 +1277,22 @@ export function ChatRoom({
   const scrollToBottom = useCallback(() => {
     scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
   }, []);
+
+  /**
+   * REQUIREMENTS.md § 16.1. Leaving 나에게만 보내기 reveals every row `hideOthers`
+   * had been dropping from the timeline, landing wherever the reader's scroll
+   * offset happened to sit against a much shorter list — usually nowhere near the
+   * newest message any more. The pill's own jump is what corrects that.
+   */
+  const wasOnlyMe = useRef(notifyMode === "onlyMe");
+
+  useEffect(() => {
+    if (wasOnlyMe.current && notifyMode !== "onlyMe") {
+      scrollToBottom();
+    }
+
+    wasOnlyMe.current = notifyMode === "onlyMe";
+  }, [notifyMode, scrollToBottom]);
 
   /**
    * REQUIREMENTS.md § 8.6.1. The § 6.7. pill is also the way back from a jump, so it
@@ -1821,7 +1844,7 @@ export function ChatRoom({
                 insertedEmoticon={insertedEmoticon}
                 deleteRequest={deleteRequest}
                 isEditing={editingId !== null}
-                isSilent={isSilentSend}
+                notifyMode={notifyMode}
                 header={composerHeader()}
                 focusRequest={composerFocusRequest}
                 fieldRef={composerFieldRef}
@@ -2881,6 +2904,8 @@ export function ChatRoom({
             createdAt={row.pending.createdAt}
             sender={participantById.get(currentUserId)}
             isMine
+            // INFO: REQUIREMENTS.md § 16.1. The live mode rather than a field on `PendingMessage` — an optimistic bubble is on screen only for as long as its own send is in flight, and `POST /api/messages` reads the same cookie at that same moment.
+            isOnlyMe={notifyMode === "onlyMe"}
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
             isSelecting={aiSelection.isSelecting}
@@ -2917,6 +2942,7 @@ export function ChatRoom({
               createdAt={row.message.createdAt}
               sender={participantById.get(row.message.senderId)}
               isMine={row.isMine}
+              isOnlyMe={row.message.onlyMe}
               isFirstOfGroup={row.isFirstOfGroup}
               isLastOfGroup={row.isLastOfGroup}
               isDeleted
@@ -2927,7 +2953,7 @@ export function ChatRoom({
           );
         }
 
-        const cells = toCellsFromMedia(row.message.media);
+        const cells = toCellsFromMedia(row.message.media, row.message.onlyMe);
         // INFO: REQUIREMENTS.md § 8.13. A withdrawn parent is still reachable — it keeps its place as a tombstone, so the jump lands on where the message was instead of failing.
         const quoted = row.message.replyTo;
 
@@ -2944,6 +2970,7 @@ export function ChatRoom({
             createdAt={row.message.createdAt}
             sender={participantById.get(row.message.senderId)}
             isMine={row.isMine}
+            isOnlyMe={row.message.onlyMe}
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
             unreadCount={countUnreadReaders(row.message)}

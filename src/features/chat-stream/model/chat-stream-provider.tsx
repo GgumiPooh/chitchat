@@ -2,6 +2,7 @@
 
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
+import { useSilentSend } from "@/features/silent-send/@x/chat-stream";
 import { updateAppBadge } from "@/shared/badge";
 import {
   READ_CURSOR_THROTTLE,
@@ -189,6 +190,9 @@ export function ChatStreamProvider({
   const typingSweep = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
   const listeners = useRef(new Set<ChatStreamListener>());
   const isReadingRef = useRef(false);
+  // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — read through a ref, not the hook's own reactive value, for the reason `isReadingRef` is one: `markRead` is closed over once by every `useCallback([])` below it, so a plain destructure would freeze whatever mode was current at that first render.
+  const notifyMode = useSilentSend().mode;
+  const notifyModeRef = useRef(notifyMode);
   const lastReadPostAt = useRef(0);
   const hasMessageDuringSync = useRef(false);
   // INFO: REQUIREMENTS.md § 8.4.1. The conversation being on screen is what makes the app sleepable, so this is `isReadingRef`'s reactive half rather than a second signal.
@@ -240,6 +244,10 @@ export function ChatStreamProvider({
 
   // INFO: The provider outlives every screen, so this only ever runs on a full teardown — but a timer left armed past it would call `setTypingUserIds` on an unmounted tree.
   useEffect(() => () => clearTimeout(typingSweep.current), []);
+
+  useEffect(() => {
+    notifyModeRef.current = notifyMode;
+  }, [notifyMode]);
 
   useEffect(() => {
     updateAppBadge(unreadCount);
@@ -488,6 +496,11 @@ export function ChatStreamProvider({
    * into a push notification.
    */
   async function markRead(force = false) {
+    // WARN: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the read cursor must leave no trace on the other participant's device for as long as this mode is on, so every trigger (entering, leaving, backgrounding, per-message) is withheld rather than just the throttled ones.
+    if (notifyModeRef.current === "onlyMe") {
+      return;
+    }
+
     const now = Date.now();
 
     if (!force && now - lastReadPostAt.current < READ_CURSOR_THROTTLE) {

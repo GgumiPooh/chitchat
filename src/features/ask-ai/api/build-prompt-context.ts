@@ -25,6 +25,7 @@ import {
   type MediaId,
   type MessageId,
   type Optional,
+  type UserId,
 } from "@/shared/lib";
 import { readObject } from "@/shared/storage";
 import type { PromptAttachment, PromptContext, PromptContextEntry } from "../model/prompt-context";
@@ -51,12 +52,13 @@ export async function buildPromptContext(
   question: string,
   messageIds: MessageId[],
   questionClientMsgId: string,
+  askerId: UserId,
 ): Promise<PromptContext> {
   const selectedIds = [...messageIds].sort(compareId);
 
   const [selectedRows, exchangeRows, participants, questionMessageId] = await Promise.all([
-    listMessagesByIds(selectedIds),
-    listRecentAssistantExchanges(AI_CONTEXT_EXCHANGE_COUNT),
+    listMessagesByIds(selectedIds, askerId),
+    listRecentAssistantExchanges(AI_CONTEXT_EXCHANGE_COUNT, askerId),
     listUsers(),
     getMessageIdByClientMsgId(questionClientMsgId),
   ]);
@@ -64,6 +66,7 @@ export async function buildPromptContext(
   // WARN: `questionClientMsgId` names a row the client inserted moments before this POST — a race the DB replication has not caught up on yet falls back to a freshly minted id, which is newer than every row already landed and is all the fallback needs to be.
   const lateReplies = await listAssistantRepliesAfter(
     questionMessageId ?? nextSnowflake<MessageId>(),
+    askerId,
   );
 
   // WARN: Keyed by id rather than concatenated — a selected message is very often one of the pairs above, and a duplicated entry is the model reading the same turn twice.

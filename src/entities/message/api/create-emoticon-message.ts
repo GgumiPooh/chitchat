@@ -14,6 +14,8 @@ export type CreateEmoticonMessageParams = {
   emoticonItemId: EmoticonItemId;
   /** REQUIREMENTS.md § 8.10. The quoted message; a precondition here, cleared by the route. */
   replyToId?: MessageId;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — set once here, at insert; never updated after. */
+  onlyMe?: boolean;
 };
 
 /**
@@ -28,6 +30,7 @@ export async function createEmoticonMessage({
   clientMsgId,
   emoticonItemId,
   replyToId,
+  onlyMe = false,
 }: CreateEmoticonMessageParams): Promise<Nullable<ChatMessage>> {
   const db = getDb();
   const [inserted] = await db
@@ -39,6 +42,7 @@ export async function createEmoticonMessage({
       emoticonItemId,
       clientMsgId,
       replyToId,
+      onlyMe,
     })
     .onConflictDoNothing({ target: messages.clientMsgId })
     .returning();

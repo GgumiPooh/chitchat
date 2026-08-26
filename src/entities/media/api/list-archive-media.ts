@@ -3,7 +3,7 @@ import "server-only";
 import { resolveDisplayName } from "@/entities/user/@x/media";
 import { ARCHIVE_PAGE_SIZE, SHELF_KINDS, type LibraryShelf } from "@/shared/config";
 import { getDb, media, messageMedia, messages, users, type Media } from "@/shared/db";
-import type { MediaId, Nullable, Optional } from "@/shared/lib";
+import type { MediaId, Nullable, Optional, UserId } from "@/shared/lib";
 import {
   and,
   asc,
@@ -15,6 +15,7 @@ import {
   isNull,
   lt,
   lte,
+  or,
   sql,
   type SQL,
 } from "drizzle-orm";
@@ -39,6 +40,8 @@ export type ListArchiveMediaParams = {
   /** A `media` id the window is to be centred on, for the position jump of REQUIREMENTS.md § 10. */
   around?: MediaId;
   limit?: number;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — the viewer this page is drawn for; a tile whose sending message is only visible to the other participant is excluded rather than shown behind a filter. */
+  currentUserId: UserId;
 };
 
 /**
@@ -53,8 +56,9 @@ export async function listArchiveMedia({
   after,
   around,
   limit = ARCHIVE_PAGE_SIZE,
-}: ListArchiveMediaParams = {}): Promise<ArchiveMedia[]> {
-  const within = and(isInLibrary(), isOfShelf(shelf));
+  currentUserId,
+}: ListArchiveMediaParams): Promise<ArchiveMedia[]> {
+  const within = and(isInLibrary(currentUserId), isOfShelf(shelf));
   const rows = around
     ? await selectAround(within, around, limit)
     : after
@@ -174,6 +178,7 @@ async function findSendingMessages(mediaIds: MediaId[]): Promise<Map<string, Arc
       messageId: messages.id,
       nickname: users.nickname,
       email: users.email,
+      onlyMe: messages.onlyMe,
     })
     .from(messageMedia)
     .innerJoin(messages, eq(messages.id, messageMedia.messageId))
@@ -181,9 +186,9 @@ async function findSendingMessages(mediaIds: MediaId[]): Promise<Map<string, Arc
     .where(and(inArray(messageMedia.mediaId, mediaIds), isNull(messages.deletedAt)));
 
   return new Map(
-    rows.map(({ mediaId, messageId, nickname, email }) => [
+    rows.map(({ mediaId, messageId, nickname, email, onlyMe }) => [
       mediaId,
-      { messageId, senderName: resolveDisplayName({ nickname, email }) },
+      { messageId, senderName: resolveDisplayName({ nickname, email }), onlyMe },
     ]),
   );
 }
@@ -194,13 +199,20 @@ async function findSendingMessages(mediaIds: MediaId[]): Promise<Map<string, Arc
  * shelf a row lands on is `isOfShelf` — since `destroyArchiveMedia` wants this half
  * alone, as 삭제 reaches every shelf.
  */
-export function isInLibrary(): Optional<SQL> {
+export function isInLibrary(currentUserId: UserId): Optional<SQL> {
   const isPosted = exists(
     getDb()
       .select({ one: sql`1` })
       .from(messageMedia)
       .innerJoin(messages, eq(messages.id, messageMedia.messageId))
-      .where(and(eq(messageMedia.mediaId, media.id), isNull(messages.deletedAt))),
+      .where(
+        and(
+          eq(messageMedia.mediaId, media.id),
+          isNull(messages.deletedAt),
+          // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — a tile whose only sending message is the other participant's onlyMe row has nothing in this library to belong to.
+          or(eq(messages.onlyMe, false), eq(messages.senderId, currentUserId)),
+        ),
+      ),
   );
 
   // INFO: REQUIREMENTS.md § 18. #1. A destroyed row leaves the shelf outright — there is no object left to draw a tile from, and the bubble it was sent in draws a tombstone in its place.

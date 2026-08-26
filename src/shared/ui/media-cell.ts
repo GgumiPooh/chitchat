@@ -98,6 +98,8 @@ export type MediaCell = {
    * WARN: The geometry above survives the delete on purpose, so the tombstone fills the box the photo did and § 8.3.'s virtualized list re-measures nothing.
    */
   isDeleted: boolean;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — drives the viewer's `나에게 보낸 사진`/`나에게 보낸 동영상` label. Unset wherever a cell carries no sender to have set it (a draft, a profile photo). */
+  onlyMe?: boolean;
   /**
    * WARN: A `media` id for every cell built from a stored row, and a **local draft
    * id** for one `toCellsFromDrafts` built (REQUIREMENTS.md § 8.5.). A draft cell

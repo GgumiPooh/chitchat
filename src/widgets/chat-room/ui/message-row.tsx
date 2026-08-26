@@ -26,6 +26,7 @@ import {
   IconButton,
   InlineEmoticon,
   MediaTombstone,
+  PrivateRing,
   VoicePlayer,
   type MediaCell,
 } from "@/shared/ui";
@@ -84,6 +85,8 @@ export type MessageRowProps = {
   createdAt: string;
   sender: Optional<Participant>;
   isMine: boolean;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — only ever true on a bubble this reader sent, since every other read path filters the other participant's own onlyMe rows out before they reach here. */
+  isOnlyMe?: boolean;
   isFirstOfGroup: boolean;
   isLastOfGroup: boolean;
   /** REQUIREMENTS.md § 8.8. How many participants have yet to read this message. `0` draws nothing — the marker counts down and disappears rather than settling on a read state. */
@@ -144,6 +147,7 @@ export function MessageRow({
   createdAt,
   sender,
   isMine,
+  isOnlyMe = false,
   isFirstOfGroup,
   isLastOfGroup,
   unreadCount = 0,
@@ -289,7 +293,11 @@ export function MessageRow({
             // INFO: DESIGN.md § 6.5. An emoticon renders without a bubble, border or background, for the same reason an attachment does.
             // WARN: REQUIREMENTS.md § 13.9. The marker the room's panel dismissal looks for. A tap on the history closes the emoticon panel (§ 13.6.), and this tap re-aims it — without the exclusion the `pointerup` closes it a frame before the `click` opens it again.
             <div
-              className={cn(LONG_PRESS_TARGET_CLASS, status !== "sent" && "opacity-60")}
+              className={cn(
+                "relative rounded-sm",
+                LONG_PRESS_TARGET_CLASS,
+                status !== "sent" && "opacity-60",
+              )}
               data-emoticon-bubble
               {...longPressHandlers}
             >
@@ -299,13 +307,18 @@ export function MessageRow({
                 onFollow={onFollowEmoticon}
                 onArrivalSoundReady={onArrivalSoundReady}
               />
+              {isOnlyMe && <PrivateRing className="rounded-sm" />}
             </div>
           ) : soloEmoticon && soloBox ? (
             // INFO: § 13. One emoticon and no words, drawn at `toSoloEmoticonBox` — the same absence of a bubble an emoticon message takes, but a smaller ceiling than `toEmoticonBox`'s so the two kinds read apart. A mini never occupies `messages.emoticon_item_id`, so this is a rendering rule read off the content rather than a second kind of row.
             // WARN: § 8.3. The box is the **stored** one and never the loaded asset's, so it is the same before and after the image arrives — and `estimateRowHeight` prices it through the identical `toSoloEmoticonBox` call.
             // WARN: `lineHeight` is what resizes the shared `InlineEmoticon`, whose own `1lh` is otherwise one line of body text. It is an inline style there, so no class could win it — setting the line-height this box inherits is the one lever that reaches it, and it lands exactly: `1lh × width/height` is `toSoloEmoticonBox`'s own width by construction.
             <div
-              className={cn(LONG_PRESS_TARGET_CLASS, status !== "sent" && "opacity-60")}
+              className={cn(
+                "relative rounded-sm",
+                LONG_PRESS_TARGET_CLASS,
+                status !== "sent" && "opacity-60",
+              )}
               style={{ ...soloBox, lineHeight: `${soloBox.height}px` }}
               {...longPressHandlers}
             >
@@ -324,6 +337,7 @@ export function MessageRow({
                   onArrivalSoundReady={onArrivalSoundReady}
                 />
               )}
+              {isOnlyMe && <PrivateRing className="rounded-sm" />}
             </div>
           ) : linkOnlyCard ? (
             // INFO: DESIGN.md § 6.9. Where a photo would stand, and no bubble — the bubble would only repeat the address the card names.
@@ -352,6 +366,7 @@ export function MessageRow({
                   durationMs={voiceCell.durationMs ?? 0}
                   peaks={voiceCell.voice?.peaks ?? []}
                   isMine={isMine}
+                  isOnlyMe={isOnlyMe}
                   isPending={status !== "sent"}
                 />
               )}
@@ -364,6 +379,7 @@ export function MessageRow({
                 cells={media}
                 progress={progress}
                 isPending={status !== "sent"}
+                isOnlyMe={isOnlyMe}
                 encodingIndex={encodingIndex}
                 encodeProgress={encodeProgress}
                 onOpen={onOpenMedia}
@@ -376,16 +392,21 @@ export function MessageRow({
                 // INFO: DESIGN.md § 4.2.3. `break-normal` opts the bubble out of the app's `keep-all`: Korean body copy breaks between syllables, and a whole-어절 push otherwise leaves the worst gaps.
                 // WARN: The arbitrary property and never `break-normal`, which also sets `overflow-wrap: normal` — that would leave `wrap-anywhere` winning on Tailwind's emission order alone, and a long URL overflowing the column the day it changes.
                 // WARN: `min-w-0` is the other half of the stack's `max-w-full`. A flex item does not shrink below its own min-content without it, and a quote's `truncate` is min-content the whole width of its line.
-                "min-w-0 rounded-bubble px-sm py-xs text-chat-body wrap-anywhere [word-break:normal] whitespace-pre-wrap text-bubble-ink transition-colors select-text",
+                "min-w-0 rounded-bubble px-sm py-xs text-chat-body wrap-anywhere [word-break:normal] whitespace-pre-wrap transition-colors select-text",
                 LONG_PRESS_TARGET_CLASS,
+                // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 reads the other theme's fill/ink, on both counts — a withdrawn onlyMe row keeps `only_me` on its tombstone, so the private colour survives the delete along with the bubble's shape and side.
+                isOnlyMe ? "text-bubble-private-ink" : "text-bubble-ink",
                 isMine
-                  ? "bg-bubble-mine active:bg-bubble-mine-pressed"
+                  ? isOnlyMe
+                    ? "bg-bubble-mine-private active:bg-bubble-mine-private-pressed"
+                    : "bg-bubble-mine active:bg-bubble-mine-pressed"
                   : "border border-hairline bg-bubble-theirs active:bg-bubble-theirs-pressed",
                 isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
                 // INFO: DESIGN.md § 6.5. Optimistic and failed bubbles dim instead of showing a spinner.
                 status !== "sent" && "opacity-60",
                 // INFO: DESIGN.md § 6.2.1. A tombstone keeps the bubble's shape and side so the timeline still reads as a conversation, and gives up its ink — it is a note about a message rather than one.
-                isDeleted && "text-bubble-ink/55 italic select-none",
+                isDeleted && (isOnlyMe ? "text-bubble-private-ink/55" : "text-bubble-ink/55"),
+                isDeleted && "italic select-none",
                 bubbleClassName,
               )}
               {...longPressHandlers}

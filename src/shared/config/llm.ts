@@ -92,6 +92,8 @@ const llmStreamEventBase = {
   // INFO: The `messages.client_msg_id` of the question the user sent through the normal send path — what a client ties a queue/stream event back to the bubble it belongs to.
   questionClientMsgId: z.uuid(),
   userId: snowflakeSchema<UserId>(),
+  // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기, snapshotted when the question was asked — `GET /api/chat/stream` withholds this event from every session but `userId`'s own when true.
+  onlyMe: z.boolean().optional(),
 };
 
 /**

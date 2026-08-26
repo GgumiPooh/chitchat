@@ -8,6 +8,8 @@ export type GenerationSnapshot = {
   status: GenerationStatus;
   questionClientMsgId: string;
   userId: UserId;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — `GET /api/chat/stream` withholds this run's snapshot/backfill from every session but `userId`'s own when true. */
+  onlyMe: boolean;
   provider: Optional<string>;
   model: Optional<string>;
   /** Everything streamed so far — what a client connecting mid-stream backfills its bubble from. */
@@ -53,11 +55,13 @@ export function beginQueuedGeneration(
   streamId: string,
   questionClientMsgId: string,
   userId: UserId,
+  onlyMe: boolean,
 ): void {
   registry().set(streamId, {
     status: "queued",
     questionClientMsgId,
     userId,
+    onlyMe,
     provider: undefined,
     model: undefined,
     text: "",

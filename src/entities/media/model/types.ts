@@ -51,6 +51,8 @@ export type ChatMedia = {
 export type ChatTrackMedia = ChatMedia & {
   messageId: MessageId;
   senderId: UserId;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — only ever true on a slide `senderId` is the reader's own, since `listConversationMedia` filters the other participant's out before this leaves the server. */
+  onlyMe: boolean;
 };
 
 /**
@@ -72,6 +74,8 @@ export type ArchiveMedia = ChatMedia & {
    * retroactive across history. `null` wherever `messageId` is, for the same reason.
    */
   senderName: Nullable<string>;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — only ever true here too, since `isInLibrary` excludes every tile whose sending message is the other participant's own. `false` on a row with no `messageId`, which has no sender to have set it. */
+  onlyMe: boolean;
 };
 
 /**

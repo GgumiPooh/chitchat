@@ -297,7 +297,7 @@ export function ChatScreen({
             // WARN: REQUIREMENTS.md § 10. A prop of its own rather than a fallback for the target above. Closing the search takes its target back to null, and a fallback would read that as a fresh instruction — jumping back to the tile's message from wherever the reader had got to.
             initialJumpMessageId={jumpMessageId}
             searchQuery={search.isOpen ? search.submitted : undefined}
-            isSilentSend={silentSend.isSilent}
+            notifyMode={silentSend.mode}
             bottomBar={
               search.isOpen ? (
                 <MessageSearchNav
@@ -311,7 +311,7 @@ export function ChatScreen({
                 />
               ) : undefined
             }
-            onToggleSilentSend={silentSend.toggle}
+            onToggleSilentSend={silentSend.cycle}
             onAddEvent={openForm}
             onAiSelectionChange={setAiSelection}
           />

@@ -27,6 +27,8 @@ export type CreateTextMessageParams = {
    * answers 400.
    */
   replyToId?: MessageId;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — set once here, at insert; never updated after. */
+  onlyMe?: boolean;
 };
 
 /**
@@ -43,6 +45,7 @@ export async function createTextMessage({
   text,
   inlineEmoticonItemIds = [],
   replyToId,
+  onlyMe = false,
 }: CreateTextMessageParams): Promise<Nullable<ChatMessage>> {
   const db = getDb();
   const [inserted] = await db
@@ -55,6 +58,7 @@ export async function createTextMessage({
       inlineEmoticonItemIds,
       clientMsgId,
       replyToId,
+      onlyMe,
     })
     .onConflictDoNothing({ target: messages.clientMsgId })
     .returning();

@@ -1,7 +1,14 @@
 "use client";
 
 import { cn, formatDuration, type MediaId, type Nullable } from "@/shared/lib";
-import { FileCard, MediaTombstone, PreloadImage, toCellRatio, type MediaCell } from "@/shared/ui";
+import {
+  FileCard,
+  MediaTombstone,
+  PreloadImage,
+  PrivateRing,
+  toCellRatio,
+  type MediaCell,
+} from "@/shared/ui";
 import { Play } from "lucide-react";
 import { MEDIA_EDGE_REM, toMediaColumns } from "../model/to-media-box";
 
@@ -26,6 +33,8 @@ export type MediaGridProps = {
   /** `0`–`1` while the bubble uploads; `1` once every byte has landed. */
   progress?: number;
   isPending?: boolean;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — rings every tile/card rather than recolouring, since none of these has a fill of its own to swap. */
+  isOnlyMe?: boolean;
   /** DESIGN.md § 6.5.1. The cell currently re-encoding, paired with `encodeProgress`. `null` outside that phase, e.g. once its upload has started or for a bubble of stills, which never encode. */
   encodingIndex?: Nullable<number>;
   /** `0`–`1` for the cell at `encodingIndex`. Ignored unless that index is set. */
@@ -42,6 +51,7 @@ export function MediaGrid({
   cells,
   progress = 1,
   isPending = false,
+  isOnlyMe = false,
   encodingIndex = null,
   encodeProgress = null,
   onOpen,
@@ -93,6 +103,7 @@ export function MediaGrid({
               sizeBytes={cell.sizeBytes}
               // INFO: A draft has no stored object yet, so the card is inert until the upload registers one.
               disabled={cell.downloadUrl === null}
+              isOnlyMe={isOnlyMe}
               aria-label={`${cell.filename} 저장`}
               onClick={() => onOpen?.(index)}
             />
@@ -122,7 +133,7 @@ export function MediaGrid({
       >
         {/* WARN: REQUIREMENTS.md § 8.3. The ratio is what reserves the row's height before the asset loads; without it every image that arrives re-measures the list and jolts the scroll. */}
         <span
-          className="relative block w-full ring-1 ring-hairline ring-inset"
+          className={cn("relative block w-full", !isOnlyMe && "ring-1 ring-hairline ring-inset")}
           style={{ aspectRatio: toCellRatio(cell) }}
         >
           <PreloadImage
@@ -136,6 +147,9 @@ export function MediaGrid({
             draggable={false}
           />
           {renderVideoOverlay(cell, 0)}
+          {/* WARN: REQUIREMENTS.md § 16.1. `PrivateRing`, not a ring class on this span — `PreloadImage` fills the span exactly, so an inset ring here paints under it, and an outward one is clipped by the outer wrapper's `overflow-hidden`. */}
+          {/* WARN: `rounded-md` matches the outer wrapper's own radius — `PrivateRing`'s box-shadow follows its own border-box, not the ancestor's, so left sharp it draws square corners inside the rounded clip. */}
+          {isOnlyMe && <PrivateRing className="rounded-md" />}
         </span>
       </button>
     );
@@ -160,7 +174,10 @@ export function MediaGrid({
           ) : (
             <button
               key={cell.id}
-              className="relative aspect-square cursor-pointer overflow-hidden rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+              className={cn(
+                "relative aspect-square cursor-pointer overflow-hidden rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+                !isOnlyMe && "ring-1 ring-hairline ring-inset",
+              )}
               type="button"
               aria-label={cell.isVideo ? "동영상 보기" : "사진 보기"}
               {...{ [CELL_ID_ATTRIBUTE]: cell.id }}
@@ -168,7 +185,7 @@ export function MediaGrid({
             >
               <PreloadImage
                 className="size-full"
-                imgClassName="size-full object-cover ring-1 ring-hairline ring-inset"
+                imgClassName="size-full object-cover"
                 src={cell.previewUrl}
                 blurhash={cell.blurhash}
                 // WARN: DESIGN.md § 7.8. As 보관함's tile — these cells are square whatever shape the attachment is, so the blur needs the ratio to be cropped where the photo is.
@@ -177,6 +194,8 @@ export function MediaGrid({
                 draggable={false}
               />
               {renderVideoOverlay(cell, index)}
+              {/* WARN: REQUIREMENTS.md § 16.1. `PrivateRing`, not a ring class on this button — `overflow-hidden` above clips this element's children, and `PreloadImage` fills the button exactly either way. */}
+              {isOnlyMe && <PrivateRing className="rounded-sm" />}
             </button>
           ),
         )}

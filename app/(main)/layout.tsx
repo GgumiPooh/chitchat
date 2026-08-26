@@ -11,9 +11,10 @@ import { requireUserOrRedirect } from "@/shared/auth";
 import {
   APP_SHELL_ID,
   ARCHIVE_COLUMNS_COOKIE_NAME,
+  NOTIFY_MODE_COOKIE_NAME,
+  notifyModes,
   PUSH_STATE_COOKIE_NAME,
   SIDE_PANEL_COOKIE_NAME,
-  SILENT_SEND_COOKIE_NAME,
 } from "@/shared/config";
 import { OfflineNotice } from "@/shared/offline-ux";
 import {
@@ -51,14 +52,16 @@ export default async function MainLayout({ children }: PropsWithChildren) {
     ]);
   // WARN: Only these cross to the client. `ssrCookies` is serialized into the RSC payload, and `getAll()` would put the `httpOnly` session cookie in it.
   // WARN: `jandh:side-panel` is dropped unless it is the JSON boolean it now holds — a browser still carrying the old `open`/`closed` word would make `SyncedStorageProvider`'s `JSON.parse` warn on every request until the next toggle.
+  // WARN: `jandh:notify-mode` is dropped unless it is one of `notifyModes`' own JSON-stringified indices — `toNotifyModeIndex`'s own WARN explains why the cookie carries a number rather than the `NotifyMode` string the old `jandh:silent-send` boolean's replacement would otherwise have been.
   const ssrCookies = cookieStore
     .getAll()
     .filter(
       ({ name, value }) =>
         name === PUSH_STATE_COOKIE_NAME ||
         name === ARCHIVE_COLUMNS_COOKIE_NAME ||
-        ((name === SIDE_PANEL_COOKIE_NAME || name === SILENT_SEND_COOKIE_NAME) &&
-          (value === "true" || value === "false")),
+        (name === SIDE_PANEL_COOKIE_NAME && (value === "true" || value === "false")) ||
+        (name === NOTIFY_MODE_COOKIE_NAME &&
+          notifyModes.some((_, index) => value === JSON.stringify(index))),
     );
   // INFO: AGENTS.md § 4.4. Painted on `#app-shell` rather than `<html>` — the root layout has no cookie access here — so `theme.css`'s `:root:has(#app-shell[data-side-panel="closed"])` collapses `--pane-width` before hydration.
   const isSidePanelClosed = cookieStore.get(SIDE_PANEL_COOKIE_NAME)?.value === "false";

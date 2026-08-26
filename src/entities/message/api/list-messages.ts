@@ -2,8 +2,8 @@ import "server-only";
 
 import { MESSAGE_PAGE_SIZE } from "@/shared/config";
 import { getDb, messages, type Message } from "@/shared/db";
-import type { EmoticonItemId, MessageId } from "@/shared/lib";
-import { asc, desc, gt, lt, lte } from "drizzle-orm";
+import type { EmoticonItemId, MessageId, Optional, UserId } from "@/shared/lib";
+import { and, asc, desc, eq, gt, lt, lte, or, type SQL } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 import { listMessageEmoticons } from "./list-message-emoticons";
@@ -18,7 +18,16 @@ export type ListMessagesParams = {
   /** Context on both sides of this id — the search jump of REQUIREMENTS.md § 8.6.1. */
   around?: MessageId;
   limit?: number;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — a row is in the page only when it isn't one, or it is one this user sent. Omitted only by callers with no per-user viewer (there are none left; every read path threads this). */
+  currentUserId?: UserId;
 };
+
+// INFO: REQUIREMENTS.md § 16.1. `undefined` (no viewer named) excludes nothing — only used where a caller genuinely has no per-user scope.
+function isVisibleTo(currentUserId: Optional<UserId>): Optional<SQL> {
+  return currentUserId === undefined
+    ? undefined
+    : or(eq(messages.onlyMe, false), eq(messages.senderId, currentUserId));
+}
 
 /**
  * One cursor page, always oldest-first. Never OFFSET — an arriving message shifts
@@ -34,18 +43,20 @@ export async function listMessages({
   after,
   around,
   limit = MESSAGE_PAGE_SIZE,
+  currentUserId,
 }: ListMessagesParams = {}): Promise<ChatMessage[]> {
   if (around !== undefined) {
-    return listAround(around, limit);
+    return listAround(around, limit, currentUserId);
   }
 
   const db = getDb();
+  const visible = isVisibleTo(currentUserId);
 
   if (after !== undefined) {
     const rows = await db
       .select()
       .from(messages)
-      .where(gt(messages.id, after))
+      .where(and(gt(messages.id, after), visible))
       .orderBy(asc(messages.id))
       .limit(limit);
 
@@ -55,27 +66,32 @@ export async function listMessages({
   const rows = await db
     .select()
     .from(messages)
-    .where(before === undefined ? undefined : lt(messages.id, before))
+    .where(and(before === undefined ? undefined : lt(messages.id, before), visible))
     .orderBy(desc(messages.id))
     .limit(limit);
 
   return withMedia(rows.reverse());
 }
 
-async function listAround(target: MessageId, limit: number): Promise<ChatMessage[]> {
+async function listAround(
+  target: MessageId,
+  limit: number,
+  currentUserId: Optional<UserId>,
+): Promise<ChatMessage[]> {
   const db = getDb();
+  const visible = isVisibleTo(currentUserId);
   const olderCount = Math.ceil(limit / 2);
   const [older, newer] = await Promise.all([
     db
       .select()
       .from(messages)
-      .where(lte(messages.id, target))
+      .where(and(lte(messages.id, target), visible))
       .orderBy(desc(messages.id))
       .limit(olderCount),
     db
       .select()
       .from(messages)
-      .where(gt(messages.id, target))
+      .where(and(gt(messages.id, target), visible))
       .orderBy(asc(messages.id))
       .limit(limit - olderCount),
   ]);

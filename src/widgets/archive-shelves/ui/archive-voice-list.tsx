@@ -88,6 +88,7 @@ export function ArchiveVoiceList({
           durationMs={item.durationMs ?? 0}
           peaks={item.voice?.peaks ?? []}
           isMine={false}
+          isOnlyMe={item.onlyMe}
         />
       </div>
     );

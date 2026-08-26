@@ -17,6 +17,8 @@ export type CreateMediaMessageParams = {
   media: ValidatedMedia[];
   /** REQUIREMENTS.md § 8.10. The quoted message; a precondition here for the same reason `media` is validated ahead of time. */
   replyToId?: MessageId;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — set once here, at insert; never updated after. */
+  onlyMe?: boolean;
 };
 
 export type CreateMediaMessageResult =
@@ -50,6 +52,7 @@ export async function createMediaMessage({
   clientMsgId,
   media,
   replyToId,
+  onlyMe = false,
 }: CreateMediaMessageParams): Promise<CreateMediaMessageResult> {
   if (!isHomogeneousBatch(media)) {
     return { status: "unprocessable" };
@@ -74,7 +77,14 @@ export async function createMediaMessage({
 
       const [own] = await tx
         .insert(messages)
-        .values({ id: nextSnowflake<MessageId>(), senderId, type: "media", clientMsgId, replyToId })
+        .values({
+          id: nextSnowflake<MessageId>(),
+          senderId,
+          type: "media",
+          clientMsgId,
+          replyToId,
+          onlyMe,
+        })
         // INFO: REQUIREMENTS.md § 8.5. Idempotent on `client_msg_id`, so a retried send after a timeout cannot post the same photos twice.
         .onConflictDoNothing({ target: messages.clientMsgId })
         .returning();

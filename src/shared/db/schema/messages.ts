@@ -1,6 +1,7 @@
 import type { EmoticonItemId, EventId, MediaId, MessageId, UserId } from "@/shared/lib";
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   index,
   pgEnum,
@@ -77,6 +78,8 @@ export const messages = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     // INFO: REQUIREMENTS.md § 8.17. NULL is "not folded". Either participant may set it — folding curates the shared timeline rather than changing what a message says, so there is nobody to attribute it to and nothing to scope it by.
     collapsedAt: timestamp("collapsed_at", { withTimezone: true }),
+    // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — set once at insert, never after (append-only, same as every other column here). true means only `sender_id` may read this row; every list/count/search/archive/SSE read path filters it out for anyone else.
+    onlyMe: boolean("only_me").notNull().default(false),
   },
   (table) => [
     // INFO: REQUIREMENTS.md § 8.13. The resume reconciliation reads exactly this predicate, and a partial index over it stays tiny — an edit or a delete is rare beside the rows they are indexed out of.

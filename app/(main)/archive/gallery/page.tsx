@@ -1,5 +1,6 @@
 import { listArchiveMedia } from "@/entities/media";
 import { ArchivePage } from "@/pages/archive";
+import { requireUserOrRedirect } from "@/shared/auth";
 import { ARCHIVE_TARGET_PARAM, snowflakeSchema } from "@/shared/config";
 import type { Maybe, MediaId, Optional } from "@/shared/lib";
 
@@ -8,11 +9,15 @@ type PageProps = {
 };
 
 export default async function Page({ searchParams }: PageProps) {
+  const user = await requireUserOrRedirect();
   // INFO: REQUIREMENTS.md § 10. 채팅's viewer taps through carrying the photo it was showing, and the window comes back centred on that tile rather than on the newest one.
   const targetId = toMediaId((await searchParams)[ARCHIVE_TARGET_PARAM]);
 
   return (
-    <ArchivePage initialMedia={await listArchiveMedia({ around: targetId })} targetId={targetId} />
+    <ArchivePage
+      initialMedia={await listArchiveMedia({ around: targetId, currentUserId: user.id })}
+      targetId={targetId}
+    />
   );
 }
 

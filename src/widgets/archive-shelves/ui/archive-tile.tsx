@@ -9,7 +9,7 @@ import {
   type MediaId,
   type Nullable,
 } from "@/shared/lib";
-import { PreloadImage, toCellRatio, type MediaCell } from "@/shared/ui";
+import { PreloadImage, PrivateRing, toCellRatio, type MediaCell } from "@/shared/ui";
 import { Check, Play } from "lucide-react";
 import { ARCHIVE_TILE_ID_ATTRIBUTE } from "../model/use-archive-sweep";
 
@@ -98,6 +98,8 @@ export function ArchiveTile({
           // WARN: DESIGN.md § 3.2. Without it the hold starts iOS's own image drag and the selection never arms.
           draggable={false}
         />
+        {/* WARN: REQUIREMENTS.md § 16.1. `PrivateRing`, not a ring class on `imgClassName` — a replaced element's own decoded content paints over its own inset box-shadow the same way a same-size child does (confirmed empirically; see the component's own doc). */}
+        {cell.onlyMe && <PrivateRing className="rounded-sm" />}
         {/* INFO: DESIGN.md § 6.8. A ring rather than the bubble flash's `message-flash` wash — a photograph fills the cell, so nothing behind it is visible, and DESIGN.md § 7.10. rules out dimming one. */}
         {/* WARN: A sibling **above** the image, and mounted whether or not it is lit. An inset ring on the button paints under its own children, so the photograph covers it outright; and unmounting it on expiry would cut the fade rather than run it. */}
         <span

@@ -45,6 +45,8 @@ export type RunGenerationParams = {
   /** The model the user picked, if any — tried first, ahead of the rest of the fallback chain. */
   pinnedModel: Optional<string>;
   thinking: Optional<LlmThinkingLevel>;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기, snapshotted by the route — rides every published event and the eventual `assistant_reply` row. */
+  onlyMe: boolean;
   /** Aborted by `runQueuedGeneration`'s own `LISTEN` on `LLM_CANCEL_CHANNEL` the moment `DELETE /api/chat/ai` cancels this streamId. */
   abortSignal: AbortSignal;
   isCancelled(): boolean;
@@ -67,11 +69,12 @@ export async function runGeneration({
   messageIds,
   pinnedModel,
   thinking,
+  onlyMe,
   abortSignal,
   isCancelled,
 }: RunGenerationParams): Promise<RunGenerationResult> {
   const [context, agents, systemPrompt] = await Promise.all([
-    buildPromptContext(question, messageIds, questionClientMsgId),
+    buildPromptContext(question, messageIds, questionClientMsgId, askerId),
     listCandidateAgents(pinnedModel),
     // INFO: REQUIREMENTS.md § 8.15. Read once per run, inside the post-lock generation this already is — a question queued behind the FIFO is answered with whatever the prompt is at the moment it actually runs, not the moment it was asked, matching how 조용히 보내기 is read here too.
     readLlmSystemPrompt(),
@@ -81,7 +84,7 @@ export async function runGeneration({
 
   for (const agent of agents) {
     if (isCancelled()) {
-      return finalizeCancelled(streamId, questionClientMsgId, askerId, "", null);
+      return finalizeCancelled(streamId, questionClientMsgId, askerId, "", null, onlyMe);
     }
 
     const provider = getProvider(agent.provider);
@@ -91,7 +94,7 @@ export async function runGeneration({
       continue;
     }
 
-    await startAttempt(streamId, questionClientMsgId, askerId, agent, seqRef);
+    await startAttempt(streamId, questionClientMsgId, askerId, agent, seqRef, onlyMe);
 
     try {
       const text = await streamWithThinkingFallback(
@@ -111,22 +114,29 @@ export async function runGeneration({
         },
         isCancelled,
         seqRef,
+        onlyMe,
       );
 
       if (isCancelled()) {
-        return finalizeCancelled(streamId, questionClientMsgId, askerId, text, agent);
+        return finalizeCancelled(streamId, questionClientMsgId, askerId, text, agent, onlyMe);
       }
 
       endGeneration(streamId);
-      await publishStreamEvent({ type: "end", streamId, questionClientMsgId, userId: askerId });
+      await publishStreamEvent({
+        type: "end",
+        streamId,
+        questionClientMsgId,
+        userId: askerId,
+        onlyMe,
+      });
 
       // WARN: The stream is done and `end` is already published — leaving the loop here, rather than falling into `catch` on an insert failure, is what stops that failure from re-generating a whole second answer with the next agent.
-      return await finalizeAnswered(streamId, questionClientMsgId, askerId, text, agent);
+      return await finalizeAnswered(streamId, questionClientMsgId, askerId, text, agent, onlyMe);
     } catch (error) {
       if (isCancelled()) {
         const partial = getGenerationSnapshot(streamId)?.text ?? "";
 
-        return finalizeCancelled(streamId, questionClientMsgId, askerId, partial, agent);
+        return finalizeCancelled(streamId, questionClientMsgId, askerId, partial, agent, onlyMe);
       }
 
       if (isRateLimitError(error)) {
@@ -136,11 +146,17 @@ export async function runGeneration({
   }
 
   if (isCancelled()) {
-    return finalizeCancelled(streamId, questionClientMsgId, askerId, "", null);
+    return finalizeCancelled(streamId, questionClientMsgId, askerId, "", null, onlyMe);
   }
 
   failGeneration(streamId);
-  await publishStreamEvent({ type: "error", streamId, questionClientMsgId, userId: askerId });
+  await publishStreamEvent({
+    type: "error",
+    streamId,
+    questionClientMsgId,
+    userId: askerId,
+    onlyMe,
+  });
   discardGeneration(streamId);
 
   return { status: "failed" };
@@ -158,6 +174,7 @@ async function finalizeCancelled(
   askerId: UserId,
   text: string,
   agent: Nullable<LlmAgent>,
+  onlyMe: boolean,
 ): Promise<RunGenerationResult> {
   await publishStreamEvent({
     type: "end",
@@ -165,6 +182,7 @@ async function finalizeCancelled(
     questionClientMsgId,
     userId: askerId,
     stopped: true,
+    onlyMe,
   });
 
   if (!text || !agent) {
@@ -181,6 +199,7 @@ async function finalizeCancelled(
       llmProvider: agent.provider,
       llmModel: agent.model,
       replyToId: await getMessageIdByClientMsgId(questionClientMsgId),
+      onlyMe,
     });
 
     return message ? { status: "answered", message } : { status: "cancelled" };
@@ -205,6 +224,7 @@ async function finalizeAnswered(
   askerId: UserId,
   text: string,
   agent: LlmAgent,
+  onlyMe: boolean,
 ): Promise<RunGenerationResult> {
   try {
     const message = await createAssistantReplyMessage({
@@ -215,6 +235,7 @@ async function finalizeAnswered(
       llmModel: agent.model,
       // INFO: REQUIREMENTS.md § 8.15. Resolved at insert rather than threaded down from `buildPromptContext`'s own lookup — that one runs before the stream, where the question row can still be behind the replication this read is seconds clear of.
       replyToId: await getMessageIdByClientMsgId(questionClientMsgId),
+      onlyMe,
     });
 
     if (message) {
@@ -231,6 +252,7 @@ async function finalizeAnswered(
       streamId,
       questionClientMsgId,
       userId: askerId,
+      onlyMe,
     }).catch(() => undefined);
 
     return { status: "failed" };
@@ -254,6 +276,7 @@ async function streamWithThinkingFallback(
   params: StreamAnswerParams,
   isCancelled: () => boolean,
   seqRef: SeqRef,
+  onlyMe: boolean,
 ): Promise<string> {
   try {
     return await streamAndPublish(
@@ -264,11 +287,12 @@ async function streamWithThinkingFallback(
       params,
       isCancelled,
       seqRef,
+      onlyMe,
     );
   } catch (error) {
     if (params.thinking && isThinkingRejectedError(error)) {
       // WARN: A second attempt is a second `start`, exactly as the agent chain's own is. `streamAndPublish` restarts its `fullText` at `""`, so without this the registry and every live bubble keep the rejected attempt's fragment and append this one under it — while the row actually inserted carries this attempt alone.
-      await startAttempt(streamId, questionClientMsgId, askerId, agent, seqRef);
+      await startAttempt(streamId, questionClientMsgId, askerId, agent, seqRef, onlyMe);
 
       return await streamAndPublish(
         streamId,
@@ -278,6 +302,7 @@ async function streamWithThinkingFallback(
         { ...params, thinking: undefined },
         isCancelled,
         seqRef,
+        onlyMe,
       );
     }
 
@@ -297,6 +322,7 @@ async function startAttempt(
   askerId: UserId,
   agent: LlmAgent,
   seqRef: SeqRef,
+  onlyMe: boolean,
 ): Promise<void> {
   markGenerationRunning(streamId, agent.provider, agent.model);
   await publishStreamEvent({
@@ -307,6 +333,7 @@ async function startAttempt(
     provider: agent.provider,
     model: agent.model,
     seq: seqRef.current,
+    onlyMe,
   });
 }
 
@@ -333,6 +360,7 @@ async function streamAndPublish(
   params: StreamAnswerParams,
   isCancelled: () => boolean,
   seqRef: SeqRef,
+  onlyMe: boolean,
 ): Promise<string> {
   let buffer = "";
   let fullText = "";
@@ -364,6 +392,7 @@ async function streamAndPublish(
           userId: askerId,
           seq: chunkSeq,
           text: chunk,
+          onlyMe,
         }).catch((error: unknown) => {
           console.error("[ask-ai] failed to publish a delta", error);
         }),

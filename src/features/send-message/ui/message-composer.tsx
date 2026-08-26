@@ -8,6 +8,7 @@ import {
   toEmoticonAssetUrl,
   toPlaceholderIndex,
   type KeywordMatch,
+  type NotifyMode,
 } from "@/shared/config";
 import {
   A_SECOND,
@@ -35,7 +36,7 @@ import {
   type EditableObject,
 } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUp, BellOff, Plus, Smile, Sparkles } from "lucide-react";
+import { ArrowUp, BellOff, Lock, Plus, Smile, Sparkles } from "lucide-react";
 import {
   Fragment,
   useCallback,
@@ -170,8 +171,8 @@ export type MessageComposerProps = {
   deleteRequest?: { token: number };
   /** REQUIREMENTS.md § 8.13. The field is correcting a message rather than composing one, so the controls that stage a *new* payload have nothing to act on. */
   isEditing?: boolean;
-  /** REQUIREMENTS.md § 16.1. 조용히 보내기 — a one-line notice above `header`, coexisting with it rather than taking its slot. */
-  isSilent?: boolean;
+  /** REQUIREMENTS.md § 16.1. 조용히 보내기 / 나에게만 보내기 — a one-line notice above `header`, coexisting with it rather than taking its slot. */
+  notifyMode?: NotifyMode;
   /**
    * DESIGN.md § 6.10. The staged quote — or § 6.10.1.'s correction notice — as the
    * pill's own first row, above the field it is the header of.
@@ -232,7 +233,7 @@ export function MessageComposer({
   insertedEmoticon,
   deleteRequest,
   isEditing = false,
-  isSilent = false,
+  notifyMode = "notify",
   header,
   focusRequest = 0,
   fieldRef: exposedFieldRef,
@@ -667,10 +668,16 @@ export function MessageComposer({
       {/* INFO: DESIGN.md § 6.6. The tab bar's floating surface (§ 7.3.). A column so § 6.10.'s staged quote can be a header row inside the pill. */}
       <div className="pointer-events-auto flex flex-col rounded-[calc(var(--tab-bar-height)/2)] border border-hairline glass p-2xs shadow-floating">
         {/* INFO: REQUIREMENTS.md § 16.1. Its own row, above `header`'s slot rather than inside it — the two coexist, unlike the quote/edit-bar/AI-selection alternatives that share that one slot. */}
-        {isSilent && (
+        {notifyMode === "silent" && (
           <div className="flex items-center gap-2xs px-sm pt-xs text-caption text-meta">
             <BellOff className="size-3.5 shrink-0" strokeWidth={1.75} />
             조용히 보내기
+          </div>
+        )}
+        {notifyMode === "onlyMe" && (
+          <div className="flex items-center gap-2xs px-sm pt-xs text-caption text-meta">
+            <Lock className="size-3.5 shrink-0" strokeWidth={1.75} />
+            나에게만 보내기
           </div>
         )}
         {/* INFO: DESIGN.md § 6.10. The staged quote arrives as the pill growing into it, over `--duration-state`, so the history it pushes up rides the same move — `useComposerClearance` observes this wrapper every frame of it. */}

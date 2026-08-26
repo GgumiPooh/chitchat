@@ -28,11 +28,12 @@ const querySchema = z
  * INFO: AGENTS.md § 6.4. A Route Handler answers its own 401; the App Router does
  * not honour a thrown `Response`.
  *
- * WARN: No per-row read check, and none is owed. The conversation is shared (§ 6.),
- * so every row this can return is one both participants may already see in the
- * bubble that carries it — which is the same reason § 10.'s library listing is
- * unscoped. `canReadMedia` guards the **object**, and that is `GET /api/media/{id}`'s
- * job on each slide the viewer actually loads.
+ * WARN: No per-row read check beyond `listConversationMedia`'s own `currentUserId`
+ * filter, and none further is owed. The conversation is shared (§ 6.), so every row
+ * this can return either carries no `only_me` at all or is the caller's own
+ * (REQUIREMENTS.md § 16.1.) — the same visibility `listMessages` and § 10.'s library
+ * listing already apply. `canReadMedia` guards the **object** on top of that, and
+ * that is `GET /api/media/{id}`'s job on each slide the viewer actually loads.
  *
  * INFO: An anchor that resolves to nothing answers `200` with an empty track rather than a 404. It is not a missing id — it is a message withdrawn between the tap and this request (§ 8.13.), and the viewer is being closed by the stream anyway.
  * INFO: An empty page at an edge is the same `200`, and it is how the client learns that edge is exhausted — `useViewerTrack` latches on a page that did not fill.
@@ -52,5 +53,7 @@ export async function GET(request: Request) {
     return apiError("invalid_request");
   }
 
-  return NextResponse.json({ media: await listConversationMedia(query.data) });
+  return NextResponse.json({
+    media: await listConversationMedia({ ...query.data, currentUserId: user.id }),
+  });
 }

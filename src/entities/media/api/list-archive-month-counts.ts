@@ -2,7 +2,7 @@ import "server-only";
 
 import type { LibraryShelf } from "@/shared/config";
 import { getDb, media } from "@/shared/db";
-import { SNOWFLAKE_EPOCH } from "@/shared/lib";
+import { SNOWFLAKE_EPOCH, type UserId } from "@/shared/lib";
 import { and, desc, sql } from "drizzle-orm";
 import type { ArchiveMonthCount } from "../model/types";
 import { isInLibrary, isOfShelf } from "./list-archive-media";
@@ -22,11 +22,14 @@ const MONTH_KEY = sql<string>`to_char(
  * (`isInLibrary` + `isOfShelf`), or a count could list a month the grid can never
  * actually show a tile from.
  */
-export async function listArchiveMonthCounts(shelf: LibraryShelf): Promise<ArchiveMonthCount[]> {
+export async function listArchiveMonthCounts(
+  shelf: LibraryShelf,
+  currentUserId: UserId,
+): Promise<ArchiveMonthCount[]> {
   return getDb()
     .select({ monthKey: MONTH_KEY, count: sql<number>`count(*)::int` })
     .from(media)
-    .where(and(isInLibrary(), isOfShelf(shelf)))
+    .where(and(isInLibrary(currentUserId), isOfShelf(shelf)))
     .groupBy(MONTH_KEY)
     .orderBy(desc(MONTH_KEY));
 }

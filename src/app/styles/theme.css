@@ -15,6 +15,8 @@
   --color-surface-soft: #f4f0e9;
   --color-surface-strong: #eae4da;
   --color-surface-pressed: #dfd8cb;
+  /* INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기's file/voice card fill — the dark theme's own `surface-soft`, same "other theme's look" swap `bubble-mine-private` uses. */
+  --color-surface-soft-private: #1e1a15;
   /* INFO: DESIGN.md § 4.1.1. A surface lifted **off** `surface-soft` — the § 13.6. segmented control's selected pill, which sits in a `surface-soft` track. */
   /* WARN: A token of its own because no single existing one answers it on both themes: the ladder ascends towards light on one and towards dark on the other, so the lift is `canvas` here and `surface-strong` under `.dark`. Reaching for either by name is right on one theme and inverted on the other. */
   --color-surface-raised: #fbf9f6;
@@ -25,6 +27,8 @@
   --color-hairline-strong: #cdc5b7;
   /* INFO: DESIGN.md § 6.10. The rule under an in-bubble quote — `hairline` disappears into a bubble fill and `hairline-strong` reads as an outline drawn inside one. */
   --color-quote-divider: #d9d2c5;
+  /* INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기's ring on a bubble-less attachment (media, a file card, an emoticon) — dark on light and light on dark, unlike `bubble-mine-private`'s cross-theme swap: this reuses the *same* theme's own `ink`, since "dark ring in light mode" is what `ink` already is on both themes without borrowing anything. `hairline-strong` was tried first and dropped: at 1px inset against a photo's own varied edge colours it read as no ring at all. */
+  --color-ring-private: #1f1b17;
   --color-ink: #1f1b17;
   --color-body: #453e36;
   --color-meta: #7b7266;
@@ -38,6 +42,9 @@
   --color-primary-disabled: #e8cfc9;
   --color-primary-tint: #f7e7e2;
   --color-on-primary: #ffffff;
+  /* INFO: REQUIREMENTS.md § 16.1. `FileCard`'s icon badge under 나에게만 보내기 — the dark theme's own `primary`/`primary-tint`, the same "other theme's look" swap `bubble-mine-private` and `surface-soft-private` use. */
+  --color-primary-private: #d2795f;
+  --color-primary-tint-private: #33201a;
 
   /* WARN: DESIGN.md § 5.3. Chrome over `scrim` or over a photograph, and it is the one colour token that MUST NOT change between themes — the surface under it is a user's photo or a fixed scrim, neither of which follows the theme. */
   /* WARN: Not `on-primary`. The two were the same white while the app was light-only, so a viewer control could borrow it and nothing showed; `on-primary` inverts to dark on the dark theme and every borrowed site turned black-on-black. Never point one at the other again. */
@@ -49,6 +56,12 @@
   --color-bubble-theirs: #ffffff;
   --color-bubble-theirs-pressed: #f4f1ec;
   --color-bubble-ink: #1f1b17;
+  /* INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기's bubble — the one token pair in this file that deliberately reuses the other theme's fill verbatim rather than re-deriving one, since the whole point is to read as "the other theme's bubble" in an otherwise light room. */
+  --color-bubble-mine-private: #4e2f26;
+  --color-bubble-mine-private-pressed: #5c382d;
+  --color-bubble-theirs-private: #262019;
+  --color-bubble-theirs-private-pressed: #322a21;
+  --color-bubble-private-ink: #f2ede4;
   --color-chat-meta: #8d8375;
   /* WARN: DESIGN.md § 4.1.4. Darker than `chat-meta` on purpose — the two used to share one token, which meant the sender name could not be made legible without also making the clock loud. */
   /* WARN: Named `chat-sender`, not `chat-name`, because `--text-chat-name` already exists — Tailwind resolves `text-*` against both scales and one key in both is an ambiguous utility. */
@@ -409,6 +422,8 @@
   --color-surface-soft: #1e1a15;
   --color-surface-strong: #2a251e;
   --color-surface-pressed: #363028;
+  /* INFO: REQUIREMENTS.md § 16.1. The light theme's own `surface-soft`, reused verbatim for the reason the light block's own comment on this token gives. WARN: This override is load-bearing — omitted, the light block's dark value cascades through unchanged and a private file card renders dark-on-dark in both themes. */
+  --color-surface-soft-private: #f4f0e9;
   /* INFO: DESIGN.md § 5.3. Re-derived, not the light value reused: elevation on dark is the surface ladder alone (`shadow-raised` is neutralised below), so the lift has to be a step **up** the dark ladder rather than back down to `canvas`. */
   --color-surface-raised: #2a251e;
 
@@ -418,6 +433,8 @@
   --color-hairline-strong: #443c31;
   /* INFO: DESIGN.md § 5.4. Re-derived rather than darkened: on a dark bubble a divider reads by being *lighter* than the fill, where the light theme's reads by being darker. */
   --color-quote-divider: #574b3b;
+  /* INFO: REQUIREMENTS.md § 16.1. This theme's own `ink`, for the reason the light block's own comment on this token gives — no cross-theme borrowing here. */
+  --color-ring-private: #f2ede4;
   --color-ink: #f2ede4;
   --color-body: #d8d0c3;
   --color-meta: #a19785;
@@ -434,6 +451,9 @@
   /* INFO: DESIGN.md § 5.3. Re-derived against the dark canvas, never the light tint reused — a light tint on a dark floor is a bright plate, not a low-emphasis accent. */
   --color-primary-tint: #33201a;
   --color-on-primary: #1a120f;
+  /* INFO: REQUIREMENTS.md § 16.1. The light theme's own `primary`/`primary-tint`, reused verbatim for the reason the light block's own comment on this pair gives. */
+  --color-primary-private: #b65c4e;
+  --color-primary-tint-private: #f7e7e2;
 
   /* INFO: DESIGN.md § 4.1.4. */
   --color-bubble-mine: #4e2f26;
@@ -443,6 +463,12 @@
   --color-bubble-theirs-pressed: #322a21;
   /* WARN: DESIGN.md § 5.3. One token for both fills, as on light. Both fills are dark here, so it inverts once, together. */
   --color-bubble-ink: #f2ede4;
+  /* INFO: REQUIREMENTS.md § 16.1. The light theme's own bubble fills, reused verbatim for the reason the light block's own comment on this pair gives. */
+  --color-bubble-mine-private: #f6dcd2;
+  --color-bubble-mine-private-pressed: #efcec1;
+  --color-bubble-theirs-private: #ffffff;
+  --color-bubble-theirs-private-pressed: #f4f1ec;
+  --color-bubble-private-ink: #1f1b17;
   --color-chat-meta: #9a9081;
   /* WARN: DESIGN.md § 4.1.4. Lighter than `chat-meta`, where light made it darker — the split exists so the sender name clears AA, and on this floor that means moving the other way. */
   --color-chat-sender: #c4b8a6;

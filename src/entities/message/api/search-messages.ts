@@ -1,9 +1,9 @@
-import { idToDate, type MessageId } from "@/shared/lib";
+import { idToDate, type MessageId, type UserId } from "@/shared/lib";
 import "server-only";
 
 import { SEARCH_PAGE_SIZE, toPlainMessageText } from "@/shared/config";
 import { getDb, messages } from "@/shared/db";
-import { and, count, desc, eq, ilike, isNull, lt } from "drizzle-orm";
+import { and, count, desc, eq, ilike, isNull, lt, or, type SQL } from "drizzle-orm";
 import { toSearchExcerpt } from "../model/to-search-excerpt";
 import type { MessageSearchResult } from "../model/types";
 
@@ -12,10 +12,16 @@ export type SearchMessagesParams = {
   /** Older than this id — the same keyset cursor § 8.2. pages history on. */
   before?: MessageId;
   limit?: number;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — the other participant's own rows are not searchable. */
+  currentUserId: UserId;
 };
 
 // INFO: REQUIREMENTS.md § 8.6.1. Attachments and emoticons carry no text to match, so the search is `text` rows alone rather than a filter applied to the result.
 const IS_SEARCHABLE = and(eq(messages.type, "text"), isNull(messages.deletedAt));
+
+function isVisibleTo(currentUserId: UserId): SQL {
+  return or(eq(messages.onlyMe, false), eq(messages.senderId, currentUserId))!;
+}
 
 /**
  * Substring search over `messages.text` (REQUIREMENTS.md § 8.6.).
@@ -29,6 +35,7 @@ export async function searchMessages({
   query,
   before,
   limit = SEARCH_PAGE_SIZE,
+  currentUserId,
 }: SearchMessagesParams): Promise<MessageSearchResult[]> {
   const rows = await getDb()
     .select({
@@ -40,6 +47,7 @@ export async function searchMessages({
     .where(
       and(
         IS_SEARCHABLE,
+        isVisibleTo(currentUserId),
         toMatch(query),
         before === undefined ? undefined : lt(messages.id, before),
       ),
@@ -64,11 +72,11 @@ export async function searchMessages({
  * behind it, and a counter that grew as the user stepped through would read as
  * the conversation gaining matches while they searched it.
  */
-export async function countMatchingMessages(query: string): Promise<number> {
+export async function countMatchingMessages(query: string, currentUserId: UserId): Promise<number> {
   const [row] = await getDb()
     .select({ total: count() })
     .from(messages)
-    .where(and(IS_SEARCHABLE, toMatch(query)));
+    .where(and(IS_SEARCHABLE, isVisibleTo(currentUserId), toMatch(query)));
 
   return row?.total ?? 0;
 }

@@ -16,6 +16,8 @@ export type VoicePlayerProps = {
   peaks: number[];
   /** Which side of the conversation this bubble is on; the only input that chooses its fill. */
   isMine: boolean;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — a ring rather than a fill swap, since the card already reserves the fixed `h-14` § 8.3.'s estimate depends on and a ring (`box-shadow`) cannot change it. */
+  isOnlyMe?: boolean;
   /** Still uploading. Dims to 60% (`DESIGN.md § 6.5.`) but stays playable, since the local blob is already a source. */
   isPending?: boolean;
 };
@@ -38,6 +40,7 @@ export function VoicePlayer({
   durationMs,
   peaks,
   isMine,
+  isOnlyMe = false,
   isPending = false,
 }: VoicePlayerProps) {
   const { isActive, isPlaying, positionMs, progress, toggle, seekToRatio } = useVoicePlayback(
@@ -61,7 +64,14 @@ export function VoicePlayer({
         // INFO: DESIGN.md § 6.5. `w-55` is the 220px attachment width, so a voice note lines up in the column with a photo, a grid and a file card.
         // INFO: DESIGN.md § 6.5. `h-14` is fixed for the same reason the file card is: REQUIREMENTS.md § 8.3.'s estimate has to be exact for a bubble whose contents it cannot measure, and a waveform has no height of its own to derive one from.
         "flex h-14 w-55 shrink-0 items-center gap-xs rounded-bubble px-sm",
-        isMine ? "bg-bubble-mine" : "border border-hairline bg-bubble-theirs",
+        // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the same `bubble-*-private` fill swap `MessageRow`'s own text bubble reads, since this card already owns a fill of its own the way an emoticon or a photo does not. Checked ahead of `isMine`, not nested under it — 보관함's own row (`isMine={false}` always) still owns a private answer through the `theirs` half of the pair.
+        isOnlyMe
+          ? isMine
+            ? "bg-bubble-mine-private"
+            : "border border-transparent bg-bubble-theirs-private"
+          : isMine
+            ? "bg-bubble-mine"
+            : "border border-hairline bg-bubble-theirs",
         // INFO: DESIGN.md § 6.5. An optimistic bubble dims rather than spinning.
         isPending && "opacity-60",
         className,

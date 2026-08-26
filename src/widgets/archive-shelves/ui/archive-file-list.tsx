@@ -104,6 +104,7 @@ export function ArchiveFileList({
         filename={filename}
         sizeBytes={item.size}
         isSelected={isSelected}
+        isOnlyMe={item.onlyMe}
         trailing={isSelecting ? renderMark(isSelected) : undefined}
         aria-label={isSelecting ? filename : `${filename} 저장`}
         aria-pressed={isSelecting ? isSelected : undefined}

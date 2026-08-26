@@ -36,7 +36,7 @@ export async function ChatPage({
   // INFO: REQUIREMENTS.md § 13. Through the payload builder, so this path carries its emoticons exactly as the fetched pages do — it is the only one whose map arrives as props rather than as a response.
   // WARN: REQUIREMENTS.md § 11.5.1. In parallel, and the summary is not optional to the first paint: the header's bloom is a property of the render itself, so a summary fetched after hydration would light the button a beat after the reader has already looked at it.
   const [{ messages, emoticons }, summary] = await Promise.all([
-    listMessages().then(toMessagePayload),
+    listMessages({ currentUserId }).then(toMessagePayload),
     // WARN: REQUIREMENTS.md § 11.5.1. One past the page the side panel draws, exactly as the client's own fetches ask for — seeded with the bare page there is no row to prove a next one exists, so 더 보기 is missing until the first refresh puts it there.
     // INFO: The side panel's page, on every width — the mobile card slices its `MAX_UPCOMING_EVENTS` off the same rows, and a page this size is cheaper than a second render path keyed on the panel cookie.
     getCalendarSummary(SIDE_PANEL_UPCOMING_PAGE_SIZE + 1),

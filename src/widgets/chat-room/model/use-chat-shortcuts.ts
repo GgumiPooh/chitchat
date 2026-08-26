@@ -63,7 +63,7 @@ export type ChatShortcuts = {
   onScrollHistory: (direction: -1 | 1) => void;
   /** `⌃A` — REQUIREMENTS.md § 8.5. AI 질문 모드, entered on an empty selection or exited. */
   onToggleAiMode: () => void;
-  /** `⌃S` — REQUIREMENTS.md § 16.1. 조용히 보내기, on or off. */
+  /** `⌃S` — REQUIREMENTS.md § 16.1. Cycles 알림 받게 하기 → 조용히 보내기 → 나에게만 보내기 → …. */
   onToggleSilentSend: () => void;
   /**
    * REQUIREMENTS.md § 8.14. A character typed with nothing focused — the caret to the

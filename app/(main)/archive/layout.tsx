@@ -1,5 +1,6 @@
 import { listArchiveMonthCounts } from "@/entities/media";
 import { ArchiveJumpProvider, ArchiveShell } from "@/pages/archive";
+import { requireUserOrRedirect } from "@/shared/auth";
 import type { PropsWithChildren } from "react";
 
 /**
@@ -10,10 +11,11 @@ import type { PropsWithChildren } from "react";
  * panel needs the other two on hand before the tap that switches to them.
  */
 export default async function ArchiveLayout({ children }: PropsWithChildren) {
+  const user = await requireUserOrRedirect();
   const [gallery, file, voice] = await Promise.all([
-    listArchiveMonthCounts("gallery"),
-    listArchiveMonthCounts("file"),
-    listArchiveMonthCounts("voice"),
+    listArchiveMonthCounts("gallery", user.id),
+    listArchiveMonthCounts("file", user.id),
+    listArchiveMonthCounts("voice", user.id),
   ]);
 
   return (

@@ -314,6 +314,10 @@ export function MediaViewer({
   const sentMessageId = current?.messageId ?? null;
   // INFO: DESIGN.md § 7.10. When the slide was sent, under the sender. Where it sits used to join it here and is the filmstrip's line at the foot of the screen now, beside the thumbnails it counts.
   const caption = current?.sentAt ? toSlideTimestamp(current.sentAt) : "";
+  // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — only ever set on a slide this reader sent, since every track that reaches the viewer already filters the other participant's own out.
+  const privacyLabel = current?.onlyMe
+    ? `나에게 보낸 ${toMediaLabel(current.isVideo ? "video" : "photo")}`
+    : null;
   // INFO: DESIGN.md § 7.10. The bubble the slide was sent in, which is what the filmstrip draws and what the position counts — empty on a bubble of one and on a slide with no bubble at all.
   const bubble = toBubbleRun(index, cells);
   // INFO: REQUIREMENTS.md § 8.1. Every branch below falls away with the prop, which is how 보관함 gets a track that does not page.
@@ -510,12 +514,21 @@ export function MediaViewer({
                 aria-label={`이 ${toMediaLabel(current?.isVideo ? "video" : "photo")}을 보낸 메시지로 이동`}
                 onClick={() => onOpenMessage(sentMessageId)}
               >
-                <SlideIdentity caption={caption} senderName={current?.senderName} hasChevron />
+                <SlideIdentity
+                  caption={caption}
+                  senderName={current?.senderName}
+                  privacyLabel={privacyLabel}
+                  hasChevron
+                />
               </button>
             </HapticTarget>
           ) : (
             <div className="min-w-0 flex-1 py-2xs">
-              <SlideIdentity caption={caption} senderName={current?.senderName} />
+              <SlideIdentity
+                caption={caption}
+                senderName={current?.senderName}
+                privacyLabel={privacyLabel}
+              />
             </div>
           )}
           {jump && current && (
@@ -925,6 +938,8 @@ export type SlideIdentityProps = {
   className?: string;
   caption: string;
   senderName?: Nullable<string>;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — `나에게 보낸 사진`/`나에게 보낸 동영상`, drawn only on a slide the reader sent that way. */
+  privacyLabel?: Nullable<string>;
   /** DESIGN.md § 7.10. Drawn only where the block travels, since it is the one thing that says so. */
   hasChevron?: boolean;
 };
@@ -935,7 +950,13 @@ export type SlideIdentityProps = {
  *
  * INFO: Its own component because it is drawn inside a `button` where the slide has a message to travel to and a plain `div` where it does not, and the two must not drift apart.
  */
-function SlideIdentity({ className, caption, senderName, hasChevron }: SlideIdentityProps) {
+function SlideIdentity({
+  className,
+  caption,
+  senderName,
+  privacyLabel,
+  hasChevron,
+}: SlideIdentityProps) {
   return (
     <div className={className}>
       {senderName && <p className="truncate text-button-sm text-on-scrim">{senderName}</p>}
@@ -946,6 +967,7 @@ function SlideIdentity({ className, caption, senderName, hasChevron }: SlideIden
           {hasChevron && <ChevronRight className="size-3 shrink-0" strokeWidth={2} />}
         </p>
       )}
+      {privacyLabel && <p className="truncate text-caption text-on-scrim/75">{privacyLabel}</p>}
     </div>
   );
 }

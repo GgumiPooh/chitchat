@@ -25,6 +25,7 @@ export function toArchiveCells(media: ArchiveMedia[]): MediaCell[] {
     sentAt: idToDate(item.id).toISOString(),
     // INFO: DESIGN.md § 7.10. The name above that caption. It rides the query that already resolves `messageId` (REQUIREMENTS.md § 10.), so naming the sender costs a primary-key lookup rather than a listing of its own — and it is `null` on exactly the rows `messageId` is, a library-only upload having nobody to name.
     senderName: item.senderName,
+    onlyMe: item.onlyMe,
     id: item.id,
   }));
 }

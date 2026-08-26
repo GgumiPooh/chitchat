@@ -41,6 +41,6 @@ export async function GET(request: Request) {
 
   // INFO: REQUIREMENTS.md § 13. A correction can put an emoticon into a row the client already holds, so a change carries the same map a page does.
   return NextResponse.json(
-    await toMessagePayload(await listChangedMessages(query.data.from, query.data.to)),
+    await toMessagePayload(await listChangedMessages(query.data.from, query.data.to, user.id)),
   );
 }

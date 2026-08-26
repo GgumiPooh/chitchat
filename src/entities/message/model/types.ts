@@ -94,5 +94,7 @@ export type ChatMessage = {
    * way out: a fold is a way of drawing the row, and the reader unfolds it in place.
    */
   isCollapsed: boolean;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — true only ever reaches the sender's own client, since every read path filters this row out for anyone else before it gets here. */
+  onlyMe: boolean;
   id: MessageId;
 };

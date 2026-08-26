@@ -37,6 +37,7 @@ export function toChatMessage(
     isDeleted,
     // INFO: REQUIREMENTS.md § 8.17. The flag and not the timestamp, exactly as `isDeleted` is — nothing draws *when* a message was folded.
     isCollapsed: row.collapsedAt !== null,
+    onlyMe: row.onlyMe,
     id: row.id,
   };
 }

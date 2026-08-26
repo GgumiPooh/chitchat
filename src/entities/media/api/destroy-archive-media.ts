@@ -1,4 +1,4 @@
-import type { MediaId } from "@/shared/lib";
+import type { MediaId, UserId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, media } from "@/shared/db";
@@ -34,17 +34,21 @@ import { isInLibrary } from "./list-archive-media";
  * tombstone occupy the box the picture did, so the § 8.3. virtualized list re-measures
  * nothing when a slide is deleted out from under a reader.
  */
-export async function destroyArchiveMedia(ids: MediaId[]): Promise<MediaId[]> {
+export async function destroyArchiveMedia(
+  ids: MediaId[],
+  currentUserId: UserId,
+): Promise<MediaId[]> {
   if (ids.length === 0) {
     return [];
   }
 
   // WARN: Membership without the shelf test (§ 10.), so one 삭제 serves every segment — narrowed to 갤러리 it would silently remove nothing for a file selection.
+  // INFO: REQUIREMENTS.md § 16.1. `isInLibrary(currentUserId)` also keeps this from reaching a onlyMe tile the other participant sent — a no-op here rather than a delete of something this caller cannot even see.
   const deleted = await getDb()
     .update(media)
     .set({ deletedAt: new Date() })
     // INFO: Idempotent — a second device deleting the same object must not restamp it, and the guard is what makes that write a no-op.
-    .where(and(inArray(media.id, ids), isNull(media.deletedAt), isInLibrary()))
+    .where(and(inArray(media.id, ids), isNull(media.deletedAt), isInLibrary(currentUserId)))
     .returning({ id: media.id });
 
   return deleted.map((row) => row.id);

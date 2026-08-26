@@ -7,8 +7,9 @@ import {
   llmThinkingLevelSchema,
   MAX_AI_CONTEXT_MESSAGES,
   MAX_AI_QUESTION_LENGTH,
-  SILENT_SEND_COOKIE_NAME,
+  NOTIFY_MODE_COOKIE_NAME,
   snowflakeSchema,
+  toNotifyMode,
 } from "@/shared/config";
 import { LLM_CANCEL_CHANNEL, notifyChannel } from "@/shared/db";
 import { safelyRunAsync, type MessageId, type Optional } from "@/shared/lib";
@@ -47,8 +48,8 @@ export async function POST(request: Request) {
     return apiError("invalid_request");
   }
 
-  // INFO: REQUIREMENTS.md § 16.1. Snapshotted here, at request time — a queued question keeps whatever 조용히 보내기 was set to when it was asked, not whatever it becomes while waiting on the FIFO.
-  const isSilent = (await cookies()).get(SILENT_SEND_COOKIE_NAME)?.value === "true";
+  // INFO: REQUIREMENTS.md § 16.1. Snapshotted here, at request time — a queued question keeps whatever 조용히 보내기 / 나에게만 보내기 was set to when it was asked, not whatever it becomes while waiting on the FIFO.
+  const notifyMode = toNotifyMode((await cookies()).get(NOTIFY_MODE_COOKIE_NAME)?.value);
 
   const result = await runQueuedGeneration({
     streamId: body.data.streamId,
@@ -58,11 +59,14 @@ export async function POST(request: Request) {
     messageIds: body.data.messageIds,
     pinnedModel: body.data.model,
     thinking: body.data.thinking,
+    onlyMe: notifyMode === "onlyMe",
   });
 
   if (result.status === "answered") {
     // INFO: REQUIREMENTS.md § 8.15., § 16.1. Unlike an ordinary send, the asker is pushed too — they are `sender_id` on this row but may have left the app while the answer streamed.
-    after(() => safelyRunAsync(() => notifyAssistantReply(result.message, user.id, isSilent)));
+    after(() =>
+      safelyRunAsync(() => notifyAssistantReply(result.message, user.id, notifyMode !== "notify")),
+    );
 
     return NextResponse.json(await toSingleMessagePayload(result.message), { status: 201 });
   }

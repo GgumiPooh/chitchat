@@ -7,6 +7,8 @@ export type FileCardProps = ComponentProps<"button"> & {
   filename: string;
   sizeBytes: number;
   isSelected?: boolean;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — a ring, since the card is already a fixed `h-14` § 8.3.'s estimate depends on. */
+  isOnlyMe?: boolean;
   /** The row's trailing edge — the 보관함 list puts its selection mark here; a bubble leaves it empty. */
   trailing?: ReactNode;
   /**
@@ -45,6 +47,7 @@ export function FileCard({
   filename,
   sizeBytes,
   isSelected = false,
+  isOnlyMe = false,
   trailing,
   meta,
   progress,
@@ -53,7 +56,11 @@ export function FileCard({
   return (
     <button
       className={cn(
-        "relative flex h-14 w-full cursor-pointer items-center gap-xs overflow-hidden rounded-md border border-hairline bg-surface-soft px-sm text-left transition-colors outline-none hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-pressed disabled:cursor-default",
+        "relative flex h-14 w-full cursor-pointer items-center gap-xs overflow-hidden rounded-md border px-sm text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset disabled:cursor-default",
+        // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the other theme's own surface, exactly as `bubble-mine-private` swaps a text bubble's fill, rather than a ring on a card that already carries a border.
+        isOnlyMe
+          ? "border-transparent bg-surface-soft-private"
+          : "border-hairline bg-surface-soft hover:bg-surface-strong active:bg-surface-pressed",
         // INFO: DESIGN.md § 7.10. A ring rather than the grid's 90% inset — a row has no photograph to shrink, and the mark beside it is what says which state this is.
         isSelected && "border-primary ring-1 ring-primary",
         className,
@@ -61,12 +68,30 @@ export function FileCard({
       type="button"
       {...props}
     >
-      <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-sm bg-primary-tint text-primary">
+      <span
+        className={cn(
+          "inline-flex size-8 shrink-0 items-center justify-center rounded-sm",
+          isOnlyMe
+            ? "bg-primary-tint-private text-primary-private"
+            : "bg-primary-tint text-primary",
+        )}
+      >
         <FileText className="size-4" strokeWidth={1.75} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-body-sm text-ink">{filename}</span>
-        <span className="truncate text-caption text-meta">{meta ?? formatSize(sizeBytes)}</span>
+        <span
+          className={cn("truncate text-body-sm", isOnlyMe ? "text-bubble-private-ink" : "text-ink")}
+        >
+          {filename}
+        </span>
+        <span
+          className={cn(
+            "truncate text-caption",
+            isOnlyMe ? "text-bubble-private-ink/70" : "text-meta",
+          )}
+        >
+          {meta ?? formatSize(sizeBytes)}
+        </span>
       </span>
       {trailing}
       {/* INFO: DESIGN.md § 7.10.1. A 2px rule along the bottom edge, not a slider — playback here is a tap and a second tap, and § 9.1. stores no duration for an attached file to seek against before it has played. */}

@@ -16,7 +16,8 @@ import type { MediaCell } from "@/shared/ui";
  */
 export type TrackOwner = { messageId: MessageId; senderId: UserId };
 
-export function toCellsFromMedia(media: ChatMedia[]): MediaCell[] {
+// INFO: REQUIREMENTS.md § 16.1. `onlyMe` is one flag for the whole call, never per item — § 6. keeps a bubble to one sender and one kind, so every cell built from one bubble's own `media` shares its message's flag.
+export function toCellsFromMedia(media: ChatMedia[], onlyMe = false): MediaCell[] {
   return media.map((item) => ({
     // INFO: REQUIREMENTS.md § 9.1., § 9.3. Neither a file nor a recording has a `_thumb` object, so both are given no URL to load rather than one that answers 404 behind every card.
     previewUrl: item.filename || item.voice ? null : toMediaUrl(item.id),
@@ -32,6 +33,7 @@ export function toCellsFromMedia(media: ChatMedia[]): MediaCell[] {
     voice: item.voice,
     sizeBytes: item.size,
     isDeleted: item.isDeleted,
+    onlyMe,
     id: item.id,
   }));
 }
@@ -55,6 +57,8 @@ export function toCellsFromTrack(
       // INFO: DESIGN.md § 7.10. and the finished restructure. The caption's instant comes off the slide's own id, which is where the track's order comes from too.
       sentAt: row ? idToDate(row.id).toISOString() : null,
       senderName: row ? (toSenderName(row.senderId) ?? null) : null,
+      // WARN: REQUIREMENTS.md § 16.1. Overrides `toCellsFromMedia`'s shared default — the track crosses bubbles, and each row carries its own message's flag rather than the one this call was seeded with.
+      onlyMe: row?.onlyMe ?? false,
     };
   });
 }

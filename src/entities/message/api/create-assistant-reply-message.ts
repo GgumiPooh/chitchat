@@ -18,6 +18,8 @@ export type CreateAssistantReplyMessageParams = {
   llmModel: string;
   /** REQUIREMENTS.md § 8.15. The question this answers, so the landed bubble quotes it exactly as the streaming row did — null where the row cannot be resolved, which leaves the answer unquoted rather than unsent. */
   replyToId: Nullable<MessageId>;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — the mode the question was asked in, set once here, at insert. */
+  onlyMe?: boolean;
 };
 
 /**
@@ -32,6 +34,7 @@ export async function createAssistantReplyMessage({
   llmProvider,
   llmModel,
   replyToId,
+  onlyMe = false,
 }: CreateAssistantReplyMessageParams): Promise<Nullable<ChatMessage>> {
   const db = getDb();
   const [inserted] = await db
@@ -46,6 +49,7 @@ export async function createAssistantReplyMessage({
       llmModel,
       replyToId,
       clientMsgId,
+      onlyMe,
     })
     .onConflictDoNothing({ target: messages.clientMsgId })
     .returning();

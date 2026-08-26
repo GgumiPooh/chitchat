@@ -55,6 +55,7 @@ export function ArchiveAudioRow({
           filename={filename}
           sizeBytes={item.size}
           isSelected={isSelected}
+          isOnlyMe={item.onlyMe}
           trailing={isSelecting ? mark : undefined}
           // INFO: The clock replaces the size only once the track is the active one — an untouched row still says how big the file is, which is what a 저장 tap is judged on.
           meta={isActive ? toElapsedLabel(positionMs, resolvedDurationMs) : undefined}

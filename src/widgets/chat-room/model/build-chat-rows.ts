@@ -8,6 +8,15 @@ export type BuildChatRowsParams = {
   messages: ChatMessage[];
   pending: PendingMessage[];
   currentUserId: UserId;
+  /**
+   * REQUIREMENTS.md § 16.1. 나에게만 보내기 — while this reader's own device is on
+   * that mode, the timeline narrows to exactly the messages carrying `onlyMe`:
+   * their own private sends and the AI answers those private questions produced.
+   * A message sent under 조용히 보내기 or 알림 받게 하기, and a calendar system
+   * notice however triggered, all drop out of the *view* (never the data — leaving
+   * the mode restores them).
+   */
+  hideOthers?: boolean;
 };
 
 type Entry = {
@@ -26,9 +35,13 @@ export function buildChatRows({
   messages,
   pending,
   currentUserId,
+  hideOthers = false,
 }: BuildChatRowsParams): ChatRow[] {
+  // INFO: REQUIREMENTS.md § 16.1. Filtered ahead of the entry list, not at each push below — a date divider must not survive for a day whose every non-`onlyMe` message this drops, and this is what keeps that in step.
+  const visibleMessages = hideOthers ? messages.filter((message) => message.onlyMe) : messages;
+
   const entries: Entry[] = [
-    ...messages.map((message) => ({
+    ...visibleMessages.map((message) => ({
       key: `m${message.id}:${toRowRevision(message)}`,
       dayKey: toDayKey(message.createdAt),
       // INFO: DESIGN.md § 6.3. A group is one sender inside one clock minute; a `system` notice never joins one.

@@ -2,8 +2,8 @@ import "server-only";
 
 import { CHAT_MEDIA_TRACK_SPAN, VISUAL_KINDS } from "@/shared/config";
 import { getDb, media, messageMedia, messages } from "@/shared/db";
-import type { MediaId, MessageId, Optional } from "@/shared/lib";
-import { and, asc, desc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import type { MediaId, MessageId, Optional, UserId } from "@/shared/lib";
+import { and, asc, desc, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import { toChatMedia } from "../model/to-chat-media";
 import type { ChatTrackMedia } from "../model/types";
 
@@ -25,6 +25,8 @@ export type ListConversationMediaParams = {
   before?: MediaId;
   /** The track's **newest** loaded slide; the answer is the page after it, which extends the back. */
   after?: MediaId;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — the reader this track is drawn for; a slide whose sending message is only visible to the other participant is excluded rather than shown behind a filter. */
+  currentUserId: UserId;
 };
 
 /**
@@ -47,8 +49,10 @@ export async function listConversationMedia({
   around,
   before,
   after,
+  currentUserId,
 }: ListConversationMediaParams): Promise<ChatTrackMedia[]> {
-  const anchor = await findPosition(around ?? before ?? after);
+  const visible = or(eq(messages.onlyMe, false), eq(messages.senderId, currentUserId))!;
+  const anchor = await findPosition(around ?? before ?? after, visible);
 
   if (!anchor) {
     return [];
@@ -57,15 +61,15 @@ export async function listConversationMedia({
   if (!around) {
     // INFO: The front page is read away from the anchor and reversed back into send order, exactly as the window's older half is.
     return before
-      ? (await selectPage(comparedToAnchor("<", anchor), "desc")).reverse()
-      : selectPage(comparedToAnchor(">", anchor), "asc");
+      ? (await selectPage(comparedToAnchor("<", anchor), visible, "desc")).reverse()
+      : selectPage(comparedToAnchor(">", anchor), visible, "asc");
   }
 
   const [older, atOrNewer] = await Promise.all([
     // INFO: Descending so the limit takes the `CHAT_MEDIA_TRACK_SPAN` rows *nearest* the anchor rather than the conversation's oldest, then reversed back into send order.
-    selectPage(comparedToAnchor("<", anchor), "desc"),
+    selectPage(comparedToAnchor("<", anchor), visible, "desc"),
     // WARN: Inclusive of the anchor, and one row wider for it. `useViewerTrack` reads "there may be more beyond this edge" off each half having filled `CHAT_MEDIA_TRACK_SPAN`, and a half that spent one of its rows on the anchor would report the newer edge exhausted one row early on every open.
-    selectPage(comparedToAnchor(">=", anchor), "asc", CHAT_MEDIA_TRACK_SPAN + 1),
+    selectPage(comparedToAnchor(">=", anchor), visible, "asc", CHAT_MEDIA_TRACK_SPAN + 1),
   ]);
 
   return [...older.reverse(), ...atOrNewer];
@@ -76,7 +80,10 @@ export async function listConversationMedia({
  *
  * WARN: A withdrawn message's attachments are gone from the track, so an anchor inside one resolves to nothing and the caller is handed an empty track rather than a window around a hole. The § 8.13. stream withdraws the viewer in that case anyway; this is the race where the tap and the withdrawal cross.
  */
-async function findPosition(anchorId: Optional<MediaId>): Promise<Optional<TrackPosition>> {
+async function findPosition(
+  anchorId: Optional<MediaId>,
+  visible: SQL,
+): Promise<Optional<TrackPosition>> {
   if (!anchorId) {
     return undefined;
   }
@@ -85,7 +92,7 @@ async function findPosition(anchorId: Optional<MediaId>): Promise<Optional<Track
     .select({ messageId: messageMedia.messageId, sortOrder: messageMedia.sortOrder })
     .from(messageMedia)
     .innerJoin(messages, eq(messages.id, messageMedia.messageId))
-    .where(and(eq(messageMedia.mediaId, anchorId), isNull(messages.deletedAt)))
+    .where(and(eq(messageMedia.mediaId, anchorId), isNull(messages.deletedAt), visible))
     .orderBy(asc(messageMedia.messageId))
     .limit(1);
 
@@ -101,12 +108,18 @@ async function findPosition(anchorId: Optional<MediaId>): Promise<Optional<Track
  */
 async function selectPage(
   within: SQL,
+  visible: SQL,
   direction: "asc" | "desc",
   limit: number = CHAT_MEDIA_TRACK_SPAN,
 ) {
   const order = direction === "asc" ? asc : desc;
   const rows = await getDb()
-    .select({ row: media, messageId: messageMedia.messageId, senderId: messages.senderId })
+    .select({
+      row: media,
+      messageId: messageMedia.messageId,
+      senderId: messages.senderId,
+      onlyMe: messages.onlyMe,
+    })
     .from(messageMedia)
     .innerJoin(messages, eq(messages.id, messageMedia.messageId))
     .innerJoin(media, eq(media.id, messageMedia.mediaId))
@@ -117,16 +130,19 @@ async function selectPage(
         isNull(messages.deletedAt),
         isNull(media.deletedAt),
         inArray(media.kind, [...VISUAL_KINDS]),
+        // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — a slide sent privately by the other participant crosses no bubble this reader can already see, so the track excludes it exactly as § 8.2.'s history listing does.
+        visible,
         within,
       ),
     )
     .orderBy(order(messageMedia.messageId), order(messageMedia.sortOrder))
     .limit(limit);
 
-  return rows.map(({ row, messageId, senderId }) => ({
+  return rows.map(({ row, messageId, senderId, onlyMe }) => ({
     ...toChatMedia(row),
     messageId,
     senderId,
+    onlyMe,
   }));
 }
 

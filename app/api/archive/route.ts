@@ -97,6 +97,7 @@ export async function GET(request: Request) {
       // INFO: The current parameter wins outright. A client sending both is one mid-upgrade, and the name it knows the new build by is the one to answer.
       shelf: shelf ?? (kind && SHELVES_BY_DEPRECATED_NAME[kind]),
       limit: Math.min(limit ?? ARCHIVE_PAGE_SIZE, MAX_ARCHIVE_PAGE_SIZE),
+      currentUserId: user.id,
     }),
   });
 }
@@ -126,7 +127,7 @@ export async function DELETE(request: Request) {
     return apiError("invalid_request");
   }
 
-  const deletedIds = await destroyArchiveMedia(body.data.ids);
+  const deletedIds = await destroyArchiveMedia(body.data.ids, user.id);
 
   // TODO: § 18. #1. Drop `hiddenIds` in the following cycle, with `mode` above.
   // WARN: The empty array is load-bearing for one cycle. A tab left open across the deploy destructures **both** names and spreads them, so answering without this one throws in the client *after* the objects are already destroyed — reporting a failure for a delete that happened, over tiles it then leaves on screen.

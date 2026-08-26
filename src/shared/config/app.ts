@@ -1,4 +1,12 @@
-import { A_DAY, A_MINUTE, A_SECOND, type Maybe, type UserId } from "@/shared/lib";
+import {
+  A_DAY,
+  A_MINUTE,
+  A_SECOND,
+  safelyGet,
+  type Maybe,
+  type Optional,
+  type UserId,
+} from "@/shared/lib";
 import { z } from "zod";
 import { snowflakeSchema } from "./id";
 
@@ -428,9 +436,46 @@ export const SIDE_PANEL_SETTLED_EVENT = "jandh:side-panel-settled";
 // INFO: AGENTS.md § 4.1. 보관함's column count (1–7) at every width — the pinch's and the 열 개수 slider's shared cookie, kept so SSR and `ArchiveGrid` draw the same count with no flash.
 export const ARCHIVE_COLUMNS_COOKIE_NAME = "jandh:archive-columns";
 
-// INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 — withholds this sender's push to the other participant, kept in a cookie so both the chat header and the message routes read the same value with no round trip.
-// WARN: A boolean, never `"on"`/`"off"` strings — `universal-cookie` writes a string raw, and `synced-storage`'s SSR seeding `JSON.parse`s the cookie, so a bare word warns and hydrates as the default (`useSidePanel`'s own WARN, same mechanism).
-export const SILENT_SEND_COOKIE_NAME = "jandh:silent-send";
+// INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 / 나에게만 보내기 — withholds this sender's push (and, for 나에게만 보내기, the row itself) from the other participant, kept in a cookie so both the chat header and the message routes read the same value with no round trip.
+// WARN: Renamed from `jandh:silent-send` when the value widened from a boolean to `NotifyMode` — a stale boolean cookie under the old name would otherwise `JSON.parse` into `true`/`false` where a `NotifyMode` string is expected.
+export const NOTIFY_MODE_COOKIE_NAME = "jandh:notify-mode";
+
+/** REQUIREMENTS.md § 16.1. `"notify"` is unset — every mode after it withholds something more than the last. Order is the cookie's own index order (below) as well as `⌃S`'s cycle order — do not reorder without both in mind. */
+export const notifyModes = ["notify", "silent", "onlyMe"] as const;
+
+export type NotifyMode = (typeof notifyModes)[number];
+
+/** `Ctrl+S`'s cycle (REQUIREMENTS.md § 8.14., § 16.1.): 알림 받게 하기 → 조용히 보내기 → 나에게만 보내기 → …*/
+export function nextNotifyMode(mode: NotifyMode): NotifyMode {
+  return notifyModes[(notifyModes.indexOf(mode) + 1) % notifyModes.length];
+}
+
+/**
+ * REQUIREMENTS.md § 16.1. The cookie carries `notifyModes`' own **index**, not the
+ * mode name.
+ *
+ * WARN: `universal-cookie` writes a `string` value raw and only `JSON.stringify`s
+ * everything else (`useSidePanel`'s own WARN, same mechanism `jandh:silent-send`
+ * relied on for its boolean) — so a `NotifyMode` string written directly would
+ * store unquoted text `synced-storage`'s SSR seeding cannot `JSON.parse`, and the
+ * server render would always paint the default mode. A `number` index sidesteps
+ * that: `JSON.stringify` still runs, and the result parses back on both sides.
+ */
+export function toNotifyModeIndex(mode: NotifyMode): number {
+  return notifyModes.indexOf(mode);
+}
+
+/** The inverse of `toNotifyModeIndex` — an out-of-range or malformed index falls back to `"notify"` rather than throwing. */
+export function fromNotifyModeIndex(index: unknown): NotifyMode {
+  return typeof index === "number" ? (notifyModes[index] ?? "notify") : "notify";
+}
+
+// INFO: REQUIREMENTS.md § 16.1. What the message/AI routes read the cookie's raw text into — a missing or malformed value falls back to `"notify"` rather than 500ing the request.
+export function toNotifyMode(raw: Optional<string>): NotifyMode {
+  const parsed = raw === undefined ? undefined : safelyGet(() => JSON.parse(raw) as unknown);
+
+  return fromNotifyModeIndex(parsed);
+}
 
 // WARN: Must stay at the origin root. A worker served from a subdirectory controls only that subdirectory, and the push subscription is bound to the scope it was created under.
 export const SERVICE_WORKER_PATH = "/sw.js";

@@ -38,6 +38,7 @@ import {
   type MessageId,
   type Nullable,
   type Optional,
+  type UserId,
 } from "@/shared/lib";
 import { z } from "zod";
 
@@ -76,6 +77,7 @@ export async function GET(request: Request) {
   }
 
   const sessionId = context.session.id;
+  const currentUserId = context.user.id;
   const cursor = parseCursor(request.headers.get("Last-Event-ID"));
   const encoder = new TextEncoder();
   const ended = new AbortController();
@@ -107,11 +109,14 @@ export async function GET(request: Request) {
         );
 
         // INFO: A client connecting mid-queue or mid-stream has seen none of the `queued`/`start`/`delta`s already published — the registry is this run's own memory of them.
+        // WARN: REQUIREMENTS.md § 16.1. 나에게만 보내기 — a run asked in that mode is withheld from every session but the asker's own, the same rule `handleNotification`'s own `LLM_STREAM_CHANNEL` branch applies live.
         for (const snapshot of listGenerationSnapshots()) {
-          write(toLlmSnapshotEvent(snapshot));
+          if (!snapshot.onlyMe || snapshot.userId === currentUserId) {
+            write(toLlmSnapshotEvent(snapshot));
+          }
         }
 
-        const replay = await replayFrom(cursor);
+        const replay = await replayFrom(cursor, currentUserId);
         // INFO: REQUIREMENTS.md § 13. One query for the whole replay, and each event then carries only the entries its own row names — the alternative is a query per replayed message on every reconnect.
         const replayEmoticons = await listMessageInlineEmoticons(replay);
 
@@ -179,7 +184,8 @@ export async function GET(request: Request) {
           // INFO: Same reasoning as `typing` above — the payload is the whole event, and it is written straight out rather than queued behind the pipeline below.
           const llm = llmStreamEventSchema.safeParse(safelyGet(() => JSON.parse(payload)));
 
-          if (llm.success) {
+          // WARN: REQUIREMENTS.md § 16.1. 나에게만 보내기 — withheld from every session but the asker's own, matching the snapshot backfill above.
+          if (llm.success && (!llm.data.onlyMe || llm.data.userId === currentUserId)) {
             write(`event: llm\ndata: ${JSON.stringify(llm.data)}\n\n`);
           }
 
@@ -208,7 +214,8 @@ export async function GET(request: Request) {
             const message = await getMessage(id);
 
             // INFO: REQUIREMENTS.md § 8.13. `null` now means the id names no row at all, which is nothing to report on either channel — a deletion resolves normally and arrives as a row whose `isDeleted` is set.
-            if (message) {
+            // WARN: REQUIREMENTS.md § 16.1. 나에게만 보내기 — withheld from every session but the sender's own, exactly as the `LLM_STREAM_CHANNEL` branch withholds its own events.
+            if (message && (!message.onlyMe || message.senderId === currentUserId)) {
               const emoticons = await listMessageInlineEmoticons([message]);
 
               write(
@@ -296,7 +303,10 @@ function toLlmSnapshotEvent(snapshot: GenerationSnapshot & { streamId: string })
   return `event: llm\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-async function replayFrom(cursor: Nullable<MessageId>): Promise<ChatMessage[]> {
+async function replayFrom(
+  cursor: Nullable<MessageId>,
+  currentUserId: UserId,
+): Promise<ChatMessage[]> {
   if (cursor === null) {
     return [];
   }
@@ -304,6 +314,7 @@ async function replayFrom(cursor: Nullable<MessageId>): Promise<ChatMessage[]> {
   return listMessages({
     after: idFloorBefore(cursor, SSE_REPLAY_MARGIN),
     limit: SSE_REPLAY_LIMIT,
+    currentUserId,
   });
 }
 

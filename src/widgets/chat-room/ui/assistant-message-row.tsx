@@ -121,9 +121,12 @@ export function AssistantMessageRow({
           <div className="min-w-0">
             <div
               className={cn(
-                "w-fit max-w-full rounded-bubble rounded-tl-xs border border-hairline bg-bubble-theirs px-sm py-xs select-text",
+                "w-fit max-w-full rounded-bubble rounded-tl-xs border border-hairline px-sm py-xs select-text",
+                // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the asker's own private question answered with the other theme's `theirs` fill, `MessageRow`'s own bubble reading the same pair for the mine side.
+                message.onlyMe ? "bg-bubble-theirs-private" : "bg-bubble-theirs",
                 // INFO: DESIGN.md § 6.2.1. `MessageRow`'s own tombstone treatment — the bubble keeps its shape and side and gives up its ink.
-                isDeleted && "text-bubble-ink/55 italic select-none",
+                isDeleted && (message.onlyMe ? "text-bubble-private-ink/55" : "text-bubble-ink/55"),
+                isDeleted && "italic select-none",
                 LONG_PRESS_TARGET_CLASS,
               )}
               {...longPressHandlers}
@@ -151,15 +154,26 @@ export function AssistantMessageRow({
                   {/* WARN: REQUIREMENTS.md § 8.3. A px cap and not `MessageRow`'s `line-clamp` — an answer is a stack of blocks rather than a run of lines, and `-webkit-box` counts no line boxes through one. `toTruncatedBodyHeight` is the number `toAnswerHeight` prices, so the two cannot read the clamp differently. */}
                   {/* WARN: REQUIREMENTS.md § 8.17. Plain body text and never `MarkdownBody` — a folded answer is one line, and a one-line cap over markdown cuts an `h1` through the middle of its glyphs. `line-clamp-1` lays out exactly the line `toAssistantColumnHeight` prices. */}
                   {isCollapsed ? (
-                    <span className="line-clamp-1 text-chat-body [word-break:normal] text-bubble-ink">
+                    <span
+                      className={cn(
+                        "line-clamp-1 text-chat-body [word-break:normal]",
+                        message.onlyMe ? "text-bubble-private-ink" : "text-bubble-ink",
+                      )}
+                    >
                       {message.text}
                     </span>
                   ) : isTruncated ? (
                     <div className="overflow-hidden" style={{ maxHeight: toTruncatedBodyHeight() }}>
-                      <MarkdownBody text={message.text ?? ""} />
+                      <MarkdownBody
+                        className={message.onlyMe ? "text-bubble-private-ink" : undefined}
+                        text={message.text ?? ""}
+                      />
                     </div>
                   ) : (
-                    <MarkdownBody text={message.text ?? ""} />
+                    <MarkdownBody
+                      className={message.onlyMe ? "text-bubble-private-ink" : undefined}
+                      text={message.text ?? ""}
+                    />
                   )}
                   {/* WARN: REQUIREMENTS.md § 8.3. `MessageRow`'s own note — never conditioned on the handler, which the estimate cannot see. */}
                   {isTruncated && <ExpandBodyButton label="전체보기" onClick={onExpand} />}

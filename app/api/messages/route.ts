@@ -24,14 +24,16 @@ import {
   MAX_MESSAGE_LENGTH,
   MAX_MESSAGE_PAGE_SIZE,
   MESSAGE_PAGE_SIZE,
+  NOTIFY_MODE_COOKIE_NAME,
   PUSH_BODY_MAX_LENGTH,
-  SILENT_SEND_COOKIE_NAME,
   snowflakeCursorSchema,
   snowflakeSchema,
   toMediaLabel,
   toMediaNoun,
   toMessageSummary,
+  toNotifyMode,
   toSoloInlineEmoticonId,
+  type NotifyMode,
 } from "@/shared/config";
 import type { User } from "@/shared/db";
 import {
@@ -119,6 +121,7 @@ export async function GET(request: Request) {
         after,
         around,
         limit: Math.min(limit ?? MESSAGE_PAGE_SIZE, MAX_MESSAGE_PAGE_SIZE),
+        currentUserId: user.id,
       }),
     ),
   );
@@ -132,8 +135,9 @@ export async function POST(request: Request) {
     return apiError("unauthorized");
   }
 
-  // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 — read once per request, not inside `after()`, since a cookie belongs to the request that carried it.
-  const isSilent = (await cookies()).get(SILENT_SEND_COOKIE_NAME)?.value === "true";
+  // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 / 나에게만 보내기 — read once per request, not inside `after()`, since a cookie belongs to the request that carried it.
+  const notifyMode = toNotifyMode((await cookies()).get(NOTIFY_MODE_COOKIE_NAME)?.value);
+  const onlyMe = notifyMode === "onlyMe";
 
   const body = bodySchema.safeParse(await request.json().catch(() => null));
 
@@ -159,10 +163,10 @@ export async function POST(request: Request) {
   }
 
   if ("media" in payload) {
-    return postMediaMessage(user, payload, isShortcutShare, isSilent);
+    return postMediaMessage(user, payload, isShortcutShare, notifyMode, onlyMe);
   }
 
-  const message = await createMessage(user.id, payload);
+  const message = await createMessage(user.id, payload, onlyMe);
 
   // INFO: The client id is already taken by a row this sender cannot claim, so echoing anything back would replace their optimistic bubble with a stranger's message.
   if (!message) {
@@ -172,7 +176,7 @@ export async function POST(request: Request) {
   // INFO: REQUIREMENTS.md § 13. The echo carries the same map a page does, so the sender's own row draws from what the server resolved rather than from whatever the composer happened to hold.
   const echo = await toSingleMessagePayload(message);
 
-  runAfterEffects(user, message, isShortcutShare, isSilent);
+  runAfterEffects(user, message, isShortcutShare, notifyMode);
 
   return NextResponse.json(echo, { status: 201 });
 }
@@ -181,7 +185,8 @@ async function postMediaMessage(
   user: User,
   payload: Extract<z.infer<typeof bodySchema>, { media: unknown[] }>,
   isShortcutShare: boolean,
-  isSilent: boolean,
+  notifyMode: NotifyMode,
+  onlyMe: boolean,
 ): Promise<NextResponse> {
   const validated = await Promise.all(
     payload.media.map((upload) => validateMediaUpload({ ownerId: user.id, upload, scope: "chat" })),
@@ -196,6 +201,7 @@ async function postMediaMessage(
     clientMsgId: payload.clientMsgId,
     replyToId: payload.replyToId,
     media: validated as NonNullable<(typeof validated)[number]>[],
+    onlyMe,
   });
 
   if (result.status !== "created") {
@@ -204,7 +210,7 @@ async function postMediaMessage(
 
   const echo = await toSingleMessagePayload(result.message);
 
-  runAfterEffects(user, result.message, isShortcutShare, isSilent);
+  runAfterEffects(user, result.message, isShortcutShare, notifyMode);
 
   // WARN: REQUIREMENTS.md § 9. The rows this request just registered, in send order — the sender's `uploadDraft` never got an id from a separate registration, so it takes this one to draw its own gallery tile and to map an upload slot back to the id `message_media` attached it under.
   return NextResponse.json(
@@ -220,12 +226,13 @@ async function canReplyTo(replyToId: Optional<MessageId>): Promise<boolean> {
 function createMessage(
   senderId: User["id"],
   payload: Exclude<z.infer<typeof bodySchema>, { media: unknown[] }>,
+  onlyMe: boolean,
 ): Promise<Nullable<ChatMessage>> {
   if ("text" in payload) {
-    return createTextMessage({ senderId, ...payload });
+    return createTextMessage({ senderId, ...payload, onlyMe });
   }
 
-  return createEmoticonMessage({ senderId, ...payload });
+  return createEmoticonMessage({ senderId, ...payload, onlyMe });
 }
 
 // WARN: REQUIREMENTS.md § 16.1. `after`, so the fan-out's round trips to the push services never sit between the sender and their 201. It still runs inside this invocation, on a database that is already awake — which is why push costs Neon's autosuspend nothing, unlike the cron § 16.1. rejected.
@@ -233,10 +240,10 @@ function runAfterEffects(
   user: User,
   message: ChatMessage,
   isShortcutShare: boolean,
-  isSilent: boolean,
+  notifyMode: NotifyMode,
 ): void {
-  // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 withholds only the recipient's banner — the sender's own 공유 완료 push below is unaffected.
-  if (!isSilent) {
+  // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 withholds the recipient's banner; 나에게만 보내기 does too — its row is invisible to them, so there is nothing a push could point at.
+  if (notifyMode === "notify") {
     after(() => safelyRunAsync(() => notifyMessageRecipients(user, toPushBody(message))));
   }
 

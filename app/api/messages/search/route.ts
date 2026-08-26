@@ -32,8 +32,8 @@ export async function GET(request: Request) {
   // INFO: The counter beside the field is a property of the whole query, not of the page — so it is asked for once, on the page that has no cursor behind it, and carried by the client from there.
   // WARN: Started together, never awaited one after the other. The count is the slower half — it cannot be `LIMIT`ed and scans every match — so a sequential pair makes every submit wait for the sum of the two rather than the longer of them.
   const [results, total] = await Promise.all([
-    searchMessages({ query: q, before, limit: SEARCH_PAGE_SIZE }),
-    before === undefined ? countMatchingMessages(q) : undefined,
+    searchMessages({ query: q, before, limit: SEARCH_PAGE_SIZE, currentUserId: user.id }),
+    before === undefined ? countMatchingMessages(q, user.id) : undefined,
   ]);
 
   return NextResponse.json({ results, total });

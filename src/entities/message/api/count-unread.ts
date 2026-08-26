@@ -2,7 +2,7 @@ import type { UserId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, messages, users } from "@/shared/db";
-import { and, count, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, count, eq, isNull, ne, or, sql } from "drizzle-orm";
 
 /**
  * Unread count for the tab-bar badge (`REQUIREMENTS.md § 8.8.`) — messages the
@@ -25,6 +25,8 @@ export async function countUnreadMessages(userId: UserId) {
       and(
         ne(messages.senderId, userId),
         isNull(messages.deletedAt),
+        // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the other participant's own row never counts against this user's unread badge.
+        or(eq(messages.onlyMe, false), eq(messages.senderId, userId)),
         sql`${messages.id} > coalesce(${users.lastReadMessageId}, 0)`,
       ),
     );

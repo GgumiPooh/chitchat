@@ -1,9 +1,9 @@
-import type { MessageId } from "@/shared/lib";
+import type { MessageId, UserId } from "@/shared/lib";
 import "server-only";
 
 import { CHANGED_MESSAGES_LIMIT } from "@/shared/config";
 import { getDb, messages } from "@/shared/db";
-import { and, desc, gte, isNotNull, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, lte, or } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 import { listReplyPreviews } from "./list-reply-previews";
@@ -33,6 +33,7 @@ import { listReplyPreviews } from "./list-reply-previews";
 export async function listChangedMessages(
   from: MessageId,
   to: MessageId,
+  currentUserId: UserId,
   limit = CHANGED_MESSAGES_LIMIT,
 ): Promise<ChatMessage[]> {
   const rows = await getDb()
@@ -49,6 +50,8 @@ export async function listChangedMessages(
           // INFO: REQUIREMENTS.md § 8.17. A fold is the third mutation on this channel, and a resume has to learn it for the same reason it learns the other two.
           isNotNull(messages.collapsedAt),
         ),
+        // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — a resync must not reveal a row this client was never sent in the first place.
+        or(eq(messages.onlyMe, false), eq(messages.senderId, currentUserId)),
       ),
     )
     // WARN: Newest-first, which is what makes the limit a **page** rather than a loss: the caller walks `to` down past the oldest row it received and asks again. Ascending, the same loop would have to walk `from` up, and `from` is the bound the window's own start defines.
