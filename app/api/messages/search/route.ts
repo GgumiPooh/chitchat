@@ -10,6 +10,7 @@ import { z } from "zod";
 const querySchema = z.object({
   q: z.string().trim().toLowerCase().min(1).max(MAX_SEARCH_QUERY_LENGTH),
   before: snowflakeSchema<MessageId>().optional(),
+  hideOthers: z.coerce.boolean().optional().default(false),
 });
 
 // INFO: AGENTS.md § 6.4. A Route Handler returns its own 401 — the App Router does not honour a thrown `Response`.
@@ -28,12 +29,12 @@ export async function GET(request: Request) {
     return apiError("invalid_request");
   }
 
-  const { q, before } = query.data;
+  const { q, before, hideOthers } = query.data;
   // INFO: The counter beside the field is a property of the whole query, not of the page — so it is asked for once, on the page that has no cursor behind it, and carried by the client from there.
   // WARN: Started together, never awaited one after the other. The count is the slower half — it cannot be `LIMIT`ed and scans every match — so a sequential pair makes every submit wait for the sum of the two rather than the longer of them.
   const [results, total] = await Promise.all([
-    searchMessages({ query: q, before, limit: SEARCH_PAGE_SIZE, currentUserId: user.id }),
-    before === undefined ? countMatchingMessages(q, user.id) : undefined,
+    searchMessages({ query: q, before, limit: SEARCH_PAGE_SIZE, currentUserId: user.id, hideOthers }),
+    before === undefined ? countMatchingMessages(q, user.id, hideOthers) : undefined,
   ]);
 
   return NextResponse.json({ results, total });

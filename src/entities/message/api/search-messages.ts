@@ -14,13 +14,16 @@ export type SearchMessagesParams = {
   limit?: number;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — the other participant's own rows are not searchable. */
   currentUserId: UserId;
+  hideOthers: boolean;
 };
 
 // INFO: REQUIREMENTS.md § 8.6.1. Attachments and emoticons carry no text to match, so the search is `text` rows alone rather than a filter applied to the result.
 const IS_SEARCHABLE = and(eq(messages.type, "text"), isNull(messages.deletedAt));
 
-function isVisibleTo(currentUserId: UserId): SQL {
-  return or(eq(messages.onlyMe, false), eq(messages.senderId, currentUserId))!;
+function getSearchVisibility(currentUserId: UserId, hideOthers: boolean): SQL {
+  return hideOthers
+    ? and(eq(messages.onlyMe, true), eq(messages.senderId, currentUserId))!
+    : eq(messages.onlyMe, false);
 }
 
 /**
@@ -36,6 +39,7 @@ export async function searchMessages({
   before,
   limit = SEARCH_PAGE_SIZE,
   currentUserId,
+  hideOthers,
 }: SearchMessagesParams): Promise<MessageSearchResult[]> {
   const rows = await getDb()
     .select({
@@ -47,7 +51,7 @@ export async function searchMessages({
     .where(
       and(
         IS_SEARCHABLE,
-        isVisibleTo(currentUserId),
+        getSearchVisibility(currentUserId, hideOthers),
         toMatch(query),
         before === undefined ? undefined : lt(messages.id, before),
       ),
@@ -72,11 +76,11 @@ export async function searchMessages({
  * behind it, and a counter that grew as the user stepped through would read as
  * the conversation gaining matches while they searched it.
  */
-export async function countMatchingMessages(query: string, currentUserId: UserId): Promise<number> {
+export async function countMatchingMessages(query: string, currentUserId: UserId, hideOthers: boolean): Promise<number> {
   const [row] = await getDb()
     .select({ total: count() })
     .from(messages)
-    .where(and(IS_SEARCHABLE, isVisibleTo(currentUserId), toMatch(query)));
+    .where(and(IS_SEARCHABLE, getSearchVisibility(currentUserId, hideOthers), toMatch(query)));
 
   return row?.total ?? 0;
 }

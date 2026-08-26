@@ -25,7 +25,7 @@ export type MessageSearch = ReturnType<typeof useMessageSearch>;
  * which hit the room is parked on. The jump itself belongs to the room
  * (§ 8.6.1.); this only ever names a target.
  */
-export function useMessageSearch() {
+export function useMessageSearch(hideOthers = false) {
   const [isOpen, setIsOpen] = useState(false);
   const [isListOpen, setIsListOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -104,7 +104,7 @@ export function useMessageSearch() {
     const generation = requestId.current;
 
     try {
-      const page = await fetchMessageSearch({ query: submitted, before: oldest.id });
+      const page = await fetchMessageSearch({ query: submitted, before: oldest.id, hideOthers });
 
       // WARN: Dropped whole if the query moved on. Appending it would splice hits for the previous string into the list under the new one, and the counter would then describe neither.
       if (generation !== requestId.current) {
@@ -204,7 +204,7 @@ export function useMessageSearch() {
     setIsLoading(true);
 
     try {
-      const page = await fetchMessageSearch({ query: trimmed });
+      const page = await fetchMessageSearch({ query: trimmed, hideOthers });
 
       if (generation !== requestId.current) {
         return;
@@ -252,7 +252,12 @@ export function useMessageSearch() {
     close,
     submit,
     setQuery: changeQuery,
-    openList: useCallback(() => setIsListOpen(true), []),
+    openList: useCallback(() => {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+      setIsListOpen(true);
+    }, []),
     closeList: useCallback(() => setIsListOpen(false), []),
     loadMore,
     select,

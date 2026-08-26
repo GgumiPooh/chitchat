@@ -45,6 +45,7 @@ export { ScrollableRow, type ScrollableRowProps } from "./scrollable-row";
 export { SettingsRow, type SettingsRowProps } from "./settings-row";
 export { SettingsRowSkeleton, type SettingsRowSkeletonProps } from "./settings-row-skeleton";
 export { ShellOverlay, type ShellOverlayProps } from "./shell-overlay";
+export { SideDrawer, type SideDrawerProps } from "./side-drawer";
 export { SidePanel, type SidePanelProps } from "./side-panel";
 export { SidePanelSync } from "./side-panel-sync";
 export { Skeleton, type SkeletonProps } from "./skeleton";

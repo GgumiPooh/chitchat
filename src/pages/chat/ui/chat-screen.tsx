@@ -65,9 +65,9 @@ export function ChatScreen({
   initialSummary,
   jumpMessageId,
 }: ChatScreenProps) {
-  const search = useMessageSearch();
-  const upcoming = useUpcomingEvents(initialSummary, currentUserId);
   const silentSend = useSilentSend();
+  const search = useMessageSearch(silentSend.mode === "silent");
+  const upcoming = useUpcomingEvents(initialSummary, currentUserId);
   // INFO: REQUIREMENTS.md § 11.5.1. Arriving with something imminent opens the panel; closing it is what stops that happening again.
   const imminent = useImminentPanel(upcoming.occurrences, currentUserId);
   const [isUpcomingOpen, setIsUpcomingOpen] = useState(false);

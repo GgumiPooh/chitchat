@@ -12,16 +12,22 @@ export type MessageSearchPage = {
 export type FetchMessageSearchParams = {
   query: string;
   before?: MessageId;
+  hideOthers?: boolean;
 };
 
 export async function fetchMessageSearch({
   query,
   before,
+  hideOthers,
 }: FetchMessageSearchParams): Promise<MessageSearchPage> {
   const params = new URLSearchParams({ q: query });
 
   if (before !== undefined) {
     params.set("before", String(before));
+  }
+
+  if (hideOthers) {
+    params.set("hideOthers", "true");
   }
 
   const response = await request(`${MESSAGE_SEARCH_PATH}?${params}`);
