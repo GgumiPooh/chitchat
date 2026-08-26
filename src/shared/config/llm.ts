@@ -31,6 +31,7 @@ export const LLM_INLINE_IMAGE_MIMES = [
   "image/png",
   "image/jpeg",
   "image/webp",
+  "image/avif",
   "image/heic",
   "image/heif",
 ] as const;
