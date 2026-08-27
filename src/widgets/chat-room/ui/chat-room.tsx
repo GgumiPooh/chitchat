@@ -691,9 +691,31 @@ export function ChatRoom({
     isOpen: isEmoticonPanelOpen,
     onClose: closeEmoticonPanel,
   });
-  // WARN: § 13.6. The clip and the card share this so they move together; the spring is the open sheet's upward move alone — keyed on `isEmoticonPanelOpen` too, or a close from expanded runs 450ms against the spacer's 200ms and re-pins early.
+  // WARN: Two separate transition classes because Phase 2 (isResettingAfterClose)
+  // needs opposite behavior on different elements:
+  //
+  //   composerTransition  — applied to the translated composer div only.
+  //     isResettingAfterClose=false → CSS transitions enabled, so translateY
+  //     animates from targetTranslateY → 0 over 200ms ease-out.
+  //     --viewport-settle-duration is also 200ms (theme.css § 3.4.), so both
+  //     the spacer and the composer translateY finish at exactly the same time,
+  //     leaving the composer's screen position with only a 34px (= bottom-inset)
+  //     net downward drift — no bounce.
+  //
+  //   emoticonSheetTransition — applied to the sheet container, inner card, pill.
+  //     isResettingAfterClose=true → transition-none, so the sheet container
+  //     (height/transform) and the pill snap to their final values instantly.
+  //     The sheet was off-screen (translateY=targetTranslateY) at this moment, so
+  //     the snap is invisible; allowing the transition would animate it backward
+  //     from off-screen into view, which looks like the sheet bouncing back up.
+  const composerTransition =
+    emoticonSheet.isDragging
+      ? "transition-none"
+      : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
+        ? "transition-[height,transform] duration-(--duration-sheet-expand) ease-sheet"
+        : "transition-[height,transform] duration-200 ease-out";
   const emoticonSheetTransition =
-    emoticonSheet.isDragging || emoticonSheet.isDraggingClose
+    emoticonSheet.isDragging || emoticonSheet.isResettingAfterClose
       ? "transition-none"
       : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
         ? "transition-[height,transform] duration-(--duration-sheet-expand) ease-sheet"
@@ -1887,7 +1909,7 @@ export function ChatRoom({
           <div className={cn(isSearching && "hidden")} inert={isSearching}>
             {/* INFO: § 13.6. Translates with the sheet when pulled down from rest mode, while staying anchored when pulled up to expand. */}
             <div
-              className={cn("will-change-transform", emoticonSheetTransition)}
+              className={cn("will-change-transform", composerTransition)}
               style={{
                 transform:
                   (isEmoticonPanelOpen || emoticonSheet.isSettlingClose) &&

@@ -44,6 +44,15 @@ export function useSheetDrag({
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingClose, setIsDraggingClose] = useState(false);
   const [isSettlingClose, setIsSettlingClose] = useState(false);
+  // WARN: A single-frame flag that is true only in the render where the 200ms
+  // close animation has completed and every piece of close state (dragTranslateY,
+  // isDraggingClose, isSettlingClose) resets to its resting value alongside
+  // `onClose()`. Callers that apply CSS transitions to elements driven by
+  // `dragTranslateY` MUST gate `transition-none` on this flag so that resetting
+  // `dragTranslateY` from `targetTranslateY` → 0 does not animate those
+  // elements backward from off-screen. Without it, the transition fires after the
+  // animation has already played and the sheet/composer slides back up into view.
+  const [isResettingAfterClose, setIsResettingAfterClose] = useState(false);
   const [wasOpen, setWasOpen] = useState(isOpen);
   const closeTimerRef = useRef<Nullable<ReturnType<typeof setTimeout>>>(null);
   const gestureRef = useRef<
@@ -78,6 +87,7 @@ export function useSheetDrag({
       }
       setIsSettlingClose(false);
       setIsDraggingClose(false);
+      setIsResettingAfterClose(false);
       setSize(initialSize);
       setPinnedHeight(null);
       setDragTranslateY(0);
@@ -111,6 +121,7 @@ export function useSheetDrag({
     isDragging,
     isDraggingClose,
     isSettlingClose,
+    isResettingAfterClose,
     collapse: () => settle("rest", expandedHeight),
     expand: () => settle("expanded", measureExpandedHeight()),
     dragProps: {
@@ -322,9 +333,23 @@ export function useSheetDrag({
     }
     closeTimerRef.current = setTimeout(() => {
       closeTimerRef.current = null;
+      // WARN: All five state changes and `onClose()` are batched into one React
+      // render by React 18's automatic batching. `isResettingAfterClose=true` is
+      // set in that same batch so that callers can apply `transition-none` to
+      // every element that carried `translateY(targetTranslateY)` — the container
+      // (which owns `--chat-composer-spacer`) and the translated elements (sheet,
+      // composer, pill). With transitions suppressed, `dragTranslateY → 0` and
+      // the spacer value change both snap instantly rather than animating backward.
+      // One rAF later `isResettingAfterClose` clears; every element is already at
+      // its final value and there is nothing left for CSS transitions to animate.
+      setIsResettingAfterClose(true);
       setIsSettlingClose(false);
       setIsDraggingClose(false);
+      setDragTranslateY(0);
       onClose();
+      requestAnimationFrame(() => {
+        setIsResettingAfterClose(false);
+      });
     }, 200);
   }
 
@@ -335,6 +360,7 @@ export function useSheetDrag({
     }
     setIsSettlingClose(false);
     setIsDraggingClose(false);
+    setIsResettingAfterClose(false);
     gestureRef.current = null;
     releasePanDenial();
     hasDraggedRef.current = false;
