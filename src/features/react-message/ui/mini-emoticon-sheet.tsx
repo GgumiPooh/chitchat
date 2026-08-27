@@ -8,17 +8,14 @@ import {
   MINI_ANIMATION_LOOP_INTERVAL,
   toPreviousReplaySrc,
   toReplaySrc,
-  useIsDesktop,
-  useSheetDrag,
   useViewportReplay,
   type EmoticonItemId,
   type MessageId,
 } from "@/shared/lib";
-import { HapticTarget, Modal, PreloadImage } from "@/shared/ui";
+import { BottomSheet, HapticTarget, PreloadImage } from "@/shared/ui";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Dialog as DialogPrimitive } from "radix-ui";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { DEFAULT_REACTION_EMOJIS } from "../config/default-emojis";
 import { useRecentReactions } from "../model/use-recent-reactions";
 
@@ -69,16 +66,8 @@ export function MiniEmoticonSheet({
   onClose,
   onSelectReaction,
 }: MiniEmoticonSheetProps) {
-  const isDesktop = useIsDesktop();
-  const sheetRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-
-  const { size, expandedHeight, pinnedHeight, dragTranslateY, isDragging, isResettingAfterClose, dragProps, handleProps } =
-    useSheetDrag({
-      sheetRef,
-      isOpen: isOpen && messageId !== null,
-      onClose,
-    });
+  const [snapPoint, setSnapPoint] = useState<number | string | null>("380px");
 
   const activeEmojiSet =
     activeEmojis instanceof Set
@@ -196,43 +185,105 @@ export function MiniEmoticonSheet({
     overscan: 15,
   });
 
-  const content = (
-    <div
-      ref={scrollContainerRef}
-      className="relative scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain"
+  return (
+    <BottomSheet
+      className={className}
+      isOpen={isOpen && messageId !== null}
+      snapPoints={["380px", 1]}
+      activeSnapPoint={snapPoint}
+      setActiveSnapPoint={setSnapPoint}
+      header={{
+        title: "리액션",
+        isHidden: true,
+      }}
+      onClose={onClose}
     >
       <div
-        className="relative w-full pb-6"
-        style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+        ref={scrollContainerRef}
+        className="relative scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain"
       >
-        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-          const row = virtualRows[virtualRow.index];
+        <div
+          className="relative w-full pb-6"
+          style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+        >
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const row = virtualRows[virtualRow.index];
 
-          return (
-            <div
-              key={row.id}
-              ref={rowVirtualizer.measureElement}
-              className="absolute top-0 left-0 w-full"
-              data-index={virtualRow.index}
-              style={{
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-            >
-              {row.type === "header" && (
-                <div className="pt-3 pb-1">
-                  <h3 className="px-1 text-body-sm text-meta">{row.title}</h3>
-                </div>
-              )}
+            return (
+              <div
+                key={row.id}
+                ref={rowVirtualizer.measureElement}
+                className="absolute top-0 left-0 w-full"
+                data-index={virtualRow.index}
+                style={{
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                {row.type === "header" && (
+                  <div className="pt-3 pb-1">
+                    <h3 className="px-1 text-body-sm text-meta">{row.title}</h3>
+                  </div>
+                )}
 
-              {row.type === "recents-row" && (
-                <div className="grid grid-cols-6 gap-2 pb-2">
-                  {row.items.map((recent, itemIdx) => {
-                    if (recent.kind === "emoji") {
-                      const isSelected = activeEmojiSet?.has(recent.value) ?? false;
+                {row.type === "recents-row" && (
+                  <div className="grid grid-cols-6 gap-2 pb-2">
+                    {row.items.map((recent, itemIdx) => {
+                      if (recent.kind === "emoji") {
+                        const isSelected = activeEmojiSet?.has(recent.value) ?? false;
+
+                        return (
+                          <HapticTarget
+                            key={`recent-emoji-${recent.value}-${itemIdx}`}
+                            className="flex aspect-square"
+                            overlayClassName="touch-pan-y"
+                            keepsScroll
+                          >
+                            <button
+                              className={cn(
+                                "relative flex size-full items-center justify-center rounded-xl text-2xl transition-all duration-150 active:scale-95",
+                                isSelected
+                                  ? "border-2 border-primary bg-primary/15 text-primary"
+                                  : "hover:bg-surface-soft active:bg-surface-pressed",
+                              )}
+                              type="button"
+                              aria-label={recent.value}
+                              onClick={() => handleSelectEmoji(recent.value)}
+                            >
+                              <span>{recent.value}</span>
+                            </button>
+                          </HapticTarget>
+                        );
+                      }
+
+                      const isSelected = activeItemSet?.has(recent.value) ?? false;
+
+                      return (
+                        <RecentMiniEmoticonButton
+                          key={`recent-emoticon-${recent.value}-${itemIdx}`}
+                          isSelected={isSelected}
+                          itemId={recent.value}
+                          onSelect={() => {
+                            rememberReaction(recent);
+                            onSelectReaction({
+                              emoticonItemId: recent.value,
+                              reactionType: "emoticon",
+                            });
+                            onClose();
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+
+                {row.type === "emoji-row" && (
+                  <div className="grid grid-cols-6 gap-2 pb-2">
+                    {row.items.map((emoji) => {
+                      const isSelected = activeEmojiSet?.has(emoji) ?? false;
 
                       return (
                         <HapticTarget
-                          key={`recent-emoji-${recent.value}-${itemIdx}`}
+                          key={emoji}
                           className="flex aspect-square"
                           overlayClassName="touch-pan-y"
                           keepsScroll
@@ -245,151 +296,35 @@ export function MiniEmoticonSheet({
                                 : "hover:bg-surface-soft active:bg-surface-pressed",
                             )}
                             type="button"
-                            aria-label={recent.value}
-                            onClick={() => handleSelectEmoji(recent.value)}
+                            aria-label={emoji}
+                            onClick={() => handleSelectEmoji(emoji)}
                           >
-                            <span>{recent.value}</span>
+                            <span>{emoji}</span>
                           </button>
                         </HapticTarget>
                       );
-                    }
+                    })}
+                  </div>
+                )}
 
-                    const isSelected = activeItemSet?.has(recent.value) ?? false;
-
-                    return (
-                      <RecentMiniEmoticonButton
-                        key={`recent-emoticon-${recent.value}-${itemIdx}`}
-                        isSelected={isSelected}
-                        itemId={recent.value}
-                        onSelect={() => {
-                          rememberReaction(recent);
-                          onSelectReaction({
-                            emoticonItemId: recent.value,
-                            reactionType: "emoticon",
-                          });
-                          onClose();
-                        }}
+                {row.type === "emoticon-row" && (
+                  <div className="grid grid-cols-6 gap-2 pb-2">
+                    {row.items.map((item) => (
+                      <MiniEmoticonCellButton
+                        key={item.id}
+                        isSelected={activeItemSet?.has(item.id) ?? false}
+                        item={item}
+                        onSelect={() => handleSelectEmoticon(item)}
                       />
-                    );
-                  })}
-                </div>
-              )}
-
-              {row.type === "emoji-row" && (
-                <div className="grid grid-cols-6 gap-2 pb-2">
-                  {row.items.map((emoji) => {
-                    const isSelected = activeEmojiSet?.has(emoji) ?? false;
-
-                    return (
-                      <HapticTarget
-                        key={emoji}
-                        className="flex aspect-square"
-                        overlayClassName="touch-pan-y"
-                        keepsScroll
-                      >
-                        <button
-                          className={cn(
-                            "relative flex size-full items-center justify-center rounded-xl text-2xl transition-all duration-150 active:scale-95",
-                            isSelected
-                              ? "border-2 border-primary bg-primary/15 text-primary"
-                              : "hover:bg-surface-soft active:bg-surface-pressed",
-                          )}
-                          type="button"
-                          aria-label={emoji}
-                          onClick={() => handleSelectEmoji(emoji)}
-                        >
-                          <span>{emoji}</span>
-                        </button>
-                      </HapticTarget>
-                    );
-                  })}
-                </div>
-              )}
-
-              {row.type === "emoticon-row" && (
-                <div className="grid grid-cols-6 gap-2 pb-2">
-                  {row.items.map((item) => (
-                    <MiniEmoticonCellButton
-                      key={item.id}
-                      isSelected={activeItemSet?.has(item.id) ?? false}
-                      item={item}
-                      onSelect={() => handleSelectEmoticon(item)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
-
-  if (isDesktop) {
-    return (
-      <Modal
-        className={className}
-        isOpen={isOpen && messageId !== null}
-        size="md"
-        header={{
-          className: "pb-2",
-          title: "리액션",
-        }}
-        onClose={onClose}
-      >
-        <div className="flex h-[380px] flex-col">{content}</div>
-      </Modal>
-    );
-  }
-
-  return (
-    <DialogPrimitive.Root
-      open={isOpen && messageId !== null}
-      onOpenChange={(open: boolean) => !open && onClose()}
-    >
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-scrim/45 duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
-        <DialogPrimitive.Content
-          ref={sheetRef}
-          className={cn(
-            "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 mx-auto mb-sm flex w-[calc(100%_-_var(--content-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus:outline-none data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=closed]:slide-out-to-bottom data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=open]:slide-in-from-bottom",
-            isDragging || isResettingAfterClose ? "transition-none!" : "transition-[height,transform] duration-200 ease-out",
-            className,
-          )}
-          style={{
-            height:
-              pinnedHeight !== null
-                ? `${pinnedHeight}px`
-                : size === "expanded"
-                  ? expandedHeight > 0
-                    ? `${expandedHeight}px`
-                    : "calc(var(--viewport-height,100dvh) - var(--header-height,56px) - var(--spacing-sm))"
-                  : "380px",
-            transform: dragTranslateY > 0 ? `translateY(${dragTranslateY}px)` : undefined,
-          }}
-          onOpenAutoFocus={(event) => event.preventDefault()}
-          {...dragProps}
-        >
-          <DialogPrimitive.Title className="sr-only">리액션</DialogPrimitive.Title>
-          {/* 상단 드래그 & 토글 손잡이 */}
-          <button
-            className={cn(
-              "mx-auto -mt-2 mb-2 flex h-6 w-full cursor-grab touch-none items-center justify-center focus-visible:outline-none active:cursor-grabbing",
-              "before:absolute before:inset-x-0 before:-top-2 before:h-8 before:content-['']",
-            )}
-            type="button"
-            aria-expanded={size === "expanded"}
-            aria-label={size === "expanded" ? "리액션 창 줄이기" : "리액션 창 늘리기"}
-            {...handleProps}
-          >
-            <span className="hover:bg-ink-muted block h-1.5 w-12 rounded-full bg-hairline-strong transition-colors" />
-          </button>
-
-          {/* 스크롤 가능한 가상화 컨텐츠 영역 */}
-          <div className="-mx-md -mb-md flex min-h-0 flex-1 flex-col px-md">{content}</div>
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+    </BottomSheet>
   );
 }
 
