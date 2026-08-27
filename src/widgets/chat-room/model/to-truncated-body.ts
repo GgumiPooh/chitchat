@@ -1,7 +1,7 @@
 import { measureLineHeight, type Nullable } from "@/shared/lib";
 
 // WARN: REQUIREMENTS.md § 8.16. Characters, never rendered lines. The § 8.3. estimate and the bubble both answer from `text` alone and so cannot disagree about whether a bubble is cut; a line count would put the estimate's canvas at every call site that draws one.
-const EXPANDABLE_LENGTH = 300;
+const EXPANDABLE_LENGTH = 350;
 
 /** DESIGN.md § 6.2.2. How much of a cut bubble survives. */
 export const TRUNCATED_LINES = 7;
