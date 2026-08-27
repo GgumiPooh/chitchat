@@ -1317,13 +1317,12 @@ export function ChatRoom({
     const isOnlyMe = notifyMode === "onlyMe";
     if (wasOnlyMe.current !== isOnlyMe) {
       void reloadLiveWindow(isOnlyMe).then(() => {
-        requestAnimationFrame(pinToBottom);
-        scrollToBottom();
+        requestAnimationFrame(scrollToBottom);
       });
     }
 
     wasOnlyMe.current = isOnlyMe;
-  }, [notifyMode, reloadLiveWindow, pinToBottom, scrollToBottom]);
+  }, [notifyMode, reloadLiveWindow, scrollToBottom]);
 
   /**
    * REQUIREMENTS.md § 8.6.1. The § 6.7. pill is also the way back from a jump, so it
