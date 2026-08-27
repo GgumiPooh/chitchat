@@ -725,10 +725,6 @@ export function ChatRoom({
       : emoticonSheet.isResettingAfterClose || emoticonSheet.isDraggingClose
         ? lastDragTranslateYRef.current
         : 0;
-  const effectiveComposerTranslateY =
-    isEmoticonPanelOpen && emoticonSheet.dragTranslateY > 0
-      ? emoticonSheet.dragTranslateY
-      : 0;
 
   useEffect(() => () => clearTimeout(collapseTimerRef.current), []);
   // INFO: § 13.6. What the sheet clears the history by at rest — the spacer's height, and never more: an expanded sheet covers the composer rather than lifting it.
@@ -1778,7 +1774,7 @@ export function ChatRoom({
       ref={containerRef}
       className={cn(
         "relative min-h-0 flex-1 chat-clearance",
-        (emoticonSheet.isDragging || emoticonSheet.isResettingAfterClose) && "transition-none",
+        emoticonSheet.isDragging && "transition-none",
         className,
       )}
       // INFO: REQUIREMENTS.md § 13.6. The spacer half of `--chat-bottom-gap` (theme.css), eased here so the composer's own spacer, the list's trailing one and the pills over it all move on the chat screen's clock.
@@ -1891,12 +1887,6 @@ export function ChatRoom({
             // WARN: § 8.6.1. A window parked around a jump target can sit at the bottom of its own scroll range while the newest message is still pages away, so the pill has to answer to the window too.
             isVisible={!isAtBottom || hasNewer}
             newMessageCount={unseenCount}
-            style={{
-              transform:
-                effectiveComposerTranslateY > 0
-                  ? `translateY(${effectiveComposerTranslateY}px)`
-                  : undefined,
-            }}
             onClick={() => void goToNewest()}
           />
         </>
@@ -1916,15 +1906,7 @@ export function ChatRoom({
           {/* WARN: `hidden`, never a conditional subtree. `MessageComposer` holds the draft in its own state, so unmounting it here silently discards a typed message and drops its `useUnsentWork` hold with it. `display: none` takes it out of the wrapper's height, which is all `useComposerClearance` reads. */}
           <div className={cn(isSearching && "hidden")} inert={isSearching}>
             {/* INFO: § 13.6. Translates with the sheet when pulled down from rest mode, while staying anchored when pulled up to expand. */}
-            <div
-              className={cn("will-change-transform", composerTransition)}
-              style={{
-                transform:
-                  effectiveComposerTranslateY > 0
-                    ? `translateY(${effectiveComposerTranslateY}px)`
-                    : undefined,
-              }}
-            >
+            <div className={cn("will-change-transform", composerTransition)}>
               {/* INFO: REQUIREMENTS.md § 9.3. Tops the composer stack while it is up, clearing the history by the same `xs` every other row in this position does (DESIGN.md § 6.6.). It replaces nothing — a recording is sent outright, so there is no tray for it to compete with. */}
               {isRecording && (
                 <VoiceRecorderBar
