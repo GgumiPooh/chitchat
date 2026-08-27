@@ -729,7 +729,8 @@ export function ChatRoom({
         ? `${emoticonSheet.expandedHeight}px`
         : emoticonSheetRestHeight;
 
-  const [isEmoticonSheetSettledClosed, setIsEmoticonSheetSettledClosed] = useState(!isEmoticonPanelOpen);
+  const [isEmoticonSheetSettledClosed, setIsEmoticonSheetSettledClosed] =
+    useState(!isEmoticonPanelOpen);
 
   useEffect(() => {
     if (isEmoticonPanelOpen) {
@@ -1997,7 +1998,6 @@ export function ChatRoom({
                 !isEmoticonSheetVisible && "pointer-events-none opacity-0",
               )}
               inert={!isEmoticonPanelOpen}
-              onTransitionEnd={handleEmoticonSheetTransitionEnd}
               style={{
                 ["--emoticon-sheet-height" as string]: emoticonSheetHeight,
                 transform: isEmoticonPanelOpen
@@ -2006,6 +2006,7 @@ export function ChatRoom({
                     : "translateY(0)"
                   : "translateY(100%)",
               }}
+              onTransitionEnd={handleEmoticonSheetTransitionEnd}
             >
               {hasMountedEmoticonPanel && (
                 <div
