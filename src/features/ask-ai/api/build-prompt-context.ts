@@ -53,12 +53,13 @@ export async function buildPromptContext(
   messageIds: MessageId[],
   questionClientMsgId: string,
   askerId: UserId,
+  onlyMe: boolean,
 ): Promise<PromptContext> {
   const selectedIds = [...messageIds].sort(compareId);
 
   const [selectedRows, exchangeRows, participants, questionMessageId] = await Promise.all([
     listMessagesByIds(selectedIds, askerId),
-    listRecentAssistantExchanges(AI_CONTEXT_EXCHANGE_COUNT, askerId),
+    listRecentAssistantExchanges(AI_CONTEXT_EXCHANGE_COUNT, askerId, onlyMe),
     listUsers(),
     getMessageIdByClientMsgId(questionClientMsgId),
   ]);
@@ -67,6 +68,7 @@ export async function buildPromptContext(
   const lateReplies = await listAssistantRepliesAfter(
     questionMessageId ?? nextSnowflake<MessageId>(),
     askerId,
+    onlyMe,
   );
 
   // WARN: Keyed by id rather than concatenated — a selected message is very often one of the pairs above, and a duplicated entry is the model reading the same turn twice.

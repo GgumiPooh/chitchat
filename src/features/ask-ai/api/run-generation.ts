@@ -73,12 +73,17 @@ export async function runGeneration({
   abortSignal,
   isCancelled,
 }: RunGenerationParams): Promise<RunGenerationResult> {
-  const [context, agents, systemPrompt] = await Promise.all([
-    buildPromptContext(question, messageIds, questionClientMsgId, askerId),
+  const [context, agents, baseSystemPrompt] = await Promise.all([
+    buildPromptContext(question, messageIds, questionClientMsgId, askerId, onlyMe),
     listCandidateAgents(pinnedModel),
     // INFO: REQUIREMENTS.md § 8.15. Read once per run, inside the post-lock generation this already is — a question queued behind the FIFO is answered with whatever the prompt is at the moment it actually runs, not the moment it was asked, matching how 조용히 보내기 is read here too.
     readLlmSystemPrompt(),
   ]);
+
+  // INFO: REQUIREMENTS.md § 8.15, § 16.1. 나에게만 보내기 separates implicit prefix caching and persona context per user.
+  const systemPrompt = onlyMe
+    ? [`[개인 대화 모드: 사용자 ID ${askerId}]`, baseSystemPrompt].filter(Boolean).join("\n\n")
+    : (baseSystemPrompt ?? undefined);
   // WARN: One counter for the whole run, not one per agent attempt — a fallback that restarted it at 0 would publish two `delta`s carrying `seq: 0` for one streamId, and the client has nothing but `seq` to reorder a slow `pg_notify` delivery by.
   const seqRef = { current: 0 };
 
@@ -108,7 +113,7 @@ export async function runGeneration({
           apiKey: agent.apiKey,
           config: agent.config,
           context,
-          systemPrompt: systemPrompt ?? undefined,
+          systemPrompt,
           abortSignal,
           thinking: thinking ?? toAutoThinkingLevel(agent, question),
         },

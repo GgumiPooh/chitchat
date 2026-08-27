@@ -2,7 +2,7 @@ import "server-only";
 
 import { getDb, messages } from "@/shared/db";
 import type { MessageId, UserId } from "@/shared/lib";
-import { and, asc, eq, gt, isNull, or } from "drizzle-orm";
+import { and, asc, eq, gt, isNull } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 
@@ -14,6 +14,7 @@ import type { ChatMessage } from "../model/types";
 export async function listAssistantRepliesAfter(
   afterId: MessageId,
   currentUserId: UserId,
+  onlyMe: boolean,
 ): Promise<ChatMessage[]> {
   const rows = await getDb()
     .select()
@@ -24,8 +25,10 @@ export async function listAssistantRepliesAfter(
         eq(messages.systemAction, "assistant_reply"),
         isNull(messages.deletedAt),
         gt(messages.id, afterId),
-        // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — an answer to the other participant's own private question never catches this queued question up.
-        or(eq(messages.onlyMe, false), eq(messages.senderId, currentUserId)),
+        // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — isolate assistant replies by mode so private and shared queues never mix in catch-up context.
+        onlyMe
+          ? and(eq(messages.onlyMe, true), eq(messages.senderId, currentUserId))
+          : eq(messages.onlyMe, false),
       ),
     )
     .orderBy(asc(messages.id));

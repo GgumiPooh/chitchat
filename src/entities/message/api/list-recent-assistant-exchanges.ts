@@ -2,7 +2,7 @@ import "server-only";
 
 import { getDb, messages } from "@/shared/db";
 import { compareId, type MessageId, type UserId } from "@/shared/lib";
-import { and, desc, eq, isNull, or } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 import { listMessagesByIds } from "./list-messages-by-ids";
@@ -16,6 +16,7 @@ import { listMessagesByIds } from "./list-messages-by-ids";
 export async function listRecentAssistantExchanges(
   limit: number,
   currentUserId: UserId,
+  onlyMe: boolean,
 ): Promise<ChatMessage[]> {
   const replyRows = await getDb()
     .select()
@@ -25,8 +26,10 @@ export async function listRecentAssistantExchanges(
         eq(messages.type, "system"),
         eq(messages.systemAction, "assistant_reply"),
         isNull(messages.deletedAt),
-        // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — an exchange asked in that mode by the other participant never enters this asker's prompt context.
-        or(eq(messages.onlyMe, false), eq(messages.senderId, currentUserId)),
+        // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — isolate assistant exchanges by mode so private and shared exchanges never mix in prompt context.
+        onlyMe
+          ? and(eq(messages.onlyMe, true), eq(messages.senderId, currentUserId))
+          : eq(messages.onlyMe, false),
       ),
     )
     .orderBy(desc(messages.id))
