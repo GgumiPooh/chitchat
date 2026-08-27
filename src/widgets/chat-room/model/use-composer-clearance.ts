@@ -124,6 +124,11 @@ export function useComposerClearance({
 
       // INFO: The trailing spacer is this frame's `--chat-composer-spacer` (REQUIREMENTS.md § 13.6.), so `scrollHeight` here already carries the growth the composer is showing and the newest message stays parked above it.
       if (scroller && isPinned) {
+        // WARN: iOS Safari bug: when `scrollHeight` shrinks during a CSS transition (like the panel closing), Safari clamps the internal `scrollTop` but fails to update the visual offset layer, leaving a huge void. Assigning the clamped value back is ignored as a no-op. Assigning `max - 1` first dirties the scroll offset and forces the compositor to repaint.
+        const max = scroller.scrollHeight - scroller.clientHeight;
+        if (scroller.scrollTop >= max) {
+          scroller.scrollTop = max - 1;
+        }
         scroller.scrollTop = scroller.scrollHeight;
       }
     }

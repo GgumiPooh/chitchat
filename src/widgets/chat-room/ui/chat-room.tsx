@@ -1070,6 +1070,11 @@ export function ChatRoom({
     const element = scrollerRef.current;
 
     if (element) {
+      // WARN: Safari compositor bug (see useComposerClearance).
+      const max = element.scrollHeight - element.clientHeight;
+      if (element.scrollTop >= max) {
+        element.scrollTop = max - 1;
+      }
       element.scrollTop = element.scrollHeight;
     }
   }, []);
@@ -3355,9 +3360,11 @@ export function ChatRoom({
    */
   function openInArchive(cell: MediaCell) {
     mediaTrack.close();
-    router.push(
-      `${ARCHIVE_GALLERY_ROUTE}?${new URLSearchParams({ [ARCHIVE_TARGET_PARAM]: cell.id })}`,
-    );
+    const params = new URLSearchParams({ [ARCHIVE_TARGET_PARAM]: cell.id });
+    if (cell.onlyMe) {
+      params.set("mode", "onlyMe");
+    }
+    router.push(`${ARCHIVE_GALLERY_ROUTE}?${params}`);
   }
 
   /**
