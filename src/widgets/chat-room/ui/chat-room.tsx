@@ -491,6 +491,7 @@ export function ChatRoom({
     loadNewer,
     loadAround,
     returnToLive,
+    reloadLiveWindow,
     appendMessage,
     replaceMessage,
     catchUp,
@@ -1312,12 +1313,14 @@ export function ChatRoom({
 
   useEffect(() => {
     if (wasOnlyMe.current !== (notifyMode === "onlyMe")) {
-      requestAnimationFrame(pinToBottom);
-      scrollToBottom();
+      void reloadLiveWindow().then(() => {
+        requestAnimationFrame(pinToBottom);
+        scrollToBottom();
+      });
     }
 
     wasOnlyMe.current = notifyMode === "onlyMe";
-  }, [notifyMode, pinToBottom, scrollToBottom]);
+  }, [notifyMode, reloadLiveWindow, pinToBottom, scrollToBottom]);
 
   /**
    * REQUIREMENTS.md § 8.6.1. The § 6.7. pill is also the way back from a jump, so it
