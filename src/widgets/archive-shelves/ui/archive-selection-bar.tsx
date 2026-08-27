@@ -59,7 +59,7 @@ export function ArchiveSelectionBar({
         className={cn(
           // INFO: DESIGN.md § 3.5. `--bar-lift`, the same clearance `BottomOverlay` holds the tab bar at — this bar stands in its place, so the two cannot be allowed to drift apart.
           // INFO: AGENTS.md § 4.1. `lg:left-(--pane-width)` centres the bar in the main pane rather than under `ShellOverlay`'s full panel+main span — `ShellOverlay` already excludes the rail, so the pane is what is left to exclude.
-          "pointer-events-none absolute inset-x-0 bottom-0 z-30 px-md pb-(--bar-lift) motion-reduce:transition-none lg:left-(--pane-width) lg:transition-[left] lg:duration-(--duration-route-enter) lg:ease-route",
+          "pointer-events-none absolute inset-x-0 bottom-0 z-30 px-md pb-(--bar-lift) motion-reduce:transition-none lg:left-(--pane-width) lg:[#app-shell[data-side-panel-animating]_&]:transition-[left] lg:[#app-shell[data-side-panel-animating]_&]:duration-(--duration-route-enter) lg:[#app-shell[data-side-panel-animating]_&]:ease-route",
           className,
         )}
       >

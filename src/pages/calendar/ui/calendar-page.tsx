@@ -196,7 +196,7 @@ export function CalendarPage({
       }
     >
       <AppHeader
-        className="motion-reduce:transition-none lg:left-(--content-left) lg:transition-[left] lg:duration-(--duration-route-enter) lg:ease-route"
+        className="motion-reduce:transition-none lg:left-(--content-left) lg:[#app-shell[data-side-panel-animating]_&]:transition-[left] lg:[#app-shell[data-side-panel-animating]_&]:duration-(--duration-route-enter) lg:[#app-shell[data-side-panel-animating]_&]:ease-route"
         hasSidePanel
         title="캘린더"
         trailing={

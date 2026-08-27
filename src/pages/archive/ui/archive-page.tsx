@@ -114,7 +114,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
     // INFO: REQUIREMENTS.md § 9.2. The drop target is the whole screen, so photos dragged anywhere over the grid stage rather than having to find the 갤러리 추가 control.
     <div className={cn("flex flex-1 flex-col", className)} {...staging.dropHandlers}>
       <AppHeader
-        className="motion-reduce:transition-none lg:left-(--content-left) lg:transition-[left] lg:duration-(--duration-route-enter) lg:ease-route"
+        className="motion-reduce:transition-none lg:left-(--content-left) lg:[#app-shell[data-side-panel-animating]_&]:transition-[left] lg:[#app-shell[data-side-panel-animating]_&]:duration-(--duration-route-enter) lg:[#app-shell[data-side-panel-animating]_&]:ease-route"
         containerClassName="max-w-none"
         hasSidePanel
         // INFO: 보관함 on every segment, matching the tab label — the chips below say which shelf, so the title has no reason to repeat it.

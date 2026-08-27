@@ -1,9 +1,9 @@
 "use client";
 
-import { APP_SHELL_ID, SETTINGS_ROUTE, TAB_ROUTES, isUnderRoute } from "@/shared/config";
-import { cn, useAppRouteTracker, useSidePanel } from "@/shared/lib";
+import { TAB_ROUTES, isUnderRoute } from "@/shared/config";
+import { cn, useAppRouteTracker } from "@/shared/lib";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type PropsWithChildren } from "react";
+import { useState, type PropsWithChildren } from "react";
 
 /** INFO: `run` counts animated arrivals only — it is the element key, and a key that moved on every navigation would remount screens that are not animating at all. */
 type Arrival = { pathname: string; direction: "forward" | "back" | "none"; run: number };
@@ -41,7 +41,6 @@ export type RouteTransitionProps = PropsWithChildren<{
  */
 export function RouteTransition({ className, children }: RouteTransitionProps) {
   useAppRouteTracker();
-  const { isOpen: isSidePanelOpen } = useSidePanel();
 
   // INFO: `usePathname` is typed nullable for the Pages Router's pre-hydration render; an empty path is off the bar, which is exactly the "do not animate" case.
   const pathname = usePathname() ?? "";
@@ -57,17 +56,6 @@ export function RouteTransition({ className, children }: RouteTransitionProps) {
       run: direction === "none" ? arrival.run : arrival.run + 1,
     });
   }
-
-  // INFO: AGENTS.md § 4.1, § 4.4. 설정 and its subroutes have no side panel. When navigating into /settings, close the panel layout attribute on #app-shell so modals and content center in the main viewport. When on a page with side panel, restore preference.
-  useEffect(() => {
-    const shell = document.getElementById(APP_SHELL_ID);
-    if (!shell) return;
-    if (isUnderRoute(pathname, SETTINGS_ROUTE)) {
-      shell.setAttribute("data-side-panel", "closed");
-    } else {
-      shell.setAttribute("data-side-panel", isSidePanelOpen ? "open" : "closed");
-    }
-  }, [pathname, isSidePanelOpen]);
 
   return (
     // WARN: Keyed so an animated arrival is a new element — React would otherwise reuse the node and only the first navigation would ever animate. It counts animated arrivals rather than naming the path, because a key that changed on every navigation would tear down and rebuild 이모티콘 팩 A → 팩 B, discarding its state and queries for an animation that does not even run.

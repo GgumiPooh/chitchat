@@ -30,7 +30,7 @@ export function SidePanel({ className, children }: SidePanelProps) {
   return (
     <aside
       className={cn(
-        "hidden bg-canvas text-ink motion-reduce:transition-none lg:block lg:w-(--pane-width) lg:shrink-0 lg:overflow-hidden lg:border-r lg:border-hairline lg:transition-[width] lg:duration-(--duration-route-enter) lg:ease-route",
+        "hidden bg-canvas text-ink motion-reduce:transition-none lg:block lg:w-(--pane-width) lg:shrink-0 lg:overflow-hidden lg:border-r lg:border-hairline lg:[#app-shell[data-side-panel-animating]_&]:transition-[width] lg:[#app-shell[data-side-panel-animating]_&]:duration-(--duration-route-enter) lg:[#app-shell[data-side-panel-animating]_&]:ease-route",
         className,
       )}
       onTransitionEnd={handleTransitionEnd}

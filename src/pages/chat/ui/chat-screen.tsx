@@ -165,7 +165,7 @@ export function ChatScreen({
           {aiSelection ? (
             // INFO: REQUIREMENTS.md § 8.5., § 10. The same takeover 보관함's own selection bar makes of its header — 검색/일정/조용히 보내기 give way to the count and the toggle while the mode is up.
             <AppHeader
-              className="motion-reduce:transition-none lg:left-(--content-left) lg:transition-[left] lg:duration-(--duration-route-enter) lg:ease-route"
+              className="motion-reduce:transition-none lg:left-(--content-left) lg:[#app-shell[data-side-panel-animating]_&]:transition-[left] lg:[#app-shell[data-side-panel-animating]_&]:duration-(--duration-route-enter) lg:[#app-shell[data-side-panel-animating]_&]:ease-route"
               titleClassName="tabular-nums"
               hasSidePanel
               title={`${aiSelection.count}개 선택`}
@@ -205,7 +205,7 @@ export function ChatScreen({
           ) : (
             // INFO: DESIGN.md § 7.12. No title — the tab bar already says which screen this is, and the messages read better with the full column.
             <AppHeader
-              className="motion-reduce:transition-none lg:left-(--content-left) lg:transition-[left] lg:duration-(--duration-route-enter) lg:ease-route"
+              className="motion-reduce:transition-none lg:left-(--content-left) lg:[#app-shell[data-side-panel-animating]_&]:transition-[left] lg:[#app-shell[data-side-panel-animating]_&]:duration-(--duration-route-enter) lg:[#app-shell[data-side-panel-animating]_&]:ease-route"
               hasSidePanel
               leading={
                 <IconButton
