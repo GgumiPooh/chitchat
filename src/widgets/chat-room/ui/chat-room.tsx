@@ -482,6 +482,7 @@ export function ChatRoom({
   const [seenId, setSeenId] = useState(initialMessages.at(-1)?.id ?? 0);
   const {
     messages,
+    activeFilterMode,
     isLoadingOlder,
     isSwitchingMode,
     pendingOlder,
@@ -791,9 +792,9 @@ export function ChatRoom({
         messages,
         pending,
         currentUserId,
-        hideOthers: notifyMode === "onlyMe",
+        hideOthers: activeFilterMode,
       }),
-    [messages, pending, currentUserId, notifyMode],
+    [messages, pending, currentUserId, activeFilterMode],
   );
   /**
    * REQUIREMENTS.md § 8.3. What `getItemKey`'s identity turns over on — the row keys
@@ -1727,18 +1728,16 @@ export function ChatRoom({
       )}
       {rows.length === 0 ? (
         <>
-          {!isSwitchingMode && (
-            <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">
-              <EmptyState
-                Icon={MessageCircle}
-                description={
-                  notifyMode === "onlyMe"
-                    ? "나에게 메시지를 보내보세요"
-                    : "아직 주고받은 메시지가 없어요"
-                }
-              />
-            </div>
-          )}
+          <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">
+            <EmptyState
+              Icon={MessageCircle}
+              description={
+                activeFilterMode
+                  ? "나에게 메시지를 보내보세요"
+                  : "아직 주고받은 메시지가 없어요"
+              }
+            />
+          </div>
           {/* INFO: REQUIREMENTS.md § 8.12. An empty room renders no scroller for the indicator to sit in, and this is exactly when it matters most — the other person composing the conversation's first message. Positioned where that message will land. */}
           {typist && (
             <TypingIndicator

@@ -39,6 +39,8 @@ const OLDER_FAILURE_TOAST_ID = "chat-older-failed";
  */
 export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter = false) {
   const [messages, setMessages] = useState(initialMessages);
+  // INFO: REQUIREMENTS.md § 16.1. The filter mode corresponding to current messages on screen.
+  const [activeFilterMode, setActiveFilterMode] = useState(onlyMeFilter);
   // INFO: True from the fetch starting until the page is actually in the list, which is what keeps the § 8.3. loading header up across the wait for a still scroller.
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   // INFO: True while switching between normal/silent mode and onlyMe mode when there is no cached window yet.
@@ -471,6 +473,7 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
     if (cached) {
       hasOlderRef.current = cached.length >= MESSAGE_PAGE_SIZE;
       commit(() => cached);
+      setActiveFilterMode(targetIsOnlyMe);
       setIsSwitchingMode(false);
     } else {
       setIsSwitchingMode(true);
@@ -492,6 +495,7 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
         generalMessagesRef.current = page;
       }
       commit(() => page);
+      setActiveFilterMode(targetIsOnlyMe);
 
       return true;
     } catch {
@@ -619,6 +623,7 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
 
   return {
     messages,
+    activeFilterMode,
     isLoadingOlder,
     isSwitchingMode,
     pendingOlder,
