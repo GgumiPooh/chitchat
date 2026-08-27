@@ -3,6 +3,7 @@ import "server-only";
 import {
   LLM_GENERATION_LOCK_KEY,
   llmCancelEventSchema,
+  toLlmOnlyMeLockKey,
   type LlmThinkingLevel,
 } from "@/shared/config";
 import { LLM_CANCEL_CHANNEL, openUnpooledSession } from "@/shared/db";
@@ -78,7 +79,9 @@ export async function runQueuedGeneration({
     });
 
     // WARN: Blocks server-side until granted — this is the FIFO. `maxDuration` on the route is what bounds how long an invocation may sit here.
-    await session`select pg_advisory_lock(${LLM_GENERATION_LOCK_KEY}::bigint)`;
+    const lockKey = onlyMe ? toLlmOnlyMeLockKey(askerId) : LLM_GENERATION_LOCK_KEY;
+
+    await session`select pg_advisory_lock(${lockKey}::bigint)`;
 
     const isCancelled = () =>
       cancelledWhileWaiting || Boolean(getGenerationSnapshot(streamId)?.cancelled);
@@ -125,9 +128,9 @@ export async function runQueuedGeneration({
     // WARN: Unconditional, and safe to call twice — every return and throw above must leave no entry behind, including the "cancelled while queued" branch, which already left the registry clean before this ran.
     discardGeneration(streamId);
 
-    await session`select pg_advisory_unlock(${LLM_GENERATION_LOCK_KEY}::bigint)`.catch(
-      () => undefined,
-    );
+    const lockKey = onlyMe ? toLlmOnlyMeLockKey(askerId) : LLM_GENERATION_LOCK_KEY;
+
+    await session`select pg_advisory_unlock(${lockKey}::bigint)`.catch(() => undefined);
     await session.end().catch(() => undefined);
   }
 }

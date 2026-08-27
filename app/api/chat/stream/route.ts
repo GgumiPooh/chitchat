@@ -293,6 +293,7 @@ function toLlmSnapshotEvent(snapshot: GenerationSnapshot & { streamId: string })
     streamId: snapshot.streamId,
     questionClientMsgId: snapshot.questionClientMsgId,
     userId: snapshot.userId,
+    onlyMe: snapshot.onlyMe,
     status: snapshot.status,
     provider: snapshot.provider,
     model: snapshot.model,

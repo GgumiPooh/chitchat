@@ -540,6 +540,7 @@ export function ChatRoom({
         messageIds: MessageId[];
         model: Nullable<string>;
         thinking: Nullable<LlmThinkingLevel>;
+        onlyMe: boolean;
         // INFO: § 8.15. The media/emoticon bubbles this question's own send staged, so the AI request can wait for their ids too — see `aiAttachmentQuestionRef` below.
         attachmentClientMsgIds: string[];
         resolvedAttachmentIds: MessageId[];
@@ -572,6 +573,7 @@ export function ChatRoom({
           messageIds: [...question.messageIds, ...question.resolvedAttachmentIds].sort(compareId),
           model: question.model,
           thinking: question.thinking,
+          onlyMe: question.onlyMe,
         });
       }
 
@@ -778,7 +780,7 @@ export function ChatRoom({
       : null;
   // INFO: A generation asked from anywhere, not only this device — `useActiveGenerations` is fed by the whole conversation's `llm` channel.
   const { generations, cancelGeneration } = useActiveGenerations();
-  // INFO: The advisory lock (`LLM_GENERATION_LOCK_KEY`) serializes runs server-side, so at most one entry is ever `running`; a `queued` one with nothing running yet is drawn as this room's own front of the line.
+  // INFO: The advisory locks (`LLM_GENERATION_LOCK_KEY` / user-scoped `toLlmOnlyMeLockKey`) serialize runs server-side per queue, so at most one entry per mode/user is ever `running`; a `queued` one with nothing running yet is drawn as this room's own front of the line.
   const generationEntries = useMemo(() => {
     const isOnlyMeMode = notifyMode === "onlyMe";
     return Array.from(generations).filter(([, entry]) =>
@@ -2334,6 +2336,7 @@ export function ChatRoom({
       // INFO: Snapshotted at send time — a picker changed after this question was queued must not retarget a question already on its way out.
       model: llmAgentChoice.model,
       thinking: llmAgentChoice.thinking,
+      onlyMe: notifyMode === "onlyMe",
       attachmentClientMsgIds,
       resolvedAttachmentIds: [],
     });
@@ -2363,6 +2366,7 @@ export function ChatRoom({
       messageIds: MessageId[];
       model: Nullable<string>;
       thinking: Nullable<LlmThinkingLevel>;
+      onlyMe: boolean;
     },
   ) {
     const release = holdAwake();
@@ -2379,6 +2383,7 @@ export function ChatRoom({
           // INFO: § 8.5. Omitted rather than `null` for 자동/기본 — the route's schema takes both as optional, and a `null` would be a value it has to refuse instead of a field it never sees.
           ...(question.model !== null && { model: question.model }),
           ...(question.thinking !== null && { thinking: question.thinking }),
+          onlyMe: question.onlyMe,
         }),
       });
 

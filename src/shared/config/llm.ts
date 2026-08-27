@@ -85,8 +85,18 @@ export const LLM_NOTIFY_MAX_BYTES = 8_000;
 // INFO: Reserved beyond the envelope size a `delta` publish actually measures at call time — covers drift the measurement does not (a wider `seq` digit count, a future field) rather than being budgeted away from every chunk in advance.
 export const LLM_NOTIFY_SAFETY_MARGIN = 200;
 
-// INFO: `pg_advisory_lock`'s key — one arbitrary constant naming the whole app's single AI-generation queue. Nothing else in the app takes an advisory lock, so any fixed 63-bit value works; this one has no meaning beyond being unlikely to be typed by accident.
+// INFO: `pg_advisory_lock`'s keys — constants and helpers naming the general and per-user onlyMe AI-generation queues. Nothing else in the app takes an advisory lock, so any fixed 63-bit value works; these have no meaning beyond being unlikely to be typed by accident.
 export const LLM_GENERATION_LOCK_KEY = 954_823_671;
+
+export const LLM_ONLY_ME_GENERATION_LOCK_BASE = 954_823_700;
+
+/** Computes a 63-bit integer advisory lock key for onlyMe mode scoped to the asking user. */
+export function toLlmOnlyMeLockKey(userId: UserId): string {
+  // INFO: Derives a positive integer key per user snowflake id for Postgres bigint advisory locks.
+  const hash = (BigInt(userId) % 1_000_000_000n) + BigInt(LLM_ONLY_ME_GENERATION_LOCK_BASE);
+
+  return hash.toString();
+}
 
 const llmStreamEventBase = {
   streamId: z.uuid(),
