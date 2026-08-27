@@ -50,7 +50,11 @@ export function MessageSearchNav({
         <p
           className={cn("flex-1 text-center text-caption text-meta tabular-nums", counterClassName)}
         >
-          {hasNoResults ? "결과가 없어요" : activeIndex === null ? "" : `${activeIndex + 1}/${total}`}
+          {hasNoResults
+            ? "결과가 없어요"
+            : activeIndex === null
+              ? ""
+              : `${activeIndex + 1}/${total}`}
         </p>
         {/* INFO: § 8.6.1. Older is up because the conversation runs oldest to newest down the screen — the arrow points the way the room is about to move, not the way the result list is ordered. */}
         <IconButton

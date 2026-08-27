@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { isEqual } from "lodash-es";
+import { useEffect, useRef, useState } from "react";
 import { buildFadeMask } from "../fade-mask";
 
 export function useScrollFade(direction: "to bottom" | "to right" = "to bottom") {
@@ -56,7 +56,7 @@ export function useScrollFade(direction: "to bottom" | "to right" = "to bottom")
   });
 
   return {
-    ref,
+    scrollRef: ref,
     maskStyle: {
       maskImage: mask,
       WebkitMaskImage: mask,

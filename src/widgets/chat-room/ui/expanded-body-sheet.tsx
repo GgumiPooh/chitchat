@@ -48,7 +48,7 @@ export function ExpandedBodySheet({
 }: ExpandedBodySheetProps) {
   const isDesktop = useIsDesktop();
   const sheetRef = useRef<HTMLDivElement | null>(null);
-  const scrollFade = useScrollFade("to bottom");
+  const { maskStyle, scrollRef } = useScrollFade("to bottom");
 
   // INFO: The caller clears the body on close, and the exit animation would otherwise play over an empty header and no text — `ActionSheet` holds its own rows the same way and for the same reason.
   const [snapshot, setSnapshot] = useState(body);
@@ -58,13 +58,14 @@ export function ExpandedBodySheet({
   const shown = body ?? snapshot;
   const isOpen = body !== null;
 
-  const { dragProps, dragTranslateY, expandedHeight, handleProps, isDragging, pinnedHeight } = useSheetDrag({
-    closeOnPullDownFromExpanded: true,
-    initialSize: "expanded",
-    isOpen,
-    onClose,
-    sheetRef,
-  });
+  const { dragProps, dragTranslateY, expandedHeight, handleProps, isDragging, pinnedHeight } =
+    useSheetDrag({
+      closeOnPullDownFromExpanded: true,
+      initialSize: "expanded",
+      isOpen,
+      onClose,
+      sheetRef,
+    });
 
   const bodyContent = shown?.isMarkdown ? (
     <MarkdownBody text={shown.text} />
@@ -111,7 +112,7 @@ export function ExpandedBodySheet({
         <DialogPrimitive.Content
           ref={sheetRef}
           className={cn(
-            "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 mx-auto mb-sm flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))] w-[calc(100%_-_var(--content-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas pt-md px-md shadow-floating focus:outline-none data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=closed]:slide-out-to-bottom data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=open]:slide-in-from-bottom",
+            "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 mx-auto mb-sm flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))] w-[calc(100%_-_var(--content-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas px-md pt-md shadow-floating focus:outline-none data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=closed]:slide-out-to-bottom data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=open]:slide-in-from-bottom",
             isDragging ? "transition-none!" : "transition-[height,transform] duration-200 ease-out",
             className,
           )}
@@ -141,9 +142,9 @@ export function ExpandedBodySheet({
 
           {/* 스크롤 가능한 본문 영역 */}
           <div
-            ref={scrollFade.ref}
+            ref={scrollRef}
             className="-mx-md scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain px-md after:block after:h-[max(var(--spacing-md),env(safe-area-inset-bottom))]"
-            style={scrollFade.maskStyle}
+            style={maskStyle}
           >
             {/* 헤더 */}
             <div className="mb-md shrink-0 space-y-2xs text-center">

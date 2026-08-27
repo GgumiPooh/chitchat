@@ -10,7 +10,6 @@ import {
   desc,
   eq,
   exists,
-  not,
   gt,
   inArray,
   isNull,
@@ -202,7 +201,10 @@ async function findSendingMessages(mediaIds: MediaId[]): Promise<Map<string, Arc
  * shelf a row lands on is `isOfShelf` — since `destroyArchiveMedia` wants this half
  * alone, as 삭제 reaches every shelf.
  */
-export function isInLibrary(currentUserId: UserId, modeFilter: "all" | "onlyMe" | "shared" = "all"): Optional<SQL> {
+export function isInLibrary(
+  currentUserId: UserId,
+  modeFilter: "all" | "onlyMe" | "shared" = "all",
+): Optional<SQL> {
   const isPosted = exists(
     getDb()
       .select({ one: sql`1` })

@@ -921,7 +921,7 @@ Every `⌘` below is `Ctrl` off an Apple platform, through `isCommandKey`; `⌥`
 | `⌃E`                       | § 13.6.'s panel open or closed — on the remembered tab, or on 검색 with the draft's word if one is underlined | `useChatShortcuts` / `MessageComposer` |
 | `⌃1` / `⌃2` / `⌃3`         | 검색 / 이모티콘 / 미니, opening the panel but never closing it                                                | `useChatShortcuts` / `MessageComposer` |
 | `Ctrl+A`                   | § 8.5.'s AI 질문 모드, entered on an empty selection or exited                                                | `useChatShortcuts`                     |
-| `Ctrl+S`                   | § 16.1.'s notify mode, cycling 알림 울리게 보내기 → 조용히 보내기 → 나에게만 보내기 → …                      | `useChatShortcuts`                     |
+| `Ctrl+S`                   | § 16.1.'s notify mode, cycling 알림 울리게 보내기 → 조용히 보내기 → 나에게만 보내기 → …                       | `useChatShortcuts`                     |
 | `←` `→` `↑` `↓`            | Move focus, across all three of § 13.6.'s regions                                                             | `EmoticonPicker`                       |
 | `←` `→` off a row's end    | The pack beside this one, first row, opposite edge                                                            | `EmoticonPicker`                       |
 | `↑` / `↓`                  | Between the regions — grid, strip or field, menu bar                                                          | `EmoticonPicker`                       |

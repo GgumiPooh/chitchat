@@ -1,18 +1,18 @@
 "use client";
 
 import { ActionSheet, IconButton, type ActionSheetItem } from "@/shared/ui";
-import { Filter, Check, ListFilter } from "lucide-react";
+import { Check, Filter, ListFilter } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 
 export function ArchiveFilterButton() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);
-  
+
   const current = searchParams?.get("mode") ?? "all";
-  
+
   function selectFilter(val: string) {
     setIsOpen(false);
     const params = new URLSearchParams(searchParams?.toString() ?? "");
@@ -39,29 +39,29 @@ export function ArchiveFilterButton() {
       label: "나에게 보낸 항목",
       Icon: current === "onlyMe" ? Check : undefined,
       onSelect: () => selectFilter("onlyMe"),
-    }
+    },
   ];
 
   const isFiltered = current !== "all";
 
   return (
     <>
-      <div ref={buttonRef} className="inline-block flex items-center justify-center">
+      <div ref={buttonRef} className="flex inline-block items-center justify-center">
         <IconButton
+          iconClassName={isFiltered ? "text-primary" : undefined}
           variant="floating"
           Icon={isFiltered ? ListFilter : Filter}
-          iconClassName={isFiltered ? "text-primary" : undefined}
           haptic
           aria-label="보기 옵션 필터"
           onClick={() => setIsOpen(true)}
         />
       </div>
-      <ActionSheet 
-        isOpen={isOpen} 
-        onClose={() => setIsOpen(false)}
+      <ActionSheet
+        isOpen={isOpen}
         header={{ title: "보기 옵션" }}
         items={items}
         anchorRef={buttonRef}
+        onClose={() => setIsOpen(false)}
       />
     </>
   );

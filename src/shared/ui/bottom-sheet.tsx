@@ -48,7 +48,7 @@ export function BottomSheet({
   onCloseAutoFocus,
 }: BottomSheetProps) {
   const isDesktop = useIsDesktop();
-  const scrollFade = useScrollFade("to bottom");
+  const { maskStyle, scrollRef } = useScrollFade("to bottom");
 
   if (isDesktop) {
     return (
@@ -88,7 +88,7 @@ export function BottomSheet({
             : hasSnapPoints
               ? "h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))]!"
               : "h-auto!",
-          "mx-auto mb-sm flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))] w-[calc(100%_-_var(--content-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas pt-md px-md shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+          "mx-auto mb-sm flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))] w-[calc(100%_-_var(--content-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas px-md pt-md shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
           className,
         )}
         onCloseAutoFocus={onCloseAutoFocus}
@@ -110,10 +110,10 @@ export function BottomSheet({
         {/* WARN: The scroller spans the sheet's padding box and restores the inset itself, so a full-bleed row inside it (`EventColorPicker`'s swatches) reaches the edge instead of overflowing. `overflow-y: auto` computes `overflow-x` to `auto` too, and that overflow was the sheet scrolling sideways. */}
         {/* WARN: `min-h-0` clears the flex item's content-based floor, the same trade `DialogShell`'s own scroll wrapper makes — without it `isTall`'s forced height just grows the sheet past its cap instead of scrolling the body under the header. */}
         <div
-          ref={scrollFade.ref}
+          ref={scrollRef}
           className="-mx-md scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain px-md after:block after:h-[max(var(--spacing-md),env(safe-area-inset-bottom))]"
+          style={maskStyle}
           data-vaul-no-drag
-          style={scrollFade.maskStyle}
         >
           {children}
         </div>

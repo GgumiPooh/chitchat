@@ -54,7 +54,8 @@ export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMe
   const [encodeProgress, setEncodeProgress] = useState<Nullable<number>>(null);
   const [runningCount, setRunningCount] = useState(0);
 
-  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const searchParams =
+    typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
   const modeParam = searchParams?.get("mode");
   const uploadMode = modeParam === "onlyMe" ? true : modeParam === "shared" ? false : undefined;
 

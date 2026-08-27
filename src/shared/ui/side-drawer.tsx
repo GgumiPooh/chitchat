@@ -8,7 +8,7 @@ export type SideDrawerProps = PropsWithChildren<{
   onClose: () => void;
 }>;
 
-export function SideDrawer({ className, isOpen, onClose, children }: SideDrawerProps) {
+export function SideDrawer({ className, isOpen, children, onClose }: SideDrawerProps) {
   return (
     <Drawer open={isOpen} direction="left" onOpenChange={(open) => !open && onClose()}>
       <DrawerContent

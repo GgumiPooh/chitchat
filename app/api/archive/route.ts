@@ -87,7 +87,8 @@ export async function GET(request: Request) {
     return apiError("invalid_request");
   }
 
-  const { limit, shelf, kind, before, after, beforeId, afterId, modeFilter, ...cursors } = query.data;
+  const { limit, shelf, kind, before, after, beforeId, afterId, modeFilter, ...cursors } =
+    query.data;
 
   return NextResponse.json({
     media: await listArchiveMedia({

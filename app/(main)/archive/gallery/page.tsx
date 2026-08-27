@@ -19,8 +19,12 @@ export default async function Page({ searchParams }: PageProps) {
   return (
     <ArchivePage
       key={`${targetId ?? ""}-${modeFilter}`}
-      initialMedia={await listArchiveMedia({ around: targetId, currentUserId: user.id, modeFilter })}
       targetId={targetId}
+      initialMedia={await listArchiveMedia({
+        around: targetId,
+        currentUserId: user.id,
+        modeFilter,
+      })}
     />
   );
 }

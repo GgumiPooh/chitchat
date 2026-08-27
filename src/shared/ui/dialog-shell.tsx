@@ -45,7 +45,7 @@ export function DialogShell({
   onClose,
   onCloseAutoFocus,
 }: DialogShellProps) {
-  const scrollFade = useScrollFade("to bottom");
+  const { maskStyle, scrollRef } = useScrollFade("to bottom");
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -82,10 +82,10 @@ export function DialogShell({
           </DialogHeader>
         )}
         {/* WARN: `min-h-0` clears the flex item's content-based floor, or this never shrinks below `children`'s own height for `max-h` on `DialogContent` to cut into — the box would just grow past it instead of scrolling. */}
-        <div 
-          ref={scrollFade.ref}
-          className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto -mx-lg px-lg pt-1 -mt-1 after:block after:h-lg"
-          style={scrollFade.maskStyle}
+        <div
+          ref={scrollRef}
+          className="-mx-lg -mt-1 scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-lg pt-1 after:block after:h-lg"
+          style={maskStyle}
         >
           {children}
         </div>

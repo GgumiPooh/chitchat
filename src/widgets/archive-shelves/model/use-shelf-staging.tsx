@@ -52,8 +52,9 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
   const { remainingCount, encodeProgress, isBusy, upload } = useArchiveUpload(shelf, onAdded);
   const [isCommitting, setIsCommitting] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
-  
-  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+
+  const searchParams =
+    typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
   const modeParam = searchParams?.get("mode");
   const uploadMode = modeParam === "onlyMe" ? true : modeParam === "shared" ? false : undefined;
 
@@ -62,7 +63,12 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
     isEnabled: !isBlocked && !editing.isEditing,
     onDrop: (files) => void staging.add(files),
   });
-  const isHeld = staging.drafts.length === 0 || staging.isReading || editing.isApplying || isCommitting || isCanceling;
+  const isHeld =
+    staging.drafts.length === 0 ||
+    staging.isReading ||
+    editing.isApplying ||
+    isCommitting ||
+    isCanceling;
 
   return {
     dropHandlers: drop.handlers,
@@ -102,13 +108,19 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
    * can lift them over it — the sheet has to get out of the way instead.
    */
   function renderSheet() {
-    const description = uploadMode === true 
-      ? "나만 볼 수 있게 보관함에 추가돼요" 
-      : "상대방과 함께 보도록 보관함에 추가돼요";
+    const description =
+      uploadMode === true
+        ? "나만 볼 수 있게 보관함에 추가돼요"
+        : "상대방과 함께 보도록 보관함에 추가돼요";
 
     return (
       <BottomSheet
-        isOpen={(staging.drafts.length > 0 || staging.isReading) && !editing.isEditing && !isCommitting && !isCanceling}
+        isOpen={
+          (staging.drafts.length > 0 || staging.isReading) &&
+          !editing.isEditing &&
+          !isCommitting &&
+          !isCanceling
+        }
         header={{
           title: `${LIBRARY_SHELF_LABELS[shelf]} 추가`,
           description,
@@ -126,7 +138,11 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
           {/* WARN: Held while a trim is being read back. The trimmer is already gone by then, so an upload started in that window would ship the untrimmed original and the `replace` behind it would land on a draft `takeAll` had removed. */}
           <Button disabled={isHeld} haptic onClick={() => void start()}>
             {uploadMode === true && <Lock className="size-4" strokeWidth={2.5} />}
-            {uploadMode === true ? "나에게만 보내기" : uploadMode === false ? "대화방에 공유하기" : "대화에 보내기"}
+            {uploadMode === true
+              ? "나에게만 보내기"
+              : uploadMode === false
+                ? "대화방에 공유하기"
+                : "대화에 보내기"}
           </Button>
         </div>
       </BottomSheet>
@@ -168,9 +184,11 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
   }
 
   function cancel() {
-    if (isCommitting || isCanceling) return;
+    if (isCommitting || isCanceling) {
+      return;
+    }
     setIsCanceling(true);
-    
+
     // INFO: Delay clearing the drafts so the sheet has content to maintain its height while animating out.
     setTimeout(() => {
       staging.clear();
@@ -185,7 +203,9 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
    * hook to revoke them on unmount instead would kill the blob mid-upload.
    */
   async function start() {
-    if (isCommitting) return;
+    if (isCommitting) {
+      return;
+    }
     setIsCommitting(true);
 
     // INFO: Delay taking the drafts so the sheet has content to maintain its height while animating out.

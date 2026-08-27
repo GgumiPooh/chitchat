@@ -155,6 +155,7 @@ export {
 } from "./hooks/use-pinch-zoom";
 export { usePinnedDocument } from "./hooks/use-pinned-document";
 export { useRovingTabIndex, type RovingTabIndexOptions } from "./hooks/use-roving-tab-index";
+export { useScrollFade } from "./hooks/use-scroll-fade";
 export { useSettledCommit, type SettledCommitOptions } from "./hooks/use-settled-commit";
 export { useSheetDrag, type SheetSize, type UseSheetDragOptions } from "./hooks/use-sheet-drag";
 export {
@@ -243,4 +244,3 @@ export {
   withoutFragment,
   type TextSegment,
 } from "./text/url";
-export { useScrollFade } from "./hooks/use-scroll-fade";

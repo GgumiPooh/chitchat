@@ -73,11 +73,12 @@ export function MiniEmoticonSheet({
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const { size, expandedHeight, pinnedHeight, dragTranslateY, isDragging, dragProps, handleProps } = useSheetDrag({
-    sheetRef,
-    isOpen: isOpen && messageId !== null,
-    onClose,
-  });
+  const { size, expandedHeight, pinnedHeight, dragTranslateY, isDragging, dragProps, handleProps } =
+    useSheetDrag({
+      sheetRef,
+      isOpen: isOpen && messageId !== null,
+      onClose,
+    });
 
   const activeEmojiSet =
     activeEmojis instanceof Set

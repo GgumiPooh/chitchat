@@ -1260,7 +1260,15 @@ type KeywordLayerProps = {
  * or causes iOS WebKit's caret to jump when dragging selection or using spacebar trackpad.
  * The keyword itself mounts a touch-capture overlay.
  */
-function KeywordLayer({ ref, className, keywordRef, text, emoticons, match, onKeywordClick }: KeywordLayerProps) {
+function KeywordLayer({
+  ref,
+  className,
+  keywordRef,
+  text,
+  emoticons,
+  match,
+  onKeywordClick,
+}: KeywordLayerProps) {
   return (
     <div
       ref={ref}
@@ -1286,10 +1294,10 @@ function KeywordLayer({ ref, className, keywordRef, text, emoticons, match, onKe
         )}
         {onKeywordClick && (
           <button
+            className="pointer-events-auto absolute inset-0 touch-none"
             type="button"
             tabIndex={-1}
             aria-hidden
-            className="pointer-events-auto absolute inset-0 touch-none"
             onPointerDown={(e) => {
               // INFO: Do not preventDefault here; iOS Safari will ignore blur() calls originating from a prevented touch.
               e.stopPropagation();

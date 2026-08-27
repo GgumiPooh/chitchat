@@ -41,11 +41,7 @@ export function MessageSearchResults({
   onSelect,
 }: MessageSearchResultsProps) {
   return (
-    <SideDrawer
-      className={className}
-      isOpen={isOpen}
-      onClose={onClose}
-    >
+    <SideDrawer className={className} isOpen={isOpen} onClose={onClose}>
       <div className="flex shrink-0 items-center justify-between gap-2xs border-b border-hairline/30 px-md py-xs">
         <p className="truncate text-title-md text-ink">
           {total > 0 ? `검색 결과 ${total}건` : "검색 결과"}

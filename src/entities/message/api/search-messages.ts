@@ -3,7 +3,7 @@ import "server-only";
 
 import { SEARCH_PAGE_SIZE, toPlainMessageText } from "@/shared/config";
 import { getDb, messages } from "@/shared/db";
-import { and, count, desc, eq, ilike, isNull, lt, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, ilike, isNull, lt, type SQL } from "drizzle-orm";
 import { toSearchExcerpt } from "../model/to-search-excerpt";
 import type { MessageSearchResult } from "../model/types";
 
@@ -76,7 +76,11 @@ export async function searchMessages({
  * behind it, and a counter that grew as the user stepped through would read as
  * the conversation gaining matches while they searched it.
  */
-export async function countMatchingMessages(query: string, currentUserId: UserId, hideOthers: boolean): Promise<number> {
+export async function countMatchingMessages(
+  query: string,
+  currentUserId: UserId,
+  hideOthers: boolean,
+): Promise<number> {
   const [row] = await getDb()
     .select({ total: count() })
     .from(messages)
