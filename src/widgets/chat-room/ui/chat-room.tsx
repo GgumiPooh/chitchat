@@ -1870,7 +1870,7 @@ export function ChatRoom({
               className={cn("will-change-transform", emoticonSheetTransition)}
               style={{
                 transform:
-                  emoticonSheet.dragTranslateY > 0
+                  isEmoticonPanelOpen && emoticonSheet.dragTranslateY > 0
                     ? `translateY(${emoticonSheet.dragTranslateY}px)`
                     : undefined,
               }}

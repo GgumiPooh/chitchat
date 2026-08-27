@@ -230,10 +230,15 @@ export function useSheetDrag({
     }
 
     if (pulled < 0) {
-      // WARN: Dragging down — translate the whole panel rather than shrinking its height,
-      // so the bottom edge stays fixed and the panel slides as a unit.
-      setPinnedHeight(gesture.height);
-      setDragTranslateY(-pulled);
+      if (size === "expanded") {
+        // INFO: Dragging down from expanded mode shrinks height directly to reveal the composer beneath without translating the bottom edge.
+        setPinnedHeight(Math.max(gesture.height + pulled, 0));
+        setDragTranslateY(0);
+      } else {
+        // WARN: Dragging down from rest mode translates the whole panel so the composer and sheet slide as a unit with the finger.
+        setPinnedHeight(gesture.height);
+        setDragTranslateY(-pulled);
+      }
     } else {
       // Dragging up to expand: grow height, no translation.
       setDragTranslateY(0);
@@ -263,23 +268,19 @@ export function useSheetDrag({
     const closeThreshold = Math.max(threshold * 2, gesture.height * 0.5);
 
     if (size === "expanded") {
+      setDragTranslateY(0);
+      setPinnedHeight(null);
+
       if (pulled < -closeThreshold) {
-        setDragTranslateY(0);
         onClose();
       } else if (pulled < -threshold) {
         if (closeOnPullDownFromExpanded || initialSize === "expanded") {
-          setDragTranslateY(0);
           onClose();
         } else {
-          setDragTranslateY(0);
           setSize("rest");
           blurInside();
         }
-      } else {
-        setDragTranslateY(0);
       }
-
-      setPinnedHeight(null);
     } else if (pulled > threshold) {
       setDragTranslateY(0);
       settle("expanded", gesture.max);
