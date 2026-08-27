@@ -451,66 +451,71 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
    * REQUIREMENTS.md § 16.1. 나에게만 보내기 mode toggle.
    * Reloads the newest live page for the active filter mode unconditionally (even when already at live edge).
    * Implements 0ms cache-swap when target mode history is cached, plus SWR revalidation.
+   * Holds the previous view if no cache exists until new mode messages are committed.
    */
-  const reloadLiveWindow = useCallback(async (): Promise<boolean> => {
-    // INFO: Save current live window into the previous mode cache before switching.
-    if (!hasNewerRef.current) {
-      if (onlyMeFilterRef.current) {
-        onlyMeMessagesRef.current = messagesRef.current;
-      } else {
-        generalMessagesRef.current = messagesRef.current;
-      }
-    }
+  const reloadLiveWindow = useCallback(
+    async (explicitTargetOnlyMe?: boolean): Promise<boolean> => {
+      const targetIsOnlyMe = explicitTargetOnlyMe ?? onlyMeFilterRef.current;
 
-    const targetIsOnlyMe = onlyMeFilterRef.current;
-    const cached = targetIsOnlyMe ? onlyMeMessagesRef.current : generalMessagesRef.current;
-
-    const generation = beginReplacement();
-
-    hasNewerRef.current = false;
-    setHasNewer(false);
-
-    if (cached) {
-      hasOlderRef.current = cached.length >= MESSAGE_PAGE_SIZE;
-      commit(() => cached);
-      setActiveFilterMode(targetIsOnlyMe);
-      setIsSwitchingMode(false);
-    } else {
-      setIsSwitchingMode(true);
-    }
-
-    try {
-      const page = await fetchMessages({ onlyMeFilter: targetIsOnlyMe });
-      const newestId = page.at(-1)?.id ?? toId<MessageId>("0");
-
-      if (generation !== windowId.current) {
-        return false;
+      // INFO: Save current live window into the previous mode cache before switching.
+      if (!hasNewerRef.current) {
+        if (activeFilterMode) {
+          onlyMeMessagesRef.current = messagesRef.current;
+        } else {
+          generalMessagesRef.current = messagesRef.current;
+        }
       }
 
-      hasOlderRef.current = page.length >= MESSAGE_PAGE_SIZE;
-      newestKnownIdRef.current = maxId(newestKnownIdRef.current, newestId);
-      if (targetIsOnlyMe) {
-        onlyMeMessagesRef.current = page;
-      } else {
-        generalMessagesRef.current = page;
-      }
-      commit(() => page);
-      setActiveFilterMode(targetIsOnlyMe);
+      const cached = targetIsOnlyMe ? onlyMeMessagesRef.current : generalMessagesRef.current;
 
-      return true;
-    } catch {
-      if (generation === windowId.current) {
-        toast.error("최근 메시지를 불러오지 못했어요");
-      }
+      const generation = beginReplacement();
 
-      return false;
-    } finally {
-      if (generation === windowId.current) {
+      hasNewerRef.current = false;
+      setHasNewer(false);
+
+      if (cached) {
+        hasOlderRef.current = cached.length >= MESSAGE_PAGE_SIZE;
+        commit(() => cached);
+        setActiveFilterMode(targetIsOnlyMe);
         setIsSwitchingMode(false);
+      } else {
+        setIsSwitchingMode(true);
       }
-      endLoad(generation);
-    }
-  }, [beginReplacement, commit, endLoad]);
+
+      try {
+        const page = await fetchMessages({ onlyMeFilter: targetIsOnlyMe });
+        const newestId = page.at(-1)?.id ?? toId<MessageId>("0");
+
+        if (generation !== windowId.current) {
+          return false;
+        }
+
+        hasOlderRef.current = page.length >= MESSAGE_PAGE_SIZE;
+        newestKnownIdRef.current = maxId(newestKnownIdRef.current, newestId);
+        if (targetIsOnlyMe) {
+          onlyMeMessagesRef.current = page;
+        } else {
+          generalMessagesRef.current = page;
+        }
+        commit(() => page);
+        setActiveFilterMode(targetIsOnlyMe);
+
+        return true;
+      } catch {
+        if (generation === windowId.current) {
+          toast.error("최근 메시지를 불러오지 못했어요");
+        }
+
+        return false;
+      } finally {
+        if (generation === windowId.current) {
+          setIsSwitchingMode(false);
+        }
+        endLoad(generation);
+      }
+    },
+    [activeFilterMode, beginReplacement, commit, endLoad],
+  );
 
   /**
    * REQUIREMENTS.md § 8.4. Everything that landed while the stream was closed.

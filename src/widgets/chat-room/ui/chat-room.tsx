@@ -1314,14 +1314,15 @@ export function ChatRoom({
   const wasOnlyMe = useRef(notifyMode === "onlyMe");
 
   useEffect(() => {
-    if (wasOnlyMe.current !== (notifyMode === "onlyMe")) {
-      void reloadLiveWindow().then(() => {
+    const isOnlyMe = notifyMode === "onlyMe";
+    if (wasOnlyMe.current !== isOnlyMe) {
+      void reloadLiveWindow(isOnlyMe).then(() => {
         requestAnimationFrame(pinToBottom);
         scrollToBottom();
       });
     }
 
-    wasOnlyMe.current = notifyMode === "onlyMe";
+    wasOnlyMe.current = isOnlyMe;
   }, [notifyMode, reloadLiveWindow, pinToBottom, scrollToBottom]);
 
   /**
