@@ -91,10 +91,10 @@ export function ReactionBadges({
           <HapticTarget key={group.key} className="inline-flex shrink-0">
             <button
               className={cn(
-                "inline-flex h-7 items-center gap-1 rounded-full border px-2 py-0 font-medium shadow-2xs transition-all active:scale-95",
+                "inline-flex h-7 items-center gap-1 rounded-full border px-2 py-0 font-medium shadow-2xs backdrop-blur-md transition-all active:scale-95",
                 group.hasMine
-                  ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15"
-                  : "hover:bg-surface-elevated border-hairline bg-surface-soft text-ink",
+                  ? "border-primary/50 bg-surface-soft/60 text-primary hover:bg-surface-soft/80 dark:border-primary/60 dark:bg-surface-soft/60 dark:text-primary dark:hover:bg-surface-soft/80"
+                  : "border-hairline bg-surface-soft/60 text-ink hover:bg-surface-soft/80",
               )}
               type="button"
               aria-label={`리액션 ${group.count}개`}
@@ -105,7 +105,7 @@ export function ReactionBadges({
               ) : group.emoticonItemId ? (
                 <BadgeEmoticonImage itemId={group.emoticonItemId} />
               ) : null}
-              {group.count > 1 && (
+              {group.count > 0 && (
                 <span className="text-[11px] leading-none font-semibold tabular-nums">
                   {group.count}
                 </span>
