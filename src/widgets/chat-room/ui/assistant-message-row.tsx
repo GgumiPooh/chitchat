@@ -187,16 +187,10 @@ export function AssistantMessageRow({
                     </span>
                   ) : isTruncated ? (
                     <div className="overflow-hidden" style={{ maxHeight: toTruncatedBodyHeight() }}>
-                      <MarkdownBody
-                        className={message.onlyMe ? "text-bubble-private-ink" : undefined}
-                        text={message.text ?? ""}
-                      />
+                      <MarkdownBody isOnlyMe={message.onlyMe} text={message.text ?? ""} />
                     </div>
                   ) : (
-                    <MarkdownBody
-                      className={message.onlyMe ? "text-bubble-private-ink" : undefined}
-                      text={message.text ?? ""}
-                    />
+                    <MarkdownBody isOnlyMe={message.onlyMe} text={message.text ?? ""} />
                   )}
                   {/* WARN: REQUIREMENTS.md § 8.3. `MessageRow`'s own note — never conditioned on the handler, which the estimate cannot see. */}
                   {isTruncated && <ExpandBodyButton label="전체보기" onClick={onExpand} />}

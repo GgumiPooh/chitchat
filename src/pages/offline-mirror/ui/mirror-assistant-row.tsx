@@ -45,7 +45,11 @@ export function MirrorAssistantRow({ className, message }: MirrorAssistantRowPro
               message.isDeleted && "text-bubble-ink/55 italic select-none",
             )}
           >
-            {message.isDeleted ? DELETED_MESSAGE_TEXT : <MarkdownBody text={message.text ?? ""} />}
+            {message.isDeleted ? (
+              DELETED_MESSAGE_TEXT
+            ) : (
+              <MarkdownBody isOnlyMe={message.onlyMe} text={message.text ?? ""} />
+            )}
           </div>
           <div className="flex w-14 shrink-0 flex-col items-end text-chat-time whitespace-nowrap text-chat-meta">
             <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>

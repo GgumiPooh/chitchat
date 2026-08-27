@@ -4148,10 +4148,7 @@ function AiAnswerRow({
                 )}
               />
             ) : (
-              <MarkdownBody
-                className={entry.onlyMe ? "text-bubble-private-ink" : undefined}
-                text={entry.text}
-              />
+              <MarkdownBody isOnlyMe={entry.onlyMe} text={entry.text} />
             )}
           </div>
         </div>

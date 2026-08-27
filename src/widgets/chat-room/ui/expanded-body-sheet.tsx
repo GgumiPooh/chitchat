@@ -86,7 +86,7 @@ export function ExpandedBodySheet({
     return (
       <Modal
         className={cn(
-          "max-h-[calc(var(--viewport-height,100dvh)*0.75)]",
+          "max-h-[calc(var(--viewport-height,100dvh)_-_var(--spacing-lg)*2)]",
           "w-[calc(100%_-_var(--content-left)_-_var(--spacing-xl))] max-w-[var(--content-max-width,720px)]",
           className,
         )}
