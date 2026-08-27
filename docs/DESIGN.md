@@ -671,7 +671,7 @@ The copy is `해요체`, matching the § 6.10. quote's. KakaoTalk's `삭제된 �
 
 ## 6.2.2. Cut Bubble.
 
-A message past 500 characters is drawn short with a 전체보기 row under it, and the whole of it opens in a § 7.5. sheet (`REQUIREMENTS.md § 8.16.`). KakaoTalk's own rule, and the § 2.1. reason: a wall of text is a scroll the reader did not ask for, in a column they are reading for the conversation.
+A message past 300 characters is drawn short with a 전체보기 row under it, and the whole of it opens in a § 7.5. sheet (`REQUIREMENTS.md § 8.16.`). KakaoTalk's own rule, and the § 2.1. reason: a wall of text is a scroll the reader did not ask for, in a column they are reading for the conversation.
 
 | Property     | Value                                                                                                                                                                                                                                                 |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
