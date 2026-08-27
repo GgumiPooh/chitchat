@@ -702,14 +702,8 @@ export function ChatRoom({
   //     leaving the composer's screen position with only a 34px (= bottom-inset)
   //     net downward drift — no bounce.
   //
-  //   emoticonSheetTransition — applied to the sheet container, inner card, pill.
-  //     isResettingAfterClose=true → transition-none, so the sheet container
-  //     (height/transform) and the pill snap to their final values instantly.
-  //     The sheet was off-screen (translateY=targetTranslateY) at this moment, so
-  //     the snap is invisible; allowing the transition would animate it backward
-  //     from off-screen into view, which looks like the sheet bouncing back up.
   const composerTransition =
-    emoticonSheet.isDragging
+    emoticonSheet.isDragging || emoticonSheet.isResettingAfterClose
       ? "transition-none"
       : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
         ? "transition-[height,transform] duration-(--duration-sheet-expand) ease-sheet"
@@ -720,6 +714,21 @@ export function ChatRoom({
       : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
         ? "transition-[height,transform] duration-(--duration-sheet-expand) ease-sheet"
         : "transition-[height,transform] duration-200 ease-out";
+
+  const lastDragTranslateYRef = useRef(0);
+  if (emoticonSheet.dragTranslateY > 0) {
+    lastDragTranslateYRef.current = emoticonSheet.dragTranslateY;
+  }
+  const effectiveSheetTranslateY =
+    emoticonSheet.dragTranslateY > 0
+      ? emoticonSheet.dragTranslateY
+      : emoticonSheet.isResettingAfterClose || emoticonSheet.isDraggingClose
+        ? lastDragTranslateYRef.current
+        : 0;
+  const effectiveComposerTranslateY =
+    isEmoticonPanelOpen && emoticonSheet.dragTranslateY > 0
+      ? emoticonSheet.dragTranslateY
+      : 0;
 
   useEffect(() => () => clearTimeout(collapseTimerRef.current), []);
   // INFO: § 13.6. What the sheet clears the history by at rest — the spacer's height, and never more: an expanded sheet covers the composer rather than lifting it.
@@ -1769,7 +1778,7 @@ export function ChatRoom({
       ref={containerRef}
       className={cn(
         "relative min-h-0 flex-1 chat-clearance",
-        emoticonSheet.isDragging && "transition-none",
+        (emoticonSheet.isDragging || emoticonSheet.isResettingAfterClose) && "transition-none",
         className,
       )}
       // INFO: REQUIREMENTS.md § 13.6. The spacer half of `--chat-bottom-gap` (theme.css), eased here so the composer's own spacer, the list's trailing one and the pills over it all move on the chat screen's clock.
@@ -1884,8 +1893,8 @@ export function ChatRoom({
             newMessageCount={unseenCount}
             style={{
               transform:
-                isEmoticonPanelOpen && emoticonSheet.dragTranslateY > 0
-                  ? `translateY(${emoticonSheet.dragTranslateY}px)`
+                effectiveComposerTranslateY > 0
+                  ? `translateY(${effectiveComposerTranslateY}px)`
                   : undefined,
             }}
             onClick={() => void goToNewest()}
@@ -1911,8 +1920,8 @@ export function ChatRoom({
               className={cn("will-change-transform", composerTransition)}
               style={{
                 transform:
-                  isEmoticonPanelOpen && emoticonSheet.dragTranslateY > 0
-                    ? `translateY(${emoticonSheet.dragTranslateY}px)`
+                  effectiveComposerTranslateY > 0
+                    ? `translateY(${effectiveComposerTranslateY}px)`
                     : undefined,
               }}
             >
@@ -1990,8 +1999,8 @@ export function ChatRoom({
               style={{
                 ["--emoticon-sheet-height" as string]: emoticonSheetHeight,
                 transform:
-                  emoticonSheet.dragTranslateY > 0
-                    ? `translateY(${emoticonSheet.dragTranslateY}px)`
+                  effectiveSheetTranslateY > 0
+                    ? `translateY(${effectiveSheetTranslateY}px)`
                     : undefined,
               }}
             >

@@ -78,6 +78,8 @@ export function BottomSheet({
     );
   }
 
+  const hasSnapPoints = Boolean(snapPoints && snapPoints.length > 0);
+
   return (
     <Drawer
       open={isOpen}
@@ -92,7 +94,7 @@ export function BottomSheet({
       <DrawerContent
         className={cn(
           // INFO: § 8.16. The maximum below, restated as a height — the sheet opens at the size the reader asked for rather than at the size of the first screenful.
-          isTall
+          isTall || hasSnapPoints
             ? "h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))]!"
             : "h-auto!",
           "mx-auto mb-sm flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))] w-[calc(100%_-_var(--content-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas px-md pt-md shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
