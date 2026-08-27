@@ -442,7 +442,9 @@ export function ChatRoom({
 
   // WARN: § 13.8. Memoized because the picker's own effect depends on it — a fresh identity every render re-runs that effect on every render of this room.
   const reportEmoticonSearchTab = useCallback((isOnSearchTab: boolean, query: string) => {
-    if (isSwappingRef.current) return;
+    if (isSwappingRef.current) {
+      return;
+    }
 
     setIsEmoticonSearchTab(isOnSearchTab);
 

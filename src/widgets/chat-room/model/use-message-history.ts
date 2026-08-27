@@ -408,6 +408,40 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
   }, [beginReplacement, commit, endLoad]);
 
   /**
+   * REQUIREMENTS.md § 16.1. 나에게만 보내기 mode toggle.
+   * Reloads the newest live page for the active filter mode unconditionally (even when already at live edge).
+   */
+  const reloadLiveWindow = useCallback(async (): Promise<boolean> => {
+    const generation = beginReplacement();
+
+    hasNewerRef.current = false;
+    setHasNewer(false);
+
+    try {
+      const page = await fetchMessages({ onlyMeFilter: onlyMeFilterRef.current });
+      const newestId = page.at(-1)?.id ?? toId<MessageId>("0");
+
+      if (generation !== windowId.current) {
+        return false;
+      }
+
+      hasOlderRef.current = page.length >= MESSAGE_PAGE_SIZE;
+      newestKnownIdRef.current = maxId(newestKnownIdRef.current, newestId);
+      commit(() => page);
+
+      return true;
+    } catch {
+      if (generation === windowId.current) {
+        toast.error("최근 메시지를 불러오지 못했어요");
+      }
+
+      return false;
+    } finally {
+      endLoad(generation);
+    }
+  }, [beginReplacement, commit, endLoad]);
+
+  /**
    * REQUIREMENTS.md § 8.4. Everything that landed while the stream was closed.
    * This is the normal sync path, not an error path — the stream is closed on
    * purpose whenever the tab backgrounds.
@@ -527,6 +561,7 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
     loadNewer,
     loadAround,
     returnToLive,
+    reloadLiveWindow,
     appendMessage,
     replaceMessage,
     catchUp,
