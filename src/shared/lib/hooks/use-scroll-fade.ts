@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { isEqual } from "lodash-es";
-import { buildFadeMask } from "./fade-mask";
+import { buildFadeMask } from "../fade-mask";
 
 export function useScrollFade(direction: "to bottom" | "to right" = "to bottom") {
   const ref = useRef<HTMLDivElement>(null);
