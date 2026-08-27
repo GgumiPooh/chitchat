@@ -1867,9 +1867,8 @@ export function ChatRoom({
       {/* WARN: Rendered outside the branch above. Two tree positions would remount the textarea on the first send and drop keyboard focus mid-conversation. */}
       {/* WARN: DESIGN.md § 3.5. The wrapper spans the full shell width and the composer's gutters, so without this it takes taps meant for the bubbles scrolling under it. */}
       <div ref={composerRef} className="pointer-events-none absolute inset-x-0 bottom-0">
-        {/* INFO: DESIGN.md § 6.6. The stack rises from below the shell's bottom edge on arrival, as the tab bar it replaces drops past it (§ 7.3.). */}
         {/* WARN: A child of the measured wrapper and never the wrapper itself. `useComposerClearance` reads `composer.getBoundingClientRect().top`, which a translate on that box moves — its first measurement lands mid-flight and reports a clearance of `0` that nothing afterwards resizes it back out of. */}
-        <div className="relative mx-auto w-full max-w-(--content-max-width) composer-enter">
+        <div className="relative mx-auto w-full max-w-(--content-max-width)">
           {bottomBar}
           {/* WARN: REQUIREMENTS.md § 8.6. The whole stack goes while a search is open, not just the field — a reply bar or an attachment tray left standing would be composing a message the screen offers no way to send. */}
           {/* WARN: `hidden`, never a conditional subtree. `MessageComposer` holds the draft in its own state, so unmounting it here silently discards a typed message and drops its `useUnsentWork` hold with it. `display: none` takes it out of the wrapper's height, which is all `useComposerClearance` reads. */}
