@@ -779,14 +779,28 @@ export function ChatRoom({
       ? (participantById.get(typingUserIds[0]) ?? null)
       : null;
   // INFO: A generation asked from anywhere, not only this device — `useActiveGenerations` is fed by the whole conversation's `llm` channel.
-  const { generations, cancelGeneration } = useActiveGenerations();
+  const { generations, cancelGeneration } = useActiveGenerations(messages);
   // INFO: The advisory locks (`LLM_GENERATION_LOCK_KEY` / user-scoped `toLlmOnlyMeLockKey`) serialize runs server-side per queue, so at most one entry per mode/user is ever `running`; a `queued` one with nothing running yet is drawn as this room's own front of the line.
   const generationEntries = useMemo(() => {
     const isOnlyMeMode = notifyMode === "onlyMe";
-    return Array.from(generations).filter(([, entry]) =>
-      isOnlyMeMode ? entry.onlyMe : !entry.onlyMe,
-    );
-  }, [generations, notifyMode]);
+    return Array.from(generations).filter(([streamId, entry]) => {
+      if (isOnlyMeMode ? !entry.onlyMe : entry.onlyMe) {
+        return false;
+      }
+
+      const isAlreadyAnswered = messages.some(
+        (m) =>
+          m.clientMsgId === streamId ||
+          (m.systemAction === "assistant_reply" &&
+            m.replyTo !== null &&
+            messages.some(
+              (qm) => qm.clientMsgId === entry.questionClientMsgId && qm.id === m.replyTo?.id,
+            )),
+      );
+
+      return !isAlreadyAnswered;
+    });
+  }, [generations, notifyMode, messages]);
   const primaryGeneration =
     generationEntries.find(([, entry]) => entry.status === "running") ?? generationEntries[0];
   const queuedGenerationCount = primaryGeneration
@@ -2391,8 +2405,17 @@ export function ChatRoom({
         }),
       });
 
-      // WARN: § 8.5. 502 alone stays silent — `useActiveGenerations`'s `error` event has already toasted `AI 응답에 실패했어요` for it, and a second toast here would say the same thing twice.
-      if (!response.ok && response.status !== 502) {
+      if (response.ok && response.status === 201) {
+        const payload = (await response.json().catch(() => null)) as Nullable<{
+          message: ChatMessage;
+          emoticons?: InlineEmoticonMap;
+        }>;
+
+        if (payload?.message) {
+          rememberInlineEmoticons(payload.emoticons ?? {});
+          receiveMessage(payload.message, "live");
+        }
+      } else if (!response.ok && response.status !== 502) {
         toast("AI 요청을 보내지 못했어요");
       }
     } catch {

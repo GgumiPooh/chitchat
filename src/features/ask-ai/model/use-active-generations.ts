@@ -1,5 +1,6 @@
 "use client";
 
+import type { ChatMessage } from "@/entities/message";
 import { useChatStreamListener } from "@/features/chat-stream/@x/ask-ai";
 import { LLM_ECHO_TIMEOUT, type LlmSseEvent } from "@/shared/config";
 import type { Optional, UserId } from "@/shared/lib";
@@ -41,7 +42,7 @@ type StreamState = {
  * chat message whose `clientMsgId` equals the `streamId` — never by `end` alone,
  * so the bubble does not flicker between the stream ending and that echo landing.
  */
-export function useActiveGenerations(): ActiveGenerations {
+export function useActiveGenerations(messages?: ChatMessage[]): ActiveGenerations {
   const [generations, setGenerations] = useState<Map<string, GenerationEntry>>(new Map());
   const streamsRef = useRef(new Map<string, StreamState>());
   const echoTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -192,9 +193,45 @@ export function useActiveGenerations(): ActiveGenerations {
     onMessage: (message) => {
       if (streamsRef.current.has(message.clientMsgId)) {
         removeStream(message.clientMsgId);
+        return;
+      }
+
+      if (message.systemAction === "assistant_reply" && message.replyTo) {
+        for (const [streamId, state] of streamsRef.current) {
+          if (
+            messages?.some(
+              (qm) =>
+                qm.clientMsgId === state.entry.questionClientMsgId && qm.id === message.replyTo?.id,
+            )
+          ) {
+            removeStream(streamId);
+          }
+        }
       }
     },
   });
+
+  useEffect(() => {
+    if (!messages || messages.length === 0) {
+      return;
+    }
+
+    for (const [streamId, state] of streamsRef.current) {
+      const isAnswered = messages.some(
+        (m) =>
+          m.clientMsgId === streamId ||
+          (m.systemAction === "assistant_reply" &&
+            m.replyTo !== null &&
+            messages.some(
+              (qm) => qm.clientMsgId === state.entry.questionClientMsgId && qm.id === m.replyTo?.id,
+            )),
+      );
+
+      if (isAnswered) {
+        removeStream(streamId);
+      }
+    }
+  }, [messages, removeStream]);
 
   useEffect(
     () => () => {
