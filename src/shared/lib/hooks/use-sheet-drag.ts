@@ -71,11 +71,14 @@ export function useSheetDrag({
   const panDenialRef =
     useRef<Nullable<{ element: HTMLElement; deny: (event: TouchEvent) => void }>>(null);
 
-  useEffect(() => () => {
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    },
+    [],
+  );
 
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen);
@@ -259,7 +262,7 @@ export function useSheetDrag({
     }
 
     if (pulled < 0) {
-      if (size === "expanded") {
+      if (size === "expanded" && !closeOnPullDownFromExpanded) {
         // INFO: Dragging down from expanded mode shrinks height directly to reveal the composer beneath without translating the bottom edge.
         setPinnedHeight(Math.max(gesture.height + pulled, 0));
         setDragTranslateY(0);
@@ -296,23 +299,19 @@ export function useSheetDrag({
     // INFO: When expanded, dragging down past half the sheet or more than twice the collapse threshold closes the sheet directly.
     const closeThreshold = Math.max(threshold * 2, gesture.height * 0.5);
 
-    if (size === "expanded") {
+    if (size === "expanded" && !closeOnPullDownFromExpanded) {
       setPinnedHeight(null);
 
       if (pulled < -closeThreshold) {
         animateClose(gesture.height);
       } else if (pulled < -threshold) {
         setDragTranslateY(0);
-        if (closeOnPullDownFromExpanded || initialSize === "expanded") {
-          animateClose(gesture.height);
-        } else {
-          setSize("rest");
-          blurInside();
-        }
+        setSize("rest");
+        blurInside();
       } else {
         setDragTranslateY(0);
       }
-    } else if (pulled > threshold) {
+    } else if (pulled > threshold && size === "rest") {
       setDragTranslateY(0);
       settle("expanded", gesture.max);
     } else if (pulled < -threshold) {

@@ -5,13 +5,7 @@ import { useApplyPhoto } from "@/features/apply-photo";
 import { useWriteArchiveSnapshot } from "@/features/offline-snapshot";
 import { useSilentSend } from "@/features/silent-send";
 import { useMediaPicker } from "@/features/upload-media";
-import {
-  CHAT_MESSAGE_PARAM,
-  CHAT_ROUTE,
-  NOTIFY_MODE_COOKIE_NAME,
-  toMediaLabel,
-  toNotifyModeIndex,
-} from "@/shared/config";
+import { CHAT_MESSAGE_PARAM, CHAT_ROUTE, toMediaLabel } from "@/shared/config";
 import { cn, startMediaMorph, type MediaId, type Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import {

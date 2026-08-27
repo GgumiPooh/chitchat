@@ -702,16 +702,14 @@ export function ChatRoom({
   //     leaving the composer's screen position with only a 34px (= bottom-inset)
   //     net downward drift — no bounce.
   //
-  const composerTransition =
-    emoticonSheet.isDragging
-      ? "transition-none"
-      : "transition-transform duration-200 ease-out";
-  const emoticonSheetTransition =
-    emoticonSheet.isDragging
-      ? "transition-none"
-      : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
-        ? "transition-[height,transform] duration-(--duration-sheet-expand) ease-sheet"
-        : "transition-[height,transform] duration-200 ease-out";
+  const composerTransition = emoticonSheet.isDragging
+    ? "transition-none"
+    : "transition-transform duration-200 ease-out";
+  const emoticonSheetTransition = emoticonSheet.isDragging
+    ? "transition-none"
+    : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
+      ? "transition-[height,transform] duration-(--duration-sheet-expand) ease-sheet"
+      : "transition-[height,transform] duration-200 ease-out";
 
   const effectiveSheetTranslateY =
     emoticonSheet.dragTranslateY > 0 ? emoticonSheet.dragTranslateY : 0;

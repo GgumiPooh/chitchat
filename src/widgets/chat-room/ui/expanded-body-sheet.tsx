@@ -2,13 +2,18 @@
 
 import type { InlineEmoticonMap } from "@/shared/config";
 import {
+  cn,
   formatDate,
   formatTime,
+  useIsDesktop,
+  useScrollFade,
+  useSheetDrag,
   type EmoticonItemId,
   type Nullable,
 } from "@/shared/lib";
-import { BottomSheet, MarkdownBody } from "@/shared/ui";
-import { useState } from "react";
+import { MarkdownBody, Modal } from "@/shared/ui";
+import { Dialog as DialogPrimitive } from "radix-ui";
+import { useEffect, useRef, useState } from "react";
 import { MessageText } from "./message-text";
 
 /** REQUIREMENTS.md § 8.16. What a § 6.2.2. cut is hiding — an ordinary bubble's text, or an § 8.15. answer's markdown. */
@@ -49,6 +54,40 @@ export function ExpandedBodySheet({
   const shown = body ?? snapshot;
   const isOpen = body !== null;
 
+  const isDesktop = useIsDesktop();
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const { maskStyle, scrollRef: fadeScrollRef } = useScrollFade("to bottom");
+
+  const setScrollContainer = (node: HTMLDivElement | null) => {
+    scrollContainerRef.current = node;
+    fadeScrollRef.current = node;
+  };
+
+  const {
+    dragProps,
+    dragTranslateY,
+    expandedHeight,
+    handleProps,
+    isDragging,
+    isResettingAfterClose,
+    pinnedHeight,
+  } = useSheetDrag({
+    sheetRef,
+    isOpen,
+    initialSize: "expanded",
+    closeOnPullDownFromExpanded: true,
+    onClose,
+  });
+
+  const effectiveTranslateY = dragTranslateY > 0 ? dragTranslateY : 0;
+
+  useEffect(() => {
+    if (isOpen && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [isOpen]);
+
   const bodyContent = shown?.isMarkdown ? (
     <MarkdownBody text={shown.text} />
   ) : (
@@ -64,21 +103,86 @@ export function ExpandedBodySheet({
     )
   );
 
+  const titleText = shown?.senderName ?? "전체보기";
+  const timestampText = shown
+    ? `${formatDate(shown.createdAt)} ${formatTime(shown.createdAt)}`
+    : undefined;
+
+  if (isDesktop) {
+    return (
+      <Modal
+        className={className}
+        isOpen={isOpen}
+        size="lg"
+        header={{
+          title: titleText,
+          description: timestampText,
+        }}
+        onClose={onClose}
+      >
+        {bodyContent}
+      </Modal>
+    );
+  }
+
   return (
-    <BottomSheet
-      className={className}
-      isOpen={isOpen}
-      isTall
-      header={{
-        description: shown
-          ? `${formatDate(shown.createdAt)} ${formatTime(shown.createdAt)}`
-          : undefined,
-        title: shown?.senderName ?? "전체보기",
-      }}
-      onClose={onClose}
-    >
-      {bodyContent}
-    </BottomSheet>
+    <DialogPrimitive.Root open={isOpen} onOpenChange={(open: boolean) => !open && onClose()}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-scrim/45 duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Content
+          ref={sheetRef}
+          className={cn(
+            "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 mx-auto mb-sm flex w-[calc(100%_-_var(--content-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas px-md pt-md shadow-floating focus:outline-none data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=open]:slide-in-from-bottom",
+            effectiveTranslateY > 0
+              ? "data-[state=closed]:animate-none"
+              : "data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=closed]:slide-out-to-bottom",
+            isDragging || isResettingAfterClose
+              ? "transition-none!"
+              : "transition-[height,transform] duration-200 ease-out",
+            className,
+          )}
+          style={{
+            height:
+              pinnedHeight !== null
+                ? `${pinnedHeight}px`
+                : expandedHeight > 0
+                  ? `${expandedHeight}px`
+                  : "calc(var(--viewport-height,100dvh) - var(--header-height,56px) - var(--spacing-sm))",
+            transform: effectiveTranslateY > 0 ? `translateY(${effectiveTranslateY}px)` : undefined,
+          }}
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          {...dragProps}
+        >
+          <DialogPrimitive.Title className="sr-only">{titleText}</DialogPrimitive.Title>
+
+          <button
+            className={cn(
+              "mx-auto -mt-2 mb-2 flex h-6 w-full cursor-grab touch-none items-center justify-center focus-visible:outline-none active:cursor-grabbing",
+              "before:absolute before:inset-x-0 before:-top-2 before:h-8 before:content-['']",
+            )}
+            type="button"
+            aria-label="전체보기 닫기"
+            {...handleProps}
+          >
+            <span className="hover:bg-ink-muted block h-1.5 w-12 rounded-full bg-hairline-strong transition-colors" />
+          </button>
+
+          <div
+            ref={setScrollContainer}
+            className="-mx-md scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain px-md after:block after:h-[max(var(--spacing-md),env(safe-area-inset-bottom))]"
+            style={maskStyle}
+          >
+            <div className="mb-xs shrink-0 space-y-2xs text-center">
+              <h2 className="text-title-md font-semibold text-ink">{titleText}</h2>
+              {timestampText && (
+                <p className="text-body-sm whitespace-pre-line text-meta">{timestampText}</p>
+              )}
+            </div>
+
+            {bodyContent}
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
-
