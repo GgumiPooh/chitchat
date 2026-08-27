@@ -710,7 +710,7 @@ export function ChatRoom({
       ? `${emoticonSheet.pinnedHeight}px`
       : emoticonSheet.size === "expanded"
         ? `${emoticonSheet.expandedHeight}px`
-        : emoticonSheetRestHeight;
+        : "var(--chat-composer-spacer)";
   // WARN: REQUIREMENTS.md § 9.3. The shared element outlives every bubble that addresses it, so leaving the room has to stop it. Unlike § 13.6.'s two-second ping a recording runs for minutes, and no screen outside this one draws a transport that could pause it.
   useEffect(() => stopVoice, []);
   // WARN: REQUIREMENTS.md § 9.3. The recorder is closed by the search rather than hidden with the rest of the stack. `hidden` + `inert` leaves the microphone open with both 취소 and 완료 unreachable, and `MAX_VOICE_DURATION` then sends a recording the user walked away from two minutes earlier.
