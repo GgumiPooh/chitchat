@@ -69,6 +69,7 @@ export function ExpandedBodySheet({
     dragTranslateY,
     expandedHeight,
     handleProps,
+    isClosedByDrag,
     isDragging,
     isResettingAfterClose,
     pinnedHeight,
@@ -79,8 +80,6 @@ export function ExpandedBodySheet({
     closeOnPullDownFromExpanded: true,
     onClose,
   });
-
-  const effectiveTranslateY = dragTranslateY > 0 ? dragTranslateY : 0;
 
   useEffect(() => {
     if (isOpen && scrollContainerRef.current) {
@@ -133,7 +132,7 @@ export function ExpandedBodySheet({
           ref={sheetRef}
           className={cn(
             "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 mx-auto mb-sm flex w-[calc(100%_-_var(--content-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas px-md pt-md shadow-floating focus:outline-none data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=open]:slide-in-from-bottom",
-            effectiveTranslateY > 0
+            isClosedByDrag
               ? "data-[state=closed]:animate-none"
               : "data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=closed]:slide-out-to-bottom",
             isDragging || isResettingAfterClose
@@ -148,7 +147,12 @@ export function ExpandedBodySheet({
                 : expandedHeight > 0
                   ? `${expandedHeight}px`
                   : "calc(var(--viewport-height,100dvh) - var(--header-height,56px) - var(--spacing-sm))",
-            transform: effectiveTranslateY > 0 ? `translateY(${effectiveTranslateY}px)` : undefined,
+            transform:
+              dragTranslateY > 0
+                ? `translateY(${dragTranslateY}px)`
+                : isClosedByDrag
+                  ? "translateY(100vh)"
+                  : undefined,
           }}
           onOpenAutoFocus={(event) => event.preventDefault()}
           {...dragProps}

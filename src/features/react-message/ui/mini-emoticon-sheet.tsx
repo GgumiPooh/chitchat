@@ -78,6 +78,7 @@ export function MiniEmoticonSheet({
     dragTranslateY,
     expandedHeight,
     handleProps,
+    isClosedByDrag,
     isDragging,
     isDraggingClose,
     isResettingAfterClose,
@@ -88,13 +89,6 @@ export function MiniEmoticonSheet({
     isOpen: isOpen && messageId !== null,
     onClose,
   });
-
-  const lastTranslateYRef = useRef(0);
-  if (dragTranslateY > 0) {
-    lastTranslateYRef.current = dragTranslateY;
-  }
-  const effectiveTranslateY =
-    dragTranslateY > 0 ? dragTranslateY : isResettingAfterClose ? lastTranslateYRef.current : 0;
 
   const activeEmojiSet =
     activeEmojis instanceof Set
@@ -382,9 +376,9 @@ export function MiniEmoticonSheet({
           ref={sheetRef}
           className={cn(
             "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 mx-auto mb-sm flex w-[calc(100%_-_var(--content-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus:outline-none data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=open]:slide-in-from-bottom",
-            // WARN: 드래그 제스처로 닫힐 때(effectiveTranslateY > 0)는 이미 CSS transition(translateY)으로 화면 아래로 이동했습니다.
+            // WARN: 드래그 제스처로 닫힐 때(isClosedByDrag)는 이미 CSS transition(translateY)으로 화면 아래로 이동했습니다.
             // 이때 Radix의 slide-out-to-bottom 애니메이션이 함께 동작하면 시트가 원래 위치(translateY=0)로 점프한 뒤 다시 아래로 떨어지며 위로 튀어오릅니다.
-            effectiveTranslateY > 0
+            isClosedByDrag
               ? "data-[state=closed]:animate-none"
               : "data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=closed]:slide-out-to-bottom",
             isDragging || isResettingAfterClose
@@ -401,7 +395,12 @@ export function MiniEmoticonSheet({
                     ? `${expandedHeight}px`
                     : "calc(var(--viewport-height,100dvh) - var(--header-height,56px) - var(--spacing-sm))"
                   : "380px",
-            transform: effectiveTranslateY > 0 ? `translateY(${effectiveTranslateY}px)` : undefined,
+            transform:
+              dragTranslateY > 0
+                ? `translateY(${dragTranslateY}px)`
+                : isClosedByDrag
+                  ? "translateY(100vh)"
+                  : undefined,
           }}
           onOpenAutoFocus={(event) => event.preventDefault()}
           {...dragProps}

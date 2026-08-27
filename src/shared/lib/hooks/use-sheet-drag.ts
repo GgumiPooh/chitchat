@@ -44,6 +44,7 @@ export function useSheetDrag({
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingClose, setIsDraggingClose] = useState(false);
   const [isSettlingClose, setIsSettlingClose] = useState(false);
+  const [isClosedByDrag, setIsClosedByDrag] = useState(false);
   // WARN: A single-frame flag that is true only in the render where the 200ms
   // close animation has completed and every piece of close state (dragTranslateY,
   // isDraggingClose, isSettlingClose) resets to its resting value alongside
@@ -88,6 +89,7 @@ export function useSheetDrag({
         clearTimeout(closeTimerRef.current);
         closeTimerRef.current = null;
       }
+      setIsClosedByDrag(false);
       setIsSettlingClose(false);
       setIsDraggingClose(false);
       setIsResettingAfterClose(false);
@@ -121,6 +123,7 @@ export function useSheetDrag({
     expandedHeight,
     pinnedHeight,
     dragTranslateY,
+    isClosedByDrag,
     isDragging,
     isDraggingClose,
     isSettlingClose,
@@ -324,6 +327,7 @@ export function useSheetDrag({
   }
 
   function animateClose(targetTranslateY: number) {
+    setIsClosedByDrag(true);
     setIsDraggingClose(true);
     setIsSettlingClose(true);
     setDragTranslateY(targetTranslateY);

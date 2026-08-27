@@ -728,6 +728,25 @@ export function ChatRoom({
       : emoticonSheet.size === "expanded"
         ? `${emoticonSheet.expandedHeight}px`
         : emoticonSheetRestHeight;
+
+  const [isEmoticonSheetSettledClosed, setIsEmoticonSheetSettledClosed] = useState(!isEmoticonPanelOpen);
+
+  useEffect(() => {
+    if (isEmoticonPanelOpen) {
+      setIsEmoticonSheetSettledClosed(false);
+      return;
+    }
+
+    // WARN: Keep the sheet visible during the 200ms slide-down close transition.
+    // Once completely closed, hide it with opacity-0 so it doesn't bleed through iOS virtual keyboard / Safari accessory bars behind the composer.
+    const timer = setTimeout(() => {
+      setIsEmoticonSheetSettledClosed(true);
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [isEmoticonPanelOpen]);
+
+  const isEmoticonSheetVisible = isEmoticonPanelOpen || !isEmoticonSheetSettledClosed;
   // WARN: REQUIREMENTS.md § 9.3. The shared element outlives every bubble that addresses it, so leaving the room has to stop it. Unlike § 13.6.'s two-second ping a recording runs for minutes, and no screen outside this one draws a transport that could pause it.
   useEffect(() => stopVoice, []);
   // WARN: REQUIREMENTS.md § 9.3. The recorder is closed by the search rather than hidden with the rest of the stack. `hidden` + `inert` leaves the microphone open with both 취소 and 완료 unreachable, and `MAX_VOICE_DURATION` then sends a recording the user walked away from two minutes earlier.
@@ -1975,8 +1994,10 @@ export function ChatRoom({
                 "absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end overflow-hidden",
                 "h-(--emoticon-sheet-height)",
                 emoticonSheetTransition,
+                !isEmoticonSheetVisible && "pointer-events-none opacity-0",
               )}
               inert={!isEmoticonPanelOpen}
+              onTransitionEnd={handleEmoticonSheetTransitionEnd}
               style={{
                 ["--emoticon-sheet-height" as string]: emoticonSheetHeight,
                 transform: isEmoticonPanelOpen
@@ -2906,6 +2927,16 @@ export function ChatRoom({
         onDone={(file) => void editing.applyTrim(source, file)}
       />
     );
+  }
+
+  function handleEmoticonSheetTransitionEnd(event: TransitionEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget || event.propertyName !== "transform") {
+      return;
+    }
+
+    if (!isEmoticonPanelOpen) {
+      setIsEmoticonSheetSettledClosed(true);
+    }
   }
 
   /**
