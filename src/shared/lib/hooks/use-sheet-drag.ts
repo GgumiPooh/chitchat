@@ -119,10 +119,11 @@ export function useSheetDrag({
       return 0;
     }
 
-    return Math.max(
-      sheet.getBoundingClientRect().bottom - (header?.getBoundingClientRect().bottom ?? 0),
-      0,
-    );
+    // INFO: The sheet is anchored to the bottom of the viewport / chat scroller. Expanded height is the distance from sheet bottom to the bottom of the header (or top safe margin).
+    const headerBottom = header?.getBoundingClientRect().bottom ?? 0;
+    const sheetBottom = sheet.getBoundingClientRect().bottom || window.innerHeight;
+
+    return Math.max(sheetBottom - headerBottom, 0);
   }
 
   function handlePointerDown(event: PointerEvent) {
