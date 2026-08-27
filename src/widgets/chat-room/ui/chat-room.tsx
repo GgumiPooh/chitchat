@@ -1095,6 +1095,7 @@ export function ChatRoom({
     const element = scrollerRef.current;
 
     if (element) {
+      isAtBottomRef.current = true;
       // WARN: Safari compositor bug (see useComposerClearance).
       const max = element.scrollHeight - element.clientHeight;
       if (element.scrollTop >= max) {
@@ -1398,6 +1399,7 @@ export function ChatRoom({
   useEffect(() => {
     if (pendingCount > lastPendingCount.current) {
       pinToBottom();
+      requestAnimationFrame(pinToBottom);
     }
 
     lastPendingCount.current = pendingCount;
@@ -1517,8 +1519,12 @@ export function ChatRoom({
 
     // INFO: The previous tail is still in the list exactly when this was an append. A § 8.6.1. jump or a return to live replaces the window instead, and both scroll themselves.
     // WARN: `isAtBottomRef` still holds the position from before this commit, which is the question being asked — was the user at the live edge when the message landed.
-    if (isAtBottomRef.current && rows.some((row) => row.key === previousKey)) {
+    if (
+      isAtBottomRef.current &&
+      (rows.some((row) => row.key === previousKey) || previousKey.startsWith("p"))
+    ) {
       pinToBottom();
+      requestAnimationFrame(pinToBottom);
     }
   }, [rows, pinToBottom]);
 
@@ -2201,6 +2207,9 @@ export function ChatRoom({
     // WARN: § 13.8. The word is spent, the search is not. `emoticonSearch` deliberately stands, so the panel is still on the results this emoticon came from — sending one of a row of related pictures is the reason to have searched at all, and dropping back to the remembered pack means finding the word again for every one after the first.
     searchedWordRef.current = null;
     setReplyTarget(null);
+    isAtBottomRef.current = true;
+    pinToBottom();
+    requestAnimationFrame(pinToBottom);
   }
 
   async function stageMedia(files: File[]) {
@@ -2302,6 +2311,9 @@ export function ChatRoom({
     // WARN: § 13.8. The word is spent here, and the search is left standing — see `sendStagedEmoticon`.
     searchedWordRef.current = null;
     setReplyTarget(null);
+    isAtBottomRef.current = true;
+    pinToBottom();
+    requestAnimationFrame(pinToBottom);
   }
 
   /** REQUIREMENTS.md § 8.5. The composer's own AI toggle — the § 8.14. `⌥1`/`⌃E`-style panel toggles all read the state that is on screen, and this is that pattern's one entry and exit. */
@@ -2371,6 +2383,10 @@ export function ChatRoom({
     if (!hasSounded) {
       soundSubmit(mediaClientMsgIds);
     }
+
+    isAtBottomRef.current = true;
+    pinToBottom();
+    requestAnimationFrame(pinToBottom);
   }
 
   /**
