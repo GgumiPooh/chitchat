@@ -14,6 +14,7 @@ import {
   safelyRunAsync,
   toId,
   type MessageId,
+  type Nullable,
 } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useRef, useState } from "react";
@@ -40,6 +41,8 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
   const [messages, setMessages] = useState(initialMessages);
   // INFO: True from the fetch starting until the page is actually in the list, which is what keeps the § 8.3. loading header up across the wait for a still scroller.
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  // INFO: True while switching between normal/silent mode and onlyMe mode when there is no cached window yet.
+  const [isSwitchingMode, setIsSwitchingMode] = useState(false);
   // INFO: REQUIREMENTS.md § 8.3. A fetched page that has not been committed yet. The rows themselves and not just a flag, so the room can warm their § 8.9. link previews during the hold — the wait for a still scroller is exactly the head start those need to be in the rows' first measurement.
   // WARN: Duplicated into the ref beside it on purpose. The state is what effects wake on; the ref is what `loadOlder`'s guard and `commitPendingOlder` read, and neither may see a render-old value.
   const [pendingOlder, setPendingOlder] = useState<ChatMessage[]>([]);
@@ -47,6 +50,9 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
   // INFO: REQUIREMENTS.md § 8.6.1. True while the window sits around a jump target rather than at the newest message — everything that answers "is this room live" reads it.
   const [hasNewer, setHasNewer] = useState(false);
   const messagesRef = useRef(initialMessages);
+  // INFO: REQUIREMENTS.md § 16.1. Cache the live message window separately for general (false) and onlyMe (true) modes for 0ms instantaneous mode switches.
+  const generalMessagesRef = useRef<Nullable<ChatMessage[]>>(onlyMeFilter ? null : initialMessages);
+  const onlyMeMessagesRef = useRef<Nullable<ChatMessage[]>>(onlyMeFilter ? initialMessages : null);
   const isLoadingRef = useRef(false);
   // INFO: A short first page cannot have more behind it, so the upward fetch is never even attempted.
   const hasOlderRef = useRef(initialMessages.length >= MESSAGE_PAGE_SIZE);
@@ -198,6 +204,31 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
         newestKnownIdRef.current,
       );
 
+      // INFO: REQUIREMENTS.md § 16.1. Keep the opposite mode's cached window in sync with incoming arrivals.
+      const generalIncoming = incoming.filter((message) => !message.onlyMe);
+      const generalCached = generalMessagesRef.current;
+      if (generalIncoming.length > 0 && generalCached) {
+        const known = new Set(generalCached.map((entry: ChatMessage) => entry.id));
+        const added = generalIncoming.filter((message) => !known.has(message.id));
+        if (added.length > 0) {
+          generalMessagesRef.current = [...generalCached, ...added].sort((a, b) =>
+            compareId(a.id, b.id),
+          );
+        }
+      }
+
+      const onlyMeIncoming = incoming.filter((message) => message.onlyMe);
+      const onlyMeCached = onlyMeMessagesRef.current;
+      if (onlyMeIncoming.length > 0 && onlyMeCached) {
+        const known = new Set(onlyMeCached.map((entry: ChatMessage) => entry.id));
+        const added = onlyMeIncoming.filter((message) => !known.has(message.id));
+        if (added.length > 0) {
+          onlyMeMessagesRef.current = [...onlyMeCached, ...added].sort((a, b) =>
+            compareId(a.id, b.id),
+          );
+        }
+      }
+
       // WARN: REQUIREMENTS.md § 8.6.1. A window parked around a jump target has a gap between it and the newest message, so appending an arrival there would draw it directly under history it does not follow. The cursor above still moves, which is what keeps `returnToLive` from refetching this ground.
       if (hasNewerRef.current) {
         return;
@@ -248,6 +279,13 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
         previous.map((entry) =>
           entry.id === message.id ? message : withChangedQuote(entry, message),
         );
+
+      if (generalMessagesRef.current) {
+        generalMessagesRef.current = update(generalMessagesRef.current);
+      }
+      if (onlyMeMessagesRef.current) {
+        onlyMeMessagesRef.current = update(onlyMeMessagesRef.current);
+      }
 
       commit(update);
       commitPending(update);
@@ -410,15 +448,36 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
   /**
    * REQUIREMENTS.md § 16.1. 나에게만 보내기 mode toggle.
    * Reloads the newest live page for the active filter mode unconditionally (even when already at live edge).
+   * Implements 0ms cache-swap when target mode history is cached, plus SWR revalidation.
    */
   const reloadLiveWindow = useCallback(async (): Promise<boolean> => {
+    // INFO: Save current live window into the previous mode cache before switching.
+    if (!hasNewerRef.current) {
+      if (onlyMeFilterRef.current) {
+        onlyMeMessagesRef.current = messagesRef.current;
+      } else {
+        generalMessagesRef.current = messagesRef.current;
+      }
+    }
+
+    const targetIsOnlyMe = onlyMeFilterRef.current;
+    const cached = targetIsOnlyMe ? onlyMeMessagesRef.current : generalMessagesRef.current;
+
     const generation = beginReplacement();
 
     hasNewerRef.current = false;
     setHasNewer(false);
 
+    if (cached) {
+      hasOlderRef.current = cached.length >= MESSAGE_PAGE_SIZE;
+      commit(() => cached);
+      setIsSwitchingMode(false);
+    } else {
+      setIsSwitchingMode(true);
+    }
+
     try {
-      const page = await fetchMessages({ onlyMeFilter: onlyMeFilterRef.current });
+      const page = await fetchMessages({ onlyMeFilter: targetIsOnlyMe });
       const newestId = page.at(-1)?.id ?? toId<MessageId>("0");
 
       if (generation !== windowId.current) {
@@ -427,6 +486,11 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
 
       hasOlderRef.current = page.length >= MESSAGE_PAGE_SIZE;
       newestKnownIdRef.current = maxId(newestKnownIdRef.current, newestId);
+      if (targetIsOnlyMe) {
+        onlyMeMessagesRef.current = page;
+      } else {
+        generalMessagesRef.current = page;
+      }
       commit(() => page);
 
       return true;
@@ -437,6 +501,9 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
 
       return false;
     } finally {
+      if (generation === windowId.current) {
+        setIsSwitchingMode(false);
+      }
       endLoad(generation);
     }
   }, [beginReplacement, commit, endLoad]);
@@ -553,6 +620,7 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
   return {
     messages,
     isLoadingOlder,
+    isSwitchingMode,
     pendingOlder,
     hasNewer,
     loadOlder,

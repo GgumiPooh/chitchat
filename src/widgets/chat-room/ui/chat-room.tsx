@@ -483,6 +483,7 @@ export function ChatRoom({
   const {
     messages,
     isLoadingOlder,
+    isSwitchingMode,
     pendingOlder,
     hasNewer,
     loadOlder,
@@ -1726,16 +1727,18 @@ export function ChatRoom({
       )}
       {rows.length === 0 ? (
         <>
-          <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">
-            <EmptyState
-              Icon={MessageCircle}
-              description={
-                notifyMode === "onlyMe"
-                  ? "나에게 메시지를 보내보세요"
-                  : "아직 주고받은 메시지가 없어요"
-              }
-            />
-          </div>
+          {!isSwitchingMode && (
+            <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">
+              <EmptyState
+                Icon={MessageCircle}
+                description={
+                  notifyMode === "onlyMe"
+                    ? "나에게 메시지를 보내보세요"
+                    : "아직 주고받은 메시지가 없어요"
+                }
+              />
+            </div>
+          )}
           {/* INFO: REQUIREMENTS.md § 8.12. An empty room renders no scroller for the indicator to sit in, and this is exactly when it matters most — the other person composing the conversation's first message. Positioned where that message will land. */}
           {typist && (
             <TypingIndicator
