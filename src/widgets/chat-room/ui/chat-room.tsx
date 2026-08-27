@@ -3187,13 +3187,18 @@ export function ChatRoom({
     });
   }
 
-  // INFO: REQUIREMENTS.md § 8.16. The sheet is titled by whoever spoke — a § 8.15. answer by the provider's own 별명, and any other system row by 시스템.
+  // INFO: REQUIREMENTS.md § 8.16. The sheet is titled by whoever spoke — a § 8.15. answer by the provider's own 별명 plus model name (e.g. "쩸미니 - gemini-2.5-flash"), and any other system row by 시스템.
   function toExpandedSenderName(message: ChatMessage): string {
     if (message.type !== "system") {
       return participantById.get(message.senderId)?.name ?? "알 수 없음";
     }
 
-    return message.llmProvider ? toLlmProviderName(message.llmProvider) : "시스템";
+    if (!message.llmProvider) {
+      return "시스템";
+    }
+
+    const providerName = toLlmProviderName(message.llmProvider);
+    return message.llmModel ? `${providerName} - ${message.llmModel}` : providerName;
   }
 
   // INFO: § 8.3. What an optimistic bubble draws from — the composer's own emoticons, in the shape the sent row reads from the page's map.
