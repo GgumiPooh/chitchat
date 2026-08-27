@@ -18,7 +18,7 @@ import { HapticTarget, Modal, PreloadImage } from "@/shared/ui";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Dialog as DialogPrimitive } from "radix-ui";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { DEFAULT_REACTION_EMOJIS } from "../config/default-emojis";
 import { useRecentReactions } from "../model/use-recent-reactions";
 
@@ -90,13 +90,11 @@ export function MiniEmoticonSheet({
   });
 
   const lastTranslateYRef = useRef(0);
-  if (dragTranslateY > 0) lastTranslateYRef.current = dragTranslateY;
+  if (dragTranslateY > 0) {
+    lastTranslateYRef.current = dragTranslateY;
+  }
   const effectiveTranslateY =
-    dragTranslateY > 0
-      ? dragTranslateY
-      : isResettingAfterClose
-        ? lastTranslateYRef.current
-        : 0;
+    dragTranslateY > 0 ? dragTranslateY : isResettingAfterClose ? lastTranslateYRef.current : 0;
 
   const activeEmojiSet =
     activeEmojis instanceof Set
@@ -213,6 +211,19 @@ export function MiniEmoticonSheet({
     },
     overscan: 15,
   });
+
+  const isSheetOpen = isOpen && messageId !== null;
+
+  useEffect(() => {
+    if (isSheetOpen) {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = 0;
+      }
+      rowVirtualizer.scrollToOffset(0);
+    } else {
+      rowVirtualizer.scrollToOffset(0);
+    }
+  }, [isSheetOpen, rowVirtualizer]);
 
   const content = (
     <div
