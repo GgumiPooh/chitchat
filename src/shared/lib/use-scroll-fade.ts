@@ -47,14 +47,17 @@ export function useScrollFade(direction: "to bottom" | "to right" = "to bottom")
     };
   }, [direction]);
 
+  const mask = buildFadeMask({
+    direction,
+    fadeStart: canScrollPrev,
+    fadeEnd: canScrollNext,
+  });
+
   return {
     ref,
     maskStyle: {
-      maskImage: buildFadeMask({
-        direction,
-        fadeStart: canScrollPrev,
-        fadeEnd: canScrollNext,
-      }),
+      maskImage: mask,
+      WebkitMaskImage: mask,
     },
   };
 }
