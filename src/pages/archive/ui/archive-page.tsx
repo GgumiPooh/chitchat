@@ -124,14 +124,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
             />
           ) : (
             <>
-              {/* INFO: AGENTS.md § 4.1. 열 개수 — the same column state the pinch drives, for a pointer that cannot pinch. */}
-              <IconButton
-                variant="floating"
-                Icon={LayoutGrid}
-                haptic
-                aria-label="열 개수"
-                onClick={() => setIsColumnsSheetOpen(true)}
-              />
+              <ArchiveFilterButton />
               <IconButton
                 variant="floating"
                 Icon={ImagePlus}
@@ -140,7 +133,14 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
                 {...uploadGate.blockedProps}
                 onClick={uploadGate.guard(picker.open)}
               />
-              <ArchiveFilterButton />
+              {/* INFO: AGENTS.md § 4.1. 열 개수 — the same column state the pinch drives, for a pointer that cannot pinch. */}
+              <IconButton
+                variant="floating"
+                Icon={LayoutGrid}
+                haptic
+                aria-label="열 개수"
+                onClick={() => setIsColumnsSheetOpen(true)}
+              />
               {/* WARN: Unavailable while an upload is in flight. A photo being posted is in the grid with no message behind it yet, which `isInLibrary()` does not admit — a 삭제 aimed at it would silently take nothing. */}
               <IconButton
                 variant="floating"
