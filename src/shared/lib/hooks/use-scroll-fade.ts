@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef, useState } from "react";
 import { isEqual } from "lodash-es";
 import { buildFadeMask } from "../fade-mask";
