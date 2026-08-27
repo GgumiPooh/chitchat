@@ -264,12 +264,11 @@ export function useSheetDrag({
 
     if (size === "expanded") {
       if (pulled < -closeThreshold) {
+        setDragTranslateY(0);
         onClose();
       } else if (pulled < -threshold) {
         if (closeOnPullDownFromExpanded || initialSize === "expanded") {
-          // WARN: Do NOT reset dragTranslateY here — the CSS keyframe from Radix's
-          // data-[state=closed] slide-out-to-bottom overrides the inline transform, so
-          // the animation continues smoothly from wherever the panel currently sits.
+          setDragTranslateY(0);
           onClose();
         } else {
           setDragTranslateY(0);
@@ -285,7 +284,8 @@ export function useSheetDrag({
       setDragTranslateY(0);
       settle("expanded", gesture.max);
     } else if (pulled < -threshold) {
-      // WARN: Same as above — keep dragTranslateY so close animation starts from here.
+      setDragTranslateY(0);
+      setPinnedHeight(null);
       onClose();
     } else {
       setDragTranslateY(0);

@@ -1865,7 +1865,16 @@ export function ChatRoom({
           {/* WARN: REQUIREMENTS.md § 8.6. The whole stack goes while a search is open, not just the field — a reply bar or an attachment tray left standing would be composing a message the screen offers no way to send. */}
           {/* WARN: `hidden`, never a conditional subtree. `MessageComposer` holds the draft in its own state, so unmounting it here silently discards a typed message and drops its `useUnsentWork` hold with it. `display: none` takes it out of the wrapper's height, which is all `useComposerClearance` reads. */}
           <div className={cn(isSearching && "hidden")} inert={isSearching}>
-            <>
+            {/* INFO: § 13.6. Translates with the sheet when pulled down from rest mode, while staying anchored when pulled up to expand. */}
+            <div
+              className={cn("will-change-transform", emoticonSheetTransition)}
+              style={{
+                transform:
+                  emoticonSheet.dragTranslateY > 0
+                    ? `translateY(${emoticonSheet.dragTranslateY}px)`
+                    : undefined,
+              }}
+            >
               {/* INFO: REQUIREMENTS.md § 9.3. Tops the composer stack while it is up, clearing the history by the same `xs` every other row in this position does (DESIGN.md § 6.6.). It replaces nothing — a recording is sent outright, so there is no tray for it to compete with. */}
               {isRecording && (
                 <VoiceRecorderBar
@@ -1924,72 +1933,72 @@ export function ChatRoom({
                 onFieldFocus={yieldToComposer}
                 onSend={({ text, emoticons }) => submit(text, emoticons)}
               />
-              {/* INFO: REQUIREMENTS.md § 13.6. The sheet stands in the keyboard's slot under the composer, inside the same wrapper so the history is cleared by both and scrolls under both. */}
-              {/* INFO: § 13.6. The clip: bottom-anchored at the screen's edge, which is the wrapper's own, `z-10` over the composer, its height 0 ↔ the sheet's so the card inside rises behind it on open and is clipped on close. Above rest it just draws taller. */}
-              {/* INFO: § 13.6. The spring is the upward expand's alone — `ease-sheet` peaks 3% over, so the card pokes a few px under the header's glass and settles, where a `max-height` would stop it flat. Every other move keeps the 200ms ease-out, and a drag follows the finger. */}
-              {/* WARN: The sheet stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until `inert` takes them back out. */}
-              <div
-                ref={emoticonSheetRef}
-                className={cn(
-                  "absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end overflow-hidden",
-                  emoticonSheetTransition,
-                  isEmoticonPanelOpen ? "h-(--emoticon-sheet-height)" : "h-0",
-                )}
-                inert={!isEmoticonPanelOpen}
-                style={{
-                  ["--emoticon-sheet-height" as string]: emoticonSheetHeight,
-                  transform:
-                    emoticonSheet.dragTranslateY > 0
-                      ? `translateY(${emoticonSheet.dragTranslateY}px)`
-                      : undefined,
-                }}
-              >
-                {hasMountedEmoticonPanel && (
-                  // WARN: `shrink-0` or the collapsing clip compresses the card instead of clipping it, and § 13.6.'s own `flex-1` scroller is what gives — the sheet then reads as stretching open rather than rising.
-                  // INFO: § 13.6. Promoted to its own layer so the clip's growing edge is a compositor crop — unpromoted, every frame repaints a grid of animated images against a moving clip rect, which is what the open stutters on.
-                  <div
+            </div>
+            {/* INFO: REQUIREMENTS.md § 13.6. The sheet stands in the keyboard's slot under the composer, inside the same wrapper so the history is cleared by both and scrolls under both. */}
+            {/* INFO: § 13.6. The clip: bottom-anchored at the screen's edge, which is the wrapper's own, `z-10` over the composer, its height 0 ↔ the sheet's so the card inside rises behind it on open and is clipped on close. Above rest it just draws taller. */}
+            {/* INFO: § 13.6. The spring is the upward expand's alone — `ease-sheet` peaks 3% over, so the card pokes a few px under the header's glass and settles, where a `max-height` would stop it flat. Every other move keeps the 200ms ease-out, and a drag follows the finger. */}
+            {/* WARN: The sheet stays mounted through the collapse so it has something to animate, which leaves its tab stops in the document until `inert` takes them back out. */}
+            <div
+              ref={emoticonSheetRef}
+              className={cn(
+                "absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end overflow-hidden",
+                emoticonSheetTransition,
+                isEmoticonPanelOpen ? "h-(--emoticon-sheet-height)" : "h-0",
+              )}
+              inert={!isEmoticonPanelOpen}
+              style={{
+                ["--emoticon-sheet-height" as string]: emoticonSheetHeight,
+                transform:
+                  emoticonSheet.dragTranslateY > 0
+                    ? `translateY(${emoticonSheet.dragTranslateY}px)`
+                    : undefined,
+              }}
+            >
+              {hasMountedEmoticonPanel && (
+                // WARN: `shrink-0` or the collapsing clip compresses the card instead of clipping it, and § 13.6.'s own `flex-1` scroller is what gives — the sheet then reads as stretching open rather than rising.
+                // INFO: § 13.6. Promoted to its own layer so the clip's growing edge is a compositor crop — unpromoted, every frame repaints a grid of animated images against a moving clip rect, which is what the open stutters on.
+                <div
+                  className={cn(
+                    "pointer-events-auto flex h-(--emoticon-sheet-height) shrink-0 flex-col rounded-t-xl border-t border-hairline bg-canvas pb-(--bottom-inset) will-change-transform",
+                    emoticonSheetTransition,
+                  )}
+                  {...emoticonSheet.dragProps}
+                >
+                  {/* INFO: § 13.6. The drag is the card's, from any row that does not scroll vertically, and from the grid once it has no scroll left in the pull's direction — the hook leaves every other press inside it to the grid. `touch-none` here and on the menu bar, or the finger's pull is spent on the room behind it. */}
+                  <button
                     className={cn(
-                      "pointer-events-auto flex h-(--emoticon-sheet-height) shrink-0 flex-col rounded-t-xl border-t border-hairline bg-canvas pb-(--bottom-inset) will-change-transform",
-                      emoticonSheetTransition,
+                      "relative flex h-(--emoticon-sheet-handle-height) w-full shrink-0 cursor-grab touch-none items-center justify-center focus-visible:outline-none active:cursor-grabbing hover:[&>span]:bg-primary focus-visible:[&>span]:bg-primary",
+                      // INFO: DESIGN.md § 7.5. The hit box past the row: 8px up into the composer's own bottom padding, which takes no pointer, and 4px down into the menu bar's top margin.
+                      "before:absolute before:inset-x-0 before:-top-2 before:-bottom-1 before:content-['']",
                     )}
-                    {...emoticonSheet.dragProps}
+                    type="button"
+                    aria-expanded={emoticonSheet.size === "expanded"}
+                    aria-label={
+                      emoticonSheet.size === "expanded"
+                        ? "이모티콘 창 줄이기"
+                        : "이모티콘 창 늘리기"
+                    }
+                    {...emoticonSheet.handleProps}
                   >
-                    {/* INFO: § 13.6. The drag is the card's, from any row that does not scroll vertically, and from the grid once it has no scroll left in the pull's direction — the hook leaves every other press inside it to the grid. `touch-none` here and on the menu bar, or the finger's pull is spent on the room behind it. */}
-                    <button
-                      className={cn(
-                        "relative flex h-(--emoticon-sheet-handle-height) w-full shrink-0 cursor-grab touch-none items-center justify-center focus-visible:outline-none active:cursor-grabbing hover:[&>span]:bg-primary focus-visible:[&>span]:bg-primary",
-                        // INFO: DESIGN.md § 7.5. The hit box past the row: 8px up into the composer's own bottom padding, which takes no pointer, and 4px down into the menu bar's top margin.
-                        "before:absolute before:inset-x-0 before:-top-2 before:-bottom-1 before:content-['']",
-                      )}
-                      type="button"
-                      aria-expanded={emoticonSheet.size === "expanded"}
-                      aria-label={
-                        emoticonSheet.size === "expanded"
-                          ? "이모티콘 창 줄이기"
-                          : "이모티콘 창 늘리기"
-                      }
-                      {...emoticonSheet.handleProps}
-                    >
-                      <span className="block h-1.5 w-12 rounded-full bg-hairline-strong" />
-                    </button>
-                    <EmoticonPicker
-                      isOpen={isEmoticonPanelOpen}
-                      focusRequest={pickerFocusRequest}
-                      searchRequest={emoticonSearch}
-                      revealRequest={emoticonReveal}
-                      menuRequest={menuRequest}
-                      suggestedSearchQuery={suggestedEmoticonSearchQuery}
-                      onSearchTabChange={reportEmoticonSearchTab}
-                      onSearchFieldFocus={emoticonSheet.expand}
-                      onSelect={stageEmoticon}
-                      onQuickSend={sendStagedEmoticon}
-                      onInsert={insertEmoticon}
-                      onDeleteLast={deleteLastComposerUnit}
-                    />
-                  </div>
-                )}
-              </div>
-            </>
+                    <span className="block h-1.5 w-12 rounded-full bg-hairline-strong" />
+                  </button>
+                  <EmoticonPicker
+                    isOpen={isEmoticonPanelOpen}
+                    focusRequest={pickerFocusRequest}
+                    searchRequest={emoticonSearch}
+                    revealRequest={emoticonReveal}
+                    menuRequest={menuRequest}
+                    suggestedSearchQuery={suggestedEmoticonSearchQuery}
+                    onSearchTabChange={reportEmoticonSearchTab}
+                    onSearchFieldFocus={emoticonSheet.expand}
+                    onSelect={stageEmoticon}
+                    onQuickSend={sendStagedEmoticon}
+                    onInsert={insertEmoticon}
+                    onDeleteLast={deleteLastComposerUnit}
+                  />
+                </div>
+              )}
+            </div>
           </div>
           {/* WARN: REQUIREMENTS.md § 8.6. Outside the hidden stack, or the inset goes with the composer and the search bar sits `--bar-lift` lower than the strip it swaps for (DESIGN.md § 6.8.). */}
           {/* WARN: A real `height` and never a `0fr`→`1fr` grid track. Mid-transition Chrome sizes such a track's container taller than the track it resolved, and the strip below the bottom-anchored sheet is a gap that opens and shuts. */}
