@@ -85,6 +85,7 @@ export function ExpandedBodySheet({
     return (
       <Modal
         className={cn(
+          "max-h-[calc(var(--viewport-height,100dvh)*0.75)]",
           "w-[calc(100%_-_var(--content-left)_-_var(--spacing-xl))] max-w-[var(--content-max-width,720px)]",
           className,
         )}
@@ -98,9 +99,7 @@ export function ExpandedBodySheet({
         }}
         onClose={onClose}
       >
-        <div className="scrollbar-hidden max-h-[calc(var(--viewport-height,100dvh)*0.75)] overflow-y-auto">
-          {bodyContent}
-        </div>
+        {bodyContent}
       </Modal>
     );
   }

@@ -24,9 +24,9 @@ export type DialogShellProps = PropsWithChildren<{
 
 // INFO: DESIGN.md § 7.4. `lg` is the sheet's own width — what a `BottomSheet` becomes at `md` keeps the column it was drawn for.
 const SIZE_CLASS_NAME = {
-  sm: "w-[min(360px,calc(100%_-_var(--content-left)_-_var(--spacing-xl)))]",
-  md: "w-[min(440px,calc(100%_-_var(--content-left)_-_var(--spacing-xl)))]",
-  lg: "w-[min(var(--sheet-max-width),calc(100%_-_var(--content-left)_-_var(--spacing-xl)))]",
+  sm: "w-[calc(100%_-_var(--content-left)_-_var(--spacing-xl))] max-w-[360px]",
+  md: "w-[calc(100%_-_var(--content-left)_-_var(--spacing-xl))] max-w-[440px]",
+  lg: "w-[calc(100%_-_var(--content-left)_-_var(--spacing-xl))] max-w-[var(--sheet-max-width)]",
 };
 
 /**
