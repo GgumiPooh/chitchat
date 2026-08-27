@@ -55,6 +55,7 @@ const querySchema = z.object({
   // INFO: REQUIREMENTS.md § 10. The photo 보관함 is to open on, for the position jump.
   around: snowflakeSchema<MediaId>().optional(),
   limit: z.coerce.number().int().positive().optional(),
+  modeFilter: z.enum(["all", "onlyMe", "shared"]).optional(),
 });
 
 const bodySchema = z.object({
@@ -86,7 +87,7 @@ export async function GET(request: Request) {
     return apiError("invalid_request");
   }
 
-  const { limit, shelf, kind, before, after, beforeId, afterId, ...cursors } = query.data;
+  const { limit, shelf, kind, before, after, beforeId, afterId, modeFilter, ...cursors } = query.data;
 
   return NextResponse.json({
     media: await listArchiveMedia({
@@ -98,6 +99,7 @@ export async function GET(request: Request) {
       shelf: shelf ?? (kind && SHELVES_BY_DEPRECATED_NAME[kind]),
       limit: Math.min(limit ?? ARCHIVE_PAGE_SIZE, MAX_ARCHIVE_PAGE_SIZE),
       currentUserId: user.id,
+      modeFilter,
     }),
   });
 }

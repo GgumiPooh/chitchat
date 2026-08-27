@@ -10,12 +10,16 @@ type PageProps = {
 
 export default async function Page({ searchParams }: PageProps) {
   const user = await requireUserOrRedirect();
+  const params = await searchParams;
   // INFO: REQUIREMENTS.md § 10. 채팅's viewer taps through carrying the photo it was showing, and the window comes back centred on that tile rather than on the newest one.
-  const targetId = toMediaId((await searchParams)[ARCHIVE_TARGET_PARAM]);
+  const targetId = toMediaId(params[ARCHIVE_TARGET_PARAM]);
+  const rawMode = params["mode"];
+  const modeFilter = rawMode === "onlyMe" ? "onlyMe" : rawMode === "shared" ? "shared" : "all";
 
   return (
     <ArchivePage
-      initialMedia={await listArchiveMedia({ around: targetId, currentUserId: user.id })}
+      key={`${targetId ?? ""}-${modeFilter}`}
+      initialMedia={await listArchiveMedia({ around: targetId, currentUserId: user.id, modeFilter })}
       targetId={targetId}
     />
   );

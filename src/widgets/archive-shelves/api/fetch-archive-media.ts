@@ -11,6 +11,7 @@ export type FetchArchiveMediaParams = {
   after?: string;
   /** REQUIREMENTS.md § 10. A `media` id to centre the window on, for the position jump. */
   around?: string;
+  modeFilter?: "all" | "onlyMe" | "shared";
 };
 
 /** One page of one library segment — the one after `before`, before `after`, or `around` a given tile (REQUIREMENTS.md § 10.). */
@@ -19,6 +20,7 @@ export async function fetchArchiveMedia({
   before,
   after,
   around,
+  modeFilter,
 }: FetchArchiveMediaParams = {}): Promise<ArchiveMedia[]> {
   const query = new URLSearchParams();
 
@@ -36,6 +38,10 @@ export async function fetchArchiveMedia({
 
   if (after) {
     query.set("after", after);
+  }
+
+  if (modeFilter) {
+    query.set("modeFilter", modeFilter);
   }
 
   const response = await request(`${ARCHIVE_PATH}?${query}`);

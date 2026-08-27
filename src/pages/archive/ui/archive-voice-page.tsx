@@ -19,6 +19,7 @@ import {
 import { AudioLines, ListChecks, Mic, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useArchiveJump } from "../model/archive-jump-context";
+import { ArchiveFilterButton } from "./archive-filter-button";
 import { LibrarySegments } from "./library-segments";
 
 export type ArchiveVoicePageProps = {
@@ -104,6 +105,7 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
                 {...uploadGate.blockedProps}
                 onClick={uploadGate.guard(() => setIsRecording(true))}
               />
+              <ArchiveFilterButton />
               <IconButton
                 variant="floating"
                 Icon={ListChecks}

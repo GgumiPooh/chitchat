@@ -61,7 +61,10 @@ const querySchema = z.object({
 });
 
 // INFO: REQUIREMENTS.md § 8.10. Orthogonal to the payload, so it rides on every branch of the union below rather than forming one of its own.
-const replySchema = z.object({ replyToId: snowflakeSchema<MessageId>().optional() });
+const replySchema = z.object({ 
+  replyToId: snowflakeSchema<MessageId>().optional(),
+  onlyMe: z.boolean().optional(),
+});
 
 // INFO: REQUIREMENTS.md § 6. A row is text or attachments, never both — the CHECK constraint says the same thing at the database.
 // INFO: REQUIREMENTS.md § 13. Bounded by the lookup the existence check runs — a body past it is refused rather than checked in part.
@@ -140,7 +143,6 @@ export async function POST(request: Request) {
 
   // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 / 나에게만 보내기 — read once per request, not inside `after()`, since a cookie belongs to the request that carried it.
   const notifyMode = toNotifyMode((await cookies()).get(NOTIFY_MODE_COOKIE_NAME)?.value);
-  const onlyMe = notifyMode === "onlyMe";
 
   const body = bodySchema.safeParse(await request.json().catch(() => null));
 
@@ -149,6 +151,7 @@ export async function POST(request: Request) {
   }
 
   const payload = body.data;
+  const onlyMe = payload.onlyMe ?? (notifyMode === "onlyMe");
 
   // INFO: `messages.emoticon_item_id` is a foreign key — a picker holding a list the other participant has since deleted (§ 13.6.) would otherwise send its way into a 500.
   if ("emoticonItemId" in payload && !(await getEmoticonItem(payload.emoticonItemId))) {

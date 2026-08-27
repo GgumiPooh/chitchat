@@ -56,7 +56,7 @@ export function useComposerClearance({
       return;
     }
 
-    let frame = 0;
+    let isScheduled = false;
 
     const observer = new ResizeObserver(() => schedule(container, composer));
 
@@ -71,14 +71,21 @@ export function useComposerClearance({
     }
 
     return () => {
-      cancelAnimationFrame(frame);
+      isScheduled = false;
       observer.disconnect();
     };
 
-    // WARN: Deferred a frame on purpose. `BottomOverlay` publishes `--bottom-inset` from its own `ResizeObserver`, and the two callbacks land in the same batch — measuring inline reads whichever position the composer happened to be in when this one ran first.
+    // WARN: Deferred to a microtask on purpose. `BottomOverlay` publishes `--bottom-inset` from its own `ResizeObserver`, and the two callbacks land in the same batch — measuring inline reads whichever position the composer happened to be in when this one ran first. A microtask runs after all observers have fired but before the browser paints, eliminating the 1-frame stutter `requestAnimationFrame` caused.
     function schedule(container: HTMLElement, composer: HTMLElement) {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => measure(container, composer));
+      if (isScheduled) {
+        return;
+      }
+
+      isScheduled = true;
+      queueMicrotask(() => {
+        isScheduled = false;
+        measure(container, composer);
+      });
     }
 
     function measure(container: HTMLElement, composer: HTMLElement) {

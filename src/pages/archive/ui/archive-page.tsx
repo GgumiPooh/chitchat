@@ -4,7 +4,7 @@ import type { ArchiveMedia } from "@/entities/media";
 import { useApplyPhoto } from "@/features/apply-photo";
 import { useWriteArchiveSnapshot } from "@/features/offline-snapshot";
 import { useMediaPicker } from "@/features/upload-media";
-import { CHAT_MESSAGE_PARAM, CHAT_ROUTE, toMediaLabel } from "@/shared/config";
+import { CHAT_MESSAGE_PARAM, CHAT_ROUTE, toMediaLabel, NOTIFY_MODE_COOKIE_NAME, toNotifyModeIndex } from "@/shared/config";
 import { cn, startMediaMorph, type MediaId, type Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import {
@@ -30,6 +30,7 @@ import { ImagePlus, Images, LayoutGrid, ListChecks, MessageCircle, X } from "luc
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useArchiveJump } from "../model/archive-jump-context";
+import { ArchiveFilterButton } from "./archive-filter-button";
 import { LibrarySegments } from "./library-segments";
 
 export type ArchivePageProps = {
@@ -139,6 +140,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
                 {...uploadGate.blockedProps}
                 onClick={uploadGate.guard(picker.open)}
               />
+              <ArchiveFilterButton />
               {/* WARN: Unavailable while an upload is in flight. A photo being posted is in the grid with no message behind it yet, which `isInLibrary()` does not admit — a 삭제 aimed at it would silently take nothing. */}
               <IconButton
                 variant="floating"
@@ -260,6 +262,11 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
     }
 
     setViewer(null);
+
+    // WARN: REQUIREMENTS.md § 16.1. 채팅창에서 '나에게만 보내기' 메시지를 정확히 찾으려면 채팅창 모드도 동일해야 함.
+    const targetMode = cell.onlyMe ? "onlyMe" : "notify";
+    document.cookie = `${NOTIFY_MODE_COOKIE_NAME}=${toNotifyModeIndex(targetMode)}; path=/; max-age=31536000; SameSite=Lax`;
+
     router.push(
       `${CHAT_ROUTE}?${new URLSearchParams({ [CHAT_MESSAGE_PARAM]: String(cell.messageId) })}`,
     );

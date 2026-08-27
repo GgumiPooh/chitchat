@@ -10,6 +10,7 @@ import {
   desc,
   eq,
   exists,
+  not,
   gt,
   inArray,
   isNull,
@@ -42,6 +43,7 @@ export type ListArchiveMediaParams = {
   limit?: number;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — the viewer this page is drawn for; a tile whose sending message is only visible to the other participant is excluded rather than shown behind a filter. */
   currentUserId: UserId;
+  modeFilter?: "all" | "onlyMe" | "shared";
 };
 
 /**
@@ -57,8 +59,9 @@ export async function listArchiveMedia({
   around,
   limit = ARCHIVE_PAGE_SIZE,
   currentUserId,
+  modeFilter = "all",
 }: ListArchiveMediaParams): Promise<ArchiveMedia[]> {
-  const within = and(isInLibrary(currentUserId), isOfShelf(shelf));
+  const within = and(isInLibrary(currentUserId, modeFilter), isOfShelf(shelf));
   const rows = around
     ? await selectAround(within, around, limit)
     : after
@@ -199,7 +202,7 @@ async function findSendingMessages(mediaIds: MediaId[]): Promise<Map<string, Arc
  * shelf a row lands on is `isOfShelf` — since `destroyArchiveMedia` wants this half
  * alone, as 삭제 reaches every shelf.
  */
-export function isInLibrary(currentUserId: UserId): Optional<SQL> {
+export function isInLibrary(currentUserId: UserId, modeFilter: "all" | "onlyMe" | "shared" = "all"): Optional<SQL> {
   const isPosted = exists(
     getDb()
       .select({ one: sql`1` })
@@ -211,6 +214,8 @@ export function isInLibrary(currentUserId: UserId): Optional<SQL> {
           isNull(messages.deletedAt),
           // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — a tile whose only sending message is the other participant's onlyMe row has nothing in this library to belong to.
           or(eq(messages.onlyMe, false), eq(messages.senderId, currentUserId)),
+          modeFilter === "onlyMe" ? eq(messages.onlyMe, true) : undefined,
+          modeFilter === "shared" ? eq(messages.onlyMe, false) : undefined,
         ),
       ),
   );

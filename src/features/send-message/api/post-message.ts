@@ -5,7 +5,7 @@ import type { InlineEmoticonMap } from "@/shared/config";
 import type { EmoticonItemId, MessageId } from "@/shared/lib";
 
 // INFO: REQUIREMENTS.md § 8.10. The quoted id is not a payload of its own — it rides on whichever of the three a reply happens to be.
-type ReplyParams = { replyToId?: MessageId };
+type ReplyParams = { replyToId?: MessageId; onlyMe?: boolean; };
 
 // INFO: REQUIREMENTS.md § 6. Text, attachments, or one emoticon — never a combination. The route's schema and the table's CHECK constraint say the same thing.
 // WARN: The finished restructure. `media`, not `mediaIds` — an attachment is registered and attached in the same transaction the message is created by, so the route takes what `uploadDraft` put in R2 rather than an id from an earlier registration.

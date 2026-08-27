@@ -25,6 +25,7 @@ import {
 import { FilePlus, Files, ListChecks, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useArchiveJump } from "../model/archive-jump-context";
+import { ArchiveFilterButton } from "./archive-filter-button";
 import { LibrarySegments } from "./library-segments";
 
 export type ArchiveFilesPageProps = {
@@ -113,6 +114,7 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
                 {...uploadGate.blockedProps}
                 onClick={uploadGate.guard(() => setIsPickerOpen(true))}
               />
+              <ArchiveFilterButton />
               <IconButton
                 variant="floating"
                 Icon={ListChecks}

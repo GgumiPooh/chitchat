@@ -12,6 +12,8 @@ import {
 } from "@/features/upload-media";
 import { isAllowedMediaMime, LIBRARY_SHELF_LABELS, type LibraryShelf } from "@/shared/config";
 import { BottomSheet, Button, ShellOverlay } from "@/shared/ui";
+import { Lock } from "lucide-react";
+import { useState } from "react";
 import { useArchiveUpload } from "./use-archive-upload";
 
 export type ShelfStagingParams = {
@@ -48,12 +50,19 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
   const staging = useMediaSelection({ acceptsFiles });
   const editing = useAttachmentEditing(staging.replace);
   const { remainingCount, encodeProgress, isBusy, upload } = useArchiveUpload(shelf, onAdded);
+  const [isCommitting, setIsCommitting] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
+  
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const modeParam = searchParams?.get("mode");
+  const uploadMode = modeParam === "onlyMe" ? true : modeParam === "shared" ? false : undefined;
+
   // WARN: REQUIREMENTS.md § 9.2. Refused under an editor as well as behind `isBlocked`. React bubbles a drop through the *component* tree, so `MediaEditor` and `VideoTrimmer` deliver one here however they are portalled — and the sheet is suppressed for exactly their duration, so the drop would land in a tray the user cannot see.
   const drop = useFileDrop({
     isEnabled: !isBlocked && !editing.isEditing,
     onDrop: (files) => void staging.add(files),
   });
-  const isHeld = staging.drafts.length === 0 || staging.isReading || editing.isApplying;
+  const isHeld = staging.drafts.length === 0 || staging.isReading || editing.isApplying || isCommitting || isCanceling;
 
   return {
     dropHandlers: drop.handlers,
@@ -93,13 +102,16 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
    * can lift them over it — the sheet has to get out of the way instead.
    */
   function renderSheet() {
+    const description = uploadMode === true 
+      ? "나만 볼 수 있게 보관함에 추가돼요" 
+      : "상대방과 함께 보도록 보관함에 추가돼요";
+
     return (
       <BottomSheet
-        isOpen={(staging.drafts.length > 0 || staging.isReading) && !editing.isEditing}
+        isOpen={(staging.drafts.length > 0 || staging.isReading) && !editing.isEditing && !isCommitting && !isCanceling}
         header={{
           title: `${LIBRARY_SHELF_LABELS[shelf]} 추가`,
-          // INFO: Only said where it is true. A file has neither editor (§ 9.1.), so the line appears once the tray actually holds something a tap could crop or trim.
-          description: hasEditableDraft() ? "올리기 전에 하나씩 편집할 수 있어요" : undefined,
+          description,
         }}
         onClose={cancel}
       >
@@ -113,7 +125,8 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
           {/* INFO: § 18. #1. One control, because there is one outcome: a row reaches 보관함 by hanging off a live message, so an upload that is not posted lands nowhere at all. */}
           {/* WARN: Held while a trim is being read back. The trimmer is already gone by then, so an upload started in that window would ship the untrimmed original and the `replace` behind it would land on a draft `takeAll` had removed. */}
           <Button disabled={isHeld} haptic onClick={() => void start()}>
-            대화에 보내기
+            {uploadMode === true && <Lock className="size-4" strokeWidth={2.5} />}
+            {uploadMode === true ? "나에게만 보내기" : uploadMode === false ? "대화방에 공유하기" : "대화에 보내기"}
           </Button>
         </div>
       </BottomSheet>
@@ -155,8 +168,15 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
   }
 
   function cancel() {
-    staging.clear();
-    editing.close();
+    if (isCommitting || isCanceling) return;
+    setIsCanceling(true);
+    
+    // INFO: Delay clearing the drafts so the sheet has content to maintain its height while animating out.
+    setTimeout(() => {
+      staging.clear();
+      editing.close();
+      setIsCanceling(false);
+    }, 400);
   }
 
   /**
@@ -165,12 +185,18 @@ export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: She
    * hook to revoke them on unmount instead would kill the blob mid-upload.
    */
   async function start() {
-    const drafts = staging.takeAll();
+    if (isCommitting) return;
+    setIsCommitting(true);
 
-    editing.close();
+    // INFO: Delay taking the drafts so the sheet has content to maintain its height while animating out.
+    setTimeout(async () => {
+      const drafts = staging.takeAll();
+      editing.close();
+      setIsCommitting(false);
 
-    if (drafts.length > 0) {
-      await upload(drafts);
-    }
+      if (drafts.length > 0) {
+        await upload(drafts);
+      }
+    }, 400);
   }
 }

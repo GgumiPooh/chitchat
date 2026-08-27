@@ -54,6 +54,10 @@ export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMe
   const [encodeProgress, setEncodeProgress] = useState<Nullable<number>>(null);
   const [runningCount, setRunningCount] = useState(0);
 
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const modeParam = searchParams?.get("mode");
+  const uploadMode = modeParam === "onlyMe" ? true : modeParam === "shared" ? false : undefined;
+
   const upload = useCallback(
     async (drafts: MediaDraft[]) => {
       setRunningCount((current) => current + 1);
@@ -92,7 +96,7 @@ export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMe
         const uploaded = results.filter((result): result is Uploaded => Boolean(result));
         const failedCount = results.length - uploaded.length;
 
-        const { landed, failedToPostCount } = await post(uploaded, onAdded, shelf);
+        const { landed, failedToPostCount } = await post(uploaded, onAdded, shelf, uploadMode);
 
         // INFO: Only what actually landed, or the "went to another shelf" line names rows that went nowhere.
         reportOtherShelves(landed, shelf);
@@ -165,6 +169,7 @@ async function post(
   uploaded: Uploaded[],
   onAdded: (media: ArchiveMedia) => void,
   shelf: LibraryShelf,
+  uploadMode?: boolean,
 ): Promise<{ landed: Uploaded[]; failedToPostCount: number }> {
   const bubbles = toBubbles(uploaded, ({ draft }) => toDraftKind(draft));
   const landed: Uploaded[] = [];
@@ -174,6 +179,7 @@ async function post(
       const { media } = await postMessage({
         clientMsgId: randomId(),
         media: bubble.map(({ upload }) => upload),
+        onlyMe: uploadMode,
       });
 
       bubble.forEach(({ draft, upload }, position) => {
