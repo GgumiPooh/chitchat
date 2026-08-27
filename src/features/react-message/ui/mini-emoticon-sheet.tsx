@@ -73,7 +73,7 @@ export function MiniEmoticonSheet({
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const { size, expandedHeight, pinnedHeight, isDragging, dragProps, handleProps } = useSheetDrag({
+  const { size, expandedHeight, pinnedHeight, dragTranslateY, isDragging, dragProps, handleProps } = useSheetDrag({
     sheetRef,
     isOpen: isOpen && messageId !== null,
     onClose,
@@ -352,7 +352,7 @@ export function MiniEmoticonSheet({
           ref={sheetRef}
           className={cn(
             "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 mx-auto mb-sm flex w-[calc(100%_-_var(--content-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus:outline-none data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=closed]:slide-out-to-bottom data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=open]:slide-in-from-bottom",
-            isDragging ? "transition-none!" : "transition-[height] duration-200 ease-out",
+            isDragging ? "transition-none!" : "transition-[height,transform] duration-200 ease-out",
             className,
           )}
           style={{
@@ -364,6 +364,7 @@ export function MiniEmoticonSheet({
                     ? `${expandedHeight}px`
                     : "calc(var(--viewport-height,100dvh) - var(--header-height,56px) - var(--spacing-sm))"
                   : "380px",
+            transform: dragTranslateY > 0 ? `translateY(${dragTranslateY}px)` : undefined,
           }}
           {...dragProps}
         >

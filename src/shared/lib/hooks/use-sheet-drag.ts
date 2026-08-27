@@ -40,6 +40,7 @@ export function useSheetDrag({
   const [size, setSize] = useState<SheetSize>(initialSize);
   const [expandedHeight, setExpandedHeight] = useState(0);
   const [pinnedHeight, setPinnedHeight] = useState<Nullable<number>>(null);
+  const [dragTranslateY, setDragTranslateY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [wasOpen, setWasOpen] = useState(isOpen);
   const gestureRef = useRef<
@@ -64,6 +65,7 @@ export function useSheetDrag({
     if (isOpen) {
       setSize(initialSize);
       setPinnedHeight(null);
+      setDragTranslateY(0);
     }
   }
 
@@ -90,6 +92,7 @@ export function useSheetDrag({
     size,
     expandedHeight,
     pinnedHeight,
+    dragTranslateY,
     isDragging,
     collapse: () => settle("rest", expandedHeight),
     expand: () => settle("expanded", measureExpandedHeight()),
@@ -226,7 +229,16 @@ export function useSheetDrag({
       event.currentTarget.setPointerCapture(event.pointerId);
     }
 
-    setPinnedHeight(Math.min(Math.max(gesture.height + pulled, 0), gesture.max));
+    if (pulled < 0) {
+      // WARN: Dragging down — translate the whole panel rather than shrinking its height,
+      // so the bottom edge stays fixed and the panel slides as a unit.
+      setPinnedHeight(gesture.height);
+      setDragTranslateY(-pulled);
+    } else {
+      // Dragging up to expand: grow height, no translation.
+      setDragTranslateY(0);
+      setPinnedHeight(Math.min(gesture.height + pulled, gesture.max));
+    }
   }
 
   function handleRelease(event: PointerEvent) {
@@ -251,19 +263,28 @@ export function useSheetDrag({
     if (size === "expanded") {
       if (pulled < -threshold) {
         if (closeOnPullDownFromExpanded || initialSize === "expanded") {
+          // WARN: Do NOT reset dragTranslateY here — the CSS keyframe from Radix's
+          // data-[state=closed] slide-out-to-bottom overrides the inline transform, so
+          // the animation continues smoothly from wherever the panel currently sits.
           onClose();
         } else {
+          setDragTranslateY(0);
           setSize("rest");
           blurInside();
         }
+      } else {
+        setDragTranslateY(0);
       }
 
       setPinnedHeight(null);
     } else if (pulled > threshold) {
+      setDragTranslateY(0);
       settle("expanded", gesture.max);
     } else if (pulled < -threshold) {
+      // WARN: Same as above — keep dragTranslateY so close animation starts from here.
       onClose();
     } else {
+      setDragTranslateY(0);
       setPinnedHeight(null);
     }
   }
@@ -273,6 +294,7 @@ export function useSheetDrag({
     releasePanDenial();
     hasDraggedRef.current = false;
     setIsDragging(false);
+    setDragTranslateY(0);
     setPinnedHeight(null);
   }
 
