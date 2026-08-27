@@ -3,6 +3,7 @@
 import type { ArchiveMedia } from "@/entities/media";
 import { useApplyPhoto } from "@/features/apply-photo";
 import { useWriteArchiveSnapshot } from "@/features/offline-snapshot";
+import { useSilentSend } from "@/features/silent-send";
 import { useMediaPicker } from "@/features/upload-media";
 import {
   CHAT_MESSAGE_PARAM,
@@ -52,6 +53,7 @@ export type ArchivePageProps = {
  * of a chat row.
  */
 export function ArchivePage({ className, initialMedia, targetId }: ArchivePageProps) {
+  const silentSend = useSilentSend();
   const router = useRouter();
   const [viewer, setViewer] = useState<Nullable<{ cells: MediaCell[]; index: number }>>(null);
   // WARN: DESIGN.md § 4.7.3. The slide the open viewer is on, held here since the grid needs it as a prop and the viewer owns position by id (§ 8.1.). Handed to the grid only while the viewer is open — that gate, not clearing on every dismiss path, is what keeps a stale value from re-centring the shelf.
@@ -271,7 +273,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
 
     // WARN: REQUIREMENTS.md § 16.1. 채팅창에서 '나에게만 보내기' 메시지를 정확히 찾으려면 채팅창 모드도 동일해야 함.
     const targetMode = cell.onlyMe ? "onlyMe" : "notify";
-    document.cookie = `${NOTIFY_MODE_COOKIE_NAME}=${toNotifyModeIndex(targetMode)}; path=/; max-age=31536000; SameSite=Lax`;
+    silentSend.setMode(targetMode);
 
     router.push(
       `${CHAT_ROUTE}?${new URLSearchParams({ [CHAT_MESSAGE_PARAM]: String(cell.messageId) })}`,

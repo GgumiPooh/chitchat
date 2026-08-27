@@ -692,11 +692,12 @@ export function ChatRoom({
     onClose: closeEmoticonPanel,
   });
   // WARN: § 13.6. The clip and the card share this so they move together; the spring is the open sheet's upward move alone — keyed on `isEmoticonPanelOpen` too, or a close from expanded runs 450ms against the spacer's 200ms and re-pins early.
-  const emoticonSheetTransition = emoticonSheet.isDragging
-    ? "transition-none"
-    : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
-      ? "transition-[height,transform] duration-(--duration-sheet-expand) ease-sheet"
-      : "transition-[height,transform] duration-200 ease-out";
+  const emoticonSheetTransition =
+    emoticonSheet.isDragging || emoticonSheet.isDraggingClose
+      ? "transition-none"
+      : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
+        ? "transition-[height,transform] duration-(--duration-sheet-expand) ease-sheet"
+        : "transition-[height,transform] duration-200 ease-out";
 
   useEffect(() => () => clearTimeout(collapseTimerRef.current), []);
   // INFO: § 13.6. What the sheet clears the history by at rest — the spacer's height, and never more: an expanded sheet covers the composer rather than lifting it.
@@ -1333,13 +1334,18 @@ export function ChatRoom({
    * at the newest message.
    */
   const wasOnlyMe = useRef(notifyMode === "onlyMe");
+  const isInitialJumpPending = useRef(Boolean(initialJumpMessageId));
 
   useEffect(() => {
     const isOnlyMe = notifyMode === "onlyMe";
     if (wasOnlyMe.current !== isOnlyMe) {
-      void reloadLiveWindow(isOnlyMe).then(() => {
-        requestAnimationFrame(scrollToBottom);
-      });
+      if (isInitialJumpPending.current) {
+        isInitialJumpPending.current = false;
+      } else {
+        void reloadLiveWindow(isOnlyMe).then(() => {
+          requestAnimationFrame(scrollToBottom);
+        });
+      }
     }
 
     wasOnlyMe.current = isOnlyMe;
@@ -1739,7 +1745,11 @@ export function ChatRoom({
     // WARN: REQUIREMENTS.md § 12.2. No floor of its own, and it MUST NOT get one back. `ChatScreen` is `bg-chat-canvas` already, so an opaque copy here changes nothing a reader sees — but iOS 26 samples the **pixels** at the top edge rather than the `fixed` box's declared colour, and a flat `chat-canvas` covering the wallpaper's tint is what the status bar then wears for the whole session.
     <div
       ref={containerRef}
-      className={cn("relative min-h-0 flex-1 chat-clearance", className)}
+      className={cn(
+        "relative min-h-0 flex-1 chat-clearance",
+        (emoticonSheet.isDragging || emoticonSheet.isDraggingClose) && "transition-none",
+        className,
+      )}
       // INFO: REQUIREMENTS.md § 13.6. The spacer half of `--chat-bottom-gap` (theme.css), eased here so the composer's own spacer, the list's trailing one and the pills over it all move on the chat screen's clock.
       style={{
         ["--chat-composer-spacer" as string]: isEmoticonPanelOpen
@@ -1752,11 +1762,7 @@ export function ChatRoom({
       {chatBackgroundMediaId && (
         <ChatBackdrop mediaId={chatBackgroundMediaId} blurhash={chatBackgroundBlurhash} />
       )}
-      {isSwitchingMode || activeFilterMode !== (notifyMode === "onlyMe") ? (
-        <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">
-          <LoaderCircle className="size-6 animate-spin text-meta-soft" />
-        </div>
-      ) : rows.length === 0 ? (
+      {rows.length === 0 && !isSwitchingMode && activeFilterMode === (notifyMode === "onlyMe") ? (
         <>
           <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">
             <EmptyState
@@ -1856,13 +1862,19 @@ export function ChatRoom({
             newMessageCount={unseenCount}
             style={{
               transform:
-                isEmoticonPanelOpen && emoticonSheet.dragTranslateY > 0
+                (isEmoticonPanelOpen || emoticonSheet.isSettlingClose) &&
+                emoticonSheet.dragTranslateY > 0
                   ? `translateY(${emoticonSheet.dragTranslateY}px)`
                   : undefined,
             }}
             onClick={() => void goToNewest()}
           />
         </>
+      )}
+      {(isSwitchingMode || activeFilterMode !== (notifyMode === "onlyMe")) && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">
+          <LoaderCircle className="size-6 animate-spin text-meta-soft" />
+        </div>
       )}
       {/* WARN: Rendered outside the branch above. Two tree positions would remount the textarea on the first send and drop keyboard focus mid-conversation. */}
       {/* WARN: DESIGN.md § 3.5. The wrapper spans the full shell width and the composer's gutters, so without this it takes taps meant for the bubbles scrolling under it. */}
@@ -1878,7 +1890,8 @@ export function ChatRoom({
               className={cn("will-change-transform", emoticonSheetTransition)}
               style={{
                 transform:
-                  isEmoticonPanelOpen && emoticonSheet.dragTranslateY > 0
+                  (isEmoticonPanelOpen || emoticonSheet.isSettlingClose) &&
+                  emoticonSheet.dragTranslateY > 0
                     ? `translateY(${emoticonSheet.dragTranslateY}px)`
                     : undefined,
               }}

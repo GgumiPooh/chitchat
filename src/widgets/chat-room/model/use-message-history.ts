@@ -314,7 +314,10 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
       const generation = beginReplacement();
 
       try {
-        const around = await fetchMessages({ around: id });
+        const around = await fetchMessages({
+          around: id,
+          onlyMeFilter: onlyMeFilterRef.current,
+        });
 
         if (generation !== windowId.current) {
           return "superseded";

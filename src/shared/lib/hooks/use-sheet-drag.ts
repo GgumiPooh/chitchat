@@ -42,6 +42,7 @@ export function useSheetDrag({
   const [pinnedHeight, setPinnedHeight] = useState<Nullable<number>>(null);
   const [dragTranslateY, setDragTranslateY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingClose, setIsDraggingClose] = useState(false);
   const [isSettlingClose, setIsSettlingClose] = useState(false);
   const [wasOpen, setWasOpen] = useState(isOpen);
   const closeTimerRef = useRef<Nullable<ReturnType<typeof setTimeout>>>(null);
@@ -76,6 +77,7 @@ export function useSheetDrag({
         closeTimerRef.current = null;
       }
       setIsSettlingClose(false);
+      setIsDraggingClose(false);
       setSize(initialSize);
       setPinnedHeight(null);
       setDragTranslateY(0);
@@ -107,6 +109,8 @@ export function useSheetDrag({
     pinnedHeight,
     dragTranslateY,
     isDragging,
+    isDraggingClose,
+    isSettlingClose,
     collapse: () => settle("rest", expandedHeight),
     expand: () => settle("expanded", measureExpandedHeight()),
     dragProps: {
@@ -310,6 +314,7 @@ export function useSheetDrag({
   }
 
   function animateClose(targetTranslateY: number) {
+    setIsDraggingClose(true);
     setIsSettlingClose(true);
     setDragTranslateY(targetTranslateY);
     if (closeTimerRef.current) {
@@ -318,6 +323,7 @@ export function useSheetDrag({
     closeTimerRef.current = setTimeout(() => {
       closeTimerRef.current = null;
       setIsSettlingClose(false);
+      setIsDraggingClose(false);
       onClose();
     }, 200);
   }
@@ -328,6 +334,7 @@ export function useSheetDrag({
       closeTimerRef.current = null;
     }
     setIsSettlingClose(false);
+    setIsDraggingClose(false);
     gestureRef.current = null;
     releasePanDenial();
     hasDraggedRef.current = false;
