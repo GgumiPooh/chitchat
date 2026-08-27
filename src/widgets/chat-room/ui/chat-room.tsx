@@ -3974,7 +3974,8 @@ function toUnreadReaderCount(
 ): number {
   // INFO: DESIGN.md § 6.3. `mine` only — the marker says who has yet to read what I sent, and nobody is waiting on their own message.
   // INFO: REQUIREMENTS.md § 8.13. A tombstone carries no marker at all: it says nothing that could be read.
-  if (message.senderId !== currentUserId || message.isDeleted) {
+  // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — withholds the unread marker since private messages are never delivered to other participants.
+  if (message.senderId !== currentUserId || message.isDeleted || message.onlyMe) {
     return 0;
   }
 
