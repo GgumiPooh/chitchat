@@ -142,7 +142,11 @@ export function readFocusIndex(target: Nullable<EventTarget>): Optional<number> 
  * strip clipping this panel is `overflow: hidden`, which mid-collapse counts as one.
  * That is the same trap `revealActiveTab` is written by hand for.
  */
-export function focusItem(scroller: HTMLElement, index: number): boolean {
+export function focusItem(
+  scroller: HTMLElement,
+  index: number,
+  { reveal = true }: { reveal?: boolean } = {},
+): boolean {
   const item = scroller.querySelector<HTMLElement>(`[${FOCUS_INDEX_ATTRIBUTE}="${index}"]`);
 
   if (!item) {
@@ -156,7 +160,9 @@ export function focusItem(scroller: HTMLElement, index: number): boolean {
     return false;
   }
 
-  revealWithin(scroller, item);
+  if (reveal) {
+    revealWithin(scroller, item);
+  }
 
   return true;
 }

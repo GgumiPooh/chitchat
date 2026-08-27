@@ -655,10 +655,10 @@ export function EmoticonPicker({
   useLayoutEffect(() => {
     const scroller = cellScrollerRef.current;
 
-    if (scroller) {
+    if (scroller && isOpen) {
       scroller.scrollTop = 0;
     }
-  }, [activeTab]);
+  }, [activeTab, isOpen]);
 
   /**
    * REQUIREMENTS.md § 8.14. Focus into the panel when `⌃E` opened it, since a key that
@@ -1588,7 +1588,13 @@ export function EmoticonPicker({
     const scroller = cellScrollerRef.current;
 
     if (scroller && gridItemCount > 0) {
-      return focusItem(scroller, Math.min(entry.index, gridItemCount - 1));
+      if (entry.index === 0) {
+        scroller.scrollTop = 0;
+      }
+
+      return focusItem(scroller, Math.min(entry.index, gridItemCount - 1), {
+        reveal: entry.index !== 0,
+      });
     }
 
     focusWithoutPan(searchFieldRef.current);
@@ -2185,7 +2191,8 @@ function SearchPane({
     const scroller = rowRef.current;
 
     if (results.length > 0 && scroller) {
-      focusItem(scroller, 0);
+      scroller.scrollTop = 0;
+      focusItem(scroller, 0, { reveal: false });
     }
     // WARN: § 13.9. `revealedId` is deliberately not a dependency, for the reason given above it — it is cleared by a keystroke the field already has focus for. `results.length`, `rowRef` and `skipAutofocusRef` are read once `hasResolvedFocusRef` lets this branch run at all, which is the guard that makes the omission safe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
