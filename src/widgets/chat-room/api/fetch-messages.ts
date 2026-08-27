@@ -8,6 +8,8 @@ export type FetchMessagesParams = {
   before?: MessageId;
   after?: MessageId;
   around?: MessageId;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — fetch only private rows when true. */
+  onlyMeFilter?: boolean;
 };
 
 export async function fetchMessages(params: FetchMessagesParams): Promise<ChatMessage[]> {

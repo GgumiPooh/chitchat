@@ -21,12 +21,18 @@ export type ListMessagesParams = {
   limit?: number;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — a row is in the page only when it isn't one, or it is one this user sent. Omitted only by callers with no per-user viewer (there are none left; every read path threads this). */
   currentUserId?: UserId;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — when true, narrows the page to only the rows this user sent under that mode; the viewer sees exactly N visible rows rather than N rows filtered client-side. */
+  onlyMeFilter?: boolean;
 };
 
 // INFO: REQUIREMENTS.md § 16.1. `undefined` (no viewer named) excludes nothing — only used where a caller genuinely has no per-user scope.
-function isVisibleTo(currentUserId: Optional<UserId>): Optional<SQL> {
-  return currentUserId === undefined
-    ? undefined
+function isVisibleTo(currentUserId: Optional<UserId>, onlyMeFilter = false): Optional<SQL> {
+  if (currentUserId === undefined) {
+    return undefined;
+  }
+
+  return onlyMeFilter
+    ? and(eq(messages.onlyMe, true), eq(messages.senderId, currentUserId))
     : or(eq(messages.onlyMe, false), eq(messages.senderId, currentUserId));
 }
 
@@ -45,13 +51,14 @@ export async function listMessages({
   around,
   limit = MESSAGE_PAGE_SIZE,
   currentUserId,
+  onlyMeFilter = false,
 }: ListMessagesParams = {}): Promise<ChatMessage[]> {
   if (around !== undefined) {
-    return listAround(around, limit, currentUserId);
+    return listAround(around, limit, currentUserId, onlyMeFilter);
   }
 
   const db = getDb();
-  const visible = isVisibleTo(currentUserId);
+  const visible = isVisibleTo(currentUserId, onlyMeFilter);
 
   if (after !== undefined) {
     const rows = await db
@@ -78,9 +85,10 @@ async function listAround(
   target: MessageId,
   limit: number,
   currentUserId: Optional<UserId>,
+  onlyMeFilter = false,
 ): Promise<ChatMessage[]> {
   const db = getDb();
-  const visible = isVisibleTo(currentUserId);
+  const visible = isVisibleTo(currentUserId, onlyMeFilter);
   const olderCount = Math.ceil(limit / 2);
   const [older, newer] = await Promise.all([
     db

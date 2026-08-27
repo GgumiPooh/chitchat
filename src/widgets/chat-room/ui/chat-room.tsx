@@ -493,7 +493,7 @@ export function ChatRoom({
     replaceMessage,
     catchUp,
     reconcile,
-  } = useMessageHistory(initialMessages);
+  } = useMessageHistory(initialMessages, notifyMode === "onlyMe");
   // INFO: REQUIREMENTS.md § 16. The room is the only place the loaded window exists, so the offline transcript is stored from here rather than from the screen above it.
   useWriteChatSnapshot(messages, hasNewer);
   // INFO: REQUIREMENTS.md § 8.5. The composer's AI 질문 모드 — which settled messages ride along as an AI question's context.

@@ -58,10 +58,15 @@ const querySchema = z.object({
   after: afterCursorSchema,
   around: cursorSchema,
   limit: z.coerce.number().int().positive().optional(),
+  // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the client passes this when it is filtering the room to onlyMe rows, so the server returns exactly N visible rows rather than N rows the client then narrows.
+  onlyMeFilter: z
+    .enum(["true", "false"])
+    .transform((val) => val === "true")
+    .optional(),
 });
 
 // INFO: REQUIREMENTS.md § 8.10. Orthogonal to the payload, so it rides on every branch of the union below rather than forming one of its own.
-const replySchema = z.object({ 
+const replySchema = z.object({
   replyToId: snowflakeSchema<MessageId>().optional(),
   onlyMe: z.boolean().optional(),
 });
@@ -117,7 +122,7 @@ export async function GET(request: Request) {
     return apiError("invalid_request");
   }
 
-  const { before, after, around, limit } = query.data;
+  const { before, after, around, limit, onlyMeFilter } = query.data;
 
   // INFO: REQUIREMENTS.md § 13. Through the payload builder, which is what pairs the page with the emoticons its text stands in — every read path answers this one shape.
   return NextResponse.json(
@@ -128,6 +133,7 @@ export async function GET(request: Request) {
         around,
         limit: Math.min(limit ?? MESSAGE_PAGE_SIZE, MAX_MESSAGE_PAGE_SIZE),
         currentUserId: user.id,
+        onlyMeFilter,
       }),
     ),
   );
@@ -151,7 +157,7 @@ export async function POST(request: Request) {
   }
 
   const payload = body.data;
-  const onlyMe = payload.onlyMe ?? (notifyMode === "onlyMe");
+  const onlyMe = payload.onlyMe ?? notifyMode === "onlyMe";
 
   // INFO: `messages.emoticon_item_id` is a foreign key — a picker holding a list the other participant has since deleted (§ 13.6.) would otherwise send its way into a 500.
   if ("emoticonItemId" in payload && !(await getEmoticonItem(payload.emoticonItemId))) {

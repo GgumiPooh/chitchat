@@ -36,7 +36,7 @@ const OLDER_FAILURE_TOAST_ID = "chat-older-failed";
  * message id (REQUIREMENTS.md § 8.2.); the newest page arrives from the server
  * render, so opening the tab costs no client round trip.
  */
-export function useMessageHistory(initialMessages: ChatMessage[]) {
+export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter = false) {
   const [messages, setMessages] = useState(initialMessages);
   // INFO: True from the fetch starting until the page is actually in the list, which is what keeps the § 8.3. loading header up across the wait for a still scroller.
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -51,6 +51,8 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
   // INFO: A short first page cannot have more behind it, so the upward fetch is never even attempted.
   const hasOlderRef = useRef(initialMessages.length >= MESSAGE_PAGE_SIZE);
   const hasNewerRef = useRef(false);
+  const onlyMeFilterRef = useRef(onlyMeFilter);
+  onlyMeFilterRef.current = onlyMeFilter;
   // INFO: REQUIREMENTS.md § 8.2. The gap-recovery cursor. Tracked apart from the loaded window because it only ever moves forward — a delete must not walk it back and have § 8.4.'s catch-up refetch what was already seen.
   // WARN: § 8.6.1.'s jump moves the *window* into the past and leaves this alone. They are two different questions: what is on screen, and what this client has already been told about.
   // INFO: REQUIREMENTS.md § 8.4. `"0"` is the "from the start of the conversation" cursor — below every id the generator can mint.
@@ -113,7 +115,10 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     const generation = windowId.current;
 
     try {
-      const older = await fetchMessages({ before: oldest.id });
+      const older = await fetchMessages({
+        before: oldest.id,
+        onlyMeFilter: onlyMeFilterRef.current,
+      });
 
       // WARN: The page is dropped whole, `hasOlder` included — it describes history behind a window that is no longer on screen, and the replacement already cleared the header through `discardPendingOlder`.
       if (generation !== windowId.current) {
@@ -314,7 +319,10 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     const generation = windowId.current;
 
     try {
-      const newer = await fetchMessages({ after: newest.id });
+      const newer = await fetchMessages({
+        after: newest.id,
+        onlyMeFilter: onlyMeFilterRef.current,
+      });
 
       // WARN: The verdict is dropped along with the page. Writing `hasNewerRef` here after a `returnToLive` has restored the live window is what strands the room: the ref says "not live" while `hasNewer` says it is, so `receiveMessages` refuses every arrival and no pill offers a way back.
       if (generation !== windowId.current) {
@@ -371,7 +379,7 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
     setHasNewer(false);
 
     try {
-      const page = await fetchMessages({});
+      const page = await fetchMessages({ onlyMeFilter: onlyMeFilterRef.current });
       const newestId = page.at(-1)?.id ?? toId<MessageId>("0");
 
       // WARN: Both of these leave the jumped window on screen — an empty page commits nothing, and a superseded generation belongs to a jump that has already replaced it — so neither may report the live edge.
@@ -411,7 +419,7 @@ export function useMessageHistory(initialMessages: ChatMessage[]) {
         let after = newestKnownIdRef.current;
 
         for (;;) {
-          const missed = await fetchMessages({ after });
+          const missed = await fetchMessages({ after, onlyMeFilter: onlyMeFilterRef.current });
           const newest = missed.at(-1);
 
           receiveMessages(missed);
