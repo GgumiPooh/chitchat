@@ -705,30 +705,17 @@ export function ChatRoom({
   const composerTransition =
     emoticonSheet.isDragging
       ? "transition-none"
-      : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
-        ? "transition-[height,transform] duration-(--duration-sheet-expand) ease-sheet"
-        : "transition-[height,transform] duration-200 ease-out";
+      : "transition-transform duration-200 ease-out";
   const emoticonSheetTransition =
-    emoticonSheet.isDragging || emoticonSheet.isResettingAfterClose
+    emoticonSheet.isDragging
       ? "transition-none"
       : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
         ? "transition-[height,transform] duration-(--duration-sheet-expand) ease-sheet"
         : "transition-[height,transform] duration-200 ease-out";
 
-  const lastDragTranslateYRef = useRef(0);
-  if (emoticonSheet.dragTranslateY > 0) {
-    lastDragTranslateYRef.current = emoticonSheet.dragTranslateY;
-  }
   const effectiveSheetTranslateY =
-    emoticonSheet.dragTranslateY > 0
-      ? emoticonSheet.dragTranslateY
-      : emoticonSheet.isResettingAfterClose || emoticonSheet.isDraggingClose
-        ? lastDragTranslateYRef.current
-        : 0;
-  const effectiveComposerTranslateY =
-    isEmoticonPanelOpen && emoticonSheet.dragTranslateY > 0
-      ? emoticonSheet.dragTranslateY
-      : 0;
+    emoticonSheet.dragTranslateY > 0 ? emoticonSheet.dragTranslateY : 0;
+  const effectiveComposerTranslateY = 0;
 
   useEffect(() => () => clearTimeout(collapseTimerRef.current), []);
   // INFO: § 13.6. What the sheet clears the history by at rest — the spacer's height, and never more: an expanded sheet covers the composer rather than lifting it.
@@ -742,7 +729,7 @@ export function ChatRoom({
       ? `${emoticonSheet.pinnedHeight}px`
       : emoticonSheet.size === "expanded"
         ? `${emoticonSheet.expandedHeight}px`
-        : "var(--chat-composer-spacer)";
+        : emoticonSheetRestHeight;
   // WARN: REQUIREMENTS.md § 9.3. The shared element outlives every bubble that addresses it, so leaving the room has to stop it. Unlike § 13.6.'s two-second ping a recording runs for minutes, and no screen outside this one draws a transport that could pause it.
   useEffect(() => stopVoice, []);
   // WARN: REQUIREMENTS.md § 9.3. The recorder is closed by the search rather than hidden with the rest of the stack. `hidden` + `inert` leaves the microphone open with both 취소 and 완료 unreachable, and `MAX_VOICE_DURATION` then sends a recording the user walked away from two minutes earlier.
@@ -1776,11 +1763,7 @@ export function ChatRoom({
     // WARN: REQUIREMENTS.md § 12.2. No floor of its own, and it MUST NOT get one back. `ChatScreen` is `bg-chat-canvas` already, so an opaque copy here changes nothing a reader sees — but iOS 26 samples the **pixels** at the top edge rather than the `fixed` box's declared colour, and a flat `chat-canvas` covering the wallpaper's tint is what the status bar then wears for the whole session.
     <div
       ref={containerRef}
-      className={cn(
-        "relative min-h-0 flex-1 chat-clearance",
-        emoticonSheet.isDragging && "transition-none",
-        className,
-      )}
+      className={cn("relative min-h-0 flex-1 chat-clearance", className)}
       // INFO: REQUIREMENTS.md § 13.6. The spacer half of `--chat-bottom-gap` (theme.css), eased here so the composer's own spacer, the list's trailing one and the pills over it all move on the chat screen's clock.
       style={{
         ["--chat-composer-spacer" as string]: isEmoticonPanelOpen
@@ -1992,21 +1975,20 @@ export function ChatRoom({
               ref={emoticonSheetRef}
               className={cn(
                 "absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end overflow-hidden",
+                "h-(--emoticon-sheet-height)",
                 emoticonSheetTransition,
-                isEmoticonPanelOpen ? "h-(--emoticon-sheet-height)" : "h-0",
               )}
               inert={!isEmoticonPanelOpen}
               style={{
                 ["--emoticon-sheet-height" as string]: emoticonSheetHeight,
-                transform:
-                  effectiveSheetTranslateY > 0
+                transform: isEmoticonPanelOpen
+                  ? effectiveSheetTranslateY > 0
                     ? `translateY(${effectiveSheetTranslateY}px)`
-                    : undefined,
+                    : "translateY(0)"
+                  : "translateY(100%)",
               }}
             >
               {hasMountedEmoticonPanel && (
-                // WARN: `shrink-0` or the collapsing clip compresses the card instead of clipping it, and § 13.6.'s own `flex-1` scroller is what gives — the sheet then reads as stretching open rather than rising.
-                // INFO: § 13.6. Promoted to its own layer so the clip's growing edge is a compositor crop — unpromoted, every frame repaints a grid of animated images against a moving clip rect, which is what the open stutters on.
                 <div
                   className={cn(
                     "pointer-events-auto flex h-(--emoticon-sheet-height) shrink-0 flex-col rounded-t-xl border-t border-hairline bg-canvas pb-(--bottom-inset) will-change-transform",
