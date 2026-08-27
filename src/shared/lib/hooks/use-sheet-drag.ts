@@ -42,7 +42,9 @@ export function useSheetDrag({
   const [pinnedHeight, setPinnedHeight] = useState<Nullable<number>>(null);
   const [dragTranslateY, setDragTranslateY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [isSettlingClose, setIsSettlingClose] = useState(false);
   const [wasOpen, setWasOpen] = useState(isOpen);
+  const closeTimerRef = useRef<Nullable<ReturnType<typeof setTimeout>>>(null);
   const gestureRef = useRef<
     Nullable<{
       pointerId: number;
@@ -59,10 +61,21 @@ export function useSheetDrag({
   const panDenialRef =
     useRef<Nullable<{ element: HTMLElement; deny: (event: TouchEvent) => void }>>(null);
 
+  useEffect(() => () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+    }
+  }, []);
+
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen);
 
     if (isOpen) {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+      setIsSettlingClose(false);
       setSize(initialSize);
       setPinnedHeight(null);
       setDragTranslateY(0);
@@ -269,33 +282,52 @@ export function useSheetDrag({
     const closeThreshold = Math.max(threshold * 2, gesture.height * 0.5);
 
     if (size === "expanded") {
-      setDragTranslateY(0);
       setPinnedHeight(null);
 
       if (pulled < -closeThreshold) {
-        onClose();
+        animateClose(gesture.height);
       } else if (pulled < -threshold) {
+        setDragTranslateY(0);
         if (closeOnPullDownFromExpanded || initialSize === "expanded") {
-          onClose();
+          animateClose(gesture.height);
         } else {
           setSize("rest");
           blurInside();
         }
+      } else {
+        setDragTranslateY(0);
       }
     } else if (pulled > threshold) {
       setDragTranslateY(0);
       settle("expanded", gesture.max);
     } else if (pulled < -threshold) {
-      setDragTranslateY(0);
       setPinnedHeight(null);
-      onClose();
+      animateClose(gesture.height);
     } else {
       setDragTranslateY(0);
       setPinnedHeight(null);
     }
   }
 
+  function animateClose(targetTranslateY: number) {
+    setIsSettlingClose(true);
+    setDragTranslateY(targetTranslateY);
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      setIsSettlingClose(false);
+      onClose();
+    }, 200);
+  }
+
   function handleCancel() {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setIsSettlingClose(false);
     gestureRef.current = null;
     releasePanDenial();
     hasDraggedRef.current = false;

@@ -1847,10 +1847,19 @@ export function ChatRoom({
             </div>
           </div>
           <ScrollToBottomPill
-            className="absolute inset-x-0 bottom-[calc(var(--chat-bottom-gap)+var(--spacing-md))] mx-auto"
+            className={cn(
+              "absolute inset-x-0 bottom-[calc(var(--chat-bottom-gap)+var(--spacing-md))] mx-auto will-change-transform",
+              emoticonSheetTransition,
+            )}
             // WARN: § 8.6.1. A window parked around a jump target can sit at the bottom of its own scroll range while the newest message is still pages away, so the pill has to answer to the window too.
             isVisible={!isAtBottom || hasNewer}
             newMessageCount={unseenCount}
+            style={{
+              transform:
+                isEmoticonPanelOpen && emoticonSheet.dragTranslateY > 0
+                  ? `translateY(${emoticonSheet.dragTranslateY}px)`
+                  : undefined,
+            }}
             onClick={() => void goToNewest()}
           />
         </>

@@ -1,10 +1,12 @@
 import { cn } from "@/shared/lib";
 import { ChevronDown } from "lucide-react";
+import type { CSSProperties } from "react";
 
 export type ScrollToBottomPillProps = {
   className?: string;
   isVisible: boolean;
   newMessageCount: number;
+  style?: CSSProperties;
   onClick: () => void;
 };
 
@@ -16,6 +18,7 @@ export function ScrollToBottomPill({
   className,
   isVisible,
   newMessageCount,
+  style,
   onClick,
 }: ScrollToBottomPillProps) {
   const hasNewMessages = newMessageCount > 0;
@@ -28,6 +31,7 @@ export function ScrollToBottomPill({
         isVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1 opacity-0",
         className,
       )}
+      style={style}
       type="button"
       tabIndex={isVisible ? undefined : -1}
       aria-hidden={!isVisible}
