@@ -150,7 +150,7 @@ export function ChatScreen({
           <ChatSidePanel
             currentUserId={currentUserId}
             participants={participants}
-            typingUserIds={typingUserIds}
+            typingUserIds={silentSend.mode === "onlyMe" ? [] : typingUserIds}
             search={search}
             occurrences={upcoming.occurrences}
             todayKey={upcoming.todayKey}

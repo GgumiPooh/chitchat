@@ -771,7 +771,11 @@ export function ChatRoom({
     onPaste: (files) => void stageMedia(files),
   });
   // INFO: REQUIREMENTS.md § 1. Exactly two people, so the first id is the only id — a list of names would be answering a question this app cannot ask.
-  const typist = typingUserIds.length > 0 ? (participantById.get(typingUserIds[0]) ?? null) : null;
+  // WARN: REQUIREMENTS.md § 16.1. 나에게만 보내기 — withholds the other participant's typing indicator while in onlyMe mode.
+  const typist =
+    notifyMode !== "onlyMe" && typingUserIds.length > 0
+      ? (participantById.get(typingUserIds[0]) ?? null)
+      : null;
   // INFO: A generation asked from anywhere, not only this device — `useActiveGenerations` is fed by the whole conversation's `llm` channel.
   const { generations, cancelGeneration } = useActiveGenerations();
   // INFO: The advisory lock (`LLM_GENERATION_LOCK_KEY`) serializes runs server-side, so at most one entry is ever `running`; a `queued` one with nothing running yet is drawn as this room's own front of the line.
@@ -1732,9 +1736,7 @@ export function ChatRoom({
             <EmptyState
               Icon={MessageCircle}
               description={
-                activeFilterMode
-                  ? "나에게 메시지를 보내보세요"
-                  : "아직 주고받은 메시지가 없어요"
+                activeFilterMode ? "나에게 메시지를 보내보세요" : "아직 주고받은 메시지가 없어요"
               }
             />
           </div>
