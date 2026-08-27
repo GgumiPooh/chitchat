@@ -6,6 +6,7 @@ import {
   formatDate,
   formatTime,
   useIsDesktop,
+  useScrollFade,
   useSheetDrag,
   type EmoticonItemId,
   type Nullable,
@@ -47,6 +48,7 @@ export function ExpandedBodySheet({
 }: ExpandedBodySheetProps) {
   const isDesktop = useIsDesktop();
   const sheetRef = useRef<HTMLDivElement | null>(null);
+  const scrollFade = useScrollFade("to bottom");
 
   // INFO: The caller clears the body on close, and the exit animation would otherwise play over an empty header and no text — `ActionSheet` holds its own rows the same way and for the same reason.
   const [snapshot, setSnapshot] = useState(body);
@@ -135,7 +137,11 @@ export function ExpandedBodySheet({
           </button>
 
           {/* 스크롤 가능한 본문 영역 */}
-          <div className="-mx-md scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain px-md after:block after:h-[max(var(--spacing-md),env(safe-area-inset-bottom))]">
+          <div
+            ref={scrollFade.ref}
+            className="-mx-md scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain px-md after:block after:h-[max(var(--spacing-md),env(safe-area-inset-bottom))]"
+            style={scrollFade.maskStyle}
+          >
             {/* 헤더 */}
             <div className="mb-md shrink-0 space-y-2xs text-center">
               <DialogPrimitive.Title className="text-title-md text-ink">

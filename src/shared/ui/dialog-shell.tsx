@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/shared/lib";
+import { cn, useScrollFade } from "@/shared/lib";
 import type { PropsWithChildren, ReactNode } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./dialog";
 
@@ -45,6 +45,8 @@ export function DialogShell({
   onClose,
   onCloseAutoFocus,
 }: DialogShellProps) {
+  const scrollFade = useScrollFade("to bottom");
+
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
@@ -80,7 +82,13 @@ export function DialogShell({
           </DialogHeader>
         )}
         {/* WARN: `min-h-0` clears the flex item's content-based floor, or this never shrinks below `children`'s own height for `max-h` on `DialogContent` to cut into — the box would just grow past it instead of scrolling. */}
-        <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto -mx-lg px-lg pt-1 -mt-1 after:block after:h-lg">{children}</div>
+        <div 
+          ref={scrollFade.ref}
+          className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto -mx-lg px-lg pt-1 -mt-1 after:block after:h-lg"
+          style={scrollFade.maskStyle}
+        >
+          {children}
+        </div>
       </DialogContent>
     </Dialog>
   );

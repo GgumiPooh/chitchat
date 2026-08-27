@@ -243,3 +243,4 @@ export {
   withoutFragment,
   type TextSegment,
 } from "./text/url";
+export { useScrollFade } from "./use-scroll-fade";
