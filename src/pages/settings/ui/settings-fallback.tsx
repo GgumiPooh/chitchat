@@ -26,10 +26,13 @@ const THEME_SEGMENTS = <Skeleton className="h-10 w-29 shrink-0 rounded-full" />;
 const ROWS: { key: string; trailing?: ReactNode }[] = [
   { key: "profile" },
   { key: "emoticons" },
+  { key: "minis" },
   { key: "chat-background" },
+  { key: "llm-system-prompt" },
   { key: "theme", trailing: THEME_SEGMENTS },
   { key: "push", trailing: SWITCH },
   { key: "push-sound", trailing: SWITCH },
+  { key: "message-sound", trailing: SWITCH },
   { key: "typing", trailing: SWITCH },
   { key: "devices" },
   { key: "server" },

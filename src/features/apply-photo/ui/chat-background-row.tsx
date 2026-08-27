@@ -6,9 +6,9 @@ import { MediaEditor, uploadDraft, useMediaPicker } from "@/features/upload-medi
 import { BACKGROUND_MAX_EDGE, toMediaUrl } from "@/shared/config";
 import type { Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
-import { ActionSheet, PreloadImage, SettingsRow, toast } from "@/shared/ui";
-import { Image as ImageIcon, Trash2, Wallpaper } from "lucide-react";
-import { useRef, useState } from "react";
+import { PreloadImage, SettingsRow, toast } from "@/shared/ui";
+import { Wallpaper } from "lucide-react";
+import { useState } from "react";
 import { setChatBackground } from "../api/set-chat-background";
 import { usePickedPhoto } from "../model/use-picked-photo";
 
@@ -33,14 +33,11 @@ export type ChatBackgroundRowProps = {
  * claiming the photo is up, and offer 기본 배경으로 for one that no longer exists.
  */
 export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
-  const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
-  // INFO: AGENTS.md § 4.1. `ActionSheet`'s desktop anchor — the row itself, since `SettingsRow` renders no ref of its own.
-  const rowRef = useRef<HTMLDivElement>(null);
   const { isBlocked, guard } = useOfflineGate(OFFLINE_MESSAGES.change);
   const { chatBackgroundMediaId, setChatBackgroundMediaId } = useChatStream();
   const photo = usePickedPhoto();
-  // INFO: REQUIREMENTS.md § 12.2. 사진 고르기 already names one kind of file, so the row opens the OS picker itself rather than a second sheet offering the same thing again.
+  // INFO: REQUIREMENTS.md § 12.2. 사진 고르기 already names one kind of file, so the row opens the OS picker itself directly.
   const picker = useMediaPicker({
     accept: "image/*",
     onSelect: (files) => files[0] && void photo.read(files[0]),
@@ -48,48 +45,26 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
 
   return (
     <>
-      <div ref={rowRef}>
-        <SettingsRow
-          className={className}
-          label="채팅방 배경"
-          Icon={Wallpaper}
-          haptic
-          // INFO: The row is the only surface still on screen while a photo is read and uploaded — the sheet closed itself at the tap and the editor comes down at 완료 — so it says so rather than sitting unchanged for several seconds.
-          description={toDescription()}
-          // INFO: Both of the sheet's items write — one uploads, the other clears the shared row — so opening it offline is a sheet of two dead ends.
-          isUnavailable={isBlocked}
-          trailing={
-            chatBackgroundMediaId && (
-              <PreloadImage
-                className="size-11 overflow-hidden rounded-sm"
-                imgClassName="size-full object-cover"
-                src={toMediaUrl(chatBackgroundMediaId)}
-                alt=""
-              />
-            )
-          }
-          onClick={guard(() => setIsActionsOpen(true))}
-        />
-      </div>
-      <ActionSheet
-        isOpen={isActionsOpen && !isBusy}
-        anchorRef={rowRef}
-        // INFO: REQUIREMENTS.md § 12.2. The last surface before the change lands, and the only one that can say what the change reaches. The row below states the shared *state*; this states the shared *consequence*.
-        header={{ title: "채팅방 배경", description: "상대방 화면의 배경도 같이 바뀌어요" }}
-        items={[
-          { label: "사진 고르기", Icon: ImageIcon, onSelect: picker.open },
-          ...(chatBackgroundMediaId
-            ? [
-                {
-                  label: "기본 배경으로",
-                  Icon: Trash2,
-                  variant: "destructive" as const,
-                  onSelect: () => void reset(),
-                },
-              ]
-            : []),
-        ]}
-        onClose={() => setIsActionsOpen(false)}
+      <SettingsRow
+        className={className}
+        label="채팅방 배경"
+        Icon={Wallpaper}
+        haptic
+        // INFO: The row is the only surface still on screen while a photo is read and uploaded — the sheet closed itself at the tap and the editor comes down at 완료 — so it says so rather than sitting unchanged for several seconds.
+        description={toDescription()}
+        // INFO: Both of the sheet's items write — one uploads, the other clears the shared row — so opening it offline is a sheet of two dead ends.
+        isUnavailable={isBlocked}
+        trailing={
+          chatBackgroundMediaId && (
+            <PreloadImage
+              className="size-11 overflow-hidden rounded-sm"
+              imgClassName="size-full object-cover"
+              src={toMediaUrl(chatBackgroundMediaId)}
+              alt=""
+            />
+          )
+        }
+        onClick={guard(picker.open)}
       />
       {picker.input}
       {photo.cropping && (
@@ -158,7 +133,6 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
     const backgroundMediaId = await setChatBackground(media);
 
     setChatBackgroundMediaId(backgroundMediaId);
-    setIsActionsOpen(false);
     // INFO: § 12.2. Named for what actually happened. 되돌렸어요 alone would read as undoing a change this user made, when clearing it takes the wallpaper off the other participant's screen too.
     toast.success(
       backgroundMediaId
