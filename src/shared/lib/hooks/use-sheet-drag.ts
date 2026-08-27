@@ -259,9 +259,13 @@ export function useSheetDrag({
 
     const pulled = gesture.y - event.clientY;
     const threshold = gesture.height * snapShare;
+    // INFO: When expanded, dragging down past half the sheet or more than twice the collapse threshold closes the sheet directly.
+    const closeThreshold = Math.max(threshold * 2, gesture.height * 0.5);
 
     if (size === "expanded") {
-      if (pulled < -threshold) {
+      if (pulled < -closeThreshold) {
+        onClose();
+      } else if (pulled < -threshold) {
         if (closeOnPullDownFromExpanded || initialSize === "expanded") {
           // WARN: Do NOT reset dragTranslateY here — the CSS keyframe from Radix's
           // data-[state=closed] slide-out-to-bottom overrides the inline transform, so
