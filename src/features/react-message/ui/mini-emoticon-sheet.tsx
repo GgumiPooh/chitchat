@@ -192,6 +192,7 @@ export function MiniEmoticonSheet({
       snapPoints={["380px", 1]}
       activeSnapPoint={snapPoint}
       setActiveSnapPoint={setSnapPoint}
+      scrollRef={scrollContainerRef}
       header={{
         title: "리액션",
         isHidden: true,
@@ -199,26 +200,22 @@ export function MiniEmoticonSheet({
       onClose={onClose}
     >
       <div
-        ref={scrollContainerRef}
-        className="relative scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        className="relative w-full pb-6"
+        style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
       >
-        <div
-          className="relative w-full pb-6"
-          style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
-        >
-          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-            const row = virtualRows[virtualRow.index];
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const row = virtualRows[virtualRow.index];
 
-            return (
-              <div
-                key={row.id}
-                ref={rowVirtualizer.measureElement}
-                className="absolute top-0 left-0 w-full"
-                data-index={virtualRow.index}
-                style={{
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              >
+          return (
+            <div
+              key={row.id}
+              ref={rowVirtualizer.measureElement}
+              className="absolute top-0 left-0 w-full"
+              data-index={virtualRow.index}
+              style={{
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
                 {row.type === "header" && (
                   <div className="pt-3 pb-1">
                     <h3 className="px-1 text-body-sm text-meta">{row.title}</h3>
@@ -323,10 +320,9 @@ export function MiniEmoticonSheet({
             );
           })}
         </div>
-      </div>
-    </BottomSheet>
-  );
-}
+      </BottomSheet>
+    );
+  }
 
 function MiniEmoticonCellButton({
   item,
