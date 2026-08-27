@@ -38,6 +38,7 @@ export function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onOpenAutoFocus,
   ...props
 }: ComponentProps<typeof DialogPrimitive.Content> & { showCloseButton?: boolean }) {
   return (
@@ -53,6 +54,13 @@ export function DialogContent({
           "fixed top-[calc(var(--keyboard-pan)_+_var(--viewport-height,100dvh)_/_2)] left-[calc(var(--content-left)_+_(100%_-_var(--content-left))_/_2)] z-50 flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--spacing-xl))] -translate-x-1/2 -translate-y-1/2 flex-col gap-md overflow-hidden rounded-lg border border-hairline bg-canvas px-lg pt-lg shadow-floating duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}
+        onOpenAutoFocus={(event) => {
+          if (onOpenAutoFocus) {
+            onOpenAutoFocus(event);
+          } else {
+            event.preventDefault();
+          }
+        }}
         {...props}
       >
         {children}

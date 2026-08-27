@@ -367,6 +367,7 @@ export function MiniEmoticonSheet({
                   : "380px",
             transform: dragTranslateY > 0 ? `translateY(${dragTranslateY}px)` : undefined,
           }}
+          onOpenAutoFocus={(event) => event.preventDefault()}
           {...dragProps}
         >
           <DialogPrimitive.Title className="sr-only">리액션</DialogPrimitive.Title>

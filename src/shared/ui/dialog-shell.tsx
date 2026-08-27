@@ -20,6 +20,7 @@ export type DialogShellProps = PropsWithChildren<{
   };
   onClose: () => void;
   onCloseAutoFocus?: (event: Event) => void;
+  onOpenAutoFocus?: (event: Event) => void;
 }>;
 
 // INFO: DESIGN.md § 7.4. `lg` is the sheet's own width — what a `BottomSheet` becomes at `md` keeps the column it was drawn for.
@@ -44,6 +45,7 @@ export function DialogShell({
   children,
   onClose,
   onCloseAutoFocus,
+  onOpenAutoFocus,
 }: DialogShellProps) {
   const { maskStyle, scrollRef } = useScrollFade("to bottom");
 
@@ -57,6 +59,7 @@ export function DialogShell({
         )}
         showCloseButton={!hideCloseButton}
         onCloseAutoFocus={onCloseAutoFocus}
+        onOpenAutoFocus={onOpenAutoFocus}
       >
         {/* WARN: `pr-11` reserves the close button's own 44px box, so the action lands left of it rather than under it — and it is dropped with the button, or the corner grows a hole where nothing is drawn. */}
         {header.action && (

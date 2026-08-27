@@ -17,6 +17,8 @@ export type ModalProps = PropsWithChildren<{
     action?: ReactNode;
   };
   onClose: () => void;
+  onCloseAutoFocus?: (event: Event) => void;
+  onOpenAutoFocus?: (event: Event) => void;
 }>;
 
 export function Modal({
@@ -28,6 +30,8 @@ export function Modal({
   header,
   children,
   onClose,
+  onCloseAutoFocus,
+  onOpenAutoFocus,
 }: ModalProps) {
   return (
     <DialogShell
@@ -38,6 +42,8 @@ export function Modal({
       size={size}
       header={header}
       onClose={onClose}
+      onCloseAutoFocus={onCloseAutoFocus}
+      onOpenAutoFocus={onOpenAutoFocus}
     >
       {children}
     </DialogShell>

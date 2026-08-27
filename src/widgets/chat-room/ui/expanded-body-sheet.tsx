@@ -125,6 +125,7 @@ export function ExpandedBodySheet({
                   : "calc(var(--viewport-height,100dvh) - var(--header-height,56px) - var(--spacing-sm))",
             transform: dragTranslateY > 0 ? `translateY(${dragTranslateY}px)` : undefined,
           }}
+          onOpenAutoFocus={(event) => event.preventDefault()}
           {...dragProps}
         >
           {/* 상단 드래그 & 닫기 손잡이 */}

@@ -37,6 +37,7 @@ export function DrawerOverlay({
 export function DrawerContent({
   className,
   children,
+  onOpenAutoFocus,
   ...props
 }: ComponentProps<typeof DrawerPrimitive.Content>) {
   return (
@@ -49,6 +50,13 @@ export function DrawerContent({
           "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 flex h-auto flex-col",
           className,
         )}
+        onOpenAutoFocus={(event) => {
+          if (onOpenAutoFocus) {
+            onOpenAutoFocus(event);
+          } else {
+            event.preventDefault();
+          }
+        }}
         {...props}
       >
         {children}
