@@ -84,7 +84,10 @@ export function ExpandedBodySheet({
   if (isDesktop) {
     return (
       <Modal
-        className={cn("w-[min(var(--content-max-width,720px),100%-var(--spacing-xl))]", className)}
+        className={cn(
+          "w-[calc(100%_-_var(--content-left)_-_var(--spacing-xl))] max-w-[var(--content-max-width,720px)]",
+          className,
+        )}
         isOpen={isOpen}
         size="lg"
         header={{
@@ -109,7 +112,7 @@ export function ExpandedBodySheet({
         <DialogPrimitive.Content
           ref={sheetRef}
           className={cn(
-            "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 mx-auto mb-sm flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))] w-[calc(100%_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas pt-md px-md shadow-floating focus:outline-none data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom",
+            "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 mx-auto mb-sm flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))] w-[calc(100%_-_var(--content-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas pt-md px-md shadow-floating focus:outline-none data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom",
             isDragging ? "transition-none!" : "transition-[height] duration-200 ease-out",
             className,
           )}
