@@ -695,8 +695,8 @@ export function ChatRoom({
   const emoticonSheetTransition = emoticonSheet.isDragging
     ? "transition-none"
     : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
-      ? "transition-[height] duration-(--duration-sheet-expand) ease-sheet"
-      : "transition-[height] duration-200 ease-out";
+      ? "transition-[height,transform] duration-(--duration-sheet-expand) ease-sheet"
+      : "transition-[height,transform] duration-200 ease-out";
 
   useEffect(() => () => clearTimeout(collapseTimerRef.current), []);
   // INFO: § 13.6. What the sheet clears the history by at rest — the spacer's height, and never more: an expanded sheet covers the composer rather than lifting it.
@@ -1929,8 +1929,14 @@ export function ChatRoom({
                   emoticonSheetTransition,
                   isEmoticonPanelOpen ? "h-(--emoticon-sheet-height)" : "h-0",
                 )}
-                style={{ ["--emoticon-sheet-height" as string]: emoticonSheetHeight }}
                 inert={!isEmoticonPanelOpen}
+                style={{
+                  ["--emoticon-sheet-height" as string]: emoticonSheetHeight,
+                  transform:
+                    emoticonSheet.dragTranslateY > 0
+                      ? `translateY(${emoticonSheet.dragTranslateY}px)`
+                      : undefined,
+                }}
               >
                 {hasMountedEmoticonPanel && (
                   // WARN: `shrink-0` or the collapsing clip compresses the card instead of clipping it, and § 13.6.'s own `flex-1` scroller is what gives — the sheet then reads as stretching open rather than rising.
