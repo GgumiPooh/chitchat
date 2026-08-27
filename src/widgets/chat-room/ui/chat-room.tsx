@@ -1769,7 +1769,7 @@ export function ChatRoom({
       ref={containerRef}
       className={cn(
         "relative min-h-0 flex-1 chat-clearance",
-        (emoticonSheet.isDragging || emoticonSheet.isDraggingClose) && "transition-none",
+        emoticonSheet.isDragging && "transition-none",
         className,
       )}
       // INFO: REQUIREMENTS.md § 13.6. The spacer half of `--chat-bottom-gap` (theme.css), eased here so the composer's own spacer, the list's trailing one and the pills over it all move on the chat screen's clock.
@@ -1877,15 +1877,14 @@ export function ChatRoom({
           <ScrollToBottomPill
             className={cn(
               "absolute inset-x-0 bottom-[calc(var(--chat-bottom-gap)+var(--spacing-md))] mx-auto will-change-transform",
-              emoticonSheetTransition,
+              composerTransition,
             )}
             // WARN: § 8.6.1. A window parked around a jump target can sit at the bottom of its own scroll range while the newest message is still pages away, so the pill has to answer to the window too.
             isVisible={!isAtBottom || hasNewer}
             newMessageCount={unseenCount}
             style={{
               transform:
-                (isEmoticonPanelOpen || emoticonSheet.isSettlingClose) &&
-                emoticonSheet.dragTranslateY > 0
+                isEmoticonPanelOpen && emoticonSheet.dragTranslateY > 0
                   ? `translateY(${emoticonSheet.dragTranslateY}px)`
                   : undefined,
             }}
@@ -1912,8 +1911,7 @@ export function ChatRoom({
               className={cn("will-change-transform", composerTransition)}
               style={{
                 transform:
-                  (isEmoticonPanelOpen || emoticonSheet.isSettlingClose) &&
-                  emoticonSheet.dragTranslateY > 0
+                  isEmoticonPanelOpen && emoticonSheet.dragTranslateY > 0
                     ? `translateY(${emoticonSheet.dragTranslateY}px)`
                     : undefined,
               }}
