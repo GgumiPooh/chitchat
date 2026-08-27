@@ -3,7 +3,7 @@ import "server-only";
 import { MESSAGE_PAGE_SIZE } from "@/shared/config";
 import { getDb, messages, type Message } from "@/shared/db";
 import type { EmoticonItemId, MessageId, Optional, UserId } from "@/shared/lib";
-import { and, asc, desc, eq, gt, lt, lte, or, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, lte, type SQL } from "drizzle-orm";
 import { toChatMessage } from "../model/to-chat-message";
 import type { ChatMessage } from "../model/types";
 import { listMessageEmoticons } from "./list-message-emoticons";
@@ -33,7 +33,7 @@ function isVisibleTo(currentUserId: Optional<UserId>, onlyMeFilter = false): Opt
 
   return onlyMeFilter
     ? and(eq(messages.onlyMe, true), eq(messages.senderId, currentUserId))
-    : or(eq(messages.onlyMe, false), eq(messages.senderId, currentUserId));
+    : eq(messages.onlyMe, false);
 }
 
 /**
