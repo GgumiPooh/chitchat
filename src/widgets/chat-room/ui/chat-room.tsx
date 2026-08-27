@@ -1746,7 +1746,7 @@ export function ChatRoom({
       {chatBackgroundMediaId && (
         <ChatBackdrop mediaId={chatBackgroundMediaId} blurhash={chatBackgroundBlurhash} />
       )}
-      {isSwitchingMode ? (
+      {isSwitchingMode || activeFilterMode !== (notifyMode === "onlyMe") ? (
         <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">
           <LoaderCircle className="size-6 animate-spin text-meta-soft" />
         </div>
