@@ -1732,13 +1732,17 @@ export function ChatRoom({
       {chatBackgroundMediaId && (
         <ChatBackdrop mediaId={chatBackgroundMediaId} blurhash={chatBackgroundBlurhash} />
       )}
-      {rows.length === 0 ? (
+      {isSwitchingMode ? (
+        <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">
+          <LoaderCircle className="size-6 animate-spin text-meta-soft" />
+        </div>
+      ) : rows.length === 0 ? (
         <>
           <div className="absolute inset-0 flex items-center justify-center p-md pb-(--chat-bottom-gap)">
             <EmptyState
               Icon={MessageCircle}
               description={
-                activeFilterMode ? "나에게 메시지를 보내보세요" : "아직 주고받은 메시지가 없어요"
+                activeFilterMode ? "나에게 메시지를 보내보세요" : "보관된 메시지가 없어요"
               }
             />
           </div>

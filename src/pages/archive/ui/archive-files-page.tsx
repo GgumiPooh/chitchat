@@ -133,7 +133,7 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
         {!selection.isSelecting && <LibrarySegments className="pb-sm lg:hidden" />}
         {media.length === 0 && staging.remainingCount === 0 ? (
           <div className="flex flex-1 items-center justify-center">
-            <EmptyState Icon={Files} description="아직 주고받은 파일이 없어요" />
+            <EmptyState Icon={Files} description="보관된 파일이 없어요" />
           </div>
         ) : (
           <div className="space-y-sm">

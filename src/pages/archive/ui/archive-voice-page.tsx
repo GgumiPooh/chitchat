@@ -124,7 +124,7 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
         {!selection.isSelecting && <LibrarySegments className="pb-sm lg:hidden" />}
         {media.length === 0 && staging.remainingCount === 0 ? (
           <div className="flex flex-1 items-center justify-center">
-            <EmptyState Icon={AudioLines} description="아직 주고받은 음성이 없어요" />
+            <EmptyState Icon={AudioLines} description="보관된 음성이 없어요" />
           </div>
         ) : (
           <div className="space-y-sm">
