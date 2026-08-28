@@ -88,10 +88,14 @@ export function UpcomingCard({
 
     pendingFrom.current = null;
 
-    const top = row.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+    // WARN: Clamped by hand — iOS WebKit's smooth scroll takes a target past the end literally and parks the list rubber-banded there until the next touch scroll.
+    const top = Math.min(
+      row.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop,
+      list.scrollHeight - list.clientHeight,
+    );
 
     // INFO: REQUIREMENTS.md § 11.5.1. The arriving row is put at the top edge, with no inset held back for the one before it — the page the reader asked for is what the list should be showing.
-    // WARN: A page arrives at the **end** of the list, so this is already the maximum scroll and the browser clamps it. Nothing may be added past it expecting to travel further.
+    // WARN: A page arrives at the **end** of the list, so this is already the maximum scroll. Nothing may be added past it expecting to travel further.
     // INFO: DESIGN.md § 4.7. Reduced motion keeps the destination and drops the travel, which is the one thing here that is motion for its own sake.
     list.scrollTo({
       top,

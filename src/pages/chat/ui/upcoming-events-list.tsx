@@ -65,7 +65,11 @@ export function UpcomingEventsList({
 
     pendingFrom.current = null;
 
-    const top = row.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+    // WARN: Clamped by hand — iOS WebKit's smooth scroll takes a target past the end literally and parks the list rubber-banded there until the next touch scroll.
+    const top = Math.min(
+      row.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop,
+      list.scrollHeight - list.clientHeight,
+    );
 
     list.scrollTo({
       top,
