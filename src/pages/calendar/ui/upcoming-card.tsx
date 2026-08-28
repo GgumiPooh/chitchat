@@ -41,6 +41,8 @@ export function UpcomingCard({
   const moreRef = useRef<HTMLButtonElement>(null);
   // INFO: The 더 보기 row's height while it is standing, so the list can take that height over the moment it goes.
   const standingMoreHeight = useRef(0);
+  // INFO: Raised while the absorbed height is scheduled and not yet laid out, so the scroll below waits for the box it will be clamped against.
+  const isAbsorbing = useRef(false);
   // INFO: REQUIREMENTS.md § 11.5.1. The list's own height at the moment of the first 더 보기, held from then on.
   const [lockedHeight, setLockedHeight] = useState<Nullable<number>>(null);
 
@@ -66,15 +68,23 @@ export function UpcomingCard({
     standingMoreHeight.current = 0;
 
     // INFO: Only while pinned. Unpinned the section is already sized to its rows, and the count changing is what took the button away — there is no press to hold the screen still for.
-    setLockedHeight((current) =>
-      current === null || absorbed === 0 ? current : current + absorbed,
-    );
-  }, [hasMore]);
+    if (lockedHeight === null || absorbed === 0) {
+      return;
+    }
+
+    isAbsorbing.current = true;
+    setLockedHeight(lockedHeight + absorbed);
+  }, [hasMore, lockedHeight]);
+
+  useLayoutEffect(() => {
+    isAbsorbing.current = false;
+  }, [lockedHeight]);
 
   // WARN: Held until the page has actually landed. `limit` steps on the press and reveals the one row already in hand, so the list grows by **one** first — moved on that render the scroll is computed against a list a page short, clamps to its bottom, and the rows that follow arrive under a reader who has been left where they started.
   // INFO: The row to move to is fixed at the press, and the ref is cleared on use — a refresh landing later also grows the list and must not scroll the reader a second time.
+  // WARN: Held once more while the button's height is being absorbed. React flushes this effect before the sync re-render the layout effect above schedules, so read then the box is a button row short and the clamp lets a target past the final end through — which iOS WebKit's smooth scroll parks rubber-banded.
   useEffect(() => {
-    if (isLoadingMore) {
+    if (isLoadingMore || isAbsorbing.current) {
       return;
     }
 
@@ -101,7 +111,7 @@ export function UpcomingCard({
       top,
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
     });
-  }, [isLoadingMore, occurrences.length]);
+  }, [isLoadingMore, occurrences.length, lockedHeight]);
 
   return (
     <UpcomingSection className={className}>
