@@ -58,10 +58,11 @@ const timeFieldFormatter = new Intl.DateTimeFormat("en-GB", {
   timeZone: TIME_ZONE,
 });
 
-const timeFormatter = new Intl.DateTimeFormat(LOCALE, {
-  hour: "numeric",
+// WARN: Not `hour12: true` — node:22-alpine's ICU spells `ko-KR`'s day period `AM`, browsers spell it `오전`, and the two hydrate as a text mismatch.
+const timePartsFormatter = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
   minute: "2-digit",
-  hour12: true,
+  hourCycle: "h23",
   timeZone: TIME_ZONE,
 });
 
@@ -87,7 +88,10 @@ export function formatYearMonth(date: Date | number | string): string {
 
 /** `오후 3:24` — the timestamp beside a bubble (DESIGN.md § 6.3.). */
 export function formatTime(date: Date | number | string): string {
-  return timeFormatter.format(new Date(date));
+  const [hour, minute] = timePartsFormatter.format(new Date(date)).split(":").map(Number);
+  const period = hour < 12 ? "오전" : "오후";
+
+  return `${period} ${hour % 12 || 12}:${minute.toString().padStart(2, "0")}`;
 }
 
 /**
