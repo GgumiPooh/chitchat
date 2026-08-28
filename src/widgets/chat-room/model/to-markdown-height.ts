@@ -5,9 +5,19 @@ import {
   type FontSpec,
   type InlineRun,
   type LineProbe,
+  type Optional,
 } from "@/shared/lib";
 import { MARKDOWN_PLUGINS } from "@/shared/ui";
-import type { Heading, List, PhrasingContent, Root, RootContent, Table, TableRow } from "mdast";
+import type {
+  FootnoteDefinition,
+  Heading,
+  List,
+  PhrasingContent,
+  Root,
+  RootContent,
+  Table,
+  TableRow,
+} from "mdast";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
@@ -60,6 +70,9 @@ export const MARKDOWN_LINE_CLASSES: LineProbe[] = [
 // INFO: `[&_code]:px-2xs` and the hairline each side — an inline `code` box is that much wider than the characters in it, and its `py-px` adds no height, an inline box's padding never growing the line.
 const INLINE_CODE_EXTRA = (SPACING_2XS + HAIRLINE) * 2;
 
+// INFO: Preflight's `sup { font-size: 75%; line-height: 0 }` — a footnote marker takes three quarters of the width and none of the height.
+const SUP_RATIO = 0.75;
+
 // INFO: `[&_pre]:p-sm` and its hairline. The block never wraps — `overflow-x-auto` scrolls it instead — so its own lines are the source's, counted rather than laid out.
 const CODE_BLOCK_PADDING = SPACING_SM * 2 + HAIRLINE * 2;
 
@@ -82,6 +95,26 @@ const TREE_CACHE_LIMIT = 200;
 const trees = new Map<string, Root>();
 
 const processor = unified().use(remarkParse).use(MARKDOWN_PLUGINS);
+
+/**
+ * One footnote as `remark-gfm` will render it.
+ *
+ * WARN: `number` is the order the **references** appear in and not the identifier — `[^b]`
+ * ahead of `[^a]` prints `1`, and it is that digit the `sup` draws.
+ */
+type Footnote = {
+  number: number;
+  /** How many references point at it, which is how many `↩` backrefs its item carries. */
+  references: number;
+  definition: Optional<FootnoteDefinition>;
+};
+
+/** What a block cannot read off its own node: the resolved family, and the numbering `remark-gfm` resolves document-wide. */
+type MarkdownContext = {
+  fontFamily: string;
+  /** INFO: Keyed by the uppercased identifier, exactly as `mdast-util-to-hast` keys its own map. */
+  footnotes: ReadonlyMap<string, Footnote>;
+};
 
 /** One rendered block, and the margins that collapse against its siblings' rather than adding to them. */
 type Box = {
@@ -117,7 +150,11 @@ export function toMarkdownHeight(text: string, width: number, fontFamily: string
   }
 
   const available = Math.max(width, BODY_SIZE);
-  const flow = toSpacedStack(toBoxes(toTree(text).children, available, fontFamily));
+  const tree = toTree(text);
+  const context: MarkdownContext = { fontFamily, footnotes: toFootnotes(tree) };
+  const boxes = toBoxes(tree.children, available, context);
+  const footnotes = toFootnotesBox(available, context);
+  const flow = toSpacedStack(footnotes ? [...boxes, footnotes] : boxes);
 
   // INFO: The bubble's `py-xs` is padding, so nothing collapses through it — the flow's own end margins stand inside it.
   return flow.leading + flow.height + flow.trailing;
@@ -142,6 +179,81 @@ function toTree(text: string): Root {
   trees.set(text, tree);
 
   return tree;
+}
+
+/**
+ * The footnotes `remark-gfm` will render, keyed as `mdast-util-to-hast` keys them.
+ *
+ * WARN: A footnote is numbered by where its **reference** stands rather than by where it
+ * was defined, and a definition nothing references is dropped entirely. The order is the
+ * order the references are *rendered* in: the body's first, and then, in that same
+ * order, whatever each called definition's own text cites — a definition's body is only
+ * rendered inside the footer, after every reference in the body has been numbered.
+ */
+function toFootnotes(tree: Root): Map<string, Footnote> {
+  const definitions = new Map<string, FootnoteDefinition>();
+  const footnotes = new Map<string, Footnote>();
+  const order: string[] = [];
+
+  const reference = (id: string) => {
+    const found = footnotes.get(id);
+
+    if (found) {
+      found.references += 1;
+
+      return;
+    }
+
+    order.push(id);
+    footnotes.set(id, { number: order.length, references: 1, definition: undefined });
+  };
+
+  walk(tree, (node) => {
+    if (node.type === "footnoteDefinition") {
+      // INFO: The first definition of an identifier wins, exactly as a link definition's does.
+      if (!definitions.has(node.identifier.toUpperCase())) {
+        definitions.set(node.identifier.toUpperCase(), node);
+      }
+
+      return false;
+    }
+
+    if (node.type === "footnoteReference") {
+      reference(node.identifier.toUpperCase());
+    }
+
+    return true;
+  });
+
+  // INFO: `order` grows under the loop, exactly as `footer`'s does — a definition citing a footnote nobody in the body did appends it.
+  for (let index = 0; index < order.length; index += 1) {
+    const footnote = footnotes.get(order[index])!;
+
+    footnote.definition = definitions.get(order[index]);
+
+    for (const child of footnote.definition?.children ?? []) {
+      walk(child, (node) => {
+        if (node.type === "footnoteReference") {
+          reference(node.identifier.toUpperCase());
+        }
+
+        return node.type !== "footnoteDefinition";
+      });
+    }
+  }
+
+  return footnotes;
+}
+
+/** Pre-order, descending into a node's children only where `visit` answers `true`. */
+function walk(node: Root | RootContent, visit: (node: Root | RootContent) => boolean): void {
+  if (!visit(node) || !("children" in node)) {
+    return;
+  }
+
+  for (const child of node.children) {
+    walk(child, visit);
+  }
 }
 
 /**
@@ -185,30 +297,30 @@ function toSpacedStack(boxes: Box[]): Flow {
   return toStack(boxes);
 }
 
-function toFlow(nodes: readonly RootContent[], width: number, fontFamily: string): Flow {
-  return toStack(toBoxes(nodes, width, fontFamily));
+function toFlow(nodes: readonly RootContent[], width: number, context: MarkdownContext): Flow {
+  return toStack(toBoxes(nodes, width, context));
 }
 
-function toBoxes(nodes: readonly RootContent[], width: number, fontFamily: string): Box[] {
-  return nodes.map((node) => toBox(node, width, fontFamily)).filter((box) => box !== null);
+function toBoxes(nodes: readonly RootContent[], width: number, context: MarkdownContext): Box[] {
+  return nodes.map((node) => toBox(node, width, context)).filter((box) => box !== null);
 }
 
 const EMPTY_FLOW: Flow = { height: 0, leading: 0, trailing: 0 };
 
 /**
  * INFO: `null` for a node that renders nothing at all — `react-markdown` carries no `rehype-raw`, so raw HTML and link definitions reach the DOM as no element, and a `:first-child` heading after one is still first.
- * TODO: A GFM footnote definition renders a section this returns nothing for. Nothing in the app emits one — REQUIREMENTS.md § 8.15.'s answers are prose — and pricing it means a second block flow plus the backlink row.
+ * INFO: A `footnoteDefinition` is one of those **in place**: `mdast-util-to-hast` moves every called one into the trailing section `toFootnotesBox` prices.
  */
 function toLineHeights(value: string): number {
   return value ? value.split("\n").length * LINE.body() : 0;
 }
 
-function toBox(node: RootContent, width: number, fontFamily: string): Box | null {
+function toBox(node: RootContent, width: number, context: MarkdownContext): Box | null {
   switch (node.type) {
     case "paragraph":
-      return toTextBox(node.children, width, toBodyFont(fontFamily), true);
+      return toTextBox(node.children, width, toBodyFont(context.fontFamily), true, context);
     case "heading":
-      return toHeadingBox(node, width, fontFamily);
+      return toHeadingBox(node, width, context);
     case "thematicBreak":
       // INFO: Preflight gives `hr` its whole height from the `border-t`, and `[&_hr]:my-xs!` overrides the block gap on both of its sides.
       return { height: HAIRLINE, marginTop: RULE_MARGIN, marginBottom: RULE_MARGIN };
@@ -219,17 +331,23 @@ function toBox(node: RootContent, width: number, fontFamily: string): Box | null
         height: toLineHeights(node.value) + CODE_BLOCK_PADDING,
       };
     case "blockquote":
-      return toContainerBox(toFlow(node.children, width - QUOTE_INDENT, fontFamily));
+      return toContainerBox(toFlow(node.children, width - QUOTE_INDENT, context));
     // WARN: Not nothing. `react-markdown` ships no `rehype-raw`, so an HTML node is written into the wrapper as **escaped text** — an anonymous box of ordinary body text, in the wrapper's own `normal` whitespace rather than a `<p>`'s `pre-wrap`.
     case "html":
       return {
-        ...toTextBox([{ type: "text", value: node.value }], width, toBodyFont(fontFamily), false),
+        ...toTextBox(
+          [{ type: "text", value: node.value }],
+          width,
+          toBodyFont(context.fontFamily),
+          false,
+          context,
+        ),
         isAnonymous: true,
       };
     case "list":
-      return toListBox(node, width, fontFamily);
+      return toListBox(node, width, context);
     case "table":
-      return { ...NO_MARGIN, height: toTableHeight(node, width, fontFamily) };
+      return { ...NO_MARGIN, height: toTableHeight(node, width, context) };
     default:
       return null;
   }
@@ -248,13 +366,14 @@ function toContainerBox({ height, leading, trailing }: Flow): Box | null {
     : { height, marginTop: leading, marginBottom: trailing };
 }
 
-function toHeadingBox(heading: Heading, width: number, fontFamily: string): Box {
+function toHeadingBox(heading: Heading, width: number, context: MarkdownContext): Box {
   const line = heading.depth === 1 ? LINE.h1() : heading.depth === 2 ? LINE.h2() : LINE.body();
   const box = toTextBox(
     heading.children,
     width,
-    toHeadingFont(heading.depth, fontFamily),
+    toHeadingFont(heading.depth, context.fontFamily),
     true,
+    context,
     line,
   );
 
@@ -267,7 +386,7 @@ function toHeadingBox(heading: Heading, width: number, fontFamily: string): Box 
  * `whitespace-pre-wrap` — so the same item's newlines are line breaks in a loose list and
  * collapse to spaces in a tight one.
  */
-function toListBox(list: List, width: number, fontFamily: string): Box | null {
+function toListBox(list: List, width: number, context: MarkdownContext): Box | null {
   const isLoose = list.spread || list.children.some((item) => item.spread);
   const inner = width - LIST_INDENT;
   const items = list.children
@@ -276,8 +395,8 @@ function toListBox(list: List, width: number, fontFamily: string): Box | null {
         item.children
           .map((node) =>
             !isLoose && node.type === "paragraph"
-              ? toTextBox(node.children, inner, toBodyFont(fontFamily), false)
-              : toBox(node, inner, fontFamily),
+              ? toTextBox(node.children, inner, toBodyFont(context.fontFamily), false, context)
+              : toBox(node, inner, context),
           )
           .filter((box) => box !== null),
       ),
@@ -290,12 +409,78 @@ function toListBox(list: List, width: number, fontFamily: string): Box | null {
 }
 
 /**
+ * DESIGN.md § 6.11. The `section` `remark-gfm` appends to an answer that cites a footnote.
+ *
+ * WARN: Its `h2` is `sr-only` and so out of flow, which leaves the section exactly as tall
+ * as the `ol` inside it — an `ol` the `[&_ol]` utilities style like any other.
+ */
+function toFootnotesBox(width: number, context: MarkdownContext): Box | null {
+  const items = [...context.footnotes.values()]
+    .map((footnote) => toFootnoteItemBox(footnote, width - LIST_INDENT, context))
+    .filter((box) => box !== null);
+
+  return items.length === 0 ? null : toContainerBox(toSpacedStack(items));
+}
+
+/**
+ * WARN: The `↩` backrefs go **inside** the item's last paragraph where it has one and
+ * stand as a line of their own where it does not — `mdast-util-to-hast`'s own two
+ * branches, and the difference is a whole line.
+ */
+function toFootnoteItemBox(
+  { definition, references }: Footnote,
+  width: number,
+  context: MarkdownContext,
+): Box | null {
+  if (!definition) {
+    return null;
+  }
+
+  const font = toBodyFont(context.fontFamily);
+  const last = definition.children.length - 1;
+  const isTailParagraph = definition.children[last]?.type === "paragraph";
+  const boxes = definition.children
+    .map((node, index) =>
+      index === last && node.type === "paragraph"
+        ? toTextBox(
+            node.children,
+            width,
+            font,
+            true,
+            context,
+            LINE.body(),
+            toBackrefRuns(references, font),
+          )
+        : toBox(node, width, context),
+    )
+    .filter((box) => box !== null);
+
+  if (!isTailParagraph) {
+    boxes.push({ ...NO_MARGIN, height: LINE.body() });
+  }
+
+  return toContainerBox(toStack(boxes));
+}
+
+// INFO: One `↩` per reference, each after the space `mdast-util-to-hast` writes before it, and numbered from the second on.
+function toBackrefRuns(references: number, font: FontSpec): InlineRun[] {
+  return Array.from({ length: references }).flatMap<InlineRun>((_, index) =>
+    index === 0
+      ? [{ text: " ↩", font }]
+      : [
+          { text: " ↩", font },
+          { text: String(index + 1), font: toSupFont(font) },
+        ],
+  );
+}
+
+/**
  * WARN: An auto-layout table is the one block here that cannot be resolved exactly — CSS
  * leaves the distribution of a table's width across its columns to the UA. The columns are
  * given their max-content where the row can afford it and the surplus in proportion to
  * what each asked for otherwise, which is what both engines do in the ordinary case.
  */
-function toTableHeight(table: Table, width: number, fontFamily: string): number {
+function toTableHeight(table: Table, width: number, context: MarkdownContext): number {
   const rows = table.children;
 
   if (rows.length === 0) {
@@ -306,7 +491,7 @@ function toTableHeight(table: Table, width: number, fontFamily: string): number 
   const widths = toColumnWidths(columns, width);
 
   return rows.reduce(
-    (total, row, index) => total + toRowHeight(row, widths, fontFamily, index === 0),
+    (total, row, index) => total + toRowHeight(row, widths, context, index === 0),
     0,
   );
 }
@@ -324,12 +509,12 @@ function toColumnWidths(columns: number, width: number): number[] {
 function toRowHeight(
   row: TableRow,
   widths: readonly number[],
-  fontFamily: string,
+  context: MarkdownContext,
   isHeader: boolean,
 ): number {
-  const font = isHeader ? toHeaderFont(fontFamily) : toBodyFont(fontFamily);
+  const font = isHeader ? toHeaderFont(context.fontFamily) : toBodyFont(context.fontFamily);
   const cells = row.children.map((cell, index) =>
-    measureInlineLines(toRuns(cell.children, font, fontFamily, false), font, widths[index] ?? 0),
+    measureInlineLines(toRuns(cell.children, font, context, false), font, widths[index] ?? 0),
   );
   const lines = cells.reduce((tallest, { lineCount }) => Math.max(tallest, lineCount), 1);
   const tall = cells.reduce((tallest, { tallLineCount }) => Math.max(tallest, tallLineCount), 0);
@@ -348,9 +533,11 @@ function toTextBox(
   width: number,
   font: FontSpec,
   isPreWrap: boolean,
+  context: MarkdownContext,
   line = LINE.body(),
+  extraRuns: readonly InlineRun[] = [],
 ): Box {
-  const runs = toRuns(children, font, font.family, isPreWrap);
+  const runs = [...toRuns(children, font, context, isPreWrap), ...extraRuns];
   const { lineCount, tallLineCount } = measureInlineLines(runs, font, width);
 
   // INFO: An empty block lays out no line box at all — `#` alone is a heading of zero height, which is what the browser draws for it.
@@ -368,9 +555,11 @@ function toTextBox(
 function toRuns(
   children: readonly PhrasingContent[],
   font: FontSpec,
-  fontFamily: string,
+  context: MarkdownContext,
   isPreWrap: boolean,
 ): InlineRun[] {
+  const { fontFamily } = context;
+
   return children.flatMap<InlineRun>((child) => {
     switch (child.type) {
       case "text":
@@ -391,14 +580,22 @@ function toRuns(
         return toRuns(
           child.children,
           { ...font, weight: toBolder(font.weight) },
-          fontFamily,
+          context,
           isPreWrap,
         );
       case "emphasis":
       case "delete":
       case "link":
       case "linkReference":
-        return toRuns(child.children, font, fontFamily, isPreWrap);
+        return toRuns(child.children, font, context, isPreWrap);
+      // INFO: `<sup>` around the marker `mdast-util-to-hast` numbers by reference order; `line-height: 0` keeps it off the line's height.
+      case "footnoteReference":
+        return [
+          {
+            text: String(context.footnotes.get(child.identifier.toUpperCase())?.number ?? 1),
+            font: toSupFont(font),
+          },
+        ];
       // WARN: Two breaks under `pre-wrap` and one otherwise. `mdast-util-to-hast` emits a literal newline **after** the `<br>` to keep its own output readable, and a `pre-wrap` box lays that out as a second line where every other box collapses it away.
       case "break":
         return [{ text: isPreWrap ? "\n\n" : "\n", font }];
@@ -424,6 +621,10 @@ function toBolder(weight: number): number {
 // WARN: The type scale of `theme.css`, weights included — preflight resets a heading to the body's size and the `text-*` utility is what gives it one back, so these are the utilities' own numbers and not the tag's.
 function toBodyFont(family: string): FontSpec {
   return { size: BODY_SIZE, weight: 400, family };
+}
+
+function toSupFont(font: FontSpec): FontSpec {
+  return { ...font, size: font.size * SUP_RATIO };
 }
 
 function toHeaderFont(family: string): FontSpec {

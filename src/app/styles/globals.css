@@ -6,6 +6,8 @@
 
 /* INFO: REQUIREMENTS.md § 8.3. `warmLineHeights` probes `font-mono` for the family preflight hands a fenced block, and nothing in the app wears the utility for Tailwind to have generated it from a scan. */
 @source inline("font-mono");
+/* WARN: REQUIREMENTS.md § 8.3. `remark-gfm` writes the footnote section's heading with `sr-only`, and `toMarkdownHeight` prices that heading at nothing on the strength of it — five components happen to wear the utility today, and this is what keeps the heading hidden once none does. */
+@source inline("sr-only");
 
 @layer base {
   /* WARN: DESIGN.md § 3.4. On the root as well as `body`, and the pair is not redundant. `overflow` is specified to propagate to the viewport from `body`; `overscroll-behavior` propagates from the **root element**. Declared on `body` alone Chrome honours it anyway and WebKit does not, and what that costs is the whole gesture: a pull the chat room's own scroller cannot consume chains to a root scroller that is already at `0`, and Safari takes it as pull-to-refresh and reloads the app. */
