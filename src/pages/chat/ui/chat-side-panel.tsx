@@ -99,7 +99,7 @@ export function ChatSidePanel({
         )}
       </section>
 
-      <section className="flex min-h-0 grow-2 basis-0 flex-col gap-xs">
+      <section className="flex min-h-0 grow basis-0 flex-col gap-xs">
         <h2 className="px-xs text-title-sm text-meta">다가오는 일정</h2>
         <UpcomingEventsList
           className="min-h-0 flex-1 overflow-y-auto"
