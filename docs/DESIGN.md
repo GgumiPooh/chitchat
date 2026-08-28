@@ -1091,7 +1091,7 @@ The active-tab fill and the pending-tab-on-tap behaviour are shared with `TabBar
 | `sm` | `min(360px, 100% - 32px)` | Confirmations, short choices |
 | `md` | `min(440px, 100% - 32px)` | Forms with helper copy       |
 
-No size beyond `md` for a modal opened as one: anything larger is a screen. `DialogShell` (`shared/ui`) is the composition both this and `BottomSheet`'s desktop path draw from, and it takes a third size, `lg` (576px, `--sheet-max-width`) — a sheet becoming a centred dialog at `md`, never a modal opened as one.
+No size beyond `md` for a modal opened as one: anything larger is a screen. `DialogShell` (`shared/ui`) is the composition both this and `BottomSheet`'s desktop path draw from, and it takes a third size, `lg` (576px, `--sheet-max-width`) — a sheet becoming a centred dialog at `md`, never a modal opened as one — and a fourth, `xl` (`--content-max-width`), for `ExpandedBodySheet` alone: a message expanded to the column it was read in.
 
 `ActionSheet` becomes a `Popover` at `md` when it is passed an `anchorRef`, pinned to the element that opened it (`role="menu"`, arrow keys, `Escape`); with no anchor it falls back to this `Modal` at `sm`, same rows. Below `md` it is unchanged unless the caller passes `presentation="menu"`, which keeps the `Popover` at every width, opened **above** the anchor first — the chat bubble is the one instance, because the thumb that held it is still on it, and a bottom sheet moves the eye off the message it acts on.
 

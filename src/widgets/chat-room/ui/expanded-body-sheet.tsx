@@ -112,7 +112,7 @@ export function ExpandedBodySheet({
       <Modal
         className={className}
         isOpen={isOpen}
-        size="lg"
+        size="xl"
         header={{
           title: titleText,
           description: timestampText,

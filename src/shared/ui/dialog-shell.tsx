@@ -9,7 +9,7 @@ export type DialogShellProps = PropsWithChildren<{
   hideCloseButton?: boolean;
   isOpen: boolean;
   position?: "center" | "top";
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
   header: {
     className?: string;
     title: string;
@@ -23,11 +23,12 @@ export type DialogShellProps = PropsWithChildren<{
   onOpenAutoFocus?: (event: Event) => void;
 }>;
 
-// INFO: DESIGN.md § 7.4. `lg` is the sheet's own width — what a `BottomSheet` becomes at `md` keeps the column it was drawn for.
+// INFO: DESIGN.md § 7.4. `lg` is the sheet's own width; `xl` is the message column's, for the § 6.2.2. expanded body that was drawn at that width.
 const SIZE_CLASS_NAME = {
   sm: "w-[calc(100%_-_var(--content-left)_-_var(--spacing-xl))] max-w-[360px]",
   md: "w-[calc(100%_-_var(--content-left)_-_var(--spacing-xl))] max-w-[440px]",
   lg: "w-[calc(100%_-_var(--content-left)_-_var(--spacing-xl))] max-w-[var(--sheet-max-width)]",
+  xl: "w-[calc(100%_-_var(--content-left)_-_var(--spacing-xl))] max-w-[var(--content-max-width)]",
 };
 
 /**
