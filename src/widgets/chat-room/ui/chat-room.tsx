@@ -299,6 +299,10 @@ const SHEET_SWAP_TIMEOUT = A_SECOND / 2 + VIEWPORT_QUIET_WINDOW;
 
 // INFO: REQUIREMENTS.md § 8.6.1. How many frames a jump may re-assert its offset over while the rows around it are measured. Six spans WebKit's post-paint `ResizeObserver` deliveries — the first lands a frame late and the correction it causes brings a second — and the loop stops early the moment two asserts resolve to the same offset.
 const JUMP_SETTLE_FRAMES = 6;
+// WARN: `TOP_FADE_LENGTH` in px — the floating header buttons and the fade sit over this band of the scroller, so a jump that centres against the scroller's full height parks a tall bubble under them.
+const JUMP_TOP_CLEARANCE = 64;
+// INFO: How long after a jump a scroller that grows — the keyboard going away — re-centres the target: the row was centred in the keyboard's viewport, which is the top fifth of the full one.
+const JUMP_RECENTER_WINDOW = 3 * A_SECOND;
 
 // INFO: REQUIREMENTS.md § 8.3. Upward paging fires once the scroller is this close to the top — far enough out that the fetch and the wait for a still scroller both fit before the reader arrives.
 const LOAD_OLDER_THRESHOLD = 600;
@@ -382,6 +386,7 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 8.14. The same token for the panel, bumped by **every** open — an opened panel nothing has focused is one the arrow keys cannot reach, and the toggle is a button, so a mouse open leaves focus on it rather than inside what it opened.
   // INFO: REQUIREMENTS.md § 8.6.1. The frame `settleJumpScroll` has queued, so a newer jump — or an unmount — can take it back.
   const jumpFrameRef = useRef<Nullable<number>>(null);
+  const recentJumpRef = useRef<Nullable<{ index: number; at: number }>>(null);
   const [pickerFocusRequest, setPickerFocusRequest] = useState<EmoticonFocusRequest>({
     token: 0,
     viaKeyboard: false,
@@ -1259,7 +1264,6 @@ export function ChatRoom({
 
     return () => observer.disconnect();
     // INFO: `Boolean(primaryGeneration)` is what says the row has mounted or unmounted — the ref itself does not trigger a re-render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Boolean(primaryGeneration)]);
 
   /**
@@ -1435,7 +1439,6 @@ export function ChatRoom({
     if (menuRequest) {
       requestPickerFocus(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuRequest?.token]);
 
   // WARN: Scrolling inside the send handler resolves against the pre-send data, so a message sent from deep in history lands below the fold. The row only exists from this commit onward.
@@ -1464,7 +1467,6 @@ export function ChatRoom({
     if (!isLoadingOlder) {
       requestAdjacentPages();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoadingOlder]);
 
   // WARN: A returning network moves no finger either, and a reader parked at the top through a failed page is exactly who is waiting on it. Both halves are needed: the cooldown drops the wait `loadOlder` is still serving, and the edge check is what asks again — nothing else would until the reader scrolls.
@@ -1477,7 +1479,6 @@ export function ChatRoom({
     window.addEventListener("online", retryPagesOnReconnect);
 
     return () => window.removeEventListener("online", retryPagesOnReconnect);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearOlderCooldown]);
 
   /**
@@ -1617,6 +1618,7 @@ export function ChatRoom({
 
     const takeScroll = () => {
       hasTakenScrollRef.current = true;
+      recentJumpRef.current = null;
     };
 
     scroller.addEventListener("wheel", takeScroll, { passive: true });
@@ -1628,6 +1630,30 @@ export function ChatRoom({
       scroller.removeEventListener("touchstart", takeScroll);
       scroller.removeEventListener("keydown", takeScroll);
     };
+  }, [scroller]);
+
+  // INFO: REQUIREMENTS.md § 8.6.1. A jump taken with the keyboard up is re-centred once the keyboard leaves, unless a gesture has taken the scroll since.
+  useEffect(() => {
+    if (!scroller) {
+      return;
+    }
+
+    let previousHeight = scroller.clientHeight;
+    const observer = new ResizeObserver(() => {
+      const height = scroller.clientHeight;
+      const recent = recentJumpRef.current;
+      const hasGrown = height > previousHeight;
+
+      previousHeight = height;
+
+      if (recent && hasGrown && performance.now() - recent.at <= JUMP_RECENTER_WINDOW) {
+        settleJumpScroll(recent.index);
+      }
+    });
+
+    observer.observe(scroller);
+
+    return () => observer.disconnect();
   }, [scroller]);
 
   /**
@@ -1711,7 +1737,6 @@ export function ChatRoom({
       // INFO: A search jump is marked by the § 8.6. mark inside the bubble, so it takes no flash on top of it.
       void jumpToMessage(jumpTarget.id, { flash: false });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpTarget?.token]);
 
   /**
@@ -1729,7 +1754,6 @@ export function ChatRoom({
 
     // WARN: § 8.6.1. The jump's settle loop outlives this component otherwise, and it calls into a virtualizer whose scroller has gone.
     return cancelJumpScroll;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**
@@ -1763,7 +1787,6 @@ export function ChatRoom({
       focusComposer();
     }
     // WARN: Keyed on the wake alone. `focusComposer` and the panel flag change on their own account all the time, and re-running on either would seize focus from whatever the reader had reached for since.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleWakes]);
 
   // INFO: DESIGN.md § 6.8. The flash is a moment, not a selection — nothing dismisses it but time.
@@ -3802,14 +3825,17 @@ export function ChatRoom({
 
     // WARN: The loop in flight is cancelled rather than left to race this one. It closes over the *previous* target's index, and `jumpToMessage` names pressing § 8.6.1.'s arrows twice as the ordinary case — two jumps inside these few frames left the older loop re-asserting the match the reader had already stepped off, landing them back on it.
     cancelJumpScroll();
+    recentJumpRef.current = { index, at: performance.now() };
     assert();
 
     function assert() {
-      // WARN: Not `behavior: "smooth"`. A jump crosses an arbitrary distance, so smooth animates through history the user did not ask to see, and the window it is animating over was replaced a frame ago — and a re-assert would then be measuring a scroll still in flight.
-      virtualizer.scrollToIndex(index, { align: "center" });
-
       // WARN: The offset the row *resolves* to, never the scroller's own. Before WebKit's first `ResizeObserver` delivery two asserts land on the identical `scrollTop` — nothing has been measured yet — and a loop that reads settling off that exits one frame before the corrections it exists to absorb.
-      const offset = virtualizer.getOffsetForIndex(index, "center")?.[0] ?? Number.NaN;
+      const offset = toJumpOffset(index);
+
+      // WARN: Not `behavior: "smooth"`. A jump crosses an arbitrary distance, so smooth animates through history the user did not ask to see, and the window it is animating over was replaced a frame ago — and a re-assert would then be measuring a scroll still in flight.
+      if (!Number.isNaN(offset)) {
+        virtualizer.scrollToOffset(offset);
+      }
 
       remaining -= 1;
 
@@ -3820,6 +3846,27 @@ export function ChatRoom({
       previous = offset;
       jumpFrameRef.current = requestAnimationFrame(assert);
     }
+  }
+
+  // WARN: Not `scrollToIndex(…, { align: "center" })` — the library centres against the scroller's full height and applies `scrollPaddingStart` to `start` alone, so a tall row's top lands under the header band. A row taller than the clear area is parked at the band's edge instead.
+  function toJumpOffset(index: number): number {
+    const item = virtualizer.measurementsCache[index];
+
+    if (!item) {
+      return Number.NaN;
+    }
+
+    const element = scrollerRef.current;
+
+    if (!element) {
+      return Number.NaN;
+    }
+
+    const clearHeight = element.clientHeight - JUMP_TOP_CLEARANCE;
+    const lead = JUMP_TOP_CLEARANCE + Math.max(0, (clearHeight - item.size) / 2);
+    const maxOffset = element.scrollHeight - element.clientHeight;
+
+    return Math.max(0, Math.min(maxOffset, item.start - lead));
   }
 
   // INFO: Also the unmount cleanup — a frame left queued would call into a virtualizer whose scroller is gone.
