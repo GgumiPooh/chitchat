@@ -5,7 +5,7 @@ import { useApplyPhoto } from "@/features/apply-photo";
 import { useWriteArchiveSnapshot } from "@/features/offline-snapshot";
 import { useSilentSend } from "@/features/silent-send";
 import { useMediaPicker } from "@/features/upload-media";
-import { CHAT_MESSAGE_PARAM, CHAT_ROUTE, toMediaLabel } from "@/shared/config";
+import { CHAT_MESSAGE_PARAM, CHAT_MODE_PARAM, CHAT_ROUTE, toMediaLabel } from "@/shared/config";
 import { cn, startMediaMorph, type MediaId, type Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import {
@@ -269,9 +269,11 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
     const targetMode = cell.onlyMe ? "onlyMe" : "notify";
     silentSend.setMode(targetMode);
 
-    router.push(
-      `${CHAT_ROUTE}?${new URLSearchParams({ [CHAT_MESSAGE_PARAM]: String(cell.messageId) })}`,
-    );
+    const params = new URLSearchParams({ [CHAT_MESSAGE_PARAM]: String(cell.messageId) });
+    if (cell.onlyMe) {
+      params.set(CHAT_MODE_PARAM, "onlyMe");
+    }
+    router.push(`${CHAT_ROUTE}?${params}`);
   }
 
   // WARN: Started, never awaited — both save routes run the length of the selection, so awaiting would hold the handler behind a bar that's already dismissed.

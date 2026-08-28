@@ -1,7 +1,7 @@
 import { readChatBackgroundMediaId } from "@/entities/chat-background";
 import { ChatPage } from "@/pages/chat";
 import { requireUserOrRedirect } from "@/shared/auth";
-import { CHAT_MESSAGE_PARAM, snowflakeSchema } from "@/shared/config";
+import { CHAT_MESSAGE_PARAM, CHAT_MODE_PARAM, snowflakeSchema } from "@/shared/config";
 import type { Maybe, MessageId } from "@/shared/lib";
 
 type PageProps = {
@@ -14,13 +14,16 @@ export default async function Page({ searchParams }: PageProps) {
   // INFO: REQUIREMENTS.md § 12.2. Read here only to emit the preload — the room itself takes the wallpaper from the shell's stream state, so a change by the other participant lands without a navigation.
   const backgroundMediaId = await readChatBackgroundMediaId();
   // INFO: REQUIREMENTS.md § 10. 보관함's 대화에서 보기 taps through carrying the message its tile was sent in, and § 8.6.1.'s jump takes it from there.
-  const jumpMessageId = toMessageId((await searchParams)[CHAT_MESSAGE_PARAM]);
+  const params = await searchParams;
+  const jumpMessageId = toMessageId(params[CHAT_MESSAGE_PARAM]);
+  const jumpOnlyMe = jumpMessageId ? params[CHAT_MODE_PARAM] === "onlyMe" : undefined;
 
   return (
     <ChatPage
       currentUserId={id}
       backgroundMediaId={backgroundMediaId}
       jumpMessageId={jumpMessageId}
+      jumpOnlyMe={jumpOnlyMe}
     />
   );
 }

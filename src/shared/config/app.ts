@@ -90,6 +90,9 @@ export const CHAT_ROUTE = "/chat";
  */
 export const CHAT_MESSAGE_PARAM = "message";
 
+// WARN: REQUIREMENTS.md § 16.1. Rides beside `CHAT_MESSAGE_PARAM` so the jump fetches with the target's own mode — the cookie `openInChat` also sets lands a render late in `useCookieState`, and `loadAround` read that stale filter.
+export const CHAT_MODE_PARAM = "mode";
+
 /**
  * REQUIREMENTS.md § 10. A photo 보관함 is to open on, carried by 채팅's own viewer —
  * the mirror of `CHAT_MESSAGE_PARAM` above, and the whole contract between the two.

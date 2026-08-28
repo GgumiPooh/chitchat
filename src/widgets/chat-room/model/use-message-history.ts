@@ -310,14 +310,12 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
    * that was one page away.
    */
   const loadAround = useCallback(
-    async (id: MessageId): Promise<LoadAroundResult> => {
+    async (id: MessageId, onlyMeFilter?: boolean): Promise<LoadAroundResult> => {
       const generation = beginReplacement();
+      const targetIsOnlyMe = onlyMeFilter ?? onlyMeFilterRef.current;
 
       try {
-        const around = await fetchMessages({
-          around: id,
-          onlyMeFilter: onlyMeFilterRef.current,
-        });
+        const around = await fetchMessages({ around: id, onlyMeFilter: targetIsOnlyMe });
 
         if (generation !== windowId.current) {
           return "superseded";
@@ -331,6 +329,7 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
         hasOlderRef.current = true;
         hasNewerRef.current = true;
         setHasNewer(true);
+        setActiveFilterMode(targetIsOnlyMe);
         commit(() => around);
 
         return "ok";

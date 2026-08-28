@@ -47,6 +47,8 @@ export type ChatScreenProps = {
   initialSummary: CalendarSummary;
   /** REQUIREMENTS.md § 10. A message 보관함 opened this screen on, if any. */
   jumpMessageId?: Maybe<MessageId>;
+  /** REQUIREMENTS.md § 16.1. The mode that message lives in, handed to the jump alongside it. */
+  jumpOnlyMe?: boolean;
 };
 
 /**
@@ -64,6 +66,7 @@ export function ChatScreen({
   initialEmoticons,
   initialSummary,
   jumpMessageId,
+  jumpOnlyMe,
 }: ChatScreenProps) {
   const silentSend = useSilentSend();
   const search = useMessageSearch(silentSend.mode === "onlyMe");
@@ -296,6 +299,7 @@ export function ChatScreen({
             jumpTarget={search.target}
             // WARN: REQUIREMENTS.md § 10. A prop of its own rather than a fallback for the target above. Closing the search takes its target back to null, and a fallback would read that as a fresh instruction — jumping back to the tile's message from wherever the reader had got to.
             initialJumpMessageId={jumpMessageId}
+            initialJumpOnlyMe={jumpOnlyMe}
             searchQuery={search.isOpen ? search.submitted : undefined}
             notifyMode={silentSend.mode}
             bottomBar={

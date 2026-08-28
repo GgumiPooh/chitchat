@@ -243,6 +243,8 @@ export type ChatRoomProps = {
    * through and not a target that can be named again.
    */
   initialJumpMessageId?: Maybe<MessageId>;
+  /** REQUIREMENTS.md § 16.1. The mode `initialJumpMessageId` lives in, so the jump does not borrow the room's filter — which `useCookieState` reports a render late after 보관함 sets it. */
+  initialJumpOnlyMe?: boolean;
   /**
    * REQUIREMENTS.md § 8.6.1. The open search's query, lit inside every bubble
    * that contains it — which is what marks a search jump, in place of the
@@ -327,6 +329,7 @@ export function ChatRoom({
   initialMessages,
   jumpTarget,
   initialJumpMessageId,
+  initialJumpOnlyMe,
   searchQuery,
   bottomBar,
   notifyMode = "notify",
@@ -1749,7 +1752,7 @@ export function ChatRoom({
    */
   useEffect(() => {
     if (initialJumpMessageId) {
-      void jumpToMessage(initialJumpMessageId, { flash: true });
+      void jumpToMessage(initialJumpMessageId, { flash: true, onlyMe: initialJumpOnlyMe });
     }
 
     // WARN: § 8.6.1. The jump's settle loop outlives this component otherwise, and it calls into a virtualizer whose scroller has gone.
@@ -3775,9 +3778,12 @@ export function ChatRoom({
    * scroll inside this call stack resolves the index against measurements the
    * previous window left behind, and lands on whatever was at that offset.
    */
-  async function jumpToMessage(id: MessageId, { flash }: { flash: boolean }) {
+  async function jumpToMessage(
+    id: MessageId,
+    { flash, onlyMe }: { flash: boolean; onlyMe?: boolean },
+  ) {
     if (!messages.some((message) => message.id === id)) {
-      const outcome = await loadAround(id);
+      const outcome = await loadAround(id, onlyMe);
 
       // WARN: Only `missing` is a failure to report. `superseded` means a later jump has already taken the window — the ordinary result of pressing § 8.6.1.'s arrows twice — and the user is watching that jump land while this one apologises for it.
       if (outcome === "missing") {
