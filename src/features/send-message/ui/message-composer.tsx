@@ -47,7 +47,6 @@ import {
   useState,
   type ChangeEvent,
   type KeyboardEvent,
-  type MouseEvent,
   type PointerEvent,
   type ReactNode,
   type Ref,
@@ -71,6 +70,10 @@ import { warmEmoticonUrls } from "../model/warm-emoticon-images";
 // WARN: DESIGN.md § 6.6. The vertical padding is what makes the field's *natural* height exactly the `min-h-11` beside it — 10.75+22.5+10.75 = 44. Nothing here can centre its text, so any height `min-height` adds over the intrinsic one is slack that lands entirely under the line, and the single line the composer opens on then sits above the discs it shares the pill with.
 // WARN: DESIGN.md § 4.2.3. `break-all` is this field's departure from the app-wide `keep-all`, and it is stated here so it cannot reach the field without the layer.
 const FIELD_BOX = "px-2xs py-[10.75px] text-body-md leading-normal break-all";
+// INFO: § 13.8. A 22.5px line of a short Korean word is well under a 44px target; the slop widens it without reaching the empty field around it.
+const KEYWORD_TAP_SLOP_X = 16;
+const KEYWORD_TAP_SLOP_Y = 12;
+const KEYWORD_TAP_MAX_TRAVEL = 10;
 
 // WARN: Hoisted so the pending query answers one array identity — an inline `= []` re-runs the match on every render of a field being typed into.
 const NO_KEYWORDS: string[] = [];
@@ -806,7 +809,6 @@ export function MessageComposer({
                 tappedQueryRef.current = null;
                 onEdit?.(next.trim().length > 0);
               }}
-              onClick={handleFieldClick}
               onFocus={handleFieldFocus}
               onKeyDown={handleKeyDown}
               onPointerCancel={handleFieldPointerCancel}
@@ -822,7 +824,6 @@ export function MessageComposer({
                   text={draft.text}
                   emoticons={draft.emoticons}
                   match={match}
-                  onKeywordClick={handleKeywordTap}
                 />
               )}
             </EditableField>
@@ -844,7 +845,6 @@ export function MessageComposer({
                   isFinePointer ? `${toCommandKeyLabel()} + / 로 단축키 보기` : "메시지 입력"
                 }
                 onChange={handlePlainChange}
-                onClick={handleFieldClick}
                 onFocus={handleFieldFocus}
                 onKeyDown={handleKeyDown}
                 onPointerCancel={handleFieldPointerCancel}
@@ -860,7 +860,6 @@ export function MessageComposer({
                   text={draft.text}
                   emoticons={draft.emoticons}
                   match={match}
-                  onKeywordClick={handleKeywordTap}
                 />
               )}
             </div>
@@ -1076,22 +1075,48 @@ export function MessageComposer({
     }, 200);
   }
 
-  function handleFieldPointerDown(event: PointerEvent<HTMLDivElement | HTMLTextAreaElement>) {
-    pointerDownPosRef.current = { clientX: event.clientX, clientY: event.clientY };
-    takeFocusWithoutPan(event);
+  function isPointInKeyword(clientX: number, clientY: number) {
+    if (!match || isEditing || isAiMode || !keywordSpanRef.current) {
+      return false;
+    }
+
+    return Array.from(keywordSpanRef.current.getClientRects()).some(
+      (rect) =>
+        clientX >= rect.left - KEYWORD_TAP_SLOP_X &&
+        clientX <= rect.right + KEYWORD_TAP_SLOP_X &&
+        clientY >= rect.top - KEYWORD_TAP_SLOP_Y &&
+        clientY <= rect.bottom + KEYWORD_TAP_SLOP_Y,
+    );
   }
 
+  // WARN: § 13.8. A press on the word must not take focus: `takeFocusWithoutPan` prevents the touch, and iOS ignores a `blur()` descending from a prevented touch — the one `handleKeywordTap` needs to lower the keyboard.
+  function handleFieldPointerDown(event: PointerEvent<HTMLDivElement | HTMLTextAreaElement>) {
+    pointerDownPosRef.current = { clientX: event.clientX, clientY: event.clientY };
+
+    if (!isPointInKeyword(event.clientX, event.clientY)) {
+      takeFocusWithoutPan(event);
+    }
+  }
+
+  // WARN: § 13.8. The keyword tap is settled here, off the field's own pointer, and never by an element over the field — see `KeywordLayer`.
   function handleFieldPointerUp(event: PointerEvent<HTMLDivElement | HTMLTextAreaElement>) {
+    const start = pointerDownPosRef.current;
     pointerDownPosRef.current = null;
+
+    if (
+      start &&
+      event.button === 0 &&
+      Math.hypot(event.clientX - start.clientX, event.clientY - start.clientY) <=
+        KEYWORD_TAP_MAX_TRAVEL &&
+      isPointInKeyword(start.clientX, start.clientY)
+    ) {
+      handleKeywordTap();
+    }
   }
 
   function handleFieldPointerCancel() {
     pointerDownPosRef.current = null;
     isTappingKeywordRef.current = false;
-  }
-
-  function handleFieldClick(event: MouseEvent<HTMLDivElement | HTMLTextAreaElement>) {
-    // INFO: Click events that fall through to the field have nothing to do with the keyword button.
   }
 
   /** WARN: § 13.8. The toggle's own tap, kept apart from `handleKeywordTap` so the room can tell the two open requests apart. */
@@ -1239,7 +1264,6 @@ type KeywordLayerProps = {
   text: string;
   emoticons: StagedEmoticon[];
   match: KeywordMatch;
-  onKeywordClick?: () => void;
 };
 
 /**
@@ -1256,19 +1280,14 @@ type KeywordLayerProps = {
  * text belongs to the textarea *underneath*; drawing it here too would double every
  * glyph at one pixel of anti-aliasing offset.
  *
- * WARN: `pointer-events-none` across the entire layer so it never intercepts hit-testing
- * or causes iOS WebKit's caret to jump when dragging selection or using spacebar trackpad.
- * The keyword itself mounts a touch-capture overlay.
+ * WARN: `pointer-events-none` across the entire layer, the word included, and nothing
+ * hit-testable may ever be mounted inside it. iOS's spacebar trackpad places the caret
+ * through `LocalFrame::visiblePositionForPoint`, a plain DOM hit-test that honours CSS
+ * `pointer-events` and is clamped only to the focused element's box — so anything
+ * `auto` over the word is what the selection lands in, and the caret leaves the field.
+ * The tap is read off the field's own pointer events instead (`handleFieldPointerUp`).
  */
-function KeywordLayer({
-  ref,
-  className,
-  keywordRef,
-  text,
-  emoticons,
-  match,
-  onKeywordClick,
-}: KeywordLayerProps) {
+function KeywordLayer({ ref, className, keywordRef, text, emoticons, match }: KeywordLayerProps) {
   return (
     <div
       ref={ref}
@@ -1285,28 +1304,12 @@ function KeywordLayer({
       {/* INFO: DESIGN.md § 3.2. A pointer affordance on a span that is not a control by shape — the underline is what says it can be pressed. */}
       <span
         ref={keywordRef}
-        className="relative underline decoration-primary decoration-2 underline-offset-4"
+        className="underline decoration-primary decoration-2 underline-offset-4"
       >
         {toLayerRuns(
           text.slice(match.start, match.end),
           emoticons,
           toPlaceholderIndex(text, match.start),
-        )}
-        {onKeywordClick && (
-          <button
-            className="pointer-events-auto absolute inset-0 touch-none"
-            type="button"
-            tabIndex={-1}
-            aria-hidden
-            onPointerDown={(e) => {
-              // INFO: Do not preventDefault here; iOS Safari will ignore blur() calls originating from a prevented touch.
-              e.stopPropagation();
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onKeywordClick();
-            }}
-          />
         )}
       </span>
       {toLayerRuns(text.slice(match.end), emoticons, toPlaceholderIndex(text, match.end))}
