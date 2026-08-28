@@ -1,11 +1,11 @@
 "use client";
 
 import type { EmoticonPackSummary } from "@/entities/emoticon";
-import { toEmoticonAssetUrl } from "@/shared/config";
 import { cn, type EmoticonPackId } from "@/shared/lib";
-import { HapticTarget, IconButton, PreloadImage, Switch } from "@/shared/ui";
-import { ChevronRight, MoreVertical, Smile } from "lucide-react";
+import { HapticTarget, IconButton, Switch } from "@/shared/ui";
+import { ChevronRight, MoreVertical } from "lucide-react";
 import { EMOTICON_PACK_ROW_HEIGHT_CLASS } from "../model/pack-row-height";
+import { EmoticonPackThumbnail } from "./emoticon-pack-thumbnail";
 
 export type EmoticonPackSearchRowProps = {
   className?: string;
@@ -42,23 +42,7 @@ export function EmoticonPackSearchRow({
         className,
       )}
     >
-      <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-surface-soft ring-1 ring-hairline ring-inset">
-        {pack.thumbnailItemId ? (
-          <PreloadImage
-            className="size-full"
-            imgClassName="size-full object-contain"
-            alt=""
-            // INFO: § 13.6. The row is drawn from the same summary the picker's tab is, so a windowed scroll re-uses the redirect the browser already has.
-            src={toEmoticonAssetUrl(
-              pack.thumbnailItemId,
-              "still-image",
-              pack.thumbnailVersion ?? undefined,
-            )}
-          />
-        ) : (
-          <Smile className="size-5 text-meta-soft" strokeWidth={1.75} />
-        )}
-      </div>
+      <EmoticonPackThumbnail pack={pack} />
       {/* WARN: `keepsScroll` — the name fills the row and the rows tile the document, so without it a finger scrolling ten thousand packs lands on the overlay and the list does not move at all (`DESIGN.md § 7.15.1.`). */}
       <HapticTarget className="flex min-w-0 flex-1" overlayClassName="touch-pan-y" keepsScroll>
         <button

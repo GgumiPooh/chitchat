@@ -38,6 +38,8 @@ type Stage =
 
 export type UseVideoEmoticonParams = {
   onReady: (result: VideoEmoticon) => void;
+  /** Runs when the flow ends with nothing to hand over — 취소, or a source or encode that failed. REQUIREMENTS.md § 13.4.'s `closesOnCancel` reaches it through this. */
+  onCancel?: () => void;
 };
 
 /**
@@ -53,7 +55,7 @@ export type UseVideoEmoticonParams = {
  * off the poster alone; the clip is matted frame by frame inside `animateVideo`,
  * after the crop, where every frame is already 420px.
  */
-export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
+export function useVideoEmoticon({ onReady, onCancel }: UseVideoEmoticonParams) {
   const [stage, setStage] = useState<Nullable<Stage>>(null);
   const stageRef = useRef<Nullable<Stage>>(null);
   // WARN: What tells an abandoned run's result from the live one — 취소 tears the core down, but the frames already matted and the audio still settle behind it.
@@ -136,6 +138,7 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
     // INFO: § 12.1.'s three containers, which is what `trimVideo` and `cropVideo` carry demuxers for — the picker's `video/*` admits more than that.
     if (!isVideoMime(toStoredMime(file))) {
       toast.error("지원하지 않는 형식이에요");
+      onCancel?.();
 
       return;
     }
@@ -145,6 +148,7 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
     } catch (error) {
       report(error);
       toast.error("영상을 읽지 못했어요");
+      onCancel?.();
     }
   }
 
@@ -221,6 +225,7 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
       if (runRef.current === run) {
         setStage(null);
         toast.error(toFailureMessage(error));
+        onCancel?.();
       }
     }
   }
@@ -278,6 +283,7 @@ export function useVideoEmoticon({ onReady }: UseVideoEmoticonParams) {
     }
 
     setStage(null);
+    onCancel?.();
   }
 }
 

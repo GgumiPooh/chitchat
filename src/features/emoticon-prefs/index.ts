@@ -3,3 +3,7 @@ export { saveEmoticonPackEnabled, saveEmoticonPackOrder } from "./api/write-pref
 export { EMOTICON_PACK_ROW_HEIGHT_CLASS } from "./model/pack-row-height";
 export { EmoticonPackBrowser, type EmoticonPackBrowserProps } from "./ui/emoticon-pack-browser";
 export { EmoticonPackManager, type EmoticonPackManagerProps } from "./ui/emoticon-pack-manager";
+export {
+  EmoticonPackPickerSheet,
+  type EmoticonPackPickerSheetProps,
+} from "./ui/emoticon-pack-picker-sheet";

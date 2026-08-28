@@ -50,7 +50,7 @@ import {
   Play,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { downloadEmoticonAsset } from "../api/download-emoticon-asset";
 import { readEmoticonImageFile } from "../api/read-emoticon-asset";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
@@ -71,6 +71,17 @@ export type EmoticonFormSheetProps = {
   emoticon?: Nullable<Emoticon>;
   /** INFO: A pick made on the screen behind the sheet — the pack screen picks first, so one image opens this form already staged. */
   initialFile?: Nullable<File>;
+  /** INFO: § 13.4.1.'s same flow as 영상에서 추출, run over a stored video rather than a fresh pick — REQUIREMENTS.md § 12.1.'s 사진 사용하기 reaches it from the media viewer. */
+  initialVideo?: Nullable<File>;
+  /**
+   * REQUIREMENTS.md § 12.1. Closes the whole sheet, back to whatever opened it, the
+   * first time an `initialFile`/`initialVideo` editor is cancelled — 사진 사용하기's
+   * reader never asked to see this form, only the picture they were looking at.
+   *
+   * WARN: Only the *first* editor. Once that lands, this sheet is the ordinary § 13.4.
+   * form and every later cancel — a re-crop from the thumbnail — returns to it as usual.
+   */
+  closesOnCancel?: boolean;
   onClose: () => void;
   onSaved: (emoticon: Emoticon) => void;
 };
@@ -97,6 +108,8 @@ export function EmoticonFormSheet({
   isOpen,
   emoticon,
   initialFile,
+  initialVideo,
+  closesOnCancel = false,
   onClose,
   onSaved,
 }: EmoticonFormSheetProps) {
@@ -110,12 +123,23 @@ export function EmoticonFormSheet({
   const [isFetchingStored, setIsFetchingStored] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = step !== null;
+  // INFO: § 12.1. Freshly mounted over a stored source, the sheet has nothing to show until that source's editor is up — it stays hidden rather than flashing an empty form under the reading toast.
+  const [isPreparingInitial, setIsPreparingInitial] = useState(
+    Boolean(initialFile || initialVideo),
+  );
   const draft = useEmoticonDraft();
   const { adoptImage, pickAudio, pickImage, setKeywords } = draft;
   // WARN: § 13.4.1. Kept beside the slots and cleared by every other pick — an animation staged from a picked GIF has no clip behind it, and re-opening the flow on the last video would edit a file the field is no longer showing.
   const [videoSource, setVideoSource] = useState<Nullable<File>>(null);
+  // WARN: `closesOnCancel`'s doc comment — true only across the `initialFile`/`initialVideo` editor that opened this sheet, off again the moment it lands.
+  const isInitialFlowRef = useRef(false);
+  // WARN: The dedup `initialVideo` needs — `useEffect` still fires twice under StrictMode, and a second `video.open` would start a second trim over the first.
+  const openedInitialVideoRef = useRef<Nullable<File>>(null);
   // INFO: § 13.4.1. A clip fills the same two slots a picked animation does, so it is a second source for this one field rather than a flow of its own.
-  const video = useVideoEmoticon({ onReady: stageVideo });
+  const video = useVideoEmoticon({
+    onReady: stageVideo,
+    onCancel: closesOnCancel ? closeIfInitialFlow : undefined,
+  });
   // INFO: § 13.4.1. The same two slots again, from an animation that is already one — a picked GIF, or a stored item fetched back.
   const animation = useAnimationEmoticon({ onReady: stageAnimation });
   // INFO: REQUIREMENTS.md § 13.4. Opens the OS picker directly (`DESIGN.md § 7.5.`) — one image is the whole of the choice, so there is nothing for a sheet to frame.
@@ -149,10 +173,25 @@ export function EmoticonFormSheet({
   // INFO: The pack screen picks a file before this opens (§ 13.4.), so the form is already staged when it appears.
   useEffect(() => {
     if (isOpen && initialFile) {
+      isInitialFlowRef.current = true;
       void pickPlainImage(initialFile);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `pickPlainImage` is redeclared per render; a dependency on it would re-run the whole § 13.4.2. flow on every keystroke in the keyword field.
   }, [isOpen, initialFile]);
+
+  // INFO: REQUIREMENTS.md § 12.1. 사진 사용하기's 이모티콘으로 추가하기 on a video opens straight into § 13.4.1.'s flow, exactly as 영상에서 추출 does.
+  useEffect(() => {
+    if (isOpen && initialVideo && openedInitialVideoRef.current !== initialVideo) {
+      openedInitialVideoRef.current = initialVideo;
+      isInitialFlowRef.current = true;
+      void video.open(initialVideo);
+    }
+
+    if (!isOpen) {
+      openedInitialVideoRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `video.open` is redeclared per render off `useVideoEmoticon`; a dependency on it would reopen the flow on every unrelated re-render.
+  }, [isOpen, initialVideo]);
 
   // WARN: § 13.8. The sheet stays mounted between items, so the list has to be re-seeded on every open — without this, editing a second item shows the first one's keywords.
   // WARN: Keyed on the item's **id**, never the object. The pack screen rebuilds item objects on every save, so an identity dependency re-seeded the field from the server mid-edit and discarded chips the user had just typed.
@@ -168,8 +207,10 @@ export function EmoticonFormSheet({
       {/* WARN: Closed while the editor or § 13.4.1.'s video flow is up. Both portal into the app shell (`ShellOverlay`) and the drawer portals into `body`, so no z-index inside the shell can put either over it. */}
       <BottomSheet
         className={className}
-        isOpen={isOpen && !isEditing && !video.isActive && !animation.isActive}
         header={{ title: `${kindNoun} ${emoticon ? "편집" : "추가"}` }}
+        isOpen={
+          isOpen && !isEditing && !video.isActive && !animation.isActive && !isPreparingInitial
+        }
         onClose={handleClose}
       >
         <div className="space-y-sm pt-2xs">
@@ -249,6 +290,8 @@ export function EmoticonFormSheet({
             draft.replaceStill(edited);
             setIsFlowPending(false);
             setStep(null);
+            isInitialFlowRef.current = false;
+            setIsPreparingInitial(false);
           }}
           onCancel={cancelFlow}
         />
@@ -322,12 +365,31 @@ export function EmoticonFormSheet({
     if (isStatic) {
       setIsFlowPending(true);
       setStep("cutout");
+
+      return;
     }
+
+    // INFO: An animated pick stages both slots outright (§ 13.4.), so there is no editor left for `closesOnCancel` to reach; a failed read leaves nothing to show either.
+    if (picked === null && closesOnCancel && isInitialFlowRef.current) {
+      handleClose();
+
+      return;
+    }
+
+    isInitialFlowRef.current = false;
+    setIsPreparingInitial(false);
   }
 
   /** INFO: § 13.4. A stored still cancelled before its first crop is unstaged, so 저장 re-uploads nothing; a re-crop from the thumbnail, and a pick, keep what is staged. */
   function cancelFlow() {
     setStep(null);
+
+    if (closesOnCancel && isInitialFlowRef.current) {
+      setIsFlowPending(false);
+      handleClose();
+
+      return;
+    }
 
     if (isFlowPending && flowSource === "stored") {
       draft.discardImage();
@@ -351,6 +413,8 @@ export function EmoticonFormSheet({
     setVideoSource(null);
     setFlowSource(null);
     setIsFlowPending(false);
+    isInitialFlowRef.current = false;
+    setIsPreparingInitial(false);
     onClose();
   }
 
@@ -363,9 +427,17 @@ export function EmoticonFormSheet({
     adoptImage(image);
     setVideoSource(source);
     setFlowSource(null);
+    isInitialFlowRef.current = false;
+    setIsPreparingInitial(false);
 
     if (audio) {
       void pickAudio(audio);
+    }
+  }
+
+  function closeIfInitialFlow() {
+    if (isInitialFlowRef.current) {
+      handleClose();
     }
   }
 

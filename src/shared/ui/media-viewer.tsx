@@ -153,8 +153,8 @@ export type MediaViewerProps = {
   /** REQUIREMENTS.md § 8.11. The 저장 route for the slide on screen. Used on iOS only, where the download beside it cannot reach the photo library. */
   onSave?: (mediaId: MediaId) => void;
   /**
-   * REQUIREMENTS.md § 12.1. Opens 사진 사용하기 for the slide on screen — the profile
-   * image, the profile cover, or the chat wallpaper.
+   * REQUIREMENTS.md § 12.1., § 13.4. Opens 사진/동영상 사용하기 for the slide on
+   * screen — the profile image, the profile cover, the chat wallpaper, or a new emoticon.
    *
    * INFO: Given the media id for `onShare`'s reason — the slide moves under the
    * control, so the id has to be read at the tap rather than captured at mount.
@@ -293,7 +293,7 @@ export function MediaViewer({
   const canStepForward = !zoom.isZoomed && index >= 0 && index < cells.length - 1;
   // INFO: A draft has no stored object yet, so there is nothing for either control to reach.
   const downloadUrl = current?.downloadUrl;
-  // INFO: REQUIREMENTS.md § 12.1. A stored image has all three slots open to it; a video reaches the profile cover alone, and only inside § 12.1.'s caps.
+  // INFO: REQUIREMENTS.md § 12.1., § 13.4. A video is offered inside § 12.1.'s caps only — the emoticon rows would trim it down, but `readOriginalFile` pulls the whole object into memory first.
   const canApplyPhoto =
     Boolean(downloadUrl) && (!current?.isVideo || isWearableBackgroundVideo(current));
   // INFO: REQUIREMENTS.md § 8.1. Withheld per slide in 채팅, where the track crosses bubbles; 보관함 offers no predicate, since its 삭제 reaches either participant's row (§ 10.).
@@ -719,7 +719,7 @@ export function MediaViewer({
                     Icon={ImagePlus}
                     haptic
                     tabIndex={isChromeVisible ? undefined : -1}
-                    aria-label="사진 사용하기"
+                    aria-label={current.isVideo ? "동영상 사용하기" : "사진 사용하기"}
                     {...applyPhotoGate.blockedProps}
                     onClick={applyPhotoGate.guard(() => onApplyPhoto(current.id, current.isVideo))}
                   />

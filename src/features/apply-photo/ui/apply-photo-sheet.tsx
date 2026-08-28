@@ -1,26 +1,45 @@
 "use client";
 
+import type { EmoticonPackSummary } from "@/entities/emoticon";
 import type { MediaDraft } from "@/entities/media";
+import { EmoticonFormSheet } from "@/features/author-emoticon/@x/apply-photo";
 import { useChatStream } from "@/features/chat-stream/@x/apply-photo";
+import {
+  EmoticonPackPickerSheet,
+  saveEmoticonPackEnabled,
+} from "@/features/emoticon-prefs/@x/apply-photo";
+import { toEmoticonPackItemsQuery } from "@/features/send-message/@x/apply-photo";
 import { updateProfile } from "@/features/update-profile/@x/apply-photo";
 import { MediaEditor, VideoCropper, uploadDraft } from "@/features/upload-media/@x/apply-photo";
 import {
   AVATAR_MAX_EDGE,
   BACKGROUND_MAX_EDGE,
+  EMOTICON_KIND_NOUNS,
   MAX_BACKGROUND_VIDEO_SIZE,
   isVideoMime,
+  type EmoticonPackType,
 } from "@/shared/config";
 import { formatSize, type MediaId, type Nullable } from "@/shared/lib";
 import { ActionSheet, toast, type ActionSheetItem } from "@/shared/ui";
+import { useQueryClient } from "@tanstack/react-query";
 import { josa } from "es-hangul";
-import { ImageIcon, MessageSquare, UserRound } from "lucide-react";
+import { ImageIcon, MessageSquare, Smile, Sticker, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { readOriginalFile } from "../api/read-original";
 import { setChatBackground } from "../api/set-chat-background";
 import { usePickedPhoto } from "../model/use-picked-photo";
 
 /** Which slot the photo is being worn in. */
 type PhotoTarget = "avatar" | "profile" | "chat";
+
+/** REQUIREMENTS.md § 13.4. What 이모티콘/미니이모티콘으로 추가하기 has staged once a pack is picked and the source bytes are in hand. */
+type EmoticonDraft = {
+  packType: EmoticonPackType;
+  pack: EmoticonPackSummary;
+  file: File;
+  isVideo: boolean;
+};
 
 // INFO: DESIGN.md § 7.7. The avatar is a circle, so its crop is square and the ratio chips have nothing left to offer.
 const AVATAR_ASPECT_RATIO = 1;
@@ -28,7 +47,7 @@ const AVATAR_ASPECT_RATIO = 1;
 /**
  * The `media` row 사진 사용하기 was opened over.
  *
- * INFO: `isVideo` rather than the whole cell, because it is the only property the sheet branches on — only the profile cover takes a clip (§ 12.2.).
+ * INFO: `isVideo` rather than the whole cell, because it is the only property the sheet branches on — a video reaches every row but the profile image and the wallpaper (§ 12.2., § 13.4.).
  */
 export type ApplyPhotoSource = { isVideo: boolean; id: MediaId };
 
@@ -40,19 +59,23 @@ export type ApplyPhotoSheetProps = {
 };
 
 /**
- * REQUIREMENTS.md § 12.1., § 12.2. 사진 사용하기, offered over a photo in the library
- * or in a chat bubble — the profile image, the profile cover, or the room's wallpaper.
+ * REQUIREMENTS.md § 12.1., § 12.2., § 13.4. 사진/동영상 사용하기, offered over a photo
+ * or clip in the library or in a chat bubble — the profile image, the profile cover,
+ * the room's wallpaper, or a new emoticon.
  *
- * INFO: Three rows rather than one, because the three slots do not mean the same
- * thing — a profile image is who this person is, a cover decorates their profile, and
- * a wallpaper is the room both of them sit in (§ 12.2.). A single row would pick one
- * on the user's behalf, and any choice is a surprise two thirds of the time.
+ * INFO: Five rows rather than one, because the slots do not mean the same thing — a
+ * profile image is who this person is, a cover decorates their profile, a wallpaper is
+ * the room both of them sit in (§ 12.2.), and an emoticon is neither. A single row
+ * would pick one on the user's behalf, and any choice is a surprise most of the time.
  *
- * INFO: § 12.2. A video reaches the cover alone, and the caps that make one affordable are checked before the control is drawn (`isWearableBackgroundVideo`).
+ * INFO: § 12.2. A video drops the profile image and the wallpaper — only the cover
+ * takes a clip — but reaches both emoticon rows exactly as a photo does (§ 13.4.). The
+ * viewer draws the control inside § 12.1.'s caps only (`isWearableBackgroundVideo`).
  *
- * WARN: Every target goes through a crop the user draws, so this flow needs the
+ * WARN: The first three targets go through a crop the user draws, so those need the
  * original **pixels** rather than an id — see `readOriginalFile` for why they cannot
- * be taken off the display URL.
+ * be taken off the display URL. The emoticon rows read the same original bytes, then
+ * hand them to `EmoticonFormSheet`'s own editors instead of this sheet's crop.
  *
  * WARN: The rows are visible to the other participant to differing degrees, so the
  * header says which one also changes their screen — the labels alone cannot, and this
@@ -67,7 +90,12 @@ export function ApplyPhotoSheet({ className, source, onClose }: ApplyPhotoSheetP
   const photo = usePickedPhoto();
   const { setChatBackgroundMediaId } = useChatStream();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const isVideoCrop = photo.cropping !== null && isVideoMime(photo.cropping.mime);
+  // INFO: § 13.4. Which library the picker lists — set at the tap, since `source` (and its `id`) is gone by the time a pack is picked.
+  const [emoticonPickerType, setEmoticonPickerType] = useState<Nullable<EmoticonPackType>>(null);
+  const [emoticonSource, setEmoticonSource] = useState<Nullable<ApplyPhotoSource>>(null);
+  const [emoticonDraft, setEmoticonDraft] = useState<Nullable<EmoticonDraft>>(null);
 
   return (
     <>
@@ -75,8 +103,11 @@ export function ApplyPhotoSheet({ className, source, onClose }: ApplyPhotoSheetP
         className={className}
         // WARN: Closed while an overlay is up, for § 13.4.'s reason — the editor portals into the app shell and this drawer portals into `body`, so no z-index inside the shell can lift it over this.
         isOpen={source !== null && photo.cropping === null}
-        header={{ title: "사진 사용하기", description: toDescription() }}
         items={buildItems()}
+        header={{
+          title: source?.isVideo ? "동영상 사용하기" : "사진 사용하기",
+          description: toDescription(),
+        }}
         onClose={onClose}
       />
       {photo.cropping && !isVideoCrop && (
@@ -102,14 +133,49 @@ export function ApplyPhotoSheet({ className, source, onClose }: ApplyPhotoSheetP
           onCancel={cancel}
         />
       )}
+      {emoticonPickerType && (
+        <EmoticonPackPickerSheet
+          type={emoticonPickerType}
+          isOpen
+          onClose={cancelEmoticonFlow}
+          onPick={(pack) => void handlePackPicked(pack)}
+        />
+      )}
+      {emoticonDraft && (
+        <EmoticonFormSheet
+          packId={emoticonDraft.pack.id}
+          type={emoticonDraft.packType}
+          isOpen
+          initialFile={emoticonDraft.isVideo ? null : emoticonDraft.file}
+          initialVideo={emoticonDraft.isVideo ? emoticonDraft.file : null}
+          closesOnCancel
+          onClose={cancelEmoticonFlow}
+          onSaved={() => void handleEmoticonSaved()}
+        />
+      )}
     </>
   );
 
   /**
-   * INFO: REQUIREMENTS.md § 12.2. A video reaches the profile cover alone, so the sheet drops the other two rows rather than disabling them — § 7.10.2.'s rule for a control that is never available.
+   * INFO: REQUIREMENTS.md § 12.2., § 13.4. A video drops the profile image and the
+   * wallpaper — only the cover takes a clip — but reaches both emoticon rows exactly as
+   * a photo does.
    * WARN: The dropped rows are the ones the description was written for, so the sentence moves with them.
    */
   function buildItems(): ActionSheetItem[] {
+    const emoticonItems: ActionSheetItem[] = [
+      {
+        label: "이모티콘으로 추가하기",
+        Icon: Smile,
+        onSelect: () => void startEmoticon("emoticon"),
+      },
+      {
+        label: "미니이모티콘으로 추가하기",
+        Icon: Sticker,
+        onSelect: () => void startEmoticon("mini"),
+      },
+    ];
+
     const profile: ActionSheetItem = {
       label: "프로필 배경으로",
       Icon: ImageIcon,
@@ -117,20 +183,21 @@ export function ApplyPhotoSheet({ className, source, onClose }: ApplyPhotoSheetP
     };
 
     if (source?.isVideo) {
-      return [profile];
+      return [profile, ...emoticonItems];
     }
 
     return [
       { label: "프로필 이미지로", Icon: UserRound, onSelect: () => void start("avatar") },
       profile,
       { label: "채팅방 배경으로", Icon: MessageSquare, onSelect: () => void start("chat") },
+      ...emoticonItems,
     ];
   }
 
-  // INFO: § 12.2. The sharing is stated wherever the wallpaper is offered; on a video there is no wallpaper row, so the sentence says why the one row is alone instead.
+  // INFO: § 12.2. The sharing is stated wherever the wallpaper is offered; a video has no wallpaper row, so the sentence says what it can be used for instead.
   function toDescription(): string {
     return source?.isVideo
-      ? "동영상은 프로필 배경에만 쓸 수 있어요"
+      ? "프로필 배경이나 이모티콘으로 쓸 수 있어요"
       : "채팅방 배경은 상대방 화면에도 같이 깔려요";
   }
 
@@ -166,6 +233,83 @@ export function ApplyPhotoSheet({ className, source, onClose }: ApplyPhotoSheetP
     // INFO: The read said why it failed; this is only the guard coming back down, so the row can be tapped again.
     if (!draft) {
       cancel();
+    }
+  }
+
+  // WARN: `source` is captured into state rather than read back later, for `start`'s reason — the sheet has closed by the time a pack is picked.
+  function startEmoticon(type: EmoticonPackType) {
+    if (!source) {
+      return;
+    }
+
+    if (isApplyingRef.current) {
+      toast.error("앞의 사진을 설정하고 있어요");
+
+      return;
+    }
+
+    isApplyingRef.current = true;
+    setEmoticonSource(source);
+    setEmoticonPickerType(type);
+    onClose();
+  }
+
+  async function handlePackPicked(pack: EmoticonPackSummary) {
+    const type = emoticonPickerType;
+    const picked = emoticonSource;
+
+    if (!type || !picked) {
+      return;
+    }
+
+    setEmoticonPickerType(null);
+
+    const reading = toast.loading(
+      picked.isVideo ? "영상을 불러오는 중이에요" : "사진을 불러오는 중이에요",
+    );
+
+    try {
+      const file = await readOriginalFile(picked.id);
+
+      toast.dismiss(reading);
+      setEmoticonDraft({ packType: type, pack, file, isVideo: picked.isVideo });
+    } catch {
+      toast.dismiss(reading);
+      toast.error(picked.isVideo ? "영상을 불러오지 못했어요" : "사진을 불러오지 못했어요");
+      cancelEmoticonFlow();
+    }
+  }
+
+  function cancelEmoticonFlow() {
+    setEmoticonPickerType(null);
+    setEmoticonSource(null);
+    setEmoticonDraft(null);
+    isApplyingRef.current = false;
+  }
+
+  /**
+   * INFO: REQUIREMENTS.md § 13.1. A pack the reader had hidden is turned back on, or
+   * the item they just made would land nowhere they can see it (§ 13.5.).
+   */
+  async function handleEmoticonSaved() {
+    const draft = emoticonDraft;
+
+    if (!draft) {
+      return;
+    }
+
+    toast.success(`${josa(EMOTICON_KIND_NOUNS[draft.packType].kind, "을/를")} 추가했어요`);
+    // WARN: § 13.6.'s tray caches a pack's items for a minute on the premise that authoring happens on other routes; this sheet authors on the chat route itself.
+    void queryClient.invalidateQueries({
+      queryKey: toEmoticonPackItemsQuery(draft.pack.id).queryKey,
+    });
+
+    if (!draft.pack.isEnabled) {
+      try {
+        await saveEmoticonPackEnabled(draft.pack.id, true);
+      } catch {
+        toast.error("묶음을 사용 설정하지 못했어요");
+      }
     }
   }
 
