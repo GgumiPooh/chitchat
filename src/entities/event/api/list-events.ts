@@ -104,6 +104,7 @@ export async function listUpcomingOccurrences(
       ${events.color} as "color",
       ${events.recurrence} as "recurrence",
       ${events.scope} as "scope",
+      ${events.reminderEnabled} as "reminderEnabled",
       ${events.createdBy} as "createdBy",
       ${asIso(sql`occurrence.starts_at`)} as "occurrenceStartsAt",
       ${asIso(sql`occurrence.ends_at`)} as "occurrenceEndsAt"
