@@ -218,6 +218,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
       />
       <Modal
         isOpen={failures.length > 0}
+        size="md"
         header={{
           title: `추가하지 못한 ${kindNoun}`,
           description: `${failures.length}개를 추가하지 못했어요`,

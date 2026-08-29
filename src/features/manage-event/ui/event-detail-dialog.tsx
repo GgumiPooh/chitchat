@@ -72,6 +72,7 @@ export function EventDetailDialog({
       <Modal
         className={className}
         isOpen={occurrence !== null && !isManaging && !isEditing}
+        size="md"
         header={{
           // WARN: The title clears both corner controls, or a long event name runs under them.
           // INFO: `break-all` — the app wraps on spaces (DESIGN.md § 4.2.3.), which leaves a long spaceless title overflowing its own line rather than wrapping.
