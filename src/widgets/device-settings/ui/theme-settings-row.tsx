@@ -11,6 +11,10 @@ const OPTIONS: { value: Theme; label: string; Icon: LucideIcon }[] = [
   { value: "dark", label: "어둡게", Icon: Moon },
 ];
 
+export type ThemeSettingsRowProps = {
+  className?: string;
+};
+
 /**
  * REQUIREMENTS.md § 12., DESIGN.md § 5.1. The theme switch — 시스템 / 밝게 / 어둡게.
  *
@@ -20,11 +24,12 @@ const OPTIONS: { value: Theme; label: string; Icon: LucideIcon }[] = [
  * WARN: The row itself is not a button. Three segments are three targets, and a row
  * that also took a tap would advance the theme from wherever the finger missed.
  */
-export function ThemeSettingsRow() {
+export function ThemeSettingsRow({ className }: ThemeSettingsRowProps) {
   const [theme, setTheme] = useTheme();
 
   return (
     <SettingsRow
+      className={className}
       label="화면 테마"
       description="시스템을 따르거나 직접 고를 수 있어요"
       Icon={theme === "dark" ? Moon : theme === "light" ? Sun : Monitor}

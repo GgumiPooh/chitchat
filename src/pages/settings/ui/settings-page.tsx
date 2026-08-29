@@ -12,16 +12,15 @@ import { IS_DEV } from "@/shared/config";
 import type { User } from "@/shared/db";
 import { cn } from "@/shared/lib";
 import { AppHeader } from "@/shared/ui";
+import { MessageSoundSettingsRow, ThemeSettingsRow } from "@/widgets/device-settings";
 import { DevRefreshRow } from "./dev-refresh-row";
 import { DeviceSettingsRow } from "./device-settings-row";
 import { EmoticonSettingsRow } from "./emoticon-settings-row";
 import { LlmSystemPromptSettingsRow } from "./llm-system-prompt-settings-row";
-import { MessageSoundSettingsRow } from "./message-sound-settings-row";
 import { MiniSettingsRow } from "./mini-settings-row";
 import { ProfileCover } from "./profile-cover";
 import { ServerSettingsRow } from "./server-settings-row";
 import { ShortcutSettingsRow } from "./shortcut-settings-row";
-import { ThemeSettingsRow } from "./theme-settings-row";
 
 export type SettingsPageProps = {
   className?: string;
