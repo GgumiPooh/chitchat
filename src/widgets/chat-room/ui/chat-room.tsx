@@ -777,6 +777,7 @@ export function ChatRoom({
     clearAttachRequest,
     typingUserIds,
     setIsReading,
+    setIsViewingMedia,
     markRead,
   } = useChatStream();
   // INFO: AGENTS.md § 4.1. The rail's 첨부 lives outside the room, so it leaves a request the room answers — on mount too, for a press made on another tab.
@@ -1368,6 +1369,15 @@ export function ChatRoom({
 
     return () => setIsReading(false);
   }, [setIsReading]);
+
+  // WARN: REQUIREMENTS.md § 8.8. Declared after the effect above and never before it — React runs cleanups in that order, so a room left with the viewer open has already stopped reading when this one fires and the cursor stays where it was.
+  const isViewingMedia = Boolean(mediaTrack.viewer);
+
+  useEffect(() => {
+    setIsViewingMedia(isViewingMedia);
+
+    return () => setIsViewingMedia(false);
+  }, [isViewingMedia, setIsViewingMedia]);
 
   // INFO: DESIGN.md § 6.7. The same target `pinToBottom` takes, animated — the pill is a journey back to the live edge that the user asked for, not a pin.
   const scrollToBottom = useCallback(() => {

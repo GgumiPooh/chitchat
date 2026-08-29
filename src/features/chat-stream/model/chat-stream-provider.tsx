@@ -116,6 +116,8 @@ export type ChatStreamValue = {
   subscribe: (listener: ChatStreamListener) => () => void;
   /** Declared by whichever screen is showing the conversation — it suppresses the badge and drives the read cursor. */
   setIsReading: (isReading: boolean) => void;
+  /** REQUIREMENTS.md § 8.8. Declared by the room while § 7.10.'s viewer covers it: the cursor stops and the badge counts, as if the conversation were not on screen. */
+  setIsViewingMedia: (isViewingMedia: boolean) => void;
   /**
    * REQUIREMENTS.md § 8.1., § 8.8. Moves the cursor now, past the throttle.
    *
@@ -216,6 +218,9 @@ export function ChatStreamProvider({
     setChatBackground({ mediaId, blurhash: null });
   }, []);
 
+  // INFO: REQUIREMENTS.md § 8.8. A ref for `notifyModeRef`'s reason — `markRead` is closed over once by the `useCallback([])`s below.
+  const isViewingMediaRef = useRef(false);
+
   const setIsReading = useCallback((isReading: boolean) => {
     isReadingRef.current = isReading;
     setIsRoomOnScreen(isReading);
@@ -226,6 +231,26 @@ export function ChatStreamProvider({
 
     // INFO: REQUIREMENTS.md § 8.8. Both edges are forced — entering the conversation is a read event too, and a throttled entry parks the cursor behind a message that is already on screen.
     void markRead(true);
+  }, []);
+
+  /**
+   * REQUIREMENTS.md § 8.8. The viewer is a departure the room does not unmount for, so
+   * the closing edge is forced exactly as entering the conversation is.
+   *
+   * WARN: Guarded on `isReadingRef`, so a room left with the viewer still up sends nothing — its cleanup runs first and the reader never came back to the conversation.
+   */
+  const setIsViewingMedia = useCallback((isViewingMedia: boolean) => {
+    // WARN: The room's effect re-declares the state it is already in on every change, and a forced post is past the throttle — so an unchanged edge has to leave here before it writes.
+    if (isViewingMediaRef.current === isViewingMedia) {
+      return;
+    }
+
+    isViewingMediaRef.current = isViewingMedia;
+
+    if (!isViewingMedia && isReadingRef.current) {
+      setUnreadCount(0);
+      void markRead(true);
+    }
   }, []);
 
   // WARN: Forced, like the edges above. A tap that lands inside the throttle window would otherwise report nothing, which is exactly the case this exists for — the reader has just travelled to a message that arrived seconds ago.
@@ -270,7 +295,7 @@ export function ChatStreamProvider({
       const message = unreadCountMessageSchema.safeParse(event.data);
 
       // WARN: § 8.4.1. Dormant beats reading. The gate exists because a reader's cursor is about to clear the count anyway — but a sleeping room delivers nothing, so the reader is not reading and the count is real. The module flag, since no render observes it.
-      if (message.success && (!isReadingRef.current || isAppDormant())) {
+      if (message.success && (!isReadingNow() || isAppDormant())) {
         setUnreadCount(message.data.unreadCount);
       }
     }
@@ -295,13 +320,13 @@ export function ChatStreamProvider({
 
       // WARN: REQUIREMENTS.md § 8.4.2. The badge's only other mover is the § 16.1. push, and that has three states where it never arrives — denied, unsupported, and in flight. Without this a client in one of them shows the count it was rendered with until it next walks into 채팅.
       // INFO: § 8.4.1. Dormant beats reading here for the same reason it does in the worker message above — no stream is delivering anything.
-      if (!isReadingRef.current || isAppDormant()) {
+      if (!isReadingNow() || isAppDormant()) {
         void syncUnreadCount();
       }
     }
 
     function flushReadCursor() {
-      if (isReadingRef.current) {
+      if (isReadingNow()) {
         void markRead(true);
       }
     }
@@ -324,6 +349,7 @@ export function ChatStreamProvider({
         isDormant,
         subscribe,
         setIsReading,
+        setIsViewingMedia,
         markRead: markReadNow,
       }}
     >
@@ -403,7 +429,7 @@ export function ChatStreamProvider({
     // INFO: Set on every delivery; `syncUnreadCount` clears it before each pass and only reads it while one is in flight.
     hasMessageDuringSync.current = true;
 
-    if (isReadingRef.current) {
+    if (isReadingNow()) {
       void markRead();
 
       return;
@@ -429,7 +455,7 @@ export function ChatStreamProvider({
     listeners.current.forEach((listener) => listener.onChange?.(message));
 
     // INFO: A reader's cursor is about to clear the count anyway, and § 8.8.'s write is what moves it.
-    if (message.isDeleted && !isReadingRef.current) {
+    if (message.isDeleted && !isReadingNow()) {
       void syncUnreadCount();
     }
   }
@@ -440,7 +466,7 @@ export function ChatStreamProvider({
     // WARN: REQUIREMENTS.md § 8.12. A frozen page runs no timers, so the sweep above did not fire while the app was away and every deadline it was holding is now long past. Re-evaluated here rather than trusted, for the same reason § 8.4. re-checks the socket instead of assuming it survived.
     sweepTyping();
 
-    if (isReadingRef.current) {
+    if (isReadingNow()) {
       setUnreadCount(0);
       // WARN: The badge is written here rather than left to the effect above — the count is already `0`, so React bails out and the effect never runs to clear a badge `sw.js` raised while the page was frozen.
       updateAppBadge(0);
@@ -495,9 +521,19 @@ export function ChatStreamProvider({
    * since a cursor parked a throttle window behind turns the last message read
    * into a push notification.
    */
+  /** REQUIREMENTS.md § 8.8. On screen *and* being read — § 7.10.'s viewer covers the conversation, so the badge counts under it. */
+  function isReadingNow(): boolean {
+    return isReadingRef.current && !isViewingMediaRef.current;
+  }
+
   async function markRead(force = false) {
     // WARN: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the read cursor must leave no trace on the other participant's device for as long as this mode is on, so every trigger (entering, leaving, backgrounding, per-message) is withheld rather than just the throttled ones.
     if (notifyModeRef.current === "onlyMe") {
+      return;
+    }
+
+    // WARN: REQUIREMENTS.md § 8.8. Every trigger passes here, which is why the viewer is withheld in this one place rather than at each of them.
+    if (isViewingMediaRef.current) {
       return;
     }
 
