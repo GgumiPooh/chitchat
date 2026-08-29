@@ -7,13 +7,20 @@ import {
 } from "@/shared/config";
 import { cn, type EventRecurrence, type Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES } from "@/shared/offline-ux";
-import { Button, Chip, Input, Switch, Textarea } from "@/shared/ui";
+import { Button, Chip, Input, SettingsRow, Switch, Textarea } from "@/shared/ui";
+import { Bell, BellOff } from "lucide-react";
 import type { PropsWithChildren } from "react";
 import type { EventDraft } from "../model/event-draft";
 import { isDraftSubmittable } from "../model/event-draft";
 import { EventColorPicker } from "./event-color-picker";
 
 const EVENT_RECURRENCES = Object.keys(EVENT_RECURRENCE_LABELS) as EventRecurrence[];
+
+const REMINDER_HINTS = {
+  shared: "두 분 모두 알림을 받아요",
+  mine: "나만 알림을 받아요",
+  off: "이 일정은 알림 없이 조용히 지나가요",
+} as const;
 
 export type EventFormProps = {
   className?: string;
@@ -43,101 +50,116 @@ export function EventForm({
   onSubmit,
 }: EventFormProps) {
   return (
-    <div className={cn("space-y-md", className)}>
-      <div className="space-y-xs">
-        <Label>일정 이름</Label>
-        <Input
-          value={draft.title}
-          maxLength={MAX_EVENT_TITLE_LENGTH}
-          placeholder="일정 이름"
-          onChange={(event) => onUpdate({ title: event.target.value })}
-        />
-      </div>
+    <div className={cn("space-y-lg", className)}>
+      <div className="space-y-md">
+        <div className="space-y-xs">
+          <Label>일정 이름</Label>
+          <Input
+            value={draft.title}
+            maxLength={MAX_EVENT_TITLE_LENGTH}
+            placeholder="일정 이름"
+            onChange={(event) => onUpdate({ title: event.target.value })}
+          />
+        </div>
 
-      <div className="space-y-xs">
-        <Label>하루 종일</Label>
-        <Switch
-          checked={draft.allDay}
-          haptic
-          aria-label="하루 종일"
-          onCheckedChange={(allDay) => onUpdate({ allDay })}
-        />
-      </div>
-
-      <div className="space-y-xs">
-        <Label>시작</Label>
-        <DateTimeRow
-          dayKey={draft.startDayKey}
-          time={draft.startTime}
-          isTimeHidden={draft.allDay}
-          onDayKeyChange={onStartDayKeyChange}
-          onTimeChange={(startTime) => onUpdate({ startTime })}
-        />
-      </div>
-
-      <div className="space-y-xs">
-        <Label>종료</Label>
-        <DateTimeRow
-          dayKey={draft.endDayKey}
-          time={draft.endTime}
-          isTimeHidden={draft.allDay}
-          onDayKeyChange={(endDayKey) => onUpdate({ endDayKey })}
-          onTimeChange={(endTime) => onUpdate({ endTime })}
-        />
-      </div>
-
-      <div className="space-y-xs">
-        <Label>구분</Label>
-        {/* INFO: REQUIREMENTS.md § 11.5. A distinction, not a privacy control — a `mine` event stays fully visible to the other person, title included (§ 18. #9). */}
-        <div className="flex gap-xs">
-          <Chip
-            haptic
-            isSelected={draft.scope === "shared"}
-            onClick={() => onUpdate({ scope: "shared" })}
-          >
-            우리 일정
-          </Chip>
-          <Chip
-            haptic
-            isSelected={draft.scope === "mine"}
-            onClick={() => onUpdate({ scope: "mine" })}
-          >
-            내 일정
-          </Chip>
+        <div className="space-y-xs">
+          <Label>색상</Label>
+          <EventColorPicker value={draft.color} onChange={(color) => onUpdate({ color })} />
         </div>
       </div>
 
-      <div className="space-y-xs">
-        <Label>반복</Label>
-        {/* INFO: REQUIREMENTS.md § 6. Three fixed cadences and no rule engine — never an interval or an end date. */}
-        <div className="flex gap-xs">
-          {EVENT_RECURRENCES.map((recurrence) => (
+      <hr className="border-hairline-soft" />
+
+      <div className="space-y-md">
+        <div className="space-y-xs">
+          <Label>하루 종일</Label>
+          <Switch
+            checked={draft.allDay}
+            haptic
+            aria-label="하루 종일"
+            onCheckedChange={(allDay) => onUpdate({ allDay })}
+          />
+        </div>
+
+        <div className="space-y-xs">
+          <Label>시작</Label>
+          <DateTimeRow
+            dayKey={draft.startDayKey}
+            time={draft.startTime}
+            isTimeHidden={draft.allDay}
+            onDayKeyChange={onStartDayKeyChange}
+            onTimeChange={(startTime) => onUpdate({ startTime })}
+          />
+        </div>
+
+        <div className="space-y-xs">
+          <Label>종료</Label>
+          <DateTimeRow
+            dayKey={draft.endDayKey}
+            time={draft.endTime}
+            isTimeHidden={draft.allDay}
+            onDayKeyChange={(endDayKey) => onUpdate({ endDayKey })}
+            onTimeChange={(endTime) => onUpdate({ endTime })}
+          />
+        </div>
+
+        <div className="space-y-xs">
+          <Label>반복</Label>
+          {/* INFO: REQUIREMENTS.md § 6. Three fixed cadences and no rule engine — never an interval or an end date. */}
+          <div className="flex gap-xs">
+            {EVENT_RECURRENCES.map((recurrence) => (
+              <Chip
+                key={recurrence}
+                haptic
+                isSelected={draft.recurrence === recurrence}
+                onClick={() => onUpdate({ recurrence })}
+              >
+                {EVENT_RECURRENCE_LABELS[recurrence]}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <hr className="border-hairline-soft" />
+
+      <div className="space-y-md">
+        <div className="space-y-xs">
+          <Label>구분</Label>
+          {/* INFO: REQUIREMENTS.md § 11.5. A distinction, not a privacy control — a `mine` event stays fully visible to the other person, title included (§ 18. #9). */}
+          <div className="flex gap-xs">
             <Chip
-              key={recurrence}
               haptic
-              isSelected={draft.recurrence === recurrence}
-              onClick={() => onUpdate({ recurrence })}
+              isSelected={draft.scope === "shared"}
+              onClick={() => onUpdate({ scope: "shared" })}
             >
-              {EVENT_RECURRENCE_LABELS[recurrence]}
+              우리 일정
             </Chip>
-          ))}
+            <Chip
+              haptic
+              isSelected={draft.scope === "mine"}
+              onClick={() => onUpdate({ scope: "mine" })}
+            >
+              내 일정
+            </Chip>
+          </div>
         </div>
-      </div>
 
-      {/* INFO: REQUIREMENTS.md § 16.3. One switch for the event, not per user — whoever turns it off silences it for both. */}
-      <div className="space-y-xs">
-        <Label>알림 받기</Label>
-        <Switch
-          checked={draft.reminderEnabled}
-          haptic
-          aria-label="알림 받기"
-          onCheckedChange={(reminderEnabled) => onUpdate({ reminderEnabled })}
+        {/* INFO: REQUIREMENTS.md § 16.3. One switch for the event, not per user — whoever turns it off silences it for both. */}
+        <SettingsRow
+          rowClassName="rounded-md border border-hairline-soft bg-surface-soft"
+          description={REMINDER_HINTS[draft.reminderEnabled ? draft.scope : "off"]}
+          Icon={draft.reminderEnabled ? Bell : BellOff}
+          label="알림 받기"
+          trailing={
+            <Switch
+              checked={draft.reminderEnabled}
+              haptic
+              aria-label="알림 받기"
+              onCheckedChange={(reminderEnabled) => onUpdate({ reminderEnabled })}
+            />
+          }
         />
-      </div>
-
-      <div className="space-y-xs">
-        <Label>색상</Label>
-        <EventColorPicker value={draft.color} onChange={(color) => onUpdate({ color })} />
       </div>
 
       <div className="space-y-xs">
