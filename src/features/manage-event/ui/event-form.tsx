@@ -1,13 +1,19 @@
 "use client";
 
-import { MAX_EVENT_DESCRIPTION_LENGTH, MAX_EVENT_TITLE_LENGTH } from "@/shared/config";
-import { cn, type Nullable } from "@/shared/lib";
+import {
+  EVENT_RECURRENCE_LABELS,
+  MAX_EVENT_DESCRIPTION_LENGTH,
+  MAX_EVENT_TITLE_LENGTH,
+} from "@/shared/config";
+import { cn, type EventRecurrence, type Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES } from "@/shared/offline-ux";
 import { Button, Chip, Input, Switch, Textarea } from "@/shared/ui";
 import type { PropsWithChildren } from "react";
 import type { EventDraft } from "../model/event-draft";
 import { isDraftSubmittable } from "../model/event-draft";
 import { EventColorPicker } from "./event-color-picker";
+
+const EVENT_RECURRENCES = Object.keys(EVENT_RECURRENCE_LABELS) as EventRecurrence[];
 
 export type EventFormProps = {
   className?: string;
@@ -99,24 +105,30 @@ export function EventForm({
 
       <div className="space-y-xs">
         <Label>반복</Label>
-        {/* INFO: REQUIREMENTS.md § 6. Yearly is the only recurrence there will ever be — it exists for anniversaries, not as a rule engine. */}
+        {/* INFO: REQUIREMENTS.md § 6. Three fixed cadences and no rule engine — never an interval or an end date. */}
         <div className="flex gap-xs">
-          <Chip
-            haptic
-            isSelected={draft.recurrence === "none"}
-            onClick={() => onUpdate({ recurrence: "none" })}
-          >
-            반복 없음
-          </Chip>
-          <Chip
-            haptic
-            isSelected={draft.recurrence === "yearly"}
-            onClick={() => onUpdate({ recurrence: "yearly" })}
-          >
-            매년
-          </Chip>
+          {EVENT_RECURRENCES.map((recurrence) => (
+            <Chip
+              key={recurrence}
+              haptic
+              isSelected={draft.recurrence === recurrence}
+              onClick={() => onUpdate({ recurrence })}
+            >
+              {EVENT_RECURRENCE_LABELS[recurrence]}
+            </Chip>
+          ))}
         </div>
       </div>
+
+      {/* INFO: REQUIREMENTS.md § 16.3. One switch for the event, not per user — whoever turns it off silences it for both. */}
+      <Field label="알림 받기">
+        <Switch
+          checked={draft.reminderEnabled}
+          haptic
+          aria-label="알림 받기"
+          onCheckedChange={(reminderEnabled) => onUpdate({ reminderEnabled })}
+        />
+      </Field>
 
       <div className="space-y-xs">
         <Label>색상</Label>

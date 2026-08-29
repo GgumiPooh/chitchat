@@ -41,7 +41,17 @@ export async function POST(request: Request) {
     return apiError("invalid_request");
   }
 
-  const { title, description, startsAt, endsAt, allDay, color, recurrence, scope } = body.data;
+  const {
+    title,
+    description,
+    startsAt,
+    endsAt,
+    allDay,
+    color,
+    recurrence,
+    scope,
+    reminderEnabled,
+  } = body.data;
   const event = await createEvent({
     title,
     description,
@@ -51,6 +61,7 @@ export async function POST(request: Request) {
     color,
     recurrence,
     scope,
+    reminderEnabled,
     createdBy: user.id,
   });
 

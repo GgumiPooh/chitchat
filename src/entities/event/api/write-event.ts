@@ -16,6 +16,7 @@ export type CreateEventParams = {
   color: Nullable<EventColor>;
   recurrence: EventRecurrence;
   scope: EventScope;
+  reminderEnabled: boolean;
   createdBy: UserId;
 };
 
@@ -29,6 +30,7 @@ export type UpdateEventParams = {
   color?: Nullable<EventColor>;
   recurrence?: EventRecurrence;
   scope?: EventScope;
+  reminderEnabled?: boolean;
 };
 
 export async function getEvent(id: EventId): Promise<Nullable<CalendarEvent>> {

@@ -2,7 +2,11 @@
 
 import type { EventOccurrence } from "@/entities/event";
 import type { Participant } from "@/entities/user";
-import { EVENT_COLOR_FILL_CLASSES, EVENT_FALLBACK_FILL_CLASS } from "@/shared/config";
+import {
+  EVENT_COLOR_FILL_CLASSES,
+  EVENT_FALLBACK_FILL_CLASS,
+  EVENT_RECURRENCE_LABELS,
+} from "@/shared/config";
 import {
   cn,
   formatDateWithWeekday,
@@ -134,7 +138,9 @@ export function EventDetailDialog({
                 />
                 {/* INFO: REQUIREMENTS.md § 11.5. `개인` and never `내` — both users read this row, so `내` is wrong for whichever of them did not write it. */}
                 {shown.event.scope === "mine" ? "개인 일정" : "우리 일정"}
-                {shown.event.recurrence === "yearly" && " · 매년"}
+                {shown.event.recurrence !== "none" &&
+                  ` · ${EVENT_RECURRENCE_LABELS[shown.event.recurrence]}`}
+                {!shown.event.reminderEnabled && " · 알림 없음"}
               </span>
             </Row>
             {author && (

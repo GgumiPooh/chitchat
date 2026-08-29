@@ -1,3 +1,5 @@
+import type { EventRecurrence } from "@/shared/lib";
+
 /** REQUIREMENTS.md § 11. The calendar's endpoints. */
 export const EVENTS_PATH = "/api/events";
 
@@ -23,6 +25,14 @@ export const MAX_EVENT_DESCRIPTION_LENGTH = 500;
 export const EVENT_COLORS = ["clay", "honey", "olive", "teal", "blue", "plum"] as const;
 
 export type EventColor = (typeof EVENT_COLORS)[number];
+
+/** REQUIREMENTS.md § 11.4. The 반복 chips and the detail row's suffix, in the order the form offers them. */
+export const EVENT_RECURRENCE_LABELS: Record<EventRecurrence, string> = {
+  none: "반복 없음",
+  weekly: "매주",
+  monthly: "매월",
+  yearly: "매년",
+};
 
 export const EVENT_COLOR_LABELS: Record<EventColor, string> = {
   clay: "클레이",

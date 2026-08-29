@@ -13,6 +13,7 @@ export type EventBody = {
   color: Nullable<EventColor>;
   recurrence: EventRecurrence;
   scope: EventScope;
+  reminderEnabled: boolean;
 };
 
 export async function fetchOccurrences(fromKey: string, toKey: string): Promise<EventOccurrence[]> {

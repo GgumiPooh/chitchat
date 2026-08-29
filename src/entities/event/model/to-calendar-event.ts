@@ -17,6 +17,7 @@ export function toCalendarEvent(row: Event): CalendarEvent {
     color: isEventColor(row.color) ? row.color : null,
     recurrence: row.recurrence,
     scope: row.scope,
+    reminderEnabled: row.reminderEnabled,
     createdBy: row.createdBy,
     id: row.id,
   };

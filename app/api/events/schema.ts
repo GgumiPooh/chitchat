@@ -30,9 +30,10 @@ const fieldsSchema = z.object({
   allDay: z.boolean(),
   // WARN: DESIGN.md § 4.1.7. The set is closed here, not at the column — `events.color` is free `text`, so this is the only thing keeping a class name Tailwind never built out of the database.
   color: z.enum(EVENT_COLORS).nullable(),
-  // INFO: REQUIREMENTS.md § 6. Yearly only, for anniversaries. Never widen this into an RRULE.
-  recurrence: z.enum(["none", "yearly"]),
+  // INFO: REQUIREMENTS.md § 6. Three fixed cadences. Never widen this into an RRULE.
+  recurrence: z.enum(["none", "weekly", "monthly", "yearly"]),
   scope: z.enum(["shared", "mine"]),
+  reminderEnabled: z.boolean(),
 });
 
 // INFO: REQUIREMENTS.md § 6. `ends_at` is NOT NULL, so an open-ended event is rejected rather than defaulted — the form is what supplies a sensible end. Only a create defaults, and only the fields a create may legitimately omit.
@@ -43,6 +44,7 @@ export const eventBodySchema = fieldsSchema
     color: fieldsSchema.shape.color.default(null),
     recurrence: fieldsSchema.shape.recurrence.default("none"),
     scope: fieldsSchema.shape.scope.default("shared"),
+    reminderEnabled: fieldsSchema.shape.reminderEnabled.default(true),
   })
   .refine(({ startsAt, endsAt }) => startsAt <= endsAt);
 

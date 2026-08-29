@@ -442,6 +442,20 @@
       "when": 1787735000000,
       "tag": "0062_message_reactions",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1788009447865,
+      "tag": "0063_recurrence_cadences",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1788009722166,
+      "tag": "0064_event_reminder_toggle",
+      "breakpoints": true
     }
   ]
 }

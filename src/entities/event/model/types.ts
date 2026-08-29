@@ -20,6 +20,7 @@ export type CalendarEvent = {
   color: Nullable<EventColor>;
   recurrence: EventRecurrence;
   scope: EventScope;
+  reminderEnabled: boolean;
   // INFO: REQUIREMENTS.md § 11.4. A record of authorship, never a permission check — either user may edit any event.
   createdBy: UserId;
   id: EventId;

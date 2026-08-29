@@ -20,6 +20,7 @@ export type EventDraft = {
   color: Nullable<EventColor>;
   recurrence: EventRecurrence;
   scope: EventScope;
+  reminderEnabled: boolean;
 };
 
 // INFO: A half-hour grid rather than the hour: at 14:05 the next hour boundary is 55 minutes out, which is never the thing being added right now.
@@ -59,6 +60,7 @@ export function toNewDraft(dayKey: string, now: number): EventDraft {
     color: null,
     recurrence: "none",
     scope: "shared",
+    reminderEnabled: true,
   };
 }
 
@@ -100,6 +102,7 @@ export function toEditDraft(occurrence: EventOccurrence): EventDraft {
     color: event.color,
     recurrence: event.recurrence,
     scope: event.scope,
+    reminderEnabled: event.reminderEnabled,
   };
 }
 
@@ -124,6 +127,7 @@ export function toEventBody(draft: EventDraft): Nullable<EventBody> {
     color: draft.color,
     recurrence: draft.recurrence,
     scope: draft.scope,
+    reminderEnabled: draft.reminderEnabled,
   };
 }
 

@@ -47,7 +47,10 @@ const ALL_DAY_NOTICE_HOUR = "09";
 async function main() {
   const now = Date.now();
   const todayKey = toDayKey(now);
-  const occurrences = await listEventOccurrences(todayKey, shiftDayKey(todayKey, HORIZON_DAYS));
+  // INFO: REQUIREMENTS.md § 16.3. Filtered here and not in the query — the calendar reads the same function and still shows a silenced event.
+  const occurrences = (
+    await listEventOccurrences(todayKey, shiftDayKey(todayKey, HORIZON_DAYS))
+  ).filter((occurrence) => occurrence.event.reminderEnabled);
   const audience = await getDb().select({ id: users.id }).from(users);
   let sent = 0;
 
@@ -180,8 +183,13 @@ function toDueThresholds(occurrence: EventOccurrence, now: number): Threshold[] 
   const createdAt = idToDate(occurrence.event.id).getTime();
 
   return toThresholds(occurrence, startsAt)
-    .filter(({ at }) => at <= now && at >= createdAt)
+    .filter(({ lead, at }) => at <= now && at >= createdAt && !isSkippedLead(occurrence, lead))
     .sort((left, right) => right.at - left.at);
+}
+
+// INFO: REQUIREMENTS.md § 16.3. A weekly event's 7일 전 is the previous occurrence's own start — a banner at the moment the last one began.
+function isSkippedLead(occurrence: EventOccurrence, lead: ReminderLead): boolean {
+  return lead === "d7" && occurrence.event.recurrence === "weekly";
 }
 
 function toThresholds(occurrence: EventOccurrence, startsAt: number): Threshold[] {

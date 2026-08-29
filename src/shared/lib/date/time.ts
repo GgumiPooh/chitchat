@@ -19,6 +19,7 @@ export const TIME_ZONE = "Asia/Seoul";
  * being converted, and a constant would be wrong for half the year.
  */
 export const TIME_ZONE_OFFSET = "+09:00";
+export const TIME_ZONE_OFFSET_MS = 9 * AN_HOUR;
 export const LOCALE = "ko-KR";
 
 const dayKeyFormatter = new Intl.DateTimeFormat("en-CA", {

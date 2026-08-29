@@ -8,7 +8,7 @@ import {
   TIME_ZONE,
   toDayKey,
 } from "@/shared/lib";
-import { and, eq, gte, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, gte, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { toOccurrencesInRange } from "../model/occurrences";
 import { toCalendarEvent } from "../model/to-calendar-event";
 import type { EventOccurrence } from "../model/types";
@@ -27,15 +27,14 @@ function asIso(instant: SQL): SQL {
 }
 
 /**
- * Every occurrence falling between two day keys, inclusive, with `yearly` rows
- * projected onto the years in range (REQUIREMENTS.md § 6.).
+ * Every occurrence falling between two day keys, inclusive, with recurring rows
+ * projected onto the periods in range (REQUIREMENTS.md § 6.).
  *
- * WARN: The `yearly` half of the query is deliberately **unfiltered by date** —
- * a recurring row's stored instants sit in its anchor year, so no range predicate
- * on `starts_at` can find the occurrence being asked for. Those rows are the
- * couple's anniversaries and number in the single digits, so fetching them whole
- * and projecting in memory is cheaper than the generated-series join that would
- * let Postgres do it.
+ * WARN: The recurring half of the query is deliberately **unfiltered by date** —
+ * a recurring row's stored instants sit in its anchor period, so no range predicate
+ * on `starts_at` can find the occurrence being asked for. Those rows are a couple's
+ * handful of anniversaries and routines, so fetching them whole and projecting in
+ * memory is cheaper than the generated-series join that would let Postgres do it.
  */
 export async function listEventOccurrences(
   fromKey: string,
@@ -47,7 +46,7 @@ export async function listEventOccurrences(
     .from(events)
     .where(
       or(
-        eq(events.recurrence, "yearly"),
+        ne(events.recurrence, "none"),
         and(lte(events.startsAt, instantAfter(toKey)), gte(events.endsAt, instantBefore(fromKey))),
       ),
     );
@@ -64,13 +63,15 @@ export async function listEventOccurrences(
  * `findNextMilestone` looks, and a row summarising an event further out than that
  * would be noise.
  *
- * WARN: The projection rule is encoded here **and** in `projectYearly`, and the two
- * cannot be merged. A month grid's range can span a year boundary, where one `yearly`
- * row appears twice and no scalar expression answers; this path needs only the next
- * single occurrence, which is what makes a scalar one possible and a `LIMIT` real.
- * They are held together by agreeing on `setUTCFullYear`'s own arithmetic — months
- * from January of the target year, then days, so a 2월 29일 anchor overflows to 3월 1일
- * on both sides rather than being clamped to 2월 28일 by `+ interval 'n years'`.
+ * WARN: The projection rules are encoded here **and** in `occurrences.ts`, and the two
+ * cannot be merged. A month grid's range can span a period boundary, where one
+ * recurring row appears twice and no scalar expression answers; this path needs only
+ * the next single occurrence, which is what makes a scalar one possible and a `LIMIT`
+ * real. `yearly` agrees with `setUTCFullYear`'s own arithmetic — months from January
+ * of the target year, then days, so a 2월 29일 anchor overflows to 3월 1일 on both sides
+ * rather than being clamped to 2월 28일 by `+ interval 'n years'`. `monthly` is the
+ * opposite on purpose and in `TIME_ZONE` wall-clock: `least(anchor day, days in month)`.
+ * `weekly` is a seven-day step. Neither projects before its anchor, where `yearly` does.
  *
  * WARN: There is no index behind the `ORDER BY`, and there cannot be one. The sort
  * key is the projected start, which is a function of **today** as well as of the row —
@@ -109,27 +110,47 @@ export async function listUpcomingOccurrences(
     from ${events}
     cross join bounds
     cross join lateral (
-      select ${events.startsAt} at time zone 'UTC' as anchor_utc
+      select
+        ${events.startsAt} at time zone 'UTC' as anchor_utc,
+        ${events.startsAt} at time zone ${TIME_ZONE}::text as anchor_wall,
+        ${events.startsAt} - date_trunc('day', ${events.startsAt} at time zone ${TIME_ZONE}::text) at time zone ${TIME_ZONE}::text as time_of_day
     ) as stored
     cross join lateral (
       select candidate.starts_at, candidate.ends_at
       from (
         select projected.starts_at, projected.starts_at + (${duration}) as ends_at
         from (
-          select
-            case
-              when ${events.recurrence} = 'yearly' then (
-                make_timestamp(target.year, 1, 1, 0, 0, 0)
-                  + make_interval(
-                      months => extract(month from stored.anchor_utc)::int - 1,
-                      days => extract(day from stored.anchor_utc)::int - 1
-                    )
-                  + (stored.anchor_utc - date_trunc('day', stored.anchor_utc))
-              ) at time zone 'UTC'
-              else ${events.startsAt}
-            end as starts_at
+          select (
+            make_timestamp(target.year, 1, 1, 0, 0, 0)
+              + make_interval(
+                  months => extract(month from stored.anchor_utc)::int - 1,
+                  days => extract(day from stored.anchor_utc)::int - 1
+                )
+              + (stored.anchor_utc - date_trunc('day', stored.anchor_utc))
+          ) at time zone 'UTC' as starts_at
           from generate_series(bounds.year - 1, bounds.year + 1) as target(year)
-          where ${events.recurrence} = 'yearly' or target.year = bounds.year
+          where ${events.recurrence} = 'yearly'
+          union all
+          select (
+            month_start.first_day
+              + make_interval(days => least(extract(day from stored.anchor_wall)::int, extract(day from month_start.first_day + interval '1 month - 1 day')::int) - 1)
+          ) at time zone ${TIME_ZONE}::text + stored.time_of_day as starts_at
+          from generate_series(
+            greatest(0, (extract(year from bounds.today) - extract(year from stored.anchor_wall)) * 12 + extract(month from bounds.today) - extract(month from stored.anchor_wall) - 1)::int,
+            greatest(0, (extract(year from bounds.today) - extract(year from stored.anchor_wall)) * 12 + extract(month from bounds.today) - extract(month from stored.anchor_wall) + 1)::int
+          ) as step(months)
+          cross join lateral (select date_trunc('month', stored.anchor_wall) + make_interval(months => step.months) as first_day) as month_start
+          where ${events.recurrence} = 'monthly'
+          union all
+          select ${events.startsAt} + make_interval(weeks => step.weeks) as starts_at
+          from generate_series(
+            greatest(0, floor((bounds.today - stored.anchor_wall::date) / 7.0)::int - 1),
+            greatest(0, floor((bounds.today - stored.anchor_wall::date) / 7.0)::int + 1)
+          ) as step(weeks)
+          where ${events.recurrence} = 'weekly'
+          union all
+          select ${events.startsAt} as starts_at
+          where ${events.recurrence} = 'none'
         ) as projected
       ) as candidate
       where (candidate.starts_at at time zone ${TIME_ZONE}::text)::date <= bounds.horizon

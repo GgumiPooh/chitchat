@@ -1,10 +1,18 @@
-import type { EventId, UserId } from "@/shared/lib";
+import type { EventId, EventRecurrence, UserId } from "@/shared/lib";
 import { boolean, index, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { snowflake } from "../types";
 import { users } from "./users";
 
-// INFO: REQUIREMENTS.md § 6. Yearly only, for anniversaries — deliberately not a general RRULE engine.
-export const eventRecurrenceEnum = pgEnum("event_recurrence", ["none", "yearly"]);
+export type { EventRecurrence } from "@/shared/lib";
+
+// WARN: Typed against `shared/lib`'s union so the column and `projectRecurrence` cannot drift apart.
+const EVENT_RECURRENCES = [
+  "none",
+  "weekly",
+  "monthly",
+  "yearly",
+] as const satisfies readonly EventRecurrence[];
+export const eventRecurrenceEnum = pgEnum("event_recurrence", EVENT_RECURRENCES);
 
 // INFO: REQUIREMENTS.md § 11.5. A distinction ("I'm busy that day"), not a privacy control — `mine` stays visible to the other user.
 export const eventScopeEnum = pgEnum("event_scope", ["shared", "mine"]);
@@ -23,6 +31,8 @@ export const events = pgTable(
     color: text("color"),
     recurrence: eventRecurrenceEnum("recurrence").notNull().default("none"),
     scope: eventScopeEnum("scope").notNull().default("shared"),
+    // INFO: REQUIREMENTS.md § 16.3. Per event and not per user, since both users edit every event; `false` silences the reminder run for it.
+    reminderEnabled: boolean("reminder_enabled").notNull().default(true),
     createdBy: snowflake<UserId>("created_by")
       .notNull()
       .references(() => users.id),
@@ -33,7 +43,5 @@ export const events = pgTable(
 );
 
 export type Event = typeof events.$inferSelect;
-
-export type EventRecurrence = (typeof eventRecurrenceEnum.enumValues)[number];
 
 export type EventScope = (typeof eventScopeEnum.enumValues)[number];

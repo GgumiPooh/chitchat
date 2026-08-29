@@ -76,6 +76,12 @@ export {
   type HolidayTable,
 } from "./date/holidays";
 export {
+  projectRecurrence,
+  type EventRecurrence,
+  type RecurrenceSpan,
+  type RecurringSpan,
+} from "./date/recurrence";
+export {
   AN_HOUR,
   A_DAY,
   A_MINUTE,
@@ -85,6 +91,7 @@ export {
   SUNDAY,
   TIME_ZONE,
   TIME_ZONE_OFFSET,
+  TIME_ZONE_OFFSET_MS,
   countDays,
   formatDate,
   formatDateWithWeekday,
