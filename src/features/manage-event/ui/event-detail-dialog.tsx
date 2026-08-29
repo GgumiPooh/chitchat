@@ -39,9 +39,11 @@ export type EventDetailDialogProps = {
  * INFO: It owns 수정 and 삭제 as well as the reading, so 캘린더 and 채팅's § 11.5.1.
  * panel both get the full flow from one component rather than a copy each.
  *
- * WARN: The three surfaces are shown **one at a time**, never stacked. All three are
- * modal and portalled to `body` and none is declared nested, so two of them up at once
- * is two focus traps — and dismissing the top one can leave the one underneath inert.
+ * WARN: The dialog and the form sheet are shown **one at a time**, never stacked. Both
+ * are modal and portalled to `body` and neither is declared nested, so two of them up
+ * at once is two focus traps — and dismissing the top one can leave the one underneath inert.
+ * The 일정 관리 sheet is the exception: it is rendered *inside* the dialog's header, so
+ * Radix nests it, and its desktop popover stays pinned to a button that is still on screen.
  */
 export function EventDetailDialog({
   className,
@@ -71,7 +73,7 @@ export function EventDetailDialog({
     <>
       <Modal
         className={className}
-        isOpen={occurrence !== null && !isManaging && !isEditing}
+        isOpen={occurrence !== null && !isEditing}
         size="md"
         header={{
           // WARN: The title clears both corner controls, or a long event name runs under them.
@@ -79,13 +81,31 @@ export function EventDetailDialog({
           className: "pr-24 break-all",
           title: shown?.event.title ?? "일정",
           action: isReadOnly ? undefined : (
-            <IconButton
-              ref={manageButtonRef}
-              Icon={Settings2}
-              haptic
-              aria-label="일정 관리"
-              onClick={() => setIsManaging(true)}
-            />
+            <>
+              <IconButton
+                ref={manageButtonRef}
+                Icon={Settings2}
+                haptic
+                aria-label="일정 관리"
+                onClick={() => setIsManaging(true)}
+              />
+              {/* INFO: REQUIREMENTS.md § 11.4. No permission tier — 수정 and 삭제 are offered on every event, whoever created it. */}
+              {/* WARN: Inside the dialog, not beside it — a sibling popover is an outside click to the dialog's dismissable layer, and the first tap on 수정 closed the dialog under the menu. */}
+              <ActionSheet
+                isOpen={isManaging}
+                anchorRef={manageButtonRef}
+                header={{ title: shown?.event.title ?? "일정", isHidden: true }}
+                items={[
+                  { label: "수정", onSelect: edit },
+                  {
+                    label: "삭제",
+                    variant: "destructive",
+                    onSelect: deleteGate.guard(() => void remove()),
+                  },
+                ]}
+                onClose={() => setIsManaging(false)}
+              />
+            </>
           ),
         }}
         onClose={onClose}
@@ -136,22 +156,6 @@ export function EventDetailDialog({
           </dl>
         )}
       </Modal>
-
-      {/* INFO: REQUIREMENTS.md § 11.4. No permission tier — 수정 and 삭제 are offered on every event, whoever created it. */}
-      <ActionSheet
-        isOpen={isManaging}
-        anchorRef={manageButtonRef}
-        header={{ title: shown?.event.title ?? "일정", isHidden: true }}
-        items={[
-          { label: "수정", onSelect: edit },
-          {
-            label: "삭제",
-            variant: "destructive",
-            onSelect: deleteGate.guard(() => void remove()),
-          },
-        ]}
-        onClose={() => setIsManaging(false)}
-      />
 
       {/* WARN: Mounted whenever there is something to edit, not only while editing — the sheet stays up through its slide-down, which unmounting would cut short. */}
       {shown && (
