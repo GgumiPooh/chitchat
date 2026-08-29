@@ -58,6 +58,7 @@ import {
 import { useStorageState } from "synced-storage/react";
 import {
   EMOTICON_GRID_COLUMNS,
+  FOCUS_HEADING_ATTRIBUTE,
   FOCUS_INDEX_ATTRIBUTE,
   MINI_GRID_COLUMNS,
   focusItem,
@@ -986,7 +987,9 @@ export function EmoticonPicker({
             {/* INFO: DESIGN.md § 7.10. 보관함's month header pattern, sized down from `title-sm` to `body-sm` for this panel's tighter grid — `meta`, inside the scroller so it travels with the cells rather than pinning above them. */}
             {/* WARN: § 8.14. Not a focus target, so it carries no `FOCUS_INDEX_ATTRIBUTE` — the arrows read cells off that attribute and a heading in the list would be a step onto nothing. */}
             {!isRecentsTabId(activeTab) && !isAllTab && activeTabLabel !== "" && (
-              <h2 className="pb-xs text-body-sm text-meta">{activeTabLabel}</h2>
+              <h2 className="pb-xs text-body-sm text-meta" {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}>
+                {activeTabLabel}
+              </h2>
             )}
             {/* WARN: § 13.6. The tab's own items are a request now, so the grid waits for them as it waits for the list. Drawn before they land, a pack tab paints `이 묶음에는 이모티콘이 없어요` over a pack that has plenty — the verdict-before-the-answer § 13.9.1. removed from the search pane. */}
             {/* WARN: § 13.6. 최근 사용 is the default tab and its ids resolve through a request of their own, so it needs the same guard — without it the panel flashes `최근 사용한 이모티콘이 여기에 보여요` every time it opens ahead of the preload. Every send used to do it too, a new id being a cold key; `emoticons-query.ts` holds the previous answer over for exactly that. */}
@@ -1041,7 +1044,12 @@ export function EmoticonPicker({
                     <div className="flex flex-col gap-md">
                       <section>
                         {/* WARN: § 8.14. Not a focus target — see the pack tab heading comment above. */}
-                        <h2 className="pb-xs text-body-sm text-meta">최근 사용</h2>
+                        <h2
+                          className="pb-xs text-body-sm text-meta"
+                          {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}
+                        >
+                          최근 사용
+                        </h2>
                         {recents.length === 0 ? (
                           <EmptyState
                             className="border-0 bg-transparent"
@@ -1095,7 +1103,12 @@ export function EmoticonPicker({
                         )}
                       </section>
                       <section>
-                        <h2 className="pb-xs text-body-sm text-meta">즐겨찾기</h2>
+                        <h2
+                          className="pb-xs text-body-sm text-meta"
+                          {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}
+                        >
+                          즐겨찾기
+                        </h2>
                         {favorites.length === 0 ? (
                           <EmptyState
                             className="border-0 bg-transparent"
@@ -1146,7 +1159,12 @@ export function EmoticonPicker({
 
                       return (
                         <section key={section.pack.id}>
-                          <h2 className="pb-xs text-body-sm text-meta">{section.pack.name}</h2>
+                          <h2
+                            className="pb-xs text-body-sm text-meta"
+                            {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}
+                          >
+                            {section.pack.name}
+                          </h2>
                           <div
                             className={cn(
                               "grid gap-2xs",

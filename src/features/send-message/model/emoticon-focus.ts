@@ -23,6 +23,9 @@ export const MINI_GRID_COLUMNS = 6;
  */
 export const FOCUS_INDEX_ATTRIBUTE = "data-emoticon-focus";
 
+/** The attribute a section heading carries, so `focusItem` can reveal it along with the first row beneath it. */
+export const FOCUS_HEADING_ATTRIBUTE = "data-emoticon-heading";
+
 /**
  * REQUIREMENTS.md § 8.14. Where an arrow key takes focus next **inside this list**, or
  * `undefined` where the key leads out of it and the caller has to say where to.
@@ -161,8 +164,43 @@ export function focusItem(
   }
 
   if (reveal) {
+    const heading = toFirstRowHeading(scroller, item);
+
+    if (heading) {
+      revealWithin(scroller, heading);
+    }
+
     revealWithin(scroller, item);
   }
 
   return true;
+}
+
+/**
+ * The heading above `item`'s grid where `item` sits on that grid's first row, so a
+ * keyboard entry at the top of a section shows which section it landed in.
+ *
+ * INFO: Revealed before the cell, so a heading taller than the room above a clipped
+ * cell still yields to the cell — the cell is what holds focus.
+ */
+function toFirstRowHeading(scroller: HTMLElement, item: HTMLElement): Nullable<HTMLElement> {
+  const grid = item.closest<HTMLElement>('[role="group"]');
+  const firstCell = grid?.querySelector<HTMLElement>(`[${FOCUS_INDEX_ATTRIBUTE}]`);
+
+  if (
+    !grid ||
+    !firstCell ||
+    firstCell.getBoundingClientRect().top !== item.getBoundingClientRect().top
+  ) {
+    return null;
+  }
+
+  const headings = Array.from(
+    scroller.querySelectorAll<HTMLElement>(`[${FOCUS_HEADING_ATTRIBUTE}]`),
+  );
+  const heading = headings.findLast(
+    (candidate) => candidate.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING,
+  );
+
+  return heading ?? null;
 }
