@@ -4,6 +4,7 @@ import { APP_HEADER_ID } from "@/shared/config";
 import { GESTURE_SLOP, type Nullable } from "@/shared/lib";
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type MouseEvent,
@@ -81,14 +82,20 @@ export function useSheetDrag({
     [],
   );
 
+  // WARN: The pending close is cancelled here rather than in the reset below, which reads and writes it during render (`react-hooks/refs`). `useLayoutEffect` and not `useEffect`: a passive effect is a task of its own, and the 200ms timer can fire in front of one and close a sheet that has just re-opened.
+  useLayoutEffect(() => {
+    if (!isOpen || !closeTimerRef.current) {
+      return;
+    }
+
+    clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = null;
+  }, [isOpen]);
+
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen);
 
     if (isOpen) {
-      if (closeTimerRef.current) {
-        clearTimeout(closeTimerRef.current);
-        closeTimerRef.current = null;
-      }
       setIsClosedByDrag(false);
       setIsSettlingClose(false);
       setIsDraggingClose(false);

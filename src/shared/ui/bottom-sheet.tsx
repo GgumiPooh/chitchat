@@ -1,6 +1,6 @@
 "use client";
 
-import { cn, useIsDesktop, useScrollFade } from "@/shared/lib";
+import { cn, useIsDesktop, useScrollFade, type Nullable } from "@/shared/lib";
 import type { PropsWithChildren } from "react";
 import { DialogShell } from "./dialog-shell";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "./drawer";
@@ -15,7 +15,6 @@ export type BottomSheetProps = PropsWithChildren<{
   snapPoints?: (number | string)[];
   activeSnapPoint?: number | string | null;
   setActiveSnapPoint?: (snapPoint: number | string | null) => void;
-  scrollRef?: React.Ref<HTMLElement>;
   header: {
     className?: string;
     title: string;
@@ -23,6 +22,8 @@ export type BottomSheetProps = PropsWithChildren<{
     // INFO: The title stays required even when hidden — Radix names the dialog from it and warns when it is missing.
     isHidden?: boolean;
   };
+  /** The sheet's scrolling body as it attaches, and `null` as it detaches — for a caller that observes inside it (`EmoticonPackPickerSheet`'s paging sentinel). */
+  onScrollElementChange?: (element: Nullable<HTMLElement>) => void;
   onClose: () => void;
   /**
    * Runs as the sheet closes, before focus is restored to whatever opened it.
@@ -46,22 +47,18 @@ export function BottomSheet({
   snapPoints,
   activeSnapPoint,
   setActiveSnapPoint,
-  scrollRef: externalScrollRef,
   header,
   children,
+  onScrollElementChange,
   onClose,
   onCloseAutoFocus,
 }: BottomSheetProps) {
   const isDesktop = useIsDesktop();
   const { maskStyle, scrollRef: internalScrollRef } = useScrollFade("to bottom");
 
-  const setScrollElement = (node: HTMLDivElement | null) => {
+  const setScrollElement = (node: Nullable<HTMLDivElement>) => {
     internalScrollRef.current = node;
-    if (typeof externalScrollRef === "function") {
-      externalScrollRef(node);
-    } else if (externalScrollRef && "current" in externalScrollRef) {
-      (externalScrollRef as { current: HTMLElement | null }).current = node;
-    }
+    onScrollElementChange?.(node);
   };
 
   if (isDesktop) {

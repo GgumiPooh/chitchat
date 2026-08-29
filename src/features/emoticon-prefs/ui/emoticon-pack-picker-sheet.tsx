@@ -81,8 +81,8 @@ export function EmoticonPackPickerSheet({
       isOpen={isOpen}
       isTall
       keepsHeightUnderKeyboard
-      scrollRef={setScrollElement}
       header={{ title: `${packNoun} 선택` }}
+      onScrollElementChange={setScrollElement}
       onClose={onClose}
     >
       <div className="space-y-sm pt-2xs">
