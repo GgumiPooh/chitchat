@@ -54,14 +54,15 @@ export function EventForm({
         />
       </div>
 
-      <Field label="하루 종일">
+      <div className="space-y-xs">
+        <Label>하루 종일</Label>
         <Switch
           checked={draft.allDay}
           haptic
           aria-label="하루 종일"
           onCheckedChange={(allDay) => onUpdate({ allDay })}
         />
-      </Field>
+      </div>
 
       <div className="space-y-xs">
         <Label>시작</Label>
@@ -177,20 +178,6 @@ type LabelProps = PropsWithChildren<{
 
 function Label({ className, children }: LabelProps) {
   return <p className={cn("text-caption text-meta", className)}>{children}</p>;
-}
-
-type FieldProps = PropsWithChildren<{
-  className?: string;
-  label: string;
-}>;
-
-function Field({ className, label, children }: FieldProps) {
-  return (
-    <div className={cn("flex items-center justify-between", className)}>
-      <p className="text-body-md text-body">{label}</p>
-      {children}
-    </div>
-  );
 }
 
 type DateTimeRowProps = {
