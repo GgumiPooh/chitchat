@@ -350,7 +350,7 @@ Four tiers, closed. Each tier has one role.
 
 ### 4.1.7. Event Colours.
 
-A closed set of six, and the only place in the app where colour is user-chosen. Each is a 4px dot in a day cell (§ 7.9.), a 10px one in an event row — at 4px a chosen colour went unseen, and at 8px six muted hues on that little area were still read as one smudge — and a swatch in the event form.
+A closed set of six, and the only place in the app where colour is user-chosen. Each is a 4px dot in a day cell (§ 7.9.), an 8px one in an event row, **scaled to read 10px** — at 4px a chosen colour went unseen, and six muted hues at 8px were still hard to tell apart. The box stays 8px and a `scale` does the growing: the row aligns the dot against that box, so a grown one sits off the title's line. A swatch in the event form is the third.
 
 | Token         | Hex     | Name in the UI |
 | ------------- | ------- | -------------- |
@@ -365,7 +365,7 @@ A closed set of six, and the only place in the app where colour is user-chosen. 
 | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `primary` is **not** in the set                                   | The milestone diamond (§ 7.9.) is `primary`, and an event dot in the same colour would read as a derived anniversary                                                         |
 | Three of the six are cool, against § 8.1.'s warm bias             | The set is not a palette, it is a legend — six hues at 4px have to be told apart at a glance, and a warm-only run collapses into one orange smear. Chroma stays muted for it |
-| A colour is never the only carrier of meaning                     | `scope` is a **word** on the rows that have room for one (§ 7.9.), authorship is an avatar. Colour is the user's own label and means nothing to the app                      |
+| A colour is never the only carrier of meaning                     | `scope` is dot **shape** (§ 7.9.), authorship is an avatar. Colour is the user's own label and means nothing to the app                                                      |
 | `null` renders `meta-soft`                                        | An event created without picking a colour is the common case, not an error state                                                                                             |
 | Set membership is validated server-side, never trusted off a body | `events.color` is a free `text` column; the closed set lives in `shared/config`                                                                                              |
 
@@ -1195,20 +1195,20 @@ Three changes close all three, and the position follows from them rather than th
 
 The D-day band is the only place `display-lg` appears in the app. It is the screen's single focal point, so nothing else on the calendar competes at that size.
 
-| Element          | Rule                                                                                                                                                                                                                               |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Month label      | `display-md` `ink`, centered, chevron `icon-button` either side                                                                                                                                                                    |
-| 오늘 chip        | `chip`, `2xs` left of the next-month chevron; withheld only once it would move nothing — today's month with today already selected                                                                                                 |
-| Weekday header   | `caption` `meta`; Sunday `semantic-error`, Saturday `primary`                                                                                                                                                                      |
-| Day cell         | Square, `body-md`; current month `ink`, adjacent months `meta-soft`. Seven tile one shell width, so this is the one control exempt from § 8.1.'s 44px floor — 7 × 44 overflows a 320px viewport                                    |
-| 빨간 날          | A 공휴일 (`REQUIREMENTS.md § 11.7.`) or a Sunday takes `semantic-error` on the numeral; muted to `semantic-error/45` in an adjacent month                                                                                          |
-| Today            | `chat-badge`-weight numeral in `primary`, no fill — weight alone once the numeral is already red                                                                                                                                   |
-| Selected         | `primary` fill, `on-primary` numeral, `rounded-full`                                                                                                                                                                               |
-| Event marker     | Up to 3 dots (4px, `rounded-full`) below the numeral, in the event's colour. Past three, the last dot gives way to `+N` in `micro` `meta` — the row is one cell wide and cannot carry both                                         |
-| Marker by scope  | **Every dot is filled**, whatever the scope. The ring that stood for `mine` was a 2px hole at 4px and read as a paler dot, which made the colours themselves hard to tell apart; scope is carried by the agenda row's word instead |
-| Milestone marker | Derived anniversaries (100일, 주년) render a 4px `primary` diamond, distinct from every event dot                                                                                                                                  |
-| Event colours    | Drawn from the tint family only; never raw hues                                                                                                                                                                                    |
-| Colour swatch    | Selection is a 2px `ink` ring **outside** the swatch, on a `canvas` offset — never a glyph drawn on the fill, which no single token clears AA against across six hues plus `meta-soft` in both themes                              |
+| Element          | Rule                                                                                                                                                                                                  |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Month label      | `display-md` `ink`, centered, chevron `icon-button` either side                                                                                                                                       |
+| 오늘 chip        | `chip`, `2xs` left of the next-month chevron; withheld only once it would move nothing — today's month with today already selected                                                                    |
+| Weekday header   | `caption` `meta`; Sunday `semantic-error`, Saturday `primary`                                                                                                                                         |
+| Day cell         | Square, `body-md`; current month `ink`, adjacent months `meta-soft`. Seven tile one shell width, so this is the one control exempt from § 8.1.'s 44px floor — 7 × 44 overflows a 320px viewport       |
+| 빨간 날          | A 공휴일 (`REQUIREMENTS.md § 11.7.`) or a Sunday takes `semantic-error` on the numeral; muted to `semantic-error/45` in an adjacent month                                                             |
+| Today            | `chat-badge`-weight numeral in `primary`, no fill — weight alone once the numeral is already red                                                                                                      |
+| Selected         | `primary` fill, `on-primary` numeral, `rounded-full`                                                                                                                                                  |
+| Event marker     | Up to 3 dots (4px, `rounded-full`) below the numeral, in the event's colour. Past three, the last dot gives way to `+N` in `micro` `meta` — the row is one cell wide and cannot carry both            |
+| Marker by scope  | `shared` events use a filled dot; `mine` events use a 1px ring dot of the same colour. Shape, not colour, carries scope — colour is already spent on the event's own hue                              |
+| Milestone marker | Derived anniversaries (100일, 주년) render a 4px `primary` diamond, distinct from every event dot                                                                                                     |
+| Event colours    | Drawn from the tint family only; never raw hues                                                                                                                                                       |
+| Colour swatch    | Selection is a 2px `ink` ring **outside** the swatch, on a `canvas` offset — never a glyph drawn on the fill, which no single token clears AA against across six hues plus `meta-soft` in both themes |
 
 `semantic-error` on a date numeral is a **date** semantic and not an error one — the weekday header has always drawn Sunday in it, and a Korean calendar is read by which days are red. It stays out of the event colour set for the same reason `primary` does. Saturday is deliberately **not** extended from the header to the numeral: `primary` there would collide with today's own numeral.
 

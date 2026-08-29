@@ -127,7 +127,12 @@ export function UpcomingEventsList({
                   type="button"
                   onClick={() => onSelect(occurrence)}
                 >
-                  <EventDot className="mt-1.5" size="row" color={occurrence.event.color} />
+                  <EventDot
+                    className="mt-1.5"
+                    size="row"
+                    color={occurrence.event.color}
+                    scope={occurrence.event.scope}
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline gap-xs">
                       <span className="min-w-0 flex-1 truncate text-title-sm text-ink">
