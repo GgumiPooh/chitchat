@@ -33,7 +33,17 @@ import {
   type MediaCell,
 } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Clock, CornerUpLeft, Heart, RotateCcw, Share, X } from "lucide-react";
+import {
+  ChevronDown,
+  Clock,
+  CornerDownLeft,
+  CornerDownRight,
+  CornerUpLeft,
+  Heart,
+  RotateCcw,
+  Share,
+  X,
+} from "lucide-react";
 import type { CSSProperties } from "react";
 import { toLinkPreviewQuery } from "../model/link-preview-query";
 import { toBubbleTapHandler } from "../model/to-bubble-tap-handler";
@@ -231,7 +241,7 @@ export function MessageRow({
   // INFO: DESIGN.md § 6.9. The card stands in the bubble's place only once there is one — most links never answer (REQUIREMENTS.md § 8.9.), and a bubble-less row with nothing to draw is a blank line in the conversation.
   const linkOnlyCard = linkOnlyUrl !== null && linkOnlyPreview ? linkOnlyUrl : null;
   const isBubbleless = hasArt || linkOnlyCard !== null;
-  // INFO: DESIGN.md § 6.10. An emoticon answering alone wears a badge beside itself instead of a card above — the same predicate `estimateRowHeight` reads, so the card's height is never priced for it.
+  // INFO: DESIGN.md § 6.10. An emoticon answering alone wears a badge beside itself under the card — the same predicate `estimateRowHeight` reads.
   const hasReplyBadge = Boolean(replyTo) && (Boolean(emoticon) || Boolean(soloEmoticon));
   // INFO: REQUIREMENTS.md § 8.9. One card per bubble — the first link, not every link, because a message pasted from a share sheet routinely carries several.
   // INFO: DESIGN.md § 6.5. A bubble-less message carries an attachment rather than text, so there is no link in it to preview.
@@ -284,7 +294,7 @@ export function MessageRow({
           <span className="px-2xs text-chat-name text-chat-sender">{sender?.name}</span>
         )}
         {/* INFO: DESIGN.md § 6.10. A bubble-less message quotes in a card of its own; a text one quotes inside its bubble, where the fill already frames it. */}
-        {replyTo && isBubbleless && !hasReplyBadge && (
+        {replyTo && isBubbleless && (
           // WARN: Capped at DESIGN.md § 6.5.'s 220px attachment width. Left to the column's own wide cap, a long quote would stretch the card well past the photo it sits on top of.
           <ReplyQuote
             className="max-w-55"
@@ -483,7 +493,11 @@ export function MessageRow({
               aria-label="답장한 메시지로 이동"
               onClick={onOpenReply}
             >
-              <CornerUpLeft className="size-4" strokeWidth={1.75} />
+              {isMine ? (
+                <CornerDownRight className="size-4" strokeWidth={1.75} />
+              ) : (
+                <CornerDownLeft className="size-4" strokeWidth={1.75} />
+              )}
             </button>
           )}
           {status === "failed" || status === "queued" ? (

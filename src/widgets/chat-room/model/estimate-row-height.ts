@@ -334,10 +334,7 @@ function estimateMessageRow(
   }
 
   // INFO: DESIGN.md § 6.10. A bubble-less message quotes in a card above itself; a text one quotes inside its bubble, and that one is counted with the bubble's contents.
-  // INFO: DESIGN.md § 6.10. An emoticon reply carries a badge in its own row instead, priced in `toPayloadHeight`.
-  const hasReplyBadge =
-    payload.replyTo !== null && (payload.emoticon !== null || solo !== undefined);
-  if (payload.replyTo && isBubbleless && !hasReplyBadge) {
+  if (payload.replyTo && isBubbleless) {
     column += toQuoteHeight(payload.replyTo, "card", isMine) + SPACING_2XS;
   }
 
