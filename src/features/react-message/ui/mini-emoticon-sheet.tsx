@@ -360,7 +360,8 @@ export function MiniEmoticonSheet({
         }}
         onClose={onClose}
       >
-        <div className="flex h-[380px] flex-col">{content}</div>
+        {/* INFO: `-mb-lg`가 DialogShell의 `after:h-lg` 여백을 흡수해, 하단 여백이 스크롤 영역 안쪽에 놓입니다. */}
+        <div className="-mb-lg flex h-[calc(380px_+_var(--spacing-lg))] flex-col">{content}</div>
       </Modal>
     );
   }
