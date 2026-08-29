@@ -12,8 +12,8 @@ export type EventDotProps = {
   className?: string;
   color: Nullable<EventColor>;
   scope: EventScope;
-  /** DESIGN.md § 4.1.7. `cell` is the grid's 4px; `row` is the 8px an event row carries, where 4px was too small for a chosen colour to be seen. */
-  // INFO: The row dot reads 10px through a `scale`, not an 8px box grown to 10 — the box is what the row's own `mt` is measured against, and growing it drops the dot off the title's baseline.
+  /** DESIGN.md § 4.1.7. `cell` is the grid's 4px; `row` is the 8px box an event row carries, scaled to read 12px, where 4px was too small for a chosen colour to be seen. */
+  // INFO: The row dot reads 12px through a `scale`, not an 8px box grown to 12 — the box is what the row's own `mt` is measured against, and growing it drops the dot off the title's baseline.
   size?: "cell" | "row";
 };
 
@@ -30,7 +30,7 @@ export function EventDot({ className, color, scope, size = "cell" }: EventDotPro
     <span
       className={cn(
         "rounded-full",
-        isRow ? "size-2 scale-125" : "size-1",
+        isRow ? "size-2 scale-150" : "size-1",
         isMine
           ? cn(
               isRow ? "border-2" : "border",
