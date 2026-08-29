@@ -82,10 +82,7 @@ export function EmoticonPackPickerSheet({
       isTall
       keepsHeightUnderKeyboard
       header={{ title: `${packNoun} 선택` }}
-      onScrollElementChange={setScrollElement}
-      onClose={onClose}
-    >
-      <div className="space-y-sm pt-2xs">
+      toolbar={
         <div className="flex h-11 items-center gap-2xs rounded-full border border-hairline bg-surface-soft px-sm">
           <Search className="size-4 shrink-0 text-meta-soft" strokeWidth={1.75} aria-hidden />
           <input
@@ -99,8 +96,11 @@ export function EmoticonPackPickerSheet({
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-        {renderList()}
-      </div>
+      }
+      onScrollElementChange={setScrollElement}
+      onClose={onClose}
+    >
+      {renderList()}
     </BottomSheet>
   );
 

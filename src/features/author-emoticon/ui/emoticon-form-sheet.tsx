@@ -212,6 +212,7 @@ export function EmoticonFormSheet({
           isOpen && !isEditing && !video.isActive && !animation.isActive && !isPreparingInitial
         }
         onClose={handleClose}
+        onCloseAutoFocus={discardDraft}
       >
         <div className="space-y-sm pt-2xs">
           <ImageRow
@@ -407,15 +408,18 @@ export function EmoticonFormSheet({
   }
 
   function handleClose() {
-    // WARN: Before `reset`, which revokes the object URL an audition still in progress is sourcing — the shared player would be left pointing at a dead blob.
     stopSound();
-    draft.reset();
-    setVideoSource(null);
     setFlowSource(null);
     setIsFlowPending(false);
     isInitialFlowRef.current = false;
     setIsPreparingInitial(false);
     onClose();
+  }
+
+  // INFO: Runs once the sheet has slid out — resetting on close emptied the form while it was still animating away, and `stopSound` in `handleClose` has already released the object URL `reset` revokes.
+  function discardDraft() {
+    draft.reset();
+    setVideoSource(null);
   }
 
   function handleRecordingDone(recording: VoiceRecording) {

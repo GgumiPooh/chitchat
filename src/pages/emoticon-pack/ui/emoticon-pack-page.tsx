@@ -250,6 +250,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
     }
 
     if (rest.length === 0) {
+      setEditing(null);
       setPendingFile(first);
       setIsFormOpen(true);
 
@@ -288,14 +289,14 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
 
   function openEditor(item: Maybe<Emoticon>) {
     setSelectedId(null);
+    setPendingFile(null);
     setEditing(item ?? null);
     setIsFormOpen(item != null);
   }
 
+  // INFO: `editing` and `pendingFile` are left as they are — the sheet is still showing them while it slides out, and the next open overwrites both.
   function closeForm() {
     setIsFormOpen(false);
-    setPendingFile(null);
-    setEditing(null);
   }
 
   /**

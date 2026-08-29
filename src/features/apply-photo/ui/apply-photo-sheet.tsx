@@ -96,6 +96,10 @@ export function ApplyPhotoSheet({ className, source, onClose }: ApplyPhotoSheetP
   const [emoticonPickerType, setEmoticonPickerType] = useState<Nullable<EmoticonPackType>>(null);
   const [emoticonSource, setEmoticonSource] = useState<Nullable<ApplyPhotoSource>>(null);
   const [emoticonDraft, setEmoticonDraft] = useState<Nullable<EmoticonDraft>>(null);
+  // WARN: The picker and the form stay mounted with `isOpen` down rather than dropping out with their state, or the sheet vanishes without its exit animation; `emoticonDraftKey` is what remounts the form's `initialFile` state for the next draft.
+  const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
+  const [isEmoticonFormOpen, setIsEmoticonFormOpen] = useState(false);
+  const [emoticonDraftKey, setEmoticonDraftKey] = useState(0);
 
   return (
     <>
@@ -136,16 +140,17 @@ export function ApplyPhotoSheet({ className, source, onClose }: ApplyPhotoSheetP
       {emoticonPickerType && (
         <EmoticonPackPickerSheet
           type={emoticonPickerType}
-          isOpen
+          isOpen={isEmoticonPickerOpen}
           onClose={cancelEmoticonFlow}
           onPick={(pack) => void handlePackPicked(pack)}
         />
       )}
       {emoticonDraft && (
         <EmoticonFormSheet
+          key={emoticonDraftKey}
           packId={emoticonDraft.pack.id}
           type={emoticonDraft.packType}
-          isOpen
+          isOpen={isEmoticonFormOpen}
           initialFile={emoticonDraft.isVideo ? null : emoticonDraft.file}
           initialVideo={emoticonDraft.isVideo ? emoticonDraft.file : null}
           closesOnCancel
@@ -251,6 +256,7 @@ export function ApplyPhotoSheet({ className, source, onClose }: ApplyPhotoSheetP
     isApplyingRef.current = true;
     setEmoticonSource(source);
     setEmoticonPickerType(type);
+    setIsEmoticonPickerOpen(true);
     onClose();
   }
 
@@ -262,7 +268,7 @@ export function ApplyPhotoSheet({ className, source, onClose }: ApplyPhotoSheetP
       return;
     }
 
-    setEmoticonPickerType(null);
+    setIsEmoticonPickerOpen(false);
 
     const reading = toast.loading(
       picked.isVideo ? "영상을 불러오는 중이에요" : "사진을 불러오는 중이에요",
@@ -273,6 +279,8 @@ export function ApplyPhotoSheet({ className, source, onClose }: ApplyPhotoSheetP
 
       toast.dismiss(reading);
       setEmoticonDraft({ packType: type, pack, file, isVideo: picked.isVideo });
+      setEmoticonDraftKey((key) => key + 1);
+      setIsEmoticonFormOpen(true);
     } catch {
       toast.dismiss(reading);
       toast.error(picked.isVideo ? "영상을 불러오지 못했어요" : "사진을 불러오지 못했어요");
@@ -281,9 +289,9 @@ export function ApplyPhotoSheet({ className, source, onClose }: ApplyPhotoSheetP
   }
 
   function cancelEmoticonFlow() {
-    setEmoticonPickerType(null);
+    setIsEmoticonPickerOpen(false);
+    setIsEmoticonFormOpen(false);
     setEmoticonSource(null);
-    setEmoticonDraft(null);
     isApplyingRef.current = false;
   }
 

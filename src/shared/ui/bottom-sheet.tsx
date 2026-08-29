@@ -1,7 +1,7 @@
 "use client";
 
 import { cn, useIsDesktop, useScrollFade, type Nullable } from "@/shared/lib";
-import type { PropsWithChildren } from "react";
+import type { PropsWithChildren, ReactNode } from "react";
 import { DialogShell } from "./dialog-shell";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "./drawer";
 
@@ -15,6 +15,8 @@ export type BottomSheetProps = PropsWithChildren<{
   snapPoints?: (number | string)[];
   activeSnapPoint?: number | string | null;
   setActiveSnapPoint?: (snapPoint: number | string | null) => void;
+  /** A row pinned between the header and the scrolling body — a search field that a scrolled list must not carry away (`EmoticonPackPickerSheet`). */
+  toolbar?: ReactNode;
   header: {
     className?: string;
     title: string;
@@ -48,6 +50,7 @@ export function BottomSheet({
   activeSnapPoint,
   setActiveSnapPoint,
   header,
+  toolbar,
   children,
   onScrollElementChange,
   onClose,
@@ -70,6 +73,7 @@ export function BottomSheet({
         size="lg"
         // INFO: A hidden title is a sheet's affordance — its grab handle names it; a centered dialog with no title reads as empty.
         header={{ ...header, isHidden: false }}
+        toolbar={toolbar}
         onClose={onClose}
         onCloseAutoFocus={onCloseAutoFocus}
       >
@@ -123,6 +127,7 @@ export function BottomSheet({
             )}
           </div>
         )}
+        {toolbar && <div className="mb-sm shrink-0">{toolbar}</div>}
         {/* WARN: The scroller spans the sheet's padding box and restores the inset itself, so a full-bleed row inside it (`EventColorPicker`'s swatches) reaches the edge instead of overflowing. `overflow-y: auto` computes `overflow-x` to `auto` too, and that overflow was the sheet scrolling sideways. */}
         {/* WARN: `min-h-0` clears the flex item's content-based floor, the same trade `DialogShell`'s own scroll wrapper makes — without it `isTall`'s forced height just grows the sheet past its cap instead of scrolling the body under the header. */}
         <div

@@ -10,6 +10,8 @@ export type DialogShellProps = PropsWithChildren<{
   isOpen: boolean;
   position?: "center" | "top";
   size?: "sm" | "md" | "lg" | "xl";
+  /** A row pinned between the header and the scrolling body — a search field that a scrolled list must not carry away (`EmoticonPackPickerSheet`). */
+  toolbar?: ReactNode;
   header: {
     className?: string;
     title: string;
@@ -43,6 +45,7 @@ export function DialogShell({
   position = "center",
   size = "sm",
   header,
+  toolbar,
   children,
   onClose,
   onCloseAutoFocus,
@@ -85,6 +88,7 @@ export function DialogShell({
             {header.description && <DialogDescription>{header.description}</DialogDescription>}
           </DialogHeader>
         )}
+        {toolbar && <div className="shrink-0">{toolbar}</div>}
         {/* WARN: `min-h-0` clears the flex item's content-based floor, or this never shrinks below `children`'s own height for `max-h` on `DialogContent` to cut into — the box would just grow past it instead of scrolling. */}
         <div
           ref={scrollRef}
