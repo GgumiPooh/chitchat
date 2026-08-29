@@ -21,10 +21,11 @@ import {
 } from "@/features/search-messages";
 import { SilentSendButton, useSilentSend } from "@/features/silent-send";
 import type { InlineEmoticonMap } from "@/shared/config";
-import { CALENDAR_ROUTE, LOGIN_ROUTE } from "@/shared/config";
+import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE, LOGIN_ROUTE } from "@/shared/config";
 import {
   cn,
   getPreviousAppRoute,
+  toDayKey,
   useDocumentBackground,
   usePinnedDocument,
   type Maybe,
@@ -118,9 +119,16 @@ export function ChatScreen({
     noticeGate.guard(() => {
       fetchEvent(eventId)
         .then((event) => setDetailed(toNoticeOccurrence(event, eventStartsAt)))
-        .catch((error: Error) =>
-          toast(error.message === "404" ? "이미 삭제된 일정이에요" : "일정을 불러오지 못했어요"),
-        );
+        // INFO: REQUIREMENTS.md § 11.5. Deleted since the notice was posted — the day is what a delete notice would have linked to.
+        .catch((error: Error) => {
+          if (error.message === "404") {
+            router.push(
+              `${CALENDAR_ROUTE}?${new URLSearchParams({ [CALENDAR_DAY_PARAM]: toDayKey(eventStartsAt) })}`,
+            );
+          } else {
+            toast("일정을 불러오지 못했어요");
+          }
+        });
     })();
   }
 
