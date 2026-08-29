@@ -92,6 +92,8 @@ const PILL_PADDING = SPACING_2XS * 2;
 
 // INFO: `size-8` on the quote's thumbnail — one box for an attachment and an emoticon alike (DESIGN.md § 6.10.) — and the two lines beside it; whichever is taller is the quote's content (`items-center`).
 const QUOTE_THUMBNAIL = 32;
+// INFO: DESIGN.md § 6.10. `size-8` on the badge an emoticon reply wears in place of the card.
+const REPLY_BADGE = 32;
 
 // INFO: The old shell width. Only a fallback: the room passes the scroller's real width once it has one, and this is what the very first render estimates against.
 const DEFAULT_CONTENT_WIDTH = 576;
@@ -332,7 +334,10 @@ function estimateMessageRow(
   }
 
   // INFO: DESIGN.md § 6.10. A bubble-less message quotes in a card above itself; a text one quotes inside its bubble, and that one is counted with the bubble's contents.
-  if (payload.replyTo && isBubbleless) {
+  // INFO: DESIGN.md § 6.10. An emoticon reply carries a badge in its own row instead, priced in `toPayloadHeight`.
+  const hasReplyBadge =
+    payload.replyTo !== null && (payload.emoticon !== null || solo !== undefined);
+  if (payload.replyTo && isBubbleless && !hasReplyBadge) {
     column += toQuoteHeight(payload.replyTo, "card", isMine) + SPACING_2XS;
   }
 
@@ -397,13 +402,15 @@ function toPayloadHeight(
     );
   }
 
+  // INFO: DESIGN.md § 6.10. The reply badge stands in the same row, so it floors the row exactly as the timestamp does.
+  const besideArt = payload.replyTo ? Math.max(beside, REPLY_BADGE) : beside;
   if (payload.emoticon) {
-    return Math.max(toEmoticonBox(payload.emoticon).height, beside);
+    return Math.max(toEmoticonBox(payload.emoticon).height, besideArt);
   }
 
   // INFO: § 13. `toSoloEmoticonBox`, not `toEmoticonBox` — a solo mini draws smaller than an emoticon message. A deleted item keeps its stored box, so the tombstone standing in its place measures identically.
   if (solo) {
-    return Math.max(toSoloEmoticonBox(solo).height, beside);
+    return Math.max(toSoloEmoticonBox(solo).height, besideArt);
   }
 
   if (payload.media.length > 0) {

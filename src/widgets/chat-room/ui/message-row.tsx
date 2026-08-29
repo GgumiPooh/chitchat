@@ -231,6 +231,8 @@ export function MessageRow({
   // INFO: DESIGN.md § 6.9. The card stands in the bubble's place only once there is one — most links never answer (REQUIREMENTS.md § 8.9.), and a bubble-less row with nothing to draw is a blank line in the conversation.
   const linkOnlyCard = linkOnlyUrl !== null && linkOnlyPreview ? linkOnlyUrl : null;
   const isBubbleless = hasArt || linkOnlyCard !== null;
+  // INFO: DESIGN.md § 6.10. An emoticon answering alone wears a badge beside itself instead of a card above — the same predicate `estimateRowHeight` reads, so the card's height is never priced for it.
+  const hasReplyBadge = Boolean(replyTo) && (Boolean(emoticon) || Boolean(soloEmoticon));
   // INFO: REQUIREMENTS.md § 8.9. One card per bubble — the first link, not every link, because a message pasted from a share sheet routinely carries several.
   // INFO: DESIGN.md § 6.5. A bubble-less message carries an attachment rather than text, so there is no link in it to preview.
   const previewUrl = isBubbleless || isCollapsed ? undefined : findFirstUrl(text);
@@ -282,7 +284,7 @@ export function MessageRow({
           <span className="px-2xs text-chat-name text-chat-sender">{sender?.name}</span>
         )}
         {/* INFO: DESIGN.md § 6.10. A bubble-less message quotes in a card of its own; a text one quotes inside its bubble, where the fill already frames it. */}
-        {replyTo && isBubbleless && (
+        {replyTo && isBubbleless && !hasReplyBadge && (
           // WARN: Capped at DESIGN.md § 6.5.'s 220px attachment width. Left to the column's own wide cap, a long quote would stretch the card well past the photo it sits on top of.
           <ReplyQuote
             className="max-w-55"
@@ -471,6 +473,18 @@ export function MessageRow({
                 </>
               )}
             </div>
+          )}
+          {hasReplyBadge && (
+            // WARN: REQUIREMENTS.md § 8.3. `size-8` is `REPLY_BADGE` in the estimate; it stands in the same `items-end` row as the timestamp, so its height is the floor of the row and nothing else about it may grow.
+            // WARN: REQUIREMENTS.md § 8.5. `pointer-events-auto` keeps the jump reachable under `SelectableRow`'s sweep, as `ReplyQuote`'s own button does.
+            <button
+              className="pointer-events-auto flex size-8 shrink-0 cursor-pointer items-center justify-center self-start rounded-full bg-surface-soft text-meta ring-1 ring-hairline transition-colors outline-none ring-inset hover:text-ink focus-visible:ring-primary active:bg-surface-strong"
+              type="button"
+              aria-label="답장한 메시지로 이동"
+              onClick={onOpenReply}
+            >
+              <CornerUpLeft className="size-4" strokeWidth={1.75} />
+            </button>
           )}
           {status === "failed" || status === "queued" ? (
             // INFO: DESIGN.md § 6.5. The failure affordance sits on the outer side of the bubble; cancel is beside retry so a send that cannot succeed can still be cleared.
