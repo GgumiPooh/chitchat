@@ -52,12 +52,13 @@ export function ChatSidePanel({
 }: ChatSidePanelProps) {
   const { openProfile } = useProfileViewer();
   const partner = participants.find((participant) => participant.id !== currentUserId);
+  const hasSearchResults = search.submitted.trim().length > 0;
 
   return (
-    <div className={cn("flex h-full flex-col gap-md p-md", className)}>
+    <div className={cn("flex h-full flex-col gap-xs p-md", className)}>
       {partner && (
         <button
-          className="flex cursor-pointer items-center gap-xs rounded-md p-xs text-left transition-colors outline-none hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-soft"
+          className="mb-xs flex cursor-pointer items-center gap-xs rounded-md p-xs text-left transition-colors outline-none hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-soft"
           type="button"
           onClick={() => openProfile(partner.id)}
         >
@@ -71,7 +72,7 @@ export function ChatSidePanel({
         </button>
       )}
 
-      <section className="flex min-h-0 grow basis-0 flex-col gap-xs">
+      <section className="flex flex-none flex-col gap-xs">
         <h2 className="px-xs text-title-sm text-meta">검색</h2>
         <MessageSearchField
           className="flex-none"
@@ -83,9 +84,21 @@ export function ChatSidePanel({
           onQueryChange={search.setQuery}
           onSubmit={search.submit}
         />
-        {search.submitted.trim().length > 0 && (
+      </section>
+
+      {/* INFO: `flex-grow` interpolates as a number, so the hits and 다가오는 일정 trade height over `--duration-state` instead of jumping when a search lands. */}
+      {/* WARN: The hits are a flex item of their own, and the field above is `flex-none` outside it — a section holding both sizes its basis from the list's content, which is then added to whatever share `grow` hands out, so an even split does not land on screen as one. */}
+      {/* WARN: Mounted whether or not there are hits, so the field being emptied animates back down rather than snapping. */}
+      {/* INFO: The panel's own gap is `xs`, and the `md` every block but the field wants is made up by a margin that travels with the grow — a zero-height item still takes its gap, so a flat `gap-md` left `md` twice over between the field and 다가오는 일정 while no hits were showing. */}
+      <div
+        className={cn(
+          "min-h-0 basis-0 overflow-hidden transition-[flex-grow,margin] duration-(--duration-state) ease-out motion-reduce:transition-none",
+          hasSearchResults ? "mb-xs grow" : "grow-0",
+        )}
+      >
+        {hasSearchResults && (
           <MessageSearchResultList
-            className="min-h-0 flex-1 overflow-y-auto"
+            className="h-full overflow-y-auto"
             query={search.submitted}
             results={search.results}
             participants={participants}
@@ -97,7 +110,7 @@ export function ChatSidePanel({
             onSelect={search.select}
           />
         )}
-      </section>
+      </div>
 
       <section className="flex min-h-0 grow basis-0 flex-col gap-xs">
         <h2 className="px-xs text-title-sm text-meta">다가오는 일정</h2>

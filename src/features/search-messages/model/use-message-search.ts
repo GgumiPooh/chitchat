@@ -2,10 +2,13 @@
 
 import type { MessageSearchResult } from "@/entities/message";
 import { SEARCH_PAGE_SIZE } from "@/shared/config";
-import type { MessageId, Nullable } from "@/shared/lib";
+import { A_SECOND, type MessageId, type Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchMessageSearch } from "../api/fetch-message-search";
+
+// INFO: Longer than the emoticon picker's 200ms because one scan is an `ILIKE` over the whole conversation plus a `count()` that cannot be `LIMIT`ed, and a Hangul field settles a syllable jamo by jamo.
+const SEARCH_DEBOUNCE = A_SECOND / 2;
 
 /**
  * The message the room is being asked to move to. The token is what makes a
@@ -175,15 +178,59 @@ export function useMessageSearch(hideOthers = false) {
     }
   }, [activeIndex, jumpTo]);
 
+  /** REQUIREMENTS.md § 8.6. One scan per asked-for query. */
+  const scan = useCallback(
+    async (trimmed: string, jumps: boolean) => {
+      const generation = (requestId.current += 1);
+
+      setIsLoading(true);
+
+      try {
+        const page = await fetchMessageSearch({ query: trimmed, hideOthers });
+
+        if (generation !== requestId.current) {
+          return;
+        }
+
+        // WARN: `submitted` commits here, with the page, and never before the fetch. Written ahead of it, a scan that then failed would leave the previous query's results, total and active index standing under a `submitted` naming the new one — the bubbles marking one string while the arrows stepped another, `loadMore` paging the new query onto the old list, and the re-submit shortcut below stepping the stale hits instead of retrying.
+        setSubmitted(trimmed);
+        resultsRef.current = page.results;
+        setResults(page.results);
+        setTotal(page.total ?? page.results.length);
+        setHasMore(page.results.length >= SEARCH_PAGE_SIZE);
+        setIsLoading(false);
+
+        if (jumps) {
+          // INFO: The newest hit is taken as soon as the page lands, so the counter reads `1/12` and the arrows have somewhere to step from without the user picking a row first.
+          jumpTo(0, page.results);
+        }
+      } catch {
+        if (generation === requestId.current) {
+          setIsLoading(false);
+          toast.error("검색하지 못했어요");
+        }
+      }
+    },
+    [hideOthers, jumpTo],
+  );
+
+  // INFO: REQUIREMENTS.md § 8.6. The typed-ahead scan, and it never jumps — the room would then scroll to a different message on every debounce window, under a reader still typing.
+  useEffect(() => {
+    const trimmed = query.trim();
+
+    if (trimmed.length === 0 || trimmed === submitted) {
+      return;
+    }
+
+    const timer = setTimeout(() => void scan(trimmed, false), SEARCH_DEBOUNCE);
+
+    return () => clearTimeout(timer);
+  }, [query, submitted, scan]);
+
   /**
-   * REQUIREMENTS.md § 8.6. One scan per asked-for query.
-   *
-   * WARN: Run on submit, never per keystroke. Each call is an `ILIKE` over the
-   * whole conversation plus a `count()` that cannot be `LIMIT`ed plus, on the
-   * first hit, a window replacement — and a Korean field commits jamo by jamo,
-   * so a debounced handler still pays all of that for `ㅈ`, `저` and `점` on
-   * the way to `저녁`. The keyboard's own search key is the trigger, which is
-   * the button iOS already draws for `enterKeyHint="search"`.
+   * REQUIREMENTS.md § 8.6. The search key, which is what moves the room — the
+   * scan itself has usually already run behind the effect above, so this is the
+   * step-to-the-next-hit gesture far more often than it is a fetch.
    */
   const submit = useCallback(async () => {
     const trimmed = query.trim();
@@ -199,33 +246,8 @@ export function useMessageSearch(hideOthers = false) {
       return;
     }
 
-    const generation = (requestId.current += 1);
-
-    setIsLoading(true);
-
-    try {
-      const page = await fetchMessageSearch({ query: trimmed, hideOthers });
-
-      if (generation !== requestId.current) {
-        return;
-      }
-
-      // WARN: `submitted` commits here, with the page, and never before the fetch. Written ahead of it, a scan that then failed would leave the previous query's results, total and active index standing under a `submitted` naming the new one — the bubbles marking one string while the arrows stepped another, `loadMore` paging the new query onto the old list, and the re-submit shortcut below stepping the stale hits instead of retrying.
-      setSubmitted(trimmed);
-      resultsRef.current = page.results;
-      setResults(page.results);
-      setTotal(page.total ?? page.results.length);
-      setHasMore(page.results.length >= SEARCH_PAGE_SIZE);
-      setIsLoading(false);
-      // INFO: The newest hit is taken as soon as the page lands, so the counter reads `1/12` and the arrows have somewhere to step from without the user picking a row first.
-      jumpTo(0, page.results);
-    } catch {
-      if (generation === requestId.current) {
-        setIsLoading(false);
-        toast.error("검색하지 못했어요");
-      }
-    }
-  }, [query, submitted, jumpTo, goOlder, hideOthers]);
+    await scan(trimmed, true);
+  }, [query, submitted, goOlder, scan]);
 
   return {
     isOpen,
