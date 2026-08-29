@@ -80,10 +80,11 @@ export function useModalOverlay<T extends HTMLElement>(
       }
     };
 
-    document.addEventListener("keydown", handleKeyDown);
+    // WARN: Capture, and `isCoveredFromAbove` is why. Radix and Vaul dismiss on `{ capture: true }`, so a bubble listener here ran after the sheet above had already closed itself and flushed — the check then found nothing above and took this screen down on the same keystroke.
+    document.addEventListener("keydown", handleKeyDown, { capture: true });
 
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown, { capture: true });
 
       // INFO: The element that opened the overlay is routinely gone by the time it closes — a 대화하기 that navigated away, or an avatar in a message that has since been deleted.
       if (restoreTo instanceof HTMLElement && restoreTo.isConnected) {
