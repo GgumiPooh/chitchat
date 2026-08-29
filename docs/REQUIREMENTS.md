@@ -147,10 +147,10 @@ Read `src/shared/lib/index.ts` for the inventory (nullish types, `safely*`, `map
 
 ### 4.2. Page Width and Centering ✅
 
-Below `md` the shell fills the window — no max width, no gutters. From `md`, main content centres inside `--content-max-width` (**800px**) in the pane beside the rail/panel; the archive grid is exempt and fills the pane, and `ChatScreen`/`ShellOverlay`/the shell itself stay `max-w-none`. `Container`: `md` (default) = that cap, `sm` = `448px` (`--container-app-narrow`, login/offline only), padding `px-md`. `--tab-bar-height`, `--app-header-height`, `--rail-width`, `--pane-width`/`--pane-open-width` and `--content-left` (`--rail-width` + `--pane-width`) live in `theme.css` outside `@theme`. Screens never restate a viewport height — the `(main)` layout owns the column height, screens are `flex-1` inside it, and full-height screens honour `env(safe-area-inset-*)`.
+Below `md` the shell fills the window — no max width, no gutters. From `md`, main content centres inside `--content-max-width` (**800px**) in the pane beside the rail/panel; the archive grid is exempt and fills the pane, and `ChatScreen`/`ShellOverlay`/the shell itself stay `max-w-none`. `Container`: `md` (default) = that cap, `sm` = `448px` (`--container-app-narrow`, login/offline only), padding `px-md`. `--tab-bar-height`, `--app-header-height`, `--rail-width`, `--pane-width`/`--pane-open-width` and `--content-left` (`--rail-width` + `--pane-width`) live in `theme.css` outside `@theme`; body-portalled overlays read `--overlay-left`, which is `--content-left` except under a `data-full-bleed-overlay` `ShellOverlay`, where it drops to `--rail-width`. Screens never restate a viewport height — the `(main)` layout owns the column height, screens are `flex-1` inside it, and full-height screens honour `env(safe-area-inset-*)`.
 
 - [x] `--content-max-width` (800px) replaces `--container-app` (576px) as the content cap; `--container-app-narrow` unchanged
-- [x] `--rail-width` (72px at `md`), `--pane-open-width` (320px at `lg`, 360px at `xl`), `--content-left`
+- [x] `--rail-width` (72px at `md`), `--pane-open-width` (320px at `lg`, 360px at `xl`), `--content-left`, `--overlay-left`
 
 ### 4.3. Visual Viewport and the Keyboard ✅
 

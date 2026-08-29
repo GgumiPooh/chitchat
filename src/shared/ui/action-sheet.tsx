@@ -144,7 +144,9 @@ export function ActionSheet({
       const computedStyle = getComputedStyle(document.documentElement);
       const railWidth = parseFloat(computedStyle.getPropertyValue("--rail-width")) || 0;
       const paneWidth = parseFloat(computedStyle.getPropertyValue("--pane-width")) || 0;
-      const leftInset = railWidth + paneWidth;
+      // WARN: The two lengths and not `--overlay-left`, which computes to an unresolved `calc()` a `parseFloat` reads as its first term; the attribute is the same condition `theme.css` binds that token on.
+      const isOverPanel = Boolean(document.querySelector("[data-full-bleed-overlay]"));
+      const leftInset = isOverPanel ? railWidth : railWidth + paneWidth;
 
       setCollisionPadding({
         top: headerHeight + 16,

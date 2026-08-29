@@ -46,12 +46,12 @@ export function DialogContent({
       <DialogOverlay />
       {/* WARN: Centred on the visual viewport, not the layout one — the portal puts this outside the shell, so `top-1/2` would centre it on a box the keyboard never shrinks (DESIGN.md § 3.4.). */}
       {/* WARN: DESIGN.md § 3.4. `--keyboard-pan` and never `--viewport-top` — the raw property is also non-zero while Safari collapses its toolbar, and this would then centre itself that far below the middle. */}
-      {/* INFO: AGENTS.md § 4.4. `left` is the midpoint of the content area right of the rail, not the viewport's — the portal puts this outside the shell, so a plain `left-1/2` centred it on the rail too and sat visibly off-centre against the panes beside it. */}
+      {/* INFO: AGENTS.md § 4.4. `left` is the midpoint of `--overlay-left`'s box, not the viewport's — the portal puts this outside the shell, so a plain `left-1/2` centred it on the rail too and sat visibly off-centre against the panes beside it. */}
       <DialogPrimitive.Content
         className={cn(
           // WARN: `flex flex-col`, not `grid` — a `grid` container's implicit rows leave `align-content` free to fall back to centering the whole track once `isTall` forces this box taller than its content, which stacked the header and body in the middle of the box instead of at its top.
           // WARN: DESIGN.md § 7.5. `overflow-hidden`, not `overflow-y-auto` — this box no longer scrolls itself. `DialogShell` wraps only its body in the scrollable child, so the header and the close button stay put while the content moves under them; this keeps the rounded corners closed over whichever of the two turns out to be too tall.
-          "fixed top-[calc(var(--keyboard-pan)_+_var(--viewport-height,100dvh)_/_2)] left-[calc(var(--content-left)_+_(100%_-_var(--content-left))_/_2)] z-50 flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--spacing-xl))] -translate-x-1/2 -translate-y-1/2 flex-col gap-md overflow-hidden rounded-lg border border-hairline bg-canvas px-lg pt-lg shadow-floating duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          "fixed top-[calc(var(--keyboard-pan)_+_var(--viewport-height,100dvh)_/_2)] left-[calc(var(--overlay-left)_+_(100%_-_var(--overlay-left))_/_2)] z-50 flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--spacing-xl))] -translate-x-1/2 -translate-y-1/2 flex-col gap-md overflow-hidden rounded-lg border border-hairline bg-canvas px-lg pt-lg shadow-floating duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}
         onOpenAutoFocus={(event) => {

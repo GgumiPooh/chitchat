@@ -47,7 +47,7 @@ export function DrawerContent({
       {/* INFO: AGENTS.md § 4.4. `right-0 left-(--rail-width)` rather than `inset-x-0`, for the reason `AppHeader` carries the same change — the portal puts this outside the shell, so it spanned the rail rather than starting past it. */}
       <DrawerPrimitive.Content
         className={cn(
-          "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--content-left) z-50 flex h-auto flex-col",
+          "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--overlay-left) z-50 flex h-auto flex-col",
           className,
         )}
         onOpenAutoFocus={(event) => {

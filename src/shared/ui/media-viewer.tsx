@@ -463,6 +463,8 @@ export function MediaViewer({
         role="dialog"
         // INFO: DESIGN.md § 4.7.3. The name is what makes the scrim and the chrome resolve around the travelling picture. It cannot reach the slide: that one carries its own name and is lifted into a group above this, which is exactly what lets the photo arrive at full strength.
         style={{ viewTransitionName: MEDIA_VIEWER_NAME }}
+        // INFO: AGENTS.md § 4.4. The viewer covers the side panel, so the sheets and menus it opens centre on this box rather than on the main pane (`--overlay-left`).
+        data-full-bleed-overlay=""
         aria-modal="true"
         aria-label="첨부 크게 보기"
       >

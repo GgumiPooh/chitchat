@@ -107,7 +107,7 @@ export function BottomSheet({
           // WARN: Anchored by `top`, not `bottom: 0`. WebKit leaves the layout viewport alone under the keys, but Chromium's `interactive-widget=resizes-content` shrinks it, and a `bottom` anchor would ride up with it; the header's height is exactly the resting sheet's top, `--keyboard-pan` for the reason `AppHeader` carries it (§ 3.4.).
           keepsHeightUnderKeyboard &&
             "top-[calc(var(--keyboard-pan,0px)_+_var(--header-height,56px))] bottom-auto",
-          "mx-auto mb-sm flex w-[calc(100%_-_var(--content-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas px-md pt-md shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+          "mx-auto mb-sm flex w-[calc(100%_-_var(--overlay-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas px-md pt-md shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
           className,
         )}
         onCloseAutoFocus={onCloseAutoFocus}

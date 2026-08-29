@@ -25,10 +25,10 @@ export type DialogShellProps = PropsWithChildren<{
 
 // INFO: DESIGN.md § 7.4. `lg` is the sheet's own width; `xl` is the message column's, for the § 6.2.2. expanded body that was drawn at that width.
 const SIZE_CLASS_NAME = {
-  sm: "w-[calc(100%_-_var(--content-left)_-_var(--spacing-xl))] max-w-[360px]",
-  md: "w-[calc(100%_-_var(--content-left)_-_var(--spacing-xl))] max-w-[440px]",
-  lg: "w-[calc(100%_-_var(--content-left)_-_var(--spacing-xl))] max-w-[var(--sheet-max-width)]",
-  xl: "w-[calc(100%_-_var(--content-left)_-_var(--spacing-xl))] max-w-[var(--content-max-width)]",
+  sm: "w-[calc(100%_-_var(--overlay-left)_-_var(--spacing-xl))] max-w-[360px]",
+  md: "w-[calc(100%_-_var(--overlay-left)_-_var(--spacing-xl))] max-w-[440px]",
+  lg: "w-[calc(100%_-_var(--overlay-left)_-_var(--spacing-xl))] max-w-[var(--sheet-max-width)]",
+  xl: "w-[calc(100%_-_var(--overlay-left)_-_var(--spacing-xl))] max-w-[var(--content-max-width)]",
 };
 
 /**

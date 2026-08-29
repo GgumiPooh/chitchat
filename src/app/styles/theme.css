@@ -297,6 +297,8 @@
   --pane-open-width: 0px;
   --pane-width: var(--pane-open-width);
   --content-left: calc(var(--rail-width) + var(--pane-width));
+  /* INFO: AGENTS.md § 4.4. What a body-portalled overlay centres on — `--content-left`, except while a full-bleed `ShellOverlay` is up: that layer starts at the rail and covers the panel, so a dialog over it has to share its box. */
+  --overlay-left: var(--content-left);
   /* INFO: `BottomSheet` at `md` composes the same `Dialog` shell `Modal` does, so the two share this cap instead of each hardcoding the old shell width. */
   --sheet-max-width: 576px;
   --content-max-width: 800px;
@@ -390,6 +392,11 @@
 #app-shell[data-side-panel="closed"],
 :root:has(#app-shell[data-side-panel="closed"]) {
   --pane-width: 0px;
+}
+
+/* INFO: AGENTS.md § 4.4. Opt-in per overlay — a bar-shaped one (`ArchiveSelectionBar`) still belongs in the main pane, so only an overlay that actually covers the panel carries the attribute. */
+:root:has(#app-shell [data-full-bleed-overlay]) {
+  --overlay-left: var(--rail-width);
 }
 
 /* WARN: DESIGN.md § 3.4. `env(safe-area-inset-bottom)` never moves for the keyboard, so with the keys up the lift is paying for a home indicator the keyboard already covers — 34px of dead space the composer floated above the keys on. */
