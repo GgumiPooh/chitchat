@@ -236,7 +236,7 @@ export function AssistantMessageRow({
     return (
       <span
         className={cn(
-          "pointer-events-none absolute top-1/2 left-full ml-2xs flex size-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors",
+          "pointer-events-none absolute top-1/2 right-full mr-2xs flex size-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors",
           swipe.isArmed ? "bg-ai text-on-primary" : "bg-surface-soft text-meta",
         )}
         aria-hidden

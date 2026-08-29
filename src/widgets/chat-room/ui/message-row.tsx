@@ -36,9 +36,8 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ChevronDown,
   Clock,
-  CornerDownLeft,
-  CornerDownRight,
   CornerUpLeft,
+  CornerUpRight,
   Heart,
   RotateCcw,
   Share,
@@ -494,9 +493,9 @@ export function MessageRow({
               onClick={onOpenReply}
             >
               {isMine ? (
-                <CornerDownRight className="size-4" strokeWidth={1.75} />
+                <CornerUpLeft className="size-4" strokeWidth={1.75} />
               ) : (
-                <CornerDownLeft className="size-4" strokeWidth={1.75} />
+                <CornerUpRight className="size-4" strokeWidth={1.75} />
               )}
             </button>
           )}
@@ -615,7 +614,11 @@ export function MessageRow({
         )}
         aria-hidden
       >
-        <CornerUpLeft className="size-4" strokeWidth={1.75} />
+        {isMine ? (
+          <CornerUpRight className="size-4" strokeWidth={1.75} />
+        ) : (
+          <CornerUpLeft className="size-4" strokeWidth={1.75} />
+        )}
       </span>
     );
   }
