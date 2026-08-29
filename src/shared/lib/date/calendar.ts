@@ -96,7 +96,7 @@ export function composeEventNoticeBody(
       return `일정을 ${date}로 옮겼어요\n"${title ?? ""}"`;
     case "event_deleted":
       return `${date} 일정을 삭제했어요\n"${title ?? ""}"`;
-    // WARN: REQUIREMENTS.md § 16.3. A date and never a countdown — this row is scrolled past long after it was posted, where `2시간 뒤` goes on saying so forever. The push banner carries the remaining minutes because it is read once.
+    // WARN: REQUIREMENTS.md § 16.3. A date and never a countdown — this row is scrolled past long after it was posted, where `3시간 뒤` goes on saying so forever. The push banner carries the remaining minutes because it is read once.
     case "event_reminder":
       return `${date} 일정이 다가왔어요\n"${title ?? ""}"`;
     default:
