@@ -47,7 +47,6 @@ export function DayCell({ className, cell, isToday, isSelected, onSelect }: DayC
             <EventDot
               key={occurrence.event.id + occurrence.startsAt}
               color={occurrence.event.color}
-              scope={occurrence.event.scope}
             />
           ))}
           {isOverflowing && (

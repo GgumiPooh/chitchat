@@ -43,19 +43,8 @@ export const EVENT_COLOR_FILL_CLASSES: Record<EventColor, string> = {
   plum: "bg-event-plum",
 };
 
-export const EVENT_COLOR_RING_CLASSES: Record<EventColor, string> = {
-  clay: "border-event-clay",
-  honey: "border-event-honey",
-  olive: "border-event-olive",
-  teal: "border-event-teal",
-  blue: "border-event-blue",
-  plum: "border-event-plum",
-};
-
 /** DESIGN.md § 4.1.7. An event created without a colour, and the fallback for a value no longer in the set. */
 export const EVENT_FALLBACK_FILL_CLASS = "bg-meta-soft";
-
-export const EVENT_FALLBACK_RING_CLASS = "border-meta-soft";
 
 export function isEventColor(value: unknown): value is EventColor {
   return EVENT_COLORS.includes(value as EventColor);

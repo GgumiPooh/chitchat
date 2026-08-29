@@ -1,43 +1,29 @@
 import {
   EVENT_COLOR_FILL_CLASSES,
-  EVENT_COLOR_RING_CLASSES,
   EVENT_FALLBACK_FILL_CLASS,
-  EVENT_FALLBACK_RING_CLASS,
   type EventColor,
 } from "@/shared/config";
-import type { EventScope } from "@/shared/db";
 import { cn, type Nullable } from "@/shared/lib";
 
 export type EventDotProps = {
   className?: string;
   color: Nullable<EventColor>;
-  scope: EventScope;
-  /** DESIGN.md § 4.1.7. `cell` is the grid's 4px; `row` is the 8px an event row carries, where 4px was too small for a chosen colour to be seen. */
+  /** DESIGN.md § 4.1.7. `cell` is the grid's 4px; `row` is the 10px an event row carries, where a chosen colour has to be named at a glance rather than merely noticed. */
   size?: "cell" | "row";
 };
 
 /**
- * DESIGN.md § 7.9. A dot in the event's colour. **Shape carries scope** — a
- * `shared` event is filled and a `mine` one is a ring — because colour is already
- * spent on the event's own hue and cannot also encode whose it is.
+ * DESIGN.md § 7.9. A filled dot in the event's colour. It carries the colour and
+ * nothing else — `scope` is named in words on the rows that show it (§ 11.5.),
+ * a ring at this size having been indistinguishable from the fill.
  */
-export function EventDot({ className, color, scope, size = "cell" }: EventDotProps) {
-  const isMine = scope === "mine";
-  const isRow = size === "row";
-
+export function EventDot({ className, color, size = "cell" }: EventDotProps) {
   return (
     <span
       className={cn(
         "rounded-full",
-        isRow ? "size-2" : "size-1",
-        isMine
-          ? cn(
-              isRow ? "border-2" : "border",
-              color ? EVENT_COLOR_RING_CLASSES[color] : EVENT_FALLBACK_RING_CLASS,
-            )
-          : color
-            ? EVENT_COLOR_FILL_CLASSES[color]
-            : EVENT_FALLBACK_FILL_CLASS,
+        size === "row" ? "size-2.5" : "size-1",
+        color ? EVENT_COLOR_FILL_CLASSES[color] : EVENT_FALLBACK_FILL_CLASS,
         className,
       )}
     />

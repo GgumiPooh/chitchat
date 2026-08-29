@@ -67,12 +67,7 @@ export function UpcomingEventRow({
         onClick={() => onSelect(toTargetDayKey(occurrence, todayKey))}
       >
         {/* INFO: The dot is nudged onto the title's own line rather than centred against the whole multi-line stack. */}
-        <EventDot
-          className="mt-1.5"
-          size="row"
-          color={occurrence.event.color}
-          scope={occurrence.event.scope}
-        />
+        <EventDot className="mt-1.5" size="row" color={occurrence.event.color} />
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-xs">
             <span className="min-w-0 flex-1 truncate text-title-sm text-ink">

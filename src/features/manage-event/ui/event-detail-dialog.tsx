@@ -103,7 +103,7 @@ export function EventDetailDialog({
             </Row>
             <Row label="구분">
               <span className="flex items-center gap-2xs text-body-md text-ink">
-                {/* INFO: A swatch and not `EventDot` — a feature may not reach a widget (REQUIREMENTS.md § 2.), and the grid's 4px shape carries scope where this row spells it out in a word. */}
+                {/* INFO: A swatch and not `EventDot` — a feature may not reach a widget (REQUIREMENTS.md § 2.), and the grid's dot carries colour alone where this row spells scope out in a word. */}
                 <span
                   className={cn(
                     "size-2 rounded-full",

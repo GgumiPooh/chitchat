@@ -35,10 +35,10 @@ export function AgendaEventRow({
         type="button"
         onClick={() => onSelect(occurrence)}
       >
-        <EventDot color={occurrence.event.color} scope={occurrence.event.scope} size="row" />
+        <EventDot color={occurrence.event.color} size="row" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-title-sm text-ink">{occurrence.event.title}</span>
-          {/* INFO: REQUIREMENTS.md § 11.5. Scope is named rather than left to the 4px ring the grid uses — at this size a word is legible where the shape is not, and `개인` is viewer-neutral where `내` would be wrong for whichever of the two did not write it. */}
+          {/* INFO: REQUIREMENTS.md § 11.5. Scope is named in words because the dot carries colour alone (DESIGN.md § 7.9.), and `개인` is viewer-neutral where `내` would be wrong for whichever of the two did not write it. */}
           <span className="block text-caption text-meta">
             {[
               formatMultiDaySpan(occurrence),
