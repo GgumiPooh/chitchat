@@ -10,6 +10,8 @@ export type BottomSheetProps = PropsWithChildren<{
   isOpen: boolean;
   /** DESIGN.md § 7.5. Opens at the sheet's own maximum rather than shrink-wrapping its body — for a sheet whose reason to exist is the length of what it holds (`REQUIREMENTS.md § 8.16.`). */
   isTall?: boolean;
+  /** DESIGN.md § 7.5. Holds the sheet at its resting height while a field in it has the keyboard, so the keys cover its lower rows instead of shrinking it — for a sheet whose field sits at the top (`EmoticonPackPickerSheet`). */
+  keepsHeightUnderKeyboard?: boolean;
   snapPoints?: (number | string)[];
   activeSnapPoint?: number | string | null;
   setActiveSnapPoint?: (snapPoint: number | string | null) => void;
@@ -40,6 +42,7 @@ export function BottomSheet({
   className,
   isOpen,
   isTall = false,
+  keepsHeightUnderKeyboard = false,
   snapPoints,
   activeSnapPoint,
   setActiveSnapPoint,
@@ -79,6 +82,11 @@ export function BottomSheet({
   }
 
   const hasSnapPoints = Boolean(snapPoints && snapPoints.length > 0);
+  // INFO: DESIGN.md § 3.4. `--viewport-resting-height` is the height last seen with no field focused, the same token the chat screen holds under `[data-keyboard-overlaid]`.
+  // WARN: Two literal strings, not a template — Tailwind emits only the classes it can read off the source.
+  const heightClassName = keepsHeightUnderKeyboard
+    ? "max-h-[calc(var(--viewport-resting-height,var(--viewport-height,100dvh))_-_var(--header-height,56px)_-_var(--spacing-sm))] [&.is-tall]:h-[calc(var(--viewport-resting-height,var(--viewport-height,100dvh))_-_var(--header-height,56px)_-_var(--spacing-sm))]!"
+    : "max-h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))] [&.is-tall]:h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))]!";
 
   return (
     <Drawer
@@ -94,10 +102,12 @@ export function BottomSheet({
       <DrawerContent
         className={cn(
           // INFO: § 8.16. The maximum below, restated as a height — the sheet opens at the size the reader asked for rather than at the size of the first screenful.
-          isTall || hasSnapPoints
-            ? "h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))]!"
-            : "h-auto!",
-          "mx-auto mb-sm flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))] w-[calc(100%_-_var(--content-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas px-md pt-md shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+          isTall || hasSnapPoints ? "is-tall" : "h-auto!",
+          heightClassName,
+          // WARN: Anchored by `top`, not `bottom: 0`. WebKit leaves the layout viewport alone under the keys, but Chromium's `interactive-widget=resizes-content` shrinks it, and a `bottom` anchor would ride up with it; the header's height is exactly the resting sheet's top, `--keyboard-pan` for the reason `AppHeader` carries it (§ 3.4.).
+          keepsHeightUnderKeyboard &&
+            "top-[calc(var(--keyboard-pan,0px)_+_var(--header-height,56px))] bottom-auto",
+          "mx-auto mb-sm flex w-[calc(100%_-_var(--content-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col gap-y-sm overflow-hidden rounded-xl border border-hairline bg-canvas px-md pt-md shadow-floating focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
           className,
         )}
         onCloseAutoFocus={onCloseAutoFocus}

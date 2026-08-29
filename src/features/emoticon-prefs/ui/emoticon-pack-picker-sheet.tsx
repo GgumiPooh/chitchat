@@ -80,6 +80,7 @@ export function EmoticonPackPickerSheet({
       className={className}
       isOpen={isOpen}
       isTall
+      keepsHeightUnderKeyboard
       scrollRef={setScrollElement}
       header={{ title: `${packNoun} 선택` }}
       onClose={onClose}
