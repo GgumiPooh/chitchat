@@ -5,7 +5,7 @@ import { APP_SHELL_ID } from "@/shared/config";
 import { cn, useHydrated, type Optional } from "@/shared/lib";
 import { OfflineNotice } from "@/shared/offline-ux";
 import { useSnapshot } from "@/shared/snapshot";
-import { BottomOverlay, Container } from "@/shared/ui";
+import { BottomOverlay, Container, SidePanelSync } from "@/shared/ui";
 import { OfflineBanner } from "@/widgets/offline-banner";
 import {
   OfflineNavRail,
@@ -46,6 +46,11 @@ export function OfflineMirrorPage({ className }: OfflineMirrorPageProps) {
   const isHydrated = useHydrated();
   const screen = isHydrated ? toMirrorScreen(window.location.pathname) : undefined;
   const shell = useSnapshot<ShellSnapshot>("shell");
+  const currentUser =
+    shell.status === "hit"
+      ? shell.payload.participants.find(({ id }) => id === shell.payload.currentUserId)
+      : undefined;
+  const hasEventToday = shell.status === "hit" ? shell.payload.hasEventToday : false;
 
   // INFO: REQUIREMENTS.md § 16.2. The reader is on a frozen copy of a screen that works again the moment the network does, and nothing on it would say so — the pill leaving is the only signal, and it says the opposite of what the screen is.
   useReloadWhenReachable();
@@ -61,13 +66,19 @@ export function OfflineMirrorPage({ className }: OfflineMirrorPageProps) {
     >
       {/* WARN: DESIGN.md § 7.18. The pill shows on every screen, and these six are the only ones that exist *while* offline — without it the mirror is the one place the reader is shown stale content and told nothing about why, and its `role="status"` is the only announcement a screen reader gets here. */}
       <OfflineBanner />
-      <OfflineNavRail className="hidden md:flex" screen={screen} />
+      <OfflineNavRail
+        className="hidden md:flex"
+        screen={screen}
+        hasEventToday={hasEventToday}
+        currentUser={currentUser}
+      />
       <main className="flex flex-1 flex-col">{renderScreen(screen)}</main>
       <BottomOverlay>
-        <OfflineTabBar screen={screen} />
+        <OfflineTabBar screen={screen} hasEventToday={hasEventToday} />
       </BottomOverlay>
       {/* INFO: Mounted here because the mirror is outside the `(main)` shell that carries it for every other screen — a refusing control's `aria-describedby` has to resolve somewhere. */}
       <OfflineNotice />
+      <SidePanelSync />
     </Container>
   );
 

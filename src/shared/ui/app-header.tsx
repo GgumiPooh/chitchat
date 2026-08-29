@@ -59,6 +59,9 @@ export function AppHeader({
         // WARN: The safe area and the float gap are this box's `top`, never padding inside it — padding still leaves the box bordering the obscured content inset, and iOS 26 Safari then paints a solid status bar instead of showing the page through it. Same reason `BottomOverlay` carries its lift on `bottom`.
         // INFO: AGENTS.md § 4.4. `left-(--rail-width)` rather than `inset-x-0` — the rail is a fifth `fixed` element sitting left of every screen at `md`, and `--rail-width` is `0px` below it so this needs no `md:` variant.
         "pointer-events-none fixed top-(--header-lift) right-0 left-(--rail-width) z-30",
+        // INFO: AGENTS.md § 4.4. A screen with a panel re-anchors on `--content-left` and eases with the panel, so no caller repeats the rule.
+        hasSidePanel &&
+          "motion-reduce:transition-none lg:left-(--content-left) lg:[#app-shell[data-side-panel-animating]_&]:transition-[left] lg:[#app-shell[data-side-panel-animating]_&]:duration-(--duration-route-enter) lg:[#app-shell[data-side-panel-animating]_&]:ease-route",
         className,
       )}
       id={APP_HEADER_ID}

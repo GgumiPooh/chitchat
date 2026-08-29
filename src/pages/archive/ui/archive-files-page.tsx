@@ -91,7 +91,6 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
     // INFO: REQUIREMENTS.md § 9.2. The drop target is the whole screen, as it is on 사진 — the same staging tray, reached the same way.
     <div className={cn("flex flex-1 flex-col", className)} {...staging.dropHandlers}>
       <AppHeader
-        className="motion-reduce:transition-none lg:left-(--content-left) lg:[#app-shell[data-side-panel-animating]_&]:transition-[left] lg:[#app-shell[data-side-panel-animating]_&]:duration-(--duration-route-enter) lg:[#app-shell[data-side-panel-animating]_&]:ease-route"
         containerClassName="max-w-none"
         hasSidePanel
         title={selection.isSelecting ? `${selectedCount}개 선택` : "보관함"}

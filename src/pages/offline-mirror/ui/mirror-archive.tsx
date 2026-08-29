@@ -5,12 +5,12 @@ import type { ArchiveSnapshot, ArchiveSnapshotKey } from "@/features/offline-sna
 import { cn } from "@/shared/lib";
 import { OFFLINE_MESSAGES, OFFLINE_NOTICE_ID } from "@/shared/offline-ux";
 import { useSnapshot } from "@/shared/snapshot";
-import { AppHeader, Container, FileCard, VoicePlayer, toast } from "@/shared/ui";
+import { AppHeader, Container, FileCard, TwoPane, VoicePlayer, toast } from "@/shared/ui";
 import { OfflineSegments, SnapshotEmpty, SnapshotStamp } from "@/widgets/offline-shell";
 import { AudioLines, Files, Images } from "lucide-react";
 import type { ComponentProps, FC } from "react";
 import { toMirrorCell } from "../model/to-mirror-cell";
-import { toMirrorSections } from "../model/to-mirror-sections";
+import { type MirrorSection, toMirrorSections } from "../model/to-mirror-sections";
 import { MirrorLoading } from "./mirror-loading";
 import { MirrorMediaBox } from "./mirror-media-box";
 
@@ -35,6 +35,10 @@ const SHELVES: Record<MirrorShelf, ShelfFace> = {
   voice: { key: "archive-voice", subject: "음성", Icon: AudioLines },
 };
 
+function toMonthSectionId(monthKey: string): string {
+  return `archive-month-${monthKey}`;
+}
+
 /**
  * 보관함's three shelves as they were last received (REQUIREMENTS.md § 16.).
  *
@@ -49,17 +53,48 @@ export function MirrorArchive({ className, shelf }: MirrorArchiveProps) {
   const sections = snapshot.status === "hit" ? toMirrorSections(snapshot.payload.media) : [];
 
   return (
-    <div className={className}>
-      <AppHeader title="보관함" />
-      <Container className="flex flex-col px-md pt-[calc(var(--app-header-inset)+var(--spacing-xs))] pb-[var(--bottom-inset,0px)]">
-        <OfflineSegments className="pb-sm" screen={shelf} />
+    <TwoPane
+      className={className}
+      // INFO: AGENTS.md § 4.1., DESIGN.md § 7.20. The chip switcher and a 월 이동 list built off the same sections the grid below groups into — `ArchiveShell`'s panel, minus its query for the shelf's true total.
+      panel={
+        <div className="flex flex-col gap-md p-md">
+          <OfflineSegments screen={shelf} />
+          {sections.length > 0 && (
+            <nav className="flex flex-col gap-2xs" aria-label="월 이동">
+              {sections.map((section) => (
+                <button
+                  key={section.monthKey}
+                  className="flex cursor-pointer items-center justify-between gap-sm rounded-md px-sm py-xs text-left text-body-sm text-body transition-colors outline-none hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-strong"
+                  type="button"
+                  onClick={() => jumpToMonth(section)}
+                >
+                  {section.label}
+                  <span className="min-w-5 shrink-0 rounded-full bg-surface-soft px-2xs text-center text-caption text-meta">
+                    {section.media.length}
+                  </span>
+                </button>
+              ))}
+            </nav>
+          )}
+        </div>
+      }
+    >
+      <AppHeader containerClassName="max-w-none" hasSidePanel title="보관함" />
+      <Container className="flex max-w-none flex-col px-md pt-[calc(var(--app-header-inset)+var(--spacing-xs))] pb-[var(--bottom-inset,0px)]">
+        {/* INFO: AGENTS.md § 4.1. `lg`'s panel carries the vertical version — below it this stays the chip row. */}
+        <OfflineSegments className="pb-sm lg:hidden" screen={shelf} />
         {snapshot.status === "loading" && <MirrorLoading />}
         {snapshot.status === "miss" && <SnapshotEmpty Icon={face.Icon} subject={face.subject} />}
         {snapshot.status === "hit" && (
           <div className="flex flex-col gap-md">
             <SnapshotStamp savedAt={snapshot.savedAt} />
             {sections.map((section) => (
-              <section key={section.monthKey}>
+              // INFO: DESIGN.md § 7.9. `scroll-mt` and the id are what the panel's 월 이동 buttons scroll to and clear the floating header by.
+              <section
+                key={section.monthKey}
+                className="scroll-mt-(--app-header-inset)"
+                id={toMonthSectionId(section.monthKey)}
+              >
                 <h2 className="pb-xs text-title-sm text-meta">{section.label}</h2>
                 <div
                   className={cn(
@@ -73,8 +108,15 @@ export function MirrorArchive({ className, shelf }: MirrorArchiveProps) {
           </div>
         )}
       </Container>
-    </div>
+    </TwoPane>
   );
+
+  function jumpToMonth(section: MirrorSection) {
+    document.getElementById(toMonthSectionId(section.monthKey))?.scrollIntoView({
+      block: "start",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+  }
 
   function renderRow(item: ArchiveMedia) {
     if (shelf === "gallery") {

@@ -1,7 +1,11 @@
 "use client";
 
-import { APP_NAME, CHAT_ROUTE } from "@/shared/config";
+import type { Participant } from "@/entities/user";
+import { APP_NAME, CALENDAR_ROUTE, CHAT_ROUTE } from "@/shared/config";
 import { cn, useRovingTabIndex, type Optional } from "@/shared/lib";
+import { OFFLINE_MESSAGES, OFFLINE_NOTICE_ID } from "@/shared/offline-ux";
+import { Avatar, IconButton, toast } from "@/shared/ui";
+import { Plus } from "lucide-react";
 import Image from "next/image";
 import type { MirrorScreen } from "../model/mirror-screen";
 import { MIRROR_TABS, toActiveTabIndex } from "../model/mirror-tabs";
@@ -9,14 +13,24 @@ import { MIRROR_TABS, toActiveTabIndex } from "../model/mirror-tabs";
 export type OfflineNavRailProps = {
   className?: string;
   screen: Optional<MirrorScreen>;
+  /** REQUIREMENTS.md § 11.5. Same dot `NavRail` draws on 캘린더 when something falls on today. */
+  hasEventToday?: boolean;
+  /** The signed-in participant, off the shell snapshot — `undefined` when it was never received. */
+  currentUser?: Optional<Participant>;
 };
 
 /**
  * The mirror's `NavRail` (AGENTS.md § 4.1.), with the same anchors `OfflineTabBar`
- * carries and for the same reason. No 첨부 and no profile avatar: both write, and
- * neither has a snapshot to answer from.
+ * carries and for the same reason. 첨부 and the profile avatar are drawn but
+ * refuse (DESIGN.md § 7.19.) — both write, and neither has a snapshot to answer
+ * from — rather than being withdrawn.
  */
-export function OfflineNavRail({ className, screen }: OfflineNavRailProps) {
+export function OfflineNavRail({
+  className,
+  screen,
+  hasEventToday = false,
+  currentUser,
+}: OfflineNavRailProps) {
   const activeIndex = toActiveTabIndex(screen);
   const handleKeyDown = useRovingTabIndex({
     orientation: "vertical",
@@ -70,13 +84,40 @@ export function OfflineNavRail({ className, screen }: OfflineNavRailProps) {
                 data-rail-item=""
                 aria-current={isActive ? "page" : undefined}
               >
-                <Icon className={cn("size-5", stateClassName)} strokeWidth={1.75} />
+                <span className="relative">
+                  <Icon className={cn("size-5", stateClassName)} strokeWidth={1.75} />
+                  {href === CALENDAR_ROUTE && hasEventToday && (
+                    <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
+                  )}
+                </span>
                 <span className={cn("text-tab-label", stateClassName)}>{label}</span>
               </a>
             </li>
           );
         })}
       </ul>
+
+      <IconButton
+        className="mt-auto"
+        Icon={Plus}
+        variant="plain"
+        haptic
+        aria-label="첨부"
+        aria-disabled
+        aria-describedby={OFFLINE_NOTICE_ID}
+        onClick={() => toast(OFFLINE_MESSAGES.upload)}
+      />
+      <button
+        className="size-11 shrink-0 cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        type="button"
+        aria-label={`${currentUser?.name ?? ""} 프로필 보기`}
+        aria-disabled
+        aria-describedby={OFFLINE_NOTICE_ID}
+        onClick={() => toast(OFFLINE_MESSAGES.view)}
+      >
+        {/* WARN: No `mediaId` — media is never cached offline (REQUIREMENTS.md § 16.2.), so the avatar draws its initial-letter fallback alone. */}
+        <Avatar size="row" name={currentUser?.name ?? ""} />
+      </button>
     </nav>
   );
 }

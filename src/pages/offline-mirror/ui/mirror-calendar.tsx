@@ -16,7 +16,7 @@ import {
 } from "@/shared/lib";
 import { OFFLINE_MESSAGES } from "@/shared/offline-ux";
 import { useSnapshot } from "@/shared/snapshot";
-import { AppHeader, Container, EmptyState, toast } from "@/shared/ui";
+import { AppHeader, Container, EmptyState, toast, TwoPane } from "@/shared/ui";
 import {
   AgendaEventRow,
   AgendaStaticRow,
@@ -59,8 +59,16 @@ export function MirrorCalendar({ className, participants }: MirrorCalendarProps)
   const [todayKey] = useState(() => toDayKey(Date.now()));
 
   return (
-    <div className={className}>
-      <AppHeader title="캘린더" />
+    <TwoPane
+      className={className}
+      // INFO: AGENTS.md § 4.1. `lg`'s own copy of the grid, sharing the state and handlers the mobile stack below uses — the D-day band above it live is withheld here (see the WARN above).
+      panel={
+        snapshot.status === "hit" && (
+          <div className="flex flex-col gap-md p-md">{renderGrid(snapshot.payload)}</div>
+        )
+      }
+    >
+      <AppHeader hasSidePanel title="캘린더" />
       <Container className="space-y-md py-md pt-[calc(var(--app-header-inset)+var(--spacing-md))] pb-[var(--bottom-inset,0px)]">
         {snapshot.status === "loading" && <MirrorLoading />}
         {snapshot.status === "miss" && <SnapshotEmpty Icon={CalendarDays} subject="일정" />}
@@ -74,8 +82,24 @@ export function MirrorCalendar({ className, participants }: MirrorCalendarProps)
         onClose={() => setDetailed(null)}
         onChanged={() => undefined}
       />
-    </div>
+    </TwoPane>
   );
+
+  function renderGrid(payload: CalendarSnapshot) {
+    return (
+      <CalendarMonth
+        monthKey={payload.monthKey}
+        startDate={payload.summary.startDate}
+        todayKey={todayKey}
+        selectedDayKey={pickedDayKey ?? payload.summary.todayKey}
+        occurrences={payload.occurrences}
+        holidays={payload.holidays}
+        // WARN: The snapshot holds one grid range, so another month has no markers to draw rather than none to show — the swipe says so instead of quietly drawing an empty August.
+        onMonthChange={() => toast(OFFLINE_MESSAGES.view)}
+        onSelectDay={setPickedDayKey}
+      />
+    );
+  }
 
   function renderMonth(payload: CalendarSnapshot, savedAt: number) {
     const dayKey = pickedDayKey ?? payload.summary.todayKey;
@@ -104,19 +128,12 @@ export function MirrorCalendar({ className, participants }: MirrorCalendarProps)
             </ul>
           )}
         </UpcomingSection>
+        {/* INFO: AGENTS.md § 4.1. The panel above takes over at `lg`; this drops out. */}
         {/* INFO: DESIGN.md § 7.9. `scroll-mt` is what makes `scrollIntoView` clear the floating header (§ 7.12.) rather than parking the first week under it. */}
-        <div ref={gridRef} className="scroll-mt-(--app-header-inset)">
-          <CalendarMonth
-            monthKey={payload.monthKey}
-            startDate={payload.summary.startDate}
-            todayKey={todayKey}
-            selectedDayKey={dayKey}
-            occurrences={payload.occurrences}
-            holidays={payload.holidays}
-            // WARN: The snapshot holds one grid range, so another month has no markers to draw rather than none to show — the swipe says so instead of quietly drawing an empty August.
-            onMonthChange={() => toast(OFFLINE_MESSAGES.view)}
-            onSelectDay={setPickedDayKey}
-          />
+        <div className="lg:hidden">
+          <div ref={gridRef} className="scroll-mt-(--app-header-inset)">
+            {renderGrid(payload)}
+          </div>
         </div>
         <section className="space-y-xs" aria-label="선택한 날의 일정">
           <h2 className="text-title-md text-ink" aria-live="polite">

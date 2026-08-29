@@ -1,3 +1,4 @@
+import { CALENDAR_ROUTE } from "@/shared/config";
 import { cn, type Optional } from "@/shared/lib";
 import type { MirrorScreen } from "../model/mirror-screen";
 import { MIRROR_TABS, toActiveTabIndex } from "../model/mirror-tabs";
@@ -6,6 +7,8 @@ export type OfflineTabBarProps = {
   className?: string;
   /** Nothing is filled until the effect that reads the path has run — see `toMirrorScreen`. */
   screen: Optional<MirrorScreen>;
+  /** REQUIREMENTS.md § 11.5. Same dot `TabBar` draws on 캘린더 when something falls on today. */
+  hasEventToday?: boolean;
 };
 
 /**
@@ -18,7 +21,7 @@ export type OfflineTabBarProps = {
  * WARN: The fill is placed from `screen` rather than from `usePathname`, which is
  * what keeps this document servable at a path it was not prerendered for.
  */
-export function OfflineTabBar({ className, screen }: OfflineTabBarProps) {
+export function OfflineTabBar({ className, screen, hasEventToday = false }: OfflineTabBarProps) {
   const activeIndex = toActiveTabIndex(screen);
 
   return (
@@ -50,7 +53,12 @@ export function OfflineTabBar({ className, screen }: OfflineTabBarProps) {
                     href={href}
                     aria-current={isActive ? "page" : undefined}
                   >
-                    <Icon className={cn("size-5", stateClassName)} strokeWidth={1.75} />
+                    <span className="relative">
+                      <Icon className={cn("size-5", stateClassName)} strokeWidth={1.75} />
+                      {href === CALENDAR_ROUTE && hasEventToday && (
+                        <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
+                      )}
+                    </span>
                     <span className={cn("text-tab-label", stateClassName)}>{label}</span>
                   </a>
                 </li>
