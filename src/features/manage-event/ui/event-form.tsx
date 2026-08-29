@@ -44,12 +44,15 @@ export function EventForm({
 }: EventFormProps) {
   return (
     <div className={cn("space-y-md", className)}>
-      <Input
-        value={draft.title}
-        maxLength={MAX_EVENT_TITLE_LENGTH}
-        placeholder="일정 이름"
-        onChange={(event) => onUpdate({ title: event.target.value })}
-      />
+      <div className="space-y-xs">
+        <Label>일정 이름</Label>
+        <Input
+          value={draft.title}
+          maxLength={MAX_EVENT_TITLE_LENGTH}
+          placeholder="일정 이름"
+          onChange={(event) => onUpdate({ title: event.target.value })}
+        />
+      </div>
 
       <Field label="하루 종일">
         <Switch
@@ -121,27 +124,31 @@ export function EventForm({
       </div>
 
       {/* INFO: REQUIREMENTS.md § 16.3. One switch for the event, not per user — whoever turns it off silences it for both. */}
-      <Field label="알림 받기">
+      <div className="space-y-xs">
+        <Label>알림 받기</Label>
         <Switch
           checked={draft.reminderEnabled}
           haptic
           aria-label="알림 받기"
           onCheckedChange={(reminderEnabled) => onUpdate({ reminderEnabled })}
         />
-      </Field>
+      </div>
 
       <div className="space-y-xs">
         <Label>색상</Label>
         <EventColorPicker value={draft.color} onChange={(color) => onUpdate({ color })} />
       </div>
 
-      <Textarea
-        className="min-h-24"
-        value={draft.description}
-        maxLength={MAX_EVENT_DESCRIPTION_LENGTH}
-        placeholder="메모 (선택)"
-        onChange={(event) => onUpdate({ description: event.target.value })}
-      />
+      <div className="space-y-xs">
+        <Label>메모</Label>
+        <Textarea
+          className="min-h-24"
+          value={draft.description}
+          maxLength={MAX_EVENT_DESCRIPTION_LENGTH}
+          placeholder="메모 (선택)"
+          onChange={(event) => onUpdate({ description: event.target.value })}
+        />
+      </div>
 
       <div className="space-y-xs">
         {/* INFO: DESIGN.md § 8.1. A disabled button that will not say why is the form's worst moment — the two states a filled-in draft can be stuck in are named here rather than left to be guessed at. */}
