@@ -123,6 +123,8 @@ export function ArchiveGrid({
   const rows = useMemo(() => toArchiveRows(media, columns), [media, columns]);
   const cells = useMemo(() => toArchiveCells(media), [media]);
   const indexById = useMemo(() => new Map(cells.map((cell, i) => [cell.id, i])), [cells]);
+  // INFO: DESIGN.md § 7.8. Where the last line stopped — a page is cut into months and each month into its own lines, so that line is nearly always short, and a skeleton row starting below it leaves the hole visible.
+  const trailingGap = toTrailingGap(rows, columns);
   const anchorRef = useRef<Nullable<number>>(null);
   const pinchColumns = usePinchColumns({
     columns,
@@ -378,9 +380,19 @@ export function ArchiveGrid({
           {/* WARN: Inside this branch, never above it — mounted alongside the empty skeleton, the sentinel would be in view on every open and spend a page request before the first row draws. */}
           <div ref={sentinelRef} aria-hidden>
             {isLoadingMore && (
-              <div className="grid gap-2xs" style={toColumnsStyle(columns)}>
-                {toSkeletonKeys(columns).map((key) => (
-                  <Skeleton key={key} className="aspect-square rounded-sm" />
+              <div
+                className="grid gap-2xs"
+                style={{
+                  ...toColumnsStyle(columns),
+                  marginTop: trailingGap > 0 ? -(geometry.tileSize + GRID_GAP) : undefined,
+                }}
+              >
+                {toSkeletonKeys(columns).map((key, index) => (
+                  <Skeleton
+                    key={key}
+                    className="aspect-square rounded-sm"
+                    style={index === 0 ? { gridColumnStart: trailingGap + 1 } : undefined}
+                  />
                 ))}
               </div>
             )}
@@ -563,6 +575,13 @@ function findRowIndex(rows: ArchiveGridRow[], cellIndex: Optional<number>): numb
 
 // INFO: DESIGN.md § 7.8. Three rows' worth, so the skeleton reads as a shelf rather than a single line; the next-page one is a single row, since more would claim a page size the response may not fill.
 const SKELETON_ROWS = 3;
+
+// INFO: How many columns of the last line are already taken, so the next page's skeletons resume in it rather than under it — the whole row is pulled up by one line to sit in the hole.
+function toTrailingGap(rows: ArchiveGridRow[], columns: number): number {
+  const last = rows.at(-1);
+
+  return last?.kind === "tiles" ? last.count % columns : 0;
+}
 
 function toSkeletonKeys(count: number): string[] {
   return Array.from({ length: count }, (_, index) => String(index));
