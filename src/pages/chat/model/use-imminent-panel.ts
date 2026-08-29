@@ -1,9 +1,8 @@
 "use client";
 
 import type { EventOccurrence } from "@/entities/event";
-import { A_DAY, type UserId } from "@/shared/lib";
+import { A_DAY, isForReader, type UserId } from "@/shared/lib";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isForReader } from "./is-for-reader";
 
 const STORAGE_KEY = "jandh:chat-imminent-dismissed";
 

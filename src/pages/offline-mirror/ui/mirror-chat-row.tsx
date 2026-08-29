@@ -3,15 +3,18 @@
 import type { ChatMedia } from "@/entities/media";
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
+import { SearchHighlight } from "@/features/search-messages";
 import { DELETED_MESSAGE_TEXT, toMessageSummary } from "@/shared/config";
 import { cn, formatTime, type Optional } from "@/shared/lib";
 import { Avatar, FileCard, MediaTombstone, VoicePlayer } from "@/shared/ui";
 import { Smile } from "lucide-react";
+import type { CSSProperties } from "react";
 import { toMirrorCell } from "../model/to-mirror-cell";
 import { MirrorMediaBox } from "./mirror-media-box";
 
 export type MirrorChatRowProps = {
   className?: string;
+  style?: CSSProperties;
   message: ChatMessage;
   sender: Optional<Participant>;
   /** The quoted message's sender, resolved from the same snapshot participant set (REQUIREMENTS.md § 8.7.). */
@@ -20,6 +23,10 @@ export type MirrorChatRowProps = {
   isMine: boolean;
   isFirstOfGroup: boolean;
   isLastOfGroup: boolean;
+  /** REQUIREMENTS.md § 8.6.1. The submitted query, while a search is open — lights the words matched inside a text bubble, the way `MessageRow`'s own `search-hit` mark does. */
+  searchQuery?: string;
+  /** REQUIREMENTS.md § 8.6.1. What a search jump scrolls to and `document.getElementById` resolves — the mirror renders every row at once rather than through a virtualizer. */
+  id?: string;
 };
 
 // INFO: DESIGN.md § 6.5. The attachment column's width, which every box here is drawn inside.
@@ -38,12 +45,15 @@ const ATTACHMENT_WIDTH = 220;
  */
 export function MirrorChatRow({
   className,
+  style,
   message,
   sender,
   replyToHeading,
   isMine,
   isFirstOfGroup,
   isLastOfGroup,
+  searchQuery,
+  id,
 }: MirrorChatRowProps) {
   const voiceCell = message.media[0]?.voice ? message.media[0] : null;
   const hasMedia = message.media.length > 0;
@@ -56,6 +66,8 @@ export function MirrorChatRow({
         isMine && "justify-end",
         className,
       )}
+      style={style}
+      id={id}
     >
       {!isMine &&
         (isFirstOfGroup ? (
@@ -142,7 +154,11 @@ export function MirrorChatRow({
       <div className={toBubbleClassName()}>
         {message.replyTo && renderQuote("mb-2xs border-b border-quote-divider pb-2xs")}
         {/* INFO: REQUIREMENTS.md § 13. The mirror reads `text` and draws no emoticons, so each placeholder reads as `(이모티콘)` rather than reaching the transcript as tofu — the same summary the § 16.1. banner and the § 8.10. quote take. */}
-        {toMessageSummary(message.text ?? "")}
+        {searchQuery ? (
+          <SearchHighlight text={toMessageSummary(message.text ?? "")} query={searchQuery} />
+        ) : (
+          toMessageSummary(message.text ?? "")
+        )}
       </div>
     );
   }

@@ -1,5 +1,5 @@
 import { SEARCH_EXCERPT_LEAD, SEARCH_EXCERPT_MAX_LENGTH } from "@/shared/config";
-import { findQueryIndex } from "@/shared/lib";
+import { findQueryIndex } from "./query-match";
 
 const ELLIPSIS = "…";
 

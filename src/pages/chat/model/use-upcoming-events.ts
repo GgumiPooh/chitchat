@@ -7,9 +7,8 @@ import {
   SIDE_PANEL_UPCOMING_PAGE_SIZE,
   SSE_SYNC_COALESCE_WINDOW,
 } from "@/shared/config";
-import { A_DAY, isImminent, nextTimeLeftChangeAt, type UserId } from "@/shared/lib";
+import { A_DAY, isForReader, isImminent, nextTimeLeftChangeAt, type UserId } from "@/shared/lib";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isForReader } from "./is-for-reader";
 
 export type UpcomingEvents = {
   /** REQUIREMENTS.md § 11.5.1. The side panel's rows — everything loaded, `SIDE_PANEL_UPCOMING_PAGE_SIZE` at a time. */

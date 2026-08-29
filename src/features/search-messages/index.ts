@@ -11,3 +11,4 @@ export {
   type MessageSearchResultListProps,
 } from "./ui/message-search-result-list";
 export { MessageSearchResults, type MessageSearchResultsProps } from "./ui/message-search-results";
+export { SearchHighlight, type SearchHighlightProps } from "./ui/search-highlight";

@@ -1,8 +1,7 @@
 import { MAX_DAY_EVENT_DOTS, WEEKDAY_LABELS } from "@/shared/config";
 import { cn, formatHolidayName, formatMonthDay, SUNDAY } from "@/shared/lib";
-import { HapticTarget } from "@/shared/ui";
+import { EventDot, HapticTarget, MilestoneDot } from "@/shared/ui";
 import type { MonthCell } from "../model/build-month-grid";
-import { EventDot, MilestoneDot } from "./event-dot";
 
 export type DayCellProps = {
   className?: string;

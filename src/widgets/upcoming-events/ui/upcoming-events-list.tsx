@@ -2,8 +2,7 @@
 
 import type { EventOccurrence } from "@/entities/event";
 import { cn, formatTimeLeft, formatUpcomingWhen, isImminent, type Nullable } from "@/shared/lib";
-import { EmptyState, HapticTap } from "@/shared/ui";
-import { EventDot, EventMemo } from "@/widgets/calendar-month";
+import { EmptyState, EventDot, EventMemo, HapticTap } from "@/shared/ui";
 import { CalendarClock, ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 

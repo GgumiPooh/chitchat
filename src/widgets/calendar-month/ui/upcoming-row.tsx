@@ -2,11 +2,9 @@
 
 import type { EventOccurrence } from "@/entities/event";
 import { cn, formatUpcomingWhen, toDayKey } from "@/shared/lib";
-import { HapticTap } from "@/shared/ui";
+import { EventDot, EventMemo, HapticTap } from "@/shared/ui";
 import { CalendarClock } from "lucide-react";
 import type { PropsWithChildren } from "react";
-import { EventDot } from "./event-dot";
-import { EventMemo } from "./event-memo";
 
 // INFO: A constant rather than `useId`, because the section renders once per screen and the value has to be readable from the list inside it.
 export const UPCOMING_HEADING_ID = "upcoming-events-heading";

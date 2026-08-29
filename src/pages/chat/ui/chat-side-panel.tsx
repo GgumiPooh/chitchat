@@ -10,7 +10,7 @@ import {
 import { useProfileViewer } from "@/features/view-profile";
 import { cn, type UserId } from "@/shared/lib";
 import { Avatar } from "@/shared/ui";
-import { UpcomingEventsList } from "./upcoming-events-list";
+import { UpcomingEventsList } from "@/widgets/upcoming-events";
 
 export type ChatSidePanelProps = {
   className?: string;

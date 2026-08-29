@@ -36,13 +36,13 @@ import {
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { AppHeader, Container, HeaderTextButton, IconButton, SidePanel, toast } from "@/shared/ui";
 import { ChatRoom, toChromeTint, type AiSelectionHeaderState } from "@/widgets/chat-room";
+import { UpcomingEventsPanel } from "@/widgets/upcoming-events";
 import { CalendarClock, ChevronLeft, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useImminentPanel } from "../model/use-imminent-panel";
 import { useUpcomingEvents } from "../model/use-upcoming-events";
 import { ChatSidePanel } from "./chat-side-panel";
-import { UpcomingEventsPanel } from "./upcoming-events-panel";
 
 export type ChatScreenProps = {
   className?: string;
@@ -201,7 +201,6 @@ export function ChatScreen({
           {aiSelection ? (
             // INFO: REQUIREMENTS.md § 8.5., § 10. The same takeover 보관함's own selection bar makes of its header — 검색/일정/조용히 보내기 give way to the count and the toggle while the mode is up.
             <AppHeader
-              className="motion-reduce:transition-none lg:left-(--content-left) lg:[#app-shell[data-side-panel-animating]_&]:transition-[left] lg:[#app-shell[data-side-panel-animating]_&]:duration-(--duration-route-enter) lg:[#app-shell[data-side-panel-animating]_&]:ease-route"
               titleClassName="tabular-nums"
               hasSidePanel
               title={`${aiSelection.count}개 선택`}
@@ -241,7 +240,6 @@ export function ChatScreen({
           ) : (
             // INFO: DESIGN.md § 7.12. No title — the tab bar already says which screen this is, and the messages read better with the full column.
             <AppHeader
-              className="motion-reduce:transition-none lg:left-(--content-left) lg:[#app-shell[data-side-panel-animating]_&]:transition-[left] lg:[#app-shell[data-side-panel-animating]_&]:duration-(--duration-route-enter) lg:[#app-shell[data-side-panel-animating]_&]:ease-route"
               hasSidePanel
               leading={
                 <IconButton

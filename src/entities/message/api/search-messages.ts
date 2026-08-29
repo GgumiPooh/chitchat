@@ -1,10 +1,9 @@
-import { idToDate, type MessageId, type UserId } from "@/shared/lib";
+import { idToDate, toSearchExcerpt, type MessageId, type UserId } from "@/shared/lib";
 import "server-only";
 
 import { SEARCH_PAGE_SIZE, toPlainMessageText } from "@/shared/config";
 import { getDb, messages } from "@/shared/db";
 import { and, count, desc, eq, ilike, isNull, lt, type SQL } from "drizzle-orm";
-import { toSearchExcerpt } from "../model/to-search-excerpt";
 import type { MessageSearchResult } from "../model/types";
 
 export type SearchMessagesParams = {

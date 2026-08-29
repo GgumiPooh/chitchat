@@ -12,6 +12,16 @@ export { Chip, type ChipProps } from "./chip";
 export { Container, type ContainerProps } from "./container";
 export { EditableField, type EditableFieldProps, type EditableObject } from "./editable-field";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
+// INFO: REQUIREMENTS.md § 16.2. `widgets/calendar-month` and `widgets/upcoming-events` both draw these rows — a widget may not cross-import another widget's slice, so they moved here.
+export {
+  EventDot,
+  HolidayDot,
+  MilestoneDot,
+  type EventDotProps,
+  type HolidayDotProps,
+  type MilestoneDotProps,
+} from "./event-dot";
+export { EventMemo, type EventMemoProps } from "./event-memo";
 export { FileCard, type FileCardProps } from "./file-card";
 export { FileDropGuard } from "./file-drop-guard";
 // INFO: Exported for controls that cannot be a `Button` — anything that can takes the `haptic` prop instead, so the overlay's invariants stay inside the primitive.

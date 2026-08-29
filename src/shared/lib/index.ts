@@ -61,6 +61,7 @@ export {
   formatRelativeDay,
   formatTimeLeft,
   formatUpcomingWhen,
+  isForReader,
   isImminent,
   nextTimeLeftChangeAt,
   occursOnDay,
@@ -237,6 +238,7 @@ export {
   type InlineLineStats,
   type InlineRun,
 } from "./text/text-layout";
+export { toSearchExcerpt } from "./text/to-search-excerpt";
 export {
   findFirstUrl,
   isHttpUrl,

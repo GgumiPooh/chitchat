@@ -3,10 +3,8 @@
 import type { EventOccurrence } from "@/entities/event";
 import type { Participant } from "@/entities/user";
 import { cn, formatMultiDaySpan, formatOccurrenceTime, type Optional } from "@/shared/lib";
-import { Avatar, HapticTap } from "@/shared/ui";
+import { Avatar, EventDot, EventMemo, HapticTap } from "@/shared/ui";
 import type { ReactNode } from "react";
-import { EventDot } from "./event-dot";
-import { EventMemo } from "./event-memo";
 
 export type AgendaEventRowProps = {
   className?: string;

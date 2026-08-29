@@ -1,3 +1,5 @@
+import type { EventScope } from "@/shared/db";
+import type { UserId } from "../identity/id";
 import type { Nullable } from "../nullish";
 import { AN_HOUR, A_DAY, countDays, formatMonthDay, formatTime, toDayKey } from "./time";
 
@@ -107,6 +109,22 @@ export function formatUpcomingWhen(occurrence: TimedOccurrence, todayKey: string
 /** REQUIREMENTS.md § 11.5.1. Whether the occurrence starts inside the day — 채팅's header blooms on the same window. */
 export function isImminent(occurrence: TimedOccurrence, now: number): boolean {
   return Date.parse(occurrence.startsAt) - now <= A_DAY;
+}
+
+/**
+ * REQUIREMENTS.md § 11.5.1. Whether an event is the reader's own to be
+ * interrupted by — a 우리 일정, or a 개인 일정 they wrote themselves.
+ *
+ * INFO: § 11.5. The other person's 개인 일정 stays on the list to be read; what
+ * this withholds is the panel opening itself over a conversation and the header
+ * blooming. It lives here for `TimedOccurrence`'s own reason above — 채팅's screen
+ * and its § 16.2. mirror both read it.
+ */
+export function isForReader(
+  occurrence: { event: { scope: EventScope; createdBy: UserId } },
+  readerId: UserId,
+): boolean {
+  return occurrence.event.scope === "shared" || occurrence.event.createdBy === readerId;
 }
 
 /** The countdown an imminent row carries in place of its date — `진행 중`, `곧 시작`, `3시간 뒤`. */
