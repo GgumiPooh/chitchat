@@ -5,6 +5,8 @@ import {
 } from "@/entities/push-subscription";
 import { apiError } from "@/shared/api";
 import { getCurrentUser, getSessionContext } from "@/shared/auth";
+import { PUSH_INTENT_COOKIE_NAME, PUSH_INTENT_COOKIE_OPTIONS } from "@/shared/config";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -48,6 +50,9 @@ export async function POST(request: Request) {
     userAgent: body.data.userAgent ?? null,
   });
 
+  // INFO: REQUIREMENTS.md § 16.1. The row is what makes this installation "on"; the cookie is the client's copy of that fact, which is why it moves here and only here.
+  (await cookies()).set(PUSH_INTENT_COOKIE_NAME, "1", PUSH_INTENT_COOKIE_OPTIONS);
+
   return NextResponse.json(saved);
 }
 
@@ -90,6 +95,10 @@ export async function DELETE(request: Request) {
 
   // WARN: Scoped to the caller. An endpoint is unguessable, but this path has a session and nothing else stops one participant from retiring the other's device by naming its endpoint.
   await deletePushSubscription(body.data.endpoint, user.id);
+  (await cookies()).delete({
+    name: PUSH_INTENT_COOKIE_NAME,
+    path: PUSH_INTENT_COOKIE_OPTIONS.path,
+  });
 
   return new NextResponse(null, { status: 204 });
 }

@@ -429,6 +429,15 @@ export const TYPING_TIMEOUT = 8 * A_SECOND;
 export const PUSH_SUBSCRIPTION_PATH = "/api/push/subscription";
 // INFO: REQUIREMENTS.md § 16.1. The last push state this installation settled on, kept in a cookie so the Settings rows render it server-side instead of waiting for the launch sync.
 export const PUSH_STATE_COOKIE_NAME = "push-state";
+// INFO: REQUIREMENTS.md § 16.1. Whether this installation has 알림 on, as the server last recorded it — set by the subscription route, never by a sync result, so a failed launch sync cannot close the self-heal.
+export const PUSH_INTENT_COOKIE_NAME = "push-intent";
+// WARN: Server-set on purpose — Safari caps a `document.cookie` write at 7 days whatever `maxAge` says, and the self-heal has to outlive a week away from the app.
+export const PUSH_INTENT_COOKIE_OPTIONS = {
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  path: "/",
+  maxAge: (365 * A_DAY) / A_SECOND,
+} as const;
 
 // INFO: AGENTS.md § 4.4. Collapsed vs open for the `lg` side panel, kept in a cookie so the layout can paint the collapsed width server-side instead of flashing open.
 export const SIDE_PANEL_COOKIE_NAME = "jandh:side-panel";

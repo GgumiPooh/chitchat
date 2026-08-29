@@ -40,7 +40,7 @@ export function usePushNotifications(): PushNotificationsValue {
   useEffect(() => {
     const requestId = claimRequest();
 
-    void syncPushSubscription(cached).then((next) => {
+    void syncPushSubscription().then((next) => {
       if (isLatestRequest(requestId)) {
         setState(next);
         setCached(next);
@@ -51,7 +51,7 @@ export function usePushNotifications(): PushNotificationsValue {
     return () => {
       claimRequest();
     };
-  }, [cached, setCached]);
+  }, [setCached]);
 
   return { ...state, isBusy, isSoundBusy, toggle, toggleSound };
 

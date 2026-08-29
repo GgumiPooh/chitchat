@@ -1,11 +1,12 @@
 import type { PushSubscriptionInput } from "@/entities/push-subscription";
 import {
   IS_DEV,
+  PUSH_INTENT_COOKIE_NAME,
   SERVICE_WORKER_PATH,
   SERVICE_WORKER_VERSION,
   VAPID_PUBLIC_KEY,
 } from "@/shared/config";
-import { A_SECOND, safelyGetAsync, safelyRunAsync, type Nullable } from "@/shared/lib";
+import { A_SECOND, safelyGetAsync, safelyRunAsync } from "@/shared/lib";
 import { deleteSubscription } from "../api/delete-subscription";
 import { saveSubscription } from "../api/save-subscription";
 import { updateSubscriptionSound } from "../api/update-subscription-sound";
@@ -49,7 +50,7 @@ export function isPushSupported(): boolean {
  * the server, and a `410` prune on the send path can retire a row the browser
  * still believes in — this is the only thing that reconciles all three.
  */
-export async function syncPushSubscription(cachedState?: Nullable<PushState>): Promise<PushState> {
+export async function syncPushSubscription(): Promise<PushState> {
   if (!isPushSupported()) {
     return offState("unsupported");
   }
@@ -64,8 +65,8 @@ export async function syncPushSubscription(cachedState?: Nullable<PushState>): P
   });
 
   if (!subscription) {
-    // INFO: REQUIREMENTS.md § 16.1. If the user previously had push enabled (cookie was "on") and browser permission is still "granted", auto-resubscribe to self-heal a subscription revoked by OS/WebKit without prompt.
-    if (Notification.permission === "granted" && cachedState?.status === "on") {
+    // INFO: REQUIREMENTS.md § 16.1. Gated on the server-set intent cookie, not on the last `PushState` — that one records sync results, and a sync that failed to save had been closing this gate for good.
+    if (Notification.permission === "granted" && hasPushIntent()) {
       const resubscribed = await safelyGetAsync(subscribeToPush);
 
       if (resubscribed) {
@@ -196,6 +197,12 @@ function registerPushWorker(): Promise<ServiceWorkerRegistration> {
     scope: "/",
     updateViaCache: "none",
   });
+}
+
+function hasPushIntent(): boolean {
+  return document.cookie
+    .split("; ")
+    .some((entry) => entry.startsWith(`${PUSH_INTENT_COOKIE_NAME}=`));
 }
 
 function offState(status: PushStatus): PushState {
