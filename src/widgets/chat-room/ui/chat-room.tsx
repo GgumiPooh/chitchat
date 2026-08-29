@@ -144,6 +144,7 @@ import {
   ChevronsUpDown,
   Copy,
   CornerUpLeft,
+  CornerUpRight,
   LoaderCircle,
   MessageCircle,
   Pencil,
@@ -3632,7 +3633,11 @@ export function ChatRoom({
       // INFO: `keepsFocus` for 수정's reason — `stageReply` hands the field the caret, and the sheet's close would take it straight back.
       {
         label: isAssistantReply ? "이어서 질문" : "답장",
-        Icon: isAssistantReply ? Sparkles : CornerUpLeft,
+        Icon: isAssistantReply
+          ? Sparkles
+          : target.senderId === currentUserId
+            ? CornerUpRight
+            : CornerUpLeft,
         keepsFocus: true,
         onSelect: () => stageReply(target),
       },

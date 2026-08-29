@@ -615,9 +615,9 @@ export function MessageRow({
         aria-hidden
       >
         {isMine ? (
-          <CornerUpRight className="size-4" strokeWidth={1.75} />
-        ) : (
           <CornerUpLeft className="size-4" strokeWidth={1.75} />
+        ) : (
+          <CornerUpRight className="size-4" strokeWidth={1.75} />
         )}
       </span>
     );
@@ -660,7 +660,7 @@ export function MessageRow({
           <IconButton
             className="size-7"
             iconClassName="size-4"
-            Icon={CornerUpLeft}
+            Icon={isMine ? CornerUpRight : CornerUpLeft}
             aria-label="답장"
             onClick={onReply}
           />
