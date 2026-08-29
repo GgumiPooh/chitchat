@@ -30,8 +30,9 @@ export type KeywordFillResult = {
  * WARN: The chunking is the caller's, not the server's, and that is the whole design.
  * One request is provably one model call, so it cannot outrun the platform's
  * invocation limit — and the screen gets something true to say between chunks, which
- * a single long request can never provide. The route caps itself at the same number
- * so this cannot be bypassed by asking for more.
+ * a single long request can never provide. The route caps itself independently at its
+ * own ceiling, and `KEYWORD_SUGGESTION_BATCH` is clamped to a copy of that number
+ * so a misconfigured value degrades to the ceiling instead of failing every chunk.
  *
  * WARN: The chunks are pooled rather than sequential, and what bounds the width is
  * Google's per-minute quota rather than anything here — `KEYWORD_SUGGESTION_CONCURRENCY`

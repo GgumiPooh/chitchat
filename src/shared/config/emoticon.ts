@@ -249,30 +249,37 @@ export function maxKeywordsFor(type: EmoticonPackType): number {
   return type === "mini" ? MAX_MINI_KEYWORDS : MAX_EMOTICON_KEYWORDS;
 }
 
+// WARN: jandh-emoticons' `KEYWORD_SUGGESTION_MAX_BATCH`, copied by value since that constant cannot be imported across deployments — it moves only when a fresh measurement moves the route's own ceiling (REQUIREMENTS.md § 13.8.1.).
+export const KEYWORD_SUGGESTION_MAX_BATCH = 3;
+
+const KEYWORD_SUGGESTION_BATCH_SETTING = Number.parseInt(
+  (process.env.NEXT_PUBLIC_KEYWORD_SUGGESTION_BATCH ?? "").trim(),
+  10,
+);
+
 /**
- * How many emoticons one keyword-suggestion request may carry (REQUIREMENTS.md
- * § 13.8.1.).
+ * How many emoticons one keyword-suggestion request carries, this app's own chunk
+ * size (REQUIREMENTS.md § 13.8.1.).
  *
- * WARN: This is the route's cap **and** the caller's chunk size, deliberately the
- * same number so one request is provably one model call. A route that accepted a
- * whole pack would run several of those back to back and be killed by the platform
- * before it answered, which is the failure jandh-emoticons' § 6.3.1. already exists
- * to have removed.
- *
- * WARN: Three, reached from sixteen by way of four, and the reason is **answer
- * quality rather than time** (§ 13.8.1.). Sixteen fitted the latency budget; what it
- * did not fit was a lite model's ability to keep sixteen inline images apart while
- * reading the Korean line off each one. The whole feature rests on `id` naming the
- * right picture, and that is the first thing to degrade as the count grows — so this
- * moves down freely and upward only against a fresh measurement.
+ * WARN: jandh-emoticons owns the route and refuses anything above its own ceiling
+ * with a 400 that `fillBatch` swallows into an empty chunk — a whole run failing with
+ * nothing logged. So the value is clamped to `KEYWORD_SUGGESTION_MAX_BATCH` here
+ * rather than trusted, and the ceiling is what a misconfigured deployment gets.
  *
  * WARN: Callers MUST chunk to this. It is also what makes the screen able to say how
  * far along it is — a single request can only ever report "not yet".
  *
- * WARN: jandh-emoticons declares this number too and owns the route. The two MUST
- * agree: chunking larger here is refused there.
+ * WARN: `NEXT_PUBLIC_` and read as a literal member access, exactly as § 13.7.1.'s
+ * switch is — a computed lookup resolves to `undefined` in the browser bundle, and
+ * changing the value needs a redeploy rather than an environment edit.
+ *
+ * INFO: An unparseable or non-positive value falls back to **1** — the sequential
+ * run, and the safest default for a deployment that never set this.
  */
-export const KEYWORD_SUGGESTION_BATCH = 3;
+export const KEYWORD_SUGGESTION_BATCH =
+  Number.isInteger(KEYWORD_SUGGESTION_BATCH_SETTING) && KEYWORD_SUGGESTION_BATCH_SETTING > 0
+    ? Math.min(KEYWORD_SUGGESTION_BATCH_SETTING, KEYWORD_SUGGESTION_MAX_BATCH)
+    : 1;
 
 const KEYWORD_SUGGESTION_CONCURRENCY_SETTING = Number.parseInt(
   (process.env.NEXT_PUBLIC_KEYWORD_SUGGESTION_CONCURRENCY ?? "").trim(),
