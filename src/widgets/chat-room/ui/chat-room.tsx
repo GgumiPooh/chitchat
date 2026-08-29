@@ -58,6 +58,8 @@ import {
   ARCHIVE_GALLERY_ROUTE,
   ARCHIVE_TARGET_PARAM,
   CHAT_AI_PATH,
+  CHAT_MESSAGE_PARAM,
+  CHAT_MODE_PARAM,
   MESSAGE_FLASH_DURATION,
   REPLY_PREVIEW_MAX_LENGTH,
   toLlmProviderBranding,
@@ -1751,12 +1753,27 @@ export function ChatRoom({
    * that is exactly the case the flash exists for.
    */
   useEffect(() => {
-    if (initialJumpMessageId) {
-      void jumpToMessage(initialJumpMessageId, { flash: true, onlyMe: initialJumpOnlyMe });
+    if (!initialJumpMessageId) {
+      return;
     }
 
-    // WARN: § 8.6.1. The jump's settle loop outlives this component otherwise, and it calls into a virtualizer whose scroller has gone.
-    return cancelJumpScroll;
+    void jumpToMessage(initialJumpMessageId, { flash: true, onlyMe: initialJumpOnlyMe });
+
+    // WARN: § 10. Stripped once it has been taken, or a reload re-reads the URL as a fresh instruction and hauls the reader off the row they had scrolled to back onto the tile's message.
+    // WARN: A task later, and through the patched `replaceState`, for the reasons `useShareTarget` strips its own parameters that way.
+    const timer = setTimeout(() => {
+      const url = new URL(window.location.href);
+
+      url.searchParams.delete(CHAT_MESSAGE_PARAM);
+      url.searchParams.delete(CHAT_MODE_PARAM);
+      window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+    });
+
+    return () => {
+      clearTimeout(timer);
+      // WARN: § 8.6.1. The jump's settle loop outlives this component otherwise, and it calls into a virtualizer whose scroller has gone.
+      cancelJumpScroll();
+    };
   }, []);
 
   /**
