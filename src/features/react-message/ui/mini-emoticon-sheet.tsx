@@ -1,7 +1,7 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
-import { fetchPackItems, toEmoticonPacksQuery } from "@/features/send-message/@x/react-message";
+import { toEmoticonPacksQuery, useAllPackSections } from "@/features/send-message/@x/react-message";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import {
   cn,
@@ -14,8 +14,8 @@ import {
   type EmoticonItemId,
   type MessageId,
 } from "@/shared/lib";
-import { HapticTarget, Modal, PreloadImage } from "@/shared/ui";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { HapticTarget, LoadMoreSentinel, Modal, PreloadImage } from "@/shared/ui";
+import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { useEffect, useMemo, useRef } from "react";
@@ -55,6 +55,10 @@ type VirtualRow =
   | {
       items: Emoticon[];
       type: "emoticon-row";
+      id: string;
+    }
+  | {
+      type: "load-more";
       id: string;
     };
 
@@ -111,14 +115,8 @@ export function MiniEmoticonSheet({
     (pack) => pack.type === "mini" && pack.isEnabled,
   );
 
-  const packItemsQueries = useQueries({
-    queries: miniPacks.map((pack) => ({
-      queryKey: ["pack-items", pack.id] as const,
-      queryFn: () => fetchPackItems(pack.id),
-      staleTime: 5 * 60 * 1000,
-      enabled: isOpen,
-    })),
-  });
+  // INFO: § 13.6. The picker's 전체 tab, pack by pack as the reader scrolls — never every pack on open.
+  const { sections, hasMore, loadMore } = useAllPackSections(miniPacks, isOpen);
 
   const handleSelectEmoji = (emoji: string) => {
     rememberReaction({ kind: "emoji", value: emoji });
@@ -169,8 +167,7 @@ export function MiniEmoticonSheet({
     }
 
     // 3. 활성화된 미니 이모티콘 팩 섹션들
-    miniPacks.forEach((pack, index) => {
-      const items = packItemsQueries[index]?.data ?? [];
+    sections.forEach(({ pack, items }) => {
       if (items.length === 0) {
         return;
       }
@@ -190,14 +187,22 @@ export function MiniEmoticonSheet({
       }
     });
 
+    // WARN: The id carries the section count so each batch is a fresh row and a fresh observer — see the picker's 전체 tab.
+    if (hasMore) {
+      rows.push({ id: `load-more-${sections.length}`, type: "load-more" });
+    }
+
     return rows;
-  }, [recentReactions, miniPacks, packItemsQueries]);
+  }, [recentReactions, sections, hasMore]);
 
   const rowVirtualizer = useVirtualizer({
     count: virtualRows.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: (index) => {
       const row = virtualRows[index];
+      if (row.type === "load-more") {
+        return 1;
+      }
       if (row.type === "header") {
         return 28; // text-body-xs font-semibold (약 16px) + margin/padding (약 12px)
       }
@@ -327,6 +332,10 @@ export function MiniEmoticonSheet({
                     );
                   })}
                 </div>
+              )}
+
+              {row.type === "load-more" && (
+                <LoadMoreSentinel rootRef={scrollContainerRef} onVisible={loadMore} />
               )}
 
               {row.type === "emoticon-row" && (

@@ -30,10 +30,12 @@ import {
   type Optional,
 } from "@/shared/lib";
 import {
+  AllPacksIcon,
   EmptyState,
   HapticTarget,
   IconButton,
   Input,
+  LoadMoreSentinel,
   PreloadImage,
   RecentsAndFavoritesIcon,
 } from "@/shared/ui";
@@ -65,11 +67,14 @@ import {
 } from "../model/emoticon-focus";
 import {
   ACTIVE_TAB_KEY,
+  ALL_TAB,
   EMOTICON_MENUS,
   MENU_LABELS,
+  MINI_ALL_TAB,
   MINI_RECENTS_TAB,
   RECENTS_TAB,
   SEARCH_TAB,
+  isAllTabId,
   isPackTabId,
   isRecentsTabId,
   type EmoticonMenu,
@@ -77,6 +82,7 @@ import {
 import { toEmoticonsByIdsQuery } from "../model/emoticons-query";
 import { toEmoticonPackItemsQuery } from "../model/pack-items-query";
 import { toEmoticonPacksQuery } from "../model/packs-query";
+import { useAllPackSections } from "../model/use-all-pack-sections";
 import { useEmoticonFavorites } from "../model/use-emoticon-favorites";
 import { useEmoticonSearch } from "../model/use-emoticon-search";
 import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
@@ -145,6 +151,8 @@ const SEARCH_FAILED_MESSAGE = "검색하지 못했어요";
 
 // INFO: § 13.6. The tab's own label and the heading over its cells, which are the same words in two places.
 const RECENTS_LABEL = "최근 사용";
+
+const ALL_LABEL = "전체";
 
 /** REQUIREMENTS.md § 8.14. A tab, the cell focus is to land on in it, and the offset to read it at. */
 type TabEntry = {
@@ -473,6 +481,7 @@ export function EmoticonPicker({
   // WARN: `isPackTabId` gates the pending branch, and it is the only thing that does. The stored tab is an unvalidated `localStorage` string, and while the list is in flight this expression is what hands it to `fetchPackItems` as a path segment.
   const activeTab =
     isRecentsTabId(requestedTab) ||
+    isAllTabId(requestedTab) ||
     requestedTab === SEARCH_TAB ||
     (isPackTabId(requestedTab) && (isPending || findPack(visiblePacks, requestedTab)))
       ? requestedTab
@@ -497,10 +506,14 @@ export function EmoticonPicker({
   const kindNouns = EMOTICON_KIND_NOUNS[menuKind];
   const menuPacks = visiblePacks.filter((pack) => pack.type === menuKind);
   const recentsTab = menuKind === "mini" ? MINI_RECENTS_TAB : RECENTS_TAB;
+  const allTab = menuKind === "mini" ? MINI_ALL_TAB : ALL_TAB;
+  const isAllTab = activeTab === allTab;
   // WARN: § 13.6. Empty while the summaries are still in flight, which is the one case the heading is withheld — a pack tab knows its own name a round trip before it knows its items.
   const activeTabLabel = isRecentsTabId(activeTab)
     ? RECENTS_LABEL
-    : (findPack(menuPacks, activeTab)?.name ?? "");
+    : isAllTab
+      ? ALL_LABEL
+      : (findPack(menuPacks, activeTab)?.name ?? "");
   // INFO: § 13.6. This menu's own stored list, which is the whole of the kind filter — `useRecentEmoticons` keeps one per kind, written from what the send carried.
   const recentIds = recentIdsByKind[menuKind];
   // WARN: § 8.14. The arrow step **and** the `grid-cols-*` class below, which are one decision written twice — see `MINI_GRID_COLUMNS`.
@@ -546,6 +559,13 @@ export function EmoticonPicker({
   const isRecentsPending = recentIds.length > 0 && isRecentsQueryPending;
 
   const { favorites: allFavorites = [] } = useEmoticonFavorites();
+  const {
+    sections: allSections,
+    hasMore: hasMoreAllSections,
+    loadMore: loadMoreAllSections,
+  } = useAllPackSections(menuPacks, isAllTab && isOpen);
+  // WARN: § 13.6. The first section is the gate, exactly as a pack tab's own items are — drawn before it lands, the 전체 tab is a heading over nothing.
+  const isAllPending = isAllTab && (allSections[0]?.isPending ?? false);
   const [recentsVisibleRows, setRecentsVisibleRows] = useState(2);
 
   const byId = new Map(recentItems.map((item) => [item.id, item] as const));
@@ -571,7 +591,7 @@ export function EmoticonPicker({
   const gridItemCount =
     isRecentsTabId(activeTab) && menuKind !== "mini" ? totalRecentsAndFavoritesCount : shown.length;
   // INFO: § 13.6. The second region's own list, which is this menu's alone — 검색 has a field there instead and therefore no tabs at all.
-  const tabIds = isSearching ? [] : [recentsTab, ...menuPacks.map((pack) => pack.id)];
+  const tabIds = isSearching ? [] : [recentsTab, allTab, ...menuPacks.map((pack) => pack.id)];
   const activeIndex = tabIds.indexOf(activeTab);
   const tabThumbnailUrls = menuPacks.flatMap((pack) =>
     pack.thumbnailItemId
@@ -875,13 +895,24 @@ export function EmoticonPicker({
                   <RecentsAndFavoritesIcon className="size-5 text-meta" />
                 )}
               </TabButton>
+              <TabButton
+                ref={activeTab === allTab ? activeTabRef : undefined}
+                index={1}
+                isActive={activeTab === allTab}
+                isFocusable={focusableTabId === allTab}
+                isKeyboardDriven={isKeyboardDriven}
+                label={ALL_LABEL}
+                onClick={() => selectTab(allTab)}
+              >
+                <AllPacksIcon className="size-5 text-meta" />
+              </TabButton>
               {/* WARN: § 13.1. `menuPacks` is `visiblePacks` cut to this menu's kind, and never `packs` — the list carries hidden packs so § 13.8. can search them, and a hidden pack drawn here is a tab `activeTab` resolves away from, so the tap does nothing but overwrite the remembered pack with an id that can never be restored. */}
               {menuPacks.map((pack, index) => (
                 <TabButton
                   key={pack.id}
                   ref={activeTab === pack.id ? activeTabRef : undefined}
-                  // WARN: § 8.14. Offset past 최근 사용, so it indexes `tabIds` — the array `goToAdjacentTab` and the strip's own arrows both step through. 검색 is a menu now and no longer sits in front of it.
-                  index={index + 1}
+                  // WARN: § 8.14. Offset past 최근 사용 and 전체, so it indexes `tabIds` — the array `goToAdjacentTab` and the strip's own arrows both step through. 검색 is a menu now and no longer sits in front of it.
+                  index={index + 2}
                   isActive={activeTab === pack.id}
                   isFocusable={focusableTabId === pack.id}
                   isKeyboardDriven={isKeyboardDriven}
@@ -898,7 +929,7 @@ export function EmoticonPicker({
                       // INFO: § 13.6. Warmed and decoded before the panel opens, so the head of the strip is drawn rather than plated.
                       hasDeferredSkeleton
                       // WARN: § 13.3. Each of these is a session check, a row read and a presign, and the strip scrolls — past what fits on screen, every pack in the library would spend one on the frame the panel first opens.
-                      loading={index + 1 < EAGER_TAB_COUNT ? "eager" : "lazy"}
+                      loading={index + 2 < EAGER_TAB_COUNT ? "eager" : "lazy"}
                       src={toEmoticonAssetUrl(
                         pack.thumbnailItemId,
                         "still-image",
@@ -954,7 +985,7 @@ export function EmoticonPicker({
           >
             {/* INFO: DESIGN.md § 7.10. 보관함's month header pattern, sized down from `title-sm` to `body-sm` for this panel's tighter grid — `meta`, inside the scroller so it travels with the cells rather than pinning above them. */}
             {/* WARN: § 8.14. Not a focus target, so it carries no `FOCUS_INDEX_ATTRIBUTE` — the arrows read cells off that attribute and a heading in the list would be a step onto nothing. */}
-            {!isRecentsTabId(activeTab) && activeTabLabel !== "" && (
+            {!isRecentsTabId(activeTab) && !isAllTab && activeTabLabel !== "" && (
               <h2 className="pb-xs text-body-sm text-meta">{activeTabLabel}</h2>
             )}
             {/* WARN: § 13.6. The tab's own items are a request now, so the grid waits for them as it waits for the list. Drawn before they land, a pack tab paints `이 묶음에는 이모티콘이 없어요` over a pack that has plenty — the verdict-before-the-answer § 13.9.1. removed from the search pane. */}
@@ -963,7 +994,8 @@ export function EmoticonPicker({
             {/* INFO: § 13.6. So the animation below decorates the arrival rather than the gesture — a warm tab slides at once, a cold one is blank for a round trip and slides after. Recorded and not fixed: waiting is still better than painting `이 묶음에는 이모티콘이 없어요` over a pack that is full. */}
             {isPending ||
             (activePackId !== null && isPackPending) ||
-            (isRecentsTabId(activeTab) && isRecentsPending) ? null : (
+            (isRecentsTabId(activeTab) && isRecentsPending) ||
+            isAllPending ? null : (
               // WARN: Keyed by the tab so each pack mounts fresh — an enter animation on an updated subtree never replays.
               <div
                 key={activeTab}
@@ -1100,6 +1132,61 @@ export function EmoticonPicker({
                       </section>
                     </div>
                   )
+                ) : isAllTab && menuPacks.length > 0 ? (
+                  // INFO: § 13.6. One section per pack, in the strip's order, and the cells indexed flat across them so the arrows read the tab as one grid.
+                  <div className="flex flex-col gap-xs">
+                    {allSections.map((section, sectionIndex) => {
+                      if (section.items.length === 0) {
+                        return null;
+                      }
+
+                      const offset = allSections
+                        .slice(0, sectionIndex)
+                        .reduce((count, prior) => count + prior.items.length, 0);
+
+                      return (
+                        <section key={section.pack.id}>
+                          <h2 className="pb-xs text-body-sm text-meta">{section.pack.name}</h2>
+                          <div
+                            className={cn(
+                              "grid gap-2xs",
+                              menuKind === "mini" ? "grid-cols-6" : "grid-cols-4",
+                            )}
+                            role="group"
+                            aria-label={section.pack.name}
+                          >
+                            {section.items.map((item, i) => {
+                              const index = offset + i;
+
+                              return (
+                                <EmoticonCell
+                                  key={item.id}
+                                  className="flex"
+                                  buttonClassName="aspect-square w-full"
+                                  item={item}
+                                  index={index}
+                                  isFocusable={index === focusableIndex}
+                                  isWarmed
+                                  eagerCount={eagerCount}
+                                  isKeyboardDriven={isKeyboardDriven}
+                                  isMini={menuKind === "mini"}
+                                  onSelect={handleSelect}
+                                />
+                              );
+                            })}
+                          </div>
+                        </section>
+                      );
+                    })}
+                    {/* WARN: Keyed by how many sections are in, so each batch mounts a fresh observer — one that stayed intersecting through the batch landing under it would never fire again. */}
+                    {hasMoreAllSections && (
+                      <LoadMoreSentinel
+                        key={allSections.length}
+                        rootRef={cellScrollerRef}
+                        onVisible={loadMoreAllSections}
+                      />
+                    )}
+                  </div>
                 ) : shown.length === 0 ? (
                   <EmptyState
                     className="border-0 bg-transparent"
@@ -1191,6 +1278,10 @@ export function EmoticonPicker({
       return menuKind === "mini" ? recents : [...recents, ...favorites];
     }
 
+    if (isAllTab) {
+      return allSections.flatMap((section) => section.items);
+    }
+
     return activePackItems;
   }
 
@@ -1224,7 +1315,7 @@ export function EmoticonPicker({
       return "search";
     }
 
-    if (id === MINI_RECENTS_TAB) {
+    if (id === MINI_RECENTS_TAB || id === MINI_ALL_TAB) {
       return "mini";
     }
 
@@ -1251,6 +1342,10 @@ export function EmoticonPicker({
       return menuPacks.length === 0
         ? `추가한 ${josa(pack, "이/가")} 없어요`
         : `최근 사용한 ${josa(kind, "이/가")} 여기에 보여요`;
+    }
+
+    if (isAllTab) {
+      return `추가한 ${josa(pack, "이/가")} 없어요`;
     }
 
     return hasPackFailed

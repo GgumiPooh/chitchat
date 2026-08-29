@@ -25,6 +25,7 @@ export { EventMemo, type EventMemoProps } from "./event-memo";
 export { FileCard, type FileCardProps } from "./file-card";
 export { FileDropGuard } from "./file-drop-guard";
 // INFO: Exported for controls that cannot be a `Button` — anything that can takes the `haptic` prop instead, so the overlay's invariants stay inside the primitive.
+export { AllPacksIcon, type AllPacksIconProps } from "./all-packs-icon";
 export { HapticTap, type HapticTapProps } from "./haptic-tap";
 export { HapticTarget, type HapticTargetProps } from "./haptic-target";
 export { HeaderTextButton, type HeaderTextButtonProps } from "./header-text-button";
@@ -33,6 +34,7 @@ export { InlineEmoticon, type InlineEmoticonProps } from "./inline-emoticon";
 export { Input, type InputProps } from "./input";
 export { KeywordField, type KeywordFieldProps } from "./keyword-field";
 export { Link, type LinkProps } from "./link";
+export { LoadMoreSentinel, type LoadMoreSentinelProps } from "./load-more-sentinel";
 export { MARKDOWN_PLUGINS, MarkdownBody, type MarkdownBodyProps } from "./markdown-body";
 export { toCellNoun, toCellRatio } from "./media-cell";
 export type { MediaCell, VoiceTrack } from "./media-cell";

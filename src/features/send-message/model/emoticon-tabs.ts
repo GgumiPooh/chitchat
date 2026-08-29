@@ -21,6 +21,11 @@ export const RECENTS_TAB = "recents";
  */
 export const MINI_RECENTS_TAB = "recents:mini";
 
+// INFO: § 13.6. The 전체 tab of each menu — every enabled pack of that kind, sectioned, fetched pack by pack as the reader scrolls. Two more non-pack values under `ACTIVE_TAB_KEY`, on `MINI_RECENTS_TAB`'s terms.
+export const ALL_TAB = "all";
+
+export const MINI_ALL_TAB = "all:mini";
+
 // INFO: § 13.8. Where a tap on the composer's underlined word lands, and the one menu reachable without the panel already being open. Never remembered.
 export const SEARCH_TAB = "search";
 
@@ -47,6 +52,11 @@ export const MENU_LABELS: Record<EmoticonMenu, string> = {
 /** REQUIREMENTS.md § 13.6. Whether this tab is one of the two 최근 사용 tabs rather than a pack. */
 export function isRecentsTabId(id: string): boolean {
   return id === RECENTS_TAB || id === MINI_RECENTS_TAB;
+}
+
+/** REQUIREMENTS.md § 13.6. Whether this tab is one of the two 전체 tabs. */
+export function isAllTabId(id: string): boolean {
+  return id === ALL_TAB || id === MINI_ALL_TAB;
 }
 
 /**

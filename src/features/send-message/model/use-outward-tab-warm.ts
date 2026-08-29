@@ -2,12 +2,17 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import type { EmoticonPackType } from "@/shared/config";
-import { A_MINUTE, A_SECOND, runWhenIdle } from "@/shared/lib";
+import { A_MINUTE, A_SECOND, runWhenIdle, type EmoticonPackId } from "@/shared/lib";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { isPackTabId, isRecentsTabId } from "./emoticon-tabs";
+import { isAllTabId, isPackTabId, isRecentsTabId } from "./emoticon-tabs";
 import { toEmoticonPackItemsQuery } from "./pack-items-query";
-import { MAX_DECODED_DISTANCE, warmEmoticonImages, warmEmoticonUrls } from "./warm-emoticon-images";
+import {
+  MAX_DECODED_DISTANCE,
+  MAX_WARMED_PER_TAB,
+  warmEmoticonImages,
+  warmEmoticonUrls,
+} from "./warm-emoticon-images";
 import { warmEmoticonSounds } from "./warm-emoticon-sounds";
 
 // INFO: § 13.6. Far shorter than the room's own warm, because this starts from a tap rather than from a screen loading — what it is waiting out is the panel's 200ms open, not a first paint.
@@ -146,11 +151,30 @@ export function useOutwardTabWarm({
         return recentsRef.current;
       }
 
+      // WARN: § 13.6. 전체 warms its first screenful and no further — the packs in strip order up to the one tab's cap, never the library. The rest is fetched by being scrolled to.
+      if (isAllTabId(tab)) {
+        const items: Emoticon[] = [];
+
+        for (const packTab of tabKey.split(",").filter(isPackTabId)) {
+          if (items.length >= MAX_WARMED_PER_TAB || isCancelled) {
+            break;
+          }
+
+          items.push(...(await fetchPackItems(packTab)));
+        }
+
+        return items;
+      }
+
       // INFO: § 13.8. The search tab answers nothing until a word is typed, so it is the one tab with nothing to warm.
       if (!isPackTabId(tab)) {
         return [];
       }
 
+      return fetchPackItems(tab);
+    }
+
+    function fetchPackItems(tab: EmoticonPackId): Promise<Emoticon[]> {
       return queryClient
         .fetchQuery({ ...toEmoticonPackItemsQuery(tab), staleTime: WARM_ITEMS_STALE_TIME })
         .catch(() => []);

@@ -6,7 +6,14 @@ import { A_MINUTE, A_SECOND, runWhenIdle } from "@/shared/lib";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { useStorageState } from "synced-storage/react";
-import { ACTIVE_TAB_KEY, MINI_RECENTS_TAB, RECENTS_TAB, isPackTabId } from "./emoticon-tabs";
+import {
+  ACTIVE_TAB_KEY,
+  MINI_ALL_TAB,
+  MINI_RECENTS_TAB,
+  RECENTS_TAB,
+  isAllTabId,
+  isPackTabId,
+} from "./emoticon-tabs";
 import { toEmoticonsByIdsQuery } from "./emoticons-query";
 import { toEmoticonKeywordsQuery } from "./keywords-query";
 import { toEmoticonPackItemsQuery } from "./pack-items-query";
@@ -110,8 +117,20 @@ export function useEmoticonPreload(): void {
         return { items, kind: pack.type };
       }
 
-      // INFO: § 13.6. Each kind keeps its own 최근 사용, and the remembered tab is what says which of the two this open will land on.
-      const kind: EmoticonPackType = tab === MINI_RECENTS_TAB ? "mini" : "emoticon";
+      // INFO: § 13.6. Each kind keeps its own 최근 사용 and 전체, and the remembered tab is what says which of the two this open will land on.
+      const kind: EmoticonPackType =
+        tab === MINI_RECENTS_TAB || tab === MINI_ALL_TAB ? "mini" : "emoticon";
+
+      // INFO: § 13.6. 전체 opens on its first pack, so that pack is what the open will draw first.
+      if (isAllTabId(tab)) {
+        const first = packs.find((candidate) => candidate.type === kind && candidate.isEnabled);
+        const items = first
+          ? await queryClient.fetchQuery(toEmoticonPackItemsQuery(first.id)).catch(() => [])
+          : [];
+
+        return { items, kind };
+      }
+
       const recents = kind === "mini" ? ids.mini : ids.emoticon;
 
       // INFO: § 13.8. The search tab is never remembered, so it is not a case here — an empty 최근 사용 is, and it has nothing to ask for.
