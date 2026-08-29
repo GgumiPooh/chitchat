@@ -2326,7 +2326,8 @@ export function ChatRoom({
     // WARN: § 13.8. The word is spent, the search is not. `emoticonSearch` deliberately stands, so the panel is still on the results this emoticon came from — sending one of a row of related pictures is the reason to have searched at all, and dropping back to the remembered pack means finding the word again for every one after the first.
     searchedWordRef.current = null;
     setReplyTarget(null);
-    isAtBottomRef.current = true;
+    // WARN: DESIGN.md § 6.7. Through the state and not the ref alone — `readScrollEdges` only reports a change from the ref, so a ref set here by itself leaves the pill standing after the send has already landed at the bottom.
+    handleAtBottomChange(true);
     pinToBottom();
     requestAnimationFrame(pinToBottom);
   }
@@ -2431,7 +2432,7 @@ export function ChatRoom({
     // WARN: § 13.8. The word is spent here, and the search is left standing — see `sendStagedEmoticon`.
     searchedWordRef.current = null;
     setReplyTarget(null);
-    isAtBottomRef.current = true;
+    handleAtBottomChange(true);
     pinToBottom();
     requestAnimationFrame(pinToBottom);
   }
@@ -2506,7 +2507,7 @@ export function ChatRoom({
       soundSubmit(mediaClientMsgIds);
     }
 
-    isAtBottomRef.current = true;
+    handleAtBottomChange(true);
     pinToBottom();
     requestAnimationFrame(pinToBottom);
   }
