@@ -2,7 +2,7 @@ import type { CalendarEvent, CalendarSummary, EventOccurrence } from "@/entities
 import { request } from "@/shared/api";
 import { CALENDAR_SUMMARY_PATH, EVENTS_PATH, type EventColor } from "@/shared/config";
 import type { EventRecurrence, EventScope } from "@/shared/db";
-import type { Nullable } from "@/shared/lib";
+import type { EventId, Nullable } from "@/shared/lib";
 
 export type EventBody = {
   title: string;
@@ -32,6 +32,12 @@ export async function fetchCalendarSummary(upcomingLimit?: number): Promise<Cale
   const { summary } = await send<{ summary: CalendarSummary }>(path, "GET");
 
   return summary;
+}
+
+export async function fetchEvent(id: EventId): Promise<CalendarEvent> {
+  const { event } = await send<{ event: CalendarEvent }>(`${EVENTS_PATH}/${id}`, "GET");
+
+  return event;
 }
 
 export async function createEvent(body: EventBody): Promise<CalendarEvent> {

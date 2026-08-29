@@ -15,6 +15,29 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 const paramsSchema = snowflakeSchema<EventId>();
 
+/** REQUIREMENTS.md § 11.5. What a chat notice opens its event from — a 404 is the row deleted since the notice was posted. */
+export async function GET(_request: Request, { params }: RouteParams) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return apiError("unauthorized");
+  }
+
+  const id = paramsSchema.safeParse((await params).id);
+
+  if (!id.success) {
+    return apiError("invalid_request");
+  }
+
+  const event = await getEvent(id.data);
+
+  if (!event) {
+    return apiError("not_found");
+  }
+
+  return NextResponse.json({ event });
+}
+
 /**
  * REQUIREMENTS.md § 11.4. Both users may edit every event, so nothing here is
  * scoped to `created_by` — a missing row is the only 404.

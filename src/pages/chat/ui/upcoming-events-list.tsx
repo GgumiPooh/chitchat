@@ -129,7 +129,8 @@ export function UpcomingEventsList({
                   onClick={() => onSelect(occurrence)}
                 >
                   <EventDot
-                    className="mt-[7px]"
+                    className="mt-1.5"
+                    size="row"
                     color={occurrence.event.color}
                     scope={occurrence.event.scope}
                   />

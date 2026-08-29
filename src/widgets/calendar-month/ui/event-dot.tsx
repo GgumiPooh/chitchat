@@ -12,22 +12,29 @@ export type EventDotProps = {
   className?: string;
   color: Nullable<EventColor>;
   scope: EventScope;
+  /** DESIGN.md § 4.1.7. `cell` is the grid's 4px; `row` is the 8px an event row carries, where 4px was too small for a chosen colour to be seen. */
+  size?: "cell" | "row";
 };
 
 /**
- * DESIGN.md § 7.9. 4px dot in the event's colour. **Shape carries scope** — a
+ * DESIGN.md § 7.9. A dot in the event's colour. **Shape carries scope** — a
  * `shared` event is filled and a `mine` one is a ring — because colour is already
  * spent on the event's own hue and cannot also encode whose it is.
  */
-export function EventDot({ className, color, scope }: EventDotProps) {
+export function EventDot({ className, color, scope, size = "cell" }: EventDotProps) {
   const isMine = scope === "mine";
+  const isRow = size === "row";
 
   return (
     <span
       className={cn(
-        "size-1 rounded-full",
+        "rounded-full",
+        isRow ? "size-2" : "size-1",
         isMine
-          ? cn("border", color ? EVENT_COLOR_RING_CLASSES[color] : EVENT_FALLBACK_RING_CLASS)
+          ? cn(
+              isRow ? "border-2" : "border",
+              color ? EVENT_COLOR_RING_CLASSES[color] : EVENT_FALLBACK_RING_CLASS,
+            )
           : color
             ? EVENT_COLOR_FILL_CLASSES[color]
             : EVENT_FALLBACK_FILL_CLASS,

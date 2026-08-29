@@ -7,7 +7,12 @@ import {
   rememberInlineEmoticons,
   useChatStream,
 } from "@/features/chat-stream";
-import { EventDetailDialog, EventFormSheet } from "@/features/manage-event";
+import {
+  EventDetailDialog,
+  EventFormSheet,
+  fetchEvent,
+  toNoticeOccurrence,
+} from "@/features/manage-event";
 import {
   MessageSearchBar,
   MessageSearchNav,
@@ -27,7 +32,8 @@ import {
   type Nullable,
   type UserId,
 } from "@/shared/lib";
-import { AppHeader, Container, HeaderTextButton, IconButton, SidePanel } from "@/shared/ui";
+import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
+import { AppHeader, Container, HeaderTextButton, IconButton, SidePanel, toast } from "@/shared/ui";
 import { ChatRoom, toChromeTint, type AiSelectionHeaderState } from "@/widgets/chat-room";
 import { CalendarClock, ChevronLeft, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -98,6 +104,25 @@ export function ChatScreen({
       router.push(CALENDAR_ROUTE);
     }
   }, [router]);
+
+  // INFO: REQUIREMENTS.md § 11.5. A notice opens its event here, the way the panel's rows do — a crossing to 캘린더 to read a memo loses the conversation.
+  const noticeGate = useOfflineGate(OFFLINE_MESSAGES.view);
+
+  function openNoticeEvent(message: ChatMessage) {
+    if (!message.eventId || !message.eventStartsAt) {
+      return;
+    }
+
+    const { eventId, eventStartsAt } = message;
+
+    noticeGate.guard(() => {
+      fetchEvent(eventId)
+        .then((event) => setDetailed(toNoticeOccurrence(event, eventStartsAt)))
+        .catch((error: Error) =>
+          toast(error.message === "404" ? "이미 삭제된 일정이에요" : "일정을 불러오지 못했어요"),
+        );
+    })();
+  }
 
   function openForm() {
     setFormToken((token) => (token ?? 0) + 1);
@@ -318,6 +343,7 @@ export function ChatScreen({
             }
             onToggleSilentSend={silentSend.cycle}
             onAddEvent={openForm}
+            onOpenEvent={openNoticeEvent}
             onAiSelectionChange={setAiSelection}
           />
           {search.isOpen && (

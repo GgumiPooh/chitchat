@@ -68,9 +68,10 @@ export function UpcomingEventRow({
         type="button"
         onClick={() => onSelect(toTargetDayKey(occurrence, todayKey))}
       >
-        {/* INFO: The dot is 4px against a multi-line row, so it is nudged onto the title's own baseline rather than centred against the whole stack. */}
+        {/* INFO: The dot is nudged onto the title's own line rather than centred against the whole multi-line stack. */}
         <EventDot
-          className="mt-[7px]"
+          className="mt-1.5"
+          size="row"
           color={occurrence.event.color}
           scope={occurrence.event.scope}
         />

@@ -79,9 +79,9 @@ export const UPCOMING_EVENTS_PAGE_SIZE = 5;
 export const SIDE_PANEL_UPCOMING_PAGE_SIZE = 20;
 
 /**
- * REQUIREMENTS.md § 11.5. The one query parameter a chat system notice taps
- * through with. There is deliberately no `event` counterpart — a delete notice
- * outlives its `events` row (§ 6.), so the day is the only destination every
- * notice can name.
+ * REQUIREMENTS.md § 11.5. The one query parameter a delete notice taps through
+ * with. There is deliberately no `event` counterpart — it outlives its `events`
+ * row (§ 6.), so the day is the only destination it can name; every other notice
+ * opens its event in place.
  */
 export const CALENDAR_DAY_PARAM = "day";

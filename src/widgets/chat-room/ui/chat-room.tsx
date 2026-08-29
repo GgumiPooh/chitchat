@@ -275,6 +275,8 @@ export type ChatRoomProps = {
   onToggleSilentSend: () => void;
   /** REQUIREMENTS.md § 11.4. Opens 새 일정 from the attach sheet's 일정 row; the screen owns the form, as it owns `EventDetailDialog`. */
   onAddEvent?: () => void;
+  /** REQUIREMENTS.md § 11.5. A calendar notice was tapped; the screen opens `EventDetailDialog`, which it already owns. */
+  onOpenEvent?: (message: ChatMessage) => void;
   /** @see AiSelectionHeaderState */
   onAiSelectionChange?: (state: Nullable<AiSelectionHeaderState>) => void;
 };
@@ -337,6 +339,7 @@ export function ChatRoom({
   notifyMode = "notify",
   onToggleSilentSend,
   onAddEvent,
+  onOpenEvent,
   onAiSelectionChange,
 }: ChatRoomProps) {
   const containerRef = useRef<Nullable<HTMLDivElement>>(null);
@@ -3138,7 +3141,11 @@ export function ChatRoom({
         return <DateDivider dayKey={row.dayKey} />;
       case "system":
         return (
-          <SystemNotice message={row.message} sender={participantById.get(row.message.senderId)} />
+          <SystemNotice
+            message={row.message}
+            sender={participantById.get(row.message.senderId)}
+            onOpenEvent={onOpenEvent}
+          />
         );
       case "assistant": {
         // INFO: REQUIREMENTS.md § 8.15. The question the answer was asked with — the same field a reply carries, resolved by `listReplyPreviews` for either kind.

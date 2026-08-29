@@ -350,7 +350,7 @@ Four tiers, closed. Each tier has one role.
 
 ### 4.1.7. Event Colours.
 
-A closed set of six, and the only place in the app where colour is user-chosen. Each is a 4px dot in a day cell (§ 7.9.) and a swatch in the event form.
+A closed set of six, and the only place in the app where colour is user-chosen. Each is a 4px dot in a day cell (§ 7.9.), an 8px one in an event row — at 4px a chosen colour went unseen — and a swatch in the event form.
 
 | Token         | Hex     | Name in the UI |
 | ------------- | ------- | -------------- |
