@@ -27,7 +27,11 @@ export function useSnapshot<TPayload>(
   key: SnapshotKey,
   owner?: Maybe<UserId>,
 ): SnapshotRead<TPayload> {
-  const [read, setRead] = useState<SnapshotRead<TPayload>>(LOADING);
+  // INFO: Stamped with its key, so a key change (the mirror switching 나에게만 보내기) reads as loading rather than showing the previous key's payload while the store answers.
+  const [read, setRead] = useState<{ key: SnapshotKey; value: SnapshotRead<TPayload> }>({
+    key,
+    value: LOADING,
+  });
 
   useEffect(() => {
     let isCurrent = true;
@@ -42,11 +46,13 @@ export function useSnapshot<TPayload>(
         return;
       }
 
-      setRead(
-        record === undefined
-          ? MISS
-          : { status: "hit", savedAt: record.savedAt, payload: record.payload },
-      );
+      setRead({
+        key,
+        value:
+          record === undefined
+            ? MISS
+            : { status: "hit", savedAt: record.savedAt, payload: record.payload },
+      });
     });
 
     return () => {
@@ -54,5 +60,5 @@ export function useSnapshot<TPayload>(
     };
   }, [key, owner]);
 
-  return read;
+  return read.key === key ? read.value : LOADING;
 }

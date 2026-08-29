@@ -512,8 +512,8 @@ export function ChatRoom({
     catchUp,
     reconcile,
   } = useMessageHistory(initialMessages, notifyMode === "onlyMe");
-  // INFO: REQUIREMENTS.md § 16. The room is the only place the loaded window exists, so the offline transcript is stored from here rather than from the screen above it.
-  useWriteChatSnapshot(messages, hasNewer);
+  // INFO: REQUIREMENTS.md § 16., § 16.2. The room is the only place the loaded window exists, so the offline transcript is stored from here rather than from the screen above it.
+  useWriteChatSnapshot(messages, hasNewer, activeFilterMode);
   // INFO: REQUIREMENTS.md § 8.5. The composer's AI 질문 모드 — which settled messages ride along as an AI question's context.
   const aiSelection = useAiSelection(messages);
   // INFO: § 8.5. The bar's model/thinking pickers — fetched fresh on every entry into the mode.
@@ -2318,7 +2318,7 @@ export function ChatRoom({
     setStagedEmoticon(null);
     // INFO: § 13.6. Never a mini — `handleSelect` inserts one into the draft rather than staging it, so no quick send can reach here with one.
     rememberEmoticon(emoticon.id, "emoticon");
-    if (!soundSend(sendEmoticon(emoticon, replyTarget), emoticon)) {
+    if (!soundSend(sendEmoticon(emoticon, replyTarget, notifyMode), emoticon)) {
       playMessageSound("sent");
     }
     // INFO: § 13.8. This path never goes through `submit`, so the field is still holding the word that found this emoticon — the composer clears it if that is all it holds.
@@ -2352,7 +2352,7 @@ export function ChatRoom({
       void returnToLive();
     }
 
-    soundSubmit(sendMedia([toVoiceDraft(recording)], replyTarget));
+    soundSubmit(sendMedia([toVoiceDraft(recording)], replyTarget, false, notifyMode));
     setReplyTarget(null);
   }
 
@@ -2394,7 +2394,7 @@ export function ChatRoom({
     if (stagedEmoticon) {
       // INFO: REQUIREMENTS.md § 13.6. 최근 사용 is recorded here rather than at the pick, so an emoticon staged and then abandoned never enters the list.
       rememberEmoticon(stagedEmoticon.id, "emoticon");
-      hasSounded = soundSend(sendEmoticon(stagedEmoticon, take()), stagedEmoticon);
+      hasSounded = soundSend(sendEmoticon(stagedEmoticon, take(), notifyMode), stagedEmoticon);
       setStagedEmoticon(null);
       hasSent = true;
     }
@@ -2402,7 +2402,7 @@ export function ChatRoom({
     let mediaClientMsgIds: string[] = [];
 
     if (selection.drafts.length > 0) {
-      mediaClientMsgIds = sendMedia(selection.takeAll(), take());
+      mediaClientMsgIds = sendMedia(selection.takeAll(), take(), false, notifyMode);
       hasSent = true;
     }
 
@@ -2418,7 +2418,7 @@ export function ChatRoom({
       emoticons.forEach((emoticon) => rememberEmoticon(emoticon.id, "mini"));
       // WARN: § 8.3. Published before the send, or the optimistic bubble's own emoticons are absent from the map the estimate reads and it prices the row without them — a correction on every send, which is the drift this estimate exists to avoid. The echo publishes the same entries again and they merge.
       rememberInlineEmoticons(toInlineEmoticonMap(emoticons));
-      hasSounded = soundSend(send(text, emoticons, take()), solo) || hasSounded;
+      hasSounded = soundSend(send(text, emoticons, take(), notifyMode), solo) || hasSounded;
       hasSent = true;
     }
 
@@ -2460,13 +2460,15 @@ export function ChatRoom({
 
     void goLiveForSend();
 
+    // INFO: REQUIREMENTS.md § 16.1., § 16.2. Snapshotted once for the whole question — the same value seeds `pendingAiQuestionsRef` below.
+    const isOnlyMe = notifyMode === "onlyMe";
     const attachmentClientMsgIds: string[] = [];
     let hasSounded = false;
 
     if (stagedEmoticon) {
       rememberEmoticon(stagedEmoticon.id, "emoticon");
 
-      const emoticonClientMsgId = sendEmoticon(stagedEmoticon);
+      const emoticonClientMsgId = sendEmoticon(stagedEmoticon, null, notifyMode);
 
       attachmentClientMsgIds.push(emoticonClientMsgId);
       hasSounded = soundSend(emoticonClientMsgId, stagedEmoticon);
@@ -2475,11 +2477,11 @@ export function ChatRoom({
 
     // INFO: REQUIREMENTS.md § 8.15. `isAiAttachment = true` tells the server to stamp `expires_at` so the bytes are cleaned up after one day instead of being kept indefinitely.
     const mediaClientMsgIds =
-      selection.drafts.length > 0 ? sendMedia(selection.takeAll(), null, true) : [];
+      selection.drafts.length > 0 ? sendMedia(selection.takeAll(), null, true, notifyMode) : [];
 
     attachmentClientMsgIds.push(...mediaClientMsgIds);
 
-    const clientMsgId = send(text);
+    const clientMsgId = send(text, [], null, notifyMode);
 
     if (clientMsgId === null) {
       return;
@@ -2491,7 +2493,7 @@ export function ChatRoom({
       // INFO: Snapshotted at send time — a picker changed after this question was queued must not retarget a question already on its way out.
       model: llmAgentChoice.model,
       thinking: llmAgentChoice.thinking,
-      onlyMe: notifyMode === "onlyMe",
+      onlyMe: isOnlyMe,
       attachmentClientMsgIds,
       resolvedAttachmentIds: [],
     });

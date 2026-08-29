@@ -40,9 +40,16 @@ export function MirrorAssistantRow({ className, message }: MirrorAssistantRowPro
         <div className="flex items-end gap-2xs">
           <div
             className={cn(
-              "min-w-0 flex-1 rounded-bubble rounded-tl-xs border border-hairline bg-bubble-theirs px-sm py-xs select-text",
+              "min-w-0 flex-1 rounded-bubble rounded-tl-xs border border-hairline px-sm py-xs select-text",
+              // INFO: REQUIREMENTS.md § 16.1. An answer to a private question reads the other theme's fill, exactly as `AssistantMessageRow`'s own swap.
+              message.onlyMe
+                ? "bg-bubble-theirs-private text-bubble-private-ink"
+                : "bg-bubble-theirs text-bubble-ink",
               // INFO: DESIGN.md § 6.2.1. `MirrorChatRow`'s own tombstone treatment, for the same withdrawn answer `AssistantMessageRow` draws in the live room.
-              message.isDeleted && "text-bubble-ink/55 italic select-none",
+              message.isDeleted && [
+                message.onlyMe ? "text-bubble-private-ink/55" : "text-bubble-ink/55",
+                "italic select-none",
+              ],
             )}
           >
             {message.isDeleted ? (

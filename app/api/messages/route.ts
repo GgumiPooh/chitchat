@@ -26,6 +26,7 @@ import {
   MAX_MESSAGE_PAGE_SIZE,
   MESSAGE_PAGE_SIZE,
   NOTIFY_MODE_COOKIE_NAME,
+  notifyModes,
   PUSH_BODY_MAX_LENGTH,
   snowflakeCursorSchema,
   snowflakeSchema,
@@ -69,6 +70,8 @@ const querySchema = z.object({
 const replySchema = z.object({
   replyToId: snowflakeSchema<MessageId>().optional(),
   onlyMe: z.boolean().optional(),
+  // INFO: REQUIREMENTS.md § 16.2. The mode the client queued the send under; absent from an earlier build's outbox, which falls back to the cookie below.
+  notifyMode: z.enum(notifyModes).optional(),
 });
 
 // INFO: REQUIREMENTS.md § 6. A row is text or attachments, never both — the CHECK constraint says the same thing at the database.
@@ -148,7 +151,7 @@ export async function POST(request: Request) {
   }
 
   // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 / 나에게만 보내기 — read once per request, not inside `after()`, since a cookie belongs to the request that carried it.
-  const notifyMode = toNotifyMode((await cookies()).get(NOTIFY_MODE_COOKIE_NAME)?.value);
+  const cookieMode = toNotifyMode((await cookies()).get(NOTIFY_MODE_COOKIE_NAME)?.value);
 
   const body = bodySchema.safeParse(await request.json().catch(() => null));
 
@@ -157,7 +160,9 @@ export async function POST(request: Request) {
   }
 
   const payload = body.data;
-  const onlyMe = payload.onlyMe ?? notifyMode === "onlyMe";
+  // WARN: The payload outranks the cookie on both counts — a queued onlyMe send landing after the cookie moved back to `notify` must neither post publicly nor push a banner for a row the recipient cannot see.
+  const notifyMode = payload.notifyMode ?? toCookieFallbackMode(cookieMode, payload.onlyMe);
+  const onlyMe = notifyMode === "onlyMe";
 
   // INFO: `messages.emoticon_item_id` is a foreign key — a picker holding a list the other participant has since deleted (§ 13.6.) would otherwise send its way into a 500.
   if ("emoticonItemId" in payload && !(await getEmoticonItem(payload.emoticonItemId))) {
@@ -294,4 +299,16 @@ function toPushBody(message: ChatMessage): string {
 
 function isSoloMini({ text, inlineEmoticonItemIds }: ChatMessage): boolean {
   return toSoloInlineEmoticonId({ text: text ?? "", inlineEmoticonItemIds }) !== null;
+}
+
+// INFO: A bare `onlyMe` is what `use-archive-upload` still sends: `true` is the mode itself, and an explicit `false` under an onlyMe cookie is a public row that must not push either.
+function toCookieFallbackMode(cookieMode: NotifyMode, onlyMe: Optional<boolean>): NotifyMode {
+  if (onlyMe === undefined) {
+    return cookieMode;
+  }
+  if (onlyMe) {
+    return "onlyMe";
+  }
+
+  return cookieMode === "onlyMe" ? "silent" : cookieMode;
 }

@@ -1,9 +1,16 @@
 import { ARCHIVE_PAGE_SIZE, CHANGED_MESSAGES_LIMIT } from "@/shared/config";
 import type { UserId } from "@/shared/lib";
 
-/** REQUIREMENTS.md § 16. One key per mirror screen carrying data of its own, plus the `shell` chrome every mirror draws and the `outbox` of sends still queued — 설정 has none, since it renders from `shell` alone. */
+/** REQUIREMENTS.md § 16., § 16.2. One key per mirror screen carrying data of its own, plus `chat-only-me` for the room's private timeline, the `shell` chrome every mirror draws and the `outbox` of sends still queued — 설정 has none, since it renders from `shell` alone. */
 export type SnapshotKey =
-  "chat" | "calendar" | "archive-gallery" | "archive-files" | "archive-voice" | "shell" | "outbox";
+  | "chat"
+  | "chat-only-me"
+  | "calendar"
+  | "archive-gallery"
+  | "archive-files"
+  | "archive-voice"
+  | "shell"
+  | "outbox";
 
 /**
  * A snapshot as the `snapshots` store holds it.

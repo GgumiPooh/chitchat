@@ -93,7 +93,11 @@ export function MirrorChatRow({
           renderQuote(
             cn(
               "max-w-55 rounded-bubble px-sm py-xs",
-              isMine ? "bg-bubble-mine" : "border border-hairline bg-bubble-theirs",
+              isMine
+                ? message.onlyMe
+                  ? "bg-bubble-mine-private"
+                  : "bg-bubble-mine"
+                : "border border-hairline bg-bubble-theirs",
               isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
             ),
           )}
@@ -117,7 +121,13 @@ export function MirrorChatRow({
     // WARN: REQUIREMENTS.md § 8.13. Ahead of every other branch — a withdrawn row carries no text, no quote and no attachment.
     if (message.isDeleted) {
       return (
-        <div className={cn(toBubbleClassName(), "text-bubble-ink/55 italic")}>
+        <div
+          className={cn(
+            toBubbleClassName(),
+            message.onlyMe ? "text-bubble-private-ink/55" : "text-bubble-ink/55",
+            "italic",
+          )}
+        >
           {DELETED_MESSAGE_TEXT}
         </div>
       );
@@ -168,8 +178,13 @@ export function MirrorChatRow({
     // WARN: DESIGN.md § 4.2.3. The arbitrary property and never `break-normal`, which would take `overflow-wrap` with it and leave a long URL overflowing the column.
     // WARN: `min-w-0` is the other half of the stack's `max-w-full` — a flex item does not shrink below its own min-content, and the quote's `truncate` is min-content the whole width of its line.
     return cn(
-      "min-w-0 rounded-bubble px-sm py-xs text-chat-body wrap-anywhere [word-break:normal] whitespace-pre-wrap text-bubble-ink",
-      isMine ? "bg-bubble-mine" : "border border-hairline bg-bubble-theirs",
+      "min-w-0 rounded-bubble px-sm py-xs text-chat-body wrap-anywhere [word-break:normal] whitespace-pre-wrap",
+      message.onlyMe ? "text-bubble-private-ink" : "text-bubble-ink",
+      isMine
+        ? message.onlyMe
+          ? "bg-bubble-mine-private"
+          : "bg-bubble-mine"
+        : "border border-hairline bg-bubble-theirs",
       isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
     );
   }

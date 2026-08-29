@@ -8,6 +8,7 @@ import {
   MessageSearchNav,
   MessageSearchResults,
 } from "@/features/search-messages";
+import { SilentSendButton, useSilentSend } from "@/features/silent-send";
 import { CALENDAR_ROUTE, MESSAGE_FLASH_DURATION, toQuoteHeading } from "@/shared/config";
 import {
   A_DAY,
@@ -48,15 +49,18 @@ const FLASH_STYLE = {
 
 /**
  * 채팅 as it was last received (REQUIREMENTS.md § 16.2.) — now carrying the live
- * screen's header (뒤로 / 다가오는 일정 / 검색), its `lg` side panel, and a search
- * that scans the snapshot in memory rather than `entities/message`'s server route.
+ * screen's header (뒤로 / 다가오는 일정 / 검색 / 조용히 보내기), its `lg` side panel,
+ * and a search that scans the snapshot in memory rather than `entities/message`'s
+ * server route.
  *
  * INFO: The document scrolls this, where the live room is a `fixed` box of its own
  * (AGENTS.md § 4.4.) — that box exists for the composer's keyboard, and a read-only
- * mirror raises no keyboard and has no composer to give a 조용히 보내기 control to.
+ * mirror raises no keyboard and has no composer of its own.
  */
 export function MirrorChat({ className, shell }: MirrorChatProps) {
-  const snapshot = useSnapshot<ChatSnapshot>("chat");
+  // INFO: REQUIREMENTS.md § 16.2. Cookie-backed (`useSilentSend`), so this works offline the way changing the mode always has.
+  const { mode: notifyMode } = useSilentSend();
+  const snapshot = useSnapshot<ChatSnapshot>(notifyMode === "onlyMe" ? "chat-only-me" : "chat");
   const calendarSnapshot = useSnapshot<CalendarSnapshot>("calendar");
   const messages = snapshot.status === "hit" ? snapshot.payload.messages : undefined;
   const participantById = useMemo(
@@ -273,37 +277,41 @@ export function MirrorChat({ className, shell }: MirrorChatProps) {
           </a>
         }
         trailing={
-          <div className="flex items-center gap-2xs lg:hidden">
-            <span className="relative flex">
-              {isSoon && (
-                <span
-                  className="pointer-events-none absolute -inset-2xs event-bloom rounded-full bg-primary blur-md"
-                  aria-hidden
+          // INFO: REQUIREMENTS.md § 16.1., § 16.2. Unlike 일정/검색, 조용히 보내기 has no side-panel equivalent from `lg` — the group below stays `lg:hidden`, this one does not. A mode switch is a cookie write, so it works offline.
+          <div className="flex items-center gap-2xs">
+            <SilentSendButton />
+            <div className="flex items-center gap-2xs lg:hidden">
+              <span className="relative flex">
+                {isSoon && (
+                  <span
+                    className="pointer-events-none absolute -inset-2xs event-bloom rounded-full bg-primary blur-md"
+                    aria-hidden
+                  />
+                )}
+                <IconButton
+                  variant="floating"
+                  haptic
+                  aria-label={isSoon ? "다가오는 일정, 곧 시작" : "다가오는 일정"}
+                  aria-expanded={isUpcomingOpen}
+                  icon={
+                    <span className="pointer-events-none relative">
+                      <CalendarClock className="size-5" strokeWidth={1.75} />
+                      {isSoon && (
+                        <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
+                      )}
+                    </span>
+                  }
+                  onClick={() => setIsUpcomingOpen((current) => !current)}
                 />
-              )}
+              </span>
               <IconButton
+                Icon={Search}
                 variant="floating"
                 haptic
-                aria-label={isSoon ? "다가오는 일정, 곧 시작" : "다가오는 일정"}
-                aria-expanded={isUpcomingOpen}
-                icon={
-                  <span className="pointer-events-none relative">
-                    <CalendarClock className="size-5" strokeWidth={1.75} />
-                    {isSoon && (
-                      <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
-                    )}
-                  </span>
-                }
-                onClick={() => setIsUpcomingOpen((current) => !current)}
+                aria-label="메시지 검색"
+                onClick={search.open}
               />
-            </span>
-            <IconButton
-              Icon={Search}
-              variant="floating"
-              haptic
-              aria-label="메시지 검색"
-              onClick={search.open}
-            />
+            </div>
           </div>
         }
       />

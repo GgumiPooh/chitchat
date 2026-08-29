@@ -4,7 +4,7 @@ import type { Emoticon } from "@/entities/emoticon";
 import type { MediaDraft, MediaUpload } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import { revokePreview, uploadDraft } from "@/features/upload-media/@x/send-message";
-import { MAX_UPLOAD_INFLIGHT_BYTES, UPLOAD_CONCURRENCY } from "@/shared/config";
+import { MAX_UPLOAD_INFLIGHT_BYTES, UPLOAD_CONCURRENCY, type NotifyMode } from "@/shared/config";
 import {
   getLastNetworkFailedAt,
   getLastNetworkReachedAt,
@@ -15,6 +15,7 @@ import {
   stopVoice,
   useBfcacheRestore,
   type Nullable,
+  type Optional,
 } from "@/shared/lib";
 import { useSnapshot, useSnapshotOwner, useWriteSnapshot } from "@/shared/snapshot";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -54,6 +55,8 @@ export type PendingMessage = {
   createdAt: string;
   // INFO: REQUIREMENTS.md § 8.15. Set when this media bubble rides along with an Ask AI question — tells `toPostParams` to pass `isAiAttachment` to the server so it stamps `expires_at` on the media rows.
   isAiAttachment?: boolean;
+  /** REQUIREMENTS.md § 16.1., § 16.2. The cookie at compose time, so a queued send outliving a later switch still posts in the mode it was typed in; `undefined` is a row an earlier build queued, which the route reads the cookie for. */
+  notifyMode: Optional<NotifyMode>;
 };
 
 /**
@@ -61,8 +64,9 @@ export type PendingMessage = {
  * restore ever reads. A field added to the queue is absent from every row already in
  * storage, and `toPostParams` maps over this one on the way out.
  */
-type StoredPendingMessage = Omit<PendingMessage, "inlineEmoticons"> & {
+type StoredPendingMessage = Omit<PendingMessage, "inlineEmoticons" | "notifyMode"> & {
   inlineEmoticons?: ComposerEmoticon[];
+  notifyMode?: NotifyMode;
 };
 
 export type UseSendMessageParams = {
@@ -336,7 +340,11 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
     // WARN: REQUIREMENTS.md § 13. A queue written by a build that had no inline emoticons revives with an empty list rather than an absent one — `toPostParams` maps over it, and a bubble restored from yesterday's bundle would throw on the way out.
     const revived = restored.payload
       .filter((entry) => !known.has(entry.clientMsgId))
-      .map((entry) => ({ ...entry, inlineEmoticons: entry.inlineEmoticons ?? [] }));
+      .map((entry) => ({
+        ...entry,
+        inlineEmoticons: entry.inlineEmoticons ?? [],
+        notifyMode: entry.notifyMode,
+      }));
 
     if (revived.length === 0) {
       return;
@@ -348,14 +356,23 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
   }, [restored, commit, flushQueued]);
 
   const send = useCallback(
-    (text: string, emoticons: ComposerEmoticon[] = [], replyTo: Nullable<ReplyPreview> = null) => {
+    (
+      text: string,
+      emoticons: ComposerEmoticon[] = [],
+      replyTo: Nullable<ReplyPreview> = null,
+      notifyMode?: NotifyMode,
+    ) => {
       const trimmed = text.trim();
 
       if (!trimmed) {
         return null;
       }
 
-      const message = { ...createPending(trimmed, []), inlineEmoticons: emoticons, replyTo };
+      const message = {
+        ...createPending(trimmed, [], notifyMode),
+        inlineEmoticons: emoticons,
+        replyTo,
+      };
 
       commit((previous) => [...previous, message]);
       enqueue([message]);
@@ -374,10 +391,15 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
    * order, so an AI question staged alongside a tray can wait on each one landing.
    */
   const sendMedia = useCallback(
-    (drafts: MediaDraft[], replyTo: Nullable<ReplyPreview> = null, isAiAttachment = false) => {
+    (
+      drafts: MediaDraft[],
+      replyTo: Nullable<ReplyPreview> = null,
+      isAiAttachment = false,
+      notifyMode?: NotifyMode,
+    ) => {
       // WARN: REQUIREMENTS.md § 8.10. The quote goes on the first bubble alone. A pick of twenty photos is three bubbles, and repeating the quote on each would draw the same sentence three times in a row.
       const bubbles = toBubbles(drafts, toDraftKind).map((media, index) => ({
-        ...createPending(null, media, isAiAttachment),
+        ...createPending(null, media, notifyMode, isAiAttachment),
         replyTo: index === 0 ? replyTo : null,
       }));
 
@@ -395,8 +417,8 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
 
   /** INFO: REQUIREMENTS.md § 13.6. Nothing to upload, so the staged emoticon joins the queue as a bubble that is already complete. */
   const sendEmoticon = useCallback(
-    (emoticon: Emoticon, replyTo: Nullable<ReplyPreview> = null) => {
-      const message = { ...createPending(null, []), emoticon, replyTo };
+    (emoticon: Emoticon, replyTo: Nullable<ReplyPreview> = null, notifyMode?: NotifyMode) => {
+      const message = { ...createPending(null, [], notifyMode), emoticon, replyTo };
 
       commit((previous) => [...previous, message]);
       enqueue([message]);
@@ -427,6 +449,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
 function createPending(
   text: Nullable<string>,
   media: MediaDraft[],
+  notifyMode: Optional<NotifyMode>,
   isAiAttachment?: boolean,
 ): PendingMessage {
   return {
@@ -444,6 +467,7 @@ function createPending(
     status: "sending",
     createdAt: new Date().toISOString(),
     isAiAttachment,
+    notifyMode,
   };
 }
 
@@ -452,17 +476,18 @@ async function toPostParams(
   message: PendingMessage,
   uploadAll: (message: PendingMessage) => Promise<MediaUpload[]>,
 ): Promise<PostMessageParams> {
-  const { clientMsgId } = message;
+  const { clientMsgId, notifyMode } = message;
   const replyToId = message.replyTo?.id;
 
   if (message.emoticon) {
-    return { clientMsgId, replyToId, emoticonItemId: message.emoticon.id };
+    return { clientMsgId, replyToId, notifyMode, emoticonItemId: message.emoticon.id };
   }
 
   if (message.text === null) {
     return {
       clientMsgId,
       replyToId,
+      notifyMode,
       media: await uploadAll(message),
       isAiAttachment: message.isAiAttachment,
     };
@@ -471,6 +496,7 @@ async function toPostParams(
   return {
     clientMsgId,
     replyToId,
+    notifyMode,
     text: message.text,
     // INFO: REQUIREMENTS.md § 13. In placeholder order, which is the order the composer staged them in — the route refuses a body where the two disagree.
     inlineEmoticonItemIds: message.inlineEmoticons.map(({ id }) => id),
