@@ -125,6 +125,8 @@ export function ArchiveGrid({
   const indexById = useMemo(() => new Map(cells.map((cell, i) => [cell.id, i])), [cells]);
   // INFO: DESIGN.md § 7.8. Where the last line stopped — a page is cut into months and each month into its own lines, so that line is nearly always short, and a skeleton row starting below it leaves the hole visible.
   const trailingGap = toTrailingGap(rows, columns);
+  // INFO: DESIGN.md § 7.8. The hole plus a full line under it, so a page in flight reads as more shelf coming rather than as one short row.
+  const skeletonCount = trailingGap > 0 ? columns * 2 - trailingGap : columns;
   const anchorRef = useRef<Nullable<number>>(null);
   const pinchColumns = usePinchColumns({
     columns,
@@ -387,7 +389,7 @@ export function ArchiveGrid({
                   marginTop: trailingGap > 0 ? -(geometry.tileSize + GRID_GAP) : undefined,
                 }}
               >
-                {toSkeletonKeys(columns).map((key, index) => (
+                {toSkeletonKeys(skeletonCount).map((key, index) => (
                   <Skeleton
                     key={key}
                     className="aspect-square rounded-sm"
