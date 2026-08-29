@@ -347,7 +347,7 @@ export function ArchiveGrid({
         <div aria-hidden>
           <Skeleton className="mb-xs h-5 w-24 rounded-xs" />
           <div className="grid gap-2xs" style={toColumnsStyle(columns)}>
-            {SKELETON_KEYS.map((key) => (
+            {toSkeletonKeys(columns * SKELETON_ROWS).map((key) => (
               <Skeleton key={key} className="aspect-square rounded-sm" />
             ))}
           </div>
@@ -379,7 +379,7 @@ export function ArchiveGrid({
           <div ref={sentinelRef} aria-hidden>
             {isLoadingMore && (
               <div className="grid gap-2xs" style={toColumnsStyle(columns)}>
-                {LOADING_KEYS.map((key) => (
+                {toSkeletonKeys(columns).map((key) => (
                   <Skeleton key={key} className="aspect-square rounded-sm" />
                 ))}
               </div>
@@ -561,8 +561,9 @@ function findRowIndex(rows: ArchiveGridRow[], cellIndex: Optional<number>): numb
   );
 }
 
-// INFO: DESIGN.md § 7.8. Three rows' worth at the mobile default, so the skeleton reads as a shelf rather than a single line.
-const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
+// INFO: DESIGN.md § 7.8. Three rows' worth, so the skeleton reads as a shelf rather than a single line; the next-page one is a single row, since more would claim a page size the response may not fill.
+const SKELETON_ROWS = 3;
 
-// INFO: DESIGN.md § 7.8. One row of placeholders while the next page is in flight; more would claim a page size the response may not fill.
-const LOADING_KEYS = ["a", "b", "c"];
+function toSkeletonKeys(count: number): string[] {
+  return Array.from({ length: count }, (_, index) => String(index));
+}
