@@ -204,7 +204,7 @@ export function MiniEmoticonSheet({
         return 1;
       }
       if (row.type === "header") {
-        return 28; // text-body-xs font-semibold (약 16px) + margin/padding (약 12px)
+        return index === 0 ? 28 : 36;
       }
       return 56; // 6열 aspect-square 셀 높이 + gap-2
     },
@@ -247,7 +247,7 @@ export function MiniEmoticonSheet({
               }}
             >
               {row.type === "header" && (
-                <div className="pt-3 pb-1">
+                <div className="pt-5 pb-1 first:pt-0">
                   <h3 className="px-1 text-body-sm text-meta">{row.title}</h3>
                 </div>
               )}

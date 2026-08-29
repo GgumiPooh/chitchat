@@ -7,22 +7,22 @@ export type AllPacksIconProps = {
 export function AllPacksIcon({ className }: AllPacksIconProps) {
   return (
     <svg
-      className={cn("size-5 text-meta", className)}
+      className={cn("size-7 text-meta", className)}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.75"
+      strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <rect x="1" y="3" width="22" height="18" rx="3.5" />
       <text
         x="12"
-        y="15.5"
+        y="15.75"
         fill="currentColor"
         stroke="none"
-        fontSize="8"
+        fontSize="10.5"
         fontWeight="700"
         textAnchor="middle"
         fontFamily="inherit"

@@ -904,7 +904,7 @@ export function EmoticonPicker({
                 label={ALL_LABEL}
                 onClick={() => selectTab(allTab)}
               >
-                <AllPacksIcon className="size-5 text-meta" />
+                <AllPacksIcon className="text-meta" />
               </TabButton>
               {/* WARN: § 13.1. `menuPacks` is `visiblePacks` cut to this menu's kind, and never `packs` — the list carries hidden packs so § 13.8. can search them, and a hidden pack drawn here is a tab `activeTab` resolves away from, so the tap does nothing but overwrite the remembered pack with an id that can never be restored. */}
               {menuPacks.map((pack, index) => (
@@ -1038,7 +1038,7 @@ export function EmoticonPicker({
                     )
                   ) : (
                     // INFO: § 13.6. 이모티콘 메뉴의 최근 사용 탭은 두 섹션(최근사용 / 즐겨찾기)으로 분리 렌더링한다.
-                    <div className="flex flex-col gap-xs">
+                    <div className="flex flex-col gap-md">
                       <section>
                         {/* WARN: § 8.14. Not a focus target — see the pack tab heading comment above. */}
                         <h2 className="pb-xs text-body-sm text-meta">최근 사용</h2>
@@ -1134,7 +1134,7 @@ export function EmoticonPicker({
                   )
                 ) : isAllTab && menuPacks.length > 0 ? (
                   // INFO: § 13.6. One section per pack, in the strip's order, and the cells indexed flat across them so the arrows read the tab as one grid.
-                  <div className="flex flex-col gap-xs">
+                  <div className="flex flex-col gap-md">
                     {allSections.map((section, sectionIndex) => {
                       if (section.items.length === 0) {
                         return null;
