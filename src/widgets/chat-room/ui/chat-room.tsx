@@ -2357,7 +2357,7 @@ export function ChatRoom({
   }
 
   /**
-   * INFO: The emoticon and the attachments go first, then the text, so a caption reads under what it belongs to rather than above it.
+   * INFO: The attachments go first, then the text, so a caption reads under what it belongs to — and the emoticon last, so the quote and the words stay together on one bubble (REQUIREMENTS.md § 8.10.).
    *
    * WARN: The order survives because `useSendMessage` delivers on one promise chain. Firing these in parallel would let the text win the race for `messages.id` and land above them on every other client and every reload.
    */
@@ -2378,7 +2378,7 @@ export function ChatRoom({
 
     void goLiveForSend();
 
-    // WARN: REQUIREMENTS.md § 8.10. Consumed by the first bubble only. Emoticon, then attachments, then text is the order they are queued in, and a quote repeated over three of them says the same thing three times.
+    // WARN: REQUIREMENTS.md § 8.10. Consumed by the first bubble only. Attachments, then text, then emoticon is the order they are queued in, and a quote repeated over three of them says the same thing three times.
     let quote = replyTarget;
     let hasSounded = false;
     let hasSent = false;
@@ -2390,14 +2390,6 @@ export function ChatRoom({
 
       return taken;
     };
-
-    if (stagedEmoticon) {
-      // INFO: REQUIREMENTS.md § 13.6. 최근 사용 is recorded here rather than at the pick, so an emoticon staged and then abandoned never enters the list.
-      rememberEmoticon(stagedEmoticon.id, "emoticon");
-      hasSounded = soundSend(sendEmoticon(stagedEmoticon, take(), notifyMode), stagedEmoticon);
-      setStagedEmoticon(null);
-      hasSent = true;
-    }
 
     let mediaClientMsgIds: string[] = [];
 
@@ -2419,6 +2411,15 @@ export function ChatRoom({
       // WARN: § 8.3. Published before the send, or the optimistic bubble's own emoticons are absent from the map the estimate reads and it prices the row without them — a correction on every send, which is the drift this estimate exists to avoid. The echo publishes the same entries again and they merge.
       rememberInlineEmoticons(toInlineEmoticonMap(emoticons));
       hasSounded = soundSend(send(text, emoticons, take(), notifyMode), solo) || hasSounded;
+      hasSent = true;
+    }
+
+    if (stagedEmoticon) {
+      // INFO: REQUIREMENTS.md § 13.6. 최근 사용 is recorded here rather than at the pick, so an emoticon staged and then abandoned never enters the list.
+      rememberEmoticon(stagedEmoticon.id, "emoticon");
+      hasSounded =
+        soundSend(sendEmoticon(stagedEmoticon, take(), notifyMode), stagedEmoticon) || hasSounded;
+      setStagedEmoticon(null);
       hasSent = true;
     }
 
