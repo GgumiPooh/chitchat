@@ -196,13 +196,13 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
   initial-value: 0px;
 }
 
-/* WARN: DESIGN.md § 3.4. The chat screen's own height transition, spelled out again — the two cancel only while they share a curve, a duration and the token that holds both at `0s` until the viewport has been measured. */
+/* WARN: DESIGN.md § 3.4. `--viewport-settle-duration` is `0s` until the viewport has been measured and again under `[data-keyboard-overlaid]`, which is what this spacer's own ease still shares with the chat screen's height — the height no longer eases for a keyboard step (`ChatScreen`), but this one is REQUIREMENTS.md § 13.6.'s emoticon-panel toggle, which the screen's own height never moves for. */
 @utility chat-clearance {
   /* WARN: REQUIREMENTS.md § 13.6. Declared on the room, where both halves are set — the seed in `theme.css` is a seed and nothing more (see the note there). */
   --chat-bottom-gap: calc(var(--chat-composer-gap) + var(--chat-composer-spacer));
   transition-property: --chat-composer-spacer;
   transition-duration: var(--viewport-settle-duration);
-  transition-timing-function: var(--ease-out);
+  transition-timing-function: var(--ease-route);
 }
 
 @utility glass {

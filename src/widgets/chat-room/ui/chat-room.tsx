@@ -705,10 +705,19 @@ export function ChatRoom({
     isOpen: isEmoticonPanelOpen,
     onClose: closeEmoticonPanel,
   });
-  // WARN: `effectiveComposerTranslateY` below is a literal `0`, so this animates nothing today — the composer's keyboard motion is the chat screen's height ease alone (DESIGN.md § 3.4.). Do not cite it as a term in that motion.
-  const composerTransition = emoticonSheet.isDragging
-    ? "transition-none"
-    : "transition-transform duration-300 ease-route";
+  // INFO: DESIGN.md § 3.4. A keyboard step's own motion — the emoticon-sheet drag below is the only other source of this transform.
+  const composerFlip = useComposerClearance({
+    containerRef,
+    composerRef,
+    composerSpacerRef,
+    scrollerRef,
+    contentRef,
+    isAtBottomRef,
+  });
+  const composerTransition =
+    emoticonSheet.isDragging || composerFlip.isFlipping
+      ? "transition-none"
+      : "transition-transform duration-300 ease-route";
   const emoticonSheetTransition = emoticonSheet.isDragging
     ? "transition-none"
     : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
@@ -717,7 +726,9 @@ export function ChatRoom({
 
   const effectiveSheetTranslateY =
     emoticonSheet.dragTranslateY > 0 ? emoticonSheet.dragTranslateY : 0;
-  const effectiveComposerTranslateY = 0;
+  const effectiveComposerTranslateY =
+    (emoticonSheet.dragTranslateY > 0 ? emoticonSheet.dragTranslateY : 0) +
+    composerFlip.flipTranslateY;
 
   useEffect(() => () => clearTimeout(collapseTimerRef.current), []);
   // INFO: § 13.6. What the sheet clears the history by at rest — the spacer's height, and never more: an expanded sheet covers the composer rather than lifting it.
@@ -1180,14 +1191,6 @@ export function ChatRoom({
 
     return () => clearTimeout(timeout);
   }, [aiSelection.isSelecting, virtualizer, pinToBottom]);
-
-  useComposerClearance({
-    containerRef,
-    composerRef,
-    composerSpacerRef,
-    scrollerRef,
-    isAtBottomRef,
-  });
 
   // INFO: § 13.6. The same idle frame `useEmoticonPreload` warms on, so the panel is built out of a cache that is filling rather than ahead of it.
   useEffect(() => runWhenIdle(() => setHasMountedEmoticonPanel(true), PANEL_MOUNT_IDLE_DELAY), []);
@@ -1944,8 +1947,9 @@ export function ChatRoom({
             isVisible={!isAtBottom || hasNewer}
             newMessageCount={unseenCount}
             style={{
+              // WARN: DESIGN.md § 3.4. `!== 0` and not `> 0` — a keyboard step's own term can be negative, riding the composer up rather than down.
               transform:
-                effectiveComposerTranslateY > 0
+                effectiveComposerTranslateY !== 0
                   ? `translateY(${effectiveComposerTranslateY}px)`
                   : undefined,
             }}
@@ -1968,11 +1972,12 @@ export function ChatRoom({
           {/* WARN: `hidden`, never a conditional subtree. `MessageComposer` holds the draft in its own state, so unmounting it here silently discards a typed message and drops its `useUnsentWork` hold with it. `display: none` takes it out of the wrapper's height, which is all `useComposerClearance` reads. */}
           <div className={cn(isSearching && "hidden")} inert={isSearching}>
             {/* INFO: § 13.6. Translates with the sheet when pulled down from rest mode, while staying anchored when pulled up to expand. */}
+            {/* INFO: DESIGN.md § 3.4. Also carries a keyboard step's own FLIP term, which can be negative — `useComposerClearance` inverts this by the frame's delta and eases it back to `0`. */}
             <div
               className={cn("will-change-transform", composerTransition)}
               style={{
                 transform:
-                  effectiveComposerTranslateY > 0
+                  effectiveComposerTranslateY !== 0
                     ? `translateY(${effectiveComposerTranslateY}px)`
                     : undefined,
               }}
