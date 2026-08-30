@@ -3208,6 +3208,7 @@ export function ChatRoom({
             isOnlyMe={notifyMode === "onlyMe"}
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
+            hasNotch={row.hasNotch}
             isSelecting={aiSelection.isSelecting}
             status={row.pending.status}
             awaitsArrivalSound={row.pending.clientMsgId === arrivalSoundId}
@@ -3245,6 +3246,7 @@ export function ChatRoom({
               isOnlyMe={row.message.onlyMe}
               isFirstOfGroup={row.isFirstOfGroup}
               isLastOfGroup={row.isLastOfGroup}
+              hasNotch={row.hasNotch}
               isDeleted
               isHighlighted={row.message.id === highlightedId}
               isSelecting={aiSelection.isSelecting}
@@ -3273,6 +3275,7 @@ export function ChatRoom({
             isOnlyMe={row.message.onlyMe}
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
+            hasNotch={row.hasNotch}
             unreadCount={countUnreadReaders(row.message)}
             readerTotal={readerCursors.length}
             isEdited={row.message.editedAt !== null}

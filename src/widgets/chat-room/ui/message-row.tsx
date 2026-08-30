@@ -100,6 +100,8 @@ export type MessageRowProps = {
   isOnlyMe?: boolean;
   isFirstOfGroup: boolean;
   isLastOfGroup: boolean;
+  /** DESIGN.md § 6.2. This row is the group's first bubble, so it wears the notch corner — `buildChatRows` hands it past the § 6.5. attachments and emoticons, which have no bubble to put it on. */
+  hasNotch: boolean;
   /** REQUIREMENTS.md § 8.8. How many participants have yet to read this message. `0` draws nothing — the marker counts down and disappears rather than settling on a read state. */
   unreadCount?: number;
   /** REQUIREMENTS.md § 8.8. How many participants could read it at all — a room of one reader draws the heart instead of the `1` it would otherwise count down from. */
@@ -168,6 +170,7 @@ export function MessageRow({
   isOnlyMe = false,
   isFirstOfGroup,
   isLastOfGroup,
+  hasNotch,
   unreadCount = 0,
   readerTotal = 0,
   isEdited = false,
@@ -301,7 +304,7 @@ export function MessageRow({
             heading={replyToHeading ?? ""}
             variant="card"
             isMine={isMine}
-            isFirstOfGroup={isFirstOfGroup}
+            hasNotch={hasNotch}
             onOpen={onOpenReply}
           />
         )}
@@ -388,7 +391,7 @@ export function MessageRow({
                 <MediaTombstone className="h-14 w-55 flex-row rounded-bubble" cell={voiceCell} />
               ) : (
                 <VoicePlayer
-                  className={cn(isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"))}
+                  className={cn(hasNotch && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"))}
                   src={voiceCell.originalUrl}
                   durationMs={voiceCell.durationMs ?? 0}
                   peaks={voiceCell.voice?.peaks ?? []}
@@ -428,7 +431,7 @@ export function MessageRow({
                     ? "bg-bubble-mine-private active:bg-bubble-mine-private-pressed"
                     : "bg-bubble-mine active:bg-bubble-mine-pressed"
                   : "border border-hairline bg-bubble-theirs active:bg-bubble-theirs-pressed",
-                isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
+                hasNotch && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
                 // INFO: DESIGN.md § 6.5. Optimistic and failed bubbles dim instead of showing a spinner.
                 status !== "sent" && "opacity-60",
                 // INFO: DESIGN.md § 6.2.1. A tombstone keeps the bubble's shape and side so the timeline still reads as a conversation, and gives up its ink — it is a note about a message rather than one.

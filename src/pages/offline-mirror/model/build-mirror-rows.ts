@@ -8,6 +8,7 @@ import {
   type Nullable,
   type UserId,
 } from "@/shared/lib";
+import { drawsNotch } from "@/widgets/chat-room";
 
 export type MirrorRow =
   | { key: string; kind: "date"; dayKey: string }
@@ -21,6 +22,8 @@ export type MirrorRow =
       isMine: boolean;
       isFirstOfGroup: boolean;
       isLastOfGroup: boolean;
+      /** DESIGN.md § 6.2. The notch corner, which goes to the group's first *bubble* exactly as `buildChatRows` hands it out. */
+      hasNotch: boolean;
     };
 
 /**
@@ -31,6 +34,8 @@ export type MirrorRow =
 export function buildMirrorRows(messages: ChatMessage[], currentUserId: UserId): MirrorRow[] {
   const rows: MirrorRow[] = [];
   let previousDayKey: Nullable<string> = null;
+  // INFO: DESIGN.md § 6.2. The group whose notch has already been drawn — groups are contiguous, so one key is the whole of the state this needs.
+  let notchedGroupKey: Nullable<string> = null;
 
   messages.forEach((message, index) => {
     const dayKey = toDayKey(message.createdAt);
@@ -53,6 +58,11 @@ export function buildMirrorRows(messages: ChatMessage[], currentUserId: UserId):
     }
 
     const groupKey = toGroupKey(message);
+    const hasNotch = notchedGroupKey !== groupKey && drawsNotch(message);
+
+    if (hasNotch) {
+      notchedGroupKey = groupKey;
+    }
 
     rows.push({
       key: message.id,
@@ -61,6 +71,7 @@ export function buildMirrorRows(messages: ChatMessage[], currentUserId: UserId):
       isMine: message.senderId === currentUserId,
       isFirstOfGroup: toGroupKey(messages[index - 1]) !== groupKey,
       isLastOfGroup: toGroupKey(messages[index + 1]) !== groupKey,
+      hasNotch,
     });
   });
 

@@ -2,6 +2,7 @@ import type { ChatMessage } from "@/entities/message";
 import type { PendingMessage } from "@/features/send-message";
 import type { UserId } from "@/shared/lib";
 import { toDayKey, type Nullable } from "@/shared/lib";
+import { drawsNotch } from "./draws-notch";
 import type { ChatRow } from "./types";
 
 export type BuildChatRowsParams = {
@@ -62,6 +63,8 @@ export function buildChatRows({
 
   const rows: ChatRow[] = [];
   let previousDayKey: Nullable<string> = null;
+  // INFO: DESIGN.md § 6.2. The group whose notch has already been drawn — groups are contiguous, so one key is the whole of the state this needs.
+  let notchedGroupKey: Nullable<string> = null;
 
   entries.forEach((entry, index) => {
     if (entry.dayKey !== previousDayKey) {
@@ -91,6 +94,12 @@ export function buildChatRows({
     const next = entries[index + 1];
     const isFirstOfGroup = !previous || previous.groupKey !== entry.groupKey;
     const isLastOfGroup = !next || next.groupKey !== entry.groupKey;
+    // INFO: DESIGN.md § 6.2. The group's first *bubble* and not its first row — a group that opens with a photo or an emoticon carries the notch down to the text bubble under it.
+    const hasNotch = notchedGroupKey !== entry.groupKey && drawsRowNotch(entry);
+
+    if (hasNotch) {
+      notchedGroupKey = entry.groupKey;
+    }
 
     if (entry.pending) {
       rows.push({
@@ -99,6 +108,7 @@ export function buildChatRows({
         pending: entry.pending,
         isFirstOfGroup,
         isLastOfGroup,
+        hasNotch,
       });
 
       return;
@@ -112,11 +122,24 @@ export function buildChatRows({
         isMine: entry.message.senderId === currentUserId,
         isFirstOfGroup,
         isLastOfGroup,
+        hasNotch,
       });
     }
   });
 
   return rows;
+}
+
+// INFO: REQUIREMENTS.md § 9.3. An optimistic send carries its recording as a draft, where the flag that makes it a voice message is `waveformPeaks` rather than the echoed row's `voice`.
+function drawsRowNotch({ message, pending }: Entry): boolean {
+  if (pending) {
+    return drawsNotch({
+      ...pending,
+      media: pending.media.map(({ waveformPeaks }) => ({ voice: waveformPeaks })),
+    });
+  }
+
+  return message !== null && drawsNotch(message);
 }
 
 // INFO: The ISO string is UTC, and every offset is a whole number of minutes, so slicing it groups by the local clock minute too.

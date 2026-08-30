@@ -360,6 +360,7 @@ export function MirrorChat({ className, shell }: MirrorChatProps) {
         sender={participantById.get(row.message.senderId)}
         isMine={row.isMine}
         isFirstOfGroup={row.isFirstOfGroup}
+        hasNotch={row.hasNotch}
         isLastOfGroup={row.isLastOfGroup}
         searchQuery={search.isOpen ? search.submitted : undefined}
         id={row.message.id}

@@ -23,7 +23,7 @@ export type ReplyQuoteProps = {
   /** DESIGN.md § 6.2. Whose message the quote stands on, which is what the `card` variant takes its fill from — the `rule` one draws none. */
   isMine?: boolean;
   /** DESIGN.md § 6.2. The notch corner, which the `card` variant carries because it stands where the group's first bubble would. */
-  isFirstOfGroup?: boolean;
+  hasNotch?: boolean;
   /** Absent while the quote is staged in the composer, where there is nothing to jump to yet. */
   onOpen?: () => void;
 };
@@ -44,7 +44,7 @@ export function ReplyQuote({
   heading,
   variant = "rule",
   isMine = false,
-  isFirstOfGroup = false,
+  hasNotch = false,
   onOpen,
 }: ReplyQuoteProps) {
   const shape = cn(
@@ -55,7 +55,7 @@ export function ReplyQuote({
       cn(
         "rounded-bubble px-sm py-xs",
         isMine ? "bg-bubble-mine" : "border border-hairline bg-bubble-theirs",
-        isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
+        hasNotch && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
       ),
     className,
   );

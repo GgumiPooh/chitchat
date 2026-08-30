@@ -23,6 +23,8 @@ export type MirrorChatRowProps = {
   isMine: boolean;
   isFirstOfGroup: boolean;
   isLastOfGroup: boolean;
+  /** DESIGN.md § 6.2. The group's first bubble wears the notch corner, and `buildMirrorRows` hands it past the § 6.5. attachments and emoticons that have none. */
+  hasNotch: boolean;
   /** REQUIREMENTS.md § 8.6.1. The submitted query, while a search is open — lights the words matched inside a text bubble, the way `MessageRow`'s own `search-hit` mark does. */
   searchQuery?: string;
   /** REQUIREMENTS.md § 8.6.1. What a search jump scrolls to and `document.getElementById` resolves — the mirror renders every row at once rather than through a virtualizer. */
@@ -52,6 +54,7 @@ export function MirrorChatRow({
   isMine,
   isFirstOfGroup,
   isLastOfGroup,
+  hasNotch,
   searchQuery,
   id,
 }: MirrorChatRowProps) {
@@ -98,7 +101,7 @@ export function MirrorChatRow({
                   ? "bg-bubble-mine-private"
                   : "bg-bubble-mine"
                 : "border border-hairline bg-bubble-theirs",
-              isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
+              hasNotch && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
             ),
           )}
         {/* WARN: DESIGN.md § 6.2. `max-w-full` is what holds the bubble inside the column's own wide cap — the column aligns rather than stretches, so this stack is sized `fit-content`, which floors at min-content. */}
@@ -149,6 +152,7 @@ export function MirrorChatRow({
       // WARN: REQUIREMENTS.md § 9.3. `src` is null on purpose: the waveform and the running time are stored on the row, and the object behind them is not cached (§ 16.).
       return (
         <VoicePlayer
+          className={cn(hasNotch && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"))}
           src={null}
           durationMs={voiceCell.durationMs ?? 0}
           peaks={voiceCell.voice?.peaks ?? []}
@@ -185,7 +189,7 @@ export function MirrorChatRow({
           ? "bg-bubble-mine-private"
           : "bg-bubble-mine"
         : "border border-hairline bg-bubble-theirs",
-      isFirstOfGroup && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
+      hasNotch && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
     );
   }
 
