@@ -80,7 +80,7 @@ export function BottomOverlay({ className, children }: BottomOverlayProps) {
         // INFO: AGENTS.md § 4.4. `left-(--rail-width)` rather than `inset-x-0`, for the reason `AppHeader` carries the same change.
         "pointer-events-none fixed right-0 bottom-(--bar-lift) left-(--rail-width) z-30 transition-[height] ease-out",
         // WARN: DESIGN.md § 7.3. The bars wait the keyboard out rather than growing back with it. This box is `fixed` to the layout viewport, which Chromium's `interactive-widget=resizes-content` is still expanding for the whole of that animation — rising on the same frame draws the tab bar partway up the screen, which reads as it appearing in mid-air.
-        isKeyboardOpen ? "duration-200" : "delay-200 duration-150",
+        isKeyboardOpen ? "duration-500" : "delay-500 duration-150",
         className,
       )}
       // WARN: `undefined` until the first measurement lands, which leaves the height `auto`. A `0` placeholder would hide the bars until an effect has run, and the first transition would then play on load.

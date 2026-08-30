@@ -46,7 +46,7 @@ export function useSheetDrag({
   const [isDraggingClose, setIsDraggingClose] = useState(false);
   const [isSettlingClose, setIsSettlingClose] = useState(false);
   const [isClosedByDrag, setIsClosedByDrag] = useState(false);
-  // WARN: A single-frame flag that is true only in the render where the 200ms
+  // WARN: A single-frame flag that is true only in the render where the 500ms
   // close animation has completed and every piece of close state (dragTranslateY,
   // isDraggingClose, isSettlingClose) resets to its resting value alongside
   // `onClose()`. Callers that apply CSS transitions to elements driven by
@@ -82,7 +82,7 @@ export function useSheetDrag({
     [],
   );
 
-  // WARN: The pending close is cancelled here rather than in the reset below, which reads and writes it during render (`react-hooks/refs`). `useLayoutEffect` and not `useEffect`: a passive effect is a task of its own, and the 200ms timer can fire in front of one and close a sheet that has just re-opened.
+  // WARN: The pending close is cancelled here rather than in the reset below, which reads and writes it during render (`react-hooks/refs`). `useLayoutEffect` and not `useEffect`: a passive effect is a task of its own, and the 500ms timer can fire in front of one and close a sheet that has just re-opened.
   useLayoutEffect(() => {
     if (!isOpen || !closeTimerRef.current) {
       return;
@@ -360,7 +360,7 @@ export function useSheetDrag({
       requestAnimationFrame(() => {
         setIsResettingAfterClose(false);
       });
-    }, 200);
+    }, 500);
   }
 
   function handleCancel() {
