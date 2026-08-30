@@ -88,7 +88,13 @@ export function ReactionBadges({
         };
 
         return (
-          <HapticTarget key={group.key} className="inline-flex shrink-0">
+          // WARN: `keepsScroll` — the badges sit inside the chat scroller, so the switch would keep a drag that began on one and the room would not scroll at all (`DESIGN.md § 7.15.1.`).
+          <HapticTarget
+            key={group.key}
+            className="inline-flex shrink-0"
+            overlayClassName="touch-pan-y"
+            keepsScroll
+          >
             <button
               className={cn(
                 "inline-flex h-7 items-center gap-1 rounded-full border px-2 py-0 font-medium shadow-2xs backdrop-blur-md transition-all active:scale-95",
