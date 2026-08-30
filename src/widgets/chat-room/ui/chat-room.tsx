@@ -652,7 +652,7 @@ export function ChatRoom({
   // WARN: Declared above the render-phase close below, which reaches it through `closeEmoticonPanel` — left further down it is a `const` in its TDZ and the swap throws.
   const collapseTimerRef = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
 
-  // INFO: § 13.6. An opening swap ends when the keys are down, a closing one when they are up — and the sheet closes only then, so the keys rise over it and the two 500ms eases cancel.
+  // INFO: § 13.6. An opening swap ends when the keys are down, a closing one when they are up — and the sheet closes only then, so the keys rise over it and the two 300ms eases cancel.
   // WARN: § 13.6. The settle is half of each test and not decoration. `isKeyboardOpen` flips at `MIN_KEYBOARD_HEIGHT`, several frames before the keys have arrived, so the screen came off the resting height with that much of the slide still to play and re-eased the remainder under the composer.
   if (sheetSwap === "opening" && !isKeyboardOpen && !isViewportSettling) {
     setSheetSwap(null);
@@ -678,7 +678,7 @@ export function ChatRoom({
   const isKeyboardOverlaid = isEmoticonSearchExempt || sheetSwap !== null;
 
   // INFO: DESIGN.md § 3.4. For as long as this holds, the screen keeps its resting height and the keyboard covers the sheet rather than shrinking it — 검색's field at the top of an expanded sheet, or a sheet the keys are sliding on or off.
-  // WARN: A layout effect, so the attribute lands in the frame the strip's class does — a swap is the screen's 500ms ease and the strip's cancelling, and a frame between them is a frame the composer moves.
+  // WARN: A layout effect, so the attribute lands in the frame the strip's class does — a swap is the screen's 300ms ease and the strip's cancelling, and a frame between them is a frame the composer moves.
   useLayoutEffect(() => {
     if (!isKeyboardOverlaid) {
       return;
@@ -708,12 +708,12 @@ export function ChatRoom({
   // WARN: `effectiveComposerTranslateY` below is a literal `0`, so this animates nothing today — the composer's keyboard motion is the chat screen's height ease alone (DESIGN.md § 3.4.). Do not cite it as a term in that motion.
   const composerTransition = emoticonSheet.isDragging
     ? "transition-none"
-    : "transition-transform duration-500 ease-out";
+    : "transition-transform duration-300 ease-route";
   const emoticonSheetTransition = emoticonSheet.isDragging
     ? "transition-none"
     : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
       ? "transition-[height,transform] duration-(--duration-sheet-expand) ease-sheet"
-      : "transition-[height,transform] duration-500 ease-out";
+      : "transition-[height,transform] duration-300 ease-route";
 
   const effectiveSheetTranslateY =
     emoticonSheet.dragTranslateY > 0 ? emoticonSheet.dragTranslateY : 0;
@@ -722,7 +722,7 @@ export function ChatRoom({
   useEffect(() => () => clearTimeout(collapseTimerRef.current), []);
   // INFO: § 13.6. What the sheet clears the history by at rest — the spacer's height, and never more: an expanded sheet covers the composer rather than lifting it.
   // INFO: § 13.6. The keyboard's own height, so the composer stands where the keys would have put it; `--emoticon-panel-height` over the inset until a keyboard has been measured.
-  // WARN: § 13.6. The inset is *inside* this height and never added beside it. The wrapper sits on the screen's edge and this spacer carries the inset while closed, so the keyboard flag stepping `--bar-lift` changes nothing an open sheet is sized by — added beside it, that step raced the spacer's 500ms ease and the composer flinched by the inset on every swap.
+  // WARN: § 13.6. The inset is *inside* this height and never added beside it. The wrapper sits on the screen's edge and this spacer carries the inset while closed, so the keyboard flag stepping `--bar-lift` changes nothing an open sheet is sized by — added beside it, that step raced the spacer's 300ms ease and the composer flinched by the inset on every swap.
   const emoticonSheetRestHeight =
     "var(--keyboard-height, calc(var(--emoticon-panel-height) + var(--emoticon-sheet-handle-height) + var(--bottom-inset)))";
   // INFO: § 13.6. The sheet's drawn height, to the screen's edge. The card keeps it through the collapse so it is clipped rather than squashed.
@@ -742,11 +742,11 @@ export function ChatRoom({
       return;
     }
 
-    // WARN: Keep the sheet visible during the 500ms slide-down close transition.
+    // WARN: Keep the sheet visible during the 300ms slide-down close transition.
     // Once completely closed, hide it with opacity-0 so it doesn't bleed through iOS virtual keyboard / Safari accessory bars behind the composer.
     const timer = setTimeout(() => {
       setIsEmoticonSheetSettledClosed(true);
-    }, 500);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [isEmoticonPanelOpen]);

@@ -37,7 +37,7 @@ export function VisualViewportSync() {
 
     // WARN: DESIGN.md § 3.4. Armed here too, or an engine without the API leaves the composer's arrival paused for good.
     if (!viewport) {
-      // WARN: Last, and after the `clientHeight` read above. That forced layout is what commits the new height while `--viewport-settle-duration` is still `0s` (theme.css); hoisting or caching the read puts the height and the duration in one recalculation, a transition takes its after-change duration, and the cold launch glides 500ms again.
+      // WARN: Last, and after the `clientHeight` read above. That forced layout is what commits the new height while `--viewport-settle-duration` is still `0s` (theme.css); hoisting or caching the read puts the height and the duration in one recalculation, a transition takes its after-change duration, and the cold launch glides 300ms again.
       root.setAttribute(SYNCED_ATTRIBUTE, "");
 
       return () => root.removeAttribute(SYNCED_ATTRIBUTE);

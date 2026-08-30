@@ -202,7 +202,7 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
   --chat-bottom-gap: calc(var(--chat-composer-gap) + var(--chat-composer-spacer));
   transition-property: --chat-composer-spacer;
   transition-duration: var(--viewport-settle-duration);
-  transition-timing-function: var(--ease-out);
+  transition-timing-function: var(--ease-route);
 }
 
 @utility glass {

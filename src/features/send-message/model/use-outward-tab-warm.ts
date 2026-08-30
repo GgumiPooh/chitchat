@@ -15,7 +15,7 @@ import {
 } from "./warm-emoticon-images";
 import { warmEmoticonSounds } from "./warm-emoticon-sounds";
 
-// INFO: § 13.6. Far shorter than the room's own warm, because this starts from a tap rather than from a screen loading — what it is waiting out is the panel's 500ms open, not a first paint.
+// INFO: § 13.6. Far shorter than the room's own warm, because this starts from a tap rather than from a screen loading — what it is waiting out is the panel's 300ms open, not a first paint.
 const OUTWARD_WARM_IDLE_DELAY = A_SECOND;
 
 // WARN: § 13.6. The walk restarts from wherever the reader lands, so without a window of its own every swipe re-asks for up to thirty-one lists as soon as the descriptor's own minute is past — a panel left open would do it indefinitely. `useEmoticonPreload` holds the pack list on the same terms and for the same reason.
