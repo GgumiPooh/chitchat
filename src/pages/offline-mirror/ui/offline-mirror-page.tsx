@@ -59,7 +59,7 @@ export function OfflineMirrorPage({ className }: OfflineMirrorPageProps) {
   return (
     <Container
       className={cn(
-        "relative flex min-h-dvh flex-col bg-canvas px-0 shell-edge md:pl-(--rail-width)",
+        "relative flex min-h-dvh max-w-none flex-col bg-canvas px-0 shell-edge md:pl-(--rail-width)",
         className,
       )}
       id={APP_SHELL_ID}
