@@ -64,27 +64,27 @@ export function useComposerClearance({
   const spacerHeightRef = useRef(0);
   const scrollerHeightRef = useRef(0);
   const containerHeightRef = useRef<Nullable<number>>(null);
+  const containerWidthRef = useRef<Nullable<number>>(null);
   const composerTopRef = useRef<Nullable<number>>(null);
 
   // INFO: Whether the composer's own FLIP is running — `readTranslateY` only makes sense mid-flight, since the first step's prior position is always `0`.
   const isComposerFlippingRef = useRef(false);
   // INFO: Whether the list's content wrapper is mid-FLIP, how tall the scroller is frozen at, and the running cumulative target it is easing towards — `null` once nothing is running.
   const listFlipRef = useRef<Nullable<{ frozenHeight: number; target: number }>>(null);
-  // INFO: A `scrollTop` write this hook made itself, consumed by the very next `scroll` event so the abort listener below does not read its own pin as the reader taking the scroller back.
-  const selfScrollRef = useRef(false);
 
   useEffect(() => {
     const container = containerRef.current;
     const composer = composerRef.current;
-    const scroller = scrollerRef.current;
 
-    if (!container || !composer || !scroller) {
+    if (!container || !composer) {
       return;
     }
 
     let isScheduled = false;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const coarsePointer = window.matchMedia("(pointer: coarse)");
 
-    const observer = new ResizeObserver(() => schedule(container, composer, scroller));
+    const observer = new ResizeObserver(() => schedule(container, composer));
 
     observer.observe(container);
     observer.observe(composer);
@@ -96,17 +96,14 @@ export function useComposerClearance({
       observer.observe(overlay);
     }
 
-    // WARN: A scroll while the list is mid-FLIP is read as the reader taking the scroller back — the animation is torn down on the spot rather than fought at its next frame.
-    scroller.addEventListener("scroll", onScroll);
-
     return () => {
       isScheduled = false;
       observer.disconnect();
-      scroller.removeEventListener("scroll", onScroll);
+      finishListFlip({ pinToBottom: false });
     };
 
     // WARN: Deferred to a microtask on purpose. `BottomOverlay` publishes `--bottom-inset` from its own `ResizeObserver`, and the two callbacks land in the same batch — measuring inline reads whichever position the composer happened to be in when this one ran first. A microtask runs after all observers have fired but before the browser paints, eliminating the 1-frame stutter `requestAnimationFrame` caused.
-    function schedule(container: HTMLElement, composer: HTMLElement, scroller: HTMLElement) {
+    function schedule(container: HTMLElement, composer: HTMLElement) {
       if (isScheduled) {
         return;
       }
@@ -114,27 +111,18 @@ export function useComposerClearance({
       isScheduled = true;
       queueMicrotask(() => {
         isScheduled = false;
-        measure(container, composer, scroller);
+        measure(container, composer);
       });
     }
 
-    function onScroll() {
-      // INFO: Consumes the flag rather than only reading it — the next genuine scroll must not find it still set.
-      if (selfScrollRef.current) {
-        selfScrollRef.current = false;
-        return;
-      }
-
-      if (listFlipRef.current !== null) {
-        finishListFlip({ pinToBottom: false });
-      }
+    // WARN: The reader's input and never `scroll` — the room's own `pinToBottom` (a new message, a typing row) fires that too, and it must not tear a running FLIP down.
+    function abortListFlipForReader() {
+      finishListFlip({ pinToBottom: false });
     }
 
     function pinToBottom(scroller: HTMLElement) {
       // INFO: iOS Safari bug: when `scrollHeight` shrinks during a CSS transition, Safari clamps the internal `scrollTop` but fails to update the visual offset layer, leaving a huge void. Assigning the clamped value back is ignored as a no-op. Assigning `max - 1` first dirties the scroll offset and forces the compositor to repaint.
       const max = scroller.scrollHeight - scroller.clientHeight;
-
-      selfScrollRef.current = true;
 
       if (scroller.scrollTop >= max) {
         scroller.scrollTop = max - 1;
@@ -152,6 +140,7 @@ export function useComposerClearance({
 
       listFlipRef.current = null;
       content.removeEventListener("transitionend", onListFlipTransitionEnd);
+      content.removeEventListener("transitioncancel", onListFlipTransitionEnd);
       content.style.transition = "";
       content.style.transform = "";
       content.style.willChange = "";
@@ -162,6 +151,8 @@ export function useComposerClearance({
         return;
       }
 
+      scroller.removeEventListener("touchstart", abortListFlipForReader);
+      scroller.removeEventListener("wheel", abortListFlipForReader);
       scroller.style.height = "";
 
       if (shouldPin) {
@@ -200,6 +191,8 @@ export function useComposerClearance({
 
       if (isFirstStep) {
         motion.addEventListener("transitionend", onComposerFlipTransitionEnd);
+        // INFO: A sheet drag or 검색 hiding the stack cancels the transition, and the inline transition must go with it or the drag eases behind the finger.
+        motion.addEventListener("transitioncancel", onComposerFlipTransitionEnd);
       }
     }
 
@@ -213,6 +206,7 @@ export function useComposerClearance({
 
       isComposerFlippingRef.current = false;
       motion.removeEventListener("transitionend", onComposerFlipTransitionEnd);
+      motion.removeEventListener("transitioncancel", onComposerFlipTransitionEnd);
       motion.style.transition = "";
       motion.style.transform = "";
       motion.style.willChange = "";
@@ -241,6 +235,9 @@ export function useComposerClearance({
         content.style.willChange = "transform";
         content.style.transition = FLIP_TRANSITION;
         content.addEventListener("transitionend", onListFlipTransitionEnd);
+        content.addEventListener("transitioncancel", onListFlipTransitionEnd);
+        scroller.addEventListener("touchstart", abortListFlipForReader, { passive: true });
+        scroller.addEventListener("wheel", abortListFlipForReader, { passive: true });
       }
 
       content.style.transform = `translateY(${target}px)`;
@@ -254,17 +251,24 @@ export function useComposerClearance({
       finishListFlip({ pinToBottom: isAtBottomRef.current });
     }
 
-    function measure(container: HTMLElement, composer: HTMLElement, scroller: HTMLElement) {
-      const containerHeight = container.getBoundingClientRect().height;
+    function measure(container: HTMLElement, composer: HTMLElement) {
+      const scroller = scrollerRef.current;
+      const { height: containerHeight, width: containerWidth } = container.getBoundingClientRect();
       const composerTop = composer.getBoundingClientRect().top;
       const priorContainerHeight = containerHeightRef.current;
       const priorComposerTop = composerTopRef.current;
       const topDelta = priorComposerTop === null ? 0 : composerTop - priorComposerTop;
       // INFO: A keyboard step moves the container's own height; the composer growing under typed text moves only the composer, with the container standing still.
+      // WARN: Gated on a coarse pointer and an unchanged width — a desktop window dragged taller would freeze the scroller on every frame, and a rotation would FLIP a list being re-laid out under it.
       const isKeyboardStep =
-        priorContainerHeight !== null && containerHeight !== priorContainerHeight && topDelta !== 0;
+        priorContainerHeight !== null &&
+        containerHeight !== priorContainerHeight &&
+        containerWidth === containerWidthRef.current &&
+        topDelta !== 0 &&
+        coarsePointer.matches;
 
       containerHeightRef.current = containerHeight;
+      containerWidthRef.current = containerWidth;
       composerTopRef.current = composerTop;
 
       let didAnimateList = false;
@@ -272,11 +276,11 @@ export function useComposerClearance({
       if (
         isKeyboardStep &&
         !document.documentElement.hasAttribute(KEYBOARD_OVERLAID_ATTRIBUTE) &&
-        !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        !reducedMotion.matches
       ) {
         stepComposerFlip(topDelta);
 
-        if (isAtBottomRef.current) {
+        if (scroller && isAtBottomRef.current) {
           stepListFlip(
             topDelta,
             listFlipRef.current?.frozenHeight ?? scrollerHeightRef.current,
@@ -293,7 +297,7 @@ export function useComposerClearance({
         0,
       );
       // INFO: The rect and not `clientHeight` — a scroller frozen mid-FLIP still reports its old value here, which is exactly what the next step's `stepListFlip` wants to freeze at again.
-      const scrollerHeight = scroller.getBoundingClientRect().height;
+      const scrollerHeight = scroller?.getBoundingClientRect().height ?? 0;
       // WARN: REQUIREMENTS.md § 13.6. The spacer counts as the strip changing even though it is left out of the published value. Opening the panel with no keyboard up moves nothing else — the measurement holds still and so does the scroller — and tested on those two alone this loop returned on every frame of the ease and left `transitionend` to drag the history down in one step.
       const hasStripChanged =
         clearance !== clearanceRef.current || spacerHeight !== spacerHeightRef.current;
@@ -302,7 +306,9 @@ export function useComposerClearance({
         return;
       }
 
-      const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+      const distance = scroller
+        ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
+        : 0;
       // WARN: Read before the property below moves the spacer, and never from `isAtBottomRef` alone — the room publishes that flag from a render-scoped effect, which lands a frame or more after the spacer this loop is growing, so a mid-animation `false` would strand the rest of the animation with no re-pin at all.
       // WARN: The shrink branch cannot borrow that flag. It is `AT_BOTTOM_THRESHOLD` wide, and a height change is not always a keyboard — a rotation or a desktop window resize would throw a reader parked inside those 200px to the live edge, which is a scroll they never asked for and did not get before.
       // INFO: Subtracting the shrink is what leaves the tight test usable at all: the frame's own shrink is what opened the distance, so `distance − shrink` is where the reader stood before it.
@@ -325,7 +331,7 @@ export function useComposerClearance({
       }
 
       // INFO: The trailing spacer is this frame's `--chat-composer-spacer` (REQUIREMENTS.md § 13.6.), so `scrollHeight` here already carries the growth the composer is showing and the newest message stays parked above it.
-      if (isPinned) {
+      if (scroller && isPinned) {
         pinToBottom(scroller);
       }
     }

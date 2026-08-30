@@ -41,9 +41,11 @@ export function useIsViewportSettling(isEnabled: boolean): boolean {
 
     viewport.addEventListener("resize", sync);
 
+    // WARN: Reset on the way out, or a swap that ended on its timeout inside the quiet window latches `true` into the next one.
     return () => {
       clearTimeout(timer);
       viewport.removeEventListener("resize", sync);
+      setIsSettling(false);
     };
 
     function sync() {
@@ -53,7 +55,7 @@ export function useIsViewportSettling(isEnabled: boolean): boolean {
     }
   }, [isEnabled]);
 
-  return isEnabled && isSettling;
+  return isSettling;
 }
 
 /**
