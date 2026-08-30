@@ -295,7 +295,8 @@
   --rail-width: 0px;
   /* INFO: AGENTS.md § 4.4. The panel's un-collapsed width, so the panel's inner content wrapper keeps a fixed width and does not reflow while `--pane-width` animates to `0px`. */
   --pane-open-width: 0px;
-  --pane-width: var(--pane-open-width);
+  /* WARN: AGENTS.md § 4.4. `0px` until a `SidePanel` is actually mounted — a panel-less screen (설정 and its sub-routes) left at the open width pushed `--content-left`, and with it every body-portalled dialog, half a panel to the right of the pane it belongs to. */
+  --pane-width: 0px;
   --content-left: calc(var(--rail-width) + var(--pane-width));
   /* INFO: AGENTS.md § 4.4. What a body-portalled overlay centres on — `--content-left`, except while a full-bleed `ShellOverlay` is up: that layer starts at the rail and covers the panel, so a dialog over it has to share its box. */
   --overlay-left: var(--content-left);
@@ -386,6 +387,11 @@
   :root {
     --pane-open-width: 360px;
   }
+}
+
+/* INFO: AGENTS.md § 4.4. `SidePanel`'s own marker, so the geometry follows the panel a screen renders rather than the shell-wide cookie alone. */
+:root:has(#app-shell [data-side-panel-pane]) {
+  --pane-width: var(--pane-open-width);
 }
 
 /* INFO: AGENTS.md § 4.4. `useSidePanel` keeps `#app-shell`'s attribute in sync; the `:has()` form on `:root` (rather than the attribute selector alone) is what reaches the fixed headers and body-portalled overlays that read `--content-left`, which sit outside `#app-shell`. */

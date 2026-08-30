@@ -33,6 +33,7 @@ export function SidePanel({ className, children }: SidePanelProps) {
         "hidden bg-canvas text-ink motion-reduce:transition-none lg:block lg:w-(--pane-width) lg:shrink-0 lg:overflow-hidden lg:border-r lg:border-hairline lg:[#app-shell[data-side-panel-animating]_&]:transition-[width] lg:[#app-shell[data-side-panel-animating]_&]:duration-(--duration-route-enter) lg:[#app-shell[data-side-panel-animating]_&]:ease-route",
         className,
       )}
+      data-side-panel-pane
       onTransitionEnd={handleTransitionEnd}
     >
       <div className="flex h-full w-(--pane-open-width) flex-col">

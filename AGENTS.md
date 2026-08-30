@@ -85,7 +85,7 @@ Every id in the app is a 64-bit snowflake carried as a **string**, typed with th
 
 The mobile layout is the base; from `md` (768px) a left nav rail (`NavRail`) replaces the tab bar, and from `lg` (1024px) a collapsible side panel (`SidePanel`, through `TwoPane`) sits beside the main pane (`DESIGN.md § 3.1.`, `§ 7.20.`). **Geometry branches only through Tailwind `md:` / `lg:` classes**, so both trees mount and CSS hides one — never through JS on first paint. `useIsDesktop` (`false` on the server) is for a component choice that cannot be expressed in CSS, and every such choice lives inside `@/shared/ui`: `BottomSheet` becomes `DialogShell` and `ActionSheet` a `Popover` at `md`. Screen code never picks an overlay by width.
 
-The geometry is four custom properties, all `0px` below their breakpoint so fixed chrome needs no `md:` variant: `--rail-width`, `--pane-width` (`--pane-open-width`, or `0px` under `#app-shell[data-side-panel="closed"]`), `--content-left`, `--content-max-width`. The panel's state is the `jandh:side-panel` cookie so the server paints it collapsed.
+The geometry is four custom properties, all `0px` below their breakpoint so fixed chrome needs no `md:` variant: `--rail-width`, `--pane-width` (`0px` unless a `SidePanel` is mounted and `#app-shell` is not `data-side-panel="closed"`), `--content-left`, `--content-max-width`. The panel's state is the `jandh:side-panel` cookie so the server paints it collapsed.
 
 ## 4.2. Pointer affordances are still required
 
