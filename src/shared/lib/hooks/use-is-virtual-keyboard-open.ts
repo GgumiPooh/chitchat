@@ -19,14 +19,21 @@ export const VIEWPORT_QUIET_WINDOW = A_SECOND / 5;
  * Whether the visual viewport is still moving — a keyboard mid-slide, up or down.
  * The keyboard flag alone flips at `MIN_KEYBOARD_HEIGHT`, which is several frames
  * before the keys have arrived (REQUIREMENTS.md § 13.6.).
+ *
+ * WARN: `isEnabled` gates the subscription itself, not just the returned value — a
+ * caller that only reads this while a sheet swap is in progress (REQUIREMENTS.md §
+ * 13.6.) would otherwise re-render on every visual-viewport resize for the whole of
+ * the conversation, keyboard steps included. The return is `isEnabled && isSettling`
+ * rather than resetting the state on disable, so disabling never itself calls
+ * `setState` from inside the effect.
  */
-export function useIsViewportSettling(): boolean {
+export function useIsViewportSettling(isEnabled: boolean): boolean {
   const [isSettling, setIsSettling] = useState(false);
 
   useEffect(() => {
     const viewport = window.visualViewport;
 
-    if (!viewport) {
+    if (!isEnabled || !viewport) {
       return;
     }
 
@@ -44,9 +51,9 @@ export function useIsViewportSettling(): boolean {
       clearTimeout(timer);
       timer = setTimeout(() => setIsSettling(false), VIEWPORT_QUIET_WINDOW);
     }
-  }, []);
+  }, [isEnabled]);
 
-  return isSettling;
+  return isEnabled && isSettling;
 }
 
 /**

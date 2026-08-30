@@ -1,9 +1,8 @@
 "use client";
 
 import { BOTTOM_OVERLAY_ID } from "@/shared/config";
-import { KEYBOARD_OVERLAID_ATTRIBUTE, type Nullable, type Optional } from "@/shared/lib";
-import { useEffect, useRef, useState, type RefObject } from "react";
-import { flushSync } from "react-dom";
+import { KEYBOARD_OVERLAID_ATTRIBUTE, type Nullable } from "@/shared/lib";
+import { useEffect, useRef, type RefObject } from "react";
 
 const CLEARANCE_PROPERTY = "--chat-composer-gap";
 
@@ -13,18 +12,15 @@ const BOTTOM_EPSILON = 1;
 export type ComposerClearanceOptions = {
   containerRef: RefObject<Nullable<HTMLElement>>;
   composerRef: RefObject<Nullable<HTMLElement>>;
+  /** The composer's own translated child — never `composerRef` itself, see its WARN — that a keyboard step's FLIP writes `transform` to directly. */
+  composerMotionRef: RefObject<Nullable<HTMLElement>>;
   composerSpacerRef: RefObject<Nullable<HTMLElement>>;
   scrollerRef: RefObject<Nullable<HTMLElement>>;
   /** The list's absolutely-positioned rows wrapper (`virtualizer.getTotalSize()`'s own box), FLIPped during a keyboard step. */
   contentRef: RefObject<Nullable<HTMLElement>>;
   isAtBottomRef: RefObject<boolean>;
-};
-
-export type ComposerClearance = {
-  /** Applied to a child of `composerRef` — never that box itself, see its own WARN — and to whatever else rides with it (the scroll-to-bottom pill). */
-  flipTranslateY: number;
-  /** True for the one frame the FLIP's inverted position is painted, forcing that transform's own transition off so the jump has nothing to ease. */
-  isFlipping: boolean;
+  /** True while the emoticon sheet's own drag owns `composerMotionRef`'s transform — a keyboard step must not fight it for the same element. */
+  isDraggingRef: RefObject<boolean>;
 };
 
 /**
@@ -43,34 +39,37 @@ export type ComposerClearance = {
  *
  * WARN: A keyboard step — the container's own height moving, never the composer
  * growing on its own — takes the FLIP path below instead of the per-frame re-pin.
- * `ChatScreen`'s height now lands in one shot, so the composer and the list's
- * content wrapper are inverted by this frame's delta and eased back to `0` on
- * `transform` alone, which costs no layout; the scroller's own height is held at
- * what it was until that ease ends, so nothing mid-animation asks the browser to
- * clamp `scrollTop` for us. Growth from typing moves the composer with the
- * container standing still, which is exactly what keeps the two paths apart.
+ * `ChatScreen`'s height now lands in one shot, so the composer is inverted by this
+ * frame's delta and eased back to `0` on `transform` alone, imperatively — no React
+ * state, since a re-render per keyboard step is exactly the cost this hook exists to
+ * remove. The list instead eases forward to a running cumulative target, since
+ * freezing the scroller's height and re-pinning it below is what keeps its content
+ * from having moved at all at the frame the step lands. Growth from typing moves the
+ * composer with the container standing still, which is exactly what keeps the two
+ * paths apart.
  */
 export function useComposerClearance({
   containerRef,
   composerRef,
+  composerMotionRef,
   composerSpacerRef,
   scrollerRef,
   contentRef,
   isAtBottomRef,
-}: ComposerClearanceOptions): ComposerClearance {
+  isDraggingRef,
+}: ComposerClearanceOptions): void {
   const clearanceRef = useRef(0);
   const spacerHeightRef = useRef(0);
   const scrollerHeightRef = useRef(0);
   const containerHeightRef = useRef<Nullable<number>>(null);
   const composerTopRef = useRef<Nullable<number>>(null);
 
-  const [flipTranslateY, setFlipTranslateY] = useState(0);
-  const [isFlipping, setIsFlipping] = useState(false);
-  const flipTranslateYRef = useRef(0);
-  const flipFrameRef = useRef<Optional<number>>(undefined);
-
-  // INFO: Whether the list's content wrapper is mid-FLIP and how tall the scroller is frozen at — `null` once nothing is running.
-  const listFlipRef = useRef<Nullable<{ frozenHeight: number }>>(null);
+  // INFO: Whether the composer's own FLIP is running — `readTranslateY` only makes sense mid-flight, since the first step's prior position is always `0`.
+  const isComposerFlippingRef = useRef(false);
+  // INFO: Whether the list's content wrapper is mid-FLIP, how tall the scroller is frozen at, and the running cumulative target it is easing towards — `null` once nothing is running.
+  const listFlipRef = useRef<Nullable<{ frozenHeight: number; target: number }>>(null);
+  // INFO: A `scrollTop` write this hook made itself, consumed by the very next `scroll` event so the abort listener below does not read its own pin as the reader taking the scroller back.
+  const selfScrollRef = useRef(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -96,13 +95,12 @@ export function useComposerClearance({
     }
 
     // WARN: A scroll while the list is mid-FLIP is read as the reader taking the scroller back — the animation is torn down on the spot rather than fought at its next frame.
-    scroller.addEventListener("scroll", abortListFlipOnUserScroll);
+    scroller.addEventListener("scroll", onScroll);
 
     return () => {
       isScheduled = false;
       observer.disconnect();
-      scroller.removeEventListener("scroll", abortListFlipOnUserScroll);
-      cancelAnimationFrame(flipFrameRef.current ?? -1);
+      scroller.removeEventListener("scroll", onScroll);
     };
 
     // WARN: Deferred to a microtask on purpose. `BottomOverlay` publishes `--bottom-inset` from its own `ResizeObserver`, and the two callbacks land in the same batch — measuring inline reads whichever position the composer happened to be in when this one ran first. A microtask runs after all observers have fired but before the browser paints, eliminating the 1-frame stutter `requestAnimationFrame` caused.
@@ -118,16 +116,32 @@ export function useComposerClearance({
       });
     }
 
-    function abortListFlipOnUserScroll() {
-      // INFO: The commit below nulls this out before it ever touches `scrollTop`, so the event that write dispatches is a no-op here.
-      if (listFlipRef.current === null) {
+    function onScroll() {
+      // INFO: Consumes the flag rather than only reading it — the next genuine scroll must not find it still set.
+      if (selfScrollRef.current) {
+        selfScrollRef.current = false;
         return;
       }
 
-      finishListFlip({ pinToBottom: false });
+      if (listFlipRef.current !== null) {
+        finishListFlip({ pinToBottom: false });
+      }
     }
 
-    function finishListFlip({ pinToBottom }: { pinToBottom: boolean }) {
+    function pinToBottom(scroller: HTMLElement) {
+      // INFO: iOS Safari bug: when `scrollHeight` shrinks during a CSS transition, Safari clamps the internal `scrollTop` but fails to update the visual offset layer, leaving a huge void. Assigning the clamped value back is ignored as a no-op. Assigning `max - 1` first dirties the scroll offset and forces the compositor to repaint.
+      const max = scroller.scrollHeight - scroller.clientHeight;
+
+      selfScrollRef.current = true;
+
+      if (scroller.scrollTop >= max) {
+        scroller.scrollTop = max - 1;
+      }
+
+      scroller.scrollTop = scroller.scrollHeight;
+    }
+
+    function finishListFlip({ pinToBottom: shouldPin }: { pinToBottom: boolean }) {
       const content = contentRef.current;
 
       if (listFlipRef.current === null || content === null) {
@@ -137,6 +151,7 @@ export function useComposerClearance({
       listFlipRef.current = null;
       content.style.transition = "";
       content.style.transform = "";
+      content.style.willChange = "";
 
       const scroller = scrollerRef.current;
 
@@ -146,15 +161,8 @@ export function useComposerClearance({
 
       scroller.style.height = "";
 
-      if (pinToBottom) {
-        // INFO: iOS Safari bug: when `scrollHeight` shrinks during a CSS transition, Safari clamps the internal `scrollTop` but fails to update the visual offset layer, leaving a huge void. Assigning the clamped value back is ignored as a no-op. Assigning `max - 1` first dirties the scroll offset and forces the compositor to repaint.
-        const max = scroller.scrollHeight - scroller.clientHeight;
-
-        if (scroller.scrollTop >= max) {
-          scroller.scrollTop = max - 1;
-        }
-
-        scroller.scrollTop = scroller.scrollHeight;
+      if (shouldPin) {
+        pinToBottom(scroller);
       }
     }
 
@@ -162,26 +170,55 @@ export function useComposerClearance({
       return new DOMMatrixReadOnly(getComputedStyle(element).transform).m42;
     }
 
+    // WARN: The instant-jump-then-ease recipe — never a running CSS target like the list below. The composer's own layout position already snapped to its final spot the instant the container resized, so what needs hiding is that snap itself; the list's has not moved yet (see `stepListFlip`), so there is nothing there to invert.
     function stepComposerFlip(delta: number) {
-      cancelAnimationFrame(flipFrameRef.current ?? -1);
+      if (isDraggingRef.current) {
+        return;
+      }
 
-      const inverted = flipTranslateYRef.current - delta;
+      const motion = composerMotionRef.current;
 
-      flipTranslateYRef.current = inverted;
-      flushSync(() => {
-        setIsFlipping(true);
-        setFlipTranslateY(inverted);
-      });
+      if (!motion) {
+        return;
+      }
 
-      flipFrameRef.current = requestAnimationFrame(() => {
-        flipTranslateYRef.current = 0;
-        flushSync(() => {
-          setIsFlipping(false);
-          setFlipTranslateY(0);
-        });
-      });
+      const isFirstStep = !isComposerFlippingRef.current;
+      const priorOffset = isFirstStep ? 0 : readTranslateY(motion);
+      const inverted = priorOffset - delta;
+
+      isComposerFlippingRef.current = true;
+      motion.style.willChange = "transform";
+      motion.style.transition = "none";
+      motion.style.transform = `translateY(${inverted}px)`;
+      // WARN: Forces the inverted frame to actually commit before the transition below is armed — without it the browser can coalesce both writes into one recalculation and the ease never starts from anywhere.
+      motion.getBoundingClientRect();
+      motion.style.transition = "transform 300ms var(--ease-route)";
+      motion.style.transform = "";
+
+      if (isFirstStep) {
+        motion.addEventListener("transitionend", onComposerFlipTransitionEnd, { once: true });
+      }
     }
 
+    function onComposerFlipTransitionEnd(event: TransitionEvent) {
+      if (event.propertyName !== "transform") {
+        return;
+      }
+
+      isComposerFlippingRef.current = false;
+
+      const motion = composerMotionRef.current;
+
+      if (!motion) {
+        return;
+      }
+
+      motion.style.transition = "";
+      motion.style.transform = "";
+      motion.style.willChange = "";
+    }
+
+    // WARN: A running CSS target, never an instant jump. The scroller is frozen at its pre-step height and re-pinned to its own bottom below, so the content has not visibly moved at the frame this runs — easing it forward to the cumulative delta is the whole of the motion, and the already-declared `transition` retargets on its own from wherever it currently sits.
     function stepListFlip(delta: number, frozenHeight: number, scroller: HTMLElement) {
       const content = contentRef.current;
 
@@ -190,22 +227,23 @@ export function useComposerClearance({
       }
 
       const isFirstStep = listFlipRef.current === null;
-      const priorOffset = isFirstStep ? 0 : readTranslateY(content);
-      const inverted = priorOffset - delta;
+      const target = (isFirstStep ? 0 : (listFlipRef.current?.target ?? 0)) + delta;
 
-      listFlipRef.current = { frozenHeight };
+      listFlipRef.current = { frozenHeight, target };
       scroller.style.height = `${frozenHeight}px`;
-      content.style.transition = "none";
-      content.style.transform = `translateY(${inverted}px)`;
-      // WARN: Forces the inverted frame to actually paint before the transition below is armed — without it the browser can coalesce both writes into one recalculation and the ease never starts from anywhere.
-      content.getBoundingClientRect();
-      content.style.transition = "transform 300ms var(--ease-route)";
-      content.style.transform = "translateY(0)";
 
-      // WARN: Only on the first step of a run — a mid-flight retarget keeps the transition running rather than replacing it, so one listener sees it settle however many times this folded a new delta in.
+      // WARN: A container that *grows* (keyboard closing) shrinks the scroller's max scroll and the browser clamps `scrollTop` at layout, before this observer runs — freezing the height back afterwards then leaves the list short of the bottom by however much it grew. Re-pinning here, every step, is what a container that only *shrinks* already satisfies on its own, so this is harmless there.
+      if (isAtBottomRef.current) {
+        pinToBottom(scroller);
+      }
+
       if (isFirstStep) {
+        content.style.willChange = "transform";
+        content.style.transition = "transform 300ms var(--ease-route)";
         content.addEventListener("transitionend", onListFlipTransitionEnd, { once: true });
       }
+
+      content.style.transform = `translateY(${target}px)`;
     }
 
     function onListFlipTransitionEnd(event: TransitionEvent) {
@@ -229,6 +267,8 @@ export function useComposerClearance({
       containerHeightRef.current = containerHeight;
       composerTopRef.current = composerTop;
 
+      let didAnimateList = false;
+
       if (
         isKeyboardStep &&
         !document.documentElement.hasAttribute(KEYBOARD_OVERLAID_ATTRIBUTE) &&
@@ -242,6 +282,7 @@ export function useComposerClearance({
             listFlipRef.current?.frozenHeight ?? scrollerHeightRef.current,
             scroller,
           );
+          didAnimateList = true;
         }
       }
 
@@ -251,7 +292,7 @@ export function useComposerClearance({
         container.getBoundingClientRect().bottom - composerTop - spacerHeight,
         0,
       );
-      // INFO: The rect and not `clientHeight` — a scroller frozen mid-FLIP still reports its old value here, which is exactly what the next frame's `stepListFlip` wants to freeze at again.
+      // INFO: The rect and not `clientHeight` — a scroller frozen mid-FLIP still reports its old value here, which is exactly what the next step's `stepListFlip` wants to freeze at again.
       const scrollerHeight = scroller.getBoundingClientRect().height;
       // WARN: REQUIREMENTS.md § 13.6. The spacer counts as the strip changing even though it is left out of the published value. Opening the panel with no keyboard up moves nothing else — the measurement holds still and so does the scroller — and tested on those two alone this loop returned on every frame of the ease and left `transitionend` to drag the history down in one step.
       const hasStripChanged =
@@ -278,22 +319,24 @@ export function useComposerClearance({
       spacerHeightRef.current = spacerHeight;
       scrollerHeightRef.current = scrollerHeight;
 
-      // WARN: A keyboard step's pin is the list FLIP's own commit above, at its `transitionend` — re-pinning here too would fight that animation's frozen height with a `scrollTop` read off it.
-      if (isKeyboardStep) {
+      // WARN: Only when the list FLIP actually started this step — reduced motion, `[data-keyboard-overlaid]`, and a keyboard step while scrolled away all fall through here instead, and still need the plain re-pin below.
+      if (didAnimateList) {
         return;
       }
 
       // INFO: The trailing spacer is this frame's `--chat-composer-spacer` (REQUIREMENTS.md § 13.6.), so `scrollHeight` here already carries the growth the composer is showing and the newest message stays parked above it.
       if (isPinned) {
-        // INFO: iOS Safari bug: when `scrollHeight` shrinks during a CSS transition (like the panel closing), Safari clamps the internal `scrollTop` but fails to update the visual offset layer, leaving a huge void. Assigning the clamped value back is ignored as a no-op. Assigning `max - 1` first dirties the scroll offset and forces the compositor to repaint.
-        const max = scroller.scrollHeight - scroller.clientHeight;
-        if (scroller.scrollTop >= max) {
-          scroller.scrollTop = max - 1;
-        }
-        scroller.scrollTop = scroller.scrollHeight;
+        pinToBottom(scroller);
       }
     }
-  }, [containerRef, composerRef, composerSpacerRef, scrollerRef, contentRef, isAtBottomRef]);
-
-  return { flipTranslateY, isFlipping };
+  }, [
+    containerRef,
+    composerRef,
+    composerMotionRef,
+    composerSpacerRef,
+    scrollerRef,
+    contentRef,
+    isAtBottomRef,
+    isDraggingRef,
+  ]);
 }

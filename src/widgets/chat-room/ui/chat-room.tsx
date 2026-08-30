@@ -347,6 +347,8 @@ export function ChatRoom({
   // INFO: § 13.6. Measured out of the clearance rather than into it — its height is the one part of the stack a stylesheet already knows.
   const composerSpacerRef = useRef<Nullable<HTMLDivElement>>(null);
   const composerRef = useRef<Nullable<HTMLDivElement>>(null);
+  // INFO: DESIGN.md § 3.4. The composer's own translated child — a keyboard step's FLIP writes `transform` here directly, imperatively, so the emoticon-sheet drag below and it never share a render.
+  const composerMotionRef = useRef<Nullable<HTMLDivElement>>(null);
   const emoticonSheetRef = useRef<Nullable<HTMLDivElement>>(null);
   // INFO: REQUIREMENTS.md § 8.12. Observed rather than derived from `typist`, because what has to be followed is every frame of the height transition, not the state change that started it.
   const typingSlotRef = useRef<Nullable<HTMLDivElement>>(null);
@@ -631,8 +633,8 @@ export function ChatRoom({
   // WARN: The media branch only. § 8.11. hands text straight to `navigator.share` with nothing fetched, so a text message shares perfectly well with no network — gating the label outright would refuse the one case that works.
   const shareGate = useOfflineGate(OFFLINE_MESSAGES.share);
   const isKeyboardOpen = useIsVirtualKeyboardOpen();
-  // INFO: § 13.6. Whether the keys are still moving, which is what ends a swap — see the tests below.
-  const isViewportSettling = useIsViewportSettling();
+  // INFO: § 13.6. Whether the keys are still moving, which is what ends a swap — see the tests below. Subscribed only for the length of a swap, or every keyboard step would re-render this room for a value nothing else reads.
+  const isViewportSettling = useIsViewportSettling(sheetSwap !== null);
   // INFO: REQUIREMENTS.md § 8.14. Whether there is a keyboard to type at, which is what holds § 8.14.'s type-ahead and its paste to the desktop.
   const isFinePointer = useIsFinePointer();
   // INFO: REQUIREMENTS.md § 8.6. The composer's whole stack is put away for the length of a search, and everything it drives has to go with it.
@@ -705,19 +707,23 @@ export function ChatRoom({
     isOpen: isEmoticonPanelOpen,
     onClose: closeEmoticonPanel,
   });
-  // INFO: DESIGN.md § 3.4. A keyboard step's own motion — the emoticon-sheet drag below is the only other source of this transform.
-  const composerFlip = useComposerClearance({
+  // WARN: Mirrored into a ref, read from `useComposerClearance`'s effect — a keyboard step's FLIP must not fight this drag for `composerMotionRef`'s transform, and an effect closure cannot see a state variable's later value.
+  const isDraggingRef = useRef(false);
+  isDraggingRef.current = emoticonSheet.isDragging;
+  // INFO: DESIGN.md § 3.4. Writes a keyboard step's own motion straight to `composerMotionRef`/`contentRef`, imperatively — it returns nothing, so it costs this component no re-render.
+  useComposerClearance({
     containerRef,
     composerRef,
+    composerMotionRef,
     composerSpacerRef,
     scrollerRef,
     contentRef,
     isAtBottomRef,
+    isDraggingRef,
   });
-  const composerTransition =
-    emoticonSheet.isDragging || composerFlip.isFlipping
-      ? "transition-none"
-      : "transition-transform duration-300 ease-route";
+  const composerTransition = emoticonSheet.isDragging
+    ? "transition-none"
+    : "transition-transform duration-300 ease-route";
   const emoticonSheetTransition = emoticonSheet.isDragging
     ? "transition-none"
     : isEmoticonPanelOpen && emoticonSheet.size === "expanded"
@@ -726,9 +732,9 @@ export function ChatRoom({
 
   const effectiveSheetTranslateY =
     emoticonSheet.dragTranslateY > 0 ? emoticonSheet.dragTranslateY : 0;
+  // WARN: DESIGN.md § 3.4. Sheet-drag alone — a keyboard step's own motion is `useComposerClearance` writing `composerMotionRef`'s `transform` directly, never through this state.
   const effectiveComposerTranslateY =
-    (emoticonSheet.dragTranslateY > 0 ? emoticonSheet.dragTranslateY : 0) +
-    composerFlip.flipTranslateY;
+    emoticonSheet.dragTranslateY > 0 ? emoticonSheet.dragTranslateY : 0;
 
   useEffect(() => () => clearTimeout(collapseTimerRef.current), []);
   // INFO: § 13.6. What the sheet clears the history by at rest — the spacer's height, and never more: an expanded sheet covers the composer rather than lifting it.
@@ -1946,10 +1952,10 @@ export function ChatRoom({
             // WARN: § 8.6.1. A window parked around a jump target can sit at the bottom of its own scroll range while the newest message is still pages away, so the pill has to answer to the window too.
             isVisible={!isAtBottom || hasNewer}
             newMessageCount={unseenCount}
+            // WARN: DESIGN.md § 3.4. Rides the emoticon-sheet drag alone — a keyboard step never FLIPs this pill. It is hidden (`opacity-0`, `pointer-events-none`) for the whole of a list FLIP, since that only runs while pinned to the bottom; the one case it is visible mid-step (scrolled away, composer-only FLIP) reads `--chat-bottom-gap` unanimated and just lands at its new spot.
             style={{
-              // WARN: DESIGN.md § 3.4. `!== 0` and not `> 0` — a keyboard step's own term can be negative, riding the composer up rather than down.
               transform:
-                effectiveComposerTranslateY !== 0
+                effectiveComposerTranslateY > 0
                   ? `translateY(${effectiveComposerTranslateY}px)`
                   : undefined,
             }}
@@ -1972,12 +1978,13 @@ export function ChatRoom({
           {/* WARN: `hidden`, never a conditional subtree. `MessageComposer` holds the draft in its own state, so unmounting it here silently discards a typed message and drops its `useUnsentWork` hold with it. `display: none` takes it out of the wrapper's height, which is all `useComposerClearance` reads. */}
           <div className={cn(isSearching && "hidden")} inert={isSearching}>
             {/* INFO: § 13.6. Translates with the sheet when pulled down from rest mode, while staying anchored when pulled up to expand. */}
-            {/* INFO: DESIGN.md § 3.4. Also carries a keyboard step's own FLIP term, which can be negative — `useComposerClearance` inverts this by the frame's delta and eases it back to `0`. */}
+            {/* WARN: DESIGN.md § 3.4. `useComposerClearance` also writes this box's `transform`/`transition`/`will-change` directly for a keyboard step's own FLIP, never through `effectiveComposerTranslateY` — React never re-renders for that motion, so nothing here may assume its inline style is the whole story. */}
             <div
-              className={cn("will-change-transform", composerTransition)}
+              ref={composerMotionRef}
+              className={composerTransition}
               style={{
                 transform:
-                  effectiveComposerTranslateY !== 0
+                  effectiveComposerTranslateY > 0
                     ? `translateY(${effectiveComposerTranslateY}px)`
                     : undefined,
               }}
