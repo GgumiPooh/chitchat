@@ -63,7 +63,7 @@ export function buildChatRows({
 
   const rows: ChatRow[] = [];
   let previousDayKey: Nullable<string> = null;
-  // INFO: DESIGN.md § 6.2. The group whose notch has already been drawn — groups are contiguous, so one key is the whole of the state this needs.
+  // INFO: DESIGN.md § 6.2. The group whose notch the previous row already spent — cleared by any row that draws no bubble, which is what restarts the run.
   let notchedGroupKey: Nullable<string> = null;
 
   entries.forEach((entry, index) => {
@@ -74,6 +74,7 @@ export function buildChatRows({
 
     // INFO: The finished assistant reply is its own row kind — DESIGN.md § 6.2. draws it as a left-aligned bubble, not the § 6.5. pill every other system notice takes.
     if (entry.message?.systemAction === "assistant_reply") {
+      notchedGroupKey = null;
       rows.push({
         key: entry.key,
         kind: "assistant",
@@ -85,6 +86,7 @@ export function buildChatRows({
     }
 
     if (entry.message?.type === "system") {
+      notchedGroupKey = null;
       rows.push({ key: entry.key, kind: "system", message: entry.message });
 
       return;
@@ -94,12 +96,11 @@ export function buildChatRows({
     const next = entries[index + 1];
     const isFirstOfGroup = !previous || previous.groupKey !== entry.groupKey;
     const isLastOfGroup = !next || next.groupKey !== entry.groupKey;
-    // INFO: DESIGN.md § 6.2. The group's first *bubble* and not its first row — a group that opens with a photo or an emoticon carries the notch down to the text bubble under it.
-    const hasNotch = notchedGroupKey !== entry.groupKey && drawsRowNotch(entry);
+    // INFO: DESIGN.md § 6.2. The first *bubble* of each run of bubbles — a § 6.5. attachment or emoticon has none to wear it, and breaks the run so the bubble under it takes one again.
+    const drawsBubble = drawsRowNotch(entry);
+    const hasNotch = drawsBubble && notchedGroupKey !== entry.groupKey;
 
-    if (hasNotch) {
-      notchedGroupKey = entry.groupKey;
-    }
+    notchedGroupKey = drawsBubble ? entry.groupKey : null;
 
     if (entry.pending) {
       rows.push({

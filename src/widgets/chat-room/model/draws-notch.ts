@@ -13,10 +13,11 @@ export type NotchPayload = {
 };
 
 /**
- * DESIGN.md § 6.2. Whether this message has a shape to put the group's notch corner
- * on. § 6.5.'s attachments and emoticons draw no bubble, so a group that opens with
- * one passes the notch along to its first row that does — a quote card stands where
- * that bubble would (§ 6.10.) and a voice card draws its own fill (§ 9.3.).
+ * DESIGN.md § 6.2. Whether this message has a shape to put the notch corner on.
+ * § 6.5.'s attachments and emoticons draw no bubble, so one of those both passes the
+ * notch along to the next row that does and breaks the run of bubbles, which is what
+ * gives the bubble under it a notch of its own — a quote card stands where that
+ * bubble would (§ 6.10.) and a voice card draws its own fill (§ 9.3.).
  *
  * WARN: Answered off the payload alone, where `MessageRow` also resolves a lone
  * inline emoticon (§ 13.) and a link-only card (§ 6.9.) against maps this cannot

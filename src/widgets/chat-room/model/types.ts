@@ -16,7 +16,7 @@ export type ChatRow =
       isMine: boolean;
       isFirstOfGroup: boolean;
       isLastOfGroup: boolean;
-      /** DESIGN.md § 6.2. The notch corner, which goes to the group's first *bubble* — the rows before it may be § 6.5. attachments or emoticons, which draw none. */
+      /** DESIGN.md § 6.2. The notch corner, which goes to the first *bubble* after each § 6.5. attachment or emoticon, since those draw none and break the run. */
       hasNotch: boolean;
     }
   | {

@@ -22,7 +22,7 @@ export type ReplyQuoteProps = {
   variant?: "rule" | "card";
   /** DESIGN.md § 6.2. Whose message the quote stands on, which is what the `card` variant takes its fill from — the `rule` one draws none. */
   isMine?: boolean;
-  /** DESIGN.md § 6.2. The notch corner, which the `card` variant carries because it stands where the group's first bubble would. */
+  /** DESIGN.md § 6.2. The notch corner, which the `card` variant carries because it stands where the run's first bubble would. */
   hasNotch?: boolean;
   /** Absent while the quote is staged in the composer, where there is nothing to jump to yet. */
   onOpen?: () => void;

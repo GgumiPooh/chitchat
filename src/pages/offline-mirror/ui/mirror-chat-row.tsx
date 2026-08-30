@@ -23,7 +23,7 @@ export type MirrorChatRowProps = {
   isMine: boolean;
   isFirstOfGroup: boolean;
   isLastOfGroup: boolean;
-  /** DESIGN.md § 6.2. The group's first bubble wears the notch corner, and `buildMirrorRows` hands it past the § 6.5. attachments and emoticons that have none. */
+  /** DESIGN.md § 6.2. The first bubble of a run wears the notch corner, and `buildMirrorRows` restarts the run at every § 6.5. attachment or emoticon, which have none. */
   hasNotch: boolean;
   /** REQUIREMENTS.md § 8.6.1. The submitted query, while a search is open — lights the words matched inside a text bubble, the way `MessageRow`'s own `search-hit` mark does. */
   searchQuery?: string;

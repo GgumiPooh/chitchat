@@ -22,7 +22,7 @@ export type MirrorRow =
       isMine: boolean;
       isFirstOfGroup: boolean;
       isLastOfGroup: boolean;
-      /** DESIGN.md § 6.2. The notch corner, which goes to the group's first *bubble* exactly as `buildChatRows` hands it out. */
+      /** DESIGN.md § 6.2. The notch corner, which goes to the first *bubble* of each run exactly as `buildChatRows` hands it out. */
       hasNotch: boolean;
     };
 
@@ -34,7 +34,7 @@ export type MirrorRow =
 export function buildMirrorRows(messages: ChatMessage[], currentUserId: UserId): MirrorRow[] {
   const rows: MirrorRow[] = [];
   let previousDayKey: Nullable<string> = null;
-  // INFO: DESIGN.md § 6.2. The group whose notch has already been drawn — groups are contiguous, so one key is the whole of the state this needs.
+  // INFO: DESIGN.md § 6.2. The group whose notch the previous row already spent — cleared by any row that draws no bubble, which is what restarts the run.
   let notchedGroupKey: Nullable<string> = null;
 
   messages.forEach((message, index) => {
@@ -46,23 +46,24 @@ export function buildMirrorRows(messages: ChatMessage[], currentUserId: UserId):
     }
 
     if (message.systemAction === "assistant_reply") {
+      notchedGroupKey = null;
       rows.push({ key: message.id, kind: "assistant", message });
 
       return;
     }
 
     if (message.type === "system") {
+      notchedGroupKey = null;
       rows.push({ key: message.id, kind: "system", message });
 
       return;
     }
 
     const groupKey = toGroupKey(message);
-    const hasNotch = notchedGroupKey !== groupKey && drawsNotch(message);
+    const drawsBubble = drawsNotch(message);
+    const hasNotch = drawsBubble && notchedGroupKey !== groupKey;
 
-    if (hasNotch) {
-      notchedGroupKey = groupKey;
-    }
+    notchedGroupKey = drawsBubble ? groupKey : null;
 
     rows.push({
       key: message.id,

@@ -100,7 +100,7 @@ export type MessageRowProps = {
   isOnlyMe?: boolean;
   isFirstOfGroup: boolean;
   isLastOfGroup: boolean;
-  /** DESIGN.md § 6.2. This row is the group's first bubble, so it wears the notch corner — `buildChatRows` hands it past the § 6.5. attachments and emoticons, which have no bubble to put it on. */
+  /** DESIGN.md § 6.2. This row opens a run of bubbles, so it wears the notch corner — `buildChatRows` restarts the run at every § 6.5. attachment or emoticon, which have no bubble to put it on. */
   hasNotch: boolean;
   /** REQUIREMENTS.md § 8.8. How many participants have yet to read this message. `0` draws nothing — the marker counts down and disappears rather than settling on a read state. */
   unreadCount?: number;
