@@ -422,7 +422,8 @@
 /* INFO: DESIGN.md § 3.4. Published by the chat room while 검색's field holds the keyboard: the screen keeps its resting height, so the keys slide over the sheet's lower rows instead of squeezing the sheet into what they leave. */
 :root[data-keyboard-overlaid] {
   --chat-screen-height: var(--viewport-resting-height, var(--viewport-height, 100dvh));
-  /* WARN: REQUIREMENTS.md § 13.6. `0s` while the screen is held clear of the keys: the height and `--chat-composer-spacer` both settle behind a keyboard that is still up, so easing them buys nothing and the sheet — anchored to the screen's bottom edge with no ease of its own to cancel — was revealed a few frames before that edge had arrived, above where it belongs. */
+  /* WARN: REQUIREMENTS.md § 13.6. `0s` while the screen is held clear of the keys: the height settles behind a keyboard that is still up, so easing it buys nothing and the sheet — anchored to the screen's bottom edge with no ease of its own to cancel — was revealed a few frames before that edge had arrived, above where it belongs. */
+  /* WARN: § 13.6. This reaches `--chat-composer-spacer` too late to be its only source, since the attribute lands after the picker's own layout effects have forced a recalculation — the room writes the same `0s` inline beside the value (`chat-room.tsx`). */
   --viewport-settle-duration: 0s;
 }
 
