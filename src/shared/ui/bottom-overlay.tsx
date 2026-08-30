@@ -70,7 +70,8 @@ export function BottomOverlay({ className, children }: BottomOverlayProps) {
 
   return (
     // WARN: Transparent to the pointer, so content scrolling underneath stays tappable. Every bar inside re-enables it on its own visible surface.
-    // INFO: DESIGN.md § 3.4. The height carries `--bottom-inset` with it, so the composer rides the collapse instead of stepping to its new offset the instant the keyboard is detected.
+    // INFO: DESIGN.md § 3.4. The height carries `--bottom-inset` with it, so every bottom-anchored row rides the collapse instead of stepping the instant the keyboard is detected.
+    // WARN: DESIGN.md § 7.3. 채팅 is not one of them — the room overrides the inset locally, so nothing here times the chat composer.
     <div
       ref={overlayRef}
       className={cn(

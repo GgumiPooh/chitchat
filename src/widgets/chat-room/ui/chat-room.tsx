@@ -705,17 +705,7 @@ export function ChatRoom({
     isOpen: isEmoticonPanelOpen,
     onClose: closeEmoticonPanel,
   });
-  // WARN: Two separate transition classes because Phase 2 (isResettingAfterClose)
-  // needs opposite behavior on different elements:
-  //
-  //   composerTransition  — applied to the translated composer div only.
-  //     isResettingAfterClose=false → CSS transitions enabled, so translateY
-  //     animates from targetTranslateY → 0 over 500ms ease-out.
-  //     --viewport-settle-duration is also 500ms (theme.css § 3.4.), so both
-  //     the spacer and the composer translateY finish at exactly the same time,
-  //     leaving the composer's screen position with only a 34px (= bottom-inset)
-  //     net downward drift — no bounce.
-  //
+  // WARN: `effectiveComposerTranslateY` below is a literal `0`, so this animates nothing today — the composer's keyboard motion is the chat screen's height ease alone (DESIGN.md § 3.4.). Do not cite it as a term in that motion.
   const composerTransition = emoticonSheet.isDragging
     ? "transition-none"
     : "transition-transform duration-500 ease-out";
