@@ -65,9 +65,19 @@ export function ChatSidePanel({
           <Avatar name={partner.name} mediaId={partner.avatarMediaId} />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-title-sm text-ink">{partner.name}</span>
-            {typingUserIds.includes(partner.id) && (
-              <span className="block text-caption text-meta">입력 중</span>
-            )}
+            {/* INFO: REQUIREMENTS.md § 8.12. Always mounted and transitioned between zero and one caption line — the button centres on the avatar, so a row appearing at its full height snaps the name up and back down every time the signal lapses. */}
+            {/* WARN: The height is the caption tokens' own product, never a literal — the line it opens for is `text-caption`, and a number written here crops it the next time that token moves. */}
+            <span
+              className={cn(
+                "block overflow-hidden text-caption text-meta transition-[height,opacity] duration-(--duration-state) ease-out motion-reduce:transition-none",
+                typingUserIds.includes(partner.id)
+                  ? "h-[calc(var(--text-caption)*var(--text-caption--line-height))] opacity-100"
+                  : "h-0 opacity-0",
+              )}
+              aria-hidden={!typingUserIds.includes(partner.id)}
+            >
+              입력 중...
+            </span>
           </span>
         </button>
       )}
