@@ -5,6 +5,8 @@ import { KEYBOARD_OVERLAID_ATTRIBUTE, type Nullable } from "@/shared/lib";
 import { useEffect, useRef, type RefObject } from "react";
 
 const CLEARANCE_PROPERTY = "--chat-composer-gap";
+// WARN: The token and never `--viewport-settle-duration`, which is `0s` under two states — a `0s` transition fires no `transitionend`, and the frozen scroller would never be released.
+const FLIP_TRANSITION = "transform var(--duration-keyboard-flip) var(--ease-route)";
 
 // INFO: Subpixel slack only — anything wider would re-pin a user who has deliberately scrolled a little way up.
 const BOTTOM_EPSILON = 1;
@@ -149,6 +151,7 @@ export function useComposerClearance({
       }
 
       listFlipRef.current = null;
+      content.removeEventListener("transitionend", onListFlipTransitionEnd);
       content.style.transition = "";
       content.style.transform = "";
       content.style.willChange = "";
@@ -192,27 +195,24 @@ export function useComposerClearance({
       motion.style.transform = `translateY(${inverted}px)`;
       // WARN: Forces the inverted frame to actually commit before the transition below is armed — without it the browser can coalesce both writes into one recalculation and the ease never starts from anywhere.
       motion.getBoundingClientRect();
-      motion.style.transition = "transform 300ms var(--ease-route)";
+      motion.style.transition = FLIP_TRANSITION;
       motion.style.transform = "";
 
       if (isFirstStep) {
-        motion.addEventListener("transitionend", onComposerFlipTransitionEnd, { once: true });
+        motion.addEventListener("transitionend", onComposerFlipTransitionEnd);
       }
     }
 
+    // WARN: `transitionend` bubbles, and the rows and the composer's trays run `transform` transitions of their own — matched on the target, or a bubble's press would end the FLIP with the box still mid-flight.
     function onComposerFlipTransitionEnd(event: TransitionEvent) {
-      if (event.propertyName !== "transform") {
+      const motion = composerMotionRef.current;
+
+      if (event.target !== motion || event.propertyName !== "transform" || !motion) {
         return;
       }
 
       isComposerFlippingRef.current = false;
-
-      const motion = composerMotionRef.current;
-
-      if (!motion) {
-        return;
-      }
-
+      motion.removeEventListener("transitionend", onComposerFlipTransitionEnd);
       motion.style.transition = "";
       motion.style.transform = "";
       motion.style.willChange = "";
@@ -239,15 +239,15 @@ export function useComposerClearance({
 
       if (isFirstStep) {
         content.style.willChange = "transform";
-        content.style.transition = "transform 300ms var(--ease-route)";
-        content.addEventListener("transitionend", onListFlipTransitionEnd, { once: true });
+        content.style.transition = FLIP_TRANSITION;
+        content.addEventListener("transitionend", onListFlipTransitionEnd);
       }
 
       content.style.transform = `translateY(${target}px)`;
     }
 
     function onListFlipTransitionEnd(event: TransitionEvent) {
-      if (event.propertyName !== "transform") {
+      if (event.target !== contentRef.current || event.propertyName !== "transform") {
         return;
       }
 

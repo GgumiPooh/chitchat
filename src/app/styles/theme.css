@@ -219,6 +219,8 @@
   --duration-columns-step: 150ms;
   /* INFO: REQUIREMENTS.md § 13.6. The sheet's expand alone, sized for `--ease-sheet` to settle; every other sheet move keeps the 300ms ease-route. */
   --duration-sheet-expand: 500ms;
+  /* INFO: DESIGN.md § 3.4. The keyboard FLIP — the composer and the list easing on `transform` after the chat screen's height has landed in one shot. */
+  --duration-keyboard-flip: 300ms;
   /* INFO: DESIGN.md § 7.12. The 다가오는 일정 button's imminence bloom, and the one duration here that is not a response to a touch — it is an ambient loop over a header the reader sits under, so it is paced to breathing rather than to a gesture. */
   --duration-event-bloom: 2400ms;
   /* INFO: DESIGN.md § 7.12. The bloom's one-shot arrival, and the only swell in it — long enough for `--ease-bloom` to overshoot and settle before the breathing takes the halo over. */
