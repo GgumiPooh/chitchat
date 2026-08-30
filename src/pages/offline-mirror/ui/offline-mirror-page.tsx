@@ -20,7 +20,7 @@ import { useReloadWhenReachable } from "../model/use-reload-when-reachable";
 import { MirrorArchive } from "./mirror-archive";
 import { MirrorCalendar } from "./mirror-calendar";
 import { MirrorChat } from "./mirror-chat";
-import { MirrorLoading } from "./mirror-loading";
+import { MirrorFallback } from "./mirror-fallback";
 import { MirrorNotice } from "./mirror-notice";
 import { MirrorSettings } from "./mirror-settings";
 
@@ -83,8 +83,9 @@ export function OfflineMirrorPage({ className }: OfflineMirrorPageProps) {
   );
 
   function renderScreen(current: Optional<MirrorScreen>) {
+    // INFO: DESIGN.md § 7.8. In the screen's own frame, so the snapshot arriving fills the frame rather than moving it — and before hydration, when the path is unread, in the neutral one.
     if (!isHydrated || shell.status === "loading") {
-      return <MirrorLoading />;
+      return <MirrorFallback screen={current} />;
     }
 
     // INFO: A path with no mirror. The worker answers those with `OFFLINE_ROUTE` instead, so this is only reached if that routing and this resolver ever disagree.

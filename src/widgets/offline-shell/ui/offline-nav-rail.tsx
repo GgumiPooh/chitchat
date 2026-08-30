@@ -63,7 +63,7 @@ export function OfflineNavRail({
       <ul className="relative flex flex-col items-stretch gap-2xs" onKeyDown={handleKeyDown}>
         {activeIndex >= 0 && (
           <span
-            className="pointer-events-none absolute inset-x-0 top-0 rounded-full bg-primary-tint"
+            className="pointer-events-none absolute inset-x-0 top-0 rounded-full bg-primary-tint transition-[translate] duration-(--duration-tab-travel) ease-route motion-reduce:duration-0"
             aria-hidden="true"
             style={{
               height: `calc(100% / ${MIRROR_TABS.length})`,

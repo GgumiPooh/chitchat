@@ -14,9 +14,9 @@ import {
   toMonthKey,
   type Nullable,
 } from "@/shared/lib";
-import { OFFLINE_MESSAGES } from "@/shared/offline-ux";
+import { OFFLINE_MESSAGES, OFFLINE_NOTICE_ID } from "@/shared/offline-ux";
 import { useSnapshot } from "@/shared/snapshot";
-import { AppHeader, Container, EmptyState, toast, TwoPane } from "@/shared/ui";
+import { AppHeader, Container, EmptyState, IconButton, toast, TwoPane } from "@/shared/ui";
 import {
   AgendaEventRow,
   AgendaStaticRow,
@@ -29,7 +29,7 @@ import {
   UpcomingSection,
 } from "@/widgets/calendar-month";
 import { SnapshotEmpty, SnapshotStamp } from "@/widgets/offline-shell";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Plus } from "lucide-react";
 import { useRef, useState } from "react";
 import { MirrorLoading } from "./mirror-loading";
 
@@ -63,12 +63,28 @@ export function MirrorCalendar({ className, participants }: MirrorCalendarProps)
       className={className}
       // INFO: AGENTS.md § 4.1. `lg`'s own copy of the grid, sharing the state and handlers the mobile stack below uses — the D-day band above it live is withheld here (see the WARN above).
       panel={
-        snapshot.status === "hit" && (
-          <div className="flex flex-col gap-md p-md">{renderGrid(snapshot.payload)}</div>
-        )
+        <div className="flex flex-col gap-md p-md">
+          {snapshot.status === "loading" && <MirrorLoading variant="calendar" />}
+          {snapshot.status === "hit" && renderGrid(snapshot.payload)}
+        </div>
       }
     >
-      <AppHeader hasSidePanel title="캘린더" />
+      <AppHeader
+        hasSidePanel
+        title="캘린더"
+        // INFO: DESIGN.md § 7.19. Drawn and refusing rather than withdrawn — a write, so it refuses in the handler.
+        trailing={
+          <IconButton
+            variant="floating"
+            Icon={Plus}
+            haptic
+            aria-label="일정 추가"
+            aria-disabled
+            aria-describedby={OFFLINE_NOTICE_ID}
+            onClick={() => toast(OFFLINE_MESSAGES.add)}
+          />
+        }
+      />
       <Container className="space-y-md py-md pt-[calc(var(--app-header-inset)+var(--spacing-md))] pb-[var(--bottom-inset,0px)]">
         {snapshot.status === "loading" && <MirrorLoading />}
         {snapshot.status === "miss" && <SnapshotEmpty Icon={CalendarDays} subject="일정" />}

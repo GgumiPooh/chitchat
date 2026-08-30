@@ -26,11 +26,11 @@ export function OfflineTabBar({ className, screen, hasEventToday = false }: Offl
 
   return (
     <nav className={cn("px-md md:hidden", className)} aria-label="주요 화면">
-      <div className="pointer-events-auto flex h-(--tab-bar-height) items-stretch rounded-full border border-hairline glass p-2xs">
+      <div className="pointer-events-auto mx-auto flex h-(--tab-bar-height) max-w-(--tab-bar-max-width) items-stretch rounded-full border border-hairline glass p-2xs">
         <div className="relative flex flex-1 items-stretch">
           {activeIndex >= 0 && (
             <span
-              className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-primary-tint"
+              className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-primary-tint transition-[translate] duration-(--duration-tab-travel) ease-route motion-reduce:duration-0"
               aria-hidden="true"
               style={{
                 width: `calc(100% / ${MIRROR_TABS.length})`,
@@ -53,13 +53,15 @@ export function OfflineTabBar({ className, screen, hasEventToday = false }: Offl
                     href={href}
                     aria-current={isActive ? "page" : undefined}
                   >
-                    <span className="relative">
-                      <Icon className={cn("size-5", stateClassName)} strokeWidth={1.75} />
-                      {href === CALENDAR_ROUTE && hasEventToday && (
-                        <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
-                      )}
+                    <span className="flex press-bloom flex-col items-center gap-0.5 [--press-scale:1.25]">
+                      <span className="relative">
+                        <Icon className={cn("size-5", stateClassName)} strokeWidth={1.75} />
+                        {href === CALENDAR_ROUTE && hasEventToday && (
+                          <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-primary" />
+                        )}
+                      </span>
+                      <span className={cn("text-tab-label", stateClassName)}>{label}</span>
                     </span>
-                    <span className={cn("text-tab-label", stateClassName)}>{label}</span>
                   </a>
                 </li>
               );

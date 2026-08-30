@@ -5,9 +5,17 @@ import type { ArchiveSnapshot, ArchiveSnapshotKey } from "@/features/offline-sna
 import { cn } from "@/shared/lib";
 import { OFFLINE_MESSAGES, OFFLINE_NOTICE_ID } from "@/shared/offline-ux";
 import { useSnapshot } from "@/shared/snapshot";
-import { AppHeader, Container, FileCard, TwoPane, VoicePlayer, toast } from "@/shared/ui";
+import {
+  AppHeader,
+  Container,
+  FileCard,
+  IconButton,
+  TwoPane,
+  VoicePlayer,
+  toast,
+} from "@/shared/ui";
 import { OfflineSegments, SnapshotEmpty, SnapshotStamp } from "@/widgets/offline-shell";
-import { AudioLines, Files, Images } from "lucide-react";
+import { AudioLines, Files, ImagePlus, Images, LayoutGrid, ListChecks } from "lucide-react";
 import type { ComponentProps, FC } from "react";
 import { toMirrorCell } from "../model/to-mirror-cell";
 import { type MirrorSection, toMirrorSections } from "../model/to-mirror-sections";
@@ -58,7 +66,8 @@ export function MirrorArchive({ className, shelf }: MirrorArchiveProps) {
       // INFO: AGENTS.md § 4.1., DESIGN.md § 7.20. The chip switcher and a 월 이동 list built off the same sections the grid below groups into — `ArchiveShell`'s panel, minus its query for the shelf's true total.
       panel={
         <div className="flex flex-col gap-md p-md">
-          <OfflineSegments screen={shelf} />
+          <OfflineSegments screen={shelf} variant="pill" />
+          {snapshot.status === "loading" && <MirrorLoading variant="months" />}
           {sections.length > 0 && (
             <nav className="flex flex-col gap-2xs" aria-label="월 이동">
               {sections.map((section) => (
@@ -79,11 +88,49 @@ export function MirrorArchive({ className, shelf }: MirrorArchiveProps) {
         </div>
       }
     >
-      <AppHeader containerClassName="max-w-none" hasSidePanel title="보관함" />
+      <AppHeader
+        containerClassName="max-w-none"
+        hasSidePanel
+        title="보관함"
+        // INFO: DESIGN.md § 7.19. The live header's controls, drawn and refusing rather than withdrawn — 열 개수 and 선택 are reads of a grid this document holds only a snapshot of.
+        trailing={
+          <>
+            <IconButton
+              variant="floating"
+              Icon={LayoutGrid}
+              haptic
+              aria-label="열 개수"
+              aria-disabled
+              aria-describedby={OFFLINE_NOTICE_ID}
+              onClick={() => toast(OFFLINE_MESSAGES.change)}
+            />
+            <IconButton
+              variant="floating"
+              Icon={ImagePlus}
+              haptic
+              aria-label="갤러리 추가"
+              aria-disabled
+              aria-describedby={OFFLINE_NOTICE_ID}
+              onClick={() => toast(OFFLINE_MESSAGES.upload)}
+            />
+            <IconButton
+              variant="floating"
+              Icon={ListChecks}
+              haptic
+              aria-label="선택"
+              aria-disabled
+              aria-describedby={OFFLINE_NOTICE_ID}
+              onClick={() => toast(OFFLINE_MESSAGES.select)}
+            />
+          </>
+        }
+      />
       <Container className="flex max-w-none flex-col px-md pt-[calc(var(--app-header-inset)+var(--spacing-xs))] pb-[var(--bottom-inset,0px)]">
         {/* INFO: AGENTS.md § 4.1. `lg`'s panel carries the vertical version — below it this stays the chip row. */}
         <OfflineSegments className="pb-sm lg:hidden" screen={shelf} />
-        {snapshot.status === "loading" && <MirrorLoading />}
+        {snapshot.status === "loading" && (
+          <MirrorLoading variant={shelf === "gallery" ? "grid" : "rows"} />
+        )}
         {snapshot.status === "miss" && <SnapshotEmpty Icon={face.Icon} subject={face.subject} />}
         {snapshot.status === "hit" && (
           <div className="flex flex-col gap-md">

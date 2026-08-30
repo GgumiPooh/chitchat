@@ -215,7 +215,7 @@ export function MirrorChat({ className, shell }: MirrorChatProps) {
             onChanged={() => undefined}
           />
           <Container className="flex flex-col px-0 pt-[calc(var(--app-header-inset)+var(--spacing-xs))] pb-[calc(var(--bottom-inset,0px)+var(--spacing-md))]">
-            {snapshot.status === "loading" && <MirrorLoading />}
+            {snapshot.status === "loading" && <MirrorLoading variant="bubbles" />}
             {snapshot.status === "miss" && <SnapshotEmpty Icon={MessageCircle} subject="메시지" />}
             {rows.map(renderRow)}
             {snapshot.status === "hit" && (
