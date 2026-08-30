@@ -68,16 +68,33 @@ export function useIsVirtualKeyboardOpen(): boolean {
     // WARN: `resizes-content` shrinks the layout viewport too, so `innerHeight - visualViewport.height` stays ~0 — the drop from the tallest height seen at this width is the only signal left.
     let restingHeight = viewport.height;
     let restingWidth = viewport.width;
+    let resumeTimer: ReturnType<typeof setTimeout>;
 
     sync();
     viewport.addEventListener("resize", sync);
     // INFO: Focus moving between two fields keeps the keyboard up and fires no resize, so the opening signal needs this; there is no `focusout` counterpart because blurring no longer closes the flag.
     document.addEventListener("focusin", sync);
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("pageshow", resume);
 
     return () => {
+      clearTimeout(resumeTimer);
       viewport.removeEventListener("resize", sync);
       document.removeEventListener("focusin", sync);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("pageshow", resume);
     };
+
+    // WARN: DESIGN.md § 3.4. iOS closes the keyboard while the PWA is in the background and fires no `resize` on the way back, so the flag survives with no keys under it and the bars stay dropped; the late pass is WebKit reporting the restored height a beat after the app is shown, without an event of its own.
+    function resume() {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      clearTimeout(resumeTimer);
+      sync();
+      resumeTimer = setTimeout(sync, VIEWPORT_QUIET_WINDOW);
+    }
 
     function sync() {
       const { width, height } = viewport as VisualViewport;

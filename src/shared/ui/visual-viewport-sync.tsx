@@ -45,6 +45,7 @@ export function VisualViewportSync() {
 
     let frame = 0;
     let settleTimer: ReturnType<typeof setTimeout>;
+    let resumeTimer: ReturnType<typeof setTimeout>;
     let restingHeight = viewport.height;
     let keyboardHeight = 0;
     // WARN: As `useIsVirtualKeyboardOpen` is gated — a desktop window resized while a field is focused is a drop past the threshold too, and it would be remembered as a keyboard.
@@ -58,12 +59,17 @@ export function VisualViewportSync() {
     sync();
     viewport.addEventListener("resize", sync);
     viewport.addEventListener("scroll", syncPan);
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("pageshow", resume);
 
     return () => {
       cancelAnimationFrame(frame);
       clearTimeout(settleTimer);
+      clearTimeout(resumeTimer);
       viewport.removeEventListener("resize", sync);
       viewport.removeEventListener("scroll", syncPan);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("pageshow", resume);
       root.style.removeProperty(HEIGHT_PROPERTY);
       root.style.removeProperty(RESTING_HEIGHT_PROPERTY);
       root.style.removeProperty(TOP_PROPERTY);
@@ -129,6 +135,31 @@ export function VisualViewportSync() {
         `${Math.max(root.clientHeight - offsetTop - height, 0)}px`,
       );
       root.setAttribute(SYNCED_ATTRIBUTE, "");
+    }
+
+    /**
+     * WARN: DESIGN.md § 3.4. iOS dismisses the keyboard while the PWA is in the
+     * background and fires no `resize` on the way back, so the shell resumes sized to
+     * a keyboard that is no longer there — the composer sitting a keyboard's height
+     * above the bottom edge. Nothing but re-reading the viewport recovers it.
+     *
+     * WARN: The second pass is not a retry. WebKit reports the restored height a beat
+     * after the app is shown, and reports it without an event of its own.
+     */
+    function resume() {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      clearTimeout(resumeTimer);
+      correct();
+      resumeTimer = setTimeout(correct, VIEWPORT_QUIET_WINDOW);
+    }
+
+    // INFO: DESIGN.md § 3.4. Unarmed for the write, as the cold launch is: what is being undone is a stale offset the reader is already looking at, so easing it draws it out rather than hiding it.
+    function correct() {
+      root.removeAttribute(SYNCED_ATTRIBUTE);
+      write();
     }
 
     // WARN: The guard is the keys having gone down inside the quiet window, which resets the maximum to `0` — published, that is a sheet of no height at all.
