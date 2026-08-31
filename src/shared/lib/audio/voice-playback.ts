@@ -315,20 +315,35 @@ function syncPosition(): void {
   });
 }
 
+// INFO: How long a finished waveform stands fully filled before resting back to the start.
+const ENDED_REST_DELAY = A_SECOND / 2;
+
 // INFO: The track stays adopted rather than released, so the bubble that just finished keeps its own controls instead of handing them back to a row the user is no longer looking at.
 function handleEnded(): void {
   stopTicking();
-  // INFO: Read fresh rather than off the snapshot — reaching the end is the moment a headerless container's `duration` finally resolves.
+
+  const audio = element;
+
+  if (!audio || activeSrc === null) {
+    return;
+  }
+
+  // INFO: The completed fill first, then the rest — the tick loop's last publish sits a `POSITION_STEP` and a render short of the edge, so resetting straight to `0` left the final bars of every short clip never painted.
   publish({
     isActive: true,
     isPlaying: false,
-    positionMs: 0,
-    elementDurationMs: element ? toElementDurationMs(element) : snapshot.elementDurationMs,
+    // INFO: `currentTime` equals the resolved duration at `ended`, so this is the one publish guaranteed to draw `progress` at `1` whatever length the row fell back on.
+    elementDurationMs: toElementDurationMs(audio),
+    positionMs: Math.max(toPositionMs(audio), toElementDurationMs(audio)),
   });
 
-  if (element) {
-    element.currentTime = 0;
-  }
+  setTimeout(() => {
+    // WARN: Guarded on `ended`, not cancelled — a replay, a seek, an adopt or a `stopVoice` in the window each clear the flag (`play()` on ended media seeks to the start per spec), and rewinding under any of them would yank a position the user just chose.
+    if (element === audio && audio.ended && activeSrc !== null) {
+      audio.currentTime = 0;
+      publish({ ...snapshot, isPlaying: false, positionMs: 0 });
+    }
+  }, ENDED_REST_DELAY);
 }
 
 /**
