@@ -34,10 +34,7 @@ export type VoiceSnapshot = {
    * What the element itself resolved the track's length to, or `0` before
    * `loadedmetadata` and for a container that never reports one.
    *
-   * INFO: REQUIREMENTS.md § 9.1. For a recording this is redundant — `media.duration_ms`
-   * is stored and is the figure § 9.3. draws against. It exists for an **attached**
-   * audio file, which has no stored duration at all: `validateMediaUpload` nulls it for a
-   * file, and extracting one would mean decoding a clip with no § 9.3. length cap.
+   * INFO: The exact figure, preferred over `media.duration_ms` wherever it is finite — § 9.3.'s stored value is wall-clock and runs long by the recorder's start and flush latency. It is also all an **attached** audio file (§ 9.1.) ever has: `validateMediaUpload` nulls `duration_ms` for a file, and extracting one would mean decoding a clip with no § 9.3. length cap.
    */
   elementDurationMs: number;
 };
@@ -58,7 +55,7 @@ const POSITION_STEP = A_SECOND / 20;
 export type VoicePlayback = VoiceSnapshot & {
   /** `0`–`1`, against whichever length `resolvedDurationMs` settled on. */
   progress: number;
-  /** The stored duration where there is one, and the element's own otherwise. */
+  /** The element's own length once metadata reports one, and the stored figure until then. */
   resolvedDurationMs: number;
   toggle: () => void;
   seekToRatio: (ratio: number) => void;
@@ -67,13 +64,14 @@ export type VoicePlayback = VoiceSnapshot & {
 /**
  * REQUIREMENTS.md § 13.6. Drives one voice bubble off the shared element.
  *
- * `durationMs` is the stored figure and not `audio.duration`, which a
- * `MediaRecorder` webm reports as `Infinity` until it has been played to the end.
- *
- * WARN: Pass `0` **only** where nothing is stored — an attached audio file (§ 9.1.),
- * which has no `duration_ms` at all. The element's own figure is then used, and it is
- * unavailable until the track has been adopted and its metadata has loaded, so the
- * row draws no progress before its first tap.
+ * `durationMs` is § 9.3.'s stored wall-clock figure, which runs long — it counts the
+ * recorder's start-up and stop-flush latency, so a cursor drawn against it lags the
+ * audible position and a tap lands ahead of where it aimed. The element's own
+ * duration is exact and wins once `loadedmetadata` reports a finite one; the stored
+ * figure covers a clip not yet adopted, and a `MediaRecorder` webm, which reports
+ * `Infinity` until it has been played to the end. An attached audio file (§ 9.1.)
+ * stores no `duration_ms` at all and passes `0`, so its row draws no progress
+ * before its first tap.
  */
 export function useVoicePlayback(src: Nullable<string>, durationMs: number): VoicePlayback {
   const state = useSyncExternalStore(
@@ -81,7 +79,7 @@ export function useVoicePlayback(src: Nullable<string>, durationMs: number): Voi
     () => readSnapshot(src),
     () => IDLE,
   );
-  const resolvedDurationMs = durationMs > 0 ? durationMs : state.elementDurationMs;
+  const resolvedDurationMs = state.elementDurationMs > 0 ? state.elementDurationMs : durationMs;
 
   const toggle = useCallback(() => {
     if (src) {
