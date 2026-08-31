@@ -556,8 +556,6 @@ export function MessageRow({
                       "group-focus-within/row:opacity-0 group-hover/row:opacity-0",
                   )}
                 >
-                  {/* INFO: REQUIREMENTS.md § 8.13. Beside the bubble rather than inside it — the § 8.3. estimate wraps the body text in one font, and a label of another size sharing that measurement is exactly what it cannot express. Here it is a whole line whose height is already known. */}
-                  {isEdited && <span>수정됨</span>}
                   {/* INFO: REQUIREMENTS.md § 8.8. KakaoTalk's own marker — how many have yet to read it, gone entirely at zero rather than turning into a read state. `unread` is the token the tab-bar badge already uses (DESIGN.md § 4.1.4.), so the one number in the room that counts something live is the one thing here not in `chat-meta`. */}
                   {/* WARN: `tabular-nums` so a count that changes under the reader cannot change the line's width, and `aria-label` because a bare digit beside a bubble reads as nothing to a screen reader. */}
                   {unreadCount > 0 &&
@@ -579,6 +577,8 @@ export function MessageRow({
                         {unreadCount}
                       </span>
                     ))}
+                  {/* INFO: REQUIREMENTS.md § 8.13. Beside the bubble rather than inside it — the § 8.3. estimate wraps the body text in one font, and a label of another size sharing that measurement is exactly what it cannot express. Here it is a whole line whose height is already known. */}
+                  {isEdited && <span>수정됨</span>}
                   {isLastOfGroup && <time dateTime={createdAt}>{formatTime(createdAt)}</time>}
                 </div>
                 {renderHoverActions()}
