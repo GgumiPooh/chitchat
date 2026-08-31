@@ -79,8 +79,8 @@ export function useComposerClearance({
 
   // INFO: Whether the composer's own FLIP is running — `readTranslateY` only makes sense mid-flight, since the first step's prior position is always `0`.
   const isComposerFlippingRef = useRef(false);
-  // INFO: Whether the list's content wrapper is mid-FLIP, in which direction, and the running cumulative target of a shrink run — `null` once nothing is running.
-  const listFlipRef = useRef<Nullable<{ isGrowth: boolean; target: number }>>(null);
+  // INFO: Whether the list's content wrapper is mid-FLIP, on which recipe, and the running cumulative target of a frozen run — `null` once nothing is running.
+  const listFlipRef = useRef<Nullable<{ usesFreeze: boolean; target: number }>>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -225,27 +225,25 @@ export function useComposerClearance({
     }
 
     // WARN: A running CSS target, never an instant jump. The scroller is frozen at its pre-step height and re-pinned to its own bottom below, so the content has not visibly moved at the frame this runs — easing it forward to the cumulative delta is the whole of the motion, and the already-declared `transition` retargets on its own from wherever it currently sits.
-    // WARN: Two recipes by direction, and they are not interchangeable. A shrink (keys rising) freezes the scroller at its pre-step height, so nothing has visibly moved and the content is eased *forward* to the cumulative delta. A growth (keys leaving) cannot be frozen — the browser has already clamped `scrollTop` at layout and the band the keys uncover would sit empty behind a short frozen box — so the final layout is committed at once, the pin restores the bottom, and the content is inverted and released, the composer's own recipe.
-    function stepListFlip(delta: number, scroller: HTMLElement) {
+    // WARN: Two recipes, and only the keyboard's own shrink takes the freeze. There the scroller's box got shorter with `scrollHeight` untouched, so holding the old height means nothing has visibly moved and the content can ease *forward*. Every other step — a growth, or either sheet toggle — has already been painted at its final geometry by a `scrollTop` clamp or a spacer inside `scrollHeight`, so the pin commits the bottom and the content is inverted by the same screen shift the composer made (`prior − delta`) and released.
+    function stepListFlip(delta: number, usesFreeze: boolean, scroller: HTMLElement) {
       const content = contentRef.current;
 
       if (!content) {
         return;
       }
 
-      const isGrowth = delta > 0;
-
-      // INFO: A direction change mid-flight commits the running animation and starts clean — folding a grow into a frozen shrink has no single consistent geometry.
-      if (listFlipRef.current !== null && listFlipRef.current.isGrowth !== isGrowth) {
+      // INFO: A recipe change mid-flight commits the running animation and starts clean — folding an inversion into a frozen run has no single consistent geometry.
+      if (listFlipRef.current !== null && listFlipRef.current.usesFreeze !== usesFreeze) {
         finishListFlip({ pinToBottom: isAtBottomRef.current });
       }
 
       const running = listFlipRef.current;
 
-      if (isGrowth) {
+      if (!usesFreeze) {
         const priorOffset = running === null ? 0 : readTranslateY(content);
 
-        listFlipRef.current = { isGrowth, target: 0 };
+        listFlipRef.current = { usesFreeze, target: 0 };
 
         if (isAtBottomRef.current) {
           pinToBottom(scroller);
@@ -256,7 +254,7 @@ export function useComposerClearance({
         }
 
         content.style.transition = "none";
-        content.style.transform = `translateY(${priorOffset + delta}px)`;
+        content.style.transform = `translateY(${priorOffset - delta}px)`;
         // WARN: Forces the inverted frame to commit before the transition below is armed — coalesced into one recalculation, the ease never starts from anywhere.
         content.getBoundingClientRect();
         content.style.transition = FLIP_TRANSITION;
@@ -267,7 +265,7 @@ export function useComposerClearance({
 
       const target = (running?.target ?? 0) + delta;
 
-      listFlipRef.current = { isGrowth, target };
+      listFlipRef.current = { usesFreeze, target };
 
       if (running === null) {
         scroller.style.height = `${scrollerHeightRef.current}px`;
@@ -336,7 +334,7 @@ export function useComposerClearance({
         stepComposerFlip(topDelta);
 
         if (scroller && isAtBottomRef.current) {
-          stepListFlip(topDelta, scroller);
+          stepListFlip(topDelta, isKeyboardStep && topDelta < 0, scroller);
           didAnimateList = true;
         }
       }
