@@ -1,7 +1,7 @@
 "use client";
 
 import { BOTTOM_OVERLAY_ID } from "@/shared/config";
-import { KEYBOARD_OVERLAID_ATTRIBUTE, type Nullable } from "@/shared/lib";
+import { KEYBOARD_OVERLAID_ATTRIBUTE, type Nullable, type Optional } from "@/shared/lib";
 import { useEffect, useRef, type RefObject } from "react";
 
 const CLEARANCE_PROPERTY = "--chat-composer-gap";
@@ -79,6 +79,9 @@ export function useComposerClearance({
 
   // INFO: Whether the composer's own FLIP is running — `readTranslateY` only makes sense mid-flight, since the first step's prior position is always `0`.
   const isComposerFlippingRef = useRef(false);
+  // WARN: The release is armed a frame after the inversion, never in the same style flush — WebKit takes no style-change event from a forced layout, so armed inline it reads before-change and release as one value and starts no transition: the inversion then sits and cancels the pin, which painted as the sheet opening with the list never following.
+  const composerReleaseFrameRef = useRef<Optional<number>>(undefined);
+  const listReleaseFrameRef = useRef<Optional<number>>(undefined);
   // INFO: Whether the list's content wrapper is mid-FLIP, on which recipe, and the running cumulative target of a frozen run — `null` once nothing is running.
   const listFlipRef = useRef<Nullable<{ usesFreeze: boolean; target: number }>>(null);
 
@@ -109,6 +112,7 @@ export function useComposerClearance({
     return () => {
       isScheduled = false;
       observer.disconnect();
+      cancelAnimationFrame(composerReleaseFrameRef.current ?? -1);
       finishListFlip({ pinToBottom: false });
     };
 
@@ -149,6 +153,8 @@ export function useComposerClearance({
       }
 
       listFlipRef.current = null;
+      cancelAnimationFrame(listReleaseFrameRef.current ?? -1);
+      listReleaseFrameRef.current = undefined;
       content.removeEventListener("transitionend", onListFlipTransitionEnd);
       content.removeEventListener("transitioncancel", onListFlipTransitionEnd);
       content.style.transition = "";
@@ -196,10 +202,13 @@ export function useComposerClearance({
       motion.style.willChange = "transform";
       motion.style.transition = "none";
       motion.style.transform = `translateY(${inverted}px)`;
-      // WARN: Forces the inverted frame to actually commit before the transition below is armed — without it the browser can coalesce both writes into one recalculation and the ease never starts from anywhere.
-      motion.getBoundingClientRect();
-      motion.style.transition = FLIP_TRANSITION;
-      motion.style.transform = "";
+      // INFO: The inverted frame paints once before the release — it is the position the reader was already looking at, so nothing visibly changes.
+      cancelAnimationFrame(composerReleaseFrameRef.current ?? -1);
+      composerReleaseFrameRef.current = requestAnimationFrame(() => {
+        composerReleaseFrameRef.current = undefined;
+        motion.style.transition = FLIP_TRANSITION;
+        motion.style.transform = "";
+      });
 
       if (isFirstStep) {
         motion.addEventListener("transitionend", onComposerFlipTransitionEnd);
@@ -217,6 +226,8 @@ export function useComposerClearance({
       }
 
       isComposerFlippingRef.current = false;
+      cancelAnimationFrame(composerReleaseFrameRef.current ?? -1);
+      composerReleaseFrameRef.current = undefined;
       motion.removeEventListener("transitionend", onComposerFlipTransitionEnd);
       motion.removeEventListener("transitioncancel", onComposerFlipTransitionEnd);
       motion.style.transition = "";
@@ -255,10 +266,12 @@ export function useComposerClearance({
 
         content.style.transition = "none";
         content.style.transform = `translateY(${priorOffset - delta}px)`;
-        // WARN: Forces the inverted frame to commit before the transition below is armed — coalesced into one recalculation, the ease never starts from anywhere.
-        content.getBoundingClientRect();
-        content.style.transition = FLIP_TRANSITION;
-        content.style.transform = "translateY(0px)";
+        cancelAnimationFrame(listReleaseFrameRef.current ?? -1);
+        listReleaseFrameRef.current = requestAnimationFrame(() => {
+          listReleaseFrameRef.current = undefined;
+          content.style.transition = FLIP_TRANSITION;
+          content.style.transform = "translateY(0px)";
+        });
 
         return;
       }
