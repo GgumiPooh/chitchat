@@ -326,11 +326,12 @@ export function useComposerClearance({
 
       let didAnimateList = false;
 
-      if (
-        (isKeyboardStep || isSheetFlipStep) &&
-        !document.documentElement.hasAttribute(KEYBOARD_OVERLAID_ATTRIBUTE) &&
-        !reducedMotion.matches
-      ) {
+      // WARN: The overlaid attribute vetoes only the keyboard's own steps — during a swap the screen is pinned and there is nothing to animate. A sheet step ignores it: the 검색 exemption holds that attribute for as long as the panel sits on that menu, with no keyboard anywhere near.
+      const isFlipStep =
+        isSheetFlipStep ||
+        (isKeyboardStep && !document.documentElement.hasAttribute(KEYBOARD_OVERLAID_ATTRIBUTE));
+
+      if (isFlipStep && !reducedMotion.matches) {
         stepComposerFlip(topDelta);
 
         if (scroller && isAtBottomRef.current) {

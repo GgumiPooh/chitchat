@@ -721,22 +721,24 @@ export function ChatRoom({
     isAtBottomRef,
     isDraggingRef,
   });
-  // WARN: § 13.6. `hasHandledInitialSheetFlipRef` skips the mount render — `isEmoticonPanelOpen` starts `false` and has no prior position to invert from, so flagging it would arm a FLIP for a step that never moves anything.
-  const hasHandledInitialSheetFlipRef = useRef(false);
-  // INFO: § 13.6. `useComposerClearance`'s own container-height heuristic cannot tell this toggle apart from typing growth — neither moves the container — so the room marks it explicitly, just ahead of the paint that snaps `--chat-composer-spacer` below. Withheld under the keyboard-overlaid swap and the keyboard itself, which settle through their own existing paths untouched.
+  // INFO: § 13.6. Seeded with the mount value, so the mount render itself never arms a FLIP.
+  const hasHandledSheetFlipRef = useRef(isEmoticonPanelOpen);
+  // INFO: § 13.6. `useComposerClearance`'s own container-height heuristic cannot tell this toggle apart from typing growth — neither moves the container — so the room marks it explicitly, just ahead of the paint that snaps `--chat-composer-spacer` below.
+  // WARN: § 13.6. Withheld only for an actual swap or the keys standing up — never for `isKeyboardOverlaid` as a whole: the 검색 exemption holds that flag for as long as the panel sits on that menu, and gating on it left every open from 검색 teleporting instead of animating.
+  // WARN: Keyed on the panel actually changing, not on the deps changing — the flags below flip on their own and must not re-arm a FLIP for a toggle that already happened.
   useLayoutEffect(() => {
-    if (!hasHandledInitialSheetFlipRef.current) {
-      hasHandledInitialSheetFlipRef.current = true;
-
+    if (hasHandledSheetFlipRef.current === isEmoticonPanelOpen) {
       return;
     }
 
-    if (isKeyboardOverlaid || isKeyboardOpen) {
+    hasHandledSheetFlipRef.current = isEmoticonPanelOpen;
+
+    if (sheetSwap !== null || isKeyboardOpen) {
       return;
     }
 
     containerRef.current?.setAttribute(SHEET_FLIP_ATTRIBUTE, "");
-  }, [isEmoticonPanelOpen, isKeyboardOverlaid, isKeyboardOpen]);
+  }, [isEmoticonPanelOpen, sheetSwap, isKeyboardOpen]);
   const composerTransition = emoticonSheet.isDragging
     ? "transition-none"
     : "transition-transform duration-300 ease-route";
