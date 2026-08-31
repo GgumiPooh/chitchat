@@ -185,7 +185,11 @@ import { toCellsFromDrafts, toCellsFromMedia, type TrackOwner } from "../model/t
 import type { ChatRow } from "../model/types";
 import { useArrivalEmoticonSound } from "../model/use-arrival-emoticon-sound";
 import { useChatShortcuts } from "../model/use-chat-shortcuts";
-import { SHEET_FLIP_ATTRIBUTE, useComposerClearance } from "../model/use-composer-clearance";
+import {
+  SHEET_FLIP_ATTRIBUTE,
+  SHEET_FLIP_LIST_ONLY,
+  useComposerClearance,
+} from "../model/use-composer-clearance";
 import { useEmoticonSheet } from "../model/use-emoticon-sheet";
 import { useLinkPreviewPrefetch } from "../model/use-link-preview-prefetch";
 import { useMessageHistory } from "../model/use-message-history";
@@ -743,7 +747,8 @@ export function ChatRoom({
       return;
     }
 
-    container.setAttribute(SHEET_FLIP_ATTRIBUTE, "");
+    // WARN: A drag-close already carried the composer down under the finger, so its FLIP would flash it back to the pre-drag top — only the list is left to ease.
+    container.setAttribute(SHEET_FLIP_ATTRIBUTE, emoticonSheet.isClosedByDrag ? SHEET_FLIP_LIST_ONLY : "");
 
     // WARN: Expired one rendering update after the consuming one, and never sooner — rAF callbacks run *before* ResizeObserver delivery inside a frame, so a single rAF removes the attribute one phase ahead of the measure that was to consume it. Without any expiry, a frame that never renders (an occluded tab) leaves the attribute standing and `readScrollEdges` silenced for good.
     requestAnimationFrame(() => {
@@ -751,10 +756,12 @@ export function ChatRoom({
         container.removeAttribute(SHEET_FLIP_ATTRIBUTE);
       });
     });
-  }, [isEmoticonPanelOpen, sheetSwap, isKeyboardOpen]);
-  const composerTransition = emoticonSheet.isDragging
-    ? "transition-none"
-    : "transition-transform duration-300 ease-route";
+  }, [isEmoticonPanelOpen, sheetSwap, isKeyboardOpen, emoticonSheet.isClosedByDrag]);
+  // WARN: `isResettingAfterClose` is use-sheet-drag's reset-frame contract — without it the drag-close commit eases `dragTranslateY → 0` on top of the snapped layout, a downward glide the composer FLIP used to mask and no longer runs to.
+  const composerTransition =
+    emoticonSheet.isDragging || emoticonSheet.isResettingAfterClose
+      ? "transition-none"
+      : "transition-transform duration-300 ease-route";
   const emoticonSheetTransition = emoticonSheet.isDragging
     ? "transition-none"
     : isEmoticonPanelOpen && emoticonSheet.size === "expanded"

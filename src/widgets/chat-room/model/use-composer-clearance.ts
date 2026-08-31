@@ -28,6 +28,8 @@ const FLIP_TRANSITION = "transform var(--duration-keyboard-flip) var(--ease-rout
 
 // INFO: REQUIREMENTS.md § 13.6. The room's one-shot signal for the emoticon-panel toggle with no keyboard up — it moves the composer's own top with the container's height unchanged, the opposite of `isKeyboardStep`'s signature below, so the step is told apart by this rather than inferred.
 export const SHEET_FLIP_ATTRIBUTE = "data-sheet-flip";
+// INFO: The attribute's value when a drag already carried the composer to its final spot — the step then animates the list alone, since inverting the composer would replay the trip from its pre-drag top.
+export const SHEET_FLIP_LIST_ONLY = "list-only";
 
 // INFO: Subpixel slack only — anything wider would re-pin a user who has deliberately scrolled a little way up.
 const BOTTOM_EPSILON = 1;
@@ -381,7 +383,8 @@ export function useComposerClearance({
       composerTopRef.current = composerTop;
 
       // INFO: A one-shot read — the room sets this just ahead of the toggle, and it must not survive to misread the next unrelated resize (typing growth included).
-      const isSheetFlipStep = container.hasAttribute(SHEET_FLIP_ATTRIBUTE) && topDelta !== 0;
+      const sheetFlipValue = container.getAttribute(SHEET_FLIP_ATTRIBUTE);
+      const isSheetFlipStep = sheetFlipValue !== null && topDelta !== 0;
 
       container.removeAttribute(SHEET_FLIP_ATTRIBUTE);
 
@@ -406,7 +409,9 @@ export function useComposerClearance({
         (isKeyboardStep && !document.documentElement.hasAttribute(KEYBOARD_OVERLAID_ATTRIBUTE));
 
       if (isFlipStep && !reducedMotion.matches) {
-        stepComposerFlip(topDelta);
+        if (sheetFlipValue !== SHEET_FLIP_LIST_ONLY) {
+          stepComposerFlip(topDelta);
+        }
 
         // WARN: Never `isAtBottomRef` alone — iOS leaves it stale false after a rubber-band settle (measured on device: the sheet then opened over an unpushed list). The step's own shift is `topDelta`, so the pre-step distance is reconstructed from the one already laid out.
         const distance = scroller
