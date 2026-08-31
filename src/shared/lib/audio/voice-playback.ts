@@ -193,7 +193,7 @@ export function discardVoicePlayer(): void {
   }
 
   stopVoice();
-  audio.removeEventListener("play", syncPlayState);
+  audio.removeEventListener("play", handlePlay);
   audio.removeEventListener("pause", syncPlayState);
   audio.removeEventListener("ended", handleEnded);
   audio.removeEventListener("timeupdate", syncPosition);
@@ -231,9 +231,25 @@ function adopt(src: string): void {
   publish({ isActive: true, isPlaying: false, positionMs: 0, elementDurationMs: 0 });
 }
 
+// INFO: Raised only around the app's own `play()` calls, so `handlePlay` can tell them from WebKit's — iOS resumes an app-switch-interrupted element by itself when the PWA foregrounds, replaying a clip nobody tapped.
+let isPlayExpected = false;
+
 function play(audio: HTMLAudioElement): void {
+  // WARN: Only where a `play` event will actually come and consume it — calling `play()` on an element already playing fires none, and a flag left raised would wave one later self-resume through.
+  isPlayExpected = audio.paused;
   // INFO: A rejection is what an autoplay policy or a revoked blob URL looks like, and a voice note that will not start is already saying so by not moving.
   void audio.play().catch(() => undefined);
+}
+
+function handlePlay(): void {
+  if (!isPlayExpected) {
+    element?.pause();
+
+    return;
+  }
+
+  isPlayExpected = false;
+  syncPlayState();
 }
 
 function getPlayer(): HTMLAudioElement {
@@ -247,7 +263,7 @@ function getPlayer(): HTMLAudioElement {
 
   // INFO: Metadata only — the element is minted inside the tap that is about to call `play()`, so the body is fetched a moment later anyway and `auto` would only race it.
   audio.preload = "metadata";
-  audio.addEventListener("play", syncPlayState);
+  audio.addEventListener("play", handlePlay);
   audio.addEventListener("pause", syncPlayState);
   audio.addEventListener("ended", handleEnded);
   audio.addEventListener("timeupdate", syncPosition);
