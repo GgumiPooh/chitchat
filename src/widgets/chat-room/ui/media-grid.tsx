@@ -60,9 +60,17 @@ export function MediaGrid({
     return null;
   }
 
+  // WARN: The wrapper's clip radius must equal what its corner cells draw — `rounded-md` over a `rounded-sm` grid cut diagonally through the tiles' outer corners (and § 16.1.'s ring), since a 12px arc reaches ~1px deeper into the corner than the 8px arc the cell painted.
+  const isTileGrid = !cells[0].filename && cells.length > 1;
+
   return (
     <div
-      className={cn("relative overflow-hidden rounded-md", isPending && "opacity-60", className)}
+      className={cn(
+        "relative overflow-hidden",
+        isTileGrid ? "rounded-sm" : "rounded-md",
+        isPending && "opacity-60",
+        className,
+      )}
       style={{ width: MAX_EDGE }}
     >
       {renderCells()}
