@@ -13,6 +13,8 @@ export const SHEET_FLIP_ATTRIBUTE = "data-sheet-flip";
 
 // INFO: Subpixel slack only — anything wider would re-pin a user who has deliberately scrolled a little way up.
 const BOTTOM_EPSILON = 1;
+// INFO: The reconstruction below subtracts a step made of fractional lengths from a fractional scroll position, so it carries one more pixel of slack than the resting test.
+const STEP_EPSILON = 2;
 
 export type ComposerClearanceOptions = {
   containerRef: RefObject<Nullable<HTMLElement>>;
@@ -83,7 +85,8 @@ export function useComposerClearance({
   const composerReleaseFrameRef = useRef<Optional<number>>(undefined);
   const listReleaseFrameRef = useRef<Optional<number>>(undefined);
   // INFO: Whether the list's content wrapper is mid-FLIP, on which recipe, and the running cumulative target of a frozen run — `null` once nothing is running.
-  const listFlipRef = useRef<Nullable<{ usesFreeze: boolean; target: number }>>(null);
+  const listFlipRef =
+    useRef<Nullable<{ usesFreeze: boolean; target: number; isPinned: boolean }>>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -246,7 +249,7 @@ export function useComposerClearance({
 
       // INFO: A recipe change mid-flight commits the running animation and starts clean — folding an inversion into a frozen run has no single consistent geometry.
       if (listFlipRef.current !== null && listFlipRef.current.usesFreeze !== usesFreeze) {
-        finishListFlip({ pinToBottom: isAtBottomRef.current });
+        finishListFlip({ pinToBottom: listFlipRef.current.isPinned });
       }
 
       const running = listFlipRef.current;
@@ -254,11 +257,9 @@ export function useComposerClearance({
       if (!usesFreeze) {
         const priorOffset = running === null ? 0 : readTranslateY(content);
 
-        listFlipRef.current = { usesFreeze, target: 0 };
+        listFlipRef.current = { usesFreeze, target: 0, isPinned: true };
 
-        if (isAtBottomRef.current) {
-          pinToBottom(scroller);
-        }
+        pinToBottom(scroller);
 
         if (running === null) {
           startListFlipRun(content, scroller);
@@ -278,15 +279,13 @@ export function useComposerClearance({
 
       const target = (running?.target ?? 0) + delta;
 
-      listFlipRef.current = { usesFreeze, target };
+      listFlipRef.current = { usesFreeze, target, isPinned: true };
 
       if (running === null) {
         scroller.style.height = `${scrollerHeightRef.current}px`;
       }
 
-      if (isAtBottomRef.current) {
-        pinToBottom(scroller);
-      }
+      pinToBottom(scroller);
 
       if (running === null) {
         content.style.transition = FLIP_TRANSITION;
@@ -309,7 +308,8 @@ export function useComposerClearance({
         return;
       }
 
-      finishListFlip({ pinToBottom: isAtBottomRef.current });
+      // WARN: The decision made when the run started, never `isAtBottomRef` re-read here — iOS leaves that ref stale false after a rubber-band settle, and the reader has not scrolled since or the run would already be torn down.
+      finishListFlip({ pinToBottom: listFlipRef.current?.isPinned ?? false });
     }
 
     function measure(container: HTMLElement, composer: HTMLElement) {
@@ -347,7 +347,16 @@ export function useComposerClearance({
       if (isFlipStep && !reducedMotion.matches) {
         stepComposerFlip(topDelta);
 
-        if (scroller && isAtBottomRef.current) {
+        // WARN: Never `isAtBottomRef` alone — iOS leaves it stale false after a rubber-band settle (measured on device: the sheet then opened over an unpushed list). The step's own shift is `topDelta`, so the pre-step distance is reconstructed from the one already laid out.
+        const distance = scroller
+          ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
+          : Number.POSITIVE_INFINITY;
+        const wasAtBottom =
+          isAtBottomRef.current ||
+          distance <= BOTTOM_EPSILON ||
+          Math.abs(distance - Math.abs(topDelta)) <= STEP_EPSILON;
+
+        if (scroller && wasAtBottom) {
           stepListFlip(topDelta, isKeyboardStep && topDelta < 0, scroller);
           didAnimateList = true;
         }
