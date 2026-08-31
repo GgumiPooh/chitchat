@@ -773,6 +773,11 @@ export function ChatRoom({
   // WARN: DESIGN.md § 3.4. Sheet-drag alone — a keyboard step's own motion is `useComposerClearance` writing `composerMotionRef`'s `transform` directly, never through this state.
   const effectiveComposerTranslateY =
     emoticonSheet.dragTranslateY > 0 ? emoticonSheet.dragTranslateY : 0;
+  // WARN: § 13.6. Capped at the composer's own travel to its closed spot — the sheet's full pull reaches the screen's edge, but the composer rests `--bottom-inset` above it, so riding uncapped overshoots by the inset and comes back up at the close commit.
+  const composerDragTransform =
+    effectiveComposerTranslateY > 0
+      ? `translateY(min(${effectiveComposerTranslateY}px, calc(var(--chat-composer-spacer) - var(--bottom-inset))))`
+      : undefined;
 
   useEffect(() => () => clearTimeout(collapseTimerRef.current), []);
   // INFO: § 13.6. What the sheet clears the history by at rest — the spacer's height, and never more: an expanded sheet covers the composer rather than lifting it.
@@ -1990,12 +1995,7 @@ export function ChatRoom({
             isVisible={!isAtBottom || hasNewer}
             newMessageCount={unseenCount}
             // WARN: DESIGN.md § 3.4. Rides the emoticon-sheet drag alone — a keyboard step never FLIPs this pill. It is hidden (`opacity-0`, `pointer-events-none`) for the whole of a list FLIP, since that only runs while pinned to the bottom; the one case it is visible mid-step (scrolled away, composer-only FLIP) reads `--chat-bottom-gap` unanimated and just lands at its new spot.
-            style={{
-              transform:
-                effectiveComposerTranslateY > 0
-                  ? `translateY(${effectiveComposerTranslateY}px)`
-                  : undefined,
-            }}
+            style={{ transform: composerDragTransform }}
             onClick={() => void goToNewest()}
           />
         </>
@@ -2019,12 +2019,7 @@ export function ChatRoom({
             <div
               ref={composerMotionRef}
               className={composerTransition}
-              style={{
-                transform:
-                  effectiveComposerTranslateY > 0
-                    ? `translateY(${effectiveComposerTranslateY}px)`
-                    : undefined,
-              }}
+              style={{ transform: composerDragTransform }}
             >
               {/* INFO: REQUIREMENTS.md § 9.3. Tops the composer stack while it is up, clearing the history by the same `xs` every other row in this position does (DESIGN.md § 6.6.). It replaces nothing — a recording is sent outright, so there is no tray for it to compete with. */}
               {isRecording && (
