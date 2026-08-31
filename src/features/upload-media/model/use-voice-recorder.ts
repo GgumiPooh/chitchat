@@ -161,12 +161,14 @@ export function useVoiceRecorder({ onDone }: UseVoiceRecorderParams) {
       const storedMime = toStoredVoiceMime(mime);
       const blob = new Blob(chunks, { type: storedMime });
 
-      onDoneRef.current({
-        // INFO: R2 keys carry no name and a voice row stores no `filename` (§ 9.3.), so this one never leaves the browser — it exists because `File` requires one and the § 9. upload reads `size` off it.
-        file: new File([blob], "voice", { type: storedMime }),
-        mime: storedMime,
-        durationMs,
-        peaks: toWaveformPeaks(amplitudes),
+      void toMeasuredDurationMs(blob).then((measuredMs) => {
+        onDoneRef.current({
+          // INFO: R2 keys carry no name and a voice row stores no `filename` (§ 9.3.), so this one never leaves the browser — it exists because `File` requires one and the § 9. upload reads `size` off it.
+          file: new File([blob], "voice", { type: storedMime }),
+          mime: storedMime,
+          durationMs: measuredMs ?? durationMs,
+          peaks: toWaveformPeaks(amplitudes),
+        });
       });
     },
     [release],
@@ -240,10 +242,10 @@ export function useVoiceRecorder({ onDone }: UseVoiceRecorderParams) {
 }
 
 /**
- * WARN: The duration is wall-clock and is never read back off the container.
- * `MediaRecorder` writes no duration into a WebM at all, and the MP4 it produces
- * yields one only after a decode — while `media.duration_ms` has to be on the row
- * before the § 8.3. estimate can reserve the bubble's box.
+ * WARN: The duration handed to `onFinish` is wall-clock and runs long by the
+ * recorder's start-up and stop-flush latency — `MediaRecorder` writes no length
+ * header into either container for a reader to consult instead. `handleFinish`
+ * decodes the finished blob for the exact figure and keeps this one as its fallback.
  */
 function openSession(
   stream: MediaStream,
@@ -306,6 +308,22 @@ function closeSession({ stream, audio, timer }: RecordingSession): void {
 function leaveCapture(): void {
   declareRestingAudioSession();
   discardVoicePlayer();
+}
+
+// INFO: The context renders nothing — decode only — so the rate just has to be one every engine's constructor accepts.
+const DECODE_SAMPLE_RATE = 44_100;
+
+// INFO: § 9.3. The exact length of what was recorded, where the wall-clock figure runs long (`openSession`) — offline, so § 13.6.'s page-wide audio session is untouched. `null` hands the caller back to that fallback.
+async function toMeasuredDurationMs(blob: Blob): Promise<Nullable<number>> {
+  try {
+    const context = new OfflineAudioContext(1, 1, DECODE_SAMPLE_RATE);
+    const buffer = await context.decodeAudioData(await blob.arrayBuffer());
+    const measuredMs = Math.round(buffer.duration * A_SECOND);
+
+    return measuredMs > 0 ? measuredMs : null;
+  } catch {
+    return null;
+  }
 }
 
 // INFO: RMS rather than the largest sample. One clipped sample paints a full-height bar over a frame of nothing; the root mean square is the window's energy, which is what a listener would call loudness.

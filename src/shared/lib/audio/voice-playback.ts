@@ -302,11 +302,12 @@ function syncPosition(): void {
 // INFO: The track stays adopted rather than released, so the bubble that just finished keeps its own controls instead of handing them back to a row the user is no longer looking at.
 function handleEnded(): void {
   stopTicking();
+  // INFO: Read fresh rather than off the snapshot — reaching the end is the moment a headerless container's `duration` finally resolves.
   publish({
     isActive: true,
     isPlaying: false,
     positionMs: 0,
-    elementDurationMs: snapshot.elementDurationMs,
+    elementDurationMs: element ? toElementDurationMs(element) : snapshot.elementDurationMs,
   });
 
   if (element) {
@@ -330,6 +331,11 @@ function handleLoadedMetadata(): void {
   if (pendingSeekMs !== null) {
     audio.currentTime = pendingSeekMs / A_SECOND;
     pendingSeekMs = null;
+  }
+
+  // INFO: A container with no length header (any MediaRecorder output — REQUIREMENTS.md § 9.3.'s stored rows predating the measured figure) answers `Infinity` here for the whole playback, leaving progress on the stored wall-clock figure that runs long.
+  if (!Number.isFinite(audio.duration) && activeSrc !== null) {
+    probeDuration(activeSrc);
   }
 
   publish({
@@ -359,9 +365,86 @@ function stopTicking(): void {
   frame = 0;
 }
 
-// WARN: REQUIREMENTS.md § 9.1. A `MediaRecorder` WebM reports `Infinity` here until it has played to its end, and a container with no duration at all reports `NaN` — both have to read as "unknown" rather than reaching a progress bar.
+// INFO: What a probe has resolved a source's length to, kept for the session so a replay never probes twice.
+const probedDurationsMs = new Map<string, number>();
+
+const probingSrcs = new Set<string>();
+
+// INFO: Past any real clip's end, so the probe's seek clamps to it and forces the engine to resolve a headerless container's length (the crbug.com/642012 workaround).
+const PROBE_SEEK_S = Number.MAX_SAFE_INTEGER;
+
+/**
+ * Learns the real length of a source whose container carries none, off to the side.
+ *
+ * WARN: A separate muted element, never a seek bounced off the shared one — that one is already playing under the user's tap, and riding its `currentTime` to the end to force the length out would fire `ended` and drop the position mid-listen.
+ * INFO: It only ever seeks and never plays, so WebKit fixes no audio-session category on it (`discardVoicePlayer`'s concern) and no gesture is needed.
+ */
+function probeDuration(src: string): void {
+  if (probedDurationsMs.has(src) || probingSrcs.has(src)) {
+    return;
+  }
+
+  probingSrcs.add(src);
+
+  const probe = new Audio();
+
+  const teardown = () => {
+    probingSrcs.delete(src);
+    probe.removeEventListener("durationchange", settle);
+    probe.removeEventListener("loadedmetadata", seekPastEnd);
+    probe.removeEventListener("error", teardown);
+    probe.removeAttribute("src");
+    probe.load();
+  };
+
+  // INFO: `durationchange` also fires alongside `loadedmetadata` with `Infinity` — the guard is what makes only the resolved figure settle.
+  const settle = () => {
+    if (!Number.isFinite(probe.duration)) {
+      return;
+    }
+
+    probedDurationsMs.set(src, probe.duration * A_SECOND);
+    teardown();
+    syncProbedDuration(src);
+  };
+
+  const seekPastEnd = () => {
+    if (!Number.isFinite(probe.duration)) {
+      probe.currentTime = PROBE_SEEK_S;
+    }
+  };
+
+  probe.muted = true;
+  probe.preload = "metadata";
+  probe.addEventListener("durationchange", settle);
+  probe.addEventListener("loadedmetadata", seekPastEnd);
+  probe.addEventListener("error", teardown);
+  probe.src = src;
+}
+
+// INFO: A probe settling mid-playback republishes on its own — while paused nothing else would, and the bubble would keep drawing against the wall-clock figure until the next tap.
+function syncProbedDuration(src: string): void {
+  const audio = element;
+
+  if (!audio || activeSrc !== src) {
+    return;
+  }
+
+  publish({
+    isActive: true,
+    isPlaying: !audio.paused,
+    positionMs: toPositionMs(audio),
+    elementDurationMs: toElementDurationMs(audio),
+  });
+}
+
+// WARN: REQUIREMENTS.md § 9.1. A headerless `MediaRecorder` container reports `Infinity` here until it has played to its end, and one with no duration at all reports `NaN` — the probe's figure answers for the first, and what remains reads as "unknown" rather than reaching a progress bar.
 function toElementDurationMs(audio: HTMLAudioElement): number {
-  return Number.isFinite(audio.duration) ? audio.duration * A_SECOND : 0;
+  if (Number.isFinite(audio.duration)) {
+    return audio.duration * A_SECOND;
+  }
+
+  return activeSrc === null ? 0 : (probedDurationsMs.get(activeSrc) ?? 0);
 }
 
 function toPositionMs(audio: HTMLAudioElement): number {
