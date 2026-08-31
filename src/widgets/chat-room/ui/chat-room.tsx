@@ -3892,12 +3892,23 @@ export function ChatRoom({
     // WARN: The open parks the room on the newest message after *every* render until a real gesture takes the scroll (§ 8.3.), and a jump is not one — so without this the park runs on the very next commit and drags the reader straight back to the live edge. A search reaches this on a screen nobody has scrolled at all: open, type, jump.
     hasTakenScrollRef.current = true;
 
-    requestAnimationFrame(() => {
+    // WARN: § 8.6.1. Retried across frames rather than looked up once. WebKit can run this rAF before React's re-render has written the around window into `rowsRef`, and a single lookup then misses and bails silently — no scroll, no flash, the reader left clamped at the replaced window's bottom.
+    let lookupsRemaining = JUMP_SETTLE_FRAMES;
+
+    cancelJumpScroll();
+
+    const seek = () => {
       const index = rowsRef.current.findIndex(
         (row) => row.kind === "message" && row.message.id === id,
       );
 
       if (index < 0) {
+        lookupsRemaining -= 1;
+
+        if (lookupsRemaining > 0) {
+          jumpFrameRef.current = requestAnimationFrame(seek);
+        }
+
         return;
       }
 
@@ -3909,7 +3920,9 @@ export function ChatRoom({
         flushSync(() => setHighlightedId(null));
         setHighlightedId(id);
       }
-    });
+    };
+
+    jumpFrameRef.current = requestAnimationFrame(seek);
   }
 
   /**
