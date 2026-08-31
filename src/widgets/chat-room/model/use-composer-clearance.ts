@@ -69,8 +69,8 @@ export function useComposerClearance({
 
   // INFO: Whether the composer's own FLIP is running — `readTranslateY` only makes sense mid-flight, since the first step's prior position is always `0`.
   const isComposerFlippingRef = useRef(false);
-  // INFO: Whether the list's content wrapper is mid-FLIP, how tall the scroller is frozen at, and the running cumulative target it is easing towards — `null` once nothing is running.
-  const listFlipRef = useRef<Nullable<{ frozenHeight: number; target: number }>>(null);
+  // INFO: Whether the list's content wrapper is mid-FLIP, in which direction, and the running cumulative target of a shrink run — `null` once nothing is running.
+  const listFlipRef = useRef<Nullable<{ isGrowth: boolean; target: number }>>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -154,6 +154,8 @@ export function useComposerClearance({
       scroller.removeEventListener("touchstart", abortListFlipForReader);
       scroller.removeEventListener("wheel", abortListFlipForReader);
       scroller.style.height = "";
+      // WARN: Re-read here — nothing observes the scroller itself, so the next shrink step would otherwise freeze at whatever height the last run started from.
+      scrollerHeightRef.current = scroller.getBoundingClientRect().height;
 
       if (shouldPin) {
         pinToBottom(scroller);
@@ -213,34 +215,72 @@ export function useComposerClearance({
     }
 
     // WARN: A running CSS target, never an instant jump. The scroller is frozen at its pre-step height and re-pinned to its own bottom below, so the content has not visibly moved at the frame this runs — easing it forward to the cumulative delta is the whole of the motion, and the already-declared `transition` retargets on its own from wherever it currently sits.
-    function stepListFlip(delta: number, frozenHeight: number, scroller: HTMLElement) {
+    // WARN: Two recipes by direction, and they are not interchangeable. A shrink (keys rising) freezes the scroller at its pre-step height, so nothing has visibly moved and the content is eased *forward* to the cumulative delta. A growth (keys leaving) cannot be frozen — the browser has already clamped `scrollTop` at layout and the band the keys uncover would sit empty behind a short frozen box — so the final layout is committed at once, the pin restores the bottom, and the content is inverted and released, the composer's own recipe.
+    function stepListFlip(delta: number, scroller: HTMLElement) {
       const content = contentRef.current;
 
       if (!content) {
         return;
       }
 
-      const isFirstStep = listFlipRef.current === null;
-      const target = (isFirstStep ? 0 : (listFlipRef.current?.target ?? 0)) + delta;
+      const isGrowth = delta > 0;
 
-      listFlipRef.current = { frozenHeight, target };
-      scroller.style.height = `${frozenHeight}px`;
+      // INFO: A direction change mid-flight commits the running animation and starts clean — folding a grow into a frozen shrink has no single consistent geometry.
+      if (listFlipRef.current !== null && listFlipRef.current.isGrowth !== isGrowth) {
+        finishListFlip({ pinToBottom: isAtBottomRef.current });
+      }
 
-      // WARN: A container that *grows* (keyboard closing) shrinks the scroller's max scroll and the browser clamps `scrollTop` at layout, before this observer runs — freezing the height back afterwards then leaves the list short of the bottom by however much it grew. Re-pinning here, every step, is what a container that only *shrinks* already satisfies on its own, so this is harmless there.
+      const running = listFlipRef.current;
+
+      if (isGrowth) {
+        const priorOffset = running === null ? 0 : readTranslateY(content);
+
+        listFlipRef.current = { isGrowth, target: 0 };
+
+        if (isAtBottomRef.current) {
+          pinToBottom(scroller);
+        }
+
+        if (running === null) {
+          startListFlipRun(content, scroller);
+        }
+
+        content.style.transition = "none";
+        content.style.transform = `translateY(${priorOffset + delta}px)`;
+        // WARN: Forces the inverted frame to commit before the transition below is armed — coalesced into one recalculation, the ease never starts from anywhere.
+        content.getBoundingClientRect();
+        content.style.transition = FLIP_TRANSITION;
+        content.style.transform = "translateY(0px)";
+
+        return;
+      }
+
+      const target = (running?.target ?? 0) + delta;
+
+      listFlipRef.current = { isGrowth, target };
+
+      if (running === null) {
+        scroller.style.height = `${scrollerHeightRef.current}px`;
+      }
+
       if (isAtBottomRef.current) {
         pinToBottom(scroller);
       }
 
-      if (isFirstStep) {
-        content.style.willChange = "transform";
+      if (running === null) {
         content.style.transition = FLIP_TRANSITION;
-        content.addEventListener("transitionend", onListFlipTransitionEnd);
-        content.addEventListener("transitioncancel", onListFlipTransitionEnd);
-        scroller.addEventListener("touchstart", abortListFlipForReader, { passive: true });
-        scroller.addEventListener("wheel", abortListFlipForReader, { passive: true });
+        startListFlipRun(content, scroller);
       }
 
       content.style.transform = `translateY(${target}px)`;
+    }
+
+    function startListFlipRun(content: HTMLElement, scroller: HTMLElement) {
+      content.style.willChange = "transform";
+      content.addEventListener("transitionend", onListFlipTransitionEnd);
+      content.addEventListener("transitioncancel", onListFlipTransitionEnd);
+      scroller.addEventListener("touchstart", abortListFlipForReader, { passive: true });
+      scroller.addEventListener("wheel", abortListFlipForReader, { passive: true });
     }
 
     function onListFlipTransitionEnd(event: TransitionEvent) {
@@ -281,11 +321,7 @@ export function useComposerClearance({
         stepComposerFlip(topDelta);
 
         if (scroller && isAtBottomRef.current) {
-          stepListFlip(
-            topDelta,
-            listFlipRef.current?.frozenHeight ?? scrollerHeightRef.current,
-            scroller,
-          );
+          stepListFlip(topDelta, scroller);
           didAnimateList = true;
         }
       }
