@@ -737,7 +737,18 @@ export function ChatRoom({
       return;
     }
 
-    containerRef.current?.setAttribute(SHEET_FLIP_ATTRIBUTE, "");
+    const container = containerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    container.setAttribute(SHEET_FLIP_ATTRIBUTE, "");
+
+    // WARN: One frame of life. The consuming measure normally wins inside this same frame, but a frame that never renders (an occluded tab) would otherwise leave the attribute standing and `readScrollEdges` silenced for good.
+    requestAnimationFrame(() => {
+      container.removeAttribute(SHEET_FLIP_ATTRIBUTE);
+    });
   }, [isEmoticonPanelOpen, sheetSwap, isKeyboardOpen]);
   const composerTransition = emoticonSheet.isDragging
     ? "transition-none"

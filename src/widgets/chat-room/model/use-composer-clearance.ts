@@ -5,6 +5,24 @@ import { KEYBOARD_OVERLAID_ATTRIBUTE, type Nullable, type Optional } from "@/sha
 import { useEffect, useRef, type RefObject } from "react";
 
 const CLEARANCE_PROPERTY = "--chat-composer-gap";
+
+// INFO: Console tracing for the FLIP work, armed by `localStorage["jandh:flipdebug"]` — inert otherwise and removed once the iPhone-only reports are closed.
+function debugLog(tag: string, data: Record<string, unknown>): void {
+  try {
+    if (localStorage.getItem("jandh:flipdebug") !== "1") {
+      return;
+    }
+  } catch {
+    return;
+  }
+
+  console.log(
+    `FLIP ${(performance.now() / 1000).toFixed(2)} ${tag}`,
+    Object.entries(data)
+      .map(([k, v]) => `${k}=${typeof v === "number" ? Math.round(v * 10) / 10 : String(v)}`)
+      .join(" "),
+  );
+}
 // WARN: The token and never `--viewport-settle-duration`, which is `0s` under two states — a `0s` transition fires no `transitionend`, and the frozen scroller would never be released.
 const FLIP_TRANSITION = "transform var(--duration-keyboard-flip) var(--ease-route)";
 
@@ -163,6 +181,7 @@ export function useComposerClearance({
         return;
       }
 
+      debugLog("finishList", { pin: shouldPin });
       listFlipRef.current = null;
       cancelAnimationFrame(listReleaseFrameRef.current ?? -1);
       listReleaseFrameRef.current = undefined;
@@ -273,6 +292,8 @@ export function useComposerClearance({
         // INFO: What the clamp and the pin actually moved a bottom-pinned view by — `0` on a list too short to scroll, where the composer's own delta would invert a shift that never happened and play it back as a yank.
         const inverted = priorOffset + (scroller.scrollTop - priorMax);
 
+        debugLog("invert", { prior: priorOffset, priorMax, st: scroller.scrollTop, inverted });
+
         if (running === null && Math.abs(inverted) <= BOTTOM_EPSILON) {
           return;
         }
@@ -306,6 +327,8 @@ export function useComposerClearance({
       const frozenScrollTop = running === null ? scroller.scrollTop : running.frozenScrollTop;
       // INFO: Where the commit's pin will land against the natural size — `0` of travel on a list too short to scroll, so nothing is eased that the unfreeze would only snap back.
       const target = frozenScrollTop - Math.max(scroller.scrollHeight - naturalHeight, 0);
+
+      debugLog("freeze", { naturalHeight, frozenScrollTop, sh: scroller.scrollHeight, target });
 
       if (running === null && Math.abs(target) <= BOTTOM_EPSILON) {
         return;
@@ -364,6 +387,20 @@ export function useComposerClearance({
       const isSheetFlipStep = container.hasAttribute(SHEET_FLIP_ATTRIBUTE) && topDelta !== 0;
 
       container.removeAttribute(SHEET_FLIP_ATTRIBUTE);
+
+      debugLog("measure", {
+        ch: containerHeight,
+        top: composerTop,
+        dTop: topDelta,
+        kb: isKeyboardStep,
+        sheet: isSheetFlipStep,
+        atBtm: isAtBottomRef.current,
+        st: scroller?.scrollTop ?? -1,
+        sh: scroller?.scrollHeight ?? -1,
+        cl: scroller?.clientHeight ?? -1,
+        refSh: scrollHeightRef.current,
+        refCh: scrollerHeightRef.current,
+      });
 
       let didAnimateList = false;
 
