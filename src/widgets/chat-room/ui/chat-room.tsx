@@ -1084,9 +1084,16 @@ export function ChatRoom({
       const size = measureRenderedElement(element, entry, instance);
       const index = instance.indexFromElement(element);
       const key = index >= 0 ? instance.options.getItemKey(index) : undefined;
+      const measured = instance.measurementsCache[index];
 
       // WARN: REQUIREMENTS.md § 8.3. `resizeItem` discards a measurement equal to the current ledger value, so a row whose estimate happened to match stays "unmeasured" — and when its estimate later moves (a § 8.9. preview resolving into the query cache), the next measurement pass re-prices the row under the reader with no resize left to correct it. Pinning the first real measurement into the cache is what makes it permanent.
-      if (key !== undefined && !instance.itemSizeCache.has(key)) {
+      // WARN: Only when the ledger already agrees. Pinned unconditionally, `resizeItem` reads the pin back, prices every estimate→actual delta at zero, and skips the correction wholesale — which held the whole room on its estimates until the next data change, visibly overlapped, on every cold entry.
+      if (
+        key !== undefined &&
+        !instance.itemSizeCache.has(key) &&
+        measured?.key === key &&
+        measured.size === size
+      ) {
         instance.itemSizeCache.set(key, size);
       }
 
