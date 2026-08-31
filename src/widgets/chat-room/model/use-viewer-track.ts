@@ -35,7 +35,10 @@ type HeldPages = Record<ChatTrackEdge, ChatTrackMedia[]>;
  *
  * INFO: `toSenderName` rather than a name per row (DESIGN.md § 7.10.). The wire carries `senderId` and the room already holds the participants it resolves against (§ 8.7.); it must be memoized, since every callback below carries its identity.
  */
-export function useViewerTrack(toSenderName: (senderId: UserId) => Optional<string>) {
+export function useViewerTrack(
+  toSenderName: (senderId: UserId) => Optional<string>,
+  onlyMeFilter = false,
+) {
   const [viewer, setViewer] = useState<Nullable<ViewerTrack>>(null);
   // INFO: State rather than only the ref beside it, because `MediaViewer` holds the page until its track goes still and has to re-render to notice one arriving (§ 8.3.).
   const [hasHeldPage, setHasHeldPage] = useState(false);
@@ -92,7 +95,7 @@ export function useViewerTrack(toSenderName: (senderId: UserId) => Optional<stri
       }
 
       try {
-        const track = await fetchConversationMedia({ around: anchorId });
+        const track = await fetchConversationMedia({ around: anchorId, onlyMeFilter });
         const index = track.findIndex((item) => item.id === anchorId);
 
         if (index < 0 || generation !== generationRef.current) {
@@ -120,7 +123,7 @@ export function useViewerTrack(toSenderName: (senderId: UserId) => Optional<stri
         // INFO: Reported nowhere on purpose — see above. The narrow track is a working viewer.
       }
     },
-    [toSenderName],
+    [toSenderName, onlyMeFilter],
   );
 
   /**
@@ -158,49 +161,53 @@ export function useViewerTrack(toSenderName: (senderId: UserId) => Optional<stri
    * WARN: Inserting at the older edge moves every slide the reader has behind them, and the scroll correction that answers for it is dropped if it lands mid-gesture (§ 8.3.) — `MediaViewer` owns that timing and calls `commit` once its track has gone still.
    * WARN: The anchor is the slide **at the edge right now**, handed over by the viewer, never a cursor this hook remembers. Nothing else prepends to a chat track — a live arrival does not enter an open one — so the ends of `cells` are always the contiguous boundary, and a withdrawal that takes the edge slide out moves the anchor to the next surviving one for free (`drop`).
    */
-  const loadEdge = useCallback(async (edge: ChatTrackEdge, anchorId: string) => {
-    if (
-      !hasMoreRef.current[edge] ||
-      isLoadingRef.current[edge] ||
-      heldRef.current[edge].length > 0
-    ) {
-      return;
-    }
-
-    const generation = generationRef.current;
-
-    isLoadingRef.current[edge] = true;
-
-    try {
-      const page = await fetchConversationMedia(
-        edge === "older" ? { before: anchorId } : { after: anchorId },
-      );
-
-      // WARN: Before the two writes below, not after. `hasMoreRef` left written by a superseded page reports an edge that belongs to a track that is gone; discarded whole, the next ask re-fetches the same rows off an unmoved edge and nothing is lost.
-      if (generation !== generationRef.current) {
+  const loadEdge = useCallback(
+    async (edge: ChatTrackEdge, anchorId: string) => {
+      if (
+        !hasMoreRef.current[edge] ||
+        isLoadingRef.current[edge] ||
+        heldRef.current[edge].length > 0
+      ) {
         return;
       }
 
-      // INFO: A page that did not fill is the end of the conversation in that direction, which is the only place the track still simply ends.
-      hasMoreRef.current[edge] = page.length >= CHAT_MEDIA_TRACK_SPAN;
+      const generation = generationRef.current;
 
-      // WARN: § 8.13. Filtered before it is held, because this request can have been issued before a withdrawal and answered after it — `drop` filters what is already held and cannot reach a page that is still in flight. Committed unexamined, those slides arrive back into the track and offer 메시지 삭제 over a message that is gone.
-      const rows = toSurvivingRows(page, droppedRef.current);
+      isLoadingRef.current[edge] = true;
 
-      heldRef.current[edge] = rows;
+      try {
+        const page = await fetchConversationMedia({
+          ...(edge === "older" ? { before: anchorId } : { after: anchorId }),
+          onlyMeFilter,
+        });
 
-      if (rows.length > 0) {
-        setHasHeldPage(true);
+        // WARN: Before the two writes below, not after. `hasMoreRef` left written by a superseded page reports an edge that belongs to a track that is gone; discarded whole, the next ask re-fetches the same rows off an unmoved edge and nothing is lost.
+        if (generation !== generationRef.current) {
+          return;
+        }
+
+        // INFO: A page that did not fill is the end of the conversation in that direction, which is the only place the track still simply ends.
+        hasMoreRef.current[edge] = page.length >= CHAT_MEDIA_TRACK_SPAN;
+
+        // WARN: § 8.13. Filtered before it is held, because this request can have been issued before a withdrawal and answered after it — `drop` filters what is already held and cannot reach a page that is still in flight. Committed unexamined, those slides arrive back into the track and offer 메시지 삭제 over a message that is gone.
+        const rows = toSurvivingRows(page, droppedRef.current);
+
+        heldRef.current[edge] = rows;
+
+        if (rows.length > 0) {
+          setHasHeldPage(true);
+        }
+      } catch {
+        // INFO: Silent for the reason `extend` is. The loaded track is a working viewer, and the next crossing asks again.
+      } finally {
+        // WARN: Guarded, or a page from a superseded open clears a flag the *current* open set and lets a second request for the same edge go out behind the first.
+        if (generation === generationRef.current) {
+          isLoadingRef.current[edge] = false;
+        }
       }
-    } catch {
-      // INFO: Silent for the reason `extend` is. The loaded track is a working viewer, and the next crossing asks again.
-    } finally {
-      // WARN: Guarded, or a page from a superseded open clears a flag the *current* open set and lets a second request for the same edge go out behind the first.
-      if (generation === generationRef.current) {
-        isLoadingRef.current[edge] = false;
-      }
-    }
-  }, []);
+    },
+    [onlyMeFilter],
+  );
 
   /**
    * REQUIREMENTS.md § 8.1. Commits whatever is held. Called by `MediaViewer` on every

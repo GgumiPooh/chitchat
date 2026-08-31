@@ -3,7 +3,7 @@ import "server-only";
 import { CHAT_MEDIA_TRACK_SPAN, VISUAL_KINDS } from "@/shared/config";
 import { getDb, media, messageMedia, messages } from "@/shared/db";
 import type { MediaId, MessageId, Optional, UserId } from "@/shared/lib";
-import { and, asc, desc, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { toChatMedia } from "../model/to-chat-media";
 import type { ChatTrackMedia } from "../model/types";
 
@@ -27,6 +27,8 @@ export type ListConversationMediaParams = {
   after?: MediaId;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — the reader this track is drawn for; a slide whose sending message is only visible to the other participant is excluded rather than shown behind a filter. */
   currentUserId: UserId;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — when true, the track is only this user's own private slides; when false, only shared ones. The same mode split `listMessages` draws, so the track never crosses bubbles the timeline is hiding. */
+  onlyMeFilter?: boolean;
 };
 
 /**
@@ -50,8 +52,11 @@ export async function listConversationMedia({
   before,
   after,
   currentUserId,
+  onlyMeFilter = false,
 }: ListConversationMediaParams): Promise<ChatTrackMedia[]> {
-  const visible = or(eq(messages.onlyMe, false), eq(messages.senderId, currentUserId))!;
+  const visible = onlyMeFilter
+    ? and(eq(messages.onlyMe, true), eq(messages.senderId, currentUserId))!
+    : eq(messages.onlyMe, false);
   const anchor = await findPosition(around ?? before ?? after, visible);
 
   if (!anchor) {

@@ -864,7 +864,9 @@ export function ChatRoom({
     [participantById],
   );
   // INFO: REQUIREMENTS.md § 8.1. The § 7.10. viewer's track, which reaches the whole conversation rather than the bubble that opened it, and pages at both of its edges.
-  const mediaTrack = useViewerTrack(toSenderName);
+  const mediaTrack = useViewerTrack(toSenderName, notifyMode === "onlyMe");
+  // INFO: Plucked for the § 16.1. mode-change effect below — `mediaTrack` itself is re-minted per render, and only this member is what the effect uses.
+  const closeMediaViewer = mediaTrack.close;
   // INFO: REQUIREMENTS.md § 9.2. Refused for the length of a search — the composer and its tray are put away there, so a drop or a paste would stage attachments the screen offers no way to send.
   // WARN: REQUIREMENTS.md § 9.2. Refused under an editor or the viewer too. React bubbles a drop through the *component* tree, so those overlays deliver one here however they are portalled — and one landing behind the crop editor stages into a tray the overlay is covering.
   const canStageAttachments = !isSearching && !editing.isEditing && !mediaTrack.viewer;
@@ -1452,10 +1454,13 @@ export function ChatRoom({
           requestAnimationFrame(scrollToBottom);
         });
       }
+
+      // INFO: REQUIREMENTS.md § 16.1. An open viewer holds the other mode's track — ⌃S can fire behind the overlay, and every slide it would page in belongs to a timeline no longer on screen.
+      closeMediaViewer();
     }
 
     wasOnlyMe.current = isOnlyMe;
-  }, [notifyMode, reloadLiveWindow, scrollToBottom]);
+  }, [notifyMode, reloadLiveWindow, scrollToBottom, closeMediaViewer]);
 
   /**
    * REQUIREMENTS.md § 8.6.1. The § 6.7. pill is also the way back from a jump, so it

@@ -9,6 +9,8 @@ export type FetchConversationMediaParams = {
   before?: string;
   /** REQUIREMENTS.md § 8.1. The track's newest loaded slide — the page after it, which extends the back. */
   after?: string;
+  /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — the device's live mode, so the track only holds slides the timeline is showing. */
+  onlyMeFilter?: boolean;
 };
 
 /**
@@ -21,6 +23,7 @@ export async function fetchConversationMedia({
   around,
   before,
   after,
+  onlyMeFilter = false,
 }: FetchConversationMediaParams): Promise<ChatTrackMedia[]> {
   const query = new URLSearchParams();
 
@@ -35,6 +38,8 @@ export async function fetchConversationMedia({
   if (after) {
     query.set("after", after);
   }
+
+  query.set("onlyMeFilter", String(onlyMeFilter));
 
   const response = await request(`${CHAT_MEDIA_PATH}?${query}`);
 

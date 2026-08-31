@@ -13,6 +13,11 @@ const querySchema = z
     // INFO: REQUIREMENTS.md § 8.1. The track's oldest and newest loaded slides — the two edges it pages past as the reader nears them.
     before: snowflakeSchema<MediaId>().optional(),
     after: snowflakeSchema<MediaId>().optional(),
+    // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the device's live mode, so the track matches the timeline the tap came from rather than mixing both modes' media.
+    onlyMeFilter: z
+      .enum(["true", "false"])
+      .transform((val) => val === "true")
+      .optional(),
   })
   // INFO: Exactly one, never a default. A request with no anchor names no position to answer from, and one naming two is a client that has confused a window with a page — `listConversationMedia` would silently prefer `around` and the caller would never learn its cursor was ignored.
   .refine(
