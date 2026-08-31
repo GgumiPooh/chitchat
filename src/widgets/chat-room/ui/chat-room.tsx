@@ -1081,7 +1081,16 @@ export function ChatRoom({
         );
       }
 
-      return measureRenderedElement(element, entry, instance);
+      const size = measureRenderedElement(element, entry, instance);
+      const index = instance.indexFromElement(element);
+      const key = index >= 0 ? instance.options.getItemKey(index) : undefined;
+
+      // WARN: REQUIREMENTS.md § 8.3. `resizeItem` discards a measurement equal to the current ledger value, so a row whose estimate happened to match stays "unmeasured" — and when its estimate later moves (a § 8.9. preview resolving into the query cache), the next measurement pass re-prices the row under the reader with no resize left to correct it. Pinning the first real measurement into the cache is what makes it permanent.
+      if (key !== undefined && !instance.itemSizeCache.has(key)) {
+        instance.itemSizeCache.set(key, size);
+      }
+
+      return size;
     },
   });
 
