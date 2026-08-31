@@ -219,8 +219,6 @@
   --duration-columns-step: 150ms;
   /* INFO: REQUIREMENTS.md § 13.6. The sheet's expand alone, sized for `--ease-sheet` to settle; every other sheet move keeps the 300ms ease-route. */
   --duration-sheet-expand: 500ms;
-  /* INFO: DESIGN.md § 3.4. The keyboard FLIP — the composer and the list easing on `transform` after the chat screen's height has landed in one shot. */
-  --duration-keyboard-flip: 300ms;
   /* INFO: DESIGN.md § 7.12. The 다가오는 일정 button's imminence bloom, and the one duration here that is not a response to a touch — it is an ambient loop over a header the reader sits under, so it is paced to breathing rather than to a gesture. */
   --duration-event-bloom: 2400ms;
   /* INFO: DESIGN.md § 7.12. The bloom's one-shot arrival, and the only swell in it — long enough for `--ease-bloom` to overshoot and settle before the breathing takes the halo over. */
@@ -331,6 +329,9 @@
   --chat-screen-height: var(--viewport-height, 100dvh);
   /* WARN: DESIGN.md § 3.4. `0s` until a height has been measured, and that is the whole of what keeps a standalone cold launch still — see the section for what iOS moves after the first paint. */
   --viewport-settle-duration: 0s;
+  /* INFO: DESIGN.md § 3.4. The keyboard FLIP — the composer and the list easing on `transform` after the chat screen's height has landed in one shot. */
+  /* WARN: Here and not in `@theme`: no utility names it, and Tailwind drops an unused `@theme` token from the build — the inline `transition` in `useComposerClearance` then computes to none and the FLIP snaps. */
+  --duration-keyboard-flip: 300ms;
   --header-lift: calc(env(safe-area-inset-top) + var(--chrome-edge-gap) + var(--keyboard-pan));
   --bar-lift: calc(env(safe-area-inset-bottom) + var(--bar-float-gap));
   /* WARN: DESIGN.md § 6.6. `useComposerClearance` overwrites this on the chat container one frame after mount; without the default here the list's trailing spacer is invalid until then and the first bottom-anchored paint parks the newest message behind the composer. */

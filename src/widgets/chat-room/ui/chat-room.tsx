@@ -1842,11 +1842,12 @@ export function ChatRoom({
       className={cn("relative min-h-0 flex-1 chat-clearance", className)}
       // INFO: REQUIREMENTS.md § 13.6. The spacer half of `--chat-bottom-gap` (theme.css), eased here so the composer's own spacer, the list's trailing one and the pills over it all move on the chat screen's clock.
       // WARN: § 13.6. The `0s` is written beside the value and not left to `[data-keyboard-overlaid]`'s token: the attribute is set from this component's layout effect, which runs *after* the picker's — and a `scrollTop` write in a child forces the recalculation that starts this transition at the token's 300ms, while the screen's height (whose value and duration change together) still snaps. That is the composer dropping a keyboard's height and climbing back.
+      // WARN: § 13.6. `isKeyboardOpen` too, not the swap alone: the render that ends a closing swap is the one that moves this value, and `isKeyboardOverlaid` is already false in it — escaped to 300ms there, the spacer eases against a screen height that snapped, and the composer jumps a keyboard's height and eases back. With the keys up and no sheet the value never moves, so the wider gate costs nothing.
       style={{
         ["--chat-composer-spacer" as string]: isEmoticonPanelOpen
           ? emoticonSheetRestHeight
           : "var(--bottom-inset)",
-        transitionDuration: isKeyboardOverlaid ? "0s" : undefined,
+        transitionDuration: isKeyboardOverlaid || isKeyboardOpen ? "0s" : undefined,
       }}
       onTransitionEnd={settleAfterPanelTransition}
       {...fileDrop.handlers}
