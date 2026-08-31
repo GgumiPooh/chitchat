@@ -748,7 +748,10 @@ export function ChatRoom({
     }
 
     // WARN: A drag-close already carried the composer down under the finger, so its FLIP would flash it back to the pre-drag top — only the list is left to ease.
-    container.setAttribute(SHEET_FLIP_ATTRIBUTE, emoticonSheet.isClosedByDrag ? SHEET_FLIP_LIST_ONLY : "");
+    container.setAttribute(
+      SHEET_FLIP_ATTRIBUTE,
+      emoticonSheet.isClosedByDrag ? SHEET_FLIP_LIST_ONLY : "",
+    );
 
     // WARN: Expired one rendering update after the consuming one, and never sooner — rAF callbacks run *before* ResizeObserver delivery inside a frame, so a single rAF removes the attribute one phase ahead of the measure that was to consume it. Without any expiry, a frame that never renders (an occluded tab) leaves the attribute standing and `readScrollEdges` silenced for good.
     requestAnimationFrame(() => {

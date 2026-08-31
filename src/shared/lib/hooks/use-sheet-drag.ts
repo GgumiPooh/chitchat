@@ -125,6 +125,17 @@ export function useSheetDrag({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size]);
 
+  // WARN: Cleared from an effect, never a rAF inside the close timer — React 18 defers a timeout's batch, so that rAF could fire first and fold true→false into one render, committing the close with transitions live and the composer gliding back up from the cap.
+  useEffect(() => {
+    if (!isResettingAfterClose) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => setIsResettingAfterClose(false));
+
+    return () => cancelAnimationFrame(frame);
+  }, [isResettingAfterClose]);
+
   return {
     size,
     expandedHeight,
@@ -357,9 +368,6 @@ export function useSheetDrag({
       setIsDraggingClose(false);
       setDragTranslateY(0);
       onClose();
-      requestAnimationFrame(() => {
-        setIsResettingAfterClose(false);
-      });
     }, 300);
   }
 

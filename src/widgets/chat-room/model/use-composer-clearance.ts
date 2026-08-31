@@ -261,7 +261,10 @@ export function useComposerClearance({
       motion.removeEventListener("transitionend", onComposerFlipTransitionEnd);
       motion.removeEventListener("transitioncancel", onComposerFlipTransitionEnd);
       motion.style.transition = "";
-      motion.style.transform = "";
+      // WARN: A drag's cancel lands here after React has already written its own transform into the same attribute — wiping it snaps the composer back for a frame until the next drag render rewrites it.
+      if (!isDraggingRef.current) {
+        motion.style.transform = "";
+      }
       motion.style.willChange = "";
     }
 
