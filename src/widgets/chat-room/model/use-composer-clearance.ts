@@ -8,6 +8,9 @@ const CLEARANCE_PROPERTY = "--chat-composer-gap";
 // WARN: The token and never `--viewport-settle-duration`, which is `0s` under two states — a `0s` transition fires no `transitionend`, and the frozen scroller would never be released.
 const FLIP_TRANSITION = "transform var(--duration-keyboard-flip) var(--ease-route)";
 
+// INFO: REQUIREMENTS.md § 13.6. The room's one-shot signal for the emoticon-panel toggle with no keyboard up — it moves the composer's own top with the container's height unchanged, the opposite of `isKeyboardStep`'s signature below, so the step is told apart by this rather than inferred.
+export const SHEET_FLIP_ATTRIBUTE = "data-sheet-flip";
+
 // INFO: Subpixel slack only — anything wider would re-pin a user who has deliberately scrolled a little way up.
 const BOTTOM_EPSILON = 1;
 
@@ -49,6 +52,13 @@ export type ComposerClearanceOptions = {
  * from having moved at all at the frame the step lands. Growth from typing moves the
  * composer with the container standing still, which is exactly what keeps the two
  * paths apart.
+ *
+ * WARN: § 13.6.'s emoticon-panel toggle with no keyboard up is a second FLIP source,
+ * told apart by `SHEET_FLIP_ATTRIBUTE` rather than by this heuristic — it moves the
+ * composer's own top exactly like a keyboard step, but leaves the container's height
+ * untouched, which the heuristic above reads as typing growth. The room's own spacer
+ * value snaps rather than eases for this case (`chat-room.tsx`), so the same
+ * invert-and-release recipe runs off one resize instead of the CSS animation's every frame.
  */
 export function useComposerClearance({
   containerRef,
@@ -311,10 +321,15 @@ export function useComposerClearance({
       containerWidthRef.current = containerWidth;
       composerTopRef.current = composerTop;
 
+      // INFO: A one-shot read — the room sets this just ahead of the toggle, and it must not survive to misread the next unrelated resize (typing growth included).
+      const isSheetFlipStep = container.hasAttribute(SHEET_FLIP_ATTRIBUTE) && topDelta !== 0;
+
+      container.removeAttribute(SHEET_FLIP_ATTRIBUTE);
+
       let didAnimateList = false;
 
       if (
-        isKeyboardStep &&
+        (isKeyboardStep || isSheetFlipStep) &&
         !document.documentElement.hasAttribute(KEYBOARD_OVERLAID_ATTRIBUTE) &&
         !reducedMotion.matches
       ) {

@@ -185,7 +185,7 @@ import { toCellsFromDrafts, toCellsFromMedia, type TrackOwner } from "../model/t
 import type { ChatRow } from "../model/types";
 import { useArrivalEmoticonSound } from "../model/use-arrival-emoticon-sound";
 import { useChatShortcuts } from "../model/use-chat-shortcuts";
-import { useComposerClearance } from "../model/use-composer-clearance";
+import { SHEET_FLIP_ATTRIBUTE, useComposerClearance } from "../model/use-composer-clearance";
 import { useEmoticonSheet } from "../model/use-emoticon-sheet";
 import { useLinkPreviewPrefetch } from "../model/use-link-preview-prefetch";
 import { useMessageHistory } from "../model/use-message-history";
@@ -721,6 +721,22 @@ export function ChatRoom({
     isAtBottomRef,
     isDraggingRef,
   });
+  // WARN: § 13.6. `hasHandledInitialSheetFlipRef` skips the mount render — `isEmoticonPanelOpen` starts `false` and has no prior position to invert from, so flagging it would arm a FLIP for a step that never moves anything.
+  const hasHandledInitialSheetFlipRef = useRef(false);
+  // INFO: § 13.6. `useComposerClearance`'s own container-height heuristic cannot tell this toggle apart from typing growth — neither moves the container — so the room marks it explicitly, just ahead of the paint that snaps `--chat-composer-spacer` below. Withheld under the keyboard-overlaid swap and the keyboard itself, which settle through their own existing paths untouched.
+  useLayoutEffect(() => {
+    if (!hasHandledInitialSheetFlipRef.current) {
+      hasHandledInitialSheetFlipRef.current = true;
+
+      return;
+    }
+
+    if (isKeyboardOverlaid || isKeyboardOpen) {
+      return;
+    }
+
+    containerRef.current?.setAttribute(SHEET_FLIP_ATTRIBUTE, "");
+  }, [isEmoticonPanelOpen, isKeyboardOverlaid, isKeyboardOpen]);
   const composerTransition = emoticonSheet.isDragging
     ? "transition-none"
     : "transition-transform duration-300 ease-route";
@@ -1840,16 +1856,14 @@ export function ChatRoom({
     <div
       ref={containerRef}
       className={cn("relative min-h-0 flex-1 chat-clearance", className)}
-      // INFO: REQUIREMENTS.md § 13.6. The spacer half of `--chat-bottom-gap` (theme.css), eased here so the composer's own spacer, the list's trailing one and the pills over it all move on the chat screen's clock.
-      // WARN: § 13.6. The `0s` is written beside the value and not left to `[data-keyboard-overlaid]`'s token: the attribute is set from this component's layout effect, which runs *after* the picker's — and a `scrollTop` write in a child forces the recalculation that starts this transition at the token's 300ms, while the screen's height (whose value and duration change together) still snaps. That is the composer dropping a keyboard's height and climbing back.
-      // WARN: § 13.6. `isKeyboardOpen` too, not the swap alone: the render that ends a closing swap is the one that moves this value, and `isKeyboardOverlaid` is already false in it — escaped to 300ms there, the spacer eases against a screen height that snapped, and the composer jumps a keyboard's height and eases back. With the keys up and no sheet the value never moves, so the wider gate costs nothing.
+      // INFO: REQUIREMENTS.md § 13.6. The spacer half of `--chat-bottom-gap` (theme.css) — the composer's own spacer, the list's trailing one and the pills over it all read this one value.
+      // WARN: § 13.6. Always `0s`. Easing this on the browser's own clock is what forced `useComposerClearance`'s `ResizeObserver` to re-measure and re-pin on every frame of the toggle with no keyboard up — the value now snaps in one layout pass, and `SHEET_FLIP_ATTRIBUTE` (above) hands the visible motion to that hook's FLIP instead, on `transform` alone.
       style={{
         ["--chat-composer-spacer" as string]: isEmoticonPanelOpen
           ? emoticonSheetRestHeight
           : "var(--bottom-inset)",
-        transitionDuration: isKeyboardOverlaid || isKeyboardOpen ? "0s" : undefined,
+        transitionDuration: "0s",
       }}
-      onTransitionEnd={settleAfterPanelTransition}
       {...fileDrop.handlers}
     >
       {chatBackgroundMediaId && (
@@ -3005,23 +3019,6 @@ export function ChatRoom({
 
     if (!isEmoticonPanelOpen) {
       setIsEmoticonSheetSettledClosed(true);
-    }
-  }
-
-  /**
-   * REQUIREMENTS.md § 13.6. The last word on where the history sits, after the
-   * strip has stopped moving.
-   *
-   * WARN: The per-frame pin `useComposerClearance` makes is not enough on its own — the collapse starts under the finger still on the toggle, and WebKit hands the scroll offset to the compositor for the length of that gesture. The transition ending is the one moment the strip's height is final and nothing else is moving.
-   */
-  function settleAfterPanelTransition(event: TransitionEvent<HTMLDivElement>) {
-    // WARN: `transitionend` bubbles, so the panel's own transitions reach this too.
-    if (event.target !== event.currentTarget || event.propertyName !== "--chat-composer-spacer") {
-      return;
-    }
-
-    if (isAtBottomRef.current) {
-      pinToBottom();
     }
   }
 
