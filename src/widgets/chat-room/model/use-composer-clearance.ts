@@ -93,9 +93,8 @@ export function useComposerClearance({
       isPinned: boolean;
     }>
   >(null);
-  // INFO: The scroll position as of the last measure or scroll event — a step's inversion is the *measured* scroll change, never the composer's delta assumed onto a list that may have had no scroll room to move.
-  const scrollTopRef = useRef(0);
-  const isWatchingScrollRef = useRef(false);
+  // INFO: `scrollHeight` as of the last measure, beside the height ref above — a pinned reader's pre-step position is the maximum those two made, which no clamp or scroll event can retroactively swallow.
+  const scrollHeightRef = useRef(0);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -184,6 +183,7 @@ export function useComposerClearance({
       scroller.style.height = "";
       // WARN: Re-read here — nothing observes the scroller itself, so the next shrink step would otherwise freeze at whatever height the last run started from.
       scrollerHeightRef.current = scroller.getBoundingClientRect().height;
+      scrollHeightRef.current = scroller.scrollHeight;
 
       if (shouldPin) {
         pinToBottom(scroller);
@@ -265,13 +265,13 @@ export function useComposerClearance({
 
       if (!usesFreeze) {
         const priorOffset = running === null ? 0 : readTranslateY(content);
-        const priorScrollTop = scrollTopRef.current;
+        // WARN: Reconstructed from the refs, never from a scroll listener — the browser's own clamp fires `scroll` before this observer runs, and a listener would hand back the post-step position as the baseline, measuring every close as zero motion.
+        const priorMax = Math.max(scrollHeightRef.current - scrollerHeightRef.current, 0);
 
         pinToBottom(scroller);
-        scrollTopRef.current = scroller.scrollTop;
 
-        // INFO: What the clamp and the pin actually moved the view by — `0` on a list too short to scroll, where the composer's own delta would invert a shift that never happened and play it back as a yank.
-        const inverted = priorOffset + (scroller.scrollTop - priorScrollTop);
+        // INFO: What the clamp and the pin actually moved a bottom-pinned view by — `0` on a list too short to scroll, where the composer's own delta would invert a shift that never happened and play it back as a yank.
+        const inverted = priorOffset + (scroller.scrollTop - priorMax);
 
         if (running === null && Math.abs(inverted) <= BOTTOM_EPSILON) {
           return;
@@ -342,18 +342,6 @@ export function useComposerClearance({
     function measure(container: HTMLElement, composer: HTMLElement) {
       const scroller = scrollerRef.current;
 
-      // INFO: The pre-step scroll position has to be current across the reader's own scrolling too, which never runs this loop.
-      if (scroller && !isWatchingScrollRef.current) {
-        isWatchingScrollRef.current = true;
-        scrollTopRef.current = scroller.scrollTop;
-        scroller.addEventListener(
-          "scroll",
-          () => {
-            scrollTopRef.current = scroller.scrollTop;
-          },
-          { passive: true },
-        );
-      }
       const { height: containerHeight, width: containerWidth } = container.getBoundingClientRect();
       const composerTop = composer.getBoundingClientRect().top;
       const priorContainerHeight = containerHeightRef.current;
@@ -436,6 +424,7 @@ export function useComposerClearance({
       clearanceRef.current = clearance;
       spacerHeightRef.current = spacerHeight;
       scrollerHeightRef.current = scrollerHeight;
+      scrollHeightRef.current = scroller?.scrollHeight ?? 0;
 
       // WARN: Only when the list FLIP actually started this step — reduced motion, `[data-keyboard-overlaid]`, and a keyboard step while scrolled away all fall through here instead, and still need the plain re-pin below.
       if (didAnimateList) {
