@@ -745,9 +745,11 @@ export function ChatRoom({
 
     container.setAttribute(SHEET_FLIP_ATTRIBUTE, "");
 
-    // WARN: One frame of life. The consuming measure normally wins inside this same frame, but a frame that never renders (an occluded tab) would otherwise leave the attribute standing and `readScrollEdges` silenced for good.
+    // WARN: Expired one rendering update after the consuming one, and never sooner — rAF callbacks run *before* ResizeObserver delivery inside a frame, so a single rAF removes the attribute one phase ahead of the measure that was to consume it. Without any expiry, a frame that never renders (an occluded tab) leaves the attribute standing and `readScrollEdges` silenced for good.
     requestAnimationFrame(() => {
-      container.removeAttribute(SHEET_FLIP_ATTRIBUTE);
+      requestAnimationFrame(() => {
+        container.removeAttribute(SHEET_FLIP_ATTRIBUTE);
+      });
     });
   }, [isEmoticonPanelOpen, sheetSwap, isKeyboardOpen]);
   const composerTransition = emoticonSheet.isDragging
