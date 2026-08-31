@@ -495,11 +495,7 @@ export function MessageRow({
               aria-label="답장한 메시지로 이동"
               onClick={onOpenReply}
             >
-              {isMine ? (
-                <CornerUpLeft className="size-4" strokeWidth={1.75} />
-              ) : (
-                <CornerUpRight className="size-4" strokeWidth={1.75} />
-              )}
+              <CornerUpLeft className="size-4" strokeWidth={1.75} />
             </button>
           )}
           {status === "failed" || status === "queued" ? (
