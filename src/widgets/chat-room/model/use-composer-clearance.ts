@@ -85,8 +85,17 @@ export function useComposerClearance({
   const composerReleaseFrameRef = useRef<Optional<number>>(undefined);
   const listReleaseFrameRef = useRef<Optional<number>>(undefined);
   // INFO: Whether the list's content wrapper is mid-FLIP, on which recipe, and the running cumulative target of a frozen run — `null` once nothing is running.
-  const listFlipRef =
-    useRef<Nullable<{ usesFreeze: boolean; target: number; isPinned: boolean }>>(null);
+  const listFlipRef = useRef<
+    Nullable<{
+      usesFreeze: boolean;
+      naturalHeight: number;
+      frozenScrollTop: number;
+      isPinned: boolean;
+    }>
+  >(null);
+  // INFO: The scroll position as of the last measure or scroll event — a step's inversion is the *measured* scroll change, never the composer's delta assumed onto a list that may have had no scroll room to move.
+  const scrollTopRef = useRef(0);
+  const isWatchingScrollRef = useRef(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -256,17 +265,31 @@ export function useComposerClearance({
 
       if (!usesFreeze) {
         const priorOffset = running === null ? 0 : readTranslateY(content);
-
-        listFlipRef.current = { usesFreeze, target: 0, isPinned: true };
+        const priorScrollTop = scrollTopRef.current;
 
         pinToBottom(scroller);
+        scrollTopRef.current = scroller.scrollTop;
+
+        // INFO: What the clamp and the pin actually moved the view by — `0` on a list too short to scroll, where the composer's own delta would invert a shift that never happened and play it back as a yank.
+        const inverted = priorOffset + (scroller.scrollTop - priorScrollTop);
+
+        if (running === null && Math.abs(inverted) <= BOTTOM_EPSILON) {
+          return;
+        }
+
+        listFlipRef.current = {
+          usesFreeze,
+          naturalHeight: scrollerHeightRef.current,
+          frozenScrollTop: scroller.scrollTop,
+          isPinned: true,
+        };
 
         if (running === null) {
           startListFlipRun(content, scroller);
         }
 
         content.style.transition = "none";
-        content.style.transform = `translateY(${priorOffset - delta}px)`;
+        content.style.transform = `translateY(${inverted}px)`;
         cancelAnimationFrame(listReleaseFrameRef.current ?? -1);
         listReleaseFrameRef.current = requestAnimationFrame(() => {
           listReleaseFrameRef.current = undefined;
@@ -277,17 +300,21 @@ export function useComposerClearance({
         return;
       }
 
-      const target = (running?.target ?? 0) + delta;
+      // INFO: The scroller is already laid out at its post-step size when a first step lands, so the natural height is read there and stepped by the composer's own delta afterwards, while the freeze hides both from the reader.
+      const naturalHeight =
+        running === null ? scroller.getBoundingClientRect().height : running.naturalHeight + delta;
+      const frozenScrollTop = running === null ? scroller.scrollTop : running.frozenScrollTop;
+      // INFO: Where the commit's pin will land against the natural size — `0` of travel on a list too short to scroll, so nothing is eased that the unfreeze would only snap back.
+      const target = frozenScrollTop - Math.max(scroller.scrollHeight - naturalHeight, 0);
 
-      listFlipRef.current = { usesFreeze, target, isPinned: true };
+      if (running === null && Math.abs(target) <= BOTTOM_EPSILON) {
+        return;
+      }
+
+      listFlipRef.current = { usesFreeze, naturalHeight, frozenScrollTop, isPinned: true };
 
       if (running === null) {
         scroller.style.height = `${scrollerHeightRef.current}px`;
-      }
-
-      pinToBottom(scroller);
-
-      if (running === null) {
         content.style.transition = FLIP_TRANSITION;
         startListFlipRun(content, scroller);
       }
@@ -314,6 +341,19 @@ export function useComposerClearance({
 
     function measure(container: HTMLElement, composer: HTMLElement) {
       const scroller = scrollerRef.current;
+
+      // INFO: The pre-step scroll position has to be current across the reader's own scrolling too, which never runs this loop.
+      if (scroller && !isWatchingScrollRef.current) {
+        isWatchingScrollRef.current = true;
+        scrollTopRef.current = scroller.scrollTop;
+        scroller.addEventListener(
+          "scroll",
+          () => {
+            scrollTopRef.current = scroller.scrollTop;
+          },
+          { passive: true },
+        );
+      }
       const { height: containerHeight, width: containerWidth } = container.getBoundingClientRect();
       const composerTop = composer.getBoundingClientRect().top;
       const priorContainerHeight = containerHeightRef.current;
