@@ -876,7 +876,7 @@ export function EmoticonPicker({
           <div className="flex shrink-0 items-center border-b border-hairline-soft">
             <div
               ref={tabStripRef}
-              className="scrollbar-hidden flex min-w-0 flex-1 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain py-2xs [&>*:first-child]:ml-2xs [&>*:last-child]:mr-2xs"
+              className="scrollbar-hidden flex min-w-0 flex-1 touch-pan-x gap-2xs overflow-x-auto overflow-y-hidden overscroll-contain py-px [&>*:first-child]:ml-2xs [&>*:last-child]:mr-2xs"
               role="toolbar"
               aria-label={kindNouns.pack}
               onKeyDown={handleTabStripKeys}
@@ -2513,7 +2513,7 @@ function TabButton({
     <HapticTarget ref={ref} className={cn("inline-flex shrink-0", className)} keepsScroll>
       <button
         className={cn(
-          "flex size-11 shrink-0 items-center justify-center rounded-md p-2xs transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
+          "flex size-12 shrink-0 items-center justify-center rounded-md p-2xs transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
           // INFO: § 8.14. Additive, for the reason the cells' is.
           isKeyboardDriven && TAB_KEYBOARD_RING,
           isActive
