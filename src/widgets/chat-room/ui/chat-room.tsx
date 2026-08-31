@@ -3044,6 +3044,11 @@ export function ChatRoom({
       return;
     }
 
+    // WARN: § 13.6. A sheet step's spacer has already snapped in this commit while the FLIP's pin only lands in the pre-paint observer — read in that window, the edges publish a one-frame "left the bottom" that flashes the pill and poisons the FLIP gate.
+    if (containerRef.current?.hasAttribute(SHEET_FLIP_ATTRIBUTE)) {
+      return;
+    }
+
     const distanceToEnd = element.scrollHeight - element.scrollTop - element.clientHeight;
     const atBottom = distanceToEnd <= AT_BOTTOM_THRESHOLD;
 
