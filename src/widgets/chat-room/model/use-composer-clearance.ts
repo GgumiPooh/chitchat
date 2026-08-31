@@ -111,8 +111,6 @@ export function useComposerClearance({
       isPinned: boolean;
     }>
   >(null);
-  // INFO: `scrollHeight` as of the last measure, beside the height ref above — a pinned reader's pre-step position is the maximum those two made, which no clamp or scroll event can retroactively swallow.
-  const scrollHeightRef = useRef(0);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -202,7 +200,6 @@ export function useComposerClearance({
       scroller.style.height = "";
       // WARN: Re-read here — nothing observes the scroller itself, so the next shrink step would otherwise freeze at whatever height the last run started from.
       scrollerHeightRef.current = scroller.getBoundingClientRect().height;
-      scrollHeightRef.current = scroller.scrollHeight;
 
       if (shouldPin) {
         pinToBottom(scroller);
@@ -284,8 +281,8 @@ export function useComposerClearance({
 
       if (!usesFreeze) {
         const priorOffset = running === null ? 0 : readTranslateY(content);
-        // WARN: Reconstructed from the refs, never from a scroll listener — the browser's own clamp fires `scroll` before this observer runs, and a listener would hand back the post-step position as the baseline, measuring every close as zero motion.
-        const priorMax = Math.max(scrollHeightRef.current - scrollerHeightRef.current, 0);
+        // WARN: Algebra over fresh reads, never a stored baseline — rows re-measure and images land between steps, so any remembered scrollHeight is stale, and the clamp fires `scroll` before this observer so a listener is post-step too. A sheet step moved `scrollHeight` by −delta and a keyboard step moved `clientHeight` by +delta, and both leave the pre-step maximum at the same expression.
+        const priorMax = Math.max(scroller.scrollHeight - scroller.clientHeight + delta, 0);
 
         pinToBottom(scroller);
 
@@ -398,7 +395,6 @@ export function useComposerClearance({
         st: scroller?.scrollTop ?? -1,
         sh: scroller?.scrollHeight ?? -1,
         cl: scroller?.clientHeight ?? -1,
-        refSh: scrollHeightRef.current,
         refCh: scrollerHeightRef.current,
       });
 
@@ -461,7 +457,6 @@ export function useComposerClearance({
       clearanceRef.current = clearance;
       spacerHeightRef.current = spacerHeight;
       scrollerHeightRef.current = scrollerHeight;
-      scrollHeightRef.current = scroller?.scrollHeight ?? 0;
 
       // WARN: Only when the list FLIP actually started this step — reduced motion, `[data-keyboard-overlaid]`, and a keyboard step while scrolled away all fall through here instead, and still need the plain re-pin below.
       if (didAnimateList) {
