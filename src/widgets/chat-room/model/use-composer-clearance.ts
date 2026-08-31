@@ -247,22 +247,31 @@ export function useComposerClearance({
       }
     }
 
-    // WARN: `transitionend` bubbles, and the rows and the composer's trays run `transform` transitions of their own — matched on the target, or a bubble's press would end the FLIP with the box still mid-flight.
-    function onComposerFlipTransitionEnd(event: TransitionEvent) {
-      const motion = composerMotionRef.current;
-
-      if (event.target !== motion || event.propertyName !== "transform" || !motion) {
-        return;
-      }
-
+    function finishComposerFlip() {
       isComposerFlippingRef.current = false;
       cancelAnimationFrame(composerReleaseFrameRef.current ?? -1);
       composerReleaseFrameRef.current = undefined;
+
+      const motion = composerMotionRef.current;
+
+      if (!motion) {
+        return;
+      }
+
       motion.removeEventListener("transitionend", onComposerFlipTransitionEnd);
       motion.removeEventListener("transitioncancel", onComposerFlipTransitionEnd);
       motion.style.transition = "";
       motion.style.transform = "";
       motion.style.willChange = "";
+    }
+
+    // WARN: `transitionend` bubbles, and the rows and the composer's trays run `transform` transitions of their own — matched on the target, or a bubble's press would end the FLIP with the box still mid-flight.
+    function onComposerFlipTransitionEnd(event: TransitionEvent) {
+      if (event.target !== composerMotionRef.current || event.propertyName !== "transform") {
+        return;
+      }
+
+      finishComposerFlip();
     }
 
     // WARN: A running CSS target, never an instant jump. The scroller is frozen at its pre-step height and re-pinned to its own bottom below, so the content has not visibly moved at the frame this runs — easing it forward to the cumulative delta is the whole of the motion, and the already-declared `transition` retargets on its own from wherever it currently sits.
@@ -409,7 +418,10 @@ export function useComposerClearance({
         (isKeyboardStep && !document.documentElement.hasAttribute(KEYBOARD_OVERLAID_ATTRIBUTE));
 
       if (isFlipStep && !reducedMotion.matches) {
-        if (sheetFlipValue !== SHEET_FLIP_LIST_ONLY) {
+        // WARN: The cleanup and not just a skip — a drag begun mid-FLIP retargets the inline transition instead of ending it, and inline beats the reset frame's `transition-none` class, easing the removed drag transform from the cap so the composer dives below its spot and slides back up.
+        if (sheetFlipValue === SHEET_FLIP_LIST_ONLY) {
+          finishComposerFlip();
+        } else {
           stepComposerFlip(topDelta);
         }
 
