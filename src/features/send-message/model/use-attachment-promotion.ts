@@ -1,11 +1,12 @@
 "use client";
 
-import { readMediaFile, type MediaDraft } from "@/entities/media";
+import type { MediaDraft } from "@/entities/media";
 import {
   revokePreview,
   toMediaDraft,
   type AttachmentEditing,
 } from "@/features/upload-media/@x/send-message";
+import { readMediaFile } from "@/shared/api";
 import { toMediaDownloadUrl } from "@/shared/config";
 import { type Nullable } from "@/shared/lib";
 import { toast } from "@/shared/ui";

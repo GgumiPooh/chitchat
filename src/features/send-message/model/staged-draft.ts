@@ -1,6 +1,5 @@
+import type { ArchiveMedia, MediaDraft } from "@/entities/media";
 import { toMediaUrl } from "@/shared/config";
-import type { MediaDraft } from "./draft";
-import type { ArchiveMedia } from "./types";
 
 /**
  * REQUIREMENTS.md § 10. 채팅으로 보내기 — an `ArchiveMedia` row worn as a

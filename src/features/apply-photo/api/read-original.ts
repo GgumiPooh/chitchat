@@ -1,4 +1,4 @@
-import { readMediaFile } from "@/entities/media";
+import { readMediaFile } from "@/shared/api";
 import { MEDIA_PATH } from "@/shared/config";
 import type { MediaId } from "@/shared/lib";
 

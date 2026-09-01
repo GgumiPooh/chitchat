@@ -1,6 +1,6 @@
-import { request } from "@/shared/api";
 import { extensionForMime } from "@/shared/config";
 import type { MediaId } from "@/shared/lib";
+import { request } from "./request";
 
 /**
  * Fetches the object `url` answers and reads it back as a `File`, named from

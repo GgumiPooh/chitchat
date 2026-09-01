@@ -1,10 +1,11 @@
 "use client";
 
-import { toStagedDraft, type MediaDraft } from "@/entities/media";
+import type { MediaDraft } from "@/entities/media";
 import { MAX_MEDIA_PER_MESSAGE } from "@/shared/config";
 import { toast } from "@/shared/ui";
 import { useEffect } from "react";
 import { takeStagedArchiveMedia } from "./staged-archive-media";
+import { toStagedDraft } from "./staged-draft";
 
 /**
  * REQUIREMENTS.md § 10. 채팅으로 보내기 — runs once on mount, staging whatever
