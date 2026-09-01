@@ -402,6 +402,8 @@ export function ChatRoom({
   const [isEmoticonPickerOpen, setIsEmoticonPickerOpen] = useState(false);
   // INFO: REQUIREMENTS.md § 8.14. Bumped to put the caret back in the composer; `0` is the resting value the composer skips, so mounting the room focuses nothing.
   const [composerFocusRequest, setComposerFocusRequest] = useState(0);
+  // INFO: REQUIREMENTS.md § 8.14. `⌘Enter`'s send with nothing focused, on `composerFocusRequest`'s own token terms — the draft lives inside `MessageComposer` and only it can submit one.
+  const [composerSubmitRequest, setComposerSubmitRequest] = useState(0);
   // INFO: REQUIREMENTS.md § 8.14. The composer's field, for the two things `composerFocusRequest` is a render too late for — a character typed with nothing focused, and the clipboard behind ⌘V.
   const composerFieldRef = useRef<Nullable<HTMLDivElement | HTMLTextAreaElement>>(null);
   // INFO: REQUIREMENTS.md § 8.14. The same token for the panel, bumped by **every** open — an opened panel nothing has focused is one the arrow keys cannot reach, and the toggle is a button, so a mouse open leaves focus on it rather than inside what it opened.
@@ -1508,6 +1510,7 @@ export function ChatRoom({
     isCovered: isSearching || editing.isEditing,
     onEscape: peelComposerStack,
     onFocusComposer: focusComposer,
+    onSendDraft: () => setComposerSubmitRequest((token) => token + 1),
     onGoToNewest: () => void goToNewest(),
     onShowShortcuts: () => setIsShortcutHelpOpen(true),
     onToggleEmoticonPanel: toggleEmoticonPanel,
@@ -2103,6 +2106,7 @@ export function ChatRoom({
                 notifyMode={notifyMode}
                 header={composerHeader()}
                 focusRequest={composerFocusRequest}
+                submitRequest={composerSubmitRequest}
                 fieldRef={composerFieldRef}
                 onToggleAiMode={toggleAiMode}
                 // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.

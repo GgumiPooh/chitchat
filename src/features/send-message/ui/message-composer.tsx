@@ -196,6 +196,12 @@ export type MessageComposerProps = {
    */
   focusRequest?: number;
   /**
+   * REQUIREMENTS.md § 8.14. Bumped by the room to send the draft — `⌘Enter` with
+   * nothing focused, on `focusRequest`'s own token terms. Answered through `submit`,
+   * so an empty draft refuses exactly as the send disc does.
+   */
+  submitRequest?: number;
+  /**
    * REQUIREMENTS.md § 8.14. The field itself, for the one caller `focusRequest` cannot
    * serve.
    *
@@ -240,6 +246,7 @@ export function MessageComposer({
   notifyMode = "notify",
   header,
   focusRequest = 0,
+  submitRequest = 0,
   fieldRef: exposedFieldRef,
   onToggleAiMode,
   onAttach,
@@ -695,6 +702,13 @@ export function MessageComposer({
       focusWithoutPan(fieldRef.current);
     }
   }, [focusRequest]);
+
+  // INFO: REQUIREMENTS.md § 8.14. `⌘Enter`'s send, on `focusRequest`'s token terms — the resting `0` is skipped so a mounting composer sends nothing.
+  useEffect(() => {
+    if (submitRequest > 0) {
+      submit();
+    }
+  }, [submitRequest]);
 
   return (
     // WARN: DESIGN.md § 3.5. Transparent to the pointer so the messages underneath stay tappable; only the pill itself takes taps.

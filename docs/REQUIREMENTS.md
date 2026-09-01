@@ -921,6 +921,7 @@ Every `⌘` below is `Ctrl` off an Apple platform, through `isCommandKey`; `⌥`
 | `⌘↓`                       | § 6.7.'s pill — jump to the newest row                                                                        | `useChatShortcuts`                     |
 | `Esc`                      | One layer off the composer's stack, caret back in it                                                          | `useChatShortcuts`                     |
 | `Enter` (nothing focused)  | Caret to the composer, and nothing else                                                                       | `useChatShortcuts`                     |
+| `⌘Enter` (nothing focused) | Send the draft where it sits — `Ctrl+Enter` accepted on any platform, as `⌘/` is                              | `useChatShortcuts` → `MessageComposer` |
 | `⌘/`                       | The sheet that lists these keys                                                                               | `useChatShortcuts` → `ShortcutHelp`    |
 | `⌃E`                       | § 13.6.'s panel open or closed — on the remembered tab, or on 검색 with the draft's word if one is underlined | `useChatShortcuts` / `MessageComposer` |
 | `⌃1` / `⌃2` / `⌃3`         | 검색 / 이모티콘 / 미니, opening the panel but never closing it                                                | `useChatShortcuts` / `MessageComposer` |

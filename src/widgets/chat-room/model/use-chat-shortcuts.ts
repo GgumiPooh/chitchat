@@ -38,6 +38,15 @@ export type ChatShortcuts = {
   onEscape: () => void;
   /** `Enter` off any control — the caret to the composer, and nothing else. */
   onFocusComposer: () => void;
+  /**
+   * REQUIREMENTS.md § 8.14. `⌘Enter` (or `Ctrl+Enter`) off any control — the draft
+   * sent without fetching the caret first.
+   *
+   * WARN: Claimed only with nothing focused, exactly as bare `Enter` is — a focused
+   * 검색 field spends its own `Enter` chords, and the composer's field already sends
+   * on bare `Enter` through its own handler.
+   */
+  onSendDraft: () => void;
   /** `⌘↓` — REQUIREMENTS.md § 6.7.'s pill, as a key. */
   onGoToNewest: () => void;
   /** `⌘/` — the sheet that says what the other keys are. */
@@ -169,7 +178,11 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
       } else if (isAltKey(event)) {
         handlers.current.onScrollHistory(event.key === "ArrowDown" ? 1 : -1);
       } else if (event.key === "Enter") {
-        handlers.current.onFocusComposer();
+        if (isBareKey(event)) {
+          handlers.current.onFocusComposer();
+        } else {
+          handlers.current.onSendDraft();
+        }
       } else if (event.key === "ArrowDown") {
         handlers.current.onGoToNewest();
       } else if (isCtrlKey(event) && isLetterKey(event, "a")) {
@@ -292,8 +305,9 @@ function isOwnedKey(event: KeyboardEvent): boolean {
     return isBareKey(event);
   }
 
+  // INFO: § 8.14. Bare fetches the caret, `⌘Enter`/`Ctrl+Enter` sends the draft where it sits — both only off any control, so a focused field keeps every `Enter` it spells itself.
   if (event.key === "Enter") {
-    return isBareKey(event) && !hasFocusedControl();
+    return (isBareKey(event) || isSendChord(event)) && !hasFocusedControl();
   }
 
   // INFO: § 8.14. `⌃E` opens § 13.6.'s panel and closes it, and it is the only key that closes it — which menu is on screen is the digits' business below.
@@ -343,6 +357,13 @@ function toEmoticonMenu(event: KeyboardEvent): Optional<EmoticonMenu> {
   }
 
   return EMOTICON_MENUS.find((_, index) => isDigitKey(event, index + 1));
+}
+
+// INFO: § 8.14. `⌘Enter` on a Mac and `Ctrl+Enter` everywhere — both accepted on the `⌘/` row's own terms, since neither spelling means anything else off a field.
+function isSendChord(event: KeyboardEvent): boolean {
+  return (
+    isCommandKey(event) || (event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey)
+  );
 }
 
 // INFO: § 8.14. `<body>` is where focus sits after a click on a bubble, on the wallpaper, or on anything else the conversation is made of.
