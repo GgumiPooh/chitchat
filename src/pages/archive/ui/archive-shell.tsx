@@ -1,23 +1,14 @@
 "use client";
 
-import type { ArchiveMonthCount } from "@/entities/media";
-import type { LibraryShelf } from "@/shared/config";
 import { formatYearMonth } from "@/shared/lib";
 import { TwoPane } from "@/shared/ui";
-import { usePathname } from "next/navigation";
 import type { PropsWithChildren } from "react";
 import { useArchiveJump } from "../model/archive-jump-context";
-import { LibrarySegments, toActiveShelf } from "./library-segments";
+import { useArchiveMonthCounts } from "../model/archive-month-counts-context";
+import { LibrarySegments } from "./library-segments";
 
 export type ArchiveShellProps = PropsWithChildren<{
   className?: string;
-  /**
-   * AGENTS.md § 4.1. `listArchiveMonthCounts`'s own totals for all
-   * three shelves, fetched once by `app/(main)/archive/layout.tsx` — this shell
-   * persists across every shelf route, so the panel reads its own shelf's list off
-   * `usePathname()` rather than being handed one shelf's worth as a prop.
-   */
-  monthCountsByShelf: Record<LibraryShelf, ArchiveMonthCount[]>;
 }>;
 
 /**
@@ -25,11 +16,12 @@ export type ArchiveShellProps = PropsWithChildren<{
  * for all three shelf routes, which is what lets the pill's travelling fill
  * (`LibrarySegments`'s `pill` variant) actually travel rather than remount cold
  * on every tap. The jump list beneath the pill reaches `{children}` through
- * `useArchiveJump` rather than a prop, since this shell never re-renders with it.
+ * `useArchiveJump` rather than a prop, since this shell never re-renders with it;
+ * its totals come from `ArchiveMonthCountsProvider`, which follows the 보기 옵션
+ * mode and the shelf's own mutations where the layout's one-shot fetch cannot.
  */
-export function ArchiveShell({ className, monthCountsByShelf, children }: ArchiveShellProps) {
-  const shelf = toActiveShelf(usePathname());
-  const months = monthCountsByShelf[shelf];
+export function ArchiveShell({ className, children }: ArchiveShellProps) {
+  const { months } = useArchiveMonthCounts();
   const { jump } = useArchiveJump();
 
   return (

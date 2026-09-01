@@ -1,5 +1,6 @@
 "use client";
 
+import { ARCHIVE_MODE_PARAM, toArchiveModeFilter, type ArchiveModeFilter } from "@/shared/config";
 import { ActionSheet, IconButton, type ActionSheetItem } from "@/shared/ui";
 import { Check, Filter, ListFilter } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -11,15 +12,15 @@ export function ArchiveFilterButton() {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);
 
-  const current = searchParams?.get("mode") ?? "all";
+  const current = toArchiveModeFilter(searchParams?.get(ARCHIVE_MODE_PARAM));
 
-  function selectFilter(val: string) {
+  function selectFilter(val: ArchiveModeFilter) {
     setIsOpen(false);
     const params = new URLSearchParams(searchParams?.toString() ?? "");
     if (val === "all") {
-      params.delete("mode");
+      params.delete(ARCHIVE_MODE_PARAM);
     } else {
-      params.set("mode", val);
+      params.set(ARCHIVE_MODE_PARAM, val);
     }
     router.replace(`?${params.toString()}`);
   }

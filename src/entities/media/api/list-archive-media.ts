@@ -1,7 +1,12 @@
 import "server-only";
 
 import { resolveDisplayName } from "@/entities/user/@x/media";
-import { ARCHIVE_PAGE_SIZE, SHELF_KINDS, type LibraryShelf } from "@/shared/config";
+import {
+  ARCHIVE_PAGE_SIZE,
+  SHELF_KINDS,
+  type ArchiveModeFilter,
+  type LibraryShelf,
+} from "@/shared/config";
 import { getDb, media, messageMedia, messages, users, type Media } from "@/shared/db";
 import type { MediaId, Nullable, Optional, UserId } from "@/shared/lib";
 import {
@@ -42,7 +47,7 @@ export type ListArchiveMediaParams = {
   limit?: number;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — the viewer this page is drawn for; a tile whose sending message is only visible to the other participant is excluded rather than shown behind a filter. */
   currentUserId: UserId;
-  modeFilter?: "all" | "onlyMe" | "shared";
+  modeFilter?: ArchiveModeFilter;
 };
 
 /**
@@ -203,7 +208,7 @@ async function findSendingMessages(mediaIds: MediaId[]): Promise<Map<string, Arc
  */
 export function isInLibrary(
   currentUserId: UserId,
-  modeFilter: "all" | "onlyMe" | "shared" = "all",
+  modeFilter: ArchiveModeFilter = "all",
 ): Optional<SQL> {
   const isPosted = exists(
     getDb()

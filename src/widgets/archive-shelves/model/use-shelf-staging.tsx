@@ -10,7 +10,13 @@ import {
   useMediaSelection,
   VideoTrimmer,
 } from "@/features/upload-media";
-import { isAllowedMediaMime, LIBRARY_SHELF_LABELS, type LibraryShelf } from "@/shared/config";
+import {
+  ARCHIVE_MODE_PARAM,
+  isAllowedMediaMime,
+  LIBRARY_SHELF_LABELS,
+  toArchiveModeFilter,
+  type LibraryShelf,
+} from "@/shared/config";
 import { BottomSheet, Button, ShellOverlay } from "@/shared/ui";
 import { Lock } from "lucide-react";
 import { useState } from "react";
@@ -30,6 +36,8 @@ export type ShelfStagingParams = {
   /** Anything covering the tray a drop would land in — a selection, the viewer (REQUIREMENTS.md § 9.2.). */
   isBlocked: boolean;
   onAdded: (media: ArchiveMedia) => void;
+  /** Fired once per batch that landed any row at all, whichever shelf took it — `onAdded` only speaks for this shelf's own rows, so a cross-filed drop reaches the panel's counts through this alone. */
+  onLanded?: () => void;
 };
 
 /**
@@ -46,17 +54,27 @@ export type ShelfStagingParams = {
  * wires the whole flow with a spread of `dropHandlers` and three slots, which is what
  * keeps the three screens from each growing their own copy of the sheet.
  */
-export function useShelfStaging({ shelf, acceptsFiles, isBlocked, onAdded }: ShelfStagingParams) {
+export function useShelfStaging({
+  shelf,
+  acceptsFiles,
+  isBlocked,
+  onAdded,
+  onLanded,
+}: ShelfStagingParams) {
   const staging = useMediaSelection({ acceptsFiles });
   const editing = useAttachmentEditing(staging.replace);
-  const { remainingCount, encodeProgress, isBusy, upload } = useArchiveUpload(shelf, onAdded);
+  const { remainingCount, encodeProgress, isBusy, upload } = useArchiveUpload(
+    shelf,
+    onAdded,
+    onLanded,
+  );
   const [isCommitting, setIsCommitting] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
 
   const searchParams =
     typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-  const modeParam = searchParams?.get("mode");
-  const uploadMode = modeParam === "onlyMe" ? true : modeParam === "shared" ? false : undefined;
+  const mode = toArchiveModeFilter(searchParams?.get(ARCHIVE_MODE_PARAM));
+  const uploadMode = mode === "onlyMe" ? true : mode === "shared" ? false : undefined;
 
   // WARN: REQUIREMENTS.md § 9.2. Refused under an editor as well as behind `isBlocked`. React bubbles a drop through the *component* tree, so `MediaEditor` and `VideoTrimmer` deliver one here however they are portalled — and the sheet is suppressed for exactly their duration, so the drop would land in a tray the user cannot see.
   const drop = useFileDrop({

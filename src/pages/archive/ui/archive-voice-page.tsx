@@ -3,6 +3,7 @@
 import type { ArchiveMedia } from "@/entities/media";
 import { useWriteArchiveSnapshot } from "@/features/offline-snapshot";
 import { toVoiceDraft, VoiceRecorderBar, type VoiceRecording } from "@/features/upload-media";
+import type { ArchiveModeFilter } from "@/shared/config";
 import { cn, stopVoice } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { downloadMedia } from "@/shared/share";
@@ -19,12 +20,15 @@ import {
 import { AudioLines, ListChecks, Mic, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useArchiveJump } from "../model/archive-jump-context";
+import { useArchiveMonthCounts } from "../model/archive-month-counts-context";
 import { ArchiveFilterButton } from "./archive-filter-button";
 import { LibrarySegments } from "./library-segments";
 
 export type ArchiveVoicePageProps = {
   className?: string;
   initialMedia: ArchiveMedia[];
+  /** REQUIREMENTS.md § 10. The 보기 옵션 mode `initialMedia` was drawn under — paging must ask with the same one. */
+  modeFilter?: ArchiveModeFilter;
 };
 
 /**
@@ -33,14 +37,22 @@ export type ArchiveVoicePageProps = {
  * sheet would be handed `{uuid}.bin` and a recording has no `media.filename` to name
  * it by. 저장 is unaffected, since the server names the download itself.
  */
-export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePageProps) {
+export function ArchiveVoicePage({
+  className,
+  initialMedia,
+  modeFilter = "all",
+}: ArchiveVoicePageProps) {
   const [isRecording, setIsRecording] = useState(false);
   const { media, isLoadingMore, loadMore, prepend, remove } = useArchiveMedia(
     initialMedia,
     "voice",
+    undefined,
+    modeFilter,
   );
 
   useWriteArchiveSnapshot("archive-voice", media);
+  // INFO: REQUIREMENTS.md § 10. The `lg` panel's totals follow what this list adds and removes.
+  const { invalidate: invalidateMonthCounts } = useArchiveMonthCounts();
   // INFO: REQUIREMENTS.md § 9.3. `savesToPhotoLibrary: false` — a recording downloads on iOS too, so neither the § 10. cap nor the merged 저장/공유 row applies.
   // INFO: § 18. #1. 삭제, its confirmation and the reconciliation of what the server took — shared with the other two shelves (`useArchiveRemoval`).
   const removal = useArchiveRemoval({
@@ -48,6 +60,7 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
     onRemoved: (ids) => {
       remove(ids);
       selection.cancel();
+      invalidateMonthCounts();
     },
   });
   const selection = useArchiveSelection({ savesToPhotoLibrary: false, countUnit: "개" });
@@ -57,6 +70,7 @@ export function ArchiveVoicePage({ className, initialMedia }: ArchiveVoicePagePr
     acceptsFiles: true,
     isBlocked: selection.isSelecting || isRecording,
     onAdded: prepend,
+    onLanded: invalidateMonthCounts,
   });
   const selectedCount = selection.selectedIds.length;
   const uploadGate = useOfflineGate(OFFLINE_MESSAGES.upload);

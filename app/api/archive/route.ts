@@ -2,6 +2,7 @@ import { destroyArchiveMedia, listArchiveMedia } from "@/entities/media";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import {
+  ARCHIVE_MODE_FILTERS,
   ARCHIVE_PAGE_SIZE,
   LIBRARY_SHELVES,
   MAX_ARCHIVE_PAGE_SIZE,
@@ -55,7 +56,7 @@ const querySchema = z.object({
   // INFO: REQUIREMENTS.md § 10. The photo 보관함 is to open on, for the position jump.
   around: snowflakeSchema<MediaId>().optional(),
   limit: z.coerce.number().int().positive().optional(),
-  modeFilter: z.enum(["all", "onlyMe", "shared"]).optional(),
+  modeFilter: z.enum(ARCHIVE_MODE_FILTERS).optional(),
 });
 
 const bodySchema = z.object({

@@ -1,6 +1,6 @@
 import type { ArchiveMedia } from "@/entities/media";
 import { request } from "@/shared/api";
-import { ARCHIVE_PATH, type LibraryShelf } from "@/shared/config";
+import { ARCHIVE_PATH, type ArchiveModeFilter, type LibraryShelf } from "@/shared/config";
 
 export type FetchArchiveMediaParams = {
   /** Which segment is being paged (REQUIREMENTS.md § 10.); the server answers 400 for a value it does not know. */
@@ -11,7 +11,7 @@ export type FetchArchiveMediaParams = {
   after?: string;
   /** REQUIREMENTS.md § 10. A `media` id to centre the window on, for the position jump. */
   around?: string;
-  modeFilter?: "all" | "onlyMe" | "shared";
+  modeFilter?: ArchiveModeFilter;
 };
 
 /** One page of one library segment — the one after `before`, before `after`, or `around` a given tile (REQUIREMENTS.md § 10.). */

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ArchiveMedia } from "@/entities/media";
-import { ARCHIVE_PAGE_SIZE, type LibraryShelf } from "@/shared/config";
+import { ARCHIVE_PAGE_SIZE, type ArchiveModeFilter, type LibraryShelf } from "@/shared/config";
 import { compareId, type Nullable, type Optional } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { josa } from "es-hangul";
@@ -19,11 +19,14 @@ import { fetchArchiveMedia } from "../api/fetch-archive-media";
  *
  * INFO: `targetId` is § 10.'s position jump, and the only thing this hook wants from
  * it is whether the window it was handed starts at the newest row or in the middle.
+ *
+ * INFO: `modeFilter` is fixed for the same reason `shelf` is — § 10.'s 보기 옵션 keys the page component, so a mode change remounts with a window the server drew under it.
  */
 export function useArchiveMedia(
   initialMedia: ArchiveMedia[],
   shelf: LibraryShelf = "gallery",
   targetId?: string,
+  modeFilter: ArchiveModeFilter = "all",
 ) {
   const [media, setMedia] = useState(initialMedia);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -68,6 +71,7 @@ export function useArchiveMedia(
       const older = await fetchArchiveMedia({
         shelf,
         before: oldest.id,
+        modeFilter,
       });
 
       hasMoreRef.current = older.length >= ARCHIVE_PAGE_SIZE;
@@ -86,7 +90,7 @@ export function useArchiveMedia(
       isLoadingRef.current = false;
       setIsLoadingMore(false);
     }
-  }, [commit, shelf]);
+  }, [commit, modeFilter, shelf]);
 
   /**
    * REQUIREMENTS.md § 10. The page directly newer than the window's top, for a window
@@ -118,6 +122,7 @@ export function useArchiveMedia(
       const newer = await fetchArchiveMedia({
         shelf,
         after: windowTop.id,
+        modeFilter,
       });
 
       // INFO: No generation to check against, unlike § 8.6.1.'s windows. This page is measured from `windowTopRef`, which an upload deliberately does not move — so nothing an upload does while it is in flight can make its rows the wrong ones, and `insertNewer` places them behind that upload rather than in front of it.
@@ -130,7 +135,7 @@ export function useArchiveMedia(
       isLoadingNewerRef.current = false;
       setIsLoadingNewer(false);
     }
-  }, [shelf]);
+  }, [modeFilter, shelf]);
 
   /**
    * REQUIREMENTS.md § 10. Called by the grid once its scroller is still, so the

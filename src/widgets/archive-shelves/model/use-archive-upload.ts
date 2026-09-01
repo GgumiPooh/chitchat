@@ -4,9 +4,11 @@ import type { ArchiveMedia, MediaDraft, MediaUpload } from "@/entities/media";
 import { postMessage, toBubbles, toDraftKind } from "@/features/send-message";
 import { revokePreview, uploadDraft } from "@/features/upload-media";
 import {
+  ARCHIVE_MODE_PARAM,
   LIBRARY_SHELF_LABELS,
   MAX_UPLOAD_INFLIGHT_BYTES,
   UPLOAD_CONCURRENCY,
+  toArchiveModeFilter,
   toMediaCountUnit,
   type LibraryShelf,
 } from "@/shared/config";
@@ -47,7 +49,11 @@ type Uploaded = {
  * attachment happen inside that one request now, so there is no row to prepend before
  * it returns, and so a failed post here leaves nothing registered to roll back.
  */
-export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMedia) => void) {
+export function useArchiveUpload(
+  shelf: LibraryShelf,
+  onAdded: (media: ArchiveMedia) => void,
+  onLanded?: () => void,
+) {
   // WARN: Every write to these two is relative, never absolute. A second pick while the first batch is running is an ordinary thing to do, and an absolute `setRemainingCount(n)` would wipe the batch already in flight — then the first batch finishing would zero the counter under the second and flip the screen to its empty state mid-upload.
   const [remainingCount, setRemainingCount] = useState(0);
   // INFO: § 9. The re-encode that precedes each PUT — a count alone does not move for the minutes a video spends being transcoded.
@@ -56,8 +62,8 @@ export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMe
 
   const searchParams =
     typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-  const modeParam = searchParams?.get("mode");
-  const uploadMode = modeParam === "onlyMe" ? true : modeParam === "shared" ? false : undefined;
+  const mode = toArchiveModeFilter(searchParams?.get(ARCHIVE_MODE_PARAM));
+  const uploadMode = mode === "onlyMe" ? true : mode === "shared" ? false : undefined;
 
   const upload = useCallback(
     async (drafts: MediaDraft[]) => {
@@ -99,6 +105,11 @@ export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMe
 
         const { landed, failedToPostCount } = await post(uploaded, onAdded, shelf, uploadMode);
 
+        // INFO: `onAdded` above only speaks for this shelf's own rows, and a cross-filed row still moved another shelf's month totals.
+        if (landed.length > 0) {
+          onLanded?.();
+        }
+
         // INFO: Only what actually landed, or the "went to another shelf" line names rows that went nowhere.
         reportOtherShelves(landed, shelf);
 
@@ -118,7 +129,7 @@ export function useArchiveUpload(shelf: LibraryShelf, onAdded: (media: ArchiveMe
         setRunningCount((current) => Math.max(current - 1, 0));
       }
     },
-    [shelf, onAdded],
+    [shelf, onAdded, onLanded],
   );
 
   // WARN: `isBusy` outlives `remainingCount`. It stays true through `post`, which is the window in which the batch's bubbles are still landing.

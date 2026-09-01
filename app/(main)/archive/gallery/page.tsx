@@ -1,7 +1,12 @@
 import { listArchiveMedia } from "@/entities/media";
 import { ArchivePage } from "@/pages/archive";
 import { requireUserOrRedirect } from "@/shared/auth";
-import { ARCHIVE_TARGET_PARAM, snowflakeSchema } from "@/shared/config";
+import {
+  ARCHIVE_MODE_PARAM,
+  ARCHIVE_TARGET_PARAM,
+  snowflakeSchema,
+  toArchiveModeFilter,
+} from "@/shared/config";
 import type { Maybe, MediaId, Optional } from "@/shared/lib";
 
 type PageProps = {
@@ -13,13 +18,13 @@ export default async function Page({ searchParams }: PageProps) {
   const params = await searchParams;
   // INFO: REQUIREMENTS.md § 10. 채팅's viewer taps through carrying the photo it was showing, and the window comes back centred on that tile rather than on the newest one.
   const targetId = toMediaId(params[ARCHIVE_TARGET_PARAM]);
-  const rawMode = params["mode"];
-  const modeFilter = rawMode === "onlyMe" ? "onlyMe" : rawMode === "shared" ? "shared" : "all";
+  const modeFilter = toArchiveModeFilter(params[ARCHIVE_MODE_PARAM]);
 
   return (
     <ArchivePage
       key={`${targetId ?? ""}-${modeFilter}`}
       targetId={targetId}
+      modeFilter={modeFilter}
       initialMedia={await listArchiveMedia({
         around: targetId,
         currentUserId: user.id,

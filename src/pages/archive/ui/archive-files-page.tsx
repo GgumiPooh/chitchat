@@ -3,6 +3,7 @@
 import type { ArchiveMedia } from "@/entities/media";
 import { useWriteArchiveSnapshot } from "@/features/offline-snapshot";
 import { MediaPickerSheet } from "@/features/upload-media";
+import type { ArchiveModeFilter } from "@/shared/config";
 import { cn, stopVoice } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import {
@@ -25,12 +26,15 @@ import {
 import { FilePlus, Files, ListChecks, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useArchiveJump } from "../model/archive-jump-context";
+import { useArchiveMonthCounts } from "../model/archive-month-counts-context";
 import { ArchiveFilterButton } from "./archive-filter-button";
 import { LibrarySegments } from "./library-segments";
 
 export type ArchiveFilesPageProps = {
   className?: string;
   initialMedia: ArchiveMedia[];
+  /** REQUIREMENTS.md § 10. The 보기 옵션 mode `initialMedia` was drawn under — paging must ask with the same one. */
+  modeFilter?: ArchiveModeFilter;
 };
 
 /**
@@ -40,11 +44,22 @@ export type ArchiveFilesPageProps = {
  * attachment's only exception is a play control beside the card; the card itself
  * still saves.
  */
-export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPageProps) {
+export function ArchiveFilesPage({
+  className,
+  initialMedia,
+  modeFilter = "all",
+}: ArchiveFilesPageProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const { media, isLoadingMore, loadMore, prepend, remove } = useArchiveMedia(initialMedia, "file");
+  const { media, isLoadingMore, loadMore, prepend, remove } = useArchiveMedia(
+    initialMedia,
+    "file",
+    undefined,
+    modeFilter,
+  );
 
   useWriteArchiveSnapshot("archive-files", media);
+  // INFO: REQUIREMENTS.md § 10. The `lg` panel's totals follow what this list adds and removes.
+  const { invalidate: invalidateMonthCounts } = useArchiveMonthCounts();
   // INFO: REQUIREMENTS.md § 9.1. `savesToPhotoLibrary: false` — a file downloads on iOS too, so neither the cap nor the merged 저장/공유 row of § 10. applies here.
   // INFO: § 18. #1. 삭제, its confirmation and the reconciliation of what the server took — shared with the other two shelves (`useArchiveRemoval`).
   const removal = useArchiveRemoval({
@@ -52,6 +67,7 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
     onRemoved: (ids) => {
       remove(ids);
       selection.cancel();
+      invalidateMonthCounts();
     },
   });
   const selection = useArchiveSelection({ savesToPhotoLibrary: false, countUnit: "개" });
@@ -62,6 +78,7 @@ export function ArchiveFilesPage({ className, initialMedia }: ArchiveFilesPagePr
     acceptsFiles: true,
     isBlocked: selection.isSelecting,
     onAdded: prepend,
+    onLanded: invalidateMonthCounts,
   });
   const selectedCount = selection.selectedIds.length;
   const uploadGate = useOfflineGate(OFFLINE_MESSAGES.upload);

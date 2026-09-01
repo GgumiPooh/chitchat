@@ -1,5 +1,5 @@
 import { listArchiveMonthCounts } from "@/entities/media";
-import { ArchiveJumpProvider, ArchiveShell } from "@/pages/archive";
+import { ArchiveJumpProvider, ArchiveMonthCountsProvider, ArchiveShell } from "@/pages/archive";
 import { requireUserOrRedirect } from "@/shared/auth";
 import type { PropsWithChildren } from "react";
 
@@ -7,8 +7,10 @@ import type { PropsWithChildren } from "react";
  * AGENTS.md § 4.1. Persists `ArchiveShell` (the `lg` panel) across the three shelf
  * routes — a route-scoped `page.tsx` remounts on every navigation, and the pill's
  * travelling fill (`LibrarySegments`) needs to survive that to have anything to
- * travel from. All three shelves' month counts are fetched here, once, since the
- * panel needs the other two on hand before the tap that switches to them.
+ * travel from. All three shelves' 전체보기 month counts are fetched here, once, as
+ * the panel's first-paint seed — a layout reads no `searchParams`, so following
+ * the 보기 옵션 mode from here is impossible and `ArchiveMonthCountsProvider`'s
+ * client query owns every count after this render.
  */
 export default async function ArchiveLayout({ children }: PropsWithChildren) {
   const user = await requireUserOrRedirect();
@@ -20,7 +22,9 @@ export default async function ArchiveLayout({ children }: PropsWithChildren) {
 
   return (
     <ArchiveJumpProvider>
-      <ArchiveShell monthCountsByShelf={{ gallery, file, voice }}>{children}</ArchiveShell>
+      <ArchiveMonthCountsProvider seed={{ gallery, file, voice }}>
+        <ArchiveShell>{children}</ArchiveShell>
+      </ArchiveMonthCountsProvider>
     </ArchiveJumpProvider>
   );
 }

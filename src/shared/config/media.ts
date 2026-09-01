@@ -10,6 +10,21 @@ export const MEDIA_PATH = "/api/media";
 /** REQUIREMENTS.md § 10. Lists the library and takes rows back out of it. */
 export const ARCHIVE_PATH = "/api/archive";
 
+/** REQUIREMENTS.md § 10. Month totals for the `lg` panel's jump list, per shelf and mode. */
+export const ARCHIVE_MONTH_COUNTS_PATH = "/api/archive/month-counts";
+
+/** REQUIREMENTS.md § 10., § 16.1. 보관함's 보기 옵션 — the visibility slice every shelf listing answers with, carried as `?mode=` on the shelf routes. */
+export const ARCHIVE_MODE_PARAM = "mode";
+
+export const ARCHIVE_MODE_FILTERS = ["all", "shared", "onlyMe"] as const;
+
+export type ArchiveModeFilter = (typeof ARCHIVE_MODE_FILTERS)[number];
+
+// WARN: `"all"` for anything unknown, never a rejection — `?mode=` is a URL anybody can type.
+export function toArchiveModeFilter(value: unknown): ArchiveModeFilter {
+  return value === "onlyMe" || value === "shared" ? value : "all";
+}
+
 /** REQUIREMENTS.md § 8.1. The conversation's own photos and videos, in the order they were sent — the § 7.10. viewer's track in 채팅. */
 export const CHAT_MEDIA_PATH = "/api/chat/media";
 

@@ -5,7 +5,13 @@ import { useApplyPhoto } from "@/features/apply-photo";
 import { useWriteArchiveSnapshot } from "@/features/offline-snapshot";
 import { useSilentSend } from "@/features/silent-send";
 import { useMediaPicker } from "@/features/upload-media";
-import { CHAT_MESSAGE_PARAM, CHAT_MODE_PARAM, CHAT_ROUTE, toMediaLabel } from "@/shared/config";
+import {
+  CHAT_MESSAGE_PARAM,
+  CHAT_MODE_PARAM,
+  CHAT_ROUTE,
+  toMediaLabel,
+  type ArchiveModeFilter,
+} from "@/shared/config";
 import { cn, startMediaMorph, type MediaId, type Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import {
@@ -31,6 +37,7 @@ import { ImagePlus, Images, LayoutGrid, ListChecks, MessageCircle, X } from "luc
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useArchiveJump } from "../model/archive-jump-context";
+import { useArchiveMonthCounts } from "../model/archive-month-counts-context";
 import { ArchiveFilterButton } from "./archive-filter-button";
 import { LibrarySegments } from "./library-segments";
 
@@ -39,6 +46,8 @@ export type ArchivePageProps = {
   initialMedia: ArchiveMedia[];
   /** REQUIREMENTS.md § 10. The photo 채팅's viewer sent the reader here to see, from `?target=`; the window above already came back centred on it. */
   targetId?: MediaId;
+  /** REQUIREMENTS.md § 10. The 보기 옵션 mode `initialMedia` was drawn under — paging must ask with the same one, or the pages beyond the first window ignore the filter. */
+  modeFilter?: ArchiveModeFilter;
 };
 
 /**
@@ -46,7 +55,12 @@ export type ArchivePageProps = {
  * exchanged, newest first. `media` is the single source, so nothing here is a copy
  * of a chat row.
  */
-export function ArchivePage({ className, initialMedia, targetId }: ArchivePageProps) {
+export function ArchivePage({
+  className,
+  initialMedia,
+  targetId,
+  modeFilter = "all",
+}: ArchivePageProps) {
   const silentSend = useSilentSend();
   const router = useRouter();
   const [viewer, setViewer] = useState<Nullable<{ cells: MediaCell[]; index: number }>>(null);
@@ -62,8 +76,10 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
     insertNewer,
     prepend,
     remove,
-  } = useArchiveMedia(initialMedia, "gallery", targetId);
+  } = useArchiveMedia(initialMedia, "gallery", targetId, modeFilter);
   useWriteArchiveSnapshot("archive-gallery", media);
+  // INFO: REQUIREMENTS.md § 10. The `lg` panel's totals follow what this grid adds and removes.
+  const { invalidate: invalidateMonthCounts } = useArchiveMonthCounts();
   // INFO: § 18. #1. 삭제, its confirmation and the reconciliation of what the server took — all three shelves share it (`useArchiveRemoval`).
   const removal = useArchiveRemoval({
     noun: "photo",
@@ -71,6 +87,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
       remove(ids);
       selection.cancel();
       dropFromViewer(ids);
+      invalidateMonthCounts();
     },
   });
   const selection = useArchiveSelection();
@@ -83,6 +100,7 @@ export function ArchivePage({ className, initialMedia, targetId }: ArchivePagePr
     acceptsFiles: false,
     isBlocked: selection.isSelecting || viewer !== null,
     onAdded: prepend,
+    onLanded: invalidateMonthCounts,
   });
   // INFO: REQUIREMENTS.md § 10. 갤러리 추가 opens the album picker outright — this shelf takes photos and videos and nothing else, so there was never a choice for a sheet to offer.
   const picker = useMediaPicker({ isMultiple: true, onSelect: staging.add });
