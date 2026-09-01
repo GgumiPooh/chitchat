@@ -167,6 +167,7 @@ export function MirrorChatRow({
           durationMs={voiceCell.durationMs ?? 0}
           peaks={voiceCell.voice?.peaks ?? []}
           isMine={isMine}
+          isSilent={message.silent}
         />
       );
     }
@@ -243,7 +244,15 @@ export function MirrorChatRow({
 
   function renderAttachment(media: ChatMedia, index: number) {
     if (media.filename) {
-      return <FileCard key={media.id} filename={media.filename} sizeBytes={media.size} disabled />;
+      return (
+        <FileCard
+          key={media.id}
+          filename={media.filename}
+          sizeBytes={media.size}
+          isSilent={message.silent}
+          disabled
+        />
+      );
     }
 
     return (
@@ -252,6 +261,7 @@ export function MirrorChatRow({
         className="rounded-bubble"
         cell={toMirrorCell(media)}
         maxWidth={ATTACHMENT_WIDTH}
+        isSilent={message.silent}
         // INFO: Once per bubble. The boxes are stacked rather than gridded here, so the second one down would be the same sentence twice on one message.
         isIconOnly={index > 0}
       />

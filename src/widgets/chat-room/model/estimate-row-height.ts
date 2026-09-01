@@ -267,8 +267,8 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
           context,
           {
             isFirstOfGroup: row.isFirstOfGroup,
-            // INFO: § 8.13. The timestamp and nothing else — a tombstone carries neither the unread count nor 수정됨.
-            besideLines: Number(row.isLastOfGroup),
+            // INFO: § 8.13. The timestamp, and § 16.1.'s mark which survives the delete as `only_me` does — a tombstone carries neither the unread count nor 수정됨.
+            besideLines: Number(row.isLastOfGroup) + Number(row.message.silent),
           },
         );
       }
@@ -291,6 +291,7 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
       );
     case "pending":
       // INFO: An optimistic bubble is always mine, so it never carries the avatar column or a sender name — nor the unread count, since it has not been sent and nobody could have read it.
+      // INFO: REQUIREMENTS.md § 16.1. The payload's own mode, the same source the render reads — the § 16.1. mark is a line here exactly as on a landed row.
       // WARN: § 8.3. The ids are derived here because a pending row holds the emoticons *whole* and the sent one holds their ids — dropped, an optimistic bubble prices as though its emoticons were not in it and corrects the scroll the moment it renders.
       return estimateMessageRow(
         {
@@ -300,7 +301,10 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
         },
         true,
         context,
-        { isFirstOfGroup: row.isFirstOfGroup, besideLines: Number(row.isLastOfGroup) },
+        {
+          isFirstOfGroup: row.isFirstOfGroup,
+          besideLines: Number(row.isLastOfGroup) + Number(row.pending.notifyMode === "silent"),
+        },
       );
   }
 }

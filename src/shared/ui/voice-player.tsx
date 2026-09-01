@@ -18,6 +18,8 @@ export type VoicePlayerProps = {
   isMine: boolean;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — a ring rather than a fill swap, since the card already reserves the fixed `h-14` § 8.3.'s estimate depends on and a ring (`box-shadow`) cannot change it. */
   isOnlyMe?: boolean;
+  /** REQUIREMENTS.md § 16.1. 조용히 보내기 — the text bubble's own quieter fill and dashed line, since this card already reads off the bubble pair. */
+  isSilent?: boolean;
   /** Still uploading. Dims to 60% (`DESIGN.md § 6.5.`) but stays playable, since the local blob is already a source. */
   isPending?: boolean;
 };
@@ -41,6 +43,7 @@ export function VoicePlayer({
   peaks,
   isMine,
   isOnlyMe = false,
+  isSilent = false,
   isPending = false,
 }: VoicePlayerProps) {
   const { isActive, isPlaying, positionMs, progress, toggle, seekToRatio } = useVoicePlayback(
@@ -69,9 +72,13 @@ export function VoicePlayer({
           ? isMine
             ? "bg-bubble-mine-private"
             : "border border-transparent bg-bubble-theirs-private"
-          : isMine
-            ? "bg-bubble-mine"
-            : "border border-hairline bg-bubble-theirs",
+          : isSilent
+            ? isMine
+              ? "bg-bubble-mine-silent outline-1 -outline-offset-1 outline-bubble-silent-line outline-dashed"
+              : "border border-dashed border-bubble-silent-line bg-bubble-theirs-silent"
+            : isMine
+              ? "bg-bubble-mine"
+              : "border border-hairline bg-bubble-theirs",
         // INFO: DESIGN.md § 6.5. An optimistic bubble dims rather than spinning.
         isPending && "opacity-60",
         className,

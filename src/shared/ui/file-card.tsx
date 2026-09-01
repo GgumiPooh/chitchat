@@ -9,6 +9,8 @@ export type FileCardProps = ComponentProps<"button"> & {
   isSelected?: boolean;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — a ring, since the card is already a fixed `h-14` § 8.3.'s estimate depends on. */
   isOnlyMe?: boolean;
+  /** REQUIREMENTS.md § 16.1. 조용히 보내기 — the card's own priced border restyled to the dashed `bubble-silent-line`, its neutral fill kept. */
+  isSilent?: boolean;
   /** The row's trailing edge — the 보관함 list puts its selection mark here; a bubble leaves it empty. */
   trailing?: ReactNode;
   /**
@@ -48,6 +50,7 @@ export function FileCard({
   sizeBytes,
   isSelected = false,
   isOnlyMe = false,
+  isSilent = false,
   trailing,
   meta,
   progress,
@@ -60,7 +63,9 @@ export function FileCard({
         // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the other theme's own surface, exactly as `bubble-mine-private` swaps a text bubble's fill, rather than a ring on a card that already carries a border.
         isOnlyMe
           ? "border-transparent bg-surface-soft-private"
-          : "border-hairline bg-surface-soft hover:bg-surface-strong active:bg-surface-pressed",
+          : isSilent
+            ? "border-dashed border-bubble-silent-line bg-surface-soft hover:bg-surface-strong active:bg-surface-pressed"
+            : "border-hairline bg-surface-soft hover:bg-surface-strong active:bg-surface-pressed",
         // INFO: DESIGN.md § 7.10. A ring rather than the grid's 90% inset — a row has no photograph to shrink, and the mark beside it is what says which state this is.
         isSelected && "border-primary ring-1 ring-primary",
         className,

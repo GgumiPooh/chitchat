@@ -6,6 +6,7 @@ import {
   MediaTombstone,
   PreloadImage,
   PrivateRing,
+  SilentRing,
   toCellRatio,
   type MediaCell,
 } from "@/shared/ui";
@@ -35,6 +36,8 @@ export type MediaGridProps = {
   isPending?: boolean;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — rings every tile/card rather than recolouring, since none of these has a fill of its own to swap. */
   isOnlyMe?: boolean;
+  /** REQUIREMENTS.md § 16.1. 조용히 보내기 — a dashed `SilentRing` per tile and the file card's dashed border, on the ring's own terms. */
+  isSilent?: boolean;
   /** DESIGN.md § 6.5.1. The cell currently re-encoding, paired with `encodeProgress`. `null` outside that phase, e.g. once its upload has started or for a bubble of stills, which never encode. */
   encodingIndex?: Nullable<number>;
   /** `0`–`1` for the cell at `encodingIndex`. Ignored unless that index is set. */
@@ -52,6 +55,7 @@ export function MediaGrid({
   progress = 1,
   isPending = false,
   isOnlyMe = false,
+  isSilent = false,
   encodingIndex = null,
   encodeProgress = null,
   onOpen,
@@ -112,6 +116,7 @@ export function MediaGrid({
               // INFO: A draft has no stored object yet, so the card is inert until the upload registers one.
               disabled={cell.downloadUrl === null}
               isOnlyMe={isOnlyMe}
+              isSilent={isSilent}
               aria-label={`${cell.filename} 저장`}
               onClick={() => onOpen?.(index)}
             />
@@ -158,6 +163,7 @@ export function MediaGrid({
           {/* WARN: REQUIREMENTS.md § 16.1. `PrivateRing`, not a ring class on this span — `PreloadImage` fills the span exactly, so an inset ring here paints under it, and an outward one is clipped by the outer wrapper's `overflow-hidden`. */}
           {/* WARN: `rounded-md` matches the outer wrapper's own radius — `PrivateRing`'s box-shadow follows its own border-box, not the ancestor's, so left sharp it draws square corners inside the rounded clip. */}
           {isOnlyMe && <PrivateRing className="rounded-md" />}
+          {isSilent && <SilentRing className="rounded-md" />}
         </span>
       </button>
     );
@@ -204,6 +210,7 @@ export function MediaGrid({
               {renderVideoOverlay(cell, index)}
               {/* WARN: REQUIREMENTS.md § 16.1. `PrivateRing`, not a ring class on this button — `overflow-hidden` above clips this element's children, and `PreloadImage` fills the button exactly either way. */}
               {isOnlyMe && <PrivateRing className="rounded-sm" />}
+              {isSilent && <SilentRing className="rounded-sm" />}
             </button>
           ),
         )}

@@ -401,6 +401,7 @@ export function MessageRow({
                   peaks={voiceCell.voice?.peaks ?? []}
                   isMine={isMine}
                   isOnlyMe={isOnlyMe}
+                  isSilent={isSilent}
                   isPending={status !== "sent"}
                 />
               )}
@@ -414,6 +415,7 @@ export function MessageRow({
                 progress={progress}
                 isPending={status !== "sent"}
                 isOnlyMe={isOnlyMe}
+                isSilent={isSilent}
                 encodingIndex={encodingIndex}
                 encodeProgress={encodeProgress}
                 onOpen={onOpenMedia}
@@ -571,7 +573,13 @@ export function MessageRow({
                   {/* WARN: `h-[1lh]` on the shared line so marker and mark together cost exactly the one `chat-time` line `estimateRowHeight` prices as a single predicate. */}
                   {/* WARN: `tabular-nums` so a count that changes under the reader cannot change the line's width, and `aria-label` because a bare digit beside a bubble reads as nothing to a screen reader. */}
                   {(unreadCount > 0 || isSilent) && (
-                    <span className="flex h-[1lh] items-center gap-1">
+                    // INFO: Reversed on `theirs` so the mark hugs the bubble's edge on both sides — the column itself flips sides, the glyphs' meaning does not.
+                    <span
+                      className={cn(
+                        "flex h-[1lh] items-center gap-1",
+                        !isMine && "flex-row-reverse",
+                      )}
+                    >
                       {unreadCount > 0 &&
                         (readerTotal === 1 ? (
                           // INFO: REQUIREMENTS.md § 8.8. One reader has no count to make — a `1` that only ever reads `1` is a heart, and it leaves at zero exactly as the digit did.

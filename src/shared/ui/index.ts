@@ -60,6 +60,7 @@ export { ShellOverlay, type ShellOverlayProps } from "./shell-overlay";
 export { SideDrawer, type SideDrawerProps } from "./side-drawer";
 export { SidePanel, type SidePanelProps } from "./side-panel";
 export { SidePanelSync } from "./side-panel-sync";
+export { SilentRing, type SilentRingProps } from "./silent-ring";
 export { Skeleton, type SkeletonProps } from "./skeleton";
 export { Slider, type SliderProps } from "./slider";
 export { Toaster, toast, type ToasterProps } from "./sonner";

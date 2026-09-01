@@ -2,6 +2,7 @@ import { toMediaLabel } from "@/shared/config";
 import { cn, type Maybe, type Optional } from "@/shared/lib";
 import {
   MediaTombstone,
+  SilentRing,
   toBlurhashAverage,
   toCellNoun,
   toCellRatio,
@@ -20,6 +21,8 @@ export type MirrorMediaBoxProps = {
   isSquare?: boolean;
   /** Leaves the icon to say it alone, for a box that is one of several saying the same thing. */
   isIconOnly?: boolean;
+  /** REQUIREMENTS.md § 16.1. 조용히 보내기 — the live tile's own dashed `SilentRing`. */
+  isSilent?: boolean;
 };
 
 /**
@@ -35,10 +38,11 @@ export function MirrorMediaBox({
   maxWidth,
   isSquare,
   isIconOnly,
+  isSilent,
 }: MirrorMediaBoxProps) {
   return (
     <div
-      className={cn("overflow-hidden rounded-md bg-surface-soft", className)}
+      className={cn("relative overflow-hidden rounded-md bg-surface-soft", className)}
       style={{
         width: toWidth(cell.width, maxWidth),
         // WARN: An inline ratio beats any `aspect-*` a caller passes, so the square has to be asked for here — left to the class it held only for the rows whose stored geometry happened to be missing, and the grid came out ragged.
@@ -47,6 +51,7 @@ export function MirrorMediaBox({
       }}
     >
       {cell.isDeleted ? <MediaTombstone cell={cell} /> : renderNotice()}
+      {isSilent && !cell.isDeleted && <SilentRing className="rounded-md" />}
     </div>
   );
 

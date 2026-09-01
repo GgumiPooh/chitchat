@@ -3266,6 +3266,8 @@ export function ChatRoom({
             isMine
             // INFO: REQUIREMENTS.md § 16.1. The live mode rather than a field on `PendingMessage` — an optimistic bubble is on screen only for as long as its own send is in flight, and `POST /api/messages` reads the same cookie at that same moment.
             isOnlyMe={notifyMode === "onlyMe"}
+            // INFO: REQUIREMENTS.md § 16.1. The payload's own mode, not the cookie — a queued send outliving a switch posts in the mode it was typed in, and the mark must not flip with the header while it waits.
+            isSilent={row.pending.notifyMode === "silent"}
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
             hasNotch={row.hasNotch}
@@ -3304,6 +3306,8 @@ export function ChatRoom({
               sender={participantById.get(row.message.senderId)}
               isMine={row.isMine}
               isOnlyMe={row.message.onlyMe}
+              // INFO: REQUIREMENTS.md § 16.1. `silent` survives the delete exactly as `only_me` does, so the tombstone keeps the mark and the quiet fill.
+              isSilent={row.message.silent}
               isFirstOfGroup={row.isFirstOfGroup}
               isLastOfGroup={row.isLastOfGroup}
               hasNotch={row.hasNotch}
