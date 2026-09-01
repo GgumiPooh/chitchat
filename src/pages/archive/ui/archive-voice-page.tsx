@@ -20,7 +20,7 @@ import {
 import { AudioLines, ListChecks, Mic, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useArchiveJump } from "../model/archive-jump-context";
-import { useArchiveMonthCounts } from "../model/archive-month-counts-context";
+import { useInvalidateArchiveMonthCounts } from "../model/archive-month-counts-context";
 import { ArchiveFilterButton } from "./archive-filter-button";
 import { LibrarySegments } from "./library-segments";
 
@@ -52,7 +52,7 @@ export function ArchiveVoicePage({
 
   useWriteArchiveSnapshot("archive-voice", media);
   // INFO: REQUIREMENTS.md § 10. The `lg` panel's totals follow what this list adds and removes.
-  const { invalidate: invalidateMonthCounts } = useArchiveMonthCounts();
+  const invalidateMonthCounts = useInvalidateArchiveMonthCounts();
   // INFO: REQUIREMENTS.md § 9.3. `savesToPhotoLibrary: false` — a recording downloads on iOS too, so neither the § 10. cap nor the merged 저장/공유 row applies.
   // INFO: § 18. #1. 삭제, its confirmation and the reconciliation of what the server took — shared with the other two shelves (`useArchiveRemoval`).
   const removal = useArchiveRemoval({

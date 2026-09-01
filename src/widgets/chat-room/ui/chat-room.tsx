@@ -56,6 +56,7 @@ import { useProfileViewer } from "@/features/view-profile";
 import { request } from "@/shared/api";
 import {
   ARCHIVE_GALLERY_ROUTE,
+  ARCHIVE_MODE_PARAM,
   ARCHIVE_TARGET_PARAM,
   CHAT_AI_PATH,
   CHAT_MESSAGE_PARAM,
@@ -3619,7 +3620,7 @@ export function ChatRoom({
     mediaTrack.close();
     const params = new URLSearchParams({ [ARCHIVE_TARGET_PARAM]: cell.id });
     if (cell.onlyMe) {
-      params.set("mode", "onlyMe");
+      params.set(ARCHIVE_MODE_PARAM, "onlyMe");
     }
     router.push(`${ARCHIVE_GALLERY_ROUTE}?${params}`);
   }

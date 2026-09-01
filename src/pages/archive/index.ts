@@ -2,6 +2,7 @@ export { ArchiveJumpProvider, useArchiveJump } from "./model/archive-jump-contex
 export {
   ArchiveMonthCountsProvider,
   useArchiveMonthCounts,
+  useInvalidateArchiveMonthCounts,
   type ArchiveMonthCountsProviderProps,
 } from "./model/archive-month-counts-context";
 export { ArchiveFilesPage, type ArchiveFilesPageProps } from "./ui/archive-files-page";

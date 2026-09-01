@@ -21,7 +21,7 @@ export type ArchiveShellProps = PropsWithChildren<{
  * mode and the shelf's own mutations where the layout's one-shot fetch cannot.
  */
 export function ArchiveShell({ className, children }: ArchiveShellProps) {
-  const { months } = useArchiveMonthCounts();
+  const months = useArchiveMonthCounts();
   const { jump } = useArchiveJump();
 
   return (

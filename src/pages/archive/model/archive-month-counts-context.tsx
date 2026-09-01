@@ -16,14 +16,10 @@ import { toActiveShelf } from "../ui/library-segments";
 
 type CountsEntry = { months: ArchiveMonthCount[]; generation: number };
 
-type ArchiveMonthCountsValue = {
-  /** The mounted shelf's totals under the active 보기 옵션 mode — the last resolved list while a fresher one is in flight. */
-  months: ArchiveMonthCount[];
-  /** Called by whatever changes what a month holds — an upload landing, a 삭제 — so every cached list is refetched before it is shown again. */
-  invalidate: () => void;
-};
+// INFO: Two contexts, not one value object. The shelf pages consume only `invalidate` and render nothing from the totals — folded together, every resolved refetch re-rendered the whole grid tree for a panel that is `lg`-only.
+const ArchiveMonthCountsContext = createContext<Nullable<ArchiveMonthCount[]>>(null);
 
-const ArchiveMonthCountsContext = createContext<Nullable<ArchiveMonthCountsValue>>(null);
+const InvalidateArchiveMonthCountsContext = createContext<Nullable<() => void>>(null);
 
 export type ArchiveMonthCountsProviderProps = PropsWithChildren<{
   /** `archive/layout.tsx`'s server-rendered 전체보기 totals, so the panel's first paint costs no round trip. */
@@ -76,18 +72,34 @@ export function ArchiveMonthCountsProvider({ seed, children }: ArchiveMonthCount
   const months = entry?.months ?? cache[toKey(shelf, "all")]?.months ?? [];
 
   return (
-    <ArchiveMonthCountsContext value={{ months, invalidate }}>{children}</ArchiveMonthCountsContext>
+    <InvalidateArchiveMonthCountsContext value={invalidate}>
+      <ArchiveMonthCountsContext value={months}>{children}</ArchiveMonthCountsContext>
+    </InvalidateArchiveMonthCountsContext>
   );
 }
 
-export function useArchiveMonthCounts(): ArchiveMonthCountsValue {
-  const context = useContext(ArchiveMonthCountsContext);
+/** The mounted shelf's totals under the active 보기 옵션 mode — the last resolved list while a fresher one is in flight. */
+export function useArchiveMonthCounts(): ArchiveMonthCount[] {
+  const months = useContext(ArchiveMonthCountsContext);
 
-  if (!context) {
+  if (!months) {
     throw new Error("useArchiveMonthCounts must be used within ArchiveMonthCountsProvider");
   }
 
-  return context;
+  return months;
+}
+
+/** Called by whatever changes what a month holds — an upload landing, a 삭제 — so every cached list is refetched before it is shown again. */
+export function useInvalidateArchiveMonthCounts(): () => void {
+  const invalidate = useContext(InvalidateArchiveMonthCountsContext);
+
+  if (!invalidate) {
+    throw new Error(
+      "useInvalidateArchiveMonthCounts must be used within ArchiveMonthCountsProvider",
+    );
+  }
+
+  return invalidate;
 }
 
 function toKey(shelf: LibraryShelf, mode: ArchiveModeFilter): string {

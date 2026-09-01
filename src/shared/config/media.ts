@@ -21,8 +21,11 @@ export const ARCHIVE_MODE_FILTERS = ["all", "shared", "onlyMe"] as const;
 export type ArchiveModeFilter = (typeof ARCHIVE_MODE_FILTERS)[number];
 
 // WARN: `"all"` for anything unknown, never a rejection — `?mode=` is a URL anybody can type.
+// INFO: A repeated param reads as its first value, because that is what `URLSearchParams.get` answers — the server pages hand this the raw `string[]`, and diverging from the client's read split the grid from the counts.
 export function toArchiveModeFilter(value: unknown): ArchiveModeFilter {
-  return value === "onlyMe" || value === "shared" ? value : "all";
+  const first = Array.isArray(value) ? (value[0] as unknown) : value;
+
+  return first === "onlyMe" || first === "shared" ? first : "all";
 }
 
 /** REQUIREMENTS.md § 8.1. The conversation's own photos and videos, in the order they were sent — the § 7.10. viewer's track in 채팅. */

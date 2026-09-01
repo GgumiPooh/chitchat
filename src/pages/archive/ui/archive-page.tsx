@@ -37,7 +37,7 @@ import { ImagePlus, Images, LayoutGrid, ListChecks, MessageCircle, X } from "luc
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useArchiveJump } from "../model/archive-jump-context";
-import { useArchiveMonthCounts } from "../model/archive-month-counts-context";
+import { useInvalidateArchiveMonthCounts } from "../model/archive-month-counts-context";
 import { ArchiveFilterButton } from "./archive-filter-button";
 import { LibrarySegments } from "./library-segments";
 
@@ -79,7 +79,7 @@ export function ArchivePage({
   } = useArchiveMedia(initialMedia, "gallery", targetId, modeFilter);
   useWriteArchiveSnapshot("archive-gallery", media);
   // INFO: REQUIREMENTS.md § 10. The `lg` panel's totals follow what this grid adds and removes.
-  const { invalidate: invalidateMonthCounts } = useArchiveMonthCounts();
+  const invalidateMonthCounts = useInvalidateArchiveMonthCounts();
   // INFO: § 18. #1. 삭제, its confirmation and the reconciliation of what the server took — all three shelves share it (`useArchiveRemoval`).
   const removal = useArchiveRemoval({
     noun: "photo",
