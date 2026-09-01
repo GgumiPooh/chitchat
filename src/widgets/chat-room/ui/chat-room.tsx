@@ -251,8 +251,10 @@ export type ChatRoomProps = {
    * through and not a target that can be named again.
    */
   initialJumpMessageId?: Maybe<MessageId>;
-  /** REQUIREMENTS.md § 16.1. The mode `initialJumpMessageId` lives in, so the jump does not borrow the room's filter — which `useCookieState` reports a render late after 보관함 sets it. */
+  /** REQUIREMENTS.md § 16.1. The mode `initialJumpMessageId` lives in, so a target from a foreign or stale link does not borrow the room's own live filter. */
   initialJumpOnlyMe?: boolean;
+  /** REQUIREMENTS.md § 16.1. The mode the server-rendered `initialMessages` window was actually fetched under — `activeFilterMode` seeds from this rather than from `notifyMode`, since a jump's target and the room's own filter can legitimately disagree. */
+  initialOnlyMeFilter: boolean;
   /**
    * REQUIREMENTS.md § 8.6.1. The open search's query, lit inside every bubble
    * that contains it — which is what marks a search jump, in place of the
@@ -340,6 +342,7 @@ export function ChatRoom({
   jumpTarget,
   initialJumpMessageId,
   initialJumpOnlyMe,
+  initialOnlyMeFilter,
   searchQuery,
   bottomBar,
   notifyMode = "notify",
@@ -519,7 +522,8 @@ export function ChatRoom({
     replaceMessage,
     catchUp,
     reconcile,
-  } = useMessageHistory(initialMessages, notifyMode === "onlyMe");
+    isWindowReplacing,
+  } = useMessageHistory(initialMessages, notifyMode === "onlyMe", initialOnlyMeFilter);
   // INFO: REQUIREMENTS.md § 16., § 16.2. The room is the only place the loaded window exists, so the offline transcript is stored from here rather than from the screen above it.
   useWriteChatSnapshot(messages, hasNewer, activeFilterMode);
   // INFO: REQUIREMENTS.md § 8.5. The composer's AI 질문 모드 — which settled messages ride along as an AI question's context.
@@ -1453,31 +1457,32 @@ export function ChatRoom({
   }, []);
 
   /**
-   * REQUIREMENTS.md § 16.1. Switching between 나에게만 보내기 and the shared timeline
-   * swaps the message list for a much shorter or longer subset, leaving the scroll offset
-   * parked in the middle of history. Pulling the scroller to the bottom lands the reader
-   * at the newest message.
+   * REQUIREMENTS.md § 16.1. Converges the loaded window onto the room's own filter
+   * whenever the two disagree, and pulls the scroller to the newest message once it has.
+   *
+   * WARN: `isWindowReplacing()` guards against racing a `loadAround`/`reloadLiveWindow`
+   * already in flight — its own commit sets `activeFilterMode` and re-runs this effect.
    */
-  const wasOnlyMe = useRef(notifyMode === "onlyMe");
-  const isInitialJumpPending = useRef(Boolean(initialJumpMessageId));
-
   useEffect(() => {
     const isOnlyMe = notifyMode === "onlyMe";
-    if (wasOnlyMe.current !== isOnlyMe) {
-      if (isInitialJumpPending.current) {
-        isInitialJumpPending.current = false;
-      } else {
-        void reloadLiveWindow(isOnlyMe).then(() => {
-          requestAnimationFrame(scrollToBottom);
-        });
-      }
 
-      // INFO: REQUIREMENTS.md § 16.1. An open viewer holds the other mode's track — ⌃S can fire behind the overlay, and every slide it would page in belongs to a timeline no longer on screen.
-      closeMediaViewer();
+    if (activeFilterMode === isOnlyMe || isWindowReplacing()) {
+      return;
     }
 
-    wasOnlyMe.current = isOnlyMe;
-  }, [notifyMode, reloadLiveWindow, scrollToBottom, closeMediaViewer]);
+    // INFO: REQUIREMENTS.md § 16.1. An open viewer holds the other mode's track — ⌃S can fire behind the overlay, and every slide it would page in belongs to a timeline no longer on screen.
+    closeMediaViewer();
+    void reloadLiveWindow(isOnlyMe).then(() => {
+      requestAnimationFrame(scrollToBottom);
+    });
+  }, [
+    activeFilterMode,
+    notifyMode,
+    reloadLiveWindow,
+    scrollToBottom,
+    closeMediaViewer,
+    isWindowReplacing,
+  ]);
 
   /**
    * REQUIREMENTS.md § 8.6.1. The § 6.7. pill is also the way back from a jump, so it

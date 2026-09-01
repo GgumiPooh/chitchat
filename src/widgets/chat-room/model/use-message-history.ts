@@ -37,10 +37,14 @@ const OLDER_FAILURE_TOAST_ID = "chat-older-failed";
  * message id (REQUIREMENTS.md § 8.2.); the newest page arrives from the server
  * render, so opening the tab costs no client round trip.
  */
-export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter = false) {
+export function useMessageHistory(
+  initialMessages: ChatMessage[],
+  liveOnlyMeFilter: boolean,
+  initialOnlyMeFilter: boolean,
+) {
   const [messages, setMessages] = useState(initialMessages);
   // INFO: REQUIREMENTS.md § 16.1. The filter mode corresponding to current messages on screen.
-  const [activeFilterMode, setActiveFilterMode] = useState(onlyMeFilter);
+  const [activeFilterMode, setActiveFilterMode] = useState(initialOnlyMeFilter);
   // INFO: True from the fetch starting until the page is actually in the list, which is what keeps the § 8.3. loading header up across the wait for a still scroller.
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   // INFO: True while switching between normal/silent mode and onlyMe mode when there is no cached window yet.
@@ -53,14 +57,20 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
   const [hasNewer, setHasNewer] = useState(false);
   const messagesRef = useRef(initialMessages);
   // INFO: REQUIREMENTS.md § 16.1. Cache the live message window separately for general (false) and onlyMe (true) modes for 0ms instantaneous mode switches.
-  const generalMessagesRef = useRef<Nullable<ChatMessage[]>>(onlyMeFilter ? null : initialMessages);
-  const onlyMeMessagesRef = useRef<Nullable<ChatMessage[]>>(onlyMeFilter ? initialMessages : null);
+  const generalMessagesRef = useRef<Nullable<ChatMessage[]>>(
+    initialOnlyMeFilter ? null : initialMessages,
+  );
+  const onlyMeMessagesRef = useRef<Nullable<ChatMessage[]>>(
+    initialOnlyMeFilter ? initialMessages : null,
+  );
   const isLoadingRef = useRef(false);
   // INFO: A short first page cannot have more behind it, so the upward fetch is never even attempted.
   const hasOlderRef = useRef(initialMessages.length >= MESSAGE_PAGE_SIZE);
   const hasNewerRef = useRef(false);
-  const onlyMeFilterRef = useRef(onlyMeFilter);
-  onlyMeFilterRef.current = onlyMeFilter;
+  const onlyMeFilterRef = useRef(liveOnlyMeFilter);
+  onlyMeFilterRef.current = liveOnlyMeFilter;
+  // INFO: REQUIREMENTS.md § 16.1. Set for as long as the most recent window replacement (`loadAround`/`returnToLive`/`reloadLiveWindow`) has not yet committed its own label — the room's reconciler reads this to avoid starting a second replacement while one is already converging the mismatch.
+  const isReplacingRef = useRef(false);
   // INFO: REQUIREMENTS.md § 8.2. The gap-recovery cursor. Tracked apart from the loaded window because it only ever moves forward — a delete must not walk it back and have § 8.4.'s catch-up refetch what was already seen.
   // WARN: § 8.6.1.'s jump moves the *window* into the past and leaves this alone. They are two different questions: what is on screen, and what this client has already been told about.
   // INFO: REQUIREMENTS.md § 8.4. `"0"` is the "from the start of the conversation" cursor — below every id the generator can mint.
@@ -74,6 +84,15 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
     messagesRef.current = update(messagesRef.current);
     setMessages(messagesRef.current);
   }, []);
+
+  // INFO: REQUIREMENTS.md § 16.1. The one path allowed to replace the window whole — pairing the rows with the mode they belong to is what makes a stale label impossible to write.
+  const commitWindow = useCallback(
+    (rows: ChatMessage[], mode: boolean) => {
+      commit(() => rows);
+      setActiveFilterMode(mode);
+    },
+    [commit],
+  );
 
   /**
    * WARN: REQUIREMENTS.md § 8.13. The held page of § 8.3. is a **second** list, and
@@ -92,9 +111,12 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
   }, []);
 
   // WARN: The lock is released only by the load that still owns the window. A superseded pager clearing it would hand it back while the replacement is still fetching.
+  // WARN: REQUIREMENTS.md § 16.1. `setIsSwitchingMode(false)` belongs here rather than at each replacement's own call site — a `reloadLiveWindow` superseded by a jump mid-fetch used to leave the flag stuck true forever, since its own generation-guarded clear never ran. Clearing it wherever the *current* generation's load ends, success or failure, is what makes the spinner leave with whichever replacement actually finishes.
   const endLoad = useCallback((generation: number) => {
     if (generation === windowId.current) {
       isLoadingRef.current = false;
+      isReplacingRef.current = false;
+      setIsSwitchingMode(false);
     }
   }, []);
 
@@ -189,6 +211,7 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
   const beginReplacement = useCallback(() => {
     windowId.current += 1;
     isLoadingRef.current = true;
+    isReplacingRef.current = true;
     discardPendingOlder();
 
     return windowId.current;
@@ -329,8 +352,7 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
         hasOlderRef.current = true;
         hasNewerRef.current = true;
         setHasNewer(true);
-        setActiveFilterMode(targetIsOnlyMe);
-        commit(() => around);
+        commitWindow(around, targetIsOnlyMe);
 
         return "ok";
       } catch {
@@ -345,7 +367,7 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
         endLoad(generation);
       }
     },
-    [beginReplacement, commit, endLoad],
+    [beginReplacement, commitWindow, endLoad],
   );
 
   /** REQUIREMENTS.md § 8.6.1. The downward half of paging, which only a jumped-away window ever needs. */
@@ -432,10 +454,10 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
       hasOlderRef.current = page.length >= MESSAGE_PAGE_SIZE;
       newestKnownIdRef.current = maxId(newestKnownIdRef.current, newestId);
       // INFO: Anything that arrived while the page was in flight is newer than it, so it is carried over rather than replaced away.
-      commit((previous) => [
-        ...page,
-        ...previous.filter((entry) => compareId(entry.id, newestId) > 0),
-      ]);
+      commitWindow(
+        [...page, ...messagesRef.current.filter((entry) => compareId(entry.id, newestId) > 0)],
+        onlyMeFilterRef.current,
+      );
 
       return true;
     } catch {
@@ -447,7 +469,7 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
     } finally {
       endLoad(generation);
     }
-  }, [beginReplacement, commit, endLoad]);
+  }, [beginReplacement, commitWindow, endLoad]);
 
   /**
    * REQUIREMENTS.md § 16.1. 나에게만 보내기 mode toggle.
@@ -477,8 +499,7 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
 
       if (cached) {
         hasOlderRef.current = cached.length >= MESSAGE_PAGE_SIZE;
-        commit(() => cached);
-        setActiveFilterMode(targetIsOnlyMe);
+        commitWindow(cached, targetIsOnlyMe);
         setIsSwitchingMode(false);
       } else {
         setIsSwitchingMode(true);
@@ -499,8 +520,7 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
         } else {
           generalMessagesRef.current = page;
         }
-        commit(() => page);
-        setActiveFilterMode(targetIsOnlyMe);
+        commitWindow(page, targetIsOnlyMe);
 
         return true;
       } catch {
@@ -510,13 +530,10 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
 
         return false;
       } finally {
-        if (generation === windowId.current) {
-          setIsSwitchingMode(false);
-        }
         endLoad(generation);
       }
     },
-    [activeFilterMode, beginReplacement, commit, endLoad],
+    [activeFilterMode, beginReplacement, commitWindow, endLoad],
   );
 
   /**
@@ -628,6 +645,9 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
     [commit, commitPending],
   );
 
+  // INFO: A plain read of the ref rather than state — the room's reconciler needs the value at the moment its effect runs, not a re-render whenever it flips.
+  const isWindowReplacing = useCallback(() => isReplacingRef.current, []);
+
   return {
     messages,
     activeFilterMode,
@@ -646,6 +666,7 @@ export function useMessageHistory(initialMessages: ChatMessage[], onlyMeFilter =
     replaceMessage,
     catchUp,
     reconcile,
+    isWindowReplacing,
   };
 }
 

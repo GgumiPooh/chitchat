@@ -56,6 +56,8 @@ export type ChatScreenProps = {
   jumpMessageId?: Maybe<MessageId>;
   /** REQUIREMENTS.md § 16.1. The mode that message lives in, handed to the jump alongside it. */
   jumpOnlyMe?: boolean;
+  /** REQUIREMENTS.md § 16.1. The mode `initialMessages` was actually fetched under, for `ChatRoom`'s own initial label. */
+  initialOnlyMeFilter: boolean;
 };
 
 /**
@@ -74,6 +76,7 @@ export function ChatScreen({
   initialSummary,
   jumpMessageId,
   jumpOnlyMe,
+  initialOnlyMeFilter,
 }: ChatScreenProps) {
   const silentSend = useSilentSend();
   const search = useMessageSearch(silentSend.mode === "onlyMe");
@@ -331,6 +334,7 @@ export function ChatScreen({
             // WARN: REQUIREMENTS.md § 10. A prop of its own rather than a fallback for the target above. Closing the search takes its target back to null, and a fallback would read that as a fresh instruction — jumping back to the tile's message from wherever the reader had got to.
             initialJumpMessageId={jumpMessageId}
             initialJumpOnlyMe={jumpOnlyMe}
+            initialOnlyMeFilter={initialOnlyMeFilter}
             searchQuery={search.isOpen ? search.submitted : undefined}
             notifyMode={silentSend.mode}
             bottomBar={

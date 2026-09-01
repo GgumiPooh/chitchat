@@ -65,6 +65,7 @@ export async function ChatPage({
       initialSummary={summary}
       jumpMessageId={jumpMessageId}
       jumpOnlyMe={jumpOnlyMe}
+      initialOnlyMeFilter={onlyMeFilter}
     />
   );
 }

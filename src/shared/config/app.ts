@@ -90,7 +90,7 @@ export const CHAT_ROUTE = "/chat";
  */
 export const CHAT_MESSAGE_PARAM = "message";
 
-// WARN: REQUIREMENTS.md § 16.1. Rides beside `CHAT_MESSAGE_PARAM` so the jump fetches with the target's own mode — the cookie `openInChat` also sets lands a render late in `useCookieState`, and `loadAround` read that stale filter.
+// INFO: REQUIREMENTS.md § 16.1. Rides beside `CHAT_MESSAGE_PARAM`, binding the target's own mode to the URL for the server's initial window and for a reload or a shared link.
 export const CHAT_MODE_PARAM = "mode";
 
 /**
