@@ -1,4 +1,4 @@
-import type { ArchiveMedia, MediaUpload } from "@/entities/media";
+import type { ArchiveMedia, MediaAttachmentInput } from "@/entities/media";
 import type { ChatMessage } from "@/entities/message";
 import { request } from "@/shared/api";
 import type { InlineEmoticonMap, NotifyMode } from "@/shared/config";
@@ -8,12 +8,12 @@ import type { EmoticonItemId, MessageId } from "@/shared/lib";
 type ReplyParams = { replyToId?: MessageId; notifyMode?: NotifyMode; onlyMe?: boolean };
 
 // INFO: REQUIREMENTS.md § 6. Text, attachments, or one emoticon — never a combination. The route's schema and the table's CHECK constraint say the same thing.
-// WARN: The finished restructure. `media`, not `mediaIds` — an attachment is registered and attached in the same transaction the message is created by, so the route takes what `uploadDraft` put in R2 rather than an id from an earlier registration.
+// WARN: `media`, not `mediaIds` — an item is either a fresh upload registered and attached in the same transaction the message is created by, or REQUIREMENTS.md § 10.x.'s 채팅으로 보내기 re-reference of a row already in the library, told apart by `MediaAttachmentInput`'s own union.
 export type PostMessageParams = ReplyParams &
   // INFO: REQUIREMENTS.md § 13. One id per `OBJECT_PLACEHOLDER` in the text; the route refuses a body whose halves disagree.
   (
     | { clientMsgId: string; text: string; inlineEmoticonItemIds?: EmoticonItemId[] }
-    | { clientMsgId: string; media: MediaUpload[]; isAiAttachment?: boolean }
+    | { clientMsgId: string; media: MediaAttachmentInput[]; isAiAttachment?: boolean }
     | { clientMsgId: string; emoticonItemId: EmoticonItemId }
   );
 

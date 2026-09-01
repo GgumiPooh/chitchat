@@ -8,11 +8,15 @@ export { EMOTICON_MENUS, type EmoticonMenu } from "./model/emoticon-tabs";
 export { useEmoticonPreload } from "./model/use-emoticon-preload";
 // INFO: REQUIREMENTS.md § 13.6. 최근 "사용" is recorded at the send, which the room owns — the picker only reads the list back.
 export { useRecentEmoticons } from "./model/use-recent-emoticons";
+// INFO: REQUIREMENTS.md § 10. 채팅으로 보내기 — 보관함 calls `stageArchiveMedia` before navigating here; the composer consumes it through `useStagedMediaIntake`.
+export { stageArchiveMedia } from "./model/staged-archive-media";
+export { useAttachmentPromotion, type AttachmentPromotion } from "./model/use-attachment-promotion";
 export {
   useSendMessage,
   type PendingMessage,
   type UseSendMessageParams,
 } from "./model/use-send-message";
+export { useStagedMediaIntake } from "./model/use-staged-media-intake";
 export {
   DOUBLE_TAP_WINDOW,
   EmoticonPicker,

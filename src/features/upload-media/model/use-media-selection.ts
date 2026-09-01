@@ -100,6 +100,9 @@ export function useMediaSelection({ acceptsFiles = false }: UseMediaSelectionPar
     [commit],
   );
 
+  // INFO: REQUIREMENTS.md § 10. 채팅으로 보내기 — `useAttachmentPromotion` checks this after an id-backed draft's original finishes downloading, since the tile it was opened for may have been removed from the tray in the meantime.
+  const has = useCallback((id: string) => draftsRef.current.some((draft) => draft.id === id), []);
+
   const remove = useCallback(
     (id: string) => {
       commit((previous) => {
@@ -166,5 +169,6 @@ export function useMediaSelection({ acceptsFiles = false }: UseMediaSelectionPar
     replace,
     takeAll,
     clear,
+    has,
   };
 }

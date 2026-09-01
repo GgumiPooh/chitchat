@@ -53,7 +53,7 @@ export async function deleteMessage(id: MessageId, senderId: UserId): Promise<bo
               carried.map((row) => row.mediaId),
             ),
             isNull(media.deletedAt),
-            // WARN: `media_id` carries no unique index (§ 6.), so one object may hang off more than one bubble. Nothing in the app produces that today — there is no forward, and 배경으로 설정 copies (§ 12.1.) — but the schema allows it, and without this a second bubble would go on rendering a row marked deleted.
+            // WARN: `media_id` carries no unique index (§ 6.), so one object may hang off more than one bubble — REQUIREMENTS.md § 10.x.'s 채팅으로 보내기 is exactly that forward, so without this a second bubble would go on rendering a row marked deleted.
             isNotCarriedElsewhere(id),
           ),
         );

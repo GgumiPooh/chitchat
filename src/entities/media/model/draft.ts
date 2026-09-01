@@ -1,5 +1,5 @@
 import type { ThumbnailMime } from "@/shared/config";
-import type { Nullable } from "@/shared/lib";
+import type { MediaId, Nullable } from "@/shared/lib";
 
 /**
  * An attachment the user has picked but not yet sent. It lives entirely in the
@@ -50,5 +50,12 @@ export type MediaDraft = {
    * upload sends; `toVoiceTrack` is what converts it for anything that renders.
    */
   waveformPeaks: Nullable<number[]>;
+  /**
+   * REQUIREMENTS.md § 10. 채팅으로 보내기 — set when this draft mirrors an
+   * already-registered `ArchiveMedia` row (`toStagedDraft`) rather than a fresh
+   * pick. The upload chain skips this slot outright and posts `{ mediaId }` for it
+   * instead of `file`'s bytes, which is a placeholder with nothing worth uploading.
+   */
+  sourceMediaId: Nullable<MediaId>;
   id: string;
 };

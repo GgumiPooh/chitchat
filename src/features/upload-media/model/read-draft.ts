@@ -110,6 +110,7 @@ export function toVoiceDraft({ file, mime, durationMs, peaks }: VoiceRecording):
     // INFO: § 9.3. A recording is not a file attachment — it is named by neither the user nor the OS, and a filename here would file it into the 파일 shelf of § 10.
     filename: null,
     waveformPeaks: peaks,
+    sourceMediaId: null,
   };
 }
 
@@ -129,6 +130,7 @@ function toFileDraft(file: File, mime: string): MediaDraft {
     blurhash: null,
     filename: toSafeFilename(file.name),
     waveformPeaks: null,
+    sourceMediaId: null,
   };
 }
 
@@ -163,6 +165,7 @@ async function toImageDraft(file: File, transparent: boolean): Promise<MediaDraf
       blurhash,
       filename: null,
       waveformPeaks: null,
+      sourceMediaId: null,
     };
   } finally {
     URL.revokeObjectURL(sourceUrl);
@@ -203,6 +206,7 @@ async function toVideoDraft(file: File): Promise<MediaDraft> {
       blurhash,
       filename: null,
       waveformPeaks: null,
+      sourceMediaId: null,
     };
   } finally {
     // WARN: Detached before the revoke. The element `play()`ed, so it is still buffering the blob, and Safari logs every range it fetches after the URL is gone as `WebKitBlobResource error 1`.

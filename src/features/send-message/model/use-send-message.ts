@@ -1,7 +1,7 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
-import type { MediaDraft, MediaUpload } from "@/entities/media";
+import type { MediaAttachmentInput, MediaDraft } from "@/entities/media";
 import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import { revokePreview, uploadDraft } from "@/features/upload-media/@x/send-message";
 import { MAX_UPLOAD_INFLIGHT_BYTES, UPLOAD_CONCURRENCY, type NotifyMode } from "@/shared/config";
@@ -40,8 +40,8 @@ export type PendingMessage = {
   inlineEmoticons: ComposerEmoticon[];
   // INFO: REQUIREMENTS.md § 8.10. Carried on the pending row so the optimistic bubble quotes immediately — the client staged the preview, so nothing has to be fetched to draw it.
   replyTo: Nullable<ReplyPreview>;
-  // WARN: Indexed alongside `media`. A retry re-uploads only the slots still null, so a failure on the last of nine photos does not re-send the eight that landed.
-  uploadedMedia: Nullable<MediaUpload>[];
+  // WARN: Indexed alongside `media`. A retry re-uploads only the slots still null, so a failure on the last of nine photos does not re-send the eight that landed. REQUIREMENTS.md § 10. An id-backed slot (`MediaDraft.sourceMediaId`) is prefilled with its `{ mediaId }` reference at creation, so it is already "done" for every retry and never reaches `uploadDraft`.
+  uploadedMedia: Nullable<MediaAttachmentInput>[];
   /** `0`–`1` across the whole bubble's bytes. Meaningless for a text message. */
   progress: number;
   /** DESIGN.md § 6.5.1. The `media` index currently re-encoding — stills never report one, so this is `null` outside a video's encode phase. */
@@ -134,7 +134,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
   );
 
   const uploadAll = useCallback(
-    async (message: PendingMessage): Promise<MediaUpload[]> => {
+    async (message: PendingMessage): Promise<MediaAttachmentInput[]> => {
       // WARN: § 9. Per slot and mutable, because a re-encode replaces the bytes that will actually be PUT — totalled off the drafts alone, the bar counts an optimized upload against the original's size and stalls at the compression ratio.
       const totals = message.media.map((draft) => draft.file.size);
       const loaded = message.media.map((draft, index) =>
@@ -227,7 +227,7 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
       );
 
       // WARN: Indexed, so `media` stays in the picked order however the uploads interleaved — § 6. renders the grid in exactly this order.
-      return uploaded.filter((upload): upload is MediaUpload => Boolean(upload));
+      return uploaded.filter((upload): upload is MediaAttachmentInput => Boolean(upload));
     },
     [patch],
   );
@@ -460,7 +460,10 @@ function createPending(
     emoticon: null,
     inlineEmoticons: [],
     replyTo: null,
-    uploadedMedia: media.map(() => null),
+    // INFO: REQUIREMENTS.md § 10. An id-backed slot needs no upload, so it starts already "done" — `uploadAll` and every retry skip straight past it.
+    uploadedMedia: media.map((draft) =>
+      draft.sourceMediaId ? { mediaId: draft.sourceMediaId } : null,
+    ),
     progress: 0,
     encodingIndex: null,
     encodeProgress: null,
@@ -474,7 +477,7 @@ function createPending(
 // INFO: REQUIREMENTS.md § 6. A row is text, attachments, or one emoticon — never a combination, which is what the table's CHECK constraint says too.
 async function toPostParams(
   message: PendingMessage,
-  uploadAll: (message: PendingMessage) => Promise<MediaUpload[]>,
+  uploadAll: (message: PendingMessage) => Promise<MediaAttachmentInput[]>,
 ): Promise<PostMessageParams> {
   const { clientMsgId, notifyMode } = message;
   const replyToId = message.replyTo?.id;

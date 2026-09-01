@@ -9,6 +9,7 @@ import {
 } from "@/shared/config";
 import { getDb, media, messageMedia, messages, users, type Media } from "@/shared/db";
 import type { MediaId, Nullable, Optional, UserId } from "@/shared/lib";
+import type { DbTransaction } from "@/shared/storage";
 import {
   and,
   asc,
@@ -71,7 +72,10 @@ export async function listArchiveMedia({
     : after
       ? await selectNewer(within, after, limit)
       : await selectOlder(within, before, limit);
-  const sentIn = await findSendingMessages(rows.map((row) => row.id));
+  const sentIn = await findOldestSendingMessages(
+    rows.map((row) => row.id),
+    currentUserId,
+  );
 
   return rows.map((row) => toArchiveMedia(row, sentIn.get(row.id) ?? null));
 }
@@ -173,13 +177,24 @@ async function findCursor(
  * name resolved through `resolveDisplayName`, never read straight off `nickname`
  * (§ 8.7.), so the fallback rule isn't spelled twice. A row with no answer here is
  * one whose message was withdrawn between the two queries (§ 18. #1.).
+ *
+ * WARN: § 10.x. 채팅으로 보내기 lets one row hang off more than one live message, so
+ * this dedupes to the OLDEST — ordered ascending on `messageId` and kept on first
+ * sight — and drops any carrier not visible to `currentUserId` the same way
+ * `isInLibrary`'s own `isPosted` clause does, or a re-send into the other
+ * participant's 나에게만 could surface as the jump target for a tile this reader can
+ * see through its public carrier.
  */
-async function findSendingMessages(mediaIds: MediaId[]): Promise<Map<string, ArchiveOrigin>> {
+export async function findOldestSendingMessages(
+  mediaIds: MediaId[],
+  currentUserId: UserId,
+  tx: DbTransaction | ReturnType<typeof getDb> = getDb(),
+): Promise<Map<string, ArchiveOrigin>> {
   if (mediaIds.length === 0) {
     return new Map();
   }
 
-  const rows = await getDb()
+  const rows = await tx
     .select({
       mediaId: messageMedia.mediaId,
       messageId: messages.id,
@@ -190,14 +205,28 @@ async function findSendingMessages(mediaIds: MediaId[]): Promise<Map<string, Arc
     .from(messageMedia)
     .innerJoin(messages, eq(messages.id, messageMedia.messageId))
     .innerJoin(users, eq(users.id, messages.senderId))
-    .where(and(inArray(messageMedia.mediaId, mediaIds), isNull(messages.deletedAt)));
+    .where(
+      and(
+        inArray(messageMedia.mediaId, mediaIds),
+        isNull(messages.deletedAt),
+        or(eq(messages.onlyMe, false), eq(messages.senderId, currentUserId)),
+      ),
+    )
+    .orderBy(asc(messageMedia.messageId));
 
-  return new Map(
-    rows.map(({ mediaId, messageId, nickname, email, onlyMe }) => [
-      mediaId,
-      { messageId, senderName: resolveDisplayName({ nickname, email }), onlyMe },
-    ]),
-  );
+  const origins = new Map<string, ArchiveOrigin>();
+
+  for (const { mediaId, messageId, nickname, email, onlyMe } of rows) {
+    if (!origins.has(mediaId)) {
+      origins.set(mediaId, {
+        messageId,
+        senderName: resolveDisplayName({ nickname, email }),
+        onlyMe,
+      });
+    }
+  }
+
+  return origins;
 }
 
 /**

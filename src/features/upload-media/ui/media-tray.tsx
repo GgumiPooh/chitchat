@@ -2,9 +2,9 @@
 
 import type { MediaDraft } from "@/entities/media";
 import { isVideoMime } from "@/shared/config";
-import { cn, formatDuration } from "@/shared/lib";
+import { cn, formatDuration, type Nullable } from "@/shared/lib";
 import { Skeleton } from "@/shared/ui";
-import { FileText, Mic, Pencil, Play, Scissors, X } from "lucide-react";
+import { FileText, LoaderCircle, Mic, Pencil, Play, Scissors, X } from "lucide-react";
 
 export type MediaTrayProps = {
   className?: string;
@@ -12,6 +12,8 @@ export type MediaTrayProps = {
   /** A pick is still being decoded — its tiles do not exist yet (REQUIREMENTS.md § 18. #10). */
   /** How many picked files are still decoding — one placeholder is drawn per file, never one for the whole pick. */
   pendingCount?: number;
+  /** REQUIREMENTS.md § 10. The id-backed draft whose original is being downloaded for editing — its edit control spins in place rather than opening an editor with nothing to show yet. */
+  downloadingId?: Nullable<string>;
   onEdit: (draft: MediaDraft) => void;
   onRemove: (id: string) => void;
 };
@@ -25,6 +27,7 @@ export function MediaTray({
   className,
   drafts,
   pendingCount = 0,
+  downloadingId = null,
   onEdit,
   onRemove,
 }: MediaTrayProps) {
@@ -104,6 +107,7 @@ export function MediaTray({
 
   function renderMediaTile(draft: MediaDraft) {
     const isVideo = isVideoMime(draft.mime);
+    const isDownloading = draft.id === downloadingId;
 
     return (
       <>
@@ -121,12 +125,15 @@ export function MediaTray({
         )}
         {/* INFO: Both kinds are editable — a photo crops and filters (§ 9.), a video trims (§ 12.1.'s trimmer, with no length cap here). */}
         <button
-          className="absolute inset-x-0 bottom-0 flex h-6 cursor-pointer items-center justify-center rounded-b-sm bg-scrim/45 text-on-scrim transition-colors outline-none hover:bg-scrim/60 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+          className="absolute inset-x-0 bottom-0 flex h-6 cursor-pointer items-center justify-center rounded-b-sm bg-scrim/45 text-on-scrim transition-colors outline-none hover:bg-scrim/60 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset disabled:cursor-default"
           type="button"
-          aria-label={isVideo ? "영상 자르기" : "사진 편집"}
+          disabled={isDownloading}
+          aria-label={isDownloading ? "원본 불러오는 중" : isVideo ? "영상 자르기" : "사진 편집"}
           onClick={() => onEdit(draft)}
         >
-          {isVideo ? (
+          {isDownloading ? (
+            <LoaderCircle className="size-3.5 animate-spin" strokeWidth={1.75} />
+          ) : isVideo ? (
             <Scissors className="size-3.5" strokeWidth={1.75} />
           ) : (
             <Pencil className="size-3.5" strokeWidth={1.75} />

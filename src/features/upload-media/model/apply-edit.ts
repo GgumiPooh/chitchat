@@ -106,6 +106,7 @@ export async function applyEdit(
       blurhash,
       filename: null,
       waveformPeaks: null,
+      sourceMediaId: null,
     };
   } finally {
     URL.revokeObjectURL(sourceUrl);

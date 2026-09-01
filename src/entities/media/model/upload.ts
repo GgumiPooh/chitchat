@@ -1,5 +1,5 @@
-import { VOICE_PEAK_SCALE, VOICE_WAVEFORM_PEAKS } from "@/shared/config";
-import type { Nullable } from "@/shared/lib";
+import { snowflakeSchema, VOICE_PEAK_SCALE, VOICE_WAVEFORM_PEAKS } from "@/shared/config";
+import type { MediaId, Nullable } from "@/shared/lib";
 import { isBlurhashValid } from "blurhash";
 import { z } from "zod";
 
@@ -39,3 +39,22 @@ export const mediaUploadSchema = z.object({
     .length(VOICE_WAVEFORM_PEAKS)
     .nullish(),
 }) satisfies z.ZodType<MediaUpload>;
+
+/** REQUIREMENTS.md § 10. 채팅으로 보내기 — re-attaches an already-registered library row to a new message instead of uploading it again. */
+export type MediaReference = { mediaId: MediaId };
+
+export const mediaReferenceSchema = z.object({
+  mediaId: snowflakeSchema<MediaId>(),
+}) satisfies z.ZodType<MediaReference>;
+
+/** The wire shape one `media[]` slot may take — a fresh upload or a re-reference, told apart by which required key is present. */
+export type MediaAttachmentInput = MediaUpload | MediaReference;
+
+export const mediaAttachmentSchema = z.union([mediaUploadSchema, mediaReferenceSchema]);
+
+// INFO: Generic over the non-reference side so both this slice's `MediaAttachmentInput` and `createMediaMessage`'s server-only variant (a `ValidatedMedia` in place of `MediaUpload`) narrow correctly at the call site.
+export function isMediaReference<T extends object>(
+  item: T | MediaReference,
+): item is MediaReference {
+  return "mediaId" in item;
+}

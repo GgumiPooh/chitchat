@@ -1,5 +1,10 @@
 import { getEmoticonItem } from "@/entities/emoticon";
-import { mediaUploadSchema, validateMediaUpload, type ArchiveMedia } from "@/entities/media";
+import {
+  isMediaReference,
+  mediaAttachmentSchema,
+  validateMediaUpload,
+  type ArchiveMedia,
+} from "@/entities/media";
 import {
   areInlineEmoticonsKnown,
   countUnreadMessages,
@@ -95,10 +100,10 @@ const bodySchema = z.union([
         inlineEmoticonItemIds: body.inlineEmoticonItemIds ?? [],
       }),
     ),
-  // WARN: The finished restructure. `media`, not `mediaIds` — every attachment reaching this route is a fresh R2 object, so it is registered and attached inside the same transaction the message is created by (`createMediaMessage`) rather than trusted as an id from an earlier registration.
+  // WARN: `media`, not `mediaIds` — an item is a fresh R2 object, registered and attached inside the same transaction the message is created by (`createMediaMessage`), or REQUIREMENTS.md § 10.x.'s 채팅으로 보내기 re-reference of a row already in the library, attached without a second upload. `mediaAttachmentSchema` tells the two apart by which field the item carries.
   replySchema.extend({
     clientMsgId: z.uuid(),
-    media: z.array(mediaUploadSchema).min(1).max(MAX_MEDIA_PER_MESSAGE),
+    media: z.array(mediaAttachmentSchema).min(1).max(MAX_MEDIA_PER_MESSAGE),
     // INFO: REQUIREMENTS.md § 8.15. Set by the client when this attachment rides along with an Ask AI question — the server stamps a short `expires_at` rather than the ordinary indefinite retention.
     isAiAttachment: z.boolean().optional(),
   }),
@@ -208,8 +213,13 @@ async function postMediaMessage(
   onlyMe: boolean,
   silent: boolean,
 ): Promise<NextResponse> {
+  // INFO: REQUIREMENTS.md § 10.x. A re-reference item skips `validateMediaUpload` outright — there is no fresh R2 object behind it to HEAD, only an id `createMediaMessage` resolves on its own transaction.
   const validated = await Promise.all(
-    payload.media.map((upload) => validateMediaUpload({ ownerId: user.id, upload, scope: "chat" })),
+    payload.media.map((item) =>
+      isMediaReference(item)
+        ? Promise.resolve(item)
+        : validateMediaUpload({ ownerId: user.id, upload: item, scope: "chat" }),
+    ),
   );
 
   if (validated.some((item) => item === null)) {
@@ -229,14 +239,15 @@ async function postMediaMessage(
   });
 
   if (result.status !== "created") {
-    return apiError(result.status);
+    // INFO: REQUIREMENTS.md § 10.x. A re-referenced id that did not resolve is `not_found` — the request's shape was fine, and the id itself is what did not check out.
+    return apiError(result.status === "invalid_reference" ? "not_found" : result.status);
   }
 
   const echo = await toSingleMessagePayload(result.message);
 
   runAfterEffects(user, result.message, isShortcutShare, notifyMode);
 
-  // WARN: REQUIREMENTS.md § 9. The rows this request just registered, in send order — the sender's `uploadDraft` never got an id from a separate registration, so it takes this one to draw its own gallery tile and to map an upload slot back to the id `message_media` attached it under.
+  // WARN: REQUIREMENTS.md § 9., § 10.x. Every attached item, in send order — a fresh upload's `uploadDraft` never got an id from a separate registration, so it takes this one to draw its own gallery tile and to map an upload slot back to the id `message_media` attached it under; a re-reference item echoes here too, so the position mapping holds whichever kind of slot occupies it.
   return NextResponse.json(
     { ...echo, media: result.media satisfies ArchiveMedia[] },
     { status: 201 },

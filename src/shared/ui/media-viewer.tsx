@@ -76,16 +76,6 @@ export type MediaViewerProps = {
   cells: MediaCell[];
   initialIndex: number;
   /**
-   * DESIGN.md § 7.10. The top-right jump, and each viewer travels to the surface the
-   * reader is **not** on — 보관함's to the message the slide was sent in, 채팅's to
-   * the same photo in the library.
-   *
-   * INFO: The label and the glyph both ride with the handler for `deletion`'s reason: the two destinations are not readable from a shared control, and a handler that could arrive without them would draw one journey's icon over the other's. A grid glyph on 대화에서 보기 was exactly that — it named 보관함, which is the screen that jump leaves.
-   * WARN: `Icon` is the destination's own glyph, taken from wherever else the app names that screen — `MessageCircle` for 채팅 (the tab bar, 대화하기, the empty state) and `Archive` for 보관함. It is not a direction arrow: the top bar already has one chevron, on the identity block, and it means "travel" rather than "back".
-   * WARN: Handed the whole **cell**, not an id, because the two directions travel by different ones — 보관함 by `messageId` and 채팅 by the media id itself. It is also fired on a slide with nowhere to go: a library-only upload has no message and a photo taken out of the library has no tile (§ 10.), and the caller answers that with a toast. A control that disappeared per slide would be a hole opening and closing in the bar as the reader swipes.
-   */
-  jump?: { label: string; Icon: FC<ComponentProps<"svg">>; onSelect: (cell: MediaCell) => void };
-  /**
    * DESIGN.md § 4.7.3. Resolves the thumbnail the viewer should collapse back into —
    * given the slide the reader ended on, which is rarely the one they opened.
    *
@@ -100,6 +90,21 @@ export type MediaViewerProps = {
    * itself wears.
    */
   backgroundColor?: string;
+  /**
+   * DESIGN.md § 7.10. The top-right jump group, and each entry travels to a surface
+   * the reader is **not** on — 보관함's to the message the slide was sent in and to
+   * the composer, 채팅's to the same photo in the library.
+   *
+   * INFO: The label and the glyph both ride with the handler for `deletion`'s reason: the destinations are not readable from a shared control, and a handler that could arrive without them would draw one journey's icon over another's. A grid glyph on 대화에서 보기 was exactly that — it named 보관함, which is the screen that jump leaves.
+   * WARN: `Icon` is the destination's own glyph, taken from wherever else the app names that screen — `MessageCircle` for 채팅 (the tab bar, 대화하기, the empty state) and `Archive` for 보관함. It is not a direction arrow: the top bar already has one chevron, on the identity block, and it means "travel" rather than "back".
+   * WARN: Handed the whole **cell**, not an id, because the entries travel by different keys — 보관함 by `messageId` and 채팅 by the media id itself. `isAvailable`, where an entry supplies it, renders that entry disabled instead of dropping it per slide — a control that disappeared per slide would open and close a hole in the bar as the reader swipes; an entry that omits it (대화에서 보기) stays enabled and answers an unreachable slide with a toast instead.
+   */
+  jump?: {
+    label: string;
+    Icon: FC<ComponentProps<"svg">>;
+    isAvailable?: (cell: MediaCell) => boolean;
+    onSelect: (cell: MediaCell) => void;
+  }[];
   /**
    * REQUIREMENTS.md § 10. The 삭제 for the slide on screen, and the label saying how
    * far it reaches — a chat bubble's withdraws the whole message (`메시지 삭제`),
@@ -533,19 +538,27 @@ export function MediaViewer({
               />
             </div>
           )}
-          {jump && current && (
-            // INFO: DESIGN.md § 7.10. The jump, at the top right — 보관함's viewer travels to the message, 채팅's to the library, so neither offers a jump to the surface it is already on.
-            // WARN: Rendered on every slide, including one with nowhere to go. It answers with a toast instead of vanishing, which is what keeps a control out of the bar's own layout while the reader swipes past a library-only upload.
-            <IconButton
-              className="pointer-events-auto shrink-0 touch-none"
-              buttonClassName="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
-              Icon={jump.Icon}
-              haptic
-              tabIndex={isChromeVisible ? undefined : -1}
-              aria-label={jump.label}
-              onClick={() => jump.onSelect(current)}
-            />
-          )}
+          {jump &&
+            current &&
+            // INFO: DESIGN.md § 7.10. The jump group, at the top right — 보관함's viewer travels to the message and to the composer, 채팅's to the library, so none offers a jump to the surface it is already on.
+            // WARN: Rendered on every slide, including one with nowhere to go for an entry with no `isAvailable`. It answers with a toast instead of vanishing, which is what keeps the group's width out of the bar's own layout while the reader swipes past a library-only upload.
+            jump.map((action) => {
+              const isAvailable = action.isAvailable?.(current) ?? true;
+
+              return (
+                <IconButton
+                  key={action.label}
+                  className="pointer-events-auto shrink-0 touch-none"
+                  buttonClassName="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
+                  Icon={action.Icon}
+                  haptic={isAvailable}
+                  disabled={!isAvailable}
+                  tabIndex={isChromeVisible ? undefined : -1}
+                  aria-label={action.label}
+                  onClick={() => isAvailable && action.onSelect(current)}
+                />
+              );
+            })}
         </div>
         {/* INFO: Native scroll snapping is the horizontal swipe of REQUIREMENTS.md § 8.1. — it costs no gesture code and matches the platform's own momentum. */}
         {/* WARN: REQUIREMENTS.md § 18. #6. A zoomed slide freezes the track, or the pan competes with the swipe for the same finger and the photo changes under it. `overflow-x-hidden` holds `scrollLeft` where it is, so the slide is still the one the reader zoomed when it lifts. */}

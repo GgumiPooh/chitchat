@@ -3,6 +3,7 @@
 import type { ArchiveMedia } from "@/entities/media";
 import { useApplyPhoto } from "@/features/apply-photo";
 import { useWriteArchiveSnapshot } from "@/features/offline-snapshot";
+import { stageArchiveMedia } from "@/features/send-message";
 import { useSilentSend } from "@/features/silent-send";
 import { useMediaPicker } from "@/features/upload-media";
 import {
@@ -33,7 +34,7 @@ import {
   useArchiveSelection,
   useShelfStaging,
 } from "@/widgets/archive-shelves";
-import { ImagePlus, Images, LayoutGrid, ListChecks, MessageCircle, X } from "lucide-react";
+import { ImagePlus, Images, LayoutGrid, ListChecks, MessageCircle, Send, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useArchiveJump } from "../model/archive-jump-context";
@@ -249,12 +250,22 @@ export function ArchivePage({
         <MediaViewer
           cells={viewer.cells}
           initialIndex={viewer.index}
-          // INFO: DESIGN.md § 7.10. 채팅's own glyph, the one the tab bar and 대화하기 already use — the jump is named by where it lands, and this one lands on a message.
-          jump={{ label: "대화에서 보기", Icon: MessageCircle, onSelect: openInChat }}
           // INFO: DESIGN.md § 4.7.3. The return journey — the slide collapses back into its tile wherever the grid still has one on screen, and fades where it stands otherwise.
           findMorphOrigin={findArchiveTile}
           // WARN: REQUIREMENTS.md § 10. Withheld while an upload is in flight, for the reason the 선택 control is disabled — a row whose `postMessage` has not settled is not in the library yet, so the tap would take nothing.
           deletion={staging.isUploading ? undefined : { label: "삭제", onSelect: askToDeleteSlide }}
+          // INFO: DESIGN.md § 7.10. 채팅's own glyph, the one the tab bar and 대화하기 already use — the jump is named by where it lands, and this one lands on a message.
+          // INFO: REQUIREMENTS.md § 10. 채팅으로 보내기 sits beside it — both land in 채팅, one on the sent bubble and one in the composer's own tray.
+          jump={[
+            { label: "대화에서 보기", Icon: MessageCircle, onSelect: openInChat },
+            {
+              label: "채팅으로 보내기",
+              Icon: Send,
+              onSelect: sendToChat,
+              // INFO: A draft still uploading has no stored object and therefore no `downloadUrl` yet — the same signal 사진 사용하기 already gates on.
+              isAvailable: (cell) => cell.downloadUrl !== null,
+            },
+          ]}
           onClose={() => setViewer(null)}
           // INFO: DESIGN.md § 4.7.3. Keeps the grid on whatever the reader has swiped to, so 닫기 has a tile to shrink into however far the track has carried them.
           onSlideChange={setRevealId}
@@ -291,6 +302,19 @@ export function ArchivePage({
       params.set(CHAT_MODE_PARAM, "onlyMe");
     }
     router.push(`${CHAT_ROUTE}?${params}`);
+  }
+
+  // INFO: REQUIREMENTS.md § 10. 채팅으로 보내기 — stages the slide for the composer's own tray and lands in it plain, unlike `openInChat` above there is no message or mode to carry.
+  function sendToChat(cell: MediaCell) {
+    const item = media.find((entry) => entry.id === cell.id);
+
+    if (!item) {
+      return;
+    }
+
+    setViewer(null);
+    stageArchiveMedia([item]);
+    router.push(CHAT_ROUTE);
   }
 
   // WARN: Started, never awaited — both save routes run the length of the selection, so awaiting would hold the handler behind a bar that's already dismissed.

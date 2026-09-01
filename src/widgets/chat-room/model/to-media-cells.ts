@@ -85,25 +85,44 @@ export function toBubbleOwners(
 }
 
 export function toCellsFromDrafts(drafts: MediaDraft[]): MediaCell[] {
-  return drafts.map((draft) => ({
-    previewUrl: draft.previewUrl,
-    // INFO: Null although the draft holds one — the preview above is a local blob, so a hash would be decoded, upscaled and handed to the compositor to race an image that reaches the screen without a network at all.
-    blurhash: null,
-    // WARN: REQUIREMENTS.md § 9.3. A recording is the one draft that hands over an original, because a voice bubble is playable while it uploads and the local blob is the only source there is. Everything else has no full-size object until the upload registers, and a photo's own preview is a thumbnail rather than one.
-    originalUrl: draft.waveformPeaks ? draft.previewUrl : null,
-    downloadUrl: null,
-    width: draft.width,
-    height: draft.height,
-    durationMs: draft.durationMs,
-    isVideo: isVideoMime(draft.mime),
-    filename: draft.filename,
-    // INFO: § 9.3. Converted here rather than stored converted — a draft carries the wire form the upload sends, and `toVoiceTrack` is the one place the scale is crossed.
-    voice: toVoiceTrack(draft.waveformPeaks),
-    // INFO: The picked file's own size — an optimistic card names the same figure the sent one will.
-    sizeBytes: draft.file.size,
-    // INFO: The finished restructure. A draft names no row, so there is nothing that could have been deleted out from under it.
-    isDeleted: false,
-    // WARN: A local draft id worn as a `MediaId` — see `MediaCell.id`. It names no row and must never reach an endpoint.
-    id: toId<MediaId>(draft.id),
-  }));
+  return drafts.map((draft) => {
+    const shared = {
+      previewUrl: draft.previewUrl,
+      width: draft.width,
+      height: draft.height,
+      durationMs: draft.durationMs,
+      isVideo: isVideoMime(draft.mime),
+      // INFO: The picked file's own size — an optimistic card names the same figure the sent one will.
+      sizeBytes: draft.file.size,
+      // INFO: The finished restructure. A draft names no row, so there is nothing that could have been deleted out from under it.
+      isDeleted: false,
+    };
+
+    // INFO: REQUIREMENTS.md § 10. 채팅으로 보내기 — the row is already registered, so the cell draws from its real thumbnail/original and carries the id `MediaViewer` can actually open.
+    if (draft.sourceMediaId) {
+      return {
+        ...shared,
+        blurhash: draft.blurhash,
+        originalUrl: toMediaUrl(draft.sourceMediaId, "original"),
+        downloadUrl: toMediaDownloadUrl(draft.sourceMediaId),
+        filename: null,
+        voice: null,
+        id: draft.sourceMediaId,
+      };
+    }
+
+    return {
+      ...shared,
+      // INFO: Null although the draft holds one — the preview above is a local blob, so a hash would be decoded, upscaled and handed to the compositor to race an image that reaches the screen without a network at all.
+      blurhash: null,
+      // WARN: REQUIREMENTS.md § 9.3. A recording is the one draft that hands over an original, because a voice bubble is playable while it uploads and the local blob is the only source there is. Everything else has no full-size object until the upload registers, and a photo's own preview is a thumbnail rather than one.
+      originalUrl: draft.waveformPeaks ? draft.previewUrl : null,
+      downloadUrl: null,
+      filename: draft.filename,
+      // INFO: § 9.3. Converted here rather than stored converted — a draft carries the wire form the upload sends, and `toVoiceTrack` is the one place the scale is crossed.
+      voice: toVoiceTrack(draft.waveformPeaks),
+      // WARN: A local draft id worn as a `MediaId` — see `MediaCell.id`. It names no row and must never reach an endpoint.
+      id: toId<MediaId>(draft.id),
+    };
+  });
 }

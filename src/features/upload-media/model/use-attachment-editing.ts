@@ -29,8 +29,8 @@ export type AttachmentEditing = {
   close: () => void;
   /** Swap in an edited photo. */
   applyCrop: (edited: MediaDraft) => void;
-  /** Read a trimmed file back and swap it in under the id it replaces. */
-  applyTrim: (source: MediaDraft, file: File) => Promise<void>;
+  /** Read a trimmed file back and swap it in under the id it replaces. Resolves `false` on a failed decode, where the trimmer is left open rather than swapped. */
+  applyTrim: (source: MediaDraft, file: File) => Promise<boolean>;
 };
 
 /**
@@ -90,8 +90,12 @@ export function useAttachmentEditing(replace: (draft: MediaDraft) => void): Atta
       try {
         replace({ ...(await toMediaDraft(file)), id: source.id });
         setTrimming(null);
+
+        return true;
       } catch {
         toast.error("자른 영상을 읽지 못했어요");
+
+        return false;
       } finally {
         setIsApplying(false);
       }

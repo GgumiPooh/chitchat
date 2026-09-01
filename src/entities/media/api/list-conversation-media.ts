@@ -3,9 +3,14 @@ import "server-only";
 import { CHAT_MEDIA_TRACK_SPAN, VISUAL_KINDS } from "@/shared/config";
 import { getDb, media, messageMedia, messages } from "@/shared/db";
 import type { MediaId, MessageId, Optional, UserId } from "@/shared/lib";
-import { and, asc, desc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, notExists, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { toChatMedia } from "../model/to-chat-media";
 import type { ChatTrackMedia } from "../model/types";
+
+// WARN: § 10.x. 채팅으로 보내기 lets one row hang off more than one live message, and this table pair is self-joined against the outer `messageMedia` / `messages` to find an earlier one — aliased, since the same two tables already sit in the outer query.
+const earlierMessageMedia = alias(messageMedia, "earlier_message_media");
+const earlierMessages = alias(messages, "earlier_messages");
 
 /**
  * Where a row sits in the conversation. REQUIREMENTS.md § 8.1.
@@ -54,9 +59,8 @@ export async function listConversationMedia({
   currentUserId,
   onlyMeFilter = false,
 }: ListConversationMediaParams): Promise<ChatTrackMedia[]> {
-  const visible = onlyMeFilter
-    ? and(eq(messages.onlyMe, true), eq(messages.senderId, currentUserId))!
-    : eq(messages.onlyMe, false);
+  const visible = toVisibleCondition(messages, onlyMeFilter, currentUserId);
+  const earlierVisible = toVisibleCondition(earlierMessages, onlyMeFilter, currentUserId);
   const anchor = await findPosition(around ?? before ?? after, visible);
 
   if (!anchor) {
@@ -66,18 +70,35 @@ export async function listConversationMedia({
   if (!around) {
     // INFO: The front page is read away from the anchor and reversed back into send order, exactly as the window's older half is.
     return before
-      ? (await selectPage(comparedToAnchor("<", anchor), visible, "desc")).reverse()
-      : selectPage(comparedToAnchor(">", anchor), visible, "asc");
+      ? (await selectPage(comparedToAnchor("<", anchor), visible, earlierVisible, "desc")).reverse()
+      : selectPage(comparedToAnchor(">", anchor), visible, earlierVisible, "asc");
   }
 
   const [older, atOrNewer] = await Promise.all([
     // INFO: Descending so the limit takes the `CHAT_MEDIA_TRACK_SPAN` rows *nearest* the anchor rather than the conversation's oldest, then reversed back into send order.
-    selectPage(comparedToAnchor("<", anchor), visible, "desc"),
+    selectPage(comparedToAnchor("<", anchor), visible, earlierVisible, "desc"),
     // WARN: Inclusive of the anchor, and one row wider for it. `useViewerTrack` reads "there may be more beyond this edge" off each half having filled `CHAT_MEDIA_TRACK_SPAN`, and a half that spent one of its rows on the anchor would report the newer edge exhausted one row early on every open.
-    selectPage(comparedToAnchor(">=", anchor), visible, "asc", CHAT_MEDIA_TRACK_SPAN + 1),
+    selectPage(
+      comparedToAnchor(">=", anchor),
+      visible,
+      earlierVisible,
+      "asc",
+      CHAT_MEDIA_TRACK_SPAN + 1,
+    ),
   ]);
 
   return [...older.reverse(), ...atOrNewer];
+}
+
+// INFO: § 16.1. Parameterized on the table so the dedup below can ask the same question of `earlierMessages`, its alias, without rebuilding the clause.
+function toVisibleCondition(
+  table: typeof messages | typeof earlierMessages,
+  onlyMeFilter: boolean,
+  currentUserId: UserId,
+): SQL {
+  return onlyMeFilter
+    ? and(eq(table.onlyMe, true), eq(table.senderId, currentUserId))!
+    : eq(table.onlyMe, false);
 }
 
 /**
@@ -109,11 +130,18 @@ async function findPosition(
  * `exists`, which is the shape `listArchiveMedia` needs and this one must not copy —
  * the ordering columns live on the join row.
  *
- * WARN: The join can in principle emit one media id twice, and **every consumer downstream assumes it does not.** `MediaViewer` keys its slides by `cell.id`, `toTrackOwners` maps one owner per id, and the viewer resolves the held slide by `findIndex` on that id — so a repeat would duplicate a React key, attribute both positions to one sender, and snap a swipe onto the second copy back to the first. Nothing produces one today: a `media` row reaches exactly one message, because the only writer is the send that registered it and the app has no forward. **Adding a forward means deduping here, or keying the track by `(message_id, sort_order)` instead** — not leaving this comment as licence.
+ * WARN: § 10.x. 채팅으로 보내기 lets the join emit one media id twice, and every
+ * consumer downstream still assumes it does not — `MediaViewer` keys its slides by
+ * `cell.id`, `toTrackOwners` maps one owner per id, and the viewer resolves the held
+ * slide by `findIndex` on that id. `isNotCarriedEarlier` is the guard: a row whose
+ * media id already has an earlier visible occurrence is dropped outright rather than
+ * kept at its own position, so the track shows one cell per media, at the oldest
+ * carrier's place.
  */
 async function selectPage(
   within: SQL,
   visible: SQL,
+  earlierVisible: SQL,
   direction: "asc" | "desc",
   limit: number = CHAT_MEDIA_TRACK_SPAN,
 ) {
@@ -138,6 +166,7 @@ async function selectPage(
         // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — a slide sent privately by the other participant crosses no bubble this reader can already see, so the track excludes it exactly as § 8.2.'s history listing does.
         visible,
         within,
+        isNotCarriedEarlier(earlierVisible),
       ),
     )
     .orderBy(order(messageMedia.messageId), order(messageMedia.sortOrder))
@@ -149,6 +178,24 @@ async function selectPage(
     senderId,
     onlyMe,
   }));
+}
+
+// INFO: § 10.x. Correlated on the outer `media.id` and `messageMedia.messageId`, both used once in `selectPage`'s own FROM — the aliased pair is what lets this ask the same question a second time inside one query.
+function isNotCarriedEarlier(earlierVisible: SQL): SQL {
+  return notExists(
+    getDb()
+      .select({ one: sql`1` })
+      .from(earlierMessageMedia)
+      .innerJoin(earlierMessages, eq(earlierMessages.id, earlierMessageMedia.messageId))
+      .where(
+        and(
+          eq(earlierMessageMedia.mediaId, media.id),
+          isNull(earlierMessages.deletedAt),
+          earlierVisible,
+          lt(earlierMessages.id, messageMedia.messageId),
+        ),
+      ),
+  );
 }
 
 /**

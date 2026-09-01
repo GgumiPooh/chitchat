@@ -30,9 +30,11 @@ import {
   EmoticonPicker,
   EmoticonPreview,
   MessageComposer,
+  useAttachmentPromotion,
   useEmoticonPreload,
   useRecentEmoticons,
   useSendMessage,
+  useStagedMediaIntake,
   type ComposerEmoticon,
   type EmoticonFocusRequest,
   type EmoticonMenu,
@@ -634,6 +636,9 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 9.1. The one surface that takes a file attachment — the library stages the same way but shows tiles, so it keeps the default.
   const selection = useMediaSelection({ acceptsFiles: true });
   const editing = useAttachmentEditing(selection.replace);
+  // INFO: REQUIREMENTS.md § 10. 채팅으로 보내기 — 보관함 stages before navigating here; consumed once, on mount.
+  useStagedMediaIntake(selection.drafts.length, selection.addDraft);
+  const promotion = useAttachmentPromotion(editing, selection.has);
   // INFO: REQUIREMENTS.md § 8.11. The same route the library's 저장 takes (§ 10.), asked for by 공유 rather than by 저장.
   const sharing = useMediaShare();
   // INFO: § 8.13. Both reach the server; 답장 and 복사 beside them in the same sheet do not, and are deliberately left live.
@@ -2066,7 +2071,8 @@ export function ChatRoom({
                   className="mx-md mt-xs mb-2xs"
                   drafts={selection.drafts}
                   pendingCount={selection.pendingCount}
-                  onEdit={editing.open}
+                  downloadingId={promotion.downloadingId}
+                  onEdit={promotion.requestEdit}
                   onRemove={selection.remove}
                 />
               )}
@@ -2306,8 +2312,8 @@ export function ChatRoom({
         <MediaEditor
           key={editing.cropping.id}
           draft={editing.cropping}
-          onCancel={editing.close}
-          onDone={editing.applyCrop}
+          onCancel={promotion.cancelEdit}
+          onDone={promotion.applyCrop}
         />
       )}
       {editing.trimming && renderTrimmer(editing.trimming)}
@@ -2317,7 +2323,7 @@ export function ChatRoom({
           initialIndex={mediaTrack.viewer.index}
           deletion={buildViewerDelete(mediaTrack.viewer.owners)}
           // INFO: DESIGN.md § 7.10. 보관함's own glyph, the one its tab carries — the mirror of 대화에서 보기's `MessageCircle`, and neither is a grid.
-          jump={{ label: "보관함에서 보기", Icon: Archive, onSelect: openInArchive }}
+          jump={[{ label: "보관함에서 보기", Icon: Archive, onSelect: openInArchive }]}
           // INFO: REQUIREMENTS.md § 8.1. 채팅's track is a window and this is what extends it; 보관함 leaves the prop unset (§ 10.).
           paging={mediaTrack.paging}
           // INFO: DESIGN.md § 4.7.3. The return journey — the slide collapses back into its bubble cell wherever the room still has one on screen, and fades where it stands otherwise.
@@ -3053,8 +3059,8 @@ export function ChatRoom({
       <VideoTrimmer
         key={source.id}
         draft={source}
-        onCancel={editing.close}
-        onDone={(file) => void editing.applyTrim(source, file)}
+        onCancel={promotion.cancelEdit}
+        onDone={(file) => void promotion.applyTrim(source, file)}
       />
     );
   }
