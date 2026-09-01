@@ -163,6 +163,8 @@ export async function POST(request: Request) {
   // WARN: The payload outranks the cookie on both counts — a queued onlyMe send landing after the cookie moved back to `notify` must neither post publicly nor push a banner for a row the recipient cannot see.
   const notifyMode = payload.notifyMode ?? toCookieFallbackMode(cookieMode, payload.onlyMe);
   const onlyMe = notifyMode === "onlyMe";
+  // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 is recorded on the row so both bubbles can mark it — onlyMe rows stay unmarked, since their recipient never sees them at all.
+  const silent = notifyMode === "silent";
 
   // INFO: `messages.emoticon_item_id` is a foreign key — a picker holding a list the other participant has since deleted (§ 13.6.) would otherwise send its way into a 500.
   if ("emoticonItemId" in payload && !(await getEmoticonItem(payload.emoticonItemId))) {
@@ -180,10 +182,10 @@ export async function POST(request: Request) {
   }
 
   if ("media" in payload) {
-    return postMediaMessage(user, payload, isShortcutShare, notifyMode, onlyMe);
+    return postMediaMessage(user, payload, isShortcutShare, notifyMode, onlyMe, silent);
   }
 
-  const message = await createMessage(user.id, payload, onlyMe);
+  const message = await createMessage(user.id, payload, onlyMe, silent);
 
   // INFO: The client id is already taken by a row this sender cannot claim, so echoing anything back would replace their optimistic bubble with a stranger's message.
   if (!message) {
@@ -204,6 +206,7 @@ async function postMediaMessage(
   isShortcutShare: boolean,
   notifyMode: NotifyMode,
   onlyMe: boolean,
+  silent: boolean,
 ): Promise<NextResponse> {
   const validated = await Promise.all(
     payload.media.map((upload) => validateMediaUpload({ ownerId: user.id, upload, scope: "chat" })),
@@ -219,6 +222,7 @@ async function postMediaMessage(
     replyToId: payload.replyToId,
     media: validated as NonNullable<(typeof validated)[number]>[],
     onlyMe,
+    silent,
     aiExpiresAt: payload.isAiAttachment
       ? new Date(Date.now() + AI_ATTACHMENT_RETENTION)
       : undefined,
@@ -247,12 +251,13 @@ function createMessage(
   senderId: User["id"],
   payload: Exclude<z.infer<typeof bodySchema>, { media: unknown[] }>,
   onlyMe: boolean,
+  silent: boolean,
 ): Promise<Nullable<ChatMessage>> {
   if ("text" in payload) {
-    return createTextMessage({ senderId, ...payload, onlyMe });
+    return createTextMessage({ senderId, ...payload, onlyMe, silent });
   }
 
-  return createEmoticonMessage({ senderId, ...payload, onlyMe });
+  return createEmoticonMessage({ senderId, ...payload, onlyMe, silent });
 }
 
 // WARN: REQUIREMENTS.md § 16.1. `after`, so the fan-out's round trips to the push services never sit between the sender and their 201. It still runs inside this invocation, on a database that is already awake — which is why push costs Neon's autosuspend nothing, unlike the cron § 16.1. rejected.

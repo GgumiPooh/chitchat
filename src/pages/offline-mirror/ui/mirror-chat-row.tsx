@@ -7,7 +7,7 @@ import { SearchHighlight } from "@/features/search-messages";
 import { DELETED_MESSAGE_TEXT, toMessageSummary } from "@/shared/config";
 import { cn, formatTime, type Optional } from "@/shared/lib";
 import { Avatar, FileCard, MediaTombstone, VoicePlayer } from "@/shared/ui";
-import { Smile } from "lucide-react";
+import { BellOff, Smile } from "lucide-react";
 import type { CSSProperties } from "react";
 import { toMirrorCell } from "../model/to-mirror-cell";
 import { MirrorMediaBox } from "./mirror-media-box";
@@ -107,9 +107,19 @@ export function MirrorChatRow({
         {/* WARN: DESIGN.md § 6.2. `max-w-full` is what holds the bubble inside the column's own wide cap — the column aligns rather than stretches, so this stack is sized `fit-content`, which floors at min-content. */}
         <div className={cn("flex max-w-full items-end gap-2xs", isMine && "flex-row-reverse")}>
           {renderBody()}
-          {(isLastOfGroup || message.editedAt) && (
+          {(isLastOfGroup || message.editedAt || message.silent) && (
             <div className="flex w-14 shrink-0 flex-col items-end text-chat-time whitespace-nowrap text-chat-meta">
               {message.editedAt && <span>수정됨</span>}
+              {/* INFO: REQUIREMENTS.md § 16.1. The live row's own mark — a snapshot taken before the field existed simply reads undefined here and draws nothing. */}
+              {message.silent && (
+                <span
+                  className="flex h-[1lh] items-center"
+                  role="img"
+                  aria-label="조용히 보낸 메시지"
+                >
+                  <BellOff className="size-3" />
+                </span>
+              )}
               {isLastOfGroup && (
                 <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
               )}

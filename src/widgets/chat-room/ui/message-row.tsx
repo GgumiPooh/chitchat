@@ -34,6 +34,7 @@ import {
 } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import {
+  BellOff,
   ChevronDown,
   Clock,
   CornerUpLeft,
@@ -98,6 +99,8 @@ export type MessageRowProps = {
   isMine: boolean;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — only ever true on a bubble this reader sent, since every other read path filters the other participant's own onlyMe rows out before they reach here. */
   isOnlyMe?: boolean;
+  /** REQUIREMENTS.md § 16.1. 조용히 보내기 — the send pushed no banner, said with a `BellOff` line in the § 6.3. stack on both participants' rows. */
+  isSilent?: boolean;
   isFirstOfGroup: boolean;
   isLastOfGroup: boolean;
   /** DESIGN.md § 6.2. This row opens a run of bubbles, so it wears the notch corner — `buildChatRows` restarts the run at every § 6.5. attachment or emoticon, which have no bubble to put it on. */
@@ -168,6 +171,7 @@ export function MessageRow({
   sender,
   isMine,
   isOnlyMe = false,
+  isSilent = false,
   isFirstOfGroup,
   isLastOfGroup,
   hasNotch,
@@ -534,7 +538,7 @@ export function MessageRow({
               />
             </div>
           ) : (
-            (isLastOfGroup || unreadCount > 0 || isEdited || onReply || onShare) && (
+            (isLastOfGroup || unreadCount > 0 || isEdited || isSilent || onReply || onShare) && (
               // INFO: DESIGN.md § 6.3. One timestamp per minute-group, on its last bubble; § 8.8.'s unread count and § 8.13.'s 수정됨 stack above it on the bubbles that carry them.
               // WARN: REQUIREMENTS.md § 8.3. A fixed `w-[68px]`, wide enough for the longest `오후 12:34` — widened past the timestamp's own 56px floor to match the § 8.10./§ 8.11. hover pill sharing this column, since the two can never disagree about the width the § 8.3. estimate reserves. It is beside the bubble rather than under it, so its width comes off the width the text wraps in — left to size itself, the estimate would have to re-measure a string it cannot see, and would flip a whole line wherever it guessed wrong.
               // WARN: `whitespace-nowrap` guards the fixed width above. `오후 12:34` clears it easily now, and the app's font is `display: swap` — a wider fallback on the first paint would wrap the time onto a second line, breaking § 6.3.'s one-line rule and the § 8.3. estimate that trusts it. Invisible to a developer whose webfont is already cached.
@@ -579,6 +583,17 @@ export function MessageRow({
                     ))}
                   {/* INFO: REQUIREMENTS.md § 8.13. Beside the bubble rather than inside it — the § 8.3. estimate wraps the body text in one font, and a label of another size sharing that measurement is exactly what it cannot express. Here it is a whole line whose height is already known. */}
                   {isEdited && <span>수정됨</span>}
+                  {/* INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 — a mark rather than a word, since 수정됨 already showed a label reads as something done to the message rather than to its banner. */}
+                  {/* WARN: `h-[1lh]` for § 8.8.'s heart's reason — the icon must cost exactly the one `chat-time` line `estimateRowHeight` prices it as. */}
+                  {isSilent && (
+                    <span
+                      className="flex h-[1lh] items-center"
+                      role="img"
+                      aria-label="조용히 보낸 메시지"
+                    >
+                      <BellOff className="size-3" />
+                    </span>
+                  )}
                   {isLastOfGroup && <time dateTime={createdAt}>{formatTime(createdAt)}</time>}
                 </div>
                 {renderHoverActions()}

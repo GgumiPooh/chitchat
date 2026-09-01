@@ -19,6 +19,8 @@ export type CreateMediaMessageParams = {
   replyToId?: MessageId;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — set once here, at insert; never updated after. */
   onlyMe?: boolean;
+  /** REQUIREMENTS.md § 16.1. 조용히 보내기 — set once here, at insert, exactly as `onlyMe` is. */
+  silent?: boolean;
   /** REQUIREMENTS.md § 8.15. Set when this attachment rides along with an Ask AI question — carried onto every `media` row via `insertMedia`. */
   aiExpiresAt?: Date;
 };
@@ -55,6 +57,7 @@ export async function createMediaMessage({
   media,
   replyToId,
   onlyMe = false,
+  silent = false,
   aiExpiresAt,
 }: CreateMediaMessageParams): Promise<CreateMediaMessageResult> {
   if (!isHomogeneousBatch(media)) {
@@ -87,6 +90,7 @@ export async function createMediaMessage({
           clientMsgId,
           replyToId,
           onlyMe,
+          silent,
         })
         // INFO: REQUIREMENTS.md § 8.5. Idempotent on `client_msg_id`, so a retried send after a timeout cannot post the same photos twice.
         .onConflictDoNothing({ target: messages.clientMsgId })

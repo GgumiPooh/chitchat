@@ -282,10 +282,12 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
           // INFO: REQUIREMENTS.md § 8.8. The unread count and the timestamp stack in one `flex-col`, so an unread message of mine is two lines rather than one — and the count alone puts the column beside a bubble that is not its group's last.
           // WARN: § 8.8. The count is **one line or none**, never a line per reader, so this stays a `Number()` of a predicate. It is also why the marker moved from 읽음 — which sat on one bubble — to a mark on every unread one: the rows that carry the column changed, and the arithmetic did not.
           // INFO: REQUIREMENTS.md § 8.13. 수정됨 is a third line in the same stack, which is the whole reason it was put there: `LINE.time()` already prices it, and `수정됨` clears `TIME_SLOT`'s 56px with room to spare so the width the text wraps in does not move.
+          // INFO: REQUIREMENTS.md § 16.1. The `BellOff` mark is a fourth line in the stack, clamped to `h-[1lh]` exactly as § 8.8.'s heart is — so it too stays a `Number()` of a predicate.
           besideLines:
             Number(row.isLastOfGroup) +
             Number(context.countUnreadReaders(row.message) > 0) +
-            Number(row.message.editedAt !== null),
+            Number(row.message.editedAt !== null) +
+            Number(row.message.silent),
         },
       );
     case "pending":

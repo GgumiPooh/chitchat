@@ -3321,6 +3321,7 @@ export function ChatRoom({
             sender={participantById.get(row.message.senderId)}
             isMine={row.isMine}
             isOnlyMe={row.message.onlyMe}
+            isSilent={row.message.silent}
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
             hasNotch={row.hasNotch}

@@ -80,6 +80,8 @@ export const messages = pgTable(
     collapsedAt: timestamp("collapsed_at", { withTimezone: true }),
     // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — set once at insert, never after (append-only, same as every other column here). true means only `sender_id` may read this row; every list/count/search/archive/SSE read path filters it out for anyone else.
     onlyMe: boolean("only_me").notNull().default(false),
+    // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 — the send pushed no recipient banner, recorded so both bubbles can say so (DESIGN.md § 6.3.). Rows sent before the column exist as false and are indistinguishable from ordinary sends.
+    silent: boolean("silent").notNull().default(false),
   },
   (table) => [
     // INFO: REQUIREMENTS.md § 8.13. The resume reconciliation reads exactly this predicate, and a partial index over it stays tiny — an edit or a delete is rare beside the rows they are indexed out of.

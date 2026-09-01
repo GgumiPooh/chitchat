@@ -96,6 +96,8 @@ export type ChatMessage = {
   isCollapsed: boolean;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — true only ever reaches the sender's own client, since every read path filters this row out for anyone else before it gets here. */
   onlyMe: boolean;
+  /** REQUIREMENTS.md § 16.1. 조용히 보내기 — the send pushed no recipient banner; both participants' bubbles mark it (DESIGN.md § 6.3.). */
+  silent: boolean;
   reactions: MessageReaction[];
   id: MessageId;
 };

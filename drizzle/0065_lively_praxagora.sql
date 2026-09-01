@@ -1,0 +1,1 @@
+ALTER TABLE "messages" ADD COLUMN "silent" boolean DEFAULT false NOT NULL;
