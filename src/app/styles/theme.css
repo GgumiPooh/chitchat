@@ -60,6 +60,8 @@
   --color-bubble-mine-silent-pressed: #e9d8cd;
   --color-bubble-theirs-silent: #f7f4ee;
   --color-bubble-theirs-silent-pressed: #ece7dd;
+  /* INFO: REQUIREMENTS.md § 16.1. The dashed line both silent fills wear — `chat-sender`'s value, dark on light without reaching `ring-private`'s ink, so the two modes stay apart. */
+  --color-bubble-silent-line: #6b6153;
   --color-bubble-ink: #1f1b17;
   /* INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기's bubble — the one token pair in this file that deliberately reuses the other theme's fill verbatim rather than re-deriving one, since the whole point is to read as "the other theme's bubble" in an otherwise light room. */
   --color-bubble-mine-private: #4e2f26;
@@ -490,6 +492,8 @@
   --color-bubble-mine-silent-pressed: #46352c;
   --color-bubble-theirs-silent: #1e1914;
   --color-bubble-theirs-silent-pressed: #2a241d;
+  /* INFO: REQUIREMENTS.md § 16.1. Re-derived light-on-dark (DESIGN.md § 5.4.) — a line on a dark fill reads by being lighter than it. */
+  --color-bubble-silent-line: #a89d8b;
   /* WARN: DESIGN.md § 5.3. One token for both fills, as on light. Both fills are dark here, so it inverts once, together. */
   --color-bubble-ink: #f2ede4;
   /* INFO: REQUIREMENTS.md § 16.1. The light theme's own bubble fills, reused verbatim for the reason the light block's own comment on this pair gives. */

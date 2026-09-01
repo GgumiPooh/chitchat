@@ -430,15 +430,16 @@ export function MessageRow({
                 LONG_PRESS_TARGET_CLASS,
                 // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 reads the other theme's fill/ink, on both counts — a withdrawn onlyMe row keeps `only_me` on its tombstone, so the private colour survives the delete along with the bubble's shape and side.
                 isOnlyMe ? "text-bubble-private-ink" : "text-bubble-ink",
-                // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 keeps the bubble's side and drops its fill a tone, seconding the `BellOff` mark beside it.
+                // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 keeps the bubble's side, drops its fill a tone and wears a dashed `bubble-silent-line`, seconding the `BellOff` mark beside it.
+                // WARN: The dashed line is an inset `outline` on `mine` and the existing priced border restyled on `theirs` — neither adds a pixel `estimateRowHeight` cannot see, where a new border on `mine` would.
                 isMine
                   ? isOnlyMe
                     ? "bg-bubble-mine-private active:bg-bubble-mine-private-pressed"
                     : isSilent
-                      ? "bg-bubble-mine-silent active:bg-bubble-mine-silent-pressed"
+                      ? "bg-bubble-mine-silent outline-1 -outline-offset-1 outline-bubble-silent-line outline-dashed active:bg-bubble-mine-silent-pressed"
                       : "bg-bubble-mine active:bg-bubble-mine-pressed"
                   : isSilent
-                    ? "border border-hairline bg-bubble-theirs-silent active:bg-bubble-theirs-silent-pressed"
+                    ? "border border-dashed border-bubble-silent-line bg-bubble-theirs-silent active:bg-bubble-theirs-silent-pressed"
                     : "border border-hairline bg-bubble-theirs active:bg-bubble-theirs-pressed",
                 hasNotch && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
                 // INFO: DESIGN.md § 6.5. Optimistic and failed bubbles dim instead of showing a spinner.

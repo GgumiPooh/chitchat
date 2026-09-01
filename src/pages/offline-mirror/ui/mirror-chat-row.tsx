@@ -194,15 +194,15 @@ export function MirrorChatRow({
     return cn(
       "min-w-0 rounded-bubble px-sm py-xs text-chat-body wrap-anywhere [word-break:normal] whitespace-pre-wrap",
       message.onlyMe ? "text-bubble-private-ink" : "text-bubble-ink",
-      // INFO: REQUIREMENTS.md § 16.1. The live bubble's own one-tone-quieter silent fill.
+      // INFO: REQUIREMENTS.md § 16.1. The live bubble's own quieter fill and dashed line, drawn the same layout-neutral way.
       isMine
         ? message.onlyMe
           ? "bg-bubble-mine-private"
           : message.silent
-            ? "bg-bubble-mine-silent"
+            ? "bg-bubble-mine-silent outline-1 -outline-offset-1 outline-bubble-silent-line outline-dashed"
             : "bg-bubble-mine"
         : message.silent
-          ? "border border-hairline bg-bubble-theirs-silent"
+          ? "border border-dashed border-bubble-silent-line bg-bubble-theirs-silent"
           : "border border-hairline bg-bubble-theirs",
       hasNotch && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
     );
