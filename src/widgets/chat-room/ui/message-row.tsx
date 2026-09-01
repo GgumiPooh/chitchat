@@ -320,7 +320,7 @@ export function MessageRow({
             className={cn("w-full max-w-55 empty:hidden", LONG_PRESS_TARGET_CLASS)}
             {...longPressHandlers}
           >
-            <LinkPreviewCard url={previewUrl} />
+            <LinkPreviewCard url={previewUrl} isSilent={isSilent} />
           </div>
         )}
         {/* WARN: `max-w-full` is what holds the bubble inside the column's own wide cap. The column aligns rather than stretches, so this stack is sized `fit-content` — and that floors at min-content, which a quote's `truncate` makes the whole width of its line. Only a max-width clamps below that; a `min-w-0` here does nothing. */}
@@ -384,7 +384,7 @@ export function MessageRow({
               )}
               {...longPressHandlers}
             >
-              <LinkPreviewCard url={linkOnlyCard} />
+              <LinkPreviewCard url={linkOnlyCard} isSilent={isSilent} />
             </div>
           ) : voiceCell ? (
             // INFO: REQUIREMENTS.md § 9.3. `VoicePlayer` draws its own fill, so the row hands it only the notch corner the group rule asks for (DESIGN.md § 6.2.).

@@ -10,6 +10,8 @@ import { toLinkCardRatio } from "../model/to-link-card-box";
 export type LinkPreviewCardProps = {
   className?: string;
   url: string;
+  /** REQUIREMENTS.md § 16.1. 조용히 보내기 — the card's own priced border restyled to the dashed `bubble-silent-line`, as `FileCard`'s is. */
+  isSilent?: boolean;
 };
 
 /**
@@ -21,7 +23,7 @@ export type LinkPreviewCardProps = {
  * placeholder that usually collapses again, which is a worse jolt in a virtualized
  * list (§ 8.3.) than one that only appears when there is something to show.
  */
-export function LinkPreviewCard({ className, url }: LinkPreviewCardProps) {
+export function LinkPreviewCard({ className, url, isSilent = false }: LinkPreviewCardProps) {
   // INFO: REQUIREMENTS.md § 8.3. Normally already answered — `useLinkPreviewPrefetch` asks the moment the message is in the window, so this reads the cache and the bubble is its final height at its first measurement.
   const { data: preview } = useQuery(toLinkPreviewQuery(url));
 
@@ -35,7 +37,8 @@ export function LinkPreviewCard({ className, url }: LinkPreviewCardProps) {
   return (
     <a
       className={cn(
-        "block overflow-hidden rounded-md border border-hairline bg-canvas transition-colors hover:bg-surface-soft active:bg-surface-pressed",
+        "block overflow-hidden rounded-md border bg-canvas transition-colors hover:bg-surface-soft active:bg-surface-pressed",
+        isSilent ? "border-dashed border-bubble-silent-line" : "border-hairline",
         className,
       )}
       href={url}
