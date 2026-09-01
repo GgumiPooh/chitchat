@@ -50,7 +50,7 @@ export function ArchiveVoicePage({
     modeFilter,
   );
 
-  useWriteArchiveSnapshot("archive-voice", media);
+  useWriteArchiveSnapshot("archive-voice", modeFilter === "all" ? media : null);
   // INFO: REQUIREMENTS.md § 10. The `lg` panel's totals follow what this list adds and removes.
   const invalidateMonthCounts = useInvalidateArchiveMonthCounts();
   // INFO: REQUIREMENTS.md § 9.3. `savesToPhotoLibrary: false` — a recording downloads on iOS too, so neither the § 10. cap nor the merged 저장/공유 row applies.

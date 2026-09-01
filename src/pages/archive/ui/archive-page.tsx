@@ -77,7 +77,7 @@ export function ArchivePage({
     prepend,
     remove,
   } = useArchiveMedia(initialMedia, "gallery", targetId, modeFilter);
-  useWriteArchiveSnapshot("archive-gallery", media);
+  useWriteArchiveSnapshot("archive-gallery", modeFilter === "all" ? media : null);
   // INFO: REQUIREMENTS.md § 10. The `lg` panel's totals follow what this grid adds and removes.
   const invalidateMonthCounts = useInvalidateArchiveMonthCounts();
   // INFO: § 18. #1. 삭제, its confirmation and the reconciliation of what the server took — all three shelves share it (`useArchiveRemoval`).

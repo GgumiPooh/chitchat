@@ -57,7 +57,7 @@ export function ArchiveFilesPage({
     modeFilter,
   );
 
-  useWriteArchiveSnapshot("archive-files", media);
+  useWriteArchiveSnapshot("archive-files", modeFilter === "all" ? media : null);
   // INFO: REQUIREMENTS.md § 10. The `lg` panel's totals follow what this list adds and removes.
   const invalidateMonthCounts = useInvalidateArchiveMonthCounts();
   // INFO: REQUIREMENTS.md § 9.1. `savesToPhotoLibrary: false` — a file downloads on iOS too, so neither the cap nor the merged 저장/공유 row of § 10. applies here.
