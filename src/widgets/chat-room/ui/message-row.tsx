@@ -99,7 +99,7 @@ export type MessageRowProps = {
   isMine: boolean;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — only ever true on a bubble this reader sent, since every other read path filters the other participant's own onlyMe rows out before they reach here. */
   isOnlyMe?: boolean;
-  /** REQUIREMENTS.md § 16.1. 조용히 보내기 — the send pushed no banner, said with a `BellOff` line in the § 6.3. stack on both participants' rows. */
+  /** REQUIREMENTS.md § 16.1. 조용히 보내기 — the send pushed no banner, said on both participants' rows with a `BellOff` mark on the § 6.3. stack's unread line and a one-tone-quieter bubble fill. */
   isSilent?: boolean;
   isFirstOfGroup: boolean;
   isLastOfGroup: boolean;
@@ -430,11 +430,16 @@ export function MessageRow({
                 LONG_PRESS_TARGET_CLASS,
                 // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 reads the other theme's fill/ink, on both counts — a withdrawn onlyMe row keeps `only_me` on its tombstone, so the private colour survives the delete along with the bubble's shape and side.
                 isOnlyMe ? "text-bubble-private-ink" : "text-bubble-ink",
+                // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 keeps the bubble's side and drops its fill a tone, seconding the `BellOff` mark beside it.
                 isMine
                   ? isOnlyMe
                     ? "bg-bubble-mine-private active:bg-bubble-mine-private-pressed"
-                    : "bg-bubble-mine active:bg-bubble-mine-pressed"
-                  : "border border-hairline bg-bubble-theirs active:bg-bubble-theirs-pressed",
+                    : isSilent
+                      ? "bg-bubble-mine-silent active:bg-bubble-mine-silent-pressed"
+                      : "bg-bubble-mine active:bg-bubble-mine-pressed"
+                  : isSilent
+                    ? "border border-hairline bg-bubble-theirs-silent active:bg-bubble-theirs-silent-pressed"
+                    : "border border-hairline bg-bubble-theirs active:bg-bubble-theirs-pressed",
                 hasNotch && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
                 // INFO: DESIGN.md § 6.5. Optimistic and failed bubbles dim instead of showing a spinner.
                 status !== "sent" && "opacity-60",
@@ -561,39 +566,42 @@ export function MessageRow({
                   )}
                 >
                   {/* INFO: REQUIREMENTS.md § 8.8. KakaoTalk's own marker — how many have yet to read it, gone entirely at zero rather than turning into a read state. `unread` is the token the tab-bar badge already uses (DESIGN.md § 4.1.4.), so the one number in the room that counts something live is the one thing here not in `chat-meta`. */}
+                  {/* INFO: REQUIREMENTS.md § 16.1. The `BellOff` mark shares the marker's line — a mark rather than a word, since 수정됨 already showed a label reads as something done to the message rather than to its banner — so the marker leaving at zero never moves the column while the mark holds it. */}
+                  {/* WARN: `h-[1lh]` on the shared line so marker and mark together cost exactly the one `chat-time` line `estimateRowHeight` prices as a single predicate. */}
                   {/* WARN: `tabular-nums` so a count that changes under the reader cannot change the line's width, and `aria-label` because a bare digit beside a bubble reads as nothing to a screen reader. */}
-                  {unreadCount > 0 &&
-                    (readerTotal === 1 ? (
-                      // INFO: REQUIREMENTS.md § 8.8. One reader has no count to make — a `1` that only ever reads `1` is a heart, and it leaves at zero exactly as the digit did.
-                      // WARN: `h-[1lh]` so the marker is the same one `chat-time` line the digit was, which is what keeps § 8.3.'s estimate a `Number()` of a predicate.
-                      <span
-                        className="flex h-[1lh] items-center text-unread"
-                        role="img"
-                        aria-label="읽지 않음"
-                      >
-                        <Heart className="size-2.5 fill-current" strokeWidth={0} />
-                      </span>
-                    ) : (
-                      <span
-                        className="text-unread tabular-nums"
-                        aria-label={`읽지 않음 ${unreadCount}`}
-                      >
-                        {unreadCount}
-                      </span>
-                    ))}
-                  {/* INFO: REQUIREMENTS.md § 8.13. Beside the bubble rather than inside it — the § 8.3. estimate wraps the body text in one font, and a label of another size sharing that measurement is exactly what it cannot express. Here it is a whole line whose height is already known. */}
-                  {isEdited && <span>수정됨</span>}
-                  {/* INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 — a mark rather than a word, since 수정됨 already showed a label reads as something done to the message rather than to its banner. */}
-                  {/* WARN: `h-[1lh]` for § 8.8.'s heart's reason — the icon must cost exactly the one `chat-time` line `estimateRowHeight` prices it as. */}
-                  {isSilent && (
-                    <span
-                      className="flex h-[1lh] items-center"
-                      role="img"
-                      aria-label="조용히 보낸 메시지"
-                    >
-                      <BellOff className="size-3" />
+                  {(unreadCount > 0 || isSilent) && (
+                    <span className="flex h-[1lh] items-center gap-1">
+                      {unreadCount > 0 &&
+                        (readerTotal === 1 ? (
+                          // INFO: REQUIREMENTS.md § 8.8. One reader has no count to make — a `1` that only ever reads `1` is a heart, and it leaves at zero exactly as the digit did.
+                          <span
+                            className="flex items-center text-unread"
+                            role="img"
+                            aria-label="읽지 않음"
+                          >
+                            <Heart className="size-2.5 fill-current" strokeWidth={0} />
+                          </span>
+                        ) : (
+                          <span
+                            className="text-unread tabular-nums"
+                            aria-label={`읽지 않음 ${unreadCount}`}
+                          >
+                            {unreadCount}
+                          </span>
+                        ))}
+                      {isSilent && (
+                        <span
+                          className="flex items-center"
+                          role="img"
+                          aria-label="조용히 보낸 메시지"
+                        >
+                          <BellOff className="size-3" />
+                        </span>
+                      )}
                     </span>
                   )}
+                  {/* INFO: REQUIREMENTS.md § 8.13. Beside the bubble rather than inside it — the § 8.3. estimate wraps the body text in one font, and a label of another size sharing that measurement is exactly what it cannot express. Here it is a whole line whose height is already known. */}
+                  {isEdited && <span>수정됨</span>}
                   {isLastOfGroup && <time dateTime={createdAt}>{formatTime(createdAt)}</time>}
                 </div>
                 {renderHoverActions()}

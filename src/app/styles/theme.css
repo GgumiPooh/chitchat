@@ -55,6 +55,11 @@
   --color-bubble-mine-pressed: #efcec1;
   --color-bubble-theirs: #ffffff;
   --color-bubble-theirs-pressed: #f4f1ec;
+  /* INFO: REQUIREMENTS.md § 16.1. 조용히 보내기's text bubble — each fill pulled toward `chat-canvas` with its chroma down, one tone quieter than the fill it stands beside. */
+  --color-bubble-mine-silent: #f2e3da;
+  --color-bubble-mine-silent-pressed: #e9d8cd;
+  --color-bubble-theirs-silent: #f7f4ee;
+  --color-bubble-theirs-silent-pressed: #ece7dd;
   --color-bubble-ink: #1f1b17;
   /* INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기's bubble — the one token pair in this file that deliberately reuses the other theme's fill verbatim rather than re-deriving one, since the whole point is to read as "the other theme's bubble" in an otherwise light room. */
   --color-bubble-mine-private: #4e2f26;
@@ -480,6 +485,11 @@
   /* INFO: DESIGN.md § 4.1.4. The pure white of the light theme has no dark counterpart — what carries over is that it is the neutral fill and `bubble-mine` the chromatic one. */
   --color-bubble-theirs: #262019;
   --color-bubble-theirs-pressed: #322a21;
+  /* INFO: REQUIREMENTS.md § 16.1. Re-derived against the dark floor (DESIGN.md § 5.4.) — quieter is still toward `chat-canvas`, so these step down in value and chroma where the light pair does. */
+  --color-bubble-mine-silent: #3c2c24;
+  --color-bubble-mine-silent-pressed: #46352c;
+  --color-bubble-theirs-silent: #1e1914;
+  --color-bubble-theirs-silent-pressed: #2a241d;
   /* WARN: DESIGN.md § 5.3. One token for both fills, as on light. Both fills are dark here, so it inverts once, together. */
   --color-bubble-ink: #f2ede4;
   /* INFO: REQUIREMENTS.md § 16.1. The light theme's own bubble fills, reused verbatim for the reason the light block's own comment on this pair gives. */

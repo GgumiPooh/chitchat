@@ -109,8 +109,7 @@ export function MirrorChatRow({
           {renderBody()}
           {(isLastOfGroup || message.editedAt || message.silent) && (
             <div className="flex w-14 shrink-0 flex-col items-end text-chat-time whitespace-nowrap text-chat-meta">
-              {message.editedAt && <span>수정됨</span>}
-              {/* INFO: REQUIREMENTS.md § 16.1. The live row's own mark — a snapshot taken before the field existed simply reads undefined here and draws nothing. */}
+              {/* INFO: REQUIREMENTS.md § 16.1. The live row's own mark, on the live stack's own top line — a snapshot taken before the field existed simply reads undefined here and draws nothing. */}
               {message.silent && (
                 <span
                   className="flex h-[1lh] items-center"
@@ -120,6 +119,7 @@ export function MirrorChatRow({
                   <BellOff className="size-3" />
                 </span>
               )}
+              {message.editedAt && <span>수정됨</span>}
               {isLastOfGroup && (
                 <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
               )}
@@ -194,11 +194,16 @@ export function MirrorChatRow({
     return cn(
       "min-w-0 rounded-bubble px-sm py-xs text-chat-body wrap-anywhere [word-break:normal] whitespace-pre-wrap",
       message.onlyMe ? "text-bubble-private-ink" : "text-bubble-ink",
+      // INFO: REQUIREMENTS.md § 16.1. The live bubble's own one-tone-quieter silent fill.
       isMine
         ? message.onlyMe
           ? "bg-bubble-mine-private"
-          : "bg-bubble-mine"
-        : "border border-hairline bg-bubble-theirs",
+          : message.silent
+            ? "bg-bubble-mine-silent"
+            : "bg-bubble-mine"
+        : message.silent
+          ? "border border-hairline bg-bubble-theirs-silent"
+          : "border border-hairline bg-bubble-theirs",
       hasNotch && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
     );
   }
