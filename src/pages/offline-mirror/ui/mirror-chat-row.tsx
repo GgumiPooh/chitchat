@@ -6,7 +6,7 @@ import type { Participant } from "@/entities/user";
 import { SearchHighlight } from "@/features/search-messages";
 import { DELETED_MESSAGE_TEXT, toMessageSummary } from "@/shared/config";
 import { cn, formatTime, type Optional } from "@/shared/lib";
-import { Avatar, FileCard, MediaTombstone, VoicePlayer } from "@/shared/ui";
+import { Avatar, FileCard, MediaTombstone, SilentRing, VoicePlayer } from "@/shared/ui";
 import { BellOff, Smile } from "lucide-react";
 import type { CSSProperties } from "react";
 import { toMirrorCell } from "../model/to-mirror-cell";
@@ -232,12 +232,13 @@ export function MirrorChatRow({
 
     return (
       <div
-        className="flex items-center justify-center rounded-sm bg-surface-soft"
+        className="relative flex items-center justify-center rounded-sm bg-surface-soft"
         role="img"
         style={{ width: width * scale, height: height * scale }}
         aria-label="이모티콘"
       >
         <Smile className="size-6 text-meta-soft" strokeWidth={1.5} />
+        {message.silent && <SilentRing className="rounded-sm" />}
       </div>
     );
   }

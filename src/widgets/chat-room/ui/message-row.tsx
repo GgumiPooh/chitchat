@@ -29,6 +29,7 @@ import {
   IconButton,
   InlineEmoticon,
   MediaTombstone,
+  SilentRing,
   VoicePlayer,
   type MediaCell,
 } from "@/shared/ui";
@@ -343,6 +344,7 @@ export function MessageRow({
                 onFollow={onFollowEmoticon}
                 onArrivalSoundReady={onArrivalSoundReady}
               />
+              {isSilent && <SilentRing className="rounded-sm" />}
             </div>
           ) : soloEmoticon && soloBox ? (
             // INFO: § 13. One emoticon and no words, drawn at `toSoloEmoticonBox` — the same absence of a bubble an emoticon message takes, but a smaller ceiling than `toEmoticonBox`'s so the two kinds read apart. A mini never occupies `messages.emoticon_item_id`, so this is a rendering rule read off the content rather than a second kind of row.
@@ -372,6 +374,7 @@ export function MessageRow({
                   onArrivalSoundReady={onArrivalSoundReady}
                 />
               )}
+              {isSilent && <SilentRing className="rounded-sm" />}
             </div>
           ) : linkOnlyCard ? (
             // INFO: DESIGN.md § 6.9. Where a photo would stand, and no bubble — the bubble would only repeat the address the card names.
