@@ -52,7 +52,7 @@ export function DDayHero({ className, summary }: DDayHeroProps) {
         <p className="text-display-xl">{summary.dayCount.toLocaleString()}</p>
         <p className="text-body-lg">{formatDate(summary.startDate)}</p>
         {summary.nextMilestone && (
-          <p className="pt-2xs text-body-md">
+          <p className="text-body-md">
             {summary.nextMilestone.label}까지 {summary.nextMilestone.daysLeft}일
           </p>
         )}
