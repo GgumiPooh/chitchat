@@ -247,14 +247,14 @@ The system is built on warm neutrals. Every neutral carries a yellow/red bias; t
 
 ### 4.1.1. Surfaces.
 
-| Token             | Hex     | Use                                                                                            |
-| ----------------- | ------- | ---------------------------------------------------------------------------------------------- |
-| `canvas`          | #FBF9F6 | Page floor for calendar / library / settings, and the desktop gutter beside the shell (§ 3.3.) |
-| `chat-canvas`     | #EFEAE2 | Page floor for the chat screen only — one step deeper so bubbles read as raised                |
+| Token             | Hex     | Use                                                                                                             |
+| ----------------- | ------- | --------------------------------------------------------------------------------------------------------------- |
+| `canvas`          | #FBF9F6 | Page floor for calendar / library / settings, and the desktop gutter beside the shell (§ 3.3.)                  |
+| `chat-canvas`     | #EFEAE2 | Page floor for the chat screen only — one step deeper so bubbles read as raised                                 |
 | `chat-scrim`      | #2A231C | The wash over a § 7.16. chat wallpaper, at 30% — dark rather than `chat-canvas`-toned, so the photo survives it |
-| `surface-soft`    | #F4F0E9 | Default raised surface; resting fill for chip-style controls                                   |
-| `surface-strong`  | #EAE4DA | `:hover` escalation; terminal static fill (skeletons, disabled inputs)                         |
-| `surface-pressed` | #DFD8CB | `:active` escalation. Ladder ceiling                                                           |
+| `surface-soft`    | #F4F0E9 | Default raised surface; resting fill for chip-style controls                                                    |
+| `surface-strong`  | #EAE4DA | `:hover` escalation; terminal static fill (skeletons, disabled inputs)                                          |
+| `surface-pressed` | #DFD8CB | `:active` escalation. Ladder ceiling                                                                            |
 
 ### 4.1.2. Lines and Text.
 
@@ -276,17 +276,17 @@ The system is built on warm neutrals. Every neutral carries a yellow/red bias; t
 
 One accent. A muted terracotta rose — warm enough to belong to a personal app, desaturated enough not to read as a couple-app cliché (§ 2.2.).
 
-| Token              | Hex     | Use                                                                                            |
-| ------------------ | ------- | ---------------------------------------------------------------------------------------------- |
-| `primary`          | #B65C4E | Primary CTA, active tab, links, focus ring, unread count                                       |
-| `primary-hover`    | #A45144 | `:hover`                                                                                       |
-| `primary-pressed`  | #8F453A | `:active`                                                                                      |
-| `primary-disabled` | #E8CFC9 | Disabled CTA                                                                                   |
-| `primary-tint`     | #F7E7E2 | Selected-day fill, highlight flash, low-emphasis accent                                        |
-| `on-primary`       | #FFFFFF | Text/icon on `primary`                                                                         |
-| `on-scrim`         | #FFFFFF | Text/icon over `scrim` or over a photograph — also the § 7.9. hero's foreground                |
-| `ai`               | #8F629B | The AI toggle's glyph and its sparks (§ 6.6.)                                                  |
-| `ai-tint`          | #F3EAF7 | The AI toggle's fill while AI 질문 is on                                                       |
+| Token              | Hex     | Use                                                                             |
+| ------------------ | ------- | ------------------------------------------------------------------------------- |
+| `primary`          | #B65C4E | Primary CTA, active tab, links, focus ring, unread count                        |
+| `primary-hover`    | #A45144 | `:hover`                                                                        |
+| `primary-pressed`  | #8F453A | `:active`                                                                       |
+| `primary-disabled` | #E8CFC9 | Disabled CTA                                                                    |
+| `primary-tint`     | #F7E7E2 | Selected-day fill, highlight flash, low-emphasis accent                         |
+| `on-primary`       | #FFFFFF | Text/icon on `primary`                                                          |
+| `on-scrim`         | #FFFFFF | Text/icon over `scrim` or over a photograph — also the § 7.9. hero's foreground |
+| `ai`               | #8F629B | The AI toggle's glyph and its sparks (§ 6.6.)                                   |
+| `ai-tint`          | #F3EAF7 | The AI toggle's fill while AI 질문 is on                                        |
 
 **`ai` is the one accent beside `primary`, and it exists because the AI toggle is coloured at rest.** A control that already wears `primary` has nothing left to say with it when it is pressed, so the toggle would have had to signal AI 질문 by changing its glyph's colour rather than by filling behind it — which is the opposite of what every other toggle in the app does (§ 7.1.). A violet also keeps 쨈미니's affordances apart from the room's own accent at a glance. It is not an event colour (§ 4.1.7.) and may not be borrowed as one.
 
@@ -296,22 +296,22 @@ One accent. A muted terracotta rose — warm enough to belong to a personal app,
 
 The signature surface. Bubble fills are the only place two adjacent fills are both near-value; the hairline on `bubble-theirs` is what separates it from `chat-canvas`.
 
-| Token                   | Hex           | Use                                                                                                                                                                            |
-| ----------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `bubble-mine`           | #F6DCD2       | My message fill — a tint of `primary`, not Kakao yellow                                                                                                                        |
-| `bubble-mine-pressed`   | #EFCEC1       | `:active` / long-press feedback on my bubble                                                                                                                                   |
-| `bubble-theirs`         | #FFFFFF       | Their message fill — the one pure white in the system                                                                                                                          |
-| `bubble-theirs-pressed` | #F4F1EC       | `:active` / long-press feedback on their bubble                                                                                                                                |
-| `bubble-ink`            | #1F1B17       | Text inside any bubble. Both fills are light — never inverts                                                                                                                   |
-| `chat-meta`             | #8D8375       | Timestamp and `수정됨` on `chat-canvas`. **Not the sender name** — see below, and not § 8.8.'s unread count, which takes `unread`. Overridden by `on-wallpaper` (§ 7.16.) on a chat wallpaper                        |
-| `chat-sender`           | #6B6153       | Sender name above a `theirs` group. Overridden by `on-wallpaper` (§ 7.16.) on a chat wallpaper                                                                                 |
-| `chat-pill`             | #DED6C9       | Date divider pill fill                                                                                                                                                         |
-| `chat-pill-pressed`     | #D2C9B9       | `:hover` / `:active` on a pill that is a link — the § 11.5. system notice alone                                                                                                |
-| `chat-pill-ink`         | #6B6153       | Date divider pill text                                                                                                                                                         |
-| `unread`                | #B65C4E       | The tab-bar unread badge (§ 7.3.). Same value as `primary`, separate token so it can diverge on dark                                                                           |
-| `search-hit`            | #F9E9C8       | Matched substring background in search results (§ 6.8.)                                                                                                                        |
-| `message-flash`         | #B65C4E @ 10% | The wash a § 6.10. quote jump lands in — `primary`'s channels at an alpha, never an opaque plate (§ 5.4.)                                                                      |
-| `message-flash-out`     | #B65C4E @ 0%  | The same hue at zero alpha, which is what the § 6.10. animation fades from and to. Never the keyword `transparent`: that is `rgba(0,0,0,0)` and takes both ramps through black |
+| Token                   | Hex           | Use                                                                                                                                                                                           |
+| ----------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bubble-mine`           | #F6DCD2       | My message fill — a tint of `primary`, not Kakao yellow                                                                                                                                       |
+| `bubble-mine-pressed`   | #EFCEC1       | `:active` / long-press feedback on my bubble                                                                                                                                                  |
+| `bubble-theirs`         | #FFFFFF       | Their message fill — the one pure white in the system                                                                                                                                         |
+| `bubble-theirs-pressed` | #F4F1EC       | `:active` / long-press feedback on their bubble                                                                                                                                               |
+| `bubble-ink`            | #1F1B17       | Text inside any bubble. Both fills are light — never inverts                                                                                                                                  |
+| `chat-meta`             | #8D8375       | Timestamp and `수정됨` on `chat-canvas`. **Not the sender name** — see below, and not § 8.8.'s unread count, which takes `unread`. Overridden by `on-wallpaper` (§ 7.16.) on a chat wallpaper |
+| `chat-sender`           | #6B6153       | Sender name above a `theirs` group. Overridden by `on-wallpaper` (§ 7.16.) on a chat wallpaper                                                                                                |
+| `chat-pill`             | #DED6C9       | Date divider pill fill                                                                                                                                                                        |
+| `chat-pill-pressed`     | #D2C9B9       | `:hover` / `:active` on a pill that is a link — the § 11.5. system notice alone                                                                                                               |
+| `chat-pill-ink`         | #6B6153       | Date divider pill text                                                                                                                                                                        |
+| `unread`                | #B65C4E       | The tab-bar unread badge (§ 7.3.). Same value as `primary`, separate token so it can diverge on dark                                                                                          |
+| `search-hit`            | #F9E9C8       | Matched substring background in search results (§ 6.8.)                                                                                                                                       |
+| `message-flash`         | #B65C4E @ 10% | The wash a § 6.10. quote jump lands in — `primary`'s channels at an alpha, never an opaque plate (§ 5.4.)                                                                                     |
+| `message-flash-out`     | #B65C4E @ 0%  | The same hue at zero alpha, which is what the § 6.10. animation fades from and to. Never the keyword `transparent`: that is `rgba(0,0,0,0)` and takes both ramps through black                |
 
 `bubble-mine` is a tint of the accent rather than a second hue: it keeps the palette at one chromatic family, and it makes "my voice" and "the app's voice" the same colour, which is the point of a two-person app.
 
