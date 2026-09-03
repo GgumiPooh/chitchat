@@ -62,8 +62,8 @@ export function DDayHero({ className, summary }: DDayHeroProps) {
       <div className="flex items-end justify-center gap-xl pb-[calc(var(--bottom-inset,0px)+var(--spacing-xl))]">
         <PersonBadge participant={first} />
         <Heart
-          className="mb-xs size-8 fill-on-scrim stroke-hero-scrim drop-shadow-sm"
-          strokeWidth={2}
+          className="mb-xs size-8 fill-hero-heart stroke-hero-scrim drop-shadow-sm"
+          strokeWidth={1.25}
         />
         <PersonBadge participant={second} />
       </div>
