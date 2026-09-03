@@ -64,7 +64,7 @@ export async function remindUpcomingEvents(): Promise<ReminderReport> {
 
       // WARN: Contained per occurrence. The claim is already stamped, so a throw here loses THIS banner however it is handled — but an uncaught one also abandons every occurrence after it, turning one bad row into a silent pass that did nothing.
       try {
-        sent += await remind(recipients, occurrence, lead, at, now);
+        sent += await remind(recipients, occurrence, lead, at);
       } catch (error) {
         console.error(`[remind] could not notify for ${occurrence.event.id}`, error);
       }
@@ -92,7 +92,6 @@ async function remind(
   occurrence: EventOccurrence,
   lead: ReminderLead,
   at: number,
-  now: number,
 ): Promise<number> {
   const claimed = await getDb().transaction(async (tx) => {
     if (!(await claim(tx, occurrence.event.id, at))) {
@@ -119,7 +118,8 @@ async function remind(
     return 0;
   }
 
-  const body = toBody(occurrence, lead, now);
+  // INFO: Read here and not at the top of the pass — the claim and the notice sit between, and a countdown measured from the pass's start is already that much stale when the banner goes out.
+  const body = toBody(occurrence, lead, Date.now());
 
   for (const userId of recipients) {
     await pushToUser(userId, {
@@ -270,10 +270,11 @@ function toDay(startsAt: string, now: number): string {
   return startDayKey === toDayKey(now + A_DAY) ? "내일" : formatMonthDay(startsAt);
 }
 
-// WARN: Minutes are floored, never rounded — 1시간 59분 30초 rounds up to `1시간 60분`.
+// WARN: Rounded to the nearest minute and carried into the hour — a run a few seconds past the threshold otherwise reads 1시간 59분 every time, and rounding alone reads 1시간 60분.
 function formatTimeLeft(left: number): string {
-  const hours = Math.floor(left / AN_HOUR);
-  const minutes = Math.floor((left - hours * AN_HOUR) / A_MINUTE);
+  const totalMinutes = Math.round(left / A_MINUTE);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
 
   if (hours === 0) {
     return `${minutes}분`;
