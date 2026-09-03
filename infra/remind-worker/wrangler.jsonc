@@ -1,0 +1,9 @@
+{
+  "name": "chitchat-remind",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-24",
+  // INFO: REQUIREMENTS.md § 16.3. Every ten minutes, which GitHub's schedule asks for and does not deliver — the app's own claim makes the two clocks safe to overlap.
+  "triggers": { "crons": ["*/10 * * * *"] },
+  // INFO: A failed pass surfaces here and nowhere else.
+  "observability": { "enabled": true },
+}
