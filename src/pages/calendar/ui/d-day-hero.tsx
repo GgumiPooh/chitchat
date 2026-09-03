@@ -63,7 +63,7 @@ export function DDayHero({ className, summary }: DDayHeroProps) {
       {/* INFO: DESIGN.md § 3.4. `--bottom-inset` is the tab bar's height — the hero is the one screen whose bottom edge sits under it rather than above `RouteTransition`'s trailing space. */}
       <div className="flex items-end justify-center gap-xl pb-[calc(var(--bottom-inset,0px)+var(--spacing-xl))]">
         <PersonBadge participant={first} />
-        <Heart className="mb-xs size-8 fill-hero-heart stroke-none" />
+        <Heart className="mb-xs size-8 fill-hero-heart stroke-hero-outline" strokeWidth={1} />
         <PersonBadge participant={second} />
       </div>
     </section>
@@ -89,7 +89,7 @@ function PersonBadge({ className, participant }: PersonBadgeProps) {
       {/* INFO: `Avatar` becomes a `<button>` with `onClick` and carries no `haptic` of its own, so the overlay is mounted beside it here (DESIGN.md § 7.15.). */}
       <HapticTarget className="inline-flex shrink-0">
         <Avatar
-          className="border-2 border-on-scrim"
+          className="border-2 border-hero-outline"
           size="profile"
           name={participant.name}
           mediaId={participant.avatarMediaId}
