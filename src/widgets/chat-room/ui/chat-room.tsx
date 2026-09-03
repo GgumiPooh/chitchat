@@ -1,7 +1,7 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
-import type { MediaDraft } from "@/entities/media";
+import type { ChatMedia, MediaDraft } from "@/entities/media";
 import type { ChatMessage, MessageReaction, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { useApplyPhoto } from "@/features/apply-photo";
@@ -65,6 +65,7 @@ import {
   CHAT_MODE_PARAM,
   MESSAGE_FLASH_DURATION,
   REPLY_PREVIEW_MAX_LENGTH,
+  isVideoMime,
   toLlmProviderBranding,
   toLlmProviderName,
   toMediaCountUnit,
@@ -304,7 +305,7 @@ const PANEL_MOUNT_IDLE_DELAY = 2 * A_SECOND;
 // INFO: DESIGN.md § 6.7. The pill appears once the newest message is roughly this far away, and the same distance is what `scrollEndThreshold` treats as near enough to the end that a row re-measuring there should hold the end still rather than let it drift.
 const AT_BOTTOM_THRESHOLD = 200;
 
-// INFO: REQUIREMENTS.md § 6. One row is every attachment in it, which is the one thing neither the sheet nor the viewer shows. REQUIREMENTS.md § 9.1.'s file bubble names files instead.
+// INFO: What the fading modal keeps under its heading once the target is cleared — the widest sentence, since `toDeleteWarning` has no bubble left to name.
 const MEDIA_DELETE_WARNING = "말풍선에 담긴 사진과 동영상이 모두 사라져요";
 
 // INFO: The loading header's own height (`h-10`), constant whether or not the skeleton is in it — a header that collapsed would move the list under the finger every time a page lands.
@@ -3606,16 +3607,29 @@ export function ChatRoom({
     return emoticon ? () => followEmoticon(emoticon) : undefined;
   }
 
-  // INFO: REQUIREMENTS.md § 9.1. A file bubble carries no photos to warn about losing, and § 6. keeps a bubble's attachments all of one kind — so the first one names them all.
+  // INFO: REQUIREMENTS.md § 8.11. The description names what the bubble actually holds, and 모두 only where there is more than one thing to lose.
   function toDeleteWarning(messageId: Nullable<MessageId>): string {
     // INFO: The modal stays mounted, so this prop is evaluated on every render of the room — the scan belongs behind the one state that can ask for it.
     if (messageId === null) {
       return MEDIA_DELETE_WARNING;
     }
 
-    const target = messages.find((message) => message.id === messageId);
+    const media = messages.find((message) => message.id === messageId)?.media ?? [];
+    const scope = media.length > 1 ? "모두 " : "";
 
-    return target?.media[0]?.filename ? "말풍선에 담긴 파일이 모두 사라져요" : MEDIA_DELETE_WARNING;
+    // WARN: AGENTS.md § 0.4. `josa`, not a literal `이` — four nouns reach this sentence.
+    return `말풍선에 담긴 ${josa(toDeleteNoun(media), "이/가")} ${scope}사라져요`;
+  }
+
+  // INFO: REQUIREMENTS.md § 8.11. Unlike § 8.1.'s 모두 저장 heading, a mixed bubble is named by both nouns — a warning that says 사진 over a bubble that also loses its videos understates what 삭제 takes.
+  function toDeleteNoun(media: ChatMedia[]): string {
+    const kind = toMediaNoun(media);
+
+    if (kind !== "photo") {
+      return toMediaLabel(kind);
+    }
+
+    return media.some((item) => isVideoMime(item.mime)) ? "사진과 동영상" : "사진";
   }
 
   /**
