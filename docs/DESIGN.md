@@ -1210,6 +1210,8 @@ Three changes close all three, and the position follows from them rather than th
 
 The D-day hero is the only place `display-xl` appears in the app. It is the screen's single focal point, so nothing else on the calendar competes at that size.
 
+**The grid is a carousel, not a cut.** `CalendarMonth` tracks three months — previous, current, next — in one row and follows the finger horizontally on a drag, snapping to the neighbour over `--duration-state` on release or springing back short of `REQUIREMENTS.md § 11.3.`'s threshold; the header chevrons play the same slide. `prefers-reduced-motion: reduce` skips the travel and switches instantly (§ 4.7.). The track's own height never moves either, for the same reason the grid's six rows never do (above): every month it holds is padded to the same six weeks.
+
 | Element          | Rule                                                                                                                                                                                                                                                                  |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Month label      | `display-md` `ink`, centered, chevron `icon-button` either side                                                                                                                                                                                                       |

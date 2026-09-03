@@ -110,7 +110,8 @@ export function MirrorCalendar({ className, participants }: MirrorCalendarProps)
         selectedDayKey={pickedDayKey ?? payload.summary.todayKey}
         occurrences={payload.occurrences}
         holidays={payload.holidays}
-        // WARN: The snapshot holds one grid range, so another month has no markers to draw rather than none to show — the swipe says so instead of quietly drawing an empty August.
+        // WARN: The snapshot holds one grid range, so another month has no markers to draw rather than none to show — the swipe says so instead of quietly drawing an empty August. `isPaged={false}` is what keeps `CalendarMonth` from rendering (or animating toward) side grids it has no data for.
+        isPaged={false}
         onMonthChange={() => toast(OFFLINE_MESSAGES.view)}
         onSelectDay={setPickedDayKey}
       />

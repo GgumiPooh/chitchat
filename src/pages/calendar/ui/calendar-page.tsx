@@ -18,6 +18,7 @@ import {
   findHoliday,
   listMilestonesInRange,
   occursOnDay,
+  shiftMonthKey,
   toMonthKey,
   toMonthStart,
   useDocumentBackground,
@@ -93,7 +94,7 @@ export function CalendarPage({
     requestId.current += 1;
 
     const id = requestId.current;
-    const { from, to } = toGridRange(nextMonthKey);
+    const { from, to } = toCarouselGridRange(nextMonthKey);
 
     setIsLoadingMonth(true);
 
@@ -337,4 +338,12 @@ export function CalendarPage({
       toast.error("일정을 불러오지 못했어요");
     }
   }
+}
+
+// INFO: REQUIREMENTS.md § 11.3. The swipe carousel's side grids need markers too, so a month load asks for the three-month window they and the current grid span, in one request. The previous month's grid start is already the earliest day of the three, and the next month's grid end the latest — no `min`/`max` needed.
+function toCarouselGridRange(monthKey: string): { from: string; to: string } {
+  return {
+    from: toGridRange(shiftMonthKey(monthKey, -1)).from,
+    to: toGridRange(shiftMonthKey(monthKey, 1)).to,
+  };
 }
