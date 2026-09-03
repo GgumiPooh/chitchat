@@ -201,7 +201,7 @@ export function CalendarPage({
     >
       <AppHeader
         // INFO: The title floats over the hero's photo below `lg`, where `ink` would sit on the scrim; at `lg` the hero is in the panel and the canvas is back under it.
-        titleClassName="text-on-hero lg:text-ink"
+        titleClassName="text-on-scrim lg:text-ink"
         hasSidePanel
         title="캘린더"
         trailing={

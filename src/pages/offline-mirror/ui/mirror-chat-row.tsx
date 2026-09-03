@@ -87,7 +87,9 @@ export function MirrorChatRow({
         )}
       >
         {!isMine && isFirstOfGroup && (
-          <span className="px-2xs text-chat-name text-chat-sender">{sender?.name}</span>
+          <span className="px-2xs text-chat-name text-chat-sender [[data-wallpaper]_&]:on-wallpaper">
+            {sender?.name}
+          </span>
         )}
         {/* INFO: DESIGN.md § 6.10. A bubble-less message quotes above itself, exactly as the live row does — a text one quotes inside its bubble, where the fill already frames it. Without this a photo sent as a reply showed its quote online and dropped it here, and the mirror is meant to be the same transcript. */}
         {!message.isDeleted &&
@@ -108,7 +110,7 @@ export function MirrorChatRow({
         <div className={cn("flex max-w-full items-end gap-2xs", isMine && "flex-row-reverse")}>
           {renderBody()}
           {(isLastOfGroup || message.editedAt || message.silent) && (
-            <div className="flex w-14 shrink-0 flex-col items-end text-chat-time whitespace-nowrap text-chat-meta">
+            <div className="flex w-14 shrink-0 flex-col items-end text-chat-time whitespace-nowrap text-chat-meta [[data-wallpaper]_&]:on-wallpaper">
               {/* INFO: REQUIREMENTS.md § 16.1. The live row's own mark, on the live stack's own top line — a snapshot taken before the field existed simply reads undefined here and draws nothing. */}
               {message.silent && (
                 <span

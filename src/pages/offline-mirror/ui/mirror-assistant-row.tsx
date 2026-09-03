@@ -36,7 +36,9 @@ export function MirrorAssistantRow({ className, message }: MirrorAssistantRowPro
         )}
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-2xs">
-        <span className="px-2xs text-chat-name text-chat-sender">{branding.name}</span>
+        <span className="px-2xs text-chat-name text-chat-sender [[data-wallpaper]_&]:on-wallpaper">
+          {branding.name}
+        </span>
         <div className="flex items-end gap-2xs">
           <div
             className={cn(
@@ -58,7 +60,7 @@ export function MirrorAssistantRow({ className, message }: MirrorAssistantRowPro
               <MarkdownBody isOnlyMe={message.onlyMe} text={message.text ?? ""} />
             )}
           </div>
-          <div className="flex w-14 shrink-0 flex-col items-end text-chat-time whitespace-nowrap text-chat-meta">
+          <div className="flex w-14 shrink-0 flex-col items-end text-chat-time whitespace-nowrap text-chat-meta [[data-wallpaper]_&]:on-wallpaper">
             <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
           </div>
         </div>

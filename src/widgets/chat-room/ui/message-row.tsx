@@ -298,7 +298,9 @@ export function MessageRow({
         {renderPullIndicator()}
         {!isMine && isFirstOfGroup && (
           // INFO: DESIGN.md § 4.1.4. `chat-sender`, not `chat-meta` — the name says who is speaking and has to clear AA at 12px, which the clock's tone does not.
-          <span className="px-2xs text-chat-name text-chat-sender">{sender?.name}</span>
+          <span className="px-2xs text-chat-name text-chat-sender [[data-wallpaper]_&]:on-wallpaper">
+            {sender?.name}
+          </span>
         )}
         {/* INFO: DESIGN.md § 6.10. A bubble-less message quotes in a card of its own; a text one quotes inside its bubble, where the fill already frames it. */}
         {replyTo && isBubbleless && (
@@ -553,11 +555,11 @@ export function MessageRow({
               // INFO: DESIGN.md § 6.3. One timestamp per minute-group, on its last bubble; § 8.8.'s unread count and § 8.13.'s 수정됨 stack above it on the bubbles that carry them.
               // WARN: REQUIREMENTS.md § 8.3. A fixed `w-[68px]`, wide enough for the longest `오후 12:34` — widened past the timestamp's own 56px floor to match the § 8.10./§ 8.11. hover pill sharing this column, since the two can never disagree about the width the § 8.3. estimate reserves. It is beside the bubble rather than under it, so its width comes off the width the text wraps in — left to size itself, the estimate would have to re-measure a string it cannot see, and would flip a whole line wherever it guessed wrong.
               // WARN: `whitespace-nowrap` guards the fixed width above. `오후 12:34` clears it easily now, and the app's font is `display: swap` — a wider fallback on the first paint would wrap the time onto a second line, breaking § 6.3.'s one-line rule and the § 8.3. estimate that trusts it. Invisible to a developer whose webfont is already cached.
-              // INFO: DESIGN.md § 7.16. The clock keeps `chat-meta`'s quiet tone and takes the lift instead — over a wallpaper it is unreadable for the same reason the name was, but making it darker would give it emphasis it is not owed.
+              // INFO: DESIGN.md § 7.16. `on-wallpaper` overrides `chat-meta` on the photo, the same swap the sender name takes.
               // WARN: `relative`, and always rendered whenever a hover action exists — the § 8.10./§ 8.11. pill overlays exactly this box (`renderHoverActions`) rather than sitting beside it, so the box has to exist even on a mid-group bubble that shows no timestamp of its own.
               <div
                 className={cn(
-                  "relative flex w-[68px] shrink-0 flex-col text-chat-time whitespace-nowrap text-chat-meta",
+                  "relative flex w-[68px] shrink-0 flex-col text-chat-time whitespace-nowrap text-chat-meta [[data-wallpaper]_&]:on-wallpaper",
                   // INFO: DESIGN.md § 6.3. The clock hugs the bubble's edge of the slot, not the column's — the slot is wider than the time it holds.
                   isMine ? "items-end" : "items-start",
                 )}

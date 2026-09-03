@@ -2028,6 +2028,8 @@ export function ChatRoom({
     <div
       ref={containerRef}
       className={cn("relative min-h-0 flex-1 chat-clearance", className)}
+      // INFO: DESIGN.md § 7.16. Scopes `on-wallpaper` to the sender name/timestamp text drawn on the photo — withheld with no wallpaper, where the room is flat `chat-canvas` and those colours must stay dark.
+      {...(chatBackgroundMediaId ? { "data-wallpaper": "" } : {})}
       // INFO: REQUIREMENTS.md § 13.6. The spacer half of `--chat-bottom-gap` (theme.css) — the composer's own spacer, the list's trailing one and the pills over it all read this one value.
       // WARN: § 13.6. Always `0s`. Easing this on the browser's own clock is what forced `useComposerClearance`'s `ResizeObserver` to re-measure and re-pin on every frame of the toggle with no keyboard up — the value now snaps in one layout pass, and `SHEET_FLIP_ATTRIBUTE` (above) hands the visible motion to that hook's FLIP instead, on `transform` alone.
       style={{

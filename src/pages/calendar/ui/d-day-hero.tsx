@@ -42,12 +42,12 @@ export function DDayHero({ className, summary }: DDayHeroProps) {
           alt=""
         />
       ) : (
-        <div className="absolute inset-0 -z-10 bg-chat-canvas" />
+        <div className="absolute inset-0 -z-10 bg-primary" />
       )}
-      {/* WARN: DESIGN.md § 7.16. The chat wallpaper's own wash, at the 70% `ChatBackdrop` and `toChromeTint` carry — the calendar borrows the room's photo and must borrow its tone with it. */}
-      <div className="absolute inset-0 -z-10 bg-chat-scrim/70" />
+      {/* WARN: DESIGN.md § 7.16. The chat wallpaper's own wash, at the 40% `ChatBackdrop` and `toChromeTint` carry — the calendar borrows the room's photo and must borrow its tone with it. */}
+      <div className="absolute inset-0 -z-10 bg-chat-scrim/40" />
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-xs px-lg text-center text-on-hero">
+      <div className="flex flex-1 flex-col items-center justify-center gap-xs px-lg text-center text-on-scrim">
         <p className="text-title-md">함께한 지</p>
         <p className="text-display-xl">{summary.dayCount.toLocaleString()}</p>
         <p className="text-body-lg">{formatDate(summary.startDate)}</p>
@@ -88,13 +88,13 @@ function PersonBadge({ className, participant }: PersonBadgeProps) {
     <div className={cn("flex flex-col items-center gap-2xs", className)}>
       {/* INFO: A border, not a ring — `Avatar`'s own ring is inset and the photo paints over it, so a ring here never shows. */}
       <Avatar
-        className="border-2 border-on-hero"
+        className="border-2 border-on-scrim"
         size="profile"
         name={participant.name}
         mediaId={participant.avatarMediaId}
         onClick={() => openProfile(participant.id)}
       />
-      <p className="text-title-sm text-on-hero">{participant.name}</p>
+      <p className="text-title-sm text-on-scrim">{participant.name}</p>
     </div>
   );
 }

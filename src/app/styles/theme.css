@@ -10,8 +10,8 @@
   /* INFO: Surfaces — DESIGN.md § 4.1.1. */
   --color-canvas: #fbf9f6;
   --color-chat-canvas: #efeae2;
-  /* WARN: REQUIREMENTS.md § 12.2. The wash over a chat wallpaper, and it is a token rather than a `chat-canvas/50` at the call site so the dark theme can move it. Every meta colour in the room — `chat-meta`, the date pill, 수정됨 — was chosen against `chat-canvas`, and this is what keeps them on it. */
-  --color-chat-scrim: #efeae2;
+  /* WARN: REQUIREMENTS.md § 12.2. The wash over a chat wallpaper, and it is a token rather than a `chat-canvas/50` at the call site so the dark theme can move it. Dark rather than `chat-canvas`-toned, so the wash dims the photo instead of washing it out — the meta colours on it take `on-wallpaper` (globals.css) instead of relying on this alone. */
+  --color-chat-scrim: #2a231c;
   --color-surface-soft: #f4f0e9;
   --color-surface-strong: #eae4da;
   --color-surface-pressed: #dfd8cb;
@@ -49,9 +49,6 @@
   /* WARN: DESIGN.md § 5.3. Chrome over `scrim` or over a photograph, and it is the one colour token that MUST NOT change between themes — the surface under it is a user's photo or a fixed scrim, neither of which follows the theme. */
   /* WARN: Not `on-primary`. The two were the same white while the app was light-only, so a viewer control could borrow it and nothing showed; `on-primary` inverts to dark on the dark theme and every borrowed site turned black-on-black. Never point one at the other again. */
   --color-on-scrim: #ffffff;
-  /* INFO: DESIGN.md § 7.9. The D-day hero's wash over the wallpaper, applied at alpha — its own token rather than `scrim` reused, so a later tune of the dialog backdrop cannot move this gradient with it. */
-  /* INFO: DESIGN.md § 7.9. The hero's foreground — `ink` over the light `chat-scrim` wash, white over the dark one, where `on-scrim` would vanish on the beige. */
-  --color-on-hero: #1f1b17;
   --color-hero-heart: #f27a9c;
   /* INFO: DESIGN.md § 7.9. Outlined only on the dark canvas, where the pink alone sinks into the scrim. */
   --color-hero-heart-outline: transparent;
@@ -478,8 +475,6 @@
   --color-meta-soft: #7b7263;
   /* WARN: DESIGN.md § 4.1.2. Still not `#000000`. It is used at an opacity over content, and a pure black scrim on a warm dark canvas reads as a hole rather than a dimming. */
   --color-scrim: #0a0806;
-  /* INFO: DESIGN.md § 7.9. Re-derived against the dark canvas (AGENTS.md § 5.2.) rather than the light value reused — still a dark wash either way, since it sits on a photo and not on either theme's own surface. */
-  --color-on-hero: #ffffff;
   --color-hero-heart: #e86d90;
   --color-hero-heart-outline: #100e0b;
 

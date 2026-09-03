@@ -209,6 +209,13 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
   @apply bg-canvas/75 backdrop-blur-lg;
 }
 
+/* INFO: DESIGN.md § 7.16. The sender name and timestamp column drawn directly on a chat/hero wallpaper, scoped by `[data-wallpaper]` rather than applied unconditionally — with no wallpaper the room is flat `chat-canvas` and `chat-sender`/`chat-meta` must stay. */
+/* INFO: A 40% wash cannot carry 11px `on-scrim` text over a bright photo on its own, so the shadow does the rest of the contrast work. */
+@utility on-wallpaper {
+  color: var(--color-on-scrim);
+  text-shadow: 0 1px 2px --alpha(var(--color-chat-scrim) / 60%);
+}
+
 /* INFO: DESIGN.md § 3.3. The two hairlines that separate the column from the desktop gutter — one definition, since the shell and the chat screen have to agree on an edge the reader sees as one line. */
 /* WARN: A `box-shadow` and never `border-x`, and the 1px offset is the whole point: it draws the line *outside* the box, so where there is no gutter the line falls outside the viewport and is clipped. That is what keeps this off a `min-width:` branch (AGENTS.md § 4.1.) — the geometry answers the question, not the media query. */
 /* WARN: Ink overflow, so it grows no scrollable area on the phone it overhangs. Anything that gives these two elements a second `box-shadow` drops this one — `box-shadow` is one declaration and the last wins. */

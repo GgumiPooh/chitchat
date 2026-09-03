@@ -132,7 +132,9 @@ export function AssistantMessageRow({
         {...swipe.handlers}
       >
         {renderPullIndicator()}
-        <span className="px-2xs text-chat-name text-chat-sender">{branding.name}</span>
+        <span className="px-2xs text-chat-name text-chat-sender [[data-wallpaper]_&]:on-wallpaper">
+          {branding.name}
+        </span>
         {/* WARN: DESIGN.md § 6.3. `max-w-full` (matching `MessageRow`'s own bubble row) is what carries the column's cap down to the bubble below — a flex item's default `flex-shrink: 1` then squeezes `min-w-0`'s bubble to `column − TIME_SLOT` only once its content actually needs it, rather than a `flex-1` sibling reserving that width whether or not the content does. */}
         <div className="flex max-w-full items-end gap-2xs">
           {/* INFO: DESIGN.md § 6.11. `w-fit max-w-full` inside the `min-w-0` slot, so a short answer draws a bubble as wide as its own line rather than the full column. */}
@@ -202,7 +204,7 @@ export function AssistantMessageRow({
             </div>
           </div>
           {/* WARN: DESIGN.md § 6.3. `relative`, and always rendered — the § 8.10./§ 8.11. pill overlays this exact box (`renderHoverActions`) in place of the timestamp on hover, rather than sitting beside it. */}
-          <div className="relative flex w-[68px] shrink-0 flex-col items-start text-chat-time whitespace-nowrap text-chat-meta">
+          <div className="relative flex w-[68px] shrink-0 flex-col items-start text-chat-time whitespace-nowrap text-chat-meta [[data-wallpaper]_&]:on-wallpaper">
             <time
               className={cn(
                 "transition-opacity",

@@ -162,6 +162,8 @@ export function MirrorChat({ className, shell }: MirrorChatProps) {
     <div
       className={cn("bg-chat-canvas", className)}
       style={chromeTint ? { backgroundColor: chromeTint } : undefined}
+      // INFO: DESIGN.md § 7.16. `on-wallpaper`'s scope — the live room's own condition, mirrored (`shell.chatBackgroundMediaId`).
+      {...(shell.chatBackgroundMediaId ? { "data-wallpaper": "" } : {})}
     >
       <TwoPane
         panel={
