@@ -19,10 +19,9 @@ import { notifyOps } from "./notify";
 const MAX_PASSES = 50;
 
 /**
- * WARN: Off unless `PURGE_NOTIFY` is exactly `true`, and the only one of the three runs
- * that is. This one fires every ten minutes where the other two are daily, so a banner per
- * run is a hundred-odd pushes a day — and a person notified that often stops reading the
- * ones that matter, on the channel this app raises 메시지 on.
+ * WARN: Off unless `PURGE_NOTIFY` is exactly `true`. The schedule fires whether or not there
+ * was anything to do, and "회수할 파일 없음" every morning is a banner nobody asked for, on the
+ * channel this app raises 메시지 on.
  *
  * WARN: It silences the FAILURE banner too, deliberately. A pass that throws is retried
  * unchanged by the next one, and a red scheduled run already says so.
@@ -69,7 +68,7 @@ async function main() {
     media += report.media;
     claims += report.claims;
 
-    // INFO: Zero is drained and total failure alike, and both mean this run is finished. A backlog the ceiling cut short is simply resumed ten minutes later.
+    // INFO: Zero is drained and total failure alike, and both mean this run is finished. A backlog the ceiling cut short is simply resumed by the next pass.
     if (report.media + report.claims === 0) {
       break;
     }
@@ -81,7 +80,7 @@ async function main() {
 
   /**
    * WARN: A run that reclaimed NOTHING still notifies, and that is the case the button
-   * depends on. The schedule drains the queue every ten minutes, so 지금 회수하기 usually
+   * depends on. The schedule and the upload-triggered reclaim drain the queue, so 지금 회수하기 usually
    * finds it already empty — guarding this on `reclaimed > 0` left the panel promising a
    * banner that, in its most likely outcome, never came. Notifying is opt-in precisely so
    * that whoever turned it on is waiting for an answer, and "nothing to reclaim" is one.

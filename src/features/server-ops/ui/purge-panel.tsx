@@ -12,7 +12,7 @@ export type PurgePanelProps = {
 };
 
 /**
- * REQUIREMENTS.md § 9., § 12.4. Brings the ten-minute reclaim forward.
+ * REQUIREMENTS.md § 9., § 12.4. Brings the daily reclaim forward.
  *
  * INFO: A preview beside it, and no confirmation — the two are different questions. 미리보기
  * counts what a run would take, which is worth knowing before spending one and is the same

@@ -6,10 +6,9 @@ name: Ops — purge deleted
 
 on:
   schedule:
-    # WARN: Ten minutes is what is asked for, not what is delivered. GitHub's scheduler runs
-    # late under load and skips runs, so treat this as "several times an hour". The work is
-    # idempotent and every pass resumes the last one, so a late run costs only latency.
-    - cron: "*/10 * * * *"
+    # 04:00 KST, ahead of the sweep and the backup. See ops-backup.yml on scheduler drift.
+    # INFO: Daily rather than every ten minutes — GitHub dropped most of the ten-minute schedule anyway (2–7 runs a day), and the app's own upload-triggered reclaim covers the hours between.
+    - cron: "0 19 * * *"
   workflow_dispatch:
     inputs:
       dry-run:
@@ -27,7 +26,7 @@ permissions:
 # WARN: Keyed by trigger, so a hand-started run and the schedule do not share a queue.
 # GitHub keeps at most ONE pending run per group: with a single group, a dispatch that
 # queued behind an in-flight pass was replaced — and silently cancelled — by the next
-# ten-minute run, losing the only run that had `notify` on. The presser saw 요청했어요 and
+# scheduled run, losing the only run that had `notify` on. The presser saw 요청했어요 and
 # never got a banner.
 #
 # INFO: Overlapping a scheduled pass is safe, and this is the one job where that is true by
@@ -47,9 +46,8 @@ jobs:
       # INFO: A schedule never previews — `github.event_name` is not `workflow_dispatch`, so this is false there whatever the input says.
       dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
       # WARN: A hand-started run notifies; the schedule does not. Somebody pressed 회수하기
-      # and is waiting for an answer, where the ten-minute schedule fires whether or not there
-      # was anything to do — and a banner per run is a hundred-odd pushes a day, on the channel
-      # this app raises 메시지 on. `PURGE_NOTIFY=true` opts the schedule in anyway.
+      # and is waiting for an answer, where the schedule fires whether or not there was
+      # anything to do. `PURGE_NOTIFY=true` opts the schedule in anyway.
       notify: ${{ github.event_name == 'workflow_dispatch' || vars.PURGE_NOTIFY == 'true' }}
       # INFO: Set by 서버 관리 so the answer reaches whoever pressed the button; empty from the Actions tab, which falls back to the default account.
       notify-email: ${{ inputs.notify-email || '' }}

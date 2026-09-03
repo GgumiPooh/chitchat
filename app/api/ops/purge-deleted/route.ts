@@ -15,7 +15,7 @@ import { z } from "zod";
  * INFO: A preview, but no confirmation — the two are different questions. `dryRun` counts
  * what a run would take, which is worth knowing before spending one; a confirmation would be
  * ceremony, since every row here is one the database has ALREADY marked deleted and the
- * ten-minute schedule would have taken it shortly anyway.
+ * next reclaim would have taken it anyway.
  *
  * WARN: 202, and the run notifies. A hand-started reclaim has somebody waiting on it, which
  * is exactly why the workflow turns its push on for a dispatch and leaves it off for the
