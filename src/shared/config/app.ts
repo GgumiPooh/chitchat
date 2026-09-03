@@ -259,6 +259,9 @@ export const MESSAGE_SEARCH_PATH = "/api/messages/search";
 /** A reader's 책갈피 list. */
 export const MESSAGE_BOOKMARKS_PATH = "/api/messages/bookmarks";
 
+/** REQUIREMENTS.md § 8.19. 편집 → 수정's own label cap. */
+export const MAX_BOOKMARK_NAME_LENGTH = 50;
+
 // INFO: Smaller than a message page — a result row is two clamped lines, so a screenful is fewer rows than a screenful of bubbles.
 export const SEARCH_PAGE_SIZE = 20;
 

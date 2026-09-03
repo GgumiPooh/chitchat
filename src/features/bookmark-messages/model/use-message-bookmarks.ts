@@ -7,7 +7,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchMessageBookmarks } from "../api/fetch-message-bookmarks";
 import {
   requestAddMessageBookmark,
+  requestRemoveAllMessageBookmarks,
   requestRemoveMessageBookmark,
+  requestRenameMessageBookmark,
 } from "../api/request-message-bookmark";
 
 export type MessageBookmarks = ReturnType<typeof useMessageBookmarks>;
@@ -96,6 +98,43 @@ export function useMessageBookmarks(hideOthers: boolean) {
     [reload],
   );
 
+  const rename = useCallback(
+    async (id: MessageId, name: string) => {
+      try {
+        const renamed = await requestRenameMessageBookmark(id, name);
+
+        if (renamed) {
+          setBookmarks((prev) =>
+            prev.map((bookmark) => (bookmark.id === id ? { ...bookmark, name } : bookmark)),
+          );
+          void reload();
+        }
+
+        return renamed;
+      } catch {
+        toast.error("책갈피 이름을 바꾸지 못했어요");
+
+        return false;
+      }
+    },
+    [reload],
+  );
+
+  const removeAll = useCallback(async () => {
+    try {
+      await requestRemoveAllMessageBookmarks();
+      setBookmarks([]);
+      setIds(new Set());
+      void reload();
+
+      return true;
+    } catch {
+      toast.error("책갈피를 해제하지 못했어요");
+
+      return false;
+    }
+  }, [reload]);
+
   return {
     bookmarks,
     ids,
@@ -104,6 +143,8 @@ export function useMessageBookmarks(hideOthers: boolean) {
     closeList: useCallback(() => setIsListOpen(false), []),
     add,
     remove,
+    rename,
+    removeAll,
     reload,
   };
 }

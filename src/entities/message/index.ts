@@ -37,7 +37,12 @@ export {
   searchMessages,
   type SearchMessagesParams,
 } from "./api/search-messages";
-export { addMessageBookmark, removeMessageBookmark } from "./api/set-message-bookmark";
+export {
+  addMessageBookmark,
+  removeAllMessageBookmarks,
+  removeMessageBookmark,
+  renameMessageBookmark,
+} from "./api/set-message-bookmark";
 export {
   listMessageInlineEmoticons,
   toMessagePayload,

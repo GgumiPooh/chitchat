@@ -1,0 +1,1 @@
+ALTER TABLE "message_bookmarks" ADD COLUMN "name" text;

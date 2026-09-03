@@ -1,4 +1,4 @@
-import { listMessageBookmarks } from "@/entities/message";
+import { listMessageBookmarks, removeAllMessageBookmarks } from "@/entities/message";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { NextResponse } from "next/server";
@@ -27,4 +27,16 @@ export async function GET(request: Request) {
   });
 
   return NextResponse.json({ bookmarks });
+}
+
+export async function DELETE() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return apiError("unauthorized");
+  }
+
+  await removeAllMessageBookmarks(user.id);
+
+  return new NextResponse(null, { status: 204 });
 }

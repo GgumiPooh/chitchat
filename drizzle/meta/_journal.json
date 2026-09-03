@@ -484,6 +484,13 @@
       "when": 1788500100000,
       "tag": "0068_message_bookmarks",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1788500200000,
+      "tag": "0069_message_bookmark_name",
+      "breakpoints": true
     }
   ]
 }

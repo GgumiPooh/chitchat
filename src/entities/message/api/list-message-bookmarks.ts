@@ -18,7 +18,7 @@ export async function listMessageBookmarks({
   hideOthers,
 }: ListMessageBookmarksParams): Promise<MessageBookmark[]> {
   const rows = await getDb()
-    .select({ messageId: messageBookmarks.messageId })
+    .select({ messageId: messageBookmarks.messageId, name: messageBookmarks.name })
     .from(messageBookmarks)
     .innerJoin(messages, eq(messages.id, messageBookmarks.messageId))
     .where(
@@ -32,5 +32,9 @@ export async function listMessageBookmarks({
 
   const previews = await listReplyPreviews(rows.map((row) => row.messageId));
 
-  return rows.flatMap((row) => previews.get(row.messageId) ?? []);
+  return rows.flatMap((row) => {
+    const preview = previews.get(row.messageId);
+
+    return preview ? [{ ...preview, name: row.name }] : [];
+  });
 }

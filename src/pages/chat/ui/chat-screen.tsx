@@ -434,6 +434,9 @@ export function ChatScreen({
             participants={participants}
             onClose={bookmarks.closeList}
             onSelect={jumpToBookmark}
+            onRemove={bookmarks.remove}
+            onRename={bookmarks.rename}
+            onRemoveAll={bookmarks.removeAll}
           />
         </div>
       </div>

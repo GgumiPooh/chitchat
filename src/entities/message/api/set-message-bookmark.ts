@@ -44,3 +44,23 @@ export async function removeMessageBookmark(
 
   return deleted.length > 0;
 }
+
+/** Sets a reader's own label on a bookmark — `false` when there was none to rename. */
+export async function renameMessageBookmark(
+  userId: UserId,
+  messageId: MessageId,
+  name: string,
+): Promise<boolean> {
+  const updated = await getDb()
+    .update(messageBookmarks)
+    .set({ name })
+    .where(and(eq(messageBookmarks.messageId, messageId), eq(messageBookmarks.userId, userId)))
+    .returning({ messageId: messageBookmarks.messageId });
+
+  return updated.length > 0;
+}
+
+/** 전체 해제 — clears every bookmark a reader has set. */
+export async function removeAllMessageBookmarks(userId: UserId): Promise<void> {
+  await getDb().delete(messageBookmarks).where(eq(messageBookmarks.userId, userId));
+}

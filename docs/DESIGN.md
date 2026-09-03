@@ -886,6 +886,10 @@ The count variant recolours to `primary` rather than adding a separate badge ele
 | Nav-bar button | § 6.8.'s navigation bar, immediately right of 목록 — at zero it toasts instead of opening                                                              |
 | List row       | § 6.8.'s result row shape, a 40px § 6.10. quote tile in place of the sender name, the message's own date beside the sender                             |
 | Sheet          | `REQUIREMENTS.md § 8.18.`'s draggable-sheet/`Modal` shell, now `ExpandableSheet` (`@/shared/ui`)                                                       |
+| Edit header    | `ExpandableSheet`'s visible header row — title centered, a `HeaderTextButton` pill (편집/완료) at the right                                            |
+| Edit row       | Same tile and lines as the list row, two `Button` `secondary` pills (수정/해제) at the right in place of the tap target                                |
+| 전체 해제 footer | Full-width `Button` `destructive`, pinned in `ExpandableSheet`'s `footer`, shown only in 편집 mode                                                     |
+| Rename modal   | `Modal` `size="sm"`, an `Input` prefilled with the row's current line, 취소/확인                                                                       |
 
 ## 6.9. Link Preview Card.
 

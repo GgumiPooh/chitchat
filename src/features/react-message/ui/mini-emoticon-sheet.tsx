@@ -339,7 +339,7 @@ export function MiniEmoticonSheet({
     <ExpandableSheet
       className={className}
       isOpen={isOpen && messageId !== null}
-      header={{ title: "리액션" }}
+      header={{ title: "리액션", isHidden: true }}
       onClose={onClose}
     >
       {content}

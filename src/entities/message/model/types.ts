@@ -103,7 +103,10 @@ export type ChatMessage = {
 };
 
 /** One row of a reader's 책갈피 list — the row shows what a quote shows, dated by the message's own id. */
-export type MessageBookmark = ReplyPreview;
+export type MessageBookmark = ReplyPreview & {
+  /** REQUIREMENTS.md § 8.19. The reader's own label, set via 편집 → 수정; null falls back to `toReplySummary`. */
+  name: Nullable<string>;
+};
 
 export type MessageReaction = {
   messageId: MessageId;

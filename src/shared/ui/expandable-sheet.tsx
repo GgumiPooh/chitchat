@@ -2,16 +2,34 @@
 
 import { cn, useIsDesktop, useSheetDrag, type Nullable } from "@/shared/lib";
 import { Dialog as DialogPrimitive } from "radix-ui";
-import { useRef, type PropsWithChildren } from "react";
+import {
+  useImperativeHandle,
+  useRef,
+  type PropsWithChildren,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { Modal, type ModalProps } from "./modal";
 
+export type ExpandableSheetHandle = { expand: () => void; collapse: () => void };
+
 export type ExpandableSheetProps = PropsWithChildren<{
+  ref?: Ref<ExpandableSheetHandle>;
   className?: string;
+  /** Pinned below the scrolling body, inside the sheet's bottom padding, on both mobile and desktop. */
+  footer?: ReactNode;
   isOpen: boolean;
-  header: { className?: string; title: string };
+  modalSize?: ModalProps["size"];
   /** Rest-mode height in px. */
   restHeight?: number;
-  modalSize?: ModalProps["size"];
+  header: {
+    className?: string;
+    title: string;
+    /** A control that sits beside the close button on desktop, and at the right of the visible mobile header row (AGENTS.md § 2.4.). */
+    action?: ReactNode;
+    /** Mobile only — `true` keeps the current sr-only title with no visible header row (`MiniEmoticonSheet`). Desktop always shows a header. */
+    isHidden?: boolean;
+  };
   onClose: () => void;
 }>;
 
@@ -22,9 +40,11 @@ const DEFAULT_REST_HEIGHT = 380;
  * bottom sheet on mobile (two-snap, drag to close/expand), `Modal` from `md`.
  */
 export function ExpandableSheet({
+  ref,
   className,
   isOpen,
   header,
+  footer,
   restHeight = DEFAULT_REST_HEIGHT,
   modalSize = "md",
   children,
@@ -34,8 +54,10 @@ export function ExpandableSheet({
   const sheetRef = useRef<Nullable<HTMLDivElement>>(null);
 
   const {
+    collapse,
     dragProps,
     dragTranslateY,
+    expand,
     expandedHeight,
     handleProps,
     isClosedByDrag,
@@ -45,13 +67,31 @@ export function ExpandableSheet({
     size,
   } = useSheetDrag({ sheetRef, isOpen, onClose });
 
+  // WARN: `expand`/`collapse` drive the mobile drag sheet's own height; desktop's `Modal` has no such notion, so it stays a no-op there.
+  useImperativeHandle(
+    ref,
+    () => ({
+      expand: () => {
+        if (!isDesktop) {
+          expand();
+        }
+      },
+      collapse: () => {
+        if (!isDesktop) {
+          collapse();
+        }
+      },
+    }),
+    [isDesktop, expand, collapse],
+  );
+
   if (isDesktop) {
     return (
       <Modal
         className={className}
         isOpen={isOpen}
         size={modalSize}
-        header={{ className: "pb-2", title: header.title }}
+        header={{ className: "pb-2", title: header.title, action: header.action }}
         onClose={onClose}
       >
         {/* INFO: `-mb-lg`가 DialogShell의 `after:h-lg` 여백을 흡수해, 하단 여백이 스크롤 영역 안쪽에 놓입니다. */}
@@ -59,7 +99,8 @@ export function ExpandableSheet({
           className="-mb-lg flex flex-col"
           style={{ height: `calc(${restHeight}px + var(--spacing-lg))` }}
         >
-          {children}
+          <div className="min-h-0 flex-1">{children}</div>
+          {footer && <div className="shrink-0 pt-sm">{footer}</div>}
         </div>
       </Modal>
     );
@@ -103,7 +144,9 @@ export function ExpandableSheet({
           onOpenAutoFocus={(event) => event.preventDefault()}
           {...dragProps}
         >
-          <DialogPrimitive.Title className="sr-only">{header.title}</DialogPrimitive.Title>
+          {header.isHidden && (
+            <DialogPrimitive.Title className="sr-only">{header.title}</DialogPrimitive.Title>
+          )}
           {/* 상단 드래그 & 토글 손잡이 */}
           <button
             className={cn(
@@ -120,8 +163,22 @@ export function ExpandableSheet({
             <span className="hover:bg-ink-muted block h-1.5 w-12 rounded-full bg-hairline-strong transition-colors" />
           </button>
 
+          {!header.isHidden && (
+            <div className={cn("relative mb-2 flex items-center justify-center", header.className)}>
+              <DialogPrimitive.Title className="truncate px-11 text-title-md text-ink">
+                {header.title}
+              </DialogPrimitive.Title>
+              {header.action && (
+                <div className="absolute right-0 flex items-center">{header.action}</div>
+              )}
+            </div>
+          )}
+
           {/* 스크롤 가능한 콘텐츠 영역 */}
-          <div className="-mx-md -mb-md flex min-h-0 flex-1 flex-col px-md">{children}</div>
+          <div className="-mx-md -mb-md flex min-h-0 flex-1 flex-col px-md">
+            <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+            {footer && <div className="shrink-0 pt-sm">{footer}</div>}
+          </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
