@@ -2,7 +2,7 @@
 
 import { cn, type Nullable } from "@/shared/lib";
 import { IconButton } from "@/shared/ui";
-import { ChevronDown, ChevronUp, List } from "lucide-react";
+import { Bookmark, ChevronDown, ChevronUp, List } from "lucide-react";
 
 export type MessageSearchNavProps = {
   className?: string;
@@ -13,9 +13,12 @@ export type MessageSearchNavProps = {
   hasOlder: boolean;
   hasNewer: boolean;
   hasNoResults: boolean;
+  /** REQUIREMENTS.md § 8.19. Offered only once a caller passes it — the room's own bookmark list. */
+  bookmarkCount?: number;
   onOpenList: () => void;
   onOlder: () => void;
   onNewer: () => void;
+  onOpenBookmarks?: () => void;
 };
 
 /**
@@ -31,9 +34,11 @@ export function MessageSearchNav({
   hasOlder,
   hasNewer,
   hasNoResults,
+  bookmarkCount,
   onOpenList,
   onOlder,
   onNewer,
+  onOpenBookmarks,
 }: MessageSearchNavProps) {
   return (
     // WARN: DESIGN.md § 3.5. Transparent to the pointer at the root so the messages underneath stay tappable; only the bar itself takes taps.
@@ -47,6 +52,15 @@ export function MessageSearchNav({
           aria-label="검색 결과 목록"
           onClick={onOpenList}
         />
+        {onOpenBookmarks && (
+          <IconButton
+            Icon={Bookmark}
+            haptic
+            disabled={bookmarkCount === 0}
+            aria-label="책갈피 목록"
+            onClick={onOpenBookmarks}
+          />
+        )}
         <p
           className={cn("flex-1 text-center text-caption text-meta tabular-nums", counterClassName)}
         >

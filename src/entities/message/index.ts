@@ -23,15 +23,21 @@ export { getMessageIdByClientMsgId } from "./api/get-message-id-by-client-msg-id
 export { isQuotable } from "./api/is-quotable";
 export { listAssistantRepliesAfter } from "./api/list-assistant-replies-after";
 export { listChangedMessages } from "./api/list-changed-messages";
+export {
+  listMessageBookmarks,
+  type ListMessageBookmarksParams,
+} from "./api/list-message-bookmarks";
 export { listMessageReactions } from "./api/list-message-reactions";
 export { listMessages, type ListMessagesParams } from "./api/list-messages";
 export { listMessagesByIds } from "./api/list-messages-by-ids";
 export { listRecentAssistantExchanges } from "./api/list-recent-assistant-exchanges";
 export {
   countMatchingMessages,
+  getSearchVisibility,
   searchMessages,
   type SearchMessagesParams,
 } from "./api/search-messages";
+export { addMessageBookmark, removeMessageBookmark } from "./api/set-message-bookmark";
 export {
   listMessageInlineEmoticons,
   toMessagePayload,
@@ -44,9 +50,13 @@ export {
   type ToggleReactionInput,
   type ToggleReactionResult,
 } from "./api/toggle-reaction";
-// WARN: Everything above touches the database. A client module may import from this barrel with `import type` only — a value import drags `server-only` into its bundle.
+// INFO: The pure exports here — no database, no `server-only` — so a client module (`reply-quote.tsx`, the bookmark sheet) can take them as values while everything else stays `import type`.
+export { toReplySummary } from "./model/to-reply-summary";
+export { QuoteThumbnailTile, type QuoteThumbnailTileProps } from "./ui/quote-thumbnail";
+// WARN: Everything above but `toReplySummary`/`QuoteThumbnailTile` touches the database. A client module may import from this barrel with `import type` only — a value import drags `server-only` into its bundle.
 export type {
   ChatMessage,
+  MessageBookmark,
   MessageReaction,
   MessageSearchResult,
   ReplyPreview,

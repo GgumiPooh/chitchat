@@ -3,6 +3,11 @@
 import type { CalendarSummary, EventOccurrence } from "@/entities/event";
 import type { ChatMessage } from "@/entities/message";
 import {
+  BookmarkCornerButton,
+  MessageBookmarkSheet,
+  useMessageBookmarks,
+} from "@/features/bookmark-messages";
+import {
   ChatStreamConnection,
   rememberInlineEmoticons,
   useChatStream,
@@ -80,6 +85,7 @@ export function ChatScreen({
 }: ChatScreenProps) {
   const silentSend = useSilentSend();
   const search = useMessageSearch(silentSend.mode === "onlyMe");
+  const bookmarks = useMessageBookmarks(silentSend.mode === "onlyMe");
   const upcoming = useUpcomingEvents(initialSummary, currentUserId);
   // INFO: REQUIREMENTS.md § 11.5.1. Arriving with something imminent opens the panel; closing it is what stops that happening again.
   const imminent = useImminentPanel(upcoming.occurrences, currentUserId);
@@ -144,6 +150,47 @@ export function ChatScreen({
     setIsUpcomingOpen(false);
     imminent.dismiss();
   }, [imminent]);
+
+  // INFO: REQUIREMENTS.md § 8.19. `isBookmarked` is the target state the action-sheet row asked for, not the message's state before this ran.
+  const toggleBookmark = useCallback(
+    (id: MessageId, isBookmarked: boolean) => {
+      if (isBookmarked) {
+        void bookmarks.add(id).then((added) => {
+          if (!added) {
+            return;
+          }
+
+          search.open();
+          toast("책갈피가 설정되었습니다.", {
+            action: { label: "목록보기", onClick: bookmarks.openList },
+          });
+        });
+      } else {
+        void bookmarks.remove(id).then((removed) => {
+          if (removed) {
+            toast("책갈피가 해제되었습니다.");
+          }
+        });
+      }
+    },
+    [bookmarks, search],
+  );
+
+  const openBookmarksFromComposer = useCallback(() => {
+    search.open();
+    bookmarks.openList();
+  }, [bookmarks, search]);
+
+  const jumpToBookmark = useCallback(
+    (id: MessageId) => {
+      // WARN: Both deferred, for the reason `useMessageSearch`'s `select` gives — closed synchronously, the row's `keepsScroll` overlay is detached before its click activates.
+      setTimeout(() => {
+        bookmarks.closeList();
+        search.jumpTo(id);
+      });
+    },
+    [bookmarks, search],
+  );
 
   // WARN: DESIGN.md § 3.4. This box is sized from the visual viewport, so the document beneath it may never carry an offset of its own — see `usePinnedDocument` for the one iOS gives it anyway.
   usePinnedDocument(true);
@@ -337,6 +384,7 @@ export function ChatScreen({
             initialOnlyMeFilter={initialOnlyMeFilter}
             searchQuery={search.isOpen ? search.submitted : undefined}
             notifyMode={silentSend.mode}
+            bookmarkedIds={bookmarks.ids}
             bottomBar={
               search.isOpen ? (
                 <MessageSearchNav
@@ -345,12 +393,20 @@ export function ChatScreen({
                   hasOlder={search.hasOlder}
                   hasNewer={search.hasNewer}
                   hasNoResults={search.hasNoResults}
+                  bookmarkCount={bookmarks.bookmarks.length}
                   onOpenList={search.openList}
                   onOlder={search.goOlder}
                   onNewer={search.goNewer}
+                  onOpenBookmarks={bookmarks.openList}
                 />
               ) : undefined
             }
+            composerCorner={
+              !search.isOpen && bookmarks.bookmarks.length > 0 ? (
+                <BookmarkCornerButton onClick={openBookmarksFromComposer} />
+              ) : undefined
+            }
+            onToggleBookmark={toggleBookmark}
             onToggleSilentSend={silentSend.cycle}
             onAddEvent={openForm}
             onOpenEvent={openNoticeEvent}
@@ -372,6 +428,13 @@ export function ChatScreen({
               onSelect={search.select}
             />
           )}
+          <MessageBookmarkSheet
+            isOpen={bookmarks.isListOpen}
+            bookmarks={bookmarks.bookmarks}
+            participants={participants}
+            onClose={bookmarks.closeList}
+            onSelect={jumpToBookmark}
+          />
         </div>
       </div>
     </Container>

@@ -1,5 +1,5 @@
-import type { ReplyPreview } from "@/entities/message";
 import { DELETED_MESSAGE_TEXT, toMediaCountUnit, toMediaLabel } from "@/shared/config";
+import type { ReplyPreview } from "./types";
 
 /**
  * The one line a quote shows for the message it points at (DESIGN.md § 6.10.).

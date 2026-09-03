@@ -1088,6 +1088,18 @@ A message is folded to its quote, **one clamped line** and a 펼치기 row (`DES
   - 내가 등록한 리액션 항목들은 시트 내에서 활성화(선택) 표시된다.
 - **리액션 배지:** 말풍선 하단에 집계된 리액션 배지가 노출되며, 내가 누른 리액션은 강조 표시되고 탭하여 개별 토글할 수 있다.
 
+**The shell** — `MiniEmoticonSheet`'s draggable-sheet/`Modal` split now lives in `ExpandableSheet` (`@/shared/ui`), § 8.19.'s own sheet included.
+
+### 8.19. 책갈피 — a per-user bookmark on any message ✅
+
+`message_bookmarks` — `(user_id, message_id)`, per-user unlike § 8.17.'s shared fold, so each participant keeps their own list over the same message.
+
+- `GET /api/messages/bookmarks?hideOthers=`, `PUT`/`DELETE /api/messages/{id}/bookmark`
+- The § 8.13. action sheet carries a 책갈피 등록/책갈피 해제 row, resolved by id the way 접기 is
+- Registering opens § 8.6.'s search mode and toasts with a 목록보기 action; unregistering only toasts
+- The list opens from the nav bar's own button, the composer's corner button, or the toast — a row jumps through § 8.6.1.'s target the way a search result does
+- Its sheet is § 8.18.'s shell, now shared as `ExpandableSheet`
+
 ---
 
 ## 9. Media Storage (R2) ✅

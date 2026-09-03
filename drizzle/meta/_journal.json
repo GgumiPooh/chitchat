@@ -477,6 +477,13 @@
       "when": 1788500000000,
       "tag": "0067_couple_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1788454196625,
+      "tag": "0068_message_bookmarks",
+      "breakpoints": true
     }
   ]
 }

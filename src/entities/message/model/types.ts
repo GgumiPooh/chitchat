@@ -102,6 +102,9 @@ export type ChatMessage = {
   id: MessageId;
 };
 
+/** One row of a reader's 책갈피 list — the row shows what a quote shows, dated by the message's own id. */
+export type MessageBookmark = ReplyPreview;
+
 export type MessageReaction = {
   messageId: MessageId;
   userId: UserId;

@@ -34,6 +34,11 @@ export {
 export { llmAgents, type LlmAgent } from "./llm-agents";
 export { media, type Media } from "./media";
 export {
+  messageBookmarks,
+  type MessageBookmarkRow,
+  type NewMessageBookmarkRow,
+} from "./message-bookmarks";
+export {
   messageMedia,
   messageTypeEnum,
   messages,

@@ -22,6 +22,7 @@ export {
   type MilestoneDotProps,
 } from "./event-dot";
 export { EventMemo, type EventMemoProps } from "./event-memo";
+export { ExpandableSheet, type ExpandableSheetProps } from "./expandable-sheet";
 export { FileCard, type FileCardProps } from "./file-card";
 export { FileDropGuard } from "./file-drop-guard";
 // INFO: Exported for controls that cannot be a `Button` — anything that can takes the `haptic` prop instead, so the overlay's invariants stay inside the primitive.

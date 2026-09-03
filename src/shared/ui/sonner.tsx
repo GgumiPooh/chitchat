@@ -42,6 +42,15 @@ export function Toaster({ className, style, toastOptions, ...props }: ToasterPro
           lineHeight: "var(--text-body-sm--line-height)",
           ...toastOptions?.style,
         },
+        actionButtonStyle: {
+          backgroundColor: "var(--color-primary)",
+          color: "var(--color-on-primary)",
+          borderRadius: "var(--radius-sm)",
+          fontSize: "var(--text-button-sm)",
+          lineHeight: "var(--text-button-sm--line-height)",
+          fontWeight: "var(--text-button-sm--font-weight)",
+          ...toastOptions?.actionButtonStyle,
+        },
       }}
       {...props}
     />

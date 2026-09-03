@@ -19,7 +19,8 @@ export type SearchMessagesParams = {
 // INFO: REQUIREMENTS.md § 8.6.1. Attachments and emoticons carry no text to match, so the search is `text` rows alone rather than a filter applied to the result.
 const IS_SEARCHABLE = and(eq(messages.type, "text"), isNull(messages.deletedAt));
 
-function getSearchVisibility(currentUserId: UserId, hideOthers: boolean): SQL {
+/** REQUIREMENTS.md § 16.1. 나에게만 보내기 — an `only_me` row is visible to nobody but its sender. */
+export function getSearchVisibility(currentUserId: UserId, hideOthers: boolean): SQL {
   return hideOthers
     ? and(eq(messages.onlyMe, true), eq(messages.senderId, currentUserId))!
     : eq(messages.onlyMe, false);

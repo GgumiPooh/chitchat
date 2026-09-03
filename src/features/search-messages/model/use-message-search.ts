@@ -47,7 +47,7 @@ export function useMessageSearch(hideOthers = false) {
   const tokenRef = useRef(0);
   const resultsRef = useRef<MessageSearchResult[]>([]);
 
-  const jumpTo = useCallback((index: number, hits: MessageSearchResult[]) => {
+  const jumpToIndex = useCallback((index: number, hits: MessageSearchResult[]) => {
     const hit = hits[index];
 
     if (!hit) {
@@ -57,6 +57,12 @@ export function useMessageSearch(hideOthers = false) {
     tokenRef.current += 1;
     setActiveIndex(index);
     setTarget({ id: hit.id, token: tokenRef.current });
+  }, []);
+
+  /** Moves the room to an id outside the result set — the § 8.19. bookmark list's own jump. */
+  const jumpTo = useCallback((id: MessageId) => {
+    tokenRef.current += 1;
+    setTarget({ id, token: tokenRef.current });
   }, []);
 
   const reset = useCallback(() => {
@@ -147,10 +153,10 @@ export function useMessageSearch(hideOthers = false) {
       // INFO: AGENTS.md § 8.1. No delay argument at all rather than a bare `0` — the point is the next task, not a duration.
       setTimeout(() => {
         setIsListOpen(false);
-        jumpTo(index, resultsRef.current);
+        jumpToIndex(index, resultsRef.current);
       });
     },
-    [jumpTo],
+    [jumpToIndex],
   );
 
   /**
@@ -162,21 +168,21 @@ export function useMessageSearch(hideOthers = false) {
     const next = (activeIndex ?? -1) + 1;
 
     if (next < resultsRef.current.length) {
-      jumpTo(next, resultsRef.current);
+      jumpToIndex(next, resultsRef.current);
 
       return;
     }
 
     if (await loadMore()) {
-      jumpTo(next, resultsRef.current);
+      jumpToIndex(next, resultsRef.current);
     }
-  }, [activeIndex, jumpTo, loadMore]);
+  }, [activeIndex, jumpToIndex, loadMore]);
 
   const goNewer = useCallback(() => {
     if (activeIndex !== null && activeIndex > 0) {
-      jumpTo(activeIndex - 1, resultsRef.current);
+      jumpToIndex(activeIndex - 1, resultsRef.current);
     }
-  }, [activeIndex, jumpTo]);
+  }, [activeIndex, jumpToIndex]);
 
   /** REQUIREMENTS.md § 8.6. One scan per asked-for query. */
   const scan = useCallback(
@@ -202,7 +208,7 @@ export function useMessageSearch(hideOthers = false) {
 
         if (jumps) {
           // INFO: The newest hit is taken as soon as the page lands, so the counter reads `1/12` and the arrows have somewhere to step from without the user picking a row first.
-          jumpTo(0, page.results);
+          jumpToIndex(0, page.results);
         }
       } catch {
         if (generation === requestId.current) {
@@ -211,7 +217,7 @@ export function useMessageSearch(hideOthers = false) {
         }
       }
     },
-    [hideOthers, jumpTo],
+    [hideOthers, jumpToIndex],
   );
 
   // INFO: REQUIREMENTS.md § 8.6. The typed-ahead scan, and it never jumps — the room would then scroll to a different message on every debounce window, under a reader still typing.
@@ -284,5 +290,6 @@ export function useMessageSearch(hideOthers = false) {
     select,
     goOlder,
     goNewer,
+    jumpTo,
   };
 }

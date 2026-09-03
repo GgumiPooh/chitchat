@@ -146,6 +146,8 @@ import { measureElement as measureRenderedElement, useVirtualizer } from "@tanst
 import { josa } from "es-hangul";
 import {
   Archive,
+  Bookmark,
+  BookmarkMinus,
   ChevronsDownUp,
   ChevronsUpDown,
   Copy,
@@ -284,6 +286,10 @@ export type ChatRoomProps = {
   bottomBar?: ReactNode;
   /** REQUIREMENTS.md § 16.1. 조용히 보내기 / 나에게만 보내기 — the screen owns the cookie (`useSilentSend`), the room only draws its composer notice. */
   notifyMode?: NotifyMode;
+  /** REQUIREMENTS.md § 8.19. What the action sheet's 책갈피 row reads to decide its own label. */
+  bookmarkedIds: Set<MessageId>;
+  /** REQUIREMENTS.md § 8.19. The composer corner button, rendered beside the § 6.7. pill at the same rest position. */
+  composerCorner?: ReactNode;
   /** REQUIREMENTS.md § 16.1., § 8.14. `⌃S`'s target — the screen owns `useSilentSend`'s setter, same split as `notifyMode`. */
   onToggleSilentSend: () => void;
   /** REQUIREMENTS.md § 11.4. Opens 새 일정 from the attach sheet's 일정 row; the screen owns the form, as it owns `EventDetailDialog`. */
@@ -292,6 +298,8 @@ export type ChatRoomProps = {
   onOpenEvent?: (message: ChatMessage) => void;
   /** @see AiSelectionHeaderState */
   onAiSelectionChange?: (state: Nullable<AiSelectionHeaderState>) => void;
+  /** REQUIREMENTS.md § 8.19. `isBookmarked` is the state the message is in *now* — the sheet toggles it and reports which way it went. */
+  onToggleBookmark: (id: MessageId, isBookmarked: boolean) => void;
 };
 
 // INFO: § 13.6. The ceiling the emoticon panel's mount is given, matching the warm's own — the two are the same idle frame and a panel that mounted first would build its cells against an empty cache.
@@ -351,10 +359,13 @@ export function ChatRoom({
   searchQuery,
   bottomBar,
   notifyMode = "notify",
+  bookmarkedIds,
+  composerCorner,
   onToggleSilentSend,
   onAddEvent,
   onOpenEvent,
   onAiSelectionChange,
+  onToggleBookmark,
 }: ChatRoomProps) {
   const containerRef = useRef<Nullable<HTMLDivElement>>(null);
   // INFO: § 13.6. Measured out of the clearance rather than into it — its height is the one part of the stack a stylesheet already knows.
@@ -2134,6 +2145,17 @@ export function ChatRoom({
             style={{ transform: composerDragTransform }}
             onClick={() => void goToNewest()}
           />
+          {composerCorner && (
+            <div
+              className={cn(
+                "absolute right-md bottom-[calc(var(--chat-bottom-gap)+var(--spacing-md))] will-change-transform",
+                composerTransition,
+              )}
+              style={{ transform: composerDragTransform }}
+            >
+              {composerCorner}
+            </div>
+          )}
         </>
       )}
       {(isSwitchingMode || activeFilterMode !== (notifyMode === "onlyMe")) && (
@@ -3855,6 +3877,14 @@ export function ChatRoom({
         onSelect: () => void toggleCollapse(target.id),
       });
     }
+
+    // INFO: REQUIREMENTS.md § 8.19. Offered on every non-deleted message of either participant, resolved by id at the moment this runs — like 접기 above.
+    const isBookmarked = bookmarkedIds.has(target.id);
+    items.push({
+      label: isBookmarked ? "책갈피 해제" : "책갈피 등록",
+      Icon: isBookmarked ? BookmarkMinus : Bookmark,
+      onSelect: () => onToggleBookmark(target.id, !isBookmarked),
+    });
 
     // INFO: REQUIREMENTS.md § 8.15. An AI answer's `senderId` is the asker (§ 8.10.), so nothing below this line applies to it — 수정/삭제 read as though the asker could correct or withdraw 쨈미니's own words, and 이모티콘 따라하기 has nothing to key off since the row carries none.
     if (target.type === "system") {

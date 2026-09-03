@@ -256,6 +256,9 @@ export const CHANGED_MESSAGES_LIMIT = 200;
 /** REQUIREMENTS.md § 8.6. Substring search over `messages.text`, newest first. */
 export const MESSAGE_SEARCH_PATH = "/api/messages/search";
 
+/** A reader's 책갈피 list. */
+export const MESSAGE_BOOKMARKS_PATH = "/api/messages/bookmarks";
+
 // INFO: Smaller than a message page — a result row is two clamped lines, so a screenful is fewer rows than a screenful of bubbles.
 export const SEARCH_PAGE_SIZE = 20;
 

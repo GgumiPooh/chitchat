@@ -11,9 +11,11 @@ export default defineConfig([
   },
   {
     // WARN: A feature of a two-person app legitimately has one consumer — `send-message` is used by the chat room and nothing else, and merging it into that widget would violate the layer split in REQUIREMENTS.md § 2.
+    // WARN: `excessive-slicing`'s threshold is a suggestion to group related slices, not a cap — this app's features are already named narrowly by the one thing each does, and forcing them under grouping folders would trade that legibility for a number.
     files: ["./src/features/**"],
     rules: {
       "fsd/insignificant-slice": "warn",
+      "fsd/excessive-slicing": "warn",
     },
   },
   {

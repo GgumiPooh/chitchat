@@ -879,6 +879,15 @@ The count variant recolours to `primary` rather than adding a separate badge ele
 
 **A search jump is marked in the words, not behind the row.** § 6.10.'s flash exists because a quote jump has nothing else to point at — it says "here" and stops. A search knows which characters were asked for, so it lights those, in the colour the result row already used, and the mark stays up while the reader steps through the rest. Washing a full-width row in `message-flash` on top of that puts a block of colour behind text that is being read, once per arrow press — and the flash is a single shot that dissolves, where a search mark has to survive the next press of `∧∨`.
 
+## 6.8.1. Bookmarks.
+
+| Element        | Rule                                                                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Corner button  | § 6.7. pill's rest geometry and position, riding the composer's own transition and drag transform — shown while a bookmark exists and search is closed |
+| Nav-bar button | § 6.8.'s navigation bar, immediately right of 목록 — disabled at zero count                                                                            |
+| List row       | § 6.8.'s result row shape, a 40px § 6.10. quote tile in place of the sender name, the message's own date beside the sender                             |
+| Sheet          | `REQUIREMENTS.md § 8.18.`'s draggable-sheet/`Modal` shell, now `ExpandableSheet` (`@/shared/ui`)                                                       |
+
 ## 6.9. Link Preview Card.
 
 A text message carrying a link renders a card above its bubble and **outside** it (`REQUIREMENTS.md § 8.9.`). Outside, so the card reads as an attachment to the message rather than as part of the sentence — the same treatment § 6.5. gives a photo, which is also something the sender pointed at rather than something they wrote.
