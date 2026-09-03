@@ -97,7 +97,8 @@ export function MessageSearchField({
       {variant === "floating" && (
         <HapticTarget className="inline-flex shrink-0" isTicking={canSubmit} keepsFocus>
           <button
-            className="inline-flex size-9 shrink-0 press-bloom cursor-pointer items-center justify-center rounded-full bg-primary text-on-primary outline-none group-active:bg-primary-pressed hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary active:bg-primary-pressed disabled:cursor-not-allowed disabled:bg-primary-disabled"
+            // INFO: DESIGN.md § 7.12. Disabled is the disc hollowed out — an outline in `primary` — rather than `primary-disabled`, which read as a dimmed, dirty disc over the wallpaper.
+            className="inline-flex size-9 shrink-0 press-bloom cursor-pointer items-center justify-center rounded-full bg-primary text-on-primary outline-none group-active:bg-primary-pressed hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary active:bg-primary-pressed disabled:cursor-not-allowed disabled:border disabled:border-primary disabled:bg-transparent disabled:text-primary"
             disabled={!canSubmit || isLoading}
             type="submit"
             aria-label="검색"

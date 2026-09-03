@@ -6,7 +6,15 @@ export type HeaderTextButtonProps = PropsWithChildren<ComponentProps<"button">> 
   className?: string;
   /** WARN: The button's own box, for anything `className` cannot reach once `haptic` moves that to the wrapper — padding, radius, colour. */
   buttonClassName?: string;
+  /** DESIGN.md § 7.12. `floating` carries the same glass surface as `icon-button-floating`, since the header itself is invisible; `plain` is for a sheet's own header row, which has a surface already. */
+  variant?: "plain" | "floating";
   haptic?: boolean;
+};
+
+const VARIANT_CLASS_NAME: Record<NonNullable<HeaderTextButtonProps["variant"]>, string> = {
+  plain: "hover:bg-primary-tint active:bg-primary-tint/80 group-active:bg-primary-tint/80",
+  floating:
+    "glass border border-hairline shadow-floating hover:bg-canvas active:bg-surface-soft group-active:bg-surface-soft",
 };
 
 /**
@@ -18,6 +26,7 @@ export type HeaderTextButtonProps = PropsWithChildren<ComponentProps<"button">> 
 export function HeaderTextButton({
   className,
   buttonClassName,
+  variant = "floating",
   haptic = false,
   type = "button",
   ...props
@@ -26,7 +35,8 @@ export function HeaderTextButton({
     <button
       // WARN: `buttonClassName` applies in **both** branches, `Button`'s own reason — dropped under `haptic` alone, a caller loses the box (`rounded-full`, `text-primary`) rather than only the wrapper's own layout.
       className={cn(
-        "inline-flex min-h-11 shrink-0 items-center justify-center rounded-full px-sm text-button-sm font-semibold text-primary transition-colors outline-none hover:bg-primary-tint focus-visible:ring-2 focus-visible:ring-primary active:bg-primary-tint/80",
+        "inline-flex min-h-11 shrink-0 items-center justify-center rounded-full px-sm text-button-sm font-semibold text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary",
+        VARIANT_CLASS_NAME[variant],
         !haptic && className,
         buttonClassName,
       )}

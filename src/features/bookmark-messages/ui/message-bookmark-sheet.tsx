@@ -93,6 +93,7 @@ export function MessageBookmarkSheet({
           action:
             bookmarks.length > 0 ? (
               <HeaderTextButton
+                variant="plain"
                 haptic
                 onClick={() => (isEditing ? setIsEditing(false) : handleEdit())}
               >
