@@ -21,7 +21,7 @@ import {
 import type { DbTransaction } from "@/shared/storage";
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 
-type ReminderLead = "d7" | "d1" | "h3";
+type ReminderLead = "d7" | "d1" | "h2";
 
 type Threshold = { lead: ReminderLead; at: number };
 
@@ -32,8 +32,8 @@ const HORIZON_DAYS = 8;
  * When an all-day row's notice goes out, in `TIME_ZONE`.
  *
  * WARN: REQUIREMENTS.md § 16.3. An all-day event stores 00:00 as its start, so an offset
- * subtracted from it lands at midnight for `d1` and at 21:00 the night before for `h3` —
- * which is why these two are sent at a fixed clock time and why `h3` has no all-day form.
+ * subtracted from it lands at midnight for `d1` and at 22:00 the night before for `h2` —
+ * which is why these two are sent at a fixed clock time and why `h2` has no all-day form.
  */
 const ALL_DAY_NOTICE_HOUR = "09";
 
@@ -208,7 +208,7 @@ function toThresholds(occurrence: EventOccurrence, startsAt: number): Threshold[
   return [
     { lead: "d7", at: startsAt - 7 * A_DAY },
     { lead: "d1", at: startsAt - A_DAY },
-    { lead: "h3", at: startsAt - 3 * AN_HOUR },
+    { lead: "h2", at: startsAt - 2 * AN_HOUR },
   ];
 }
 
@@ -216,9 +216,9 @@ function noticeInstant(dayKey: string): number {
   return Date.parse(`${dayKey}T${ALL_DAY_NOTICE_HOUR}:00:00${TIME_ZONE_OFFSET}`);
 }
 
-// INFO: REQUIREMENTS.md § 16.3. An all-day row has no `h3`, so its last notice is the 09:00 one the day before.
+// INFO: REQUIREMENTS.md § 16.3. An all-day row has no `h2`, so its last notice is the 09:00 one the day before.
 function isFinalLead(occurrence: EventOccurrence, lead: ReminderLead): boolean {
-  return lead === (occurrence.event.allDay ? "d1" : "h3");
+  return lead === (occurrence.event.allDay ? "d1" : "h2");
 }
 
 /** REQUIREMENTS.md § 11.5. `mine` is a note to self, so only its author hears about it. */
@@ -229,9 +229,9 @@ function isRecipient(occurrence: EventOccurrence, userId: UserId): boolean {
 /**
  * The banner's second line — when the event happens, as a phrase rather than a sentence.
  *
- * WARN: `h3` counts the real remaining time rather than saying three hours. A scheduled run
- * arrives late and is sometimes skipped (§ 12.4.), so the gap is routinely 3시간 10분 or
- * 2시간 54분 and a fixed figure would simply be wrong. The start time rides along because a
+ * WARN: `h2` counts the real remaining time rather than saying two hours. A scheduled run
+ * arrives late and is sometimes skipped (§ 12.4.), so the gap is routinely 2시간 10분 or
+ * 1시간 54분 and a fixed figure would simply be wrong. The start time rides along because a
  * countdown is stale the moment the banner is left unread, where a clock time is not.
  *
  * WARN: `d7` names the date and never `7일 뒤`. A notification is a point-in-time artifact
@@ -245,7 +245,7 @@ function toBody(occurrence: EventOccurrence, lead: ReminderLead, now: number): s
     return `${day} · 종일`;
   }
 
-  if (lead === "h3") {
+  if (lead === "h2") {
     return `${formatTimeLeft(Date.parse(occurrence.startsAt) - now)} 후 · ${formatTime(occurrence.startsAt)}`;
   }
 

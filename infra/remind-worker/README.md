@@ -1,7 +1,7 @@
 # remind-worker
 
 `REQUIREMENTS.md § 16.3.` GitHub drops most of a public repository's ten-minute schedules, so
-`ops-remind.yml` ran a handful of times a day and the 3시간 banner landed hours late or not
+`ops-remind.yml` ran a handful of times a day and the 2시간 banner landed hours late or not
 at all. This Worker calls `POST /api/ops/remind` every ten minutes instead; the pass itself
 runs inside the app, which is the only thing that can reach the database. The Actions
 workflow stays deployed beside it — the app's claim makes two clocks safe.
