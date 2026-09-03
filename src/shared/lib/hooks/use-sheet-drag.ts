@@ -63,6 +63,7 @@ export function useSheetDrag({
       x: number;
       y: number;
       height: number;
+      exit: number;
       max: number;
       scroller: Nullable<HTMLElement>;
       takesPullDown: boolean;
@@ -198,11 +199,14 @@ export function useSheetDrag({
     }
 
     hasDraggedRef.current = false;
+    const sheetRect = sheet.getBoundingClientRect();
     gestureRef.current = {
       pointerId: event.pointerId,
       x: event.clientX,
       y: event.clientY,
-      height: sheet.getBoundingClientRect().height,
+      height: sheetRect.height,
+      // INFO: The distance the top edge has to travel to leave the screen — the height alone stops `mb-sm` plus the safe-area short, and that strip stays visible until the unmount.
+      exit: Math.max(sheetRect.height, window.innerHeight - sheetRect.top),
       max: measureExpandedHeight(),
       scroller,
       takesPullDown,
@@ -324,7 +328,7 @@ export function useSheetDrag({
       setPinnedHeight(null);
 
       if (pulled < -closeThreshold) {
-        animateClose(gesture.height);
+        animateClose(gesture.exit);
       } else if (pulled < -threshold) {
         setDragTranslateY(0);
         setSize("rest");
@@ -337,7 +341,7 @@ export function useSheetDrag({
       settle("expanded", gesture.max);
     } else if (pulled < -threshold) {
       setPinnedHeight(null);
-      animateClose(gesture.height);
+      animateClose(gesture.exit);
     } else {
       setDragTranslateY(0);
       setPinnedHeight(null);
