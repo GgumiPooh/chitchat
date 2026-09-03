@@ -2513,7 +2513,8 @@ function TabButton({
     <HapticTarget ref={ref} className={cn("inline-flex shrink-0", className)} keepsScroll>
       <button
         className={cn(
-          "flex size-12 shrink-0 items-center justify-center rounded-md p-2xs transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
+          // WARN: § 8.14. `ring-inset`, or the strip clips it: the strip is `overflow-y-hidden` with 1px of padding, so an outset ring loses half its top and bottom edges and reads as a broken box.
+          "flex size-12 shrink-0 items-center justify-center rounded-md p-2xs transition-colors ring-inset focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
           // INFO: § 8.14. Additive, for the reason the cells' is.
           isKeyboardDriven && TAB_KEYBOARD_RING,
           isActive
