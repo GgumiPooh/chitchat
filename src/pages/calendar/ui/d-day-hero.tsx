@@ -84,8 +84,9 @@ function PersonBadge({ className, participant }: PersonBadgeProps) {
 
   return (
     <div className={cn("flex flex-col items-center gap-2xs", className)}>
+      {/* INFO: A border, not a ring — `Avatar`'s own ring is inset and the photo paints over it, so a ring here never shows. */}
       <Avatar
-        className="ring-2 ring-on-scrim"
+        className="border-2 border-on-scrim"
         size="profile"
         name={participant.name}
         mediaId={participant.avatarMediaId}
