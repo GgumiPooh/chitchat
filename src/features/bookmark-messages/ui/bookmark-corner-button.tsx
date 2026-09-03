@@ -1,4 +1,5 @@
 import { cn } from "@/shared/lib";
+import { HapticTarget } from "@/shared/ui";
 import { Bookmark } from "lucide-react";
 
 export type BookmarkCornerButtonProps = {
@@ -12,16 +13,15 @@ export type BookmarkCornerButtonProps = {
  */
 export function BookmarkCornerButton({ className, onClick }: BookmarkCornerButtonProps) {
   return (
-    <button
-      className={cn(
-        "inline-flex min-h-10 min-w-10 press-bloom cursor-pointer items-center justify-center rounded-full border border-hairline bg-canvas p-2 shadow-raised transition-colors outline-none hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary",
-        className,
-      )}
-      type="button"
-      aria-label="책갈피 목록"
-      onClick={onClick}
-    >
-      <Bookmark className="size-4 text-meta" strokeWidth={1.75} />
-    </button>
+    <HapticTarget className={cn("inline-flex shrink-0", className)}>
+      <button
+        className="inline-flex min-h-10 min-w-10 press-bloom cursor-pointer items-center justify-center rounded-full border border-hairline bg-canvas p-2 shadow-raised transition-colors outline-none hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary"
+        type="button"
+        aria-label="책갈피 목록"
+        onClick={onClick}
+      >
+        <Bookmark className="size-4 text-meta" strokeWidth={1.75} />
+      </button>
+    </HapticTarget>
   );
 }
