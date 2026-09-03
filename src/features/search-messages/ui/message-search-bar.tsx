@@ -9,6 +9,8 @@ export type MessageSearchBarProps = {
   query: string;
   canSubmit: boolean;
   isLoading?: boolean;
+  /** Forwarded to `MessageSearchField` — off for a bookmark-driven open (REQUIREMENTS.md § 8.19.). */
+  autoFocus?: boolean;
   /** AGENTS.md § 4.1. Forwarded to `AppHeader` — 채팅's own panel toggle stays reachable while a search is open. */
   hasSidePanel?: boolean;
   onQueryChange: (query: string) => void;
@@ -33,6 +35,7 @@ export function MessageSearchBar({
   query,
   canSubmit,
   isLoading = false,
+  autoFocus = true,
   hasSidePanel = false,
   onQueryChange,
   onSubmit,
@@ -50,6 +53,7 @@ export function MessageSearchBar({
           query={query}
           canSubmit={canSubmit}
           isLoading={isLoading}
+          autoFocus={autoFocus}
           onQueryChange={onQueryChange}
           onSubmit={onSubmit}
           onEscape={onClose}

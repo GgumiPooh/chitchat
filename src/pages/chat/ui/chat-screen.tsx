@@ -160,7 +160,7 @@ export function ChatScreen({
             return;
           }
 
-          search.open();
+          search.open({ focusesField: false });
           toast("책갈피가 설정되었습니다.", {
             action: { label: "목록보기", onClick: bookmarks.openList },
           });
@@ -177,7 +177,7 @@ export function ChatScreen({
   );
 
   const openBookmarksFromComposer = useCallback(() => {
-    search.open();
+    search.open({ focusesField: false });
     bookmarks.openList();
   }, [bookmarks, search]);
 
@@ -282,6 +282,7 @@ export function ChatScreen({
               query={search.query}
               canSubmit={search.canSubmit}
               isLoading={search.isLoading}
+              autoFocus={search.focusesField}
               hasSidePanel
               onQueryChange={search.setQuery}
               onSubmit={search.submit}
@@ -336,7 +337,7 @@ export function ChatScreen({
                       variant="floating"
                       haptic
                       aria-label="메시지 검색"
-                      onClick={search.open}
+                      onClick={() => search.open()}
                     />
                   </div>
                 </div>

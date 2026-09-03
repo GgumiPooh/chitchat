@@ -1097,7 +1097,7 @@ A message is folded to its quote, **one clamped line** and a 펼치기 row (`DES
 - `GET /api/messages/bookmarks?hideOthers=`, `DELETE /api/messages/bookmarks` (전체 해제), `PUT`/`PATCH`/`DELETE /api/messages/{id}/bookmark` — `PATCH` sets the row's own `name`
 - The § 8.13. action sheet carries a 책갈피 등록/책갈피 해제 row, resolved by id the way 접기 is
 - Registering opens § 8.6.'s search mode and toasts with a 목록보기 action; unregistering only toasts
-- The list opens from the nav bar's own button, the composer's corner button, or the toast — a row jumps through § 8.6.1.'s target the way a search result does
+- The list opens from the nav bar's own button, the composer's corner button, or the toast — a row jumps through § 8.6.1.'s target the way a search result does. The corner button and the post-registration open both open search mode without focusing its field, so a sheet opening over it does not raise the keyboard underneath
 - Its sheet is § 8.18.'s shell, now shared as `ExpandableSheet`
 - 편집 mode (header pill, hidden when the list is empty) expands the sheet and lets each row 수정 (rename, via the `PATCH`) or 해제; a footer 전체 해제 confirms before clearing every row. The mode is component state that survives a drag back to rest and resets on close
 

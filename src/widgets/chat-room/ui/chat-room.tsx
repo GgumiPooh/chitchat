@@ -2135,29 +2135,34 @@ export function ChatRoom({
               />
             </div>
           </div>
-          <ScrollToBottomPill
+          {/* WARN: § 8.6.1. A window parked around a jump target can sit at the bottom of its own scroll range while the newest message is still pages away, so the stack has to answer to the window too. */}
+          {/* WARN: DESIGN.md § 3.4. Rides the emoticon-sheet drag alone — a keyboard step never FLIPs this stack. It is hidden (`opacity-0`, `pointer-events-none`) for the whole of a list FLIP, since that only runs while pinned to the bottom; the one case it is visible mid-step (scrolled away, composer-only FLIP) reads `--chat-bottom-gap` unanimated and just lands at its new spot. */}
+          <div
             className={cn(
-              "absolute inset-x-0 bottom-[calc(var(--chat-bottom-gap)+var(--spacing-md))] mx-auto will-change-transform",
+              "absolute right-md bottom-[calc(var(--chat-bottom-gap)+var(--spacing-md))] flex flex-col items-end gap-xs will-change-transform",
               composerTransition,
             )}
-            // WARN: § 8.6.1. A window parked around a jump target can sit at the bottom of its own scroll range while the newest message is still pages away, so the pill has to answer to the window too.
-            isVisible={!isAtBottom || hasNewer}
-            newMessageCount={unseenCount}
-            // WARN: DESIGN.md § 3.4. Rides the emoticon-sheet drag alone — a keyboard step never FLIPs this pill. It is hidden (`opacity-0`, `pointer-events-none`) for the whole of a list FLIP, since that only runs while pinned to the bottom; the one case it is visible mid-step (scrolled away, composer-only FLIP) reads `--chat-bottom-gap` unanimated and just lands at its new spot.
             style={{ transform: composerDragTransform }}
-            onClick={() => void goToNewest()}
-          />
-          {composerCorner && (
-            <div
-              className={cn(
-                "absolute right-md bottom-[calc(var(--chat-bottom-gap)+var(--spacing-md))] will-change-transform",
-                composerTransition,
-              )}
-              style={{ transform: composerDragTransform }}
-            >
-              {composerCorner}
-            </div>
-          )}
+          >
+            {composerCorner && (
+              <div
+                className={cn(
+                  "transition-all duration-150",
+                  !isAtBottom || hasNewer
+                    ? "translate-y-0 opacity-100"
+                    : "pointer-events-none translate-y-1 opacity-0",
+                )}
+                aria-hidden={isAtBottom && !hasNewer}
+              >
+                {composerCorner}
+              </div>
+            )}
+            <ScrollToBottomPill
+              isVisible={!isAtBottom || hasNewer}
+              newMessageCount={unseenCount}
+              onClick={() => void goToNewest()}
+            />
+          </div>
         </>
       )}
       {(isSwitchingMode || activeFilterMode !== (notifyMode === "onlyMe")) && (

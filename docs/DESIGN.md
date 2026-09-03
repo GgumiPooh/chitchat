@@ -796,19 +796,19 @@ The strip that stands in the composer stack while a voice message is being recor
 
 Shown whenever the viewport is away from the newest message — after scrolling up through history, and after a search jump (§ 6.8.). One component serves both.
 
-| Property          | Value                                                                                             |
-| ----------------- | ------------------------------------------------------------------------------------------------- |
-| Geometry          | `rounded-full`, `canvas` fill, 1px `hairline`, `shadow-raised`, padding `8px 14px`, min-height 40 |
-| Position          | Bottom-center of the message column, `md` (16px) above the composer                               |
-| Rest content      | 16px chevron-down glyph in `meta`, alone                                                          |
-| With new messages | `primary` fill, `on-primary` chevron and `button-sm` count label — `새 메시지 3`                  |
-| Threshold         | Appears past ~200px from the bottom; hides on arrival                                             |
-| Transition        | Fade + `translate-y-1` over 150ms, both directions                                                |
-| `:hover`          | `bg-surface-soft` (rest) / `bg-primary-hover` (new-message)                                       |
-| `:active`         | The press bloom (§ 4.7.2.) — it is a floating round control, like the bars' own buttons           |
-| Tap target        | 44 high including padding                                                                         |
+| Property          | Value                                                                                                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Geometry          | 40px round, `canvas` fill, 1px `hairline`, `shadow-raised`                                                                                                                                        |
+| Position          | Right-aligned at the composer's top-right gutter (`px-md`), `md` (16px) above the composer — the § 6.8.1. bookmark control stacks `xs` above it in the same column                                |
+| Rest content      | 16px chevron-down glyph in `meta`, alone                                                                                                                                                          |
+| With new messages | `primary` fill, `on-primary` foreground — the circle shows the count alone (`tabular-nums`, `button-sm`) in place of the chevron, and the `새 메시지 N` sentence stays the control's `aria-label` |
+| Threshold         | Appears past ~200px from the bottom; hides on arrival                                                                                                                                             |
+| Transition        | Fade + `translate-y-1` over 150ms, both directions                                                                                                                                                |
+| `:hover`          | `bg-surface-soft` (rest) / `bg-primary-hover` (new-message)                                                                                                                                       |
+| `:active`         | The press bloom (§ 4.7.2.) — it is a floating round control, like the bars' own buttons                                                                                                           |
+| Tap target        | 40 round, matching `BookmarkCornerButton`                                                                                                                                                         |
 
-The count variant recolours to `primary` rather than adding a separate badge element: a badge on a floating pill stacks two elevated shapes in the busiest corner of the screen.
+The count variant recolours the circle rather than adding a separate badge element: a circle cannot hold `새 메시지 3` beside a glyph, so the number replaces it outright instead of stacking a badge on top.
 
 ## 6.7.1. Typing Indicator.
 
@@ -880,16 +880,16 @@ The count variant recolours to `primary` rather than adding a separate badge ele
 
 ## 6.8.1. Bookmarks.
 
-| Element        | Rule                                                                                                                                                   |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Corner button  | § 6.7. pill's rest geometry and position, riding the composer's own transition and drag transform — shown while a bookmark exists and search is closed |
-| Nav-bar button | § 6.8.'s navigation bar, immediately right of 목록 — at zero it toasts instead of opening                                                              |
-| List row       | § 6.8.'s result row shape, a 40px § 6.10. quote tile in place of the sender name, the message's own date beside the sender                             |
-| Sheet          | `REQUIREMENTS.md § 8.18.`'s draggable-sheet/`Modal` shell, now `ExpandableSheet` (`@/shared/ui`)                                                       |
-| Edit header    | `ExpandableSheet`'s visible header row — title centered, a `HeaderTextButton` pill (편집/완료) at the right                                            |
-| Edit row       | Same tile and lines as the list row, two `Button` `secondary` pills (수정/해제) at the right in place of the tap target                                |
-| 전체 해제 footer | Full-width `Button` `destructive`, pinned in `ExpandableSheet`'s `footer`, shown only in 편집 mode                                                     |
-| Rename modal   | `Modal` `size="sm"`, an `Input` prefilled with the row's current line, 취소/확인                                                                       |
+| Element          | Rule                                                                                                                                                                                                                                                |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Corner button    | § 6.7. pill's own geometry, stacked `xs` above it in the same right-aligned column, riding the composer's own transition and drag transform and sharing its `isAtBottom`/`hasNewer` visibility — shown while a bookmark exists and search is closed |
+| Nav-bar button   | § 6.8.'s navigation bar, immediately right of 목록 — at zero it toasts instead of opening                                                                                                                                                           |
+| List row         | § 6.8.'s result row shape, a 40px § 6.10. quote tile in place of the sender name, the message's own date beside the sender                                                                                                                          |
+| Sheet            | `REQUIREMENTS.md § 8.18.`'s draggable-sheet/`Modal` shell, now `ExpandableSheet` (`@/shared/ui`)                                                                                                                                                    |
+| Edit header      | `ExpandableSheet`'s visible header row — title centered, a `HeaderTextButton` pill (편집/완료) at the right                                                                                                                                         |
+| Edit row         | Same tile and lines as the list row, two `Button` `secondary` pills (수정/해제) at the right in place of the tap target                                                                                                                             |
+| 전체 해제 footer | Full-width `Button` `destructive`, pinned in `ExpandableSheet`'s `footer`, shown only in 편집 mode                                                                                                                                                  |
+| Rename modal     | `Modal` `size="sm"`, an `Input` prefilled with the row's current line, 취소/확인                                                                                                                                                                    |
 
 ## 6.9. Link Preview Card.
 

@@ -31,6 +31,8 @@ export type MessageSearch = ReturnType<typeof useMessageSearch>;
 export function useMessageSearch(hideOthers = false) {
   const [isOpen, setIsOpen] = useState(false);
   const [isListOpen, setIsListOpen] = useState(false);
+  // WARN: A bookmark-driven open passes `false` — a sheet opening over a focused field raises the keyboard under it.
+  const [focusesField, setFocusesField] = useState(true);
   const [query, setQuery] = useState("");
   // INFO: The string the results actually describe, which is not the field's while it is being edited. The bubbles' marks and the row highlight both read this, or a half-typed word would light up matches nobody has asked for yet.
   const [submitted, setSubmitted] = useState("");
@@ -77,11 +79,15 @@ export function useMessageSearch(hideOthers = false) {
     setIsLoadingMore(false);
   }, []);
 
-  const open = useCallback(() => setIsOpen(true), []);
+  const open = useCallback((options?: { focusesField?: boolean }) => {
+    setFocusesField(options?.focusesField ?? true);
+    setIsOpen(true);
+  }, []);
 
   const close = useCallback(() => {
     setIsOpen(false);
     setIsListOpen(false);
+    setFocusesField(true);
     setQuery("");
     setSubmitted("");
     reset();
@@ -258,6 +264,7 @@ export function useMessageSearch(hideOthers = false) {
   return {
     isOpen,
     isListOpen,
+    focusesField,
     query,
     submitted,
     results,
