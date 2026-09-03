@@ -1,6 +1,6 @@
 import { ensureEnv } from "@/shared/config";
 import { A_DAY, type Nullable } from "@/shared/lib";
-import { getBucket, getR2, listBackups } from "@/shared/storage";
+import { getBucket, getR2, listBackups, type BackupObject } from "@/shared/storage";
 import {
   CopyObjectCommand,
   DeleteObjectCommand,
@@ -18,8 +18,13 @@ import { formatBytes, notifyOps } from "./notify";
  * than the runner's disk is still only bytes in flight.
  */
 
-/** How many dumps `backups/` keeps. The oldest beyond this go at the end of every run. */
-const MAX_BACKUPS = 10;
+/**
+ * How many UTC days with at least one dump `backups/` keeps. Once an eleventh day holds
+ * one, every dump of the oldest day goes at the end of the run.
+ *
+ * INFO: § 12.4. Counted in days rather than dumps, so a hand-started 백업 생성 does not push a day of history out — the same day's dumps live and go together.
+ */
+const MAX_BACKUP_DAYS = 10;
 
 /**
  * WARN: Uploads land here first and are promoted only once verified. A stream that dies
@@ -225,22 +230,31 @@ async function removeStaged(key: string): Promise<void> {
 }
 
 /**
- * Deletes the oldest dumps past `MAX_BACKUPS` and answers the ones that actually went.
+ * The UTC calendar day a dump was taken on, read from the stamp in its name.
+ *
+ * INFO: The name and not `LastModified`, which is the moment of the promoting copy rather than of the dump; a name without a stamp falls back to it.
+ */
+function toBackupDay(backup: BackupObject): string {
+  return backup.filename.match(/_(\d{4}-\d{2}-\d{2})T/)?.[1] ?? backup.lastModified.slice(0, 10);
+}
+
+/**
+ * Deletes every dump of the days past `MAX_BACKUP_DAYS` and answers the ones that actually went.
  *
  * WARN: Only confirmed deletions are counted. Reporting a trim that failed would tell the
  * banner the bucket is back under its limit while it quietly keeps growing.
  */
 async function trimOldBackups(): Promise<string[]> {
   const backups = await listBackups();
-
-  if (backups.length <= MAX_BACKUPS) {
-    return [];
-  }
-
+  const days = [...new Set(backups.map(toBackupDay))].sort();
+  const expiredDays = new Set(days.slice(0, Math.max(0, days.length - MAX_BACKUP_DAYS)));
   const dropped: string[] = [];
 
-  // INFO: `listBackups` answers newest first, so the tail is the oldest.
-  for (const backup of backups.slice(MAX_BACKUPS)) {
+  for (const backup of backups) {
+    if (!expiredDays.has(toBackupDay(backup))) {
+      continue;
+    }
+
     try {
       await getR2().send(
         new DeleteObjectCommand({

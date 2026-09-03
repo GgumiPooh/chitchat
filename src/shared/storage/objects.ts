@@ -99,7 +99,7 @@ export async function listBackups(): Promise<BackupObject[]> {
       });
     }
 
-    // INFO: Retention keeps ten, so the loop is for correctness rather than for a page anybody expects to see.
+    // INFO: Retention keeps ten days, so the loop is for correctness rather than for a page anybody expects to see.
     continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
   } while (continuationToken);
 

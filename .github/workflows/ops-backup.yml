@@ -1,6 +1,6 @@
 name: Ops — backup
 
-# REQUIREMENTS.md § 12.4. Dumps Postgres into R2 and trims to the ten most recent.
+# REQUIREMENTS.md § 12.4. Dumps Postgres into R2 and trims to the ten most recent UTC days.
 
 on:
   schedule:

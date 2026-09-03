@@ -24,7 +24,7 @@ export type BackupPanelProps = {
 
 const BACKUPS_QUERY_KEY = ["ops", "backups"];
 
-// INFO: `MAX_BACKUPS` in `scripts/ops/backup.ts`, so the skeleton is never taller than the list it stands in for.
+// INFO: Under `MAX_BACKUP_DAYS` in `scripts/ops/backup.ts`, so the skeleton is never taller than the list it stands in for.
 const SKELETON_KEYS = ["a", "b", "c"];
 
 /**
