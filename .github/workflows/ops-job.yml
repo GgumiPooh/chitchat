@@ -27,7 +27,7 @@ on:
         default: false
         type: boolean
       notify:
-        description: Push the purge's result. Ignored by the other two, which always notify.
+        description: Push the purge's result, and the sweep's clean one. Ignored by the backup, which always notifies.
         required: false
         default: false
         type: boolean
@@ -141,6 +141,7 @@ jobs:
           OPS_NOTIFY_EMAIL: ${{ inputs.notify-email }}
           ORPHAN_MAX_DELETE_RATIO: ${{ vars.ORPHAN_MAX_DELETE_RATIO || '0.5' }}
           PURGE_NOTIFY: ${{ inputs.notify }}
+          SWEEP_NOTIFY: ${{ inputs.notify }}
           SWEEP_DRY_RUN: ${{ inputs.dry-run }}
           # INFO: The same input; each script reads only its own, so one flag serves both previews.
           PURGE_DRY_RUN: ${{ inputs.dry-run }}

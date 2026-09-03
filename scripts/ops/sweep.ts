@@ -180,6 +180,7 @@ function checkSafety(scanned: number, orphans: number, keepSetSize: number): str
 
 async function main() {
   const isDryRun = process.env.SWEEP_DRY_RUN?.trim().toLowerCase() === "true";
+  const isNotifyOnClean = process.env.SWEEP_NOTIFY?.trim().toLowerCase() === "true";
 
   // WARN: Read before any work, though `checkSafety` reads it again where it is used. That
   // call is reached only once something looks orphaned, so a typo'd limit would otherwise
@@ -211,7 +212,10 @@ async function main() {
   }
 
   if (orphans.length === 0) {
-    await notifyOps("고아 파일 감사 정상", "고아 파일 없음");
+    // INFO: § 12.4. Zero is the normal result of a daily run nobody is waiting on, so the schedule says nothing; a hand-started run has a presser waiting and says 고아 파일 없음.
+    if (isNotifyOnClean) {
+      await notifyOps("고아 파일 감사 정상", "고아 파일 없음");
+    }
 
     return;
   }

@@ -36,6 +36,8 @@ jobs:
       # A sweep subtracts the database from a whole bucket listing, so the preview is the only
       # thing that shows what a run would take before it takes it.
       dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+      # INFO: A problem always pushes; a clean result pushes only to a presser who is waiting for it.
+      notify: ${{ github.event_name == 'workflow_dispatch' }}
       # INFO: Set by 서버 관리 so the answer reaches whoever pressed the button; empty from the Actions tab, which falls back to the default account.
       notify-email: ${{ inputs.notify-email || '' }}
     secrets: inherit
