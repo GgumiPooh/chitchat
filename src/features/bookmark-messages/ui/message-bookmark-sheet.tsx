@@ -2,7 +2,7 @@
 
 import type { MessageBookmark } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import { MAX_BOOKMARK_NAME_LENGTH, toReplySummary } from "@/shared/config";
+import { MAX_BOOKMARK_NAME_LENGTH, toLlmProviderName, toReplySummary } from "@/shared/config";
 import { formatMonthDay, formatTime, idToDate, type MessageId } from "@/shared/lib";
 import {
   Button,
@@ -52,6 +52,13 @@ export function MessageBookmarkSheet({
   const [isConfirmingRemoveAll, setIsConfirmingRemoveAll] = useState(false);
 
   const nameById = new Map(participants.map((participant) => [participant.id, participant.name]));
+
+  // INFO: REQUIREMENTS.md § 8.10. An AI answer carries the asker's `senderId`, so the row names the model the way a quote heading does, never the asker.
+  function toSenderName(bookmark: MessageBookmark): string {
+    return bookmark.llmProvider
+      ? toLlmProviderName(bookmark.llmProvider)
+      : (nameById.get(bookmark.senderId) ?? "");
+  }
 
   const title = isEditing
     ? "책갈피 편집"
@@ -127,7 +134,7 @@ export function MessageBookmarkSheet({
                       </span>
                       <span className="truncate text-caption text-meta">
                         {formatMonthDay(idToDate(bookmark.id))} {formatTime(idToDate(bookmark.id))}{" "}
-                        · {nameById.get(bookmark.senderId) ?? ""}
+                        · {toSenderName(bookmark)}
                       </span>
                     </span>
                     <div className="flex shrink-0 items-center gap-2xs">
@@ -171,8 +178,7 @@ export function MessageBookmarkSheet({
                         </span>
                         <span className="truncate text-caption text-meta">
                           {formatMonthDay(idToDate(bookmark.id))}{" "}
-                          {formatTime(idToDate(bookmark.id))} ·{" "}
-                          {nameById.get(bookmark.senderId) ?? ""}
+                          {formatTime(idToDate(bookmark.id))} · {toSenderName(bookmark)}
                         </span>
                       </span>
                     </button>
