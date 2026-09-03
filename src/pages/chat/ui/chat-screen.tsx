@@ -177,7 +177,9 @@ export function ChatScreen({
   );
 
   const openBookmarksFromComposer = useCallback(() => {
-    search.open({ focusesField: false });
+    if (!search.isOpen) {
+      search.open({ focusesField: false });
+    }
     bookmarks.openList();
   }, [bookmarks, search]);
 
@@ -403,7 +405,7 @@ export function ChatScreen({
               ) : undefined
             }
             composerCorner={
-              !search.isOpen && bookmarks.bookmarks.length > 0 ? (
+              bookmarks.bookmarks.length > 0 ? (
                 <BookmarkCornerButton onClick={openBookmarksFromComposer} />
               ) : undefined
             }
