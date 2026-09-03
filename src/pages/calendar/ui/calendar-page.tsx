@@ -27,9 +27,9 @@ import {
 } from "@/shared/lib";
 import { AppHeader, Container, IconButton, toast, TwoPane } from "@/shared/ui";
 import { CalendarMonth, toGridRange } from "@/widgets/calendar-month";
+import { toChromeTint } from "@/widgets/chat-room";
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toHeroTint } from "../model/hero-tint";
 import { DDayHero } from "./d-day-hero";
 import { DayAgenda } from "./day-agenda";
 import { UpcomingCard } from "./upcoming-card";
@@ -63,8 +63,8 @@ export function CalendarPage({
   initialDayKey,
 }: CalendarPageProps) {
   const { participants, chatBackgroundBlurhash } = useChatStream();
-  // INFO: DESIGN.md § 3.3. `#app-shell` paints `canvas` over `body`, so this reaches the status bar and nothing the reader scrolls to.
-  useDocumentBackground(toHeroTint(chatBackgroundBlurhash));
+  // INFO: DESIGN.md § 3.3. The room's own tint, since the hero wears the room's wash; `#app-shell` paints `canvas` over `body`, so this reaches the status bar and nothing the reader scrolls to.
+  useDocumentBackground(toChromeTint(chatBackgroundBlurhash) ?? "var(--color-chat-canvas)");
   const [summary, setSummary] = useState(initialSummary);
   const [monthKey, setMonthKey] = useState(initialMonthKey);
   const [occurrences, setOccurrences] = useState(initialOccurrences);
@@ -201,7 +201,7 @@ export function CalendarPage({
     >
       <AppHeader
         // INFO: The title floats over the hero's photo below `lg`, where `ink` would sit on the scrim; at `lg` the hero is in the panel and the canvas is back under it.
-        titleClassName="text-on-scrim lg:text-ink"
+        titleClassName="text-on-hero lg:text-ink"
         hasSidePanel
         title="캘린더"
         trailing={
