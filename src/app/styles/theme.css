@@ -49,6 +49,8 @@
   /* WARN: DESIGN.md § 5.3. Chrome over `scrim` or over a photograph, and it is the one colour token that MUST NOT change between themes — the surface under it is a user's photo or a fixed scrim, neither of which follows the theme. */
   /* WARN: Not `on-primary`. The two were the same white while the app was light-only, so a viewer control could borrow it and nothing showed; `on-primary` inverts to dark on the dark theme and every borrowed site turned black-on-black. Never point one at the other again. */
   --color-on-scrim: #ffffff;
+  /* INFO: DESIGN.md § 7.9. The D-day hero's wash over the wallpaper, applied at alpha — its own token rather than `scrim` reused, so a later tune of the dialog backdrop cannot move this gradient with it. */
+  --color-hero-scrim: #2a231c;
 
   /* INFO: Chat — DESIGN.md § 4.1.4. */
   --color-bubble-mine: #f6dcd2;
@@ -467,6 +469,8 @@
   --color-meta-soft: #7b7263;
   /* WARN: DESIGN.md § 4.1.2. Still not `#000000`. It is used at an opacity over content, and a pure black scrim on a warm dark canvas reads as a hole rather than a dimming. */
   --color-scrim: #0a0806;
+  /* INFO: DESIGN.md § 7.9. Re-derived against the dark canvas (AGENTS.md § 5.2.) rather than the light value reused — still a dark wash either way, since it sits on a photo and not on either theme's own surface. */
+  --color-hero-scrim: #0a0806;
 
   /* WARN: DESIGN.md § 4.1.3. `primary` lifts and `on-primary` inverts to dark. The light value fails AA as a link on a dark canvas, and lifting it far enough to pass then fails white text on its own fill — one of the two had to move, and the fill is the smaller surface. */
   --color-primary: #d2795f;

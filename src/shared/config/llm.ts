@@ -15,7 +15,7 @@ export const MAX_AI_CONTEXT_MESSAGES = 1_000;
 // INFO: REQUIREMENTS.md § 8.15. How many past question/answer pairs every AI question carries regardless of what the asker selected — the running conversation with the model, which no selection should have to be rebuilt by hand.
 export const AI_CONTEXT_EXCHANGE_COUNT = 10;
 
-// INFO: REQUIREMENTS.md § 8.15. The shared `chat_settings.llm_system_prompt` — long enough for a real set of standing instructions, short enough to stay well under Gemini's own `systemInstruction` limits.
+// INFO: REQUIREMENTS.md § 8.15. The shared `couple_settings.llm_system_prompt` — long enough for a real set of standing instructions, short enough to stay well under Gemini's own `systemInstruction` limits.
 export const MAX_LLM_SYSTEM_PROMPT_LENGTH = 4_000;
 
 export const LLM_THINKING_LEVELS = ["low", "high"] as const;

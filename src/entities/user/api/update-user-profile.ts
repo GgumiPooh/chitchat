@@ -45,7 +45,7 @@ export type ProfileUpdate = {
 /**
  * Writes the nickname, avatar and profile cover the user owns (REQUIREMENTS.md
  * § 12.). The chat wallpaper is **not** here — § 12.2. made it conversation-wide, so
- * it lives in `chat_settings` and is written through its own route.
+ * it lives in `couple_settings` and is written through its own route.
  *
  * INFO: Nothing broadcasts. The UPDATE lands on `users`, so § 6.'s trigger fires
  * `user_changed` and § 8.4. delivers it to every open screen — including this

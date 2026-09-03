@@ -1,6 +1,6 @@
 import { MEDIA_SCOPES, type MediaScope } from "@/shared/config";
 import {
-  chatSettings,
+  coupleSettings,
   emoticonItems,
   getDb,
   media,
@@ -47,8 +47,8 @@ function isUnreferenced() {
     notExists(
       getDb()
         .select({ one: sql`1` })
-        .from(chatSettings)
-        .where(eq(chatSettings.backgroundMediaId, media.id)),
+        .from(coupleSettings)
+        .where(eq(coupleSettings.backgroundMediaId, media.id)),
     ),
     notExists(
       getDb()

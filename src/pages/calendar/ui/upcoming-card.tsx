@@ -1,5 +1,6 @@
 import type { EventOccurrence } from "@/entities/event";
 import { cn, type Nullable } from "@/shared/lib";
+import { HapticTarget } from "@/shared/ui";
 import {
   UPCOMING_HEADING_ID,
   UpcomingEmptyRow,
@@ -139,16 +140,24 @@ export function UpcomingCard({
         </ul>
       )}
       {hasMore && (
-        <button
-          ref={moreRef}
-          className="flex w-full cursor-pointer items-center justify-center gap-2xs border-t border-hairline py-sm text-caption text-meta transition-colors outline-none hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-60"
-          type="button"
-          disabled={isLoadingMore}
-          onClick={expand}
+        // WARN: DESIGN.md § 7.15.1. `keepsScroll` — this row runs the width of the card, on the document scroller (`AGENTS.md § 4.4.`), and a bare switch overlay would claim a finger's scroll before the page saw it.
+        <HapticTarget
+          className="flex w-full"
+          overlayClassName="touch-pan-y"
+          isTicking={!isLoadingMore}
+          keepsScroll
         >
-          {isLoadingMore ? "불러오는 중" : "더 보기"}
-          {!isLoadingMore && <ChevronDown className="size-4" strokeWidth={1.75} />}
-        </button>
+          <button
+            ref={moreRef}
+            className="flex w-full cursor-pointer items-center justify-center gap-2xs border-t border-hairline py-sm text-caption text-meta transition-colors outline-none group-active:bg-surface-soft hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-60"
+            type="button"
+            disabled={isLoadingMore}
+            onClick={expand}
+          >
+            {isLoadingMore ? "불러오는 중" : "더 보기"}
+            {!isLoadingMore && <ChevronDown className="size-4" strokeWidth={1.75} />}
+          </button>
+        </HapticTarget>
       )}
     </UpcomingSection>
   );

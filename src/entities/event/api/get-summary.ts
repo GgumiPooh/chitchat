@@ -1,17 +1,29 @@
 import "server-only";
 
-import { ensureEnv, MAX_UPCOMING_EVENTS } from "@/shared/config";
+import { MAX_UPCOMING_EVENTS } from "@/shared/config";
+import { coupleSettings, getDb } from "@/shared/db";
 import { countDays, findNextMilestone, MILESTONE_HORIZON_DAYS, toDayKey } from "@/shared/lib";
+import { cache } from "react";
 import type { CalendarSummary } from "../model/types";
 import { listUpcomingOccurrences } from "./list-events";
 
-/**
- * REQUIREMENTS.md § 11.1. The relationship start date is an environment variable,
- * deliberately not a row — it is configuration of this one deployment, and there
- * is no screen that would ever edit it.
- */
-export function getRelationshipStartDate(): string {
-  return ensureEnv("RELATIONSHIP_START_DATE");
+// INFO: REQUIREMENTS.md § 11.1. The one `couple_settings` row's date and login-order columns, read once per request.
+const readCoupleSettings = cache(async () => {
+  const [row] = await getDb()
+    .select({
+      startDate: coupleSettings.startDate,
+      firstUserId: coupleSettings.firstUserId,
+      secondUserId: coupleSettings.secondUserId,
+    })
+    .from(coupleSettings)
+    .limit(1);
+
+  return row;
+});
+
+/** REQUIREMENTS.md § 11.1. `couple_settings.start_date`, seeded once and never edited from a screen. */
+export async function getRelationshipStartDate(): Promise<string> {
+  return (await readCoupleSettings()).startDate;
 }
 
 /**
@@ -28,15 +40,17 @@ export function getRelationshipStartDate(): string {
 export async function getCalendarSummary(
   upcomingLimit: number = MAX_UPCOMING_EVENTS,
 ): Promise<CalendarSummary> {
-  const startDate = getRelationshipStartDate();
+  const settings = await readCoupleSettings();
   const todayKey = toDayKey(Date.now());
 
   return {
-    startDate,
+    startDate: settings.startDate,
+    firstUserId: settings.firstUserId,
+    secondUserId: settings.secondUserId,
     todayKey,
     // INFO: § 11.1. The Korean convention counts the start date itself as day 1, which is the `+ 1`.
-    dayCount: countDays(startDate, todayKey) + 1,
-    nextMilestone: findNextMilestone(startDate, todayKey, MILESTONE_HORIZON_DAYS),
+    dayCount: countDays(settings.startDate, todayKey) + 1,
+    nextMilestone: findNextMilestone(settings.startDate, todayKey, MILESTONE_HORIZON_DAYS),
     upcoming: await listUpcomingOccurrences(todayKey, upcomingLimit),
   };
 }

@@ -39,7 +39,7 @@ export async function PATCH(request: Request) {
 
   const { media } = body.data;
 
-  // WARN: § 9. The R2 HEADs stay outside the transaction — see `validateMediaUpload`. The image-only rule (§ 12.1.) is checked here too: the copy route already refuses a video for the chat slot, but `chat_settings` is writable with any `background/` object its setter owns, so nothing else would stop one aimed here.
+  // WARN: § 9. The R2 HEADs stay outside the transaction — see `validateMediaUpload`. The image-only rule (§ 12.1.) is checked here too: the copy route already refuses a video for the chat slot, but `couple_settings` is writable with any `background/` object its setter owns, so nothing else would stop one aimed here.
   const validated =
     media && (await validateMediaUpload({ ownerId: user.id, upload: media, scope: "background" }));
 

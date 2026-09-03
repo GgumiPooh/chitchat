@@ -12,7 +12,7 @@ export {
 } from "./listen";
 export { notifyChannel } from "./notify";
 export {
-  chatSettings,
+  coupleSettings,
   emoticonItems,
   emoticonKeywords,
   emoticonPackTypeEnum,
@@ -37,7 +37,7 @@ export {
   userEmoticonPrefs,
   userEmoticonUsage,
   users,
-  type ChatSettings,
+  type CoupleSettings,
   type EmoticonItem,
   type EmoticonKeyword,
   type EmoticonPack,

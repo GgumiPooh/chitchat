@@ -28,7 +28,7 @@ import { AppHeader, Container, IconButton, toast, TwoPane } from "@/shared/ui";
 import { CalendarMonth, toGridRange } from "@/widgets/calendar-month";
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DDayBand } from "./d-day-band";
+import { DDayHero } from "./d-day-hero";
 import { DayAgenda } from "./day-agenda";
 import { UpcomingCard } from "./upcoming-card";
 
@@ -181,7 +181,7 @@ export function CalendarPage({
       panel={
         // INFO: AGENTS.md § 4.1. D-day + month grid — hidden below `md`, where the mobile stack below carries the same two.
         <div className="flex flex-col gap-md p-md">
-          <DDayBand summary={summary} />
+          <DDayHero className="aspect-[4/5] w-full rounded-lg" summary={summary} />
           <CalendarMonth
             monthKey={monthKey}
             startDate={summary.startDate}
@@ -196,6 +196,8 @@ export function CalendarPage({
       }
     >
       <AppHeader
+        // INFO: The title floats over the hero's photo below `lg`, where `ink` would sit on the scrim; at `lg` the hero is in the panel and the canvas is back under it.
+        titleClassName="text-on-scrim lg:text-ink"
         hasSidePanel
         title="캘린더"
         trailing={
@@ -208,26 +210,11 @@ export function CalendarPage({
           />
         }
       />
-      {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
-      <Container className="space-y-md py-md pt-[calc(var(--app-header-inset)+var(--spacing-md))]">
-        {/* INFO: AGENTS.md § 4.1. Today's stack, unchanged below `lg` — the panel above takes over at `lg` and this drops out. */}
-        <div className="space-y-md lg:hidden">
-          <DDayBand summary={summary} />
-          {/* INFO: DESIGN.md § 7.9. `scroll-mt` is what makes `scrollIntoView` clear the floating header (§ 7.12.) rather than parking the first week under it. */}
-          <div ref={gridRef} className="scroll-mt-(--app-header-inset)">
-            <CalendarMonth
-              monthKey={monthKey}
-              startDate={summary.startDate}
-              todayKey={summary.todayKey}
-              selectedDayKey={selectedDayKey}
-              occurrences={occurrences}
-              holidays={holidays}
-              onMonthChange={changeMonth}
-              onSelectDay={selectDay}
-            />
-          </div>
-        </div>
-        {/* INFO: DESIGN.md § 7.9. Under the band and above the grid, which is affordable because the list is capped and always drawn — it no longer varies between nothing and three rows. */}
+      {/* INFO: DESIGN.md § 7.9. Full-bleed and outside `Container`, since the hero already fills the device height and sits under the floating header on its own. */}
+      <DDayHero className="h-svh w-full lg:hidden" summary={summary} />
+      {/* INFO: DESIGN.md § 7.12. The header floats over the content; the hero above already clears it, so this offset applies only where the hero drops out at `lg`. */}
+      <Container className="space-y-md py-md lg:pt-[calc(var(--app-header-inset)+var(--spacing-md))]">
+        {/* INFO: DESIGN.md § 7.9. Under the hero and above the grid, which is affordable because the list is capped and always drawn — it no longer varies between nothing and three rows. */}
         <UpcomingCard
           occurrences={summary.upcoming.slice(0, upcomingLimit)}
           todayKey={summary.todayKey}
@@ -236,6 +223,19 @@ export function CalendarPage({
           onLoadMore={expandUpcoming}
           onSelect={selectDayFromUpcoming}
         />
+        {/* INFO: DESIGN.md § 7.9. `scroll-mt` is what makes `scrollIntoView` clear the floating header (§ 7.12.) rather than parking the first week under it. */}
+        <div ref={gridRef} className="scroll-mt-(--app-header-inset) lg:hidden">
+          <CalendarMonth
+            monthKey={monthKey}
+            startDate={summary.startDate}
+            todayKey={summary.todayKey}
+            selectedDayKey={selectedDayKey}
+            occurrences={occurrences}
+            holidays={holidays}
+            onMonthChange={changeMonth}
+            onSelectDay={selectDay}
+          />
+        </div>
         <DayAgenda
           dayKey={selectedDayKey}
           isLoading={isLoadingMonth}

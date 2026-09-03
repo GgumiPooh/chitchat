@@ -1,4 +1,4 @@
-export { chatSettings, type ChatSettings } from "./chat-settings";
+export { coupleSettings, type CoupleSettings } from "./couple-settings";
 export {
   emoticonItems,
   emoticonKeywords,

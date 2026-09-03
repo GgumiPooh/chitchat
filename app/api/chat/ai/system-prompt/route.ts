@@ -16,11 +16,11 @@ const bodySchema = z.object({
 
 /**
  * REQUIREMENTS.md § 8.15. The standing instruction 쨈미니 answers every question
- * with — a `chat_settings` field, not a key on `PATCH /api/users/me`, since either
+ * with — a `couple_settings` field, not a key on `PATCH /api/users/me`, since either
  * participant may set it and it belongs to the conversation rather than to either
  * profile (§ 12.2. draws the same distinction for the wallpaper).
  *
- * INFO: The write's `chat_settings` trigger fires `user_changed` like every other
+ * INFO: The write's `couple_settings` trigger fires `user_changed` like every other
  * write to this table, so `GET /api/users` carries the new prompt to the other
  * participant on the client's existing refetch — no second channel or route.
  */

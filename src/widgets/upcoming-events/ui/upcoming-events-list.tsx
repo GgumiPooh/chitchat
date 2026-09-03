@@ -2,7 +2,7 @@
 
 import type { EventOccurrence } from "@/entities/event";
 import { cn, formatTimeLeft, formatUpcomingWhen, isImminent, type Nullable } from "@/shared/lib";
-import { EmptyState, EventDot, EventMemo, HapticTap } from "@/shared/ui";
+import { EmptyState, EventDot, EventMemo, HapticTap, HapticTarget } from "@/shared/ui";
 import { CalendarClock, ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -165,15 +165,23 @@ export function UpcomingEventsList({
         </ul>
       )}
       {!loadsOnScroll && hasMore && (
-        <button
-          className="flex w-full shrink-0 cursor-pointer items-center justify-center gap-2xs border-t border-hairline py-sm text-caption text-meta transition-colors outline-none hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset active:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-60"
-          type="button"
-          disabled={isLoadingMore}
-          onClick={expand}
+        // WARN: DESIGN.md § 7.15.1. `keepsScroll` — the panel's column scrolls under a finger and this row runs its full width, so a bare switch overlay would claim the drag before the scroller saw it.
+        <HapticTarget
+          className="flex w-full shrink-0"
+          overlayClassName="touch-pan-y"
+          isTicking={!isLoadingMore}
+          keepsScroll
         >
-          {isLoadingMore ? "불러오는 중" : "더 보기"}
-          {!isLoadingMore && <ChevronDown className="size-4" strokeWidth={1.75} />}
-        </button>
+          <button
+            className="flex w-full cursor-pointer items-center justify-center gap-2xs border-t border-hairline py-sm text-caption text-meta transition-colors outline-none group-active:bg-surface-soft hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-60"
+            type="button"
+            disabled={isLoadingMore}
+            onClick={expand}
+          >
+            {isLoadingMore ? "불러오는 중" : "더 보기"}
+            {!isLoadingMore && <ChevronDown className="size-4" strokeWidth={1.75} />}
+          </button>
+        </HapticTarget>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { chatSettings, media } from "@/shared/db";
+import { coupleSettings, media } from "@/shared/db";
 import type { MediaId, Nullable, UserId } from "@/shared/lib";
 import type { DbTransaction } from "@/shared/storage";
 import { eq } from "drizzle-orm";
@@ -23,7 +23,7 @@ export type ChatBackgroundUpdate = {
 };
 
 /**
- * REQUIREMENTS.md § 12.2. Points the one `chat_settings` row at a new wallpaper, or
+ * REQUIREMENTS.md § 12.2. Points the one `couple_settings` row at a new wallpaper, or
  * at `null` for the flat `chat-canvas`.
  *
  * WARN: A transaction taking `FOR UPDATE` on the row, **not** § 12.'s
@@ -35,7 +35,7 @@ export type ChatBackgroundUpdate = {
  * actually detached would be reported by nothing and orphaned in R2. `users` gets
  * away with the self-join because its writers are one person's own devices.
  *
- * INFO: Nothing broadcasts. The write lands on `chat_settings`, whose trigger fires
+ * INFO: Nothing broadcasts. The write lands on `couple_settings`, whose trigger fires
  * `user_changed` — the same channel § 12. rides — and § 8.4. carries it to the other
  * participant, who reads the new id off the participant payload.
  *
@@ -48,19 +48,19 @@ export async function writeChatBackground(
   mediaId: Nullable<MediaId>,
 ): Promise<ChatBackgroundUpdate> {
   const [current] = await tx
-    .select({ backgroundMediaId: chatSettings.backgroundMediaId })
-    .from(chatSettings)
+    .select({ backgroundMediaId: coupleSettings.backgroundMediaId })
+    .from(coupleSettings)
     .for("update")
     .limit(1);
 
   // WARN: REQUIREMENTS.md § 12.2. Self-healing rather than a 404. The row is seeded by `0025` and the CHECK leaves `true` as its only possible key, so the sole way it can be absent is a restore or a hand-run DELETE — and an UPDATE alone would then fail every wallpaper save forever, with a Settings screen showing 기본 배경 and no clue why. The trigger covers the INSERT for the same reason it covers the UPDATE.
   if (!current) {
-    await tx.insert(chatSettings).values({ backgroundMediaId: mediaId });
+    await tx.insert(coupleSettings).values({ backgroundMediaId: mediaId });
 
     return { backgroundMediaId: mediaId, replaced: null };
   }
 
-  await tx.update(chatSettings).set({ backgroundMediaId: mediaId });
+  await tx.update(coupleSettings).set({ backgroundMediaId: mediaId });
 
   return {
     backgroundMediaId: mediaId,

@@ -1,7 +1,15 @@
 import "server-only";
 
 import type { MediaVariant } from "@/shared/config";
-import { chatSettings, getDb, media, messageMedia, messages, users, type Media } from "@/shared/db";
+import {
+  coupleSettings,
+  getDb,
+  media,
+  messageMedia,
+  messages,
+  users,
+  type Media,
+} from "@/shared/db";
 import type { MediaId, Nullable, UserId } from "@/shared/lib";
 import { toThumbKey } from "@/shared/storage";
 import { and, eq, isNull, sql, type SQL } from "drizzle-orm";
@@ -52,7 +60,7 @@ export async function canReadMedia(row: Media, userId: UserId): Promise<boolean>
  * every bubble in front of them.
  *
  * WARN: One statement across both tables, not a `users` read followed by a
- * `chat_settings` one. This is `canReadMedia`'s fallthrough, which every avatar and
+ * `couple_settings` one. This is `canReadMedia`'s fallthrough, which every avatar and
  * every cover the other participant fetches walks through on a cache miss — a second
  * serial round trip there is paid by each of them.
  *
@@ -89,7 +97,7 @@ export function isWornAnywhere(mediaId: MediaId): SQL {
     SELECT 1 FROM ${users}
     WHERE ${users.avatarMediaId} = ${mediaId} OR ${users.profileBackgroundMediaId} = ${mediaId}
   ) OR EXISTS (
-    SELECT 1 FROM ${chatSettings} WHERE ${chatSettings.backgroundMediaId} = ${mediaId}
+    SELECT 1 FROM ${coupleSettings} WHERE ${coupleSettings.backgroundMediaId} = ${mediaId}
   ))`;
 }
 

@@ -13,13 +13,13 @@ import { NextResponse } from "next/server";
  *
  * WARN: REQUIREMENTS.md § 12.2. The shared wallpaper rides along, which is why this
  * answers more than its path says. It is not a property of any user, but it is
- * invalidated by exactly the same event — the `chat_settings` trigger fires
+ * invalidated by exactly the same event — the `couple_settings` trigger fires
  * `user_changed` — and the client answers that by refetching this payload whole. A
  * route of its own would double the requests on a channel that also carries every
  * § 8.8. read-cursor bump, to deliver a single id.
  *
  * INFO: REQUIREMENTS.md § 8.15. The shared 쨈미니 system prompt rides along for the
- * same reason — another `chat_settings` field, invalidated by the same trigger.
+ * same reason — another `couple_settings` field, invalidated by the same trigger.
  */
 export async function GET() {
   const user = await getCurrentUser();

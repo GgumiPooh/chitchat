@@ -50,6 +50,9 @@ export type EventOccurrence = {
  */
 export type CalendarSummary = {
   startDate: string;
+  /** REQUIREMENTS.md § 11.1. `couple_settings.first_user_id` / `second_user_id` — login order, not permission. */
+  firstUserId: Nullable<UserId>;
+  secondUserId: Nullable<UserId>;
   todayKey: string;
   /** Following the Korean convention, the start date itself is day 1. */
   dayCount: number;

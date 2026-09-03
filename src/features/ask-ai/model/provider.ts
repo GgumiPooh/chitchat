@@ -8,7 +8,7 @@ export type StreamAnswerParams = {
   /** `llm_agents.config` — provider-specific knobs, opaque to everything but the provider that reads it. */
   config: unknown;
   context: PromptContext;
-  /** REQUIREMENTS.md § 8.15. The shared `chat_settings.llm_system_prompt`, or `undefined` when none is set — a provider that takes a `systemInstruction` knob merges this ahead of its own built-in one. */
+  /** REQUIREMENTS.md § 8.15. The shared `couple_settings.llm_system_prompt`, or `undefined` when none is set — a provider that takes a `systemInstruction` knob merges this ahead of its own built-in one. */
   systemPrompt: Optional<string>;
   /** Aborted the moment `DELETE /api/chat/ai` cancels this streamId — a provider that can stop its own request mid-flight (Gemini's own `config.abortSignal`) should. */
   abortSignal: AbortSignal;

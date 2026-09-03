@@ -1,10 +1,10 @@
 import "server-only";
 
-import { chatSettings, getDb } from "@/shared/db";
+import { coupleSettings, getDb } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
 
 /**
- * REQUIREMENTS.md § 8.15. Points the one `chat_settings` row at a new standing
+ * REQUIREMENTS.md § 8.15. Points the one `couple_settings` row at a new standing
  * instruction, or at `null` to clear it.
  *
  * INFO: A plain `UPDATE`, unlike § 12.2.'s wallpaper write — there is no R2 object a
@@ -17,11 +17,11 @@ import type { Nullable } from "@/shared/lib";
  */
 export async function writeLlmSystemPrompt(prompt: Nullable<string>): Promise<void> {
   const result = await getDb()
-    .update(chatSettings)
+    .update(coupleSettings)
     .set({ llmSystemPrompt: prompt })
-    .returning({ id: chatSettings.id });
+    .returning({ id: coupleSettings.id });
 
   if (result.length === 0) {
-    await getDb().insert(chatSettings).values({ llmSystemPrompt: prompt });
+    await getDb().insert(coupleSettings).values({ llmSystemPrompt: prompt });
   }
 }

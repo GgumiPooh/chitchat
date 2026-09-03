@@ -1,6 +1,6 @@
 import "server-only";
 
-import { chatSettings, getDb, media } from "@/shared/db";
+import { coupleSettings, getDb, media } from "@/shared/db";
 import type { MediaId, Nullable } from "@/shared/lib";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
@@ -30,9 +30,9 @@ export type ChatBackground = {
  */
 export const readChatBackground = cache(async (): Promise<Nullable<ChatBackground>> => {
   const [row] = await getDb()
-    .select({ mediaId: chatSettings.backgroundMediaId, blurhash: media.blurhash })
-    .from(chatSettings)
-    .innerJoin(media, eq(media.id, chatSettings.backgroundMediaId))
+    .select({ mediaId: coupleSettings.backgroundMediaId, blurhash: media.blurhash })
+    .from(coupleSettings)
+    .innerJoin(media, eq(media.id, coupleSettings.backgroundMediaId))
     .limit(1);
 
   return row?.mediaId ? { mediaId: row.mediaId, blurhash: row.blurhash } : null;

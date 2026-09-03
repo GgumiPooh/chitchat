@@ -1,6 +1,6 @@
 import "server-only";
 
-import { chatSettings, getDb } from "@/shared/db";
+import { coupleSettings, getDb } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
 import { cache } from "react";
 
@@ -13,8 +13,8 @@ import { cache } from "react";
  */
 export const readLlmSystemPrompt = cache(async (): Promise<Nullable<string>> => {
   const [row] = await getDb()
-    .select({ llmSystemPrompt: chatSettings.llmSystemPrompt })
-    .from(chatSettings)
+    .select({ llmSystemPrompt: coupleSettings.llmSystemPrompt })
+    .from(coupleSettings)
     .limit(1);
 
   return row?.llmSystemPrompt ?? null;
