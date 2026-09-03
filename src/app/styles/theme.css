@@ -50,8 +50,6 @@
   /* WARN: Not `on-primary`. The two were the same white while the app was light-only, so a viewer control could borrow it and nothing showed; `on-primary` inverts to dark on the dark theme and every borrowed site turned black-on-black. Never point one at the other again. */
   --color-on-scrim: #ffffff;
   --color-hero-heart: #f27a9c;
-  /* INFO: DESIGN.md § 7.9. Outlined only on the dark canvas, where the pink alone sinks into the scrim. */
-  --color-hero-heart-outline: transparent;
 
   /* INFO: Chat — DESIGN.md § 4.1.4. */
   --color-bubble-mine: #f6dcd2;
@@ -476,7 +474,6 @@
   /* WARN: DESIGN.md § 4.1.2. Still not `#000000`. It is used at an opacity over content, and a pure black scrim on a warm dark canvas reads as a hole rather than a dimming. */
   --color-scrim: #0a0806;
   --color-hero-heart: #e86d90;
-  --color-hero-heart-outline: #100e0b;
 
   /* WARN: DESIGN.md § 4.1.3. `primary` lifts and `on-primary` inverts to dark. The light value fails AA as a link on a dark canvas, and lifting it far enough to pass then fails white text on its own fill — one of the two had to move, and the fill is the smaller surface. */
   --color-primary: #d2795f;

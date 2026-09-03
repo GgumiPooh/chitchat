@@ -63,10 +63,7 @@ export function DDayHero({ className, summary }: DDayHeroProps) {
       {/* INFO: DESIGN.md § 3.4. `--bottom-inset` is the tab bar's height — the hero is the one screen whose bottom edge sits under it rather than above `RouteTransition`'s trailing space. */}
       <div className="flex items-end justify-center gap-xl pb-[calc(var(--bottom-inset,0px)+var(--spacing-xl))]">
         <PersonBadge participant={first} />
-        <Heart
-          className="mb-xs size-8 fill-hero-heart stroke-hero-heart-outline drop-shadow-sm"
-          strokeWidth={1.25}
-        />
+        <Heart className="mb-xs size-8 fill-hero-heart stroke-none" />
         <PersonBadge participant={second} />
       </div>
     </section>
