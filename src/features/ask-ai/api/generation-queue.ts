@@ -28,6 +28,8 @@ export type RunQueuedGenerationParams = {
   thinking: Optional<LlmThinkingLevel>;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기, snapshotted by the route at request time — rides every published event and the eventual `assistant_reply` row, so `GET /api/chat/stream` can withhold both from the other participant. */
   onlyMe: boolean;
+  /** REQUIREMENTS.md § 16.1., § 8.15. 조용히 보내기, snapshotted the same way — rides the same events and row. */
+  silent: boolean;
 };
 
 /**
@@ -49,13 +51,14 @@ export async function runQueuedGeneration({
   pinnedModel,
   thinking,
   onlyMe,
+  silent,
 }: RunQueuedGenerationParams): Promise<RunGenerationResult> {
   const session = openUnpooledSession();
   const abortController = new AbortController();
   // WARN: Read *and* written from the `LISTEN` callback below, which fires on Node's event loop independent of whatever `await` this function is sitting on — that is what lets a cancel arrive while the advisory lock query is still outstanding.
   let cancelledWhileWaiting = false;
 
-  beginQueuedGeneration(streamId, questionClientMsgId, askerId, onlyMe);
+  beginQueuedGeneration(streamId, questionClientMsgId, askerId, onlyMe, silent);
 
   try {
     // WARN: Registered before the `queued` event publishes, for the same reason the SSE stream registers its own `LISTEN` before its replay query — a cancel sent the instant after `queued` reaches the client must not land in the gap.
@@ -76,6 +79,7 @@ export async function runQueuedGeneration({
       questionClientMsgId,
       userId: askerId,
       onlyMe,
+      silent,
     });
 
     // WARN: Blocks server-side until granted — this is the FIFO. `maxDuration` on the route is what bounds how long an invocation may sit here.
@@ -94,6 +98,7 @@ export async function runQueuedGeneration({
         userId: askerId,
         stopped: true,
         onlyMe,
+        silent,
       });
 
       return { status: "cancelled" };
@@ -108,6 +113,7 @@ export async function runQueuedGeneration({
       pinnedModel,
       thinking,
       onlyMe,
+      silent,
       abortSignal: abortController.signal,
       isCancelled,
     });
@@ -121,6 +127,7 @@ export async function runQueuedGeneration({
       questionClientMsgId,
       userId: askerId,
       onlyMe,
+      silent,
     }).catch(() => undefined);
 
     return { status: "failed" };

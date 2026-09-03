@@ -21,6 +21,8 @@ export type CreateAssistantReplyMessageParams = {
   replyToId: Nullable<MessageId>;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — the mode the question was asked in, set once here, at insert. */
   onlyMe?: boolean;
+  /** REQUIREMENTS.md § 16.1., § 8.15. 조용히 보내기 — inherited from the question the same way `onlyMe` is. */
+  silent?: boolean;
 };
 
 /**
@@ -36,6 +38,7 @@ export async function createAssistantReplyMessage({
   llmModel,
   replyToId,
   onlyMe = false,
+  silent = false,
 }: CreateAssistantReplyMessageParams): Promise<Nullable<ChatMessage>> {
   // INFO: REQUIREMENTS.md § 8.8. `senderId` is the asker's own row — they are the one who asked and watched the answer stream in, so this counts as their send and advances their cursor exactly as any other does.
   const inserted = await getDb().transaction(async (tx) => {
@@ -52,6 +55,7 @@ export async function createAssistantReplyMessage({
         replyToId,
         clientMsgId,
         onlyMe,
+        silent,
       })
       .onConflictDoNothing({ target: messages.clientMsgId })
       .returning();

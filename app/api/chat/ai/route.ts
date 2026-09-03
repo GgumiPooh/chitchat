@@ -33,6 +33,7 @@ const postBodySchema = z.object({
   model: z.string().min(1).max(200).optional(),
   thinking: llmThinkingLevelSchema.optional(),
   onlyMe: z.boolean().optional(),
+  silent: z.boolean().optional(),
 });
 
 // INFO: AGENTS.md § 6.4. A Route Handler returns its own 401 — the App Router does not honour a thrown `Response`.
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
   // INFO: REQUIREMENTS.md § 16.1. Snapshotted here, at request time — a queued question keeps whatever 조용히 보내기 / 나에게만 보내기 was set to when it was asked, not whatever it becomes while waiting on the FIFO.
   const notifyMode = toNotifyMode((await cookies()).get(NOTIFY_MODE_COOKIE_NAME)?.value);
   const isOnlyMe = body.data.onlyMe ?? notifyMode === "onlyMe";
+  const isSilent = body.data.silent ?? notifyMode === "silent";
 
   const result = await runQueuedGeneration({
     streamId: body.data.streamId,
@@ -62,14 +64,13 @@ export async function POST(request: Request) {
     pinnedModel: body.data.model,
     thinking: body.data.thinking,
     onlyMe: isOnlyMe,
+    silent: isSilent,
   });
 
   if (result.status === "answered") {
     // INFO: REQUIREMENTS.md § 8.15., § 16.1. Unlike an ordinary send, the asker is pushed too — they are `sender_id` on this row but may have left the app while the answer streamed.
     after(() =>
-      safelyRunAsync(() =>
-        notifyAssistantReply(result.message, user.id, isOnlyMe || notifyMode !== "notify"),
-      ),
+      safelyRunAsync(() => notifyAssistantReply(result.message, user.id, isOnlyMe || isSilent)),
     );
 
     return NextResponse.json(await toSingleMessagePayload(result.message), { status: 201 });

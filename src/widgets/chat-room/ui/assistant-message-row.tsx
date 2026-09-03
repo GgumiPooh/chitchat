@@ -15,7 +15,7 @@ import {
   type UserId,
 } from "@/shared/lib";
 import { IconButton, MarkdownBody } from "@/shared/ui";
-import { Bookmark, ChevronDown, Share, Sparkles } from "lucide-react";
+import { BellOff, Bookmark, ChevronDown, Share, Sparkles } from "lucide-react";
 import { toBubbleTapHandler } from "../model/to-bubble-tap-handler";
 import { isExpandableBody, toTruncatedBodyHeight } from "../model/to-truncated-body";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
@@ -144,11 +144,13 @@ export function AssistantMessageRow({
           <div className="min-w-0">
             <div
               className={cn(
-                "w-fit max-w-full rounded-bubble rounded-tl-xs border border-hairline px-sm py-xs select-text",
-                // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the asker's own private question answered with the other theme's `theirs` fill, `MessageRow`'s own bubble reading the same pair for the mine side.
+                "w-fit max-w-full rounded-bubble rounded-tl-xs border px-sm py-xs select-text",
+                // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the asker's own private question answered with the other theme's `theirs` fill, `MessageRow`'s own bubble reading the same pair for the mine side. 조용히 보내기 takes `MessageRow`'s `theirs` dashed `bubble-silent-line` look whenever onlyMe is not also set — the same priority `MessageRow` gives `mine`.
                 message.onlyMe
-                  ? "bg-bubble-theirs-private text-bubble-private-ink active:bg-bubble-theirs-private-pressed"
-                  : "bg-bubble-theirs text-bubble-ink active:bg-bubble-theirs-pressed",
+                  ? "border-hairline bg-bubble-theirs-private text-bubble-private-ink active:bg-bubble-theirs-private-pressed"
+                  : message.silent
+                    ? "border-dashed border-bubble-silent-line bg-bubble-theirs-silent text-bubble-ink active:bg-bubble-theirs-silent-pressed"
+                    : "border-hairline bg-bubble-theirs text-bubble-ink active:bg-bubble-theirs-pressed",
                 // INFO: DESIGN.md § 6.2.1. `MessageRow`'s own tombstone treatment — the bubble keeps its shape and side and gives up its ink.
                 isDeleted && (message.onlyMe ? "text-bubble-private-ink/55" : "text-bubble-ink/55"),
                 isDeleted && "italic select-none",
@@ -214,15 +216,20 @@ export function AssistantMessageRow({
                 <Bookmark className="size-3 fill-current" />
               </span>
             )}
-            <time
+            {/* INFO: REQUIREMENTS.md § 16.1. `MessageRow`'s own shared line — the `BellOff` mark outermost, the mark's own aria-label carrying the meaning a bare glyph cannot. An assistant row is always `theirs`-shaped, so the order is `MessageRow`'s reversed one: the mark follows the time rather than leading it. */}
+            <span
               className={cn(
-                "transition-opacity",
+                "flex h-[1lh] flex-row-reverse items-center gap-0.5 transition-opacity",
                 (followUp || share) && "group-focus-within/row:opacity-0 group-hover/row:opacity-0",
               )}
-              dateTime={message.createdAt}
             >
-              {formatTime(message.createdAt)}
-            </time>
+              {message.silent && (
+                <span className="flex items-center" role="img" aria-label="조용히 보낸 메시지">
+                  <BellOff className="size-2.5" />
+                </span>
+              )}
+              <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+            </span>
             {renderHoverActions()}
           </div>
         </div>

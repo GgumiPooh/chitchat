@@ -105,6 +105,8 @@ const llmStreamEventBase = {
   userId: snowflakeSchema<UserId>(),
   // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기, snapshotted when the question was asked — `GET /api/chat/stream` withholds this event from every session but `userId`'s own when true.
   onlyMe: z.boolean().optional(),
+  // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기, snapshotted the same way — rides along so the streaming footer and the eventual `assistant_reply` row draw the same dashed look.
+  silent: z.boolean().optional(),
 };
 
 /**

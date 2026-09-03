@@ -584,6 +584,7 @@ export function ChatRoom({
         model: Nullable<string>;
         thinking: Nullable<LlmThinkingLevel>;
         onlyMe: boolean;
+        silent: boolean;
         // INFO: § 8.15. The media/emoticon bubbles this question's own send staged, so the AI request can wait for their ids too — see `aiAttachmentQuestionRef` below.
         attachmentClientMsgIds: string[];
         resolvedAttachmentIds: MessageId[];
@@ -617,6 +618,7 @@ export function ChatRoom({
           model: question.model,
           thinking: question.thinking,
           onlyMe: question.onlyMe,
+          silent: question.silent,
         });
       }
 
@@ -2671,6 +2673,7 @@ export function ChatRoom({
 
     // INFO: REQUIREMENTS.md § 16.1., § 16.2. Snapshotted once for the whole question — the same value seeds `pendingAiQuestionsRef` below.
     const isOnlyMe = notifyMode === "onlyMe";
+    const isSilent = notifyMode === "silent";
     const attachmentClientMsgIds: string[] = [];
     let hasSounded = false;
 
@@ -2703,6 +2706,7 @@ export function ChatRoom({
       model: llmAgentChoice.model,
       thinking: llmAgentChoice.thinking,
       onlyMe: isOnlyMe,
+      silent: isSilent,
       attachmentClientMsgIds,
       resolvedAttachmentIds: [],
     });
@@ -2737,6 +2741,7 @@ export function ChatRoom({
       model: Nullable<string>;
       thinking: Nullable<LlmThinkingLevel>;
       onlyMe: boolean;
+      silent: boolean;
     },
   ) {
     const release = holdAwake();
@@ -2754,6 +2759,7 @@ export function ChatRoom({
           ...(question.model !== null && { model: question.model }),
           ...(question.thinking !== null && { thinking: question.thinking }),
           onlyMe: question.onlyMe,
+          silent: question.silent,
         }),
       });
 
@@ -4605,9 +4611,13 @@ function AiAnswerRow({
       <div className="max-w-[calc(100%-116px)] min-w-0">
         <div
           className={cn(
-            "w-fit max-w-full rounded-bubble rounded-tl-xs border border-hairline px-sm py-xs",
-            // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the asker's own private question answered with the other theme's `theirs` fill, matching the landed `AssistantMessageRow`.
-            entry.onlyMe ? "bg-bubble-theirs-private" : "bg-bubble-theirs",
+            "w-fit max-w-full rounded-bubble rounded-tl-xs border px-sm py-xs",
+            // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the asker's own private question answered with the other theme's `theirs` fill, matching the landed `AssistantMessageRow`. 조용히 보내기 takes the same dashed `bubble-silent-line` look whenever onlyMe is not also set, matching that row's own priority.
+            entry.onlyMe
+              ? "border-hairline bg-bubble-theirs-private"
+              : entry.silent
+                ? "border-dashed border-bubble-silent-line bg-bubble-theirs-silent"
+                : "border-hairline bg-bubble-theirs",
           )}
           onClick={replyTo ? toBubbleTapHandler(onOpenReply) : undefined}
         >

@@ -14,6 +14,8 @@ export type GenerationEntry = {
   userId: UserId;
   /** REQUIREMENTS.md § 16.1. 나에게만 보내기 — draws the private-theme bubble fill/ink while streaming. */
   onlyMe?: boolean;
+  /** REQUIREMENTS.md § 16.1., § 8.15. 조용히 보내기 — draws the dashed silent bubble while streaming. */
+  silent?: boolean;
   provider?: string;
   model?: string;
   text: string;
@@ -90,6 +92,7 @@ export function useActiveGenerations(messages?: ChatMessage[]): ActiveGeneration
               questionClientMsgId: event.questionClientMsgId,
               userId: event.userId,
               onlyMe: event.onlyMe,
+              silent: event.silent,
               text: "",
             },
             nextSeq: undefined,
@@ -110,6 +113,7 @@ export function useActiveGenerations(messages?: ChatMessage[]): ActiveGeneration
             }),
             status: "running",
             onlyMe: event.onlyMe ?? existing?.entry.onlyMe,
+            silent: event.silent ?? existing?.entry.silent,
             provider: event.provider,
             model: event.model,
             // WARN: A re-published `start` is the server falling back to another agent mid-run — the failed agent's fragment must not linger under the one that replaces it.
@@ -170,6 +174,7 @@ export function useActiveGenerations(messages?: ChatMessage[]): ActiveGeneration
               questionClientMsgId: event.questionClientMsgId,
               userId: event.userId,
               onlyMe: event.onlyMe,
+              silent: event.silent,
               provider: event.provider,
               model: event.model,
               text: event.text,
