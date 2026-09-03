@@ -15,7 +15,7 @@ import {
   type UserId,
 } from "@/shared/lib";
 import { IconButton, MarkdownBody } from "@/shared/ui";
-import { ChevronDown, Share, Sparkles } from "lucide-react";
+import { Bookmark, ChevronDown, Share, Sparkles } from "lucide-react";
 import { toBubbleTapHandler } from "../model/to-bubble-tap-handler";
 import { isExpandableBody, toTruncatedBodyHeight } from "../model/to-truncated-body";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
@@ -32,6 +32,8 @@ export type AssistantMessageRowProps = {
   /** `toQuoteHeading`'s sentence for `replyTo`, composed by the caller (DESIGN.md § 6.10.). */
   replyToHeading?: string;
   isCollapsed?: boolean;
+  /** REQUIREMENTS.md § 8.19. `MessageRow`'s own prop of the same name. */
+  isBookmarked?: boolean;
   /** REQUIREMENTS.md § 8.17. `MessageRow`'s own prop of the same name. */
   reactions?: MessageReaction[];
   currentUserId?: UserId;
@@ -61,6 +63,7 @@ export function AssistantMessageRow({
   message,
   isSelecting = false,
   isCollapsed = false,
+  isBookmarked = false,
   replyTo,
   replyToHeading,
   reactions = [],
@@ -205,6 +208,12 @@ export function AssistantMessageRow({
           </div>
           {/* WARN: DESIGN.md § 6.3. `relative`, and always rendered — the § 8.10./§ 8.11. pill overlays this exact box (`renderHoverActions`) in place of the timestamp on hover, rather than sitting beside it. */}
           <div className="relative flex w-[68px] shrink-0 flex-col items-start text-chat-time whitespace-nowrap text-chat-meta [[data-wallpaper]_&]:on-wallpaper">
+            {/* INFO: REQUIREMENTS.md § 8.19. `MessageRow`'s own marker line — an AI answer carries no unread count or § 16.1. mark to share it with. */}
+            {isBookmarked && (
+              <span className="flex h-[1lh] items-center" role="img" aria-label="책갈피">
+                <Bookmark className="size-3 fill-current" />
+              </span>
+            )}
             <time
               className={cn(
                 "transition-opacity",

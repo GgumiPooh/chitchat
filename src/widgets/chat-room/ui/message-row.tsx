@@ -36,6 +36,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import {
   BellOff,
+  Bookmark,
   ChevronDown,
   Clock,
   CornerUpLeft,
@@ -102,6 +103,8 @@ export type MessageRowProps = {
   isOnlyMe?: boolean;
   /** REQUIREMENTS.md § 16.1. 조용히 보내기 — the send pushed no banner, said on both participants' rows with a `BellOff` mark on the § 6.3. stack's unread line and a one-tone-quieter bubble fill. */
   isSilent?: boolean;
+  /** REQUIREMENTS.md § 8.19. Bookmarked by either participant — a mark on the § 8.8. marker line, beside the unread heart/count and the § 16.1. `BellOff` mark. */
+  isBookmarked?: boolean;
   isFirstOfGroup: boolean;
   isLastOfGroup: boolean;
   /** DESIGN.md § 6.2. This row opens a run of bubbles, so it wears the notch corner — `buildChatRows` restarts the run at every § 6.5. attachment or emoticon, which have no bubble to put it on. */
@@ -173,6 +176,7 @@ export function MessageRow({
   isMine,
   isOnlyMe = false,
   isSilent = false,
+  isBookmarked = false,
   isFirstOfGroup,
   isLastOfGroup,
   hasNotch,
@@ -551,7 +555,13 @@ export function MessageRow({
               />
             </div>
           ) : (
-            (isLastOfGroup || unreadCount > 0 || isEdited || isSilent || onReply || onShare) && (
+            (isLastOfGroup ||
+              unreadCount > 0 ||
+              isEdited ||
+              isSilent ||
+              isBookmarked ||
+              onReply ||
+              onShare) && (
               // INFO: DESIGN.md § 6.3. One timestamp per minute-group, on its last bubble; § 8.8.'s unread count and § 8.13.'s 수정됨 stack above it on the bubbles that carry them.
               // WARN: REQUIREMENTS.md § 8.3. A fixed `w-[68px]`, wide enough for the longest `오후 12:34` — widened past the timestamp's own 56px floor to match the § 8.10./§ 8.11. hover pill sharing this column, since the two can never disagree about the width the § 8.3. estimate reserves. It is beside the bubble rather than under it, so its width comes off the width the text wraps in — left to size itself, the estimate would have to re-measure a string it cannot see, and would flip a whole line wherever it guessed wrong.
               // WARN: `whitespace-nowrap` guards the fixed width above. `오후 12:34` clears it easily now, and the app's font is `display: swap` — a wider fallback on the first paint would wrap the time onto a second line, breaking § 6.3.'s one-line rule and the § 8.3. estimate that trusts it. Invisible to a developer whose webfont is already cached.
@@ -577,7 +587,7 @@ export function MessageRow({
                   {/* INFO: REQUIREMENTS.md § 16.1. The `BellOff` mark shares the marker's line — a mark rather than a word, since 수정됨 already showed a label reads as something done to the message rather than to its banner — so the marker leaving at zero never moves the column while the mark holds it. */}
                   {/* WARN: `h-[1lh]` on the shared line so marker and mark together cost exactly the one `chat-time` line `estimateRowHeight` prices as a single predicate. */}
                   {/* WARN: `tabular-nums` so a count that changes under the reader cannot change the line's width, and `aria-label` because a bare digit beside a bubble reads as nothing to a screen reader. */}
-                  {(unreadCount > 0 || isSilent) && (
+                  {(unreadCount > 0 || isSilent || isBookmarked) && (
                     // INFO: Reversed on `theirs` so the mark hugs the bubble's edge on both sides — the column itself flips sides, the glyphs' meaning does not.
                     <span
                       className={cn(
@@ -603,6 +613,12 @@ export function MessageRow({
                             {unreadCount}
                           </span>
                         ))}
+                      {/* INFO: REQUIREMENTS.md § 8.19. Sits between the unread mark and the § 16.1. `BellOff` mark on the same shared line. */}
+                      {isBookmarked && (
+                        <span className="flex items-center" role="img" aria-label="책갈피">
+                          <Bookmark className="size-3 fill-current" />
+                        </span>
+                      )}
                       {isSilent && (
                         <span
                           className="flex items-center"

@@ -1035,6 +1035,8 @@ export function ChatRoom({
         ),
       // INFO: REQUIREMENTS.md § 8.8. The same test `renderRow` uses, so the estimate knows the row has a column beside it.
       countUnreadReaders,
+      // INFO: REQUIREMENTS.md § 8.19. The same `bookmarkedIds` test `renderRow` passes `MessageRow`/`AssistantMessageRow` as `isBookmarked`.
+      isBookmarked: (id: MessageId) => bookmarkedIds.has(id),
       // WARN: REQUIREMENTS.md § 8.3. The same map `renderRow` hands the bubble, and it MUST stay the same one — fed from two sources the estimate and the row disagree about the box by construction, which is the miss this whole estimate exists to avoid.
       // WARN: The page's map first and the sends in flight second, never one of the two — the echoed row is the authority on a version bump or a deletion (§ 13.4.), and the optimistic row is the only place its own emoticons exist at all.
       readInlineEmoticon: (itemId: EmoticonItemId) =>
@@ -1047,6 +1049,7 @@ export function ChatRoom({
       readPreview,
       participantById,
       countUnreadReaders,
+      bookmarkedIds,
       inlineEmoticons,
     ],
   );
@@ -3375,6 +3378,7 @@ export function ChatRoom({
             replyTo={question}
             replyToHeading={question ? toQuoteHeadingFor(question) : undefined}
             isCollapsed={row.isCollapsed}
+            isBookmarked={bookmarkedIds.has(row.message.id)}
             reactions={row.message.reactions ?? []}
             currentUserId={currentUserId}
             onOpenReply={
@@ -3460,6 +3464,8 @@ export function ChatRoom({
               isOnlyMe={row.message.onlyMe}
               // INFO: REQUIREMENTS.md § 16.1. `silent` survives the delete exactly as `only_me` does, so the tombstone keeps the mark and the quiet fill.
               isSilent={row.message.silent}
+              // INFO: REQUIREMENTS.md § 8.19. A bookmark is per-user state on the id, not the message body, so it survives the delete exactly as `silent` does above.
+              isBookmarked={bookmarkedIds.has(row.message.id)}
               isFirstOfGroup={row.isFirstOfGroup}
               isLastOfGroup={row.isLastOfGroup}
               hasNotch={row.hasNotch}
@@ -3490,6 +3496,7 @@ export function ChatRoom({
             isMine={row.isMine}
             isOnlyMe={row.message.onlyMe}
             isSilent={row.message.silent}
+            isBookmarked={bookmarkedIds.has(row.message.id)}
             isFirstOfGroup={row.isFirstOfGroup}
             isLastOfGroup={row.isLastOfGroup}
             hasNotch={row.hasNotch}

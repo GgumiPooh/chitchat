@@ -14,6 +14,7 @@ import {
   type EmoticonItemId,
   type InlineRun,
   type Maybe,
+  type MessageId,
   type Nullable,
   type Optional,
 } from "@/shared/lib";
@@ -155,6 +156,8 @@ export type RowEstimateContext = {
    * grew wide enough to move the width the text wraps in, would break that.
    */
   countUnreadReaders: (message: ChatMessage) => number;
+  /** REQUIREMENTS.md § 8.19. The same test `renderRow` uses to pass `MessageRow`/`AssistantMessageRow` their own `isBookmarked` — a bookmarked row's marker line is priced exactly as the unread count's is. */
+  isBookmarked: (id: MessageId) => boolean;
 };
 
 /** @see RowEstimateContext.readNotice */
@@ -166,6 +169,7 @@ const DEFAULT_CONTEXT: RowEstimateContext = {
   readInlineEmoticon: () => undefined,
   readNotice: () => "",
   countUnreadReaders: () => 0,
+  isBookmarked: () => false,
 };
 
 // INFO: The half of a message a height follows from — `ChatMessage` and `PendingMessage` differ elsewhere, and an optimistic bubble is drawn at exactly the size the sent one will be.
@@ -268,7 +272,10 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
           {
             isFirstOfGroup: row.isFirstOfGroup,
             // INFO: § 8.13. The timestamp, and § 16.1.'s mark which survives the delete as `only_me` does — a tombstone carries neither the unread count nor 수정됨.
-            besideLines: Number(row.isLastOfGroup) + Number(row.message.silent),
+            // INFO: REQUIREMENTS.md § 8.19. A bookmark is per-user state on the id and survives the delete the same way.
+            besideLines:
+              Number(row.isLastOfGroup) +
+              Number(row.message.silent || context.isBookmarked(row.message.id)),
           },
         );
       }
@@ -285,7 +292,11 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
           // INFO: REQUIREMENTS.md § 16.1. The `BellOff` mark shares the unread marker's `h-[1lh]` line, so the two together are one predicate line rather than two.
           besideLines:
             Number(row.isLastOfGroup) +
-            Number(context.countUnreadReaders(row.message) > 0 || row.message.silent) +
+            Number(
+              context.countUnreadReaders(row.message) > 0 ||
+                row.message.silent ||
+                context.isBookmarked(row.message.id),
+            ) +
             Number(row.message.editedAt !== null),
         },
       );
@@ -639,10 +650,11 @@ function toAssistantColumnHeight(
       ? toQuoteHeight(message.replyTo, "rule", false) + SPACING_2XS * 2 + 1
       : 0;
 
+  // INFO: REQUIREMENTS.md § 8.19. An AI answer carries no unread/수정됨 stack — a bookmark is the one extra line its own meta column can hold, above the timestamp.
+  const timeSlot = context.isBookmarked(message.id) ? LINE.time() * 2 : LINE.time();
+
   return (
-    LINE.name() +
-    SPACING_2XS +
-    Math.max(SPACING_XS * 2 + BUBBLE_BORDER + quote + content, LINE.time())
+    LINE.name() + SPACING_2XS + Math.max(SPACING_XS * 2 + BUBBLE_BORDER + quote + content, timeSlot)
   );
 }
 
