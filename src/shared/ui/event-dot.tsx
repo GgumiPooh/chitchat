@@ -12,7 +12,7 @@ export type EventDotProps = {
   className?: string;
   color: Nullable<EventColor>;
   scope: EventScope;
-  /** DESIGN.md § 4.1.7. `cell` is the grid's 4px; `row` is the 8px box an event row carries, scaled to read 12px, where 4px was too small for a chosen colour to be seen. */
+  /** DESIGN.md § 4.1.7. `cell` is the grid's 6px; `row` is the 8px box an event row carries, scaled to read 12px, where 4px was too small for a chosen colour to be seen. */
   // INFO: The row dot reads 12px through a `scale`, not an 8px box grown to 12 — the box is what the row's own `mt` is measured against, and growing it drops the dot off the title's baseline.
   size?: "cell" | "row";
 };
@@ -30,10 +30,10 @@ export function EventDot({ className, color, scope, size = "cell" }: EventDotPro
     <span
       className={cn(
         "rounded-full",
-        isRow ? "size-2 scale-150" : "size-1",
+        isRow ? "size-2 scale-150" : "size-1.5",
         isMine
           ? cn(
-              isRow ? "border-2" : "border",
+              isRow ? "border-2" : "border-[1.5px]",
               color ? EVENT_COLOR_RING_CLASSES[color] : EVENT_FALLBACK_RING_CLASS,
             )
           : color
@@ -51,7 +51,7 @@ export type HolidayDotProps = {
 
 // INFO: REQUIREMENTS.md § 11.7. `semantic-error` is outside the event colour set (DESIGN.md § 4.1.7.), so a red dot cannot be read as somebody's event.
 export function HolidayDot({ className }: HolidayDotProps) {
-  return <span className={cn("size-1 rounded-full bg-semantic-error", className)} />;
+  return <span className={cn("size-1.5 rounded-full bg-semantic-error", className)} />;
 }
 
 export type MilestoneDotProps = {
@@ -60,5 +60,5 @@ export type MilestoneDotProps = {
 
 // INFO: DESIGN.md § 7.9. A `primary` diamond, which is why `primary` is kept out of the event colour set (§ 4.1.7.) — the two must never be confusable.
 export function MilestoneDot({ className }: MilestoneDotProps) {
-  return <span className={cn("size-1 rotate-45 bg-primary", className)} />;
+  return <span className={cn("size-1.5 rotate-45 bg-primary", className)} />;
 }
