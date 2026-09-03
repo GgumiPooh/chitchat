@@ -4088,8 +4088,11 @@ export function ChatRoom({
     cancelJumpScroll();
 
     const seek = () => {
+      // WARN: Every row kind that carries a message, not the bubble alone — a bookmark or a quote can point at a § 11.5. notice or an AI answer, and matching `"message"` only left those jumps landing nowhere.
       const index = rowsRef.current.findIndex(
-        (row) => row.kind === "message" && row.message.id === id,
+        (row) =>
+          (row.kind === "message" || row.kind === "system" || row.kind === "assistant") &&
+          row.message.id === id,
       );
 
       if (index < 0) {
