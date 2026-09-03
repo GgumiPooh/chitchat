@@ -274,8 +274,8 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
             // INFO: § 8.13. The timestamp, and § 16.1.'s mark which survives the delete as `only_me` does — a tombstone carries neither the unread count nor 수정됨.
             // INFO: REQUIREMENTS.md § 8.19. A bookmark is per-user state on the id and survives the delete the same way.
             besideLines:
-              Number(row.isLastOfGroup) +
-              Number(row.message.silent || context.isBookmarked(row.message.id)),
+              Number(row.isLastOfGroup || row.message.silent) +
+              Number(context.isBookmarked(row.message.id)),
           },
         );
       }
@@ -291,10 +291,9 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
           // INFO: REQUIREMENTS.md § 8.13. 수정됨 is a third line in the same stack, which is the whole reason it was put there: `LINE.time()` already prices it, and `수정됨` clears `TIME_SLOT`'s 56px with room to spare so the width the text wraps in does not move.
           // INFO: REQUIREMENTS.md § 16.1. The `BellOff` mark shares the unread marker's `h-[1lh]` line, so the two together are one predicate line rather than two.
           besideLines:
-            Number(row.isLastOfGroup) +
+            Number(row.isLastOfGroup || row.message.silent) +
             Number(
               context.countUnreadReaders(row.message) > 0 ||
-                row.message.silent ||
                 context.isBookmarked(row.message.id) ||
                 row.message.editedAt !== null,
             ),
@@ -314,7 +313,7 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
         context,
         {
           isFirstOfGroup: row.isFirstOfGroup,
-          besideLines: Number(row.isLastOfGroup) + Number(row.pending.notifyMode === "silent"),
+          besideLines: Number(row.isLastOfGroup || row.pending.notifyMode === "silent"),
         },
       );
   }

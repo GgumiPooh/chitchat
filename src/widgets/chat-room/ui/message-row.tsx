@@ -587,7 +587,7 @@ export function MessageRow({
                   {/* INFO: REQUIREMENTS.md § 16.1. The `BellOff` mark shares the marker's line — a mark rather than a word, since 수정됨 already showed a label reads as something done to the message rather than to its banner — so the marker leaving at zero never moves the column while the mark holds it. */}
                   {/* WARN: `h-[1lh]` on the shared line so marker and mark together cost exactly the one `chat-time` line `estimateRowHeight` prices as a single predicate. */}
                   {/* WARN: `tabular-nums` so a count that changes under the reader cannot change the line's width, and `aria-label` because a bare digit beside a bubble reads as nothing to a screen reader. */}
-                  {(unreadCount > 0 || isSilent || isBookmarked || isEdited) && (
+                  {(unreadCount > 0 || isBookmarked || isEdited) && (
                     // INFO: Reversed on `theirs` so the mark hugs the bubble's edge on both sides — the column itself flips sides, the glyphs' meaning does not.
                     <span
                       className={cn(
@@ -619,20 +619,31 @@ export function MessageRow({
                           <Bookmark className="size-3 fill-current" />
                         </span>
                       )}
+                      {/* INFO: REQUIREMENTS.md § 8.13. Beside the bubble rather than inside it — the § 8.3. estimate wraps the body text in one font, and a label of another size sharing that measurement is exactly what it cannot express. Innermost on the shared line, so it reads last on `mine` and first on `theirs`. */}
+                      {isEdited && <span>수정됨</span>}
+                    </span>
+                  )}
+                  {/* INFO: REQUIREMENTS.md § 16.1. The mark shares the timestamp's line, outermost — a mark rather than a word, since 수정됨 already showed a label reads as something done to the message rather than to its banner. On a bubble that is not its group's last the line holds the mark alone. */}
+                  {/* WARN: The slot is a fixed 68px and `오후 12:34` takes most of it, so the mark is the heart's 10px over a 2px gap — a 12px mark on `gap-1` overflows into the bubble on a two-digit hour. */}
+                  {(isSilent || isLastOfGroup) && (
+                    <span
+                      className={cn(
+                        "flex h-[1lh] items-center gap-0.5",
+                        !isMine && "flex-row-reverse",
+                      )}
+                    >
                       {isSilent && (
                         <span
                           className="flex items-center"
                           role="img"
                           aria-label="조용히 보낸 메시지"
                         >
-                          <BellOff className="size-3" />
+                          <BellOff className="size-2.5" />
                         </span>
                       )}
-                      {/* INFO: REQUIREMENTS.md § 8.13. Beside the bubble rather than inside it — the § 8.3. estimate wraps the body text in one font, and a label of another size sharing that measurement is exactly what it cannot express. Innermost on the shared line, so it reads last on `mine` and first on `theirs`. */}
-                      {isEdited && <span>수정됨</span>}
+                      {isLastOfGroup && <time dateTime={createdAt}>{formatTime(createdAt)}</time>}
                     </span>
                   )}
-                  {isLastOfGroup && <time dateTime={createdAt}>{formatTime(createdAt)}</time>}
                 </div>
                 {renderHoverActions()}
               </div>
