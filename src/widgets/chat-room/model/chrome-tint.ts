@@ -1,8 +1,8 @@
 import type { Maybe, Optional } from "@/shared/lib";
 import { toBlurhashAverage } from "@/shared/ui";
 
-// WARN: DESIGN.md § 7.16. The same 40% `ChatBackdrop` draws its wash at, and the two MUST move together — what borders the chrome is the photo *under* that wash, so the bare average publishes a colour visibly deeper than the room beside it.
-const WASH_AMOUNT = "40%";
+// WARN: DESIGN.md § 7.16. The same 30% `ChatBackdrop` draws its wash at, and the two MUST move together — what borders the chrome is the photo *under* that wash, so the bare average publishes a colour visibly deeper than the room beside it.
+const WASH_AMOUNT = "30%";
 
 /**
  * REQUIREMENTS.md § 12.2. The wallpaper's own colour, composited under the wash it is

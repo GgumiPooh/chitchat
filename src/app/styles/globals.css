@@ -210,7 +210,7 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
 }
 
 /* INFO: DESIGN.md § 7.16. The sender name and timestamp column drawn directly on a chat/hero wallpaper, scoped by `[data-wallpaper]` rather than applied unconditionally — with no wallpaper the room is flat `chat-canvas` and `chat-sender`/`chat-meta` must stay. */
-/* INFO: A 40% wash cannot carry 11px `on-scrim` text over a bright photo on its own, so the shadow does the rest of the contrast work. */
+/* INFO: A 30% wash cannot carry 11px `on-scrim` text over a bright photo on its own, so the shadow does the rest of the contrast work. */
 @utility on-wallpaper {
   color: var(--color-on-scrim);
   text-shadow: 0 1px 2px --alpha(var(--color-chat-scrim) / 60%);

@@ -44,8 +44,8 @@ export function DDayHero({ className, summary }: DDayHeroProps) {
       ) : (
         <div className="absolute inset-0 -z-10 bg-primary" />
       )}
-      {/* WARN: DESIGN.md § 7.16. The chat wallpaper's own wash, at the 40% `ChatBackdrop` and `toChromeTint` carry — the calendar borrows the room's photo and must borrow its tone with it. */}
-      <div className="absolute inset-0 -z-10 bg-chat-scrim/40" />
+      {/* WARN: DESIGN.md § 7.16. The chat wallpaper's own wash, at the 30% `ChatBackdrop` and `toChromeTint` carry — the calendar borrows the room's photo and must borrow its tone with it. */}
+      <div className="absolute inset-0 -z-10 bg-chat-scrim/30" />
 
       <div className="flex flex-1 flex-col items-center justify-center gap-xs px-lg text-center text-on-scrim">
         <p className="text-title-md">함께한 지</p>
