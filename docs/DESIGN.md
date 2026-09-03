@@ -848,23 +848,23 @@ The count variant recolours the circle rather than adding a separate badge eleme
 
 ## 6.8. Search.
 
-| Element         | Rule                                                                                                                                                                                              |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Search bar      | Replaces § 7.12.'s header in place, same height and inset — the § 6.6. pill holding a 16px `meta-soft` glyph, the field, a clear button, and the submit disc, with a plain `취소` label beside it |
-| Navigation bar  | Stands in the composer's position and wears its pill exactly (§ 6.6.): 목록 at the left, `{n}/{total}` centered in `caption` `meta` `tabular-nums`, `∧` and `∨` at the right                      |
-| Result list     | A full overlay in `surface-soft`, inset below the search bar rather than running under it                                                                                                         |
-| Result row      | `canvas` fill on `surface-soft` list, sender name (`title-sm`), matched line (`body-sm`, 2-line clamp), date (`caption`, `meta`)                                                                  |
-| Active row      | 1px `primary` border — the row the room is parked on, so the list says where `∧∨` will step from                                                                                                  |
-| Match highlight | `search-hit` background, `ink` text, `rounded-xs`, computed client-side by string split                                                                                                           |
-| Match in bubble | The same mark, painted inside every visible bubble the query occurs in; a URL run is left alone                                                                                                   |
-| Jump target     | The marked words and the centered row, nothing more. § 6.10.'s `message-flash` row wash belongs to the **quote** jump, which has no substring to mark                                             |
-| Return control  | The § 6.7. scroll-to-bottom pill — same component, no search-specific variant                                                                                                                     |
-| Empty state     | § 7.6. — `대화 내용을 검색해 보세요` before a query, `검색 결과가 없어요` after one                                                                                                               |
-| Loading         | § 7.8. — skeleton rows for the first page, a `LoaderCircle` at the list's end for the next                                                                                                        |
+| Element         | Rule                                                                                                                                                                             |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Search bar      | Replaces § 7.12.'s header in place, same height and inset — the § 6.6. pill holding a 16px `meta-soft` glyph, the field, and a clear button, with a plain `취소` label beside it |
+| Navigation bar  | Stands in the composer's position and wears its pill exactly (§ 6.6.): 목록 at the left, `{n}/{total}` centered in `caption` `meta` `tabular-nums`, `∧` and `∨` at the right     |
+| Result list     | A full overlay in `surface-soft`, inset below the search bar rather than running under it                                                                                        |
+| Result row      | `canvas` fill on `surface-soft` list, sender name (`title-sm`), matched line (`body-sm`, 2-line clamp), date (`caption`, `meta`)                                                 |
+| Active row      | 1px `primary` border — the row the room is parked on, so the list says where `∧∨` will step from                                                                                 |
+| Match highlight | `search-hit` background, `ink` text, `rounded-xs`, computed client-side by string split                                                                                          |
+| Match in bubble | The same mark, painted inside every visible bubble the query occurs in; a URL run is left alone                                                                                  |
+| Jump target     | The marked words and the centered row, nothing more. § 6.10.'s `message-flash` row wash belongs to the **quote** jump, which has no substring to mark                            |
+| Return control  | The § 6.7. scroll-to-bottom pill — same component, no search-specific variant                                                                                                    |
+| Empty state     | § 7.6. — `대화 내용을 검색해 보세요` before a query, `검색 결과가 없어요` after one                                                                                              |
+| Loading         | § 7.8. — skeleton rows for the first page, a `LoaderCircle` at the list's end for the next                                                                                       |
 
 **The bar takes the header's place rather than covering it**, so opening a search moves nothing on the screen behind it and the conversation goes on scrolling under the same strip it always does.
 
-**The pill is the composer's shape and the disc is the composer's send button**, in the same corner, at the same 36 inside a 44 row — a field with the action it feeds parked at its right end is already this app's one arrangement for that. It is `primary` while there is something to ask for and a `primary` outline on a transparent disc otherwise, and it swaps its glyph for a spinner while the scan is out. On a phone it is the redundant half: the keyboard's own search key is what the thumb reaches (`REQUIREMENTS.md § 8.6.`). The pill's height is fixed rather than sized to its contents, or the clear button appearing on the first keystroke would grow it under the finger. The outline is where it departs from the composer's disc: `primary-disabled` over a wallpaper read as a dimmed, dirty disc.
+**The pill carries no action button**: the scan runs on typing, debounced, and the keyboard's own search key steps to the next hit (`REQUIREMENTS.md § 8.6.`), so there is nothing left for a pointer to press. The pill's height is fixed rather than sized to its contents, or the clear button appearing on the first keystroke would grow it under the finger.
 
 **This is the one overlay the floating header must not be transparent over.** § 7.12.'s rule is written for content that is meant to pass beneath the controls, and the conversation has a fade mask to dissolve it. A result row has neither: sliding under the field it would put message text behind `취소`. So the list is inset to `--app-header-inset` and the strip behind the bar is the list's own `surface-soft`.
 

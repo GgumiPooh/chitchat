@@ -7,7 +7,6 @@ export type MessageSearchBarProps = {
   className?: string;
   fieldClassName?: string;
   query: string;
-  canSubmit: boolean;
   isLoading?: boolean;
   /** Forwarded to `MessageSearchField` — off for a bookmark-driven open (REQUIREMENTS.md § 8.19.). */
   autoFocus?: boolean;
@@ -33,7 +32,6 @@ export function MessageSearchBar({
   className,
   fieldClassName,
   query,
-  canSubmit,
   isLoading = false,
   autoFocus = true,
   hasSidePanel = false,
@@ -51,7 +49,6 @@ export function MessageSearchBar({
         <MessageSearchField
           fieldClassName={fieldClassName}
           query={query}
-          canSubmit={canSubmit}
           isLoading={isLoading}
           autoFocus={autoFocus}
           onQueryChange={onQueryChange}

@@ -2,7 +2,7 @@
 
 import { MAX_SEARCH_QUERY_LENGTH } from "@/shared/config";
 import { cn } from "@/shared/lib";
-import { HapticTarget, IconButton } from "@/shared/ui";
+import { IconButton } from "@/shared/ui";
 import { LoaderCircle, Search, X } from "lucide-react";
 import { useRef, type KeyboardEvent } from "react";
 
@@ -10,8 +10,6 @@ export type MessageSearchFieldProps = {
   className?: string;
   fieldClassName?: string;
   query: string;
-  /** Whether the field holds anything to ask for — the disc is dead otherwise. */
-  canSubmit: boolean;
   isLoading?: boolean;
   /** Off for the desktop side panel — it stands on screen at all times and must not steal focus on mount. */
   autoFocus?: boolean;
@@ -28,14 +26,13 @@ export type MessageSearchFieldProps = {
  * bar (`MessageSearchBar`) and the desktop side panel both drive.
  *
  * WARN: A real `<form>`. The implicit submit is what makes iOS draw its search
- * key instead of a return key, and on a phone that key is the whole trigger —
- * REQUIREMENTS.md § 8.6. does not scan while the user types.
+ * key instead of a return key — REQUIREMENTS.md § 8.6. steps to the next hit
+ * on that key, since the scan itself already runs debounced as the user types.
  */
 export function MessageSearchField({
   className,
   fieldClassName,
   query,
-  canSubmit,
   isLoading = false,
   autoFocus = true,
   variant = "floating",
@@ -92,24 +89,6 @@ export function MessageSearchField({
           aria-label="검색어 지우기"
           onClick={clear}
         />
-      )}
-      {/* WARN: Gated on `canSubmit` alone, not `isLoading` — `isLoading` flips true inside `submit` before its first `await`, so folding it in tears the disc out mid-click (DESIGN.md § 7.15.3.). */}
-      {variant === "floating" && (
-        <HapticTarget className="inline-flex shrink-0" isTicking={canSubmit} keepsFocus>
-          <button
-            // INFO: DESIGN.md § 7.12. Disabled is the disc hollowed out — an outline in `primary` — rather than `primary-disabled`, which read as a dimmed, dirty disc over the wallpaper.
-            className="inline-flex size-9 shrink-0 press-bloom cursor-pointer items-center justify-center rounded-full bg-primary text-on-primary outline-none group-active:bg-primary-pressed hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary active:bg-primary-pressed disabled:cursor-not-allowed disabled:border disabled:border-primary disabled:bg-transparent disabled:text-primary"
-            disabled={!canSubmit || isLoading}
-            type="submit"
-            aria-label="검색"
-          >
-            {isLoading ? (
-              <LoaderCircle className="size-4 animate-spin" />
-            ) : (
-              <Search className="size-4" strokeWidth={2} />
-            )}
-          </button>
-        </HapticTarget>
       )}
     </form>
   );

@@ -172,7 +172,6 @@ export function useMirrorMessageSearch(messages: ChatMessage[]) {
     hasNoResults: submitted.length > 0 && results.length === 0,
     hasOlder: results.length > 0 && (activeIndex === null || activeIndex + 1 < results.length),
     hasNewer: activeIndex !== null && activeIndex > 0,
-    canSubmit: query.trim().length > 0,
     isLoading: false,
     isLoadingMore: false,
     hasMore: false,

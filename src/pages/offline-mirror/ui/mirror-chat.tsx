@@ -184,7 +184,6 @@ export function MirrorChat({ className, shell }: MirrorChatProps) {
             <MessageSearchBar
               className="lg:hidden"
               query={search.query}
-              canSubmit={search.canSubmit}
               isLoading={search.isLoading}
               hasSidePanel
               onQueryChange={search.setQuery}

@@ -69,7 +69,6 @@ export function MirrorChatSidePanel({
           variant="flat"
           autoFocus={false}
           query={search.query}
-          canSubmit={search.canSubmit}
           isLoading={search.isLoading}
           onQueryChange={search.setQuery}
           onSubmit={search.submit}

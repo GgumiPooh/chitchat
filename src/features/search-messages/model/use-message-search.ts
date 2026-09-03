@@ -226,7 +226,7 @@ export function useMessageSearch(hideOthers = false) {
     [hideOthers, jumpToIndex],
   );
 
-  // INFO: REQUIREMENTS.md § 8.6. The typed-ahead scan, and it never jumps — the room would then scroll to a different message on every debounce window, under a reader still typing.
+  // INFO: REQUIREMENTS.md § 8.6. The typed-ahead scan — once the debounce window elapses it jumps to the newest hit, same as the search key.
   useEffect(() => {
     const trimmed = query.trim();
 
@@ -234,15 +234,14 @@ export function useMessageSearch(hideOthers = false) {
       return;
     }
 
-    const timer = setTimeout(() => void scan(trimmed, false), SEARCH_DEBOUNCE);
+    const timer = setTimeout(() => void scan(trimmed, true), SEARCH_DEBOUNCE);
 
     return () => clearTimeout(timer);
   }, [query, submitted, scan]);
 
   /**
-   * REQUIREMENTS.md § 8.6. The search key, which is what moves the room — the
-   * scan itself has usually already run behind the effect above, so this is the
-   * step-to-the-next-hit gesture far more often than it is a fetch.
+   * REQUIREMENTS.md § 8.6. The search key / Enter, which steps to the next hit
+   * once the debounced scan above has already run and landed the same string.
    */
   const submit = useCallback(async () => {
     const trimmed = query.trim();
@@ -280,8 +279,6 @@ export function useMessageSearch(hideOthers = false) {
     hasOlder:
       results.length > 0 && (activeIndex === null || activeIndex + 1 < results.length || hasMore),
     hasNewer: activeIndex !== null && activeIndex > 0,
-    // INFO: An empty field has nothing to ask for. Re-submitting the string already on screen is allowed and steps to the next hit — that decision lives in `submit`, not in whether the control is offered.
-    canSubmit: query.trim().length > 0,
     open,
     close,
     submit,

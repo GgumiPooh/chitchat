@@ -282,7 +282,6 @@ export function ChatScreen({
               // WARN: `lg` keeps 검색 in `ChatSidePanel` (`ChatSidePanel`, above) instead — unhidden here, a search left open across the breakpoint would show both at once.
               className="lg:hidden"
               query={search.query}
-              canSubmit={search.canSubmit}
               isLoading={search.isLoading}
               autoFocus={search.focusesField}
               hasSidePanel
