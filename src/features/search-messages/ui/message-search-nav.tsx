@@ -1,7 +1,7 @@
 "use client";
 
 import { cn, type Nullable } from "@/shared/lib";
-import { IconButton } from "@/shared/ui";
+import { IconButton, toast } from "@/shared/ui";
 import { Bookmark, ChevronDown, ChevronUp, List } from "lucide-react";
 
 export type MessageSearchNavProps = {
@@ -45,20 +45,21 @@ export function MessageSearchNav({
     <div className={cn("pointer-events-none px-md pt-xs pb-xs", className)}>
       {/* INFO: DESIGN.md § 6.6. The composer's pill exactly — it stands in the same place, so it is the same object as far as the screen is concerned. */}
       <div className="pointer-events-auto flex items-center gap-2xs rounded-[calc(var(--tab-bar-height)/2)] border border-hairline glass p-2xs shadow-floating">
+        {/* INFO: Live at zero rather than disabled — a control that ticks and then does nothing reads as broken, so an empty list is said out loud instead. */}
         <IconButton
           Icon={List}
           haptic
-          disabled={total === 0}
           aria-label="검색 결과 목록"
-          onClick={onOpenList}
+          onClick={total === 0 ? () => toast("검색 결과가 없어요") : onOpenList}
         />
         {onOpenBookmarks && (
           <IconButton
             Icon={Bookmark}
             haptic
-            disabled={bookmarkCount === 0}
             aria-label="책갈피 목록"
-            onClick={onOpenBookmarks}
+            onClick={
+              bookmarkCount === 0 ? () => toast("책갈피한 메시지가 없어요") : onOpenBookmarks
+            }
           />
         )}
         <p

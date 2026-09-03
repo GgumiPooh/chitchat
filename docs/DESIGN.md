@@ -883,7 +883,7 @@ The count variant recolours to `primary` rather than adding a separate badge ele
 | Element        | Rule                                                                                                                                                   |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Corner button  | § 6.7. pill's rest geometry and position, riding the composer's own transition and drag transform — shown while a bookmark exists and search is closed |
-| Nav-bar button | § 6.8.'s navigation bar, immediately right of 목록 — disabled at zero count                                                                            |
+| Nav-bar button | § 6.8.'s navigation bar, immediately right of 목록 — at zero it toasts instead of opening                                                              |
 | List row       | § 6.8.'s result row shape, a 40px § 6.10. quote tile in place of the sender name, the message's own date beside the sender                             |
 | Sheet          | `REQUIREMENTS.md § 8.18.`'s draggable-sheet/`Modal` shell, now `ExpandableSheet` (`@/shared/ui`)                                                       |
 
