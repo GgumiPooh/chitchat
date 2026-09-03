@@ -62,8 +62,8 @@ export function ChatBackdrop({ className, mediaId, blurhash }: ChatBackdropProps
         alt=""
       />
       {/* WARN: Over the whole photo, the part under the keyboard included — what the glass toolbar shows there has to be the room's colour, and the unwashed photo is a visibly brighter one. */}
-      {/* WARN: `toChromeTint` carries this same 30%, because the colour bordering iOS 26's chrome is the photo under this wash and not the photo. Changing it here alone leaves the status bar a shade off the room it is meant to disappear into. */}
-      <div className="absolute inset-0 bg-chat-scrim/30" />
+      {/* WARN: `toChromeTint` carries this same 20%, because the colour bordering iOS 26's chrome is the photo under this wash and not the photo. Changing it here alone leaves the status bar a shade off the room it is meant to disappear into. */}
+      <div className="absolute inset-0 bg-chat-scrim/20" />
     </div>
   );
 }

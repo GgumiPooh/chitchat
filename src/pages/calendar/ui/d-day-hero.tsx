@@ -44,18 +44,20 @@ export function DDayHero({ className, summary }: DDayHeroProps) {
       ) : (
         <div className="absolute inset-0 -z-10 bg-primary" />
       )}
-      {/* WARN: DESIGN.md § 7.16. The chat wallpaper's own wash, at the 30% `ChatBackdrop` and `toChromeTint` carry — the calendar borrows the room's photo and must borrow its tone with it. */}
-      <div className="absolute inset-0 -z-10 bg-chat-scrim/30" />
+      {/* WARN: DESIGN.md § 7.16. The chat wallpaper's own wash, at the 20% `ChatBackdrop` and `toChromeTint` carry — the calendar borrows the room's photo and must borrow its tone with it. */}
+      <div className="absolute inset-0 -z-10 bg-chat-scrim/20" />
 
       <div className="flex flex-1 flex-col items-center justify-center gap-xs px-lg text-center text-on-scrim">
         <p className="text-title-md">함께한 지</p>
         <p className="text-display-xl">{summary.dayCount.toLocaleString()}</p>
-        <p className="text-body-lg">{formatDate(summary.startDate)}</p>
-        {summary.nextMilestone && (
-          <p className="text-body-md">
-            {summary.nextMilestone.label}까지 {summary.nextMilestone.daysLeft}일
-          </p>
-        )}
+        <div>
+          <p className="text-body-lg">{formatDate(summary.startDate)}</p>
+          {summary.nextMilestone && (
+            <p className="text-body-md">
+              {summary.nextMilestone.label}까지 {summary.nextMilestone.daysLeft}일
+            </p>
+          )}
+        </div>
       </div>
 
       {/* INFO: DESIGN.md § 3.4. `--bottom-inset` is the tab bar's height — the hero is the one screen whose bottom edge sits under it rather than above `RouteTransition`'s trailing space. */}
