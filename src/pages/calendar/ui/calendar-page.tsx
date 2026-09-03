@@ -20,6 +20,7 @@ import {
   occursOnDay,
   toMonthKey,
   toMonthStart,
+  useDocumentBackground,
   type HolidayTable,
   type Maybe,
   type Nullable,
@@ -28,6 +29,7 @@ import { AppHeader, Container, IconButton, toast, TwoPane } from "@/shared/ui";
 import { CalendarMonth, toGridRange } from "@/widgets/calendar-month";
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toHeroTint } from "../model/hero-tint";
 import { DDayHero } from "./d-day-hero";
 import { DayAgenda } from "./day-agenda";
 import { UpcomingCard } from "./upcoming-card";
@@ -60,7 +62,9 @@ export function CalendarPage({
   holidays,
   initialDayKey,
 }: CalendarPageProps) {
-  const { participants } = useChatStream();
+  const { participants, chatBackgroundBlurhash } = useChatStream();
+  // INFO: DESIGN.md § 3.3. `#app-shell` paints `canvas` over `body`, so this reaches the status bar and nothing the reader scrolls to.
+  useDocumentBackground(toHeroTint(chatBackgroundBlurhash));
   const [summary, setSummary] = useState(initialSummary);
   const [monthKey, setMonthKey] = useState(initialMonthKey);
   const [occurrences, setOccurrences] = useState(initialOccurrences);

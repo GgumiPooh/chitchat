@@ -14,7 +14,7 @@ export type DDayHeroProps = {
 };
 
 /**
- * DESIGN.md § 7.9. The screen's single focal point, and the only place `display-lg`
+ * DESIGN.md § 7.9. The screen's single focal point, and the only place `display-xl`
  * appears in the app.
  *
  * INFO: Every number here is resolved on the server (REQUIREMENTS.md § 11.1.), so
@@ -44,26 +44,25 @@ export function DDayHero({ className, summary }: DDayHeroProps) {
         <div className="absolute inset-0 -z-10 bg-primary" />
       )}
       {/* INFO: Heavier toward the bottom, where the avatars and their names sit on the photo directly. */}
+      {/* WARN: The top stop is `toHeroTint`'s wash, and the two move together (DESIGN.md § 3.3.). */}
       <div className="absolute inset-0 -z-10 bg-linear-to-b from-hero-scrim/30 via-hero-scrim/20 to-hero-scrim/75" />
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-2xs px-lg text-center text-on-scrim">
-        <p className="text-caption">함께한 지</p>
-        <p>
-          <span className="text-display-lg">{summary.dayCount.toLocaleString()}</span>
-          <span className="text-title-md">일</span>
-        </p>
-        <p className="text-body-sm">{formatDate(summary.startDate)}</p>
+      <div className="flex flex-1 flex-col items-center justify-center gap-xs px-lg text-center text-on-scrim">
+        <p className="text-title-md">함께한 지</p>
+        <p className="text-display-xl">{summary.dayCount.toLocaleString()}</p>
+        <p className="text-body-lg">{formatDate(summary.startDate)}</p>
         {summary.nextMilestone && (
-          <p className="pt-2xs text-caption">
+          <p className="pt-2xs text-body-md">
             {summary.nextMilestone.label}까지 {summary.nextMilestone.daysLeft}일
           </p>
         )}
       </div>
 
-      <div className="flex items-end justify-center gap-lg pb-xl">
+      {/* INFO: DESIGN.md § 3.4. `--bottom-inset` is the tab bar's height — the hero is the one screen whose bottom edge sits under it rather than above `RouteTransition`'s trailing space. */}
+      <div className="flex items-end justify-center gap-xl pb-[calc(var(--bottom-inset,0px)+var(--spacing-xl))]">
         <PersonBadge participant={first} />
         <Heart
-          className="mb-2xs size-6 fill-on-scrim stroke-hero-scrim drop-shadow-sm"
+          className="mb-xs size-8 fill-on-scrim stroke-hero-scrim drop-shadow-sm"
           strokeWidth={2}
         />
         <PersonBadge participant={second} />
@@ -91,7 +90,7 @@ function PersonBadge({ className, participant }: PersonBadgeProps) {
         name={participant.name}
         mediaId={participant.avatarMediaId}
       />
-      <p className="text-caption text-on-scrim">{participant.name}</p>
+      <p className="text-title-sm text-on-scrim">{participant.name}</p>
     </div>
   );
 }
