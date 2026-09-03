@@ -116,7 +116,7 @@ export function MessageBookmarkSheet({
             {bookmarks.map((bookmark) => (
               <div key={bookmark.id} className="flex items-center gap-xs">
                 {isEditing ? (
-                  <div className="flex w-full items-center gap-xs rounded-md border border-hairline-soft bg-canvas p-sm">
+                  <div className="flex w-full min-w-0 items-center gap-xs rounded-md border border-hairline-soft bg-canvas p-sm">
                     {bookmark.thumbnail && (
                       <QuoteThumbnailTile className="size-10" thumbnail={bookmark.thumbnail} />
                     )}
@@ -151,9 +151,13 @@ export function MessageBookmarkSheet({
                     </div>
                   </div>
                 ) : (
-                  <HapticTarget className="flex flex-1" overlayClassName="touch-pan-y" keepsScroll>
+                  <HapticTarget
+                    className="flex min-w-0 flex-1"
+                    overlayClassName="touch-pan-y"
+                    keepsScroll
+                  >
                     <button
-                      className="flex w-full cursor-pointer items-center gap-xs rounded-md border border-hairline-soft bg-canvas p-sm text-left outline-none group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-strong"
+                      className="flex w-full min-w-0 cursor-pointer items-center gap-xs rounded-md border border-hairline-soft bg-canvas p-sm text-left outline-none group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-strong"
                       type="button"
                       onClick={() => onSelect(bookmark.id)}
                     >
