@@ -2,8 +2,8 @@
 
 import { toEmoticonAssetUrl, toMediaUrl, type QuoteThumbnail } from "@/shared/config";
 import { cn } from "@/shared/lib";
-import { PreloadImage } from "@/shared/ui";
 import { Trash2 } from "lucide-react";
+import { PreloadImage } from "./preload-image";
 
 export type QuoteThumbnailTileProps = {
   className?: string;

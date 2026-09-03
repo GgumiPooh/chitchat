@@ -50,10 +50,7 @@ export {
   type ToggleReactionInput,
   type ToggleReactionResult,
 } from "./api/toggle-reaction";
-// INFO: The pure exports here — no database, no `server-only` — so a client module (`reply-quote.tsx`, the bookmark sheet) can take them as values while everything else stays `import type`.
-export { toReplySummary } from "./model/to-reply-summary";
-export { QuoteThumbnailTile, type QuoteThumbnailTileProps } from "./ui/quote-thumbnail";
-// WARN: Everything above but `toReplySummary`/`QuoteThumbnailTile` touches the database. A client module may import from this barrel with `import type` only — a value import drags `server-only` into its bundle.
+// WARN: Everything above touches the database. A client module may import from this barrel with `import type` only — a value import drags `server-only` into its bundle.
 export type {
   ChatMessage,
   MessageBookmark,

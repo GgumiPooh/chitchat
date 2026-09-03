@@ -45,6 +45,7 @@ export { Modal, type ModalProps } from "./modal";
 export { PreloadImage, type PreloadImageProps } from "./preload-image";
 export { PreloadVideo, type PreloadVideoProps } from "./preload-video";
 export { PrivateRing, type PrivateRingProps } from "./private-ring";
+export { QuoteThumbnailTile, type QuoteThumbnailTileProps } from "./quote-thumbnail";
 export {
   RecentsAndFavoritesIcon,
   type RecentsAndFavoritesIconProps,

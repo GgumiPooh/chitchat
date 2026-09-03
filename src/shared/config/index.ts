@@ -352,7 +352,13 @@ export {
   type MessageSegment,
 } from "./message-content";
 export { APPLE_SPLASH_DIR, APPLE_SPLASH_LINKS, type AppleSplashLink } from "./pwa";
-export { toQuoteHeading, toQuoteThumbnail, type QuoteThumbnail } from "./quote";
+export {
+  toQuoteHeading,
+  toQuoteThumbnail,
+  toReplySummary,
+  type QuoteSummarySource,
+  type QuoteThumbnail,
+} from "./quote";
 export {
   MAX_VOICE_DURATION,
   MAX_VOICE_SIZE,

@@ -1,7 +1,9 @@
 "use client";
 
-import { QuoteThumbnailTile, toReplySummary, type ReplyPreview } from "@/entities/message";
+import type { ReplyPreview } from "@/entities/message";
+import { toReplySummary } from "@/shared/config";
 import { cn } from "@/shared/lib";
+import { QuoteThumbnailTile } from "@/shared/ui";
 
 export type ReplyQuoteProps = {
   className?: string;

@@ -1,9 +1,10 @@
 "use client";
 
-import { QuoteThumbnailTile, toReplySummary, type MessageBookmark } from "@/entities/message";
+import type { MessageBookmark } from "@/entities/message";
 import type { Participant } from "@/entities/user";
+import { toReplySummary } from "@/shared/config";
 import { formatMonthDay, formatTime, idToDate, type MessageId } from "@/shared/lib";
-import { EmptyState, ExpandableSheet, HapticTarget } from "@/shared/ui";
+import { EmptyState, ExpandableSheet, HapticTarget, QuoteThumbnailTile } from "@/shared/ui";
 import { Bookmark } from "lucide-react";
 
 export type MessageBookmarkSheetProps = {
