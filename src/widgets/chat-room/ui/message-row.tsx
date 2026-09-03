@@ -587,7 +587,7 @@ export function MessageRow({
                   {/* INFO: REQUIREMENTS.md § 16.1. The `BellOff` mark shares the marker's line — a mark rather than a word, since 수정됨 already showed a label reads as something done to the message rather than to its banner — so the marker leaving at zero never moves the column while the mark holds it. */}
                   {/* WARN: `h-[1lh]` on the shared line so marker and mark together cost exactly the one `chat-time` line `estimateRowHeight` prices as a single predicate. */}
                   {/* WARN: `tabular-nums` so a count that changes under the reader cannot change the line's width, and `aria-label` because a bare digit beside a bubble reads as nothing to a screen reader. */}
-                  {(unreadCount > 0 || isSilent || isBookmarked) && (
+                  {(unreadCount > 0 || isSilent || isBookmarked || isEdited) && (
                     // INFO: Reversed on `theirs` so the mark hugs the bubble's edge on both sides — the column itself flips sides, the glyphs' meaning does not.
                     <span
                       className={cn(
@@ -628,10 +628,10 @@ export function MessageRow({
                           <BellOff className="size-3" />
                         </span>
                       )}
+                      {/* INFO: REQUIREMENTS.md § 8.13. Beside the bubble rather than inside it — the § 8.3. estimate wraps the body text in one font, and a label of another size sharing that measurement is exactly what it cannot express. Innermost on the shared line, so it reads last on `mine` and first on `theirs`. */}
+                      {isEdited && <span>수정됨</span>}
                     </span>
                   )}
-                  {/* INFO: REQUIREMENTS.md § 8.13. Beside the bubble rather than inside it — the § 8.3. estimate wraps the body text in one font, and a label of another size sharing that measurement is exactly what it cannot express. Here it is a whole line whose height is already known. */}
-                  {isEdited && <span>수정됨</span>}
                   {isLastOfGroup && <time dateTime={createdAt}>{formatTime(createdAt)}</time>}
                 </div>
                 {renderHoverActions()}

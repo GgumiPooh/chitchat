@@ -295,9 +295,9 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
             Number(
               context.countUnreadReaders(row.message) > 0 ||
                 row.message.silent ||
-                context.isBookmarked(row.message.id),
-            ) +
-            Number(row.message.editedAt !== null),
+                context.isBookmarked(row.message.id) ||
+                row.message.editedAt !== null,
+            ),
         },
       );
     case "pending":
