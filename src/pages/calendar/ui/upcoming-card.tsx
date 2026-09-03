@@ -169,6 +169,7 @@ export function UpcomingCard({
     }
 
     pendingFrom.current = occurrences.length;
-    onLoadMore();
+    // WARN: DESIGN.md § 7.15.2. A task, so the `keepsScroll` overlay outlives the dispatch — `isLoadingMore` unmounts it, and a `<label>` detached before its activation finds no switch to tick.
+    setTimeout(() => onLoadMore());
   }
 }
