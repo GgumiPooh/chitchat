@@ -1,36 +1,52 @@
-import type { UserId } from "@/shared/lib";
+import type { MessageId, UserId } from "@/shared/lib";
 import "server-only";
 
 import { getDb, messages, users } from "@/shared/db";
-import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
+import type { DbTransaction } from "@/shared/storage";
+import { and, eq, isNull, lt, or, sql, type SQL } from "drizzle-orm";
+
+// WARN: The `<` below is SQL against a `bigint` column, not the string comparison `CLAUDE.md § 3.2.` forbids — Postgres orders it numerically.
 
 /**
- * Advances this user's read cursor to the newest message there is
- * (`REQUIREMENTS.md § 8.8.`).
- *
- * WARN: The "only ever forward" guard is load-bearing twice over. It stops a stale
- * request from a second device walking the cursor backwards, and it makes the UPDATE a
- * no-op when nothing changed — which is what keeps the § 6. `user_changed` trigger
- * quiet under the app's most frequent write (§ 8.4.).
- *
- * INFO: The finished restructure. `last_read_at` was written here too for the length of one
- * rollout, because the build deployed before the cursor moved to `last_read_message_id`
- * still read it and its badge would have frozen otherwise. That build is gone, so the
- * double write is too — the column is dropped once this one is live (§ 6. rule 1).
- *
- * WARN: The `<` here is SQL against a `bigint` column, not the string comparison
- * `CLAUDE.md § 3.2.` forbids. Postgres orders these numerically; TypeScript would not.
+ * The guarded write both `markUserRead` and a send (`REQUIREMENTS.md § 8.8.`) share:
+ * caps the reported id at the newest message that exists, and moves the cursor only
+ * when that capped value is ahead of what is stored — which is what keeps a no-op
+ * UPDATE from waking the § 6. `read_cursor` trigger.
  */
-export async function markUserRead(userId: UserId): Promise<void> {
-  const newest = sql<string>`(select max(${messages.id}) from ${messages})`;
+export async function advanceReadCursor(
+  db: ReturnType<typeof getDb> | DbTransaction,
+  userId: UserId,
+  cursor: MessageId | SQL<string>,
+): Promise<void> {
+  // WARN: A send passes its own freshly inserted id uncapped — `max(id)` read inside that transaction can already be a peer's later message, which the sender has not seen.
+  const capped = typeof cursor === "string" ? sql<string>`${cursor}::bigint` : cursor;
 
-  await getDb()
+  await db
     .update(users)
-    .set({ lastReadMessageId: newest })
+    .set({ lastReadMessageId: capped })
     .where(
       and(
         eq(users.id, userId),
-        or(isNull(users.lastReadMessageId), lt(users.lastReadMessageId, newest)),
+        or(isNull(users.lastReadMessageId), lt(users.lastReadMessageId, capped)),
       ),
     );
+}
+
+/**
+ * Advances this user's read cursor to `lastSeenMessageId` — what the client
+ * reports having actually rendered (`REQUIREMENTS.md § 8.8.`).
+ *
+ * WARN: The LEAST cap is what stops a stale or skewed client pushing the cursor
+ * past a message that does not exist. The forward-only guard is what keeps a
+ * second device, or a late request from this one, from walking it backwards —
+ * and it is also what makes the UPDATE a no-op when nothing moves, which is what
+ * keeps the § 6. `read_cursor` trigger quiet under the app's most frequent write
+ * (§ 8.4.).
+ */
+export async function markUserRead(userId: UserId, lastSeenMessageId: MessageId): Promise<void> {
+  await advanceReadCursor(getDb(), userId, cappedCursor(lastSeenMessageId));
+}
+
+function cappedCursor(lastSeenMessageId: MessageId): SQL<string> {
+  return sql<string>`least(${lastSeenMessageId}::bigint, (select max(${messages.id}) from ${messages}))`;
 }

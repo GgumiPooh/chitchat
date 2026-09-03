@@ -10,12 +10,15 @@ import {
   unreadCountMessageSchema,
   type LlmSseEvent,
   type MessageArrival,
+  type ReadCursorEvent,
 } from "@/shared/config";
 import {
+  compareId,
   isDormant as isAppDormant,
+  maxId,
   safelyGetAsync,
-  safelyRunAsync,
   type MediaId,
+  type MessageId,
   type Nullable,
   type Optional,
   type UserId,
@@ -119,14 +122,19 @@ export type ChatStreamValue = {
   /** REQUIREMENTS.md § 8.8. Declared by the room while § 7.10.'s viewer covers it: the cursor stops and the badge counts, as if the conversation were not on screen. */
   setIsViewingMedia: (isViewingMedia: boolean) => void;
   /**
-   * REQUIREMENTS.md § 8.1., § 8.8. Moves the cursor now, past the throttle.
-   *
-   * INFO: For the deliberate arrival at the newest message — the § 6.7. pill. The
-   * throttled write covers a reader who is simply sitting in the room, but that tap
-   * is the one moment the reader states they have caught up, and leaving it a
-   * throttle window behind turns the message they are looking at into a push.
+   * REQUIREMENTS.md § 8.8. Raises the seen watermark — the newest message the
+   * screen has actually rendered — to `messageId`. A max, never a replace: an
+   * out-of-order call can never lower it. Schedules the reconciliation loop's
+   * next post; does not post itself.
    */
-  markRead: () => void;
+  noteSeen: (messageId: MessageId) => void;
+  /**
+   * REQUIREMENTS.md § 8.1., § 8.8. Cancels the loop's pending trailing timer and
+   * posts the seen watermark now, past the throttle — every edge that bounds a
+   * reading session: entering, leaving, the § 7.10. viewer closing, resume,
+   * backgrounding, and the § 6.7. pill's deliberate jump to the newest message.
+   */
+  flushSeen: () => void;
 };
 
 export type ChatStreamProviderProps = PropsWithChildren<{
@@ -192,10 +200,16 @@ export function ChatStreamProvider({
   const typingSweep = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
   const listeners = useRef(new Set<ChatStreamListener>());
   const isReadingRef = useRef(false);
-  // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — read through a ref, not the hook's own reactive value, for the reason `isReadingRef` is one: `markRead` is closed over once by every `useCallback([])` below it, so a plain destructure would freeze whatever mode was current at that first render.
+  // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — read through a ref, not the hook's own reactive value, for the reason `isReadingRef` is one: the reconciliation loop below is closed over once by every `useCallback([])`, so a plain destructure would freeze whatever mode was current at that first render.
   const notifyMode = useSilentSend().mode;
   const notifyModeRef = useRef(notifyMode);
+  // INFO: REQUIREMENTS.md § 8.8. The watermark pair the reconciliation loop reconciles: `seenWatermarkRef` is what the screen has actually rendered, `ackedWatermarkRef` is what the server has confirmed with a 2xx.
+  const seenWatermarkRef = useRef<Nullable<MessageId>>(null);
+  const ackedWatermarkRef = useRef<Nullable<MessageId>>(null);
   const lastReadPostAt = useRef(0);
+  const readPostTimer = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
+  const isReadPostInFlight = useRef(false);
+  const isReadFlushPending = useRef(false);
   const hasMessageDuringSync = useRef(false);
   // INFO: REQUIREMENTS.md § 8.4.1. The conversation being on screen is what makes the app sleepable, so this is `isReadingRef`'s reactive half rather than a second signal.
   const [isRoomOnScreen, setIsRoomOnScreen] = useState(false);
@@ -218,20 +232,38 @@ export function ChatStreamProvider({
     setChatBackground({ mediaId, blurhash: null });
   }, []);
 
-  // INFO: REQUIREMENTS.md § 8.8. A ref for `notifyModeRef`'s reason — `markRead` is closed over once by the `useCallback([])`s below.
+  // INFO: REQUIREMENTS.md § 8.8. A ref for `notifyModeRef`'s reason — the reconciliation loop is closed over once by the `useCallback([])`s below.
   const isViewingMediaRef = useRef(false);
 
-  const setIsReading = useCallback((isReading: boolean) => {
-    isReadingRef.current = isReading;
-    setIsRoomOnScreen(isReading);
-
-    if (isReading) {
-      setUnreadCount(0);
-    }
-
-    // INFO: REQUIREMENTS.md § 8.8. Both edges are forced — entering the conversation is a read event too, and a throttled entry parks the cursor behind a message that is already on screen.
-    void markRead(true);
+  // INFO: REQUIREMENTS.md § 8.8. Raises the watermark and lets `runReadReconciliation` decide whether that is worth a post yet.
+  const noteSeen = useCallback((messageId: MessageId) => {
+    seenWatermarkRef.current = mergeReadCursor(seenWatermarkRef.current, messageId);
+    runReadReconciliation(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- The loop reads refs only; the timer closure inside it is what the analyzer cannot prove stable.
   }, []);
+
+  // INFO: REQUIREMENTS.md § 8.8. Every edge that bounds a reading session.
+  const flushSeen = useCallback(() => {
+    clearTimeout(readPostTimer.current);
+    readPostTimer.current = undefined;
+    runReadReconciliation(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- The loop reads refs only; the timer closure inside it is what the analyzer cannot prove stable.
+  }, []);
+
+  const setIsReading = useCallback(
+    (isReading: boolean) => {
+      isReadingRef.current = isReading;
+      setIsRoomOnScreen(isReading);
+
+      if (isReading) {
+        setUnreadCount(0);
+      }
+
+      // INFO: REQUIREMENTS.md § 8.8. Both edges are forced — entering the conversation is a read event too, and leaving is the departure the loop's own trailing timer might not survive to fire.
+      flushSeen();
+    },
+    [flushSeen],
+  );
 
   /**
    * REQUIREMENTS.md § 8.8. The viewer is a departure the room does not unmount for, so
@@ -239,22 +271,22 @@ export function ChatStreamProvider({
    *
    * WARN: Guarded on `isReadingRef`, so a room left with the viewer still up sends nothing — its cleanup runs first and the reader never came back to the conversation.
    */
-  const setIsViewingMedia = useCallback((isViewingMedia: boolean) => {
-    // WARN: The room's effect re-declares the state it is already in on every change, and a forced post is past the throttle — so an unchanged edge has to leave here before it writes.
-    if (isViewingMediaRef.current === isViewingMedia) {
-      return;
-    }
+  const setIsViewingMedia = useCallback(
+    (isViewingMedia: boolean) => {
+      // WARN: The room's effect re-declares the state it is already in on every change, and a forced post is past the throttle — so an unchanged edge has to leave here before it writes.
+      if (isViewingMediaRef.current === isViewingMedia) {
+        return;
+      }
 
-    isViewingMediaRef.current = isViewingMedia;
+      isViewingMediaRef.current = isViewingMedia;
 
-    if (!isViewingMedia && isReadingRef.current) {
-      setUnreadCount(0);
-      void markRead(true);
-    }
-  }, []);
-
-  // WARN: Forced, like the edges above. A tap that lands inside the throttle window would otherwise report nothing, which is exactly the case this exists for — the reader has just travelled to a message that arrived seconds ago.
-  const markReadNow = useCallback(() => void markRead(true), []);
+      if (!isViewingMedia && isReadingRef.current) {
+        setUnreadCount(0);
+        flushSeen();
+      }
+    },
+    [flushSeen],
+  );
 
   // WARN: Lazy initial state rather than a ref — the identity has to be stable *and* readable during render, and a ref read here is what React Compiler rejects. A fresh object would re-render the connection on every message that lands.
   const [handlers] = useState<ChatEventSourceHandlers>(() => ({
@@ -262,6 +294,7 @@ export function ChatStreamProvider({
     onUserChanged: () => void refreshChatContext(),
     onResume: () => handleResume(),
     onTyping: (userId, isTyping) => handleTyping(userId, isTyping),
+    onReadCursor: (event) => handleReadCursor(event),
     onChange: (data) => handleChange(data),
     onBuild: (id) => handleBuild(id),
     onLlm: (event) => listeners.current.forEach((listener) => listener.onLlm?.(event)),
@@ -271,7 +304,15 @@ export function ChatStreamProvider({
   useEffect(() => () => clearTimeout(typingSweep.current), []);
 
   useEffect(() => {
+    const wasOnlyMe = notifyModeRef.current === "onlyMe";
+
     notifyModeRef.current = notifyMode;
+
+    // INFO: REQUIREMENTS.md § 8.8., § 16.1. Turning 나에게만 보내기 off unblocks whatever the loop was withholding while it was on.
+    if (wasOnlyMe && notifyMode !== "onlyMe") {
+      runReadReconciliation(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- The loop reads refs only; the timer closure inside it is what the analyzer cannot prove stable.
   }, [notifyMode]);
 
   useEffect(() => {
@@ -327,9 +368,10 @@ export function ChatStreamProvider({
 
     function flushReadCursor() {
       if (isReadingNow()) {
-        void markRead(true);
+        flushSeen();
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `flushSeen` is a `useCallback([])`, stable for the provider's life.
   }, []);
 
   return (
@@ -350,7 +392,8 @@ export function ChatStreamProvider({
         subscribe,
         setIsReading,
         setIsViewingMedia,
-        markRead: markReadNow,
+        noteSeen,
+        flushSeen,
       }}
     >
       <ChatStreamHandlersContext.Provider value={handlers}>
@@ -429,9 +472,8 @@ export function ChatStreamProvider({
     // INFO: Set on every delivery; `syncUnreadCount` clears it before each pass and only reads it while one is in flight.
     hasMessageDuringSync.current = true;
 
+    // WARN: REQUIREMENTS.md § 8.8. Arrival is no longer a read by itself — a message that lands while the room is open but scrolled away from the live edge stays unread until the row it renders actually crosses the scroller's viewport (`noteSeen`). The badge still holds at 0 while the room is on screen; a resume's `syncUnreadCount` is authoritative for what is really unread.
     if (isReadingNow()) {
-      void markRead();
-
       return;
     }
 
@@ -470,7 +512,7 @@ export function ChatStreamProvider({
       setUnreadCount(0);
       // WARN: The badge is written here rather than left to the effect above — the count is already `0`, so React bails out and the effect never runs to clear a badge `sw.js` raised while the page was frozen.
       updateAppBadge(0);
-      void markRead(true);
+      flushSeen();
 
       return;
     }
@@ -478,12 +520,54 @@ export function ChatStreamProvider({
     void syncUnreadCount();
   }
 
+  /**
+   * REQUIREMENTS.md § 8.8. Another participant's read cursor, merged rather than
+   * replaced — `read_cursor` and this refetch can each arrive out of order, and
+   * `maxId` is what keeps either from walking the other one backwards.
+   */
+  function handleReadCursor(event: ReadCursorEvent) {
+    setParticipants((previous) => {
+      const index = previous.findIndex((participant) => participant.id === event.userId);
+
+      if (index === -1) {
+        return previous;
+      }
+
+      const merged = mergeReadCursor(previous[index].lastReadMessageId, event.lastReadMessageId);
+
+      if (merged === previous[index].lastReadMessageId) {
+        return previous;
+      }
+
+      const next = [...previous];
+
+      next[index] = { ...previous[index], lastReadMessageId: merged };
+
+      return next;
+    });
+  }
+
   async function refreshChatContext() {
     // INFO: A failed refresh keeps the names already on screen; the next event or resume retries, and the payload is idempotent.
     const next = await safelyGetAsync(fetchChatContext);
 
     if (next) {
-      setParticipants(next.participants);
+      // WARN: REQUIREMENTS.md § 8.8. Merged with `maxId` per participant, for `handleReadCursor`'s reason — an out-of-order refetch answering behind a `read_cursor` event already applied must not walk that participant's cursor back.
+      setParticipants((previous) =>
+        next.participants.map((participant) => {
+          const stored = previous.find((entry) => entry.id === participant.id);
+
+          return stored
+            ? {
+                ...participant,
+                lastReadMessageId: mergeReadCursor(
+                  stored.lastReadMessageId,
+                  participant.lastReadMessageId,
+                ),
+              }
+            : participant;
+        }),
+      );
       // INFO: REQUIREMENTS.md § 12.2. Set unconditionally, `null` included — this is how 기본 배경으로 reaches the other participant.
       // WARN: The state setter, never `setChatBackgroundMediaId` above — that one deliberately drops the hash, and this payload is the one place the real hash arrives.
       setChatBackground({
@@ -514,39 +598,125 @@ export function ChatStreamProvider({
     }
   }
 
-  /**
-   * REQUIREMENTS.md § 8.8. Throttled on the leading edge, because every UPDATE
-   * that lands fires `user_changed` at the other device. `force` skips it for the
-   * events that bound a reading session — entering, leaving, and backgrounding —
-   * since a cursor parked a throttle window behind turns the last message read
-   * into a push notification.
-   */
   /** REQUIREMENTS.md § 8.8. On screen *and* being read — § 7.10.'s viewer covers the conversation, so the badge counts under it. */
   function isReadingNow(): boolean {
     return isReadingRef.current && !isViewingMediaRef.current;
   }
 
-  async function markRead(force = false) {
-    // WARN: REQUIREMENTS.md § 16.1. 나에게만 보내기 — the read cursor must leave no trace on the other participant's device for as long as this mode is on, so every trigger (entering, leaving, backgrounding, per-message) is withheld rather than just the throttled ones.
-    if (notifyModeRef.current === "onlyMe") {
-      return;
-    }
-
-    // WARN: REQUIREMENTS.md § 8.8. Every trigger passes here, which is why the viewer is withheld in this one place rather than at each of them.
-    if (isViewingMediaRef.current) {
-      return;
-    }
-
-    const now = Date.now();
-
-    if (!force && now - lastReadPostAt.current < READ_CURSOR_THROTTLE) {
-      return;
-    }
-
-    lastReadPostAt.current = now;
-
-    await safelyRunAsync(postRead);
+  /**
+   * REQUIREMENTS.md § 8.8., § 16.1. Read means the row intersected the scroller's
+   * viewport while the document was visible and no viewer covered it — the read
+   * cursor must leave no trace on the other participant's device for as long as
+   * 나에게만 보내기 is on, so every post is withheld here rather than just the
+   * throttled ones.
+   */
+  function isReadBlocked(): boolean {
+    return notifyModeRef.current === "onlyMe" || isViewingMediaRef.current;
   }
+
+  function isSeenAheadOfAcked(): boolean {
+    return (
+      seenWatermarkRef.current !== null &&
+      (ackedWatermarkRef.current === null ||
+        compareId(seenWatermarkRef.current, ackedWatermarkRef.current) > 0)
+    );
+  }
+
+  /**
+   * REQUIREMENTS.md § 8.8. The reconciliation loop: a leading post if none was
+   * sent within `READ_CURSOR_THROTTLE`, otherwise a single trailing timer that
+   * fires at the end of the window — never more than one in flight and one
+   * pending. `force` (every session-bounding edge) skips straight past the
+   * throttle, and coalesces onto a post already in flight rather than racing it.
+   */
+  function runReadReconciliation(force: boolean) {
+    if (isReadBlocked() || !isSeenAheadOfAcked()) {
+      return;
+    }
+
+    if (isReadPostInFlight.current) {
+      if (force) {
+        isReadFlushPending.current = true;
+      }
+
+      return;
+    }
+
+    if (!force) {
+      const elapsed = Date.now() - lastReadPostAt.current;
+
+      if (elapsed < READ_CURSOR_THROTTLE) {
+        scheduleTrailingPost(READ_CURSOR_THROTTLE - elapsed);
+
+        return;
+      }
+    }
+
+    clearTimeout(readPostTimer.current);
+    readPostTimer.current = undefined;
+
+    void postSeenWatermark();
+  }
+
+  function scheduleTrailingPost(delay: number) {
+    if (readPostTimer.current !== undefined) {
+      return;
+    }
+
+    readPostTimer.current = setTimeout(() => {
+      readPostTimer.current = undefined;
+      runReadReconciliation(false);
+    }, delay);
+  }
+
+  async function postSeenWatermark() {
+    const target = seenWatermarkRef.current;
+
+    if (target === null) {
+      return;
+    }
+
+    isReadPostInFlight.current = true;
+    lastReadPostAt.current = Date.now();
+
+    // WARN: `safelyGetAsync`, not `safelyRunAsync` — the latter resolves `undefined` either way, and a post judged failed every time re-sends the same cursor once per window forever.
+    const posted = await safelyGetAsync(async () => {
+      await postRead(target);
+
+      return true;
+    });
+
+    isReadPostInFlight.current = false;
+
+    if (posted) {
+      ackedWatermarkRef.current = mergeReadCursor(ackedWatermarkRef.current, target);
+    }
+
+    // WARN: REQUIREMENTS.md § 8.8. Retried on failure, past the same window this sets whether the post succeeded or not — and forced rather than throttled again if a flush arrived while this one was in flight.
+    const wantsFlush = isReadFlushPending.current;
+
+    isReadFlushPending.current = false;
+
+    if (isSeenAheadOfAcked()) {
+      runReadReconciliation(wantsFlush);
+    }
+  }
+}
+
+// WARN: REQUIREMENTS.md § 8.8. `maxId`, never a raw replace — `handleReadCursor` and `refreshChatContext` can each see a cursor out of the order it moved in, and only the higher value may ever win.
+function mergeReadCursor(
+  current: Nullable<MessageId>,
+  incoming: Nullable<MessageId>,
+): Nullable<MessageId> {
+  if (current === null) {
+    return incoming;
+  }
+
+  if (incoming === null) {
+    return current;
+  }
+
+  return maxId(current, incoming);
 }
 
 // WARN: Compared as sets, not position by position. `Map` keys come back in insertion order, so a typist whose signal lapses and resumes is re-inserted at the tail — same members, different order, and an index-wise check would call that a change and re-render every consumer for nothing.

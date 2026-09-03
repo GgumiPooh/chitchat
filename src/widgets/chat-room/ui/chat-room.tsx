@@ -94,12 +94,14 @@ import {
   focusWithoutPan,
   holdAwake,
   isSidePanelAnimating,
+  maxId,
   onSidePanelSettled,
   randomId,
   runWhenIdle,
   startMediaMorph,
   stopVoice,
   subscribeDormancy,
+  toId,
   useIsFinePointer,
   useIsViewportSettling,
   useIsVirtualKeyboardOpen,
@@ -847,7 +849,8 @@ export function ChatRoom({
     typingUserIds,
     setIsReading,
     setIsViewingMedia,
-    markRead,
+    noteSeen,
+    flushSeen,
   } = useChatStream();
   // INFO: AGENTS.md § 4.1. The rail's 첨부 lives outside the room, so it leaves a request the room answers — on mount too, for a press made on another tab.
   useEffect(() => {
@@ -1127,6 +1130,11 @@ export function ChatRoom({
     return instance.itemSizeCache.has(item.key) ? item.end <= fold : item.start < fold;
   };
 
+  // WARN: REQUIREMENTS.md § 8.8. Read through a ref rather than closed over, for `keyedRowsRef`'s reason — `observeRow` below has to be one stable identity, and a fresh closure over `virtualizer` would re-register every mounted row with the `ResizeObserver` on every render.
+  const virtualizerRef = useRef(virtualizer);
+
+  virtualizerRef.current = virtualizer;
+
   // INFO: The idle mount below is the ordinary path; this is the tap that beats it there.
   if (isEmoticonPanelOpen && !hasMountedEmoticonPanel) {
     setHasMountedEmoticonPanel(true);
@@ -1220,6 +1228,93 @@ export function ChatRoom({
       warmLineHeights(ROW_LINE_CLASSES);
       setScrollerWidth(element.clientWidth);
     }
+  }, []);
+
+  // INFO: REQUIREMENTS.md § 8.8. Read means the row intersected the scroller's own viewport while the document was visible — `rootMargin: "0px"` is the scroller's actual bounds, not the enlarged default.
+  const rowObserverRef = useRef<Nullable<IntersectionObserver>>(null);
+
+  const handleRowIntersections = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      let newest: Nullable<MessageId> = null;
+
+      for (const entry of entries) {
+        const messageId = (entry.target as HTMLElement).dataset.messageId;
+
+        if (entry.isIntersecting && messageId) {
+          // WARN: REQUIREMENTS.md § 3.2. `toId` rather than `snowflakeSchema`, because this string was never untrusted input — it is the same `MessageId` `toObservedMessageId` wrote into the attribute below, round-tripped through the DOM.
+          const id = toId<MessageId>(messageId);
+
+          newest = newest === null ? id : maxId(newest, id);
+        }
+      }
+
+      // WARN: One `noteSeen` per batch, never per entry — the first call can post synchronously, and a fast scroll would send its lowest row and leave the rest to the trailing window.
+      if (newest !== null) {
+        noteSeen(newest);
+      }
+    },
+    [noteSeen],
+  );
+
+  /**
+   * REQUIREMENTS.md § 8.8. (Re)built against the scroller as its `root`, and
+   * bootstrapped over whatever rows are already mounted — `observeRow` below can
+   * run before this effect does (a child ref attaches before its parent's), so
+   * without the bootstrap the room's very first rows would never be observed.
+   */
+  useEffect(() => {
+    if (!scroller) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(handleRowIntersections, {
+      root: scroller,
+      threshold: 0,
+    });
+
+    rowObserverRef.current = observer;
+
+    scroller
+      .querySelectorAll<HTMLElement>("[data-message-id]")
+      .forEach((element) => observer.observe(element));
+
+    return () => {
+      observer.disconnect();
+      rowObserverRef.current = null;
+    };
+  }, [scroller, handleRowIntersections]);
+
+  /**
+   * REQUIREMENTS.md § 8.3., § 8.8. Composes the virtualizer's own measuring ref
+   * with the read-cursor observer above, on one row element.
+   *
+   * WARN: `useCallback` with no dependencies, for `getItemKey`'s reason — a fresh
+   * closure per render would detach and reattach every mounted row's ref, which
+   * re-registers it with the `ResizeObserver` `virtualizer.measureElement` itself
+   * exists to avoid re-triggering (§ 8.3.'s own comment on that ref).
+   *
+   * WARN: Returns a cleanup rather than handling a `null` call — React 19 calls
+   * the returned function instead of invoking this again with `null`, so the
+   * library's own unregister (`measureElement(null)`) has to be replicated here
+   * explicitly rather than left to a second invocation that will never come.
+   */
+  const observeRow = useCallback((element: Nullable<HTMLDivElement>) => {
+    virtualizerRef.current.measureElement(element);
+
+    if (!element) {
+      return undefined;
+    }
+
+    rowObserverRef.current?.observe(element);
+
+    return () => {
+      rowObserverRef.current?.unobserve(element);
+      virtualizerRef.current.measureElement(null);
+    };
   }, []);
 
   /**
@@ -1500,10 +1595,10 @@ export function ChatRoom({
   const goToNewest = useCallback(async () => {
     if (await returnToLive()) {
       scrollToBottom();
-      // INFO: REQUIREMENTS.md § 8.1. The tap is the reader saying they have caught up, so the cursor moves on it rather than waiting for the next throttled write.
-      markRead();
+      // INFO: REQUIREMENTS.md § 8.1. The tap is the reader saying they have caught up. The restored newest row's own intersection raises the watermark a frame later; this flush just makes sure nothing waits out the throttle.
+      flushSeen();
     }
-  }, [returnToLive, scrollToBottom, markRead]);
+  }, [returnToLive, scrollToBottom, flushSeen]);
 
   // WARN: REQUIREMENTS.md § 8.14. Every full-screen thing this room raises is a plain `ShellOverlay` with no dialog marker on it, so the hook's own `OPEN_OVERLAY_SELECTOR` check sees none of them — the crop editor, the trimmer, and § 8.6.'s results list all have to be named here or `Escape` pulls the caret into a composer nobody can see and ⌘↓ moves the conversation underneath the reader.
   useChatShortcuts({
@@ -1980,13 +2075,15 @@ export function ChatRoom({
                 {virtualizer.getVirtualItems().map((item) => {
                   const row = rows[item.index];
                   const selectableId = toSelectableMessageId(row);
+                  const observedMessageId = toObservedMessageId(row);
 
                   return (
                     <div
                       key={item.key}
-                      ref={virtualizer.measureElement}
+                      ref={observeRow}
                       className="absolute top-0 left-0 w-full"
                       data-index={item.index}
+                      data-message-id={observedMessageId ?? undefined}
                       style={{
                         transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)`,
                       }}
@@ -3165,6 +3262,27 @@ export function ChatRoom({
    * `!isDeleted` test `useAiSelection`'s own auto-select folds in, kept as one function
    * so the two cannot drift into disagreeing about a tombstone.
    */
+  /**
+   * REQUIREMENTS.md § 8.8. The id `observeRow`'s read-cursor observer watches for
+   * — `null` for a date divider and for a pending row, which has no server id yet
+   * to advance the watermark to.
+   *
+   * WARN: A deleted `message` row still answers its id, unlike `toSelectableMessageId`
+   * — a tombstone still occupies id space, and the watermark is a position in the
+   * conversation rather than a receipt for content the reader saw.
+   */
+  function toObservedMessageId(row: ChatRow): Nullable<MessageId> {
+    switch (row.kind) {
+      case "message":
+      case "assistant":
+      case "system":
+        return row.message.id;
+      case "date":
+      case "pending":
+        return null;
+    }
+  }
+
   function toSelectableMessageId(row: ChatRow): Nullable<MessageId> {
     switch (row.kind) {
       case "message":

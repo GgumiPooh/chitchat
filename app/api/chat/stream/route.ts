@@ -12,6 +12,7 @@ import {
   BUILD_ID,
   CHANGE_EVENT,
   llmStreamEventSchema,
+  readCursorEventSchema,
   snowflakeSchema,
   SSE_HEARTBEAT_INTERVAL,
   SSE_REPLAY_LIMIT,
@@ -26,6 +27,7 @@ import {
   LLM_STREAM_CHANNEL,
   MESSAGE_CHANGED_CHANNEL,
   NEW_MESSAGE_CHANNEL,
+  READ_CURSOR_CHANNEL,
   TYPING_CHANNEL,
   USER_CHANGED_CHANNEL,
 } from "@/shared/db";
@@ -104,6 +106,7 @@ export async function GET(request: Request) {
             TYPING_CHANNEL,
             MESSAGE_CHANGED_CHANNEL,
             LLM_STREAM_CHANNEL,
+            READ_CURSOR_CHANNEL,
           ],
           handleNotification,
         );
@@ -164,6 +167,18 @@ export async function GET(request: Request) {
         if (channel === USER_CHANGED_CHANNEL) {
           // WARN: No `id:` field. The reconnect cursor is a `messages` bigserial and a user event has no counterpart, so anything here would hand the next reconnect a garbage replay bound (REQUIREMENTS.md § 8.4.).
           write("event: user\ndata: {}\n\n");
+
+          return;
+        }
+
+        if (channel === READ_CURSOR_CHANNEL) {
+          // WARN: No `id:` field, exactly like `typing` — the reconnect cursor is a `messages` snowflake with no counterpart here, and a resume relearns the cursor over the replay it already runs (REQUIREMENTS.md § 8.4.).
+          const readCursor = readCursorEventSchema.safeParse(safelyGet(() => JSON.parse(payload)));
+
+          if (readCursor.success) {
+            // WARN: Written straight out, never queued behind the pipeline below — it carries no `messages` cursor to advance and must not wait on a chain of row reads (REQUIREMENTS.md § 8.8.).
+            write(`event: read_cursor\ndata: ${JSON.stringify(readCursor.data)}\n\n`);
+          }
 
           return;
         }

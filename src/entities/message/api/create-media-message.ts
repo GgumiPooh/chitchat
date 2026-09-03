@@ -8,6 +8,7 @@ import {
   type MediaReference,
   type ValidatedMedia,
 } from "@/entities/media/@x/message";
+import { advanceReadCursor } from "@/entities/user/@x/message";
 import { getDb, messageMedia, messages, nextSnowflake, type Message } from "@/shared/db";
 import type { MediaId, MessageId, UserId } from "@/shared/lib";
 import { type DbTransaction } from "@/shared/storage";
@@ -137,6 +138,12 @@ export async function createMediaMessage({
           .values(
             inserted.map((item, sortOrder) => ({ messageId: own.id, mediaId: item.id, sortOrder })),
           );
+
+        // INFO: REQUIREMENTS.md § 8.8. A sender at the composer has seen everything up to their own message, so the cursor advances in the same transaction as the insert.
+        // WARN: § 16.1. Never under 나에게만 보내기 — the cursor move fires `read_cursor` at the other participant, and that mode must leave no trace there.
+        if (!onlyMe) {
+          await advanceReadCursor(tx, senderId, own.id);
+        }
 
         return { row: own, inserted };
       }

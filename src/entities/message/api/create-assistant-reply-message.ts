@@ -1,5 +1,6 @@
 import "server-only";
 
+import { advanceReadCursor } from "@/entities/user/@x/message";
 import { getDb, messages, nextSnowflake } from "@/shared/db";
 import type { MessageId, Nullable, UserId } from "@/shared/lib";
 import { and, eq, isNull } from "drizzle-orm";
@@ -36,23 +37,34 @@ export async function createAssistantReplyMessage({
   replyToId,
   onlyMe = false,
 }: CreateAssistantReplyMessageParams): Promise<Nullable<ChatMessage>> {
-  const db = getDb();
-  const [inserted] = await db
-    .insert(messages)
-    .values({
-      id: nextSnowflake<MessageId>(),
-      senderId,
-      type: "system",
-      systemAction: "assistant_reply",
-      text,
-      llmProvider,
-      llmModel,
-      replyToId,
-      clientMsgId,
-      onlyMe,
-    })
-    .onConflictDoNothing({ target: messages.clientMsgId })
-    .returning();
+  // INFO: REQUIREMENTS.md § 8.8. `senderId` is the asker's own row — they are the one who asked and watched the answer stream in, so this counts as their send and advances their cursor exactly as any other does.
+  const inserted = await getDb().transaction(async (tx) => {
+    const [own] = await tx
+      .insert(messages)
+      .values({
+        id: nextSnowflake<MessageId>(),
+        senderId,
+        type: "system",
+        systemAction: "assistant_reply",
+        text,
+        llmProvider,
+        llmModel,
+        replyToId,
+        clientMsgId,
+        onlyMe,
+      })
+      .onConflictDoNothing({ target: messages.clientMsgId })
+      .returning();
+
+    if (own) {
+      // WARN: § 16.1. Never under 나에게만 보내기 — the cursor move fires `read_cursor` at the other participant, and that mode must leave no trace there.
+      if (!onlyMe) {
+        await advanceReadCursor(tx, senderId, own.id);
+      }
+    }
+
+    return own;
+  });
 
   const row = inserted ?? (await findOwnMessage(clientMsgId, senderId));
 

@@ -463,6 +463,13 @@
       "when": 1788241433053,
       "tag": "0065_lively_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1788409405000,
+      "tag": "0066_read_cursor_channel",
+      "breakpoints": true
     }
   ]
 }

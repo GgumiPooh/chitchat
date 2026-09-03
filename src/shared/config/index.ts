@@ -103,6 +103,7 @@ export {
   isUnderRoute,
   nextNotifyMode,
   notifyModes,
+  readCursorEventSchema,
   resolveAppUrl,
   toNotifyMode,
   toNotifyModeIndex,
@@ -111,6 +112,7 @@ export {
   type MessageArrival,
   type MirroredRoute,
   type NotifyMode,
+  type ReadCursorEvent,
   type TabRoute,
   type TypingEvent,
 } from "./app";

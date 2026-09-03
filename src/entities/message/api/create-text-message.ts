@@ -1,5 +1,6 @@
 import "server-only";
 
+import { advanceReadCursor } from "@/entities/user/@x/message";
 import { getDb, messages, nextSnowflake } from "@/shared/db";
 import type { EmoticonItemId, MessageId, Nullable, UserId } from "@/shared/lib";
 import { and, eq, isNull } from "drizzle-orm";
@@ -50,22 +51,33 @@ export async function createTextMessage({
   onlyMe = false,
   silent = false,
 }: CreateTextMessageParams): Promise<Nullable<ChatMessage>> {
-  const db = getDb();
-  const [inserted] = await db
-    .insert(messages)
-    .values({
-      id: nextSnowflake<MessageId>(),
-      senderId,
-      type: "text",
-      text,
-      inlineEmoticonItemIds,
-      clientMsgId,
-      replyToId,
-      onlyMe,
-      silent,
-    })
-    .onConflictDoNothing({ target: messages.clientMsgId })
-    .returning();
+  // INFO: REQUIREMENTS.md § 8.8. A sender at the composer has seen everything up to their own message, so the cursor advances in the same transaction as the insert — never on the conflict-retry branch below, since that send already moved it.
+  const inserted = await getDb().transaction(async (tx) => {
+    const [own] = await tx
+      .insert(messages)
+      .values({
+        id: nextSnowflake<MessageId>(),
+        senderId,
+        type: "text",
+        text,
+        inlineEmoticonItemIds,
+        clientMsgId,
+        replyToId,
+        onlyMe,
+        silent,
+      })
+      .onConflictDoNothing({ target: messages.clientMsgId })
+      .returning();
+
+    if (own) {
+      // WARN: § 16.1. Never under 나에게만 보내기 — the cursor move fires `read_cursor` at the other participant, and that mode must leave no trace there.
+      if (!onlyMe) {
+        await advanceReadCursor(tx, senderId, own.id);
+      }
+    }
+
+    return own;
+  });
 
   const row = inserted ?? (await findOwnMessage(clientMsgId, senderId));
 

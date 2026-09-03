@@ -8,12 +8,14 @@ import {
   CHAT_STREAM_PATH,
   IS_SSE_IDLE_SLEEP_ENABLED,
   llmSseEventSchema,
+  readCursorEventSchema,
   SSE_RETRY_DELAY,
   SSE_STALE_AFTER,
   SSE_SYNC_COALESCE_WINDOW,
   typingEventSchema,
   type LlmSseEvent,
   type MessageArrival,
+  type ReadCursorEvent,
 } from "@/shared/config";
 import type { UserId } from "@/shared/lib";
 import { safelyGet, type Nullable, type Optional } from "@/shared/lib";
@@ -30,6 +32,8 @@ export type ChatEventSourceHandlers = {
   onResume: () => void;
   /** Someone started or stopped composing. REQUIREMENTS.md § 8.12. */
   onTyping: (userId: UserId, isTyping: boolean) => void;
+  /** REQUIREMENTS.md § 8.8. A participant's read cursor moved. */
+  onReadCursor: (event: ReadCursorEvent) => void;
   /** A queue/stream update for an AI answer in progress, or a mid-stream snapshot. */
   onLlm: (event: LlmSseEvent) => void;
   /** REQUIREMENTS.md § 8.13. A row already on screen, changed — corrected, or withdrawn and now a tombstone. Whole, so the client replaces rather than patches. */
@@ -110,6 +114,16 @@ export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: b
 
         if (typing.success) {
           handlers.current.onTyping(typing.data.userId, typing.data.isTyping);
+        }
+      });
+      // WARN: A named SSE event never reaches `onmessage`; the server tags this `event: read_cursor` for the same reason `user` and `typing` are (§ 8.4., § 8.8.).
+      opened.addEventListener("read_cursor", (event) => {
+        markAlive();
+
+        const readCursor = readCursorEventSchema.safeParse(safelyGet(() => JSON.parse(event.data)));
+
+        if (readCursor.success) {
+          handlers.current.onReadCursor(readCursor.data);
         }
       });
       // INFO: REQUIREMENTS.md § 8.13. Its own event name for the same reason `user` has one — none of an arrival's side effects may fire for a row that is already on screen.

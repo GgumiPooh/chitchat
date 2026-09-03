@@ -4,6 +4,7 @@ import {
   A_SECOND,
   safelyGet,
   type Maybe,
+  type MessageId,
   type Optional,
   type UserId,
 } from "@/shared/lib";
@@ -415,6 +416,18 @@ export const typingEventSchema = z.object({
 });
 
 export type TypingEvent = z.infer<typeof typingEventSchema>;
+
+/**
+ * The `read_cursor` payload, on the `pg_notify` hop and on the wire alike
+ * (REQUIREMENTS.md § 8.8.). `lastReadMessageId` is nullable for the same reason
+ * `users.last_read_message_id` is — a cursor with nothing read yet.
+ */
+export const readCursorEventSchema = z.object({
+  userId: snowflakeSchema<UserId>(),
+  lastReadMessageId: snowflakeSchema<MessageId>().nullable(),
+});
+
+export type ReadCursorEvent = z.infer<typeof readCursorEventSchema>;
 
 // INFO: REQUIREMENTS.md § 8.12. A keystroke does not send; this is how often one is resent while composing continues, which is what keeps the receiver's expiry from firing.
 export const TYPING_PING_INTERVAL = 3 * A_SECOND;
