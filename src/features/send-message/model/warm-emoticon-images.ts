@@ -35,6 +35,9 @@ const warmedImages = new Map<string, HTMLImageElement>();
 // INFO: § 13.6. Held apart from the map above, because a URL can be warm without having been decoded — the near tabs are decoded and the far ones are only fetched.
 const decodedUrls = new Set<string>();
 
+// WARN: § 13.6. Every URL this session has fetched, held or not. The map above holds only decoded tabs, so without this a re-centred walk re-created an `Image` for every far tab's picture on every swipe — some five hundred cache reads for bytes the browser already had.
+const fetchedUrls = new Set<string>();
+
 /**
  * Lets go of every held element, leaving the bytes to the browser's own caches.
  *
@@ -46,6 +49,7 @@ const decodedUrls = new Set<string>();
 export function releaseWarmedImages(): void {
   warmedImages.clear();
   decodedUrls.clear();
+  fetchedUrls.clear();
 }
 
 /**
@@ -112,10 +116,17 @@ function warmImage(url: string, decodes: boolean): Promise<void> {
     return Promise.resolve();
   }
 
+  // INFO: A far tab reached again is bytes in the browser's cache already; only a walk that now wants it decoded has anything left to do.
+  if (!decodes && fetchedUrls.has(url)) {
+    return Promise.resolve();
+  }
+
   return new Promise((resolve) => {
     const image = new Image();
 
     image.onload = () => {
+      fetchedUrls.add(url);
+
       if (!decodes) {
         resolve();
 
