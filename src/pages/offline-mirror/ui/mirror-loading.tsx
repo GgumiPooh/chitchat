@@ -87,9 +87,9 @@ function renderGrid() {
   return (
     <div className="flex flex-col">
       <Skeleton className="mb-xs h-5 w-24 rounded-xs" />
-      <div className="grid grid-cols-3 gap-2xs">
+      <div className="square-grid-3">
         {TILE_KEYS.map((key) => (
-          <Skeleton key={key} className="aspect-square rounded-sm" />
+          <Skeleton key={key} className="square-cell rounded-sm" />
         ))}
       </div>
     </div>

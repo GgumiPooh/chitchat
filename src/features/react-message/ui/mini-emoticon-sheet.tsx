@@ -206,7 +206,7 @@ export function MiniEmoticonSheet({
       if (row.type === "header") {
         return index === 0 ? 28 : 36;
       }
-      return 56; // 6열 aspect-square 셀 높이 + gap-2
+      return 56; // 6열 square-cell 높이 + gap
     },
     overscan: 15,
   });
@@ -253,7 +253,7 @@ export function MiniEmoticonSheet({
               )}
 
               {row.type === "recents-row" && (
-                <div className="grid grid-cols-6 gap-2 pb-2">
+                <div className="square-grid-6 pb-2 [--square-grid-gap:var(--spacing-xs)]">
                   {row.items.map((recent, itemIdx) => {
                     if (recent.kind === "emoji") {
                       const isSelected = activeEmojiSet?.has(recent.value) ?? false;
@@ -261,7 +261,7 @@ export function MiniEmoticonSheet({
                       return (
                         <HapticTarget
                           key={`recent-emoji-${recent.value}-${itemIdx}`}
-                          className="flex aspect-square"
+                          className="flex square-cell"
                           overlayClassName="touch-pan-y"
                           keepsScroll
                         >
@@ -304,14 +304,14 @@ export function MiniEmoticonSheet({
               )}
 
               {row.type === "emoji-row" && (
-                <div className="grid grid-cols-6 gap-2 pb-2">
+                <div className="square-grid-6 pb-2 [--square-grid-gap:var(--spacing-xs)]">
                   {row.items.map((emoji) => {
                     const isSelected = activeEmojiSet?.has(emoji) ?? false;
 
                     return (
                       <HapticTarget
                         key={emoji}
-                        className="flex aspect-square"
+                        className="flex square-cell"
                         overlayClassName="touch-pan-y"
                         keepsScroll
                       >
@@ -339,7 +339,7 @@ export function MiniEmoticonSheet({
               )}
 
               {row.type === "emoticon-row" && (
-                <div className="grid grid-cols-6 gap-2 pb-2">
+                <div className="square-grid-6 pb-2 [--square-grid-gap:var(--spacing-xs)]">
                   {row.items.map((item) => (
                     <MiniEmoticonCellButton
                       key={item.id}
@@ -453,7 +453,7 @@ function MiniEmoticonCellButton({
   const emoticonAssetUrl = toEmoticonAssetUrl(item.id, "animated-image", item.version);
 
   return (
-    <HapticTarget className="flex aspect-square" overlayClassName="touch-pan-y" keepsScroll>
+    <HapticTarget className="flex square-cell" overlayClassName="touch-pan-y" keepsScroll>
       <button
         ref={replayRef}
         className={cn(
@@ -496,7 +496,7 @@ function RecentMiniEmoticonButton({
   const emoticonAssetUrl = toEmoticonAssetUrl(itemId, "animated-image");
 
   return (
-    <HapticTarget className="flex aspect-square" overlayClassName="touch-pan-y" keepsScroll>
+    <HapticTarget className="flex square-cell" overlayClassName="touch-pan-y" keepsScroll>
       <button
         ref={replayRef}
         className={cn(

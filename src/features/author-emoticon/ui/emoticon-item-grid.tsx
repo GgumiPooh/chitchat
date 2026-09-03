@@ -7,8 +7,8 @@ import { EmoticonItemCell } from "./emoticon-item-cell";
 
 /** INFO: § 13. The management grid's own column counts, matching the panel a user picks from — four for 이모티콘, six for the smaller 미니이모티콘. */
 const ITEM_GRID_CLASS: Record<EmoticonPackType, string> = {
-  emoticon: "grid-cols-4",
-  mini: "grid-cols-6",
+  emoticon: "square-grid-4",
+  mini: "square-grid-6",
 };
 
 export type EmoticonItemGridProps = {
@@ -34,7 +34,7 @@ export function EmoticonItemGrid({
   return (
     // INFO: DESIGN.md § 9. Arbitrary aspect ratios, so the cell is a fixed square and the still is `object-contain` inside it.
     // WARN: Written out per kind rather than interpolated — Tailwind scans source text, so a computed `grid-cols-${n}` produces no class at all.
-    <div className={cn("grid gap-2xs", ITEM_GRID_CLASS[type], className)}>
+    <div className={cn(ITEM_GRID_CLASS[type], className)}>
       {items.map((item) => (
         <EmoticonItemCell
           key={item.id}

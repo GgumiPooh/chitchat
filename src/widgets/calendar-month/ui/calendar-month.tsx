@@ -81,7 +81,10 @@ export function CalendarMonth({
       <WeekdayHeader />
 
       {/* WARN: `touch-action: pan-y` — without it WebKit claims the horizontal gesture for its own back-navigation swipe and the pointer events below never complete. */}
-      <div className="grid touch-pan-y grid-cols-7 gap-0.5" {...swipeHandlers}>
+      <div
+        className="square-grid-7 touch-pan-y [--square-grid-gap:calc(var(--spacing)*0.5)]"
+        {...swipeHandlers}
+      >
         {cells.map((cell) => (
           <DayCell
             key={cell.dayKey}

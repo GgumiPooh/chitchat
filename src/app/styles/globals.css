@@ -242,6 +242,30 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
   }
 }
 
+/* WARN: DESIGN.md § 9. A `square-grid-*` is its own inline-size container and a `square-cell` takes its side from `cqw`, never `aspect-square`: WebKit keeps a stretched `aspect-ratio` item — and the auto row track holding one — at the height of its first layout when the column narrows. */
+@utility square-grid-* {
+  display: grid;
+  container-type: inline-size;
+  grid-template-columns: repeat(--value(integer), minmax(0, 1fr));
+  gap: var(--square-grid-gap, var(--spacing-2xs));
+  --square-grid-columns: --value(integer);
+}
+
+/* INFO: The column count comes from an inline `--square-grid-columns` — 보관함's pinch (AGENTS.md § 4.1.) is a number, not a class. */
+@utility square-grid {
+  display: grid;
+  container-type: inline-size;
+  grid-template-columns: repeat(var(--square-grid-columns), minmax(0, 1fr));
+  gap: var(--square-grid-gap, var(--spacing-2xs));
+}
+
+@utility square-cell {
+  height: calc(
+    (100cqw - (var(--square-grid-columns) - 1) * var(--square-grid-gap, var(--spacing-2xs))) /
+      var(--square-grid-columns)
+  );
+}
+
 @utility scrollbar-hidden {
   -ms-overflow-style: none;
   scrollbar-width: none;

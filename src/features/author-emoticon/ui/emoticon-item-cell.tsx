@@ -47,7 +47,7 @@ export function EmoticonItemCell({
       <button
         ref={isMini ? replayRef : undefined}
         className={cn(
-          "relative aspect-square w-full rounded-sm border p-2xs transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong",
+          "relative square-cell w-full rounded-sm border p-2xs transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong",
           isThumbnail ? "border-primary bg-primary-tint" : "border-hairline bg-canvas",
         )}
         type="button"

@@ -1018,7 +1018,7 @@ export function EmoticonPicker({
                       />
                     ) : (
                       <div
-                        className="grid grid-cols-6 gap-2xs"
+                        className="square-grid-6"
                         role="group"
                         aria-label="최근 사용한 미니이모티콘"
                       >
@@ -1026,7 +1026,7 @@ export function EmoticonPicker({
                           <EmoticonCell
                             key={item.id}
                             className="flex"
-                            buttonClassName="aspect-square w-full"
+                            buttonClassName="square-cell w-full"
                             item={item}
                             index={index}
                             isFocusable={index === focusableIndex}
@@ -1060,7 +1060,7 @@ export function EmoticonPicker({
                           <>
                             {/* WARN: § 8.14. `focusableIndex` is a flat index across both recents and favorites — recents come first, so their indices are 0…recentsSlice.length−1. */}
                             <div
-                              className="grid grid-cols-4 gap-2xs"
+                              className="square-grid-4"
                               role="group"
                               aria-label="최근 사용한 이모티콘"
                             >
@@ -1068,7 +1068,7 @@ export function EmoticonPicker({
                                 <EmoticonCell
                                   key={item.id}
                                   className="flex"
-                                  buttonClassName="aspect-square w-full"
+                                  buttonClassName="square-cell w-full"
                                   item={item}
                                   index={index}
                                   isFocusable={index === focusableIndex}
@@ -1082,7 +1082,7 @@ export function EmoticonPicker({
                               {hasMoreRecents && (
                                 <button
                                   className={cn(
-                                    "flex aspect-square w-full cursor-pointer flex-col items-center justify-center rounded-sm text-body-sm text-meta transition-colors select-none [-webkit-touch-callout:none] hover:bg-surface-soft hover:text-body focus-visible:bg-primary-tint focus-visible:text-body focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-inset active:bg-surface-soft active:text-body",
+                                    "flex square-cell w-full cursor-pointer flex-col items-center justify-center rounded-sm text-body-sm text-meta transition-colors select-none [-webkit-touch-callout:none] hover:bg-surface-soft hover:text-body focus-visible:bg-primary-tint focus-visible:text-body focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-inset active:bg-surface-soft active:text-body",
                                     isKeyboardDriven && CELL_KEYBOARD_RING,
                                   )}
                                   type="button"
@@ -1118,7 +1118,7 @@ export function EmoticonPicker({
                         ) : (
                           // WARN: § 8.14. Favorites are indexed right after the recents slice — offset by `recentsSlice.length` so arrows move seamlessly between the two sections.
                           <div
-                            className="grid grid-cols-4 gap-2xs"
+                            className="square-grid-4"
                             role="group"
                             aria-label="즐겨찾기한 이모티콘"
                           >
@@ -1128,7 +1128,7 @@ export function EmoticonPicker({
                                 <EmoticonCell
                                   key={item.id}
                                   className="flex"
-                                  buttonClassName="aspect-square w-full"
+                                  buttonClassName="square-cell w-full"
                                   item={item}
                                   index={index}
                                   isFocusable={index === focusableIndex}
@@ -1166,10 +1166,7 @@ export function EmoticonPicker({
                             {section.pack.name}
                           </h2>
                           <div
-                            className={cn(
-                              "grid gap-2xs",
-                              menuKind === "mini" ? "grid-cols-6" : "grid-cols-4",
-                            )}
+                            className={cn(menuKind === "mini" ? "square-grid-6" : "square-grid-4")}
                             role="group"
                             aria-label={section.pack.name}
                           >
@@ -1180,7 +1177,7 @@ export function EmoticonPicker({
                                 <EmoticonCell
                                   key={item.id}
                                   className="flex"
-                                  buttonClassName="aspect-square w-full"
+                                  buttonClassName="square-cell w-full"
                                   item={item}
                                   index={index}
                                   isFocusable={index === focusableIndex}
@@ -1216,10 +1213,7 @@ export function EmoticonPicker({
                   // WARN: § 8.14. The column count is `columns` as well as this class, and the two MUST agree — the vertical arrows step by that number, and a grid drawn at a different width moves focus to the wrong row. Both spellings are literals because Tailwind reads literals.
                   // INFO: § 8.14. `group` and not `grid`. ARIA's grid role requires `row` elements this layout has nowhere to put — a `display: contents` wrapper is the only place, and that is the property browsers spent years dropping from the accessibility tree. The **keys** follow the grid pattern; the roles say what is true, which is a labelled group of buttons.
                   <div
-                    className={cn(
-                      "grid gap-2xs",
-                      menuKind === "mini" ? "grid-cols-6" : "grid-cols-4",
-                    )}
+                    className={cn(menuKind === "mini" ? "square-grid-6" : "square-grid-4")}
                     role="group"
                     aria-label={kindNouns.kind}
                   >
@@ -1227,7 +1221,7 @@ export function EmoticonPicker({
                       <EmoticonCell
                         key={item.id}
                         className="flex"
-                        buttonClassName="aspect-square w-full"
+                        buttonClassName="square-cell w-full"
                         item={item}
                         index={index}
                         isFocusable={index === focusableIndex}
@@ -2142,7 +2136,7 @@ function EmoticonCell({
   return (
     // WARN: `touch-pan-y` is repeated on the overlay rather than inherited — `touch-action` applies to the element the gesture starts on, and a cell tiles its scroller. The two are intersected (`DESIGN.md § 7.15.1.`), so a pair that disagreed would resolve to `none` and the panel would not scroll at all.
     // WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the panel would stop scrolling (`DESIGN.md § 7.15.`).
-    // WARN: § 13. `min-h-0`/`min-w-0` on both boxes, or a narrow pane stops drawing squares: an `<img>` with no width/height attributes contributes its **natural pixel size** to a flex/grid item's automatic minimum, and an asset taller than the column it is drawn in floors the whole row above `aspect-square`.
+    // WARN: § 13. `min-h-0`/`min-w-0` on both boxes, or a narrow pane stops drawing squares: an `<img>` with no width/height attributes contributes its **natural pixel size** to a flex/grid item's automatic minimum, and an asset taller than the column it is drawn in floors the whole row above `square-cell`.
     <HapticTarget
       className={cn("min-h-0 min-w-0", className)}
       overlayClassName="touch-pan-y"
@@ -2365,12 +2359,12 @@ function SearchPane({
             onFocus={onCellFocus}
           >
             {/* WARN: § 8.14. Four columns, and `EMOTICON_GRID_COLUMNS` is the same decision — 검색 is drawn at 이모티콘's width rather than 미니's, whatever kind the results happen to hold, because a row of mixed kinds has no one width to be right at. */}
-            <div className="grid grid-cols-4 gap-2xs" role="group" aria-label="검색 결과">
+            <div className="square-grid-4" role="group" aria-label="검색 결과">
               {results.map((item, index) => (
                 <EmoticonCell
                   key={item.id}
                   className="flex"
-                  buttonClassName="aspect-square w-full"
+                  buttonClassName="square-cell w-full"
                   item={item}
                   index={index}
                   isFocusable={index === focusableIndex}

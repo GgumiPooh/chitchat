@@ -77,7 +77,7 @@ export function ArchiveTile({
       {...longPressHandlers}
     >
       <button
-        className="relative block aspect-square w-full cursor-pointer overflow-hidden rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+        className="relative block square-cell w-full cursor-pointer overflow-hidden rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
         type="button"
         aria-label={cell.isVideo ? "동영상" : "사진"}
         aria-pressed={isSelecting ? isSelected : undefined}

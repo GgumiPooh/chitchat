@@ -24,7 +24,7 @@ export function DayCell({ className, cell, isToday, isSelected, onSelect }: DayC
       <button
         className={cn(
           // WARN: Seven of these tile one shell width, so the cell cannot also honour `DESIGN.md § 8.1.`'s 44px floor — 7 × 44 overflows a 320px viewport. The square is the constraint that wins; do not add a `min-w`.
-          "flex aspect-square w-full cursor-pointer flex-col items-center justify-center gap-0.5 rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+          "flex square-cell w-full cursor-pointer flex-col items-center justify-center gap-0.5 rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
           isSelected
             ? "bg-primary"
             : "group-active:bg-surface-strong hover:bg-surface-soft active:bg-surface-strong",

@@ -350,9 +350,9 @@ export function ArchiveGrid({
       {scroller === null ? (
         <div aria-hidden>
           <Skeleton className="mb-xs h-5 w-24 rounded-xs" />
-          <div className="grid gap-2xs" style={toColumnsStyle(columns)}>
+          <div className="square-grid" style={toColumnsStyle(columns)}>
             {toSkeletonKeys(columns * SKELETON_ROWS).map((key) => (
-              <Skeleton key={key} className="aspect-square rounded-sm" />
+              <Skeleton key={key} className="square-cell rounded-sm" />
             ))}
           </div>
         </div>
@@ -383,7 +383,7 @@ export function ArchiveGrid({
           <div ref={sentinelRef} aria-hidden>
             {isLoadingMore && (
               <div
-                className="grid gap-2xs"
+                className="square-grid"
                 style={{
                   ...toColumnsStyle(columns),
                   marginTop: trailingGap > 0 ? -(geometry.tileSize + GRID_GAP) : undefined,
@@ -392,7 +392,7 @@ export function ArchiveGrid({
                 {toSkeletonKeys(skeletonCount).map((key, index) => (
                   <Skeleton
                     key={key}
-                    className="aspect-square rounded-sm"
+                    className="square-cell rounded-sm"
                     style={index === 0 ? { gridColumnStart: trailingGap + 1 } : undefined}
                   />
                 ))}
@@ -420,7 +420,7 @@ export function ArchiveGrid({
     }
 
     return (
-      <div className="grid gap-2xs" style={toColumnsStyle(columns)}>
+      <div className="square-grid" style={toColumnsStyle(columns)}>
         {cells.slice(row.startIndex, row.startIndex + row.count).map((cell, i) => (
           <ArchiveTile
             key={cell.id}
@@ -504,7 +504,7 @@ export function ArchiveGrid({
   }
 }
 
-// WARN: DESIGN.md § 7.10. Mirror the `gap-2xs`, `gap-md` and `pb-xs` classes the markup is drawn with — every row offset is summed from these, so a class changed without its constant slides the grid out from under its own geometry.
+// WARN: DESIGN.md § 7.10. Mirror `square-grid`'s gap and the `gap-md` and `pb-xs` classes the markup is drawn with — every row offset is summed from these, so a class changed without its constant slides the grid out from under its own geometry.
 const GRID_GAP = 4;
 const SECTION_GAP = 16;
 const MONTH_LABEL_GAP = 8;
@@ -523,12 +523,9 @@ const INITIAL_GEOMETRY = { tileSize: 120, scrollMargin: 0 };
 // INFO: Rows, not tiles, and generous because the sweep hit-tests the DOM (see the virtualizer's own WARN) — its auto-scroll travels at most 18px a frame, well inside this many lines.
 const OVERSCAN_ROWS = 6;
 
-// INFO: AGENTS.md § 4.1. An inline custom property rather than a static `grid-cols-N` class, so a pinch step or a 열 개수 slider drag is a single number to redraw the transition against.
+// INFO: AGENTS.md § 4.1. An inline custom property rather than a static `square-grid-N` class, so a pinch step or a 열 개수 slider drag is a single number to redraw the transition against.
 function toColumnsStyle(columns: number): CSSProperties {
-  return {
-    "--archive-columns": columns,
-    gridTemplateColumns: "repeat(var(--archive-columns), minmax(0, 1fr))",
-  } as CSSProperties;
+  return { "--square-grid-columns": columns } as CSSProperties;
 }
 
 function toTileSize(width: number, columns: number): number {
