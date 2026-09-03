@@ -3,6 +3,7 @@
 import type { CalendarSummary } from "@/entities/event";
 import type { Participant } from "@/entities/user";
 import { useChatStream } from "@/features/chat-stream";
+import { useProfileViewer } from "@/features/view-profile";
 import { toMediaUrl } from "@/shared/config";
 import { cn, formatDate, type Maybe, type Nullable, type UserId } from "@/shared/lib";
 import { Avatar, PreloadImage } from "@/shared/ui";
@@ -75,8 +76,10 @@ type PersonBadgeProps = {
   participant: Maybe<Participant>;
 };
 
-// WARN: DESIGN.md § 7.11. Not `canEnlarge` and not wired to the profile screen — the avatar here is a photo of who this is, not a control.
+// INFO: REQUIREMENTS.md § 12.3. Opens the profile screen, as the chat panel's partner block does — `onClick` rather than `canEnlarge`, since one avatar can only do one of the two.
 function PersonBadge({ className, participant }: PersonBadgeProps) {
+  const { openProfile } = useProfileViewer();
+
   if (!participant) {
     return null;
   }
@@ -89,6 +92,7 @@ function PersonBadge({ className, participant }: PersonBadgeProps) {
         size="profile"
         name={participant.name}
         mediaId={participant.avatarMediaId}
+        onClick={() => openProfile(participant.id)}
       />
       <p className="text-title-sm text-on-hero">{participant.name}</p>
     </div>
