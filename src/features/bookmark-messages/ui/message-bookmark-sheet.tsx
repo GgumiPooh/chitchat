@@ -112,7 +112,7 @@ export function MessageBookmarkSheet({
         {bookmarks.length === 0 ? (
           <EmptyState className="mt-2xl" Icon={Bookmark} description="책갈피한 메시지가 없어요" />
         ) : (
-          <div className="flex flex-col gap-2xs pb-md">
+          <div className="scrollbar-hidden flex min-h-0 flex-1 flex-col gap-2xs overflow-y-auto overscroll-contain pb-md">
             {bookmarks.map((bookmark) => (
               <div key={bookmark.id} className="flex items-center gap-xs">
                 {isEditing ? (

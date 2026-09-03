@@ -99,7 +99,7 @@ export function ExpandableSheet({
           className="-mb-lg flex flex-col"
           style={{ height: `calc(${restHeight}px + var(--spacing-lg))` }}
         >
-          <div className="min-h-0 flex-1">{children}</div>
+          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
           {footer && <div className="shrink-0 pt-sm">{footer}</div>}
         </div>
       </Modal>
