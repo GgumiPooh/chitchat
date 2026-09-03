@@ -25,8 +25,9 @@ export function DayCell({ className, cell, isToday, isSelected, onSelect }: DayC
         className={cn(
           // WARN: Seven of these tile one shell width, so the cell cannot also honour `DESIGN.md § 8.1.`'s 44px floor — 7 × 44 overflows a 320px viewport. The square is the constraint that wins; do not add a `min-w`.
           "flex square-cell w-full cursor-pointer flex-col items-center justify-center gap-0.5 rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+          // INFO: DESIGN.md § 7.9. `primary-tint`, not `primary` — the six event hues vanished on a full `primary` disc, and the fill still reads as selection on its own.
           isSelected
-            ? "bg-primary"
+            ? "bg-primary-tint"
             : "group-active:bg-surface-strong hover:bg-surface-soft active:bg-surface-strong",
         )}
         type="button"
@@ -72,15 +73,11 @@ function toCellLabel(cell: MonthCell, isToday: boolean): string {
 }
 
 function toNumeralClassName(cell: MonthCell, isToday: boolean, isSelected: boolean): string {
-  if (isSelected) {
-    return "text-on-primary";
-  }
-
   // INFO: REQUIREMENTS.md § 11.7. 빨간 날 — a 공휴일 and a Sunday carry the same colour, which is the whole convention a Korean calendar is read by.
   const isRestDay = cell.holiday !== null || cell.weekday === SUNDAY;
 
-  // INFO: DESIGN.md § 7.9. Today is weight and colour on the numeral, never a fill — the fill belongs to selection alone. Weight is what survives the numeral already being red.
-  if (isToday) {
+  // INFO: DESIGN.md § 7.9. Today is weight and colour on the numeral, never a fill — the fill belongs to selection alone, and a selected numeral takes the same weight and colour on its tint. Weight is what survives the numeral already being red.
+  if (isToday || isSelected) {
     return cn("font-bold", isRestDay ? "text-semantic-error" : "text-primary");
   }
 
