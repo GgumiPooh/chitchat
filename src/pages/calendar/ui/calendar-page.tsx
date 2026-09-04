@@ -216,7 +216,12 @@ export function CalendarPage({
         }
       />
       {/* INFO: DESIGN.md § 7.9. Full-bleed and outside `Container`, since the hero already fills the device height and sits under the floating header on its own. */}
-      <DDayHero className="h-svh w-full lg:hidden" summary={summary} />
+      {/* WARN: DESIGN.md § 3.4. The photo is `100lvh` inside the `h-svh` box, or `object-cover` scales it to the small viewport and the same wallpaper is visibly smaller here than in 채팅 by the toolbar's height. */}
+      <DDayHero
+        className="h-svh w-full lg:hidden"
+        backdropClassName="bottom-auto h-[100lvh]"
+        summary={summary}
+      />
       {/* INFO: DESIGN.md § 7.12. The header floats over the content; the hero above already clears it, so this offset applies only where the hero drops out at `lg`. */}
       <Container className="space-y-md py-md lg:pt-[calc(var(--app-header-inset)+var(--spacing-md))]">
         {/* INFO: DESIGN.md § 7.9. Under the hero and above the grid, which is affordable because the list is capped and always drawn — it no longer varies between nothing and three rows. */}

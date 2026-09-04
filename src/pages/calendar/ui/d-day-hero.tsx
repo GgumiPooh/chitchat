@@ -11,6 +11,8 @@ import { Heart } from "lucide-react";
 
 export type DDayHeroProps = {
   className?: string;
+  // WARN: DESIGN.md § 3.4. The mobile caller holds the photo at `100lvh` so it is the same pixels as the chat wallpaper; the `lg` panel's 4:5 box takes no viewport unit and leaves it `inset-0`.
+  backdropClassName?: string;
   summary: CalendarSummary;
 };
 
@@ -21,7 +23,7 @@ export type DDayHeroProps = {
  * INFO: Every number here is resolved on the server (REQUIREMENTS.md § 11.1.), so
  * a device with a skewed clock cannot show the two users different counts.
  */
-export function DDayHero({ className, summary }: DDayHeroProps) {
+export function DDayHero({ className, backdropClassName, summary }: DDayHeroProps) {
   const { chatBackgroundMediaId, chatBackgroundBlurhash, participants } = useChatStream();
   const first = resolveParticipant(participants, summary.firstUserId, 0);
   const second = resolveParticipant(participants, summary.secondUserId, 1);
@@ -33,7 +35,7 @@ export function DDayHero({ className, summary }: DDayHeroProps) {
     >
       {chatBackgroundMediaId ? (
         <PreloadImage
-          className="absolute inset-0 -z-10"
+          className={cn("absolute inset-0 -z-10", backdropClassName)}
           imgClassName="size-full object-cover"
           placeholderClassName="bg-primary"
           src={toMediaUrl(chatBackgroundMediaId, "original")}
