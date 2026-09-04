@@ -25,7 +25,7 @@ const FRAMES: Record<MirrorScreen, Frame> = {
     containerClassName: "px-0 pt-[calc(var(--app-header-inset)+var(--spacing-xs))]",
   },
   calendar: {
-    title: "캘린더",
+    title: "달력",
     variant: "rows",
     panelVariant: "calendar",
     containerClassName: "pt-[calc(var(--app-header-inset)+var(--spacing-md))]",

@@ -1085,7 +1085,7 @@ The active item is the one filled surface in the system's navigation: on a pill 
 
 The glyphs stay outlined in both states: lucide ships no filled counterpart for `MessageCircle`, `CalendarDays`, `Archive`, or `Settings`, and faking one with `fill-current` turns them into solid blobs. If a filled set is ever adopted it MUST cover all four — a single filled tab reads as a rendering bug.
 
-Labels: `채팅` / `캘린더` / `보관함` / `설정`.
+Labels: `채팅` / `달력` / `보관함` / `설정`. The second tab is **labelled 달력 and named 캘린더 everywhere else in these documents** — the route, the section headings and the prose keep the name the screen was built under, and only the two strings a user reads (this label and the § 7.9. header's title) say 달력.
 
 The third tab was `갤러리` on `Images` until it grew a 파일 segment (`REQUIREMENTS.md § 10.`), and a tab holding documents cannot be called a gallery. `Archive` is the glyph because it is the one in lucide's outlined set that reads as "things put away" rather than as one medium — `Images` would have kept naming half the contents, and `Folder` reads as a filesystem the app does not have. **The prefix is `/archive`, and it caught up with the label one segment later**: it stayed `/gallery` while it was a leaf, on the same reasoning that keeps `이모티콘 관리` at `/settings/emoticons`, and that reasoning broke the moment the shelves nested under it — `/gallery/files` reads as a claim that files are a kind of gallery (`REQUIREMENTS.md § 7.`). The tab's own tap goes to `/archive/gallery` rather than the prefix, so the fill travels without spending a redirect first.
 

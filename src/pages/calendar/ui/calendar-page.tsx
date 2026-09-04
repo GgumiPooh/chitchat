@@ -204,7 +204,7 @@ export function CalendarPage({
         // INFO: The title floats over the hero's photo below `lg`, where `ink` would sit on the scrim; at `lg` the hero is in the panel and the canvas is back under it.
         titleClassName="text-on-scrim lg:text-ink"
         hasSidePanel
-        title="캘린더"
+        title="달력"
         trailing={
           <IconButton
             variant="floating"

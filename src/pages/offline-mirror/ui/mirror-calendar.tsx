@@ -71,7 +71,7 @@ export function MirrorCalendar({ className, participants }: MirrorCalendarProps)
     >
       <AppHeader
         hasSidePanel
-        title="캘린더"
+        title="달력"
         // INFO: DESIGN.md § 7.19. Drawn and refusing rather than withdrawn — a write, so it refuses in the handler.
         trailing={
           <IconButton

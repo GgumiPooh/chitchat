@@ -14,7 +14,7 @@ export type MirrorTab = {
 // INFO: DESIGN.md § 7.3.'s four faces, in `TAB_ROUTES` order. Declared again rather than imported because `widgets/tab-bar` publishes neither `TABS` nor a URL-inert bar.
 export const MIRROR_TABS: MirrorTab[] = [
   { screens: ["chat"], href: CHAT_ROUTE, label: "채팅", Icon: MessageCircle },
-  { screens: ["calendar"], href: CALENDAR_ROUTE, label: "캘린더", Icon: CalendarDays },
+  { screens: ["calendar"], href: CALENDAR_ROUTE, label: "달력", Icon: CalendarDays },
   {
     screens: ["gallery", "files", "voice"],
     href: ARCHIVE_GALLERY_ROUTE,

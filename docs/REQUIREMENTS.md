@@ -355,7 +355,7 @@ Schema, migrations, and triggers have landed. **Columns are not listed here — 
 
 ## 7. Layout, Tab Bar, PWA ✅
 
-The `(main)` layout is the app shell — max `576px` and centered below `md`, filling the window from it (`DESIGN.md § 3.1.`) — holding a per-screen header, the content, and the tab bar. Four tabs — `채팅` / `캘린더` / `보관함` / `설정` — icon + label, one active fill that travels between tabs (`DESIGN.md § 7.3.`), hover/active styling, `env(safe-area-inset-bottom)` honoured. From `md` the tab bar is replaced by a left `NavRail` (`DESIGN.md § 7.3.1.`), sharing `TABS`, `isUnderRoute` and the pending-tab-on-tap smoothing (`usePendingTab`) with it rather than duplicating either.
+The `(main)` layout is the app shell — max `576px` and centered below `md`, filling the window from it (`DESIGN.md § 3.1.`) — holding a per-screen header, the content, and the tab bar. Four tabs — `채팅` / `달력` / `보관함` / `설정` — icon + label (the second is labelled 달력 in the UI and its header, and called 캘린더 throughout these documents, `DESIGN.md § 7.3.`), one active fill that travels between tabs (`DESIGN.md § 7.3.`), hover/active styling, `env(safe-area-inset-bottom)` honoured. From `md` the tab bar is replaced by a left `NavRail` (`DESIGN.md § 7.3.1.`), sharing `TABS`, `isUnderRoute` and the pending-tab-on-tap smoothing (`usePendingTab`) with it rather than duplicating either.
 
 - [x] `NavRail` at `md`, `TwoPane`/`SidePanel` at `lg` (`DESIGN.md § 7.20.`), `--pane-open-width` widening at `xl`
 - [x] `AppHeader hasSidePanel` + `SidePanelToggle`, `⌘\`
