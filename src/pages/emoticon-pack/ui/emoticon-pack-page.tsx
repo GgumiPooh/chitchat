@@ -178,7 +178,15 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
         anchorRef={addButtonRef}
         header={{ title: `${kindNoun} 추가` }}
         items={[
-          { label: "하나씩 추가", Icon: Plus, onSelect: () => setIsFormOpen(true) },
+          {
+            label: "하나씩 추가",
+            Icon: Plus,
+            onSelect: () => {
+              setEditing(null);
+              setPendingFile(null);
+              setIsFormOpen(true);
+            },
+          },
           { label: "여러 장 한 번에 추가", Icon: Images, onSelect: picker.open },
         ]}
         onClose={() => setIsAddMenuOpen(false)}

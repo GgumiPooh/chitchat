@@ -50,7 +50,7 @@ import {
   Play,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { downloadEmoticonAsset } from "../api/download-emoticon-asset";
 import { readEmoticonImageFile } from "../api/read-emoticon-asset";
 import { discardEmoticonAssets, uploadEmoticonAsset } from "../api/upload-emoticon-asset";
@@ -123,12 +123,28 @@ export function EmoticonFormSheet({
   const [isFetchingStored, setIsFetchingStored] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = step !== null;
-  // INFO: § 12.1. Freshly mounted over a stored source, the sheet has nothing to show until that source's editor is up — it stays hidden rather than flashing an empty form under the reading toast.
   const [isPreparingInitial, setIsPreparingInitial] = useState(
     Boolean(initialFile || initialVideo),
   );
+  const [prevInitialFile, setPrevInitialFile] = useState(initialFile);
+  const [prevInitialVideo, setPrevInitialVideo] = useState(initialVideo);
+
+  if (initialFile !== prevInitialFile) {
+    setPrevInitialFile(initialFile);
+    if (initialFile) {
+      setIsPreparingInitial(true);
+    }
+  }
+
+  if (initialVideo !== prevInitialVideo) {
+    setPrevInitialVideo(initialVideo);
+    if (initialVideo) {
+      setIsPreparingInitial(true);
+    }
+  }
+
   const draft = useEmoticonDraft();
-  const { adoptImage, pickAudio, pickImage, setKeywords } = draft;
+  const { adoptImage, pickAudio, pickImage, reset: resetDraft, setKeywords } = draft;
   // WARN: § 13.4.1. Kept beside the slots and cleared by every other pick — an animation staged from a picked GIF has no clip behind it, and re-opening the flow on the last video would edit a file the field is no longer showing.
   const [videoSource, setVideoSource] = useState<Nullable<File>>(null);
   // WARN: `closesOnCancel`'s doc comment — true only across the `initialFile`/`initialVideo` editor that opened this sheet, off again the moment it lands.
@@ -202,17 +218,65 @@ export function EmoticonFormSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, emoticon?.id, setKeywords]);
 
+  const isSheetOpen =
+    isOpen && !isEditing && !video.isActive && !animation.isActive && !isPreparingInitial;
+  const wasSheetOpenRef = useRef(false);
+
+  // INFO: Runs once the sheet has slid out — resetting on close emptied the form while it was still animating away, and `stopSound` in `handleClose` has already released the object URL `reset` revokes.
+  const discardDraft = useCallback(() => {
+    resetDraft();
+    setVideoSource(null);
+    setStep(null);
+    setFlowSource(null);
+    setIsFlowPending(false);
+    isInitialFlowRef.current = false;
+    setIsPreparingInitial(false);
+  }, [resetDraft]);
+
+  useEffect(() => {
+    if (isSheetOpen) {
+      wasSheetOpenRef.current = true;
+    }
+  }, [isSheetOpen]);
+
+  // WARN: When the form session is closed while the bottom sheet was already suppressed
+  // (e.g. while an editor was active), `onCloseAutoFocus` will never fire because
+  // the sheet was not mounted. In that case, clean up immediately so no dirty state
+  // or object URLs survive into the next open.
+  useEffect(() => {
+    if (!isOpen) {
+      if (!wasSheetOpenRef.current) {
+        discardDraft();
+      }
+    } else {
+      wasSheetOpenRef.current = false;
+    }
+  }, [isOpen, discardDraft]);
+
+  function handleCloseAutoFocus(event: Event) {
+    // WARN: If `isOpen` is still true, the sheet was only hidden because an editor
+    // (CutoutEditor, MediaEditor, VideoTrimmer) is active. Discarding the draft here
+    // would destroy the staged image/video, and restoring focus would pull it away
+    // from the editor.
+    if (isOpen) {
+      event.preventDefault();
+
+      return;
+    }
+
+    wasSheetOpenRef.current = false;
+    discardDraft();
+  }
+
   return (
     <>
       {/* WARN: Closed while the editor or § 13.4.1.'s video flow is up. Both portal into the app shell (`ShellOverlay`) and the drawer portals into `body`, so no z-index inside the shell can put either over it. */}
       <BottomSheet
         className={className}
         header={{ title: `${kindNoun} ${emoticon ? "편집" : "추가"}` }}
-        isOpen={
-          isOpen && !isEditing && !video.isActive && !animation.isActive && !isPreparingInitial
-        }
+        isOpen={isSheetOpen}
         onClose={handleClose}
-        onCloseAutoFocus={discardDraft}
+        onCloseAutoFocus={handleCloseAutoFocus}
       >
         <div className="space-y-sm pt-2xs">
           <ImageRow
@@ -414,12 +478,6 @@ export function EmoticonFormSheet({
     isInitialFlowRef.current = false;
     setIsPreparingInitial(false);
     onClose();
-  }
-
-  // INFO: Runs once the sheet has slid out — resetting on close emptied the form while it was still animating away, and `stopSound` in `handleClose` has already released the object URL `reset` revokes.
-  function discardDraft() {
-    draft.reset();
-    setVideoSource(null);
   }
 
   function handleRecordingDone(recording: VoiceRecording) {
