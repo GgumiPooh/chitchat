@@ -77,19 +77,19 @@ export function CutoutEditor({
           className,
         )}
       >
-        <div className="relative flex items-center justify-between p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
+        <div className="relative flex items-center justify-between gap-xs p-sm pt-[max(var(--spacing-sm),env(safe-area-inset-top))]">
           <IconButton
-            className="text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
+            className="shrink-0 text-on-scrim hover:bg-on-scrim/15 hover:text-on-scrim"
             Icon={onBack ? ArrowLeft : X}
             disabled={isWorking}
             aria-label={onBack ? "영상 자르기로 돌아가기" : "배경 지우기 취소"}
             onClick={onBack ?? onCancel}
           />
-          {/* WARN: `VideoCropper`'s rule — centred against the bar itself, never between its two sides, since the right cluster changes width while it works. Its `max-w` is tighter here because that cluster carries a switch as well as a button. */}
-          <span className="pointer-events-none absolute left-1/2 max-w-[calc(100%-18rem)] -translate-x-1/2 truncate text-caption text-on-scrim">
+          {/* INFO: Flexible in-flow layout between the back button and the right cluster. VideoCropper used absolute centering because its button changed width, but here the cluster is fixed-width and absolute centering squeezed the title down to 87px on mobile. */}
+          <span className="pointer-events-none min-w-0 flex-1 truncate text-center text-caption text-on-scrim">
             {toStatusLabel(progress)}
           </span>
-          <div className="flex items-center gap-2xs">
+          <div className="flex shrink-0 items-center gap-2xs">
             {/* INFO: § 13.4.2. Beside 다음 rather than over the picture: what it decides is which of two pictures the next screen is handed, which is a property of the step rather than a control on the art. */}
             <label className="flex cursor-pointer items-center gap-2xs text-caption text-on-scrim">
               누끼
@@ -178,12 +178,15 @@ type ProgressBarProps = {
 
 /**
  * INFO: `VideoEncodingOverlay`'s bar and its rule: a number only where something
- * actually reports one. The download does, through `Content-Length`; the inference is
- * one opaque call, so it stays indeterminate rather than stalling at a percentage.
+ * actually reports one. The download does, through `Content-Length`; the session
+ * compilation and inference are unmeasured opaque calls, so they stay indeterminate
+ * rather than stalling at a percentage.
  */
 function ProgressBar({ className, progress }: ProgressBarProps) {
   const percent =
-    progress.phase === "fetching" ? Math.round((progress.loaded / progress.total) * 100) : null;
+    progress.phase === "fetching" && progress.total > 0
+      ? Math.min(99, Math.round((progress.loaded / progress.total) * 100))
+      : null;
 
   return (
     <div
@@ -211,6 +214,6 @@ function toStatusLabel(progress: Nullable<CutoutProgress>): string {
     return "배경 지우기";
   }
 
-  // INFO: The first run on a device fetches 96MB of weights, which is long enough that a screen saying only 지우는 중 reads as a hang.
-  return progress.phase === "fetching" ? "준비하는 중이에요" : "배경을 지우는 중이에요";
+  // INFO: The first run on a device fetches 96MB of weights and compiles the graph, which is long enough that a screen saying only 지우는 중 reads as a hang.
+  return progress.phase === "matting" ? "배경을 지우는 중이에요" : "준비하는 중이에요";
 }

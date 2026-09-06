@@ -30,6 +30,7 @@ const MODELS: Record<CutoutModel, { dtype: "fp16"; id: string }> = {
 export type CutoutProgress =
   | { phase: "fetching"; loaded: number; total: number }
   | { phase: "starting" }
+  | { phase: "loading" }
   | { phase: "matting" };
 
 type Session = {
@@ -102,16 +103,33 @@ export function loadCutoutModel(
         loaded?: number;
         total?: number;
       }) => {
-        if (event.status !== "progress" || !event.file || !event.total) {
+        if (!event.file) {
           return;
         }
 
-        // INFO: The configs beside the weights are under a kilobyte, so they are dropped rather than summed — a file that completes in one event only ever moves the bar backwards.
-        if (event.total < MIN_TRACKED_DOWNLOAD_BYTES) {
-          return;
-        }
+        // INFO: When a tracked weight file finishes downloading, mark it complete rather than deleting it — preserving the denominator so multi-file downloads never jump backwards.
+        if (event.status === "done") {
+          const current = downloads.get(event.file);
 
-        downloads.set(event.file, { loaded: event.loaded ?? 0, total: event.total });
+          if (!current) {
+            return;
+          }
+
+          downloads.set(event.file, { loaded: current.total, total: current.total });
+        } else {
+          if (event.status !== "progress" || !event.total) {
+            return;
+          }
+
+          // INFO: The configs beside the weights are under a kilobyte, so they are dropped rather than summed — a file that completes in one event only ever moves the bar backwards.
+          if (event.total < MIN_TRACKED_DOWNLOAD_BYTES) {
+            return;
+          }
+
+          const loadedBytes = event.loaded !== undefined ? Math.min(event.loaded, event.total) : 0;
+
+          downloads.set(event.file, { loaded: loadedBytes, total: event.total });
+        }
 
         let loaded = 0;
         let total = 0;
@@ -121,7 +139,11 @@ export function loadCutoutModel(
           total += download.total;
         }
 
-        onProgress?.({ phase: "fetching", loaded, total });
+        if (total > 0 && loaded >= total) {
+          onProgress?.({ phase: "loading" });
+        } else if (total > 0) {
+          onProgress?.({ phase: "fetching", loaded, total });
+        }
       },
     }),
     AutoProcessor.from_pretrained(id),
