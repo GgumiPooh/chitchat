@@ -97,15 +97,30 @@ export function MiniEmoticonSheet({
   const { sections, hasMore, loadMore } = useAllPackSections(miniPacks, isOpen);
 
   const handleSelectEmoji = (emoji: string) => {
-    rememberReaction({ kind: "emoji", value: emoji });
-    onSelectReaction({ emoji, reactionType: "emoji" });
-    onClose();
+    // WARN: DESIGN.md § 7.15.3. A task, never a microtask: the `keepsScroll` overlay's <label> must survive the click dispatch to trigger its default action (toggling the switch). Closed synchronously, the overlay detaches before activation and goes silent.
+    setTimeout(() => {
+      rememberReaction({ kind: "emoji", value: emoji });
+      onSelectReaction({ emoji, reactionType: "emoji" });
+      onClose();
+    });
   };
 
   const handleSelectEmoticon = (item: Emoticon) => {
-    rememberReaction({ kind: "emoticon", value: item.id });
-    onSelectReaction({ emoticonItemId: item.id, reactionType: "emoticon" });
-    onClose();
+    // WARN: DESIGN.md § 7.15.3. A task, so the `keepsScroll` overlay outlives the dispatch.
+    setTimeout(() => {
+      rememberReaction({ kind: "emoticon", value: item.id });
+      onSelectReaction({ emoticonItemId: item.id, reactionType: "emoticon" });
+      onClose();
+    });
+  };
+
+  const handleSelectRecentEmoticon = (itemId: EmoticonItemId) => {
+    // WARN: DESIGN.md § 7.15.3. A task, so the `keepsScroll` overlay outlives the dispatch.
+    setTimeout(() => {
+      rememberReaction({ kind: "emoticon", value: itemId });
+      onSelectReaction({ emoticonItemId: itemId, reactionType: "emoticon" });
+      onClose();
+    });
   };
 
   const virtualRows = useMemo(() => {
@@ -205,7 +220,7 @@ export function MiniEmoticonSheet({
   const content = (
     <div
       ref={scrollContainerRef}
-      className="relative scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain"
+      className="relative scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain"
     >
       <div
         className="relative w-full pb-6"
@@ -245,10 +260,10 @@ export function MiniEmoticonSheet({
                         >
                           <button
                             className={cn(
-                              "relative flex size-full items-center justify-center rounded-xl text-2xl transition-all duration-150 active:scale-95",
+                              "relative flex size-full touch-pan-y items-center justify-center rounded-xl text-2xl transition-all duration-150 select-none [-webkit-touch-callout:none] group-active:scale-95 active:scale-95",
                               isSelected
                                 ? "border-2 border-primary bg-primary/15 text-primary"
-                                : "hover:bg-surface-soft active:bg-surface-pressed",
+                                : "group-active:bg-surface-pressed hover:bg-surface-soft active:bg-surface-pressed",
                             )}
                             type="button"
                             aria-label={recent.value}
@@ -267,14 +282,7 @@ export function MiniEmoticonSheet({
                         key={`recent-emoticon-${recent.value}-${itemIdx}`}
                         isSelected={isSelected}
                         itemId={recent.value}
-                        onSelect={() => {
-                          rememberReaction(recent);
-                          onSelectReaction({
-                            emoticonItemId: recent.value,
-                            reactionType: "emoticon",
-                          });
-                          onClose();
-                        }}
+                        onSelect={() => handleSelectRecentEmoticon(recent.value)}
                       />
                     );
                   })}
@@ -295,10 +303,10 @@ export function MiniEmoticonSheet({
                       >
                         <button
                           className={cn(
-                            "relative flex size-full items-center justify-center rounded-xl text-2xl transition-all duration-150 active:scale-95",
+                            "relative flex size-full touch-pan-y items-center justify-center rounded-xl text-2xl transition-all duration-150 select-none [-webkit-touch-callout:none] group-active:scale-95 active:scale-95",
                             isSelected
                               ? "border-2 border-primary bg-primary/15 text-primary"
-                              : "hover:bg-surface-soft active:bg-surface-pressed",
+                              : "group-active:bg-surface-pressed hover:bg-surface-soft active:bg-surface-pressed",
                           )}
                           type="button"
                           aria-label={emoji}
@@ -365,10 +373,10 @@ function MiniEmoticonCellButton({
       <button
         ref={replayRef}
         className={cn(
-          "relative flex size-full items-center justify-center overflow-hidden rounded-xl p-1.5 transition-all duration-150 active:scale-95",
+          "relative flex size-full touch-pan-y items-center justify-center overflow-hidden rounded-xl p-1.5 transition-all duration-150 select-none [-webkit-touch-callout:none] group-active:scale-95 active:scale-95",
           isSelected
             ? "border-2 border-primary bg-primary/15"
-            : "hover:bg-surface-soft active:bg-surface-pressed",
+            : "group-active:bg-surface-pressed hover:bg-surface-soft active:bg-surface-pressed",
         )}
         type="button"
         aria-label={item.keywords.length > 0 ? item.keywords.join(", ") : "미니 이모티콘"}
@@ -408,10 +416,10 @@ function RecentMiniEmoticonButton({
       <button
         ref={replayRef}
         className={cn(
-          "relative flex size-full items-center justify-center overflow-hidden rounded-xl p-1.5 transition-all duration-150 active:scale-95",
+          "relative flex size-full touch-pan-y items-center justify-center overflow-hidden rounded-xl p-1.5 transition-all duration-150 select-none [-webkit-touch-callout:none] group-active:scale-95 active:scale-95",
           isSelected
             ? "border-2 border-primary bg-primary/15"
-            : "hover:bg-surface-soft active:bg-surface-pressed",
+            : "group-active:bg-surface-pressed hover:bg-surface-soft active:bg-surface-pressed",
         )}
         type="button"
         aria-label="최근 미니 이모티콘"
