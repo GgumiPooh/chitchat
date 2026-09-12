@@ -36,7 +36,7 @@ export function EmoticonPackFallback({ className, type }: EmoticonPackFallbackPr
                 <div className="square-cell w-full rounded-sm border border-hairline bg-canvas p-2xs">
                   <Skeleton className="size-full rounded-sm" />
                 </div>
-                <Skeleton className="mx-auto h-[1lh] w-4/5 text-caption" />
+                {type !== "mini" && <Skeleton className="mx-auto h-[1lh] w-4/5 text-caption" />}
               </div>
             ))}
           </div>
