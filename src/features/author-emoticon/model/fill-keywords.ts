@@ -1,6 +1,5 @@
 import type { Emoticon } from "@/entities/emoticon";
-import { KEYWORD_SUGGESTION_BATCH, KEYWORD_SUGGESTION_CONCURRENCY } from "@/shared/config";
-import { mapPooled } from "@/shared/lib";
+import { KEYWORD_SUGGESTION_BATCH } from "@/shared/config";
 import {
   KeywordRateLimitError,
   suggestEmoticonKeywords,
@@ -25,7 +24,7 @@ export type KeywordFillResult = {
 
 /**
  * REQUIREMENTS.md § 13.8.1. Fills a pack's search keywords, `KEYWORD_SUGGESTION_BATCH`
- * emoticons per request and `KEYWORD_SUGGESTION_CONCURRENCY` requests at a time.
+ * emoticons per request in parallel across the fallback chain of prioritized models.
  *
  * WARN: The chunking is the caller's, not the server's, and that is the whole design.
  * One request is provably one model call, so it cannot outrun the platform's
@@ -34,10 +33,8 @@ export type KeywordFillResult = {
  * own ceiling, and `KEYWORD_SUGGESTION_BATCH` is clamped to a copy of that number
  * so a misconfigured value degrades to the ceiling instead of failing every chunk.
  *
- * WARN: The chunks are pooled rather than sequential, and what bounds the width is
- * Google's per-minute quota rather than anything here — `KEYWORD_SUGGESTION_CONCURRENCY`
- * carries that argument. Widening it inside a run that already exceeds the quota
- * only reaches the refusal sooner.
+ * WARN: The chunks run in parallel, relying on the fallback chain and cooldowns
+ * rather than local client-side concurrency throttling.
  *
  * WARN: `onBatch` therefore fires **out of order**, so its `remaining` counts what
  * has settled rather than what lies behind a cursor. Derived from a chunk's position
@@ -52,9 +49,8 @@ export type KeywordFillResult = {
  * screen only ever offers the items that still have none.
  *
  * WARN: A **quota** refusal is the one exception and does end it, which is why
- * `fillBatch` is written to reject on that alone: `mapPooled` stops launching at the
- * first rejection, so nothing new is sent against a limit that has already refused.
- * Chunks already in flight are still awaited, and what they fill stays filled.
+ * `fillBatch` is written to reject on that alone. Chunks already in flight are still
+ * awaited by `Promise.allSettled`, and what they fill stays filled.
  */
 export async function fillEmoticonKeywords(
   items: Emoticon[],
@@ -70,26 +66,30 @@ export async function fillEmoticonKeywords(
   let failed = 0;
   let settled = 0;
 
-  try {
-    await mapPooled(
-      chunks,
-      async (chunk) => {
-        const saved = await fillBatch(chunk);
+  const outcomes = await Promise.allSettled(
+    chunks.map(async (chunk) => {
+      const saved = await fillBatch(chunk);
 
-        filled += saved.length;
-        failed += chunk.length - saved.length;
-        settled += chunk.length;
+      filled += saved.length;
+      failed += chunk.length - saved.length;
+      settled += chunk.length;
 
-        onBatch({ saved, remaining: items.length - settled });
-      },
-      { limit: KEYWORD_SUGGESTION_CONCURRENCY },
-    );
-  } catch (cause) {
-    if (cause instanceof KeywordRateLimitError) {
-      return { filled, failed, rateLimit: cause.rateLimit };
+      onBatch({ saved, remaining: items.length - settled });
+    }),
+  );
+
+  for (const outcome of outcomes) {
+    if (outcome.status === "rejected" && outcome.reason instanceof KeywordRateLimitError) {
+      return { filled, failed, rateLimit: outcome.reason.rateLimit };
     }
+  }
 
-    throw cause;
+  const fatal = outcomes.find(
+    (outcome): outcome is PromiseRejectedResult => outcome.status === "rejected",
+  );
+
+  if (fatal) {
+    throw fatal.reason;
   }
 
   return { filled, failed };
