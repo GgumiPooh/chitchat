@@ -172,6 +172,7 @@ export {
   onSidePanelSettled,
   useSidePanel,
 } from "./hooks/use-side-panel";
+export { useSnapTrack, type UseSnapTrackOptions } from "./hooks/use-snap-track";
 export { useSortableSensors } from "./hooks/use-sortable-sensors";
 export {
   EMOTICON_PLAYBACK_HOLD,

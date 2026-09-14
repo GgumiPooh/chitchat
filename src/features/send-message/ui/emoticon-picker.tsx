@@ -12,7 +12,6 @@ import type { EmoticonPackType } from "@/shared/db";
 import {
   A_MINUTE,
   A_SECOND,
-  MINI_ANIMATION_LOOP_INTERVAL,
   cn,
   focusWithoutPan,
   isBareKey,
@@ -21,9 +20,7 @@ import {
   isShiftKey,
   revealWithin,
   takeFocusWithoutPan,
-  toPreviousReplaySrc,
-  toReplaySrc,
-  useViewportReplay,
+  useSnapTrack,
   type EmoticonItemId,
   type EmoticonPackId,
   type Nullable,
@@ -35,13 +32,12 @@ import {
   HapticTarget,
   IconButton,
   Input,
-  LoadMoreSentinel,
   PreloadImage,
   RecentsAndFavoritesIcon,
 } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { josa } from "es-hangul";
-import { ChevronDown, Clock, Delete, Search, Settings, Smile } from "lucide-react";
+import { Clock, Delete, Search, Settings, Smile } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
@@ -50,7 +46,6 @@ import {
   useState,
   type FocusEvent,
   type KeyboardEvent,
-  type MouseEvent,
   type PropsWithChildren,
   type Ref,
   type RefObject,
@@ -58,7 +53,6 @@ import {
 import { useStorageState } from "synced-storage/react";
 import {
   EMOTICON_GRID_COLUMNS,
-  FOCUS_HEADING_ATTRIBUTE,
   FOCUS_INDEX_ATTRIBUTE,
   MINI_GRID_COLUMNS,
   focusItem,
@@ -86,10 +80,12 @@ import { toEmoticonPacksQuery } from "../model/packs-query";
 import { useAllPackSections } from "../model/use-all-pack-sections";
 import { useEmoticonFavorites } from "../model/use-emoticon-favorites";
 import { useEmoticonSearch } from "../model/use-emoticon-search";
-import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
+import type { SwipeDirection } from "../model/use-horizontal-swipe";
 import { useOutwardTabWarm } from "../model/use-outward-tab-warm";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
 import { MAX_WARMED_PER_TAB } from "../model/warm-emoticon-images";
+import { EmoticonCell, takeFocus } from "./emoticon-cell";
+import { EmoticonTabPane } from "./emoticon-tab-pane";
 
 // INFO: REQUIREMENTS.md § 13.6. Two taps on the same cell inside this window are the shortcut past the preview.
 export const DOUBLE_TAP_WINDOW = A_SECOND / 3;
@@ -183,12 +179,6 @@ type TabEntry = {
  * focused element had it. So one click made every later arrow move invisible, with the
  * navigation itself still working, which is worse than no ring at all.
  *
- * WARN: The classes are written out twice rather than composed, because Tailwind reads
- * literals — a variant prefixed at runtime is a class that was never generated.
- */
-const CELL_KEYBOARD_RING =
-  "focus:bg-primary-tint focus:ring-2 focus:ring-primary focus:ring-inset focus:outline-none";
-
 /** REQUIREMENTS.md § 8.14. `CELL_KEYBOARD_RING` for the tabs, which carry no fill of their own — the selected one already has `bg-primary-tint`. */
 const TAB_KEYBOARD_RING = "focus:ring-2 focus:ring-primary focus:outline-none";
 
@@ -442,9 +432,7 @@ export function EmoticonPicker({
   const pendingEntryRef = useRef<Nullable<TabEntry>>(null);
   // INFO: § 8.14. After the recents 더보기 expands, focus the emoticon that filled its old slot.
   const pendingExpandFocusRef = useRef<Optional<number>>(undefined);
-  const [slideFrom, setSlideFrom] = useState<SwipeDirection>(1);
   const lastTapRef = useRef<Nullable<{ at: number; id: EmoticonItemId }>>(null);
-  const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
   // WARN: § 13.6. Read only. `remember` belongs to the send, not to the tap — recording it here re-sorts 최근 사용 between the two taps of a double tap, moving the cell out from under the second one.
   const { recentIds: recentIdsByKind } = useRecentEmoticons();
   // INFO: § 13.6. The same descriptor `useEmoticonPreload` warmed, so the panel opens on the cached list rather than on `isPending`.
@@ -509,12 +497,6 @@ export function EmoticonPicker({
   const recentsTab = menuKind === "mini" ? MINI_RECENTS_TAB : RECENTS_TAB;
   const allTab = menuKind === "mini" ? MINI_ALL_TAB : ALL_TAB;
   const isAllTab = activeTab === allTab;
-  // WARN: § 13.6. Empty while the summaries are still in flight, which is the one case the heading is withheld — a pack tab knows its own name a round trip before it knows its items.
-  const activeTabLabel = isRecentsTabId(activeTab)
-    ? RECENTS_LABEL
-    : isAllTab
-      ? ALL_LABEL
-      : (findPack(menuPacks, activeTab)?.name ?? "");
   // INFO: § 13.6. This menu's own stored list, which is the whole of the kind filter — `useRecentEmoticons` keeps one per kind, written from what the send carried.
   const recentIds = recentIdsByKind[menuKind];
   // WARN: § 8.14. The arrow step **and** the `grid-cols-*` class below, which are one decision written twice — see `MINI_GRID_COLUMNS`.
@@ -585,7 +567,6 @@ export function EmoticonPicker({
   const recentsSliceCount = hasMoreRecents
     ? recentsVisibleRows * columns - 1
     : recentsVisibleRows * columns;
-  const displayedRecents = recents.slice(0, recentsSliceCount);
   const recentsSectionCount =
     recents.length === 0 ? 0 : hasMoreRecents ? recentsVisibleRows * columns : recents.length;
   const totalRecentsAndFavoritesCount = recentsSectionCount + favorites.length;
@@ -594,6 +575,19 @@ export function EmoticonPicker({
   // INFO: § 13.6. The second region's own list, which is this menu's alone — 검색 has a field there instead and therefore no tabs at all.
   const tabIds = isSearching ? [] : [recentsTab, allTab, ...menuPacks.map((pack) => pack.id)];
   const activeIndex = tabIds.indexOf(activeTab);
+
+  const snapTrackRef = useRef<Nullable<HTMLDivElement>>(null);
+  const { cancelInterruptedStep, scrollToIndex, onScroll } = useSnapTrack({
+    count: tabIds.length,
+    initialIndex: Math.max(activeIndex, 0),
+    onIndexChange: (newIndex) => {
+      const targetTab = tabIds[newIndex];
+      if (targetTab && targetTab !== activeTab) {
+        selectTab(targetTab);
+      }
+    },
+    trackRef: snapTrackRef,
+  });
   const tabThumbnailUrls = menuPacks.flatMap((pack) =>
     pack.thumbnailItemId
       ? [
@@ -975,273 +969,66 @@ export function EmoticonPicker({
               </>
             )}
           </div>
-          {/* INFO: § 13.6. The third region — the cells, which is the only one of the three that scrolls vertically. */}
-          {/* WARN: `overflow-x-hidden` is what keeps the § 13.6. slide inside the panel — a vertical-only scroller still resolves its horizontal axis to `auto`. */}
-          {/* WARN: `touch-pan-y` leaves the vertical scroll native while denying the browser the horizontal axis, which it would otherwise consume before the § 13.6. swipe ever sees it. */}
+          {/* INFO: § 13.6. The third region — horizontal CSS Scroll Snap track with 3-pane virtual window. */}
           <div
-            ref={cellScrollerRef}
-            className="scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain p-xs"
-            onKeyDown={handleCellKeys}
-            onFocus={trackCellFocus}
-            {...swipeHandlers}
+            ref={snapTrackRef}
+            className="scrollbar-hidden flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain"
+            onPointerDown={cancelInterruptedStep}
+            onScroll={onScroll}
+            onWheel={cancelInterruptedStep}
           >
-            {/* INFO: DESIGN.md § 7.10. 보관함's month header pattern, sized down from `title-sm` to `body-sm` for this panel's tighter grid — `meta`, inside the scroller so it travels with the cells rather than pinning above them. */}
-            {/* WARN: § 8.14. Not a focus target, so it carries no `FOCUS_INDEX_ATTRIBUTE` — the arrows read cells off that attribute and a heading in the list would be a step onto nothing. */}
-            {!isRecentsTabId(activeTab) && !isAllTab && activeTabLabel !== "" && (
-              <h2 className="pb-xs text-body-sm text-meta" {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}>
-                {activeTabLabel}
-              </h2>
-            )}
-            {/* WARN: § 13.6. The tab's own items are a request now, so the grid waits for them as it waits for the list. Drawn before they land, a pack tab paints `이 묶음에는 이모티콘이 없어요` over a pack that has plenty — the verdict-before-the-answer § 13.9.1. removed from the search pane. */}
-            {/* WARN: § 13.6. 최근 사용 is the default tab and its ids resolve through a request of their own, so it needs the same guard — without it the panel flashes `최근 사용한 이모티콘이 여기에 보여요` every time it opens ahead of the preload. Every send used to do it too, a new id being a cold key; `emoticons-query.ts` holds the previous answer over for exactly that. */}
-            {/* INFO: § 13.6. A pack tab holds nothing over, deliberately, where 최근 사용 does. The key there is the same list plus one item; here it is a **different pack**, and what would slide in under the new tab is another pack's shelf, swapped out a round trip later. */}
-            {/* INFO: § 13.6. So the animation below decorates the arrival rather than the gesture — a warm tab slides at once, a cold one is blank for a round trip and slides after. Recorded and not fixed: waiting is still better than painting `이 묶음에는 이모티콘이 없어요` over a pack that is full. */}
-            {isPending ||
-            (activePackId !== null && isPackPending) ||
-            (isRecentsTabId(activeTab) && isRecentsPending) ||
-            isAllPending ? null : (
-              // WARN: Keyed by the tab so each pack mounts fresh — an enter animation on an updated subtree never replays.
-              <div
-                key={activeTab}
-                className={cn(
-                  "animate-in duration-200",
-                  slideFrom === 1 ? "slide-in-from-right-6" : "slide-in-from-left-6",
-                )}
-              >
-                {isRecentsTabId(activeTab) ? (
-                  menuKind === "mini" ? (
-                    // INFO: § 13.6. 미니 메뉴의 최근 사용은 즐겨찾기 없이 최근 사용 목록만 표시한다.
-                    recents.length === 0 ? (
-                      <EmptyState
-                        className="border-0 bg-transparent"
-                        Icon={Smile}
-                        description="최근 사용한 미니이모티콘이 여기에 보여요"
-                      />
-                    ) : (
-                      <div
-                        className="square-grid-6"
-                        role="group"
-                        aria-label="최근 사용한 미니이모티콘"
-                      >
-                        {recents.map((item, index) => (
-                          <EmoticonCell
-                            key={item.id}
-                            className="flex"
-                            buttonClassName="square-cell w-full"
-                            item={item}
-                            index={index}
-                            isFocusable={index === focusableIndex}
-                            isWarmed
-                            eagerCount={eagerCount}
-                            isKeyboardDriven={isKeyboardDriven}
-                            isMini
-                            onSelect={handleSelect}
-                            onFocusCell={setFocusedIndex}
-                          />
-                        ))}
-                      </div>
-                    )
-                  ) : (
-                    // INFO: § 13.6. 이모티콘 메뉴의 최근 사용 탭은 두 섹션(최근사용 / 즐겨찾기)으로 분리 렌더링한다.
-                    <div className="flex flex-col gap-md">
-                      <section>
-                        {/* WARN: § 8.14. Not a focus target — see the pack tab heading comment above. */}
-                        <h2
-                          className="pb-xs text-body-sm text-meta"
-                          {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}
-                        >
-                          최근 사용
-                        </h2>
-                        {recents.length === 0 ? (
-                          <EmptyState
-                            className="border-0 bg-transparent"
-                            Icon={Smile}
-                            description="최근 사용한 이모티콘이 여기에 보여요"
-                          />
-                        ) : (
-                          <>
-                            {/* WARN: § 8.14. `focusableIndex` is a flat index across both recents and favorites — recents come first, so their indices are 0…recentsSlice.length−1. */}
-                            <div
-                              className="square-grid-4"
-                              role="group"
-                              aria-label="최근 사용한 이모티콘"
-                            >
-                              {displayedRecents.map((item, index) => (
-                                <EmoticonCell
-                                  key={item.id}
-                                  className="flex"
-                                  buttonClassName="square-cell w-full"
-                                  item={item}
-                                  index={index}
-                                  isFocusable={index === focusableIndex}
-                                  isWarmed
-                                  eagerCount={eagerCount}
-                                  isKeyboardDriven={isKeyboardDriven}
-                                  isMini={false}
-                                  onSelect={handleSelect}
-                                  onFocusCell={setFocusedIndex}
-                                />
-                              ))}
-                              {hasMoreRecents && (
-                                <button
-                                  className={cn(
-                                    "flex square-cell w-full cursor-pointer flex-col items-center justify-center rounded-sm text-body-sm text-meta transition-colors select-none [-webkit-touch-callout:none] hover:bg-surface-soft hover:text-body focus-visible:bg-primary-tint focus-visible:text-body focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-inset active:bg-surface-soft active:text-body",
-                                    isKeyboardDriven && CELL_KEYBOARD_RING,
-                                  )}
-                                  type="button"
-                                  tabIndex={recentsSliceCount === focusableIndex ? 0 : -1}
-                                  aria-label="최근 사용한 이모티콘 더보기"
-                                  {...{ [FOCUS_INDEX_ATTRIBUTE]: recentsSliceCount }}
-                                  onClick={(event) => {
-                                    takeFocus(event);
-                                    setRecentsVisibleRows((r) => r + 3);
-                                  }}
-                                >
-                                  <span className="leading-tight">더보기</span>
-                                  <ChevronDown className="-mt-1 size-6" strokeWidth={1.5} />
-                                </button>
-                              )}
-                            </div>
-                          </>
-                        )}
-                      </section>
-                      <section>
-                        <h2
-                          className="pb-xs text-body-sm text-meta"
-                          {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}
-                        >
-                          즐겨찾기
-                        </h2>
-                        {favorites.length === 0 ? (
-                          <EmptyState
-                            className="border-0 bg-transparent"
-                            Icon={Smile}
-                            description="즐겨찾기한 이모티콘이 여기에 보여요"
-                          />
-                        ) : (
-                          // WARN: § 8.14. Favorites are indexed right after the recents slice — offset by `recentsSlice.length` so arrows move seamlessly between the two sections.
-                          <div
-                            className="square-grid-4"
-                            role="group"
-                            aria-label="즐겨찾기한 이모티콘"
-                          >
-                            {favorites.map((item, i) => {
-                              const index = recentsSectionCount + i;
-                              return (
-                                <EmoticonCell
-                                  key={item.id}
-                                  className="flex"
-                                  buttonClassName="square-cell w-full"
-                                  item={item}
-                                  index={index}
-                                  isFocusable={index === focusableIndex}
-                                  isWarmed
-                                  eagerCount={eagerCount}
-                                  isKeyboardDriven={isKeyboardDriven}
-                                  isMini={false}
-                                  onSelect={handleSelect}
-                                  onFocusCell={setFocusedIndex}
-                                />
-                              );
-                            })}
-                          </div>
-                        )}
-                      </section>
-                    </div>
-                  )
-                ) : isAllTab && menuPacks.length > 0 ? (
-                  // INFO: § 13.6. One section per pack, in the strip's order, and the cells indexed flat across them so the arrows read the tab as one grid.
-                  <div className="flex flex-col gap-md">
-                    {allSections.map((section, sectionIndex) => {
-                      if (section.items.length === 0) {
-                        return null;
+            {tabIds.map((tabId, index) => {
+              const isCurrent = index === activeIndex;
+              const isNear = Math.abs(index - activeIndex) <= 1;
+
+              return (
+                <div
+                  key={tabId}
+                  className="h-full w-full shrink-0 snap-center snap-always"
+                  inert={!isCurrent}
+                >
+                  {isNear ? (
+                    <EmoticonTabPane
+                      allSections={allSections}
+                      eagerCount={eagerCount}
+                      emptyMessage={isCurrent ? toGridEmptyMessage() : undefined}
+                      favorites={favorites}
+                      focusableIndex={isCurrent ? focusableIndex : -1}
+                      hasMoreAllSections={hasMoreAllSections}
+                      isKeyboardDriven={isKeyboardDriven}
+                      isWarmed={warmedTabs.has(tabId)}
+                      items={isCurrent ? shown : undefined}
+                      loadMoreAllSections={loadMoreAllSections}
+                      menuKind={menuKind}
+                      recents={recents}
+                      recentsVisibleRows={recentsVisibleRows}
+                      scrollerRef={isCurrent ? cellScrollerRef : undefined}
+                      tabId={tabId}
+                      isItemsPending={
+                        isPending ||
+                        (activePackId !== null && isPackPending) ||
+                        (isRecentsTabId(activeTab) && isRecentsPending) ||
+                        isAllPending
                       }
-
-                      const offset = allSections
-                        .slice(0, sectionIndex)
-                        .reduce((count, prior) => count + prior.items.length, 0);
-
-                      return (
-                        <section key={section.pack.id}>
-                          <h2
-                            className="pb-xs text-body-sm text-meta"
-                            {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}
-                          >
-                            {section.pack.name}
-                          </h2>
-                          <div
-                            className={cn(menuKind === "mini" ? "square-grid-6" : "square-grid-4")}
-                            role="group"
-                            aria-label={section.pack.name}
-                          >
-                            {section.items.map((item, i) => {
-                              const index = offset + i;
-
-                              return (
-                                <EmoticonCell
-                                  key={item.id}
-                                  className="flex"
-                                  buttonClassName="square-cell w-full"
-                                  item={item}
-                                  index={index}
-                                  isFocusable={index === focusableIndex}
-                                  isWarmed
-                                  eagerCount={eagerCount}
-                                  isKeyboardDriven={isKeyboardDriven}
-                                  isMini={menuKind === "mini"}
-                                  onSelect={handleSelect}
-                                  onFocusCell={setFocusedIndex}
-                                />
-                              );
-                            })}
-                          </div>
-                        </section>
-                      );
-                    })}
-                    {/* WARN: Keyed by how many sections are in, so each batch mounts a fresh observer — one that stayed intersecting through the batch landing under it would never fire again. */}
-                    {hasMoreAllSections && (
-                      <LoadMoreSentinel
-                        key={allSections.length}
-                        rootRef={cellScrollerRef}
-                        onVisible={loadMoreAllSections}
-                      />
-                    )}
-                  </div>
-                ) : shown.length === 0 ? (
-                  <EmptyState
-                    className="border-0 bg-transparent"
-                    Icon={Smile}
-                    description={toGridEmptyMessage()}
-                  />
-                ) : (
-                  // INFO: DESIGN.md § 9. Assets are user-authored, so their aspect ratios are arbitrary — the cell is a fixed square and the picture is `object-contain` inside it.
-                  // WARN: § 8.14. The column count is `columns` as well as this class, and the two MUST agree — the vertical arrows step by that number, and a grid drawn at a different width moves focus to the wrong row. Both spellings are literals because Tailwind reads literals.
-                  // INFO: § 8.14. `group` and not `grid`. ARIA's grid role requires `row` elements this layout has nowhere to put — a `display: contents` wrapper is the only place, and that is the property browsers spent years dropping from the accessibility tree. The **keys** follow the grid pattern; the roles say what is true, which is a labelled group of buttons.
-                  <div
-                    className={cn(menuKind === "mini" ? "square-grid-6" : "square-grid-4")}
-                    role="group"
-                    aria-label={kindNouns.kind}
-                  >
-                    {shown.map((item, index) => (
-                      <EmoticonCell
-                        key={item.id}
-                        className="flex"
-                        buttonClassName="square-cell w-full"
-                        item={item}
-                        index={index}
-                        isFocusable={index === focusableIndex}
-                        isWarmed
-                        eagerCount={eagerCount}
-                        isKeyboardDriven={isKeyboardDriven}
-                        isMini={menuKind === "mini"}
-                        onSelect={handleSelect}
-                        onFocusCell={setFocusedIndex}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+                      tabLabel={
+                        isRecentsTabId(tabId)
+                          ? RECENTS_LABEL
+                          : isAllTabId(tabId)
+                            ? ALL_LABEL
+                            : (findPack(menuPacks, tabId)?.name ?? "")
+                      }
+                      onCellFocus={trackCellFocus}
+                      onCellKeys={handleCellKeys}
+                      onExpandRecents={() => setRecentsVisibleRows((r) => r + 3)}
+                      onFocusCell={setFocusedIndex}
+                      onSelect={handleSelect}
+                    />
+                  ) : (
+                    <div className="h-full" />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </>
       )}
@@ -2041,7 +1828,6 @@ export function EmoticonPicker({
       return;
     }
 
-    setSlideFrom(toSlideDirection(id));
     setForcedTab(id === SEARCH_TAB ? SEARCH_TAB : null);
     // INFO: § 13.9. Walking to another tab ends the reveal — the ring belongs to the tap that asked for it, not to the panel.
     setRevealed(null);
@@ -2051,25 +1837,11 @@ export function EmoticonPicker({
       // INFO: § 13.6. The within-session half of the memory, so a step across the menu bar and back returns to this tab rather than to 최근 사용 (`lastTabByKindRef`).
       lastTabByKindRef.current[toMenuOf(id) === "mini" ? "mini" : "emoticon"] = id;
       setRequestedTab(id);
+      const targetIndex = tabIds.indexOf(id);
+      if (targetIndex >= 0) {
+        scrollToIndex(targetIndex, "smooth");
+      }
     }
-  }
-
-  /**
-   * INFO: § 13.6. Which side the arriving list slides in from — its place in this menu's
-   * own strip, or the menu bar's order where the two menus differ.
-   *
-   * WARN: The menu comparison has to come first. A tab in another menu is in no `tabIds`
-   * this render holds, so `indexOf` answers `-1` and every menu switch would slide in
-   * from the left however the bar was walked.
-   */
-  function toSlideDirection(id: string): SwipeDirection {
-    const menu = toMenuOf(id);
-
-    if (menu !== activeMenu) {
-      return EMOTICON_MENUS.indexOf(menu) < EMOTICON_MENUS.indexOf(activeMenu) ? -1 : 1;
-    }
-
-    return tabIds.indexOf(id) < activeIndex ? -1 : 1;
   }
 
   // INFO: REQUIREMENTS.md § 13.6. The ends do not wrap — 최근 사용 and the last pack are where the gesture stops, so a swipe never rotates past what the tabs show.
@@ -2089,114 +1861,6 @@ export function EmoticonPicker({
 
     return next;
   }
-}
-
-type EmoticonCellProps = {
-  className?: string;
-  buttonClassName?: string;
-  item: Emoticon;
-  /** REQUIREMENTS.md § 8.14. This cell's place in the list its scroller holds, which is what the arrow keys step through. */
-  index: number;
-  /** REQUIREMENTS.md § 8.14. Whether this is the one cell of the list in the tab sequence (ARIA's roving tabindex). */
-  isFocusable: boolean;
-  /**
-   * § 13.6. Whether this list is one the warm covers, which decides how its images load.
-   *
-   * WARN: False for § 13.8.'s results row and that is not a detail. Nothing warms a search — `eager` there is up to twenty presigned fetches per answer for a row that shows about five, and the deferred skeleton is exactly what `PreloadFrameProps` documents it as being wrong for, since those cells really are being fetched.
-   */
-  isWarmed?: boolean;
-  /** § 13.6. How many cells from the head load `eager`, which widens as the tab's own warm lands. Ignored unless `isWarmed`. */
-  eagerCount?: number;
-  /** REQUIREMENTS.md § 8.14. Whether the panel is being driven by the keyboard, which is what puts the ring on plain `:focus` (`CELL_KEYBOARD_RING`). */
-  isKeyboardDriven: boolean;
-  /** REQUIREMENTS.md § 13.9. Whether this is the cell 따라하기 named, which is ringed until the panel is taken somewhere else. */
-  isRevealed?: boolean;
-  /** REQUIREMENTS.md § 13. A mini draws its `animated-image` slot, not `still-image` — a mini is only ever played, never a frozen frame, so the grid shows exactly what a tap would insert. */
-  isMini?: boolean;
-  onSelect: (item: Emoticon) => void;
-  onFocusCell?: (index: number) => void;
-};
-
-/** INFO: § 13.6. The grid and § 13.8.'s results draw the same cell — only the box around it differs. */
-function EmoticonCell({
-  className,
-  buttonClassName,
-  item,
-  index,
-  isFocusable,
-  isWarmed = false,
-  eagerCount = 0,
-  isKeyboardDriven,
-  isRevealed = false,
-  isMini = false,
-  onSelect,
-  onFocusCell,
-}: EmoticonCellProps) {
-  // WARN: § 13. A GIF/WebP/APNG's own loop count is not always infinite, so a mini cell fakes forever by remounting on a timer while it is actually on screen — `MINI_ANIMATION_LOOP_INTERVAL`. Not mini, the cell draws a still (below), which has nothing to replay — the hook is not wired to it at all.
-  const { ref: replayRef, replayToken } = useViewportReplay(
-    isMini ? MINI_ANIMATION_LOOP_INTERVAL : undefined,
-  );
-  const emoticonAssetUrl = toEmoticonAssetUrl(
-    item.id,
-    isMini ? "animated-image" : "still-image",
-    item.version,
-  );
-
-  return (
-    // WARN: `touch-pan-y` is repeated on the overlay rather than inherited — `touch-action` applies to the element the gesture starts on, and a cell tiles its scroller. The two are intersected (`DESIGN.md § 7.15.1.`), so a pair that disagreed would resolve to `none` and the panel would not scroll at all.
-    // WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the panel would stop scrolling (`DESIGN.md § 7.15.`).
-    // WARN: § 13. `min-h-0`/`min-w-0` on both boxes, or a narrow pane stops drawing squares: an `<img>` with no width/height attributes contributes its **natural pixel size** to a flex/grid item's automatic minimum, and an asset taller than the column it is drawn in floors the whole row above `square-cell`.
-    <HapticTarget
-      className={cn("min-h-0 min-w-0", className)}
-      overlayClassName="touch-pan-y"
-      keepsScroll
-    >
-      {/* WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it. */}
-      <button
-        ref={isMini ? replayRef : undefined}
-        className={cn(
-          "touch-pan-y",
-          // WARN: REQUIREMENTS.md § 8.14. `ring-inset`, and a `primary-tint` fill under it. DESIGN.md § 3.2.'s offset ring is unreadable here for two reasons at once: the cells tile their scroller, which is `overflow-x-hidden` in the grid and `overflow-y-hidden` in § 13.8.'s row, so an outward ring is clipped away on every edge cell — the same trap § 7.5. records — and 2px of `primary` over an arbitrary user-authored picture is not a contrast anyone can rely on. The fill is what makes it legible; the ring is what makes it a focus ring.
-          "min-h-0 min-w-0 rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] group-active:bg-surface-strong hover:bg-surface-soft focus-visible:bg-primary-tint focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-inset active:bg-surface-strong",
-          // INFO: § 8.14. Additive to the `focus-visible` set above, which still answers a `Tab` arriving from outside the panel before any arrow has been pressed.
-          isKeyboardDriven && CELL_KEYBOARD_RING,
-          // INFO: § 13.9. A ring rather than the tabs' `bg-primary-tint` fill, which in this panel means "selected" — this cell is not selected, it is the one the tap was about.
-          // WARN: § 13.9. `ring-inset`, or § 13.8.'s results row clips it. That row is `overflow-y-hidden` and its cells fill its height exactly, so an outset ring loses its top and bottom edges and reads as a broken box.
-          isRevealed && "ring-2 ring-primary ring-inset",
-          buttonClassName,
-        )}
-        type="button"
-        // WARN: § 8.14. The roving tab stop. Every cell was a `<button>` and therefore a tab stop of its own, which put a pack's worth of them between the composer and its send control.
-        tabIndex={isFocusable ? 0 : -1}
-        // INFO: § 8.14. The item's own words, so a reader stepping the grid hears which picture each cell is rather than 이모티콘 forty times. Falls back where nobody has described it (§ 13.8.).
-        aria-label={item.keywords.length > 0 ? item.keywords.join(", ") : "이모티콘"}
-        {...{ [FOCUS_INDEX_ATTRIBUTE]: index }}
-        onClick={(event) => {
-          takeFocus(event);
-          onFocusCell?.(index);
-          onSelect(item);
-        }}
-      >
-        <PreloadImage
-          // WARN: Keyed by the replay token, and the token also rides the URL (`toReplaySrc`) — a mini's own loop count is not always infinite, and a fresh element alone does not restart one on iOS Safari (`useViewportReplay`).
-          key={replayToken}
-          className="size-full"
-          imgClassName="size-full object-contain"
-          placeholderClassName="rounded-sm"
-          alt=""
-          // WARN: The previous replay's own frame stands in while this one decodes — `toPreviousReplaySrc` — which is what keeps a replay remount from ever showing the skeleton at all, mini or not. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
-          previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
-          hidesPreviewOnReveal
-          // INFO: § 13.6. A warmed cell's skeleton is almost always a plate over an image that was ready — `PreloadFrameProps` carries the argument.
-          hasDeferredSkeleton={isWarmed}
-          // WARN: § 13. `lazy` on a replay remount is what caused the flicker below the eager count — a freshly inserted lazy `<img>` re-runs the browser's own viewport check before it starts loading, which is slower than `PLACEHOLDER_DELAY` even for a cached asset. `replayToken > 0` only ever happens while the cell is in view (see `useViewportReplay`), so `eager` there is always correct.
-          loading={(isWarmed && index < eagerCount) || replayToken > 0 ? "eager" : "lazy"}
-          draggable={false}
-          src={toReplaySrc(emoticonAssetUrl, replayToken)}
-        />
-      </button>
-    </HapticTarget>
-  );
 }
 
 type SearchPaneProps = {
@@ -2547,35 +2211,4 @@ function TabButton({
 
 function findPack(packs: EmoticonPackSummary[], id: string) {
   return packs.find((pack) => pack.id === id);
-}
-
-/**
- * REQUIREMENTS.md § 8.14. Puts focus on the control that was pressed, which a pointer
- * otherwise never does here.
- *
- * WARN: `HapticTap` takes the tap on its own overlay and replays it as a scripted
- * `control.click()` (`DESIGN.md § 7.15.`), and a scripted click moves no focus — while
- * the real `pointerdown` landed on a `<span>` nothing can focus, so it dropped focus to
- * `<body>`. One click anywhere in this panel therefore ended keyboard navigation
- * outright: every handler below reads the key off the focused item, and there was no
- * longer one.
- *
- * WARN: `preventScroll`, for `focusItem`'s reason — the strip clipping this panel is
- * `overflow: hidden`, and `focus()` scrolls every scrollable ancestor it finds.
- *
- * WARN: On mobile touch (WebKit), `preventScroll: true` is ignored inside overflow scroll
- * containers, causing WebKit to natively focus-scroll and jump the first row / section heading.
- * Skipping DOM `focus()` on touch or coarse pointers keeps the scroll position steady, while
- * `onFocusCell` / roving tabindex keeps keyboard state in sync without native scroll side effects.
- */
-function takeFocus(event: MouseEvent<HTMLButtonElement>): void {
-  if (
-    ("pointerType" in event.nativeEvent &&
-      (event.nativeEvent as PointerEvent).pointerType === "touch") ||
-    (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches)
-  ) {
-    return;
-  }
-
-  event.currentTarget.focus({ preventScroll: true });
 }
