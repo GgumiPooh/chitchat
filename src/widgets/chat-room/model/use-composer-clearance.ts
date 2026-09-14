@@ -43,8 +43,8 @@ export type ComposerClearanceOptions = {
   composerMotionRef: RefObject<Nullable<HTMLElement>>;
   composerSpacerRef: RefObject<Nullable<HTMLElement>>;
   scrollerRef: RefObject<Nullable<HTMLElement>>;
-  /** The list's absolutely-positioned rows wrapper (`virtualizer.getTotalSize()`'s own box), FLIPped during a keyboard step. */
-  contentRef: RefObject<Nullable<HTMLElement>>;
+  /** The list's translated motion wrapper (containing message rows and footer), FLIPped during a keyboard step. */
+  listMotionRef: RefObject<Nullable<HTMLElement>>;
   isAtBottomRef: RefObject<boolean>;
   /** True while the emoticon sheet's own drag owns `composerMotionRef`'s transform — a keyboard step must not fight it for the same element. */
   isDraggingRef: RefObject<boolean>;
@@ -88,7 +88,7 @@ export function useComposerClearance({
   composerMotionRef,
   composerSpacerRef,
   scrollerRef,
-  contentRef,
+  listMotionRef,
   isAtBottomRef,
   isDraggingRef,
 }: ComposerClearanceOptions): void {
@@ -175,7 +175,7 @@ export function useComposerClearance({
     }
 
     function finishListFlip({ pinToBottom: shouldPin }: { pinToBottom: boolean }) {
-      const content = contentRef.current;
+      const content = listMotionRef.current;
 
       if (listFlipRef.current === null || content === null) {
         return;
@@ -280,7 +280,7 @@ export function useComposerClearance({
     // WARN: A running CSS target, never an instant jump. The scroller is frozen at its pre-step height and re-pinned to its own bottom below, so the content has not visibly moved at the frame this runs — easing it forward to the cumulative delta is the whole of the motion, and the already-declared `transition` retargets on its own from wherever it currently sits.
     // WARN: Two recipes, and only the keyboard's own shrink takes the freeze. There the scroller's box got shorter with `scrollHeight` untouched, so holding the old height means nothing has visibly moved and the content can ease *forward*. Every other step — a growth, or either sheet toggle — has already been painted at its final geometry by a `scrollTop` clamp or a spacer inside `scrollHeight`, so the pin commits the bottom and the content is inverted by the same screen shift the composer made (`prior − delta`) and released.
     function stepListFlip(delta: number, usesFreeze: boolean, scroller: HTMLElement) {
-      const content = contentRef.current;
+      const content = listMotionRef.current;
 
       if (!content) {
         return;
@@ -365,7 +365,7 @@ export function useComposerClearance({
     }
 
     function onListFlipTransitionEnd(event: TransitionEvent) {
-      if (event.target !== contentRef.current || event.propertyName !== "transform") {
+      if (event.target !== listMotionRef.current || event.propertyName !== "transform") {
         return;
       }
 
@@ -494,7 +494,7 @@ export function useComposerClearance({
     composerMotionRef,
     composerSpacerRef,
     scrollerRef,
-    contentRef,
+    listMotionRef,
     isAtBottomRef,
     isDraggingRef,
   ]);

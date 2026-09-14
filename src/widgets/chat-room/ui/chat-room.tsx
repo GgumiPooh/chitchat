@@ -380,6 +380,8 @@ export function ChatRoom({
   const aiRowRef = useRef<Nullable<HTMLDivElement>>(null);
   // INFO: REQUIREMENTS.md § 8.3. The rows' own box, observed for the same reason the slot above is — a row that grows after it was estimated moves the end of the list, and nothing scrolls to say so.
   const contentRef = useRef<Nullable<HTMLDivElement>>(null);
+  // INFO: DESIGN.md § 3.4. The list's FLIP motion wrapper (message rows + footer), translated together during a keyboard step.
+  const listMotionRef = useRef<Nullable<HTMLDivElement>>(null);
   const scrollerRef = useRef<Nullable<HTMLElement>>(null);
   const rowsRef = useRef<ChatRow[]>([]);
   const hasTakenScrollRef = useRef(false);
@@ -742,14 +744,14 @@ export function ChatRoom({
   // WARN: Mirrored into a ref, read from `useComposerClearance`'s effect — a keyboard step's FLIP must not fight this drag for `composerMotionRef`'s transform, and an effect closure cannot see a state variable's later value.
   const isDraggingRef = useRef(false);
   isDraggingRef.current = emoticonSheet.isDragging;
-  // INFO: DESIGN.md § 3.4. Writes a keyboard step's own motion straight to `composerMotionRef`/`contentRef`, imperatively — it returns nothing, so it costs this component no re-render.
+  // INFO: DESIGN.md § 3.4. Writes a keyboard step's own motion straight to `composerMotionRef`/`listMotionRef`, imperatively — it returns nothing, so it costs this component no re-render.
   useComposerClearance({
     containerRef,
     composerRef,
     composerMotionRef,
     composerSpacerRef,
     scrollerRef,
-    contentRef,
+    listMotionRef,
     isAtBottomRef,
     isDraggingRef,
   });
@@ -2080,64 +2082,72 @@ export function ChatRoom({
               onScroll={syncScrollEdges}
             >
               <ListHeader isLoadingOlder={isLoadingOlder} />
-              {/* INFO: `getTotalSize()` already nets off `scrollMargin`, so this is the rows' own height and the header above it is not counted twice. The row offsets do not — hence the subtraction on each `translateY` below. */}
-              {/* WARN: Left off until the scroller exists, which is the one thing here the server cannot agree on. The estimate this resolves to is measured off the page (`measureLineHeight`), so the server computes it from literals and the browser from real layout — rendering that difference into an attribute is a hydration mismatch. No scroller also means no rows, so there is nothing for a height to hold up yet. */}
-              {/* WARN: REQUIREMENTS.md § 8.3. `invisible` and never `hidden`. The heights this is waiting for are delivered by a `ResizeObserver`, which reports nothing for a box that was taken out of layout — `display: none` is a gate holding itself shut. */}
-              <div
-                ref={contentRef}
-                className={cn(
-                  "relative mx-auto w-full max-w-(--content-max-width)",
-                  !hasSettledFirstPark && "invisible",
-                )}
-                style={{ height: scroller ? virtualizer.getTotalSize() : undefined }}
-              >
-                {virtualizer.getVirtualItems().map((item) => {
-                  const row = rows[item.index];
-                  const selectableId = toSelectableMessageId(row);
-                  const observedMessageId = toObservedMessageId(row);
+              <div ref={listMotionRef}>
+                {/* INFO: `getTotalSize()` already nets off `scrollMargin`, so this is the rows' own height and the header above it is not counted twice. The row offsets do not — hence the subtraction on each `translateY` below. */}
+                {/* WARN: Left off until the scroller exists, which is the one thing here the server cannot agree on. The estimate this resolves to is measured off the page (`measureLineHeight`), so the server computes it from literals and the browser from real layout — rendering that difference into an attribute is a hydration mismatch. No scroller also means no rows, so there is nothing for a height to hold up yet. */}
+                {/* WARN: REQUIREMENTS.md § 8.3. `invisible` and never `hidden`. The heights this is waiting for are delivered by a `ResizeObserver`, which reports nothing for a box that was taken out of layout — `display: none` is a gate holding itself shut. */}
+                <div
+                  ref={contentRef}
+                  className={cn(
+                    "relative mx-auto w-full max-w-(--content-max-width)",
+                    !hasSettledFirstPark && "invisible",
+                  )}
+                  style={{ height: scroller ? virtualizer.getTotalSize() : undefined }}
+                >
+                  {virtualizer.getVirtualItems().map((item) => {
+                    const row = rows[item.index];
+                    const selectableId = toSelectableMessageId(row);
+                    const observedMessageId = toObservedMessageId(row);
 
-                  return (
-                    <div
-                      key={item.key}
-                      ref={observeRow}
-                      className="absolute top-0 left-0 w-full"
-                      data-index={item.index}
-                      data-message-id={observedMessageId ?? undefined}
-                      style={{
-                        transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)`,
-                      }}
-                    >
-                      <SelectableRow
-                        isSelecting={aiSelection.isSelecting}
-                        isTranslated={isTranslatedRow(row)}
-                        isSelectable={selectableId !== null}
-                        isSelected={selectableId !== null && aiSelection.selected.has(selectableId)}
-                        onToggle={
-                          selectableId !== null ? () => aiSelection.toggle(selectableId) : undefined
-                        }
+                    return (
+                      <div
+                        key={item.key}
+                        ref={observeRow}
+                        className="absolute top-0 left-0 w-full"
+                        data-index={item.index}
+                        data-message-id={observedMessageId ?? undefined}
+                        style={{
+                          transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)`,
+                        }}
                       >
-                        {renderRow(row)}
-                      </SelectableRow>
-                    </div>
-                  );
-                })}
+                        <SelectableRow
+                          isSelecting={aiSelection.isSelecting}
+                          isTranslated={isTranslatedRow(row)}
+                          isSelectable={selectableId !== null}
+                          isSelected={
+                            selectableId !== null && aiSelection.selected.has(selectableId)
+                          }
+                          onToggle={
+                            selectableId !== null
+                              ? () => aiSelection.toggle(selectableId)
+                              : undefined
+                          }
+                        >
+                          {renderRow(row)}
+                        </SelectableRow>
+                      </div>
+                    );
+                  })}
+                </div>
+                <ListFooter
+                  slotRef={typingSlotRef}
+                  typist={typist}
+                  aiRowRef={aiRowRef}
+                  primaryGeneration={primaryGeneration}
+                  queuedGenerationCount={queuedGenerationCount}
+                  replyTo={streamedQuestion}
+                  replyToHeading={
+                    streamedQuestion ? toQuoteHeadingFor(streamedQuestion) : undefined
+                  }
+                  onOpenReply={
+                    streamedQuestion
+                      ? () => void jumpToMessage(streamedQuestion.id, { flash: true })
+                      : undefined
+                  }
+                  onCancelGeneration={cancelGeneration}
+                  onOpenLlmProfile={openLlmProfile}
+                />
               </div>
-              <ListFooter
-                slotRef={typingSlotRef}
-                typist={typist}
-                aiRowRef={aiRowRef}
-                primaryGeneration={primaryGeneration}
-                queuedGenerationCount={queuedGenerationCount}
-                replyTo={streamedQuestion}
-                replyToHeading={streamedQuestion ? toQuoteHeadingFor(streamedQuestion) : undefined}
-                onOpenReply={
-                  streamedQuestion
-                    ? () => void jumpToMessage(streamedQuestion.id, { flash: true })
-                    : undefined
-                }
-                onCancelGeneration={cancelGeneration}
-                onOpenLlmProfile={openLlmProfile}
-              />
             </div>
           </div>
           {/* WARN: § 8.6.1. A window parked around a jump target can sit at the bottom of its own scroll range while the newest message is still pages away, so the stack has to answer to the window too. */}
