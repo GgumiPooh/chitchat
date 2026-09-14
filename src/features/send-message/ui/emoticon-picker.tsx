@@ -577,7 +577,7 @@ export function EmoticonPicker({
   const activeIndex = tabIds.indexOf(activeTab);
 
   const snapTrackRef = useRef<Nullable<HTMLDivElement>>(null);
-  const { cancelInterruptedStep, scrollToIndex, onScroll } = useSnapTrack({
+  const { scrollToIndex, trackProps } = useSnapTrack({
     count: tabIds.length,
     initialIndex: Math.max(activeIndex, 0),
     onIndexChange: (newIndex) => {
@@ -972,10 +972,8 @@ export function EmoticonPicker({
           {/* INFO: § 13.6. The third region — horizontal CSS Scroll Snap track with 3-pane virtual window. */}
           <div
             ref={snapTrackRef}
-            className="scrollbar-hidden flex min-h-0 flex-1 touch-pan-x touch-pan-y snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain"
-            onPointerDown={cancelInterruptedStep}
-            onScroll={onScroll}
-            onWheel={cancelInterruptedStep}
+            className="scrollbar-hidden flex min-h-0 flex-1 touch-pan-x touch-pan-y snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain select-none"
+            {...trackProps}
           >
             {tabIds.map((tabId, index) => {
               const isCurrent = index === activeIndex;
