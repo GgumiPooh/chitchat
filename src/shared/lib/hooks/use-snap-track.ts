@@ -4,6 +4,7 @@ import {
   useCallback,
   useLayoutEffect,
   useRef,
+  useState,
   type MouseEvent,
   type PointerEvent,
   type RefObject,
@@ -64,6 +65,7 @@ export function useSnapTrack({
   const dragRef = useRef<Nullable<MouseDrag>>(null);
   // WARN: Outlives the drag so the capture-phase `click` event dispatched immediately after `pointerup` can be swallowed.
   const hasDraggedRef = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   useLayoutEffect(() => {
     onIndexChangeRef.current = onIndexChange;
@@ -182,6 +184,7 @@ export function useSnapTrack({
       }
 
       dragRef.current = null;
+      setIsDragging(false);
 
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
@@ -203,12 +206,17 @@ export function useSnapTrack({
       const isFlick = Math.abs(deltaX) > FLICK_DISTANCE && duration < FLICK_DURATION;
 
       const startPosition = Math.round(drag.startScrollLeft / clientWidth);
+      const displacement = (track.scrollLeft - drag.startScrollLeft) / clientWidth;
       let targetIndex: number;
 
       if (isFlick) {
         targetIndex = deltaX < 0 ? startPosition + 1 : startPosition - 1;
+      } else if (displacement > 0.2) {
+        targetIndex = startPosition + Math.ceil(displacement);
+      } else if (displacement < -0.2) {
+        targetIndex = startPosition + Math.floor(displacement);
       } else {
-        targetIndex = Math.round(track.scrollLeft / clientWidth);
+        targetIndex = startPosition;
       }
 
       const next = Math.min(Math.max(targetIndex, 0), count - 1);
@@ -247,6 +255,7 @@ export function useSnapTrack({
         drag.hasDragged = true;
         hasDraggedRef.current = true;
         steppedRef.current = null;
+        setIsDragging(true);
         event.currentTarget.setPointerCapture(event.pointerId);
       }
 
@@ -295,5 +304,6 @@ export function useSnapTrack({
     onWheel: cancelInterruptedStep,
     scrollToIndex,
     trackProps,
+    isDragging,
   };
 }
