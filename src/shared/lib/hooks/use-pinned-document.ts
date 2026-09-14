@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { isEditableElement } from "../dom/environment";
 
 /**
  * DESIGN.md § 3.4. Refuses the document any offset of its own while `active`, and puts
@@ -34,11 +35,15 @@ export function usePinnedDocument(active: boolean): void {
      * WARN: A gesture that began inside something with scrolling left to do is let
      * through untouched — the message list, the emoticon panel's grid, a media tray.
      * Cancelling those would take the app's own scrolling down with the pan.
+     *
+     * WARN: An editable field — the composer, or a search field — must also be let
+     * through: text selection and drag handles need `touchmove`, which cancelling
+     * would freeze.
      */
     const start = (event: TouchEvent) => {
       isGestureAllowed =
         event.touches.length > 1 ||
-        (event.target instanceof Node && hasScrollableAncestor(event.target));
+        (event.target instanceof Node && hasScrollableOrEditableAncestor(event.target));
     };
 
     // WARN: Non-passive, or `preventDefault` is inert and the console says so. This is the listener that stops the pan from ever starting.
@@ -68,11 +73,15 @@ export function usePinnedDocument(active: boolean): void {
   }, [active]);
 }
 
-/** Whether `node` sits inside an element that still has somewhere of its own to scroll. */
-function hasScrollableAncestor(node: Node): boolean {
+/** Whether `node` sits inside an editable element, or one that still has somewhere of its own to scroll. */
+function hasScrollableOrEditableAncestor(node: Node): boolean {
   let element = node instanceof Element ? node : node.parentElement;
 
   while (element && element !== document.body) {
+    if (isEditableElement(element)) {
+      return true;
+    }
+
     // WARN: Either axis counts — the picker's pack strip scrolls only sideways, and reading `overflowY` alone cancelled every drag across it.
     if (isScrollableOn(element, "x") || isScrollableOn(element, "y")) {
       return true;
