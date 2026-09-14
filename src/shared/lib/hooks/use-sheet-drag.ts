@@ -229,6 +229,21 @@ export function useSheetDrag({
         return;
       }
 
+      const sideways = Math.abs(touch.clientX - gesture.x);
+      const vertical = Math.abs(touch.clientY - gesture.y);
+
+      // WARN: Yield immediately when horizontal travel exceeds vertical travel. A single `preventDefault()` on `touchmove` in WebKit cancels native scrolling for the entire touch sequence, which would freeze horizontal tracks (e.g. `EmoticonPicker`'s snap track) hosted inside the sheet.
+      if (sideways > vertical) {
+        gestureRef.current = null;
+        releasePanDenial();
+
+        return;
+      }
+
+      if (vertical === 0 && sideways === 0) {
+        return;
+      }
+
       const takes = touch.clientY < gesture.y ? gesture.takesPullUp : gesture.takesPullDown;
 
       if (hasDraggedRef.current || takes) {

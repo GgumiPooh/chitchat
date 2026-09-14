@@ -68,17 +68,19 @@ export function EmoticonCell({
   );
 
   return (
-    // WARN: `touch-pan-y` is repeated on the overlay rather than inherited.
-    // WARN: `keepsScroll` is mandatory on a cell that tiles.
+    // WARN: `touch-pan-x touch-pan-y` is repeated on the overlay rather than inherited — `touch-action` applies to the element the gesture starts on, and a cell tiles its scroller. The two are intersected (`DESIGN.md § 7.15.1.`), so a pair that disagreed would resolve to `none` and the panel would not scroll at all. Both axes are enabled so horizontal swipes bubble to the CSS snap track while vertical swipes scroll the tab pane.
+    // WARN: `keepsScroll` is mandatory on a cell that tiles — the switch itself would keep the drag and the panel would stop scrolling (`DESIGN.md § 7.15.`).
+    // WARN: § 13. `min-h-0`/`min-w-0` on both boxes, or a narrow pane stops drawing squares: an `<img>` with no width/height attributes contributes its **natural pixel size** to a flex/grid item's automatic minimum, and an asset taller than the column it is drawn in floors the whole row above `square-cell`.
     <HapticTarget
       className={cn("min-h-0 min-w-0", className)}
-      overlayClassName="touch-pan-y"
+      overlayClassName="touch-pan-x touch-pan-y"
       keepsScroll
     >
+      {/* WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it. */}
       <button
         ref={isMini ? replayRef : undefined}
         className={cn(
-          "touch-pan-y",
+          "touch-pan-x touch-pan-y",
           "min-h-0 min-w-0 rounded-sm p-2xs transition-colors select-none [-webkit-touch-callout:none] group-active:bg-surface-strong hover:bg-surface-soft focus-visible:bg-primary-tint focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-inset active:bg-surface-strong",
           isKeyboardDriven && CELL_KEYBOARD_RING,
           isRevealed && "ring-2 ring-primary ring-inset",

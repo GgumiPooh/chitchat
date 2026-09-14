@@ -972,7 +972,7 @@ export function EmoticonPicker({
           {/* INFO: § 13.6. The third region — horizontal CSS Scroll Snap track with 3-pane virtual window. */}
           <div
             ref={snapTrackRef}
-            className="scrollbar-hidden flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain"
+            className="scrollbar-hidden flex min-h-0 flex-1 touch-pan-x touch-pan-y snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain"
             onPointerDown={cancelInterruptedStep}
             onScroll={onScroll}
             onWheel={cancelInterruptedStep}
