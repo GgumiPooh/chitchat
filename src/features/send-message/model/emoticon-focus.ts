@@ -148,7 +148,7 @@ export function readFocusIndex(target: Nullable<EventTarget>): Optional<number> 
 export function focusItem(
   scroller: HTMLElement,
   index: number,
-  { reveal = true }: { reveal?: boolean } = {},
+  { reveal = true, revealHeading = false }: { reveal?: boolean; revealHeading?: boolean } = {},
 ): boolean {
   const item = scroller.querySelector<HTMLElement>(`[${FOCUS_INDEX_ATTRIBUTE}="${index}"]`);
 
@@ -164,10 +164,12 @@ export function focusItem(
   }
 
   if (reveal) {
-    const heading = toFirstRowHeading(scroller, item);
+    if (revealHeading) {
+      const heading = toFirstRowHeading(scroller, item);
 
-    if (heading) {
-      revealWithin(scroller, heading);
+      if (heading) {
+        revealWithin(scroller, heading);
+      }
     }
 
     revealWithin(scroller, item);

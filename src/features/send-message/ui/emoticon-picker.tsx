@@ -800,9 +800,9 @@ export function EmoticonPicker({
     pendingExpandFocusRef.current = undefined;
     const scroller = cellScrollerRef.current;
     if (scroller) {
-      focusItem(scroller, targetIndex);
+      focusItem(scroller, targetIndex, { revealHeading: isKeyboardDriven });
     }
-  }, [recentsVisibleRows]);
+  }, [recentsVisibleRows, isKeyboardDriven]);
 
   return (
     <div
@@ -865,6 +865,7 @@ export function EmoticonPicker({
           onFieldKeys={handleFieldKeys}
           onCellKeys={handleCellKeys}
           onCellFocus={trackCellFocus}
+          onFocusCell={setFocusedIndex}
         />
       ) : (
         <>
@@ -1035,6 +1036,7 @@ export function EmoticonPicker({
                             isKeyboardDriven={isKeyboardDriven}
                             isMini
                             onSelect={handleSelect}
+                            onFocusCell={setFocusedIndex}
                           />
                         ))}
                       </div>
@@ -1077,6 +1079,7 @@ export function EmoticonPicker({
                                   isKeyboardDriven={isKeyboardDriven}
                                   isMini={false}
                                   onSelect={handleSelect}
+                                  onFocusCell={setFocusedIndex}
                                 />
                               ))}
                               {hasMoreRecents && (
@@ -1137,6 +1140,7 @@ export function EmoticonPicker({
                                   isKeyboardDriven={isKeyboardDriven}
                                   isMini={false}
                                   onSelect={handleSelect}
+                                  onFocusCell={setFocusedIndex}
                                 />
                               );
                             })}
@@ -1186,6 +1190,7 @@ export function EmoticonPicker({
                                   isKeyboardDriven={isKeyboardDriven}
                                   isMini={menuKind === "mini"}
                                   onSelect={handleSelect}
+                                  onFocusCell={setFocusedIndex}
                                 />
                               );
                             })}
@@ -1230,6 +1235,7 @@ export function EmoticonPicker({
                         isKeyboardDriven={isKeyboardDriven}
                         isMini={menuKind === "mini"}
                         onSelect={handleSelect}
+                        onFocusCell={setFocusedIndex}
                       />
                     ))}
                   </div>
@@ -1547,7 +1553,7 @@ export function EmoticonPicker({
 
     if (next !== undefined) {
       event.preventDefault();
-      focusItem(event.currentTarget, next);
+      focusItem(event.currentTarget, next, { revealHeading: true });
 
       return;
     }
@@ -1562,7 +1568,7 @@ export function EmoticonPicker({
       favorites.length > 0
     ) {
       event.preventDefault();
-      focusItem(event.currentTarget, recentsSectionCount);
+      focusItem(event.currentTarget, recentsSectionCount, { revealHeading: true });
 
       return;
     }
@@ -1649,7 +1655,7 @@ export function EmoticonPicker({
     const row = cellScrollerRef.current;
 
     // WARN: § 8.14. The fallback is the **menu bar** now, and 검색 having no strip is why. The rule it answers is unchanged — a dead key on an empty search is exactly where the reader most needs to leave — but the only composite left below the field is the grid it just found nothing in.
-    if (!row || !focusItem(row, Math.max(focusableIndex, 0))) {
+    if (!row || !focusItem(row, Math.max(focusableIndex, 0), { revealHeading: true })) {
       focusActiveMenu();
     }
   }
@@ -1701,6 +1707,7 @@ export function EmoticonPicker({
 
       return focusItem(scroller, Math.min(entry.index, gridItemCount - 1), {
         reveal: entry.index !== 0,
+        revealHeading: isKeyboardDriven,
       });
     }
 
@@ -2107,6 +2114,7 @@ type EmoticonCellProps = {
   /** REQUIREMENTS.md § 13. A mini draws its `animated-image` slot, not `still-image` — a mini is only ever played, never a frozen frame, so the grid shows exactly what a tap would insert. */
   isMini?: boolean;
   onSelect: (item: Emoticon) => void;
+  onFocusCell?: (index: number) => void;
 };
 
 /** INFO: § 13.6. The grid and § 13.8.'s results draw the same cell — only the box around it differs. */
@@ -2122,6 +2130,7 @@ function EmoticonCell({
   isRevealed = false,
   isMini = false,
   onSelect,
+  onFocusCell,
 }: EmoticonCellProps) {
   // WARN: § 13. A GIF/WebP/APNG's own loop count is not always infinite, so a mini cell fakes forever by remounting on a timer while it is actually on screen — `MINI_ANIMATION_LOOP_INTERVAL`. Not mini, the cell draws a still (below), which has nothing to replay — the hook is not wired to it at all.
   const { ref: replayRef, replayToken } = useViewportReplay(
@@ -2164,6 +2173,7 @@ function EmoticonCell({
         {...{ [FOCUS_INDEX_ATTRIBUTE]: index }}
         onClick={(event) => {
           takeFocus(event);
+          onFocusCell?.(index);
           onSelect(item);
         }}
       >
@@ -2222,6 +2232,7 @@ type SearchPaneProps = {
   onFieldKeys: (event: KeyboardEvent<HTMLInputElement>) => void;
   onCellKeys: (event: KeyboardEvent<HTMLDivElement>) => void;
   onCellFocus: (event: FocusEvent<HTMLDivElement>) => void;
+  onFocusCell?: (index: number) => void;
 };
 
 /**
@@ -2258,6 +2269,7 @@ function SearchPane({
   onFieldKeys,
   onCellKeys,
   onCellFocus,
+  onFocusCell,
 }: SearchPaneProps) {
   const trimmed = query.trim();
   const emptyMessage = toEmptyMessage();
@@ -2372,6 +2384,7 @@ function SearchPane({
                   isRevealed={item.id === revealedId}
                   isMini={packTypes.get(item.packId) === "mini"}
                   onSelect={onSelect}
+                  onFocusCell={onFocusCell}
                 />
               ))}
             </div>
@@ -2549,7 +2562,20 @@ function findPack(packs: EmoticonPackSummary[], id: string) {
  *
  * WARN: `preventScroll`, for `focusItem`'s reason — the strip clipping this panel is
  * `overflow: hidden`, and `focus()` scrolls every scrollable ancestor it finds.
+ *
+ * WARN: On mobile touch (WebKit), `preventScroll: true` is ignored inside overflow scroll
+ * containers, causing WebKit to natively focus-scroll and jump the first row / section heading.
+ * Skipping DOM `focus()` on touch or coarse pointers keeps the scroll position steady, while
+ * `onFocusCell` / roving tabindex keeps keyboard state in sync without native scroll side effects.
  */
 function takeFocus(event: MouseEvent<HTMLButtonElement>): void {
+  if (
+    ("pointerType" in event.nativeEvent &&
+      (event.nativeEvent as PointerEvent).pointerType === "touch") ||
+    (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches)
+  ) {
+    return;
+  }
+
   event.currentTarget.focus({ preventScroll: true });
 }
