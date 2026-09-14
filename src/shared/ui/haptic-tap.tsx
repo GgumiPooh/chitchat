@@ -2,7 +2,7 @@
 
 import { GESTURE_SLOP, cn, useIsCoarsePointer, type Maybe, type Nullable } from "@/shared/lib";
 import { useEffect, useId, useRef, type MouseEvent, type PointerEvent } from "react";
-
+import { createPortal } from "react-dom";
 // WARN: React's typings carry no `switch` attribute, and it has to be on the element from the first render — WebKit decides there whether to build the native control.
 const NATIVE_SWITCH = { switch: "" } as Record<string, string>;
 
@@ -108,16 +108,21 @@ export function HapticTap({
   return (
     <>
       {/* WARN: A pixel, out of the way, but never `hidden` or `display:none` — a switch that is not rendered is not a native control, and a control that is not native does not tick. */}
-      <input
-        {...NATIVE_SWITCH}
-        className="pointer-events-none absolute top-0 left-0 size-px opacity-0"
-        type="checkbox"
-        tabIndex={-1}
-        id={switchId}
-        aria-hidden
-        // WARN: The label's activation toggles the switch, and that toggle's own `click` bubbles. Left alone it reaches the ancestor the forwarded tap has already fired.
-        onClick={(event) => event.stopPropagation()}
-      />
+      {typeof document !== "undefined"
+        ? createPortal(
+            <input
+              {...NATIVE_SWITCH}
+              className="pointer-events-none fixed top-0 left-0 size-px opacity-0"
+              type="checkbox"
+              tabIndex={-1}
+              id={switchId}
+              aria-hidden
+              // WARN: The label's activation toggles the switch, and that toggle's own `click` bubbles. Left alone it reaches the ancestor the forwarded tap has already fired.
+              onClick={(event) => event.stopPropagation()}
+            />,
+            document.body,
+          )
+        : null}
       {/* WARN: A `<label>` and not the switch, so the drag stays with the scroller — the switch is a native control and keeps a drag of its own (`DESIGN.md § 7.15.`). */}
       {/* WARN: Never `preventDefault` this click except on the drag branch below. The label's default action *is* the toggle, and the toggle is the tick. */}
       <label {...overlayProps} htmlFor={switchId} aria-hidden />
@@ -185,7 +190,18 @@ export function HapticTap({
     );
 
     if (control instanceof HTMLElement) {
-      control.click();
+      if (keepsFocus) {
+        const previousTabIndex = control.getAttribute("tabindex");
+        control.setAttribute("tabindex", "-1");
+        control.click();
+        if (previousTabIndex === null) {
+          control.removeAttribute("tabindex");
+        } else {
+          control.setAttribute("tabindex", previousTabIndex);
+        }
+      } else {
+        control.click();
+      }
     }
   }
 }
