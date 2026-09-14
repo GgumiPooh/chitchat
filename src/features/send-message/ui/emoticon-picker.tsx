@@ -84,7 +84,7 @@ import type { SwipeDirection } from "../model/use-horizontal-swipe";
 import { useOutwardTabWarm } from "../model/use-outward-tab-warm";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
 import { MAX_WARMED_PER_TAB } from "../model/warm-emoticon-images";
-import { EmoticonCell, takeFocus } from "./emoticon-cell";
+import { EmoticonCell } from "./emoticon-cell";
 import { EmoticonTabPane } from "./emoticon-tab-pane";
 
 // INFO: REQUIREMENTS.md § 13.6. Two taps on the same cell inside this window are the shortcut past the preview.
@@ -1298,7 +1298,7 @@ export function EmoticonPicker({
       return;
     }
 
-    const index = readFocusIndex(event.target);
+    const index = readFocusIndex(event.target) ?? focusableIndex;
 
     if (index === undefined) {
       return;
@@ -2123,10 +2123,10 @@ function MenuSegment({
         tabIndex={isFocusable ? 0 : -1}
         aria-pressed={isSelected}
         {...{ [FOCUS_INDEX_ATTRIBUTE]: index }}
-        onClick={(event) => {
-          takeFocus(event);
-          onClick();
+        onMouseDown={(event) => {
+          event.preventDefault();
         }}
+        onClick={onClick}
       >
         {/* WARN: The pointer states are read off the **target** (`/menu`) rather than off this box, since the two are the same size only while the segment is selected. The unnamed `group-active:` beside them is `HapticTarget`'s replay, which is a different ancestor. */}
         <span
@@ -2179,7 +2179,12 @@ function TabButton({
     // INFO: A pack switch is a selection among peers, the same thing the tab bar ticks for.
     // WARN: DESIGN.md § 7.15.1. The tabs tile the strip they scroll, so the switch would claim every drag that starts on one and the strip would not move. No `overlayClassName` beside it, unlike the § 13.6. grid cells: this scroller is the horizontal one.
     // WARN: DESIGN.md § 7.15.3. Never gated on `isActive` here — the selection lands synchronously, so gating unmounts the label before its activation and the tick is lost on the very tap that earned it.
-    <HapticTarget ref={ref} className={cn("inline-flex shrink-0", className)} keepsScroll>
+    <HapticTarget
+      ref={ref}
+      className={cn("inline-flex shrink-0", className)}
+      keepsFocus
+      keepsScroll
+    >
       <button
         className={cn(
           // WARN: § 8.14. `ring-inset`, or the strip clips it: the strip is `overflow-y-hidden` with 1px of padding, so an outset ring loses half its top and bottom edges and reads as a broken box.
@@ -2196,10 +2201,10 @@ function TabButton({
         aria-label={label}
         aria-pressed={isActive}
         {...{ [FOCUS_INDEX_ATTRIBUTE]: index }}
-        onClick={(event) => {
-          takeFocus(event);
-          onClick();
+        onMouseDown={(event) => {
+          event.preventDefault();
         }}
+        onClick={onClick}
       >
         {children}
       </button>

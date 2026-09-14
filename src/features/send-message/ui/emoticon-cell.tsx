@@ -10,7 +10,6 @@ import {
   useViewportReplay,
 } from "@/shared/lib";
 import { HapticTarget, PreloadImage } from "@/shared/ui";
-import type { MouseEvent } from "react";
 import { FOCUS_INDEX_ATTRIBUTE } from "../model/emoticon-focus";
 
 /**
@@ -74,6 +73,7 @@ export function EmoticonCell({
     <HapticTarget
       className={cn("min-h-0 min-w-0", className)}
       overlayClassName="touch-pan-x touch-pan-y"
+      keepsFocus
       keepsScroll
     >
       {/* WARN: A press held on an emoticon is the start of the § 13.6. swipe, but to WebKit it is a long-press on an image — the callout it raises takes the pointer stream with it. */}
@@ -90,8 +90,11 @@ export function EmoticonCell({
         tabIndex={isFocusable ? 0 : -1}
         aria-label={item.keywords.length > 0 ? item.keywords.join(", ") : "이모티콘"}
         {...{ [FOCUS_INDEX_ATTRIBUTE]: index }}
-        onClick={(event) => {
-          takeFocus(event);
+        onMouseDown={(event) => {
+          // WARN: Prevents browser native mousedown focus scroll from jumping to scrollTop: 0 on top-row items.
+          event.preventDefault();
+        }}
+        onClick={() => {
           onFocusCell?.(index);
           onSelect(item);
         }}
@@ -112,43 +115,4 @@ export function EmoticonCell({
       </button>
     </HapticTarget>
   );
-}
-
-/**
- * Keeps keyboard navigation in sync with pointer clicks on desktop without causing
- * scroll jumps on mobile or in WebKit.
- *
- * WARN: On mobile/touch (including simulated touch in DevTools), DOM focus on the cell button
- * is unnecessary (ARIA roving tabindex is updated via `onFocusCell` / `setFocusedIndex`) and
- * calling `button.focus()` causes WebKit and Chromium to ignore `preventScroll: true` inside
- * overflow containers, jumping the scroll to the section heading (scrollTop: 0) on the first row.
- *
- * WARN: In desktop WebKit (Safari), `button.focus({ preventScroll: true })` also ignores `preventScroll`
- * and snaps to scrollTop: 0 for elements in the top row. Preserving and restoring `priorScrollTop`
- * guarantees the scroll position never jumps regardless of browser or pointer type.
- */
-export function takeFocus(event: MouseEvent<HTMLButtonElement>): void {
-  if (
-    ("pointerType" in event.nativeEvent &&
-      (event.nativeEvent as PointerEvent).pointerType === "touch") ||
-    (typeof window !== "undefined" &&
-      (window.matchMedia("(pointer: coarse)").matches ||
-        ("ontouchstart" in window && navigator.maxTouchPoints > 0)))
-  ) {
-    return;
-  }
-
-  const vScroller = event.currentTarget.closest<HTMLElement>(".overflow-y-auto");
-  const hScroller = event.currentTarget.closest<HTMLElement>(".overflow-x-auto");
-  const priorScrollTop = vScroller?.scrollTop;
-  const priorScrollLeft = hScroller?.scrollLeft;
-
-  event.currentTarget.focus({ preventScroll: true });
-
-  if (vScroller && priorScrollTop !== undefined && vScroller.scrollTop !== priorScrollTop) {
-    vScroller.scrollTop = priorScrollTop;
-  }
-  if (hScroller && priorScrollLeft !== undefined && hScroller.scrollLeft !== priorScrollLeft) {
-    hScroller.scrollLeft = priorScrollLeft;
-  }
 }

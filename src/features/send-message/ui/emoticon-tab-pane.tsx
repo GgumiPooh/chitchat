@@ -10,7 +10,7 @@ import { useRef, type FocusEvent, type KeyboardEvent, type RefObject } from "rea
 import { FOCUS_HEADING_ATTRIBUTE, FOCUS_INDEX_ATTRIBUTE } from "../model/emoticon-focus";
 import { isAllTabId, isPackTabId, isRecentsTabId } from "../model/emoticon-tabs";
 import { toEmoticonPackItemsQuery } from "../model/pack-items-query";
-import { CELL_KEYBOARD_RING, EmoticonCell, takeFocus } from "./emoticon-cell";
+import { CELL_KEYBOARD_RING, EmoticonCell } from "./emoticon-cell";
 import { EmoticonGrid } from "./emoticon-grid";
 
 const NO_ITEMS: Emoticon[] = [];
@@ -178,8 +178,10 @@ export function EmoticonTabPane({
                       tabIndex={recentsSliceCount === focusableIndex ? 0 : -1}
                       aria-label="최근 사용한 이모티콘 더보기"
                       {...{ [FOCUS_INDEX_ATTRIBUTE]: recentsSliceCount }}
-                      onClick={(event) => {
-                        takeFocus(event);
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                      }}
+                      onClick={() => {
                         onExpandRecents?.();
                       }}
                     >
