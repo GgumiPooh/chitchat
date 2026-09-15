@@ -1030,7 +1030,7 @@ export function EmoticonPicker({
               </>
             )}
           </div>
-          {/* INFO: § 13.6. The third region — horizontal CSS Scroll Snap track with 5-pane virtual window. */}
+          {/* INFO: § 13.6. The third region — horizontal CSS Scroll Snap track with all tabs mounted. Inactive tabs are marked inert. */}
           <div
             ref={snapTrackRef}
             className={cn(
@@ -1041,7 +1041,6 @@ export function EmoticonPicker({
           >
             {tabIds.map((tabId, index) => {
               const isCurrent = index === activeIndex;
-              const isNear = Math.abs(index - activeIndex) <= 2;
 
               return (
                 <div
@@ -1052,46 +1051,42 @@ export function EmoticonPicker({
                   )}
                   inert={!isCurrent}
                 >
-                  {isNear ? (
-                    <EmoticonTabPane
-                      allSections={allSections}
-                      eagerCount={eagerCount}
-                      emptyMessage={isCurrent ? toGridEmptyMessage() : undefined}
-                      favorites={favorites}
-                      focusableIndex={isCurrent ? focusableIndex : -1}
-                      hasMoreAllSections={hasMoreAllSections}
-                      isCurrent={isCurrent}
-                      isKeyboardDriven={isKeyboardDriven}
-                      isWarmed={warmedTabs.has(tabId)}
-                      items={isCurrent ? shown : undefined}
-                      loadMoreAllSections={loadMoreAllSections}
-                      menuKind={menuKind}
-                      recents={recents}
-                      recentsVisibleRows={recentsVisibleRows}
-                      scrollerRef={isCurrent ? cellScrollerRef : undefined}
-                      tabId={tabId}
-                      isItemsPending={
-                        isPending ||
-                        (activePackId !== null && isPackPending) ||
-                        (isRecentsTabId(activeTab) && isRecentsPending) ||
-                        isAllPending
-                      }
-                      tabLabel={
-                        isRecentsTabId(tabId)
-                          ? RECENTS_LABEL
-                          : isAllTabId(tabId)
-                            ? ALL_LABEL
-                            : (findPack(menuPacks, tabId)?.name ?? "")
-                      }
-                      onCellFocus={trackCellFocus}
-                      onCellKeys={handleCellKeys}
-                      onExpandRecents={() => setRecentsVisibleRows((r) => r + 3)}
-                      onFocusCell={setFocusedIndex}
-                      onSelect={handleSelect}
-                    />
-                  ) : (
-                    <div className="h-full" />
-                  )}
+                  <EmoticonTabPane
+                    allSections={allSections}
+                    eagerCount={eagerCount}
+                    emptyMessage={isCurrent ? toGridEmptyMessage() : undefined}
+                    favorites={favorites}
+                    focusableIndex={isCurrent ? focusableIndex : -1}
+                    hasMoreAllSections={hasMoreAllSections}
+                    isCurrent={isCurrent}
+                    isKeyboardDriven={isKeyboardDriven}
+                    isWarmed={warmedTabs.has(tabId)}
+                    items={isCurrent ? shown : undefined}
+                    loadMoreAllSections={loadMoreAllSections}
+                    menuKind={menuKind}
+                    recents={recents}
+                    recentsVisibleRows={recentsVisibleRows}
+                    scrollerRef={isCurrent ? cellScrollerRef : undefined}
+                    tabId={tabId}
+                    isItemsPending={
+                      isPending ||
+                      (activePackId !== null && isPackPending) ||
+                      (isRecentsTabId(activeTab) && isRecentsPending) ||
+                      isAllPending
+                    }
+                    tabLabel={
+                      isRecentsTabId(tabId)
+                        ? RECENTS_LABEL
+                        : isAllTabId(tabId)
+                          ? ALL_LABEL
+                          : (findPack(menuPacks, tabId)?.name ?? "")
+                    }
+                    onCellFocus={trackCellFocus}
+                    onCellKeys={handleCellKeys}
+                    onExpandRecents={() => setRecentsVisibleRows((r) => r + 3)}
+                    onFocusCell={setFocusedIndex}
+                    onSelect={handleSelect}
+                  />
                 </div>
               );
             })}

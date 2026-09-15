@@ -3,7 +3,7 @@
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import type { EmoticonPackType } from "@/shared/db";
 import { A_SECOND, cn, type Nullable } from "@/shared/lib";
-import { EmptyState, LoadMoreSentinel } from "@/shared/ui";
+import { EmptyState, LoadMoreSentinel, Skeleton } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Smile } from "lucide-react";
 import {
@@ -145,7 +145,17 @@ export function EmoticonTabPane({
         </h2>
       )}
 
-      {isPending ? null : isRecents ? (
+      {isPending ? (
+        <div className={menuKind === "mini" ? "square-grid-6" : "square-grid-4"} aria-hidden>
+          {Array.from({ length: menuKind === "mini" ? 18 : 12 }).map((_, index) => (
+            <div key={index} className="flex">
+              <div className="square-cell w-full p-2xs">
+                <Skeleton className="size-full rounded-sm" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : isRecents ? (
         menuKind === "mini" ? (
           recents.length === 0 ? (
             <EmptyState
