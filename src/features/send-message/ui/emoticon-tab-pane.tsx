@@ -2,7 +2,7 @@
 
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import type { EmoticonPackType } from "@/shared/db";
-import { cn, type Nullable } from "@/shared/lib";
+import { A_SECOND, cn, type Nullable } from "@/shared/lib";
 import { EmptyState, LoadMoreSentinel } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Smile } from "lucide-react";
@@ -20,6 +20,7 @@ import { CELL_KEYBOARD_RING, EmoticonCell } from "./emoticon-cell";
 import { EmoticonGrid } from "./emoticon-grid";
 
 const NO_ITEMS: Emoticon[] = [];
+const TAB_RESET_DELAY = 0.3 * A_SECOND;
 
 export type AllSectionData = {
   isPending: boolean;
@@ -89,15 +90,21 @@ export function EmoticonTabPane({
   const wasCurrentRef = useRef(isCurrent);
 
   // INFO: REQUIREMENTS.md § 13.6. A tab is read from its top when entered.
-  // Resetting scrollTop as soon as the tab becomes inactive ensures that when it is
-  // swiped back into view, it enters already at the top rather than jumping after settling.
+  // Resetting scrollTop after the horizontal slide-out animation completes ensures that
+  // tab bar tap transitions slide out smoothly without jumping on frame 0, and rapid returns cancel the reset.
   useLayoutEffect(() => {
-    if (wasCurrentRef.current && !isCurrent) {
-      if (targetScrollerRef.current && targetScrollerRef.current.scrollTop !== 0) {
-        targetScrollerRef.current.scrollTop = 0;
-      }
-    }
+    const prevWasCurrent = wasCurrentRef.current;
     wasCurrentRef.current = isCurrent;
+
+    if (prevWasCurrent && !isCurrent) {
+      const timer = setTimeout(() => {
+        if (targetScrollerRef.current && targetScrollerRef.current.scrollTop !== 0) {
+          targetScrollerRef.current.scrollTop = 0;
+        }
+      }, TAB_RESET_DELAY);
+
+      return () => clearTimeout(timer);
+    }
   }, [isCurrent, targetScrollerRef]);
 
   const isPack = isPackTabId(tabId);

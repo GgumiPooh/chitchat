@@ -19,6 +19,9 @@ import type { Nullable } from "../nullish";
 const FLICK_DISTANCE = 24;
 const FLICK_DURATION = A_SECOND / 4;
 
+// INFO: Fallback settle debounce duration (~3 frames at 60fps) for environments where scrollend is delayed or unsupported.
+const SETTLE_DEBOUNCE = 48;
+
 type MouseDrag = {
   pointerId: number;
   startX: number;
@@ -173,11 +176,22 @@ export function useSnapTrack({
       return;
     }
 
+    // INFO: If the track is already aligned at the snap target, settle immediately to eliminate response lag.
+    const targetLeft = track.clientWidth * position;
+    if (Math.abs(track.scrollLeft - targetLeft) < 1) {
+      if (settleTimerRef.current !== null) {
+        clearTimeout(settleTimerRef.current);
+        settleTimerRef.current = null;
+      }
+      checkSettle();
+      return;
+    }
+
     // INFO: Fallback debounce for environments where scrollend is delayed or unsupported.
     if (settleTimerRef.current !== null) {
       clearTimeout(settleTimerRef.current);
     }
-    settleTimerRef.current = setTimeout(checkSettle, 120);
+    settleTimerRef.current = setTimeout(checkSettle, SETTLE_DEBOUNCE);
   }, [checkSettle, trackRef]);
 
   const handleScrollEnd = useCallback(() => {
@@ -225,9 +239,20 @@ export function useSnapTrack({
       if (settleTimerRef.current !== null) {
         clearTimeout(settleTimerRef.current);
       }
-      settleTimerRef.current = setTimeout(checkSettle, 120);
+
+      const track = trackRef.current;
+      if (track && track.clientWidth > 0) {
+        const position = Math.round(track.scrollLeft / track.clientWidth);
+        const targetLeft = track.clientWidth * position;
+        if (Math.abs(track.scrollLeft - targetLeft) < 1) {
+          checkSettle();
+          return;
+        }
+      }
+
+      settleTimerRef.current = setTimeout(checkSettle, SETTLE_DEBOUNCE);
     },
-    [checkSettle],
+    [checkSettle, trackRef],
   );
 
   const handleTouchCancel = useCallback(
@@ -240,7 +265,7 @@ export function useSnapTrack({
       if (settleTimerRef.current !== null) {
         clearTimeout(settleTimerRef.current);
       }
-      settleTimerRef.current = setTimeout(checkSettle, 120);
+      settleTimerRef.current = setTimeout(checkSettle, SETTLE_DEBOUNCE);
     },
     [checkSettle],
   );
@@ -250,7 +275,7 @@ export function useSnapTrack({
     if (settleTimerRef.current !== null) {
       clearTimeout(settleTimerRef.current);
     }
-    settleTimerRef.current = setTimeout(checkSettle, 120);
+    settleTimerRef.current = setTimeout(checkSettle, SETTLE_DEBOUNCE);
   }, [cancelInterruptedStep, checkSettle]);
 
   const scrollToIndex = useCallback(
