@@ -675,6 +675,65 @@ export function EmoticonPicker({
     }
   }, [activeTab, isOpen]);
 
+  const wasOpenRef = useRef(isOpen);
+  const lastActiveMenuRef = useRef(activeMenu);
+  const hasAlignedInitialTabRef = useRef(false);
+
+  /**
+   * INFO: REQUIREMENTS.md § 13.6. Align the snap track to the active tab's slide when the panel
+   * opens, when the menu switches, or when activeTab resolves from the restored storage
+   * key after packs land.
+   *
+   * WARN: Must be instant rather than smooth. An open on a remembered pack should appear
+   * already at that pack rather than gliding past every preceding tab.
+   */
+  useLayoutEffect(() => {
+    const isOpening = !wasOpenRef.current && isOpen;
+    wasOpenRef.current = isOpen;
+
+    const hasMenuSwitched = lastActiveMenuRef.current !== activeMenu;
+    lastActiveMenuRef.current = activeMenu;
+
+    if (!isOpen || activeIndex < 0 || isSearching) {
+      return;
+    }
+
+    const needsInitialAlignment = !hasAlignedInitialTabRef.current;
+
+    if (isOpening || hasMenuSwitched || needsInitialAlignment) {
+      hasAlignedInitialTabRef.current = true;
+
+      const track = snapTrackRef.current;
+
+      if (!track) {
+        return;
+      }
+
+      const align = () => {
+        if (track.clientWidth > 0) {
+          const targetLeft = track.clientWidth * activeIndex;
+
+          if (Math.abs(track.scrollLeft - targetLeft) >= 1) {
+            scrollToIndex(activeIndex, "instant");
+          }
+        }
+      };
+
+      align();
+
+      if (track.clientWidth === 0) {
+        const observer = new ResizeObserver(() => {
+          if (track.clientWidth > 0) {
+            align();
+            observer.disconnect();
+          }
+        });
+        observer.observe(track);
+        return () => observer.disconnect();
+      }
+    }
+  }, [activeMenu, activeIndex, isOpen, isSearching, scrollToIndex]);
+
   /**
    * REQUIREMENTS.md § 8.14. Focus into the panel when `⌃E` opened it, since a key that
    * opens a panel and leaves focus behind has opened one the arrows cannot reach.

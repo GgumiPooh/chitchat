@@ -87,22 +87,36 @@ export function useSnapTrack({
     };
   }, []);
 
-  // INFO: Align to initial index on mount without smooth animation.
+  // INFO: Align to initial index on mount without smooth animation and keep snapped on resize.
   useLayoutEffect(() => {
     const track = trackRef.current;
 
-    if (!track || hasInitializedRef.current) {
+    if (!track) {
       return;
     }
 
+    let previousWidth = track.clientWidth;
+
     const observer = new ResizeObserver(() => {
-      if (!hasInitializedRef.current && track.clientWidth > 0) {
-        hasInitializedRef.current = true;
-        if (initialIndex > 0 && initialIndex < count) {
-          track.scrollTo({ left: track.clientWidth * initialIndex });
-          lastReportedIndexRef.current = initialIndex;
+      if (track.clientWidth > 0) {
+        if (!hasInitializedRef.current) {
+          hasInitializedRef.current = true;
+          if (initialIndex > 0 && initialIndex < count) {
+            track.scrollTo({ left: track.clientWidth * initialIndex, behavior: "instant" });
+            lastReportedIndexRef.current = initialIndex;
+          }
+        } else if (
+          previousWidth > 0 &&
+          track.clientWidth !== previousWidth &&
+          !isTouchingRef.current &&
+          dragRef.current === null
+        ) {
+          track.scrollTo({
+            left: track.clientWidth * lastReportedIndexRef.current,
+            behavior: "instant",
+          });
         }
-        observer.disconnect();
+        previousWidth = track.clientWidth;
       }
     });
 
