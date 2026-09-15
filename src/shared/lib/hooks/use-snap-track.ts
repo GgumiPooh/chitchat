@@ -2,12 +2,14 @@
 
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
   type MouseEvent,
   type PointerEvent,
   type RefObject,
+  type TouchEvent,
 } from "react";
 import { A_SECOND } from "../date/time";
 import { GESTURE_SLOP } from "../input/gesture";
@@ -32,6 +34,10 @@ export type SnapTrackProps = {
   onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
   onScroll: () => void;
+  onScrollEnd: () => void;
+  onTouchCancel: (event: TouchEvent<HTMLDivElement>) => void;
+  onTouchEnd: (event: TouchEvent<HTMLDivElement>) => void;
+  onTouchStart: (event: TouchEvent<HTMLDivElement>) => void;
   onWheel: () => void;
 };
 
@@ -66,10 +72,20 @@ export function useSnapTrack({
   // WARN: Outlives the drag so the capture-phase `click` event dispatched immediately after `pointerup` can be swallowed.
   const hasDraggedRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
+  const isTouchingRef = useRef(false);
+  const settleTimerRef = useRef<Nullable<ReturnType<typeof setTimeout>>>(null);
 
   useLayoutEffect(() => {
     onIndexChangeRef.current = onIndexChange;
   });
+
+  useEffect(() => {
+    return () => {
+      if (settleTimerRef.current !== null) {
+        clearTimeout(settleTimerRef.current);
+      }
+    };
+  }, []);
 
   // INFO: Align to initial index on mount without smooth animation.
   useLayoutEffect(() => {
@@ -94,7 +110,11 @@ export function useSnapTrack({
     return () => observer.disconnect();
   }, [initialIndex, count, trackRef]);
 
-  const handleScroll = useCallback(() => {
+  const checkSettle = useCallback(() => {
+    if (isTouchingRef.current || dragRef.current !== null) {
+      return;
+    }
+
     const track = trackRef.current;
 
     if (!track || track.clientWidth === 0) {
@@ -116,6 +136,95 @@ export function useSnapTrack({
       onIndexChangeRef.current?.(position);
     }
   }, [count, trackRef]);
+
+  const handleScroll = useCallback(() => {
+    // WARN: Never update active slide or trigger programmatic scrolls while the user is actively touching or dragging.
+    if (isTouchingRef.current || dragRef.current !== null) {
+      return;
+    }
+
+    const track = trackRef.current;
+
+    if (!track || track.clientWidth === 0) {
+      return;
+    }
+
+    const position = Math.round(track.scrollLeft / track.clientWidth);
+
+    if (steppedRef.current === position) {
+      steppedRef.current = null;
+    }
+
+    if (steppedRef.current !== null) {
+      return;
+    }
+
+    // INFO: Fallback debounce for environments where scrollend is delayed or unsupported.
+    if (settleTimerRef.current !== null) {
+      clearTimeout(settleTimerRef.current);
+    }
+    settleTimerRef.current = setTimeout(checkSettle, 120);
+  }, [checkSettle, trackRef]);
+
+  const handleScrollEnd = useCallback(() => {
+    if (settleTimerRef.current !== null) {
+      clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = null;
+    }
+    checkSettle();
+  }, [checkSettle]);
+
+  const cancelInterruptedStep = useCallback(() => {
+    steppedRef.current = null;
+  }, []);
+
+  const handleTouchStart = useCallback(() => {
+    isTouchingRef.current = true;
+    cancelInterruptedStep();
+    if (settleTimerRef.current !== null) {
+      clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = null;
+    }
+  }, [cancelInterruptedStep]);
+
+  const handleTouchEnd = useCallback(
+    (event: TouchEvent<HTMLDivElement>) => {
+      // WARN: If multiple fingers were touching and only one lifted, keep isTouching true until all fingers leave.
+      if (event.touches.length > 0) {
+        return;
+      }
+
+      isTouchingRef.current = false;
+      if (settleTimerRef.current !== null) {
+        clearTimeout(settleTimerRef.current);
+      }
+      settleTimerRef.current = setTimeout(checkSettle, 120);
+    },
+    [checkSettle],
+  );
+
+  const handleTouchCancel = useCallback(
+    (event: TouchEvent<HTMLDivElement>) => {
+      if (event.touches.length > 0) {
+        return;
+      }
+
+      isTouchingRef.current = false;
+      if (settleTimerRef.current !== null) {
+        clearTimeout(settleTimerRef.current);
+      }
+      settleTimerRef.current = setTimeout(checkSettle, 120);
+    },
+    [checkSettle],
+  );
+
+  const handleWheel = useCallback(() => {
+    cancelInterruptedStep();
+    if (settleTimerRef.current !== null) {
+      clearTimeout(settleTimerRef.current);
+    }
+    settleTimerRef.current = setTimeout(checkSettle, 120);
+  }, [cancelInterruptedStep, checkSettle]);
 
   const scrollToIndex = useCallback(
     (targetIndex: number, behavior: ScrollBehavior = "smooth") => {
@@ -144,10 +253,6 @@ export function useSnapTrack({
     },
     [count, trackRef],
   );
-
-  const cancelInterruptedStep = useCallback(() => {
-    steppedRef.current = null;
-  }, []);
 
   const handlePointerDown = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
@@ -290,7 +395,11 @@ export function useSnapTrack({
     onPointerMove: handlePointerMove,
     onPointerUp: handlePointerUp,
     onScroll: handleScroll,
-    onWheel: cancelInterruptedStep,
+    onScrollEnd: handleScrollEnd,
+    onTouchCancel: handleTouchCancel,
+    onTouchEnd: handleTouchEnd,
+    onTouchStart: handleTouchStart,
+    onWheel: handleWheel,
   };
 
   return {
@@ -301,7 +410,11 @@ export function useSnapTrack({
     onPointerMove: handlePointerMove,
     onPointerUp: handlePointerUp,
     onScroll: handleScroll,
-    onWheel: cancelInterruptedStep,
+    onScrollEnd: handleScrollEnd,
+    onTouchCancel: handleTouchCancel,
+    onTouchEnd: handleTouchEnd,
+    onTouchStart: handleTouchStart,
+    onWheel: handleWheel,
     scrollToIndex,
     trackProps,
     isDragging,

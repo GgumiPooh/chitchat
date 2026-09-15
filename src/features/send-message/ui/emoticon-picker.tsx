@@ -583,7 +583,7 @@ export function EmoticonPicker({
     onIndexChange: (newIndex) => {
       const targetTab = tabIds[newIndex];
       if (targetTab && targetTab !== activeTab) {
-        selectTab(targetTab);
+        selectTab(targetTab, { skipScroll: true });
       }
     },
     trackRef: snapTrackRef,
@@ -1826,7 +1826,7 @@ export function EmoticonPicker({
     setFocusedIndex(0);
   }
 
-  function selectTab(id: string) {
+  function selectTab(id: string, options?: { skipScroll?: boolean }) {
     // WARN: Not merely a wasted render — `setRequestedTab` writes `localStorage` and broadcasts to every hook instance and tab, on every tap of the pack that is already open.
     if (id === activeTab) {
       return;
@@ -1841,9 +1841,11 @@ export function EmoticonPicker({
       // INFO: § 13.6. The within-session half of the memory, so a step across the menu bar and back returns to this tab rather than to 최근 사용 (`lastTabByKindRef`).
       lastTabByKindRef.current[toMenuOf(id) === "mini" ? "mini" : "emoticon"] = id;
       setRequestedTab(id);
-      const targetIndex = tabIds.indexOf(id);
-      if (targetIndex >= 0) {
-        scrollToIndex(targetIndex, "smooth");
+      if (!options?.skipScroll) {
+        const targetIndex = tabIds.indexOf(id);
+        if (targetIndex >= 0) {
+          scrollToIndex(targetIndex, "smooth");
+        }
       }
     }
   }
