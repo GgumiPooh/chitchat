@@ -1,10 +1,12 @@
 import type { Participant } from "@/entities/user";
+import { useProfileViewer } from "@/features/view-profile";
 import { cn } from "@/shared/lib";
 import { Avatar } from "@/shared/ui";
 
 export type TypingIndicatorProps = {
   className?: string;
   typist: Participant;
+  onOpenProfile?: () => void;
 };
 
 const DOT_DELAYS = ["[animation-delay:0ms]", "[animation-delay:150ms]", "[animation-delay:300ms]"];
@@ -18,7 +20,10 @@ const DOT_DELAYS = ["[animation-delay:0ms]", "[animation-delay:150ms]", "[animat
  * at the tail of the list, so a copy kept around at `opacity-0` would hold a gap
  * open under the newest message for as long as nobody was typing.
  */
-export function TypingIndicator({ className, typist }: TypingIndicatorProps) {
+export function TypingIndicator({ className, typist, onOpenProfile }: TypingIndicatorProps) {
+  const { openProfile } = useProfileViewer();
+  const handleOpenProfile = onOpenProfile ?? (() => openProfile(typist.id));
+
   return (
     // INFO: Announced politely — it is ambient status, and it changes often enough that an assertive region would interrupt a screen reader mid-message.
     // WARN: DESIGN.md § 6.7.1. `py-xs`, and `--typing-indicator-height` is computed from the same token — they are one measurement written twice, so changing the padding here without the token crops the row against the slot that holds it.
@@ -31,9 +36,10 @@ export function TypingIndicator({ className, typist }: TypingIndicatorProps) {
       aria-live="polite"
     >
       <span className="sr-only">{typist.name}님이 입력 중이에요</span>
-      {/* WARN: DESIGN.md § 6.7.1. `canEnlarge` stays off — this circle stands in for a bubble that does not exist yet, and enlarging it would offer a photo the row is not really showing. */}
-      <span className="shrink-0" aria-hidden>
-        <Avatar name={typist.name} mediaId={typist.avatarMediaId} />
+      {/* INFO: REQUIREMENTS.md § 12.3. Tapping the avatar opens the typist's profile screen, matching MessageRow. */}
+      {/* WARN: DESIGN.md § 6.7.1. `canEnlarge` stays off — enlarging directly would bypass the profile screen. */}
+      <span className="shrink-0">
+        <Avatar name={typist.name} mediaId={typist.avatarMediaId} onClick={handleOpenProfile} />
       </span>
       {/* INFO: DESIGN.md § 6.2. The incoming bubble exactly — same radius, same fill, same hairline, same `px-sm py-xs` — because this is where that bubble is about to appear. */}
       <span

@@ -815,19 +815,19 @@ The count variant recolours the circle rather than adding a separate badge eleme
 
 `입력 중` while the other person is composing (`REQUIREMENTS.md § 8.12.`).
 
-| Property  | Value                                                                                                                    |
-| --------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Geometry  | The incoming bubble of § 6.2. exactly — `rounded-bubble`, the `rounded-tl-xs` notch, `bubble-theirs` over 1px `hairline` |
-| Position  | The last item in the conversation, in a slot above the trailing spacer that opens to `--typing-indicator-height`         |
-| Content   | The typist's `chat`-size avatar (§ 7.7.), then three 6px `meta` dots bouncing on a staggered 150ms offset                |
-| Alignment | `items-end` — the circle sits on the bubble's baseline, exactly as it does on an incoming row (§ 6.3.)                   |
-| Padding   | `px-md py-xs` on the row, `px-sm py-xs` inside the bubble — the text bubble's own padding (§ 6.2.)                       |
-| Bubble    | Exactly one line of `chat-body` — `--text-chat-body` × its own line-height — never the height of three 6px dots          |
-| Lifecycle | The slot's height animates `0` ⇄ open over 200ms `ease-out`; the row mounts and unmounts inside it                       |
-| Reveal    | The row fades in over 150ms **after** the slot has opened — a 200ms delay. Nothing fades out                             |
-| Height    | `--typing-indicator-height` is `max(avatar, bubble)` + the row's `py-xs`. The **bubble** is the taller of the two        |
-| A11y      | `aria-live="polite"` around a visually hidden `{이름}님이 입력 중이에요`; avatar and dots are `aria-hidden`              |
-| Spacing   | The § 2.3. scale (`px-md`, `gap-2xs`), never Tailwind's raw numeric one                                                  |
+| Property  | Value                                                                                                                                       |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Geometry  | The incoming bubble of § 6.2. exactly — `rounded-bubble`, the `rounded-tl-xs` notch, `bubble-theirs` over 1px `hairline`                    |
+| Position  | The last item in the conversation, in a slot above the trailing spacer that opens to `--typing-indicator-height`                            |
+| Content   | The typist's `chat`-size avatar (§ 7.7.), then three 6px `meta` dots bouncing on a staggered 150ms offset                                   |
+| Alignment | `items-end` — the circle sits on the bubble's baseline, exactly as it does on an incoming row (§ 6.3.)                                      |
+| Padding   | `px-md py-xs` on the row, `px-sm py-xs` inside the bubble — the text bubble's own padding (§ 6.2.)                                          |
+| Bubble    | Exactly one line of `chat-body` — `--text-chat-body` × its own line-height — never the height of three 6px dots                             |
+| Lifecycle | The slot's height animates `0` ⇄ open over 200ms `ease-out`; the row mounts and unmounts inside it                                          |
+| Reveal    | The row fades in over 150ms **after** the slot has opened — a 200ms delay. Nothing fades out                                                |
+| Height    | `--typing-indicator-height` is `max(avatar, bubble)` + the row's `py-xs`. The **bubble** is the taller of the two                           |
+| A11y      | `aria-live="polite"` around a visually hidden `{이름}님이 입력 중이에요`; avatar opens the profile screen (§ 12.3.), dots are `aria-hidden` |
+| Spacing   | The § 2.3. scale (`px-md`, `gap-2xs`), never Tailwind's raw numeric one                                                                     |
 
 **It is a message, not a badge.** It sits where the bubble it announces will sit, in the same column and wearing the same shape, so the arrival replaces it rather than displacing it. Floated over the composer it was a status light bolted to the chrome; here the conversation simply has one more thing at the end of it.
 
@@ -841,7 +841,7 @@ The count variant recolours the circle rather than adding a separate badge eleme
 
 **The avatar, and no written name.** The photo carries the identity in the column that already means "them", so a name beside it would be a wider box appearing and disappearing every few seconds to say what the circle said. The name is still spoken: it is in the live region, where there is no photo to carry it.
 
-**`canEnlarge` stays off.** This circle stands in for a bubble that does not exist yet; enlarging it would offer a photo the row is not really showing.
+**`canEnlarge` stays off; the profile screen opens instead.** This circle stands in for a bubble that does not exist yet; enlarging it directly would offer a photo the row is not really showing. Tapping the avatar instead opens the typist's profile screen (`onClick`, § 12.3.), matching every other avatar in the conversation.
 
 **Polite, never assertive.** The signal changes several times a minute, and an assertive live region would interrupt a screen reader mid-message to announce it.
 
