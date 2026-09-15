@@ -969,7 +969,7 @@ export function EmoticonPicker({
               </>
             )}
           </div>
-          {/* INFO: § 13.6. The third region — horizontal CSS Scroll Snap track with 3-pane virtual window. */}
+          {/* INFO: § 13.6. The third region — horizontal CSS Scroll Snap track with 5-pane virtual window. */}
           <div
             ref={snapTrackRef}
             className={cn(
@@ -980,7 +980,7 @@ export function EmoticonPicker({
           >
             {tabIds.map((tabId, index) => {
               const isCurrent = index === activeIndex;
-              const isNear = Math.abs(index - activeIndex) <= 1;
+              const isNear = Math.abs(index - activeIndex) <= 2;
 
               return (
                 <div

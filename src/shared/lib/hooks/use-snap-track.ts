@@ -179,13 +179,26 @@ export function useSnapTrack({
   }, []);
 
   const handleTouchStart = useCallback(() => {
-    isTouchingRef.current = true;
     cancelInterruptedStep();
+
     if (settleTimerRef.current !== null) {
       clearTimeout(settleTimerRef.current);
       settleTimerRef.current = null;
     }
-  }, [cancelInterruptedStep]);
+
+    const track = trackRef.current;
+
+    if (track && track.clientWidth > 0) {
+      const position = Math.round(track.scrollLeft / track.clientWidth);
+
+      if (position >= 0 && position < count && position !== lastReportedIndexRef.current) {
+        lastReportedIndexRef.current = position;
+        onIndexChangeRef.current?.(position);
+      }
+    }
+
+    isTouchingRef.current = true;
+  }, [cancelInterruptedStep, count, trackRef]);
 
   const handleTouchEnd = useCallback(
     (event: TouchEvent<HTMLDivElement>) => {
@@ -269,6 +282,20 @@ export function useSnapTrack({
         return;
       }
 
+      if (settleTimerRef.current !== null) {
+        clearTimeout(settleTimerRef.current);
+        settleTimerRef.current = null;
+      }
+
+      if (track.clientWidth > 0) {
+        const position = Math.round(track.scrollLeft / track.clientWidth);
+
+        if (position >= 0 && position < count && position !== lastReportedIndexRef.current) {
+          lastReportedIndexRef.current = position;
+          onIndexChangeRef.current?.(position);
+        }
+      }
+
       dragRef.current = {
         hasDragged: false,
         pointerId: event.pointerId,
@@ -277,7 +304,7 @@ export function useSnapTrack({
         startedAt: event.timeStamp,
       };
     },
-    [cancelInterruptedStep, trackRef],
+    [cancelInterruptedStep, count, trackRef],
   );
 
   const handlePointerUp = useCallback(
