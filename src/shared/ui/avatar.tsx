@@ -1,11 +1,12 @@
 "use client";
 
 import { toMediaUrl } from "@/shared/config";
-import { cn, type Maybe, type MediaId, type Nullable } from "@/shared/lib";
+import { cn, toId, type Maybe, type MediaId, type Nullable } from "@/shared/lib";
 import { Avatar as AvatarPrimitive } from "radix-ui";
 import { useMemo, useState } from "react";
 import type { MediaCell } from "./media-cell";
 import { MediaViewer } from "./media-viewer";
+import { Skeleton } from "./skeleton";
 
 export type AvatarProps = {
   className?: string;
@@ -58,10 +59,29 @@ export function Avatar({
 }: AvatarProps) {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const resolvedSrc = src ?? (mediaId ? toMediaUrl(mediaId) : undefined);
-  const cells = useMemo(() => (mediaId ? [toAvatarCell(mediaId)] : []), [mediaId]);
+  const [imageStatus, setImageStatus] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  const [trackedSrc, setTrackedSrc] = useState(resolvedSrc);
+
+  if (trackedSrc !== resolvedSrc) {
+    setTrackedSrc(resolvedSrc);
+    setImageStatus("idle");
+  }
+
+  const cells = useMemo(() => {
+    if (mediaId) {
+      return [toAvatarCell(mediaId)];
+    }
+    if (resolvedSrc) {
+      return [toStaticAvatarCell(resolvedSrc)];
+    }
+    return [];
+  }, [mediaId, resolvedSrc]);
   const isEnlargeable = canEnlarge && cells.length > 0;
   // INFO: A caller-supplied tap works with no photo at all — an initial-letter avatar still names a person whose profile there is to open (DESIGN.md § 7.7.).
   const isTappable = onClick !== undefined || isEnlargeable;
+  // INFO: DESIGN.md § 7.8. A skeleton fills the avatar while the photo fetches; a missing or failed image ends on the § 7.7. initial fallback.
+  const isImagePending =
+    Boolean(resolvedSrc) && imageStatus !== "loaded" && imageStatus !== "error";
 
   const face = (
     <AvatarPrimitive.Root
@@ -72,7 +92,12 @@ export function Avatar({
       )}
     >
       {resolvedSrc && (
-        <AvatarPrimitive.Image className="aspect-square size-full" src={resolvedSrc} alt={name} />
+        <AvatarPrimitive.Image
+          className="aspect-square size-full animate-in object-cover duration-200 fade-in"
+          src={resolvedSrc}
+          alt={name}
+          onLoadingStatusChange={setImageStatus}
+        />
       )}
       <AvatarPrimitive.Fallback
         className={cn(
@@ -80,7 +105,11 @@ export function Avatar({
           fallbackClassName,
         )}
       >
-        {[...name][0] ?? ""}
+        {isImagePending ? (
+          <Skeleton className={cn("size-full rounded-full", fallbackClassName)} />
+        ) : (
+          ([...name][0] ?? "")
+        )}
       </AvatarPrimitive.Fallback>
     </AvatarPrimitive.Root>
   );
@@ -133,6 +162,27 @@ function toAvatarCell(mediaId: MediaId): MediaCell {
     durationMs: null,
     isVideo: false,
     // INFO: The finished restructure. An avatar reaches this only by being the one a profile currently wears, so a deleted object would have been unset from the profile before it could be drawn here.
+    isDeleted: false,
+  };
+}
+
+/**
+ * Supports static avatars (such as AI provider assets) in the full-screen viewer.
+ */
+function toStaticAvatarCell(src: string): MediaCell {
+  return {
+    // WARN: A local asset path worn as a `MediaId` for `MediaCell.id`. It names no row and reaches no endpoints.
+    id: toId<MediaId>(src),
+    previewUrl: src,
+    blurhash: null,
+    originalUrl: src,
+    filename: null,
+    sizeBytes: 0,
+    downloadUrl: null,
+    width: 1,
+    height: 1,
+    durationMs: null,
+    isVideo: false,
     isDeleted: false,
   };
 }

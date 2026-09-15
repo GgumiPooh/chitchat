@@ -248,10 +248,7 @@ function LlmProfileOverlay({ className, overlayRef, subject, onClose }: LlmProfi
         </div>
         <div className="relative flex flex-1 flex-col items-center justify-end gap-sm px-md pb-[max(var(--spacing-2xl),env(safe-area-inset-bottom))]">
           {branding.avatarSrc ? (
-            <span className="size-18 overflow-hidden rounded-full ring-1 ring-hairline ring-inset">
-              {/* eslint-disable-next-line @next/next/no-img-element -- a static asset under `public/llm` */}
-              <img className="size-full object-cover" src={branding.avatarSrc} alt="" />
-            </span>
+            <Avatar name={branding.name} src={branding.avatarSrc} size="profile" canEnlarge />
           ) : (
             <span className="flex size-18 items-center justify-center rounded-full bg-primary-tint ring-1 ring-hairline ring-inset">
               <Sparkles className="size-7 text-primary" strokeWidth={1.75} />
