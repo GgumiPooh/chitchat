@@ -6,7 +6,13 @@ import { cn, type Nullable } from "@/shared/lib";
 import { EmptyState, LoadMoreSentinel } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Smile } from "lucide-react";
-import { useRef, type FocusEvent, type KeyboardEvent, type RefObject } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  type FocusEvent,
+  type KeyboardEvent,
+  type RefObject,
+} from "react";
 import { FOCUS_HEADING_ATTRIBUTE, FOCUS_INDEX_ATTRIBUTE } from "../model/emoticon-focus";
 import { isAllTabId, isPackTabId, isRecentsTabId } from "../model/emoticon-tabs";
 import { toEmoticonPackItemsQuery } from "../model/pack-items-query";
@@ -29,6 +35,7 @@ export type EmoticonTabPaneProps = {
   favorites?: Emoticon[];
   focusableIndex: number;
   hasMoreAllSections?: boolean;
+  isCurrent?: boolean;
   isItemsPending?: boolean;
   isKeyboardDriven: boolean;
   isWarmed?: boolean;
@@ -59,6 +66,7 @@ export function EmoticonTabPane({
   favorites = NO_ITEMS,
   focusableIndex,
   hasMoreAllSections = false,
+  isCurrent = false,
   isItemsPending = false,
   isKeyboardDriven,
   isWarmed = false,
@@ -78,6 +86,19 @@ export function EmoticonTabPane({
 }: EmoticonTabPaneProps) {
   const localScrollerRef = useRef<Nullable<HTMLDivElement>>(null);
   const targetScrollerRef = scrollerRef ?? localScrollerRef;
+  const wasCurrentRef = useRef(isCurrent);
+
+  // INFO: REQUIREMENTS.md § 13.6. A tab is read from its top when entered.
+  // Resetting scrollTop as soon as the tab becomes inactive ensures that when it is
+  // swiped back into view, it enters already at the top rather than jumping after settling.
+  useLayoutEffect(() => {
+    if (wasCurrentRef.current && !isCurrent) {
+      if (targetScrollerRef.current && targetScrollerRef.current.scrollTop !== 0) {
+        targetScrollerRef.current.scrollTop = 0;
+      }
+    }
+    wasCurrentRef.current = isCurrent;
+  }, [isCurrent, targetScrollerRef]);
 
   const isPack = isPackTabId(tabId);
   // INFO: If items was not passed from caller, query items directly for adjacent pack tabs.

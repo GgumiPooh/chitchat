@@ -999,6 +999,7 @@ export function EmoticonPicker({
                       favorites={favorites}
                       focusableIndex={isCurrent ? focusableIndex : -1}
                       hasMoreAllSections={hasMoreAllSections}
+                      isCurrent={isCurrent}
                       isKeyboardDriven={isKeyboardDriven}
                       isWarmed={warmedTabs.has(tabId)}
                       items={isCurrent ? shown : undefined}
