@@ -386,6 +386,8 @@ export function EmoticonPicker({
   const activeTabRef = useRef<Nullable<HTMLSpanElement>>(null);
   const settingsButtonRef = useRef<Nullable<HTMLButtonElement>>(null);
   const deleteButtonRef = useRef<Nullable<HTMLButtonElement>>(null);
+  const lastRevealedIndexRef = useRef<number>(-1);
+  const lastRevealedMenuRef = useRef<Nullable<EmoticonMenu>>(null);
   /**
    * REQUIREMENTS.md § 8.14. Set the one time 검색 is opened by `Space`/`Enter` on its
    * own menu button, so `SearchPane`'s mount effect below leaves focus where the reader
@@ -657,7 +659,7 @@ export function EmoticonPicker({
   const focusableTabId = tabIds.includes(activeTab) ? activeTab : tabIds[0];
 
   // INFO: § 13.6. The swipe moves the tab without the finger ever touching the strip, and the remembered tab can reopen the panel on a pack that is already past its right edge — either way the strip has to follow the selection or the active tab is unreachable to the eye.
-  useEffect(revealActiveTab, [activeTab, packs]);
+  useEffect(revealActiveTab, [activeTab, packs, activeMenu, activeIndex, tabIds.length]);
 
   /**
    * REQUIREMENTS.md § 13.6. A tab is entered at the top of its list, whichever way it
@@ -1268,14 +1270,46 @@ export function EmoticonPicker({
    * INFO: § 8.14. Shares `revealWithin` with the arrow keys, which are written against
    * the same trap. The strip has only a horizontal axis to be clipped on, so the
    * vertical term that call computes resolves to `0` here.
+   *
+   * INFO: REQUIREMENTS.md § 13.6. When moving across tabs, reveal the adjacent tab in
+   * the direction of navigation (the next slide when moving forward, the previous slide
+   * when moving backward) so that the upcoming pack remains visible.
    */
   function revealActiveTab() {
     const strip = tabStripRef.current;
     const tab = activeTabRef.current;
 
-    if (strip && tab) {
-      revealWithin(strip, tab, "smooth");
+    if (!strip || !tab) {
+      return;
     }
+
+    const prevIndex = lastRevealedIndexRef.current;
+    const prevMenu = lastRevealedMenuRef.current;
+    lastRevealedIndexRef.current = activeIndex;
+    lastRevealedMenuRef.current = activeMenu;
+
+    // WARN: A menu switch resets the direction so indices across different menus are not compared.
+    const isSameMenu = prevMenu === activeMenu;
+    const isMovingForward = isSameMenu && prevIndex >= 0 && activeIndex > prevIndex;
+    const isMovingBackward = isSameMenu && prevIndex >= 0 && activeIndex < prevIndex;
+
+    let target: HTMLElement = tab;
+
+    if (isMovingForward) {
+      const hasNextSlide = activeIndex >= 0 && activeIndex < tabIds.length - 1;
+      const nextSibling = tab.nextElementSibling;
+      if (hasNextSlide && nextSibling instanceof HTMLElement) {
+        target = nextSibling;
+      }
+    } else if (isMovingBackward) {
+      const hasPrevSlide = activeIndex > 0;
+      const prevSibling = tab.previousElementSibling;
+      if (hasPrevSlide && prevSibling instanceof HTMLElement) {
+        target = prevSibling;
+      }
+    }
+
+    revealWithin(strip, target, "smooth");
   }
 
   /**
