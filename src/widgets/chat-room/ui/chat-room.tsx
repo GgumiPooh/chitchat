@@ -402,6 +402,7 @@ export function ChatRoom({
   // INFO: REQUIREMENTS.md § 8.3. Whether the rows may be painted. False until the park below has answered the first real measurements, so the estimate→actual correction is not a jump the reader watches.
   // WARN: Open from the start for a room that loaded empty. There is no window to park and nothing to correct, and the scroller only mounts when the first message lands — gating on it would hold that one arrival back for two frames, on the § 8.12. screen where an arrival is the whole event.
   const [hasSettledFirstPark, setHasSettledFirstPark] = useState(initialMessages.length === 0);
+  const hasSettledFirstParkCommitRef = useRef(initialMessages.length === 0);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isAtBottomRef = useRef(true);
   const [isAtTop, setIsAtTop] = useState(true);
@@ -1704,19 +1705,24 @@ export function ChatRoom({
    * single `scrollToEnd()` lands on an end that the first measurement then moves —
    * the room is re-parked on each size change until the rows have real heights.
    *
-   * WARN: Gated on the gesture flag, never on the at-bottom one — `syncScrollEdges` runs first and has already read the pre-park position as "not at bottom", so this would never fire.
+   * WARN: Gated on the gesture flag and initial park settlement, never on the at-bottom one — `syncScrollEdges` runs first and has already read the pre-park position as "not at bottom", so this would never fire.
+   * WARN: Terminates permanently via `hasSettledFirstParkCommitRef` once `hasSettledFirstPark` lands, preventing subsequent re-renders (such as sheet-open FLIP with inflated scrollHeight) from running an unwanted re-park.
    *
    * WARN: A layout effect, never a passive one. Passive runs after paint, so the room's first frame would be the top of the loaded window rather than the newest message — and the two effects above it, which are passive, would read that pre-park position: the § 6.7. pill would flash and `requestAdjacentPages` would see `scrollTop === 0` and fetch a page of history nobody asked for on every open.
    */
   useIsomorphicLayoutEffect(() => {
     const element = scrollerRef.current;
 
-    if (!element || hasTakenScrollRef.current) {
+    if (!element || hasSettledFirstParkCommitRef.current || hasTakenScrollRef.current) {
       return;
     }
 
     // WARN: Unconditional, not gated on the total size changing — that is read during render, a layout before the rows it grew for are on screen, so gating on it stops one measurement short of the newest message.
     element.scrollTop = element.scrollHeight;
+
+    if (hasSettledFirstPark) {
+      hasSettledFirstParkCommitRef.current = true;
+    }
   });
 
   /**
