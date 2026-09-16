@@ -30,6 +30,8 @@ const FLIP_TRANSITION = "transform var(--duration-keyboard-flip) var(--ease-rout
 export const SHEET_FLIP_ATTRIBUTE = "data-sheet-flip";
 // INFO: The attribute's value when a drag already carried the composer to its final spot — the step then animates the list alone, since inverting the composer would replay the trip from its pre-drag top.
 export const SHEET_FLIP_LIST_ONLY = "list-only";
+// INFO: Set while the list FLIP transition is running so that scroll-edge checks in chat-room are suppressed while positive translateY expands scrollable overflow.
+export const SHEET_FLIP_RUNNING = "running";
 
 // INFO: Subpixel slack only — anything wider would re-pin a user who has deliberately scrolled a little way up.
 const BOTTOM_EPSILON = 1;
@@ -104,6 +106,7 @@ export function useComposerClearance({
   // WARN: The release is armed a frame after the inversion, never in the same style flush — WebKit takes no style-change event from a forced layout, so armed inline it reads before-change and release as one value and starts no transition: the inversion then sits and cancels the pin, which painted as the sheet opening with the list never following.
   const composerReleaseFrameRef = useRef<Optional<number>>(undefined);
   const listReleaseFrameRef = useRef<Optional<number>>(undefined);
+  const listFlipTimeoutRef = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
   // INFO: Whether the list's content wrapper is mid-FLIP, on which recipe, and the running cumulative target of a frozen run — `null` once nothing is running.
   const listFlipRef = useRef<
     Nullable<{
@@ -142,6 +145,7 @@ export function useComposerClearance({
       isScheduled = false;
       observer.disconnect();
       cancelAnimationFrame(composerReleaseFrameRef.current ?? -1);
+      clearTimeout(listFlipTimeoutRef.current);
       finishListFlip({ pinToBottom: false });
     };
 
@@ -175,9 +179,13 @@ export function useComposerClearance({
     }
 
     function finishListFlip({ pinToBottom: shouldPin }: { pinToBottom: boolean }) {
+      clearTimeout(listFlipTimeoutRef.current);
+      listFlipTimeoutRef.current = undefined;
+
       const content = listMotionRef.current;
 
       if (listFlipRef.current === null || content === null) {
+        containerRef.current?.removeAttribute(SHEET_FLIP_ATTRIBUTE);
         return;
       }
 
@@ -194,6 +202,7 @@ export function useComposerClearance({
       const scroller = scrollerRef.current;
 
       if (!scroller) {
+        containerRef.current?.removeAttribute(SHEET_FLIP_ATTRIBUTE);
         return;
       }
 
@@ -206,6 +215,8 @@ export function useComposerClearance({
       if (shouldPin) {
         pinToBottom(scroller);
       }
+
+      containerRef.current?.removeAttribute(SHEET_FLIP_ATTRIBUTE);
     }
 
     function readTranslateY(element: HTMLElement): number {
@@ -279,11 +290,11 @@ export function useComposerClearance({
 
     // WARN: A running CSS target, never an instant jump. The scroller is frozen at its pre-step height and re-pinned to its own bottom below, so the content has not visibly moved at the frame this runs — easing it forward to the cumulative delta is the whole of the motion, and the already-declared `transition` retargets on its own from wherever it currently sits.
     // WARN: Two recipes, and only the keyboard's own shrink takes the freeze. There the scroller's box got shorter with `scrollHeight` untouched, so holding the old height means nothing has visibly moved and the content can ease *forward*. Every other step — a growth, or either sheet toggle — has already been painted at its final geometry by a `scrollTop` clamp or a spacer inside `scrollHeight`, so the pin commits the bottom and the content is inverted by the same screen shift the composer made (`prior − delta`) and released.
-    function stepListFlip(delta: number, usesFreeze: boolean, scroller: HTMLElement) {
+    function stepListFlip(delta: number, usesFreeze: boolean, scroller: HTMLElement): boolean {
       const content = listMotionRef.current;
 
       if (!content) {
-        return;
+        return false;
       }
 
       // INFO: A recipe change mid-flight commits the running animation and starts clean — folding an inversion into a frozen run has no single consistent geometry.
@@ -306,7 +317,7 @@ export function useComposerClearance({
         debugLog("invert", { prior: priorOffset, priorMax, st: scroller.scrollTop, inverted });
 
         if (running === null && Math.abs(inverted) <= BOTTOM_EPSILON) {
-          return;
+          return false;
         }
 
         listFlipRef.current = {
@@ -329,7 +340,12 @@ export function useComposerClearance({
           content.style.transform = "translateY(0px)";
         });
 
-        return;
+        clearTimeout(listFlipTimeoutRef.current);
+        listFlipTimeoutRef.current = setTimeout(() => {
+          finishListFlip({ pinToBottom: listFlipRef.current?.isPinned ?? false });
+        }, 500);
+
+        return true;
       }
 
       // INFO: The scroller is already laid out at its post-step size when a first step lands, so the natural height is read there and stepped by the composer's own delta afterwards, while the freeze hides both from the reader.
@@ -342,7 +358,7 @@ export function useComposerClearance({
       debugLog("freeze", { naturalHeight, frozenScrollTop, sh: scroller.scrollHeight, target });
 
       if (running === null && Math.abs(target) <= BOTTOM_EPSILON) {
-        return;
+        return false;
       }
 
       listFlipRef.current = { usesFreeze, naturalHeight, frozenScrollTop, isPinned: true };
@@ -354,6 +370,13 @@ export function useComposerClearance({
       }
 
       content.style.transform = `translateY(${target}px)`;
+
+      clearTimeout(listFlipTimeoutRef.current);
+      listFlipTimeoutRef.current = setTimeout(() => {
+        finishListFlip({ pinToBottom: listFlipRef.current?.isPinned ?? false });
+      }, 500);
+
+      return true;
     }
 
     function startListFlipRun(content: HTMLElement, scroller: HTMLElement) {
@@ -396,9 +419,8 @@ export function useComposerClearance({
 
       // INFO: A one-shot read — the room sets this just ahead of the toggle, and it must not survive to misread the next unrelated resize (typing growth included).
       const sheetFlipValue = container.getAttribute(SHEET_FLIP_ATTRIBUTE);
-      const isSheetFlipStep = sheetFlipValue !== null && topDelta !== 0;
-
-      container.removeAttribute(SHEET_FLIP_ATTRIBUTE);
+      const isSheetFlipTrigger = sheetFlipValue === "" || sheetFlipValue === SHEET_FLIP_LIST_ONLY;
+      const isSheetFlipStep = isSheetFlipTrigger && topDelta !== 0;
 
       debugLog("measure", {
         ch: containerHeight,
@@ -438,8 +460,16 @@ export function useComposerClearance({
           Math.abs(distance - Math.abs(topDelta)) <= STEP_EPSILON;
 
         if (scroller && wasAtBottom) {
-          stepListFlip(topDelta, isKeyboardStep && topDelta < 0, scroller);
-          didAnimateList = true;
+          didAnimateList = stepListFlip(topDelta, isKeyboardStep && topDelta < 0, scroller);
+        }
+      }
+
+      // WARN: If list animation started, keep attribute as SHEET_FLIP_RUNNING so scroll-edge reads are muted until finishListFlip. If no list animation was started (or if sheet was not at bottom), clear it immediately.
+      if (isSheetFlipTrigger) {
+        if (didAnimateList) {
+          container.setAttribute(SHEET_FLIP_ATTRIBUTE, SHEET_FLIP_RUNNING);
+        } else {
+          container.removeAttribute(SHEET_FLIP_ATTRIBUTE);
         }
       }
 

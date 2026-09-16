@@ -197,6 +197,7 @@ import { useChatShortcuts } from "../model/use-chat-shortcuts";
 import {
   SHEET_FLIP_ATTRIBUTE,
   SHEET_FLIP_LIST_ONLY,
+  SHEET_FLIP_RUNNING,
   useComposerClearance,
 } from "../model/use-composer-clearance";
 import { useEmoticonSheet } from "../model/use-emoticon-sheet";
@@ -784,12 +785,14 @@ export function ChatRoom({
       emoticonSheet.isClosedByDrag ? SHEET_FLIP_LIST_ONLY : "",
     );
 
-    // WARN: Expired one rendering update after the consuming one, and never sooner — rAF callbacks run *before* ResizeObserver delivery inside a frame, so a single rAF removes the attribute one phase ahead of the measure that was to consume it. Without any expiry, a frame that never renders (an occluded tab) leaves the attribute standing and `readScrollEdges` silenced for good.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
+    // WARN: Expired if measure never consumed it (e.g. an occluded tab where ResizeObserver doesn't fire). If measure runs and animates, it promotes this attribute to SHEET_FLIP_RUNNING and handles expiry via finishListFlip.
+    const timer = setTimeout(() => {
+      if (container.getAttribute(SHEET_FLIP_ATTRIBUTE) !== SHEET_FLIP_RUNNING) {
         container.removeAttribute(SHEET_FLIP_ATTRIBUTE);
-      });
-    });
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, [isEmoticonPanelOpen, sheetSwap, isKeyboardOpen, emoticonSheet.isClosedByDrag]);
   // WARN: `isResettingAfterClose` is use-sheet-drag's reset-frame contract — without it the drag-close commit eases `dragTranslateY → 0` on top of the snapped layout, a downward glide the composer FLIP used to mask and no longer runs to.
   const composerTransition =
@@ -3246,7 +3249,7 @@ export function ChatRoom({
       return;
     }
 
-    // WARN: § 13.6. A sheet step's spacer has already snapped in this commit while the FLIP's pin only lands in the pre-paint observer — read in that window, the edges publish a one-frame "left the bottom" that flashes the pill and poisons the FLIP gate.
+    // WARN: § 13.6. While a sheet FLIP is pending or running, the spacer has snapped and positive translateY inflates scrollHeight — read in that window, distanceToEnd artificially spikes and flashes the bottom pill and bookmark toggle.
     if (containerRef.current?.hasAttribute(SHEET_FLIP_ATTRIBUTE)) {
       return;
     }
