@@ -1505,10 +1505,20 @@ export function EmoticonPicker({
       });
     }
 
-    focusWithoutPan(searchFieldRef.current);
+    if (isSearching) {
+      focusWithoutPan(searchFieldRef.current);
 
-    // INFO: § 8.14. A pack tab with nothing drawn yet has nowhere to put focus, and says so — the entry waits for its cells rather than settling for `<body>`.
-    return isSearching;
+      return true;
+    }
+
+    // INFO: § 8.14. When a tab has no cells yet (e.g. empty recents or data pending), fall back to focusing the active tab in the strip rather than leaving focus on `<body>`.
+    if (!isPending && !isRecentsPending) {
+      focusActiveTab();
+
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -1591,6 +1601,11 @@ export function EmoticonPicker({
     const index = readFocusIndex(event.target);
 
     if (index === undefined) {
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        focusActiveTab();
+      }
+
       return;
     }
 
@@ -1601,6 +1616,13 @@ export function EmoticonPicker({
       if (event.key === "ArrowRight" && index === tabIds.length - 1) {
         event.preventDefault();
         focusSettingsButton(event.currentTarget);
+
+        return;
+      }
+
+      // WARN: § 8.14. Prevent browser native horizontal scroll / rubber-band bounce when hitting strip edges.
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
       }
 
       return;
@@ -1648,9 +1670,13 @@ export function EmoticonPicker({
       return;
     }
 
-    if (event.key === "ArrowRight" && menuKind === "mini") {
+    if (event.key === "ArrowRight") {
       event.preventDefault();
-      deleteButtonRef.current?.focus();
+      if (menuKind === "mini") {
+        deleteButtonRef.current?.focus();
+      }
+
+      return;
     }
   }
 
@@ -1673,6 +1699,12 @@ export function EmoticonPicker({
     if (event.key === "ArrowDown") {
       event.preventDefault();
       focusTabContent();
+
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
 
       return;
     }
@@ -2150,7 +2182,10 @@ function MenuSegment({
         onMouseDown={(event) => {
           event.preventDefault();
         }}
-        onClick={onClick}
+        onClick={(event) => {
+          event.currentTarget.focus({ preventScroll: true });
+          onClick();
+        }}
       >
         {/* WARN: The pointer states are read off the **target** (`/menu`) rather than off this box, since the two are the same size only while the segment is selected. The unnamed `group-active:` beside them is `HapticTarget`'s replay, which is a different ancestor. */}
         <span
@@ -2228,7 +2263,10 @@ function TabButton({
         onMouseDown={(event) => {
           event.preventDefault();
         }}
-        onClick={onClick}
+        onClick={(event) => {
+          event.currentTarget.focus({ preventScroll: true });
+          onClick();
+        }}
       >
         {children}
       </button>

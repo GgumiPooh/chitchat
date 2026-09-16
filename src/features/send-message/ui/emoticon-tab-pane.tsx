@@ -209,7 +209,8 @@ export function EmoticonTabPane({
                       onMouseDown={(event) => {
                         event.preventDefault();
                       }}
-                      onClick={() => {
+                      onClick={(event) => {
+                        event.currentTarget.focus({ preventScroll: true });
                         onExpandRecents?.();
                       }}
                     >

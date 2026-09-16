@@ -94,7 +94,8 @@ export function EmoticonCell({
           // WARN: Prevents browser native mousedown focus scroll from jumping to scrollTop: 0 on top-row items.
           event.preventDefault();
         }}
-        onClick={() => {
+        onClick={(event) => {
+          event.currentTarget.focus({ preventScroll: true });
           onFocusCell?.(index);
           onSelect(item);
         }}
