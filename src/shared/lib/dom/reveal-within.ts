@@ -15,6 +15,12 @@ const REVEAL_MARGIN = 8;
  * box just as readily as a scrolling one. On the § 13.6. strip that was a few pixels
  * of **vertical** travel on every tab pulled in from off the end, which is the wobble
  * reported under the thumb on iOS.
+ *
+ * WARN: § 13.6. Clipped bounds are clamped against the scroller's own physical scroll
+ * range (`[0, maxScroll]`). At `scrollLeft === 0`, an unconditional margin-based offset
+ * would produce a negative delta (`-4px` for `ml-2xs`) on fully visible items, which
+ * triggers elastic overscroll rubber-banding or 0-clamping jitter on iOS and Android.
+ * When neither axis needs travel (`< 1px`), `scrollBy` is skipped entirely.
  */
 export function revealWithin(
   scroller: HTMLElement,
@@ -27,28 +33,57 @@ export function revealWithin(
   const canScrollY = scroller.scrollHeight > scroller.clientHeight;
   const canScrollX = scroller.scrollWidth > scroller.clientWidth;
 
+  const rawStepY = canScrollY
+    ? toScrollStep(
+        itemBox.top < scrollerBox.top,
+        scrollerBox.top + REVEAL_MARGIN - itemBox.top,
+        itemBox.bottom > scrollerBox.bottom,
+        itemBox.bottom + REVEAL_MARGIN - scrollerBox.bottom,
+      )
+    : 0;
+
+  const rawStepX = canScrollX
+    ? toScrollStep(
+        itemBox.left < scrollerBox.left,
+        scrollerBox.left + REVEAL_MARGIN - itemBox.left,
+        itemBox.right > scrollerBox.right,
+        itemBox.right + REVEAL_MARGIN - scrollerBox.right,
+      )
+    : 0;
+
+  const maxScrollY = scroller.scrollHeight - scroller.clientHeight;
+  const targetScrollY = Math.max(0, Math.min(maxScrollY, scroller.scrollTop + rawStepY));
+  const stepY = targetScrollY - scroller.scrollTop;
+
+  const maxScrollX = scroller.scrollWidth - scroller.clientWidth;
+  const targetScrollX = Math.max(0, Math.min(maxScrollX, scroller.scrollLeft + rawStepX));
+  const stepX = targetScrollX - scroller.scrollLeft;
+
+  if (Math.abs(stepX) < 1 && Math.abs(stepY) < 1) {
+    return;
+  }
+
   scroller.scrollBy({
     behavior,
-    top: canScrollY
-      ? toScrollStep(
-          scrollerBox.top + REVEAL_MARGIN - itemBox.top,
-          itemBox.bottom + REVEAL_MARGIN - scrollerBox.bottom,
-        )
-      : 0,
-    left: canScrollX
-      ? toScrollStep(
-          scrollerBox.left + REVEAL_MARGIN - itemBox.left,
-          itemBox.right + REVEAL_MARGIN - scrollerBox.right,
-        )
-      : 0,
+    top: stepY,
+    left: stepX,
   });
 }
 
-// INFO: Both are positive only where the item is larger than the scroller, and either answer then reveals one edge by hiding the other — the leading one is the one the eye reads from.
-function toScrollStep(clippedStart: number, clippedEnd: number): number {
-  if (clippedStart > 0) {
-    return -clippedStart;
+// INFO: Both are true only where the item is larger than the scroller, and either answer then reveals one edge by hiding the other — the leading one is the one the eye reads from.
+function toScrollStep(
+  isStartClipped: boolean,
+  startDiff: number,
+  isEndClipped: boolean,
+  endDiff: number,
+): number {
+  if (isStartClipped) {
+    return -startDiff;
   }
 
-  return clippedEnd > 0 ? clippedEnd : 0;
+  if (isEndClipped) {
+    return endDiff;
+  }
+
+  return 0;
 }
