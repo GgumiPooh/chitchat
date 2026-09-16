@@ -2,15 +2,16 @@
 
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import type { EmoticonPackType } from "@/shared/db";
-import { A_SECOND, cn, type Nullable } from "@/shared/lib";
+import { cn, type Nullable } from "@/shared/lib";
 import { EmptyState, LoadMoreSentinel, Skeleton } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Smile } from "lucide-react";
 import {
-  useLayoutEffect,
   useRef,
   type FocusEvent,
   type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent,
   type RefObject,
 } from "react";
 import { FOCUS_HEADING_ATTRIBUTE, FOCUS_INDEX_ATTRIBUTE } from "../model/emoticon-focus";
@@ -20,7 +21,6 @@ import { CELL_KEYBOARD_RING, EmoticonCell } from "./emoticon-cell";
 import { EmoticonGrid } from "./emoticon-grid";
 
 const NO_ITEMS: Emoticon[] = [];
-const TAB_RESET_DELAY = 0.3 * A_SECOND;
 
 export type AllSectionData = {
   isPending: boolean;
@@ -36,7 +36,6 @@ export type EmoticonTabPaneProps = {
   favorites?: Emoticon[];
   focusableIndex: number;
   hasMoreAllSections?: boolean;
-  isCurrent?: boolean;
   isItemsPending?: boolean;
   isKeyboardDriven: boolean;
   isWarmed?: boolean;
@@ -48,6 +47,15 @@ export type EmoticonTabPaneProps = {
   scrollerRef?: RefObject<Nullable<HTMLDivElement>>;
   tabId: string;
   tabLabel?: string;
+  /** INFO: § 13.6. Horizontal swipe handlers forwarded from the picker to drive tab changes. */
+  swipeHandlers?: {
+    onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
+    onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
+    onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
+    onPointerCancel: (event: PointerEvent<HTMLDivElement>) => void;
+    onPointerLeave: (event: PointerEvent<HTMLDivElement>) => void;
+    onClickCapture: (event: MouseEvent<HTMLDivElement>) => void;
+  };
   onCellFocus?: (event: FocusEvent<HTMLDivElement>) => void;
   onCellKeys?: (event: KeyboardEvent<HTMLDivElement>) => void;
   onExpandRecents?: () => void;
@@ -67,7 +75,6 @@ export function EmoticonTabPane({
   favorites = NO_ITEMS,
   focusableIndex,
   hasMoreAllSections = false,
-  isCurrent = false,
   isItemsPending = false,
   isKeyboardDriven,
   isWarmed = false,
@@ -77,6 +84,7 @@ export function EmoticonTabPane({
   recents = NO_ITEMS,
   recentsVisibleRows = 2,
   scrollerRef,
+  swipeHandlers,
   tabId,
   tabLabel = "",
   onCellFocus,
@@ -87,25 +95,6 @@ export function EmoticonTabPane({
 }: EmoticonTabPaneProps) {
   const localScrollerRef = useRef<Nullable<HTMLDivElement>>(null);
   const targetScrollerRef = scrollerRef ?? localScrollerRef;
-  const wasCurrentRef = useRef(isCurrent);
-
-  // INFO: REQUIREMENTS.md § 13.6. A tab is read from its top when entered.
-  // Resetting scrollTop after the horizontal slide-out animation completes ensures that
-  // tab bar tap transitions slide out smoothly without jumping on frame 0, and rapid returns cancel the reset.
-  useLayoutEffect(() => {
-    const prevWasCurrent = wasCurrentRef.current;
-    wasCurrentRef.current = isCurrent;
-
-    if (prevWasCurrent && !isCurrent) {
-      const timer = setTimeout(() => {
-        if (targetScrollerRef.current && targetScrollerRef.current.scrollTop !== 0) {
-          targetScrollerRef.current.scrollTop = 0;
-        }
-      }, TAB_RESET_DELAY);
-
-      return () => clearTimeout(timer);
-    }
-  }, [isCurrent, targetScrollerRef]);
 
   const isPack = isPackTabId(tabId);
   // INFO: If items was not passed from caller, query items directly for adjacent pack tabs.
@@ -138,6 +127,7 @@ export function EmoticonTabPane({
       )}
       onKeyDown={onCellKeys}
       onFocus={onCellFocus}
+      {...swipeHandlers}
     >
       {!isRecents && !isAll && tabLabel !== "" && (
         <h2 className="pb-xs text-body-sm text-meta" {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}>

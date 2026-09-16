@@ -20,7 +20,6 @@ import {
   isShiftKey,
   revealWithin,
   takeFocusWithoutPan,
-  useSnapTrack,
   type EmoticonItemId,
   type EmoticonPackId,
   type Nullable,
@@ -80,7 +79,7 @@ import { toEmoticonPacksQuery } from "../model/packs-query";
 import { useAllPackSections } from "../model/use-all-pack-sections";
 import { useEmoticonFavorites } from "../model/use-emoticon-favorites";
 import { useEmoticonSearch } from "../model/use-emoticon-search";
-import type { SwipeDirection } from "../model/use-horizontal-swipe";
+import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
 import { useOutwardTabWarm } from "../model/use-outward-tab-warm";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
 import { MAX_WARMED_PER_TAB } from "../model/warm-emoticon-images";
@@ -329,6 +328,8 @@ export function EmoticonPicker({
   const [syncedMenu, setSyncedMenu] = useState<Nullable<EmoticonMenu>>(null);
   // INFO: REQUIREMENTS.md § 8.14. Whether the panel is being driven by the keyboard, which is what paints `CELL_KEYBOARD_RING`. A pointer press anywhere in it ends that, and the next key begins it again.
   const [isKeyboardDriven, setIsKeyboardDriven] = useState(false);
+  // INFO: § 13.6. Which side the arriving tab slides in from — 1 = from the right (moving forward), -1 = from the left (moving back).
+  const [slideFrom, setSlideFrom] = useState<SwipeDirection>(1);
 
   // WARN: § 13.8. Adjusted during render rather than in an effect. An effect lands a frame later, so the panel would open on the remembered tab, paint a grid of the wrong pack, and only then swap to the search row — which reads as the wrong panel flashing up. It is also why the forced tab is component state rather than the stored one: writing `localStorage` during a render is a side effect, and comparing tokens is not.
   if (searchRequest && searchRequest.token !== appliedSearchToken) {
@@ -578,18 +579,7 @@ export function EmoticonPicker({
   const tabIds = isSearching ? [] : [recentsTab, allTab, ...menuPacks.map((pack) => pack.id)];
   const activeIndex = tabIds.indexOf(activeTab);
 
-  const snapTrackRef = useRef<Nullable<HTMLDivElement>>(null);
-  const { scrollToIndex, trackProps, isDragging } = useSnapTrack({
-    count: tabIds.length,
-    initialIndex: Math.max(activeIndex, 0),
-    onIndexChange: (newIndex) => {
-      const targetTab = tabIds[newIndex];
-      if (targetTab && targetTab !== activeTab) {
-        selectTab(targetTab, { skipScroll: true });
-      }
-    },
-    trackRef: snapTrackRef,
-  });
+  const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
   const tabThumbnailUrls = menuPacks.flatMap((pack) =>
     pack.thumbnailItemId
       ? [
@@ -676,65 +666,6 @@ export function EmoticonPicker({
       scroller.scrollTop = 0;
     }
   }, [activeTab, isOpen]);
-
-  const wasOpenRef = useRef(isOpen);
-  const lastActiveMenuRef = useRef(activeMenu);
-  const hasAlignedInitialTabRef = useRef(false);
-
-  /**
-   * INFO: REQUIREMENTS.md § 13.6. Align the snap track to the active tab's slide when the panel
-   * opens, when the menu switches, or when activeTab resolves from the restored storage
-   * key after packs land.
-   *
-   * WARN: Must be instant rather than smooth. An open on a remembered pack should appear
-   * already at that pack rather than gliding past every preceding tab.
-   */
-  useLayoutEffect(() => {
-    const isOpening = !wasOpenRef.current && isOpen;
-    wasOpenRef.current = isOpen;
-
-    const hasMenuSwitched = lastActiveMenuRef.current !== activeMenu;
-    lastActiveMenuRef.current = activeMenu;
-
-    if (!isOpen || activeIndex < 0 || isSearching) {
-      return;
-    }
-
-    const needsInitialAlignment = !hasAlignedInitialTabRef.current;
-
-    if (isOpening || hasMenuSwitched || needsInitialAlignment) {
-      hasAlignedInitialTabRef.current = true;
-
-      const track = snapTrackRef.current;
-
-      if (!track) {
-        return;
-      }
-
-      const align = () => {
-        if (track.clientWidth > 0) {
-          const targetLeft = track.clientWidth * activeIndex;
-
-          if (Math.abs(track.scrollLeft - targetLeft) >= 1) {
-            scrollToIndex(activeIndex, "instant");
-          }
-        }
-      };
-
-      align();
-
-      if (track.clientWidth === 0) {
-        const observer = new ResizeObserver(() => {
-          if (track.clientWidth > 0) {
-            align();
-            observer.disconnect();
-          }
-        });
-        observer.observe(track);
-        return () => observer.disconnect();
-      }
-    }
-  }, [activeMenu, activeIndex, isOpen, isSearching, scrollToIndex]);
 
   /**
    * REQUIREMENTS.md § 8.14. Focus into the panel when `⌃E` opened it, since a key that
@@ -1030,67 +961,50 @@ export function EmoticonPicker({
               </>
             )}
           </div>
-          {/* INFO: § 13.6. The third region — horizontal CSS Scroll Snap track with all tabs mounted. Inactive tabs are marked inert. */}
-          <div
-            ref={snapTrackRef}
+          {/* INFO: § 13.6. The third region — a single active tab pane, remounted on tab change.
+               WARN: `overflow-x-hidden` is what keeps the § 13.6. slide inside the panel —
+               a vertical-only scroller still resolves its horizontal axis to `auto`. */}
+          <EmoticonTabPane
+            key={activeTab}
             className={cn(
-              "scrollbar-hidden flex min-h-0 flex-1 touch-pan-x touch-pan-y overflow-x-auto overflow-y-hidden overscroll-x-contain select-none",
-              isDragging ? "cursor-grabbing snap-none" : "snap-x snap-mandatory hover:cursor-grab",
+              "animate-in duration-200",
+              slideFrom === 1 ? "slide-in-from-right-6" : "slide-in-from-left-6",
             )}
-            {...trackProps}
-          >
-            {tabIds.map((tabId, index) => {
-              const isCurrent = index === activeIndex;
-
-              return (
-                <div
-                  key={tabId}
-                  className={cn(
-                    "h-full w-full shrink-0 snap-center snap-always",
-                    isDragging && "pointer-events-none",
-                  )}
-                  inert={!isCurrent}
-                >
-                  <EmoticonTabPane
-                    allSections={allSections}
-                    eagerCount={eagerCount}
-                    emptyMessage={isCurrent ? toGridEmptyMessage() : undefined}
-                    favorites={favorites}
-                    focusableIndex={isCurrent ? focusableIndex : -1}
-                    hasMoreAllSections={hasMoreAllSections}
-                    isCurrent={isCurrent}
-                    isKeyboardDriven={isKeyboardDriven}
-                    isWarmed={warmedTabs.has(tabId)}
-                    items={isCurrent ? shown : undefined}
-                    loadMoreAllSections={loadMoreAllSections}
-                    menuKind={menuKind}
-                    recents={recents}
-                    recentsVisibleRows={recentsVisibleRows}
-                    scrollerRef={isCurrent ? cellScrollerRef : undefined}
-                    tabId={tabId}
-                    isItemsPending={
-                      isPending ||
-                      (activePackId !== null && isPackPending) ||
-                      (isRecentsTabId(activeTab) && isRecentsPending) ||
-                      isAllPending
-                    }
-                    tabLabel={
-                      isRecentsTabId(tabId)
-                        ? RECENTS_LABEL
-                        : isAllTabId(tabId)
-                          ? ALL_LABEL
-                          : (findPack(menuPacks, tabId)?.name ?? "")
-                    }
-                    onCellFocus={trackCellFocus}
-                    onCellKeys={handleCellKeys}
-                    onExpandRecents={() => setRecentsVisibleRows((r) => r + 3)}
-                    onFocusCell={setFocusedIndex}
-                    onSelect={handleSelect}
-                  />
-                </div>
-              );
-            })}
-          </div>
+            allSections={allSections}
+            eagerCount={eagerCount}
+            emptyMessage={toGridEmptyMessage()}
+            favorites={favorites}
+            focusableIndex={focusableIndex}
+            hasMoreAllSections={hasMoreAllSections}
+            isKeyboardDriven={isKeyboardDriven}
+            isWarmed={warmedTabs.has(activeTab)}
+            items={shown}
+            loadMoreAllSections={loadMoreAllSections}
+            menuKind={menuKind}
+            recents={recents}
+            recentsVisibleRows={recentsVisibleRows}
+            scrollerRef={cellScrollerRef}
+            swipeHandlers={swipeHandlers}
+            tabId={activeTab}
+            isItemsPending={
+              isPending ||
+              (activePackId !== null && isPackPending) ||
+              (isRecentsTabId(activeTab) && isRecentsPending) ||
+              isAllPending
+            }
+            tabLabel={
+              isRecentsTabId(activeTab)
+                ? RECENTS_LABEL
+                : isAllTabId(activeTab)
+                  ? ALL_LABEL
+                  : (findPack(menuPacks, activeTab)?.name ?? "")
+            }
+            onCellFocus={trackCellFocus}
+            onCellKeys={handleCellKeys}
+            onExpandRecents={() => setRecentsVisibleRows((r) => r + 3)}
+            onFocusCell={setFocusedIndex}
+            onSelect={handleSelect}
+          />
         </>
       )}
     </div>
@@ -1915,12 +1829,31 @@ export function EmoticonPicker({
     setFocusedIndex(0);
   }
 
-  function selectTab(id: string, options?: { skipScroll?: boolean }) {
+  /**
+   * INFO: § 13.6. Which side the arriving tab slides in from — its place in the strip,
+   * or the menu bar's order where the two menus differ.
+   *
+   * WARN: The menu comparison must come first. A tab in another menu is in no `tabIds`
+   * this render holds, so `indexOf` answers `-1` and every menu switch would slide in
+   * from the left however the bar was walked.
+   */
+  function toSlideDirection(id: string): SwipeDirection {
+    const menu = toMenuOf(id);
+
+    if (menu !== activeMenu) {
+      return EMOTICON_MENUS.indexOf(menu) < EMOTICON_MENUS.indexOf(activeMenu) ? -1 : 1;
+    }
+
+    return tabIds.indexOf(id) < activeIndex ? -1 : 1;
+  }
+
+  function selectTab(id: string) {
     // WARN: Not merely a wasted render — `setRequestedTab` writes `localStorage` and broadcasts to every hook instance and tab, on every tap of the pack that is already open.
     if (id === activeTab) {
       return;
     }
 
+    setSlideFrom(toSlideDirection(id));
     setForcedTab(id === SEARCH_TAB ? SEARCH_TAB : null);
     // INFO: § 13.9. Walking to another tab ends the reveal — the ring belongs to the tap that asked for it, not to the panel.
     setRevealed(null);
@@ -1930,12 +1863,6 @@ export function EmoticonPicker({
       // INFO: § 13.6. The within-session half of the memory, so a step across the menu bar and back returns to this tab rather than to 최근 사용 (`lastTabByKindRef`).
       lastTabByKindRef.current[toMenuOf(id) === "mini" ? "mini" : "emoticon"] = id;
       setRequestedTab(id);
-      if (!options?.skipScroll) {
-        const targetIndex = tabIds.indexOf(id);
-        if (targetIndex >= 0) {
-          scrollToIndex(targetIndex, "smooth");
-        }
-      }
     }
   }
 
