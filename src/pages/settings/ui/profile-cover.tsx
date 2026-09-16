@@ -61,6 +61,8 @@ export function ProfileCover({
       <Avatar
         className="relative"
         fallbackClassName={hasCover ? "bg-surface-strong/90" : undefined}
+        haptic
+        keepsScroll
         name={name}
         mediaId={avatarMediaId}
         size="profile"

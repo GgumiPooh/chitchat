@@ -162,6 +162,7 @@ function UserProfileOverlay({
             mediaId={participant.avatarMediaId}
             size="profile"
             canEnlarge
+            haptic
           />
           <p className="text-title-md text-on-scrim">{participant.name}</p>
           {!isMine && (
@@ -248,7 +249,13 @@ function LlmProfileOverlay({ className, overlayRef, subject, onClose }: LlmProfi
         </div>
         <div className="relative flex flex-1 flex-col items-center justify-end gap-sm px-md pb-[max(var(--spacing-2xl),env(safe-area-inset-bottom))]">
           {branding.avatarSrc ? (
-            <Avatar name={branding.name} src={branding.avatarSrc} size="profile" canEnlarge />
+            <Avatar
+              name={branding.name}
+              src={branding.avatarSrc}
+              size="profile"
+              canEnlarge
+              haptic
+            />
           ) : (
             <span className="flex size-18 items-center justify-center rounded-full bg-primary-tint ring-1 ring-hairline ring-inset">
               <Sparkles className="size-7 text-primary" strokeWidth={1.75} />

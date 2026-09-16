@@ -39,7 +39,13 @@ export function TypingIndicator({ className, typist, onOpenProfile }: TypingIndi
       {/* INFO: REQUIREMENTS.md § 12.3. Tapping the avatar opens the typist's profile screen, matching MessageRow. */}
       {/* WARN: DESIGN.md § 6.7.1. `canEnlarge` stays off — enlarging directly would bypass the profile screen. */}
       <span className="shrink-0">
-        <Avatar name={typist.name} mediaId={typist.avatarMediaId} onClick={handleOpenProfile} />
+        <Avatar
+          haptic
+          keepsScroll
+          name={typist.name}
+          mediaId={typist.avatarMediaId}
+          onClick={handleOpenProfile}
+        />
       </span>
       {/* INFO: DESIGN.md § 6.2. The incoming bubble exactly — same radius, same fill, same hairline, same `px-sm py-xs` — because this is where that bubble is about to appear. */}
       <span

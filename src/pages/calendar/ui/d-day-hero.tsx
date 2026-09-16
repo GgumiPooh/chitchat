@@ -6,7 +6,7 @@ import { useChatStream } from "@/features/chat-stream";
 import { useProfileViewer } from "@/features/view-profile";
 import { toMediaUrl } from "@/shared/config";
 import { cn, formatDate, type Maybe, type Nullable, type UserId } from "@/shared/lib";
-import { Avatar, HapticTarget, PreloadImage } from "@/shared/ui";
+import { Avatar, PreloadImage } from "@/shared/ui";
 import { Heart } from "lucide-react";
 
 export type DDayHeroProps = {
@@ -88,17 +88,16 @@ function PersonBadge({ className, participant }: PersonBadgeProps) {
   return (
     <div className={cn("flex flex-col items-center gap-2xs", className)}>
       {/* INFO: A border, not a ring — `Avatar`'s own ring is inset and the photo paints over it, so a ring here never shows. */}
-      {/* INFO: `Avatar` becomes a `<button>` with `onClick` and carries no `haptic` of its own, so the overlay is mounted beside it here (DESIGN.md § 7.15.). */}
       {/* WARN: DESIGN.md § 7.15.1. `keepsScroll` — the hero sits on the document scroller, and a bare switch overlay took a scroll that began on the avatar and never let the page move. */}
-      <HapticTarget className="inline-flex shrink-0" overlayClassName="touch-pan-y" keepsScroll>
-        <Avatar
-          className="border-2 border-hero-outline"
-          size="profile"
-          name={participant.name}
-          mediaId={participant.avatarMediaId}
-          onClick={() => openProfile(participant.id)}
-        />
-      </HapticTarget>
+      <Avatar
+        buttonClassName="border-2 border-hero-outline"
+        haptic
+        keepsScroll
+        name={participant.name}
+        mediaId={participant.avatarMediaId}
+        size="profile"
+        onClick={() => openProfile(participant.id)}
+      />
       <p className="text-title-sm text-on-scrim">{participant.name}</p>
     </div>
   );

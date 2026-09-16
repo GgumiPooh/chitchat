@@ -4,12 +4,15 @@ import { toMediaUrl } from "@/shared/config";
 import { cn, toId, type Maybe, type MediaId, type Nullable } from "@/shared/lib";
 import { Avatar as AvatarPrimitive } from "radix-ui";
 import { useMemo, useState } from "react";
+import { HapticTarget } from "./haptic-target";
 import type { MediaCell } from "./media-cell";
 import { MediaViewer } from "./media-viewer";
 import { Skeleton } from "./skeleton";
 
 export type AvatarProps = {
   className?: string;
+  /** WARN: The button's own box, for anything `className` cannot reach once `haptic` moves that to the wrapper — borders, focus rings. */
+  buttonClassName?: string;
   fallbackClassName?: string;
   src?: Maybe<string>;
   /** REQUIREMENTS.md § 12. The `media` row behind the photo. Resolves `src` and is what the full-screen view reads. */
@@ -25,6 +28,10 @@ export type AvatarProps = {
    * (§ 11.4.), where a nested `button` is invalid markup and swallows that tap.
    */
   canEnlarge?: boolean;
+  /** Ticks the Taptic engine when a finger lands on the button. */
+  haptic?: boolean;
+  /** Passes keepsScroll to HapticTarget so the touch overlay preserves scrolling on lists. */
+  keepsScroll?: boolean;
   /**
    * Makes the avatar a button that runs this instead of enlarging the photo.
    *
@@ -49,12 +56,15 @@ const SIZE_CLASS_NAME = {
 // INFO: DESIGN.md § 7.7. The inset hairline ring exists at every size so light photos cannot bleed into `canvas`.
 export function Avatar({
   className,
+  buttonClassName,
   fallbackClassName,
   src,
   mediaId,
   name,
   size = "chat",
   canEnlarge = false,
+  haptic = false,
+  keepsScroll = false,
   onClick,
 }: AvatarProps) {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
@@ -118,20 +128,34 @@ export function Avatar({
     return face;
   }
 
+  const button = (
+    <button
+      className={cn(
+        "shrink-0 cursor-pointer rounded-full transition-opacity outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary active:opacity-70",
+        SIZE_CLASS_NAME[size],
+        !haptic && className,
+        buttonClassName,
+      )}
+      type="button"
+      aria-label={onClick ? `${name} 프로필 보기` : `${name} 프로필 사진 크게 보기`}
+      onClick={onClick ?? (() => setIsViewerOpen(true))}
+    >
+      {face}
+    </button>
+  );
+
   return (
     <>
-      <button
-        className={cn(
-          "shrink-0 cursor-pointer rounded-full transition-opacity outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary active:opacity-70",
-          SIZE_CLASS_NAME[size],
-          className,
-        )}
-        type="button"
-        aria-label={onClick ? `${name} 프로필 보기` : `${name} 프로필 사진 크게 보기`}
-        onClick={onClick ?? (() => setIsViewerOpen(true))}
-      >
-        {face}
-      </button>
+      {haptic ? (
+        <HapticTarget
+          className={cn("inline-flex shrink-0 rounded-full", className)}
+          keepsScroll={keepsScroll}
+        >
+          {button}
+        </HapticTarget>
+      ) : (
+        button
+      )}
       {isViewerOpen && (
         <MediaViewer cells={cells} initialIndex={0} onClose={() => setIsViewerOpen(false)} />
       )}

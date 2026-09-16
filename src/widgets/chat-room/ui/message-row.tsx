@@ -277,6 +277,8 @@ export function MessageRow({
           // INFO: REQUIREMENTS.md § 8.7. Resolved from the participant set at render time, never copied onto the message row, so a profile change reaches every past bubble.
           // INFO: REQUIREMENTS.md § 12.3. The tap opens the profile screen rather than the photo — the enlargement is still there, one level in, on that screen's own avatar.
           <Avatar
+            haptic
+            keepsScroll
             name={sender?.name ?? ""}
             mediaId={sender?.avatarMediaId}
             onClick={sender ? () => openProfile(sender.id) : undefined}

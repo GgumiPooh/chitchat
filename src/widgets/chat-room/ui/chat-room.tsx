@@ -133,6 +133,7 @@ import {
   ActionSheet,
   Button,
   EmptyState,
+  HapticTarget,
   IconButton,
   MarkdownBody,
   MediaViewer,
@@ -4600,23 +4601,25 @@ function AiAnswerRow({
       <span className="sr-only" aria-live="polite">
         {branding.name}가 답변하고 있어요
       </span>
-      <button
-        className="block size-9 shrink-0 cursor-pointer rounded-full transition-opacity outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary active:opacity-70"
-        type="button"
-        aria-label={`${branding.name} 프로필 보기`}
-        onClick={onOpenProfile}
-      >
-        {branding.avatarSrc ? (
-          <span className="block size-full overflow-hidden rounded-full ring-1 ring-hairline ring-inset">
-            {/* eslint-disable-next-line @next/next/no-img-element -- a static asset under `public/llm`, not a stored `media` row `next/image` would otherwise optimize */}
-            <img className="size-full object-cover" src={branding.avatarSrc} alt="" />
-          </span>
-        ) : (
-          <span className="flex size-full items-center justify-center rounded-full bg-primary-tint ring-1 ring-hairline ring-inset">
-            <Sparkles className="size-4 text-primary" strokeWidth={1.75} />
-          </span>
-        )}
-      </button>
+      <HapticTarget className="inline-flex shrink-0 rounded-full" keepsScroll>
+        <button
+          className="block size-9 shrink-0 cursor-pointer rounded-full transition-opacity outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary active:opacity-70"
+          type="button"
+          aria-label={`${branding.name} 프로필 보기`}
+          onClick={onOpenProfile}
+        >
+          {branding.avatarSrc ? (
+            <span className="block size-full overflow-hidden rounded-full ring-1 ring-hairline ring-inset">
+              {/* eslint-disable-next-line @next/next/no-img-element -- a static asset under `public/llm`, not a stored `media` row `next/image` would otherwise optimize */}
+              <img className="size-full object-cover" src={branding.avatarSrc} alt="" />
+            </span>
+          ) : (
+            <span className="flex size-full items-center justify-center rounded-full bg-primary-tint ring-1 ring-hairline ring-inset">
+              <Sparkles className="size-4 text-primary" strokeWidth={1.75} />
+            </span>
+          )}
+        </button>
+      </HapticTarget>
       {/* WARN: DESIGN.md § 6.11. A `max-width` and never `flex-1` — the same trap `assistant-message-row.tsx` carries. `w-fit` keeps the *bubble* compact, but a growing slot still stretches, which parks 중지 at the row's far edge instead of beside the bubble. The cap is what the finished `AssistantMessageRow` wraps at (its own `calc(100%-44px)` column less the `gap-2xs` and `w-[68px]` beside it), so the last streamed frame and the landed row wrap identically. */}
       <div className="max-w-[calc(100%-116px)] min-w-0">
         <div

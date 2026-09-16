@@ -1157,6 +1157,8 @@ The photo is stored **square** (`REQUIREMENTS.md § 12.`), because the circle cr
 
 Where it is enlargeable, the avatar is a button: `opacity-80` on hover, `opacity-70` on active, `focus-visible` ring on the circle itself rather than on the image inside it. Tapping opens the § 7.10. viewer on that one photo, with the save control hidden — a profile photo is the person, not an attachment they shared. It is **not** enlargeable inside another interactive element (the § 7.9. day agenda's authorship avatar, which sits inside the row button that opens the event), where a nested button would swallow the tap.
 
+**`Avatar` carries a `haptic` prop** (and `keepsScroll` beside it, for the same reason `HapticTarget` does) so callers need not compose the wrapper themselves — except the two that are list items first (`\u003cli\u003e`), which are covered below. `buttonClassName` exposes the button's own box — borders, focus overrides — for the one caller that needs them without evicting `className` from the `HapticTarget` wrapper.
+
 ## 7.8. Skeleton.
 
 `surface-strong` blocks at the final content's radius, pulsing to `surface-soft` over 1.5s. Used for the library grid, the calendar month, and § 6.8.'s search results. Never for optimistic messages — those render at 60% opacity (§ 6.5.).

@@ -14,7 +14,7 @@ import {
   type Nullable,
   type UserId,
 } from "@/shared/lib";
-import { IconButton, MarkdownBody } from "@/shared/ui";
+import { HapticTarget, IconButton, MarkdownBody } from "@/shared/ui";
 import { BellOff, Bookmark, ChevronDown, Share, Sparkles } from "lucide-react";
 import { toBubbleTapHandler } from "../model/to-bubble-tap-handler";
 import { isExpandableBody, toTruncatedBodyHeight } from "../model/to-truncated-body";
@@ -104,23 +104,25 @@ export function AssistantMessageRow({
 
   return (
     <div className={cn("group/row flex gap-2xs px-md pt-sm", className)}>
-      <button
-        className="block size-9 shrink-0 cursor-pointer rounded-full transition-opacity outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary active:opacity-70"
-        type="button"
-        aria-label={`${branding.name} 프로필 보기`}
-        onClick={() => openLlmProfile(message.llmProvider, message.llmModel ?? undefined)}
-      >
-        {branding.avatarSrc ? (
-          <span className="block size-full overflow-hidden rounded-full ring-1 ring-hairline ring-inset">
-            {/* eslint-disable-next-line @next/next/no-img-element -- a static asset under `public/llm`, not a stored `media` row `next/image` would otherwise optimize */}
-            <img className="size-full object-cover" src={branding.avatarSrc} alt="" />
-          </span>
-        ) : (
-          <span className="flex size-full items-center justify-center rounded-full bg-primary-tint ring-1 ring-hairline ring-inset">
-            <Sparkles className="size-4 text-primary" strokeWidth={1.75} />
-          </span>
-        )}
-      </button>
+      <HapticTarget className="inline-flex shrink-0 rounded-full" keepsScroll>
+        <button
+          className="block size-9 shrink-0 cursor-pointer rounded-full transition-opacity outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary active:opacity-70"
+          type="button"
+          aria-label={`${branding.name} 프로필 보기`}
+          onClick={() => openLlmProfile(message.llmProvider, message.llmModel ?? undefined)}
+        >
+          {branding.avatarSrc ? (
+            <span className="block size-full overflow-hidden rounded-full ring-1 ring-hairline ring-inset">
+              {/* eslint-disable-next-line @next/next/no-img-element -- a static asset under `public/llm`, not a stored `media` row `next/image` would otherwise optimize */}
+              <img className="size-full object-cover" src={branding.avatarSrc} alt="" />
+            </span>
+          ) : (
+            <span className="flex size-full items-center justify-center rounded-full bg-primary-tint ring-1 ring-hairline ring-inset">
+              <Sparkles className="size-4 text-primary" strokeWidth={1.75} />
+            </span>
+          )}
+        </button>
+      </HapticTarget>
       <div
         className={cn(
           // WARN: DESIGN.md § 6.11. `max-w-[calc(100%-44px)]`, not `flex-1` — the identical cap `MessageRow`'s own outer column takes, an AI answer sharing the § 6.11. wide cap being the whole point rather than a value of its own keyed to this row's `gap-2xs`. `flex-1` forced this box to the row's *full* available width regardless of the bubble's own content, which is what pushed the timestamp off to the row's true right edge on a short answer instead of hugging the bubble — a `max-width` shrink-wraps to content the way `flex-grow` cannot.

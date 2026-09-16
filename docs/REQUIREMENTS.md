@@ -388,7 +388,7 @@ The `(main)` layout is the app shell — max `576px` and centered below `md`, fi
 
 **Haptics** (`DESIGN.md § 7.15.`) — iOS has no Vibration API and iOS 26.5 removed the scripted-trigger workaround, so `HapticTap` is an invisible native `input[switch]` laid under the finger: **an element, never a function call.**
 
-- It rides a `haptic` prop on `Button` / `IconButton` / `Chip` / `Switch` / `SettingsRow` / `Link`, and is composed by hand for raw buttons (composer send, day cell, emoticon grid, list rows, staged-attachment removal, `ActionSheet`)
+- It rides a `haptic` prop on `Button` / `IconButton` / `Chip` / `Switch` / `SettingsRow` / `Link` / `Avatar`, and is composed by hand for raw buttons (composer send, day cell, emoticon grid, list rows, staged-attachment removal, `ActionSheet`)
 - It fires on a **committed change of state or a selection among peers** — never on dismissing a surface or going back, and it **cannot** fire on a drag threshold such as swipe-to-reply (§ 8.10.), because no scripted trigger exists on 26.5+
 - A release that travelled `GESTURE_SLOP` is a drag, not a tap: the overlay refuses it, so neither the control nor the Taptic engine hears it (`DESIGN.md § 7.15.2.`)
 - On a target that **tiles a scroller** (the month grid, the emoticon grid, a `SettingsRow`, the full-width name of an 이모티콘 관리 row) it needs `keepsScroll`, which moves the tap to a `<label>` — the switch keeps a drag of its own and would otherwise leave the surface unscrollable. That mode is **opt-in**: inside an `<a>` the anchor eats the label's activation and the tick vanishes (`DESIGN.md § 7.15.1.`)
