@@ -244,12 +244,8 @@ export function EmoticonFormSheet({
   // the sheet was not mounted. In that case, clean up immediately so no dirty state
   // or object URLs survive into the next open.
   useEffect(() => {
-    if (!isOpen) {
-      if (!wasSheetOpenRef.current) {
-        discardDraft();
-      }
-    } else {
-      wasSheetOpenRef.current = false;
+    if (!isOpen && !wasSheetOpenRef.current) {
+      discardDraft();
     }
   }, [isOpen, discardDraft]);
 
@@ -260,6 +256,7 @@ export function EmoticonFormSheet({
     // from the editor.
     if (isOpen) {
       event.preventDefault();
+      wasSheetOpenRef.current = isSheetOpen;
 
       return;
     }
