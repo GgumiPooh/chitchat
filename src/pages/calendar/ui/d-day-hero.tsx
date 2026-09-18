@@ -63,9 +63,12 @@ export function DDayHero({ className, backdropClassName, summary }: DDayHeroProp
       </div>
 
       {/* INFO: DESIGN.md § 3.4. `--bottom-inset` is the tab bar's height — the hero is the one screen whose bottom edge sits under it rather than above `RouteTransition`'s trailing space. */}
-      <div className="flex items-end justify-center gap-xl pb-[calc(var(--bottom-inset,0px)+var(--spacing-xl))]">
+      {/* WARN: Fixed badge width (`w-28`) and `items-start` with an `h-18` heart wrapper keep the heart exactly centered between the avatars regardless of nickname length. Under shrink-wrap, an asymmetric nickname shifted the heart off-center. */}
+      <div className="flex max-w-full items-start justify-center gap-xs px-xs pb-[calc(var(--bottom-inset,0px)+var(--spacing-xl))]">
         <PersonBadge participant={first} />
-        <Heart className="mb-xs size-8 fill-hero-heart stroke-hero-outline" strokeWidth={1} />
+        <div className="flex h-18 shrink-0 items-center">
+          <Heart className="size-8 fill-hero-heart stroke-hero-outline" strokeWidth={1} />
+        </div>
         <PersonBadge participant={second} />
       </div>
     </section>
@@ -86,7 +89,7 @@ function PersonBadge({ className, participant }: PersonBadgeProps) {
   }
 
   return (
-    <div className={cn("flex flex-col items-center gap-2xs", className)}>
+    <div className={cn("flex w-28 min-w-0 flex-col items-center gap-2xs", className)}>
       {/* INFO: A border, not a ring — `Avatar`'s own ring is inset and the photo paints over it, so a ring here never shows. */}
       {/* WARN: DESIGN.md § 7.15.1. `keepsScroll` — the hero sits on the document scroller, and a bare switch overlay took a scroll that began on the avatar and never let the page move. */}
       <Avatar
@@ -98,7 +101,9 @@ function PersonBadge({ className, participant }: PersonBadgeProps) {
         size="profile"
         onClick={() => openProfile(participant.id)}
       />
-      <p className="text-title-sm text-on-scrim">{participant.name}</p>
+      <p className="line-clamp-3 w-full text-center text-title-sm break-all text-on-scrim">
+        {participant.name}
+      </p>
     </div>
   );
 }
