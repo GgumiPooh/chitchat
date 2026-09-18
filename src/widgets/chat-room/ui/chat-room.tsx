@@ -403,6 +403,7 @@ export function ChatRoom({
   // WARN: Open from the start for a room that loaded empty. There is no window to park and nothing to correct, and the scroller only mounts when the first message lands — gating on it would hold that one arrival back for two frames, on the § 8.12. screen where an arrival is the whole event.
   const [hasSettledFirstPark, setHasSettledFirstPark] = useState(initialMessages.length === 0);
   const hasSettledFirstParkCommitRef = useRef(initialMessages.length === 0);
+  const settleFirstParkFrameRef = useRef<Optional<number>>(undefined);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isAtBottomRef = useRef(true);
   const [isAtTop, setIsAtTop] = useState(true);
@@ -769,6 +770,11 @@ export function ChatRoom({
     }
 
     hasHandledSheetFlipRef.current = isEmoticonPanelOpen;
+    hasSettledFirstParkCommitRef.current = true;
+    if (settleFirstParkFrameRef.current !== undefined) {
+      cancelAnimationFrame(settleFirstParkFrameRef.current);
+      settleFirstParkFrameRef.current = undefined;
+    }
 
     if (sheetSwap !== null || isKeyboardOpen) {
       return;
@@ -1500,11 +1506,19 @@ export function ChatRoom({
         return;
       }
 
-      if (!scroller || growth <= 0 || !isAtBottomRef.current) {
+      // WARN: § 13.6. If a sheet FLIP is running, scrollHeight is inflated by the spacer, so parking here would overshoot; finishListFlip re-parks upon completion.
+      if (containerRef.current?.hasAttribute(SHEET_FLIP_ATTRIBUTE)) {
         return;
       }
 
-      if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= growth + 1) {
+      if (!scroller || growth <= 0 || (!isAtBottomRef.current && hasTakenScrollRef.current)) {
+        return;
+      }
+
+      if (
+        !hasTakenScrollRef.current ||
+        scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= growth + 1
+      ) {
         scroller.scrollTop = scroller.scrollHeight;
       }
     });
@@ -1706,14 +1720,19 @@ export function ChatRoom({
    * the room is re-parked on each size change until the rows have real heights.
    *
    * WARN: Gated on the gesture flag and initial park settlement, never on the at-bottom one — `syncScrollEdges` runs first and has already read the pre-park position as "not at bottom", so this would never fire.
-   * WARN: Terminates permanently via `hasSettledFirstParkCommitRef` once `hasSettledFirstPark` lands, preventing subsequent re-renders (such as sheet-open FLIP with inflated scrollHeight) from running an unwanted re-park.
+   * WARN: Terminates permanently via `hasSettledFirstParkCommitRef` once initial row measurements settle, preventing subsequent re-renders (such as sheet-open FLIP with inflated scrollHeight) from running an unwanted re-park.
    *
    * WARN: A layout effect, never a passive one. Passive runs after paint, so the room's first frame would be the top of the loaded window rather than the newest message — and the two effects above it, which are passive, would read that pre-park position: the § 6.7. pill would flash and `requestAdjacentPages` would see `scrollTop === 0` and fetch a page of history nobody asked for on every open.
    */
   useIsomorphicLayoutEffect(() => {
     const element = scrollerRef.current;
 
-    if (!element || hasSettledFirstParkCommitRef.current || hasTakenScrollRef.current) {
+    if (
+      !element ||
+      hasSettledFirstParkCommitRef.current ||
+      hasTakenScrollRef.current ||
+      containerRef.current?.hasAttribute(SHEET_FLIP_ATTRIBUTE)
+    ) {
       return;
     }
 
@@ -1721,7 +1740,15 @@ export function ChatRoom({
     element.scrollTop = element.scrollHeight;
 
     if (hasSettledFirstPark) {
-      hasSettledFirstParkCommitRef.current = true;
+      if (settleFirstParkFrameRef.current !== undefined) {
+        cancelAnimationFrame(settleFirstParkFrameRef.current);
+      }
+      settleFirstParkFrameRef.current = requestAnimationFrame(() => {
+        settleFirstParkFrameRef.current = requestAnimationFrame(() => {
+          hasSettledFirstParkCommitRef.current = true;
+          settleFirstParkFrameRef.current = undefined;
+        });
+      });
     }
   });
 
@@ -1743,6 +1770,14 @@ export function ChatRoom({
 
     return () => cancelAnimationFrame(frame);
   }, [scroller]);
+
+  useEffect(() => {
+    return () => {
+      if (settleFirstParkFrameRef.current !== undefined) {
+        cancelAnimationFrame(settleFirstParkFrameRef.current);
+      }
+    };
+  }, []);
 
   /**
    * REQUIREMENTS.md § 8.3. Puts the reader back on the row `insertOlder` wrote down,
@@ -1841,6 +1876,11 @@ export function ChatRoom({
 
     const takeScroll = () => {
       hasTakenScrollRef.current = true;
+      hasSettledFirstParkCommitRef.current = true;
+      if (settleFirstParkFrameRef.current !== undefined) {
+        cancelAnimationFrame(settleFirstParkFrameRef.current);
+        settleFirstParkFrameRef.current = undefined;
+      }
       recentJumpRef.current = null;
     };
 
@@ -3166,6 +3206,11 @@ export function ChatRoom({
     }
 
     hasTakenScrollRef.current = true;
+    hasSettledFirstParkCommitRef.current = true;
+    if (settleFirstParkFrameRef.current !== undefined) {
+      cancelAnimationFrame(settleFirstParkFrameRef.current);
+      settleFirstParkFrameRef.current = undefined;
+    }
     scroller.scrollBy({
       top: scroller.clientHeight * HISTORY_SCROLL_STEP * direction,
       behavior: "smooth",
@@ -4114,6 +4159,11 @@ export function ChatRoom({
 
     // WARN: The open parks the room on the newest message after *every* render until a real gesture takes the scroll (§ 8.3.), and a jump is not one — so without this the park runs on the very next commit and drags the reader straight back to the live edge. A search reaches this on a screen nobody has scrolled at all: open, type, jump.
     hasTakenScrollRef.current = true;
+    hasSettledFirstParkCommitRef.current = true;
+    if (settleFirstParkFrameRef.current !== undefined) {
+      cancelAnimationFrame(settleFirstParkFrameRef.current);
+      settleFirstParkFrameRef.current = undefined;
+    }
 
     // WARN: § 8.6.1. Retried across frames rather than looked up once. WebKit can run this rAF before React's re-render has written the around window into `rowsRef`, and a single lookup then misses and bails silently — no scroll, no flash, the reader left clamped at the replaced window's bottom.
     let lookupsRemaining = JUMP_SETTLE_FRAMES;
