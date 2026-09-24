@@ -12,6 +12,7 @@ import {
   isDormantVisible,
   isLetterKey,
   isMenuKey,
+  isStandalone,
   type Optional,
 } from "@/shared/lib";
 import { useEffect, useRef } from "react";
@@ -349,10 +350,14 @@ function isOwnedKey(event: KeyboardEvent): boolean {
  * every other key.
  *
  * INFO: Read off `EMOTICON_MENUS` rather than from a table of its own, so the bar's order and the digits' cannot come apart.
- * WARN: § 8.14. Two modifiers spelled these before `isMenuKey` did and neither may have them back. `⌘1`/`⌘2`/`⌘3` is the browser's own tab switch, so where it reserves them the page is never sent the keystroke at all. `⌥1` is `¡` on macOS — a character, and therefore unpressable in the composer, in § 13.8.'s search field and in a correction, which are the three places this shortcut is most wanted.
+ * WARN: § 8.14. `⌘1`/`⌘2`/`⌘3` (or `Ctrl+1/2/3`) is the browser's own tab switch in a browser tab.
+ * Outside an installed PWA (`isStandalone()`), `isCommandKey` is withheld so the browser's tab
+ * switch works unimpeded; inside a PWA where tabs do not exist, `isCommandKey` is admitted alongside `isMenuKey`.
  */
 function toEmoticonMenu(event: KeyboardEvent): Optional<EmoticonMenu> {
-  if (!isMenuKey(event) && !isCommandKey(event)) {
+  const isCommandAllowed = isStandalone() && isCommandKey(event);
+
+  if (!isMenuKey(event) && !isCommandAllowed) {
     return undefined;
   }
 

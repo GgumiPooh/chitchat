@@ -1,6 +1,12 @@
 "use client";
 
-import { toAltKeyLabel, toCommandKeyLabel, toGoToNewestKeyLabel } from "@/shared/lib";
+import {
+  isStandalone,
+  toAltKeyLabel,
+  toCommandKeyLabel,
+  toGoToNewestKeyLabel,
+  toMenuKeyLabel,
+} from "@/shared/lib";
 import { Modal } from "@/shared/ui";
 import { Fragment } from "react";
 
@@ -44,6 +50,8 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
   const alt = toAltKeyLabel();
   // INFO: § 8.14. Its own label rather than `command` — this is the one binding with no `Ctrl` fallback, so the sheet has to say `⌘` on a Mac rather than the key that opens Mission Control instead.
   const goToNewest = toGoToNewestKeyLabel();
+  // INFO: § 8.14. Outside an installed PWA, ⌘1/2/3 is withheld to leave browser tab switching alone, leaving ⌃1/2/3 (or Alt) as the active shortcut.
+  const menuDigitChord = isStandalone() ? command : toMenuKeyLabel();
 
   return (
     <Modal
@@ -67,7 +75,7 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
         {renderGroup("이모티콘", [
           { chord: [command], keys: ["E"], label: "이모티콘 패널 열기 / 닫기" },
           // INFO: § 8.14. One row for the three digits, in the menu bar's own order — three rows would say the same thing three times and cost the sheet its length.
-          { chord: [command], keys: ["1", "2", "3"], label: "검색 / 이모티콘 / 미니" },
+          { chord: [menuDigitChord], keys: ["1", "2", "3"], label: "검색 / 이모티콘 / 미니" },
           { keys: ["←", "→", "↑", "↓"], label: "패널 안에서 이동" },
           // INFO: § 8.14. Named separately from the arrows above, because it is the one that works from anywhere in the panel rather than only at an edge — which is the whole reason it exists.
           { chord: ["Shift"], keys: ["←", "→"], label: "이모티콘 슬라이드 넘기기" },
