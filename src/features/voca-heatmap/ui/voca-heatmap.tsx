@@ -17,6 +17,10 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
     null,
   );
 
+  const totalReviews = useMemo(() => {
+    return heatmap.reduce((sum, d) => sum + d.count, 0);
+  }, [heatmap]);
+
   const heatmapMap = useMemo(() => {
     const map = new Map<string, VocaHeatmapDay>();
     for (const item of heatmap) {
@@ -91,11 +95,19 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
         </div>
       </div>
 
-      {activeTooltip && (
-        <div className="mb-2 text-center text-caption font-medium text-primary">
-          {activeTooltip.dayKey}: {activeTooltip.count}개 복습 완료
-        </div>
-      )}
+      <div className="mb-2 flex h-5 items-center justify-center text-caption">
+        {activeTooltip ? (
+          <span className="animate-in font-semibold text-primary duration-100 fade-in-50">
+            {activeTooltip.dayKey}: {activeTooltip.count}개 복습 완료
+          </span>
+        ) : (
+          <span className="text-meta">
+            {totalReviews > 0
+              ? `최근 1년간 총 ${totalReviews.toLocaleString()}개 복습 완료`
+              : "날짜를 누르거나 마우스를 올리면 복습량을 확인할 수 있어요"}
+          </span>
+        )}
+      </div>
 
       {/* Responsive scroll container: 12-week snap view on mobile, 52-week on lg */}
       <div className="scrollbar-hidden overflow-x-auto pb-1">
@@ -123,10 +135,12 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
                     levelColor(day.level),
                   )}
                   type="button"
-                  title={`${day.dayKey}: ${day.count}개`}
+                  aria-label={`${day.dayKey}: ${day.count}개 복습 완료`}
+                  onBlur={() => setActiveTooltip(null)}
+                  onClick={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
+                  onFocus={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
                   onMouseEnter={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
                   onMouseLeave={() => setActiveTooltip(null)}
-                  onClick={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
                 />
               ))}
             </div>
