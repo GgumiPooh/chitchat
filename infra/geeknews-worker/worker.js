@@ -1,11 +1,14 @@
 /**
- * Fetches GeekNews Atom feed every five minutes, parses the articles,
- * and delivers them in a single batch to the app via POST /api/ops/sync-geeknews.
+ * Fetches GeekNews curated front page (https://news.hada.io/) every five minutes,
+ * parses the 20 curated/upvoted articles, and delivers them in a single batch
+ * to the app via POST /api/ops/sync-geeknews.
  */
 
 const DEFAULT_ORIGIN = "https://jandh.jeheecheon.com";
-const FEED_URL = "https://news.hada.io/rss/news";
+const CURATED_NEWS_URL = "https://news.hada.io/";
 const SYNC_PATH = "/api/ops/sync-geeknews";
+const USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
 
 const handler = {
   async scheduled(event, env, context) {
@@ -33,31 +36,48 @@ function stripHtmlAndCdata(text) {
     .trim();
 }
 
-function parseFeed(xml) {
+function parseCuratedPage(html) {
   const articles = [];
-  const regex = /<entry>([\s\S]*?)<\/entry>/g;
+  const rowRegex =
+    /<div class=['"]topic_row['"]([\s\S]*?)(?=<div class=['"]topic_row['"]|<div class=['"]next commentTD['"]|<\/article>|$)/g;
   let match;
 
-  while ((match = regex.exec(xml)) !== null) {
+  while ((match = rowRegex.exec(html)) !== null) {
     const block = match[1];
-    const idMatch = block.match(/<id>(?:https:\/\/news\.hada\.io\/topic\?id=)?(\d+)<\/id>/);
+    const idMatch = block.match(/data-topic-state-id=['"](\d+)['"]/);
     const geeknewsId = idMatch ? idMatch[1] : null;
-    const titleRaw = block.match(/<title>([\s\S]*?)<\/title>/)?.[1] || "";
-    const publishedRaw = block.match(/<published>([\s\S]*?)<\/published>/)?.[1] || "";
-    const contentRaw = block.match(/<content[^>]*>([\s\S]*?)<\/content>/)?.[1] || "";
 
-    const title = stripHtmlAndCdata(titleRaw);
-    const summary = stripHtmlAndCdata(contentRaw);
+    const titleMatch = block.match(
+      /<h2[^>]*class=['"][^'"]*topic-title-heading[^'"]*['"][^>]*>([\s\S]*?)<\/h2>/i,
+    );
+    const title = stripHtmlAndCdata(titleMatch ? titleMatch[1] : "");
+
+    const linkMatch =
+      block.match(/<a\s+[^>]*href=['"]([^'"]+)['"][^>]*class=['"][^'"]*topic-title-link/i) ||
+      block.match(
+        /<a\s+[^>]*class=['"][^'"]*topic-title-link[^'"]*['"][^>]*href=['"]([^'"]+)['"]/i,
+      );
+    let rawUrl = (linkMatch && linkMatch[1] ? linkMatch[1] : "").trim();
+    if (rawUrl.startsWith("/")) {
+      rawUrl = `https://news.hada.io${rawUrl}`;
+    }
+
+    const descMatch = block.match(/<div class=['"]topicdesc['"]>([\s\S]*?)<\/div>/i);
+    const summary = stripHtmlAndCdata(descMatch ? descMatch[1] : "");
+
+    const timeMatch = block.match(/<time[^>]*datetime=['"]([^'"]+)['"]/i);
+    const publishedAt = timeMatch ? new Date(timeMatch[1]).toISOString() : new Date().toISOString();
+
     const geeknewsUrl = `https://news.hada.io/topic?id=${geeknewsId}`;
 
     if (geeknewsId && title) {
       articles.push({
         geeknewsId,
         title,
-        url: geeknewsUrl,
+        url: rawUrl || geeknewsUrl,
         geeknewsUrl,
         summary,
-        publishedAt: new Date(publishedRaw).toISOString(),
+        publishedAt,
       });
     }
   }
@@ -73,24 +93,28 @@ async function syncGeeknews(env) {
     return;
   }
 
-  let feedText = "";
+  let html = "";
   try {
-    const feedRes = await fetch(FEED_URL, {
-      headers: { "User-Agent": "chitchat-geeknews-worker/1.0" },
+    const res = await fetch(CURATED_NEWS_URL, {
+      headers: {
+        "User-Agent": USER_AGENT,
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+      },
     });
-    if (!feedRes.ok) {
-      console.error(`[geeknews] feed answered status ${feedRes.status}`);
+    if (!res.ok) {
+      console.error(`[geeknews] page answered status ${res.status}`);
       return;
     }
-    feedText = await feedRes.text();
+    html = await res.text();
   } catch (error) {
-    console.error("[geeknews] feed fetch failed:", error);
+    console.error("[geeknews] page fetch failed:", error);
     return;
   }
 
-  const articles = parseFeed(feedText);
+  const articles = parseCuratedPage(html);
   if (articles.length === 0) {
-    console.warn("[geeknews] no articles parsed from feed");
+    console.warn("[geeknews] no articles parsed from curated page");
     return;
   }
 

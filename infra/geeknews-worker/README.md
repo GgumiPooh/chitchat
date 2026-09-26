@@ -1,10 +1,11 @@
 # geeknews-worker
 
-Fetches the GeekNews Atom feed (`https://news.hada.io/rss/news`) every 5 minutes, parses the articles,
+Fetches the GeekNews curated front page (`https://news.hada.io/`) every 5 minutes, parses the 20 curated/upvoted articles,
 and sends them in a single batch POST request to `POST /api/ops/sync-geeknews`.
 
 The pass itself runs inside the app, which is the only thing that can reach the database.
 On the app side:
+
 - Duplicates are ignored by `geeknews_id`.
 - On the initial run (empty database), all articles are backfilled silently without push notifications.
 - On incremental runs, newly inserted articles trigger web push notifications to opted-in users (`geeknews_subscriptions`).

@@ -2243,7 +2243,7 @@ Everything filed here was scoped out of the first pass and has since shipped. Th
 
 ### 16.4. GeekNews Feed Synchronization (Playground Tab)
 
-- **Cloudflare Worker cron (`infra/geeknews-worker`) fetches GeekNews Atom feed (`https://news.hada.io/rss/news`) every 5 minutes.** The worker parses the 50 latest entries and sends them in a single batch POST to `POST /api/ops/sync-geeknews` with `OPS_CRON_TOKEN` bearer authentication (`isOpsCronRequest`).
+- **Cloudflare Worker cron (`infra/geeknews-worker`) fetches GeekNews curated front page (`https://news.hada.io/`) every 5 minutes.** The worker parses the 20 curated/upvoted entries from the front page and sends them in a single batch POST to `POST /api/ops/sync-geeknews` with `OPS_CRON_TOKEN` bearer authentication (`isOpsCronRequest`).
 - **Initial Backfill vs Incremental Sync**: On the initial run (empty `geeknews_articles` table), all fetched articles are inserted into the database silently, suppressing push notifications. On subsequent incremental runs, only newly arriving articles (`geeknews_id` not in database) trigger web push notifications to opted-in users (`geeknews_subscriptions.enabled = true`).
 - **Idempotency & Deduplication**: `geeknews_articles.geeknews_id` is unique. Duplicate entries are ignored via `onConflictDoNothing({ target: geeknewsArticles.geeknewsId })`.
 - **Existing Webhook Route Preserved**: `POST /api/webhooks/geeknews` remains active and accepts direct webhooks (Discord, Slack, or single JSON).
@@ -2339,4 +2339,3 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
     - Hierarchical desktop back navigation: When the side panel is collapsed on desktop (`lg`), the header back button (`<`) expands the side panel (article list) first instead of leaving the page; clicking back while open navigates to `/playground`.
     - Notification subscription bell toggle with toast feedback and news refresh action.
     - Clean empty state (`아직 등록된 뉴스가 없어요. 새 소식이 등록되면 여기에 표시돼요`) with zero RSS auto-seed.
-
