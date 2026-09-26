@@ -2241,6 +2241,13 @@ Everything filed here was scoped out of the first pass and has since shipped. Th
 - **The claim and the notice are one transaction; the push is outside it.** A stamp that outlived a failed INSERT would be a threshold marked sent with nothing written, and no later run retries it — so the two commit together. The push is not in that transaction: a device that took the banner cannot be un-taken, and rolling back on a recipient who has **no subscription at all** would destroy the record on every run for exactly the reader with no banner to read instead
 - **Two clocks call the same pass, and the pass is one function (`remindUpcomingEvents`, in `features/notify-chat` beside § 16.1.'s trigger).** GitHub drops most of a public repository's ten-minute schedules — `ops-remind.yml` landed 2–7 times a day from late August, with gaps of up to twelve hours, so the 2시간 banner arrived after the event or not at all. `infra/remind-worker` is a Cloudflare Worker cron that calls `POST /api/ops/remind` every ten minutes with `OPS_CRON_TOKEN` as a bearer token (`isOpsCronRequest`, hashed and compared in constant time; unset it answers `unavailable`); the Worker cannot reach the private-network database, so it is only the clock and the app runs the pass. The Actions workflow stays deployed beside it: the claim above is an UPDATE predicate, so the two clocks cannot send one banner twice, and the one that is late is simply the one that finds nothing to do
 
+### 16.4. GeekNews Feed Synchronization (Playground Tab)
+
+- **Cloudflare Worker cron (`infra/geeknews-worker`) fetches GeekNews Atom feed (`https://news.hada.io/rss/news`) every 5 minutes.** The worker parses the 50 latest entries and sends them in a single batch POST to `POST /api/ops/sync-geeknews` with `OPS_CRON_TOKEN` bearer authentication (`isOpsCronRequest`).
+- **Initial Backfill vs Incremental Sync**: On the initial run (empty `geeknews_articles` table), all fetched articles are inserted into the database silently, suppressing push notifications. On subsequent incremental runs, only newly arriving articles (`geeknews_id` not in database) trigger web push notifications to opted-in users (`geeknews_subscriptions.enabled = true`).
+- **Idempotency & Deduplication**: `geeknews_articles.geeknews_id` is unique. Duplicate entries are ignored via `onConflictDoNothing({ target: geeknewsArticles.geeknewsId })`.
+- **Existing Webhook Route Preserved**: `POST /api/webhooks/geeknews` remains active and accepts direct webhooks (Discord, Slack, or single JSON).
+
 ## 17. Implementation Order ✅
 
 The order the work was taken in, kept as a record. **Every step has landed** — nothing here is a queue any more, and § 18. is the only place with anything still open.

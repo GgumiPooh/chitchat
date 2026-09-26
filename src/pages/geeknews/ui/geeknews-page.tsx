@@ -1,7 +1,6 @@
 "use client";
 
 import type { GeeknewsFeedArticle } from "@/entities/geeknews";
-import { useGeeknewsSubscription, useMarkArticleRead } from "../model";
 import { PLAYGROUND_ROUTE } from "@/shared/config";
 import { cn, isBareKey, isLetterKey, useRovingTabIndex, type NewsArticleId } from "@/shared/lib";
 import { OFFLINE_MESSAGES } from "@/shared/offline-ux";
@@ -13,12 +12,14 @@ import {
   EmptyState,
   IconButton,
   RelativeTime,
+  Switch,
   toast,
   TwoPane,
 } from "@/shared/ui";
 import { Bell, BellRing, ChevronLeft, Copy, ExternalLink, Newspaper, RotateCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useGeeknewsSubscription, useMarkArticleRead } from "../model";
 
 export type GeeknewsPageProps = {
   className?: string;
@@ -272,14 +273,24 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
         }
         trailing={
           <div className="flex items-center gap-xs">
-            <IconButton
-              disabled={isSubscriptionPending}
-              haptic
-              Icon={isSubscribed ? BellRing : Bell}
-              variant="floating"
-              aria-label="알림 설정"
-              onClick={handleToggleSubscription}
-            />
+            <div className="flex items-center gap-1.5" title="새 뉴스 알림">
+              {isSubscribed ? (
+                <BellRing
+                  className="size-4 shrink-0 text-primary transition-colors"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Bell className="size-4 shrink-0 text-meta transition-colors" aria-hidden="true" />
+              )}
+              <Switch
+                checked={isSubscribed}
+                disabled={isSubscriptionPending}
+                haptic
+                isOfflineGated
+                aria-label="새 뉴스 알림 받기"
+                onCheckedChange={() => void handleToggleSubscription()}
+              />
+            </div>
             <IconButton
               iconClassName={isRefreshing ? "animate-spin" : undefined}
               disabled={isRefreshing}
