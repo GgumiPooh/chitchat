@@ -479,6 +479,15 @@ export const GEEKNEWS_SUBSCRIPTION_COOKIE_OPTIONS = {
   maxAge: (365 * A_DAY) / A_SECOND,
 } as const;
 
+/** REQUIREMENTS.md § 16.4. One cursor page of GeekNews articles. */
+export const GEEKNEWS_PAGE_SIZE = 20;
+
+// WARN: Caps what a caller may ask for; the request-side limit is clamped to it rather than rejected.
+export const MAX_GEEKNEWS_PAGE_SIZE = 50;
+
+/** Route for fetching cursor-paginated GeekNews articles. */
+export const GEEKNEWS_ARTICLES_PATH = "/api/geeknews/articles";
+
 // INFO: AGENTS.md § 4.4. Fired once the `lg` side panel's width transition ends, so a measurement deferred during the animation can re-run against the settled geometry.
 export const SIDE_PANEL_SETTLED_EVENT = "jandh:side-panel-settled";
 

@@ -2326,13 +2326,16 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
   - `TAB_FACES` in `src/widgets/tab-bar/model/tabs.ts` updated with `Sparkles` icon and `놀이터` label.
   - Offline mirror sync: `MIRRORED_ROUTES`, `MIRROR_TABS`, `MirrorScreen` ("playground", "news"), `mirror-fallback.tsx` frames, and `public/sw.js` `MIRRORED_PATHS` all updated in sync.
 - **Entity Queries & Client Hooks (Phase 2)**:
-  - `listGeeknewsArticles(currentUserId: UserId, limit = 50)` in `src/entities/geeknews/api/list-articles.ts` with `server-only`, left join with `geeknews_reads`, sorted by `published_at.desc()`.
-  - `useGeeknewsSubscription()` and `useMarkArticleRead()` client hooks in `src/entities/geeknews/model/`.
+  - `listGeeknewsArticles({ currentUserId, limit = GEEKNEWS_PAGE_SIZE, before })` in `src/entities/geeknews/api/list-articles.ts` with `server-only`, left join with `geeknews_reads`, keyset-paginated on `published_at.desc()`, `id.desc()`.
+  - `useGeeknewsArticles(initialArticles)` in `src/pages/geeknews/model/` with cursor-based infinite pagination, deduplication, and sentinel loading states.
+  - `useGeeknewsSubscription()` and `useMarkArticleRead()` client hooks in `src/pages/geeknews/model/`.
 - **Playground Hub & GeekNews Reader (Phase 3)**:
   - `PlaygroundPage` in `src/pages/playground` with responsive feature card linking to `/playground/news`, NEW pill, hover states, semantic tokens.
   - `GeeknewsPage` in `src/pages/geeknews`:
     - Responsive two-pane layout: Mobile views flow on the document scroller with card tap opening `BottomSheet` for full details; Desktop views render a sticky `SidePanel` with roving tabindex and reading pane.
+    - Keyset infinite scroll pagination: `GET /api/geeknews/articles?before={snowflakeId}&limit={limit}` connected with `LoadMoreSentinel` at the bottom of both mobile document scroller and desktop `SidePanel` (via `TwoPane`'s `panelScrollerRef`).
     - Strict external link discipline: pure `<a>` tags with `target="_blank"` and `rel="noopener noreferrer"`, no `<Link>`, no `haptic`, online reachability check with toast refusal.
     - Accessible desktop shortcuts: `ArrowUp`/`K`, `ArrowDown`/`J`, `Enter`/`O` with `isComposing` guard.
     - Notification subscription bell toggle with toast feedback, news refresh action, and link copy action.
     - Clean empty state (`아직 등록된 뉴스가 없어요. 새 소식이 등록되면 여기에 표시돼요`) with zero RSS auto-seed.
+

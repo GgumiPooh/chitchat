@@ -1,9 +1,10 @@
 import { APP_SHELL_ID, SIDE_PANEL_SETTLED_EVENT } from "@/shared/config";
-import { cn, SIDE_PANEL_ANIMATING_ATTRIBUTE } from "@/shared/lib";
-import type { PropsWithChildren, TransitionEvent } from "react";
+import { cn, SIDE_PANEL_ANIMATING_ATTRIBUTE, type Nullable } from "@/shared/lib";
+import type { PropsWithChildren, RefObject, TransitionEvent } from "react";
 
 export type SidePanelProps = PropsWithChildren<{
   className?: string;
+  scrollerRef?: RefObject<Nullable<HTMLDivElement>>;
 }>;
 
 // INFO: AGENTS.md § 4.4. Clears the animating flag `useSidePanel.set` raises, and wakes anything deferred through `onSidePanelSettled`.
@@ -26,7 +27,7 @@ function handleTransitionEnd(event: TransitionEvent<HTMLElement>) {
  * carries the wallpaper's tint (REQUIREMENTS.md § 12.2.), which the panel would
  * otherwise show through and lose its text against.
  */
-export function SidePanel({ className, children }: SidePanelProps) {
+export function SidePanel({ className, scrollerRef, children }: SidePanelProps) {
   return (
     <aside
       className={cn(
@@ -37,7 +38,9 @@ export function SidePanel({ className, children }: SidePanelProps) {
       onTransitionEnd={handleTransitionEnd}
     >
       <div className="flex h-full w-(--pane-open-width) flex-col">
-        <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto">{children}</div>
+        <div ref={scrollerRef} className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto">
+          {children}
+        </div>
       </div>
     </aside>
   );

@@ -2,7 +2,14 @@
 
 import type { GeeknewsFeedArticle } from "@/entities/geeknews";
 import { PLAYGROUND_ROUTE } from "@/shared/config";
-import { cn, isBareKey, isLetterKey, useRovingTabIndex, type NewsArticleId } from "@/shared/lib";
+import {
+  cn,
+  isBareKey,
+  isLetterKey,
+  useRovingTabIndex,
+  type NewsArticleId,
+  type Nullable,
+} from "@/shared/lib";
 import { OFFLINE_MESSAGES } from "@/shared/offline-ux";
 import {
   AppHeader,
@@ -11,6 +18,7 @@ import {
   Container,
   EmptyState,
   IconButton,
+  LoadMoreSentinel,
   RelativeTime,
   Switch,
   toast,
@@ -18,8 +26,8 @@ import {
 } from "@/shared/ui";
 import { Bell, BellRing, ChevronLeft, Copy, ExternalLink, Newspaper, RotateCw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
-import { useGeeknewsSubscription, useMarkArticleRead } from "../model";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useGeeknewsArticles, useGeeknewsSubscription, useMarkArticleRead } from "../model";
 
 export type GeeknewsPageProps = {
   className?: string;
@@ -37,6 +45,8 @@ function toDomain(url: string): string {
 
 export function GeeknewsPage({ className, initialArticleId, initialArticles }: GeeknewsPageProps) {
   const router = useRouter();
+  const { articles, hasMore, isLoadingMore, loadMore } = useGeeknewsArticles(initialArticles);
+  const sidePanelScrollerRef = useRef<Nullable<HTMLDivElement>>(null);
   const [readState, setReadState] = useState<Record<string, boolean>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [openedArticleId, setOpenedArticleId] = useState<NewsArticleId | null>(
@@ -83,12 +93,12 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
   const handleSelectArticle = useCallback(
     (index: number) => {
       setSelectedIndex(index);
-      const target = initialArticles[index];
+      const target = articles[index];
       if (target && !(readState[target.id] ?? target.isRead)) {
         markReadOptimistic(target.id);
       }
     },
-    [initialArticles, markReadOptimistic, readState],
+    [articles, markReadOptimistic, readState],
   );
 
   const handleOpenArticle = useCallback(
@@ -157,15 +167,15 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
         return;
       }
 
-      if (initialArticles.length === 0) {
+      if (articles.length === 0) {
         return;
       }
 
       if (e.key === "ArrowUp" || isLetterKey(e, "k")) {
         e.preventDefault();
         setSelectedIndex((prev) => {
-          const next = prev <= 0 ? initialArticles.length - 1 : prev - 1;
-          const targetArticle = initialArticles[next];
+          const next = prev <= 0 ? articles.length - 1 : prev - 1;
+          const targetArticle = articles[next];
           if (targetArticle && !(readState[targetArticle.id] ?? targetArticle.isRead)) {
             markReadOptimistic(targetArticle.id);
           }
@@ -174,15 +184,15 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
       } else if (e.key === "ArrowDown" || isLetterKey(e, "j")) {
         e.preventDefault();
         setSelectedIndex((prev) => {
-          const next = prev >= initialArticles.length - 1 ? 0 : prev + 1;
-          const targetArticle = initialArticles[next];
+          const next = prev >= articles.length - 1 ? 0 : prev + 1;
+          const targetArticle = articles[next];
           if (targetArticle && !(readState[targetArticle.id] ?? targetArticle.isRead)) {
             markReadOptimistic(targetArticle.id);
           }
           return next;
         });
       } else if (e.key === "Enter" || isLetterKey(e, "o")) {
-        const current = initialArticles[selectedIndex];
+        const current = articles[selectedIndex];
         if (current) {
           e.preventDefault();
           if (!navigator.onLine) {
@@ -196,32 +206,33 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [initialArticles, selectedIndex, markReadOptimistic, readState]);
+  }, [articles, selectedIndex, markReadOptimistic, readState]);
 
   const handleRovingKeyDown = useRovingTabIndex({
     orientation: "vertical",
     selector: "[data-feed-item]",
   });
 
-  const selectedArticle = initialArticles[selectedIndex] ?? null;
-  const sheetArticle = initialArticles.find((a) => a.id === openedArticleId) ?? null;
+  const selectedArticle = articles[selectedIndex] ?? null;
+  const sheetArticle = articles.find((a) => a.id === openedArticleId) ?? null;
   const isSheetOpen = sheetArticle !== null;
 
   return (
     <TwoPane
       className={className}
+      panelScrollerRef={sidePanelScrollerRef}
       panel={
         <div className="flex flex-col gap-sm p-md pt-[calc(var(--app-header-inset)+var(--spacing-md))]">
           <div className="flex items-center justify-between px-xs py-1">
             <span className="text-caption font-semibold text-meta">
-              기사 목록 ({initialArticles.length})
+              기사 목록 ({articles.length})
             </span>
           </div>
-          {initialArticles.length === 0 ? (
+          {articles.length === 0 ? (
             <p className="p-md text-center text-body-sm text-meta">등록된 뉴스가 없어요</p>
           ) : (
             <div className="flex flex-col gap-sm" onKeyDown={handleRovingKeyDown}>
-              {initialArticles.map((article, index) => {
+              {articles.map((article, index) => {
                 const isSelected = index === selectedIndex;
                 const isRead = readState[article.id] ?? article.isRead;
                 return (
@@ -254,6 +265,18 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                   </button>
                 );
               })}
+            </div>
+          )}
+          {hasMore && !isLoadingMore && (
+            <LoadMoreSentinel
+              key={`desktop-sentinel-${articles.length}`}
+              rootRef={sidePanelScrollerRef}
+              onVisible={loadMore}
+            />
+          )}
+          {isLoadingMore && (
+            <div className="flex justify-center py-md" aria-label="기사를 불러오는 중">
+              <RotateCw className="size-5 animate-spin text-meta" />
             </div>
           )}
         </div>
@@ -310,14 +333,14 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
         className="space-y-md py-md pt-[calc(var(--app-header-inset)+var(--spacing-md))] pb-2xl lg:hidden"
         size="md"
       >
-        {initialArticles.length === 0 ? (
+        {articles.length === 0 ? (
           <EmptyState
             description="아직 등록된 뉴스가 없어요. 새 소식이 등록되면 여기에 표시돼요"
             Icon={Newspaper}
           />
         ) : (
           <div className="flex flex-col gap-sm">
-            {initialArticles.map((article) => {
+            {articles.map((article) => {
               const isRead = readState[article.id] ?? article.isRead;
               return (
                 <button
@@ -344,12 +367,20 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
             })}
           </div>
         )}
+        {hasMore && !isLoadingMore && (
+          <LoadMoreSentinel key={`mobile-sentinel-${articles.length}`} onVisible={loadMore} />
+        )}
+        {isLoadingMore && (
+          <div className="flex justify-center py-md" aria-label="기사를 불러오는 중">
+            <RotateCw className="size-5 animate-spin text-meta" />
+          </div>
+        )}
       </Container>
 
       {/* Desktop reading pane (>= lg) */}
       <div className="hidden flex-1 flex-col pt-[calc(var(--app-header-inset)+var(--spacing-md))] pb-2xl lg:flex">
         <Container className="space-y-lg" size="md">
-          {initialArticles.length === 0 ? (
+          {articles.length === 0 ? (
             <EmptyState
               description="아직 등록된 뉴스가 없어요. 새 소식이 등록되면 여기에 표시돼요"
               Icon={Newspaper}
