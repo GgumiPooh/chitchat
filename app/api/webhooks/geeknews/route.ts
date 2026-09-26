@@ -51,6 +51,38 @@ function stripHtmlAndCdata(text: string): string {
     .trim();
 }
 
+async function fetchOriginalUrl(geeknewsId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://news.hada.io/topic?id=${geeknewsId}`, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) {
+      return null;
+    }
+    const html = await res.text();
+    const match =
+      html.match(/<a\s+[^>]*href=["']([^"']+)["'][^>]*class=["'][^"']*topic-title-link/i) ||
+      html.match(/class=["'][^"']*topic-title-link[^"']*["'][^>]*href=["']([^"']+)["']/i);
+    if (!match) {
+      return null;
+    }
+    const rawUrl = match[1]?.trim();
+    if (!rawUrl) {
+      return null;
+    }
+    if (rawUrl.startsWith("/")) {
+      return `https://news.hada.io${rawUrl}`;
+    }
+    return rawUrl;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
   const secret = process.env.GEEKNEWS_WEBHOOK_SECRET;
   if (secret) {
@@ -144,8 +176,9 @@ export async function POST(request: Request) {
   if (!geeknewsUrl) {
     geeknewsUrl = `https://news.hada.io/topic?id=${geeknewsId}`;
   }
-  if (!url) {
-    url = geeknewsUrl;
+  if (!url || url === geeknewsUrl) {
+    const fetched = await fetchOriginalUrl(geeknewsId);
+    url = fetched || geeknewsUrl;
   }
 
   const db = getDb();

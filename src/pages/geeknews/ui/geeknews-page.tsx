@@ -361,17 +361,21 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                 </span>
                 <span>·</span>
                 <RelativeTime date={selectedArticle.publishedAt} />
-                <span>·</span>
-                <a
-                  className="inline-flex items-center gap-1 text-primary hover:underline"
-                  href={selectedArticle.geeknewsUrl}
-                  rel="noopener noreferrer"
-                  target="_blank"
-                  onClick={handleExternalLinkClick}
-                >
-                  긱뉴스 토론 바로가기
-                  <ExternalLink className="size-3.5" strokeWidth={1.75} />
-                </a>
+                {selectedArticle.url !== selectedArticle.geeknewsUrl && (
+                  <>
+                    <span>·</span>
+                    <a
+                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                      href={selectedArticle.geeknewsUrl}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                      onClick={handleExternalLinkClick}
+                    >
+                      긱뉴스 토론 바로가기
+                      <ExternalLink className="size-3.5" strokeWidth={1.75} />
+                    </a>
+                  </>
+                )}
               </div>
 
               <h1 className="text-display-xs leading-tight font-bold text-ink">
@@ -390,20 +394,24 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                   target="_blank"
                   onClick={handleExternalLinkClick}
                 >
-                  원문 기사 읽기 (새 창)
+                  {selectedArticle.url !== selectedArticle.geeknewsUrl
+                    ? "원문 기사 읽기 (새 창)"
+                    : "긱뉴스 글 읽기 (새 창)"}
                   <ExternalLink className="size-4" strokeWidth={1.75} />
                 </a>
 
-                <a
-                  className="inline-flex min-h-12 items-center justify-center gap-xs rounded-md border border-hairline-strong bg-canvas px-lg py-sm text-button-md font-medium text-ink transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-surface-strong"
-                  href={selectedArticle.geeknewsUrl}
-                  rel="noopener noreferrer"
-                  target="_blank"
-                  onClick={handleExternalLinkClick}
-                >
-                  긱뉴스 토론 (새 창)
-                  <ExternalLink className="size-4" strokeWidth={1.75} />
-                </a>
+                {selectedArticle.url !== selectedArticle.geeknewsUrl && (
+                  <a
+                    className="inline-flex min-h-12 items-center justify-center gap-xs rounded-md border border-hairline-strong bg-canvas px-lg py-sm text-button-md font-medium text-ink transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-surface-strong"
+                    href={selectedArticle.geeknewsUrl}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                    onClick={handleExternalLinkClick}
+                  >
+                    긱뉴스 토론 (새 창)
+                    <ExternalLink className="size-4" strokeWidth={1.75} />
+                  </a>
+                )}
 
                 <Button
                   className="w-auto"
@@ -452,20 +460,24 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                 target="_blank"
                 onClick={handleExternalLinkClick}
               >
-                원문 기사 읽기 (새 창)
+                {sheetArticle.url !== sheetArticle.geeknewsUrl
+                  ? "원문 기사 읽기 (새 창)"
+                  : "긱뉴스 글 읽기 (새 창)"}
                 <ExternalLink className="size-4" strokeWidth={1.75} />
               </a>
 
-              <a
-                className="inline-flex min-h-12 w-full items-center justify-center gap-xs rounded-md border border-hairline-strong bg-canvas px-md py-sm text-button-md font-medium text-ink transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-surface-strong"
-                href={sheetArticle.geeknewsUrl}
-                rel="noopener noreferrer"
-                target="_blank"
-                onClick={handleExternalLinkClick}
-              >
-                긱뉴스 토론 (새 창)
-                <ExternalLink className="size-4" strokeWidth={1.75} />
-              </a>
+              {sheetArticle.url !== sheetArticle.geeknewsUrl && (
+                <a
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-xs rounded-md border border-hairline-strong bg-canvas px-md py-sm text-button-md font-medium text-ink transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-surface-strong"
+                  href={sheetArticle.geeknewsUrl}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  onClick={handleExternalLinkClick}
+                >
+                  긱뉴스 토론 (새 창)
+                  <ExternalLink className="size-4" strokeWidth={1.75} />
+                </a>
+              )}
 
               <Button className="w-full" variant="ghost" onClick={() => copyLink(sheetArticle.url)}>
                 <Copy className="size-4" strokeWidth={1.75} />

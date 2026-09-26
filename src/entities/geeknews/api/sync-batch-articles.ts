@@ -2,7 +2,7 @@ import "server-only";
 
 import { geeknewsArticles, getDb, nextSnowflake, type GeeknewsArticle } from "@/shared/db";
 import { type NewsArticleId } from "@/shared/lib";
-import { count, inArray } from "drizzle-orm";
+import { count, eq, inArray } from "drizzle-orm";
 
 export type IngestArticleInput = {
   geeknewsId: string;
@@ -31,20 +31,88 @@ function stripHtmlAndCdata(text: string): string {
 }
 
 /**
+ * Resolves the real external article URL from the GeekNews topic page.
+ *
+ * GeekNews's RSS feed only carries `https://news.hada.io/topic?id=...`.
+ * For link-type topics, the real source URL (e.g. bloomberg, github) lives inside
+ * `<a class="... topic-title-link" href="...">`. For self-posts, returns null.
+ */
+async function fetchOriginalUrl(geeknewsId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://news.hada.io/topic?id=${geeknewsId}`, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) {
+      return null;
+    }
+    const html = await res.text();
+    const match =
+      html.match(/<a\s+[^>]*href=["']([^"']+)["'][^>]*class=["'][^"']*topic-title-link/i) ||
+      html.match(/class=["'][^"']*topic-title-link[^"']*["'][^>]*href=["']([^"']+)["']/i);
+    if (!match) {
+      return null;
+    }
+    const rawUrl = match[1]?.trim();
+    if (!rawUrl) {
+      return null;
+    }
+    if (rawUrl.startsWith("/")) {
+      return `https://news.hada.io${rawUrl}`;
+    }
+    return rawUrl;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Syncs a batch of parsed GeekNews articles into PostgreSQL.
  *
  * Deduplicates by `geeknews_id`. If the database is currently empty (initial run),
  * inserts all incoming articles as backfill and reports `isInitialBackfill: true`.
- * Returns the newly inserted articles for caller orchestration (e.g. push notification dispatch).
+ * Resolves the genuine external article URL (Bloomberg, GitHub, etc.) from the topic page
+ * so "원문 기사 읽기" points to the real source rather than the discussion page.
+ * Also self-heals any existing articles whose stored `url` equals their `geeknews_url`.
  */
 export async function syncBatchArticles(
   articles: IngestArticleInput[],
 ): Promise<SyncArticlesResult> {
+  const db = getDb();
+
+  // INFO: Self-heal stored rows whose `url` was previously set to `geeknews_url`.
+  const unlinkedExisting = await db
+    .select({
+      id: geeknewsArticles.id,
+      geeknewsId: geeknewsArticles.geeknewsId,
+      url: geeknewsArticles.url,
+      geeknewsUrl: geeknewsArticles.geeknewsUrl,
+    })
+    .from(geeknewsArticles)
+    .where(eq(geeknewsArticles.url, geeknewsArticles.geeknewsUrl))
+    .limit(50);
+
+  if (unlinkedExisting.length > 0) {
+    await Promise.all(
+      unlinkedExisting.map(async (row) => {
+        const fetchedUrl = await fetchOriginalUrl(row.geeknewsId);
+        if (fetchedUrl && fetchedUrl !== row.geeknewsUrl) {
+          await db
+            .update(geeknewsArticles)
+            .set({ url: fetchedUrl })
+            .where(eq(geeknewsArticles.id, row.id));
+        }
+      }),
+    );
+  }
+
   if (articles.length === 0) {
     return { inserted: [], isInitialBackfill: false };
   }
 
-  const db = getDb();
   const candidateIds = articles.map((a) => a.geeknewsId);
 
   const existingRows = await db
@@ -67,19 +135,35 @@ export async function syncBatchArticles(
     (a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime(),
   );
 
-  const rowsToInsert = sortedCandidates.map((item) => {
+  const resolvedCandidates = await Promise.all(
+    sortedCandidates.map(async (item) => {
+      const geeknewsUrl = item.geeknewsUrl || `https://news.hada.io/topic?id=${item.geeknewsId}`;
+      let resolvedUrl = item.url;
+      if (!resolvedUrl || resolvedUrl === geeknewsUrl) {
+        const fetchedUrl = await fetchOriginalUrl(item.geeknewsId);
+        if (fetchedUrl) {
+          resolvedUrl = fetchedUrl;
+        }
+      }
+      return {
+        ...item,
+        url: resolvedUrl || geeknewsUrl,
+        geeknewsUrl,
+      };
+    }),
+  );
+
+  const rowsToInsert = resolvedCandidates.map((item) => {
     const title = stripHtmlAndCdata(item.title);
     const summary = stripHtmlAndCdata(item.summary);
-    const geeknewsUrl = item.geeknewsUrl || `https://news.hada.io/topic?id=${item.geeknewsId}`;
-    const url = item.url || geeknewsUrl;
     const publishedAt = new Date(item.publishedAt);
 
     return {
       id: nextSnowflake<NewsArticleId>(),
       geeknewsId: item.geeknewsId,
       title,
-      url,
-      geeknewsUrl,
+      url: item.url,
+      geeknewsUrl: item.geeknewsUrl,
       summary,
       publishedAt: isNaN(publishedAt.getTime()) ? new Date() : publishedAt,
     };
