@@ -28,12 +28,7 @@ export function PlaygroundPage({ className }: PlaygroundPageProps) {
                 <Newspaper className="size-6" strokeWidth={1.75} />
               </div>
               <div className="flex min-w-0 flex-col gap-0.5">
-                <div className="flex items-center gap-xs">
-                  <span className="truncate text-title-sm font-semibold text-ink">개발자 뉴스</span>
-                  <span className="rounded-full bg-primary-tint px-2 py-0.5 text-micro font-medium text-primary">
-                    NEW
-                  </span>
-                </div>
+                <span className="truncate text-title-sm font-semibold text-ink">개발자 뉴스</span>
                 <p className="line-clamp-1 text-body-sm text-meta">
                   GeekNews의 실시간 기술 트렌드와 스타트업 소식
                 </p>

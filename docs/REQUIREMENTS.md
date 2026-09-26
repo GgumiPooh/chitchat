@@ -2330,7 +2330,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
   - `useGeeknewsArticles(initialArticles)` in `src/pages/geeknews/model/` with cursor-based infinite pagination, deduplication, and sentinel loading states.
   - `useGeeknewsSubscription()` and `useMarkArticleRead()` client hooks in `src/pages/geeknews/model/`.
 - **Playground Hub & GeekNews Reader (Phase 3)**:
-  - `PlaygroundPage` in `src/pages/playground` with responsive feature card linking to `/playground/news`, NEW pill, hover states, semantic tokens.
+  - `PlaygroundPage` in `src/pages/playground` with responsive feature card linking to `/playground/news`, hover states, semantic tokens.
   - `GeeknewsPage` in `src/pages/geeknews`:
     - Responsive two-pane layout: Mobile views flow on the document scroller with card tap opening `BottomSheet` for full details; Desktop views render a sticky `SidePanel` with roving tabindex and reading pane.
     - Keyset infinite scroll pagination: `GET /api/geeknews/articles?before={snowflakeId}&limit={limit}` connected with `LoadMoreSentinel` at the bottom of both mobile document scroller and desktop `SidePanel` (via `TwoPane`'s `panelScrollerRef`).
