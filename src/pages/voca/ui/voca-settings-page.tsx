@@ -3,16 +3,42 @@
 import type { VocaUserSettings } from "@/entities/voca";
 import { VOCA_REMINDER_COOKIE_NAME, VOCA_ROUTE } from "@/shared/config";
 import { cn } from "@/shared/lib";
-import { AppHeader, Button, Container, IconButton, SettingsRow, Switch } from "@/shared/ui";
-import { Bell, ChevronLeft } from "lucide-react";
+import {
+  ActionSheet,
+  AppHeader,
+  Button,
+  Container,
+  IconButton,
+  SettingsRow,
+  Switch,
+  type ActionSheetItem,
+} from "@/shared/ui";
+import { Bell, Check, ChevronDown, ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 export type VocaSettingsPageProps = {
   className?: string;
   initialSettings: VocaUserSettings;
 };
+
+const DAILY_NEW_CARDS_OPTIONS = [
+  { label: "5장", value: 5 },
+  { label: "10장", value: 10 },
+  { label: "15장 (권장)", value: 15 },
+  { label: "20장", value: 20 },
+  { label: "30장", value: 30 },
+  { label: "50장", value: 50 },
+] as const;
+
+const DAILY_REVIEW_LIMIT_OPTIONS = [
+  { label: "제한 없음 (권장)", value: null },
+  { label: "50장", value: 50 },
+  { label: "100장", value: 100 },
+  { label: "150장", value: 150 },
+  { label: "200장", value: 200 },
+] as const;
 
 export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPageProps) {
   const router = useRouter();
@@ -23,6 +49,39 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
   const [reminderEnabled, setReminderEnabled] = useState(initialSettings.reminderEnabled);
   const [desiredRetention, setDesiredRetention] = useState(initialSettings.desiredRetention);
   const [isSaving, setIsSaving] = useState(false);
+
+  const [isNewCardsOpen, setIsNewCardsOpen] = useState(false);
+  const [isReviewLimitOpen, setIsReviewLimitOpen] = useState(false);
+  const newCardsTriggerRef = useRef<HTMLButtonElement>(null);
+  const reviewLimitTriggerRef = useRef<HTMLButtonElement>(null);
+
+  const selectedNewCardsOption = DAILY_NEW_CARDS_OPTIONS.find(
+    (opt) => opt.value === dailyNewCards,
+  ) ?? { label: `${dailyNewCards}장`, value: dailyNewCards };
+
+  const selectedReviewLimitOption =
+    DAILY_REVIEW_LIMIT_OPTIONS.find((opt) => opt.value === dailyReviewLimit) ??
+    (dailyReviewLimit === null
+      ? { label: "제한 없음 (권장)", value: null }
+      : { label: `${dailyReviewLimit}장`, value: dailyReviewLimit });
+
+  const newCardsItems: ActionSheetItem[] = DAILY_NEW_CARDS_OPTIONS.map((opt) => ({
+    Icon: dailyNewCards === opt.value ? Check : undefined,
+    label: opt.label,
+    onSelect: () => {
+      setDailyNewCards(opt.value);
+      setIsNewCardsOpen(false);
+    },
+  }));
+
+  const reviewLimitItems: ActionSheetItem[] = DAILY_REVIEW_LIMIT_OPTIONS.map((opt) => ({
+    Icon: dailyReviewLimit === opt.value ? Check : undefined,
+    label: opt.label,
+    onSelect: () => {
+      setDailyReviewLimit(opt.value);
+      setIsReviewLimitOpen(false);
+    },
+  }));
 
   const handleToggleReminder = async (checked: boolean) => {
     setReminderEnabled(checked);
@@ -35,9 +94,9 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
 
     try {
       const res = await fetch("/api/voca/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reminderEnabled: checked }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
       });
       if (!res.ok) {
         throw new Error("Failed to save reminder preference");
@@ -53,14 +112,14 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
     setIsSaving(true);
     try {
       const res = await fetch("/api/voca/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           dailyNewCards,
           dailyReviewLimit,
           desiredRetention,
           reminderEnabled,
         }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
       });
 
       if (!res.ok) {
@@ -84,8 +143,8 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
         leading={
           <IconButton
             Icon={ChevronLeft}
-            variant="floating"
             haptic
+            variant="floating"
             aria-label="영단어로 돌아가기"
             onClick={() => router.push(VOCA_ROUTE)}
           />
@@ -102,53 +161,51 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
             <h3 className="text-caption font-semibold text-meta uppercase">일일 학습량</h3>
           </div>
 
-          <div className="space-y-4 p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <span className="text-body-sm font-medium text-ink">일일 새 단어 학습량</span>
-                <p className="text-caption text-meta">하루에 새로 공부할 단어 카드 수</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <select
-                  className="rounded-lg border border-hairline bg-surface-soft px-3 py-1.5 text-body-sm text-ink focus:border-primary focus:outline-none"
-                  value={dailyNewCards}
-                  onChange={(e) => setDailyNewCards(Number(e.target.value))}
+          <div>
+            <SettingsRow
+              rowClassName="bg-surface"
+              description="하루에 새로 공부할 단어 카드 수"
+              haptic
+              label="일일 새 단어 학습량"
+              trailing={
+                <button
+                  ref={newCardsTriggerRef}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-hairline bg-surface-soft px-3 py-1.5 text-body-sm font-medium text-ink transition-colors hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsNewCardsOpen(true);
+                  }}
                 >
-                  <option value={5}>5장</option>
-                  <option value={10}>10장</option>
-                  <option value={15}>15장 (권장)</option>
-                  <option value={20}>20장</option>
-                  <option value={30}>30장</option>
-                  <option value={50}>50장</option>
-                </select>
-              </div>
-            </div>
+                  <span>{selectedNewCardsOption.label}</span>
+                  <ChevronDown className="size-3.5 text-meta" />
+                </button>
+              }
+              onClick={() => setIsNewCardsOpen(true)}
+            />
 
-            <div className="h-px bg-hairline/60" />
-
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <span className="text-body-sm font-medium text-ink">일일 최대 복습 카드 수</span>
-                <p className="text-caption text-meta">하루에 배정되는 최대 복습 카드 한도</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <select
-                  className="rounded-lg border border-hairline bg-surface-soft px-3 py-1.5 text-body-sm text-ink focus:border-primary focus:outline-none"
-                  value={dailyReviewLimit ?? "unlimited"}
-                  onChange={(e) =>
-                    setDailyReviewLimit(
-                      e.target.value === "unlimited" ? null : Number(e.target.value),
-                    )
-                  }
+            <SettingsRow
+              className="border-b-0"
+              rowClassName="bg-surface border-b-0"
+              description="하루에 배정되는 최대 복습 카드 한도"
+              haptic
+              label="일일 최대 복습 카드 수"
+              trailing={
+                <button
+                  ref={reviewLimitTriggerRef}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-hairline bg-surface-soft px-3 py-1.5 text-body-sm font-medium text-ink transition-colors hover:bg-surface-strong focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsReviewLimitOpen(true);
+                  }}
                 >
-                  <option value="unlimited">제한 없음 (권장)</option>
-                  <option value={50}>50장</option>
-                  <option value={100}>100장</option>
-                  <option value={150}>150장</option>
-                  <option value={200}>200장</option>
-                </select>
-              </div>
-            </div>
+                  <span>{selectedReviewLimitOption.label}</span>
+                  <ChevronDown className="size-3.5 text-meta" />
+                </button>
+              }
+              onClick={() => setIsReviewLimitOpen(true)}
+            />
           </div>
         </div>
 
@@ -160,19 +217,20 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
             </h3>
           </div>
 
-          <div className="space-y-3 p-4">
+          <div className="space-y-4 p-4">
             <div className="flex items-center justify-between">
-              <span className="text-body-sm font-medium text-ink">목표 암기 유지율</span>
-              <span className="font-mono text-body-sm font-bold text-primary">
+              <span className="text-body-sm font-medium text-ink">목표 유지율</span>
+              <span className="text-body-sm font-bold text-primary">
                 {Math.round(desiredRetention * 100)}%
               </span>
             </div>
+
             <input
               className="w-full accent-primary"
-              type="range"
-              min={0.8}
               max={0.95}
+              min={0.8}
               step={0.01}
+              type="range"
               value={desiredRetention}
               onChange={(e) => setDesiredRetention(parseFloat(e.target.value))}
             />
@@ -191,9 +249,10 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
           </div>
 
           <SettingsRow
+            rowClassName="bg-surface"
             Icon={Bell}
-            label="아침 복습 알림"
             description="매일 오전 8시(KST)에 복습할 단어가 있을 때 웹 푸시를 받아요"
+            label="아침 복습 알림"
             trailing={
               <Switch
                 checked={reminderEnabled}
@@ -209,15 +268,32 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
         <div className="pt-2">
           <Button
             className="w-full"
-            variant="primary"
-            haptic
             disabled={isSaving}
+            haptic
+            variant="primary"
             onClick={handleSaveAll}
           >
             설정 저장하기
           </Button>
         </div>
       </Container>
+
+      {/* Action Sheets for Mobile BottomSheet / Desktop Dropdown Menu (Popover) */}
+      <ActionSheet
+        anchorRef={newCardsTriggerRef}
+        header={{ title: "일일 새 단어 학습량" }}
+        isOpen={isNewCardsOpen}
+        items={newCardsItems}
+        onClose={() => setIsNewCardsOpen(false)}
+      />
+
+      <ActionSheet
+        anchorRef={reviewLimitTriggerRef}
+        header={{ title: "일일 최대 복습 카드 수" }}
+        isOpen={isReviewLimitOpen}
+        items={reviewLimitItems}
+        onClose={() => setIsReviewLimitOpen(false)}
+      />
     </div>
   );
 }
