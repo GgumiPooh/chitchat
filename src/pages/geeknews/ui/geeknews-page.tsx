@@ -1,12 +1,13 @@
 "use client";
 
 import type { GeeknewsFeedArticle } from "@/entities/geeknews";
-import { PLAYGROUND_ROUTE } from "@/shared/config";
+import { PLAYGROUND_ROUTE, SIDE_PANEL_MEDIA_QUERY } from "@/shared/config";
 import {
   cn,
   isBareKey,
   isLetterKey,
   useRovingTabIndex,
+  useSidePanel,
   type NewsArticleId,
   type Nullable,
 } from "@/shared/lib";
@@ -58,6 +59,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
     toggleSubscription,
   } = useGeeknewsSubscription();
   const { markRead } = useMarkArticleRead();
+  const { isOpen: isSidePanelOpen, open: openSidePanel } = useSidePanel();
 
   const initialIndex = useMemo(() => {
     if (initialArticleId) {
@@ -130,6 +132,19 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
       toast("알림 설정을 변경하지 못했어요");
     }
   }, [toggleSubscription]);
+
+  const handleBack = useCallback(() => {
+    // INFO: 데스크톱(lg)에서 사이드패널이 닫혀있는 상태라면, 기사 목록을 먼저 열고 이미 열려 있을 때 상위 놀이터로 이동한다.
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia(SIDE_PANEL_MEDIA_QUERY).matches &&
+      !isSidePanelOpen
+    ) {
+      openSidePanel();
+      return;
+    }
+    router.push(PLAYGROUND_ROUTE);
+  }, [isSidePanelOpen, openSidePanel, router]);
 
   const handleExternalLinkClick = useCallback((e: MouseEvent<HTMLAnchorElement>) => {
     if (!navigator.onLine) {
@@ -282,7 +297,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
             Icon={ChevronLeft}
             variant="floating"
             aria-label="뒤로"
-            onClick={() => router.push(PLAYGROUND_ROUTE)}
+            onClick={handleBack}
           />
         }
         trailing={

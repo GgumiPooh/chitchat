@@ -2336,6 +2336,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
     - Keyset infinite scroll pagination: `GET /api/geeknews/articles?before={snowflakeId}&limit={limit}` connected with `LoadMoreSentinel` at the bottom of both mobile document scroller and desktop `SidePanel` (via `TwoPane`'s `panelScrollerRef`).
     - Strict external link discipline: pure `<a>` tags with `target="_blank"` and `rel="noopener noreferrer"`, no `<Link>`, no `haptic`, online reachability check with toast refusal.
     - Accessible desktop shortcuts: `ArrowUp`/`K`, `ArrowDown`/`J`, `Enter`/`O` with `isComposing` guard.
+    - Hierarchical desktop back navigation: When the side panel is collapsed on desktop (`lg`), the header back button (`<`) expands the side panel (article list) first instead of leaving the page; clicking back while open navigates to `/playground`.
     - Notification subscription bell toggle with toast feedback and news refresh action.
     - Clean empty state (`아직 등록된 뉴스가 없어요. 새 소식이 등록되면 여기에 표시돼요`) with zero RSS auto-seed.
 
