@@ -28,50 +28,61 @@ export function ReviewRatingBar({
       label: "다시",
       interval: intervals[Rating.Again]?.intervalString ?? "< 10분",
       shortcut: "1",
-      containerClass:
-        "border-semantic-error/30 bg-semantic-error/10 hover:bg-semantic-error/20 text-semantic-error",
+      textColor: "text-semantic-error",
+      hoverClass: "hover:bg-semantic-error/10 hover:border-semantic-error/40",
+      activeClass: "active:bg-semantic-error/20",
     },
     {
       rating: Rating.Hard,
       label: "어려움",
       interval: intervals[Rating.Hard]?.intervalString ?? "1일",
       shortcut: "2",
-      containerClass:
-        "border-semantic-warning/30 bg-semantic-warning/10 hover:bg-semantic-warning/20 text-semantic-warning",
+      textColor: "text-semantic-warning",
+      hoverClass: "hover:bg-semantic-warning/10 hover:border-semantic-warning/40",
+      activeClass: "active:bg-semantic-warning/20",
     },
     {
       rating: Rating.Good,
       label: "알맞음",
       interval: intervals[Rating.Good]?.intervalString ?? "3일",
       shortcut: "3",
-      containerClass: "border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary",
+      textColor: "text-primary",
+      hoverClass: "hover:bg-primary/10 hover:border-primary/40",
+      activeClass: "active:bg-primary/20",
     },
     {
       rating: Rating.Easy,
       label: "쉬움",
       interval: intervals[Rating.Easy]?.intervalString ?? "7일",
       shortcut: "4",
-      containerClass:
-        "border-semantic-success/30 bg-semantic-success/10 hover:bg-semantic-success/20 text-semantic-success",
+      textColor: "text-semantic-success",
+      hoverClass: "hover:bg-semantic-success/10 hover:border-semantic-success/40",
+      activeClass: "active:bg-semantic-success/20",
     },
   ];
 
   return (
-    <div className={cn("grid grid-cols-4 gap-2", className)}>
+    <div className={cn("grid grid-cols-4 gap-2 sm:gap-3", className)}>
       {buttons.map((btn) => (
-        <HapticTarget key={btn.rating} className="flex w-full" isTicking={!disabled}>
+        <HapticTarget key={btn.rating} className="flex w-full" isTicking={!disabled} keepsScroll>
           <button
             className={cn(
-              "flex w-full flex-col items-center justify-center rounded-xl border p-2.5 transition-all duration-150 active:scale-95",
-              "focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none disabled:opacity-40",
-              btn.containerClass,
+              "bg-surface flex h-14 w-full cursor-pointer flex-col items-center justify-center rounded-xl border border-hairline p-2 shadow-xs transition-all duration-150",
+              "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none",
+              "active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40",
+              btn.hoverClass,
+              btn.activeClass,
             )}
             type="button"
             disabled={disabled}
             onClick={() => onRate(btn.rating)}
           >
-            <span className="text-caption font-semibold">{btn.label}</span>
-            <span className="text-caption text-xs opacity-80">{btn.interval}</span>
+            <span className={cn("text-body-sm leading-tight font-bold", btn.textColor)}>
+              {btn.label}
+            </span>
+            <span className="mt-0.5 text-caption leading-tight font-medium text-meta">
+              {btn.interval}
+            </span>
           </button>
         </HapticTarget>
       ))}

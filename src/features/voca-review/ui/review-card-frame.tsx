@@ -15,6 +15,13 @@ export type ReviewCardFrameProps = {
   onUndo?: () => void;
 };
 
+function cleanSentenceForSpeech(sentence: string, targetWord: string): string {
+  return sentence
+    .replace(/<\/?b>/gi, "")
+    .replace(/_{3,}/g, targetWord)
+    .trim();
+}
+
 export function ReviewCardFrame({
   className,
   card,
@@ -29,7 +36,7 @@ export function ReviewCardFrame({
         return;
       }
 
-      // Check for undo shortcut: Cmd+Z / Ctrl+Z
+      // Undo: Cmd+Z / Ctrl+Z
       if (isCommandKey(e) && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
         onUndo?.();
@@ -43,13 +50,13 @@ export function ReviewCardFrame({
         return;
       }
 
-      // R to replay audio (word pronunciation or sentence audio)
+      // R to replay audio
       if (e.key.toLowerCase() === "r" && !isCommandKey(e)) {
         e.preventDefault();
         const audioUrl = isFlipped ? (card.audioUrl ?? card.sentenceAudioUrl) : card.audioUrl;
         const textToSpeak = isFlipped
           ? card.targetWord
-          : card.sentence.replace(/<b>.*?<\/b>/g, card.targetWord);
+          : cleanSentenceForSpeech(card.sentence, card.targetWord);
 
         if (audioUrl) {
           const audio = new Audio(audioUrl);
@@ -87,39 +94,18 @@ export function ReviewCardFrame({
 
   return (
     <div
-      className={cn("w-full cursor-pointer select-none", className)}
-      style={{ perspective: "1000px" }}
-      onClick={onFlip}
+      className={cn("w-full select-none", className)}
+      onClick={() => {
+        if (!isFlipped) {
+          onFlip();
+        }
+      }}
     >
       <div
-        className="relative w-full transition-transform duration-500 ease-out"
-        style={{
-          transformStyle: "preserve-3d",
-          transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
-        }}
+        key={isFlipped ? `${card.id}-back` : `${card.id}-front`}
+        className={cn("w-full animate-in duration-200 fade-in", !isFlipped && "cursor-pointer")}
       >
-        {/* Front Face */}
-        <div
-          className="w-full"
-          style={{
-            backfaceVisibility: "hidden",
-            WebkitBackfaceVisibility: "hidden",
-          }}
-        >
-          <CardFace card={card} side="front" />
-        </div>
-
-        {/* Back Face */}
-        <div
-          className="absolute inset-0 w-full"
-          style={{
-            backfaceVisibility: "hidden",
-            WebkitBackfaceVisibility: "hidden",
-            transform: "rotateY(180deg)",
-          }}
-        >
-          <CardFace card={card} side="back" autoplayAudio={isFlipped} />
-        </div>
+        <CardFace card={card} side={isFlipped ? "back" : "front"} autoplayAudio={isFlipped} />
       </div>
     </div>
   );

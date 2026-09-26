@@ -93,8 +93,8 @@ export function VocaReviewPage({
       </header>
 
       {/* Main Review Body */}
-      <main className="flex flex-1 flex-col justify-between py-6">
-        <Container className="flex flex-1 flex-col justify-center" size="md">
+      <main className="flex-1 px-4 pt-4 pb-16 sm:pt-6 sm:pb-24">
+        <Container className="flex flex-col gap-6" size="md">
           {isCompleted ? (
             <ReviewCompletionCard
               newCardsRemaining={0}
@@ -113,9 +113,9 @@ export function VocaReviewPage({
               />
 
               {/* Bottom Action Area */}
-              <div className="pt-4">
+              <div className="pt-2">
                 {isFlipped ? (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <ReviewRatingBar
                       card={currentCard}
                       desiredRetention={desiredRetention}
@@ -128,7 +128,12 @@ export function VocaReviewPage({
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2">
-                    <Button className="w-full max-w-xs" variant="primary" haptic onClick={flip}>
+                    <Button
+                      className="h-12 w-full text-button-md font-semibold"
+                      variant="primary"
+                      haptic
+                      onClick={flip}
+                    >
                       정답 확인하기 (Space)
                     </Button>
                     <p className="text-caption text-meta">카드를 탭하거나 스페이스바를 누르세요</p>

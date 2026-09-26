@@ -3,6 +3,7 @@
 import type { VocaCard } from "@/entities/voca";
 import { cn } from "@/shared/lib";
 import { VocaAudioButton } from "@/shared/ui";
+import type { ReactNode } from "react";
 
 export type CardFaceProps = {
   className?: string;
@@ -12,62 +13,134 @@ export type CardFaceProps = {
   autoplayAudio?: boolean;
 };
 
-function renderBlankSentence(sentence: string, targetWord: string) {
-  const escaped = targetWord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const regex = new RegExp(`(${escaped})`, "gi");
-  const parts = sentence.split(regex);
-
-  if (parts.length > 1) {
-    return (
-      <span>
-        {parts.map((part, index) =>
-          part.toLowerCase() === targetWord.toLowerCase() ? (
-            <b
-              key={index}
-              className="font-bold tracking-wider text-primary underline underline-offset-4"
-            >
-              __________
-            </b>
-          ) : (
-            <span key={index}>{part}</span>
-          ),
-        )}
-      </span>
-    );
+/**
+ * Parses inline <b>...</b> tags safely without dangerouslySetInnerHTML.
+ */
+function renderRichText(text: string, boldClassName = "font-bold text-primary"): ReactNode {
+  if (!text) {
+    return null;
   }
 
-  return (
-    <span>
-      {sentence}{" "}
-      <b className="font-bold tracking-wider text-primary underline underline-offset-4">
-        __________
-      </b>
-    </span>
-  );
+  const parts = text.split(/(<b>[\s\S]*?<\/b>)/gi);
+  if (parts.length === 1 && !text.includes("<b>") && !text.includes("</b>")) {
+    return text;
+  }
+
+  return parts.map((part, index) => {
+    const match = /^<b>([\s\S]*?)<\/b>$/i.exec(part);
+    if (match) {
+      return (
+        <b key={index} className={boldClassName}>
+          {match[1]}
+        </b>
+      );
+    }
+    const cleanPart = part.replace(/<\/?b>/gi, "");
+    return <span key={index}>{cleanPart}</span>;
+  });
 }
 
-function renderFilledSentence(sentence: string, targetWord: string) {
-  const escaped = targetWord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const regex = new RegExp(`(${escaped})`, "gi");
-  const parts = sentence.split(regex);
+/**
+ * Cleans raw sentence text for text-to-speech fallback, removing <b> tags and underscores.
+ */
+function cleanSentenceForSpeech(sentence: string, targetWord: string): string {
+  return sentence
+    .replace(/<\/?b>/gi, "")
+    .replace(/_{3,}/g, targetWord)
+    .trim();
+}
 
-  if (parts.length > 1) {
-    return (
-      <span>
-        {parts.map((part, index) =>
-          part.toLowerCase() === targetWord.toLowerCase() ? (
-            <b key={index} className="font-bold text-primary">
-              {part}
-            </b>
-          ) : (
-            <span key={index}>{part}</span>
-          ),
-        )}
-      </span>
-    );
+/**
+ * On the front of the card, displays the sentence with the target word replaced by a blank.
+ */
+function renderBlankSentence(sentence: string, targetWord: string): ReactNode {
+  let normalized = sentence;
+  const blankMarker = "__VOCA_BLANK__";
+  const hasUnderscores = /(?:<b>)?_{3,}(?:<\/b>)?/i.test(normalized);
+
+  if (hasUnderscores) {
+    normalized = normalized.replace(/(?:<b>)?_{3,}(?:<\/b>)?/i, blankMarker);
+  } else {
+    const escaped = targetWord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`(?:<b>)?${escaped}(?:<\\/b>)?`, "gi");
+    if (regex.test(normalized)) {
+      normalized = normalized.replace(regex, blankMarker);
+    } else {
+      normalized = `${normalized} ${blankMarker}`;
+    }
   }
 
-  return <span>{sentence}</span>;
+  const parts = normalized.split(/(__VOCA_BLANK__|<b>[\s\S]*?<\/b>)/gi);
+
+  return parts.map((part, index) => {
+    if (part === blankMarker) {
+      return (
+        <b
+          key={index}
+          className="font-bold tracking-wider text-primary underline underline-offset-4"
+        >
+          __________
+        </b>
+      );
+    }
+
+    const boldMatch = /^<b>([\s\S]*?)<\/b>$/i.exec(part);
+    if (boldMatch) {
+      return (
+        <b key={index} className="font-semibold text-ink">
+          {boldMatch[1]}
+        </b>
+      );
+    }
+
+    const clean = part.replace(/<\/?b>/gi, "");
+    return <span key={index}>{clean}</span>;
+  });
+}
+
+/**
+ * On the back of the card, displays the sentence with the target word filled in and highlighted.
+ */
+function renderFilledSentence(sentence: string, targetWord: string): ReactNode {
+  let normalized = sentence;
+  const wordMarker = "__VOCA_WORD__";
+  const hasUnderscores = /(?:<b>)?_{3,}(?:<\/b>)?/i.test(normalized);
+
+  if (hasUnderscores) {
+    normalized = normalized.replace(/(?:<b>)?_{3,}(?:<\/b>)?/i, wordMarker);
+  } else {
+    const escaped = targetWord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`(?:<b>)?${escaped}(?:<\\/b>)?`, "gi");
+    if (regex.test(normalized)) {
+      normalized = normalized.replace(regex, wordMarker);
+    } else {
+      normalized = `${normalized} (${wordMarker})`;
+    }
+  }
+
+  const parts = normalized.split(/(__VOCA_WORD__|<b>[\s\S]*?<\/b>)/gi);
+
+  return parts.map((part, index) => {
+    if (part === wordMarker) {
+      return (
+        <b key={index} className="font-bold text-primary">
+          {targetWord}
+        </b>
+      );
+    }
+
+    const boldMatch = /^<b>([\s\S]*?)<\/b>$/i.exec(part);
+    if (boldMatch) {
+      return (
+        <b key={index} className="font-semibold text-primary">
+          {boldMatch[1]}
+        </b>
+      );
+    }
+
+    const clean = part.replace(/<\/?b>/gi, "");
+    return <span key={index}>{clean}</span>;
+  });
 }
 
 export function CardFace({
@@ -81,7 +154,7 @@ export function CardFace({
     return (
       <div
         className={cn(
-          "bg-surface flex min-h-[300px] flex-col justify-between rounded-2xl border border-hairline p-6 shadow-sm",
+          "bg-surface flex min-h-[260px] flex-col justify-between rounded-2xl border border-hairline p-6 shadow-sm sm:min-h-[300px]",
           className,
         )}
       >
@@ -115,7 +188,7 @@ export function CardFace({
   return (
     <div
       className={cn(
-        "bg-surface flex min-h-[300px] flex-col overflow-y-auto rounded-2xl border border-hairline p-6 shadow-sm",
+        "bg-surface flex min-h-[260px] flex-col rounded-2xl border border-hairline p-6 shadow-sm sm:min-h-[300px]",
         className,
       )}
     >
@@ -155,7 +228,7 @@ export function CardFace({
             </span>
             <VocaAudioButton
               audioUrl={card.sentenceAudioUrl}
-              textToSpeak={card.sentence}
+              textToSpeak={cleanSentenceForSpeech(card.sentence, card.targetWord)}
               label="예문 전체 듣기"
               size="sm"
             />
@@ -204,7 +277,7 @@ export function CardFace({
                   key={idx}
                   className="rounded-lg border border-hairline/60 bg-surface-soft/60 px-3 py-2 leading-relaxed"
                 >
-                  {example}
+                  {renderRichText(example, "font-semibold text-primary")}
                 </li>
               ))}
             </ul>
