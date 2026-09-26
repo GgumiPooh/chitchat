@@ -69,13 +69,14 @@ function parseCuratedPage(html) {
     const publishedAt = timeMatch ? new Date(timeMatch[1]).toISOString() : new Date().toISOString();
 
     const geeknewsUrl = `https://news.hada.io/topic?id=${geeknewsId}`;
+    const sourceUrl = rawUrl && rawUrl !== geeknewsUrl ? rawUrl : null;
 
     if (geeknewsId && title) {
       articles.push({
         geeknewsId,
         title,
-        url: rawUrl || geeknewsUrl,
-        geeknewsUrl,
+        url: geeknewsUrl,
+        sourceUrl,
         summary,
         publishedAt,
       });

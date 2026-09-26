@@ -2300,10 +2300,10 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
 
 - **Branded Snowflake ID**: `NewsArticleId = Id<"NewsArticleId">` declared in `src/shared/lib/identity/id.ts` and re-exported from `src/shared/lib`. Part of the `SnowflakeId` union.
 - **Database Schema**:
-  - `geeknews_articles`: `id` (snowflake PK), `geeknews_id` (text unique), `title`, `url`, `geeknews_url`, `summary`, `published_at` (with tz). No `created_at` (embedded in snowflake ID). Descending btree index on `published_at`.
+  - `geeknews_articles`: `id` (snowflake PK), `geeknews_id` (text unique), `title`, `url`, `source_url` (nullable), `summary`, `published_at` (with tz). No `created_at` (embedded in snowflake ID). Descending btree index on `published_at`.
   - `geeknews_subscriptions`: `user_id` (snowflake PK FK users.id cascade), `enabled` (boolean default true). No `updated_at`.
   - `geeknews_reads`: `user_id` (FK users.id cascade), `article_id` (FK geeknews_articles.id cascade), composite PK `(user_id, article_id)`. Btree index on `user_id`.
-- **Migration**: `0070_nappy_sir_ram.sql` generates tables, foreign keys, and indexes.
+- **Migration**: `0070_nappy_sir_ram.sql` generates tables, foreign keys, and indexes. `0071_geeknews_source_url.sql` normalizes `url` to canonical topic page and renames original external link to `source_url`.
 - **Pure Webhook Ingestion**: Ingestion is handled purely by the GeekNews webhook without polling or RSS crawlers, keeping network costs and server load zero until new articles arrive.
 - **Webhook Endpoint**: `POST /api/webhooks/geeknews`
   - Validates `token` query param against `GEEKNEWS_WEBHOOK_SECRET` via `crypto.timingSafeEqual` in constant time (optional in development).
@@ -2339,3 +2339,60 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
     - Hierarchical desktop back navigation: When the side panel is collapsed on desktop (`lg`), the header back button (`<`) expands the side panel (article list) first instead of leaving the page; clicking back while open navigates to `/playground`.
     - Notification subscription bell toggle with toast feedback and news refresh action.
     - Clean empty state (`아직 등록된 뉴스가 없어요. 새 소식이 등록되면 여기에 표시돼요`) with zero RSS auto-seed.
+
+# 17. English Vocabulary Flashcards (영단어 놀이터)
+
+## 17.1. Architecture & Model
+- **Deck Structure**: 1 User = 1 Personal Deck directly bound to `users.id` on `voca_cards` and `voca_user_settings`. Categorization is handled via tags (`#toefl`, etc.).
+- **FSRS Algorithm**: Anki's official Free Spaced Repetition Scheduler (`ts-fsrs`), supporting 4 rating options (`Again`, `Hard`, `Good`, `Easy`) with dynamic interval estimation (`< 10분`, `1일`, `3일`, `7일`).
+- **Session Boundary**: Daily boundary rolls over at 04:00 AM KST (`toVocaSessionDayKey`), partitioning reviews and daily quotas cleanly.
+- **Card Note Specification (12 Fields)**: Conforms strictly to `/anki-voca` specification:
+  1. `sentence`: 1T principle blank sentence (`<b>__________</b>`).
+  2. `target_word`: Headword.
+  3. `pos`: Part of speech (`adj`, `noun`, `verb`, etc.).
+  4. `pronunciation`: IPA transcript (`/.../`).
+  5. `korean_meaning`: Concise Korean translation.
+  6. `english_definition`: Monolingual English definition (always visible on front).
+  7. `confusable`: Format `≠ word (brief distinction)` or empty.
+  8. `collocations`: 2-3 collocations joined by ` · `.
+  9. `word_family`: Related forms.
+  10. `examples`: Exactly 3 examples separated by `<br>` with target word in `<b>`.
+  11. `audio_url` / `audio_media_id`: Word audio.
+  12. `sentence_audio_url` / `sentence_audio_media_id`: Full sentence audio.
+
+## 17.2. Audio Synthesis & Media Lifecycle
+- **Neural TTS**: Synthesized using Microsoft Edge Neural TTS voice (`en-AU-WilliamMultilingualNeural`) via `edge-tts-universal`.
+- **R2 Storage**: Server synthesizes audio and writes directly to Cloudflare R2 (`putObject`) under `voca/{userId}/{snowflake}`.
+- **Media Tracking & Soft Delete**: Stored in `media` table with `scope: "voca"`. On card deletion, card and associated media rows are marked with `deleted_at = now()`, automatically swept and purged by ops cron (`scripts/ops/purge.ts`).
+- **Zero-Latency Offline Fallback**: In offline mode, uses Web Speech API (`window.speechSynthesis`).
+
+## 17.3. Non-Blocking AI Generation
+- **Prompt Isolation**: Uses an immutable, dedicated prompt based on `/anki-voca`. Never uses `readLlmSystemPrompt()`.
+- **Individual Per-Word Dispatch**: Multi-word submissions dispatch isolated `POST /api/voca/ai-generate` requests per word.
+- **Non-blocking Execution**: The endpoint responds in 0.1s with 200, delegating generation and audio synthesis to Next.js `after()`.
+- **Transactional Push**: Sends Web Push notification (`pushToUser`) to user on card creation.
+
+## 17.4. UI & Responsive Experience
+- **Mobile Experience**:
+  - Full-screen document scroller.
+  - 12-week swipeable calendar heatmap (`overflow-x-auto snap-x`).
+  - 3D flip card with haptic feedback.
+  - Bottom 4-button thumb rating bar.
+  - Card editing via `BottomSheet`.
+- **Desktop Experience (`>= lg`)**:
+  - 52-week panoramic calendar heatmap with hover tooltips.
+  - `TwoPane` card browser (Left: SidePanel roster with roving tabindex; Right: 12-field inline editor).
+  - Keyboard navigation: `Space` (flip), `1` (Again), `2` (Hard), `3` (Good), `4` (Easy), `R` (replay audio), `⌘Z` / `Ctrl+Z` (Undo last rating via `isCommandKey`).
+
+## 17.5. Performance & Pagination
+- **Card Browser Pagination**: Keyset pagination (`before={snowflakeId}&limit={limit}`) connected with `LoadMoreSentinel` at the bottom of both mobile document scroller and desktop `TwoPane` scroller.
+- **Bounded Review Queue**: Review sessions load bounded daily quotas (`dailyNewCards` + due review cards), with dynamic Scenario A completion card (`+5장 더 배우기` if new cards remain in deck; switches to `미리 복습하기` or `✨ AI로 새 단어 추가하기` when 0 new cards remain).
+
+## 17.6. Daily 08:00 AM KST Push Reminder
+- **Cron Worker**: Triggered via `POST /api/ops/voca-remind`. Checks `reminderEnabled` and pushes reminder only if `dueSummary.totalDue > 0`.
+- **SSR Cookie Sync**: `jandh:voca-reminder` cookie is whitelisted in SSR cookies to prevent hydration flicker.
+
+## 17.7. Offline PWA Support
+- **IndexedDB Snapshots**: Cached under `voca` snapshot.
+- **Offline Reviews Outbox**: Offline review ratings saved to `voca-outbox` snapshot and synced sequentially on reconnection (`/api/voca/review/sync-offline`).
+

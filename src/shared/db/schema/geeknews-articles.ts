@@ -9,7 +9,7 @@ export const geeknewsArticles = pgTable(
     geeknewsId: text("geeknews_id").notNull().unique(),
     title: text("title").notNull(),
     url: text("url").notNull(),
-    geeknewsUrl: text("geeknews_url").notNull(),
+    sourceUrl: text("source_url"),
     summary: text("summary").notNull(),
     publishedAt: timestamp("published_at", { withTimezone: true }).notNull(),
   },

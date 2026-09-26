@@ -204,7 +204,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
             toast(OFFLINE_MESSAGES.view);
             return;
           }
-          window.open(current.url, "_blank", "noopener,noreferrer");
+          window.open(current.sourceUrl ?? current.url, "_blank", "noopener,noreferrer");
         }
       }
     };
@@ -255,7 +255,9 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                     onClick={() => handleSelectArticle(index)}
                   >
                     <div className="flex items-center justify-between gap-xs text-caption text-meta">
-                      <span className="truncate font-medium">{toDomain(article.url)}</span>
+                      <span className="truncate font-medium">
+                        {toDomain(article.sourceUrl ?? article.url)}
+                      </span>
                       <RelativeTime date={article.publishedAt} />
                     </div>
                     <h3
@@ -355,7 +357,9 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                   onClick={() => handleOpenArticle(article)}
                 >
                   <div className="flex items-center justify-between gap-xs text-caption text-meta">
-                    <span className="truncate font-medium">{toDomain(article.url)}</span>
+                    <span className="truncate font-medium">
+                      {toDomain(article.sourceUrl ?? article.url)}
+                    </span>
                     <RelativeTime date={article.publishedAt} />
                   </div>
                   <h3
@@ -394,16 +398,16 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
             <article className="flex flex-col gap-lg">
               <div className="flex flex-wrap items-center gap-xs text-caption text-meta">
                 <span className="rounded-full bg-surface-soft px-2 py-0.5 font-medium text-meta">
-                  {toDomain(selectedArticle.url)}
+                  {toDomain(selectedArticle.sourceUrl ?? selectedArticle.url)}
                 </span>
                 <span>·</span>
                 <RelativeTime date={selectedArticle.publishedAt} />
-                {selectedArticle.url !== selectedArticle.geeknewsUrl && (
+                {selectedArticle.sourceUrl && (
                   <>
                     <span>·</span>
                     <a
                       className="inline-flex items-center gap-1 text-primary hover:underline"
-                      href={selectedArticle.geeknewsUrl}
+                      href={selectedArticle.url}
                       rel="noopener noreferrer"
                       target="_blank"
                       onClick={handleExternalLinkClick}
@@ -419,33 +423,44 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                 {selectedArticle.title}
               </h1>
 
-              <div className="rounded-xl border border-hairline bg-surface-soft/40 p-lg text-body-md leading-relaxed whitespace-pre-line text-body">
+              <p className="text-body-md leading-relaxed whitespace-pre-line text-body">
                 {selectedArticle.summary}
-              </div>
+              </p>
 
               <div className="flex flex-wrap items-center gap-sm border-t border-hairline pt-md">
-                <a
-                  className="inline-flex min-h-12 items-center justify-center gap-xs rounded-md bg-primary px-lg py-sm text-button-md font-medium text-on-primary transition-colors hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-primary-pressed"
-                  href={selectedArticle.url}
-                  rel="noopener noreferrer"
-                  target="_blank"
-                  onClick={handleExternalLinkClick}
-                >
-                  {selectedArticle.url !== selectedArticle.geeknewsUrl
-                    ? "원문 기사 읽기 (새 창)"
-                    : "긱뉴스 글 읽기 (새 창)"}
-                  <ExternalLink className="size-4" strokeWidth={1.75} />
-                </a>
+                {selectedArticle.sourceUrl ? (
+                  <>
+                    <a
+                      className="inline-flex min-h-12 items-center justify-center gap-xs rounded-md bg-primary px-lg py-sm text-button-md font-medium text-on-primary transition-colors hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-primary-pressed"
+                      href={selectedArticle.sourceUrl}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                      onClick={handleExternalLinkClick}
+                    >
+                      원문 기사 읽기 (새 창)
+                      <ExternalLink className="size-4" strokeWidth={1.75} />
+                    </a>
 
-                {selectedArticle.url !== selectedArticle.geeknewsUrl && (
+                    <a
+                      className="inline-flex min-h-12 items-center justify-center gap-xs rounded-md border border-hairline-strong bg-canvas px-lg py-sm text-button-md font-medium text-ink transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-surface-strong"
+                      href={selectedArticle.url}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                      onClick={handleExternalLinkClick}
+                    >
+                      긱뉴스 토론 (새 창)
+                      <ExternalLink className="size-4" strokeWidth={1.75} />
+                    </a>
+                  </>
+                ) : (
                   <a
-                    className="inline-flex min-h-12 items-center justify-center gap-xs rounded-md border border-hairline-strong bg-canvas px-lg py-sm text-button-md font-medium text-ink transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-surface-strong"
-                    href={selectedArticle.geeknewsUrl}
+                    className="inline-flex min-h-12 items-center justify-center gap-xs rounded-md bg-primary px-lg py-sm text-button-md font-medium text-on-primary transition-colors hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-primary-pressed"
+                    href={selectedArticle.url}
                     rel="noopener noreferrer"
                     target="_blank"
                     onClick={handleExternalLinkClick}
                   >
-                    긱뉴스 토론 (새 창)
+                    긱뉴스 글 읽기 (새 창)
                     <ExternalLink className="size-4" strokeWidth={1.75} />
                   </a>
                 )}
@@ -467,7 +482,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
           <div className="flex flex-col gap-lg pb-md">
             <div className="flex flex-wrap items-center gap-xs text-caption text-meta">
               <span className="rounded-full bg-surface-soft px-2 py-0.5 font-medium text-meta">
-                {toDomain(sheetArticle.url)}
+                {toDomain(sheetArticle.sourceUrl ?? sheetArticle.url)}
               </span>
               <span>·</span>
               <RelativeTime date={sheetArticle.publishedAt} />
@@ -475,33 +490,44 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
 
             <h2 className="text-title-md leading-snug font-bold text-ink">{sheetArticle.title}</h2>
 
-            <div className="rounded-xl border border-hairline bg-surface-soft/40 p-md text-body-md leading-relaxed whitespace-pre-line text-body">
+            <p className="text-body-md leading-relaxed whitespace-pre-line text-body">
               {sheetArticle.summary}
-            </div>
+            </p>
 
             <div className="flex flex-col gap-sm border-t border-hairline pt-md">
-              <a
-                className="inline-flex min-h-12 w-full items-center justify-center gap-xs rounded-md bg-primary px-md py-sm text-button-md font-medium text-on-primary transition-colors hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-primary-pressed"
-                href={sheetArticle.url}
-                rel="noopener noreferrer"
-                target="_blank"
-                onClick={handleExternalLinkClick}
-              >
-                {sheetArticle.url !== sheetArticle.geeknewsUrl
-                  ? "원문 기사 읽기 (새 창)"
-                  : "긱뉴스 글 읽기 (새 창)"}
-                <ExternalLink className="size-4" strokeWidth={1.75} />
-              </a>
+              {sheetArticle.sourceUrl ? (
+                <>
+                  <a
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-xs rounded-md bg-primary px-md py-sm text-button-md font-medium text-on-primary transition-colors hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-primary-pressed"
+                    href={sheetArticle.sourceUrl}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                    onClick={handleExternalLinkClick}
+                  >
+                    원문 기사 읽기 (새 창)
+                    <ExternalLink className="size-4" strokeWidth={1.75} />
+                  </a>
 
-              {sheetArticle.url !== sheetArticle.geeknewsUrl && (
+                  <a
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-xs rounded-md border border-hairline-strong bg-canvas px-md py-sm text-button-md font-medium text-ink transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-surface-strong"
+                    href={sheetArticle.url}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                    onClick={handleExternalLinkClick}
+                  >
+                    긱뉴스 토론 (새 창)
+                    <ExternalLink className="size-4" strokeWidth={1.75} />
+                  </a>
+                </>
+              ) : (
                 <a
-                  className="inline-flex min-h-12 w-full items-center justify-center gap-xs rounded-md border border-hairline-strong bg-canvas px-md py-sm text-button-md font-medium text-ink transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-surface-strong"
-                  href={sheetArticle.geeknewsUrl}
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-xs rounded-md bg-primary px-md py-sm text-button-md font-medium text-on-primary transition-colors hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-primary-pressed"
+                  href={sheetArticle.url}
                   rel="noopener noreferrer"
                   target="_blank"
                   onClick={handleExternalLinkClick}
                 >
-                  긱뉴스 토론 (새 창)
+                  긱뉴스 글 읽기 (새 창)
                   <ExternalLink className="size-4" strokeWidth={1.75} />
                 </a>
               )}

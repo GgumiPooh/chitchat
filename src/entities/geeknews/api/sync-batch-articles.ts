@@ -1,14 +1,15 @@
 import "server-only";
 
 import { geeknewsArticles, getDb, nextSnowflake, type GeeknewsArticle } from "@/shared/db";
-import { type NewsArticleId } from "@/shared/lib";
-import { count, eq, inArray } from "drizzle-orm";
+import type { NewsArticleId, Nullable } from "@/shared/lib";
+import { count, eq, inArray, isNull } from "drizzle-orm";
 
 export type IngestArticleInput = {
   geeknewsId: string;
   title: string;
   url: string;
-  geeknewsUrl: string;
+  sourceUrl?: Nullable<string>;
+  geeknewsUrl?: string;
   summary: string;
   publishedAt: string;
 };
@@ -33,7 +34,6 @@ function stripHtmlAndCdata(text: string): string {
 /**
  * Resolves the real external article URL from the GeekNews topic page.
  *
- * GeekNews's RSS feed only carries `https://news.hada.io/topic?id=...`.
  * For link-type topics, the real source URL (e.g. bloomberg, github) lives inside
  * `<a class="... topic-title-link" href="...">`. For self-posts, returns null.
  */
@@ -74,35 +74,35 @@ async function fetchOriginalUrl(geeknewsId: string): Promise<string | null> {
  *
  * Deduplicates by `geeknews_id`. If the database is currently empty (initial run),
  * inserts all incoming articles as backfill and reports `isInitialBackfill: true`.
- * Resolves the genuine external article URL (Bloomberg, GitHub, etc.) from the topic page
- * so "원문 기사 읽기" points to the real source rather than the discussion page.
- * Also self-heals any existing articles whose stored `url` equals their `geeknews_url`.
+ * Canonical GeekNews topic URL is saved to `url`, and genuine external source URL
+ * (Bloomberg, GitHub, etc.) is saved to `source_url` (or null if self-post).
+ * Also self-heals any existing articles whose `source_url` is null.
  */
 export async function syncBatchArticles(
   articles: IngestArticleInput[],
 ): Promise<SyncArticlesResult> {
   const db = getDb();
 
-  // INFO: Self-heal stored rows whose `url` was previously set to `geeknews_url`.
+  // INFO: Self-heal stored rows whose `source_url` was missing.
   const unlinkedExisting = await db
     .select({
       id: geeknewsArticles.id,
       geeknewsId: geeknewsArticles.geeknewsId,
       url: geeknewsArticles.url,
-      geeknewsUrl: geeknewsArticles.geeknewsUrl,
+      sourceUrl: geeknewsArticles.sourceUrl,
     })
     .from(geeknewsArticles)
-    .where(eq(geeknewsArticles.url, geeknewsArticles.geeknewsUrl))
+    .where(isNull(geeknewsArticles.sourceUrl))
     .limit(50);
 
   if (unlinkedExisting.length > 0) {
     await Promise.all(
       unlinkedExisting.map(async (row) => {
         const fetchedUrl = await fetchOriginalUrl(row.geeknewsId);
-        if (fetchedUrl && fetchedUrl !== row.geeknewsUrl) {
+        if (fetchedUrl && fetchedUrl !== row.url) {
           await db
             .update(geeknewsArticles)
-            .set({ url: fetchedUrl })
+            .set({ sourceUrl: fetchedUrl })
             .where(eq(geeknewsArticles.id, row.id));
         }
       }),
@@ -137,18 +137,26 @@ export async function syncBatchArticles(
 
   const resolvedCandidates = await Promise.all(
     sortedCandidates.map(async (item) => {
-      const geeknewsUrl = item.geeknewsUrl || `https://news.hada.io/topic?id=${item.geeknewsId}`;
-      let resolvedUrl = item.url;
-      if (!resolvedUrl || resolvedUrl === geeknewsUrl) {
+      const canonicalTopicUrl =
+        item.geeknewsUrl ||
+        (item.url?.includes("news.hada.io")
+          ? item.url
+          : `https://news.hada.io/topic?id=${item.geeknewsId}`);
+
+      let resolvedSourceUrl =
+        item.sourceUrl ?? (item.url && item.url !== canonicalTopicUrl ? item.url : null);
+
+      if (!resolvedSourceUrl) {
         const fetchedUrl = await fetchOriginalUrl(item.geeknewsId);
-        if (fetchedUrl) {
-          resolvedUrl = fetchedUrl;
+        if (fetchedUrl && fetchedUrl !== canonicalTopicUrl) {
+          resolvedSourceUrl = fetchedUrl;
         }
       }
+
       return {
         ...item,
-        url: resolvedUrl || geeknewsUrl,
-        geeknewsUrl,
+        url: canonicalTopicUrl,
+        sourceUrl: resolvedSourceUrl,
       };
     }),
   );
@@ -163,7 +171,7 @@ export async function syncBatchArticles(
       geeknewsId: item.geeknewsId,
       title,
       url: item.url,
-      geeknewsUrl: item.geeknewsUrl,
+      sourceUrl: item.sourceUrl,
       summary,
       publishedAt: isNaN(publishedAt.getTime()) ? new Date() : publishedAt,
     };

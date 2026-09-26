@@ -173,12 +173,13 @@ export async function POST(request: Request) {
     return apiError("invalid_request");
   }
 
-  if (!geeknewsUrl) {
-    geeknewsUrl = `https://news.hada.io/topic?id=${geeknewsId}`;
-  }
-  if (!url || url === geeknewsUrl) {
+  const canonicalUrl = geeknewsUrl || `https://news.hada.io/topic?id=${geeknewsId}`;
+  let sourceUrl: string | null = url && url !== canonicalUrl ? url : null;
+  if (!sourceUrl) {
     const fetched = await fetchOriginalUrl(geeknewsId);
-    url = fetched || geeknewsUrl;
+    if (fetched && fetched !== canonicalUrl) {
+      sourceUrl = fetched;
+    }
   }
 
   const db = getDb();
@@ -188,8 +189,8 @@ export async function POST(request: Request) {
       id: nextSnowflake<NewsArticleId>(),
       geeknewsId,
       title,
-      url,
-      geeknewsUrl,
+      url: canonicalUrl,
+      sourceUrl,
       summary,
       publishedAt,
     })
@@ -197,8 +198,8 @@ export async function POST(request: Request) {
       target: geeknewsArticles.geeknewsId,
       set: {
         title,
-        url,
-        geeknewsUrl,
+        url: canonicalUrl,
+        sourceUrl,
         summary,
         publishedAt,
       },
