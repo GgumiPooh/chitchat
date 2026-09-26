@@ -9,7 +9,7 @@ import {
 } from "@/features/voca-review";
 import { VOCA_ROUTE } from "@/shared/config";
 import { cn } from "@/shared/lib";
-import { Button, Container, IconButton } from "@/shared/ui";
+import { Container, IconButton } from "@/shared/ui";
 import { Undo2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -47,9 +47,9 @@ export function VocaReviewPage({
   const handleStudyMore = async () => {
     try {
       const res = await fetch("/api/voca/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ todayExtraNewCards: extraStudyCount + 5 }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
       });
       if (res.ok) {
         setExtraStudyCount((prev) => prev + 5);
@@ -68,8 +68,8 @@ export function VocaReviewPage({
           <div className="flex items-center justify-self-start">
             <IconButton
               Icon={X}
-              variant="plain"
               haptic
+              variant="plain"
               aria-label="복습 종료"
               onClick={() => router.push(VOCA_ROUTE)}
             />
@@ -85,9 +85,9 @@ export function VocaReviewPage({
             {canUndo && (
               <IconButton
                 Icon={Undo2}
-                variant="plain"
-                haptic
                 disabled={isSubmitting}
+                haptic
+                variant="plain"
                 aria-label="이전 카드로 되돌리기 (Cmd+Z)"
                 onClick={undo}
               />
@@ -97,14 +97,16 @@ export function VocaReviewPage({
       </header>
 
       {/* Main Review Body */}
-      <main className="flex-1 px-4 pt-4 pb-16 sm:pt-6 sm:pb-24">
+      <main
+        className={cn("flex-1 px-4 pt-4 sm:pt-6", isFlipped ? "pb-36 sm:pb-40" : "pb-16 sm:pb-24")}
+      >
         <Container className="flex flex-col gap-6" size="md">
           {isCompleted ? (
             <ReviewCompletionCard
               newCardsRemaining={0}
-              onStudyMore={handleStudyMore}
-              onReviewAhead={() => router.refresh()}
               onAddWord={() => router.push(VOCA_ROUTE)}
+              onReviewAhead={() => router.refresh()}
+              onStudyMore={handleStudyMore}
             />
           ) : currentCard ? (
             <div className="space-y-6">
@@ -115,39 +117,26 @@ export function VocaReviewPage({
                 onRate={rate}
                 onUndo={undo}
               />
-
-              {/* Bottom Action Area */}
-              <div className="pt-2">
-                {isFlipped ? (
-                  <div className="space-y-3">
-                    <ReviewRatingBar
-                      card={currentCard}
-                      desiredRetention={desiredRetention}
-                      disabled={isSubmitting}
-                      onRate={rate}
-                    />
-                    <p className="text-center text-caption text-meta">
-                      단축키: 1 (다시) · 2 (어려움) · 3 (알맞음) · 4 (쉬움)
-                    </p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-2">
-                    <Button
-                      className="h-12 w-full text-button-md font-semibold"
-                      variant="primary"
-                      haptic
-                      onClick={flip}
-                    >
-                      정답 확인하기 (Space)
-                    </Button>
-                    <p className="text-caption text-meta">카드를 탭하거나 스페이스바를 누르세요</p>
-                  </div>
-                )}
-              </div>
             </div>
           ) : null}
         </Container>
       </main>
+
+      {/* Fixed Bottom Rating Bar above TabBar */}
+      {!isCompleted && isFlipped && currentCard && (
+        <div className="pointer-events-none fixed right-0 bottom-[calc(var(--bottom-inset)+12px)] left-(--rail-width) z-20 animate-in duration-200 fade-in slide-in-from-bottom-2">
+          <Container className="pointer-events-auto px-4" size="md">
+            <div className="bg-surface/95 rounded-2xl border border-hairline/80 p-2 shadow-floating backdrop-blur-md">
+              <ReviewRatingBar
+                card={currentCard}
+                desiredRetention={desiredRetention}
+                disabled={isSubmitting}
+                onRate={rate}
+              />
+            </div>
+          </Container>
+        </div>
+      )}
     </div>
   );
 }
