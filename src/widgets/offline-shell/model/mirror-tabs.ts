@@ -6,7 +6,7 @@ import {
   SETTINGS_ROUTE,
 } from "@/shared/config";
 import type { Optional } from "@/shared/lib";
-import { Archive, CalendarDays, MessageCircle, Settings, Sparkles } from "lucide-react";
+import { Archive, Blocks, CalendarDays, MessageCircle, Settings } from "lucide-react";
 import type { ComponentProps, FC } from "react";
 import type { MirrorScreen } from "./mirror-screen";
 
@@ -31,7 +31,7 @@ export const MIRROR_TABS: MirrorTab[] = [
     screens: ["playground", "news"],
     href: PLAYGROUND_ROUTE,
     label: "놀이터",
-    Icon: Sparkles,
+    Icon: Blocks,
   },
   { screens: ["settings"], href: SETTINGS_ROUTE, label: "설정", Icon: Settings },
 ];

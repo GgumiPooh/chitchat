@@ -2323,7 +2323,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
 - **Navigation & Routing Expansion (Phase 2)**:
   - `PLAYGROUND_ROUTE` (`/playground`) and `GEEKNEWS_ROUTE` (`/playground/news`) declared in `src/shared/config/app.ts` and re-exported from `src/shared/config`.
   - `TAB_ROUTES` expanded to 5 tabs (`CHAT_ROUTE`, `CALENDAR_ROUTE`, `ARCHIVE_ROUTE`, `PLAYGROUND_ROUTE`, `SETTINGS_ROUTE`).
-  - `TAB_FACES` in `src/widgets/tab-bar/model/tabs.ts` updated with `Sparkles` icon and `놀이터` label.
+  - `TAB_FACES` in `src/widgets/tab-bar/model/tabs.ts` updated with `Blocks` icon and `놀이터` label.
   - Offline mirror sync: `MIRRORED_ROUTES`, `MIRROR_TABS`, `MirrorScreen` ("playground", "news"), `mirror-fallback.tsx` frames, and `public/sw.js` `MIRRORED_PATHS` all updated in sync.
 - **Entity Queries & Client Hooks (Phase 2)**:
   - `listGeeknewsArticles({ currentUserId, limit = GEEKNEWS_PAGE_SIZE, before })` in `src/entities/geeknews/api/list-articles.ts` with `server-only`, left join with `geeknews_reads`, keyset-paginated on `published_at.desc()`, `id.desc()`.
