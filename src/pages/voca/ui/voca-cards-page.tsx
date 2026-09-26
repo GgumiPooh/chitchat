@@ -175,13 +175,14 @@ export function VocaCardsPage({
   return (
     <div className={cn("flex flex-1 flex-col", className)}>
       <AppHeader
-        title="단어장"
         hasSidePanel
+        title="단어장"
+        trailingFadesOnScroll
         leading={
           <IconButton
             Icon={ChevronLeft}
-            variant="floating"
             haptic
+            variant="floating"
             aria-label="영단어로 돌아가기"
             onClick={() => router.push(VOCA_ROUTE)}
           />
@@ -191,8 +192,8 @@ export function VocaCardsPage({
             <IconButton
               className={cn(isSelectionMode && "border-primary text-primary")}
               Icon={CheckSquare}
-              variant="floating"
               haptic
+              variant="floating"
               aria-label="선택 모드"
               onClick={() => {
                 setIsSelectionMode((prev) => !prev);
@@ -201,8 +202,8 @@ export function VocaCardsPage({
             />
             <IconButton
               Icon={Sparkles}
-              variant="floating"
               haptic
+              variant="floating"
               aria-label="AI로 단어 추가"
               onClick={() => setIsAiDialogOpen(true)}
             />

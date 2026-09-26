@@ -82,11 +82,12 @@ export function VocaDashboardPage({
     <div className={cn("flex flex-1 flex-col", className)}>
       <AppHeader
         title="영단어"
+        trailingFadesOnScroll
         leading={
           <IconButton
             Icon={ChevronLeft}
-            variant="floating"
             haptic
+            variant="floating"
             aria-label="놀이터로 돌아가기"
             onClick={() => router.push(PLAYGROUND_ROUTE)}
           />
@@ -95,24 +96,24 @@ export function VocaDashboardPage({
           <div className="flex items-center gap-xs">
             <IconButton
               Icon={BookOpen}
-              variant="floating"
               haptic
+              variant="floating"
               aria-label="단어장 보기"
               onClick={() => router.push(VOCA_CARDS_ROUTE)}
             />
             <IconButton
               Icon={Settings}
-              variant="floating"
               haptic
+              variant="floating"
               aria-label="영단어 설정"
               onClick={() => router.push(VOCA_SETTINGS_ROUTE)}
             />
             <IconButton
               iconClassName={isRefreshing ? "animate-spin" : undefined}
               Icon={RotateCw}
-              variant="floating"
-              haptic
               disabled={isRefreshing}
+              haptic
+              variant="floating"
               aria-label="새로고침"
               onClick={handleRefresh}
             />
