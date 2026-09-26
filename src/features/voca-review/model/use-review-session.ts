@@ -112,6 +112,23 @@ export function useReviewSession({ initialCards }: UseReviewSessionOptions) {
     }
   }, [undoStack, isSubmitting]);
 
+  const unflip = useCallback(() => {
+    setIsFlipped(false);
+  }, []);
+
+  const goBack = useCallback(() => {
+    if (isSubmitting) {
+      return;
+    }
+    if (isFlipped) {
+      setIsFlipped(false);
+      return;
+    }
+    if (undoStack.length > 0) {
+      void undo();
+    }
+  }, [isFlipped, isSubmitting, undoStack.length, undo]);
+
   return {
     queue,
     currentIndex,
@@ -120,11 +137,14 @@ export function useReviewSession({ initialCards }: UseReviewSessionOptions) {
     isSubmitting,
     isCompleted,
     canUndo: undoStack.length > 0,
+    canGoBack: isFlipped || undoStack.length > 0,
     progress: {
       current: Math.min(currentIndex + 1, queue.length),
       total: queue.length,
     },
     flip,
+    unflip,
+    goBack,
     rate,
     undo,
   };

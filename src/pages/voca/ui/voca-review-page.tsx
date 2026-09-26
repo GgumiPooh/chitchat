@@ -10,7 +10,7 @@ import {
 import { VOCA_ROUTE } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { Container, IconButton } from "@/shared/ui";
-import { Undo2, X } from "lucide-react";
+import { ChevronLeft, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -34,11 +34,11 @@ export function VocaReviewPage({
     isFlipped,
     isSubmitting,
     isCompleted,
-    canUndo,
+    canGoBack,
     progress,
     flip,
     rate,
-    undo,
+    goBack,
   } = useReviewSession({
     initialCards: initialDueCards,
     desiredRetention,
@@ -67,11 +67,12 @@ export function VocaReviewPage({
         <Container className="grid h-full grid-cols-[1fr_auto_1fr] items-center" size="md">
           <div className="flex items-center justify-self-start">
             <IconButton
-              Icon={X}
+              Icon={ChevronLeft}
+              disabled={!canGoBack || isSubmitting}
               haptic
               variant="plain"
-              aria-label="복습 종료"
-              onClick={() => router.push(VOCA_ROUTE)}
+              aria-label="이전으로 가기"
+              onClick={goBack}
             />
           </div>
 
@@ -82,16 +83,13 @@ export function VocaReviewPage({
           </div>
 
           <div className="flex items-center gap-1 justify-self-end">
-            {canUndo && (
-              <IconButton
-                Icon={Undo2}
-                disabled={isSubmitting}
-                haptic
-                variant="plain"
-                aria-label="이전 카드로 되돌리기 (Cmd+Z)"
-                onClick={undo}
-              />
-            )}
+            <IconButton
+              Icon={X}
+              haptic
+              variant="plain"
+              aria-label="복습 종료"
+              onClick={() => router.push(VOCA_ROUTE)}
+            />
           </div>
         </Container>
       </header>
@@ -115,7 +113,7 @@ export function VocaReviewPage({
                 isFlipped={isFlipped}
                 onFlip={flip}
                 onRate={rate}
-                onUndo={undo}
+                onUndo={goBack}
               />
             </div>
           ) : null}

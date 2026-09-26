@@ -5,6 +5,7 @@ import {
   MEDIA_ASSET_CACHE_CONTROL,
   MEDIA_CACHE_MAX_AGE,
   MEDIA_SIGNING_BUCKET,
+  isAudioMime,
   isImageMime,
   isVideoMime,
   maxSizeForScope,
@@ -65,8 +66,9 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
   // WARN: REQUIREMENTS.md § 9.1. A file attachment is served as an attachment whatever the query says, and never as a thumb variant it has no object for. Nothing in the app renders one inline, so the only way this URL is ever opened is to save it.
   const isFile = row.filename !== null;
-  // WARN: REQUIREMENTS.md § 9.3. A voice message has no `_thumb` sibling either — one PUT, like a file — so it is forced off the default variant for the same reason. It is **not** forced to an attachment: unlike a file it is meant to play inline, and `variant` defaulting to `thumb` is what would otherwise sign a URL for an object R2 never received.
-  const hasNoThumb = isFile || row.waveformPeaks !== null;
+  // WARN: REQUIREMENTS.md § 9.3. A voice message or voca audio has no `_thumb` sibling either — one PUT, like a file — so it is forced off the default variant for the same reason. It is **not** forced to an attachment: unlike a file it is meant to play inline, and `variant` defaulting to `thumb` is what would otherwise sign a URL for an object R2 never received.
+  const isAudio = row.kind === "audio" || row.scope === "voca" || isAudioMime(row.mime);
+  const hasNoThumb = isFile || row.waveformPeaks !== null || isAudio;
   // WARN: § 9. `cacheControl` and `signingBucket` are a pair and neither works alone — the header gives the bytes a lifetime, the grid gives them a URL stable enough to be found under it again.
   const url = await presignDownload(
     toVariantKey(row, hasNoThumb ? "original" : query.data.variant),

@@ -6,13 +6,13 @@ import { cn } from "@/shared/lib";
 import {
   ActionSheet,
   AppHeader,
-  Button,
   Container,
   IconButton,
   SettingsRow,
   Switch,
   type ActionSheetItem,
 } from "@/shared/ui";
+import { josa } from "es-hangul";
 import { Bell, Check, ChevronDown, ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -48,12 +48,28 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
   );
   const [reminderEnabled, setReminderEnabled] = useState(initialSettings.reminderEnabled);
   const [desiredRetention, setDesiredRetention] = useState(initialSettings.desiredRetention);
-  const [isSaving, setIsSaving] = useState(false);
 
   const [isNewCardsOpen, setIsNewCardsOpen] = useState(false);
   const [isReviewLimitOpen, setIsReviewLimitOpen] = useState(false);
   const newCardsTriggerRef = useRef<HTMLButtonElement>(null);
   const reviewLimitTriggerRef = useRef<HTMLButtonElement>(null);
+  const lastSavedRetentionRef = useRef(initialSettings.desiredRetention);
+
+  const updateSetting = async (patch: Partial<VocaUserSettings>) => {
+    try {
+      const res = await fetch("/api/voca/settings", {
+        body: JSON.stringify(patch),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      });
+      if (!res.ok) {
+        throw new Error("Failed to update setting");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("설정 변경에 실패했어요.");
+    }
+  };
 
   const selectedNewCardsOption = DAILY_NEW_CARDS_OPTIONS.find(
     (opt) => opt.value === dailyNewCards,
@@ -71,6 +87,8 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
     onSelect: () => {
       setDailyNewCards(opt.value);
       setIsNewCardsOpen(false);
+      void updateSetting({ dailyNewCards: opt.value });
+      toast.success(`일일 새 단어 학습량을 ${josa(`${opt.value}장`, "으로/로")} 변경했어요.`);
     },
   }));
 
@@ -80,8 +98,20 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
     onSelect: () => {
       setDailyReviewLimit(opt.value);
       setIsReviewLimitOpen(false);
+      void updateSetting({ dailyReviewLimit: opt.value });
+      const label = opt.value === null ? "제한 없음" : `${opt.value}장`;
+      toast.success(`일일 최대 복습 카드 수를 ${josa(label, "으로/로")} 변경했어요.`);
     },
   }));
+
+  const handleCommitRetention = (val: number) => {
+    if (val === lastSavedRetentionRef.current) {
+      return;
+    }
+    lastSavedRetentionRef.current = val;
+    void updateSetting({ desiredRetention: val });
+    toast.success(`목표 유지율을 ${Math.round(val * 100)}%로 변경했어요.`);
+  };
 
   const handleToggleReminder = async (checked: boolean) => {
     setReminderEnabled(checked);
@@ -105,34 +135,6 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
     } catch (err) {
       console.error(err);
       toast.error("알림 설정 변경에 실패했어요.");
-    }
-  };
-
-  const handleSaveAll = async () => {
-    setIsSaving(true);
-    try {
-      const res = await fetch("/api/voca/settings", {
-        body: JSON.stringify({
-          dailyNewCards,
-          dailyReviewLimit,
-          desiredRetention,
-          reminderEnabled,
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "PATCH",
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to save settings");
-      }
-
-      toast.success("학습 설정을 저장했어요.");
-      router.refresh();
-    } catch (err) {
-      console.error(err);
-      toast.error("설정 저장에 실패했어요.");
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -233,6 +235,8 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
               type="range"
               value={desiredRetention}
               onChange={(e) => setDesiredRetention(parseFloat(e.target.value))}
+              onKeyUp={(e) => handleCommitRetention(parseFloat(e.currentTarget.value))}
+              onPointerUp={(e) => handleCommitRetention(parseFloat(e.currentTarget.value))}
             />
             <div className="flex justify-between text-caption text-meta">
               <span>80% (간격 김 · 복습 적음)</span>
@@ -262,19 +266,6 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
               />
             }
           />
-        </div>
-
-        {/* Save Button */}
-        <div className="pt-2">
-          <Button
-            className="w-full"
-            disabled={isSaving}
-            haptic
-            variant="primary"
-            onClick={handleSaveAll}
-          >
-            설정 저장하기
-          </Button>
         </div>
       </Container>
 

@@ -34,6 +34,11 @@ export async function canReadMedia(row: Media, userId: UserId): Promise<boolean>
     return true;
   }
 
+  // INFO: Vocabulary learning audio is accessible to logged-in users
+  if (row.scope === "voca") {
+    return true;
+  }
+
   const [shared] = await getDb()
     .select({ messageId: messageMedia.messageId })
     .from(messageMedia)

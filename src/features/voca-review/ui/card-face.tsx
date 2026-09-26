@@ -1,9 +1,9 @@
 "use client";
 
 import type { VocaCard } from "@/entities/voca";
-import { cn } from "@/shared/lib";
+import { cn, isCommandKey } from "@/shared/lib";
 import { VocaAudioButton } from "@/shared/ui";
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 export type CardFaceProps = {
   className?: string;
@@ -150,6 +150,180 @@ export function CardFace({
   side,
   autoplayAudio = false,
 }: CardFaceProps) {
+  const [activeTrack, setActiveTrack] = useState<"word" | "sentence" | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const stopAllAudio = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current.onplay = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setActiveTrack(null);
+  }, []);
+
+  const playTrack = useCallback(
+    (track: "word" | "sentence", onEnd?: () => void) => {
+      stopAllAudio();
+      setActiveTrack(track);
+
+      const audioUrl = track === "word" ? card.audioUrl : card.sentenceAudioUrl;
+      const fallbackText =
+        track === "word" ? card.targetWord : cleanSentenceForSpeech(card.sentence, card.targetWord);
+
+      const speakFallback = () => {
+        if (!fallbackText || typeof window === "undefined" || !("speechSynthesis" in window)) {
+          setActiveTrack(null);
+          onEnd?.();
+          return;
+        }
+
+        try {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(fallbackText);
+          utterance.lang = "en-US";
+          utterance.rate = 0.9;
+          utterance.onstart = () => {
+            setActiveTrack(track);
+          };
+          utterance.onend = () => {
+            setActiveTrack(null);
+            onEnd?.();
+          };
+          utterance.onerror = () => {
+            setActiveTrack(null);
+            onEnd?.();
+          };
+          window.speechSynthesis.speak(utterance);
+        } catch {
+          setActiveTrack(null);
+          onEnd?.();
+        }
+      };
+
+      if (audioUrl) {
+        if (!audioRef.current && typeof Audio !== "undefined") {
+          audioRef.current = new Audio();
+        }
+        const audio = audioRef.current;
+        if (audio) {
+          audio.src = audioUrl;
+          audio.onplay = () => {
+            setActiveTrack(track);
+          };
+          audio.onended = () => {
+            setActiveTrack(null);
+            onEnd?.();
+          };
+          audio.onerror = () => {
+            speakFallback();
+          };
+
+          const playPromise = audio.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(() => {
+              speakFallback();
+            });
+          }
+          return;
+        }
+      }
+
+      if (fallbackText) {
+        speakFallback();
+      } else {
+        setActiveTrack(null);
+        onEnd?.();
+      }
+    },
+    [card.audioUrl, card.sentenceAudioUrl, card.sentence, card.targetWord, stopAllAudio],
+  );
+
+  const playSequence = useCallback(() => {
+    playTrack("word", () => {
+      timerRef.current = setTimeout(() => {
+        playTrack("sentence");
+      }, 300);
+    });
+  }, [playTrack]);
+
+  // Autoplay sequence when flipped to back
+  useEffect(() => {
+    if (side !== "back" || !autoplayAudio) {
+      return;
+    }
+
+    playSequence();
+
+    return () => {
+      stopAllAudio();
+    };
+  }, [side, autoplayAudio, playSequence, stopAllAudio]);
+
+  // Keyboard shortcut 'R' to replay sequence on back face
+  useEffect(() => {
+    if (side !== "back") {
+      return;
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.isComposing) {
+        return;
+      }
+      if (e.key.toLowerCase() === "r" && !isCommandKey(e)) {
+        e.preventDefault();
+        playSequence();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [side, playSequence]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+        audioRef.current = null;
+      }
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  const handleToggleWord = () => {
+    if (activeTrack === "word") {
+      stopAllAudio();
+    } else {
+      playTrack("word");
+    }
+  };
+
+  const handleToggleSentence = () => {
+    if (activeTrack === "sentence") {
+      stopAllAudio();
+    } else {
+      playTrack("sentence");
+    }
+  };
+
   if (side === "front") {
     return (
       <div
@@ -204,10 +378,11 @@ export function CardFace({
           </div>
           <VocaAudioButton
             audioUrl={card.audioUrl}
-            textToSpeak={card.targetWord}
+            isPlaying={activeTrack === "word"}
             label={`${card.targetWord} 발음 듣기`}
-            autoPlay={autoplayAudio}
             size="md"
+            textToSpeak={card.targetWord}
+            onTogglePlay={handleToggleWord}
           />
         </div>
 
@@ -228,9 +403,11 @@ export function CardFace({
             </span>
             <VocaAudioButton
               audioUrl={card.sentenceAudioUrl}
-              textToSpeak={cleanSentenceForSpeech(card.sentence, card.targetWord)}
+              isPlaying={activeTrack === "sentence"}
               label="예문 전체 듣기"
               size="sm"
+              textToSpeak={cleanSentenceForSpeech(card.sentence, card.targetWord)}
+              onTogglePlay={handleToggleSentence}
             />
           </div>
           <div className="text-body-md leading-relaxed text-ink">

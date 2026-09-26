@@ -15,13 +15,6 @@ export type ReviewCardFrameProps = {
   onUndo?: () => void;
 };
 
-function cleanSentenceForSpeech(sentence: string, targetWord: string): string {
-  return sentence
-    .replace(/<\/?b>/gi, "")
-    .replace(/_{3,}/g, targetWord)
-    .trim();
-}
-
 export function ReviewCardFrame({
   className,
   card,
@@ -47,26 +40,6 @@ export function ReviewCardFrame({
       if (e.code === "Space") {
         e.preventDefault();
         onFlip();
-        return;
-      }
-
-      // R to replay audio
-      if (e.key.toLowerCase() === "r" && !isCommandKey(e)) {
-        e.preventDefault();
-        const audioUrl = isFlipped ? (card.audioUrl ?? card.sentenceAudioUrl) : card.audioUrl;
-        const textToSpeak = isFlipped
-          ? card.targetWord
-          : cleanSentenceForSpeech(card.sentence, card.targetWord);
-
-        if (audioUrl) {
-          const audio = new Audio(audioUrl);
-          audio.play().catch(() => {});
-        } else if (textToSpeak && typeof window !== "undefined" && "speechSynthesis" in window) {
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(textToSpeak);
-          utterance.lang = "en-US";
-          window.speechSynthesis.speak(utterance);
-        }
         return;
       }
 

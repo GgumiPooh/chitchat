@@ -12,6 +12,8 @@ export type VocaAudioButtonProps = {
   label?: string;
   autoPlay?: boolean;
   size?: "sm" | "md" | "lg";
+  isPlaying?: boolean;
+  onTogglePlay?: () => void;
 };
 
 const SIZE_CLASSES = {
@@ -34,12 +36,30 @@ export function VocaAudioButton({
   label = "발음 듣기",
   autoPlay = false,
   size = "md",
+  isPlaying: isPlayingProp,
+  onTogglePlay,
 }: VocaAudioButtonProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [internalIsPlaying, setInternalIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const isControlled = isPlayingProp !== undefined;
+  const isPlaying = isControlled ? isPlayingProp : internalIsPlaying;
+
+  const stopAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setInternalIsPlaying(false);
+  }, []);
 
   const speakFallback = useCallback(() => {
     if (!textToSpeak || typeof window === "undefined" || !("speechSynthesis" in window)) {
+      setInternalIsPlaying(false);
       return;
     }
 
@@ -49,13 +69,13 @@ export function VocaAudioButton({
       utterance.lang = "en-US";
       utterance.rate = 0.9;
 
-      utterance.onstart = () => setIsPlaying(true);
-      utterance.onend = () => setIsPlaying(false);
-      utterance.onerror = () => setIsPlaying(false);
+      utterance.onstart = () => setInternalIsPlaying(true);
+      utterance.onend = () => setInternalIsPlaying(false);
+      utterance.onerror = () => setInternalIsPlaying(false);
 
       window.speechSynthesis.speak(utterance);
     } catch {
-      setIsPlaying(false);
+      setInternalIsPlaying(false);
     }
   }, [textToSpeak]);
 
@@ -69,15 +89,20 @@ export function VocaAudioButton({
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
 
-      audio.onplay = () => setIsPlaying(true);
-      audio.onended = () => setIsPlaying(false);
+      audio.onplay = () => setInternalIsPlaying(true);
+      audio.onended = () => {
+        setInternalIsPlaying(false);
+        audioRef.current = null;
+      };
       audio.onerror = () => {
-        setIsPlaying(false);
+        audioRef.current = null;
+        setInternalIsPlaying(false);
         speakFallback();
       };
 
       audio.play().catch(() => {
-        setIsPlaying(false);
+        audioRef.current = null;
+        setInternalIsPlaying(false);
         speakFallback();
       });
       return;
@@ -89,7 +114,7 @@ export function VocaAudioButton({
   }, [audioUrl, textToSpeak, speakFallback]);
 
   useEffect(() => {
-    if (!autoPlay) {
+    if (!autoPlay || onTogglePlay) {
       return;
     }
 
@@ -99,15 +124,23 @@ export function VocaAudioButton({
 
     return () => {
       clearTimeout(timer);
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopAudio();
     };
-  }, [autoPlay, playAudio]);
+  }, [autoPlay, onTogglePlay, playAudio, stopAudio]);
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onTogglePlay) {
+      onTogglePlay();
+      return;
+    }
+
+    if (internalIsPlaying) {
+      stopAudio();
+    } else {
+      playAudio();
+    }
+  };
 
   return (
     <button
@@ -124,10 +157,7 @@ export function VocaAudioButton({
       title={label}
       disabled={!audioUrl && !textToSpeak}
       aria-label={label}
-      onClick={(e) => {
-        e.stopPropagation();
-        playAudio();
-      }}
+      onClick={handleClick}
     >
       <Volume2
         className={cn(ICON_SIZE_CLASSES[size], isPlaying && "animate-pulse", iconClassName)}
