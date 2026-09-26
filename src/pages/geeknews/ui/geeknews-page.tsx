@@ -14,7 +14,6 @@ import { OFFLINE_MESSAGES } from "@/shared/offline-ux";
 import {
   AppHeader,
   BottomSheet,
-  Button,
   Container,
   EmptyState,
   IconButton,
@@ -24,7 +23,7 @@ import {
   toast,
   TwoPane,
 } from "@/shared/ui";
-import { Bell, BellRing, ChevronLeft, Copy, ExternalLink, Newspaper, RotateCw } from "lucide-react";
+import { Bell, BellRing, ChevronLeft, ExternalLink, Newspaper, RotateCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useGeeknewsArticles, useGeeknewsSubscription, useMarkArticleRead } from "../model";
@@ -136,15 +135,6 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
     if (!navigator.onLine) {
       e.preventDefault();
       toast(OFFLINE_MESSAGES.view);
-    }
-  }, []);
-
-  const copyLink = useCallback(async (url: string) => {
-    try {
-      await navigator.clipboard.writeText(url);
-      toast("링크를 복사했어요");
-    } catch {
-      toast("링크를 복사하지 못했어요");
     }
   }, []);
 
@@ -444,15 +434,6 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                     <ExternalLink className="size-4" strokeWidth={1.75} />
                   </a>
                 )}
-
-                <Button
-                  className="w-auto"
-                  variant="ghost"
-                  onClick={() => copyLink(selectedArticle.url)}
-                >
-                  <Copy className="size-4" strokeWidth={1.75} />
-                  링크 복사
-                </Button>
               </div>
             </article>
           ) : null}
@@ -509,11 +490,6 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                   <ExternalLink className="size-4" strokeWidth={1.75} />
                 </a>
               )}
-
-              <Button className="w-full" variant="ghost" onClick={() => copyLink(sheetArticle.url)}>
-                <Copy className="size-4" strokeWidth={1.75} />
-                링크 복사
-              </Button>
             </div>
           </div>
         )}
