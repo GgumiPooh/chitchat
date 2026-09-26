@@ -2,7 +2,7 @@ import "server-only";
 
 import { geeknewsArticles, getDb, nextSnowflake, type GeeknewsArticle } from "@/shared/db";
 import type { NewsArticleId, Nullable } from "@/shared/lib";
-import { count, eq, inArray, isNull } from "drizzle-orm";
+import { count, eq, inArray, isNull, like, or } from "drizzle-orm";
 
 export type IngestArticleInput = {
   geeknewsId: string;
@@ -31,6 +31,25 @@ function stripHtmlAndCdata(text: string): string {
     .trim();
 }
 
+function normalizeSourceUrl(rawUrl: string | null | undefined, geeknewsId: string): string | null {
+  if (!rawUrl) {
+    return null;
+  }
+  const trimmed = rawUrl.trim();
+  if (
+    trimmed.startsWith("topic?") ||
+    trimmed.startsWith("/topic?") ||
+    trimmed.includes("news.hada.io/topic?") ||
+    trimmed === `https://news.hada.io/topic?id=${geeknewsId}`
+  ) {
+    return null;
+  }
+  if (trimmed.startsWith("/")) {
+    return `https://news.hada.io${trimmed}`;
+  }
+  return trimmed;
+}
+
 /**
  * Resolves the real external article URL from the GeekNews topic page.
  *
@@ -56,14 +75,7 @@ async function fetchOriginalUrl(geeknewsId: string): Promise<string | null> {
     if (!match) {
       return null;
     }
-    const rawUrl = match[1]?.trim();
-    if (!rawUrl) {
-      return null;
-    }
-    if (rawUrl.startsWith("/")) {
-      return `https://news.hada.io${rawUrl}`;
-    }
-    return rawUrl;
+    return normalizeSourceUrl(match[1], geeknewsId);
   } catch {
     return null;
   }
@@ -76,12 +88,25 @@ async function fetchOriginalUrl(geeknewsId: string): Promise<string | null> {
  * inserts all incoming articles as backfill and reports `isInitialBackfill: true`.
  * Canonical GeekNews topic URL is saved to `url`, and genuine external source URL
  * (Bloomberg, GitHub, etc.) is saved to `source_url` (or null if self-post).
- * Also self-heals any existing articles whose `source_url` is null.
+ * Also self-heals any existing articles whose `source_url` is null or invalid.
  */
 export async function syncBatchArticles(
   articles: IngestArticleInput[],
 ): Promise<SyncArticlesResult> {
   const db = getDb();
+
+  // INFO: Self-heal stored rows whose sourceUrl was erroneously saved as a topic page
+  await db
+    .update(geeknewsArticles)
+    .set({ sourceUrl: null })
+    .where(
+      or(
+        like(geeknewsArticles.sourceUrl, "topic?%"),
+        like(geeknewsArticles.sourceUrl, "/topic?%"),
+        like(geeknewsArticles.sourceUrl, "%news.hada.io/topic?%"),
+        eq(geeknewsArticles.sourceUrl, geeknewsArticles.url),
+      ),
+    );
 
   // INFO: Self-heal stored rows whose `source_url` was missing.
   const unlinkedExisting = await db
@@ -144,13 +169,11 @@ export async function syncBatchArticles(
           : `https://news.hada.io/topic?id=${item.geeknewsId}`);
 
       let resolvedSourceUrl =
-        item.sourceUrl ?? (item.url && item.url !== canonicalTopicUrl ? item.url : null);
+        normalizeSourceUrl(item.sourceUrl, item.geeknewsId) ??
+        normalizeSourceUrl(item.url !== canonicalTopicUrl ? item.url : null, item.geeknewsId);
 
       if (!resolvedSourceUrl) {
-        const fetchedUrl = await fetchOriginalUrl(item.geeknewsId);
-        if (fetchedUrl && fetchedUrl !== canonicalTopicUrl) {
-          resolvedSourceUrl = fetchedUrl;
-        }
+        resolvedSourceUrl = await fetchOriginalUrl(item.geeknewsId);
       }
 
       return {

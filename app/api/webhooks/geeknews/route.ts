@@ -51,6 +51,25 @@ function stripHtmlAndCdata(text: string): string {
     .trim();
 }
 
+function normalizeSourceUrl(rawUrl: string | null | undefined, geeknewsId: string): string | null {
+  if (!rawUrl) {
+    return null;
+  }
+  const trimmed = rawUrl.trim();
+  if (
+    trimmed.startsWith("topic?") ||
+    trimmed.startsWith("/topic?") ||
+    trimmed.includes("news.hada.io/topic?") ||
+    trimmed === `https://news.hada.io/topic?id=${geeknewsId}`
+  ) {
+    return null;
+  }
+  if (trimmed.startsWith("/")) {
+    return `https://news.hada.io${trimmed}`;
+  }
+  return trimmed;
+}
+
 async function fetchOriginalUrl(geeknewsId: string): Promise<string | null> {
   try {
     const res = await fetch(`https://news.hada.io/topic?id=${geeknewsId}`, {
@@ -70,14 +89,7 @@ async function fetchOriginalUrl(geeknewsId: string): Promise<string | null> {
     if (!match) {
       return null;
     }
-    const rawUrl = match[1]?.trim();
-    if (!rawUrl) {
-      return null;
-    }
-    if (rawUrl.startsWith("/")) {
-      return `https://news.hada.io${rawUrl}`;
-    }
-    return rawUrl;
+    return normalizeSourceUrl(match[1], geeknewsId);
   } catch {
     return null;
   }
@@ -174,12 +186,12 @@ export async function POST(request: Request) {
   }
 
   const canonicalUrl = geeknewsUrl || `https://news.hada.io/topic?id=${geeknewsId}`;
-  let sourceUrl: string | null = url && url !== canonicalUrl ? url : null;
+  let sourceUrl: string | null = normalizeSourceUrl(
+    url && url !== canonicalUrl ? url : null,
+    geeknewsId,
+  );
   if (!sourceUrl) {
-    const fetched = await fetchOriginalUrl(geeknewsId);
-    if (fetched && fetched !== canonicalUrl) {
-      sourceUrl = fetched;
-    }
+    sourceUrl = await fetchOriginalUrl(geeknewsId);
   }
 
   const db = getDb();

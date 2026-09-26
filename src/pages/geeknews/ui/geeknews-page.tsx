@@ -37,9 +37,15 @@ export type GeeknewsPageProps = {
 
 function toDomain(url: string): string {
   try {
-    return new URL(url).hostname.replace(/^www\./, "");
+    const candidate =
+      url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`;
+    const hostname = new URL(candidate).hostname.replace(/^www\./, "");
+    if (hostname.includes("news.hada.io") || url.includes("topic?id=")) {
+      return "news.hada.io";
+    }
+    return hostname;
   } catch {
-    return url;
+    return "news.hada.io";
   }
 }
 
@@ -474,7 +480,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
       <BottomSheet
         isOpen={isSheetOpen && sheetArticle !== null}
         header={{
-          title: sheetArticle?.title ?? "개발자 뉴스",
+          title: "개발자 뉴스",
         }}
         onClose={() => setOpenedArticleId(null)}
       >

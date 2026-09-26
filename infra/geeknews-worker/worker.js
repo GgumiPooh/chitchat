@@ -69,7 +69,7 @@ function parseCuratedPage(html) {
     const publishedAt = timeMatch ? new Date(timeMatch[1]).toISOString() : new Date().toISOString();
 
     const geeknewsUrl = `https://news.hada.io/topic?id=${geeknewsId}`;
-    const sourceUrl = rawUrl && rawUrl !== geeknewsUrl ? rawUrl : null;
+    const sourceUrl = normalizeSourceUrl(rawUrl, geeknewsId);
 
     if (geeknewsId && title) {
       articles.push({
@@ -84,6 +84,25 @@ function parseCuratedPage(html) {
   }
 
   return articles;
+}
+
+function normalizeSourceUrl(rawUrl, geeknewsId) {
+  if (!rawUrl) {
+    return null;
+  }
+  const trimmed = rawUrl.trim();
+  if (
+    trimmed.startsWith("topic?") ||
+    trimmed.startsWith("/topic?") ||
+    trimmed.includes("news.hada.io/topic?") ||
+    trimmed === `https://news.hada.io/topic?id=${geeknewsId}`
+  ) {
+    return null;
+  }
+  if (trimmed.startsWith("/")) {
+    return `https://news.hada.io${trimmed}`;
+  }
+  return trimmed;
 }
 
 async function syncGeeknews(env) {
