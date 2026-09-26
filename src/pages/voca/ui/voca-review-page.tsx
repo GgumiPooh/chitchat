@@ -63,33 +63,37 @@ export function VocaReviewPage({
   return (
     <div className={cn("flex min-h-dvh flex-col bg-canvas", className)}>
       {/* Immersive Top Bar */}
-      <header className="bg-surface/80 sticky top-0 z-20 flex h-14 items-center justify-between border-b border-hairline/60 px-4 backdrop-blur-md">
-        <IconButton
-          Icon={X}
-          variant="plain"
-          haptic
-          aria-label="복습 종료"
-          onClick={() => router.push(VOCA_ROUTE)}
-        />
-
-        <div className="flex items-center gap-2 text-body-sm font-semibold text-ink">
-          <span>
-            {isCompleted ? queue.length : progress.current} / {queue.length}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1">
-          {canUndo && (
+      <header className="bg-surface/80 sticky top-0 z-20 h-14 border-b border-hairline/60 backdrop-blur-md">
+        <Container className="grid h-full grid-cols-[1fr_auto_1fr] items-center" size="md">
+          <div className="flex items-center justify-self-start">
             <IconButton
-              Icon={Undo2}
+              Icon={X}
               variant="plain"
               haptic
-              disabled={isSubmitting}
-              aria-label="이전 카드로 되돌리기 (Cmd+Z)"
-              onClick={undo}
+              aria-label="복습 종료"
+              onClick={() => router.push(VOCA_ROUTE)}
             />
-          )}
-        </div>
+          </div>
+
+          <div className="flex items-center justify-center text-body-sm font-semibold text-ink">
+            <span>
+              {isCompleted ? queue.length : progress.current} / {queue.length}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1 justify-self-end">
+            {canUndo && (
+              <IconButton
+                Icon={Undo2}
+                variant="plain"
+                haptic
+                disabled={isSubmitting}
+                aria-label="이전 카드로 되돌리기 (Cmd+Z)"
+                onClick={undo}
+              />
+            )}
+          </div>
+        </Container>
       </header>
 
       {/* Main Review Body */}
