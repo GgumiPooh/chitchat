@@ -222,7 +222,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
       className={className}
       panelScrollerRef={sidePanelScrollerRef}
       panel={
-        <div className="flex flex-col gap-sm p-md pt-[calc(var(--app-header-inset)+var(--spacing-md))]">
+        <div className="flex flex-col gap-sm p-md">
           <div className="flex items-center justify-between px-xs py-1">
             <span className="text-caption font-semibold text-meta">
               기사 목록 ({articles.length})
@@ -378,7 +378,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
       </Container>
 
       {/* Desktop reading pane (>= lg) */}
-      <div className="hidden flex-1 flex-col pt-[calc(var(--app-header-inset)+var(--spacing-md))] pb-2xl lg:flex">
+      <div className="hidden flex-1 flex-col pt-[calc(var(--app-header-inset)+var(--spacing-xs))] pb-2xl lg:flex">
         <Container className="space-y-lg" size="md">
           {articles.length === 0 ? (
             <EmptyState
