@@ -29,7 +29,7 @@ export function PlaygroundPage({ className }: PlaygroundPageProps) {
               </div>
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate text-title-sm font-semibold text-ink">개발자 뉴스</span>
-                <p className="line-clamp-1 text-body-sm text-meta">
+                <p className="line-clamp-2 text-body-sm text-meta">
                   GeekNews의 실시간 기술 트렌드와 스타트업 소식
                 </p>
               </div>
@@ -51,7 +51,7 @@ export function PlaygroundPage({ className }: PlaygroundPageProps) {
               </div>
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate text-title-sm font-semibold text-ink">영단어</span>
-                <p className="line-clamp-1 text-body-sm text-meta">
+                <p className="line-clamp-2 text-body-sm text-meta">
                   FSRS 간격 반복 플래시카드로 완벽하게 암기하는 영단어장
                 </p>
               </div>
