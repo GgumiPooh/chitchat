@@ -431,14 +431,13 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
       {/* Mobile BottomSheet detail view */}
       <BottomSheet
         isOpen={isSheetOpen && sheetArticle !== null}
-        isTall
         header={{
           title: sheetArticle?.title ?? "개발자 뉴스",
         }}
         onClose={() => setOpenedArticleId(null)}
       >
         {sheetArticle && (
-          <div className="flex flex-col gap-lg pb-xl">
+          <div className="flex flex-col gap-lg pb-md">
             <div className="flex flex-wrap items-center gap-xs text-caption text-meta">
               <span className="rounded-full bg-surface-soft px-2 py-0.5 font-medium text-meta">
                 {toDomain(sheetArticle.url)}
