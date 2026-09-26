@@ -470,6 +470,15 @@ export const PUSH_INTENT_COOKIE_OPTIONS = {
 // INFO: AGENTS.md § 4.4. Collapsed vs open for the `lg` side panel, kept in a cookie so the layout can paint the collapsed width server-side instead of flashing open.
 export const SIDE_PANEL_COOKIE_NAME = "jandh:side-panel";
 
+// INFO: REQUIREMENTS.md § 16.4. Whether this installation has GeekNews 알림 on, kept in a cookie so the GeekNews page header switch renders server-side without hydration flicker.
+export const GEEKNEWS_SUBSCRIPTION_COOKIE_NAME = "jandh:geeknews-subscription";
+export const GEEKNEWS_SUBSCRIPTION_COOKIE_OPTIONS = {
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  path: "/",
+  maxAge: (365 * A_DAY) / A_SECOND,
+} as const;
+
 // INFO: AGENTS.md § 4.4. Fired once the `lg` side panel's width transition ends, so a measurement deferred during the animation can re-run against the settled geometry.
 export const SIDE_PANEL_SETTLED_EVENT = "jandh:side-panel-settled";
 

@@ -2247,6 +2247,7 @@ Everything filed here was scoped out of the first pass and has since shipped. Th
 - **Initial Backfill vs Incremental Sync**: On the initial run (empty `geeknews_articles` table), all fetched articles are inserted into the database silently, suppressing push notifications. On subsequent incremental runs, only newly arriving articles (`geeknews_id` not in database) trigger web push notifications to opted-in users (`geeknews_subscriptions.enabled = true`).
 - **Idempotency & Deduplication**: `geeknews_articles.geeknews_id` is unique. Duplicate entries are ignored via `onConflictDoNothing({ target: geeknewsArticles.geeknewsId })`.
 - **Existing Webhook Route Preserved**: `POST /api/webhooks/geeknews` remains active and accepts direct webhooks (Discord, Slack, or single JSON).
+- **Subscription Cookie Cache & SSR Sync**: The user's notification preference is stored in `jandh:geeknews-subscription` cookie (`GEEKNEWS_SUBSCRIPTION_COOKIE_NAME`) and synchronized with `(main)` layout's `ssrCookies` (`SyncedStorageProvider`). This renders the `Switch` in its actual state server-side during SSR and prevents post-hydration layout jumps/flicker.
 
 ## 17. Implementation Order ✅
 

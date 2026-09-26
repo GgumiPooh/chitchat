@@ -1,7 +1,8 @@
 "use client";
 
 import { request } from "@/shared/api";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useGeeknewsSubscriptionCache } from "./use-geeknews-subscription-cache";
 
 export type GeeknewsSubscriptionValue = {
   isSubscribed: boolean;
@@ -10,40 +11,52 @@ export type GeeknewsSubscriptionValue = {
 };
 
 export function useGeeknewsSubscription(): GeeknewsSubscriptionValue {
-  const [isSubscribed, setIsSubscribed] = useState(false);
-  const [isPending, setIsPending] = useState(true);
+  const [cached, setCached] = useGeeknewsSubscriptionCache();
+  // INFO: REQUIREMENTS.md § 16.4. Seeded from the cookie so the switch paints in its real position before hydration; background sync updates if changed meanwhile.
+  const [isSubscribed, setIsSubscribed] = useState<boolean>(cached ?? false);
+  const [isPending, setIsPending] = useState<boolean>(cached === null);
+  const latestRequestRef = useRef(0);
 
   useEffect(() => {
-    let isCancelled = false;
+    latestRequestRef.current += 1;
+    const requestId = latestRequestRef.current;
 
-    async function fetchSubscription() {
+    async function syncSubscription() {
       try {
         const response = await request("/api/geeknews/subscription");
         if (response.ok) {
           const data = (await response.json()) as { enabled?: boolean };
-          if (!isCancelled && typeof data.enabled === "boolean") {
+          if (latestRequestRef.current === requestId && typeof data.enabled === "boolean") {
             setIsSubscribed(data.enabled);
+            setCached(data.enabled);
           }
         }
       } catch {
-        // Fallback silently if offline or request fails
+        // Silently fall back if offline or request fails
       } finally {
-        if (!isCancelled) {
+        if (latestRequestRef.current === requestId) {
           setIsPending(false);
         }
       }
     }
 
-    void fetchSubscription();
+    void syncSubscription();
 
     return () => {
-      isCancelled = true;
+      latestRequestRef.current += 1;
     };
-  }, []);
+  }, [setCached]);
 
   const toggleSubscription = useCallback(async (): Promise<boolean> => {
+    latestRequestRef.current += 1;
+    const requestId = latestRequestRef.current;
+
     setIsPending(true);
     const nextState = !isSubscribed;
+
+    // Optimistic update to UI and cookie
+    setIsSubscribed(nextState);
+    setCached(nextState);
 
     try {
       const response = await request("/api/geeknews/subscription", {
@@ -58,15 +71,23 @@ export function useGeeknewsSubscription(): GeeknewsSubscriptionValue {
 
       const data = (await response.json()) as { enabled?: boolean };
       const resolved = typeof data.enabled === "boolean" ? data.enabled : nextState;
-      setIsSubscribed(resolved);
+      if (latestRequestRef.current === requestId) {
+        setIsSubscribed(resolved);
+        setCached(resolved);
+      }
       return resolved;
     } catch (error) {
-      setIsSubscribed(isSubscribed);
+      if (latestRequestRef.current === requestId) {
+        setIsSubscribed(isSubscribed);
+        setCached(isSubscribed);
+      }
       throw error;
     } finally {
-      setIsPending(false);
+      if (latestRequestRef.current === requestId) {
+        setIsPending(false);
+      }
     }
-  }, [isSubscribed]);
+  }, [isSubscribed, setCached]);
 
   return { isSubscribed, isPending, toggleSubscription };
 }

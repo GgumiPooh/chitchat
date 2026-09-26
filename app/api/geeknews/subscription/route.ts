@@ -2,8 +2,13 @@ import "server-only";
 
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
+import {
+  GEEKNEWS_SUBSCRIPTION_COOKIE_NAME,
+  GEEKNEWS_SUBSCRIPTION_COOKIE_OPTIONS,
+} from "@/shared/config";
 import { geeknewsSubscriptions, getDb } from "@/shared/db";
 import { eq } from "drizzle-orm";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -23,7 +28,14 @@ export async function GET() {
     .from(geeknewsSubscriptions)
     .where(eq(geeknewsSubscriptions.userId, user.id));
 
-  return NextResponse.json({ enabled: row?.enabled ?? false });
+  const enabled = row?.enabled ?? false;
+  (await cookies()).set(
+    GEEKNEWS_SUBSCRIPTION_COOKIE_NAME,
+    String(enabled),
+    GEEKNEWS_SUBSCRIPTION_COOKIE_OPTIONS,
+  );
+
+  return NextResponse.json({ enabled });
 }
 
 export async function PATCH(request: Request) {
@@ -51,6 +63,12 @@ export async function PATCH(request: Request) {
       target: geeknewsSubscriptions.userId,
       set: { enabled },
     });
+
+  (await cookies()).set(
+    GEEKNEWS_SUBSCRIPTION_COOKIE_NAME,
+    String(enabled),
+    GEEKNEWS_SUBSCRIPTION_COOKIE_OPTIONS,
+  );
 
   return NextResponse.json({ enabled });
 }
