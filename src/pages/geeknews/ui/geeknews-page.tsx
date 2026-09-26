@@ -1,0 +1,469 @@
+"use client";
+
+import type { GeeknewsFeedArticle } from "@/entities/geeknews";
+import { useGeeknewsSubscription, useMarkArticleRead } from "../model";
+import { PLAYGROUND_ROUTE } from "@/shared/config";
+import { cn, isBareKey, isLetterKey, useRovingTabIndex, type NewsArticleId } from "@/shared/lib";
+import { OFFLINE_MESSAGES } from "@/shared/offline-ux";
+import {
+  AppHeader,
+  BottomSheet,
+  Button,
+  Container,
+  EmptyState,
+  IconButton,
+  RelativeTime,
+  toast,
+  TwoPane,
+} from "@/shared/ui";
+import { Bell, BellRing, ChevronLeft, Copy, ExternalLink, Newspaper, RotateCw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
+
+export type GeeknewsPageProps = {
+  className?: string;
+  initialArticleId?: string;
+  initialArticles: GeeknewsFeedArticle[];
+};
+
+function toDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+export function GeeknewsPage({ className, initialArticleId, initialArticles }: GeeknewsPageProps) {
+  const router = useRouter();
+  const [readState, setReadState] = useState<Record<string, boolean>>({});
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [openedArticleId, setOpenedArticleId] = useState<NewsArticleId | null>(
+    () => (initialArticleId as NewsArticleId) ?? null,
+  );
+
+  const {
+    isPending: isSubscriptionPending,
+    isSubscribed,
+    toggleSubscription,
+  } = useGeeknewsSubscription();
+  const { markRead } = useMarkArticleRead();
+
+  const initialIndex = useMemo(() => {
+    if (initialArticleId) {
+      const found = initialArticles.findIndex((a) => a.id === initialArticleId);
+      if (found !== -1) {
+        return found;
+      }
+    }
+    return 0;
+  }, [initialArticleId, initialArticles]);
+
+  const [selectedIndex, setSelectedIndex] = useState(initialIndex);
+
+  const markReadOptimistic = useCallback(
+    (articleId: NewsArticleId) => {
+      setReadState((prev) => ({ ...prev, [articleId]: true }));
+      void markRead(articleId);
+    },
+    [markRead],
+  );
+
+  // INFO: Mark initial deep-linked or selected article on mount via API
+  useEffect(() => {
+    const target = initialArticleId
+      ? initialArticles.find((a) => a.id === initialArticleId)
+      : initialArticles[initialIndex];
+    if (target && !target.isRead) {
+      void markRead(target.id);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSelectArticle = useCallback(
+    (index: number) => {
+      setSelectedIndex(index);
+      const target = initialArticles[index];
+      if (target && !(readState[target.id] ?? target.isRead)) {
+        markReadOptimistic(target.id);
+      }
+    },
+    [initialArticles, markReadOptimistic, readState],
+  );
+
+  const handleOpenArticle = useCallback(
+    (article: GeeknewsFeedArticle) => {
+      setOpenedArticleId(article.id);
+      if (!(readState[article.id] ?? article.isRead)) {
+        markReadOptimistic(article.id);
+      }
+    },
+    [markReadOptimistic, readState],
+  );
+
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    router.refresh();
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 600);
+  }, [router]);
+
+  const handleToggleSubscription = useCallback(async () => {
+    try {
+      const nextState = await toggleSubscription();
+      if (nextState) {
+        toast("새로운 개발자 뉴스 알림을 받아요");
+      } else {
+        toast("더 이상 뉴스 알림을 받지 않아요");
+      }
+    } catch {
+      toast("알림 설정을 변경하지 못했어요");
+    }
+  }, [toggleSubscription]);
+
+  const handleExternalLinkClick = useCallback((e: MouseEvent<HTMLAnchorElement>) => {
+    if (!navigator.onLine) {
+      e.preventDefault();
+      toast(OFFLINE_MESSAGES.view);
+    }
+  }, []);
+
+  const copyLink = useCallback(async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast("링크를 복사했어요");
+    } catch {
+      toast("링크를 복사하지 못했어요");
+    }
+  }, []);
+
+  // INFO: Keyboard shortcuts for desktop navigation (REQUIREMENTS.md § 8.14.)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.isComposing) {
+        return;
+      }
+
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (!isBareKey(e)) {
+        return;
+      }
+
+      if (initialArticles.length === 0) {
+        return;
+      }
+
+      if (e.key === "ArrowUp" || isLetterKey(e, "k")) {
+        e.preventDefault();
+        setSelectedIndex((prev) => {
+          const next = prev <= 0 ? initialArticles.length - 1 : prev - 1;
+          const targetArticle = initialArticles[next];
+          if (targetArticle && !(readState[targetArticle.id] ?? targetArticle.isRead)) {
+            markReadOptimistic(targetArticle.id);
+          }
+          return next;
+        });
+      } else if (e.key === "ArrowDown" || isLetterKey(e, "j")) {
+        e.preventDefault();
+        setSelectedIndex((prev) => {
+          const next = prev >= initialArticles.length - 1 ? 0 : prev + 1;
+          const targetArticle = initialArticles[next];
+          if (targetArticle && !(readState[targetArticle.id] ?? targetArticle.isRead)) {
+            markReadOptimistic(targetArticle.id);
+          }
+          return next;
+        });
+      } else if (e.key === "Enter" || isLetterKey(e, "o")) {
+        const current = initialArticles[selectedIndex];
+        if (current) {
+          e.preventDefault();
+          if (!navigator.onLine) {
+            toast(OFFLINE_MESSAGES.view);
+            return;
+          }
+          window.open(current.url, "_blank", "noopener,noreferrer");
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [initialArticles, selectedIndex, markReadOptimistic, readState]);
+
+  const handleRovingKeyDown = useRovingTabIndex({
+    orientation: "vertical",
+    selector: "[data-feed-item]",
+  });
+
+  const selectedArticle = initialArticles[selectedIndex] ?? null;
+  const sheetArticle = initialArticles.find((a) => a.id === openedArticleId) ?? null;
+  const isSheetOpen = sheetArticle !== null;
+
+  return (
+    <TwoPane
+      className={className}
+      panel={
+        <div className="flex flex-col gap-sm p-md pt-[calc(var(--app-header-inset)+var(--spacing-md))]">
+          <div className="flex items-center justify-between px-xs py-1">
+            <span className="text-caption font-semibold text-meta">
+              기사 목록 ({initialArticles.length})
+            </span>
+          </div>
+          {initialArticles.length === 0 ? (
+            <p className="p-md text-center text-body-sm text-meta">등록된 뉴스가 없어요</p>
+          ) : (
+            <div className="flex flex-col gap-sm" onKeyDown={handleRovingKeyDown}>
+              {initialArticles.map((article, index) => {
+                const isSelected = index === selectedIndex;
+                const isRead = readState[article.id] ?? article.isRead;
+                return (
+                  <button
+                    key={article.id}
+                    className={cn(
+                      "group flex w-full cursor-pointer flex-col gap-1.5 rounded-xl border p-md text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                      isSelected
+                        ? "border-primary bg-primary-tint"
+                        : "bg-surface border-hairline hover:border-hairline-strong hover:bg-surface-soft active:bg-surface-strong",
+                    )}
+                    tabIndex={isSelected ? 0 : -1}
+                    type="button"
+                    data-feed-item
+                    onClick={() => handleSelectArticle(index)}
+                  >
+                    <div className="flex items-center justify-between gap-xs text-caption text-meta">
+                      <span className="truncate font-medium">{toDomain(article.url)}</span>
+                      <RelativeTime date={article.publishedAt} />
+                    </div>
+                    <h3
+                      className={cn(
+                        "line-clamp-2 text-body-md transition-colors",
+                        isRead ? "font-normal text-meta" : "font-semibold text-ink",
+                      )}
+                    >
+                      {article.title}
+                    </h3>
+                    <p className="line-clamp-2 text-body-sm text-meta">{article.summary}</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      }
+    >
+      <AppHeader
+        hasSidePanel
+        title="개발자 뉴스"
+        leading={
+          <IconButton
+            haptic
+            Icon={ChevronLeft}
+            variant="floating"
+            aria-label="뒤로"
+            onClick={() => router.push(PLAYGROUND_ROUTE)}
+          />
+        }
+        trailing={
+          <div className="flex items-center gap-xs">
+            <IconButton
+              disabled={isSubscriptionPending}
+              haptic
+              Icon={isSubscribed ? BellRing : Bell}
+              variant="floating"
+              aria-label="알림 설정"
+              onClick={handleToggleSubscription}
+            />
+            <IconButton
+              iconClassName={isRefreshing ? "animate-spin" : undefined}
+              disabled={isRefreshing}
+              haptic
+              Icon={RotateCw}
+              variant="floating"
+              aria-label="새로고침"
+              onClick={handleRefresh}
+            />
+          </div>
+        }
+      />
+
+      {/* Mobile view (< lg): flows on the document scroller without nested overflow */}
+      <Container
+        className="space-y-md py-md pt-[calc(var(--app-header-inset)+var(--spacing-md))] pb-2xl lg:hidden"
+        size="md"
+      >
+        {initialArticles.length === 0 ? (
+          <EmptyState
+            description="아직 등록된 뉴스가 없어요. 새 소식이 등록되면 여기에 표시돼요"
+            Icon={Newspaper}
+          />
+        ) : (
+          <div className="flex flex-col gap-sm">
+            {initialArticles.map((article) => {
+              const isRead = readState[article.id] ?? article.isRead;
+              return (
+                <button
+                  key={article.id}
+                  className="group bg-surface flex w-full cursor-pointer flex-col gap-1.5 rounded-xl border border-hairline p-md text-left transition-colors outline-none hover:border-hairline-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-strong"
+                  type="button"
+                  onClick={() => handleOpenArticle(article)}
+                >
+                  <div className="flex items-center justify-between gap-xs text-caption text-meta">
+                    <span className="truncate font-medium">{toDomain(article.url)}</span>
+                    <RelativeTime date={article.publishedAt} />
+                  </div>
+                  <h3
+                    className={cn(
+                      "line-clamp-2 text-body-md transition-colors",
+                      isRead ? "font-normal text-meta" : "font-semibold text-ink",
+                    )}
+                  >
+                    {article.title}
+                  </h3>
+                  <p className="line-clamp-2 text-body-sm text-meta">{article.summary}</p>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Container>
+
+      {/* Desktop reading pane (>= lg) */}
+      <div className="hidden flex-1 flex-col pt-[calc(var(--app-header-inset)+var(--spacing-md))] pb-2xl lg:flex">
+        <Container className="space-y-lg" size="md">
+          {initialArticles.length === 0 ? (
+            <EmptyState
+              description="아직 등록된 뉴스가 없어요. 새 소식이 등록되면 여기에 표시돼요"
+              Icon={Newspaper}
+            />
+          ) : selectedArticle ? (
+            <article className="flex flex-col gap-lg">
+              <div className="flex flex-wrap items-center gap-xs text-caption text-meta">
+                <span className="rounded-full bg-surface-soft px-2 py-0.5 font-medium text-meta">
+                  {toDomain(selectedArticle.url)}
+                </span>
+                <span>·</span>
+                <RelativeTime date={selectedArticle.publishedAt} />
+                <span>·</span>
+                <a
+                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                  href={selectedArticle.geeknewsUrl}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  onClick={handleExternalLinkClick}
+                >
+                  긱뉴스 토론 바로가기
+                  <ExternalLink className="size-3.5" strokeWidth={1.75} />
+                </a>
+              </div>
+
+              <h1 className="text-display-xs leading-tight font-bold text-ink">
+                {selectedArticle.title}
+              </h1>
+
+              <div className="rounded-xl border border-hairline bg-surface-soft/40 p-lg text-body-md leading-relaxed whitespace-pre-line text-body">
+                {selectedArticle.summary}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-sm border-t border-hairline pt-md">
+                <a
+                  className="inline-flex min-h-12 items-center justify-center gap-xs rounded-md bg-primary px-lg py-sm text-button-md font-medium text-on-primary transition-colors hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-primary-pressed"
+                  href={selectedArticle.url}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  onClick={handleExternalLinkClick}
+                >
+                  원문 기사 읽기 (새 창)
+                  <ExternalLink className="size-4" strokeWidth={1.75} />
+                </a>
+
+                <a
+                  className="inline-flex min-h-12 items-center justify-center gap-xs rounded-md border border-hairline-strong bg-canvas px-lg py-sm text-button-md font-medium text-ink transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-surface-strong"
+                  href={selectedArticle.geeknewsUrl}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  onClick={handleExternalLinkClick}
+                >
+                  긱뉴스 토론 (새 창)
+                  <ExternalLink className="size-4" strokeWidth={1.75} />
+                </a>
+
+                <Button
+                  className="w-auto"
+                  variant="ghost"
+                  onClick={() => copyLink(selectedArticle.url)}
+                >
+                  <Copy className="size-4" strokeWidth={1.75} />
+                  링크 복사
+                </Button>
+              </div>
+            </article>
+          ) : null}
+        </Container>
+      </div>
+
+      {/* Mobile BottomSheet detail view */}
+      <BottomSheet
+        isOpen={isSheetOpen && sheetArticle !== null}
+        isTall
+        header={{
+          title: sheetArticle?.title ?? "개발자 뉴스",
+        }}
+        onClose={() => setOpenedArticleId(null)}
+      >
+        {sheetArticle && (
+          <div className="flex flex-col gap-lg pb-xl">
+            <div className="flex flex-wrap items-center gap-xs text-caption text-meta">
+              <span className="rounded-full bg-surface-soft px-2 py-0.5 font-medium text-meta">
+                {toDomain(sheetArticle.url)}
+              </span>
+              <span>·</span>
+              <RelativeTime date={sheetArticle.publishedAt} />
+            </div>
+
+            <h2 className="text-title-md leading-snug font-bold text-ink">{sheetArticle.title}</h2>
+
+            <div className="rounded-xl border border-hairline bg-surface-soft/40 p-md text-body-md leading-relaxed whitespace-pre-line text-body">
+              {sheetArticle.summary}
+            </div>
+
+            <div className="flex flex-col gap-sm border-t border-hairline pt-md">
+              <a
+                className="inline-flex min-h-12 w-full items-center justify-center gap-xs rounded-md bg-primary px-md py-sm text-button-md font-medium text-on-primary transition-colors hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-primary-pressed"
+                href={sheetArticle.url}
+                rel="noopener noreferrer"
+                target="_blank"
+                onClick={handleExternalLinkClick}
+              >
+                원문 기사 읽기 (새 창)
+                <ExternalLink className="size-4" strokeWidth={1.75} />
+              </a>
+
+              <a
+                className="inline-flex min-h-12 w-full items-center justify-center gap-xs rounded-md border border-hairline-strong bg-canvas px-md py-sm text-button-md font-medium text-ink transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-surface-strong"
+                href={sheetArticle.geeknewsUrl}
+                rel="noopener noreferrer"
+                target="_blank"
+                onClick={handleExternalLinkClick}
+              >
+                긱뉴스 토론 (새 창)
+                <ExternalLink className="size-4" strokeWidth={1.75} />
+              </a>
+
+              <Button className="w-full" variant="ghost" onClick={() => copyLink(sheetArticle.url)}>
+                <Copy className="size-4" strokeWidth={1.75} />
+                링크 복사
+              </Button>
+            </div>
+          </div>
+        )}
+      </BottomSheet>
+    </TwoPane>
+  );
+}

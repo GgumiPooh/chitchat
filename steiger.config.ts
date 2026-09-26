@@ -20,9 +20,11 @@ export default defineConfig([
   },
   {
     // WARN: Entity consumers are mostly Route Handlers under `app/`, which steiger does not scan, so its reference count is always short.
+    // WARN: "geeknews" ends in "s" (news), which steiger naively infers as plural.
     files: ["./src/entities/**"],
     rules: {
       "fsd/insignificant-slice": "warn",
+      "fsd/inconsistent-naming": "off",
     },
   },
 ]);

@@ -5,13 +5,16 @@ import {
   ARCHIVE_VOICE_ROUTE,
   CALENDAR_ROUTE,
   CHAT_ROUTE,
+  GEEKNEWS_ROUTE,
+  PLAYGROUND_ROUTE,
   SETTINGS_ROUTE,
   type MirroredRoute,
 } from "@/shared/config";
 import type { Optional } from "@/shared/lib";
 
 /** Which mirrored screen a cached document is standing in for (REQUIREMENTS.md § 16.). */
-export type MirrorScreen = "chat" | "calendar" | "gallery" | "files" | "voice" | "settings";
+export type MirrorScreen =
+  "chat" | "calendar" | "gallery" | "files" | "voice" | "playground" | "news" | "settings";
 
 /**
  * WARN: Keyed by `MirroredRoute`, never `string`, so a route added to
@@ -29,6 +32,8 @@ const SCREENS: Record<MirroredRoute, MirrorScreen> = {
   [ARCHIVE_GALLERY_ROUTE]: "gallery",
   [ARCHIVE_FILES_ROUTE]: "files",
   [ARCHIVE_VOICE_ROUTE]: "voice",
+  [PLAYGROUND_ROUTE]: "playground",
+  [GEEKNEWS_ROUTE]: "news",
   [SETTINGS_ROUTE]: "settings",
 };
 

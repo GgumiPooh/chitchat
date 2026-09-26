@@ -207,6 +207,7 @@ export {
   type EventId,
   type MediaId,
   type MessageId,
+  type NewsArticleId,
   type PushSubscriptionId,
   type SessionId,
   type SnowflakeId,

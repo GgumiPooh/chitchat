@@ -47,6 +47,8 @@ export type EmoticonFavoriteId = Id<"EmoticonFavoriteId">;
 
 export type PushSubscriptionId = Id<"PushSubscriptionId">;
 
+export type NewsArticleId = Id<"NewsArticleId">;
+
 /**
  * The last segment of an R2 key (REQUIREMENTS.md § 9.). Not a row id — no table has
  * a column of it — but the app mints it and it shares the generator, so it shares
@@ -65,7 +67,8 @@ export type SnowflakeId =
   | EmoticonItemId
   | EmoticonFavoriteId
   | PushSubscriptionId
-  | StorageObjectId;
+  | StorageObjectId
+  | NewsArticleId;
 
 // INFO: Up to 19 digits is `2^63 - 1`; the leading class excludes `0`, so no caller can pass a padded or empty segment.
 export const SNOWFLAKE_PATTERN = /^[1-9]\d{0,18}$/;

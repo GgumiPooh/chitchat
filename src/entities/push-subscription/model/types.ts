@@ -28,7 +28,8 @@ export type PushPayload = {
   title: string;
   body: string;
   /** Feeds `navigator.setAppBadge` — the recipient's unread count at send time. */
-  unreadCount: number;
+  unreadCount?: number;
   /** Where a tap lands. */
   url: string;
+  tag?: string;
 };

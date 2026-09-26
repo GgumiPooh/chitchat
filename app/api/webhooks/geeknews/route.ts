@@ -1,0 +1,194 @@
+import "server-only";
+
+import { pushToUser } from "@/entities/push-subscription";
+import { apiError } from "@/shared/api";
+import { geeknewsArticles, geeknewsSubscriptions, getDb, nextSnowflake } from "@/shared/db";
+import { safelyRunAsync, type NewsArticleId } from "@/shared/lib";
+import { eq } from "drizzle-orm";
+import { after, NextResponse } from "next/server";
+import crypto from "node:crypto";
+
+type SlackAttachment = {
+  title?: string;
+  title_link?: string;
+  text?: string;
+  fallback?: string;
+  ts?: number | string;
+};
+
+type DiscordEmbed = {
+  title?: string;
+  url?: string;
+  description?: string;
+  timestamp?: string;
+};
+
+type WebhookPayload = {
+  attachments?: SlackAttachment[];
+  embeds?: DiscordEmbed[];
+  title?: string;
+  url?: string;
+  geeknewsUrl?: string;
+  summary?: string;
+  publishedAt?: string | number | Date;
+  geeknewsId?: string;
+};
+
+function extractTopicId(candidate: string): string | null {
+  const match = candidate.match(/[?&]id=(\d+)/) ?? candidate.match(/\/topic\/(\d+)/);
+  return match ? match[1] : null;
+}
+
+function stripHtmlAndCdata(text: string): string {
+  return text
+    .replace(/<!\[CDATA\[(.*?)\]\]>/gs, "$1")
+    .replace(/<[^>]*>?/gm, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
+export async function POST(request: Request) {
+  const secret = process.env.GEEKNEWS_WEBHOOK_SECRET;
+  if (secret) {
+    const token = new URL(request.url).searchParams.get("token");
+    if (!token) {
+      return apiError("unauthorized");
+    }
+    const tokenBuf = Buffer.from(token);
+    const secretBuf = Buffer.from(secret);
+    if (tokenBuf.length !== secretBuf.length || !crypto.timingSafeEqual(tokenBuf, secretBuf)) {
+      return apiError("unauthorized");
+    }
+  } else if (process.env.NODE_ENV === "production") {
+    return apiError("unauthorized");
+  }
+
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    return apiError("invalid_request");
+  }
+
+  if (!rawBody || typeof rawBody !== "object") {
+    return apiError("invalid_request");
+  }
+
+  const payload = rawBody as WebhookPayload;
+
+  let title = "";
+  let url = "";
+  let geeknewsUrl = "";
+  let summary = "";
+  let publishedAt = new Date();
+  let geeknewsId: string | null = null;
+
+  if (payload.attachments && payload.attachments.length > 0) {
+    // Slack webhook format
+    const att = payload.attachments[0];
+    title = att.title ?? "";
+    url = att.title_link ?? "";
+    geeknewsUrl = att.title_link ?? "";
+    summary = att.text ?? att.fallback ?? "";
+    if (att.ts) {
+      publishedAt = new Date(typeof att.ts === "number" ? att.ts * 1000 : att.ts);
+    }
+  } else if (payload.embeds && payload.embeds.length > 0) {
+    // Discord webhook format
+    const emb = payload.embeds[0];
+    title = emb.title ?? "";
+    url = emb.url ?? "";
+    geeknewsUrl = emb.url ?? "";
+    summary = emb.description ?? "";
+    if (emb.timestamp) {
+      publishedAt = new Date(emb.timestamp);
+    }
+  } else {
+    // Raw JSON format
+    title = payload.title ?? "";
+    url = payload.url ?? "";
+    geeknewsUrl = payload.geeknewsUrl ?? payload.url ?? "";
+    summary = payload.summary ?? "";
+    if (payload.publishedAt) {
+      publishedAt = new Date(payload.publishedAt);
+    }
+    if (payload.geeknewsId) {
+      geeknewsId = payload.geeknewsId;
+    }
+  }
+
+  if (isNaN(publishedAt.getTime())) {
+    publishedAt = new Date();
+  }
+
+  if (!geeknewsId) {
+    geeknewsId =
+      extractTopicId(geeknewsUrl) ?? extractTopicId(url) ?? extractTopicId(summary) ?? null;
+  }
+
+  if (!geeknewsId) {
+    return apiError("invalid_request");
+  }
+
+  title = stripHtmlAndCdata(title);
+  summary = stripHtmlAndCdata(summary);
+
+  if (!title) {
+    return apiError("invalid_request");
+  }
+
+  if (!geeknewsUrl) {
+    geeknewsUrl = `https://news.hada.io/topic?id=${geeknewsId}`;
+  }
+  if (!url) {
+    url = geeknewsUrl;
+  }
+
+  const db = getDb();
+  const [article] = await db
+    .insert(geeknewsArticles)
+    .values({
+      id: nextSnowflake<NewsArticleId>(),
+      geeknewsId,
+      title,
+      url,
+      geeknewsUrl,
+      summary,
+      publishedAt,
+    })
+    .onConflictDoUpdate({
+      target: geeknewsArticles.geeknewsId,
+      set: {
+        title,
+        url,
+        geeknewsUrl,
+        summary,
+        publishedAt,
+      },
+    })
+    .returning();
+
+  const subscribers = await db
+    .select({ userId: geeknewsSubscriptions.userId })
+    .from(geeknewsSubscriptions)
+    .where(eq(geeknewsSubscriptions.enabled, true));
+
+  after(() =>
+    safelyRunAsync(async () => {
+      for (const subscriber of subscribers) {
+        await pushToUser(subscriber.userId, {
+          title: `[GeekNews] ${article.title}`,
+          body: article.summary,
+          url: `/playground/news?id=${article.id}`,
+          tag: `geeknews-${article.id}`,
+        });
+      }
+    }),
+  );
+
+  return NextResponse.json({ ok: true, id: article.id });
+}

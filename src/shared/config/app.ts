@@ -141,6 +141,9 @@ export const ARCHIVE_FILES_ROUTE = `${ARCHIVE_ROUTE}/files`;
 /** REQUIREMENTS.md § 10. The 음성 segment — the same nesting, for the same reasons as the line above. */
 export const ARCHIVE_VOICE_ROUTE = `${ARCHIVE_ROUTE}/voice`;
 
+export const PLAYGROUND_ROUTE = "/playground";
+export const GEEKNEWS_ROUTE = "/playground/news";
+
 export const SETTINGS_ROUTE = "/settings";
 
 // INFO: REQUIREMENTS.md § 13.5. Nested under settings, so the tab bar keeps 설정 active while the management screens are open.
@@ -182,7 +185,13 @@ export const MINI_IMPORT_ROUTE = "/emoticons/import/mini";
  * a route added here without a face in `TABS` is an `undefined` `Icon` that
  * typechecks and blanks the shell at render instead of failing the build.
  */
-export const TAB_ROUTES = [CHAT_ROUTE, CALENDAR_ROUTE, ARCHIVE_ROUTE, SETTINGS_ROUTE] as const;
+export const TAB_ROUTES = [
+  CHAT_ROUTE,
+  CALENDAR_ROUTE,
+  ARCHIVE_ROUTE,
+  PLAYGROUND_ROUTE,
+  SETTINGS_ROUTE,
+] as const;
 
 export type TabRoute = (typeof TAB_ROUTES)[number];
 
@@ -585,6 +594,8 @@ export const MIRRORED_ROUTES = [
   ARCHIVE_GALLERY_ROUTE,
   ARCHIVE_FILES_ROUTE,
   ARCHIVE_VOICE_ROUTE,
+  PLAYGROUND_ROUTE,
+  GEEKNEWS_ROUTE,
   SETTINGS_ROUTE,
 ] as const;
 

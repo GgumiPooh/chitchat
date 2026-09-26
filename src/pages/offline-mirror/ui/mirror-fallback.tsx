@@ -51,6 +51,16 @@ const FRAMES: Record<MirrorScreen, Frame> = {
     containerClassName: "max-w-none px-md pt-[calc(var(--app-header-inset)+var(--spacing-xs))]",
     isFullWidth: true,
   },
+  playground: {
+    title: "놀이터",
+    variant: "rows",
+    containerClassName: "pt-[calc(var(--app-header-inset)+var(--spacing-md))]",
+  },
+  news: {
+    title: "개발자 뉴스",
+    variant: "rows",
+    containerClassName: "pt-[calc(var(--app-header-inset)+var(--spacing-md))]",
+  },
   settings: {
     title: "설정",
     variant: "rows",

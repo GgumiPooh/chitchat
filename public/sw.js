@@ -34,6 +34,8 @@ const MIRRORED_PATHS = [
   "/archive/gallery",
   "/archive/files",
   "/archive/voice",
+  "/playground",
+  "/playground/news",
   "/settings",
 ];
 
@@ -255,7 +257,7 @@ async function handlePush(data) {
     icon: NOTIFICATION_ICON,
     badge: NOTIFICATION_ICON,
     // INFO: REQUIREMENTS.md § 6. One conversation, so a second message replaces the first banner instead of stacking beside it; `renotify` is what still alerts on the replacement.
-    tag: NOTIFICATION_TAG,
+    tag: payload.tag ?? NOTIFICATION_TAG,
     renotify: true,
     // WARN: REQUIREMENTS.md § 16.1. Always an explicit boolean, never omitted. WebKit's `platformShouldPlaySound` reads an absent `silent` opposite ways per platform — `silent == nullopt || !*silent` on iOS, `silent != nullopt && !*silent` on macOS — so leaving it out means sound on the phone and silence on the desktop for the same push.
     silent: payload.silent === true,
@@ -275,6 +277,9 @@ async function handlePush(data) {
 // INFO: REQUIREMENTS.md § 8.4.2. The tab-bar badge is driven by the stream, which is only open on 채팅 — this is what moves it while the user is on one of the other three tabs.
 // WARN: It informs the page, it never replaces the banner. § 16.1. revokes the subscription after three pushes that show nothing, and standing the notification down because a window is open is exactly the shape that lost it.
 async function postUnreadCount(unreadCount) {
+  if (typeof unreadCount !== "number") {
+    return;
+  }
   const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
 
   windows.forEach((client) => client.postMessage({ type: UNREAD_COUNT_MESSAGE, unreadCount }));
@@ -298,7 +303,6 @@ function readPayload(data) {
   const fallback = {
     title: "새 메시지",
     body: "",
-    unreadCount: 0,
     url: FALLBACK_URL,
     silent: false,
   };
@@ -316,7 +320,7 @@ function readPayload(data) {
 
 function updateBadge(unreadCount) {
   // INFO: REQUIREMENTS.md § 16.1. Absent outside installed PWAs, and the push must still land where it is.
-  if (typeof self.navigator?.setAppBadge !== "function") {
+  if (typeof self.navigator?.setAppBadge !== "function" || typeof unreadCount !== "number") {
     return;
   }
 

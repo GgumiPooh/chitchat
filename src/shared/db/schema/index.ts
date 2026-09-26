@@ -24,6 +24,17 @@ export {
   type EventScope,
 } from "./events";
 export {
+  geeknewsArticles,
+  type GeeknewsArticle,
+  type NewGeeknewsArticle,
+} from "./geeknews-articles";
+export { geeknewsReads, type GeeknewsRead, type NewGeeknewsRead } from "./geeknews-reads";
+export {
+  geeknewsSubscriptions,
+  type GeeknewsSubscription,
+  type NewGeeknewsSubscription,
+} from "./geeknews-subscriptions";
+export {
   linkPreviewKindEnum,
   linkPreviewStatusEnum,
   linkPreviews,

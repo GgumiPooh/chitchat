@@ -3,11 +3,12 @@ import {
   ARCHIVE_ROUTE,
   CALENDAR_ROUTE,
   CHAT_ROUTE,
+  PLAYGROUND_ROUTE,
   SETTINGS_ROUTE,
   TAB_ROUTES,
   type TabRoute,
 } from "@/shared/config";
-import { Archive, CalendarDays, MessageCircle, Settings } from "lucide-react";
+import { Archive, CalendarDays, MessageCircle, Settings, Sparkles } from "lucide-react";
 import type { ComponentProps, FC } from "react";
 
 export type Tab = {
@@ -28,6 +29,7 @@ const TAB_FACES: Record<TabRoute, TabFace> = {
   // INFO: REQUIREMENTS.md § 7. The route was `/gallery` until the tab grew three shelves and `/gallery/files` started reading as "files are part of the gallery" — `/archive` is what the label has said since.
   // WARN: REQUIREMENTS.md § 10. The one tab whose `href` is not its route. `ARCHIVE_ROUTE` is a prefix with no screen — it redirects — so it must stay the *key* (that is what `isUnderRoute` fills all three shelves from, and what DESIGN.md § 4.7.1. orders the slide by) while the tap goes straight to 사진 and spends no redirect.
   [ARCHIVE_ROUTE]: { label: "보관함", Icon: Archive, href: ARCHIVE_GALLERY_ROUTE },
+  [PLAYGROUND_ROUTE]: { label: "놀이터", Icon: Sparkles },
   [SETTINGS_ROUTE]: { label: "설정", Icon: Settings },
 };
 

@@ -102,6 +102,9 @@ export function OfflineMirrorPage({ className }: OfflineMirrorPageProps) {
     if (current === "gallery" || current === "files" || current === "voice") {
       return <MirrorArchive shelf={current} />;
     }
+    if (current === "playground" || current === "news") {
+      return <MirrorNotice />;
+    }
 
     // WARN: 채팅 and 설정 both resolve people — the sender of every bubble, and whose profile this is — so neither can be drawn from its own snapshot alone.
     // INFO: A first launch that has never been online reads as a miss rather than a fault: nothing was stored because nothing was ever received, which is what the two branches below say instead of reporting an error.

@@ -1,6 +1,12 @@
-import { ARCHIVE_GALLERY_ROUTE, CALENDAR_ROUTE, CHAT_ROUTE, SETTINGS_ROUTE } from "@/shared/config";
+import {
+  ARCHIVE_GALLERY_ROUTE,
+  CALENDAR_ROUTE,
+  CHAT_ROUTE,
+  PLAYGROUND_ROUTE,
+  SETTINGS_ROUTE,
+} from "@/shared/config";
 import type { Optional } from "@/shared/lib";
-import { Archive, CalendarDays, MessageCircle, Settings } from "lucide-react";
+import { Archive, CalendarDays, MessageCircle, Settings, Sparkles } from "lucide-react";
 import type { ComponentProps, FC } from "react";
 import type { MirrorScreen } from "./mirror-screen";
 
@@ -20,6 +26,12 @@ export const MIRROR_TABS: MirrorTab[] = [
     href: ARCHIVE_GALLERY_ROUTE,
     label: "보관함",
     Icon: Archive,
+  },
+  {
+    screens: ["playground", "news"],
+    href: PLAYGROUND_ROUTE,
+    label: "놀이터",
+    Icon: Sparkles,
   },
   { screens: ["settings"], href: SETTINGS_ROUTE, label: "설정", Icon: Settings },
 ];
