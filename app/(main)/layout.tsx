@@ -16,6 +16,7 @@ import {
   notifyModes,
   PUSH_STATE_COOKIE_NAME,
   SIDE_PANEL_COOKIE_NAME,
+  VOCA_REMINDER_COOKIE_NAME,
 } from "@/shared/config";
 import { OfflineNotice } from "@/shared/offline-ux";
 import {
@@ -61,6 +62,7 @@ export default async function MainLayout({ children }: PropsWithChildren) {
         name === PUSH_STATE_COOKIE_NAME ||
         name === ARCHIVE_COLUMNS_COOKIE_NAME ||
         (name === GEEKNEWS_SUBSCRIPTION_COOKIE_NAME && (value === "true" || value === "false")) ||
+        (name === VOCA_REMINDER_COOKIE_NAME && (value === "true" || value === "false")) ||
         (name === SIDE_PANEL_COOKIE_NAME && (value === "true" || value === "false")) ||
         (name === NOTIFY_MODE_COOKIE_NAME &&
           notifyModes.some((_, index) => value === JSON.stringify(index))),

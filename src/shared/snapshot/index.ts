@@ -6,6 +6,10 @@ export {
   type SnapshotKey,
   type SnapshotRead,
   type SnapshotRecord,
+  type VocaDueSummarySnapshot,
+  type VocaReviewOutboxEntry,
+  type VocaSnapshot,
+  type VocaSnapshotCard,
 } from "./types";
 export { useSnapshot } from "./use-snapshot";
 export { useSnapshotOwner } from "./use-snapshot-owner";

@@ -92,7 +92,7 @@ export const VISUAL_KINDS = ["image", "video"] as const satisfies readonly Media
  * route signs. `shared/storage`'s `StorageScope` is this list; it is declared here
  * rather than there so the browser can read it.
  */
-export const MEDIA_SCOPES = ["chat", "avatar", "background", "emoticon"] as const;
+export const MEDIA_SCOPES = ["chat", "avatar", "background", "emoticon", "voca"] as const;
 
 export type MediaScope = (typeof MEDIA_SCOPES)[number];
 
@@ -601,7 +601,7 @@ export function maxSizeForScope(mime: string, scope: MediaScope): number {
  * (`REQUIREMENTS.md § 13.3.`).
  */
 export function needsThumbnail(scope: MediaScope): boolean {
-  return scope !== "emoticon";
+  return scope !== "emoticon" && scope !== "voca";
 }
 
 /**

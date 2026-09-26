@@ -1,0 +1,137 @@
+"use client";
+
+import { cn, type Nullable } from "@/shared/lib";
+import { Volume2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+export type VocaAudioButtonProps = {
+  className?: string;
+  iconClassName?: string;
+  audioUrl?: Nullable<string>;
+  textToSpeak?: string;
+  label?: string;
+  autoPlay?: boolean;
+  size?: "sm" | "md" | "lg";
+};
+
+const SIZE_CLASSES = {
+  sm: "h-7 w-7 p-1.5",
+  md: "h-9 w-9 p-2",
+  lg: "h-11 w-11 p-2.5",
+} as const;
+
+const ICON_SIZE_CLASSES = {
+  sm: "h-3.5 w-3.5",
+  md: "h-4 w-4",
+  lg: "h-5 w-5",
+} as const;
+
+export function VocaAudioButton({
+  className,
+  iconClassName,
+  audioUrl,
+  textToSpeak,
+  label = "발음 듣기",
+  autoPlay = false,
+  size = "md",
+}: VocaAudioButtonProps) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const speakFallback = useCallback(() => {
+    if (!textToSpeak || typeof window === "undefined" || !("speechSynthesis" in window)) {
+      return;
+    }
+
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      utterance.lang = "en-US";
+      utterance.rate = 0.9;
+
+      utterance.onstart = () => setIsPlaying(true);
+      utterance.onend = () => setIsPlaying(false);
+      utterance.onerror = () => setIsPlaying(false);
+
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      setIsPlaying(false);
+    }
+  }, [textToSpeak]);
+
+  const playAudio = useCallback(() => {
+    if (audioUrl) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+
+      audio.onplay = () => setIsPlaying(true);
+      audio.onended = () => setIsPlaying(false);
+      audio.onerror = () => {
+        setIsPlaying(false);
+        speakFallback();
+      };
+
+      audio.play().catch(() => {
+        setIsPlaying(false);
+        speakFallback();
+      });
+      return;
+    }
+
+    if (textToSpeak) {
+      speakFallback();
+    }
+  }, [audioUrl, textToSpeak, speakFallback]);
+
+  useEffect(() => {
+    if (!autoPlay) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      playAudio();
+    }, 0);
+
+    return () => {
+      clearTimeout(timer);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [autoPlay, playAudio]);
+
+  return (
+    <button
+      className={cn(
+        "inline-flex items-center justify-center rounded-full transition-all duration-150",
+        "hover:bg-surface bg-surface-soft active:scale-95",
+        "text-body hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
+        "disabled:pointer-events-none disabled:opacity-40",
+        isPlaying && "bg-primary/10 text-primary ring-2 ring-primary/30",
+        SIZE_CLASSES[size],
+        className,
+      )}
+      type="button"
+      title={label}
+      disabled={!audioUrl && !textToSpeak}
+      aria-label={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        playAudio();
+      }}
+    >
+      <Volume2
+        className={cn(ICON_SIZE_CLASSES[size], isPlaying && "animate-pulse", iconClassName)}
+      />
+    </button>
+  );
+}

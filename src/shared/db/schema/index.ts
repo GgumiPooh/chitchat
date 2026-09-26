@@ -64,3 +64,14 @@ export { messageReactions, type MessageReactionRow, type NewMessageReactionRow }
 export { sessions, type Session } from "./sessions";
 export { storageReservations, type StorageReservation } from "./storage";
 export { users, type User } from "./users";
+export {
+  vocaCards,
+  vocaReviews,
+  vocaUserSettings,
+  type NewVocaCardRow,
+  type NewVocaReviewRow,
+  type NewVocaUserSettingsRow,
+  type VocaCardRow,
+  type VocaReviewRow,
+  type VocaUserSettingsRow,
+} from "./voca";

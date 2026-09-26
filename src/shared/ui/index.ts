@@ -74,4 +74,5 @@ export { Switch, type SwitchProps } from "./switch";
 export { Textarea, type TextareaProps } from "./textarea";
 export { TwoPane, type TwoPaneProps } from "./two-pane";
 export { VisualViewportSync } from "./visual-viewport-sync";
+export { VocaAudioButton, type VocaAudioButtonProps } from "./voca-audio-button";
 export { VoicePlayer, type VoicePlayerProps } from "./voice-player";

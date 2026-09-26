@@ -28,7 +28,7 @@ export const MIRROR_TABS: MirrorTab[] = [
     Icon: Archive,
   },
   {
-    screens: ["playground", "news"],
+    screens: ["playground", "news", "voca"],
     href: PLAYGROUND_ROUTE,
     label: "놀이터",
     Icon: Blocks,

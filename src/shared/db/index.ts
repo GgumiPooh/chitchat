@@ -41,6 +41,9 @@ export {
   userEmoticonPrefs,
   userEmoticonUsage,
   users,
+  vocaCards,
+  vocaReviews,
+  vocaUserSettings,
   type CoupleSettings,
   type EmoticonItem,
   type EmoticonKeyword,
@@ -64,6 +67,9 @@ export {
   type MessageType,
   type NewMessageBookmarkRow,
   type NewMessageReactionRow,
+  type NewVocaCardRow,
+  type NewVocaReviewRow,
+  type NewVocaUserSettingsRow,
   type Session,
   type StorageReservation,
   type StoredPushSubscription,
@@ -72,6 +78,9 @@ export {
   type UserEmoticonFavorite,
   type UserEmoticonPref,
   type UserEmoticonUsage,
+  type VocaCardRow,
+  type VocaReviewRow,
+  type VocaUserSettingsRow,
 } from "./schema";
 export { openUnpooledSession, type DbSession } from "./session";
 export { nextSnowflake } from "./snowflake";

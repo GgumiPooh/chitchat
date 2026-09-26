@@ -213,6 +213,8 @@ export {
   type SnowflakeId,
   type StorageObjectId,
   type UserId,
+  type VocaCardId,
+  type VocaReviewId,
 } from "./identity/id";
 export { randomId } from "./identity/random";
 export { GESTURE_SLOP } from "./input/gesture";
@@ -259,3 +261,16 @@ export {
   withoutFragment,
   type TextSegment,
 } from "./text/url";
+export {
+  Rating as FsrsRating,
+  State as FsrsState,
+  computeAllNextIntervals,
+  computeNextReview,
+  formatIntervalString,
+  fromFsrsState,
+  toFsrsCard,
+  toFsrsState,
+  type RatingIntervalInfo,
+  type ReviewComputationResult,
+  type VocaCardState,
+} from "./date/fsrs";

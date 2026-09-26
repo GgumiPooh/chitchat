@@ -23,6 +23,7 @@ import { MirrorChat } from "./mirror-chat";
 import { MirrorFallback } from "./mirror-fallback";
 import { MirrorNotice } from "./mirror-notice";
 import { MirrorSettings } from "./mirror-settings";
+import { MirrorVoca } from "./mirror-voca";
 
 export type OfflineMirrorPageProps = {
   className?: string;
@@ -101,6 +102,9 @@ export function OfflineMirrorPage({ className }: OfflineMirrorPageProps) {
     }
     if (current === "gallery" || current === "files" || current === "voice") {
       return <MirrorArchive shelf={current} />;
+    }
+    if (current === "voca") {
+      return <MirrorVoca />;
     }
     if (current === "playground" || current === "news") {
       return <MirrorNotice />;

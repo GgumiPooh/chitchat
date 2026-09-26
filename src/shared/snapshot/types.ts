@@ -1,5 +1,5 @@
 import { ARCHIVE_PAGE_SIZE, CHANGED_MESSAGES_LIMIT } from "@/shared/config";
-import type { UserId } from "@/shared/lib";
+import type { MediaId, Nullable, UserId, VocaCardId } from "@/shared/lib";
 
 /** REQUIREMENTS.md § 16., § 16.2. One key per mirror screen carrying data of its own, plus `chat-only-me` for the room's private timeline, the `shell` chrome every mirror draws and the `outbox` of sends still queued — 설정 has none, since it renders from `shell` alone. */
 export type SnapshotKey =
@@ -10,7 +10,58 @@ export type SnapshotKey =
   | "archive-files"
   | "archive-voice"
   | "shell"
-  | "outbox";
+  | "outbox"
+  | "voca"
+  | "voca-outbox";
+
+export type VocaReviewOutboxEntry = {
+  cardId: VocaCardId;
+  rating: number;
+  timeSpentMs: number;
+  reviewedAt: string;
+  id: string;
+};
+
+export type VocaSnapshotCard = {
+  userId: UserId;
+  state: string;
+  dueAt: Nullable<string>;
+  dueDate: Nullable<string>;
+  stability: number;
+  difficulty: number;
+  reps: number;
+  lapses: number;
+  suspended: boolean;
+  sentence: string;
+  targetWord: string;
+  pos: string;
+  pronunciation: string;
+  koreanMeaning: string;
+  englishDefinition: string;
+  confusable: Nullable<string>;
+  collocations: string;
+  wordFamily: Nullable<string>;
+  examples: string[];
+  audioUrl: Nullable<string>;
+  sentenceAudioUrl: Nullable<string>;
+  audioMediaId: Nullable<MediaId>;
+  sentenceAudioMediaId: Nullable<MediaId>;
+  tags: Nullable<string>;
+  id: VocaCardId;
+};
+
+export type VocaDueSummarySnapshot = {
+  newCount: number;
+  learningCount: number;
+  reviewCount: number;
+  totalDue: number;
+};
+
+export type VocaSnapshot<TCard = VocaSnapshotCard> = {
+  dueCards: TCard[];
+  summary: VocaDueSummarySnapshot;
+  sessionDayKey: string;
+};
 
 /**
  * A snapshot as the `snapshots` store holds it.

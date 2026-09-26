@@ -61,6 +61,11 @@ const FRAMES: Record<MirrorScreen, Frame> = {
     variant: "rows",
     containerClassName: "pt-[calc(var(--app-header-inset)+var(--spacing-md))]",
   },
+  voca: {
+    title: "영단어",
+    variant: "rows",
+    containerClassName: "pt-[calc(var(--app-header-inset)+var(--spacing-md))]",
+  },
   settings: {
     title: "설정",
     variant: "rows",

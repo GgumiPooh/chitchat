@@ -311,6 +311,24 @@ export async function readObject(key: string, maxBytes: number): Promise<Optiona
 }
 
 /**
+ * Direct-to-R2 server upload for server-generated assets (e.g. synthesized voca audio).
+ */
+export async function putObject(
+  key: string,
+  body: Uint8Array | Buffer,
+  contentType: string,
+): Promise<void> {
+  await getR2().send(
+    new PutObjectCommand({
+      Bucket: getBucket(),
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    }),
+  );
+}
+
+/**
  * Removes objects from the bucket, and answers **which of them R2 confirmed**.
  *
  * INFO: Still never throws. A failed cleanup must not fail the request that stamped

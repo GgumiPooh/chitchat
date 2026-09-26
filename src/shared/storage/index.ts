@@ -9,6 +9,7 @@ export {
   listBackups,
   presignDownload,
   presignUpload,
+  putObject,
   readObject,
   type BackupObject,
   type FetchedObject,

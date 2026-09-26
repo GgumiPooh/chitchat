@@ -143,6 +143,10 @@ export const ARCHIVE_VOICE_ROUTE = `${ARCHIVE_ROUTE}/voice`;
 
 export const PLAYGROUND_ROUTE = "/playground";
 export const GEEKNEWS_ROUTE = "/playground/news";
+export const VOCA_ROUTE = "/playground/voca";
+export const VOCA_REVIEW_ROUTE = "/playground/voca/review";
+export const VOCA_CARDS_ROUTE = "/playground/voca/cards";
+export const VOCA_SETTINGS_ROUTE = "/playground/voca/settings";
 
 export const SETTINGS_ROUTE = "/settings";
 
@@ -479,6 +483,14 @@ export const GEEKNEWS_SUBSCRIPTION_COOKIE_OPTIONS = {
   maxAge: (365 * A_DAY) / A_SECOND,
 } as const;
 
+export const VOCA_REMINDER_COOKIE_NAME = "jandh:voca-reminder";
+export const VOCA_REMINDER_COOKIE_OPTIONS = {
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  path: "/",
+  maxAge: (365 * A_DAY) / A_SECOND,
+} as const;
+
 /** REQUIREMENTS.md § 16.4. One cursor page of GeekNews articles. */
 export const GEEKNEWS_PAGE_SIZE = 20;
 
@@ -614,6 +626,7 @@ export const MIRRORED_ROUTES = [
   ARCHIVE_VOICE_ROUTE,
   PLAYGROUND_ROUTE,
   GEEKNEWS_ROUTE,
+  VOCA_ROUTE,
   SETTINGS_ROUTE,
 ] as const;
 
