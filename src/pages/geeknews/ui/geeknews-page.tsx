@@ -53,7 +53,10 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
   const router = useRouter();
   const { articles, hasMore, isLoadingMore, loadMore } = useGeeknewsArticles(initialArticles);
   const sidePanelScrollerRef = useRef<Nullable<HTMLDivElement>>(null);
-  const [readState, setReadState] = useState<Record<string, boolean>>({});
+  const [readState, setReadState] = useState<Record<string, boolean>>(() =>
+    initialArticleId ? { [initialArticleId]: true } : {},
+  );
+  const [prevInitialArticleId, setPrevInitialArticleId] = useState(initialArticleId);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [openedArticleId, setOpenedArticleId] = useState<NewsArticleId | null>(
     () => (initialArticleId as NewsArticleId) ?? null,
@@ -79,6 +82,18 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
 
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
 
+  if (prevInitialArticleId !== initialArticleId) {
+    setPrevInitialArticleId(initialArticleId);
+    if (initialArticleId) {
+      setOpenedArticleId(initialArticleId as NewsArticleId);
+      setReadState((prev) => ({ ...prev, [initialArticleId]: true }));
+      const foundIdx = initialArticles.findIndex((a) => a.id === initialArticleId);
+      if (foundIdx !== -1) {
+        setSelectedIndex(foundIdx);
+      }
+    }
+  }
+
   const markReadOptimistic = useCallback(
     (articleId: NewsArticleId) => {
       setReadState((prev) => ({ ...prev, [articleId]: true }));
@@ -89,13 +104,15 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
 
   // INFO: Mark initial deep-linked or selected article on mount via API
   useEffect(() => {
-    const target = initialArticleId
-      ? initialArticles.find((a) => a.id === initialArticleId)
-      : initialArticles[initialIndex];
-    if (target && !target.isRead) {
-      void markRead(target.id);
+    if (initialArticleId) {
+      void markRead(initialArticleId as NewsArticleId);
+    } else if (typeof window !== "undefined" && window.matchMedia(SIDE_PANEL_MEDIA_QUERY).matches) {
+      const target = initialArticles[initialIndex];
+      if (target && !target.isRead) {
+        void markRead(target.id);
+      }
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialArticleId, initialIndex, initialArticles, markRead]);
 
   const handleSelectArticle = useCallback(
     (index: number) => {
