@@ -26,6 +26,12 @@ export type AppHeaderProps = {
   leadingFills?: boolean;
   trailing?: ReactNode;
   /**
+   * Set `true` to fade out `trailing` controls on scroll alongside the title.
+   * Useful for reading screens where header accessories should disappear
+   * to provide a clean reading experience without obstructing content.
+   */
+  trailingFadesOnScroll?: boolean;
+  /**
    * AGENTS.md § 4.1. Whether this screen has an `lg` `TwoPane` panel
    * to collapse — `SidePanelToggle` only draws where one exists. 채팅, 캘린더 and
    * 보관함's three shelves pass `true`; every panel-less screen (설정 and its
@@ -47,6 +53,7 @@ export function AppHeader({
   leading,
   leadingFills = false,
   trailing,
+  trailingFadesOnScroll = false,
   hasSidePanel = false,
 }: AppHeaderProps) {
   const isScrolled = useIsScrolled();
@@ -94,7 +101,16 @@ export function AppHeader({
           // WARN: `data-inert` for the title's reason and more plainly: it paints nothing at all, so every tap it takes is one the reader has no way to explain.
           !leadingFills && <div className="flex-1" data-inert />
         )}
-        {trailing}
+        {trailing && (
+          <div
+            className={cn(
+              "flex items-center transition-opacity duration-200 ease-out",
+              trailingFadesOnScroll && isScrolled && "pointer-events-none opacity-0",
+            )}
+          >
+            {trailing}
+          </div>
+        )}
       </Container>
     </header>
   );

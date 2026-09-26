@@ -262,6 +262,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
       <AppHeader
         hasSidePanel
         title="개발자 뉴스"
+        trailingFadesOnScroll
         leading={
           <IconButton
             haptic
