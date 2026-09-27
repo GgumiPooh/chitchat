@@ -5,14 +5,60 @@ import { createVocaCard, generateVocaCard, synthesizeVocaAudio } from "@/entitie
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { VOCA_CARDS_ROUTE } from "@/shared/config";
-import { safelyRunAsync } from "@/shared/lib";
+import { safelyRunAsync, type UserId } from "@/shared/lib";
+import { josa } from "es-hangul";
 import { NextResponse, after } from "next/server";
 import { z } from "zod";
 
 const generateSchema = z.object({
   word: z.string().min(1),
   contextSentence: z.string().optional(),
+  mode: z.enum(["async", "sync"]).optional().default("async"),
 });
+
+async function processCardCreation(userId: UserId, word: string, contextSentence?: string) {
+  try {
+    const generated = await generateVocaCard(word, contextSentence);
+    const audioResult = await synthesizeVocaAudio(userId, generated.targetWord, generated.sentence);
+
+    const card = await createVocaCard({
+      userId,
+      sentence: generated.sentence,
+      targetWord: generated.targetWord,
+      pos: generated.pos,
+      pronunciation: generated.pronunciation,
+      koreanMeaning: generated.koreanMeaning,
+      englishDefinition: generated.englishDefinition,
+      confusable: generated.confusable,
+      collocations: generated.collocations,
+      wordFamily: generated.wordFamily,
+      examples: generated.examples,
+      audioUrl: audioResult.audioUrl,
+      sentenceAudioUrl: audioResult.sentenceAudioUrl,
+      audioMediaId: audioResult.audioMediaId,
+      sentenceAudioMediaId: audioResult.sentenceAudioMediaId,
+      tags: `voca,${generated.targetWord.toLowerCase().replace(/\s+/g, "-")}`,
+    });
+
+    await pushToUser(userId, {
+      title: "단어 카드 생성 완료",
+      body: `${josa(generated.targetWord, "이/가")} 카드가 추가되었어요.`,
+      url: VOCA_CARDS_ROUTE,
+      tag: "voca-created",
+    });
+
+    return card;
+  } catch (error) {
+    console.error("[ai-generate] Card generation failed:", error);
+    await pushToUser(userId, {
+      title: "단어 카드 생성 실패",
+      body: `${josa(word, "을/를")} 생성하지 못했어요. 다시 시도해주세요.`,
+      url: VOCA_CARDS_ROUTE,
+      tag: "voca-failed",
+    });
+    throw error;
+  }
+}
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -26,46 +72,25 @@ export async function POST(request: Request) {
     return apiError("invalid_request");
   }
 
-  const { word, contextSentence } = parsed.data;
+  const { word, contextSentence, mode } = parsed.data;
 
-  // Non-blocking asynchronous background execution
+  // Synchronous mode for individual recommendations waiting for spinner completion
+  if (mode === "sync") {
+    try {
+      const card = await processCardCreation(user.id, word, contextSentence);
+      return NextResponse.json({ accepted: true, success: true, cardId: card.id });
+    } catch {
+      return apiError("unavailable");
+    }
+  }
+
+  // Non-blocking asynchronous background execution for batch submissions
   after(() =>
     safelyRunAsync(async () => {
       try {
-        const generated = await generateVocaCard(word, contextSentence);
-        const audioResult = await synthesizeVocaAudio(
-          user.id,
-          generated.targetWord,
-          generated.sentence,
-        );
-
-        await createVocaCard({
-          userId: user.id,
-          sentence: generated.sentence,
-          targetWord: generated.targetWord,
-          pos: generated.pos,
-          pronunciation: generated.pronunciation,
-          koreanMeaning: generated.koreanMeaning,
-          englishDefinition: generated.englishDefinition,
-          confusable: generated.confusable,
-          collocations: generated.collocations,
-          wordFamily: generated.wordFamily,
-          examples: generated.examples,
-          audioUrl: audioResult.audioUrl,
-          sentenceAudioUrl: audioResult.sentenceAudioUrl,
-          audioMediaId: audioResult.audioMediaId,
-          sentenceAudioMediaId: audioResult.sentenceAudioMediaId,
-          tags: `voca,${generated.targetWord.toLowerCase().replace(/\s+/g, "-")}`,
-        });
-
-        await pushToUser(user.id, {
-          title: "단어 카드 생성 완료",
-          body: `${generated.targetWord} 카드가 추가되었어요.`,
-          url: VOCA_CARDS_ROUTE,
-          tag: "voca-created",
-        });
-      } catch (error) {
-        console.error("[ai-generate] Background card generation failed:", error);
+        await processCardCreation(user.id, word, contextSentence);
+      } catch {
+        // Error logged and failure push sent in processCardCreation
       }
     }),
   );

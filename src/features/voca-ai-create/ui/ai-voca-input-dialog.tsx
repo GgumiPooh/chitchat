@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Modal } from "@/shared/ui";
+import { BottomSheet, Button } from "@/shared/ui";
 import { Sparkles } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -48,9 +48,10 @@ export function AiVocaInputDialog({ className, isOpen, onClose }: AiVocaInputDia
   };
 
   return (
-    <Modal
+    <BottomSheet
       className={className}
       isOpen={isOpen}
+      keepsHeightUnderKeyboard
       header={{
         title: "✨ AI 단어 추가",
         description: "추가하고 싶은 영어 단어를 입력하면 AI가 맞춤형 예문과 발음을 생성해요.",
@@ -100,6 +101,6 @@ export function AiVocaInputDialog({ className, isOpen, onClose }: AiVocaInputDia
           </Button>
         </div>
       </div>
-    </Modal>
+    </BottomSheet>
   );
 }

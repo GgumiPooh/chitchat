@@ -3,6 +3,7 @@
 import type { VocaDueSummary, VocaHeatmapDay, VocaUserSettings } from "@/entities/voca";
 import { AiVocaInputDialog } from "@/features/voca-ai-create";
 import { calculateVocaStreak, VocaHeatmap, VocaWeeklyStreak } from "@/features/voca-heatmap";
+import { VocaRecommendSheet } from "@/features/voca-recommend";
 import {
   PLAYGROUND_ROUTE,
   VOCA_CARDS_ROUTE,
@@ -16,9 +17,9 @@ import {
   Calendar,
   CheckCircle2,
   ChevronLeft,
+  Compass,
   Flame,
   GraduationCap,
-  Play,
   RotateCw,
   Settings,
   Sparkles,
@@ -42,6 +43,7 @@ export function VocaDashboardPage({
 }: VocaDashboardPageProps) {
   const router = useRouter();
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
+  const [isRecommendOpen, setIsRecommendOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const dueSummary = initialDueSummary;
@@ -137,20 +139,22 @@ export function VocaDashboardPage({
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex items-center gap-2 pt-1 sm:pt-0">
               {hasDueCards ? (
                 <Button
-                  className="gap-2 px-6"
+                  className="flex-1 sm:w-auto"
+                  buttonClassName="rounded-2xl"
                   variant="primary"
                   haptic
                   onClick={() => router.push(VOCA_REVIEW_ROUTE)}
                 >
-                  <Play className="h-4 w-4 fill-current" />
+                  <BookOpen className="h-4 w-4" />
                   복습 시작하기
                 </Button>
               ) : (
                 <Button
-                  className="gap-2"
+                  className="flex-1 sm:w-auto"
+                  buttonClassName="rounded-2xl"
                   variant="secondary"
                   haptic
                   onClick={() => router.push(VOCA_REVIEW_ROUTE)}
@@ -161,13 +165,14 @@ export function VocaDashboardPage({
               )}
 
               <Button
-                className="gap-1.5"
+                className="w-auto shrink-0"
+                buttonClassName="rounded-2xl px-3.5 sm:px-4"
                 variant="secondary"
                 haptic
                 onClick={() => setIsAiDialogOpen(true)}
               >
                 <Sparkles className="h-4 w-4 text-primary" />
-                AI 단어 추가
+                <span>AI 추가</span>
               </Button>
             </div>
           </div>
@@ -210,10 +215,57 @@ export function VocaDashboardPage({
         <div className="space-y-2">
           <VocaHeatmap heatmap={heatmap} />
         </div>
+
+        {/* AI Vocabulary Recommendation Section (Option 1) */}
+        <div className="bg-surface relative overflow-hidden rounded-3xl border border-hairline p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1.5">
+              <span className="inline-flex items-center gap-1.5 text-caption font-semibold tracking-wider text-meta uppercase">
+                <Sparkles className="h-4 w-4 text-primary" />
+                AI 맞춤 단어 탐색
+              </span>
+              <h3 className="text-title-md font-bold text-ink">나에게 꼭 필요한 영단어 추천</h3>
+              <p className="text-body-sm text-meta">
+                토익, 수능, 공무원 등 내 목표와 빈출 난이도에 맞는 새로운 단어를 발견해보세요.
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <span className="rounded-full bg-surface-soft px-2.5 py-0.5 text-caption font-medium text-meta">
+                  #토익
+                </span>
+                <span className="rounded-full bg-surface-soft px-2.5 py-0.5 text-caption font-medium text-meta">
+                  #수능
+                </span>
+                <span className="rounded-full bg-surface-soft px-2.5 py-0.5 text-caption font-medium text-meta">
+                  #공무원
+                </span>
+                <span className="rounded-full bg-surface-soft px-2.5 py-0.5 text-caption font-medium text-meta">
+                  #비즈니스
+                </span>
+              </div>
+            </div>
+
+            <Button
+              className="w-auto gap-2 self-start px-6 sm:self-auto"
+              variant="primary"
+              haptic
+              onClick={() => setIsRecommendOpen(true)}
+            >
+              <Compass className="h-4 w-4" />
+              단어 추천받기
+            </Button>
+          </div>
+        </div>
       </Container>
 
       {/* AI Word Creation Dialog */}
       <AiVocaInputDialog isOpen={isAiDialogOpen} onClose={() => setIsAiDialogOpen(false)} />
+
+      {/* AI Vocabulary Recommendation Sheet */}
+      <VocaRecommendSheet
+        isOpen={isRecommendOpen}
+        onClose={() => setIsRecommendOpen(false)}
+        onCardCreated={() => router.refresh()}
+      />
     </div>
   );
 }

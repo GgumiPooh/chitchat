@@ -18,6 +18,11 @@ export {
   type ListVocaCardsOptions,
   type ListVocaCardsResult,
 } from "./api/list-cards";
+export {
+  recommendVocaWords,
+  type RecommendVocaOptions,
+  type RecommendedVocaItem,
+} from "./api/recommend-voca-words";
 export { revertVocaReview as revertReview, revertVocaReview } from "./api/revert-review";
 export {
   submitVocaReview as submitReview,

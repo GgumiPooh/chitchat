@@ -8,6 +8,7 @@ import {
   VocaCardRoster,
   VocaInlineEditor,
 } from "@/features/voca-browser";
+import { VocaRecommendSheet } from "@/features/voca-recommend";
 import { VOCA_ROUTE } from "@/shared/config";
 import { cn, type VocaCardId } from "@/shared/lib";
 import {
@@ -19,7 +20,15 @@ import {
   LoadMoreSentinel,
   TwoPane,
 } from "@/shared/ui";
-import { BookOpen, CheckSquare, ChevronLeft, RotateCw, Search, Sparkles } from "lucide-react";
+import {
+  BookOpen,
+  CheckSquare,
+  ChevronLeft,
+  Compass,
+  RotateCw,
+  Search,
+  Sparkles,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -49,6 +58,7 @@ export function VocaCardsPage({
   const [selectedCard, setSelectedCard] = useState<VocaCard | null>(() => initialCards[0] ?? null);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
+  const [isRecommendOpen, setIsRecommendOpen] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<VocaCardId>>(new Set());
 
@@ -201,6 +211,13 @@ export function VocaCardsPage({
               }}
             />
             <IconButton
+              Icon={Compass}
+              haptic
+              variant="floating"
+              aria-label="AI 단어 추천"
+              onClick={() => setIsRecommendOpen(true)}
+            />
+            <IconButton
               Icon={Sparkles}
               haptic
               variant="floating"
@@ -310,6 +327,13 @@ export function VocaCardsPage({
           setIsAiDialogOpen(false);
           void refresh();
         }}
+      />
+
+      {/* AI Vocabulary Recommendation Sheet */}
+      <VocaRecommendSheet
+        isOpen={isRecommendOpen}
+        onClose={() => setIsRecommendOpen(false)}
+        onCardCreated={() => void refresh()}
       />
     </div>
   );
