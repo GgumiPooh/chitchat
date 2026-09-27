@@ -12,7 +12,7 @@
 @layer base {
   /* WARN: DESIGN.md § 3.4. On the root as well as `body`, and the pair is not redundant. `overflow` is specified to propagate to the viewport from `body`; `overscroll-behavior` propagates from the **root element**. Declared on `body` alone Chrome honours it anyway and WebKit does not, and what that costs is the whole gesture: a pull the chat room's own scroller cannot consume chains to a root scroller that is already at `0`, and Safari takes it as pull-to-refresh and reloads the app. */
   html {
-    @apply overscroll-none scrollbar-hidden;
+    @apply scrollbar-hidden overscroll-none;
   }
 
   /* INFO: DESIGN.md § 3.4. The document is the app's scroller — Safari only collapses its bottom toolbar for the root scroller, never for a nested one. */

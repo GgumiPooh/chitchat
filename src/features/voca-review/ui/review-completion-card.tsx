@@ -39,9 +39,9 @@ export function ReviewCompletionCard({
           : "오늘 복습할 단어를 모두 마쳤어요! 훌륭해요."}
       </p>
 
-      <div className="mt-8 flex w-full max-w-xs flex-col gap-2.5">
+      <div className="mt-8 flex w-full max-w-xs flex-col items-stretch gap-2.5">
         {hasMoreNew ? (
-          <Button className="w-full gap-2" variant="primary" haptic onClick={onStudyMore}>
+          <Button className="w-full" variant="primary" haptic onClick={onStudyMore}>
             <PlusCircle className="h-4 w-4" />
             +5장 더 배우기
           </Button>
@@ -53,8 +53,9 @@ export function ReviewCompletionCard({
               </Button>
             )}
             {onAddWord && (
-              <Button className="w-full gap-2" variant="primary" haptic onClick={onAddWord}>
-                <Sparkles className="h-4 w-4" />✨ AI로 새 단어 추가하기
+              <Button className="w-full" variant="primary" haptic onClick={onAddWord}>
+                <Sparkles className="h-4 w-4" />
+                AI로 새 단어 추가하기
               </Button>
             )}
           </>

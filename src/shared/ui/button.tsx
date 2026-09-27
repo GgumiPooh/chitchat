@@ -62,7 +62,12 @@ export function Button({
     <Comp
       // WARN: `buttonClassName` applies in **both** branches, and that is what makes `haptic` safe to vary. Applied only under `haptic`, a caller that toggled it dropped the button's own box — `min-h-11`, `rounded-full`, `text-semantic-error` — and silently handed it the wrapper's layout classes instead.
       // INFO: Without a wrapper the button *is* the outermost element, so `className` belongs on it too; `buttonClassName` stays last, where `twMerge` lets the box win over the layout.
-      className={cn(buttonVariants({ variant }), !haptic && className, buttonClassName)}
+      className={cn(
+        buttonVariants({ variant }),
+        haptic && "flex w-full flex-1",
+        !haptic && className,
+        buttonClassName,
+      )}
       disabled={disabled}
       type={asChild ? undefined : type}
       {...props}
