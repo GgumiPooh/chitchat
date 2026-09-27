@@ -2,7 +2,7 @@
 
 import type { VocaHeatmapDay } from "@/entities/voca";
 import { cn } from "@/shared/lib";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type VocaHeatmapProps = {
   className?: string;
@@ -13,9 +13,16 @@ export type VocaHeatmapProps = {
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
   const [activeTooltip, setActiveTooltip] = useState<{ dayKey: string; count: number } | null>(
     null,
   );
+
+  useEffect(() => {
+    if (scrollerRef.current) {
+      scrollerRef.current.scrollLeft = scrollerRef.current.scrollWidth;
+    }
+  }, []);
 
   const totalReviews = useMemo(() => {
     return heatmap.reduce((sum, d) => sum + d.count, 0);
@@ -81,7 +88,7 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
   return (
     <div className={cn("bg-surface rounded-2xl border border-hairline p-4 shadow-sm", className)}>
       <div className="flex items-center justify-between pb-3">
-        <h4 className="text-body-sm font-semibold text-ink">학습 스트릭</h4>
+        <h4 className="text-body-sm font-semibold text-ink">학습 잔디</h4>
         <div className="flex items-center gap-1.5 text-caption text-meta">
           <span>적음</span>
           <div className="flex gap-1">
@@ -109,8 +116,8 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
         )}
       </div>
 
-      {/* Responsive scroll container: 12-week snap view on mobile, 52-week on lg */}
-      <div className="scrollbar-hidden overflow-x-auto pb-1">
+      {/* Responsive scroll container: auto-scrolled to today on mount */}
+      <div ref={scrollerRef} className="scrollbar-hidden overflow-x-auto pb-1">
         <div className="flex min-w-max gap-1.5">
           {/* Day labels column */}
           <div className="flex flex-col gap-1 pr-1">

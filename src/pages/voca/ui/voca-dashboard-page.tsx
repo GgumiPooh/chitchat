@@ -2,7 +2,7 @@
 
 import type { VocaDueSummary, VocaHeatmapDay, VocaUserSettings } from "@/entities/voca";
 import { AiVocaInputDialog } from "@/features/voca-ai-create";
-import { VocaHeatmap } from "@/features/voca-heatmap";
+import { calculateVocaStreak, VocaHeatmap, VocaWeeklyStreak } from "@/features/voca-heatmap";
 import {
   PLAYGROUND_ROUTE,
   VOCA_CARDS_ROUTE,
@@ -47,28 +47,10 @@ export function VocaDashboardPage({
   const dueSummary = initialDueSummary;
   const heatmap = initialHeatmap;
 
-  // Calculate current streak from heatmap
-  const streak = useMemo(() => {
-    let currentStreak = 0;
-    const sortedDays = [...heatmap].sort((a, b) => b.dayKey.localeCompare(a.dayKey));
-
-    for (const day of sortedDays) {
-      if (day.count > 0) {
-        currentStreak++;
-      } else {
-        break;
-      }
-    }
-    return currentStreak;
-  }, [heatmap]);
-
-  const studiedToday = useMemo(() => {
-    if (heatmap.length === 0) {
-      return 0;
-    }
-    const sortedDays = [...heatmap].sort((a, b) => b.dayKey.localeCompare(a.dayKey));
-    return sortedDays[0]?.count ?? 0;
-  }, [heatmap]);
+  const { streak, todayCount: studiedToday } = useMemo(
+    () => calculateVocaStreak(heatmap),
+    [heatmap],
+  );
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -220,6 +202,9 @@ export function VocaDashboardPage({
             </div>
           </div>
         </div>
+
+        {/* Weekly Streak Section */}
+        <VocaWeeklyStreak heatmap={heatmap} />
 
         {/* Heatmap Section */}
         <div className="space-y-2">
