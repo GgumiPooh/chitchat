@@ -2,7 +2,7 @@
 
 import type { VocaCard } from "@/entities/voca";
 import { cn, isCommandKey, warmSpeechVoices } from "@/shared/lib";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { Rating } from "../model/fsrs";
 import { CardFace } from "./card-face";
 
@@ -23,10 +23,10 @@ export function ReviewCardFrame({
   onRate,
   onUndo,
 }: ReviewCardFrameProps) {
-  const handleFlip = () => {
+  const handleFlip = useCallback(() => {
     warmSpeechVoices();
     onFlip();
-  };
+  }, [onFlip]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -68,20 +68,13 @@ export function ReviewCardFrame({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [card, isFlipped, onFlip, onRate, onUndo]);
+  }, [card, isFlipped, handleFlip, onRate, onUndo]);
 
   return (
-    <div
-      className={cn("w-full select-none", className)}
-      onClick={() => {
-        if (!isFlipped) {
-          handleFlip();
-        }
-      }}
-    >
+    <div className={cn("w-full select-none", className)}>
       <div
         key={isFlipped ? `${card.id}-back` : `${card.id}-front`}
-        className={cn("w-full animate-in duration-200 fade-in", !isFlipped && "cursor-pointer")}
+        className="w-full animate-in duration-200 fade-in"
       >
         <CardFace card={card} side={isFlipped ? "back" : "front"} autoplayAudio={isFlipped} />
       </div>

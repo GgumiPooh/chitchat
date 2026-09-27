@@ -75,7 +75,7 @@ function renderBlankSentence(sentence: string, targetWord: string): ReactNode {
       return (
         <span
           key={index}
-          className="mx-1 inline-block min-w-[72px] border-b-2 border-primary align-baseline font-bold text-transparent select-none"
+          className="mx-1.5 inline-block min-w-[80px] border-b-[2.5px] border-primary align-baseline font-bold text-transparent select-none sm:min-w-[96px]"
           aria-label="빈칸"
         >
           ______
@@ -360,33 +360,29 @@ export function CardFace({
     return (
       <div
         className={cn(
-          "flex min-h-[260px] flex-col justify-between rounded-2xl border border-hairline bg-canvas px-4 py-6 shadow-sm sm:min-h-[300px] sm:rounded-3xl sm:p-8",
+          "flex min-h-[280px] flex-col justify-center rounded-2xl border border-hairline bg-canvas px-5 py-8 shadow-sm sm:min-h-[340px] sm:rounded-3xl sm:p-10",
           className,
         )}
       >
         <div
           className={cn(
-            "flex w-full flex-1 flex-col items-center justify-center space-y-5 py-2 text-center sm:space-y-6 sm:py-4",
+            "flex w-full flex-1 flex-col items-center justify-center space-y-6 py-2 text-center sm:space-y-7 sm:py-4",
             contentClassName,
           )}
         >
           {/* Main Sentence with blank */}
-          <div className="w-full text-[18px] leading-[1.7] font-medium text-balance text-ink sm:text-[20px]">
+          <div className="w-full text-[21px] leading-[1.65] font-semibold text-balance text-ink sm:text-[25px]">
             {renderBlankSentence(card.sentence, card.targetWord)}
           </div>
 
           {/* Definition box */}
           {sanitizedDefinition && (
-            <div className="w-full rounded-xl bg-surface-soft/80 px-4 py-3 text-center sm:rounded-2xl sm:px-6 sm:py-4">
-              <p className="text-body-sm leading-relaxed text-body italic sm:text-body-md">
+            <div className="w-full rounded-2xl bg-surface-soft/80 px-5 py-3.5 text-center sm:rounded-2xl sm:px-7 sm:py-4.5">
+              <p className="text-body-md leading-relaxed text-body italic sm:text-body-lg">
                 {sanitizedDefinition}
               </p>
             </div>
           )}
-        </div>
-
-        <div className="pt-4 text-center text-caption text-meta select-none">
-          카드를 탭하여 정답과 해설 보기
         </div>
       </div>
     );
@@ -395,23 +391,25 @@ export function CardFace({
   return (
     <div
       className={cn(
-        "flex min-h-[300px] flex-col rounded-2xl border border-hairline bg-canvas px-4 py-6 shadow-sm sm:rounded-3xl sm:p-8",
+        "flex min-h-[320px] flex-col rounded-2xl border border-hairline bg-canvas px-5 py-8 shadow-sm sm:rounded-3xl sm:p-10",
         className,
       )}
     >
-      <div className={cn("space-y-6", contentClassName)}>
+      <div className={cn("space-y-7", contentClassName)}>
         {/* Header: Target word, POS badge + Pronunciation, word audio, Korean meaning */}
-        <div className="flex flex-col items-center space-y-3 pt-1 text-center">
-          <h2 className="text-display-md font-bold tracking-tight text-ink sm:text-display-lg">
+        <div className="flex flex-col items-center space-y-3.5 pt-1 text-center">
+          <h2 className="text-[30px] font-extrabold tracking-tight text-ink sm:text-[38px]">
             {card.targetWord}
           </h2>
 
-          <div className="flex items-center justify-center gap-2">
-            <span className="text-white inline-flex items-center justify-center rounded-full bg-ai px-2.5 py-0.5 text-micro font-bold tracking-wider uppercase dark:text-canvas">
+          <div className="flex items-center justify-center gap-2.5">
+            <span className="text-white inline-flex items-center justify-center rounded-full bg-ai px-2.5 py-0.5 text-caption font-bold tracking-wider uppercase dark:text-canvas">
               {formatPos(card.pos)}
             </span>
             {card.pronunciation && (
-              <span className="font-mono text-body-sm text-meta">{card.pronunciation}</span>
+              <span className="font-mono text-body-md text-meta sm:text-body-lg">
+                {card.pronunciation}
+              </span>
             )}
           </div>
 
@@ -427,7 +425,7 @@ export function CardFace({
             />
           </div>
 
-          <div className="pt-1 text-display-sm font-bold text-ink sm:text-display-md">
+          <div className="pt-1 text-[22px] font-bold text-ink sm:text-[26px]">
             {card.koreanMeaning}
           </div>
         </div>
@@ -436,8 +434,8 @@ export function CardFace({
         <hr className="my-2 w-full border-t border-hairline/80" />
 
         {/* Filled sentence with sentence audio */}
-        <div className="flex w-full flex-col items-center space-y-3 text-center">
-          <div className="w-full text-body-md leading-relaxed font-normal text-balance text-ink sm:text-title-sm">
+        <div className="flex w-full flex-col items-center space-y-3.5 text-center">
+          <div className="w-full text-body-lg leading-[1.65] font-normal text-balance text-ink sm:text-[19px]">
             {renderFilledSentence(card.sentence, card.targetWord)}
           </div>
 
@@ -455,42 +453,42 @@ export function CardFace({
         </div>
 
         {/* Section Cards: Confusable, Collocations, Word Family, Examples */}
-        <div className="space-y-3 pt-2">
+        <div className="space-y-3.5 pt-2">
           {card.confusable && (
-            <div className="space-y-1.5 rounded-2xl border border-hairline/80 bg-surface-soft/40 p-4 shadow-2xs">
-              <span className="block text-micro font-bold tracking-widest text-ai uppercase">
+            <div className="space-y-1.5 rounded-2xl border border-hairline/80 bg-surface-soft/40 p-4 shadow-2xs sm:p-5">
+              <span className="block text-caption font-bold tracking-wider text-ai uppercase">
                 Confusable
               </span>
-              <div className="text-body-sm leading-relaxed text-ink">{card.confusable}</div>
+              <div className="text-body-md leading-relaxed text-ink">{card.confusable}</div>
             </div>
           )}
 
           {card.collocations && (
-            <div className="space-y-1.5 rounded-2xl border border-hairline/80 bg-surface-soft/40 p-4 shadow-2xs">
-              <span className="block text-micro font-bold tracking-widest text-ai uppercase">
+            <div className="space-y-1.5 rounded-2xl border border-hairline/80 bg-surface-soft/40 p-4 shadow-2xs sm:p-5">
+              <span className="block text-caption font-bold tracking-wider text-ai uppercase">
                 Collocations
               </span>
-              <div className="text-body-sm leading-relaxed text-ink">{card.collocations}</div>
+              <div className="text-body-md leading-relaxed text-ink">{card.collocations}</div>
             </div>
           )}
 
           {card.wordFamily && (
-            <div className="space-y-1.5 rounded-2xl border border-hairline/80 bg-surface-soft/40 p-4 shadow-2xs">
-              <span className="block text-micro font-bold tracking-widest text-ai uppercase">
+            <div className="space-y-1.5 rounded-2xl border border-hairline/80 bg-surface-soft/40 p-4 shadow-2xs sm:p-5">
+              <span className="block text-caption font-bold tracking-wider text-ai uppercase">
                 Word Family
               </span>
-              <div className="text-body-sm leading-relaxed text-ink">{card.wordFamily}</div>
+              <div className="text-body-md leading-relaxed text-ink">{card.wordFamily}</div>
             </div>
           )}
 
           {card.examples && card.examples.length > 0 && (
-            <div className="space-y-2 rounded-2xl border border-hairline/80 bg-surface-soft/40 p-4 shadow-2xs">
-              <span className="block text-micro font-bold tracking-widest text-ai uppercase">
+            <div className="space-y-2.5 rounded-2xl border border-hairline/80 bg-surface-soft/40 p-4 shadow-2xs sm:p-5">
+              <span className="block text-caption font-bold tracking-wider text-ai uppercase">
                 Examples
               </span>
-              <ul className="divide-y divide-hairline/50 text-body-sm text-ink">
+              <ul className="divide-y divide-hairline/50 text-body-md text-ink sm:text-body-lg">
                 {card.examples.slice(0, 3).map((example, idx) => (
-                  <li key={idx} className={cn("leading-relaxed", idx > 0 && "pt-2.5")}>
+                  <li key={idx} className={cn("leading-relaxed", idx > 0 && "pt-3")}>
                     {renderRichText(example, "font-bold text-primary")}
                   </li>
                 ))}

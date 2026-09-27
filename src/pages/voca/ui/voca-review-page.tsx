@@ -104,7 +104,7 @@ export function VocaReviewPage({
   };
 
   return (
-    <div className={cn("flex min-h-dvh flex-col bg-canvas", className)}>
+    <div className={cn("-mb-(--bottom-inset) flex flex-1 flex-col bg-canvas", className)}>
       {/* Immersive Top Bar */}
       <header className="sticky top-0 z-20 h-14 border-b border-hairline bg-canvas/80 backdrop-blur-md">
         <Container className="grid h-full grid-cols-[1fr_auto_1fr] items-center" size="md">
@@ -138,17 +138,30 @@ export function VocaReviewPage({
       </header>
 
       {/* Main Review Body */}
-      <main className="flex-1 pt-4 pb-36 sm:pt-6 sm:pb-40">
-        <Container className="flex flex-col gap-6" size="md">
+      <main
+        className={cn(
+          "flex flex-1 flex-col",
+          isFlipped
+            ? "pt-4 pb-36 sm:pt-6 sm:pb-40"
+            : isCompleted
+              ? "pt-4 pb-12 sm:pt-6"
+              : "pt-2 pb-[calc(var(--bar-lift)+124px)] sm:pt-4",
+        )}
+      >
+        <Container className="flex flex-1 flex-col" size="md">
           {isCompleted ? (
-            <ReviewCompletionCard
-              newCardsRemaining={newCardsRemaining}
-              onAddWord={() => router.push(`${VOCA_ROUTE}?${VOCA_ACTION_PARAM}=${VOCA_ACTION_ADD}`)}
-              onBrowseCards={() => router.push(VOCA_CARDS_ROUTE)}
-              onStudyMore={handleStudyMore}
-            />
+            <div className="my-auto w-full">
+              <ReviewCompletionCard
+                newCardsRemaining={newCardsRemaining}
+                onAddWord={() =>
+                  router.push(`${VOCA_ROUTE}?${VOCA_ACTION_PARAM}=${VOCA_ACTION_ADD}`)
+                }
+                onBrowseCards={() => router.push(VOCA_CARDS_ROUTE)}
+                onStudyMore={handleStudyMore}
+              />
+            </div>
           ) : currentCard ? (
-            <div className="space-y-6">
+            <div className={cn("w-full", !isFlipped && "my-auto")}>
               <ReviewCardFrame
                 card={currentCard}
                 isFlipped={isFlipped}
@@ -166,11 +179,14 @@ export function VocaReviewPage({
         <div className="pointer-events-none fixed right-0 bottom-[calc(var(--bar-lift)+12px)] left-(--rail-width) z-20 animate-in duration-200 fade-in slide-in-from-bottom-2">
           <Container className="pointer-events-auto px-4" size="md">
             <div className="flex flex-col gap-2 rounded-2xl border border-hairline bg-canvas/95 p-2.5 shadow-floating backdrop-blur-md">
-              <VocaStudyCounts
-                learningCount={counts.learningCount}
-                newCount={counts.newCount}
-                reviewCount={counts.reviewCount}
-              />
+              {!isFlipped && (
+                <VocaStudyCounts
+                  activeState={currentCard.state}
+                  learningCount={counts.learningCount}
+                  newCount={counts.newCount}
+                  reviewCount={counts.reviewCount}
+                />
+              )}
 
               {!isFlipped ? (
                 <Button
@@ -179,8 +195,7 @@ export function VocaReviewPage({
                   haptic
                   onClick={handleFlip}
                 >
-                  <span>정답 보기</span>
-                  <span className="text-caption font-normal text-meta">(Space)</span>
+                  정답 보기
                 </Button>
               ) : (
                 <ReviewRatingBar
