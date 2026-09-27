@@ -14,12 +14,15 @@ import { cn, useSidePanel, type Nullable, type VocaCardId } from "@/shared/lib";
 import {
   AppHeader,
   BottomSheet,
+  Button,
   Container,
   EmptyState,
   IconButton,
   LoadMoreSentinel,
+  Modal,
   TwoPane,
 } from "@/shared/ui";
+import { josa } from "es-hangul";
 import {
   BookOpen,
   CheckSquare,
@@ -162,21 +165,31 @@ export function VocaCardsPage({
     void refresh();
   };
 
-  const handleBatchDelete = async () => {
-    if (!confirm(`선택한 ${selectedIds.size}장의 카드를 삭제할까요?`)) {
-      return;
-    }
-    for (const id of selectedIds) {
-      try {
-        await fetch(`/api/voca/cards/${id}`, { method: "DELETE" });
-      } catch (err) {
-        console.error(err);
+  const [isBatchDeleteDialogOpen, setIsBatchDeleteDialogOpen] = useState(false);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+
+  const handleBatchDelete = () => {
+    setIsBatchDeleteDialogOpen(true);
+  };
+
+  const handleConfirmBatchDelete = async () => {
+    setIsBatchDeleting(true);
+    try {
+      for (const id of selectedIds) {
+        try {
+          await fetch(`/api/voca/cards/${id}`, { method: "DELETE" });
+        } catch (err) {
+          console.error(err);
+        }
       }
+      toast.success("선택한 카드를 삭제했어요.");
+      setSelectedIds(new Set());
+      setIsSelectionMode(false);
+      setIsBatchDeleteDialogOpen(false);
+      void refresh();
+    } finally {
+      setIsBatchDeleting(false);
     }
-    toast.success("선택한 카드를 삭제했어요.");
-    setSelectedIds(new Set());
-    setIsSelectionMode(false);
-    void refresh();
   };
 
   const rosterHeaderAndControls = (
@@ -373,6 +386,36 @@ export function VocaCardsPage({
         onClose={() => setIsRecommendOpen(false)}
         onCardCreated={() => void refresh()}
       />
+
+      {/* Batch Delete Confirmation Dialog */}
+      <Modal
+        isOpen={isBatchDeleteDialogOpen}
+        size="sm"
+        header={{
+          title: `${josa(`선택한 ${selectedIds.size}장의 카드`, "을/를")} 삭제할까요?`,
+          description: "삭제한 카드는 다시 복구할 수 없어요.",
+        }}
+        onClose={() => setIsBatchDeleteDialogOpen(false)}
+      >
+        <div className="flex gap-xs">
+          <Button
+            className="flex-1"
+            variant="secondary"
+            onClick={() => setIsBatchDeleteDialogOpen(false)}
+          >
+            취소
+          </Button>
+          <Button
+            className="flex-1"
+            variant="destructive"
+            disabled={isBatchDeleting}
+            haptic
+            onClick={() => void handleConfirmBatchDelete()}
+          >
+            삭제
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -10,7 +10,8 @@ import {
   stopVocaSpeech,
   type VocaCardId,
 } from "@/shared/lib";
-import { Button, VocaAudioButton } from "@/shared/ui";
+import { Button, Modal, VocaAudioButton } from "@/shared/ui";
+import { josa } from "es-hangul";
 import { Ban, Check, RotateCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -375,11 +376,9 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm("정말 이 단어 카드를 삭제할까요?")) {
-      return;
-    }
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
+  const handleConfirmDelete = async () => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
@@ -394,6 +393,7 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
         throw new Error("Delete failed");
       }
       toast.success("단어 카드를 삭제했어요.");
+      setIsDeleteDialogOpen(false);
       onDelete(card.id);
     } catch (err) {
       console.error(err);
@@ -440,7 +440,8 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
             className="min-h-9 w-auto px-3 py-1 text-button-sm"
             disabled={isDeleting}
             variant="destructive"
-            onClick={handleDelete}
+            aria-label="단어 카드 삭제"
+            onClick={() => setIsDeleteDialogOpen(true)}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
@@ -580,6 +581,35 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
           onChange={(e) => setTags(e.target.value)}
         />
       </div>
+
+      <Modal
+        isOpen={isDeleteDialogOpen}
+        size="sm"
+        header={{
+          title: `${josa(card.targetWord, "을/를")} 삭제할까요?`,
+          description: "삭제한 단어 카드는 다시 복구할 수 없어요.",
+        }}
+        onClose={() => setIsDeleteDialogOpen(false)}
+      >
+        <div className="flex gap-xs">
+          <Button
+            className="flex-1"
+            variant="secondary"
+            onClick={() => setIsDeleteDialogOpen(false)}
+          >
+            취소
+          </Button>
+          <Button
+            className="flex-1"
+            variant="destructive"
+            disabled={isDeleting}
+            haptic
+            onClick={() => void handleConfirmDelete()}
+          >
+            삭제
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
