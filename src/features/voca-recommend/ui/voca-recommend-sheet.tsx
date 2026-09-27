@@ -2,7 +2,7 @@
 
 import { cn } from "@/shared/lib";
 import { BottomSheet, Button, EmptyState } from "@/shared/ui";
-import { BookOpen, RotateCw } from "lucide-react";
+import { BookOpen, Compass, RotateCw, Sparkles } from "lucide-react";
 import { useVocaRecommendation } from "../model/use-voca-recommendation";
 import { VocaRecommendFilterBar } from "./voca-recommend-filter-bar";
 import { VocaRecommendItemRow } from "./voca-recommend-item-row";
@@ -10,33 +10,35 @@ import { VocaRecommendItemRow } from "./voca-recommend-item-row";
 export type VocaRecommendSheetProps = {
   className?: string;
   isOpen: boolean;
-  onClose: () => void;
   onCardCreated?: () => void;
+  onClose: () => void;
 };
 
 export function VocaRecommendSheet({
   className,
   isOpen,
-  onClose,
   onCardCreated,
+  onClose,
 }: VocaRecommendSheetProps) {
   const {
-    tag,
-    grade,
     customTopic,
-    isCustomInputOpen,
-    items,
-    isLoading,
-    generationStatuses,
-    isGeneratingAny,
-    hasCreatedAny,
-    setCustomTopic,
-    setIsCustomInputOpen,
-    handleSelectTag,
-    handleSelectGrade,
-    handleCustomTopicSubmit,
     fetchRecommendations,
     generateCard,
+    generationStatuses,
+    grade,
+    handleCustomTopicSubmit,
+    handleSelectGrade,
+    handleSelectTag,
+    hasCreatedAny,
+    hasFetched,
+    isCustomInputOpen,
+    isFilterChanged,
+    isGeneratingAny,
+    isLoading,
+    items,
+    setCustomTopic,
+    setIsCustomInputOpen,
+    tag,
   } = useVocaRecommendation({
     isOpen,
     onCardCreated,
@@ -52,32 +54,32 @@ export function VocaRecommendSheet({
   return (
     <BottomSheet
       className={className}
+      header={{
+        description: "시험 및 난이도별로 엄선된 새로운 단어를 추천해드려요.",
+        title: "✨ AI 맞춤 단어 추천",
+      }}
       isOpen={isOpen}
       isTall
       keepsHeightUnderKeyboard={isCustomInputOpen}
-      header={{
-        title: "✨ AI 맞춤 단어 추천",
-        description: "시험 및 난이도별로 엄선된 새로운 단어를 추천해드려요.",
-      }}
       onClose={handleClose}
     >
       <div className="space-y-4 pt-1 pb-6">
         {/* Filters */}
         <VocaRecommendFilterBar
-          selectedTag={tag}
-          selectedGrade={grade}
           customTopic={customTopic}
-          isCustomInputOpen={isCustomInputOpen}
           disabled={isLoading || isGeneratingAny}
-          onSelectTag={handleSelectTag}
-          onSelectGrade={handleSelectGrade}
+          isCustomInputOpen={isCustomInputOpen}
+          selectedGrade={grade}
+          selectedTag={tag}
           onCustomTopicChange={setCustomTopic}
           onCustomTopicSubmit={handleCustomTopicSubmit}
+          onSelectGrade={handleSelectGrade}
+          onSelectTag={handleSelectTag}
           onToggleCustomInput={() => setIsCustomInputOpen((prev) => !prev)}
         />
 
-        {/* Word Items List or Skeleton */}
-        <div className="min-h-[280px] space-y-2">
+        {/* Content Area */}
+        <div className="min-h-[260px] space-y-2">
           {isLoading ? (
             <div className="space-y-2 pt-1">
               {[1, 2, 3, 4].map((idx) => (
@@ -86,14 +88,38 @@ export function VocaRecommendSheet({
                   className="bg-surface flex items-center justify-between rounded-2xl border border-hairline p-4"
                 >
                   <div className="space-y-2">
-                    <div className="h-5 w-28 animate-pulse rounded-md bg-surface-soft" />
-                    <div className="h-4 w-44 animate-pulse rounded-md bg-surface-soft" />
+                    <div className="bg-surface-soft h-5 w-28 animate-pulse rounded-md" />
+                    <div className="bg-surface-soft h-4 w-44 animate-pulse rounded-md" />
                   </div>
-                  <div className="h-8 w-20 animate-pulse rounded-xl bg-surface-soft" />
+                  <div className="bg-surface-soft h-8 w-20 animate-pulse rounded-xl" />
                 </div>
               ))}
             </div>
+          ) : !hasFetched ? (
+            /* Initial State: Waiting for user to configure and trigger recommendation */
+            <div className="bg-surface flex flex-col items-center justify-center rounded-2xl border border-hairline p-8 text-center">
+              <div className="bg-primary-tint text-primary flex h-14 w-14 items-center justify-center rounded-full">
+                <Compass className="h-7 w-7" />
+              </div>
+              <h4 className="text-title-sm font-bold text-ink mt-4">
+                {tag === "전체" ? "맞춤 영단어 추천" : `${tag} 단어 추천`}
+              </h4>
+              <p className="text-body-sm text-meta mt-1.5 max-w-[280px]">
+                위에서 목표와 빈출 난이도를 선택한 후 아래 버튼을 누르면 AI가 엄선한 단어들을
+                가져옵니다.
+              </p>
+              <Button
+                className="mt-6 w-full max-w-[280px] gap-2"
+                haptic
+                variant="primary"
+                onClick={() => void fetchRecommendations()}
+              >
+                <Sparkles className="h-4 w-4" />
+                단어 추천받기
+              </Button>
+            </div>
           ) : items.length > 0 ? (
+            /* Items List */
             items.map((item) => {
               const status = generationStatuses[item.targetWord.toLowerCase()] ?? "idle";
               return (
@@ -113,25 +139,36 @@ export function VocaRecommendSheet({
           )}
         </div>
 
-        {/* Bottom Refresh Action */}
-        <div className="space-y-2 pt-2">
-          <Button
-            className="w-full gap-2"
-            variant="secondary"
-            haptic
-            disabled={isLoading || isGeneratingAny}
-            onClick={() => fetchRecommendations()}
-          >
-            <RotateCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-            다른 단어 다시 추천받기
-          </Button>
+        {/* Bottom Actions (Shown once recommendations have been loaded) */}
+        {hasFetched && (
+          <div className="space-y-2 pt-2">
+            <Button
+              className="w-full gap-2"
+              disabled={isLoading || isGeneratingAny}
+              haptic
+              variant={isFilterChanged ? "primary" : "secondary"}
+              onClick={() => void fetchRecommendations()}
+            >
+              {isFilterChanged ? (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  선택한 조건으로 새로 추천받기
+                </>
+              ) : (
+                <>
+                  <RotateCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+                  다른 단어 다시 추천받기
+                </>
+              )}
+            </Button>
 
-          {isGeneratingAny && (
-            <p className="text-center text-caption text-meta">
-              단어를 생성하고 있어요. 잠시만 기다려주세요...
-            </p>
-          )}
-        </div>
+            {isGeneratingAny && (
+              <p className="text-caption text-meta text-center">
+                단어를 생성하고 있어요. 잠시만 기다려주세요...
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </BottomSheet>
   );

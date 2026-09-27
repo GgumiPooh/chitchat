@@ -1,7 +1,7 @@
 "use client";
 
 import { josa } from "es-hangul";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import type {
   VocaRecommendGrade,
@@ -11,16 +11,15 @@ import type {
 } from "./types";
 
 export type UseVocaRecommendationOptions = {
-  isOpen: boolean;
-  initialTag?: VocaRecommendTag;
   initialGrade?: VocaRecommendGrade;
+  initialTag?: VocaRecommendTag;
+  isOpen: boolean;
   onCardCreated?: () => void;
 };
 
 export function useVocaRecommendation({
-  isOpen,
-  initialTag = "전체",
   initialGrade = "core",
+  initialTag = "전체",
   onCardCreated,
 }: UseVocaRecommendationOptions) {
   const [tag, setTag] = useState<VocaRecommendTag>(initialTag);
@@ -35,59 +34,53 @@ export function useVocaRecommendation({
   >({});
   const [hasCreatedAny, setHasCreatedAny] = useState(false);
 
-  // Prevent multiple initial fetches
-  const hasLoadedRef = useRef(false);
+  // Tracks what parameters were used in the last successful fetch
+  const [lastFetchedParams, setLastFetchedParams] = useState<{
+    customTopic: string;
+    grade: VocaRecommendGrade;
+    tag: VocaRecommendTag;
+  } | null>(null);
 
-  const fetchRecommendations = useCallback(
-    async (overrideTag?: VocaRecommendTag, overrideGrade?: VocaRecommendGrade) => {
-      setIsLoading(true);
-      try {
-        const activeTag = overrideTag ?? tag;
-        const activeGrade = overrideGrade ?? grade;
+  const fetchRecommendations = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/voca/recommend", {
+        body: JSON.stringify({
+          count: 8,
+          customTopic: customTopic.trim() || undefined,
+          grade,
+          tag,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
 
-        const res = await fetch("/api/voca/recommend", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tag: activeTag,
-            grade: activeGrade,
-            customTopic: customTopic.trim() || undefined,
-            count: 8,
-          }),
-        });
-
-        if (!res.ok) {
-          throw new Error(`Failed to fetch recommendations: ${res.status}`);
-        }
-
-        const data = await res.json();
-        setItems(data.items ?? []);
-      } catch (error) {
-        console.error("[useVocaRecommendation] Fetch failed:", error);
-        toast.error("추천 단어 목록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
-      } finally {
-        setIsLoading(false);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch recommendations: ${res.status}`);
       }
-    },
-    [tag, grade, customTopic],
-  );
 
-  // Initial fetch when opened for the first time
-  useEffect(() => {
-    if (isOpen && !hasLoadedRef.current) {
-      hasLoadedRef.current = true;
-      void fetchRecommendations();
+      const data = await res.json();
+      setItems(data.items ?? []);
+      setLastFetchedParams({
+        customTopic: customTopic.trim(),
+        grade,
+        tag,
+      });
+    } catch (error) {
+      console.error("[useVocaRecommendation] Fetch failed:", error);
+      toast.error("추천 단어 목록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setIsLoading(false);
     }
-  }, [isOpen, fetchRecommendations]);
+  }, [tag, grade, customTopic]);
 
+  // Pure selection updates: NO automatic network requests on filter click!
   const handleSelectTag = (nextTag: VocaRecommendTag) => {
     setTag(nextTag);
-    void fetchRecommendations(nextTag, grade);
   };
 
   const handleSelectGrade = (nextGrade: VocaRecommendGrade) => {
     setGrade(nextGrade);
-    void fetchRecommendations(tag, nextGrade);
   };
 
   const handleCustomTopicSubmit = () => {
@@ -103,12 +96,12 @@ export function useVocaRecommendation({
 
     try {
       const res = await fetch("/api/voca/ai-generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          word: item.targetWord,
           mode: "sync",
+          word: item.targetWord,
         }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
       });
 
       if (!res.ok) {
@@ -126,24 +119,35 @@ export function useVocaRecommendation({
     }
   };
 
-  const isGeneratingAny = Object.values(generationStatuses).some((status) => status === "loading");
+  const isGeneratingAny = Object.values(generationStatuses).some(
+    (status) => status === "loading",
+  );
+
+  const hasFetched = lastFetchedParams !== null;
+  const isFilterChanged =
+    hasFetched &&
+    (lastFetchedParams.tag !== tag ||
+      lastFetchedParams.grade !== grade ||
+      lastFetchedParams.customTopic !== customTopic.trim());
 
   return {
-    tag,
-    grade,
     customTopic,
-    isCustomInputOpen,
-    items,
-    isLoading,
-    generationStatuses,
-    isGeneratingAny,
-    hasCreatedAny,
-    setCustomTopic,
-    setIsCustomInputOpen,
-    handleSelectTag,
-    handleSelectGrade,
-    handleCustomTopicSubmit,
     fetchRecommendations,
     generateCard,
+    generationStatuses,
+    grade,
+    handleCustomTopicSubmit,
+    handleSelectGrade,
+    handleSelectTag,
+    hasCreatedAny,
+    hasFetched,
+    isCustomInputOpen,
+    isFilterChanged,
+    isGeneratingAny,
+    isLoading,
+    items,
+    setCustomTopic,
+    setIsCustomInputOpen,
+    tag,
   };
 }
