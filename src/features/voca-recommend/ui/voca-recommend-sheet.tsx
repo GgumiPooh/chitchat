@@ -55,7 +55,6 @@ export function VocaRecommendSheet({
     <BottomSheet
       className={className}
       isOpen={isOpen}
-      isTall
       header={{
         className: "-mb-1.5",
         title: "✨ AI 맞춤 단어 추천",
@@ -82,7 +81,7 @@ export function VocaRecommendSheet({
         />
 
         {/* Content Area */}
-        <div className="min-h-[260px] space-y-2">
+        <div className="space-y-2">
           {isLoading ? (
             <div className="space-y-2 pt-1">
               {[1, 2, 3, 4].map((idx) => (
