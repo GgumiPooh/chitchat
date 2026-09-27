@@ -172,7 +172,7 @@ export function VocaDashboardPage({
                 onClick={() => setIsAiDialogOpen(true)}
               >
                 <Sparkles className="h-4 w-4 text-primary" />
-                <span>AI 추가</span>
+                <span>단어 추가</span>
               </Button>
             </div>
           </div>
