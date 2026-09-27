@@ -1,6 +1,6 @@
 "use client";
 
-import { cn, type Nullable } from "@/shared/lib";
+import { cn, isValidAudioUrl, speakVocaText, stopVocaSpeech, type Nullable } from "@/shared/lib";
 import { Pause, Play, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -58,44 +58,35 @@ export function VocaAudioButton({
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+      audioRef.current.removeAttribute("src");
+      audioRef.current.load();
       audioRef.current = null;
     }
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
+    stopVocaSpeech();
     setInternalIsPlaying(false);
   }, []);
 
   const speakFallback = useCallback(() => {
-    if (!textToSpeak || typeof window === "undefined" || !("speechSynthesis" in window)) {
+    if (!textToSpeak) {
       setInternalIsPlaying(false);
       return;
     }
 
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      utterance.lang = "en-US";
-      utterance.rate = 0.9;
-
-      utterance.onstart = () => setInternalIsPlaying(true);
-      utterance.onend = () => setInternalIsPlaying(false);
-      utterance.onerror = () => setInternalIsPlaying(false);
-
-      window.speechSynthesis.speak(utterance);
-    } catch {
-      setInternalIsPlaying(false);
-    }
+    speakVocaText(textToSpeak, {
+      onStart: () => setInternalIsPlaying(true),
+      onEnd: () => setInternalIsPlaying(false),
+      onError: () => setInternalIsPlaying(false),
+    });
   }, [textToSpeak]);
 
   const playAudio = useCallback(() => {
-    if (audioUrl) {
+    if (isValidAudioUrl(audioUrl)) {
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
       }
 
-      const audio = new Audio(audioUrl);
+      const audio = new Audio(audioUrl!);
       audioRef.current = audio;
 
       audio.onplay = () => setInternalIsPlaying(true);

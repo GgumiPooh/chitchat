@@ -31,6 +31,14 @@ export {
   type SoundPriority,
 } from "./audio/sound";
 export {
+  getEnglishVoice,
+  isValidAudioUrl,
+  speakVocaText,
+  stopVocaSpeech,
+  warmSpeechVoices,
+  type SpeakVocaOptions,
+} from "./audio/voca-speech";
+export {
   discardVoicePlayer,
   isVoiceActive,
   seekVoice,

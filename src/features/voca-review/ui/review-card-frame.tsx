@@ -1,7 +1,7 @@
 "use client";
 
 import type { VocaCard } from "@/entities/voca";
-import { cn, isCommandKey } from "@/shared/lib";
+import { cn, isCommandKey, warmSpeechVoices } from "@/shared/lib";
 import { useEffect } from "react";
 import { Rating } from "../model/fsrs";
 import { CardFace } from "./card-face";
@@ -23,6 +23,11 @@ export function ReviewCardFrame({
   onRate,
   onUndo,
 }: ReviewCardFrameProps) {
+  const handleFlip = () => {
+    warmSpeechVoices();
+    onFlip();
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.isComposing) {
@@ -39,7 +44,7 @@ export function ReviewCardFrame({
       // Space to flip
       if (e.code === "Space") {
         e.preventDefault();
-        onFlip();
+        handleFlip();
         return;
       }
 
@@ -70,7 +75,7 @@ export function ReviewCardFrame({
       className={cn("w-full select-none", className)}
       onClick={() => {
         if (!isFlipped) {
-          onFlip();
+          handleFlip();
         }
       }}
     >
