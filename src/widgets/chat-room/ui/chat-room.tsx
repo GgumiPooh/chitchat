@@ -94,6 +94,7 @@ import {
   findFirstUrl,
   focusWithoutPan,
   holdAwake,
+  isEditableElement,
   isSidePanelAnimating,
   maxId,
   onSidePanelSettled,
@@ -103,6 +104,7 @@ import {
   stopVoice,
   subscribeDormancy,
   toId,
+  useIsCoarsePointer,
   useIsFinePointer,
   useIsViewportSettling,
   useIsVirtualKeyboardOpen,
@@ -416,6 +418,7 @@ export function ChatRoom({
   const menuAnchorRef = useRef<Nullable<HTMLElement>>(null);
   // INFO: DESIGN.md § 7.5. Where the hold or right-click fired, so the menu is pinned to the pointer rather than to the whole bubble — a bubble taller than the visible area cannot carry a below-anchored menu off screen.
   const menuAnchorPointRef = useRef<Nullable<LongPressPoint>>(null);
+  const pendingMenuTimerRef = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   // INFO: REQUIREMENTS.md § 9.3. The recorder bar stands in the composer stack while it is true. Mounting is what starts the microphone, so this is only ever set from the tap that asked for it.
   const [isRecording, setIsRecording] = useState(false);
@@ -675,6 +678,7 @@ export function ChatRoom({
   const isViewportSettling = useIsViewportSettling(sheetSwap !== null);
   // INFO: REQUIREMENTS.md § 8.14. Whether there is a keyboard to type at, which is what holds § 8.14.'s type-ahead and its paste to the desktop.
   const isFinePointer = useIsFinePointer();
+  const isCoarsePointer = useIsCoarsePointer();
   // INFO: REQUIREMENTS.md § 8.6. The composer's whole stack is put away for the length of a search, and everything it drives has to go with it.
   const isSearching = bottomBar !== undefined;
   // WARN: REQUIREMENTS.md § 13.8. The exemption outlives the tab by the length of the keyboard's retraction, which is what this latch holds. Leaving 검색 unmounts the field the panel had focused and the keyboard is only reported down some 250ms later — released with the tab, those frames are an unexempted panel that collapses to nothing and reopens by itself once the keys finish sliding.
@@ -1942,6 +1946,8 @@ export function ChatRoom({
 
     // WARN: § 13.9. An emoticon bubble is excluded alongside the composer, and for the same reason turned inside out: that tap re-aims this panel rather than reaching past it, and `pointerup` runs a frame before the `click` — left armed, the panel collapses and reopens on every 따라하기.
     const arm = ({ target, clientX, clientY }: PointerEvent) => {
+      clearTimeout(pendingMenuTimerRef.current);
+
       const isExcluded =
         target instanceof Node &&
         (composerRef.current?.contains(target) ||
@@ -2077,6 +2083,10 @@ export function ChatRoom({
 
     return () => clearTimeout(timer);
   }, [highlightedId]);
+
+  useEffect(() => {
+    return () => clearTimeout(pendingMenuTimerRef.current);
+  }, []);
 
   return (
     // INFO: DESIGN.md § 3.5. One scroll region spanning the whole screen; the composer and the tab bar float over its bottom edge rather than shortening it.
@@ -2414,7 +2424,10 @@ export function ChatRoom({
             />
           ) : undefined
         }
-        onClose={() => setActionTarget(null)}
+        onClose={() => {
+          clearTimeout(pendingMenuTimerRef.current);
+          setActionTarget(null);
+        }}
       />
       <MiniEmoticonSheet
         isOpen={miniEmoticonTargetId !== null}
@@ -3455,17 +3468,10 @@ export function ChatRoom({
             onOpenReply={
               question ? () => void jumpToMessage(question.id, { flash: true }) : undefined
             }
-            onLongPress={(anchor, point) => {
-              if (document.activeElement instanceof HTMLElement) {
-                document.activeElement.blur();
-              }
-              menuAnchorRef.current = anchor;
-              menuAnchorPointRef.current = point;
-              setActionTarget(row.message);
-            }}
             onShare={
               canShareMessage(row.message) ? () => void shareMessage(row.message) : undefined
             }
+            onLongPress={(anchor, point) => openMessageMenu(row.message, anchor, point)}
             onExpand={() => expandBody(row.message, true)}
             onFollowUp={() => stageReply(row.message)}
             onToggleReaction={(reaction) => void handleReaction(row.message.id, reaction)}
@@ -3588,14 +3594,7 @@ export function ChatRoom({
             onOpenMedia={(index, origin) =>
               openAttachment(cells, index, row.message.id, row.message.senderId, origin)
             }
-            onLongPress={(anchor, point) => {
-              if (document.activeElement instanceof HTMLElement) {
-                document.activeElement.blur();
-              }
-              menuAnchorRef.current = anchor;
-              menuAnchorPointRef.current = point;
-              setActionTarget(row.message);
-            }}
+            onLongPress={(anchor, point) => openMessageMenu(row.message, anchor, point)}
             onToggleReaction={(reaction) => void handleReaction(row.message.id, reaction)}
             onOpenReply={quoted ? () => void jumpToMessage(quoted.id, { flash: true }) : undefined}
             onFollowEmoticon={toFollowEmoticon(row.message.emoticon)}
@@ -3607,6 +3606,64 @@ export function ChatRoom({
         );
       }
     }
+  }
+
+  /**
+   * DESIGN.md § 7.5. Opens the message action sheet as a contextual menu.
+   *
+   * WARN: On coarse pointer (touch) devices with an active virtual keyboard, opening the
+   * menu synchronously with `blur()` causes the resulting keyboard retraction and list FLIP
+   * to fire scroll events that immediately dismiss `ActionSheet`, while leaving the anchor
+   * point misaligned. We blur the input first, wait for the keyboard retraction and list
+   * transition to settle, re-anchor against the bubble's final bounding rect, and then open.
+   * On fine pointers (desktop mouse right-click), blur produces no virtual keyboard
+   * retraction or layout shift, so the menu opens immediately.
+   */
+  function openMessageMenu(message: ChatMessage, anchor: HTMLElement, point: LongPressPoint) {
+    const activeElement = document.activeElement;
+    const needsLayoutShiftDelay =
+      isCoarsePointer &&
+      (isKeyboardOpen || (activeElement !== null && isEditableElement(activeElement)));
+
+    if (!needsLayoutShiftDelay) {
+      if (activeElement instanceof HTMLElement) {
+        activeElement.blur();
+      }
+      menuAnchorRef.current = anchor;
+      menuAnchorPointRef.current = point;
+      setActionTarget(message);
+      return;
+    }
+
+    if (activeElement instanceof HTMLElement) {
+      activeElement.blur();
+    }
+
+    const initialAnchorRect = anchor.getBoundingClientRect();
+    const relativeOffsetX = point.x - initialAnchorRect.left;
+    const relativeOffsetY = point.y - initialAnchorRect.top;
+
+    clearTimeout(pendingMenuTimerRef.current);
+
+    pendingMenuTimerRef.current = setTimeout(() => {
+      pendingMenuTimerRef.current = undefined;
+
+      if (!anchor.isConnected) {
+        return;
+      }
+
+      const finalAnchorRect = anchor.getBoundingClientRect();
+      if (finalAnchorRect.width === 0 && finalAnchorRect.height === 0) {
+        return;
+      }
+
+      menuAnchorRef.current = anchor;
+      menuAnchorPointRef.current = {
+        x: finalAnchorRect.left + relativeOffsetX,
+        y: finalAnchorRect.top + relativeOffsetY,
+      };
+      setActionTarget(message);
+    }, 320);
   }
 
   /**

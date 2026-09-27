@@ -187,15 +187,24 @@ export function ActionSheet({
       return;
     }
 
+    // WARN: Armed on requestAnimationFrame so a scroll event queued during the mount frame cannot close the menu before it has even painted.
+    let isArmed = false;
+    const armFrame = requestAnimationFrame(() => {
+      isArmed = true;
+    });
+
     const handleScroll = (event: Event) => {
-      if (menuRef.current?.contains(event.target as Node)) {
+      if (!isArmed || menuRef.current?.contains(event.target as Node)) {
         return;
       }
 
       closeFromOutside();
     };
     document.addEventListener("scroll", handleScroll, true);
-    return () => document.removeEventListener("scroll", handleScroll, true);
+    return () => {
+      cancelAnimationFrame(armFrame);
+      document.removeEventListener("scroll", handleScroll, true);
+    };
   }, [isMenu, isOpen]);
   const handleMenuKeyDown = useRovingTabIndex({
     orientation: "vertical",
