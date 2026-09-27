@@ -2,6 +2,7 @@
 
 import type { VocaCard } from "@/entities/voca";
 import {
+  cleanSentenceForSpeech,
   cn,
   isCommandKey,
   isValidAudioUrl,
@@ -45,16 +46,6 @@ function renderRichText(text: string, boldClassName = "font-bold text-primary"):
     const cleanPart = part.replace(/<\/?b>/gi, "");
     return <span key={index}>{cleanPart}</span>;
   });
-}
-
-/**
- * Cleans raw sentence text for text-to-speech fallback, removing <b> tags and underscores.
- */
-function cleanSentenceForSpeech(sentence: string, targetWord: string): string {
-  return sentence
-    .replace(/<\/?b>/gi, "")
-    .replace(/_{3,}/g, targetWord)
-    .trim();
 }
 
 /**

@@ -31,6 +31,7 @@ export {
   type SoundPriority,
 } from "./audio/sound";
 export {
+  cleanSentenceForSpeech,
   getEnglishVoice,
   isValidAudioUrl,
   speakVocaText,

@@ -1,10 +1,17 @@
 "use client";
 
 import type { VocaCard } from "@/entities/voca";
-import { cn, type VocaCardId } from "@/shared/lib";
-import { Button } from "@/shared/ui";
+import {
+  cleanSentenceForSpeech,
+  cn,
+  isValidAudioUrl,
+  speakVocaText,
+  stopVocaSpeech,
+  type VocaCardId,
+} from "@/shared/lib";
+import { Button, VocaAudioButton } from "@/shared/ui";
 import { Ban, Check, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 export type VocaInlineEditorProps = {
@@ -30,6 +37,125 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
 
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [activeTrack, setActiveTrack] = useState<"word" | "sentence" | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopAllAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current.onplay = null;
+      audioRef.current.removeAttribute("src");
+      audioRef.current.load();
+      audioRef.current = null;
+    }
+    stopVocaSpeech();
+    setActiveTrack(null);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopAllAudio();
+    };
+  }, [stopAllAudio]);
+
+  const playTrack = useCallback(
+    (track: "word" | "sentence") => {
+      stopAllAudio();
+      setActiveTrack(track);
+
+      const isWord = track === "word";
+      const isWordUnchanged = targetWord.trim() === card.targetWord.trim();
+      const isSentenceUnchanged = sentence.trim() === card.sentence.trim();
+
+      const rawAudioUrl = isWord
+        ? isWordUnchanged
+          ? card.audioUrl
+          : null
+        : isSentenceUnchanged && isWordUnchanged
+          ? card.sentenceAudioUrl
+          : null;
+
+      const fallbackText = isWord
+        ? targetWord.trim()
+        : cleanSentenceForSpeech(sentence, targetWord);
+
+      const triggerSpeech = () => {
+        if (!fallbackText) {
+          setActiveTrack(null);
+          return;
+        }
+
+        speakVocaText(fallbackText, {
+          onStart: () => {
+            setActiveTrack(track);
+          },
+          onEnd: () => {
+            setActiveTrack(null);
+          },
+          onError: () => {
+            setActiveTrack(null);
+          },
+        });
+      };
+
+      if (isValidAudioUrl(rawAudioUrl)) {
+        if (!audioRef.current && typeof Audio !== "undefined") {
+          audioRef.current = new Audio();
+        }
+        const audio = audioRef.current;
+        if (audio) {
+          audio.src = rawAudioUrl!;
+          audio.onplay = () => {
+            setActiveTrack(track);
+          };
+          audio.onended = () => {
+            setActiveTrack(null);
+          };
+          audio.onerror = () => {
+            triggerSpeech();
+          };
+
+          const playPromise = audio.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(() => {
+              triggerSpeech();
+            });
+          }
+          return;
+        }
+      }
+
+      triggerSpeech();
+    },
+    [
+      card.audioUrl,
+      card.sentenceAudioUrl,
+      card.sentence,
+      card.targetWord,
+      sentence,
+      stopAllAudio,
+      targetWord,
+    ],
+  );
+
+  const handleToggleWord = () => {
+    if (activeTrack === "word") {
+      stopAllAudio();
+    } else {
+      playTrack("word");
+    }
+  };
+
+  const handleToggleSentence = () => {
+    if (activeTrack === "sentence") {
+      stopAllAudio();
+    } else {
+      playTrack("sentence");
+    }
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -78,6 +204,7 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
       return;
     }
 
+    stopAllAudio();
     setIsDeleting(true);
     try {
       const res = await fetch(`/api/voca/cards/${card.id}`, { method: "DELETE" });
@@ -123,7 +250,17 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <label className="text-caption font-semibold text-meta">단어</label>
+          <div className="flex h-7 items-center justify-between">
+            <label className="text-caption font-semibold text-meta">단어</label>
+            <VocaAudioButton
+              audioUrl={targetWord.trim() === card.targetWord.trim() ? card.audioUrl : null}
+              isPlaying={activeTrack === "word"}
+              label={`${targetWord || "단어"} 발음 듣기`}
+              size="sm"
+              textToSpeak={targetWord.trim()}
+              onTogglePlay={handleToggleWord}
+            />
+          </div>
           <input
             className="w-full rounded-lg border border-hairline bg-surface-soft p-2 text-body-sm text-ink focus:border-primary focus:outline-none"
             value={targetWord}
@@ -131,7 +268,9 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
           />
         </div>
         <div className="space-y-1">
-          <label className="text-caption font-semibold text-meta">품사</label>
+          <div className="flex h-7 items-center">
+            <label className="text-caption font-semibold text-meta">품사</label>
+          </div>
           <input
             className="w-full rounded-lg border border-hairline bg-surface-soft p-2 text-body-sm text-ink focus:border-primary focus:outline-none"
             value={pos}
@@ -170,9 +309,24 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
       </div>
 
       <div className="space-y-1">
-        <label className="text-caption font-semibold text-meta">
-          빈칸 문맥 문장 (빈칸: &lt;b&gt;__________&lt;/b&gt;)
-        </label>
+        <div className="flex h-7 items-center justify-between">
+          <label className="text-caption font-semibold text-meta">
+            빈칸 문맥 문장 (빈칸: &lt;b&gt;__________&lt;/b&gt;)
+          </label>
+          <VocaAudioButton
+            isPlaying={activeTrack === "sentence"}
+            label="예문 전체 듣기"
+            size="sm"
+            textToSpeak={cleanSentenceForSpeech(sentence, targetWord)}
+            audioUrl={
+              sentence.trim() === card.sentence.trim() &&
+              targetWord.trim() === card.targetWord.trim()
+                ? card.sentenceAudioUrl
+                : null
+            }
+            onTogglePlay={handleToggleSentence}
+          />
+        </div>
         <textarea
           className="w-full resize-none rounded-lg border border-hairline bg-surface-soft p-2 text-body-sm text-ink focus:border-primary focus:outline-none"
           rows={2}

@@ -6,6 +6,19 @@ let activeUtterance: Nullable<SpeechSynthesisUtterance> = null;
 let cancelTimer: Nullable<NodeJS.Timeout> = null;
 
 /**
+ * Cleans raw sentence text for text-to-speech fallback, removing <b> tags and underscores.
+ */
+export function cleanSentenceForSpeech(sentence: string, targetWord: string): string {
+  if (!sentence) {
+    return "";
+  }
+  return sentence
+    .replace(/<\/?b>/gi, "")
+    .replace(/_{3,}/g, targetWord.trim())
+    .trim();
+}
+
+/**
  * Checks whether an audio URL is a valid, fetchable web address or blob.
  * Rejects Anki audio references (e.g. "[sound:word.mp3]"), HTML, or empty values.
  */
