@@ -266,6 +266,7 @@ export {
   type LineProbe,
 } from "./text/line-height";
 export { findQueryIndex, splitTextByQuery, type QuerySegment } from "./text/query-match";
+export { stripMarkdown } from "./text/strip-markdown";
 export {
   countInlineLines,
   countTextLines,

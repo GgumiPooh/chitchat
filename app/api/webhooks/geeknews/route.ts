@@ -3,7 +3,7 @@ import "server-only";
 import { pushToUser } from "@/entities/push-subscription";
 import { apiError } from "@/shared/api";
 import { geeknewsArticles, geeknewsSubscriptions, getDb, nextSnowflake } from "@/shared/db";
-import { safelyRunAsync, type NewsArticleId } from "@/shared/lib";
+import { safelyRunAsync, stripMarkdown, type NewsArticleId } from "@/shared/lib";
 import { eq } from "drizzle-orm";
 import { after, NextResponse } from "next/server";
 import crypto from "node:crypto";
@@ -45,6 +45,24 @@ function extractTopicId(candidate: string): string | null {
 function stripHtmlAndCdata(text: string): string {
   return text
     .replace(/<!\[CDATA\[(.*?)\]\]>/gs, "$1")
+    .replace(/<[^>]*>?/gm, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
+function htmlToMarkdown(html: string): string {
+  return html
+    .replace(/<!\[CDATA\[(.*?)\]\]>/gs, "$1")
+    .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, "**$1**")
+    .replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, "**$1**")
+    .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, "*$1*")
+    .replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, "*$1*")
+    .replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, "`$1`")
+    .replace(/<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)")
     .replace(/<[^>]*>?/gm, "")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
@@ -112,7 +130,7 @@ async function fetchTopicDetails(geeknewsId: string): Promise<TopicDetails> {
       if (ulMatch) {
         const items = [...ulMatch[1].matchAll(/<li>([\s\S]*?)<\/li>/gi)];
         if (items.length > 0) {
-          summary = items.map((m) => `• ${stripHtmlAndCdata(m[1])}`).join("\n");
+          summary = items.map((m) => `• ${htmlToMarkdown(m[1])}`).join("\n");
         }
       }
     }
@@ -286,7 +304,7 @@ export async function POST(request: Request) {
       for (const subscriber of subscribers) {
         await pushToUser(subscriber.userId, {
           title: `[GeekNews] ${article.title}`,
-          body: article.summary,
+          body: stripMarkdown(article.summary),
           url: `/playground/news?id=${article.id}`,
           tag: `geeknews-${article.id}`,
         });

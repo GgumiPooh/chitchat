@@ -40,6 +40,24 @@ function stripHtmlAndCdata(text) {
     .trim();
 }
 
+function htmlToMarkdown(html) {
+  return html
+    .replace(/<!\[CDATA\[(.*?)\]\]>/gs, "$1")
+    .replace(/<strong[^>]*>(.*?)<\/strong>/gi, "**$1**")
+    .replace(/<b[^>]*>(.*?)<\/b>/gi, "**$1**")
+    .replace(/<em[^>]*>(.*?)<\/em>/gi, "*$1*")
+    .replace(/<i[^>]*>(.*?)<\/i>/gi, "*$1*")
+    .replace(/<code[^>]*>(.*?)<\/code>/gi, "`$1`")
+    .replace(/<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi, "[$2]($1)")
+    .replace(/<[^>]*>?/gm, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
 function parseDiscordMessages(messages) {
   const articles = [];
   for (const msg of messages) {
@@ -56,7 +74,7 @@ function parseDiscordMessages(messages) {
       const emb = msg.embeds[0];
       title = stripHtmlAndCdata(emb.title || "");
       geeknewsUrl = (emb.url || "").trim();
-      summary = stripHtmlAndCdata(emb.description || "");
+      summary = emb.description ? htmlToMarkdown(emb.description) : "";
     } else if (msg.content) {
       const content = msg.content;
       const mdLinkMatch = content.match(/\*\*\[([^\]]+)\]\(<?( ?https?:\/\/[^>)\s]+)>?\)\*\*/);
@@ -150,7 +168,7 @@ function parseCuratedPage(html) {
     }
 
     const descMatch = block.match(/<div class=['"]topicdesc['"]>([\s\S]*?)<\/div>/i);
-    const summary = stripHtmlAndCdata(descMatch ? descMatch[1] : "");
+    const summary = descMatch ? htmlToMarkdown(descMatch[1]) : "";
 
     const timeMatch = block.match(/<time[^>]*datetime=['"]([^'"]+)['"]/i);
     const publishedAt = timeMatch ? new Date(timeMatch[1]).toISOString() : new Date().toISOString();

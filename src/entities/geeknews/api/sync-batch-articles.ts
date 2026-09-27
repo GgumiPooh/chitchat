@@ -31,6 +31,24 @@ function stripHtmlAndCdata(text: string): string {
     .trim();
 }
 
+function htmlToMarkdown(html: string): string {
+  return html
+    .replace(/<!\[CDATA\[(.*?)\]\]>/gs, "$1")
+    .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, "**$1**")
+    .replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, "**$1**")
+    .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, "*$1*")
+    .replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, "*$1*")
+    .replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, "`$1`")
+    .replace(/<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)")
+    .replace(/<[^>]*>?/gm, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
 function normalizeSourceUrl(rawUrl: string | null | undefined, geeknewsId: string): string | null {
   if (!rawUrl) {
     return null;
@@ -88,7 +106,7 @@ async function fetchTopicDetails(geeknewsId: string): Promise<TopicDetails> {
       if (ulMatch) {
         const items = [...ulMatch[1].matchAll(/<li>([\s\S]*?)<\/li>/gi)];
         if (items.length > 0) {
-          summary = items.map((m) => `• ${stripHtmlAndCdata(m[1])}`).join("\n");
+          summary = items.map((m) => `• ${htmlToMarkdown(m[1])}`).join("\n");
         }
       }
     }
@@ -218,7 +236,7 @@ export async function syncBatchArticles(
 
   const rowsToInsert = resolvedCandidates.map((item) => {
     const title = stripHtmlAndCdata(item.title);
-    const summary = stripHtmlAndCdata(item.summary);
+    const summary = htmlToMarkdown(item.summary);
     const publishedAt = new Date(item.publishedAt);
 
     return {

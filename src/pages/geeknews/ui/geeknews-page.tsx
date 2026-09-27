@@ -6,6 +6,7 @@ import {
   cn,
   isBareKey,
   isLetterKey,
+  stripMarkdown,
   useRovingTabIndex,
   useSidePanel,
   type NewsArticleId,
@@ -19,6 +20,7 @@ import {
   EmptyState,
   IconButton,
   LoadMoreSentinel,
+  MarkdownBody,
   RelativeTime,
   Switch,
   toast,
@@ -206,6 +208,14 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
     }
   }, []);
 
+  const handleContentClick = useCallback((e: MouseEvent<HTMLDivElement>) => {
+    const target = (e.target as HTMLElement).closest("a");
+    if (target && !navigator.onLine) {
+      e.preventDefault();
+      toast(OFFLINE_MESSAGES.view);
+    }
+  }, []);
+
   // INFO: Keyboard shortcuts for desktop navigation (REQUIREMENTS.md § 8.14.)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -321,7 +331,9 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                     >
                       {article.title}
                     </h3>
-                    <p className="line-clamp-2 text-body-sm text-meta">{article.summary}</p>
+                    <p className="line-clamp-2 text-body-sm text-meta">
+                      {stripMarkdown(article.summary)}
+                    </p>
                   </button>
                 );
               })}
@@ -423,7 +435,9 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                   >
                     {article.title}
                   </h3>
-                  <p className="line-clamp-2 text-body-sm text-meta">{article.summary}</p>
+                  <p className="line-clamp-2 text-body-sm text-meta">
+                    {stripMarkdown(article.summary)}
+                  </p>
                 </button>
               );
             })}
@@ -476,9 +490,12 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                 {selectedArticle.title}
               </h1>
 
-              <p className="text-body-md leading-relaxed whitespace-pre-line text-body">
-                {selectedArticle.summary}
-              </p>
+              <div onClick={handleContentClick}>
+                <MarkdownBody
+                  className="space-y-xs text-body-md leading-relaxed text-body [&_strong]:font-semibold [&_strong]:text-ink"
+                  text={selectedArticle.summary}
+                />
+              </div>
 
               <div className="flex flex-wrap items-center gap-sm border-t border-hairline pt-md">
                 {selectedArticle.sourceUrl ? (
@@ -543,9 +560,12 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
 
             <h2 className="text-title-md leading-snug font-bold text-ink">{sheetArticle.title}</h2>
 
-            <p className="text-body-md leading-relaxed whitespace-pre-line text-body">
-              {sheetArticle.summary}
-            </p>
+            <div onClick={handleContentClick}>
+              <MarkdownBody
+                className="space-y-xs text-body-md leading-relaxed text-body [&_strong]:font-semibold [&_strong]:text-ink"
+                text={sheetArticle.summary}
+              />
+            </div>
 
             <div className="flex flex-col gap-sm border-t border-hairline pt-md">
               {sheetArticle.sourceUrl ? (

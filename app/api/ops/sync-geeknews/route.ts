@@ -4,6 +4,7 @@ import { syncBatchArticles, type IngestArticleInput } from "@/entities/geeknews"
 import { pushToUser } from "@/entities/push-subscription";
 import { apiError } from "@/shared/api";
 import { geeknewsSubscriptions, getDb } from "@/shared/db";
+import { stripMarkdown } from "@/shared/lib";
 import { isOpsCronConfigured, isOpsCronRequest } from "@/shared/ops";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
         for (const subscriber of subscribers) {
           await pushToUser(subscriber.userId, {
             title: `[GeekNews] ${article.title}`,
-            body: article.summary,
+            body: stripMarkdown(article.summary),
             url: `/playground/news?id=${article.id}`,
             tag: `geeknews-${article.id}`,
           });
