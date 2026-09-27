@@ -2,8 +2,8 @@
   "name": "chitchat-geeknews",
   "main": "worker.js",
   "compatibility_date": "2026-08-24",
-  // INFO: Every two minutes, fetches GeekNews articles (Discord channel or GN⁺ feed) and sends parsed entries in a batch to the app.
-  "triggers": { "crons": ["*/2 * * * *"] },
+  // INFO: Every five minutes, fetches GeekNews articles (Discord channel or GN⁺ feed) and sends parsed entries in a batch to the app.
+  "triggers": { "crons": ["*/5 * * * *"] },
   // INFO: A failed pass surfaces here and nowhere else.
   "observability": { "enabled": true }
 }

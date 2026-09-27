@@ -1,6 +1,6 @@
 # geeknews-worker
 
-Fetches GeekNews articles every 2 minutes and sends them in a single batch POST request to `POST /api/ops/sync-geeknews`.
+Fetches GeekNews articles every 5 minutes and sends them in a single batch POST request to `POST /api/ops/sync-geeknews`.
 
 ## Data Sources
 
