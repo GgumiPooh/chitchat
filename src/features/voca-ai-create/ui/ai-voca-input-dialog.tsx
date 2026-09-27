@@ -35,12 +35,12 @@ export function AiVocaInputDialog({ className, isOpen, onClose }: AiVocaInputDia
     // Fire individual independent background generation requests
     for (const word of rawTokens) {
       void fetch("/api/voca/ai-generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          word,
           contextSentence: rawTokens.length === 1 ? contextSentence.trim() : undefined,
+          word,
         }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
       }).catch((err) => {
         console.error(`[ai-voca] Generation request failed for word: ${word}`, err);
       });
@@ -51,22 +51,25 @@ export function AiVocaInputDialog({ className, isOpen, onClose }: AiVocaInputDia
     <BottomSheet
       className={className}
       isOpen={isOpen}
-      keepsHeightUnderKeyboard
       header={{
         title: "✨ AI 단어 추가",
-        description: "추가하고 싶은 영어 단어를 입력하면 AI가 맞춤형 예문과 발음을 생성해요.",
       }}
       onClose={onClose}
     >
-      <div className="space-y-4 pt-2">
+      <div className="space-y-4 pt-1">
+        {/* Description placed inside scrollable body so it scrolls together */}
+        <p className="text-center text-body-sm whitespace-pre-line text-meta">
+          추가하고 싶은 영어 단어를 입력하면 AI가 맞춤형 예문과 발음을 생성해요.
+        </p>
+
         <div className="space-y-1.5">
           <label className="text-caption font-semibold text-ink">
             단어 입력 (쉼표 또는 줄바꿈으로 여러 개 입력 가능)
           </label>
           <textarea
             className="w-full resize-none rounded-xl border border-hairline bg-surface-soft p-3 text-body-sm text-ink placeholder:text-meta-soft focus:border-primary focus:outline-none"
-            rows={3}
             placeholder="예: deliberate, ephemeral, ubiquitous"
+            rows={3}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
           />
@@ -78,8 +81,8 @@ export function AiVocaInputDialog({ className, isOpen, onClose }: AiVocaInputDia
           </label>
           <textarea
             className="w-full resize-none rounded-xl border border-hairline bg-surface-soft p-3 text-body-sm text-ink placeholder:text-meta-soft focus:border-primary focus:outline-none"
-            rows={2}
             placeholder="단어가 쓰였던 원문 문장을 적어주시면 더 정확한 예문이 만들어져요."
+            rows={2}
             value={contextSentence}
             onChange={(e) => setContextSentence(e.target.value)}
           />
@@ -91,9 +94,9 @@ export function AiVocaInputDialog({ className, isOpen, onClose }: AiVocaInputDia
           </Button>
           <Button
             className="flex-1 gap-1.5"
-            variant="primary"
-            haptic
             disabled={!inputText.trim()}
+            haptic
+            variant="primary"
             onClick={handleSubmit}
           >
             <Sparkles className="h-4 w-4" />
