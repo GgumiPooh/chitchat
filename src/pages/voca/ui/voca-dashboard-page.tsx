@@ -207,7 +207,8 @@ export function VocaDashboardPage({
             </div>
 
             <Button
-              className="w-auto gap-2 self-start px-6 sm:self-auto"
+              className="w-auto shrink-0 self-start sm:self-auto"
+              buttonClassName="rounded-2xl px-5 gap-2"
               variant="primary"
               haptic
               onClick={() => setIsRecommendOpen(true)}
