@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getDb, llmAgents } from "@/shared/db";
+import { type Nullable } from "@/shared/lib";
 import { GoogleGenAI } from "@google/genai";
 import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 
@@ -11,10 +12,12 @@ export type GeneratedVocaCard = {
   pronunciation: string;
   koreanMeaning: string;
   englishDefinition: string;
-  confusable: string | null;
+  confusable: Nullable<string>;
   collocations: string;
-  wordFamily: string | null;
+  wordFamily: Nullable<string>;
   examples: string[];
+  category?: Nullable<string>;
+  grade?: Nullable<"essential" | "core" | "killer">;
 };
 
 function isRateLimitError(error: unknown): boolean {
@@ -35,6 +38,8 @@ Follow these rules strictly:
 8. Collocations: 2-3 high-frequency natural collocations separated by " · ".
 9. Word Family: related forms (e.g. "n. deliberation · adv. deliberately"), or null if none.
 10. Examples: exactly 3 distinct example sentences showing different registers or contexts. In each example, wrap the target word in <b>...</b> tags. Return as an array of 3 strings.
+11. Category: the primary theme/domain (e.g. "일상 회화", "비즈니스", "IT/기술", "학술/시사", "토익", "수능", etc.). Natural Korean concise string.
+12. Grade: difficulty and frequency grade for Korean learners, exactly one of: "essential" (elementary/fundamental), "core" (intermediate/essential for exams & daily work), "killer" (advanced/challenging/distinguishing).
 
 Return the result as a strict JSON object with fields:
 {
@@ -47,7 +52,9 @@ Return the result as a strict JSON object with fields:
   "confusable": string | null,
   "collocations": string,
   "wordFamily": string | null,
-  "examples": string[]
+  "examples": string[],
+  "category": string,
+  "grade": "essential" | "core" | "killer"
 }`;
 
 export async function generateVocaCard(
@@ -131,6 +138,11 @@ export async function generateVocaCard(
                   `Another sentence with <b>${cleanWord}</b>.`,
                   `Third instance of <b>${cleanWord}</b>.`,
                 ],
+          category: parsed.category?.trim() || null,
+          grade:
+            parsed.grade === "essential" || parsed.grade === "core" || parsed.grade === "killer"
+              ? parsed.grade
+              : null,
         };
       }
     } catch (error) {

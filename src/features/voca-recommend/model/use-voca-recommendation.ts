@@ -118,11 +118,17 @@ export function useVocaRecommendation({
     const wordKey = item.targetWord.toLowerCase();
     setGenerationStatuses((prev) => ({ ...prev, [wordKey]: "loading" }));
 
+    const effectiveCategory =
+      isCustomInputOpen && customTopic.trim() ? customTopic.trim() : tag !== "전체" ? tag : "";
+    const tagParts = [effectiveCategory, grade].filter(Boolean);
+    const tags = tagParts.length > 0 ? tagParts.join(",") : undefined;
+
     try {
       const res = await fetch("/api/voca/ai-generate", {
         body: JSON.stringify({
           mode: "sync",
           word: item.targetWord,
+          tags,
         }),
         headers: { "Content-Type": "application/json" },
         method: "POST",

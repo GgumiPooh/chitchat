@@ -54,6 +54,7 @@ export async function listVocaCards({
         ilike(vocaCards.targetWord, pattern),
         ilike(vocaCards.koreanMeaning, pattern),
         ilike(vocaCards.sentence, pattern),
+        ilike(vocaCards.tags, pattern),
       )!,
     );
   }

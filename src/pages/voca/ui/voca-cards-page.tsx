@@ -173,7 +173,7 @@ export function VocaCardsPage({
         <input
           className="w-full rounded-xl border border-hairline bg-surface-soft py-2.5 pr-4 pl-9 text-body-sm text-ink placeholder:text-meta-soft focus:border-primary focus:outline-none"
           type="text"
-          placeholder="단어, 뜻, 문장 검색..."
+          placeholder="단어, 뜻, 문장, 태그 검색..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
