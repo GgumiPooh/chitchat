@@ -2,6 +2,7 @@
 
 import type { VocaCard } from "@/entities/voca";
 import {
+  A_SECOND,
   cleanSentenceForSpeech,
   cn,
   isValidAudioUrl,
@@ -10,8 +11,8 @@ import {
   type VocaCardId,
 } from "@/shared/lib";
 import { Button, VocaAudioButton } from "@/shared/ui";
-import { Ban, Check, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Ban, Check, RotateCw, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 export type VocaInlineEditorProps = {
@@ -20,6 +21,43 @@ export type VocaInlineEditorProps = {
   onSave: (updated: VocaCard) => void;
   onDelete: (id: VocaCardId) => void;
 };
+
+type VocaCardDraft = {
+  targetWord: string;
+  pos: string;
+  pronunciation: string;
+  koreanMeaning: string;
+  englishDefinition: string;
+  sentence: string;
+  confusable: string;
+  collocations: string;
+  wordFamily: string;
+  examples: string;
+  tags: string;
+  suspended: boolean;
+};
+
+const AUTO_SAVE_DEBOUNCE = A_SECOND / 2;
+
+function serializeCardDraft(draft: VocaCardDraft): string {
+  return JSON.stringify({
+    targetWord: draft.targetWord,
+    pos: draft.pos,
+    pronunciation: draft.pronunciation,
+    koreanMeaning: draft.koreanMeaning,
+    englishDefinition: draft.englishDefinition,
+    sentence: draft.sentence,
+    confusable: draft.confusable.trim() || null,
+    collocations: draft.collocations,
+    wordFamily: draft.wordFamily.trim() || null,
+    examples: draft.examples
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0),
+    tags: draft.tags.trim() || null,
+    suspended: draft.suspended,
+  });
+}
 
 function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineEditorProps) {
   const [targetWord, setTargetWord] = useState(card.targetWord);
@@ -35,11 +73,191 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
   const [tags, setTags] = useState(card.tags ?? "");
   const [suspended, setSuspended] = useState(card.suspended);
 
-  const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   const [activeTrack, setActiveTrack] = useState<"word" | "sentence" | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const isMountedRef = useRef(true);
+  const isSavingRef = useRef(false);
+  const pendingSaveRef = useRef(false);
+  const isInitialMount = useRef(true);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const saveStatusTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const currentDraft: VocaCardDraft = useMemo(
+    () => ({
+      targetWord,
+      pos,
+      pronunciation,
+      koreanMeaning,
+      englishDefinition,
+      sentence,
+      confusable,
+      collocations,
+      wordFamily,
+      examples,
+      tags,
+      suspended,
+    }),
+    [
+      targetWord,
+      pos,
+      pronunciation,
+      koreanMeaning,
+      englishDefinition,
+      sentence,
+      confusable,
+      collocations,
+      wordFamily,
+      examples,
+      tags,
+      suspended,
+    ],
+  );
+
+  const currentDraftRef = useRef(currentDraft);
+
+  const lastSavedPayloadRef = useRef<string>(
+    serializeCardDraft({
+      targetWord: card.targetWord,
+      pos: card.pos,
+      pronunciation: card.pronunciation,
+      koreanMeaning: card.koreanMeaning,
+      englishDefinition: card.englishDefinition,
+      sentence: card.sentence,
+      confusable: card.confusable ?? "",
+      collocations: card.collocations,
+      wordFamily: card.wordFamily ?? "",
+      examples: card.examples.join("\n"),
+      tags: card.tags ?? "",
+      suspended: card.suspended,
+    }),
+  );
+
+  const performSave = useCallback(async () => {
+    const draft = currentDraftRef.current;
+    const payloadString = serializeCardDraft(draft);
+
+    if (payloadString === lastSavedPayloadRef.current) {
+      return;
+    }
+
+    if (isSavingRef.current) {
+      pendingSaveRef.current = true;
+      return;
+    }
+
+    isSavingRef.current = true;
+    pendingSaveRef.current = false;
+    if (isMountedRef.current) {
+      setSaveStatus("saving");
+    }
+
+    try {
+      const parsedExamples = draft.examples
+        .split("\n")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+
+      const res = await fetch(`/api/voca/cards/${card.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetWord: draft.targetWord,
+          pos: draft.pos,
+          pronunciation: draft.pronunciation,
+          koreanMeaning: draft.koreanMeaning,
+          englishDefinition: draft.englishDefinition,
+          sentence: draft.sentence,
+          confusable: draft.confusable.trim() || null,
+          collocations: draft.collocations,
+          wordFamily: draft.wordFamily.trim() || null,
+          examples: parsedExamples,
+          tags: draft.tags.trim() || null,
+          suspended: draft.suspended,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Save failed");
+      }
+
+      const data = await res.json();
+      lastSavedPayloadRef.current = payloadString;
+      if (isMountedRef.current) {
+        setSaveStatus("saved");
+        if (saveStatusTimerRef.current) {
+          clearTimeout(saveStatusTimerRef.current);
+        }
+        saveStatusTimerRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            setSaveStatus((prev) => (prev === "saved" ? "idle" : prev));
+          }
+        }, 1500);
+      }
+      onSave(data.card);
+    } catch (err) {
+      console.error(err);
+      if (isMountedRef.current) {
+        setSaveStatus("error");
+      }
+      toast.error("변경사항을 저장하지 못했어요.");
+    } finally {
+      isSavingRef.current = false;
+      const latestPayload = serializeCardDraft(currentDraftRef.current);
+      if (pendingSaveRef.current || latestPayload !== lastSavedPayloadRef.current) {
+        pendingSaveRef.current = false;
+        void performSave();
+      }
+    }
+  }, [card.id, onSave]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      if (saveStatusTimerRef.current) {
+        clearTimeout(saveStatusTimerRef.current);
+        saveStatusTimerRef.current = null;
+      }
+      if (serializeCardDraft(currentDraftRef.current) !== lastSavedPayloadRef.current) {
+        void performSave();
+      }
+    };
+  }, [performSave]);
+
+  useEffect(() => {
+    currentDraftRef.current = currentDraft;
+
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    if (serializeCardDraft(currentDraft) === lastSavedPayloadRef.current) {
+      return;
+    }
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      void performSave();
+    }, AUTO_SAVE_DEBOUNCE);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [currentDraft, performSave]);
 
   const stopAllAudio = useCallback(() => {
     if (audioRef.current) {
@@ -157,52 +375,16 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
     }
   };
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      const parsedExamples = examples
-        .split("\n")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-
-      const res = await fetch(`/api/voca/cards/${card.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          targetWord,
-          pos,
-          pronunciation,
-          koreanMeaning,
-          englishDefinition,
-          sentence,
-          confusable: confusable.trim() || null,
-          collocations,
-          wordFamily: wordFamily.trim() || null,
-          examples: parsedExamples,
-          tags: tags.trim() || null,
-          suspended,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Save failed");
-      }
-
-      const data = await res.json();
-      toast.success("카드를 저장했어요.");
-      onSave(data.card);
-    } catch (err) {
-      console.error(err);
-      toast.error("저장에 실패했어요.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleDelete = async () => {
     if (!confirm("정말 이 단어 카드를 삭제할까요?")) {
       return;
     }
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    lastSavedPayloadRef.current = serializeCardDraft(currentDraftRef.current);
 
     stopAllAudio();
     setIsDeleting(true);
@@ -222,9 +404,26 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
   };
 
   return (
-    <div className={cn("flex flex-col space-y-4 p-4", className)}>
+    <div className={cn("flex flex-col space-y-4 p-4 pb-6", className)}>
       <div className="flex items-center justify-between border-b border-hairline pb-3">
-        <h3 className="text-title-sm font-bold text-ink">단어 카드 편집</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-title-sm font-bold text-ink">단어 카드 편집</h3>
+          {saveStatus === "saving" && (
+            <span className="flex items-center gap-1 text-caption text-meta">
+              <RotateCw className="h-3 w-3 animate-spin text-primary" />
+              저장 중...
+            </span>
+          )}
+          {saveStatus === "saved" && (
+            <span className="flex items-center gap-1 text-caption text-meta-soft">
+              <Check className="h-3 w-3 text-semantic-success" />
+              저장됨
+            </span>
+          )}
+          {saveStatus === "error" && (
+            <span className="text-caption text-semantic-warning">저장 실패</span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Button
             className={cn(
@@ -253,11 +452,11 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
           <div className="flex h-7 items-center justify-between">
             <label className="text-caption font-semibold text-meta">단어</label>
             <VocaAudioButton
-              audioUrl={targetWord.trim() === card.targetWord.trim() ? card.audioUrl : null}
               isPlaying={activeTrack === "word"}
               label={`${targetWord || "단어"} 발음 듣기`}
               size="sm"
               textToSpeak={targetWord.trim()}
+              audioUrl={targetWord.trim() === card.targetWord.trim() ? card.audioUrl : null}
               onTogglePlay={handleToggleWord}
             />
           </div>
@@ -380,19 +579,6 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
           value={tags}
           onChange={(e) => setTags(e.target.value)}
         />
-      </div>
-
-      <div className="pt-2">
-        <Button
-          className="w-full gap-1.5"
-          disabled={isSaving}
-          haptic
-          variant="primary"
-          onClick={handleSave}
-        >
-          <Check className="h-4 w-4" />
-          변경사항 저장
-        </Button>
       </div>
     </div>
   );
