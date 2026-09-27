@@ -52,11 +52,12 @@ export function AiVocaInputDialog({ className, isOpen, onClose }: AiVocaInputDia
       className={className}
       isOpen={isOpen}
       header={{
+        className: "-mb-1.5",
         title: "✨ AI 단어 추가",
       }}
       onClose={onClose}
     >
-      <div className="space-y-4 pt-1">
+      <div className="space-y-3 pb-2">
         {/* Description placed inside scrollable body so it scrolls together */}
         <p className="text-center text-body-sm whitespace-pre-line text-meta">
           추가하고 싶은 영어 단어를 입력하면 AI가 맞춤형 예문과 발음을 생성해요.

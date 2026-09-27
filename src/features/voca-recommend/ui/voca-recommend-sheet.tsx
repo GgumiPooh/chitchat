@@ -57,11 +57,12 @@ export function VocaRecommendSheet({
       isOpen={isOpen}
       isTall
       header={{
+        className: "-mb-1.5",
         title: "✨ AI 맞춤 단어 추천",
       }}
       onClose={handleClose}
     >
-      <div className="space-y-4 pt-1 pb-6">
+      <div className="space-y-3 pb-6">
         <p className="text-center text-body-sm whitespace-pre-line text-meta">
           시험 및 난이도별로 엄선된 새로운 단어를 추천해드려요.
         </p>
