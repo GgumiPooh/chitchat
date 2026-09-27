@@ -92,7 +92,7 @@ export const VISUAL_KINDS = ["image", "video"] as const satisfies readonly Media
  * route signs. `shared/storage`'s `StorageScope` is this list; it is declared here
  * rather than there so the browser can read it.
  */
-export const MEDIA_SCOPES = ["chat", "avatar", "background", "emoticon", "voca"] as const;
+export const MEDIA_SCOPES = ["chat", "avatar", "background", "emoticon", "voca", "letter"] as const;
 
 export type MediaScope = (typeof MEDIA_SCOPES)[number];
 
@@ -173,6 +173,7 @@ export const MEDIA_UPLOAD_SCOPES = [
   "chat",
   "avatar",
   "background",
+  "letter",
 ] as const satisfies readonly MediaScope[];
 
 export type MediaUploadScope = (typeof MEDIA_UPLOAD_SCOPES)[number];

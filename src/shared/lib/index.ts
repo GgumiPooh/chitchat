@@ -234,6 +234,7 @@ export {
   type SessionId,
   type SnowflakeId,
   type StorageObjectId,
+  type TimeLetterId,
   type UserId,
   type VocaCardId,
   type VocaReviewId,

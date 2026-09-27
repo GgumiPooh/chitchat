@@ -23,6 +23,7 @@ import { MirrorChat } from "./mirror-chat";
 import { MirrorFallback } from "./mirror-fallback";
 import { MirrorNotice } from "./mirror-notice";
 import { MirrorSettings } from "./mirror-settings";
+import { MirrorTimeLetters } from "./mirror-time-letters";
 import { MirrorVoca } from "./mirror-voca";
 
 export type OfflineMirrorPageProps = {
@@ -105,6 +106,9 @@ export function OfflineMirrorPage({ className }: OfflineMirrorPageProps) {
     }
     if (current === "voca") {
       return <MirrorVoca />;
+    }
+    if (current === "letters") {
+      return <MirrorTimeLetters />;
     }
     if (current === "playground" || current === "news") {
       return <MirrorNotice />;

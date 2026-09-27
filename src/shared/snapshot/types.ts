@@ -12,7 +12,8 @@ export type SnapshotKey =
   | "shell"
   | "outbox"
   | "voca"
-  | "voca-outbox";
+  | "voca-outbox"
+  | "time-letters";
 
 export type VocaReviewOutboxEntry = {
   cardId: VocaCardId;

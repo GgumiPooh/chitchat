@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { MediaScope } from "@/shared/config";
 import { nextSnowflake } from "@/shared/db";
 import type { StorageObjectId, UserId } from "@/shared/lib";
 
@@ -7,7 +8,7 @@ import type { StorageObjectId, UserId } from "@/shared/lib";
 const THUMB_SUFFIX = "_thumb";
 
 /** Which part of the app an object belongs to. The first path segment of every key. */
-export type StorageScope = "chat" | "avatar" | "emoticon" | "background" | "voca";
+export type StorageScope = MediaScope;
 
 /**
  * WARN: The key is chosen here and never taken from the client. A presigned PUT

@@ -37,6 +37,7 @@ const MIRRORED_PATHS = [
   "/playground",
   "/playground/news",
   "/playground/voca",
+  "/playground/letters",
   "/settings",
 ];
 

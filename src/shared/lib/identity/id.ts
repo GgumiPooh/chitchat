@@ -53,6 +53,8 @@ export type VocaCardId = Id<"VocaCardId">;
 
 export type VocaReviewId = Id<"VocaReviewId">;
 
+export type TimeLetterId = Id<"TimeLetterId">;
+
 /**
  * The last segment of an R2 key (REQUIREMENTS.md § 9.). Not a row id — no table has
  * a column of it — but the app mints it and it shares the generator, so it shares
@@ -74,7 +76,8 @@ export type SnowflakeId =
   | StorageObjectId
   | NewsArticleId
   | VocaCardId
-  | VocaReviewId;
+  | VocaReviewId
+  | TimeLetterId;
 
 // INFO: Up to 19 digits is `2^63 - 1`; the leading class excludes `0`, so no caller can pass a padded or empty segment.
 export const SNOWFLAKE_PATTERN = /^[1-9]\d{0,18}$/;

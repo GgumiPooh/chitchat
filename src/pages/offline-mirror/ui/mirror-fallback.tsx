@@ -66,6 +66,11 @@ const FRAMES: Record<MirrorScreen, Frame> = {
     variant: "rows",
     containerClassName: "pt-[calc(var(--app-header-inset)+var(--spacing-md))]",
   },
+  letters: {
+    title: "타임머신 편지",
+    variant: "rows",
+    containerClassName: "pt-[calc(var(--app-header-inset)+var(--spacing-md))]",
+  },
   settings: {
     title: "설정",
     variant: "rows",

@@ -32,6 +32,7 @@ export const systemActionEnum = pgEnum("system_action", [
   // INFO: The AI's answer to a question asked in chat. `sender_id` stays the asker — this is the one system action with a real actor.
   "assistant_reply",
   "voca_completed",
+  "time_letter_delivered",
 ]);
 
 // INFO: REQUIREMENTS.md § 6. Append-only — marking messages read moves `users.last_read_at`, never a row here.
@@ -104,15 +105,18 @@ export const messages = pgTable(
           OR
           ("system_action"::text = 'voca_completed' AND "text" IS NOT NULL AND "event_id" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL AND "llm_provider" IS NULL AND "llm_model" IS NULL)
           OR
-          ("system_action" IS NOT NULL AND "system_action"::text NOT IN ('assistant_reply', 'voca_completed') AND "text" IS NULL AND "event_title" IS NOT NULL AND "event_starts_at" IS NOT NULL AND "llm_provider" IS NULL AND "llm_model" IS NULL)
+          ("system_action"::text = 'time_letter_delivered' AND "text" IS NOT NULL AND "event_id" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL AND "llm_provider" IS NULL AND "llm_model" IS NULL)
+          OR
+          ("system_action" IS NOT NULL AND "system_action"::text NOT IN ('assistant_reply', 'voca_completed', 'time_letter_delivered') AND "text" IS NULL AND "event_title" IS NOT NULL AND "event_starts_at" IS NOT NULL AND "llm_provider" IS NULL AND "llm_model" IS NULL)
         )
       END`,
     ),
     // INFO: REQUIREMENTS.md § 8.10. A system notice is timeline furniture rather than someone speaking (DESIGN.md § 6.5.), so nothing may quote from it. Its own column is left out of the CASE above deliberately — `reply_to_id` is legal on all three of the other types, so folding it in would have meant restating each branch.
     // INFO: REQUIREMENTS.md § 8.15. An `assistant_reply` is the one system row that quotes — it points at the question it answers, which is what `DESIGN.md § 6.11.` draws in its bubble.
+    // INFO: time_letter_delivered is also allowed to be quoted so users can send a quote reply to a delivered letter.
     check(
       "messages_system_no_reply_check",
-      sql`"type" <> 'system' OR "system_action"::text = 'assistant_reply' OR "reply_to_id" IS NULL`,
+      sql`"type" <> 'system' OR "system_action"::text IN ('assistant_reply', 'time_letter_delivered') OR "reply_to_id" IS NULL`,
     ),
     // INFO: REQUIREMENTS.md § 8.13. Only text is editable — an attachment and an emoticon carry no prose to correct, and a system notice is timeline furniture (DESIGN.md § 6.5.).
     check("messages_edited_is_text_check", sql`"edited_at" IS NULL OR "type" = 'text'`),

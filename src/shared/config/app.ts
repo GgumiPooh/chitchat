@@ -148,6 +148,11 @@ export const VOCA_REVIEW_ROUTE = "/playground/voca/review";
 export const VOCA_CARDS_ROUTE = "/playground/voca/cards";
 export const VOCA_SETTINGS_ROUTE = "/playground/voca/settings";
 
+export const TIME_LETTERS_ROUTE = "/playground/letters";
+export const TIME_LETTERS_PATH = "/api/time-letters";
+export const TIME_LETTER_ACTION_PARAM = "action";
+export const TIME_LETTER_ACTION_NEW = "new";
+
 /** REQUIREMENTS.md § 17.5. Deep-link action to automatically open the AI word input dialog. */
 export const VOCA_ACTION_PARAM = "action";
 export const VOCA_ACTION_ADD = "add-word";
@@ -631,6 +636,7 @@ export const MIRRORED_ROUTES = [
   PLAYGROUND_ROUTE,
   GEEKNEWS_ROUTE,
   VOCA_ROUTE,
+  TIME_LETTERS_ROUTE,
   SETTINGS_ROUTE,
 ] as const;
 

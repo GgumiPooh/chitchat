@@ -2413,3 +2413,37 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
 - **Real-time Spinner & Progress Feedback**: Per-word `[생성하기]` button switches to an animated circular spinner (`RotateCw`) during synthesis, updating synchronously to `[✓ 추가됨]` upon card and audio creation.
 - **Transactional Push Notifications**: Sends immediate push notifications on both completion (`josa(word, "이/가") + " 카드가 추가되었어요."`) and failure (`josa(word, "을/를") + " 생성하지 못했어요. 다시 시도해주세요."`).
 - **Responsive BottomSheet & Dashboard Section**: Integrated as a dedicated recommendation card beneath the heatmap on `VocaDashboardPage` and header action on `VocaCardsPage`, presenting a native mobile drawer and desktop dialog via `BottomSheet`.
+
+# 18. Time Machine Letters (타임머신 편지)
+
+## 18.1. Time-Letter Compose (`time-letter-compose`)
+
+- **Responsive Surface**: Uses `BottomSheet` on mobile and `DialogShell` (`size="lg"`) on desktop with a flat props API (`isOpen`, `onClose`, `onSuccess`).
+- **Theme Selection**: 4 parchment themes ('classic', 'romantic', 'midnight', 'kraft') selectable via `Chip` with `haptic`.
+- **Date & Time Scheduling**:
+  - Quick Presets: '내일 아침 8시', '100일 뒤', '1년 뒤 오늘' via `Chip` with `haptic`.
+  - Custom Date & Time pickers with validation guaranteeing at least 10 minutes in the future.
+- **Recipient & Teaser Controls**:
+  - Recipient mode selection ('상대방에게', '우리 둘 모두에게', '나에게만') with `Chip` and `haptic`.
+  - '상대방에게 D-Day 카운트다운 보여주기' teaser toggle switch (`Switch` with `haptic`).
+- **Content & Attachments**:
+  - Optional title input and required multi-line content textarea (up to 5,000 characters with real-time character counter).
+  - Media attachment uploader supporting up to 10 photos/videos with client-side preview and blurhash generation, thumbnail badges, and individual remove triggers.
+- **Draft Auto-Save & Restoration**:
+  - Debounced 500ms auto-save to `localStorage` under `jandh:draft:time-letter`.
+  - Restoration prompt on open with `[불러오기]` and `[삭제]` options.
+- **Sealing Interaction**:
+  - `[편지 봉인하기]` action button with `haptic`.
+  - 3D envelope folding transition and physical wax seal stamp animation with visual ripple and tactile vibration feedback.
+
+## 18.2. Time-Letter Viewer (`time-letter-viewer`)
+
+- **Responsive Surface**: Uses `BottomSheet` on mobile and `DialogShell` on desktop with a flat props API.
+- **Wax Seal Unboxing Experience**: Interactive wax seal breaking animation where the seal fractures, envelope flap unfolds, and the letter unfurls with haptic vibration. Includes a '봉인 다시 보기' re-seal action.
+- **Letter Rendering**:
+  - Theme-specific parchment styling using semantic tokens (`canvas`, `surface-soft`, `surface-soft-private`, `primary-tint`, `hairline-strong`).
+  - Header badge: `📮 타임머신 편지 • {작성일}에 묻어둠`.
+  - Prominent title and arrival timestamp stamp.
+  - Multi-line letter body preserving line breaks and full emoji support.
+  - Photo gallery grid integrating with `MediaViewer` for full-screen zoom and inspection.
+- **Chat Reply Action**: Bottom action button `[{partner}에게 답장 보내기]` triggering `onReply(letter)` to quote reply directly in the chat room.

@@ -1052,6 +1052,21 @@ export function ChatRoom({
           return `${actor}님이 영단어 ${count}개 학습을 마쳤어요! 👏`;
         }
 
+        if (message.systemAction === "time_letter_delivered") {
+          const actor = participantById.get(message.senderId)?.name ?? "파트너";
+          let title = "";
+          try {
+            if (message.text) {
+              const parsed = JSON.parse(message.text) as { title?: string };
+              title = parsed.title ?? "";
+            }
+          } catch {
+            // fallback
+          }
+          const titleSnippet = title ? ` · ${title}` : "";
+          return `💌 ${actor}님이 보낸 타임머신 편지가 도착했어요!${titleSnippet}`;
+        }
+
         return composeEventNotice(
           message.systemAction,
           message.eventTitle,

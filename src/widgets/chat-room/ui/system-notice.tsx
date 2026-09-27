@@ -1,6 +1,11 @@
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE, VOCA_ROUTE } from "@/shared/config";
+import {
+  CALENDAR_DAY_PARAM,
+  CALENDAR_ROUTE,
+  TIME_LETTERS_ROUTE,
+  VOCA_ROUTE,
+} from "@/shared/config";
 import { cn, composeEventNotice, toDayKey, type Optional } from "@/shared/lib";
 import { Link } from "@/shared/ui";
 
@@ -25,6 +30,33 @@ export function SystemNotice({ className, message, sender, onOpenEvent }: System
     return (
       <div className={cn("flex justify-center px-md py-sm", className)}>
         <Link className={pillClassName} href={VOCA_ROUTE}>
+          {notice}
+        </Link>
+      </div>
+    );
+  }
+
+  if (message.systemAction === "time_letter_delivered") {
+    const actor = sender?.name ?? "파트너";
+    let letterId = "";
+    let title = "";
+    try {
+      if (message.text) {
+        const parsed = JSON.parse(message.text) as { letterId?: string; title?: string };
+        letterId = parsed.letterId ?? "";
+        title = parsed.title ?? "";
+      }
+    } catch {
+      letterId = message.text ?? "";
+    }
+
+    const titleSnippet = title ? ` · ${title}` : "";
+    const notice = `💌 ${actor}님이 보낸 타임머신 편지가 도착했어요!${titleSnippet}`;
+    const href = letterId ? `${TIME_LETTERS_ROUTE}?id=${letterId}` : TIME_LETTERS_ROUTE;
+
+    return (
+      <div className={cn("flex justify-center px-md py-sm", className)}>
+        <Link className={pillClassName} href={href}>
           {notice}
         </Link>
       </div>

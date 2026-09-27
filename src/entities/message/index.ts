@@ -17,6 +17,10 @@ export {
 export { createSystemMessage, type CreateSystemMessageParams } from "./api/create-system-message";
 export { createTextMessage, type CreateTextMessageParams } from "./api/create-text-message";
 export {
+  createTimeLetterMessage,
+  type CreateTimeLetterMessageParams,
+} from "./api/create-time-letter-message";
+export {
   createVocaCompletionMessage,
   type CreateVocaCompletionMessageParams,
 } from "./api/create-voca-completion-message";
